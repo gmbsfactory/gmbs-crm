@@ -1,13 +1,13 @@
-
-- fetch data from gmbs drive
-
-- importer données depuis Sheets GMBS 
-        Créer bouton pour raffraichissement BDD
-
-- faire spec script d'export quelles données on allait exportées
+- implémenter les raccourcis clics sur la page dashboard 
+                Mes Artisans --> page artisan, Mes Interventions  --> page intervention
 
 - faire une analyse des prix, analyse de la concurrence
 
+- harmoniser le calcul des données avec la page Dashboard
+
+- bouton import export Sheets <-> CRM
+
+- voir le coût vs le gain de migrer les appels côté serveur avec des edge function
 
 - npx tsx scripts/geocode-artisans.ts à ajouter dans le package.json
 

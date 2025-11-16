@@ -107,7 +107,36 @@ export const findOrCreateUser = async (name: string): Promise<FindOrCreateResult
 
   // Si il n'existe pas, le créer
   const username = normalizedName.toLowerCase().replace(/[^a-z0-9]/g, '');
-  const code = normalizedName.substring(0, 1).toUpperCase();
+  
+  // Générer un code gestionnaire unique
+  // Utiliser la première lettre du nom, puis chercher un code disponible
+  let code = normalizedName.substring(0, 1).toUpperCase();
+  let codeCounter = 1;
+  
+  // Vérifier si le code existe déjà
+  const { data: existingCode } = await supabase
+    .from('users')
+    .select('id')
+    .eq('code_gestionnaire', code)
+    .single();
+  
+  // Si le code existe, essayer avec un numéro
+  if (existingCode) {
+    while (true) {
+      const testCode = `${code}${codeCounter}`;
+      const { data: testExisting } = await supabase
+        .from('users')
+        .select('id')
+        .eq('code_gestionnaire', testCode)
+        .single();
+      
+      if (!testExisting) {
+        code = testCode;
+        break;
+      }
+      codeCounter++;
+    }
+  }
   
   const { data: created, error: createError } = await supabase
     .from('users')
@@ -121,6 +150,29 @@ export const findOrCreateUser = async (name: string): Promise<FindOrCreateResult
     .single();
 
   if (createError) {
+    // Si erreur de duplicate key, refaire une recherche par code_gestionnaire
+    if (createError.message.includes('duplicate key')) {
+      const { data: retry } = await supabase
+        .from('users')
+        .select('id')
+        .eq('code_gestionnaire', code)
+        .single();
+      
+      if (retry) {
+        return { id: retry.id, created: false };
+      }
+      
+      // Si toujours pas trouvé, essayer de chercher par username
+      const { data: retryByUsername } = await supabase
+        .from('users')
+        .select('id')
+        .eq('username', username)
+        .single();
+      
+      if (retryByUsername) {
+        return { id: retryByUsername.id, created: false };
+      }
+    }
     throw new Error(`Erreur lors de la création de l'utilisateur: ${createError.message}`);
   }
 

@@ -5,7 +5,7 @@ import { usePathname, useRouter } from "next/navigation"
 import { useEffect, useState, useRef } from "react"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { cn } from "@/lib/utils"
-import { supabase } from "@/lib/supabase-client"
+import { useUserRoles } from "@/hooks/useUserRoles"
 
 const ALL_TABS = [
   { key: "profile", label: "Profile", requiresRole: null },
@@ -22,50 +22,25 @@ export default function SettingsNav() {
   const pathSegment = pathname?.split("/")[2] ?? "profile"
   const active = pathSegment === "targets" ? "targets" : pathSegment
   const [isVisible, setIsVisible] = useState(true)
-  const [userRoles, setUserRoles] = useState<string[]>([])
-  const [rolesLoading, setRolesLoading] = useState(true)
   const lastScrollYRef = useRef(0)
   const scrollContainerRef = useRef<HTMLElement | null>(null)
   const tickingRef = useRef(false)
   const scrollDirectionRef = useRef<'up' | 'down' | null>(null)
 
-  // Charger les rôles de l'utilisateur
-  useEffect(() => {
-    const loadUserRoles = async () => {
-      try {
-        setRolesLoading(true)
-        const { data: session } = await supabase.auth.getSession()
-        const token = session?.session?.access_token
-        const res = await fetch("/api/auth/me", {
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
-        })
-        const json = await res.json()
-        const user = json?.user || null
-        if (user) {
-          setUserRoles(user.roles || [])
-        }
-      } catch (error) {
-        console.error("Erreur lors du chargement des rôles:", error)
-      } finally {
-        setRolesLoading(false)
-      }
-    }
-    loadUserRoles()
-  }, [])
+  // Utiliser le hook centralisé pour les rôles
+  const { hasRole, hasAnyRole, isLoading: rolesLoading } = useUserRoles()
 
   // Filtrer les onglets selon les permissions
   const visibleTabs = ALL_TABS.filter((tab) => {
     if (!tab.requiresRole) return true // Onglets accessibles à tous
     if (rolesLoading) return false // Masquer les onglets restreints pendant le chargement
     
-    const userRolesLower = userRoles.map((r) => (r || "").toLowerCase().trim())
-    
     if (Array.isArray(tab.requiresRole)) {
       // Pour les onglets nécessitant plusieurs rôles (OR)
-      return tab.requiresRole.some((role) => userRolesLower.includes(role.toLowerCase()))
+      return hasAnyRole(tab.requiresRole)
     } else {
       // Pour les onglets nécessitant un seul rôle
-      return userRolesLower.includes(tab.requiresRole.toLowerCase())
+      return hasRole(tab.requiresRole)
     }
   })
 

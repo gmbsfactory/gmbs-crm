@@ -14,6 +14,7 @@ interface CurrentUser {
   surnom?: string | null
   color?: string | null
   status?: string | null
+  roles?: string[]
 }
 
 export function useCurrentUser(options?: { enabled?: boolean }) {

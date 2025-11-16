@@ -53,13 +53,10 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
       (userError as Error)?.message?.includes('Unauthorized')
     )
     
-    // IMPORTANT: Ne rediriger QUE sur erreur d'authentification explicite (401)
-    // Ne PAS rediriger si currentUser est null sans erreur 401, car :
-    // - Le middleware a déjà vérifié le token côté serveur
-    // - Si le token est valide mais l'utilisateur n'existe pas dans la table users,
-    //   /api/auth/me retourne { user: null } sans erreur 401
-    // - Dans ce cas, on doit afficher le contenu quand même (le token est valide)
-    const shouldRedirect = isUnauthorized && pathname !== '/login'
+    // Rediriger si :
+    // 1. Erreur d'authentification explicite (401), OU
+    // 2. Pas d'utilisateur après le chargement (utilisateur non connecté)
+    const shouldRedirect = (isUnauthorized || !currentUser) && pathname !== '/login'
     
     if (shouldRedirect) {
       hasRedirected.current = true
@@ -91,14 +88,14 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
     )
   }
 
-  // Si pas d'utilisateur mais pas d'erreur 401, afficher quand même le contenu
-  // Le middleware a déjà vérifié le token, donc l'utilisateur est authentifié
-  // même s'il n'existe pas encore dans la table users (peut arriver lors de la première connexion)
-  // Ne pas bloquer l'accès dans ce cas pour éviter les boucles de redirection
-  if (!currentUser && !isLoadingUser && !userError) {
-    // Afficher le contenu même si l'utilisateur n'est pas dans la table users
-    // Les pages pourront gérer ce cas si nécessaire
-    return <>{children}</>
+  // Si pas d'utilisateur, rediriger (géré par useEffect)
+  // Afficher un loader pendant la redirection
+  if (!currentUser) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-muted-foreground">Redirection...</div>
+      </div>
+    )
   }
 
   // Si erreur d'authentification (401), rediriger (géré par useEffect)

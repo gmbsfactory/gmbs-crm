@@ -1595,6 +1595,70 @@ serve(async (req: Request) => {
     if (req.method === 'PUT' && resourceId && resource === 'interventions') {
       const body: UpdateInterventionRequest = await req.json();
 
+      // Récupérer l'intervention actuelle pour avoir le statut précédent
+      const { data: currentIntervention, error: fetchError } = await supabase
+        .from('interventions')
+        .select('statut_id')
+        .eq('id', resourceId)
+        .single();
+
+      if (fetchError && fetchError.code !== 'PGRST116') {
+        throw new Error(`Failed to fetch current intervention: ${fetchError.message}`);
+      }
+
+      const oldStatutId = currentIntervention?.statut_id || null;
+
+      // Si le statut change, enregistrer la transition AVANT la mise à jour
+      if (body.statut_id && oldStatutId !== body.statut_id) {
+        try {
+          // Récupérer l'utilisateur depuis le token JWT
+          const authHeader = req.headers.get('authorization');
+          let userId: string | null = null;
+
+          if (authHeader) {
+            const token = authHeader.replace('Bearer ', '');
+            const { data: { user } } = await supabase.auth.getUser(token);
+            userId = user?.id || null;
+          }
+
+          // Enregistrer la transition explicitement via la fonction SQL
+          const { error: transitionError } = await supabase.rpc(
+            'log_status_transition_from_api',
+            {
+              p_intervention_id: resourceId,
+              p_from_status_id: oldStatutId,
+              p_to_status_id: body.statut_id,
+              p_changed_by_user_id: userId,
+              p_metadata: {
+                updated_via: 'edge_function',
+                updated_at: new Date().toISOString(),
+              }
+            }
+          );
+
+          if (transitionError) {
+            console.error(JSON.stringify({
+              level: 'warn',
+              requestId,
+              interventionId: resourceId,
+              message: 'Erreur lors de l\'enregistrement de la transition',
+              error: transitionError.message,
+            }));
+            // Ne pas bloquer la mise à jour si l'enregistrement de la transition échoue
+            // Le trigger de sécurité prendra le relais
+          }
+        } catch (error) {
+          console.error(JSON.stringify({
+            level: 'warn',
+            requestId,
+            interventionId: resourceId,
+            message: 'Erreur lors de l\'enregistrement de la transition',
+            error: error instanceof Error ? error.message : String(error),
+          }));
+          // Continuer quand même, le trigger de sécurité enregistrera
+        }
+      }
+
       const { data, error } = await supabase
         .from('interventions')
         .update({
