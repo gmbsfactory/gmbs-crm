@@ -51,7 +51,7 @@ export function AdminGuard({
               Accès refusé
             </h1>
             <p className="text-muted-foreground mb-4">
-              Vous n'avez pas les permissions nécessaires pour accéder à cette page.
+              Vous n&apos;avez pas les permissions nécessaires pour accéder à cette page.
             </p>
             <p className="text-sm text-muted-foreground">
               Cette page est réservée aux administrateurs.

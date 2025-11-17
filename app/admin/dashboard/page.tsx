@@ -62,10 +62,10 @@ export default function AdminDashboardPage() {
             {/* Header */}
             <div className="mb-8">
               <h1 className="text-3xl font-bold text-foreground mb-2">
-                Dashboard de Pilotage d'Interventions
+                Dashboard de Pilotage d&apos;Interventions
               </h1>
               <p className="text-muted-foreground">
-                Vue d'ensemble des performances et statistiques
+                Vue d&apos;ensemble des performances et statistiques
               </p>
             </div>
 
