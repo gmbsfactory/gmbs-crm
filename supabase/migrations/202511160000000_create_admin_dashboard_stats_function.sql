@@ -125,10 +125,8 @@ BEGIN
   -- CTE 9: Stats financières globales
   global_financials AS (
     SELECT 
-      COALESCE(SUM(p.total_paiements), 0)::numeric as total_paiements,
-      COALESCE(SUM(c.total_couts), 0)::numeric as total_couts
-    FROM paiements_agreges p
-    FULL OUTER JOIN couts_agreges c ON c.intervention_id = p.intervention_id
+      COALESCE((SELECT SUM(total_paiements) FROM paiements_agreges), 0)::numeric as total_paiements,
+      COALESCE((SELECT SUM(total_couts) FROM couts_agreges), 0)::numeric as total_couts
   ),
   
   -- CTE 10: Stats financières par agence

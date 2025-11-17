@@ -1,11 +1,32 @@
-- implémenter les raccourcis clics sur la page dashboard 
+- Dashboard
+        - implémenter les raccourcis clics sur la page dashboard 
                 Mes Artisans --> page artisan, Mes Interventions  --> page intervention
 
-- faire une analyse des prix, analyse de la concurrence
+        - reprendre la logique dahsboard
+                - mettre la sélection de la période que sur la partie du bas pour le tableau et pour le podium et le speedometre. 
+                        Pour le tableau du bas utiliser la table de transition de statut des interventions. 
 
-- harmoniser le calcul des données avec la page Dashboard
+        - mettre dans le cache les infos des menus hover dès le chargement
+
+- Dashboard admin
+        - Voir si faire la fonction SQL permet réellement d'optimiser et qu'est ce quel permet d'optimiser
+                        nombre de requêtes 
+                        (et rapidité)
+        - S'assurer que les données sont bien calculées
+                - KPI 
+                - Performance par gest
+                - Statistique par agence
+                que la fonction SQL remplit bien son rôle à l'aide de requêtes pilote
+        - Affichage de la performance des gestionnaires
+        
+
 
 - bouton import export Sheets <-> CRM
+
+- faire une analyse des prix, analyse de la concurrence
+        pour l'apisation
+        pour le dépot de document
+        pour l'optim IA
 
 - voir le coût vs le gain de migrer les appels côté serveur avec des edge function
 

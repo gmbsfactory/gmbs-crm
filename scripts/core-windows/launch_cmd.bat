@@ -23,4 +23,5 @@ REM your-command-here
 REM If you want to keep the window open after the command completes, uncomment the next line
 REM pause
 
+cd ../..
 cmd 

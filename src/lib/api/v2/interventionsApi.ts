@@ -2167,13 +2167,15 @@ export const interventionsApi = {
     const nbDevis = mainStatsData.nbDevis || 0;
     const nbValides = mainStatsData.nbValides || 0;
     const tauxTransformation = nbValides > 0
-      ? Math.round((nbDevis / nbValides) * 10000) / 100
+      ? Math.round((nbDevis / nbValides)) / 100
       : 0;
 
     const totalPaiements = Number(globalFinancials.totalPaiements || 0);
     const totalCouts = Number(globalFinancials.totalCouts || 0);
+    console.log('totalPaiements', totalPaiements);
+    console.log('totalCouts', totalCouts);
     const tauxMarge = totalPaiements > 0
-      ? Math.round(((totalPaiements - totalCouts) / totalPaiements) * 10000) / 100
+      ? Math.round(((totalPaiements - totalCouts) / totalPaiements)) / 100
       : 0;
 
     // Construire mainStats
