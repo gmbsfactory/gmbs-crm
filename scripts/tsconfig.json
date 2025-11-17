@@ -14,7 +14,8 @@
     "noEmit": true
   },
   "include": [
-    "scripts/**/*"
+    "**/*.ts",
+    "**/*.tsx"
   ],
   "exclude": [
     "node_modules"

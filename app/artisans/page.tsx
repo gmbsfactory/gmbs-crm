@@ -428,7 +428,7 @@ export default function ArtisansPage(): ReactElement {
     return () => {
       cancelled = true
     }
-  }, [viewsSignature, isReady, convertFiltersToApiParams, requiresCurrentUserForCounts, currentUserId])
+  }, [views, viewsSignature, isReady, convertFiltersToApiParams, requiresCurrentUserForCounts, currentUserId])
 
   const {
     artisans,

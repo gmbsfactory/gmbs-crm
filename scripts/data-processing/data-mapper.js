@@ -547,7 +547,7 @@ class DataMapper {
       tenant: this.parseTenantInfo(csvRow, false),
       owner: this.parseOwnerInfo(csvRow, false),
       costs: this.extractCostsData(csvRow),
-      artisanSST: await this.findArtisanSST(csvRow["SST"]),
+      artisanSST: await this.findArtisanSST(csvRow["Technicien"]),
     };
 
     // Logging verbose - Affiche uniquement l'objet mapped

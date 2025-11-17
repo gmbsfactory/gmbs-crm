@@ -8,7 +8,7 @@ import {
     commentsApi,
     documentsApi,
     interventionsApiV2
-} from '../src/lib/supabase-api-v2.js';
+} from '../../src/lib/supabase-api-v2.js';
 
 // Configuration
 const TEST_CONFIG = {
@@ -74,7 +74,8 @@ async function testInterventionsAPI() {
     
     return true;
   } catch (error) {
-    log(`Erreur dans les tests d'interventions: ${error.message}`, 'error');
+    const message = error instanceof Error ? error.message : String(error);
+    log(`Erreur dans les tests d'interventions: ${message}`, 'error');
     return false;
   }
 }
@@ -90,9 +91,9 @@ async function testArtisansAPI() {
       siret: `1234567890123${Date.now().toString().slice(-2)}`, // SIRET unique
       email: `test.${Date.now()}@example.com`,
       telephone: '0123456789',
-      adresse: '456 Avenue Test',
-      ville: 'Lyon',
-      code_postal: '69000',
+      adresse_siege_social: '456 Avenue Test',
+      ville_siege_social: 'Lyon',
+      code_postal_siege_social: '69000',
       statut_id: 'ACTIF'
     });
     
@@ -123,7 +124,8 @@ async function testArtisansAPI() {
     
     return true;
   } catch (error) {
-    log(`Erreur dans les tests d'artisans: ${error.message}`, 'error');
+    const message = error instanceof Error ? error.message : String(error);
+    log(`Erreur dans les tests d'artisans: ${message}`, 'error');
     return false;
   }
 }
@@ -154,7 +156,11 @@ async function testCommentsAPI() {
     
     // Test 2: Récupérer les commentaires d'une intervention
     log('Test 2: Récupération des commentaires');
-    const comments = await commentsApi.getByEntity(intervention.id, 'intervention');
+    const commentsResponse = await commentsApi.getAll({
+      entity_type: 'intervention',
+      entity_id: intervention.id
+    });
+    const comments = commentsResponse.data ?? [];
     log(`${comments.length} commentaires récupérés`, 'success');
     
     // Test 3: Mettre à jour un commentaire
@@ -174,7 +180,8 @@ async function testCommentsAPI() {
     
     return true;
   } catch (error) {
-    log(`Erreur dans les tests de commentaires: ${error.message}`, 'error');
+    const message = error instanceof Error ? error.message : String(error);
+    log(`Erreur dans les tests de commentaires: ${message}`, 'error');
     return false;
   }
 }
@@ -195,25 +202,29 @@ async function testDocumentsAPI() {
     // Test 1: Créer un document fictif (simulation)
     log('Test 1: Création de document');
     
-    // Créer un fichier de test en mémoire
+    // Créer un fichier de test en mémoire et le convertir en base64
     const testContent = 'Ceci est un document de test pour l\'API v2';
-    const testFile = new File([testContent], 'test-document.txt', { 
-      type: 'text/plain' 
+    const testContentBuffer = Buffer.from(testContent, 'utf-8');
+    const testContentBase64 = testContentBuffer.toString('base64');
+    
+    const document = await documentsApi.upload({
+      entity_id: intervention.id,
+      entity_type: 'intervention',
+      kind: 'devis',
+      filename: 'test-document.txt',
+      mime_type: 'text/plain',
+      file_size: testContentBuffer.length,
+      content: testContentBase64
     });
-    
-    const formData = new FormData();
-    formData.append('file', testFile);
-    formData.append('entity_id', intervention.id);
-    formData.append('entity_type', 'intervention');
-    formData.append('kind', 'devis');
-    formData.append('description', 'Document de test API v2');
-    
-    const document = await documentsApi.upload(formData);
     log(`Document créé avec l'ID: ${document.id}`, 'success');
     
     // Test 2: Récupérer les documents d'une intervention
     log('Test 2: Récupération des documents');
-    const documents = await documentsApi.getByEntity(intervention.id, 'intervention');
+    const documentsResponse = await documentsApi.getAll({
+      entity_id: intervention.id,
+      entity_type: 'intervention'
+    });
+    const documents = documentsResponse.data ?? [];
     log(`${documents.length} documents récupérés`, 'success');
     
     // Test 3: Supprimer un document
@@ -226,7 +237,8 @@ async function testDocumentsAPI() {
     
     return true;
   } catch (error) {
-    log(`Erreur dans les tests de documents: ${error.message}`, 'error');
+    const message = error instanceof Error ? error.message : String(error);
+    log(`Erreur dans les tests de documents: ${message}`, 'error');
     return false;
   }
 }
@@ -242,9 +254,9 @@ async function testWorkflowComplet() {
       siret: `9876543210987${Date.now().toString().slice(-2)}`,
       email: `workflow.${Date.now()}@test.com`,
       telephone: '0987654321',
-      adresse: '999 Rue Workflow',
-      ville: 'Nice',
-      code_postal: '06000',
+      adresse_siege_social: '999 Rue Workflow',
+      ville_siege_social: 'Nice',
+      code_postal_siege_social: '06000',
       statut_id: 'ACTIF'
     });
     
@@ -294,7 +306,8 @@ async function testWorkflowComplet() {
     
     return true;
   } catch (error) {
-    log(`Erreur dans le workflow complet: ${error.message}`, 'error');
+    const message = error instanceof Error ? error.message : String(error);
+    log(`Erreur dans le workflow complet: ${message}`, 'error');
     return false;
   }
 }
@@ -337,7 +350,8 @@ async function runAllTests() {
     results.workflow = await testWorkflowComplet();
     
   } catch (error) {
-    log(`Erreur générale: ${error.message}`, 'error');
+    const message = error instanceof Error ? error.message : String(error);
+    log(`Erreur générale: ${message}`, 'error');
   }
   
   const endTime = Date.now();

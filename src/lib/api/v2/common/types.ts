@@ -788,3 +788,84 @@ export interface OwnerQueryParams extends BaseQueryParams {
   sortOrder?: "asc" | "desc";
   paginated?: boolean;
 }
+
+// ===== TYPES POUR LE DASHBOARD ADMINISTRATEUR =====
+
+export type PeriodType = 'day' | 'month' | 'year';
+
+export interface DashboardPeriodParams {
+  periodType: PeriodType;
+  referenceDate?: string; // Date de référence (par défaut: aujourd'hui)
+  startDate?: string; // Optionnel: date de début explicite
+  endDate?: string; // Optionnel: date de fin explicite
+}
+
+export interface InterventionStatusTransition {
+  id: string;
+  intervention_id: string;
+  from_status_id: string | null;
+  to_status_id: string;
+  from_status_code: string | null;
+  to_status_code: string;
+  changed_by_user_id: string | null;
+  transition_date: string;
+  source: 'api' | 'trigger';
+  metadata: any;
+  created_at: string;
+}
+
+export interface AdminDashboardStats {
+  // 1. Les 4 stats principales
+  mainStats: {
+    nbInterventionsDemandees: number;
+    nbInterventionsTerminees: number; // Passées en INTER_TERMINEE pendant la période
+    tauxTransformation: number; // (Devis envoyé / Inter terminé+accepté+encours) × 100
+    tauxMarge: number; // Taux de marge sur interventions terminées
+  };
+
+  // 2. Statistiques des statuts
+  statusStats: {
+    nbDemandesRecues: number;
+    nbDevisEnvoye: number;
+    nbEnCours: number;
+    nbAttAcompte: number;
+    nbAccepte: number;
+    nbTermine: number;
+    breakdown: Array<{
+      statusCode: string;
+      statusLabel: string;
+      count: number;
+    }>;
+  };
+
+  // 3. Statistiques par métier (pour camembert)
+  metierStats: Array<{
+    metierId: string;
+    metierLabel: string;
+    count: number;
+    percentage: number;
+  }>;
+
+  // 4. Statistiques par agence
+  agencyStats: Array<{
+    agencyId: string;
+    agencyLabel: string;
+    nbTotalInterventions: number;
+    nbInterventionsTerminees: number;
+    tauxMarge: number;
+    ca: number; // Chiffre d'affaires
+    marge: number; // Marge absolue
+  }>;
+
+  // 5. Statistiques par gestionnaire
+  gestionnaireStats: Array<{
+    gestionnaireId: string;
+    gestionnaireLabel: string;
+    nbInterventionsPrises: number; // Interventions assignées au gestionnaire
+    nbInterventionsTerminees: number;
+    tauxTransformation: number;
+    tauxMarge: number;
+    ca: number;
+    marge: number;
+  }>;
+}

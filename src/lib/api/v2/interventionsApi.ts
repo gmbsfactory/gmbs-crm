@@ -4,19 +4,23 @@
 import { referenceApi } from "@/lib/reference-api";
 import { supabase } from "@/lib/supabase-client";
 import type {
+  AdminDashboardStats,
   BulkOperationResult,
   CreateInterventionData,
+  DashboardPeriodParams,
   GestionnaireMarginRanking,
   Intervention,
   InterventionCost,
   InterventionPayment,
   InterventionQueryParams,
   InterventionStatsByStatus,
+  InterventionStatusTransition,
   MarginCalculation,
   MarginRankingResult,
   MarginStats,
   MonthlyStats,
   PaginatedResponse,
+  PeriodType,
   StatsPeriod,
   UpdateInterventionData,
   WeeklyStats,
@@ -48,6 +52,14 @@ type ReferenceCache = {
 const REFERENCE_CACHE_DURATION = 5 * 60 * 1000;
 let referenceCache: ReferenceCache | null = null;
 let referenceCachePromise: Promise<ReferenceCache> | null = null;
+
+// Cache pour les statuts (utilisé pour le dashboard admin)
+type StatusCache = {
+  map: Map<string, string>; // code -> id
+  expiresAt: number;
+};
+const STATUS_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+let statusCache: StatusCache | null = null;
 
 export const invalidateReferenceCache = () => {
   referenceCache = null;
@@ -284,6 +296,8 @@ export const interventionsApi = {
 
     // Récupérer le statut actuel avant la mise à jour pour détecter si on passe à "terminé"
     let wasTerminatedBefore = false;
+    let oldStatutId: string | null = null;
+    
     if (payload.statut_id && typeof window !== "undefined") {
       const { data: currentIntervention } = await supabase
         .from("interventions")
@@ -294,10 +308,47 @@ export const interventionsApi = {
         .eq("id", id)
         .single();
 
-      if (currentIntervention && (currentIntervention as any).status) {
-        const terminatedStatusCodes = ['TERMINE', 'INTER_TERMINEE'];
-        const currentStatusCode = (currentIntervention as any).status?.code;
-        wasTerminatedBefore = currentStatusCode && terminatedStatusCodes.includes(currentStatusCode);
+      if (currentIntervention) {
+        oldStatutId = currentIntervention.statut_id;
+        
+        if ((currentIntervention as any).status) {
+          const terminatedStatusCodes = ['TERMINE', 'INTER_TERMINEE'];
+          const currentStatusCode = (currentIntervention as any).status?.code;
+          wasTerminatedBefore = currentStatusCode && terminatedStatusCodes.includes(currentStatusCode);
+        }
+      }
+    }
+
+    // Si on change le statut, enregistrer la transition AVANT la mise à jour
+    if (payload.statut_id && oldStatutId !== payload.statut_id) {
+      try {
+        // Récupérer l'utilisateur actuel
+        const { data: { user } } = await supabase.auth.getUser();
+        const userId = user?.id || null;
+
+        // Enregistrer la transition explicitement via la fonction SQL
+        const { error: transitionError } = await supabase.rpc(
+          'log_status_transition_from_api',
+          {
+            p_intervention_id: id,
+            p_from_status_id: oldStatutId || null,
+            p_to_status_id: payload.statut_id,
+            p_changed_by_user_id: userId,
+            p_metadata: {
+              updated_via: 'api_v2',
+              updated_at: new Date().toISOString(),
+            }
+          }
+        );
+
+        if (transitionError) {
+          console.warn('[interventionsApi] Erreur lors de l\'enregistrement de la transition:', transitionError);
+          // Ne pas bloquer la mise à jour si l'enregistrement de la transition échoue
+          // Le trigger de sécurité prendra le relais
+        }
+      } catch (error) {
+        console.warn('[interventionsApi] Erreur lors de l\'enregistrement de la transition:', error);
+        // Continuer quand même, le trigger de sécurité enregistrera
       }
     }
 
@@ -2018,5 +2069,275 @@ export const interventionsApi = {
       .slice(0, limit);
 
     return filtered;
+  },
+
+  // ========================================
+  // DASHBOARD ADMINISTRATEUR
+  // ========================================
+
+  /**
+   * Récupère toutes les statistiques du dashboard administrateur
+   * OPTIMISATION: Utilise une fonction SQL RPC unique pour réduire de 12-13 requêtes à 1 seule
+   */
+  async getAdminDashboardStats(
+    params: DashboardPeriodParams
+  ): Promise<AdminDashboardStats> {
+    const { periodType, referenceDate, startDate, endDate } = params;
+    
+    // Calculer les dates de période
+    let periodStart: string;
+    let periodEnd: string;
+    
+    if (startDate && endDate) {
+      periodStart = startDate;
+      periodEnd = endDate;
+    } else {
+      const refDate = referenceDate ? new Date(referenceDate) : new Date();
+      const dates = this.calculatePeriodDates(periodType, refDate);
+      periodStart = dates.start;
+      periodEnd = dates.end;
+    }
+
+    const periodStartTimestamp = `${periodStart}T00:00:00`;
+    const periodEndTimestamp = `${periodEnd}T23:59:59`;
+
+    // Récupérer les IDs des statuts nécessaires (avec cache)
+    let statusMap: Map<string, string>;
+    if (statusCache && statusCache.expiresAt > Date.now()) {
+      statusMap = statusCache.map;
+    } else {
+      const { data: statuses } = await supabase
+        .from('intervention_statuses')
+        .select('id, code')
+        .in('code', ['DEMANDE', 'DEVIS_ENVOYE', 'ACCEPTE', 'INTER_EN_COURS', 'INTER_TERMINEE', 'ATT_ACOMPTE']);
+      
+      statusMap = new Map(statuses?.map((s: any) => [s.code, s.id]) || []);
+      statusCache = {
+        map: statusMap,
+        expiresAt: Date.now() + STATUS_CACHE_TTL,
+      };
+    }
+
+    const demandeStatusId = statusMap.get('DEMANDE');
+    const devisEnvoyeStatusId = statusMap.get('DEVIS_ENVOYE');
+    const accepteStatusId = statusMap.get('ACCEPTE');
+    const enCoursStatusId = statusMap.get('INTER_EN_COURS');
+    const termineeStatusId = statusMap.get('INTER_TERMINEE');
+    const attAcompteStatusId = statusMap.get('ATT_ACOMPTE');
+
+    const statusIdsValides = [
+      termineeStatusId,
+      accepteStatusId,
+      enCoursStatusId,
+    ].filter(Boolean) as string[];
+
+    // Appeler la fonction RPC unique qui fait tout en une seule requête SQL
+    const { data: rpcResult, error: rpcError } = await supabase.rpc(
+      'get_admin_dashboard_stats',
+      {
+        p_period_start: periodStartTimestamp,
+        p_period_end: periodEndTimestamp,
+        p_demande_status_id: demandeStatusId || null,
+        p_devis_status_id: devisEnvoyeStatusId || null,
+        p_accepte_status_id: accepteStatusId || null,
+        p_en_cours_status_id: enCoursStatusId || null,
+        p_terminee_status_id: termineeStatusId || null,
+        p_att_acompte_status_id: attAcompteStatusId || null,
+        p_valid_status_ids: statusIdsValides,
+      }
+    );
+
+    if (rpcError) {
+      console.error('[interventionsApi] Erreur RPC get_admin_dashboard_stats:', rpcError);
+      throw rpcError;
+    }
+
+    if (!rpcResult) {
+      throw new Error('Aucune donnée retournée par la fonction RPC');
+    }
+
+    // Parser le résultat JSON de la fonction SQL
+    const mainStatsData = rpcResult.mainStats || {};
+    const statusBreakdown = rpcResult.statusBreakdown || [];
+    const metierBreakdown = rpcResult.metierBreakdown || [];
+    const agencyBreakdown = rpcResult.agencyBreakdown || [];
+    const globalFinancials = rpcResult.globalFinancials || {};
+
+    // Calculer les taux (côté client car ils nécessitent des calculs)
+    const nbDevis = mainStatsData.nbDevis || 0;
+    const nbValides = mainStatsData.nbValides || 0;
+    const tauxTransformation = nbValides > 0
+      ? Math.round((nbDevis / nbValides)) / 100
+      : 0;
+
+    const totalPaiements = Number(globalFinancials.totalPaiements || 0);
+    const totalCouts = Number(globalFinancials.totalCouts || 0);
+    console.log('totalPaiements', totalPaiements);
+    console.log('totalCouts', totalCouts);
+    const tauxMarge = totalPaiements > 0
+      ? Math.round(((totalPaiements - totalCouts) / totalPaiements)) / 100
+      : 0;
+
+    // Construire mainStats
+    const mainStats = {
+      nbInterventionsDemandees: mainStatsData.nbInterventionsDemandees || 0,
+      nbInterventionsTerminees: mainStatsData.nbInterventionsTerminees || 0,
+      tauxTransformation,
+      tauxMarge,
+    };
+
+    // Récupérer le cache de référence pour mapper les IDs aux labels
+    const refs = await getReferenceCache();
+
+    // ========================================
+    // 2. STATISTIQUES DES STATUTS
+    // ========================================
+
+    const statusCounts: Record<string, { label: string; count: number }> = {};
+    
+    statusBreakdown.forEach((item: any) => {
+      if (item.statut_id) {
+        // Trouver le code depuis le cache
+        for (const [code, id] of statusMap.entries()) {
+          if (id === item.statut_id) {
+            if (!statusCounts[code]) {
+              const statusInfo = refs.interventionStatusesById.get(id);
+              statusCounts[code] = { 
+                label: statusInfo?.label || code, 
+                count: 0 
+              };
+            }
+            statusCounts[code].count = item.count || 0;
+            break;
+          }
+        }
+      }
+    });
+
+    const breakdown = Object.entries(statusCounts).map(([code, data]) => ({
+      statusCode: code,
+      statusLabel: data.label,
+      count: data.count,
+    }));
+
+    const statusStats = {
+      nbDemandesRecues: mainStats.nbInterventionsDemandees,
+      nbDevisEnvoye: statusCounts['DEVIS_ENVOYE']?.count || 0,
+      nbEnCours: statusCounts['INTER_EN_COURS']?.count || 0,
+      nbAttAcompte: statusCounts['ATT_ACOMPTE']?.count || 0,
+      nbAccepte: statusCounts['ACCEPTE']?.count || 0,
+      nbTermine: statusCounts['INTER_TERMINEE']?.count || 0,
+      breakdown,
+    };
+
+    // ========================================
+    // 3. STATISTIQUES PAR MÉTIER
+    // ========================================
+
+    const metierCounts: Record<string, { label: string; count: number }> = {};
+    let totalMetiers = 0;
+
+    metierBreakdown.forEach((item: any) => {
+      if (item.metier_id) {
+        const metierInfo = refs.metiersById.get(item.metier_id);
+        metierCounts[item.metier_id] = { 
+          label: metierInfo?.label || 'Inconnu', 
+          count: item.count || 0 
+        };
+        totalMetiers += item.count || 0;
+      }
+    });
+
+    const metierStats = Object.entries(metierCounts).map(([metierId, data]) => ({
+      metierId,
+      metierLabel: data.label,
+      count: data.count,
+      percentage: totalMetiers > 0 ? Math.round((data.count / totalMetiers) * 10000) / 100 : 0,
+    })).sort((a, b) => b.count - a.count);
+
+    // ========================================
+    // 4. STATISTIQUES PAR AGENCE
+    // ========================================
+
+    const agencyStats = agencyBreakdown.map((item: any) => {
+      const agencyInfo = refs.agenciesById.get(item.agence_id);
+      const totalPaiements = Number(item.totalPaiements || 0);
+      const totalCouts = Number(item.totalCouts || 0);
+      const marge = totalPaiements - totalCouts;
+      const tauxMargeAgence = totalPaiements > 0
+        ? Math.round((marge / totalPaiements) * 10000) / 100
+        : 0;
+
+      return {
+        agencyId: item.agence_id,
+        agencyLabel: agencyInfo?.label || 'Inconnu',
+        nbTotalInterventions: item.totalInterventions || 0,
+        nbInterventionsTerminees: item.terminatedInterventions || 0,
+        tauxMarge: tauxMargeAgence,
+        ca: totalPaiements,
+        marge,
+      };
+    }).sort((a: any, b: any) => b.ca - a.ca);
+
+    return {
+      mainStats,
+      statusStats,
+      metierStats,
+      agencyStats,
+      gestionnaireStats: [], // TODO: Implémenter les stats par gestionnaire si nécessaire
+    };
+  },
+
+  /**
+   * Récupère l'historique des transitions de statut pour une intervention
+   */
+  async getStatusTransitions(
+    interventionId: string
+  ): Promise<InterventionStatusTransition[]> {
+    const { data, error } = await supabase
+      .from('intervention_status_transitions')
+      .select('*')
+      .eq('intervention_id', interventionId)
+      .order('transition_date', { ascending: true });
+
+    if (error) throw error;
+    return data || [];
+  },
+
+  /**
+   * Helper pour calculer les dates de période
+   */
+  calculatePeriodDates(
+    periodType: PeriodType,
+    referenceDate: Date
+  ): { start: string; end: string } {
+    const date = new Date(referenceDate);
+    let start: Date;
+    let end: Date;
+
+    switch (periodType) {
+      case 'day':
+        start = new Date(date);
+        end = new Date(date);
+        break;
+      
+      case 'month':
+        start = new Date(date.getFullYear(), date.getMonth(), 1);
+        end = new Date(date.getFullYear(), date.getMonth() + 1, 0);
+        break;
+      
+      case 'year':
+        start = new Date(date.getFullYear(), 0, 1);
+        end = new Date(date.getFullYear(), 11, 31);
+        break;
+      
+      default:
+        throw new Error(`Invalid period type: ${periodType}`);
+    }
+
+    return {
+      start: start.toISOString().split('T')[0],
+      end: end.toISOString().split('T')[0],
+    };
   },
 };
