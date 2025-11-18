@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/context-menu"
 import { InterventionContextMenuContent } from "@/components/interventions/InterventionContextMenu"
 import { useInterventionModal } from "@/hooks/useInterventionModal"
+import { RemoteEditBadge } from "@/components/interventions/RemoteEditBadge"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import AnimatedCard from "@/features/interventions/components/AnimatedCard"
 import { EditableCell } from "@/features/interventions/components/EditableCell"
@@ -341,7 +342,8 @@ export default function InterventionCard({
   const { open: openInterventionModal } = useInterventionModal()
 
   return (
-    <div className={className}>
+    <div className={cn("relative", className)}>
+      <RemoteEditBadge interventionId={intervention.id} />
       <ContextMenu>
         <ContextMenuTrigger asChild>
           <Card

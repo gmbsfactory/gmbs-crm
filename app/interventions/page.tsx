@@ -74,6 +74,7 @@ import { convertViewFiltersToServerFilters } from "@/lib/filter-converter"
 import { useInterventionStatusMap } from "@/hooks/useInterventionStatusMap"
 import { useUserMap } from "@/hooks/useUserMap"
 import { useCurrentUser } from "@/hooks/useCurrentUser"
+import { InterventionRealtimeProvider } from "@/components/interventions/InterventionRealtimeProvider"
 
 type GalleryViewConfig = Parameters<typeof GalleryView>[0]["view"]
 type CalendarViewConfig = Parameters<typeof CalendarView>[0]["view"]
@@ -176,6 +177,14 @@ const filtersShallowEqual = (a: ViewFilter[], b: ViewFilter[]) => {
 
 
 export default function Page() {
+  return (
+    <InterventionRealtimeProvider>
+      <PageContent />
+    </InterventionRealtimeProvider>
+  )
+}
+
+function PageContent() {
   const router = useRouter()
   const { preferredMode, setPreferredMode } = useModalDisplay()
   const {

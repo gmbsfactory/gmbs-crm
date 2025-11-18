@@ -3,6 +3,7 @@
 Auto-generated from all feature plans. Last updated: 2025-11-18
 
 ## Active Technologies
+- Supabase (PostgreSQL) avec Row Level Security (RLS) activé (002-real-time-updates)
 
 - TypeScript 5+ (strict mode), React 18.3+, Next.js 15.5+ (001-context-menus-duplication)
 
@@ -22,6 +23,7 @@ npm test && npm run lint
 TypeScript 5+ (strict mode), React 18.3+, Next.js 15.5+: Follow standard conventions
 
 ## Recent Changes
+- 002-real-time-updates: Added TypeScript 5+ (strict mode), React 18.3+, Next.js 15.5+
 
 - 001-context-menus-duplication: Added TypeScript 5+ (strict mode), React 18.3+, Next.js 15.5+
 

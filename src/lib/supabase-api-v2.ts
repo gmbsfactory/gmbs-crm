@@ -1028,18 +1028,20 @@ export const interventionsApiV2 = {
     }
 
     const appendFilterParam = (key: string, value?: FilterValue) => {
-      if (value === undefined) {
+      // Cas spécial pour user === null (vue Market) : envoyer "null" comme chaîne
+      if (key === "user" && value === null) {
+        searchParams.append(key, "null");
         return;
       }
-      if (value === null) {
-        searchParams.append(key, "null");
+      
+      if (value === undefined || value === null) {
+        // Ne pas envoyer le paramètre si la valeur est undefined ou null
         return;
       }
       if (Array.isArray(value)) {
         value.forEach((entry) => {
-          if (entry === null) {
-            searchParams.append(key, "null");
-          } else if (typeof entry === "string" && entry.length > 0) {
+          // Ignorer les valeurs null dans les tableaux
+          if (entry !== null && typeof entry === "string" && entry.length > 0) {
             searchParams.append(key, entry);
           }
         });
@@ -1139,6 +1141,12 @@ export const interventionsApiV2 = {
     searchParams.set("offset", offset.toString());
 
     const appendFilterParam = (key: string, value: FilterValue) => {
+      // Cas spécial pour user === null (vue Market) : envoyer "null" comme chaîne
+      if (key === "user" && value === null) {
+        searchParams.append(key, "null");
+        return;
+      }
+      
       if (!value) {
         return;
       }

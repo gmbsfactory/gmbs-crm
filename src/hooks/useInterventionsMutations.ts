@@ -2,6 +2,9 @@ import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { interventionsApiV2 } from "@/lib/supabase-api-v2"
 import { interventionKeys } from "@/lib/react-query/queryKeys"
 import type { Intervention, InterventionCost, InterventionPayment } from "@/lib/supabase-api-v2"
+import { getRemoteEditIndicatorManager } from "@/lib/realtime/remote-edit-indicator"
+import { getSyncQueue } from "@/lib/realtime/sync-queue"
+import { isNetworkError } from "@/lib/realtime/realtime-client"
 
 /**
  * Hook pour gérer les mutations d'interventions avec invalidation automatique
@@ -9,6 +12,7 @@ import type { Intervention, InterventionCost, InterventionPayment } from "@/lib/
  */
 export function useInterventionsMutations() {
   const queryClient = useQueryClient()
+  const syncQueue = getSyncQueue()
 
   // Mutation pour créer une intervention
   const createMutation = useMutation({
@@ -33,11 +37,28 @@ export function useInterventionsMutations() {
     }) => {
       return await interventionsApiV2.create(data)
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
+      // Enregistrer la modification locale pour éviter d'afficher un badge
+      if (data?.id) {
+        const indicatorManager = getRemoteEditIndicatorManager()
+        indicatorManager.recordLocalModification(data.id)
+      }
+      
       // Invalider toutes les listes d'interventions pour recharger les données
       queryClient.invalidateQueries({ queryKey: interventionKeys.invalidateLists() })
       // Invalider aussi les résumés
       queryClient.invalidateQueries({ queryKey: interventionKeys.summaries() })
+    },
+    onError: (error, variables) => {
+      // En cas d'erreur réseau, mettre en file d'attente pour synchronisation différée
+      if (isNetworkError(error)) {
+        syncQueue.enqueue({
+          interventionId: '', // Pour une création, on n'a pas encore d'ID
+          type: 'create',
+          data: variables as Partial<Intervention>,
+        })
+        console.warn('[useInterventionsMutations] Erreur réseau lors de la création, mise en file d\'attente')
+      }
     },
   })
 
@@ -74,12 +95,27 @@ export function useInterventionsMutations() {
       return await interventionsApiV2.update(id, data)
     },
     onSuccess: (data, variables) => {
+      // Enregistrer la modification locale pour éviter d'afficher un badge
+      const indicatorManager = getRemoteEditIndicatorManager()
+      indicatorManager.recordLocalModification(variables.id)
+      
       // Invalider toutes les listes d'interventions
       queryClient.invalidateQueries({ queryKey: interventionKeys.invalidateLists() })
       // Invalider aussi le détail de cette intervention spécifique
       queryClient.invalidateQueries({ queryKey: interventionKeys.detail(variables.id) })
       // Invalider les résumés
       queryClient.invalidateQueries({ queryKey: interventionKeys.summaries() })
+    },
+    onError: (error, variables) => {
+      // En cas d'erreur réseau, mettre en file d'attente pour synchronisation différée
+      if (isNetworkError(error)) {
+        syncQueue.enqueue({
+          interventionId: variables.id,
+          type: 'update',
+          data: variables.data as Partial<Intervention>,
+        })
+        console.warn(`[useInterventionsMutations] Erreur réseau lors de la mise à jour de ${variables.id}, mise en file d'attente`)
+      }
     },
   })
 
@@ -88,11 +124,26 @@ export function useInterventionsMutations() {
     mutationFn: async (id: string) => {
       return await interventionsApiV2.delete(id)
     },
-    onSuccess: () => {
+    onSuccess: (data, id) => {
+      // Enregistrer la modification locale pour éviter d'afficher un badge
+      const indicatorManager = getRemoteEditIndicatorManager()
+      indicatorManager.recordLocalModification(id)
+      
       // Invalider toutes les listes d'interventions
       queryClient.invalidateQueries({ queryKey: interventionKeys.invalidateLists() })
       // Invalider les résumés
       queryClient.invalidateQueries({ queryKey: interventionKeys.summaries() })
+    },
+    onError: (error, id) => {
+      // En cas d'erreur réseau, mettre en file d'attente pour synchronisation différée
+      if (isNetworkError(error)) {
+        syncQueue.enqueue({
+          interventionId: id,
+          type: 'delete',
+          data: {},
+        })
+        console.warn(`[useInterventionsMutations] Erreur réseau lors de la suppression de ${id}, mise en file d'attente`)
+      }
     },
   })
 
