@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect } from "react"
+import { useCallback, useEffect, useRef } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useModalState } from "./useModalState"
 import type { ModalContent, ModalOpenOptions } from "@/types/modal"
@@ -28,6 +28,7 @@ const buildUrl = (params: URLSearchParams) => {
 export function useModal() {
   const router = useRouter()
   const searchParams = useSearchParams()
+  const fullpageSetForCurrentModalRef = useRef<string | null>(null)
   
   const isOpen = useModalState((state) => state.isOpen)
   const activeId = useModalState((state) => state.activeId)
@@ -119,6 +120,7 @@ export function useModal() {
       null
     closingGuardId = closingId
     pendingModalId = null
+    fullpageSetForCurrentModalRef.current = null
 
     reset()
     const params = new URLSearchParams(searchParams?.toString() ?? "")
@@ -184,6 +186,30 @@ export function useModal() {
     }
 
     const nextContent: ModalContent = isValidContent(rawContent) ? rawContent : "intervention"
+    
+    // Forcer le mode fullpage si le modal est ouvert depuis l'URL (nouvelle page ou nouvel onglet)
+    // Dans un nouvel onglet, activeId sera null et isOpen sera false au premier rendu
+    // On détecte l'ouverture depuis l'URL si :
+    // - Le modalId est présent dans l'URL
+    // - Ce n'est pas une ouverture programmatique (pas de pendingModalId)
+    // - Le modal n'est pas déjà ouvert avec cet ID OU le modal n'est pas ouvert du tout
+    const isNewModalOpen = activeId !== modalId || !isOpen
+    const isOpeningFromUrl = modalId && !pendingModalId && isNewModalOpen
+    
+    // Réinitialiser le ref si on change de modal
+    if (fullpageSetForCurrentModalRef.current !== modalId) {
+      fullpageSetForCurrentModalRef.current = null
+    }
+    
+    // Forcer le mode fullpage pour les ouvertures depuis l'URL (nouvel onglet ou navigation directe)
+    // On vérifie si on n'a pas déjà défini le mode fullpage pour ce modal
+    if (isOpeningFromUrl && nextContent === "intervention" && fullpageSetForCurrentModalRef.current !== modalId) {
+      // Toujours forcer le mode fullpage pour les ouvertures depuis l'URL, même si overrideMode est déjà défini
+      // car dans un nouvel onglet, overrideMode sera null au premier rendu
+      setOverrideMode("fullpage")
+      fullpageSetForCurrentModalRef.current = modalId
+    }
+    
     if (activeId !== modalId) {
       setActiveId(modalId)
     }
@@ -197,13 +223,40 @@ export function useModal() {
     activeId,
     content,
     isOpen,
+    overrideMode,
     reset,
     router,
     searchParams,
     setActiveId,
     setContent,
     setIsOpen,
+    setOverrideMode,
   ])
+
+  // Effet séparé pour forcer le mode fullpage lors de l'ouverture depuis l'URL dans un nouvel onglet
+  // Cet effet s'exécute après que le modal soit ouvert pour s'assurer que le mode est bien défini
+  useEffect(() => {
+    if (typeof window === "undefined") return
+    if (!isOpen) return
+    
+    const modalId = searchParams?.get(MODAL_PARAM)
+    if (!modalId) return
+    
+    // Vérifier que le modal actif correspond à celui dans l'URL
+    if (activeId !== modalId) return
+    
+    // Vérifier que c'est bien une intervention
+    const rawContent = searchParams?.get(CONTENT_PARAM) ?? searchParams?.get(LEGACY_CONTENT_PARAM)
+    const nextContent: ModalContent = isValidContent(rawContent) ? rawContent : "intervention"
+    if (nextContent !== "intervention" || content !== "intervention") return
+    
+    // Si le modal vient d'être ouvert depuis l'URL (pas de pendingModalId) 
+    // et qu'on n'a pas encore défini le mode fullpage pour ce modal, le définir maintenant
+    if (!pendingModalId && fullpageSetForCurrentModalRef.current !== modalId) {
+      setOverrideMode("fullpage")
+      fullpageSetForCurrentModalRef.current = modalId
+    }
+  }, [isOpen, activeId, content, searchParams, setOverrideMode])
 
   return {
     isOpen,

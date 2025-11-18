@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { ModeIcons } from "@/components/ui/mode-selector"
 import { LegacyInterventionForm } from "@/components/interventions/LegacyInterventionForm"
+import { useModalState } from "@/hooks/useModalState"
 import type { ModalDisplayMode } from "@/types/modal-display"
 import { interventionKeys } from "@/lib/react-query/queryKeys"
 
@@ -18,6 +19,8 @@ type Props = {
 
 export function NewInterventionModalContent({ mode, onClose, onCycleMode }: Props) {
   const queryClient = useQueryClient()
+  const context = useModalState((state) => state.context)
+  const defaultValues = context?.defaultValues as any
   
   const handleSuccess = useCallback(
     async (data: { id: string }) => {
@@ -72,7 +75,9 @@ export function NewInterventionModalContent({ mode, onClose, onCycleMode }: Prop
               <span className="modal-config-columns-icon-placeholder" />
             )}
           </div>
-          <div className="modal-config-columns-title">Créer une intervention</div>
+          <div className="modal-config-columns-title">
+            {context?.duplicateFrom ? "Créer un devis supplémentaire" : "Créer une intervention"}
+          </div>
           <Tooltip>
             <TooltipTrigger asChild>
               <Button
@@ -97,6 +102,7 @@ export function NewInterventionModalContent({ mode, onClose, onCycleMode }: Prop
               onCancel={onClose}
               formRef={formRef}
               onSubmittingChange={setIsSubmitting}
+              defaultValues={defaultValues}
             />
           </div>
         </div>

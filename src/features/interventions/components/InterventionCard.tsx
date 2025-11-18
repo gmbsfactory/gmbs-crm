@@ -11,6 +11,12 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import {
+  ContextMenu,
+  ContextMenuTrigger,
+} from "@/components/ui/context-menu"
+import { InterventionContextMenuContent } from "@/components/interventions/InterventionContextMenu"
+import { useInterventionModal } from "@/hooks/useInterventionModal"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import AnimatedCard from "@/features/interventions/components/AnimatedCard"
 import { EditableCell } from "@/features/interventions/components/EditableCell"
@@ -332,31 +338,30 @@ export default function InterventionCard({
   const documentButtonRef = React.useRef<HTMLButtonElement | null>(null)
 
   const quickStatuses = React.useMemo(() => quickStatusKeys.filter((key) => statusConfigMap[key]), [quickStatusKeys, statusConfigMap])
+  const { open: openInterventionModal } = useInterventionModal()
 
   return (
     <div className={className}>
-      <Card
-        data-intervention-id={intervention.id}
-        onMouseEnter={() => setIsHovered(true)}
-        onMouseLeave={() => setIsHovered(false)}
-        onClick={(event) => {
-          const target = event.target as HTMLElement
-          if (target.closest("button, a, input, textarea, [data-no-toggle]")) return
-          toggleExpand()
-        }}
-        onDoubleClick={(event) => {
-          event.preventDefault()
-          event.stopPropagation()
-          if (onDoubleClick) {
-            onDoubleClick(intervention.id)
-          } else {
-            handleNavigateToDetail()
-          }
-        }}
-        onContextMenu={(event) => {
-          event.preventDefault()
-          handleNavigateToDetail()
-        }}
+      <ContextMenu>
+        <ContextMenuTrigger asChild>
+          <Card
+            data-intervention-id={intervention.id}
+            onMouseEnter={() => setIsHovered(true)}
+            onMouseLeave={() => setIsHovered(false)}
+            onClick={(event) => {
+              const target = event.target as HTMLElement
+              if (target.closest("button, a, input, textarea, [data-no-toggle]")) return
+              toggleExpand()
+            }}
+            onDoubleClick={(event) => {
+              event.preventDefault()
+              event.stopPropagation()
+              if (onDoubleClick) {
+                onDoubleClick(intervention.id)
+              } else {
+                handleNavigateToDetail()
+              }
+            }}
         className={cn(
           "group relative cursor-pointer overflow-hidden transition-all duration-300",
           isExpanded ? "shadow-lg" : "hover:shadow-lg",
@@ -847,6 +852,21 @@ export default function InterventionCard({
           </div>
         </CardContent>
       </Card>
+        </ContextMenuTrigger>
+        <InterventionContextMenuContent
+          intervention={intervention}
+          onOpen={() => openInterventionModal(intervention.id)}
+          onOpenInNewTab={() => {
+            const newWindow = window.open(`/interventions?i=${intervention.id}`, '_blank')
+            // Remettre le focus sur la fenêtre actuelle après un court délai
+            if (newWindow) {
+              setTimeout(() => {
+                window.focus()
+              }, 100)
+            }
+          }}
+        />
+      </ContextMenu>
     </div>
   )
 }

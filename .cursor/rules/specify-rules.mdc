@@ -1,0 +1,29 @@
+# gmbs-crm Development Guidelines
+
+Auto-generated from all feature plans. Last updated: 2025-11-18
+
+## Active Technologies
+
+- TypeScript 5+ (strict mode), React 18.3+, Next.js 15.5+ (001-context-menus-duplication)
+
+## Project Structure
+
+```text
+src/
+tests/
+```
+
+## Commands
+
+npm test && npm run lint
+
+## Code Style
+
+TypeScript 5+ (strict mode), React 18.3+, Next.js 15.5+: Follow standard conventions
+
+## Recent Changes
+
+- 001-context-menus-duplication: Added TypeScript 5+ (strict mode), React 18.3+, Next.js 15.5+
+
+<!-- MANUAL ADDITIONS START -->
+<!-- MANUAL ADDITIONS END -->

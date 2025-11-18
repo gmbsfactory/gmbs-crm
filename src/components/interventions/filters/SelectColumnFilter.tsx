@@ -291,7 +291,7 @@ export function SelectColumnFilter({
                 className="pl-8"
               />
             </div>
-            <ScrollArea className="max-h-64 rounded-md border">
+            <ScrollArea className="h-64 rounded-md border">
               <div className="space-y-1 p-1">
                 {isLoadingOptions && allOptions.length === 0 ? (
                   <div className="px-2 py-1 text-xs text-muted-foreground">Chargement…</div>

@@ -18,6 +18,7 @@ import {
   buildUpdatePayload,
   mapRowToIntervention,
   mapRowToInterventionWithDocuments,
+  mapStatusFromDb,
   mapStatusToDb,
 } from "@/lib/interventions/mappers"
 import { listInterventionDocuments } from "@/lib/api/documents"
@@ -122,8 +123,8 @@ export async function getIntervention({ id, includeDocuments = true }: GetParams
   return { ...intervention, documents }
 }
 
-export async function findDuplicates(input: DuplicateCheckInput) {
-  const supabase = createServerSupabase()
+export async function findDuplicates(input: DuplicateCheckInput, supabaseClient?: ReturnType<typeof createServerSupabase>) {
+  const supabase = supabaseClient ?? createServerSupabase()
   const { name, address, agency } = DuplicateCheckSchema.parse(input)
   const results = new Map<string, ReturnType<typeof buildDuplicateSummary>[number]>()
 
@@ -281,4 +282,93 @@ export async function transitionStatus(id: string, payload: StatusPayload) {
 
 export function getStatusSortIndex(status: InterventionStatusValue) {
   return INTERVENTION_STATUS_ORDER.indexOf(status) ?? 0
+}
+
+/**
+ * Duplique une intervention pour créer un "devis supp"
+ * - Récupère l'intervention originale
+ * - Crée une nouvelle intervention avec les mêmes données sauf contexte et consignes (null)
+ * - Crée un commentaire système avec l'ID de l'intervention originale
+ * @param originalId - ID de l'intervention à dupliquer
+ * @param authorId - ID de l'utilisateur qui effectue la duplication
+ * @param token - Token d'authentification optionnel pour les opérations Supabase
+ */
+export async function duplicateIntervention(originalId: string, authorId: string, token?: string) {
+  // Créer un client Supabase authentifié si un token est fourni
+  const supabase = token ? createServerSupabase(token) : createServerSupabase()
+  
+  // Récupérer l'intervention originale avec le client authentifié
+  const { data: originalData, error: fetchError } = await supabase
+    .from("interventions")
+    .select("*")
+    .eq("id", originalId)
+    .maybeSingle()
+
+  if (fetchError) {
+    throw new Error(`Erreur lors de la récupération de l'intervention: ${fetchError.message}`)
+  }
+  if (!originalData) {
+    throw new Error(`Intervention originale introuvable: ${originalId}`)
+  }
+
+  // Utiliser les données brutes de la base de données pour créer le payload de duplication
+  // Créer le payload de duplication en excluant contexte et consignes
+  const duplicatePayload: CreateInterventionInput = {
+    id_inter: originalData.id_inter ?? undefined,
+    agence_id: originalData.agence_id ?? undefined,
+    reference_agence: originalData.reference_agence ?? undefined,
+    tenant_id: originalData.tenant_id ?? undefined,
+    owner_id: originalData.owner_id ?? undefined,
+    client_id: originalData.client_id ?? undefined,
+    artisan_id: originalData.artisan_id ?? undefined,
+    assigned_user_id: originalData.assigned_user_id ?? undefined,
+    statut_id: originalData.statut_id ?? undefined,
+    metier_id: originalData.metier_id ?? undefined,
+    date: originalData.date,
+    date_prevue: originalData.date_prevue ?? undefined,
+    // Forcer contexte et consignes à null pour devis supp
+    contexte_intervention: null,
+    consigne_intervention: null,
+    consigne_second_artisan: originalData.consigne_second_artisan ?? undefined,
+    commentaire_agent: originalData.commentaire_agent ?? undefined,
+    adresse: originalData.adresse ?? undefined,
+    code_postal: originalData.code_postal ?? undefined,
+    ville: originalData.ville ?? undefined,
+    latitude: originalData.latitude ?? undefined,
+    longitude: originalData.longitude ?? undefined,
+    numero_sst: originalData.numero_sst ?? undefined,
+    pourcentage_sst: originalData.pourcentage_sst ?? undefined,
+    status: originalData.statut ? mapStatusFromDb(originalData.statut) : undefined,
+  }
+
+  // Clarification FR-006 : Ignorer la vérification de doublons pour permettre plusieurs devis supplémentaires
+  // La vérification de doublons est désactivée lors de la duplication "Devis supp" pour permettre
+  // la création de plusieurs devis supplémentaires pour une même demande
+  // const duplicates = await findDuplicates(duplicatePayload, supabase)
+  // if (duplicates.length > 0) {
+  //   throw new Error("Des doublons ont été détectés lors de la duplication")
+  // }
+
+  // Créer la nouvelle intervention avec le client authentifié
+  const parsed = CreateInterventionSchema.parse(duplicatePayload)
+  assertBusinessRules(parsed)
+  const dueAt = computeDueDate(parsed)
+  const insertPayload = buildInsertPayload({ ...parsed, dueAt: dueAt ?? undefined })
+
+  const { data: newData, error: createError } = await supabase
+    .from("interventions")
+    .insert(insertPayload)
+    .select("*")
+    .single()
+
+  if (createError || !newData) {
+    throw new Error(`Échec de la création de l'intervention: ${createError?.message ?? "unknown"}`)
+  }
+
+  const newIntervention = mapRowToInterventionWithDocuments(newData)
+
+  // Note: Le commentaire système est créé dans la route API avec le client Supabase authentifié
+  // pour éviter les problèmes d'authentification côté serveur
+
+  return newIntervention
 }

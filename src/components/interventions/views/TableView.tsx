@@ -38,6 +38,12 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import {
+  ContextMenu,
+  ContextMenuTrigger,
+} from "@/components/ui/context-menu"
+import { InterventionContextMenuContent } from "@/components/interventions/InterventionContextMenu"
+import { useInterventionModal } from "@/hooks/useInterventionModal"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -496,6 +502,10 @@ export function TableView({
   const useAccentColor = tableLayoutOptions.useAccentColor ?? false
   const rowDensity = (tableLayoutOptions.rowDensity ??
     (tableLayoutOptions.dense ? "dense" : "default")) as TableRowDensity
+  const { open: openInterventionModal } = useInterventionModal()
+  const isMarketView = view.id === "market"
+  const viewType: "default" | "market" = isMarketView ? "market" : "default"
+
   const densityTableClass =
     rowDensity === "ultra-dense" ? "text-xs" : rowDensity === "dense" ? "text-sm" : undefined
   const densityHeaderClass =
@@ -1220,26 +1230,28 @@ export function TableView({
 
                           return (
                             <React.Fragment key={intervention.id}>
-                              <tr
-                                data-intervention-id={intervention.id}
-                                className={cn(
-                                  "group cursor-pointer border-b border-border/30 transition-colors duration-150 hover:bg-accent/10 data-[state=selected]:hover:bg-muted",
-                                  statusBorderEnabled && "table-row-status-border",
-                                  isExpanded && "bg-muted/30",
-                                )}
-                                style={
-                                  {
-                                    ...(coloredShadow ? { "--row-shadow-base": statusColor } : {}),
-                                    ...(statusBorderEnabled
-                                      ? {
-                                          "--status-border-color": statusColor,
-                                          "--table-status-border-width": statusBorderWidthPx,
-                                        }
-                                      : {}),
-                                  } as CSSProperties
-                                }
-                                onClick={handleRowClick}
-                              >
+                              <ContextMenu>
+                                <ContextMenuTrigger asChild>
+                                  <tr
+                                    data-intervention-id={intervention.id}
+                                    className={cn(
+                                      "group cursor-pointer border-b border-border/30 transition-colors duration-150 hover:bg-accent/10 data-[state=selected]:hover:bg-muted",
+                                      statusBorderEnabled && "table-row-status-border",
+                                      isExpanded && "bg-muted/30",
+                                    )}
+                                    style={
+                                      {
+                                        ...(coloredShadow ? { "--row-shadow-base": statusColor } : {}),
+                                        ...(statusBorderEnabled
+                                          ? {
+                                              "--status-border-color": statusColor,
+                                              "--table-status-border-width": statusBorderWidthPx,
+                                            }
+                                          : {}),
+                                      } as CSSProperties
+                                    }
+                                    onClick={handleRowClick}
+                                  >
                                 {view.visibleProperties.map((property) => {
                                   const styleEntry = columnStyles[property]
                                   const { content, backgroundColor, defaultTextColor, cellClassName, statusGradient } =
@@ -1336,6 +1348,22 @@ export function TableView({
                                   </div>
                                 </td>
                               </tr>
+                                </ContextMenuTrigger>
+                                <InterventionContextMenuContent
+                                  intervention={intervention}
+                                  viewType={viewType}
+                                  onOpen={() => openInterventionModal(intervention.id)}
+                                  onOpenInNewTab={() => {
+                                    const newWindow = window.open(`/interventions?i=${intervention.id}`, '_blank')
+                                    // Remettre le focus sur la fenêtre actuelle après un court délai
+                                    if (newWindow) {
+                                      setTimeout(() => {
+                                        window.focus()
+                                      }, 100)
+                                    }
+                                  }}
+                                />
+                              </ContextMenu>
                               {isExpanded && (
                                 <tr className="border-b-0 hover:bg-transparent">
                                   <td colSpan={view.visibleProperties.length + 1} className="p-0 align-top">

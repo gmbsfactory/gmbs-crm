@@ -58,7 +58,7 @@ export function useInterventionsQuery(
     enabled: enabledOption,
   } = options
 
-  // Normaliser les filtres (supprimer les valeurs undefined/null)
+  // Normaliser les filtres (supprimer uniquement les valeurs undefined, garder null pour user)
   const normalizedFilters = useMemo(() => {
     if (!serverFilters) return {}
 
@@ -68,7 +68,10 @@ export function useInterventionsQuery(
     >
 
     for (const [key, value] of entries) {
-      if (value !== undefined && value !== null) {
+      // Pour le champ 'user', null est une valeur valide (filtre "sans assignation" pour la vue Market)
+      if (key === 'user' && value === null) {
+        ;(result as any)[key] = value
+      } else if (value !== undefined && value !== null) {
         ;(result as any)[key] = value
       }
     }

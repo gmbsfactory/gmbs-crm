@@ -1,0 +1,418 @@
+openapi: 3.0.3
+info:
+  title: Menus contextuels et duplication "Devis supp" - API Contracts
+  description: |
+    Contrats API pour les menus contextuels et la duplication "Devis supp".
+    Ces endpoints réutilisent les APIs v2 existantes ou étendent les fonctionnalités existantes.
+  version: 1.0.0
+  date: 2025-01-16
+
+servers:
+  - url: /api
+    description: API locale Next.js
+  - url: {SUPABASE_FUNCTIONS_URL}
+    description: Supabase Edge Functions
+
+tags:
+  - name: interventions
+    description: Opérations sur les interventions
+  - name: comments
+    description: Opérations sur les commentaires
+  - name: artisans
+    description: Opérations sur les artisans
+
+paths:
+  # ============================================
+  # ENDPOINTS EXISTANTS RÉUTILISÉS
+  # ============================================
+
+  /interventions/{id}/status:
+    post:
+      summary: Transition de statut d'une intervention
+      description: |
+        Endpoint existant réutilisé pour les transitions de statut depuis le menu contextuel.
+        Utilisé pour "Passer à Devis envoyé" et "Passer à Accepté".
+      tags:
+        - interventions
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: ID de l'intervention
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - status
+              properties:
+                status:
+                  type: string
+                  enum: [DEVIS_ENVOYE, ACCEPTE]
+                  description: Nouveau statut
+                dueAt:
+                  type: string
+                  format: date-time
+                  nullable: true
+                  description: Date prévue (optionnel)
+                artisanId:
+                  type: string
+                  format: uuid
+                  nullable: true
+                  description: ID de l'artisan (optionnel)
+      responses:
+        '200':
+          description: Transition réussie
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Intervention'
+        '400':
+          description: Erreur de validation (statut invalide, prérequis non remplis)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      x-existing-endpoint: true
+      x-location: app/api/interventions/[id]/status/route.ts
+
+  # ============================================
+  # NOUVEAUX ENDPOINTS À CRÉER
+  # ============================================
+
+  /interventions/{id}/duplicate:
+    post:
+      summary: Dupliquer une intervention ("Devis supp")
+      description: |
+        Crée une nouvelle intervention en copiant toutes les données de l'intervention originale,
+        sauf l'ID (nouveau UUID), contexte_intervention (null) et consigne_intervention (null).
+        Crée automatiquement un commentaire système avec référence à l'ID original.
+      tags:
+        - interventions
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: ID de l'intervention à dupliquer
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                defaultStatus:
+                  type: string
+                  enum: [DEMANDE]
+                  default: DEMANDE
+                  description: Statut par défaut si l'intervention originale n'a pas de statut
+      responses:
+        '200':
+          description: Duplication réussie
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  intervention:
+                    $ref: '#/components/schemas/Intervention'
+                  comment:
+                    $ref: '#/components/schemas/Comment'
+        '400':
+          description: Erreur de validation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Intervention originale introuvable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Permissions insuffisantes
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      x-new-endpoint: true
+      x-location: app/api/interventions/[id]/duplicate/route.ts
+
+  /interventions/{id}/assign:
+    patch:
+      summary: Assigner une intervention à l'utilisateur connecté ("Je gère")
+      description: |
+        Met à jour assigned_user_id avec l'ID de l'utilisateur connecté.
+        Utilisé uniquement dans la vue Market.
+      tags:
+        - interventions
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: ID de l'intervention
+      responses:
+        '200':
+          description: Assignation réussie
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Intervention'
+        '404':
+          description: Intervention introuvable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Permissions insuffisantes
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      x-new-endpoint: true
+      x-location: app/api/interventions/[id]/assign/route.ts
+
+  # ============================================
+  # ENDPOINTS EXISTANTS POUR COMMENTAIRES
+  # ============================================
+
+  /comments/comments:
+    post:
+      summary: Créer un commentaire
+      description: |
+        Endpoint existant réutilisé pour créer le commentaire système lors de la duplication.
+        Utilisé avec entity_type='intervention', comment_type='system'.
+      tags:
+        - comments
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateCommentRequest'
+      responses:
+        '200':
+          description: Commentaire créé avec succès
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Comment'
+        '400':
+          description: Erreur de validation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      x-existing-endpoint: true
+      x-location: supabase/functions/comments/index.ts
+
+  # ============================================
+  # ENDPOINTS EXISTANTS POUR ARTISANS
+  # ============================================
+
+  /artisans/{id}/archive:
+    post:
+      summary: Archiver un artisan
+      description: |
+        Archive un artisan avec un motif obligatoire.
+        Crée automatiquement un commentaire avec reason_type='archive'.
+      tags:
+        - artisans
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: ID de l'artisan à archiver
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - reason
+              properties:
+                reason:
+                  type: string
+                  minLength: 1
+                  description: Motif d'archivage (obligatoire)
+      responses:
+        '200':
+          description: Archivage réussi
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Artisan'
+        '400':
+          description: Erreur de validation (motif manquant)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Artisan introuvable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Permissions insuffisantes
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      x-existing-endpoint: true
+      x-location: src/lib/api/v2/artisansApi.ts (à vérifier)
+
+components:
+  schemas:
+    Intervention:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        id_inter:
+          type: string
+          nullable: true
+        statut_id:
+          type: string
+          format: uuid
+          nullable: true
+        assigned_user_id:
+          type: string
+          format: uuid
+          nullable: true
+        contexte_intervention:
+          type: string
+          nullable: true
+        consigne_intervention:
+          type: string
+          nullable: true
+        # ... autres champs
+      x-reference: src/lib/api/v2/common/types.ts
+
+    Artisan:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        statut_id:
+          type: string
+          format: uuid
+          nullable: true
+        archived_at:
+          type: string
+          format: date-time
+          nullable: true
+        archived_by:
+          type: string
+          format: uuid
+          nullable: true
+        archived_reason:
+          type: string
+          nullable: true
+        # ... autres champs
+      x-reference: src/lib/api/v2/common/types.ts
+
+    Comment:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        entity_type:
+          type: string
+          enum: [intervention, artisan, client]
+        entity_id:
+          type: string
+          format: uuid
+        content:
+          type: string
+        comment_type:
+          type: string
+          nullable: true
+          enum: [system, internal, external]
+        author_id:
+          type: string
+          format: uuid
+          nullable: true
+        is_internal:
+          type: boolean
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+          nullable: true
+      x-reference: src/lib/api/v2/common/types.ts
+
+    CreateCommentRequest:
+      type: object
+      required:
+        - entity_id
+        - entity_type
+        - content
+      properties:
+        entity_id:
+          type: string
+          format: uuid
+        entity_type:
+          type: string
+          enum: [intervention, artisan, client]
+        content:
+          type: string
+        comment_type:
+          type: string
+          nullable: true
+          enum: [system, internal, external]
+          default: internal
+        author_id:
+          type: string
+          format: uuid
+          nullable: true
+        is_internal:
+          type: boolean
+          nullable: true
+          default: true
+
+    Error:
+      type: object
+      properties:
+        message:
+          type: string
+        error:
+          type: string
+          nullable: true
+        code:
+          type: string
+          nullable: true
+
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Supabase JWT token
+
+security:
+  - BearerAuth: []
+
+
+

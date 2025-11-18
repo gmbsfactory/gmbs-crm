@@ -24,6 +24,11 @@ import {
   DropdownMenuContent,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import {
+  ContextMenu,
+  ContextMenuTrigger,
+} from "@/components/ui/context-menu"
+import { ArtisanContextMenuContent } from "@/components/artisans/ArtisanContextMenu"
 import { cn } from "@/lib/utils"
 import Loader from "@/components/ui/Loader"
 import { Pagination } from "@/components/ui/pagination"
@@ -1054,7 +1059,9 @@ export default function ArtisansPage(): ReactElement {
                   </thead>
                   <tbody className="divide-y divide-border bg-background">
                     {viewFilteredContacts.map((contact, index) => (
-                      <tr key={contact.id} className={`hover:bg-slate-100/60 dark:hover:bg-muted/30 transition-colors ${index % 2 === 0 ? 'bg-white dark:bg-background' : 'bg-slate-50 dark:bg-muted/10'}`}>
+                      <ContextMenu key={contact.id}>
+                        <ContextMenuTrigger asChild>
+                          <tr className={`hover:bg-slate-100/60 dark:hover:bg-muted/30 transition-colors ${index % 2 === 0 ? 'bg-white dark:bg-background' : 'bg-slate-50 dark:bg-muted/10'}`}>
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-3">
                             <Avatar 
@@ -1146,6 +1153,12 @@ export default function ArtisansPage(): ReactElement {
                           </div>
                         </td>
                       </tr>
+                        </ContextMenuTrigger>
+                        <ArtisanContextMenuContent 
+                          artisanId={contact.id} 
+                          isArchived={contact.statutInactif || contact.statutDossier === "Archivé"}
+                        />
+                      </ContextMenu>
                     ))}
                   </tbody>
                 </table>

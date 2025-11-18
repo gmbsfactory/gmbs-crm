@@ -12,9 +12,15 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import {
+  ContextMenu,
+  ContextMenuTrigger,
+} from "@/components/ui/context-menu"
 import { INTERVENTION_STATUS } from "@/config/interventions"
 import { mapStatusFromDb } from "@/lib/interventions/mappers"
 import type { InterventionWithDocuments } from "@/types/interventions"
+import { InterventionContextMenuContent } from "@/components/interventions/InterventionContextMenu"
+import { useInterventionModal } from "@/hooks/useInterventionModal"
 
 export type InterventionTableRow = InterventionWithDocuments & {
   managerLabel?: string | null
@@ -107,6 +113,8 @@ function buildSolidPillStyles(hex: string) {
 }
 
 export default function InterventionTable({ interventions, onRowClick, onRowDoubleClick }: InterventionTableProps) {
+  const { open: openInterventionModal } = useInterventionModal()
+
   const columns = useMemo<ColumnDef<InterventionTableRow>[]>(
     () => [
       {
@@ -201,18 +209,37 @@ export default function InterventionTable({ interventions, onRowClick, onRowDoub
         </TableHeader>
         <TableBody>
           {table.getRowModel().rows.length ? (
-            table.getRowModel().rows.map((row) => (
-              <TableRow
-                key={row.id}
-                className="cursor-pointer"
-                onClick={() => onRowClick?.(row.original, row.index)}
-                onDoubleClick={() => onRowDoubleClick?.(row.original, row.index)}
-              >
-                {row.getVisibleCells().map((cell) => (
-                  <TableCell key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</TableCell>
-                ))}
-              </TableRow>
-            ))
+            table.getRowModel().rows.map((row) => {
+              const intervention = row.original
+              return (
+                <ContextMenu key={row.id}>
+                  <ContextMenuTrigger asChild>
+                    <TableRow
+                      className="cursor-pointer"
+                      onClick={() => onRowClick?.(intervention, row.index)}
+                      onDoubleClick={() => onRowDoubleClick?.(intervention, row.index)}
+                    >
+                      {row.getVisibleCells().map((cell) => (
+                        <TableCell key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</TableCell>
+                      ))}
+                    </TableRow>
+                  </ContextMenuTrigger>
+                  <InterventionContextMenuContent
+                    intervention={intervention as any}
+                    onOpen={() => openInterventionModal(intervention.id)}
+                    onOpenInNewTab={() => {
+                      const newWindow = window.open(`/interventions?i=${intervention.id}`, '_blank')
+                      // Remettre le focus sur la fenêtre actuelle après un court délai
+                      if (newWindow) {
+                        setTimeout(() => {
+                          window.focus()
+                        }, 100)
+                      }
+                    }}
+                  />
+                </ContextMenu>
+              )
+            })
           ) : (
             <TableRow>
               <TableCell colSpan={columns.length} className="h-24 text-center text-sm text-muted-foreground">

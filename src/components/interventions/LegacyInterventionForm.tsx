@@ -72,49 +72,90 @@ interface LegacyInterventionFormProps {
   mode?: "halfpage" | "centerpage" | "fullpage"
   formRef?: React.RefObject<HTMLFormElement | null>
   onSubmittingChange?: (isSubmitting: boolean) => void
+  defaultValues?: Partial<{
+    agence_id: string
+    reference_agence: string
+    assigned_user_id: string
+    metier_id: string
+    adresse: string
+    code_postal: string
+    ville: string
+    latitude: number
+    longitude: number
+    datePrevue: string
+    nomProprietaire: string
+    prenomProprietaire: string
+    telephoneProprietaire: string
+    emailProprietaire: string
+    nomClient: string
+    prenomClient: string
+    telephoneClient: string
+    emailClient: string
+    artisan: string
+    coutIntervention: string
+    coutSST: string
+    coutMateriel: string
+    numero_sst: string
+    pourcentage_sst: number | undefined
+    accompteSST: string
+    accompteSSTRecu: boolean
+    dateAccompteSSTRecu: string
+    accompteClient: string
+    accompteClientRecu: boolean
+    dateAccompteClientRecu: string
+    commentairesIntervention: string
+    artisanTelephone: string
+    artisanEmail: string
+    consigneSecondArtisan: string
+    artisanId: string
+  }>
 }
 
-export function LegacyInterventionForm({ onSuccess, onCancel, mode = "centerpage", formRef, onSubmittingChange }: LegacyInterventionFormProps) {
+export function LegacyInterventionForm({ onSuccess, onCancel, mode = "centerpage", formRef, onSubmittingChange, defaultValues }: LegacyInterventionFormProps) {
   const { data: refData, loading: refDataLoading } = useReferenceData()
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null)
   const [formData, setFormData] = useState({
-    statut_id: "",
-    idIntervention: "",
-    agence_id: "",
-    reference_agence: "",
-    assigned_user_id: "",
-    metier_id: "",
-    contexteIntervention: "",
-    consigneIntervention: "",
-    adresse: "",
-    code_postal: "",
-    ville: "",
-    latitude: 48.8566,
-    longitude: 2.3522,
-    adresseComplete: "Paris, France",
-    coutIntervention: "",
-    coutSST: "",
-    coutMateriel: "",
+    statut_id: "", // Sera initialisé à "DEMANDE" par le useEffect
+    idIntervention: "", // Toujours vide pour devis supp (auto-généré)
+    agence_id: defaultValues?.agence_id || "",
+    reference_agence: defaultValues?.reference_agence || "",
+    assigned_user_id: defaultValues?.assigned_user_id || "",
+    metier_id: defaultValues?.metier_id || "",
+    contexteIntervention: "", // Toujours vide pour devis supp (obligatoire à remplir)
+    consigneIntervention: "", // Toujours vide pour devis supp
+    adresse: defaultValues?.adresse || "",
+    code_postal: defaultValues?.code_postal || "",
+    ville: defaultValues?.ville || "",
+    latitude: defaultValues?.latitude || 48.8566,
+    longitude: defaultValues?.longitude || 2.3522,
+    adresseComplete: defaultValues?.adresse && defaultValues?.ville 
+      ? `${defaultValues.adresse}, ${defaultValues.ville}` 
+      : "Paris, France",
+    coutIntervention: defaultValues?.coutIntervention || "",
+    coutSST: defaultValues?.coutSST || "",
+    coutMateriel: defaultValues?.coutMateriel || "",
     marge: "",
-    datePrevue: "",
-    nomProprietaire: "",
-    prenomProprietaire: "",
-    telephoneProprietaire: "",
-    emailProprietaire: "",
-    nomClient: "",
-    prenomClient: "",
-    telephoneClient: "",
-    emailClient: "",
-    artisan: "",
-    artisanTelephone: "",
-    artisanEmail: "",
-    accompteSST: "",
-    accompteSSTRecu: false,
-    dateAccompteSSTRecu: "",
-    accompteClient: "",
-    accompteClientRecu: false,
-    dateAccompteClientRecu: "",
-    commentairesIntervention: "",
+    datePrevue: defaultValues?.datePrevue || "",
+    nomProprietaire: defaultValues?.nomProprietaire || "",
+    prenomProprietaire: defaultValues?.prenomProprietaire || "",
+    telephoneProprietaire: defaultValues?.telephoneProprietaire || "",
+    emailProprietaire: defaultValues?.emailProprietaire || "",
+    nomClient: defaultValues?.nomClient || "",
+    prenomClient: defaultValues?.prenomClient || "",
+    telephoneClient: defaultValues?.telephoneClient || "",
+    emailClient: defaultValues?.emailClient || "",
+    artisan: defaultValues?.artisan || "",
+    artisanTelephone: defaultValues?.artisanTelephone || "",
+    artisanEmail: defaultValues?.artisanEmail || "",
+    accompteSST: defaultValues?.accompteSST || "",
+    accompteSSTRecu: defaultValues?.accompteSSTRecu || false,
+    dateAccompteSSTRecu: defaultValues?.dateAccompteSSTRecu || "",
+    accompteClient: defaultValues?.accompteClient || "",
+    accompteClientRecu: defaultValues?.accompteClientRecu || false,
+    dateAccompteClientRecu: defaultValues?.dateAccompteClientRecu || "",
+    commentairesIntervention: defaultValues?.commentairesIntervention || "",
+    consigneSecondArtisan: defaultValues?.consigneSecondArtisan || "",
+    artisanId: defaultValues?.artisanId || "", // ID de l'artisan pour l'assignation après création
   })
 
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -137,6 +178,7 @@ export function LegacyInterventionForm({ onSuccess, onCancel, mode = "centerpage
   const [createdInterventionId, setCreatedInterventionId] = useState<string | null>(null)
 
   useEffect(() => {
+    // Toujours initialiser le statut à "DEMANDE" pour les nouvelles interventions
     if (!refData?.interventionStatuses || formData.statut_id) {
       return
     }
@@ -396,6 +438,17 @@ export function LegacyInterventionForm({ onSuccess, onCancel, mode = "centerpage
 
       const created = await interventionsApi.create(createData)
       setCreatedInterventionId(created.id)
+
+      // Assigner l'artisan si un ID est fourni (depuis defaultValues ou formData)
+      const artisanIdToAssign = defaultValues?.artisanId || formData.artisanId
+      if (artisanIdToAssign && artisanIdToAssign.trim() !== "") {
+        try {
+          await interventionsApi.setPrimaryArtisan(created.id, artisanIdToAssign)
+        } catch (artisanError) {
+          console.error("[LegacyInterventionForm] Impossible d'assigner l'artisan", artisanError)
+          // Ne pas bloquer la création si l'assignation de l'artisan échoue
+        }
+      }
 
       const trimmedInitialComment = formData.commentairesIntervention.trim()
       if (trimmedInitialComment.length > 0) {
