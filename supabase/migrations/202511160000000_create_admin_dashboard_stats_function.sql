@@ -15,13 +15,13 @@
 CREATE OR REPLACE FUNCTION public.get_admin_dashboard_stats(
   p_period_start timestamptz,
   p_period_end timestamptz,
-  p_demande_status_id uuid,
-  p_devis_status_id uuid,
-  p_accepte_status_id uuid,
-  p_en_cours_status_id uuid,
-  p_terminee_status_id uuid,
-  p_att_acompte_status_id uuid,
-  p_valid_status_ids uuid[]
+  p_demande_status_code text,
+  p_devis_status_code text,
+  p_accepte_status_code text,
+  p_en_cours_status_code text,
+  p_terminee_status_code text,
+  p_att_acompte_status_code text,
+  p_valid_status_codes text[]
 )
 RETURNS jsonb
 LANGUAGE plpgsql
@@ -37,43 +37,93 @@ BEGIN
   -- CTE 1: Interventions de la période (base de données pour toutes les stats)
   interventions_periode AS (
     SELECT 
-      id, 
-      statut_id, 
-      metier_id, 
-      agence_id
-    FROM public.interventions
-    WHERE is_active = true
-      AND date >= p_period_start
-      AND date < p_period_end
+      i.id, 
+      i.statut_id, 
+      ist.code as statut_code,
+      i.metier_id, 
+      i.agence_id,
+      i.assigned_user_id
+    FROM public.interventions i
+    LEFT JOIN public.intervention_statuses ist ON ist.id = i.statut_id
+    WHERE i.is_active = true
+      AND i.date >= p_period_start
+      AND i.date < p_period_end
   ),
   
-  -- CTE 2: Interventions terminées dans la période (basé sur les transitions)
-  inter_terminees AS (
+  -- CTE 1b: Interventions liées aux gestionnaires (directement via assigned_user_id ou via artisans)
+  interventions_gestionnaires AS (
+    -- Interventions directement assignées
+    SELECT DISTINCT
+      i.id as intervention_id,
+      i.assigned_user_id as gestionnaire_id
+    FROM interventions_periode i
+    WHERE i.assigned_user_id IS NOT NULL
+    
+    UNION
+    
+    -- Interventions via artisans gérés par le gestionnaire
+    SELECT DISTINCT
+      i.id as intervention_id,
+      a.gestionnaire_id
+    FROM interventions_periode i
+    INNER JOIN public.intervention_artisans ia ON ia.intervention_id = i.id
+    INNER JOIN public.artisans a ON a.id = ia.artisan_id
+    WHERE a.gestionnaire_id IS NOT NULL
+      AND a.is_active = true
+  ),
+  
+  -- CTE 2: Interventions qui ont eu chaque statut pendant la période (basé sur les transitions)
+  inter_demandees AS (
     SELECT DISTINCT intervention_id
     FROM public.intervention_status_transitions
-    WHERE to_status_code = 'INTER_TERMINEE'
+    WHERE to_status_code = p_demande_status_code
       AND transition_date >= p_period_start
       AND transition_date <= p_period_end
   ),
   
-  -- CTE 3: Stats principales (comptages)
-  main_stats AS (
-    SELECT 
-      COUNT(*) FILTER (WHERE statut_id = p_demande_status_id)::integer as nb_demandees,
-      (SELECT COUNT(*)::integer FROM inter_terminees) as nb_terminees,
-      COUNT(*) FILTER (WHERE statut_id = p_devis_status_id)::integer as nb_devis,
-      COUNT(*) FILTER (WHERE statut_id = ANY(p_valid_status_ids))::integer as nb_valides
-    FROM interventions_periode
+  inter_terminees AS (
+    SELECT DISTINCT intervention_id
+    FROM public.intervention_status_transitions
+    WHERE to_status_code = p_terminee_status_code
+      AND transition_date >= p_period_start
+      AND transition_date <= p_period_end
   ),
   
-  -- CTE 4: Breakdown par statut (GROUP BY pour optimiser)
+  inter_devis AS (
+    SELECT DISTINCT intervention_id
+    FROM public.intervention_status_transitions
+    WHERE to_status_code = p_devis_status_code
+      AND transition_date >= p_period_start
+      AND transition_date <= p_period_end
+  ),
+  
+  inter_valides AS (
+    SELECT DISTINCT intervention_id
+    FROM public.intervention_status_transitions
+    WHERE to_status_code = ANY(p_valid_status_codes)
+      AND transition_date >= p_period_start
+      AND transition_date <= p_period_end
+  ),
+  
+  -- CTE 3: Stats principales (comptages basés sur les transitions)
+  main_stats AS (
+    SELECT 
+      (SELECT COUNT(*)::integer FROM inter_demandees) as nb_demandees,
+      (SELECT COUNT(*)::integer FROM inter_terminees) as nb_terminees,
+      (SELECT COUNT(*)::integer FROM inter_devis) as nb_devis,
+      (SELECT COUNT(*)::integer FROM inter_valides) as nb_valides
+  ),
+  
+  -- CTE 4: Breakdown par statut (basé sur les transitions pendant la période)
   status_breakdown AS (
     SELECT 
-      statut_id,
-      COUNT(*)::integer as count
-    FROM interventions_periode
-    WHERE statut_id IS NOT NULL
-    GROUP BY statut_id
+      ist.to_status_code as statut_code,
+      COUNT(DISTINCT ist.intervention_id)::integer as count
+    FROM public.intervention_status_transitions ist
+    WHERE ist.transition_date >= p_period_start
+      AND ist.transition_date <= p_period_end
+      AND ist.to_status_code IS NOT NULL
+    GROUP BY ist.to_status_code
   ),
   
   -- CTE 5: Breakdown par métier (GROUP BY)
@@ -97,20 +147,20 @@ BEGIN
     GROUP BY agence_id
   ),
   
-  -- CTE 7: Paiements agrégés par intervention (pour calcul global et par agence)
+  -- CTE 7: Chiffre d'affaires agrégé par intervention (basé sur les coûts de type 'intervention')
   paiements_agreges AS (
     SELECT 
-      ip.intervention_id,
+      ic.intervention_id,
       i.agence_id,
-      SUM(ip.amount)::numeric as total_paiements
+      SUM(ic.amount)::numeric as total_paiements
     FROM inter_terminees it
     INNER JOIN public.interventions i ON i.id = it.intervention_id
-    INNER JOIN public.intervention_payments ip ON ip.intervention_id = i.id
-    WHERE ip.is_received = true
-    GROUP BY ip.intervention_id, i.agence_id
+    INNER JOIN public.intervention_costs ic ON ic.intervention_id = i.id
+    WHERE ic.cost_type = 'intervention'
+    GROUP BY ic.intervention_id, i.agence_id
   ),
   
-  -- CTE 8: Coûts agrégés par intervention (pour calcul global et par agence)
+  -- CTE 8: Coûts/Pertes agrégés par intervention (sst + materiel uniquement)
   couts_agreges AS (
     SELECT 
       ic.intervention_id,
@@ -119,6 +169,7 @@ BEGIN
     FROM inter_terminees it
     INNER JOIN public.interventions i ON i.id = it.intervention_id
     INNER JOIN public.intervention_costs ic ON ic.intervention_id = i.id
+    WHERE ic.cost_type IN ('sst', 'materiel')
     GROUP BY ic.intervention_id, i.agence_id
   ),
   
@@ -139,6 +190,31 @@ BEGIN
     LEFT JOIN paiements_agreges p ON p.agence_id = a.agence_id
     LEFT JOIN couts_agreges c ON c.agence_id = a.agence_id
     GROUP BY COALESCE(a.agence_id, p.agence_id, c.agence_id)
+  ),
+  
+  -- CTE 11: Breakdown par gestionnaire (comptages)
+  gestionnaire_breakdown AS (
+    SELECT 
+      ig.gestionnaire_id,
+      COUNT(DISTINCT ig.intervention_id)::integer as total_interventions,
+      COUNT(DISTINCT CASE WHEN ig.intervention_id IN (SELECT intervention_id FROM inter_terminees) THEN ig.intervention_id END)::integer as terminated_interventions
+    FROM interventions_gestionnaires ig
+    WHERE ig.gestionnaire_id IS NOT NULL
+    GROUP BY ig.gestionnaire_id
+  ),
+  
+  -- CTE 12: Stats financières par gestionnaire (CA et coûts)
+  gestionnaire_financials AS (
+    SELECT 
+      ig.gestionnaire_id,
+      COALESCE(SUM(p.total_paiements), 0)::numeric as total_paiements,
+      COALESCE(SUM(c.total_couts), 0)::numeric as total_couts
+    FROM interventions_gestionnaires ig
+    INNER JOIN inter_terminees it ON it.intervention_id = ig.intervention_id
+    LEFT JOIN paiements_agreges p ON p.intervention_id = ig.intervention_id
+    LEFT JOIN couts_agreges c ON c.intervention_id = ig.intervention_id
+    WHERE ig.gestionnaire_id IS NOT NULL
+    GROUP BY ig.gestionnaire_id
   )
   
   SELECT jsonb_build_object(
@@ -157,7 +233,7 @@ BEGIN
     'statusBreakdown', (
       SELECT COALESCE(jsonb_agg(
         jsonb_build_object(
-          'statut_id', sb.statut_id,
+          'statut_code', sb.statut_code,
           'count', sb.count
         )
       ), '[]'::jsonb)
@@ -190,6 +266,21 @@ BEGIN
       LEFT JOIN agency_financials af ON af.agence_id = a.agence_id
     ),
     
+    -- Breakdown par gestionnaire avec stats financières
+    'gestionnaireBreakdown', (
+      SELECT COALESCE(jsonb_agg(
+        jsonb_build_object(
+          'gestionnaire_id', g.gestionnaire_id,
+          'totalInterventions', g.total_interventions,
+          'terminatedInterventions', g.terminated_interventions,
+          'totalPaiements', COALESCE(gf.total_paiements, 0),
+          'totalCouts', COALESCE(gf.total_couts, 0)
+        )
+      ), '[]'::jsonb)
+      FROM gestionnaire_breakdown g
+      LEFT JOIN gestionnaire_financials gf ON gf.gestionnaire_id = g.gestionnaire_id
+    ),
+    
     -- Stats financières globales
     'globalFinancials', (
       SELECT jsonb_build_object(
@@ -208,7 +299,11 @@ $$;
 COMMENT ON FUNCTION public.get_admin_dashboard_stats IS 
 'Fonction RPC optimisée pour récupérer toutes les statistiques du dashboard admin en une seule requête. 
 Combine les calculs de stats principales, breakdown par statut/métier/agence, et stats financières.
-Réduit le nombre de requêtes SQL de 12-13 à 1 seule requête.';
+Réduit le nombre de requêtes SQL de 12-13 à 1 seule requête.
+Tous les comptages de statuts utilisent la table intervention_status_transitions pour être cohérents
+et refléter les transitions de statut pendant la période, plutôt que le statut actuel des interventions.
+Chiffre d''affaires: somme des coûts avec cost_type = ''intervention''.
+Coûts/Pertes: somme des coûts avec cost_type IN (''sst'', ''materiel'').';
 
 -- Grant permissions
 GRANT EXECUTE ON FUNCTION public.get_admin_dashboard_stats TO authenticated;

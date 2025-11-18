@@ -53,13 +53,6 @@ const REFERENCE_CACHE_DURATION = 5 * 60 * 1000;
 let referenceCache: ReferenceCache | null = null;
 let referenceCachePromise: Promise<ReferenceCache> | null = null;
 
-// Cache pour les statuts (utilisé pour le dashboard admin)
-type StatusCache = {
-  map: Map<string, string>; // code -> id
-  expiresAt: number;
-};
-const STATUS_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
-let statusCache: StatusCache | null = null;
 
 export const invalidateReferenceCache = () => {
   referenceCache = null;
@@ -2101,34 +2094,20 @@ export const interventionsApi = {
     const periodStartTimestamp = `${periodStart}T00:00:00`;
     const periodEndTimestamp = `${periodEnd}T23:59:59`;
 
-    // Récupérer les IDs des statuts nécessaires (avec cache)
-    let statusMap: Map<string, string>;
-    if (statusCache && statusCache.expiresAt > Date.now()) {
-      statusMap = statusCache.map;
-    } else {
-      const { data: statuses } = await supabase
-        .from('intervention_statuses')
-        .select('id, code')
-        .in('code', ['DEMANDE', 'DEVIS_ENVOYE', 'ACCEPTE', 'INTER_EN_COURS', 'INTER_TERMINEE', 'ATT_ACOMPTE']);
-      
-      statusMap = new Map(statuses?.map((s: any) => [s.code, s.id]) || []);
-      statusCache = {
-        map: statusMap,
-        expiresAt: Date.now() + STATUS_CACHE_TTL,
-      };
-    }
+    // Définir les codes de statut directement (plus besoin de chercher les IDs)
+    const demandeStatusCode = 'DEMANDE';
+    const devisEnvoyeStatusCode = 'DEVIS_ENVOYE';
+    const accepteStatusCode = 'ACCEPTE';
+    const enCoursStatusCode = 'INTER_EN_COURS';
+    const termineeStatusCode = 'INTER_TERMINEE';
+    const attAcompteStatusCode = 'ATT_ACOMPTE';
 
-    const demandeStatusId = statusMap.get('DEMANDE');
-    const devisEnvoyeStatusId = statusMap.get('DEVIS_ENVOYE');
-    const accepteStatusId = statusMap.get('ACCEPTE');
-    const enCoursStatusId = statusMap.get('INTER_EN_COURS');
-    const termineeStatusId = statusMap.get('INTER_TERMINEE');
-    const attAcompteStatusId = statusMap.get('ATT_ACOMPTE');
-
-    const statusIdsValides = [
-      termineeStatusId,
-      accepteStatusId,
-      enCoursStatusId,
+    const statusCodesValides = [
+      devisEnvoyeStatusCode,
+      accepteStatusCode,
+      enCoursStatusCode,
+      termineeStatusCode,
+      attAcompteStatusCode
     ].filter(Boolean) as string[];
 
     // Appeler la fonction RPC unique qui fait tout en une seule requête SQL
@@ -2137,13 +2116,13 @@ export const interventionsApi = {
       {
         p_period_start: periodStartTimestamp,
         p_period_end: periodEndTimestamp,
-        p_demande_status_id: demandeStatusId || null,
-        p_devis_status_id: devisEnvoyeStatusId || null,
-        p_accepte_status_id: accepteStatusId || null,
-        p_en_cours_status_id: enCoursStatusId || null,
-        p_terminee_status_id: termineeStatusId || null,
-        p_att_acompte_status_id: attAcompteStatusId || null,
-        p_valid_status_ids: statusIdsValides,
+        p_demande_status_code: demandeStatusCode,
+        p_devis_status_code: devisEnvoyeStatusCode,
+        p_accepte_status_code: accepteStatusCode,
+        p_en_cours_status_code: enCoursStatusCode,
+        p_terminee_status_code: termineeStatusCode,
+        p_att_acompte_status_code: attAcompteStatusCode,
+        p_valid_status_codes: statusCodesValides,
       }
     );
 
@@ -2161,6 +2140,7 @@ export const interventionsApi = {
     const statusBreakdown = rpcResult.statusBreakdown || [];
     const metierBreakdown = rpcResult.metierBreakdown || [];
     const agencyBreakdown = rpcResult.agencyBreakdown || [];
+    const gestionnaireBreakdown = rpcResult.gestionnaireBreakdown || [];
     const globalFinancials = rpcResult.globalFinancials || {};
 
     // Calculer les taux (côté client car ils nécessitent des calculs)
@@ -2186,8 +2166,15 @@ export const interventionsApi = {
       tauxMarge,
     };
 
-    // Récupérer le cache de référence pour mapper les IDs aux labels
+    // Récupérer le cache de référence pour mapper les codes aux labels
     const refs = await getReferenceCache();
+
+    // Récupérer les statuts pour mapper les codes aux labels
+    const { data: statuses } = await supabase
+      .from('intervention_statuses')
+      .select('id, code, label');
+    
+    const statusMapByCode = new Map(statuses?.map((s: any) => [s.code, s]) || []);
 
     // ========================================
     // 2. STATISTIQUES DES STATUTS
@@ -2196,21 +2183,16 @@ export const interventionsApi = {
     const statusCounts: Record<string, { label: string; count: number }> = {};
     
     statusBreakdown.forEach((item: any) => {
-      if (item.statut_id) {
-        // Trouver le code depuis le cache
-        for (const [code, id] of statusMap.entries()) {
-          if (id === item.statut_id) {
-            if (!statusCounts[code]) {
-              const statusInfo = refs.interventionStatusesById.get(id);
-              statusCounts[code] = { 
-                label: statusInfo?.label || code, 
-                count: 0 
-              };
-            }
-            statusCounts[code].count = item.count || 0;
-            break;
-          }
+      if (item.statut_code) {
+        const code = item.statut_code;
+        const statusInfo = statusMapByCode.get(code);
+        if (!statusCounts[code]) {
+          statusCounts[code] = { 
+            label: statusInfo?.label || code, 
+            count: 0 
+          };
         }
+        statusCounts[code].count = item.count || 0;
       }
     });
 
@@ -2279,12 +2261,49 @@ export const interventionsApi = {
       };
     }).sort((a: any, b: any) => b.ca - a.ca);
 
+    // ========================================
+    // 5. STATISTIQUES PAR GESTIONNAIRE
+    // ========================================
+
+    const gestionnaireStats = gestionnaireBreakdown.map((item: any) => {
+      const gestionnaireInfo = refs.usersById.get(item.gestionnaire_id);
+      const totalPaiements = Number(item.totalPaiements || 0);
+      const totalCouts = Number(item.totalCouts || 0);
+      const marge = totalPaiements - totalCouts;
+      const tauxMargeGestionnaire = totalPaiements > 0
+        ? Math.round((marge / totalPaiements) * 10000) / 100
+        : 0;
+      
+      // Taux de transformation = (Interventions terminées / Interventions prises) × 100
+      const nbInterventionsPrises = item.totalInterventions || 0;
+      const nbInterventionsTerminees = item.terminatedInterventions || 0;
+      const tauxTransformationGestionnaire = nbInterventionsPrises > 0
+        ? Math.round((nbInterventionsTerminees / nbInterventionsPrises) * 10000) / 100
+        : 0;
+
+      // Construire le label du gestionnaire
+      const gestionnaireLabel = gestionnaireInfo
+        ? `${gestionnaireInfo.firstname || ''} ${gestionnaireInfo.lastname || ''}`.trim() || gestionnaireInfo.code_gestionnaire || 'Inconnu'
+        : 'Inconnu';
+
+      return {
+        gestionnaireId: item.gestionnaire_id,
+        gestionnaireLabel,
+        nbInterventionsPrises,
+        nbInterventionsTerminees,
+        tauxTransformation: tauxTransformationGestionnaire,
+        tauxMarge: tauxMargeGestionnaire,
+        ca: totalPaiements,
+        marge,
+      };
+    }).sort((a: any, b: any) => b.ca - a.ca);
+
     return {
       mainStats,
       statusStats,
       metierStats,
       agencyStats,
-      gestionnaireStats: [], // TODO: Implémenter les stats par gestionnaire si nécessaire
+      gestionnaireStats,
     };
   },
 
