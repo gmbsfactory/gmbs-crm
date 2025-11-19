@@ -41,7 +41,7 @@ export function useInterventionsMutations() {
       // Enregistrer la modification locale pour éviter d'afficher un badge
       if (data?.id) {
         const indicatorManager = getRemoteEditIndicatorManager()
-        indicatorManager.recordLocalModification(data.id)
+        indicatorManager.recordLocalModification(data.id, data.updated_at || null)
       }
       
       // Invalider toutes les listes d'interventions pour recharger les données
@@ -97,7 +97,7 @@ export function useInterventionsMutations() {
     onSuccess: (data, variables) => {
       // Enregistrer la modification locale pour éviter d'afficher un badge
       const indicatorManager = getRemoteEditIndicatorManager()
-      indicatorManager.recordLocalModification(variables.id)
+      indicatorManager.recordLocalModification(variables.id, data?.updated_at || null)
       
       // Invalider toutes les listes d'interventions
       queryClient.invalidateQueries({ queryKey: interventionKeys.invalidateLists() })
@@ -127,7 +127,7 @@ export function useInterventionsMutations() {
     onSuccess: (data, id) => {
       // Enregistrer la modification locale pour éviter d'afficher un badge
       const indicatorManager = getRemoteEditIndicatorManager()
-      indicatorManager.recordLocalModification(id)
+      indicatorManager.recordLocalModification(id, data?.data?.updated_at || null)
       
       // Invalider toutes les listes d'interventions
       queryClient.invalidateQueries({ queryKey: interventionKeys.invalidateLists() })

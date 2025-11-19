@@ -46,8 +46,17 @@ export class SyncQueue {
       }
     } catch (error) {
       console.warn('[SyncQueue] Erreur lors du chargement depuis localStorage:', error)
-      // Gérer gracieusement les erreurs localStorage (plein, inaccessible, mode privé)
+      // T085: Gérer gracieusement les erreurs localStorage (plein, inaccessible, mode privé)
       this.queue = []
+      
+      // Afficher une notification d'avertissement si localStorage est inaccessible
+      if (error instanceof DOMException) {
+        if (error.code === DOMException.QUOTA_EXCEEDED_ERR) {
+          console.warn('[SyncQueue] localStorage plein - les modifications en file d\'attente ne seront pas persistées')
+        } else if (error.code === DOMException.SECURITY_ERR) {
+          console.warn('[SyncQueue] localStorage inaccessible (mode privé) - les modifications en file d\'attente ne seront pas persistées')
+        }
+      }
     }
   }
 
@@ -61,7 +70,23 @@ export class SyncQueue {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(this.queue))
     } catch (error) {
       console.warn('[SyncQueue] Erreur lors de la sauvegarde dans localStorage:', error)
-      // Gérer gracieusement les erreurs localStorage
+      // T085: Gérer gracieusement les erreurs localStorage (plein, inaccessible, mode privé)
+      if (error instanceof DOMException) {
+        if (error.code === DOMException.QUOTA_EXCEEDED_ERR) {
+          console.warn('[SyncQueue] localStorage plein - tentative de nettoyage de la file d\'attente')
+          // Retirer les modifications les plus anciennes pour libérer de l'espace
+          if (this.queue.length > 10) {
+            this.queue = this.queue.slice(-10) // Garder seulement les 10 dernières modifications
+            try {
+              localStorage.setItem(STORAGE_KEY, JSON.stringify(this.queue))
+            } catch (retryError) {
+              console.error('[SyncQueue] Impossible de sauvegarder même après nettoyage:', retryError)
+            }
+          }
+        } else if (error.code === DOMException.SECURITY_ERR) {
+          console.warn('[SyncQueue] localStorage inaccessible (mode privé) - les modifications ne seront pas persistées')
+        }
+      }
     }
   }
 
@@ -157,27 +182,74 @@ export class SyncQueue {
       // Traiter chaque modification du batch
       for (const modification of batch) {
         try {
-          // Ici, on devrait appeler l'API pour synchroniser la modification
-          // Pour l'instant, on simule juste le traitement
-          // TODO: Intégrer avec l'API réelle
-          await this.syncModification(modification)
+          // T089: Retry avec backoff exponentiel (3 tentatives: 1s, 2s, 4s) avant mise en file d'attente
+          const success = await this.syncModificationWithRetry(modification)
           
-          // Retirer la modification de la file après succès
-          this.dequeue(modification.id)
+          if (success) {
+            // Retirer la modification de la file après succès
+            this.dequeue(modification.id)
+          } else {
+            // Si toutes les tentatives ont échoué, incrémenter le compteur de tentatives
+            modification.retryCount++
+            
+            // Si trop de tentatives, retirer de la file
+            if (modification.retryCount >= 3) {
+              console.error('[SyncQueue] Abandon de la modification après 3 tentatives:', modification.id)
+              this.dequeue(modification.id)
+            } else {
+              // Sauvegarder l'état mis à jour
+              this.saveToStorage()
+            }
+          }
         } catch (error) {
-          // En cas d'erreur, incrémenter le compteur de tentatives
+          console.error('[SyncQueue] Erreur lors du traitement de la modification:', error)
           modification.retryCount++
           
           // Si trop de tentatives, retirer de la file
           if (modification.retryCount >= 3) {
             console.error('[SyncQueue] Abandon de la modification après 3 tentatives:', modification.id)
             this.dequeue(modification.id)
+          } else {
+            this.saveToStorage()
           }
         }
       }
     } finally {
       this.processing = false
     }
+  }
+
+  /**
+   * Synchronise une modification avec retry et backoff exponentiel
+   * T089: Retry avec backoff exponentiel (3 tentatives: 1s, 2s, 4s)
+   * 
+   * @param modification - Modification à synchroniser
+   * @returns true si la synchronisation a réussi, false sinon
+   */
+  private async syncModificationWithRetry(modification: QueuedModification): Promise<boolean> {
+    const maxRetries = 3
+    const delays = [1000, 2000, 4000] // 1s, 2s, 4s
+
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      try {
+        await this.syncModification(modification)
+        return true // Succès
+      } catch (error) {
+        const isLastAttempt = attempt === maxRetries - 1
+        
+        if (isLastAttempt) {
+          console.error(`[SyncQueue] Échec après ${maxRetries} tentatives pour ${modification.id}:`, error)
+          return false
+        }
+
+        // Attendre avant la prochaine tentative (backoff exponentiel)
+        const delay = delays[attempt] || delays[delays.length - 1]
+        console.log(`[SyncQueue] Tentative ${attempt + 1}/${maxRetries} échouée pour ${modification.id}, nouvelle tentative dans ${delay}ms`)
+        await new Promise((resolve) => setTimeout(resolve, delay))
+      }
+    }
+
+    return false
   }
 
   /**
@@ -193,11 +265,14 @@ export class SyncQueue {
 
   /**
    * Restaure les modifications en file d'attente depuis localStorage à la reconnexion
+   * T086: Restauration automatique des modifications en file d'attente depuis localStorage
    */
   restoreOnReconnect() {
     this.loadFromStorage()
     if (this.queue.length > 0) {
       console.log(`[SyncQueue] ${this.queue.length} modification(s) en attente de synchronisation`)
+      // Redémarrer le traitement par batch si nécessaire
+      this.startBatchProcessing()
     }
   }
 }
@@ -214,4 +289,5 @@ export function getSyncQueue(): SyncQueue {
   }
   return syncQueueInstance
 }
+
 

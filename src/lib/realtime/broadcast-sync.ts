@@ -32,13 +32,43 @@ export function createBroadcastSync(queryClient: QueryClient) {
 
   const channel = new BroadcastChannel(BROADCAST_CHANNEL_NAME)
 
+  // T091: Stocker les timestamps récents pour éviter les boucles infinies
+  const recentTimestamps = new Set<number>()
+  const MAX_RECENT_TIMESTAMPS = 100
+  const TIMESTAMP_TTL = 5000 // 5 secondes
+
+  // Nettoyer les timestamps expirés périodiquement
+  setInterval(() => {
+    const now = Date.now()
+    for (const ts of recentTimestamps) {
+      if (now - ts > TIMESTAMP_TTL) {
+        recentTimestamps.delete(ts)
+      }
+    }
+  }, 1000)
+
   // Écouter les messages des autres onglets
   channel.onmessage = (event: MessageEvent<CacheSyncMessage>) => {
     const { type, queryKey, data, eventType, interventionId, timestamp } = event.data
 
+    // T091: Vérifier que la synchronisation BroadcastChannel évite les boucles infinies
     // Ignorer les messages émis par cet onglet (éviter les boucles)
     if (timestamp === window.__lastBroadcastTimestamp) {
       return
+    }
+
+    // Ignorer les messages avec des timestamps récents déjà traités
+    if (recentTimestamps.has(timestamp)) {
+      console.log('[BroadcastSync] Message ignoré (timestamp déjà traité):', timestamp)
+      return
+    }
+
+    // Ajouter le timestamp aux timestamps récents
+    recentTimestamps.add(timestamp)
+    if (recentTimestamps.size > MAX_RECENT_TIMESTAMPS) {
+      // Retirer le plus ancien
+      const oldest = Math.min(...Array.from(recentTimestamps))
+      recentTimestamps.delete(oldest)
     }
 
     switch (type) {
@@ -125,4 +155,5 @@ declare global {
     __lastBroadcastTimestamp?: number
   }
 }
+
 

@@ -69,6 +69,7 @@ export interface Intervention {
   client_id?: string | null;
   artisan_id?: string | null;
   assigned_user_id: string | null;
+  updated_by: string | null; // Utilisateur qui a effectué la dernière modification
   statut_id: string | null;
   metier_id: string | null;
   date: string;

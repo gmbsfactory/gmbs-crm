@@ -86,27 +86,6 @@ export default function Topbar() {
     refreshReminders()
   }, [refreshReminders])
 
-  React.useEffect(() => {
-    const channel = supabase
-      .channel("intervention_reminders_changes")
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "intervention_reminders",
-        },
-        () => {
-          refreshReminders()
-        },
-      )
-      .subscribe()
-
-    return () => {
-      channel.unsubscribe()
-    }
-  }, [refreshReminders])
-
   const allReminders = React.useMemo<DisplayReminder[]>(() => {
     const remote = Array.from(reminderRecords.entries()).map(([interventionId, reminder]) => {
       const ownerNameParts = [reminder.user?.firstname, reminder.user?.lastname].filter(Boolean)

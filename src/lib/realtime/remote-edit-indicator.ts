@@ -24,22 +24,38 @@ export interface RemoteEditIndicator {
 class RemoteEditIndicatorManager {
   private indicators: Map<string, RemoteEditIndicator> = new Map()
   private localModifications: Set<string> = new Set() // Set d'IDs d'interventions modifiées localement
-  private localModificationTimestamps: Map<string, number> = new Map() // Timestamp des modifications locales
+  private localModificationTimestamps: Map<string, number> = new Map() // Timestamp des modifications locales (Date.now())
+  private localUpdatedAtTimestamps: Map<string, string> = new Map() // Timestamp updated_at des modifications locales (ISO string)
 
   /**
    * Enregistre une modification locale pour éviter d'afficher un badge pour nos propres modifications
    * 
    * @param interventionId - ID de l'intervention modifiée
+   * @param updatedAt - Timestamp updated_at de la modification locale (ISO string)
    */
-  recordLocalModification(interventionId: string): void {
+  recordLocalModification(interventionId: string, updatedAt?: string | null): void {
     this.localModifications.add(interventionId)
     this.localModificationTimestamps.set(interventionId, Date.now())
+    if (updatedAt) {
+      this.localUpdatedAtTimestamps.set(interventionId, updatedAt)
+    }
     
     // Nettoyer après 5 secondes (les événements Realtime arrivent généralement en < 2s)
     setTimeout(() => {
       this.localModifications.delete(interventionId)
       this.localModificationTimestamps.delete(interventionId)
+      this.localUpdatedAtTimestamps.delete(interventionId)
     }, 5000)
+  }
+
+  /**
+   * Récupère le timestamp updated_at d'une modification locale
+   * 
+   * @param interventionId - ID de l'intervention
+   * @returns Timestamp updated_at ou undefined
+   */
+  getLocalUpdatedAt(interventionId: string): string | undefined {
+    return this.localUpdatedAtTimestamps.get(interventionId)
   }
 
   /**
@@ -60,15 +76,17 @@ class RemoteEditIndicatorManager {
   addIndicator(indicator: RemoteEditIndicator): void {
     // Ne pas ajouter si c'est une modification locale
     if (this.isLocalModification(indicator.interventionId)) {
+      console.log(`[RemoteEditIndicator] ⏭️ Indicateur ignoré pour ${indicator.interventionId} (modification locale)`)
       return
     }
 
     this.indicators.set(indicator.interventionId, indicator)
     
-    // Nettoyer automatiquement après 10 secondes (synchronisation complète)
+    // Nettoyer automatiquement après 20 secondes (synchronisation complète)
     setTimeout(() => {
+      console.log(`[RemoteEditIndicator] 🗑️ Nettoyage automatique de l'indicateur pour ${indicator.interventionId}`)
       this.removeIndicator(indicator.interventionId)
-    }, 10000)
+    }, 20000)
   }
 
   /**
@@ -104,13 +122,20 @@ class RemoteEditIndicatorManager {
    */
   cleanupExpired(): void {
     const now = Date.now()
-    const maxAge = 10000 // 10 secondes
+    const maxAge = 20000 // 20 secondes
     
     for (const [interventionId, indicator] of this.indicators.entries()) {
       if (now - indicator.timestamp > maxAge) {
         this.indicators.delete(interventionId)
       }
     }
+  }
+
+  /**
+   * Récupère la liste des modifications locales (pour debug)
+   */
+  getLocalModifications(): string[] {
+    return Array.from(this.localModifications)
   }
 }
 
@@ -129,17 +154,45 @@ export function getRemoteEditIndicatorManager(): RemoteEditIndicatorManager {
 
 /**
  * Génère une couleur pour un utilisateur basée sur son ID
- * Utilise un hash simple pour générer une couleur cohérente
+ * Si un cache de référence est fourni, récupère la couleur depuis la table users (colonne color)
+ * Sinon, utilise un hash simple pour générer une couleur cohérente
  * 
  * @param userId - ID de l'utilisateur
- * @returns Couleur hexadécimale
+ * @param referenceCache - Cache de référence optionnel contenant les données utilisateur
+ * @returns Couleur hexadécimale ou HSL
  */
-export function getUserColor(userId: string | null): string {
+export function getUserColor(userId: string | null, referenceCache?: { usersById?: Map<string, any> }): string {
   if (!userId) {
+    console.log(`[getUserColor] ⚠️ Pas d'userId, retour du gris par défaut`)
     return '#666666' // Gris par défaut
   }
 
-  // Hash simple pour générer une couleur cohérente
+  console.log(`[getUserColor] 🔍 Recherche couleur pour userId: ${userId}`, {
+    hasCache: !!referenceCache,
+    hasUsersById: !!referenceCache?.usersById,
+    cacheSize: referenceCache?.usersById?.size || 0,
+  })
+
+  // Si un cache de référence est fourni, essayer de récupérer la couleur depuis la table users
+  if (referenceCache?.usersById) {
+    const user = referenceCache.usersById.get(userId)
+    console.log(`[getUserColor] 👤 Utilisateur trouvé dans le cache:`, {
+      userId,
+      found: !!user,
+      userColor: user?.color,
+      userData: user,
+    })
+    if (user?.color) {
+      console.log(`[getUserColor] ✅ Couleur récupérée depuis la table: ${user.color}`)
+      return user.color
+    } else {
+      console.log(`[getUserColor] ⚠️ Utilisateur trouvé mais pas de couleur, utilisation du fallback HSL`)
+    }
+  } else {
+    console.log(`[getUserColor] ⚠️ Pas de cache de référence, utilisation du fallback HSL`)
+  }
+
+  // Fallback : Hash simple pour générer une couleur cohérente si pas de couleur dans la table
   let hash = 0
   for (let i = 0; i < userId.length; i++) {
     hash = userId.charCodeAt(i) + ((hash << 5) - hash)
@@ -147,7 +200,9 @@ export function getUserColor(userId: string | null): string {
 
   // Générer une couleur HSL avec saturation et luminosité fixes pour la lisibilité
   const hue = Math.abs(hash) % 360
-  return `hsl(${hue}, 70%, 50%)`
+  const hslColor = `hsl(${hue}, 70%, 50%)`
+  console.log(`[getUserColor] 🎨 Couleur HSL générée: ${hslColor}`)
+  return hslColor
 }
 
 /**

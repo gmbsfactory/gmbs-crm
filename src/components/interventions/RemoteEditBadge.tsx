@@ -32,6 +32,15 @@ export function RemoteEditBadge({ interventionId, className }: RemoteEditBadgePr
     // Vérifier si un indicateur existe pour cette intervention
     const checkIndicator = () => {
       const currentIndicator = indicatorManager.getIndicator(interventionId)
+      
+      // Log seulement quand un badge est trouvé (événement rare)
+      if (currentIndicator && !indicator) {
+        console.log(`[RemoteEditBadge] ✅ Badge affiché pour intervention ${interventionId}`, {
+          userColor: currentIndicator.userColor,
+          userId: currentIndicator.userId,
+        })
+      }
+      
       setIndicator(currentIndicator)
     }
 
@@ -44,7 +53,7 @@ export function RemoteEditBadge({ interventionId, className }: RemoteEditBadgePr
     return () => {
       clearInterval(interval)
     }
-  }, [interventionId, indicatorManager])
+  }, [interventionId, indicatorManager, indicator])
 
   if (!indicator) {
     return null
@@ -55,14 +64,15 @@ export function RemoteEditBadge({ interventionId, className }: RemoteEditBadgePr
   return (
     <div
       className={cn(
-        "absolute top-2 right-2 z-10 flex items-center gap-1.5 rounded-full px-2 py-1 text-xs font-medium shadow-lg",
+        "absolute z-50 flex items-center gap-1.5 rounded-full px-2 py-1 text-xs font-medium shadow-lg",
         "animate-in fade-in slide-in-from-top-2 duration-300",
-        className
+        className || "top-2 right-2"
       )}
       style={{
         backgroundColor: badgeColor,
         color: '#ffffff',
         border: `1px solid ${badgeColor}`,
+        pointerEvents: 'none', // Ne pas bloquer les clics sur la ligne
       }}
       title={`Modifié par ${indicator.userName || 'un autre utilisateur'}`}
     >

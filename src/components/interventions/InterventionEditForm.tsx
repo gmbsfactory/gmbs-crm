@@ -22,7 +22,9 @@ import { useNearbyArtisans, type NearbyArtisan } from "@/hooks/useNearbyArtisans
 import { interventionsApi } from "@/lib/api/v2"
 import { commentsApi } from "@/lib/api/v2/commentsApi"
 import type { Intervention, UpdateInterventionData } from "@/lib/api/v2/common/types"
+import type { InterventionWithStatus } from "@/types/intervention"
 import { supabase } from "@/lib/supabase-client"
+import { useInterventionsMutations } from "@/hooks/useInterventionsMutations"
 import { getReasonTypeForTransition, type StatusReasonType } from "@/lib/comments/statusReason"
 import { cn } from "@/lib/utils"
 import { ArtisanSearchModal, type ArtisanSearchResult } from "@/components/artisans/ArtisanSearchModal"
@@ -87,6 +89,7 @@ export function InterventionEditForm({
 }: InterventionEditFormProps) {
   const { data: refData, loading: refDataLoading } = useReferenceData()
   const queryClient = useQueryClient()
+  const { update: updateMutation } = useInterventionsMutations()
   const [isGeocoding, setIsGeocoding] = useState(false)
   const [geocodeError, setGeocodeError] = useState<string | null>(null)
   const [currentUser, setCurrentUser] = useState<{
@@ -644,7 +647,30 @@ export function InterventionEditForm({
         }
       })
 
-      const updated = await interventionsApi.update(intervention.id, updateData)
+      // Utiliser useInterventionsMutations pour enregistrer la modification locale
+      console.log(`[InterventionEditForm] 📝 Mise à jour de l'intervention ${intervention.id} via useInterventionsMutations`)
+      const updated = await updateMutation.mutateAsync({
+        id: intervention.id,
+        data: {
+          agence_id: updateData.agence_id,
+          assigned_user_id: updateData.assigned_user_id,
+          statut_id: updateData.statut_id,
+          metier_id: updateData.metier_id,
+          date: updateData.date,
+          date_prevue: updateData.date_prevue ?? undefined,
+          contexte_intervention: updateData.contexte_intervention,
+          consigne_intervention: updateData.consigne_intervention,
+          consigne_second_artisan: updateData.consigne_second_artisan,
+          commentaire_agent: updateData.commentaire_agent,
+          adresse: updateData.adresse,
+          code_postal: updateData.code_postal,
+          ville: updateData.ville,
+          latitude: updateData.latitude,
+          longitude: updateData.longitude,
+          numero_sst: updateData.numero_sst,
+          pourcentage_sst: updateData.pourcentage_sst,
+        },
+      })
 
       // Mettre à jour les coûts
       const costsToUpdate: Array<{ cost_type: "sst" | "materiel" | "intervention"; amount: number }> = []
@@ -681,7 +707,7 @@ export function InterventionEditForm({
       const currentPrimaryId = primaryArtisanIdRef.current
       const nextPrimaryId = selectedArtisanId ?? null
 
-      let payload = updated
+      let payload: InterventionWithStatus = updated as InterventionWithStatus
 
       if (currentPrimaryId !== nextPrimaryId) {
         await interventionsApi.setPrimaryArtisan(intervention.id, nextPrimaryId)

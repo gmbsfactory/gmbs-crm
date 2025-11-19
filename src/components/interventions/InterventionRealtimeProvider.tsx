@@ -1,15 +1,25 @@
 /**
  * Provider React pour activer la synchronisation Realtime des interventions
  * Encapsule useInterventionsRealtime pour une utilisation simple dans les composants
+ * T084: Expose le statut de connexion pour affichage dans l'interface
  */
 
 'use client'
 
-import { useInterventionsRealtime } from '@/hooks/useInterventionsRealtime'
+import { createContext, useContext } from 'react'
+import { useInterventionsRealtime, type ConnectionStatus } from '@/hooks/useInterventionsRealtime'
+import { ConnectionStatusIndicator } from './ConnectionStatusIndicator'
 import type { ReactNode } from 'react'
+
+interface RealtimeContextValue {
+  connectionStatus: ConnectionStatus
+}
+
+const RealtimeContext = createContext<RealtimeContextValue | undefined>(undefined)
 
 interface InterventionRealtimeProviderProps {
   children: ReactNode
+  showIndicator?: boolean
 }
 
 /**
@@ -24,10 +34,37 @@ interface InterventionRealtimeProviderProps {
  */
 export function InterventionRealtimeProvider({
   children,
+  showIndicator = false,
 }: InterventionRealtimeProviderProps) {
   // Activer la synchronisation Realtime
-  useInterventionsRealtime()
+  const { connectionStatus } = useInterventionsRealtime()
 
-  return <>{children}</>
+  const value: RealtimeContextValue = {
+    connectionStatus,
+  }
+
+  return (
+    <RealtimeContext.Provider value={value}>
+      {children}
+      {showIndicator && (
+        <div className="fixed bottom-4 right-4 z-50">
+          <ConnectionStatusIndicator status={connectionStatus} />
+        </div>
+      )}
+    </RealtimeContext.Provider>
+  )
 }
+
+/**
+ * Hook pour accéder au statut de connexion Realtime
+ */
+export function useRealtimeStatus(): ConnectionStatus {
+  const context = useContext(RealtimeContext)
+  if (!context) {
+    // Fallback si utilisé en dehors du provider
+    return 'connecting'
+  }
+  return context.connectionStatus
+}
+
 

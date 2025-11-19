@@ -541,6 +541,7 @@ export interface Intervention {
   reference_agence: string | null;
   client_id: string | null;
   assigned_user_id: string | null;
+  updated_by: string | null; // Utilisateur qui a effectué la dernière modification
   statut_id: string | null;
   metier_id: string | null;
   date: string;
@@ -3618,16 +3619,34 @@ export async function getInterventionTotalCount(
     "limit" | "offset" | "fields" | "sortBy" | "sortDir" | "cursor" | "direction"
   >,
 ): Promise<number> {
-  let query = supabase
-    .from("interventions")
-    .select("id", { count: "exact", head: true });
+  try {
+    let query = supabase
+      .from("interventions")
+      .select("id", { count: "exact", head: true });
 
-  query = applyInterventionFilters(query, params);
+    query = applyInterventionFilters(query, params);
 
-  const { count, error } = await query;
-  if (error) throw error;
+    const { count, error } = await query;
+    
+    if (error) {
+      // Améliorer le message d'erreur pour le diagnostic
+      const errorMessage = error.message || JSON.stringify(error, Object.getOwnPropertyNames(error))
+      console.error(`[getInterventionTotalCount] Erreur Supabase:`, {
+        error,
+        errorMessage,
+        params,
+      })
+      throw new Error(`Erreur lors du comptage des interventions: ${errorMessage}`)
+    }
 
-  return count ?? 0;
+    return count ?? 0;
+  } catch (error) {
+    // Re-lancer l'erreur avec plus de contexte si ce n'est pas déjà une Error
+    if (error instanceof Error) {
+      throw error
+    }
+    throw new Error(`Erreur inattendue lors du comptage: ${JSON.stringify(error, Object.getOwnPropertyNames(error))}`)
+  }
 }
 
 /**

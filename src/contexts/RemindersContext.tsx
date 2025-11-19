@@ -4,6 +4,7 @@ import { createContext, useCallback, useContext, useEffect, useState, type React
 import { remindersApi } from "@/lib/api/v2/reminders"
 import type { InterventionReminder } from "@/lib/api/v2"
 import { supabase } from "@/lib/supabase-client"
+import type { RealtimePostgresChangesPayload } from "@supabase/supabase-js"
 
 const normalizeIdentifier = (input: string): string => {
   return input
@@ -198,6 +199,44 @@ export function RemindersProvider({ children }: { children: ReactNode }) {
 
     let mounted = true
     let channel: ReturnType<typeof supabase.channel> | null = null
+    let currentUserId: string | null = null
+
+    const checkIfEventConcernsUser = async (
+      payload: RealtimePostgresChangesPayload<{
+        id: string
+        intervention_id: string
+        user_id: string
+        mentioned_user_ids: string[] | null
+        is_active: boolean | null
+      }>
+    ): Promise<boolean> => {
+      if (!currentUserId) {
+        const { data } = await supabase.auth.getSession()
+        currentUserId = data?.session?.user?.id ?? null
+      }
+
+      if (!currentUserId) return false
+
+      // Vérifier si le nouveau reminder concerne l'utilisateur
+      if (payload.new && 'user_id' in payload.new) {
+        const newUserId = payload.new.user_id
+        const newMentionedIds = payload.new.mentioned_user_ids ?? []
+        if (newUserId === currentUserId || (Array.isArray(newMentionedIds) && newMentionedIds.includes(currentUserId))) {
+          return true
+        }
+      }
+
+      // Vérifier si l'ancien reminder concernait l'utilisateur (pour DELETE ou UPDATE)
+      if (payload.old && 'user_id' in payload.old) {
+        const oldUserId = payload.old.user_id
+        const oldMentionedIds = payload.old.mentioned_user_ids ?? []
+        if (oldUserId === currentUserId || (Array.isArray(oldMentionedIds) && oldMentionedIds.includes(currentUserId))) {
+          return true
+        }
+      }
+
+      return false
+    }
 
     const bindChannel = () => {
       if (channel) {
@@ -206,28 +245,50 @@ export function RemindersProvider({ children }: { children: ReactNode }) {
 
       channel = supabase
         .channel("intervention_reminders_realtime")
-        .on(
+        .on<{
+          id: string
+          intervention_id: string
+          user_id: string
+          mentioned_user_ids: string[] | null
+          is_active: boolean | null
+        }>(
           "postgres_changes",
           {
             event: "*",
             schema: "public",
             table: "intervention_reminders",
           },
-          () => {
-            if (mounted) {
+          async (payload) => {
+            if (!mounted) return
+
+            // Filtrer les événements pour ne traiter que ceux qui concernent l'utilisateur
+            const concernsUser = await checkIfEventConcernsUser(payload)
+            if (concernsUser) {
+              const newReminder = payload.new && 'id' in payload.new ? payload.new : null
+              const oldReminder = payload.old && 'id' in payload.old ? payload.old : null
+              console.log("[RemindersContext] 📨 Événement reminder concernant l'utilisateur:", {
+                eventType: payload.eventType,
+                reminderId: newReminder?.id ?? oldReminder?.id,
+                interventionId: newReminder?.intervention_id ?? oldReminder?.intervention_id,
+              })
               refreshReminders()
             }
           },
         )
         .subscribe((status) => {
-          if (status === "CHANNEL_ERROR") {
-            console.warn("[RemindersContext] Realtime subscription error:", status)
+          if (status === "SUBSCRIBED") {
+            console.log("[RemindersContext] ✅ Subscription realtime activée pour les reminders")
+          } else if (status === "CHANNEL_ERROR") {
+            console.warn("[RemindersContext] ❌ Erreur de subscription realtime:", status)
+          } else if (status === "TIMED_OUT") {
+            console.warn("[RemindersContext] ⚠️ Timeout de subscription realtime")
           }
         })
     }
 
     const ensureSubscription = async () => {
       const { data } = await supabase.auth.getSession()
+      currentUserId = data?.session?.user?.id ?? null
       if (data?.session && mounted) {
         bindChannel()
       }
@@ -238,12 +299,14 @@ export function RemindersProvider({ children }: { children: ReactNode }) {
     const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
       if (!mounted) return
 
+      currentUserId = session?.user?.id ?? null
       if (session) {
         bindChannel()
         refreshReminders()
       } else if (channel) {
         channel.unsubscribe()
         channel = null
+        currentUserId = null
       }
     })
 

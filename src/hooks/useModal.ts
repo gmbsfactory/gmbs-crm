@@ -169,6 +169,17 @@ export function useModal() {
       return
     }
 
+    const nextContent: ModalContent = isValidContent(rawContent) ? rawContent : "intervention"
+    
+    // Vérifier si le modal est déjà ouvert avec le bon ID et le bon contenu
+    // Si c'est le cas et qu'il n'y a pas de pendingModalId, ne rien faire pour éviter la double ouverture
+    const isAlreadyOpen = isOpen && activeId === modalId && content === nextContent
+    
+    // Si le modal est déjà ouvert correctement et qu'il n'y a pas d'ouverture en cours, ne rien faire
+    if (isAlreadyOpen && !pendingModalId) {
+      return
+    }
+
     if (pendingModalId && modalId !== pendingModalId) {
       return
     }
@@ -184,8 +195,6 @@ export function useModal() {
     if (pendingModalId) {
       pendingModalId = null
     }
-
-    const nextContent: ModalContent = isValidContent(rawContent) ? rawContent : "intervention"
     
     // Forcer le mode fullpage si le modal est ouvert depuis l'URL (nouvelle page ou nouvel onglet)
     // Dans un nouvel onglet, activeId sera null et isOpen sera false au premier rendu

@@ -30,8 +30,21 @@ export function createInterventionsChannel(
         // On écoute tous les événements UPDATE pour détecter les changements de is_active
       },
       (payload) => {
-        console.log('[Realtime] Payload reçu:', payload.eventType, payload.new?.id || payload.old?.id)
-        onEvent(payload)
+        const newIntervention = payload.new && 'id' in payload.new ? payload.new : null
+        const oldIntervention = payload.old && 'id' in payload.old ? payload.old : null
+        console.log('[Realtime] 📨 Payload reçu:', {
+          eventType: payload.eventType,
+          newId: newIntervention?.id,
+          oldId: oldIntervention?.id,
+          table: payload.table,
+          schema: payload.schema,
+          fullPayload: payload,
+        })
+        try {
+          onEvent(payload)
+        } catch (error) {
+          console.error('[Realtime] ❌ Erreur lors du traitement de l\'événement:', error)
+        }
       }
     )
 
@@ -49,13 +62,13 @@ export function createInterventionsChannel(
   })
 
   // Gestion des erreurs de connexion
-  channel.on('error', (error) => {
+  channel.on('error' as any, {}, (error: any) => {
     console.error('[Realtime] Erreur de connexion:', error)
     // Le basculement vers polling sera géré par le hook
   })
 
   // Gestion de la déconnexion
-  channel.on('disconnect', () => {
+  channel.on('disconnect' as any, {}, () => {
     console.warn('[Realtime] Déconnexion détectée')
     // Le basculement vers polling sera géré par le hook
   })

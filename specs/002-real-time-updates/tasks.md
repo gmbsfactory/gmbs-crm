@@ -10,8 +10,8 @@
 Ce document liste toutes les tâches d'implémentation pour la fonctionnalité de mise à jour en temps réel des interventions via Supabase Realtime. Les tâches sont organisées par phase et user story pour permettre une implémentation indépendante et testable.
 
 **Total des tâches**: 98  
-**Tâches complétées**: 66 (67%)  
-**Tâches restantes**: 32 (33%)  
+**Tâches complétées**: 81 (83%)  
+**Tâches restantes**: 17 (17%)  
 **User Stories P1**: 6 (US1, US2, US4, US5, US6, US7)  
 **User Stories P2**: 6 (US3, US8, US9, US10, US11, US12)  
 **Opportunités de parallélisation**: 45 tâches
@@ -252,11 +252,16 @@ L'implémentation MVP couvre les user stories P1 :
 
 ### T063-T068: Gestion des conflits
 
-- [ ] T063 [US8] Implémenter la détection de conflit via comparaison des timestamps `updated_at` dans `src/lib/realtime/cache-sync.ts`
-- [ ] T064 [US8] Implémenter la stratégie "dernier écrit gagne" dans `syncCacheWithRealtimeEvent` en restaurant la valeur distante si `localUpdate.updated_at < remoteUpdate.updated_at`
-- [ ] T065 [US8] Créer fonction `showConflictNotification(remoteUser, field, oldValue, newValue)` dans `src/lib/realtime/cache-sync.ts` pour afficher la toast notification de conflit
-- [ ] T066 [US8] Intégrer `showConflictNotification` dans la logique de résolution de conflit pour notifier l'utilisateur dont la modification a été écrasée
-- [ ] T067 [US8] Vérifier que le système utilise le système de toast existant (shadcn/ui) pour afficher les notifications de conflit
+- [X] T063 [US8] Implémenter la détection de conflit via comparaison des timestamps `updated_at` dans `src/lib/realtime/cache-sync.ts`
+  - ✅ Implémenté : Fonction `detectConflict()` qui compare les timestamps locaux et distants
+- [X] T064 [US8] Implémenter la stratégie "dernier écrit gagne" dans `syncCacheWithRealtimeEvent` en restaurant la valeur distante si `localUpdate.updated_at < remoteUpdate.updated_at`
+  - ✅ Implémenté : La stratégie est appliquée automatiquement via l'utilisation de `enrichedNewRecord` qui a le `updated_at` le plus récent
+- [X] T065 [US8] Créer fonction `showConflictNotification(remoteUser, field, oldValue, newValue)` dans `src/lib/realtime/cache-sync.ts` pour afficher la toast notification de conflit
+  - ✅ Implémenté : Fonction `showConflictNotification()` utilisant Sonner pour afficher les notifications
+- [X] T066 [US8] Intégrer `showConflictNotification` dans la logique de résolution de conflit pour notifier l'utilisateur dont la modification a été écrasée
+  - ✅ Implémenté : Intégré dans `syncCacheWithRealtimeEvent` lors de la détection de conflit
+- [X] T067 [US8] Vérifier que le système utilise le système de toast existant (shadcn/ui) pour afficher les notifications de conflit
+  - ✅ Vérifié : Utilise `toast` de `sonner` qui est déjà intégré dans l'application
 - [ ] T068 [US8] Tester avec deux utilisateurs modifiant simultanément la même intervention pour vérifier la gestion des conflits
 
 ---
@@ -334,23 +339,37 @@ L'implémentation MVP couvre les user stories P1 :
 
 ### T082-T090: Gestion d'erreurs avancée et résilience
 
-- [ ] T082 Implémenter le basculement automatique vers polling (5s) dans `src/lib/realtime/realtime-client.ts` lorsque Realtime est indisponible
-- [ ] T083 Implémenter la tentative de reconnexion automatique à Realtime toutes les 30s dans `src/lib/realtime/realtime-client.ts`
-- [ ] T084 Ajouter un indicateur de statut de connexion (Realtime vs Polling) dans l'interface utilisateur pour informer l'utilisateur du mode de synchronisation
-- [ ] T085 Implémenter la gestion gracieuse des erreurs localStorage (plein, inaccessible, mode privé) dans `src/lib/realtime/sync-queue.ts` avec notification d'avertissement
-- [ ] T086 Implémenter la restauration automatique des modifications en file d'attente depuis localStorage à la reconnexion dans `src/lib/realtime/sync-queue.ts`
-- [ ] T087 Implémenter la gestion des soft deletes avec notification toast "Intervention supprimée" et annulation des modifications en cours dans `src/lib/realtime/cache-sync.ts`
-- [ ] T088 Implémenter la gestion de la perte d'accès (changement RLS) avec notification toast "Accès retiré" et annulation des modifications en cours dans `src/lib/realtime/cache-sync.ts`
-- [ ] T089 Ajouter la gestion des retry avec backoff exponentiel (3 tentatives: 1s, 2s, 4s) dans `src/lib/realtime/sync-queue.ts` avant mise en file d'attente
-- [ ] T090 Vérifier que toutes les erreurs réseau sont correctement gérées avec retry et file d'attente
+- [X] T082 Implémenter le basculement automatique vers polling (5s) dans `src/lib/realtime/realtime-client.ts` lorsque Realtime est indisponible
+  - ✅ Implémenté : Basculement automatique vers polling dans `useInterventionsRealtime` avec intervalle de 5s
+- [X] T083 Implémenter la tentative de reconnexion automatique à Realtime toutes les 30s dans `src/lib/realtime/realtime-client.ts`
+  - ✅ Implémenté : Tentative de reconnexion automatique toutes les 30s dans `useInterventionsRealtime`
+- [X] T084 Ajouter un indicateur de statut de connexion (Realtime vs Polling) dans l'interface utilisateur pour informer l'utilisateur du mode de synchronisation
+  - ✅ Implémenté : Composant `ConnectionStatusIndicator` et contexte `RealtimeContext` pour exposer le statut
+- [X] T085 Implémenter la gestion gracieuse des erreurs localStorage (plein, inaccessible, mode privé) dans `src/lib/realtime/sync-queue.ts` avec notification d'avertissement
+  - ✅ Implémenté : Gestion des erreurs QUOTA_EXCEEDED_ERR et SECURITY_ERR avec nettoyage automatique de la file
+- [X] T086 Implémenter la restauration automatique des modifications en file d'attente depuis localStorage à la reconnexion dans `src/lib/realtime/sync-queue.ts`
+  - ✅ Implémenté : Méthode `restoreOnReconnect()` qui recharge depuis localStorage et redémarre le traitement
+- [X] T087 Implémenter la gestion des soft deletes avec notification toast "Intervention supprimée" et annulation des modifications en cours dans `src/lib/realtime/cache-sync.ts`
+  - ✅ Implémenté : Notification toast dans `handleSoftDelete()` et nettoyage des indicateurs
+- [X] T088 Implémenter la gestion de la perte d'accès (changement RLS) avec notification toast "Accès retiré" et annulation des modifications en cours dans `src/lib/realtime/cache-sync.ts`
+  - ✅ Implémenté : Détection des événements UPDATE sans payload `new`, suppression de l'intervention, nettoyage SyncQueue + badges et toast "Accès retiré"
+- [X] T089 Ajouter la gestion des retry avec backoff exponentiel (3 tentatives: 1s, 2s, 4s) dans `src/lib/realtime/sync-queue.ts` avant mise en file d'attente
+  - ✅ Implémenté : Méthode `syncModificationWithRetry()` avec backoff exponentiel (1s, 2s, 4s)
+- [X] T090 Vérifier que toutes les erreurs réseau sont correctement gérées avec retry et file d'attente
+  - ✅ Vérifié : Les erreurs réseau sont détectées via `isNetworkError()` et mises en file d'attente avec retry
 
 ### T091-T095: Optimisations et tests
 
-- [ ] T091 Vérifier que la synchronisation BroadcastChannel évite les boucles infinies via vérification du timestamp dans `src/lib/realtime/broadcast-sync.ts`
-- [ ] T092 Optimiser les performances de `matchesFilters` pour les grandes listes d'interventions (considérer l'utilisation de Map pour les filtres fréquents)
-- [ ] T093 Ajouter des logs de debug pour le développement (à désactiver en production) dans `src/lib/realtime/cache-sync.ts`
-- [ ] T094 Créer des tests unitaires pour `matchesFilters` dans `tests/unit/realtime/filter-utils.test.ts`
-- [ ] T095 Créer des tests d'intégration pour la synchronisation Realtime dans `tests/integration/realtime-sync.test.ts`
+- [X] T091 Vérifier que la synchronisation BroadcastChannel évite les boucles infinies via vérification du timestamp dans `src/lib/realtime/broadcast-sync.ts`
+  - ✅ Implémenté : Utilisation d'un Set de timestamps récents avec TTL de 5 secondes pour éviter les boucles
+- [X] T092 Optimiser les performances de `matchesFilters` pour les grandes listes d'interventions (considérer l'utilisation de Map pour les filtres fréquents)
+  - ✅ Optimisé : Vérifications court-circuit pour exclure rapidement les interventions inactives
+- [X] T093 Ajouter des logs de debug pour le développement (à désactiver en production) dans `src/lib/realtime/cache-sync.ts`
+  - ✅ Implémenté : Logs de debug conditionnels basés sur `NODE_ENV === 'development'` dans `filter-utils.ts`
+- [X] T094 Créer des tests unitaires pour `matchesFilters` dans `tests/unit/realtime/filter-utils.test.ts`
+  - ✅ Couverture des cas clés : statut, utilisateurs (single/array), artisan/agence/métier, dates et recherche textuelle
+- [X] T095 Créer des tests d'intégration pour la synchronisation Realtime dans `tests/integration/realtime-sync.test.ts`
+  - ✅ Tests Vitest validant INSERT/UPDATE/Perte d'accès sur `syncCacheWithRealtimeEvent` avec `QueryClient`
 
 ### T096-T098: Documentation et finalisation
 
@@ -461,4 +480,3 @@ Phase 15 (Polish) - Finalisation
 4. **Performance**: Les optimisations (debounce, mise à jour optimiste, BroadcastChannel) sont intégrées dès la Phase 2
 
 5. **Résilience**: La gestion d'erreurs et la file d'attente sont implémentées dès la Phase 2 pour garantir la robustesse du système
-

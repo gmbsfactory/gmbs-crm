@@ -44,6 +44,7 @@ import {
 } from "@/components/ui/context-menu"
 import { InterventionContextMenuContent } from "@/components/interventions/InterventionContextMenu"
 import { useInterventionModal } from "@/hooks/useInterventionModal"
+import { RemoteEditBadge } from "@/components/interventions/RemoteEditBadge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -1235,7 +1236,7 @@ export function TableView({
                                   <tr
                                     data-intervention-id={intervention.id}
                                     className={cn(
-                                      "group cursor-pointer border-b border-border/30 transition-colors duration-150 hover:bg-accent/10 data-[state=selected]:hover:bg-muted",
+                                      "group relative cursor-pointer border-b border-border/30 transition-colors duration-150 hover:bg-accent/10 data-[state=selected]:hover:bg-muted",
                                       statusBorderEnabled && "table-row-status-border",
                                       isExpanded && "bg-muted/30",
                                     )}
@@ -1252,7 +1253,7 @@ export function TableView({
                                     }
                                     onClick={handleRowClick}
                                   >
-                                {view.visibleProperties.map((property) => {
+                                {view.visibleProperties.map((property, propertyIndex) => {
                                   const styleEntry = columnStyles[property]
                                   const { content, backgroundColor, defaultTextColor, cellClassName, statusGradient } =
                                     renderCell(intervention, property, styleEntry, themeMode)
@@ -1289,9 +1290,18 @@ export function TableView({
                                         cellClassName,
                                         "max-w-[200px]",
                                         isExpanded && "!py-[px]",
+                                        // Ajouter relative seulement pour la première cellule pour positionner le badge
+                                        propertyIndex === 0 && "relative",
                                       )}
                                       style={inlineStyle}
                                     >
+                                      {/* Badge de modification distante - seulement dans la première cellule */}
+                                      {propertyIndex === 0 && (
+                                        <RemoteEditBadge 
+                                          interventionId={intervention.id} 
+                                          className="top-1 left-1"
+                                        />
+                                      )}
                                       <TruncatedCell content={content} />
                                     </td>
                                   )

@@ -156,8 +156,10 @@ export function useInterventionsQuery(
     queryKey,
     queryFn,
     enabled,
-    // Stale time spécifique : 30s pour revalidation silencieuse
-    staleTime: 30 * 1000,
+    // Stale time à 0 pour permettre les mises à jour realtime immédiates
+    // Les mises à jour realtime via setQueryData seront immédiatement visibles dans l'UI
+    // sans attendre 30 secondes
+    staleTime: 0,
     // Utiliser les données light préchargées comme placeholder si disponibles
     // Cela permet d'afficher instantanément les données préchargées pendant le chargement des données complètes
     placeholderData: (previousData) => {

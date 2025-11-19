@@ -1,0 +1,133 @@
+import { useMemo } from "react"
+import { useQueries, useQueryClient } from "@tanstack/react-query"
+import { getInterventionTotalCount, type GetAllParams } from "@/lib/supabase-api-v2"
+import { interventionKeys } from "@/lib/react-query/queryKeys"
+import type { InterventionViewDefinition } from "@/types/intervention-views"
+
+// Vues qui nécessitent un utilisateur connecté pour fonctionner correctement
+const USER_SCOPED_VIEW_IDS = new Set([
+  "mes-demandes",
+  "ma-liste-en-cours",
+  "mes-visites-technique",
+  "ma-liste-accepte",
+])
+
+export interface UseInterventionViewCountsOptions {
+  views: InterventionViewDefinition[]
+  convertFiltersToApiParams: (filters: any[]) => Partial<GetAllParams>
+  enabled?: boolean
+  currentUserId?: string
+}
+
+export interface UseInterventionViewCountsReturn {
+  counts: Record<string, number>
+  isLoading: boolean
+  error: Error | null
+}
+
+/**
+ * Hook pour charger les compteurs de toutes les vues d'interventions
+ * Utilise TanStack Query pour permettre l'invalidation automatique lors des mises à jour temps réel
+ */
+export function useInterventionViewCounts({
+  views,
+  convertFiltersToApiParams,
+  enabled = true,
+  currentUserId,
+}: UseInterventionViewCountsOptions): UseInterventionViewCountsReturn {
+  const queryClient = useQueryClient()
+
+  // Créer les queries pour chaque vue
+  const queries = useQueries({
+    queries: views.map((view) => {
+      const apiParams = convertFiltersToApiParams(view.filters)
+      
+      // Désactiver les vues utilisateur si currentUserId n'est pas disponible
+      const isUserScopedView = USER_SCOPED_VIEW_IDS.has(view.id)
+      const viewEnabled = enabled && Boolean(view.id) && (!isUserScopedView || Boolean(currentUserId))
+      
+      return {
+        queryKey: interventionKeys.summary(apiParams as GetAllParams),
+        queryFn: async () => {
+          try {
+            // Valider les paramètres avant d'appeler l'API
+            if (!apiParams || typeof apiParams !== 'object') {
+              console.warn(`[useInterventionViewCounts] Paramètres invalides pour la vue ${view.id}:`, apiParams)
+              return { viewId: view.id, count: 0 }
+            }
+            
+            // Pour les vues utilisateur, vérifier que currentUserId est disponible dans les paramètres
+            if (isUserScopedView && !currentUserId) {
+              console.warn(`[useInterventionViewCounts] Vue utilisateur ${view.id} ignorée car currentUserId n'est pas disponible`)
+              return { viewId: view.id, count: 0 }
+            }
+            
+            const count = await getInterventionTotalCount(apiParams)
+            return { viewId: view.id, count }
+          } catch (error) {
+            // Améliorer le logging des erreurs pour mieux diagnostiquer
+            const errorMessage = error instanceof Error 
+              ? error.message 
+              : typeof error === 'object' && error !== null
+              ? JSON.stringify(error, Object.getOwnPropertyNames(error))
+              : String(error)
+            
+            const errorDetails = error instanceof Error
+              ? {
+                  message: error.message,
+                  name: error.name,
+                  stack: error.stack,
+                }
+              : error
+            
+            console.error(
+              `[useInterventionViewCounts] Erreur lors du comptage pour la vue ${view.id}:`,
+              {
+                errorMessage,
+                errorDetails,
+                apiParams,
+                filters: view.filters,
+                isUserScopedView,
+                currentUserId,
+              }
+            )
+            return { viewId: view.id, count: 0 }
+          }
+        },
+        enabled: viewEnabled,
+        staleTime: 30000, // 30 secondes - les compteurs peuvent être mis en cache brièvement
+        gcTime: 5 * 60 * 1000, // 5 minutes avant garbage collection
+      }
+    }),
+  })
+
+  // Combiner les résultats en un objet Record<string, number>
+  const counts = useMemo(() => {
+    const result: Record<string, number> = {}
+    queries.forEach((query) => {
+      if (query.data) {
+        result[query.data.viewId] = query.data.count
+      }
+    })
+    return result
+  }, [queries])
+
+  // Déterminer l'état de chargement global
+  const isLoading = useMemo(() => {
+    return queries.some((query) => query.isLoading)
+  }, [queries])
+
+  // Déterminer s'il y a des erreurs
+  const error = useMemo(() => {
+    const firstError = queries.find((query) => query.error)
+    return firstError?.error as Error | null
+  }, [queries])
+
+  return {
+    counts,
+    isLoading,
+    error,
+  }
+}
+
+

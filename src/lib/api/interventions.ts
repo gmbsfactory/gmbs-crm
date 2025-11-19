@@ -313,32 +313,17 @@ export async function duplicateIntervention(originalId: string, authorId: string
 
   // Utiliser les données brutes de la base de données pour créer le payload de duplication
   // Créer le payload de duplication en excluant contexte et consignes
+  // Mapper les données de la base vers le format CreateInterventionInput
   const duplicatePayload: CreateInterventionInput = {
-    id_inter: originalData.id_inter ?? undefined,
-    agence_id: originalData.agence_id ?? undefined,
-    reference_agence: originalData.reference_agence ?? undefined,
-    tenant_id: originalData.tenant_id ?? undefined,
-    owner_id: originalData.owner_id ?? undefined,
-    client_id: originalData.client_id ?? undefined,
-    artisan_id: originalData.artisan_id ?? undefined,
-    assigned_user_id: originalData.assigned_user_id ?? undefined,
-    statut_id: originalData.statut_id ?? undefined,
-    metier_id: originalData.metier_id ?? undefined,
-    date: originalData.date,
-    date_prevue: originalData.date_prevue ?? undefined,
-    // Forcer contexte et consignes à null pour devis supp
-    contexte_intervention: null,
-    consigne_intervention: null,
-    consigne_second_artisan: originalData.consigne_second_artisan ?? undefined,
-    commentaire_agent: originalData.commentaire_agent ?? undefined,
-    adresse: originalData.adresse ?? undefined,
-    code_postal: originalData.code_postal ?? undefined,
-    ville: originalData.ville ?? undefined,
-    latitude: originalData.latitude ?? undefined,
-    longitude: originalData.longitude ?? undefined,
-    numero_sst: originalData.numero_sst ?? undefined,
-    pourcentage_sst: originalData.pourcentage_sst ?? undefined,
-    status: originalData.statut ? mapStatusFromDb(originalData.statut) : undefined,
+    name: originalData.commentaire_agent ?? originalData.contexte_intervention ?? originalData.adresse ?? "Intervention",
+    address: originalData.adresse ?? "",
+    context: "Devis supplémentaire", // Valeur par défaut pour devis supp (le contexte original est exclu)
+    agency: originalData.agence ?? originalData.agence_id ?? undefined,
+    consigne: undefined, // Forcer consigne à undefined pour devis supp
+    status: originalData.statut ? mapStatusFromDb(originalData.statut) : "DEMANDE",
+    dueAt: originalData.date_prevue ? new Date(originalData.date_prevue) : undefined,
+    artisanId: originalData.artisan_id ?? null,
+    managerId: originalData.attribue_a ?? null,
   }
 
   // Clarification FR-006 : Ignorer la vérification de doublons pour permettre plusieurs devis supplémentaires
