@@ -35,6 +35,10 @@ EMAIL_PASSWORD_ENCRYPTION_IV=votre-iv-16-caracteres
 **Génération des clés** :
 
 ```bash
+# Générer les deux clés en une seule commande
+node -e "const crypto = require('crypto'); console.log('EMAIL_PASSWORD_ENCRYPTION_KEY=' + crypto.randomBytes(32).toString('hex')); console.log('EMAIL_PASSWORD_ENCRYPTION_IV=' + crypto.randomBytes(16).toString('hex'));"
+
+# Ou séparément :
 # Générer la clé de chiffrement (32 caractères minimum)
 node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 

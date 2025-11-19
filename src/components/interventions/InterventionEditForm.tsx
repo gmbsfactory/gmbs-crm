@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useQueryClient } from "@tanstack/react-query"
-import { Building, ChevronDown, ChevronRight, FileText, MessageSquare, Upload, X, Search, Eye } from "lucide-react"
+import { Building, ChevronDown, ChevronRight, FileText, MessageSquare, Upload, X, Search, Eye, Mail } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -31,6 +31,8 @@ import { ArtisanSearchModal, type ArtisanSearchResult } from "@/components/artis
 import { Avatar } from "@/components/artisans/Avatar"
 import { useArtisanModal } from "@/hooks/useArtisanModal"
 import { toast } from "sonner"
+import { EmailEditModal } from "@/components/interventions/EmailEditModal"
+import { generateDevisEmailTemplate, generateInterventionEmailTemplate, type EmailTemplateData } from "@/lib/email-templates/intervention-emails"
 
 const INTERVENTION_DOCUMENT_KINDS = [
   { kind: "devis", label: "Devis" },
@@ -101,6 +103,11 @@ export function InterventionEditForm({
     roles: string[]
   } | null>(null)
   const [pendingReasonType, setPendingReasonType] = useState<StatusReasonType | null>(null)
+  
+  // Email modal states
+  const [isDevisEmailModalOpen, setIsDevisEmailModalOpen] = useState(false)
+  const [isInterventionEmailModalOpen, setIsInterventionEmailModalOpen] = useState(false)
+  const [selectedArtisanForEmail, setSelectedArtisanForEmail] = useState<string | null>(null)
 
   // Extraire les coûts et paiements
   const costs = intervention.intervention_costs || []
@@ -444,6 +451,117 @@ export function InterventionEditForm({
       artisanEmail: artisan?.email ?? "",
     }))
   }, [])
+
+  // Get artisans with valid email from intervention_artisans AND from selected artisan in form
+  const artisansWithEmail = useMemo(() => {
+    const artisansFromIntervention = artisans
+      .filter((ia: any) => ia.artisans?.email && ia.artisans.email.trim().length > 0)
+      .map((ia: any) => ({
+        id: ia.artisan_id,
+        email: ia.artisans.email,
+        name: `${ia.artisans.prenom || ''} ${ia.artisans.nom || ''}`.trim() || ia.artisans.plain_nom || 'Artisan',
+        is_primary: ia.is_primary,
+      }))
+    
+    // Add selected artisan from form if it has an email and is not already in the list
+    const selectedArtisanIds = new Set(artisansFromIntervention.map((a) => a.id))
+    if (selectedArtisanData && selectedArtisanData.email && selectedArtisanData.email.trim().length > 0) {
+      if (!selectedArtisanIds.has(selectedArtisanData.id)) {
+        artisansFromIntervention.push({
+          id: selectedArtisanData.id,
+          email: selectedArtisanData.email,
+          name: selectedArtisanData.displayName || 'Artisan',
+          is_primary: false, // Will be determined when saved
+        })
+      }
+    }
+    
+    return artisansFromIntervention
+  }, [artisans, selectedArtisanData])
+
+  // Generate email template data from intervention
+  const generateEmailTemplateData = useCallback((artisanId: string): EmailTemplateData => {
+    // Check if artisan is from intervention_artisans or from selected artisan in form
+    const selectedArtisan = artisans.find((ia: any) => ia.artisan_id === artisanId)
+    const isFromIntervention = !!selectedArtisan
+    const isPrimary = selectedArtisan?.is_primary || false
+
+    // Get tenant data
+    const tenant = intervention.tenants
+    const nomClient = tenant
+      ? `${tenant.firstname || ''} ${tenant.lastname || ''}`.trim() || ''
+      : ''
+    const telephoneClient = tenant?.telephone || ''
+    const telephoneClient2 = tenant?.telephone2 || ''
+    const adresseComplete = (formData.adresse || intervention.adresse) && (formData.code_postal || intervention.code_postal || formData.ville || intervention.ville)
+      ? `${formData.adresse || intervention.adresse}, ${formData.code_postal || intervention.code_postal || ''} ${formData.ville || intervention.ville || ''}`.trim()
+      : ''
+
+    // Get consigne based on artisan type
+    // If artisan is not yet saved, use consigne_intervention as default
+    const consigneArtisan = isFromIntervention
+      ? (isPrimary
+          ? (formData.consigne_intervention || intervention.consigne_intervention || '')
+          : (formData.consigne_second_artisan || intervention.consigne_second_artisan || ''))
+      : (formData.consigne_intervention || intervention.consigne_intervention || '')
+
+    // Calculate coutSST
+    const coutSST = sstCost
+      ? `${sstCost.amount || 0} ${sstCost.currency || 'EUR'}`
+      : 'Non spécifié'
+
+    return {
+      nomClient,
+      telephoneClient,
+      telephoneClient2,
+      adresseComplete,
+      datePrevue: formData.date_prevue || intervention.date_prevue || undefined,
+      consigneArtisan: consigneArtisan || undefined,
+      coutSST,
+      commentaire: formData.commentaire_agent || intervention.commentaire_agent || undefined,
+      idIntervention: formData.id_inter || intervention.id_inter || undefined,
+    }
+  }, [intervention, artisans, sstCost, formData])
+
+  // Get the effective selected artisan ID (from Select or from form selection)
+  const effectiveSelectedArtisanId = useMemo(() => {
+    return selectedArtisanForEmail || selectedArtisanId || null
+  }, [selectedArtisanForEmail, selectedArtisanId])
+
+  // Handle opening devis email modal
+  const handleOpenDevisEmailModal = useCallback(() => {
+    if (!effectiveSelectedArtisanId) {
+      toast.error('Veuillez sélectionner un artisan')
+      return
+    }
+    setIsDevisEmailModalOpen(true)
+  }, [effectiveSelectedArtisanId])
+
+  // Handle opening intervention email modal
+  const handleOpenInterventionEmailModal = useCallback(() => {
+    if (!effectiveSelectedArtisanId) {
+      toast.error('Veuillez sélectionner un artisan')
+      return
+    }
+    setIsInterventionEmailModalOpen(true)
+  }, [effectiveSelectedArtisanId])
+
+  // Get selected artisan email
+  const selectedArtisanEmail = useMemo(() => {
+    const artisanId = effectiveSelectedArtisanId
+    if (!artisanId) return ''
+    
+    // First check in artisansWithEmail (from Select)
+    const artisan = artisansWithEmail.find((a) => a.id === artisanId)
+    if (artisan) return artisan.email
+    
+    // Fallback to selectedArtisanData (from form selection)
+    if (selectedArtisanData && selectedArtisanData.id === artisanId) {
+      return selectedArtisanData.email || ''
+    }
+    
+    return ''
+  }, [effectiveSelectedArtisanId, artisansWithEmail, selectedArtisanData])
 
   const handleSelectNearbyArtisan = useCallback(
     (artisan: NearbyArtisan) => {
@@ -1167,6 +1285,54 @@ export function InterventionEditForm({
                     </div>
                   </div>
                </h3>
+               
+               {/* Email sending section */}
+               {artisansWithEmail.length > 0 && (
+                 <div className="space-y-2 p-3 bg-muted/50 rounded-lg border border-border/50">
+                   <Label className="text-xs font-semibold">Envoyer un email</Label>
+                   <div className="flex flex-col gap-2">
+                     <Select
+                       value={selectedArtisanForEmail || selectedArtisanId || ''}
+                       onValueChange={setSelectedArtisanForEmail}
+                     >
+                       <SelectTrigger className="h-8 text-sm">
+                         <SelectValue placeholder="Sélectionner un artisan" />
+                       </SelectTrigger>
+                       <SelectContent>
+                         {artisansWithEmail.map((artisan) => (
+                           <SelectItem key={artisan.id} value={artisan.id}>
+                             {artisan.name} ({artisan.email})
+                           </SelectItem>
+                         ))}
+                       </SelectContent>
+                     </Select>
+                     <div className="flex gap-2">
+                       <Button
+                         type="button"
+                         variant="outline"
+                         size="sm"
+                         onClick={handleOpenDevisEmailModal}
+                         disabled={!selectedArtisanForEmail && !selectedArtisanId}
+                         className="flex-1 text-xs"
+                       >
+                         <Mail className="h-3.5 w-3.5 mr-1.5" />
+                         Mail demande de devis
+                       </Button>
+                       <Button
+                         type="button"
+                         variant="outline"
+                         size="sm"
+                         onClick={handleOpenInterventionEmailModal}
+                         disabled={!selectedArtisanForEmail && !selectedArtisanId}
+                         className="flex-1 text-xs"
+                       >
+                         <Mail className="h-3.5 w-3.5 mr-1.5" />
+                         Mail demande d&apos;intervention
+                       </Button>
+                     </div>
+                   </div>
+                 </div>
+               )}
                <div className="space-y-4 pt-0 flex-1 flex flex-col min-h-[300px]">
                 {isLoadingNearbyArtisans ? (
                     <div className="flex items-center justify-center flex-1 text-sm text-muted-foreground">
@@ -1683,6 +1849,30 @@ export function InterventionEditForm({
         }}
         isSubmitting={isSubmitting}
       />
+      
+      {/* Email Edit Modals */}
+      {effectiveSelectedArtisanId && (
+        <>
+          <EmailEditModal
+            isOpen={isDevisEmailModalOpen}
+            onClose={() => setIsDevisEmailModalOpen(false)}
+            emailType="devis"
+            artisanId={effectiveSelectedArtisanId}
+            artisanEmail={selectedArtisanEmail}
+            interventionId={intervention.id}
+            templateData={generateEmailTemplateData(effectiveSelectedArtisanId)}
+          />
+          <EmailEditModal
+            isOpen={isInterventionEmailModalOpen}
+            onClose={() => setIsInterventionEmailModalOpen(false)}
+            emailType="intervention"
+            artisanId={effectiveSelectedArtisanId}
+            artisanEmail={selectedArtisanEmail}
+            interventionId={intervention.id}
+            templateData={generateEmailTemplateData(effectiveSelectedArtisanId)}
+          />
+        </>
+      )}
     </form>
   )
 }

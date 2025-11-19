@@ -1,0 +1,571 @@
+'use client';
+
+import { useEffect, useState, useRef, useCallback } from 'react';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Badge } from '@/components/ui/badge';
+import { X, Paperclip, Mail, Loader2 } from 'lucide-react';
+import { toast } from 'sonner';
+import { supabase } from '@/lib/supabase-client';
+import type { EmailTemplateData } from '@/lib/email-templates/intervention-emails';
+import { generateDevisEmailTemplate, generateInterventionEmailTemplate } from '@/lib/email-templates/intervention-emails';
+
+export interface EmailEditModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  emailType: 'devis' | 'intervention';
+  artisanId: string;
+  artisanEmail: string;
+  interventionId: string;
+  templateData: EmailTemplateData;
+  selectedArtisanForEmail?: string; // For internal use
+}
+
+interface AttachmentFile {
+  id: string;
+  file: File;
+  name: string;
+  size: number;
+}
+
+const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
+const MAX_ATTACHMENTS = 5;
+
+export function EmailEditModal({
+  isOpen,
+  onClose,
+  emailType,
+  artisanId,
+  artisanEmail,
+  interventionId,
+  templateData,
+  selectedArtisanForEmail: _selectedArtisanForEmail,
+}: EmailEditModalProps) {
+  const [subject, setSubject] = useState('');
+  const [htmlContent, setHtmlContent] = useState('');
+  const [attachments, setAttachments] = useState<AttachmentFile[]>([]);
+  const [isSending, setIsSending] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+  
+  // Editable template data fields
+  const [editableData, setEditableData] = useState<Partial<EmailTemplateData>>({
+    consigneArtisan: templateData.consigneArtisan || '',
+    commentaire: templateData.commentaire || '',
+    datePrevue: templateData.datePrevue || '',
+    coutSST: templateData.coutSST || '',
+  });
+
+  // Generate default subject based on email type
+  const getDefaultSubject = useCallback(() => {
+    const interventionRef = templateData.idIntervention || interventionId.slice(0, 8);
+    if (emailType === 'devis') {
+      return `Demande de devis - Intervention #${interventionRef}`;
+    }
+    return `Demande d'intervention - Intervention #${interventionRef}`;
+  }, [emailType, templateData.idIntervention, interventionId]);
+
+  // Update editable data when templateData changes
+  useEffect(() => {
+    if (isOpen) {
+      setEditableData({
+        consigneArtisan: templateData.consigneArtisan || '',
+        commentaire: templateData.commentaire || '',
+        datePrevue: templateData.datePrevue || '',
+        coutSST: templateData.coutSST || '',
+      });
+      setSubject(getDefaultSubject());
+      setAttachments([]);
+    }
+  }, [isOpen, templateData, getDefaultSubject]);
+
+  // Regenerate HTML when editable fields change
+  useEffect(() => {
+    if (isOpen && artisanId) {
+      const updatedTemplateData: EmailTemplateData = {
+        nomClient: templateData.nomClient,
+        telephoneClient: templateData.telephoneClient,
+        telephoneClient2: templateData.telephoneClient2,
+        adresseComplete: templateData.adresseComplete,
+        idIntervention: templateData.idIntervention,
+        consigneArtisan: editableData.consigneArtisan || templateData.consigneArtisan,
+        commentaire: editableData.commentaire || templateData.commentaire,
+        datePrevue: editableData.datePrevue || templateData.datePrevue,
+        coutSST: editableData.coutSST || templateData.coutSST,
+      };
+      
+      try {
+        const newHtmlContent = emailType === 'devis'
+          ? generateDevisEmailTemplate(updatedTemplateData)
+          : generateInterventionEmailTemplate(updatedTemplateData);
+        setHtmlContent(newHtmlContent);
+      } catch (error) {
+        console.error('[EmailEditModal] Failed to regenerate template:', error);
+      }
+    }
+  }, [editableData.consigneArtisan, editableData.commentaire, editableData.datePrevue, editableData.coutSST, isOpen, artisanId, emailType, templateData]);
+
+  // Initialize template data when modal opens
+  useEffect(() => {
+    if (isOpen && artisanId) {
+      // Set default subject
+      setSubject(getDefaultSubject());
+      
+      // Generate HTML content from template with editable data
+      const initialTemplateData: EmailTemplateData = {
+        ...templateData,
+        ...editableData,
+      };
+      
+      try {
+        const htmlContent = emailType === 'devis'
+          ? generateDevisEmailTemplate(initialTemplateData)
+          : generateInterventionEmailTemplate(initialTemplateData);
+        setHtmlContent(htmlContent);
+      } catch (error) {
+        console.error('[EmailEditModal] Failed to generate template:', error);
+        toast.error('Erreur lors de la génération du template');
+        setHtmlContent('');
+      }
+      
+      // Reset attachments
+      setAttachments([]);
+    }
+  }, [isOpen, emailType, interventionId, artisanId, getDefaultSubject, editableData, templateData]);
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+    };
+  }, []);
+
+  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files;
+    if (!files || files.length === 0) return;
+
+    const newFiles: AttachmentFile[] = [];
+    let hasError = false;
+
+    // Check total attachment count
+    if (attachments.length + files.length > MAX_ATTACHMENTS) {
+      toast.error(`Maximum ${MAX_ATTACHMENTS} pièces jointes autorisées`);
+      hasError = true;
+    }
+
+    Array.from(files).forEach((file) => {
+      // Check file size
+      if (file.size > MAX_FILE_SIZE) {
+        toast.error(`Le fichier "${file.name}" dépasse la taille maximale de ${MAX_FILE_SIZE / 1024 / 1024} MB`);
+        hasError = true;
+        return;
+      }
+
+      // Check if file already exists
+      if (attachments.some((att) => att.name === file.name && att.size === file.size)) {
+        toast.error(`Le fichier "${file.name}" est déjà ajouté`);
+        hasError = true;
+        return;
+      }
+
+      newFiles.push({
+        id: `${Date.now()}-${Math.random()}`,
+        file,
+        name: file.name,
+        size: file.size,
+      });
+    });
+
+    if (!hasError && newFiles.length > 0) {
+      setAttachments((prev) => [...prev, ...newFiles]);
+      toast.success(`${newFiles.length} fichier(s) ajouté(s)`);
+    }
+
+    // Reset file input
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  const handleRemoveAttachment = (id: string) => {
+    setAttachments((prev) => prev.filter((att) => att.id !== id));
+    toast.success('Pièce jointe supprimée');
+  };
+
+  const formatFileSize = (bytes: number): string => {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  };
+
+  // Replace cid:logoGM with actual image URL for preview
+  const getPreviewHtml = useCallback((html: string): string => {
+    // Replace cid:logoGM with the actual logo path
+    // Try PNG first, then SVG as fallback
+    const logoPath = '/logoGM.png';
+    
+    // Replace cid:logoGM with actual image URL
+    return html.replace(/cid:logoGM/g, logoPath);
+  }, []);
+
+  const handleSend = async () => {
+    // Validation
+    if (!subject || subject.trim().length === 0) {
+      toast.error('Le sujet de l\'email est requis');
+      return;
+    }
+
+    if (!artisanId) {
+      toast.error('Artisan non sélectionné');
+      return;
+    }
+
+    setIsSending(true);
+    const sendingToast = toast.loading('Envoi en cours...');
+
+    // Clear any existing timeout
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+    }
+
+    // Set timeout (70s frontend timeout)
+    timeoutRef.current = setTimeout(() => {
+      setIsSending(false);
+      toast.dismiss(sendingToast);
+      toast.error('L\'envoi a pris trop de temps. Veuillez vérifier votre connexion et réessayer.');
+    }, 70000);
+
+    try {
+      // Regenerate HTML with current editable data before sending
+      const finalTemplateData: EmailTemplateData = {
+        nomClient: templateData.nomClient,
+        telephoneClient: templateData.telephoneClient,
+        telephoneClient2: templateData.telephoneClient2,
+        adresseComplete: templateData.adresseComplete,
+        idIntervention: templateData.idIntervention,
+        consigneArtisan: editableData.consigneArtisan || templateData.consigneArtisan,
+        commentaire: editableData.commentaire || templateData.commentaire,
+        datePrevue: editableData.datePrevue || templateData.datePrevue,
+        coutSST: editableData.coutSST || templateData.coutSST,
+      };
+
+      // Generate final HTML content with editable data
+      let finalHtmlContent: string;
+      try {
+        finalHtmlContent = emailType === 'devis'
+          ? generateDevisEmailTemplate(finalTemplateData)
+          : generateInterventionEmailTemplate(finalTemplateData);
+      } catch (error) {
+        console.error('[EmailEditModal] Failed to generate final template:', error);
+        toast.dismiss(sendingToast);
+        toast.error('Erreur lors de la génération du template final');
+        setIsSending(false);
+        if (timeoutRef.current) {
+          clearTimeout(timeoutRef.current);
+          timeoutRef.current = null;
+        }
+        return;
+      }
+
+      if (!finalHtmlContent || finalHtmlContent.trim().length === 0) {
+        toast.dismiss(sendingToast);
+        toast.error('Le contenu de l\'email est vide');
+        setIsSending(false);
+        if (timeoutRef.current) {
+          clearTimeout(timeoutRef.current);
+          timeoutRef.current = null;
+        }
+        return;
+      }
+
+      // Prepare attachments (convert to base64)
+      const attachmentData = await Promise.all(
+        attachments.map(async (att) => {
+          const buffer = await att.file.arrayBuffer();
+          const base64 = Buffer.from(buffer).toString('base64');
+          return {
+            filename: att.name,
+            contentType: att.file.type || 'application/octet-stream',
+            content: base64,
+          };
+        })
+      );
+
+      // Get authentication token
+      const { data: session } = await supabase.auth.getSession();
+      const token = session?.session?.access_token;
+      
+      if (!token) {
+        toast.dismiss(sendingToast);
+        toast.error('Session expirée. Veuillez vous reconnecter.');
+        setIsSending(false);
+        if (timeoutRef.current) {
+          clearTimeout(timeoutRef.current);
+          timeoutRef.current = null;
+        }
+        return;
+      }
+
+      // Send email with final HTML content
+      const response = await fetch(`/api/interventions/${interventionId}/send-email`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          type: emailType,
+          artisanId,
+          subject: subject.trim(),
+          htmlContent: finalHtmlContent.trim(),
+          attachments: attachmentData,
+        }),
+      });
+
+      // Clear timeout
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+        timeoutRef.current = null;
+      }
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Erreur lors de l\'envoi de l\'email');
+      }
+
+      // Success
+      toast.dismiss(sendingToast);
+      toast.success('Email envoyé avec succès');
+      onClose();
+    } catch (error) {
+      // Clear timeout
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+        timeoutRef.current = null;
+      }
+
+      toast.dismiss(sendingToast);
+      const errorMessage = error instanceof Error ? error.message : 'Erreur lors de l\'envoi de l\'email';
+      toast.error(errorMessage);
+    } finally {
+      setIsSending(false);
+    }
+  };
+
+  const handleClose = () => {
+    if (isSending) return; // Prevent closing while sending
+    onClose();
+  };
+
+  return (
+      <Dialog open={isOpen} onOpenChange={handleClose}>
+      <DialogContent 
+        className="w-[80vw] max-w-[80vw] max-h-[90vh] overflow-y-auto z-[80]" 
+        overlayClassName="z-[75]"
+      >
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Mail className="h-5 w-5" />
+            {emailType === 'devis' ? 'Email demande de devis' : 'Email demande d&apos;intervention'}
+          </DialogTitle>
+          <DialogDescription>
+            Destinataire : {artisanEmail}
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="grid grid-cols-1 lg:grid-cols-[70%_30%] gap-4 h-[calc(90vh-120px)]">
+          {/* Left: Preview */}
+          <div className="flex flex-col h-full">
+            <div className="space-y-2 flex-shrink-0">
+              <Label>Aperçu de l&apos;email</Label>
+            </div>
+            <div className="border rounded-lg overflow-hidden bg-background flex-1 flex flex-col min-h-0">
+              <div className="border-b bg-muted/50 px-4 py-2 flex-shrink-0">
+                <span className="text-xs font-medium text-muted-foreground">Ce que le client recevra</span>
+              </div>
+              <div 
+                className="p-4 overflow-y-auto bg-white flex-1"
+                style={{
+                  fontFamily: 'system-ui, -apple-system, sans-serif',
+                }}
+                dangerouslySetInnerHTML={{ __html: getPreviewHtml(htmlContent) }}
+              />
+            </div>
+          </div>
+
+          {/* Right: Editor */}
+          <div className="space-y-4 overflow-y-auto h-full">
+            {/* Subject */}
+            <div className="space-y-2">
+              <Label htmlFor="email-subject">Sujet</Label>
+              <Input
+                id="email-subject"
+                value={subject}
+                onChange={(e) => setSubject(e.target.value)}
+                placeholder="Sujet de l'email"
+                disabled={isSending}
+              />
+            </div>
+
+            {/* Date prévue */}
+            <div className="space-y-2">
+              <Label htmlFor="date-prevue">Date prévue</Label>
+              <Input
+                id="date-prevue"
+                type="text"
+                value={editableData.datePrevue || ''}
+                onChange={(e) => setEditableData(prev => ({ ...prev, datePrevue: e.target.value }))}
+                placeholder="Ex: 15 janvier 2024 ou À définir"
+                disabled={isSending}
+              />
+              <p className="text-xs text-muted-foreground">
+                Date prévue pour l&apos;intervention ou la visite
+              </p>
+            </div>
+
+            {/* Consigne artisan */}
+            <div className="space-y-2">
+              <Label htmlFor="consigne-artisan">Consigne pour l&apos;artisan</Label>
+              <Textarea
+                id="consigne-artisan"
+                value={editableData.consigneArtisan || ''}
+                onChange={(e) => setEditableData(prev => ({ ...prev, consigneArtisan: e.target.value }))}
+                placeholder="Instructions spécifiques pour l&apos;artisan..."
+                rows={4}
+                disabled={isSending}
+              />
+              <p className="text-xs text-muted-foreground">
+                Instructions et consignes à suivre par l&apos;artisan
+              </p>
+            </div>
+
+            {/* Coût SST (only for intervention type) */}
+            {emailType === 'intervention' && (
+              <div className="space-y-2">
+                <Label htmlFor="cout-sst">Coût SST</Label>
+                <Input
+                  id="cout-sst"
+                  type="text"
+                  value={editableData.coutSST || ''}
+                  onChange={(e) => setEditableData(prev => ({ ...prev, coutSST: e.target.value }))}
+                  placeholder="Ex: 150 EUR ou Non spécifié"
+                  disabled={isSending}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Coût SST pour cette intervention
+                </p>
+              </div>
+            )}
+
+            {/* Commentaire */}
+            <div className="space-y-2">
+              <Label htmlFor="commentaire">Commentaire</Label>
+              <Textarea
+                id="commentaire"
+                value={editableData.commentaire || ''}
+                onChange={(e) => setEditableData(prev => ({ ...prev, commentaire: e.target.value }))}
+                placeholder="Commentaires additionnels (optionnel)"
+                rows={3}
+                disabled={isSending}
+              />
+              <p className="text-xs text-muted-foreground">
+                Commentaires additionnels qui apparaîtront dans l&apos;email
+              </p>
+            </div>
+
+            {/* Attachments */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label>Pièces jointes</Label>
+                <Badge variant="secondary" className="text-xs">
+                  Logo GMBS inclus automatiquement
+                </Badge>
+              </div>
+
+              {/* File input */}
+              <div className="flex items-center gap-2">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  multiple
+                  onChange={handleFileSelect}
+                  disabled={isSending || attachments.length >= MAX_ATTACHMENTS}
+                  className="hidden"
+                  id="file-upload"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={isSending || attachments.length >= MAX_ATTACHMENTS}
+                  className="flex items-center gap-2"
+                >
+                  <Paperclip className="h-4 w-4" />
+                  Ajouter une pièce jointe
+                  {attachments.length > 0 && ` (${attachments.length}/${MAX_ATTACHMENTS})`}
+                </Button>
+              </div>
+
+              {/* Attachment list */}
+              {attachments.length > 0 && (
+                <div className="space-y-2">
+                  {attachments.map((att) => (
+                    <div
+                      key={att.id}
+                      className="flex items-center justify-between p-2 bg-muted rounded-md"
+                    >
+                      <div className="flex items-center gap-2 flex-1 min-w-0">
+                        <Paperclip className="h-4 w-4 flex-shrink-0" />
+                        <span className="text-sm truncate">{att.name}</span>
+                        <span className="text-xs text-muted-foreground flex-shrink-0">
+                          ({formatFileSize(att.size)})
+                        </span>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleRemoveAttachment(att.id)}
+                        disabled={isSending}
+                        className="h-8 w-8 p-0"
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <DialogFooter>
+          <Button type="button" variant="outline" onClick={handleClose} disabled={isSending}>
+            Annuler
+          </Button>
+          <Button type="button" onClick={handleSend} disabled={isSending}>
+            {isSending ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Envoi en cours...
+              </>
+            ) : (
+              <>
+                <Mail className="mr-2 h-4 w-4" />
+                Envoyer
+              </>
+            )}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
