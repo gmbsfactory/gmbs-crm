@@ -131,11 +131,18 @@ export function MapLibreMapImpl({
 
       return () => {
         // Copier les valeurs des refs dans des variables locales pour le cleanup
+        // Note: On copie les valeurs au moment du cleanup, pas au moment de l'exécution de l'effet
+        // eslint-disable-next-line react-hooks/exhaustive-deps
         const circleOutlineLayerId = circleOutlineLayerIdRef.current
+        // eslint-disable-next-line react-hooks/exhaustive-deps
         const circleFillLayerId = circleFillLayerIdRef.current
+        // eslint-disable-next-line react-hooks/exhaustive-deps
         const circleSourceId = circleSourceIdRef.current
+        // eslint-disable-next-line react-hooks/exhaustive-deps
         const connectionLabelLayerId = connectionLabelLayerIdRef.current
+        // eslint-disable-next-line react-hooks/exhaustive-deps
         const connectionLineLayerId = connectionLineLayerIdRef.current
+        // eslint-disable-next-line react-hooks/exhaustive-deps
         const connectionSourceId = connectionSourceIdRef.current
         
         if (mapInstance.isStyleLoaded()) {
@@ -174,6 +181,10 @@ export function MapLibreMapImpl({
       console.error("[MapLibre] Initialization error:", err)
       setError("Impossible de charger la carte")
     }
+    // Note: Ce useEffect ne doit s'exécuter qu'une seule fois lors de l'initialisation de la carte
+    // Les valeurs lat, lng, zoom, circleRadiusKm, enable3DBuildings, selectedConnection sont gérées
+    // par des useEffect séparés pour éviter les réinitialisations inutiles de la carte
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [maptilerKey])
 
   useEffect(() => {
@@ -304,7 +315,7 @@ export function MapLibreMapImpl({
 
       source.setData(circleFeatureCollection(lat, lng, circleRadiusKm))
     })
-  }, [lat, lng, circleRadiusKm, enable3DBuildings])
+  }, [lat, lng, circleRadiusKm])
 
   useEffect(() => {
     const mapInstance = mapRef.current

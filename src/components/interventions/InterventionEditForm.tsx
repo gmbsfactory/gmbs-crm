@@ -30,6 +30,7 @@ import { cn } from "@/lib/utils"
 import { ArtisanSearchModal, type ArtisanSearchResult } from "@/components/artisans/ArtisanSearchModal"
 import { Avatar } from "@/components/artisans/Avatar"
 import { useArtisanModal } from "@/hooks/useArtisanModal"
+import { toast } from "sonner"
 
 const INTERVENTION_DOCUMENT_KINDS = [
   { kind: "devis", label: "Devis" },
@@ -79,13 +80,13 @@ interface InterventionEditFormProps {
   onSubmittingChange?: (isSubmitting: boolean) => void
 }
 
-export function InterventionEditForm({ 
-  intervention, 
-  onSuccess, 
-  onCancel, 
-  mode = "centerpage", 
-  formRef, 
-  onSubmittingChange 
+export function InterventionEditForm({
+  intervention,
+  onSuccess,
+  onCancel,
+  mode = "centerpage",
+  formRef,
+  onSubmittingChange
 }: InterventionEditFormProps) {
   const { data: refData, loading: refDataLoading } = useReferenceData()
   const queryClient = useQueryClient()
@@ -109,7 +110,7 @@ export function InterventionEditForm({
   const interventionCost = costs.find(c => c.cost_type === 'intervention')
   const sstPayment = payments.find(p => p.payment_type === 'acompte_sst')
   const clientPayment = payments.find(p => p.payment_type === 'acompte_client')
-  
+
   // Artisans liés
   const artisans = intervention.intervention_artisans || []
   const primaryArtisan = artisans.find(a => a.is_primary)?.artisans
@@ -124,7 +125,7 @@ export function InterventionEditForm({
     metier_id: intervention.metier_id || "",
     contexte_intervention: intervention.contexte_intervention || "",
     consigne_intervention: intervention.consigne_intervention || "",
-    
+
     // Adresse
     adresse: intervention.adresse || "",
     code_postal: intervention.code_postal || "",
@@ -134,41 +135,41 @@ export function InterventionEditForm({
     adresseComplete: [intervention.adresse, intervention.code_postal, intervention.ville]
       .filter(Boolean)
       .join(", ") || "Paris, France",
-    
+
     // Dates
     date: intervention.date?.split('T')[0] || "",
     date_prevue: intervention.date_prevue?.split('T')[0] || "",
-    
+
     // SST
     numero_sst: intervention.numero_sst || "",
     pourcentage_sst: intervention.pourcentage_sst?.toString() || "",
-    
+
     // Commentaires
     consigne_second_artisan: intervention.consigne_second_artisan || "",
     commentaire_agent: intervention.commentaire_agent || "",
-    
+
     // Propriétaire (owner)
     nomProprietaire: intervention.owner?.owner_lastname || "",
     prenomProprietaire: intervention.owner?.owner_firstname || "",
     telephoneProprietaire: intervention.owner?.telephone || "",
     emailProprietaire: intervention.owner?.email || "",
-    
+
     // Client (tenant)
     nomClient: intervention.tenants?.lastname || "",
     prenomClient: intervention.tenants?.firstname || "",
     telephoneClient: intervention.tenants?.telephone || "",
     emailClient: intervention.tenants?.email || "",
-    
+
     // Artisan
     artisan: primaryArtisan ? `${primaryArtisan.prenom || ''} ${primaryArtisan.nom || ''}`.trim() : "",
     artisanTelephone: primaryArtisan?.telephone || "",
     artisanEmail: primaryArtisan?.email || "",
-    
+
     // Coûts
     coutSST: sstCost?.amount?.toString() || "",
     coutMateriel: materielCost?.amount?.toString() || "",
     coutIntervention: interventionCost?.amount?.toString() || "",
-    
+
     // Acomptes
     accompteSST: sstPayment?.amount?.toString() || "",
     accompteSSTRecu: sstPayment?.is_received || false,
@@ -460,11 +461,11 @@ export function InterventionEditForm({
   }, [applyArtisanSelection])
 
   const handleArtisanSearchSelect = useCallback((artisan: ArtisanSearchResult) => {
-    const displayName = artisan.raison_sociale 
-      || artisan.plain_nom 
+    const displayName = artisan.raison_sociale
+      || artisan.plain_nom
       || [artisan.prenom, artisan.nom].filter(Boolean).join(" ")
       || "Artisan sans nom"
-    
+
     setSelectedArtisanId(artisan.id)
     setFormData((prev) => ({
       ...prev,
@@ -472,7 +473,7 @@ export function InterventionEditForm({
       artisanTelephone: artisan.telephone || "",
       artisanEmail: artisan.email || "",
     }))
-    
+
     // Si l'artisan sélectionné via recherche n'est pas dans la liste de proximité,
     // on le convertit au format NearbyArtisan et on le stockera pour l'afficher
     const isInProximity = nearbyArtisans.some(a => a.id === artisan.id)
@@ -498,14 +499,14 @@ export function InterventionEditForm({
       window.clearTimeout(suggestionBlurTimeoutRef.current)
       suggestionBlurTimeoutRef.current = null
     }
-    
+
     // Parser l'adresse pour extraire code postal et ville
     const addressParts = parseAddress(suggestion.label)
-    
+
     // Fermer immédiatement le dropdown
     clearSuggestions()
     setShowLocationSuggestions(false)
-    
+
     // Mettre à jour tous les champs
     setFormData((prev) => ({
       ...prev,
@@ -516,34 +517,34 @@ export function InterventionEditForm({
       code_postal: addressParts.postalCode || "",
       ville: addressParts.city || "",
     }))
-    
+
     // Mettre à jour la query pour refléter la sélection
     setLocationQuery(suggestion.label)
     setGeocodeError(null)
   }, [clearSuggestions, setLocationQuery])
-  
+
   // Fonction helper pour parser une adresse
   const parseAddress = (fullAddress: string): { street: string; postalCode: string; city: string } => {
     // Formats supportés :
     // OpenCage : "123 Rue de Rivoli, 75001 Paris, France"
     // Nominatim : "Rue de Rivoli, Paris, Île-de-France, 75001, France"
-    
+
     const parts = fullAddress.split(',').map(p => p.trim())
-    
+
     let street = ""
     let postalCode = ""
     let city = ""
-    
+
     // Chercher le code postal dans toutes les parties (format 5 chiffres français)
     const postalCodeRegex = /\b(\d{5})\b/
-    
+
     for (let i = 0; i < parts.length; i++) {
       const part = parts[i]
       const match = part.match(postalCodeRegex)
-      
+
       if (match) {
         postalCode = match[1]
-        
+
         // Si le code postal est dans la même partie que la ville (format "75001 Paris")
         const cityInSamePart = part.replace(match[0], '').trim()
         if (cityInSamePart) {
@@ -555,15 +556,15 @@ export function InterventionEditForm({
         }
       }
     }
-    
+
     // Si pas de ville trouvée, prendre la deuxième partie comme ville
     if (!city && parts.length >= 2) {
       city = parts[1].replace(postalCodeRegex, '').trim()
     }
-    
+
     // La rue est toujours la première partie (avant la première virgule)
     street = parts[0] || fullAddress
-    
+
     return { street, postalCode, city }
   }
 
@@ -674,7 +675,7 @@ export function InterventionEditForm({
 
       // Mettre à jour les coûts
       const costsToUpdate: Array<{ cost_type: "sst" | "materiel" | "intervention"; amount: number }> = []
-      
+
       const coutSSTValue = parseFloat(formData.coutSST) || 0
       const coutMaterielValue = parseFloat(formData.coutMateriel) || 0
       const coutInterventionValue = parseFloat(formData.coutIntervention) || 0
@@ -740,7 +741,7 @@ export function InterventionEditForm({
     } catch (error) {
       console.error("Erreur lors de la mise à jour:", error)
       const message = error instanceof Error ? error.message : "Erreur lors de la mise à jour de l'intervention"
-      alert(message)
+      toast.error(message)
     } finally {
       setIsSubmitting(false)
       onSubmittingChange?.(false)
@@ -858,12 +859,12 @@ export function InterventionEditForm({
               <Label htmlFor="idIntervention" className="legacy-form-label">
                 ID Intervention {requiresDefinitiveId && "*"}
               </Label>
-              <Input 
-                id="idIntervention" 
-                value={formData.id_inter} 
-                onChange={(event) => handleInputChange("id_inter", event.target.value)} 
-                placeholder="Auto-généré (provisoire)" 
-                className="legacy-form-input" 
+              <Input
+                id="idIntervention"
+                value={formData.id_inter}
+                onChange={(event) => handleInputChange("id_inter", event.target.value)}
+                placeholder="Auto-généré (provisoire)"
+                className="legacy-form-input"
                 required={requiresDefinitiveId}
                 pattern={requiresDefinitiveId ? "^(?!.*(?:[Aa][Uu][Tt][Oo])).+$" : undefined}
                 title={requiresDefinitiveId ? "ID intervention définitif requis (sans la chaîne \"AUTO\")" : undefined}
@@ -1406,7 +1407,7 @@ export function InterventionEditForm({
                   <div className="flex max-h-64 flex-col gap-2 overflow-y-auto pr-1">
                     {sortedNearbyArtisans.map((artisan) => {
                       const isSelected = selectedArtisanId === artisan.id
-                      
+
                       // Calculer les initiales de l'artisan
                       const artisanName = `${artisan.prenom || ""} ${artisan.nom || ""}`.trim() || "Artisan sans nom"
                       const artisanInitials = artisanName
@@ -1415,122 +1416,122 @@ export function InterventionEditForm({
                         .join("")
                         .slice(0, 2)
                         .toUpperCase() || "??"
-                      
+
                       // Trouver le statut de l'artisan
                       const artisanStatus = refData?.artisanStatuses?.find((s) => s.id === artisan.statut_id)
                       const statutArtisan = artisanStatus?.label || ""
                       const statutArtisanColor = artisanStatus?.color || null
-                      
+
                       return (
-                          <div
-                            key={artisan.id}
-                            role="button"
-                            tabIndex={0}
-                            className={cn(
-                              "relative rounded-lg border border-border/60 bg-background/80 p-3 text-sm shadow-sm transition-colors",
-                              isSelected
-                                ? "border-primary/70 ring-2 ring-primary/50"
-                                : "hover:border-primary/40",
-                            )}
-                            onClick={() => handleSelectNearbyArtisan(artisan)}
-                            onKeyDown={(event) => {
-                              if (event.key === "Enter" || event.key === " ") {
-                                event.preventDefault()
-                                handleSelectNearbyArtisan(artisan)
-                              }
-                            }}
-                          >
-                            {isSelected ? (
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="icon"
-                                className="absolute right-2 top-2 h-6 w-6 rounded-full bg-background/80 text-foreground shadow-sm transition hover:text-destructive"
-                                onClick={(event) => {
-                                  event.stopPropagation()
-                                  handleRemoveSelectedArtisan()
-                                }}
-                              >
-                                <X className="h-3.5 w-3.5" />
-                              </Button>
-                            ) : null}
-                            <div className="flex items-start gap-3">
-                              <Avatar
-                                photoProfilMetadata={artisan.photoProfilMetadata}
-                                initials={artisanInitials}
-                                name={artisan.displayName}
-                                size={40}
-                              />
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-center justify-between gap-2">
-                                  <div className="flex flex-col">
-                                    <span className="font-semibold text-foreground">
-                                      {artisan.displayName}
-                                    </span>
-                                  </div>
-                                  <div className="flex items-center gap-2">
-                                    {statutArtisan && statutArtisanColor && (
-                                      <Badge 
-                                        variant="outline" 
-                                        className="border px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide flex-shrink-0"
-                                        style={{
-                                          backgroundColor: hexToRgba(statutArtisanColor, 0.15) || statutArtisanColor + '20',
-                                          color: statutArtisanColor,
-                                          borderColor: statutArtisanColor,
-                                        }}
-                                      >
-                                        {statutArtisan}
-                                      </Badge>
-                                    )}
-                                    {statutArtisan && !statutArtisanColor && (
-                                      <Badge 
-                                        variant="outline" 
-                                        className="border px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide bg-gray-100 text-gray-700 border-gray-300 flex-shrink-0"
-                                      >
-                                        {statutArtisan}
-                                      </Badge>
-                                    )}
-                                    <Badge variant={isSelected ? "default" : "secondary"} className="flex-shrink-0">
-                                      {formatDistanceKm(artisan.distanceKm)}
-                                    </Badge>
-                                    <Button
-                                      type="button"
-                                      variant="ghost"
-                                      size="icon"
-                                      className="h-6 w-6 flex-shrink-0 text-muted-foreground hover:text-foreground"
-                                      onClick={(e) => handleOpenArtisanModal(artisan.id, e)}
-                                      title="Voir les détails de l'artisan"
+                        <div
+                          key={artisan.id}
+                          role="button"
+                          tabIndex={0}
+                          className={cn(
+                            "relative rounded-lg border border-border/60 bg-background/80 p-3 text-sm shadow-sm transition-colors",
+                            isSelected
+                              ? "border-primary/70 ring-2 ring-primary/50"
+                              : "hover:border-primary/40",
+                          )}
+                          onClick={() => handleSelectNearbyArtisan(artisan)}
+                          onKeyDown={(event) => {
+                            if (event.key === "Enter" || event.key === " ") {
+                              event.preventDefault()
+                              handleSelectNearbyArtisan(artisan)
+                            }
+                          }}
+                        >
+                          {isSelected ? (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="absolute right-2 top-2 h-6 w-6 rounded-full bg-background/80 text-foreground shadow-sm transition hover:text-destructive"
+                              onClick={(event) => {
+                                event.stopPropagation()
+                                handleRemoveSelectedArtisan()
+                              }}
+                            >
+                              <X className="h-3.5 w-3.5" />
+                            </Button>
+                          ) : null}
+                          <div className="flex items-start gap-3">
+                            <Avatar
+                              photoProfilMetadata={artisan.photoProfilMetadata}
+                              initials={artisanInitials}
+                              name={artisan.displayName}
+                              size={40}
+                            />
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center justify-between gap-2">
+                                <div className="flex flex-col">
+                                  <span className="font-semibold text-foreground">
+                                    {artisan.displayName}
+                                  </span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  {statutArtisan && statutArtisanColor && (
+                                    <Badge
+                                      variant="outline"
+                                      className="border px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide flex-shrink-0"
+                                      style={{
+                                        backgroundColor: hexToRgba(statutArtisanColor, 0.15) || statutArtisanColor + '20',
+                                        color: statutArtisanColor,
+                                        borderColor: statutArtisanColor,
+                                      }}
                                     >
-                                      <Eye className="h-4 w-4" />
-                                    </Button>
-                                  </div>
-                                </div>
-                                <div className="mt-1 text-xs text-muted-foreground">
-                                  {artisan.adresse ? (
-                                    <span>
-                                      {artisan.adresse}
-                                      {artisan.codePostal || artisan.ville ? (
-                                        <>
-                                          , {artisan.codePostal ?? ""}
-                                          {artisan.codePostal && artisan.ville ? " " : ""}
-                                          {artisan.ville ?? ""}
-                                        </>
-                                      ) : null}
-                                    </span>
-                                  ) : (
-                                    <span>
-                                      {artisan.codePostal ?? "—"}
-                                      {artisan.codePostal && artisan.ville ? " " : ""}
-                                      {artisan.ville ?? ""}
-                                    </span>
+                                      {statutArtisan}
+                                    </Badge>
                                   )}
-                                </div>
-                                <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
-                                  {artisan.telephone ? <span>📞 {artisan.telephone}</span> : null}
-                                  {artisan.email ? <span>✉️ {artisan.email}</span> : null}
+                                  {statutArtisan && !statutArtisanColor && (
+                                    <Badge
+                                      variant="outline"
+                                      className="border px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide bg-gray-100 text-gray-700 border-gray-300 flex-shrink-0"
+                                    >
+                                      {statutArtisan}
+                                    </Badge>
+                                  )}
+                                  <Badge variant={isSelected ? "default" : "secondary"} className="flex-shrink-0">
+                                    {formatDistanceKm(artisan.distanceKm)}
+                                  </Badge>
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-6 w-6 flex-shrink-0 text-muted-foreground hover:text-foreground"
+                                    onClick={(e) => handleOpenArtisanModal(artisan.id, e)}
+                                    title="Voir les détails de l'artisan"
+                                  >
+                                    <Eye className="h-4 w-4" />
+                                  </Button>
                                 </div>
                               </div>
+                              <div className="mt-1 text-xs text-muted-foreground">
+                                {artisan.adresse ? (
+                                  <span>
+                                    {artisan.adresse}
+                                    {artisan.codePostal || artisan.ville ? (
+                                      <>
+                                        , {artisan.codePostal ?? ""}
+                                        {artisan.codePostal && artisan.ville ? " " : ""}
+                                        {artisan.ville ?? ""}
+                                      </>
+                                    ) : null}
+                                  </span>
+                                ) : (
+                                  <span>
+                                    {artisan.codePostal ?? "—"}
+                                    {artisan.codePostal && artisan.ville ? " " : ""}
+                                    {artisan.ville ?? ""}
+                                  </span>
+                                )}
+                              </div>
+                              <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+                                {artisan.telephone ? <span>📞 {artisan.telephone}</span> : null}
+                                {artisan.email ? <span>✉️ {artisan.email}</span> : null}
+                              </div>
                             </div>
+                          </div>
                         </div>
                       )
                     })}

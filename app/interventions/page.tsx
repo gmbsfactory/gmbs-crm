@@ -452,7 +452,7 @@ function PageContent() {
         isCheck: isCheckStatus(statusCode, datePrevue),
       } as InterventionEntity & { datePrevue: string | null; isCheck: boolean }
     })
-  }, [fetchedInterventions])
+  }, [fetchedInterventions, page, currentPage])
   
   // Afficher le loading si on charge OU si on change de vue (même avec des données existantes)
   const loading = remoteLoading || (isViewChanging && normalizedInterventions.length > 0)
@@ -572,11 +572,12 @@ function PageContent() {
   const isSyncingFromViewRef = useRef(false)
 
   // Extraire les valeurs de tri de activeView de manière stable
+  const activeViewSorts = activeView?.sorts
+  const firstSort = activeViewSorts?.[0]
   const activeViewSortKey = useMemo(() => {
-    if (!activeView?.sorts?.[0]) return null
-    const sort = activeView.sorts[0]
-    return `${sort.property}:${sort.direction}`
-  }, [activeView?.id, activeView?.sorts?.[0]?.property, activeView?.sorts?.[0]?.direction])
+    if (!firstSort) return null
+    return `${firstSort.property}:${firstSort.direction}`
+  }, [firstSort])
 
   // Synchroniser sortField et sortDir depuis activeView (lecture seule)
   // Ne se déclenche QUE quand activeView change, pas quand sortField/sortDir changent
@@ -592,7 +593,7 @@ function PageContent() {
       const direction = primarySort.direction === "asc" ? "asc" : "desc"
       setSortDir((prev) => prev !== direction ? direction : prev)
     }
-  }, [activeViewSortKey]) // Ne dépendre QUE de activeViewSortKey
+  }, [activeView, activeViewSortKey]) // Dépendre de activeView et activeViewSortKey
 
   // Synchroniser activeView depuis sortField et sortDir (écriture)
   useEffect(() => {
@@ -608,7 +609,7 @@ function PageContent() {
     requestAnimationFrame(() => {
       isSyncingFromViewRef.current = false
     })
-  }, [sortField, sortDir, activeView?.id, isReady, updateSorts])
+  }, [sortField, sortDir, activeView, isReady, updateSorts])
 
   const updateFilterForProperty = useCallback(
     (property: string, nextFilter: ViewFilter | null) => {

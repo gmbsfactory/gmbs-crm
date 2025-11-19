@@ -19,6 +19,7 @@ import { useReferenceData } from "@/hooks/useReferenceData"
 import { interventionsApi } from "@/lib/api/v2"
 import { commentsApi } from "@/lib/api/v2/commentsApi"
 import type { CreateInterventionData } from "@/lib/api/v2/common/types"
+import { toast } from "sonner"
 
 const INTERVENTION_DOCUMENT_KINDS = [
   { kind: "devis", label: "Devis" },
@@ -53,8 +54,8 @@ const generateAutoInterventionId = () => {
   autoIdCounter = (autoIdCounter + 1) % 100000
   const counterSegment = autoIdCounter.toString().padStart(5, "0")
   // Utiliser crypto.randomUUID si disponible pour une partie supplémentaire
-  const uuidSegment = typeof crypto !== 'undefined' && crypto.randomUUID 
-    ? crypto.randomUUID().slice(0, 8) 
+  const uuidSegment = typeof crypto !== 'undefined' && crypto.randomUUID
+    ? crypto.randomUUID().slice(0, 8)
     : Math.random().toString(36).slice(2, 10)
   return `AUTO-${timestampSegment}-${randomSegment}-${counterSegment}-${uuidSegment}`
 }
@@ -128,8 +129,8 @@ export function LegacyInterventionForm({ onSuccess, onCancel, mode = "centerpage
     ville: defaultValues?.ville || "",
     latitude: defaultValues?.latitude || 48.8566,
     longitude: defaultValues?.longitude || 2.3522,
-    adresseComplete: defaultValues?.adresse && defaultValues?.ville 
-      ? `${defaultValues.adresse}, ${defaultValues.ville}` 
+    adresseComplete: defaultValues?.adresse && defaultValues?.ville
+      ? `${defaultValues.adresse}, ${defaultValues.ville}`
       : "Paris, France",
     coutIntervention: defaultValues?.coutIntervention || "",
     coutSST: defaultValues?.coutSST || "",
@@ -267,14 +268,14 @@ export function LegacyInterventionForm({ onSuccess, onCancel, mode = "centerpage
       window.clearTimeout(suggestionBlurTimeoutRef.current)
       suggestionBlurTimeoutRef.current = null
     }
-    
+
     // Parser l'adresse pour extraire code postal et ville
     const addressParts = parseAddress(suggestion.label)
-    
+
     // Fermer immédiatement le dropdown
     clearSuggestions()
     setShowLocationSuggestions(false)
-    
+
     // Mettre à jour tous les champs
     setFormData((prev) => ({
       ...prev,
@@ -285,34 +286,34 @@ export function LegacyInterventionForm({ onSuccess, onCancel, mode = "centerpage
       code_postal: addressParts.postalCode || "",
       ville: addressParts.city || "",
     }))
-    
+
     // Mettre à jour la query pour refléter la sélection
     setLocationQuery(suggestion.label)
     setGeocodeError(null)
   }, [clearSuggestions, setLocationQuery])
-  
+
   // Fonction helper pour parser une adresse
   const parseAddress = (fullAddress: string): { street: string; postalCode: string; city: string } => {
     // Formats supportés :
     // OpenCage : "123 Rue de Rivoli, 75001 Paris, France"
     // Nominatim : "Rue de Rivoli, Paris, Île-de-France, 75001, France"
-    
+
     const parts = fullAddress.split(',').map(p => p.trim())
-    
+
     let street = ""
     let postalCode = ""
     let city = ""
-    
+
     // Chercher le code postal dans toutes les parties (format 5 chiffres français)
     const postalCodeRegex = /\b(\d{5})\b/
-    
+
     for (let i = 0; i < parts.length; i++) {
       const part = parts[i]
       const match = part.match(postalCodeRegex)
-      
+
       if (match) {
         postalCode = match[1]
-        
+
         // Si le code postal est dans la même partie que la ville (format "75001 Paris")
         const cityInSamePart = part.replace(match[0], '').trim()
         if (cityInSamePart) {
@@ -324,15 +325,15 @@ export function LegacyInterventionForm({ onSuccess, onCancel, mode = "centerpage
         }
       }
     }
-    
+
     // Si pas de ville trouvée, prendre la deuxième partie comme ville
     if (!city && parts.length >= 2) {
       city = parts[1].replace(postalCodeRegex, '').trim()
     }
-    
+
     // La rue est toujours la première partie (avant la première virgule)
     street = parts[0] || fullAddress
-    
+
     return { street, postalCode, city }
   }
 
@@ -378,7 +379,7 @@ export function LegacyInterventionForm({ onSuccess, onCancel, mode = "centerpage
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault()
-    
+
     // Validation des champs obligatoires (BR-INT-001)
     // Utilise la validation HTML5 native du formulaire
     const form = event.currentTarget as HTMLFormElement
@@ -463,9 +464,8 @@ export function LegacyInterventionForm({ onSuccess, onCancel, mode = "centerpage
           })
         } catch (commentError) {
           console.error("[LegacyInterventionForm] Impossible d'ajouter le commentaire initial", commentError)
-          alert(
-            "L'intervention a bien été créée mais le commentaire initial n'a pas pu être enregistré. Merci de l'ajouter manuellement.",
-          )
+          console.error("[LegacyInterventionForm] Impossible d'ajouter le commentaire initial", commentError)
+          toast.error("L'intervention a bien été créée mais le commentaire initial n'a pas pu être enregistré. Merci de l'ajouter manuellement.")
         }
       }
 
@@ -473,11 +473,13 @@ export function LegacyInterventionForm({ onSuccess, onCancel, mode = "centerpage
         ...prev,
         commentairesIntervention: "",
       }))
-      
+
+      toast.success("Intervention créée")
+
       // Appeler onSuccess qui devrait fermer le modal
       // Si onSuccess ne ferme pas le modal, onCancel le fera
       onSuccess?.(created)
-      
+
       // S'assurer que le modal se ferme même si onSuccess ne le fait pas
       // Utiliser un petit délai pour permettre à onSuccess de se terminer
       if (onCancel) {
@@ -487,7 +489,7 @@ export function LegacyInterventionForm({ onSuccess, onCancel, mode = "centerpage
       }
     } catch (error) {
       console.error("Erreur lors de la création:", error)
-      alert("Erreur lors de la création de l'intervention")
+      toast.error("Erreur lors de la création de l'intervention")
     } finally {
       setIsSubmitting(false)
       onSubmittingChange?.(false)
@@ -602,11 +604,11 @@ export function LegacyInterventionForm({ onSuccess, onCancel, mode = "centerpage
                   ))}
                 </SelectContent>
               </Select>
-              <input 
-                type="text" 
-                value={formData.statut_id || ""} 
-                onChange={() => {}}
-                required 
+              <input
+                type="text"
+                value={formData.statut_id || ""}
+                onChange={() => { }}
+                required
                 pattern=".+"
                 title="Statut est obligatoire"
                 style={{ position: 'absolute', opacity: 0, height: 0, width: 0, pointerEvents: 'none' }}
@@ -620,12 +622,12 @@ export function LegacyInterventionForm({ onSuccess, onCancel, mode = "centerpage
               <Label htmlFor="idIntervention" className="legacy-form-label">
                 ID Intervention {requiresDefinitiveId && "*"}
               </Label>
-              <Input 
-                id="idIntervention" 
-                value={formData.idIntervention} 
-                onChange={(event) => handleInputChange("idIntervention", event.target.value)} 
-                placeholder={requiresDefinitiveId ? "Saisir l'ID définitif" : "Auto-généré"} 
-                className="legacy-form-input" 
+              <Input
+                id="idIntervention"
+                value={formData.idIntervention}
+                onChange={(event) => handleInputChange("idIntervention", event.target.value)}
+                placeholder={requiresDefinitiveId ? "Saisir l'ID définitif" : "Auto-généré"}
+                className="legacy-form-input"
                 disabled={!requiresDefinitiveId}
                 required={requiresDefinitiveId}
                 pattern={requiresDefinitiveId ? "^(?!.*(?:[Aa][Uu][Tt][Oo])).+$" : undefined}
@@ -648,11 +650,11 @@ export function LegacyInterventionForm({ onSuccess, onCancel, mode = "centerpage
                   ))}
                 </SelectContent>
               </Select>
-              <input 
-                type="text" 
-                value={formData.agence_id || ""} 
-                onChange={() => {}}
-                required 
+              <input
+                type="text"
+                value={formData.agence_id || ""}
+                onChange={() => { }}
+                required
                 pattern=".+"
                 title="Agence est obligatoire"
                 style={{ position: 'absolute', opacity: 0, height: 0, width: 0, pointerEvents: 'none' }}
@@ -714,11 +716,11 @@ export function LegacyInterventionForm({ onSuccess, onCancel, mode = "centerpage
                   ))}
                 </SelectContent>
               </Select>
-              <input 
-                type="text" 
-                value={formData.metier_id || ""} 
-                onChange={() => {}}
-                required 
+              <input
+                type="text"
+                value={formData.metier_id || ""}
+                onChange={() => { }}
+                required
                 pattern=".+"
                 title="Métier est obligatoire"
                 style={{ position: 'absolute', opacity: 0, height: 0, width: 0, pointerEvents: 'none' }}

@@ -2,7 +2,7 @@
 
 import { useCallback } from "react"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
-import { useToast } from "@/hooks/use-toast"
+import { toast } from "sonner"
 import { useInterventionModal } from "@/hooks/useInterventionModal"
 import { useModal } from "@/hooks/useModal"
 import { interventionKeys } from "@/lib/react-query/queryKeys"
@@ -11,21 +11,21 @@ import { supabase } from "@/lib/supabase-client"
 import type { InterventionStatusValue } from "@/types/interventions"
 import type { ContextMenuViewType } from "@/types/context-menu"
 
-export function useInterventionContextMenu(interventionId: string, viewType?: ContextMenuViewType) {
+export function useInterventionContextMenu(interventionId: string, viewType?: ContextMenuViewType, idInter?: string) {
   const queryClient = useQueryClient()
-  const { toast } = useToast()
+  // const { toast } = useToast() // Removed legacy toast
   const { open: openInterventionModal } = useInterventionModal()
   const modal = useModal()
 
   // Fonction pour ouvrir le modal avec les données pré-remplies (devis supp)
   const duplicateDevisSupp = useCallback(async () => {
     console.log("[useInterventionContextMenu] duplicateDevisSupp appelé pour interventionId:", interventionId)
-    
+
     // Récupérer les données de l'intervention depuis le cache ou les charger
     let interventionData = queryClient.getQueryData(interventionKeys.detail(interventionId)) as any
-    
+
     console.log("[useInterventionContextMenu] Données récupérées du cache:", interventionData ? "OK" : "NULL")
-    
+
     // Si les données ne sont pas en cache, essayer de les charger depuis les listes
     if (!interventionData) {
       console.log("[useInterventionContextMenu] Tentative de récupération depuis les listes...")
@@ -43,13 +43,11 @@ export function useInterventionContextMenu(interventionId: string, viewType?: Co
         }
       }
     }
-    
+
     if (!interventionData) {
       console.warn("[useInterventionContextMenu] Données non disponibles")
-      toast({
-        title: "Erreur",
+      toast.error("Erreur", {
         description: "Impossible de récupérer les données de l'intervention. Veuillez ouvrir l'intervention d'abord.",
-        variant: "destructive",
       })
       return
     }
@@ -59,20 +57,20 @@ export function useInterventionContextMenu(interventionId: string, viewType?: Co
     // Les données peuvent être dans différents formats selon la source (cache, API, etc.)
     const owner = Array.isArray(interventionData.owner) ? interventionData.owner[0] : interventionData.owner
     const tenant = Array.isArray(interventionData.tenants) ? interventionData.tenants[0] : interventionData.tenants
-    const artisans = Array.isArray(interventionData.intervention_artisans) 
-      ? interventionData.intervention_artisans 
+    const artisans = Array.isArray(interventionData.intervention_artisans)
+      ? interventionData.intervention_artisans
       : interventionData.intervention_artisans || []
-    const costs = Array.isArray(interventionData.intervention_costs) 
-      ? interventionData.intervention_costs 
+    const costs = Array.isArray(interventionData.intervention_costs)
+      ? interventionData.intervention_costs
       : interventionData.intervention_costs || []
-    const payments = Array.isArray(interventionData.intervention_payments) 
-      ? interventionData.intervention_payments 
+    const payments = Array.isArray(interventionData.intervention_payments)
+      ? interventionData.intervention_payments
       : interventionData.intervention_payments || []
-    
+
     // Récupérer l'artisan principal (comme dans InterventionEditForm)
     const primaryArtisan = artisans.find((ia: any) => ia.is_primary)?.artisans || artisans[0]?.artisans
     const primaryArtisanId = artisans.find((ia: any) => ia.is_primary)?.artisan_id || artisans[0]?.artisan_id || null
-    
+
     const defaultValues = {
       agence_id: interventionData.agence_id || "",
       reference_agence: interventionData.reference_agence || "",
@@ -83,7 +81,7 @@ export function useInterventionContextMenu(interventionId: string, viewType?: Co
       ville: interventionData.ville || "",
       latitude: interventionData.latitude || 48.8566,
       longitude: interventionData.longitude || 2.3522,
-      datePrevue: interventionData.date_prevue 
+      datePrevue: interventionData.date_prevue
         ? (typeof interventionData.date_prevue === 'string' && interventionData.date_prevue.includes('T'))
           ? interventionData.date_prevue.split('T')[0]
           : interventionData.date_prevue
@@ -99,8 +97,8 @@ export function useInterventionContextMenu(interventionId: string, viewType?: Co
       telephoneClient: tenant?.telephone || "",
       emailClient: tenant?.email || "",
       // Artisan principal - utiliser le nom complet comme dans InterventionEditForm
-      artisan: primaryArtisan 
-        ? `${primaryArtisan.prenom || ''} ${primaryArtisan.nom || ''}`.trim() 
+      artisan: primaryArtisan
+        ? `${primaryArtisan.prenom || ''} ${primaryArtisan.nom || ''}`.trim()
         : "",
       artisanTelephone: primaryArtisan?.telephone || "",
       artisanEmail: primaryArtisan?.email || "",
@@ -114,16 +112,16 @@ export function useInterventionContextMenu(interventionId: string, viewType?: Co
       accompteSST: payments.find((p: any) => p.payment_type === "acompte_sst")?.amount?.toString() || "",
       accompteSSTRecu: payments.find((p: any) => p.payment_type === "acompte_sst")?.is_received || false,
       dateAccompteSSTRecu: payments.find((p: any) => p.payment_type === "acompte_sst")?.payment_date
-        ? (typeof payments.find((p: any) => p.payment_type === "acompte_sst")?.payment_date === 'string' && 
-            payments.find((p: any) => p.payment_type === "acompte_sst")?.payment_date.includes('T'))
+        ? (typeof payments.find((p: any) => p.payment_type === "acompte_sst")?.payment_date === 'string' &&
+          payments.find((p: any) => p.payment_type === "acompte_sst")?.payment_date.includes('T'))
           ? payments.find((p: any) => p.payment_type === "acompte_sst")?.payment_date.split('T')[0]
           : payments.find((p: any) => p.payment_type === "acompte_sst")?.payment_date
         : "",
       accompteClient: payments.find((p: any) => p.payment_type === "acompte_client")?.amount?.toString() || "",
       accompteClientRecu: payments.find((p: any) => p.payment_type === "acompte_client")?.is_received || false,
       dateAccompteClientRecu: payments.find((p: any) => p.payment_type === "acompte_client")?.payment_date
-        ? (typeof payments.find((p: any) => p.payment_type === "acompte_client")?.payment_date === 'string' && 
-            payments.find((p: any) => p.payment_type === "acompte_client")?.payment_date.includes('T'))
+        ? (typeof payments.find((p: any) => p.payment_type === "acompte_client")?.payment_date === 'string' &&
+          payments.find((p: any) => p.payment_type === "acompte_client")?.payment_date.includes('T'))
           ? payments.find((p: any) => p.payment_type === "acompte_client")?.payment_date.split('T')[0]
           : payments.find((p: any) => p.payment_type === "acompte_client")?.payment_date
         : "",
@@ -139,7 +137,7 @@ export function useInterventionContextMenu(interventionId: string, viewType?: Co
       duplicateFrom: interventionId,
       hasDefaultValues: !!defaultValues,
     })
-    
+
     try {
       modal.open("new", {
         content: "new-intervention",
@@ -151,10 +149,8 @@ export function useInterventionContextMenu(interventionId: string, viewType?: Co
       console.log("[useInterventionContextMenu] Modal ouvert avec succès")
     } catch (error) {
       console.error("[useInterventionContextMenu] Erreur lors de l'ouverture du modal:", error)
-      toast({
-        title: "Erreur",
+      toast.error("Erreur", {
         description: "Impossible d'ouvrir le formulaire de création.",
-        variant: "destructive",
       })
     }
   }, [interventionId, queryClient, modal, toast])
@@ -175,10 +171,10 @@ export function useInterventionContextMenu(interventionId: string, viewType?: Co
       // Annuler les requêtes en cours pour éviter les conflits
       await queryClient.cancelQueries({ queryKey: interventionKeys.detail(interventionId) })
       await queryClient.cancelQueries({ queryKey: interventionKeys.invalidateLists() })
-      
+
       // Snapshot de la valeur précédente pour rollback en cas d'erreur
       const previousIntervention = queryClient.getQueryData(interventionKeys.detail(interventionId))
-      
+
       // Récupérer les informations de l'utilisateur connecté pour la mise à jour optimiste
       let currentUserInfo: { id: string; name: string; code: string | null; color: string | null } | null = null
       try {
@@ -208,7 +204,7 @@ export function useInterventionContextMenu(interventionId: string, viewType?: Co
       } catch (error) {
         console.warn("[useInterventionContextMenu] Impossible de récupérer l'utilisateur connecté", error)
       }
-      
+
       // Mise à jour optimiste immédiate dans toutes les listes (complètes et légères)
       if (currentUserInfo) {
         queryClient.setQueriesData(
@@ -220,13 +216,13 @@ export function useInterventionContextMenu(interventionId: string, viewType?: Co
             const updatedData = oldData.data.map((intervention: any) =>
               intervention.id === interventionId
                 ? {
-                    ...intervention,
-                    assigned_user_id: currentUserInfo!.id,
-                    assignedUserCode: currentUserInfo!.code,
-                    assignedUserName: currentUserInfo!.name,
-                    assignedUserColor: currentUserInfo!.color,
-                    attribueA: currentUserInfo!.code, // Pour compatibilité
-                  }
+                  ...intervention,
+                  assigned_user_id: currentUserInfo!.id,
+                  assignedUserCode: currentUserInfo!.code,
+                  assignedUserName: currentUserInfo!.name,
+                  assignedUserColor: currentUserInfo!.color,
+                  attribueA: currentUserInfo!.code, // Pour compatibilité
+                }
                 : intervention
             )
             return { ...oldData, data: updatedData }
@@ -241,20 +237,20 @@ export function useInterventionContextMenu(interventionId: string, viewType?: Co
             const updatedData = oldData.data.map((intervention: any) =>
               intervention.id === interventionId
                 ? {
-                    ...intervention,
-                    assigned_user_id: currentUserInfo!.id,
-                    assignedUserCode: currentUserInfo!.code,
-                    assignedUserName: currentUserInfo!.name,
-                    assignedUserColor: currentUserInfo!.color,
-                    attribueA: currentUserInfo!.code, // Pour compatibilité
-                  }
+                  ...intervention,
+                  assigned_user_id: currentUserInfo!.id,
+                  assignedUserCode: currentUserInfo!.code,
+                  assignedUserName: currentUserInfo!.name,
+                  assignedUserColor: currentUserInfo!.color,
+                  attribueA: currentUserInfo!.code, // Pour compatibilité
+                }
                 : intervention
             )
             return { ...oldData, data: updatedData }
           }
         )
       }
-      
+
       return { previousIntervention, currentUserInfo }
     },
     onError: (error: Error, _variables, context) => {
@@ -264,23 +260,24 @@ export function useInterventionContextMenu(interventionId: string, viewType?: Co
       }
       queryClient.invalidateQueries({ queryKey: interventionKeys.invalidateLists() })
       queryClient.invalidateQueries({ queryKey: interventionKeys.detail(interventionId) })
-      
-      toast({
-        title: "Erreur d'assignation",
+
+      toast.error("Erreur d'assignation", {
         description: error.message || "Une erreur est survenue lors de l'assignation.",
-        variant: "destructive",
       })
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       // Invalider les queries en arrière-plan pour récupérer les données complètes du serveur
       // La mise à jour optimiste dans onMutate assure une mise à jour immédiate de l'UI
       queryClient.invalidateQueries({ queryKey: interventionKeys.invalidateLists() })
       queryClient.invalidateQueries({ queryKey: interventionKeys.detail(interventionId) })
       queryClient.invalidateQueries({ queryKey: interventionKeys.summaries() })
-      
-      toast({
-        title: "Assignation réussie",
-        description: "L'intervention vous a été assignée.",
+
+      toast.success(`Intervention (${idInter || (data as any).id_inter || interventionId}) assignée à moi avec succès`, {
+        description: new Date().toLocaleString(),
+        action: {
+          label: "Voir",
+          onClick: () => openInterventionModal(interventionId),
+        },
       })
     },
   })
@@ -296,10 +293,10 @@ export function useInterventionContextMenu(interventionId: string, viewType?: Co
       // Annuler les requêtes en cours pour éviter les conflits
       await queryClient.cancelQueries({ queryKey: interventionKeys.detail(interventionId) })
       await queryClient.cancelQueries({ queryKey: interventionKeys.invalidateLists() })
-      
+
       // Snapshot de la valeur précédente pour rollback en cas d'erreur
       const previousIntervention = queryClient.getQueryData(interventionKeys.detail(interventionId))
-      
+
       // Mise à jour optimiste du détail
       queryClient.setQueryData(interventionKeys.detail(interventionId), (old: any) => {
         if (!old) return old
@@ -309,7 +306,7 @@ export function useInterventionContextMenu(interventionId: string, viewType?: Co
           statusValue: "DEVIS_ENVOYE",
         }
       })
-      
+
       // Mise à jour optimiste immédiate dans toutes les listes (complètes et légères)
       // Utiliser les préfixes séparément pour matcher toutes les queries
       // Mettre à jour l'objet status complet avec le label formaté pour l'affichage
@@ -327,11 +324,11 @@ export function useInterventionContextMenu(interventionId: string, viewType?: Co
           const updatedData = oldData.data.map((intervention: any) =>
             intervention.id === interventionId
               ? {
-                  ...intervention,
-                  statusValue: "DEVIS_ENVOYE",
-                  status: devisEnvoyeStatus,
-                  statut: "DEVIS_ENVOYE", // Pour compatibilité
-                }
+                ...intervention,
+                statusValue: "DEVIS_ENVOYE",
+                status: devisEnvoyeStatus,
+                statut: "DEVIS_ENVOYE", // Pour compatibilité
+              }
               : intervention
           )
           return { ...oldData, data: updatedData }
@@ -346,17 +343,17 @@ export function useInterventionContextMenu(interventionId: string, viewType?: Co
           const updatedData = oldData.data.map((intervention: any) =>
             intervention.id === interventionId
               ? {
-                  ...intervention,
-                  statusValue: "DEVIS_ENVOYE",
-                  status: devisEnvoyeStatus,
-                  statut: "DEVIS_ENVOYE", // Pour compatibilité
-                }
+                ...intervention,
+                statusValue: "DEVIS_ENVOYE",
+                status: devisEnvoyeStatus,
+                statut: "DEVIS_ENVOYE", // Pour compatibilité
+              }
               : intervention
           )
           return { ...oldData, data: updatedData }
         }
       )
-      
+
       return { previousIntervention }
     },
     onError: (error: Error, _variables, context) => {
@@ -366,23 +363,24 @@ export function useInterventionContextMenu(interventionId: string, viewType?: Co
       }
       queryClient.invalidateQueries({ queryKey: interventionKeys.invalidateLists() })
       queryClient.invalidateQueries({ queryKey: interventionKeys.detail(interventionId) })
-      
-      toast({
-        title: "Erreur de transition",
+
+      toast.error("Erreur de transition", {
         description: error.message || "Une erreur est survenue lors du changement de statut.",
-        variant: "destructive",
       })
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       // Invalider les queries en arrière-plan pour récupérer les données complètes du serveur
       // La mise à jour optimiste dans onMutate assure une mise à jour immédiate de l'UI
       queryClient.invalidateQueries({ queryKey: interventionKeys.invalidateLists() })
       queryClient.invalidateQueries({ queryKey: interventionKeys.detail(interventionId) })
       queryClient.invalidateQueries({ queryKey: interventionKeys.summaries() })
-      
-      toast({
-        title: "Statut mis à jour",
-        description: "L'intervention est maintenant en statut 'Devis Envoyé'.",
+
+      toast.success(`Intervention (${idInter || (data as any).id_inter || interventionId}) modifiée vers Devis Envoyé avec succès`, {
+        description: new Date().toLocaleString(),
+        action: {
+          label: "Voir",
+          onClick: () => openInterventionModal(interventionId),
+        },
       })
     },
   })
@@ -398,10 +396,10 @@ export function useInterventionContextMenu(interventionId: string, viewType?: Co
       // Annuler les requêtes en cours pour éviter les conflits
       await queryClient.cancelQueries({ queryKey: interventionKeys.detail(interventionId) })
       await queryClient.cancelQueries({ queryKey: interventionKeys.invalidateLists() })
-      
+
       // Snapshot de la valeur précédente pour rollback en cas d'erreur
       const previousIntervention = queryClient.getQueryData(interventionKeys.detail(interventionId))
-      
+
       // Mise à jour optimiste du détail
       queryClient.setQueryData(interventionKeys.detail(interventionId), (old: any) => {
         if (!old) return old
@@ -411,7 +409,7 @@ export function useInterventionContextMenu(interventionId: string, viewType?: Co
           statusValue: "ACCEPTE",
         }
       })
-      
+
       // Mise à jour optimiste immédiate dans toutes les listes (complètes et légères)
       // Utiliser les préfixes séparément pour matcher toutes les queries
       // Mettre à jour l'objet status complet avec le label formaté pour l'affichage
@@ -429,11 +427,11 @@ export function useInterventionContextMenu(interventionId: string, viewType?: Co
           const updatedData = oldData.data.map((intervention: any) =>
             intervention.id === interventionId
               ? {
-                  ...intervention,
-                  statusValue: "ACCEPTE",
-                  status: accepteStatus,
-                  statut: "ACCEPTE", // Pour compatibilité
-                }
+                ...intervention,
+                statusValue: "ACCEPTE",
+                status: accepteStatus,
+                statut: "ACCEPTE", // Pour compatibilité
+              }
               : intervention
           )
           return { ...oldData, data: updatedData }
@@ -448,17 +446,17 @@ export function useInterventionContextMenu(interventionId: string, viewType?: Co
           const updatedData = oldData.data.map((intervention: any) =>
             intervention.id === interventionId
               ? {
-                  ...intervention,
-                  statusValue: "ACCEPTE",
-                  status: accepteStatus,
-                  statut: "ACCEPTE", // Pour compatibilité
-                }
+                ...intervention,
+                statusValue: "ACCEPTE",
+                status: accepteStatus,
+                statut: "ACCEPTE", // Pour compatibilité
+              }
               : intervention
           )
           return { ...oldData, data: updatedData }
         }
       )
-      
+
       return { previousIntervention }
     },
     onError: (error: Error, _variables, context) => {
@@ -468,23 +466,24 @@ export function useInterventionContextMenu(interventionId: string, viewType?: Co
       }
       queryClient.invalidateQueries({ queryKey: interventionKeys.invalidateLists() })
       queryClient.invalidateQueries({ queryKey: interventionKeys.detail(interventionId) })
-      
-      toast({
-        title: "Erreur de transition",
+
+      toast.error("Erreur de transition", {
         description: error.message || "Une erreur est survenue lors du changement de statut.",
-        variant: "destructive",
       })
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       // Invalider les queries en arrière-plan pour récupérer les données complètes du serveur
       // La mise à jour optimiste dans onMutate assure une mise à jour immédiate de l'UI
       queryClient.invalidateQueries({ queryKey: interventionKeys.invalidateLists() })
       queryClient.invalidateQueries({ queryKey: interventionKeys.detail(interventionId) })
       queryClient.invalidateQueries({ queryKey: interventionKeys.summaries() })
-      
-      toast({
-        title: "Statut mis à jour",
-        description: "L'intervention est maintenant en statut 'Accepté'.",
+
+      toast.success(`Intervention (${idInter || (data as any).id_inter || interventionId}) modifiée vers Accepté avec succès`, {
+        description: new Date().toLocaleString(),
+        action: {
+          label: "Voir",
+          onClick: () => openInterventionModal(interventionId),
+        },
       })
     },
   })

@@ -109,7 +109,7 @@ export function InterventionModalContent({
     async (data: any) => {
       // 1. Mise à jour optimiste immédiate dans React Query pour le détail
       queryClient.setQueryData(['intervention', interventionId], data)
-      
+
       // 2. Mise à jour optimiste dans toutes les listes qui contiennent cette intervention
       queryClient.setQueriesData(
         { queryKey: ['interventions'] },
@@ -123,19 +123,19 @@ export function InterventionModalContent({
           return { ...oldData, data: updatedData }
         }
       )
-      
+
       // 3. Fermer le modal pour démarrer l'animation
       onClose()
-      
+
       // 4. Attendre un court délai pour l'animation (300ms suffit)
       await new Promise(resolve => setTimeout(resolve, 300))
-      
+
       // 5. Invalider les caches React Query en arrière-plan pour recharger les données à jour
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['intervention', interventionId] }),
         queryClient.invalidateQueries({ queryKey: ['interventions'] }),
       ])
-      
+
       console.log("✅ Intervention mise à jour avec succès", data)
     },
     [queryClient, interventionId, onClose],
@@ -151,9 +151,9 @@ export function InterventionModalContent({
     (event: React.MouseEvent) => {
       event.preventDefault()
       event.stopPropagation()
-      void toggleReminder(interventionId)
+      void toggleReminder(interventionId, intervention?.id_inter || undefined)
     },
-    [interventionId, toggleReminder],
+    [intervention?.id_inter, interventionId, toggleReminder],
   )
 
   const handleReminderContextMenu = useCallback(
@@ -197,6 +197,7 @@ export function InterventionModalContent({
     if (hasContent) {
       await saveReminder({
         interventionId,
+        idInter: intervention?.id_inter || undefined,
         note: cleaned.length > 0 ? cleaned : null,
         dueDate: dueDateIso,
         mentionedUserIds: mentionIds,
@@ -209,7 +210,7 @@ export function InterventionModalContent({
     setNoteValue("")
     setDueDateValue(null)
     setMentionIds([])
-  }, [dueDateValue, interventionId, mentionIds, noteValue, removeReminder, saveReminder])
+  }, [dueDateValue, intervention?.id_inter, interventionId, mentionIds, noteValue, removeReminder, saveReminder])
 
   const handleNoteDialogOpenChange = useCallback((open: boolean) => {
     if (!open) {
@@ -306,7 +307,7 @@ export function InterventionModalContent({
             )}
           </div>
         </header>
-        
+
         <div className="modal-config-columns-body overflow-y-auto">
           <div className={bodyPadding}>
             {isLoading ? (
@@ -339,20 +340,20 @@ export function InterventionModalContent({
             )}
           </div>
         </div>
-        
+
         <footer className="modal-config-columns-footer flex items-center justify-end">
           <div className="flex items-center gap-2">
-            <Button 
-              type="button" 
-              variant="outline" 
-              onClick={onClose} 
+            <Button
+              type="button"
+              variant="outline"
+              onClick={onClose}
               disabled={isSubmitting}
               className="legacy-form-button"
             >
               Annuler
             </Button>
-            <Button 
-              type="button" 
+            <Button
+              type="button"
               onClick={handleSubmit}
               disabled={isSubmitting || !intervention}
               className="legacy-form-button bg-accent text-accent-foreground hover:bg-accent/90"

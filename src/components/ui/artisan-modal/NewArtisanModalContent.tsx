@@ -19,7 +19,7 @@ import {
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { ModeIcons } from "@/components/ui/mode-selector"
 import { useReferenceData } from "@/hooks/useReferenceData"
-import { useToast } from "@/hooks/use-toast"
+import { toast } from "sonner"
 import { useSiretVerification } from "@/hooks/useSiretVerification"
 import { validateSiret } from "@/lib/siret-validation"
 import { artisansApiV2 } from "@/lib/supabase-api-v2"
@@ -108,7 +108,6 @@ type Props = {
 export function NewArtisanModalContent({ mode, onClose, onCycleMode }: Props) {
   const ModeIcon = ModeIcons[mode]
   const { data: referenceData, loading: referenceLoading } = useReferenceData()
-  const { toast } = useToast()
   const formRef = useRef<HTMLFormElement>(null)
 
   // Trouver le statut CANDIDAT par défaut
@@ -182,18 +181,15 @@ export function NewArtisanModalContent({ mode, onClose, onCycleMode }: Props) {
         )
       }
 
-      toast({
-        title: "Artisan créé",
+      toast.success("Artisan créé", {
         description: "La fiche artisan a été enregistrée.",
       })
       reset(buildDefaultFormValues())
       onClose()
     } catch (error) {
       const message = error instanceof Error ? error.message : "Impossible de créer l'artisan."
-      toast({
-        title: "Échec de la création",
+      toast.error("Échec de la création", {
         description: message,
-        variant: "destructive",
       })
     }
   }

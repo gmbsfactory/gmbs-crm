@@ -188,7 +188,7 @@ export function useInterventionsQuery(
     const lastId = newArray[newArray.length - 1]?.id ?? 'none'
     console.log(`[useInterventionsQuery] interventions mis à jour - length: ${newArray.length}, page: ${page}, offset: ${offset}, firstId: ${firstId}, lastId: ${lastId}`)
     return newArray
-  }, [data?.data, page, offset, queryKey])
+  }, [data?.data, page, offset])
   const totalCount = useMemo(() => data?.total ?? 0, [data?.total])
 
   // Calculer le nombre total de pages

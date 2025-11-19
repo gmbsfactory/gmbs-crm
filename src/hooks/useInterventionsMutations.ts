@@ -1,5 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query"
+import { toast } from "sonner"
 import { interventionsApiV2 } from "@/lib/supabase-api-v2"
+import { useInterventionModal } from "@/hooks/useInterventionModal"
 import { interventionKeys } from "@/lib/react-query/queryKeys"
 import type { Intervention, InterventionCost, InterventionPayment } from "@/lib/supabase-api-v2"
 import { getRemoteEditIndicatorManager } from "@/lib/realtime/remote-edit-indicator"
@@ -12,6 +14,7 @@ import { isNetworkError } from "@/lib/realtime/realtime-client"
  */
 export function useInterventionsMutations() {
   const queryClient = useQueryClient()
+  const { open: openInterventionModal } = useInterventionModal()
   const syncQueue = getSyncQueue()
 
   // Mutation pour créer une intervention
@@ -38,12 +41,19 @@ export function useInterventionsMutations() {
       return await interventionsApiV2.create(data)
     },
     onSuccess: (data) => {
+      toast.success(`Intervention (${data.id_inter || data.id}) créée avec succès`, {
+        description: new Date().toLocaleString(),
+        action: {
+          label: "Voir",
+          onClick: () => openInterventionModal(data.id),
+        },
+      })
       // Enregistrer la modification locale pour éviter d'afficher un badge
       if (data?.id) {
         const indicatorManager = getRemoteEditIndicatorManager()
         indicatorManager.recordLocalModification(data.id, data.updated_at || null)
       }
-      
+
       // Invalider toutes les listes d'interventions pour recharger les données
       queryClient.invalidateQueries({ queryKey: interventionKeys.invalidateLists() })
       // Invalider aussi les résumés
@@ -95,10 +105,18 @@ export function useInterventionsMutations() {
       return await interventionsApiV2.update(id, data)
     },
     onSuccess: (data, variables) => {
+      const statusLabel = (data as any).status?.label || "modifiée"
+      toast.success(`Intervention (${data.id_inter || variables.id}) ${statusLabel} avec succès`, {
+        description: new Date().toLocaleString(),
+        action: {
+          label: "Voir",
+          onClick: () => openInterventionModal(variables.id),
+        },
+      })
       // Enregistrer la modification locale pour éviter d'afficher un badge
       const indicatorManager = getRemoteEditIndicatorManager()
       indicatorManager.recordLocalModification(variables.id, data?.updated_at || null)
-      
+
       // Invalider toutes les listes d'interventions
       queryClient.invalidateQueries({ queryKey: interventionKeys.invalidateLists() })
       // Invalider aussi le détail de cette intervention spécifique
@@ -128,7 +146,7 @@ export function useInterventionsMutations() {
       // Enregistrer la modification locale pour éviter d'afficher un badge
       const indicatorManager = getRemoteEditIndicatorManager()
       indicatorManager.recordLocalModification(id, data?.data?.updated_at || null)
-      
+
       // Invalider toutes les listes d'interventions
       queryClient.invalidateQueries({ queryKey: interventionKeys.invalidateLists() })
       // Invalider les résumés

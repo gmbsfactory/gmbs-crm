@@ -3,24 +3,24 @@
 import { useState } from "react"
 import { flushSync } from "react-dom"
 import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query"
-import { useToast } from "@/hooks/use-toast"
+import { toast } from "sonner"
 import { useArtisanModal } from "@/hooks/useArtisanModal"
 import { artisanKeys } from "@/lib/react-query/queryKeys"
 import { artisansApi } from "@/lib/api/v2"
 
 export function useArtisanContextMenu(artisanId: string) {
   const queryClient = useQueryClient()
-  const { toast } = useToast()
+  // const { toast } = useToast() // Removed legacy toast
   const { open: openArtisanModal } = useArtisanModal()
   const [isArchiveModalOpen, setIsArchiveModalOpen] = useState(false)
-  
+
   // Vérifier si l'artisan est déjà archivé
   const { data: artisan } = useQuery({
     queryKey: artisanKeys.detail(artisanId),
     queryFn: () => artisansApi.getById(artisanId),
     enabled: !!artisanId,
   })
-  
+
   // Vérifier si l'artisan est archivé (is_active === false ou statut ARCHIVE)
   const isArchived = artisan ? (artisan.is_active === false) : false
 
@@ -46,28 +46,25 @@ export function useArtisanContextMenu(artisanId: string) {
       flushSync(() => {
         setIsArchiveModalOpen(false)
       })
-      
+
       // Utiliser requestAnimationFrame pour s'assurer que le DOM est mis à jour
       // avant d'invalider les queries et de déclencher un re-render massif
       requestAnimationFrame(() => {
         // Invalider toutes les listes d'artisans
         queryClient.invalidateQueries({ queryKey: artisanKeys.invalidateLists() })
         queryClient.invalidateQueries({ queryKey: artisanKeys.detail(artisanId) })
-        
+
         // Afficher le toast après un petit délai pour éviter les conflits
         setTimeout(() => {
-          toast({
-            title: "Archivage réussi",
-            description: "L'artisan a été archivé avec succès.",
+          toast.success("Artisan archivé avec succès", {
+            description: new Date().toLocaleString(),
           })
         }, 50)
       })
     },
     onError: (error: Error) => {
-      toast({
-        title: "Erreur d'archivage",
+      toast.error("Erreur d'archivage", {
         description: error.message || "Une erreur est survenue lors de l'archivage.",
-        variant: "destructive",
       })
     },
   })

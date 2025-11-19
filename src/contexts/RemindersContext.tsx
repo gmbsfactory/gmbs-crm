@@ -3,8 +3,10 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react"
 import { remindersApi } from "@/lib/api/v2/reminders"
 import type { InterventionReminder } from "@/lib/api/v2"
+import { useInterventionModal } from "@/hooks/useInterventionModal"
 import { supabase } from "@/lib/supabase-client"
 import type { RealtimePostgresChangesPayload } from "@supabase/supabase-js"
+import { toast } from "sonner"
 
 const normalizeIdentifier = (input: string): string => {
   return input
@@ -39,6 +41,7 @@ type ReminderState = {
 
 type SaveReminderParams = {
   interventionId: string
+  idInter?: string
   note?: string | null
   dueDate?: string | null
   mentionedUserIds?: string[]
@@ -47,16 +50,16 @@ type SaveReminderParams = {
 type RemindersContextValue = {
   reminders: Set<string>
   count: number
-  toggleReminder: (id: string) => Promise<void>
+  toggleReminder: (id: string, idInter?: string) => Promise<void>
   hasReminder: (id: string) => boolean
   removeReminder: (id: string) => Promise<void>
   getReminderNote: (id: string) => string | undefined
   getReminderDueDate: (id: string) => string | null
-  setReminderNote: (id: string, note: string) => Promise<void>
-  setReminderDueDate: (id: string, dueDate: string | null) => Promise<void>
-  removeReminderNote: (id: string) => Promise<void>
+  setReminderNote: (id: string, note: string, idInter?: string) => Promise<void>
+  setReminderDueDate: (id: string, dueDate: string | null, idInter?: string) => Promise<void>
+  removeReminderNote: (id: string, idInter?: string) => Promise<void>
   getReminderMentions: (id: string) => string[]
-  setReminderMentions: (id: string, mentions: string[]) => Promise<void>
+  setReminderMentions: (id: string, mentions: string[], idInter?: string) => Promise<void>
   reminderNotes: Map<string, string>
   reminderMentions: Map<string, string[]>
   reminderDueDates: Map<string, string | null>
@@ -85,13 +88,14 @@ const cloneState = (state: ReminderState): ReminderState => ({
 
 export function RemindersProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<ReminderState>(createEmptyState)
+  const { open: openInterventionModal } = useInterventionModal()
 
   const updateState = useCallback((updater: (prev: ReminderState) => ReminderState) => {
     setState((prev) => updater(prev))
   }, [])
 
   const saveReminder = useCallback(
-    async ({ interventionId, note, dueDate, mentionedUserIds }: SaveReminderParams) => {
+    async ({ interventionId, idInter, note, dueDate, mentionedUserIds }: SaveReminderParams) => {
       const existingRecord = state.records.get(interventionId) ?? null
       const resolvedNote =
         note === undefined
@@ -120,27 +124,35 @@ export function RemindersProvider({ children }: { children: ReactNode }) {
         console.error("Failed to save reminder", error)
       }
 
+      // Toast pour "Reminder actif" si c'est une création ou mise à jour par l'utilisateur courant
+      // On suppose que si saveReminder est appelé, c'est l'utilisateur courant qui agit
+      if (resolvedNote || resolvedDueDate) {
+        toast.success(`Reminder pour ${idInter || "Intervention"} créé avec succès`, {
+          description: resolvedNote || "Aucune description",
+        })
+      }
+
       updateState((prev) => {
         const next = cloneState(prev)
         // Toujours ajouter le reminder à l'état, même s'il est vide
         next.reminders.add(interventionId)
-        
+
         if (remoteReminder?.note ?? resolvedNote) {
           next.notes.set(interventionId, remoteReminder?.note ?? resolvedNote ?? "")
         } else {
           next.notes.delete(interventionId)
         }
-        
+
         next.mentions.set(
           interventionId,
           remoteReminder?.mentioned_user_ids ?? resolvedMentions ?? [],
         )
-        
+
         next.dueDates.set(
           interventionId,
           remoteReminder?.due_date ?? resolvedDueDate ?? null,
         )
-        
+
         if (remoteReminder) {
           next.records.set(interventionId, remoteReminder)
         } else if (existingRecord) {
@@ -152,7 +164,7 @@ export function RemindersProvider({ children }: { children: ReactNode }) {
             updated_at: new Date().toISOString(),
           })
         }
-        
+
         return next
       })
     },
@@ -251,6 +263,7 @@ export function RemindersProvider({ children }: { children: ReactNode }) {
           user_id: string
           mentioned_user_ids: string[] | null
           is_active: boolean | null
+          note: string | null
         }>(
           "postgres_changes",
           {
@@ -272,6 +285,28 @@ export function RemindersProvider({ children }: { children: ReactNode }) {
                 interventionId: newReminder?.intervention_id ?? oldReminder?.intervention_id,
               })
               refreshReminders()
+
+              // Si c'est un nouveau reminder ou une mise à jour qui concerne l'utilisateur
+              // et que ce n'est PAS l'utilisateur courant qui l'a créé (pour éviter le double toast)
+              // Note: saveReminder déclenche déjà un toast local, mais ici on écoute les événements DB.
+              // Pour simplifier, on affiche le toast persistant uniquement si on est mentionné par quelqu'un d'autre.
+              // Mais on n'a pas l'info de "qui" a fait la modif dans le payload realtime facilement sans user_id de l'auteur.
+              // Le payload contient user_id qui est le créateur/propriétaire du reminder.
+
+              const isCreator = newReminder?.user_id === currentUserId
+
+              // Si on n'est pas le créateur, c'est qu'on a été identifié/mentionné
+              if (!isCreator && newReminder) {
+                toast("Vous avez été identifié dans un reminder", {
+                  description: newReminder.note || "Aucune description",
+                  duration: Infinity,
+                  closeButton: true,
+                  action: {
+                    label: "Voir",
+                    onClick: () => openInterventionModal(newReminder.intervention_id),
+                  },
+                })
+              }
             }
           },
         )
@@ -318,7 +353,7 @@ export function RemindersProvider({ children }: { children: ReactNode }) {
   }, [refreshReminders])
 
   const toggleReminder = useCallback(
-    async (id: string) => {
+    async (id: string, idInter?: string) => {
       const record = state.records.get(id)
 
       if (record) {
@@ -340,7 +375,7 @@ export function RemindersProvider({ children }: { children: ReactNode }) {
         return
       }
 
-      await saveReminder({ interventionId: id })
+      await saveReminder({ interventionId: id, idInter })
     },
     [saveReminder, state.records, updateState],
   )
@@ -373,9 +408,10 @@ export function RemindersProvider({ children }: { children: ReactNode }) {
   )
 
   const setReminderNote = useCallback(
-    async (id: string, note: string) => {
+    async (id: string, note: string, idInter?: string) => {
       await saveReminder({
         interventionId: id,
+        idInter,
         note,
       })
     },
@@ -383,9 +419,10 @@ export function RemindersProvider({ children }: { children: ReactNode }) {
   )
 
   const setReminderDueDate = useCallback(
-    async (id: string, dueDate: string | null) => {
+    async (id: string, dueDate: string | null, idInter?: string) => {
       await saveReminder({
         interventionId: id,
+        idInter,
         dueDate,
       })
     },
@@ -393,9 +430,10 @@ export function RemindersProvider({ children }: { children: ReactNode }) {
   )
 
   const setReminderMentions = useCallback(
-    async (id: string, mentionsList: string[]) => {
+    async (id: string, mentionsList: string[], idInter?: string) => {
       await saveReminder({
         interventionId: id,
+        idInter,
         mentionedUserIds: mentionsList,
       })
     },
@@ -403,9 +441,10 @@ export function RemindersProvider({ children }: { children: ReactNode }) {
   )
 
   const removeReminderNote = useCallback(
-    async (id: string) => {
+    async (id: string, idInter?: string) => {
       await saveReminder({
         interventionId: id,
+        idInter,
         note: null,
       })
     },
