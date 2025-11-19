@@ -41,3 +41,4 @@ CREATE TRIGGER trg_interventions_created_by
   FOR EACH ROW
   EXECUTE FUNCTION set_intervention_created_by();
 
+

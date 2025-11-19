@@ -548,3 +548,4 @@ function ArtisanTableRow({ artisan }: { artisan: Artisan }) {
 
 
 
+
