@@ -36,7 +36,7 @@ export function InterventionContextMenuContent({
     transitionToDevisEnvoye,
     transitionToAccepte,
     isLoading,
-  } = useInterventionContextMenu(intervention.id, viewType, intervention.id_inter)
+  } = useInterventionContextMenu(intervention.id, viewType, intervention.id_inter || undefined)
 
   const statusValue = intervention.statusValue || intervention.statut
   const idInter = intervention.id_inter

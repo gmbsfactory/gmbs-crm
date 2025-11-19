@@ -65,7 +65,7 @@ Exécutez dans Supabase SQL Editor :
 -- Vérifier les publications Realtime
 SELECT * FROM pg_publication WHERE pubname = 'supabase_realtime';
 
--- Vérifier que la table interventions est dans la publication
+
 SELECT * FROM pg_publication_tables 
 WHERE pubname = 'supabase_realtime' 
 AND tablename = 'interventions';
