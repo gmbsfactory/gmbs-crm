@@ -172,11 +172,16 @@ export function useModal() {
     const nextContent: ModalContent = isValidContent(rawContent) ? rawContent : "intervention"
 
     // Vérifier si le modal est déjà ouvert avec le bon ID et le bon contenu
-    // Si c'est le cas et qu'il n'y a pas de pendingModalId, ne rien faire pour éviter la double ouverture
+    // Si c'est le cas, ne rien faire pour éviter la fermeture/réouverture
     const isAlreadyOpen = isOpen && activeId === modalId && content === nextContent
 
-    // Si le modal est déjà ouvert correctement et qu'il n'y a pas d'ouverture en cours, ne rien faire
-    if (isAlreadyOpen && !pendingModalId) {
+    // Si le modal est déjà ouvert correctement, ne rien faire
+    // Même si pendingModalId est défini, on évite la fermeture/réouverture
+    if (isAlreadyOpen) {
+      // Réinitialiser pendingModalId pour éviter les problèmes futurs
+      if (pendingModalId === modalId) {
+        pendingModalId = null
+      }
       return
     }
 
