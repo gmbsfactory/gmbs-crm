@@ -2075,7 +2075,7 @@ export const interventionsApi = {
   async getAdminDashboardStats(
     params: DashboardPeriodParams
   ): Promise<AdminDashboardStats> {
-    const { periodType, referenceDate, startDate, endDate } = params;
+    const { periodType, referenceDate, startDate, endDate, agenceId, gestionnaireId, metierId } = params;
     
     // Calculer les dates de période
     let periodStart: string;
@@ -2086,13 +2086,24 @@ export const interventionsApi = {
       periodEnd = endDate;
     } else {
       const refDate = referenceDate ? new Date(referenceDate) : new Date();
-      const dates = this.calculatePeriodDates(periodType, refDate);
+      const dates = this.calculatePeriodDates(periodType, refDate, startDate, endDate);
       periodStart = dates.start;
       periodEnd = dates.end;
     }
 
     const periodStartTimestamp = `${periodStart}T00:00:00`;
     const periodEndTimestamp = `${periodEnd}T23:59:59`;
+
+    // Log: Paramètres de la requête
+    console.log('\n📊 ========================================');
+    console.log('📊 DASHBOARD ADMIN - Récupération des statistiques');
+    console.log('📊 ========================================');
+    console.log(`📅 Période: ${periodType}`);
+    console.log(`📅 Date début: ${periodStart}`);
+    console.log(`📅 Date fin: ${periodEnd}`);
+    if (agenceId) console.log(`🏢 Agence: ${agenceId}`);
+    if (gestionnaireId) console.log(`👤 Gestionnaire: ${gestionnaireId}`);
+    if (metierId) console.log(`🔧 Métier: ${metierId}`);
 
     // Définir les codes de statut directement (plus besoin de chercher les IDs)
     const demandeStatusCode = 'DEMANDE';
@@ -2110,6 +2121,9 @@ export const interventionsApi = {
       attAcompteStatusCode
     ].filter(Boolean) as string[];
 
+    // Log: Opération en cours
+    console.log('\n🔍 Opération: Appel de la fonction RPC get_admin_dashboard_stats...');
+
     // Appeler la fonction RPC unique qui fait tout en une seule requête SQL
     const { data: rpcResult, error: rpcError } = await supabase.rpc(
       'get_admin_dashboard_stats',
@@ -2123,17 +2137,27 @@ export const interventionsApi = {
         p_terminee_status_code: termineeStatusCode,
         p_att_acompte_status_code: attAcompteStatusCode,
         p_valid_status_codes: statusCodesValides,
+        p_agence_id: agenceId || null,
+        p_gestionnaire_id: gestionnaireId || null,
+        p_metier_id: metierId || null,
       }
     );
 
     if (rpcError) {
-      console.error('[interventionsApi] Erreur RPC get_admin_dashboard_stats:', rpcError);
+      console.error('\n❌ ========================================');
+      console.error('❌ ERREUR lors de l\'appel RPC');
+      console.error('❌ ========================================');
+      console.error('❌ Fonction:', 'get_admin_dashboard_stats');
+      console.error('❌ Erreur:', rpcError);
       throw rpcError;
     }
 
     if (!rpcResult) {
+      console.error('\n❌ Aucune donnée retournée par la fonction RPC');
       throw new Error('Aucune donnée retournée par la fonction RPC');
     }
+
+    console.log('✅ RPC exécuté avec succès');
 
     // Parser le résultat JSON de la fonction SQL
     const mainStatsData = rpcResult.mainStats || {};
@@ -2144,29 +2168,47 @@ export const interventionsApi = {
     const globalFinancials = rpcResult.globalFinancials || {};
 
     // Calculer les taux (côté client car ils nécessitent des calculs)
-    const nbDevis = mainStatsData.nbDevis || 0;
-    const nbValides = mainStatsData.nbValides || 0;
-    const tauxTransformation = nbValides > 0
-      ? Math.round((nbDevis / nbValides)) / 100
+    // Taux de transformation = (Interventions terminées / Interventions reçues) × 100
+    const nbDemandees = mainStatsData.nbInterventionsDemandees || 0;
+    const nbTerminees = mainStatsData.nbInterventionsTerminees || 0;
+    const tauxTransformation = nbDemandees > 0
+      ? Math.round((nbTerminees / nbDemandees) * 100)
       : 0;
 
     const totalPaiements = Number(globalFinancials.totalPaiements || 0);
     const totalCouts = Number(globalFinancials.totalCouts || 0);
-    console.log('totalPaiements', totalPaiements);
-    console.log('totalCouts', totalCouts);
     const tauxMarge = totalPaiements > 0
-      ? Math.round(((totalPaiements - totalCouts) / totalPaiements)) / 100
+      ? Math.round(((totalPaiements - totalCouts) / totalPaiements) * 100)
       : 0;
 
+    // Log: KPIs principaux
+    console.log('\n📈 ========================================');
+    console.log('📈 KPIs PRINCIPAUX');
+    console.log('📈 ========================================');
+    console.log(`📥 Interventions demandées: ${mainStatsData.nbInterventionsDemandees || 0}`);
+    console.log(`✅ Interventions terminées: ${mainStatsData.nbInterventionsTerminees || 0}`);
+    console.log(`📊 Taux de transformation: ${tauxTransformation.toFixed(2)}%`);
+    console.log(`💰 Taux de marge: ${tauxMarge.toFixed(2)}%`);
+    console.log(`💵 Chiffre d'affaires total: ${totalPaiements.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })}`);
+    console.log(`💸 Coûts totaux: ${totalCouts.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })}`);
+    console.log(`💎 Marge nette: ${(totalPaiements - totalCouts).toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })}`);
+
     // Construire mainStats
+    // Utiliser le chiffre d'affaires depuis mainStatsData si disponible, sinon depuis globalFinancials
+    const chiffreAffaires = mainStatsData.chiffreAffaires !== undefined 
+      ? Number(mainStatsData.chiffreAffaires || 0)
+      : totalPaiements;
+    
     const mainStats = {
       nbInterventionsDemandees: mainStatsData.nbInterventionsDemandees || 0,
       nbInterventionsTerminees: mainStatsData.nbInterventionsTerminees || 0,
       tauxTransformation,
+      chiffreAffaires,
       tauxMarge,
     };
 
     // Récupérer le cache de référence pour mapper les codes aux labels
+    console.log('\n🔍 Opération: Récupération du cache de référence...');
     const refs = await getReferenceCache();
 
     // Récupérer les statuts pour mapper les codes aux labels
@@ -2179,6 +2221,7 @@ export const interventionsApi = {
     // ========================================
     // 2. STATISTIQUES DES STATUTS
     // ========================================
+    console.log('\n🔍 Opération: Calcul des statistiques par statut...');
 
     const statusCounts: Record<string, { label: string; count: number }> = {};
     
@@ -2212,9 +2255,21 @@ export const interventionsApi = {
       breakdown,
     };
 
+    // Log: Statistiques par statut
+    console.log('\n📋 ========================================');
+    console.log('📋 STATISTIQUES PAR STATUT');
+    console.log('📋 ========================================');
+    console.log(`📥 Demandes reçues: ${statusStats.nbDemandesRecues}`);
+    console.log(`📄 Devis envoyés: ${statusStats.nbDevisEnvoye}`);
+    console.log(`🔄 En cours: ${statusStats.nbEnCours}`);
+    console.log(`⏳ Attente acompte: ${statusStats.nbAttAcompte}`);
+    console.log(`✅ Acceptées: ${statusStats.nbAccepte}`);
+    console.log(`🏁 Terminées: ${statusStats.nbTermine}`);
+
     // ========================================
     // 3. STATISTIQUES PAR MÉTIER
     // ========================================
+    console.log('\n🔍 Opération: Calcul des statistiques par métier...');
 
     const metierCounts: Record<string, { label: string; count: number }> = {};
     let totalMetiers = 0;
@@ -2234,12 +2289,24 @@ export const interventionsApi = {
       metierId,
       metierLabel: data.label,
       count: data.count,
-      percentage: totalMetiers > 0 ? Math.round((data.count / totalMetiers) * 10000) / 100 : 0,
+      percentage: totalMetiers > 0 ? Math.round((data.count / totalMetiers) * 100) : 0,
     })).sort((a, b) => b.count - a.count);
+
+    // Log: Statistiques par métier (top 5)
+    console.log('\n🔧 ========================================');
+    console.log('🔧 STATISTIQUES PAR MÉTIER (Top 5)');
+    console.log('🔧 ========================================');
+    metierStats.slice(0, 5).forEach((metier, index) => {
+      console.log(`${index + 1}. ${metier.metierLabel}: ${metier.count} interventions (${metier.percentage.toFixed(1)}%)`);
+    });
+    if (metierStats.length > 5) {
+      console.log(`... et ${metierStats.length - 5} autre(s) métier(s)`);
+    }
 
     // ========================================
     // 4. STATISTIQUES PAR AGENCE
     // ========================================
+    console.log('\n🔍 Opération: Calcul des statistiques par agence...');
 
     const agencyStats = agencyBreakdown.map((item: any) => {
       const agencyInfo = refs.agenciesById.get(item.agence_id);
@@ -2247,7 +2314,7 @@ export const interventionsApi = {
       const totalCouts = Number(item.totalCouts || 0);
       const marge = totalPaiements - totalCouts;
       const tauxMargeAgence = totalPaiements > 0
-        ? Math.round((marge / totalPaiements) * 10000) / 100
+        ? Math.round((marge / totalPaiements) * 100)
         : 0;
 
       return {
@@ -2261,9 +2328,24 @@ export const interventionsApi = {
       };
     }).sort((a: any, b: any) => b.ca - a.ca);
 
+    // Log: Statistiques par agence (top 5)
+    console.log('\n🏢 ========================================');
+    console.log('🏢 STATISTIQUES PAR AGENCE (Top 5)');
+    console.log('🏢 ========================================');
+    agencyStats.slice(0, 5).forEach((agency: typeof agencyStats[0], index: number) => {
+      console.log(`${index + 1}. ${agency.agencyLabel}:`);
+      console.log(`   - Interventions: ${agency.nbTotalInterventions} totales, ${agency.nbInterventionsTerminees} terminées`);
+      console.log(`   - CA: ${agency.ca.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })}`);
+      console.log(`   - Marge: ${agency.marge.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })} (${agency.tauxMarge.toFixed(2)}%)`);
+    });
+    if (agencyStats.length > 5) {
+      console.log(`... et ${agencyStats.length - 5} autre(s) agence(s)`);
+    }
+
     // ========================================
     // 5. STATISTIQUES PAR GESTIONNAIRE
     // ========================================
+    console.log('\n🔍 Opération: Calcul des statistiques par gestionnaire...');
 
     const gestionnaireStats = gestionnaireBreakdown.map((item: any) => {
       const gestionnaireInfo = refs.usersById.get(item.gestionnaire_id);
@@ -2271,14 +2353,14 @@ export const interventionsApi = {
       const totalCouts = Number(item.totalCouts || 0);
       const marge = totalPaiements - totalCouts;
       const tauxMargeGestionnaire = totalPaiements > 0
-        ? Math.round((marge / totalPaiements) * 10000) / 100
+        ? Math.round((marge / totalPaiements) * 100)
         : 0;
       
       // Taux de transformation = (Interventions terminées / Interventions prises) × 100
       const nbInterventionsPrises = item.totalInterventions || 0;
       const nbInterventionsTerminees = item.terminatedInterventions || 0;
       const tauxTransformationGestionnaire = nbInterventionsPrises > 0
-        ? Math.round((nbInterventionsTerminees / nbInterventionsPrises) * 10000) / 100
+        ? Math.round((nbInterventionsTerminees / nbInterventionsPrises) * 100) 
         : 0;
 
       // Construire le label du gestionnaire
@@ -2297,6 +2379,37 @@ export const interventionsApi = {
         marge,
       };
     }).sort((a: any, b: any) => b.ca - a.ca);
+
+    // Log: Statistiques par gestionnaire (top 5)
+    console.log('\n👤 ========================================');
+    console.log('👤 STATISTIQUES PAR GESTIONNAIRE (Top 5)');
+    console.log('👤 ========================================');
+    gestionnaireStats.slice(0, 5).forEach((gestionnaire: typeof gestionnaireStats[0], index: number) => {
+      console.log(`${index + 1}. ${gestionnaire.gestionnaireLabel}:`);
+      console.log(`   - Interventions: ${gestionnaire.nbInterventionsPrises} prises, ${gestionnaire.nbInterventionsTerminees} terminées`);
+      console.log(`   - Taux transformation: ${gestionnaire.tauxTransformation.toFixed(2)}%`);
+      console.log(`   - CA: ${gestionnaire.ca.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })}`);
+      console.log(`   - Marge: ${gestionnaire.marge.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })} (${gestionnaire.tauxMarge.toFixed(2)}%)`);
+    });
+    if (gestionnaireStats.length > 5) {
+      console.log(`... et ${gestionnaireStats.length - 5} autre(s) gestionnaire(s)`);
+    }
+
+    // Log: Récapitulatif final
+    console.log('\n✅ ========================================');
+    console.log('✅ RÉCAPITULATIF - Toutes les opérations terminées');
+    console.log('✅ ========================================');
+    console.log(`📊 Total interventions demandées: ${mainStats.nbInterventionsDemandees}`);
+    console.log(`✅ Total interventions terminées: ${mainStats.nbInterventionsTerminees}`);
+    console.log(`📈 Taux de transformation global: ${tauxTransformation.toFixed(2)}%`);
+    console.log(`💰 Taux de marge global: ${tauxMarge.toFixed(2)}%`);
+    console.log(`💵 Chiffre d'affaires total: ${totalPaiements.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })}`);
+    console.log(`💎 Marge nette totale: ${(totalPaiements - totalCouts).toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })}`);
+    console.log(`📋 Statuts différents: ${breakdown.length}`);
+    console.log(`🔧 Métiers différents: ${metierStats.length}`);
+    console.log(`🏢 Agences différentes: ${agencyStats.length}`);
+    console.log(`👤 Gestionnaires différents: ${gestionnaireStats.length}`);
+    console.log('✅ ========================================\n');
 
     return {
       mainStats,
@@ -2328,8 +2441,15 @@ export const interventionsApi = {
    */
   calculatePeriodDates(
     periodType: PeriodType,
-    referenceDate: Date
+    referenceDate: Date,
+    startDate?: string,
+    endDate?: string
   ): { start: string; end: string } {
+    // Si des dates spécifiques sont fournies, les utiliser
+    if (startDate && endDate) {
+      return { start: startDate, end: endDate };
+    }
+
     const date = new Date(referenceDate);
     let start: Date;
     let end: Date;
@@ -2338,6 +2458,17 @@ export const interventionsApi = {
       case 'day':
         start = new Date(date);
         end = new Date(date);
+        break;
+      
+      case 'week':
+        // Semaine du lundi au vendredi
+        const day = date.getDay();
+        const diff = date.getDate() - day + (day === 0 ? -6 : 1); // Lundi
+        start = new Date(date.getFullYear(), date.getMonth(), diff);
+        start.setHours(0, 0, 0, 0);
+        end = new Date(start);
+        end.setDate(start.getDate() + 4); // Vendredi
+        end.setHours(23, 59, 59, 999);
         break;
       
       case 'month':

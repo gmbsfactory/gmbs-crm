@@ -791,13 +791,16 @@ export interface OwnerQueryParams extends BaseQueryParams {
 
 // ===== TYPES POUR LE DASHBOARD ADMINISTRATEUR =====
 
-export type PeriodType = 'day' | 'month' | 'year';
+export type PeriodType = 'day' | 'week' | 'month' | 'year';
 
 export interface DashboardPeriodParams {
   periodType: PeriodType;
   referenceDate?: string; // Date de référence (par défaut: aujourd'hui)
   startDate?: string; // Optionnel: date de début explicite
   endDate?: string; // Optionnel: date de fin explicite
+  agenceId?: string | null; // Optionnel: filtrer par agence
+  gestionnaireId?: string | null; // Optionnel: filtrer par gestionnaire
+  metierId?: string | null; // Optionnel: filtrer par métier
 }
 
 export interface InterventionStatusTransition {
@@ -815,11 +818,12 @@ export interface InterventionStatusTransition {
 }
 
 export interface AdminDashboardStats {
-  // 1. Les 4 stats principales
+  // 1. Les 5 stats principales
   mainStats: {
     nbInterventionsDemandees: number;
     nbInterventionsTerminees: number; // Passées en INTER_TERMINEE pendant la période
-    tauxTransformation: number; // (Devis envoyé / Inter terminé+accepté+encours) × 100
+    tauxTransformation: number; // (Interventions terminées / Interventions reçues) × 100
+    chiffreAffaires: number; // Chiffre d'affaires total
     tauxMarge: number; // Taux de marge sur interventions terminées
   };
 

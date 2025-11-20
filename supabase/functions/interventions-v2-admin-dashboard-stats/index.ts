@@ -66,7 +66,14 @@ serve(async (req: Request) => {
 
     const { period_start, period_end }: DashboardStatsRequest = await req.json();
 
+    // Log: Début de la requête
+    console.log('\n📊 ========================================');
+    console.log('📊 DASHBOARD ADMIN - Edge Function');
+    console.log('📊 ========================================');
+    console.log(`📅 Période: ${period_start} → ${period_end}`);
+
     if (!period_start || !period_end) {
+      console.error('\n❌ Paramètres manquants: period_start et period_end sont requis');
       return new Response(
         JSON.stringify({ error: 'period_start and period_end are required' }),
         {
@@ -80,6 +87,13 @@ serve(async (req: Request) => {
     const periodStartTimestamp = `${period_start}T00:00:00`;
     const periodEndTimestamp = `${period_end}T23:59:59`;
 
+    // Log: Opérations en cours
+    console.log('\n🔍 Opération: Exécution des requêtes en parallèle...');
+    console.log('   - Statistiques principales');
+    console.log('   - Statistiques par statut');
+    console.log('   - Statistiques par métier');
+    console.log('   - Statistiques par agence');
+
     // Toutes les requêtes en parallèle
     const [mainStats, statusStats, metierStats, agencyStats] = await Promise.all([
       getMainStats(supabaseClient, period_start, period_end, periodStartTimestamp, periodEndTimestamp),
@@ -87,6 +101,21 @@ serve(async (req: Request) => {
       getMetierStats(supabaseClient, period_start, period_end, periodStartTimestamp, periodEndTimestamp),
       getAgencyStats(supabaseClient, period_start, period_end, periodStartTimestamp, periodEndTimestamp),
     ]);
+
+    console.log('✅ Toutes les requêtes terminées avec succès');
+
+    // Log: Résumé des résultats
+    console.log('\n📈 ========================================');
+    console.log('📈 RÉSUMÉ DES RÉSULTATS');
+    console.log('📈 ========================================');
+    console.log(`📥 Interventions demandées: ${mainStats.nbInterventionsDemandees}`);
+    console.log(`✅ Interventions terminées: ${mainStats.nbInterventionsTerminees}`);
+    console.log(`📊 Taux de transformation: ${mainStats.tauxTransformation.toFixed(2)}%`);
+    console.log(`💰 Taux de marge: ${mainStats.tauxMarge.toFixed(2)}%`);
+    console.log(`📋 Statuts différents: ${statusStats.breakdown.length}`);
+    console.log(`🔧 Métiers différents: ${metierStats.length}`);
+    console.log(`🏢 Agences différentes: ${agencyStats.length}`);
+    console.log('✅ ========================================\n');
 
     return new Response(
       JSON.stringify({
@@ -100,7 +129,14 @@ serve(async (req: Request) => {
       }
     );
   } catch (error) {
-    console.error('Dashboard stats error:', error);
+    console.error('\n❌ ========================================');
+    console.error('❌ ERREUR DASHBOARD ADMIN - Edge Function');
+    console.error('❌ ========================================');
+    console.error('❌ Erreur:', error instanceof Error ? error.message : String(error));
+    if (error instanceof Error && error.stack) {
+      console.error('❌ Stack:', error.stack);
+    }
+    console.error('❌ ========================================\n');
     return new Response(
       JSON.stringify({ error: error instanceof Error ? error.message : String(error) }),
       {

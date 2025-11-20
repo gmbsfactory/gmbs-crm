@@ -1,6 +1,7 @@
 "use client"
 
 import { useQuery } from "@tanstack/react-query"
+import { useMemo } from "react"
 import { interventionsApi } from "@/lib/api/v2"
 import type { AdminDashboardStats, DashboardPeriodParams, PeriodType } from "@/lib/api/v2"
 
@@ -20,9 +21,47 @@ export function useAdminDashboardStats(
   params: DashboardPeriodParams | null,
   options?: { enabled?: boolean }
 ) {
+  // Calculer les dates pour les inclure dans la queryKey
+  // Cela garantit que la clé de cache change quand la période change
+  const calculatedDates = useMemo(() => {
+    if (!params) return null
+    
+    const { periodType, referenceDate, startDate, endDate } = params
+    
+    // Si les dates sont fournies explicitement, les utiliser
+    if (startDate && endDate) {
+      return { start: startDate, end: endDate }
+    }
+    
+    // Sinon, calculer les dates basées sur periodType et referenceDate
+    const refDate = referenceDate ? new Date(referenceDate) : new Date()
+    return interventionsApi.calculatePeriodDates(periodType, refDate)
+  }, [params?.periodType, params?.referenceDate, params?.startDate, params?.endDate])
+
   return useQuery<AdminDashboardStats>({
-    queryKey: params 
-      ? ["admin", "dashboard", "stats", params.periodType, params.referenceDate || params.startDate || "current"]
+    queryKey: params && calculatedDates
+      ? [
+          "admin", 
+          "dashboard", 
+          "stats", 
+          params.periodType, 
+          calculatedDates.start, 
+          calculatedDates.end,
+          params.agenceId ?? null,
+          params.gestionnaireId ?? null,
+          params.metierId ?? null,
+        ]
+      : params
+      ? [
+          "admin", 
+          "dashboard", 
+          "stats", 
+          params.periodType, 
+          "current",
+          params.agenceId ?? null,
+          params.gestionnaireId ?? null,
+          params.metierId ?? null,
+        ]
       : ["admin", "dashboard", "stats", "disabled"],
     queryFn: async () => {
       if (!params) throw new Error("Params are required")

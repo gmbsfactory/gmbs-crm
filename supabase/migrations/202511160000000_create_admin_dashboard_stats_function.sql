@@ -21,7 +21,10 @@ CREATE OR REPLACE FUNCTION public.get_admin_dashboard_stats(
   p_en_cours_status_code text,
   p_terminee_status_code text,
   p_att_acompte_status_code text,
-  p_valid_status_codes text[]
+  p_valid_status_codes text[],
+  p_agence_id uuid DEFAULT NULL,
+  p_gestionnaire_id uuid DEFAULT NULL,
+  p_metier_id uuid DEFAULT NULL
 )
 RETURNS jsonb
 LANGUAGE plpgsql
@@ -48,6 +51,8 @@ BEGIN
     WHERE i.is_active = true
       AND i.date >= p_period_start
       AND i.date < p_period_end
+      AND (p_agence_id IS NULL OR i.agence_id = p_agence_id)
+      AND (p_metier_id IS NULL OR i.metier_id = p_metier_id)
   ),
   
   -- CTE 1b: Interventions liées aux gestionnaires (directement via assigned_user_id ou via artisans)
@@ -58,6 +63,7 @@ BEGIN
       i.assigned_user_id as gestionnaire_id
     FROM interventions_periode i
     WHERE i.assigned_user_id IS NOT NULL
+      AND (p_gestionnaire_id IS NULL OR i.assigned_user_id = p_gestionnaire_id)
     
     UNION
     
@@ -70,39 +76,53 @@ BEGIN
     INNER JOIN public.artisans a ON a.id = ia.artisan_id
     WHERE a.gestionnaire_id IS NOT NULL
       AND a.is_active = true
+      AND (p_gestionnaire_id IS NULL OR a.gestionnaire_id = p_gestionnaire_id)
+  ),
+  
+  -- CTE 1c: Interventions filtrées (incluant le filtre gestionnaire)
+  -- Cette CTE combine tous les filtres (agence, métier, gestionnaire) pour garantir la cohérence
+  interventions_filtrees AS (
+    SELECT DISTINCT ip.id
+    FROM interventions_periode ip
+    WHERE (p_gestionnaire_id IS NULL OR ip.id IN (SELECT intervention_id FROM interventions_gestionnaires))
   ),
   
   -- CTE 2: Interventions qui ont eu chaque statut pendant la période (basé sur les transitions)
+  -- Filtrer par les interventions de la période qui respectent TOUS les filtres
   inter_demandees AS (
-    SELECT DISTINCT intervention_id
-    FROM public.intervention_status_transitions
-    WHERE to_status_code = p_demande_status_code
-      AND transition_date >= p_period_start
-      AND transition_date <= p_period_end
+    SELECT DISTINCT ist.intervention_id
+    FROM public.intervention_status_transitions ist
+    INNER JOIN interventions_filtrees ip ON ip.id = ist.intervention_id
+    WHERE ist.to_status_code = p_demande_status_code
+      AND ist.transition_date >= p_period_start
+      AND ist.transition_date <= p_period_end
   ),
   
   inter_terminees AS (
-    SELECT DISTINCT intervention_id
-    FROM public.intervention_status_transitions
-    WHERE to_status_code = p_terminee_status_code
-      AND transition_date >= p_period_start
-      AND transition_date <= p_period_end
+    SELECT DISTINCT ist.intervention_id
+    FROM public.intervention_status_transitions ist
+    INNER JOIN interventions_filtrees ip ON ip.id = ist.intervention_id
+    WHERE ist.to_status_code = p_terminee_status_code
+      AND ist.transition_date >= p_period_start
+      AND ist.transition_date <= p_period_end
   ),
   
   inter_devis AS (
-    SELECT DISTINCT intervention_id
-    FROM public.intervention_status_transitions
-    WHERE to_status_code = p_devis_status_code
-      AND transition_date >= p_period_start
-      AND transition_date <= p_period_end
+    SELECT DISTINCT ist.intervention_id
+    FROM public.intervention_status_transitions ist
+    INNER JOIN interventions_filtrees ip ON ip.id = ist.intervention_id
+    WHERE ist.to_status_code = p_devis_status_code
+      AND ist.transition_date >= p_period_start
+      AND ist.transition_date <= p_period_end
   ),
   
   inter_valides AS (
-    SELECT DISTINCT intervention_id
-    FROM public.intervention_status_transitions
-    WHERE to_status_code = ANY(p_valid_status_codes)
-      AND transition_date >= p_period_start
-      AND transition_date <= p_period_end
+    SELECT DISTINCT ist.intervention_id
+    FROM public.intervention_status_transitions ist
+    INNER JOIN interventions_filtrees ip ON ip.id = ist.intervention_id
+    WHERE ist.to_status_code = ANY(p_valid_status_codes)
+      AND ist.transition_date >= p_period_start
+      AND ist.transition_date <= p_period_end
   ),
   
   -- CTE 3: Stats principales (comptages basés sur les transitions)
@@ -115,11 +135,13 @@ BEGIN
   ),
   
   -- CTE 4: Breakdown par statut (basé sur les transitions pendant la période)
+  -- CORRECTION: Filtrer par interventions_filtrees pour respecter tous les filtres (agence, métier, gestionnaire)
   status_breakdown AS (
     SELECT 
       ist.to_status_code as statut_code,
       COUNT(DISTINCT ist.intervention_id)::integer as count
     FROM public.intervention_status_transitions ist
+    INNER JOIN interventions_filtrees ip ON ip.id = ist.intervention_id
     WHERE ist.transition_date >= p_period_start
       AND ist.transition_date <= p_period_end
       AND ist.to_status_code IS NOT NULL
@@ -127,24 +149,28 @@ BEGIN
   ),
   
   -- CTE 5: Breakdown par métier (GROUP BY)
+  -- CORRECTION: Utiliser interventions_filtrees pour respecter tous les filtres
   metier_breakdown AS (
     SELECT 
-      metier_id,
+      ip2.metier_id,
       COUNT(*)::integer as count
-    FROM interventions_periode
-    WHERE metier_id IS NOT NULL
-    GROUP BY metier_id
+    FROM interventions_filtrees ip
+    INNER JOIN interventions_periode ip2 ON ip2.id = ip.id
+    WHERE ip2.metier_id IS NOT NULL
+    GROUP BY ip2.metier_id
   ),
   
   -- CTE 6: Breakdown par agence (GROUP BY avec comptage des terminées)
+  -- CORRECTION: Utiliser interventions_filtrees pour respecter tous les filtres
   agency_breakdown AS (
     SELECT 
-      agence_id,
+      ip2.agence_id,
       COUNT(*)::integer as total_interventions,
-      COUNT(*) FILTER (WHERE id IN (SELECT intervention_id FROM inter_terminees))::integer as terminated_interventions
-    FROM interventions_periode
-    WHERE agence_id IS NOT NULL
-    GROUP BY agence_id
+      COUNT(*) FILTER (WHERE ip.id IN (SELECT intervention_id FROM inter_terminees))::integer as terminated_interventions
+    FROM interventions_filtrees ip
+    INNER JOIN interventions_periode ip2 ON ip2.id = ip.id
+    WHERE ip2.agence_id IS NOT NULL
+    GROUP BY ip2.agence_id
   ),
   
   -- CTE 7: Chiffre d'affaires agrégé par intervention (basé sur les coûts de type 'intervention')
@@ -224,9 +250,11 @@ BEGIN
         'nbInterventionsDemandees', ms.nb_demandees,
         'nbInterventionsTerminees', ms.nb_terminees,
         'nbDevis', ms.nb_devis,
-        'nbValides', ms.nb_valides
+        'nbValides', ms.nb_valides,
+        'chiffreAffaires', COALESCE(gf.total_paiements, 0)
       )
       FROM main_stats ms
+      CROSS JOIN global_financials gf
     ),
     
     -- Breakdown par statut

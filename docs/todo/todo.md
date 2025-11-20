@@ -1,3 +1,6 @@
+### Now 
+
+
 - Dashboard
         - implémenter les raccourcis clics sur la page dashboard 
                 Mes Artisans --> page artisan, Mes Interventions  --> page intervention
@@ -19,7 +22,27 @@
                 que la fonction SQL remplit bien son rôle à l'aide de requêtes pilote
         - Affichage de la performance des gestionnaires
         
+        - tester sur une semaine
 
+        - dans la répartition par métier j'aimerai que le composant pie par métier et nombre d'interventions par statut soit interactif
+
+- delete Artisan via API 
+
+- donner à Antigravity la gestion des vulnérabilités supabase
+
+- export à merger
+
+
+
+
+
+
+
+
+
+
+
+ ### Later
 
 - bouton import export Sheets <-> CRM
 

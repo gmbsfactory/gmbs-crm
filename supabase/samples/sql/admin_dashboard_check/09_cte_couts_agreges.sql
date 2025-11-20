@@ -28,8 +28,7 @@ SELECT
   ca.total_couts
 FROM couts_agreges ca
 LEFT JOIN public.agencies a ON a.id = ca.agence_id
-ORDER BY ca.total_couts DESC
-LIMIT 100;
+ORDER BY ca.total_couts DESC;
 
 -- Total global
 WITH inter_terminees AS (

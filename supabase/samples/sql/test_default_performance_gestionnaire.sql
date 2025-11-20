@@ -15,3 +15,15 @@ LEFT JOIN public.gestionnaire_targets gt ON u.id = gt.user_id
 WHERE u.username != 'admin'  -- Exclure l'admin
 ORDER BY u.username, gt.period_type;
 
+
+
+-- Vérifier la structure de la table et les valeurs par défaut
+SELECT 
+    column_name,
+    data_type,
+    column_default,
+    is_nullable
+FROM information_schema.columns
+WHERE table_schema = 'public' 
+  AND table_name = 'gestionnaire_targets'
+ORDER BY ordinal_position;

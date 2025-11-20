@@ -14,13 +14,20 @@ import type { PeriodType } from "@/lib/api/v2"
 import { Skeleton } from "@/components/ui/skeleton"
 
 export default function AdminDashboardPage() {
-  const [period, setPeriod] = useState<"jour" | "mois" | "annee">("mois")
+  const [period, setPeriod] = useState<"jour" | "semaine" | "mois" | "annee">("mois")
+  const [startDate, setStartDate] = useState<string | null>(null)
+  const [endDate, setEndDate] = useState<string | null>(null)
+  const [agenceId, setAgenceId] = useState<string | null>(null)
+  const [gestionnaireId, setGestionnaireId] = useState<string | null>(null)
+  const [metierId, setMetierId] = useState<string | null>(null)
 
   // Convertir la période en PeriodType pour l'API
   const periodType: PeriodType = useMemo(() => {
     switch (period) {
       case "jour":
         return "day"
+      case "semaine":
+        return "week"
       case "mois":
         return "month"
       case "annee":
@@ -30,9 +37,20 @@ export default function AdminDashboardPage() {
     }
   }, [period])
 
+  // Gérer le changement de dates depuis FilterBar
+  const handleDateChange = useCallback((start: string | null, end: string | null) => {
+    setStartDate(start)
+    setEndDate(end)
+  }, [])
+
   // Récupérer les données du dashboard
   const { data: dashboardStats, isLoading, error } = useAdminDashboardStats({
     periodType,
+    startDate: startDate || undefined,
+    endDate: endDate || undefined,
+    agenceId: agenceId === "all" ? null : agenceId,
+    gestionnaireId: gestionnaireId === "all" ? null : gestionnaireId,
+    metierId: metierId === "all" ? null : metierId,
   })
 
   // Formater les nombres pour l'affichage (memoized pour éviter les recréations)
@@ -43,6 +61,16 @@ export default function AdminDashboardPage() {
   // Formater les pourcentages (memoized pour éviter les recréations)
   const formatPercent = useCallback((num: number) => {
     return `${num.toFixed(1)}%`
+  }, [])
+
+  // Formater la monnaie (memoized pour éviter les recréations)
+  const formatCurrency = useCallback((num: number) => {
+    return new Intl.NumberFormat("fr-FR", {
+      style: "currency",
+      currency: "EUR",
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(num)
   }, [])
 
   return (
@@ -71,21 +99,22 @@ export default function AdminDashboardPage() {
 
             {/* Filters */}
             <FilterBar 
-              onPeriodChange={(p) => setPeriod(p as "jour" | "mois" | "annee")}
-              onAgenceChange={() => {}}
-              onGestionnaireChange={() => {}}
-              onMetierChange={() => {}}
+              onPeriodChange={(p) => setPeriod(p)}
+              onDateChange={handleDateChange}
+              onAgenceChange={(value) => setAgenceId(value === "all" ? null : value)}
+              onGestionnaireChange={(value) => setGestionnaireId(value === "all" ? null : value)}
+              onMetierChange={(value) => setMetierId(value === "all" ? null : value)}
             />
 
             {/* KPIs */}
             {isLoading ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-                {[1, 2, 3, 4].map((i) => (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
+                {[1, 2, 3, 4, 5].map((i) => (
                   <Skeleton key={i} className="h-32" />
                 ))}
               </div>
             ) : dashboardStats ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
                 <KPICard
                   title="Interventions reçues"
                   value={formatNumber(dashboardStats.mainStats.nbInterventionsDemandees)}
@@ -100,6 +129,11 @@ export default function AdminDashboardPage() {
                   title="Taux de transformation"
                   value={formatPercent(dashboardStats.mainStats.tauxTransformation)}
                   icon={Percent}
+                />
+                <KPICard
+                  title="Chiffre d'affaires"
+                  value={formatCurrency(dashboardStats.mainStats.chiffreAffaires)}
+                  icon={DollarSign}
                 />
                 <KPICard
                   title="Taux de marge"
