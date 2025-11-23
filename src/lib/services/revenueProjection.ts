@@ -1,4 +1,10 @@
-import type { RevenueHistoryData } from "@/lib/api/v2/common/types"
+import type {
+  RevenueHistoryData,
+  InterventionsHistoryData,
+  TransformationRateHistoryData,
+  CycleTimeHistoryData,
+  MarginHistoryData,
+} from "@/lib/api/v2/common/types"
 
 /**
  * Interface pour les modèles de projection
@@ -93,6 +99,72 @@ export class RevenueProjectionService {
   
   static calculateProjection(historicalData: RevenueHistoryData[]): number {
     return this.model.calculate(historicalData)
+  }
+
+  /**
+   * Calcule la projection pour les interventions (demandées et terminées séparément)
+   */
+  static calculateInterventionsProjection(
+    historicalData: InterventionsHistoryData[]
+  ): { demandees: number; terminees: number } {
+    if (historicalData.length === 0) return { demandees: 0, terminees: 0 }
+
+    const realData = historicalData.filter((d) => !d.isProjection)
+    if (realData.length === 0) return { demandees: 0, terminees: 0 }
+
+    const sumDemandees = realData.reduce((acc, d) => acc + d.value.demandees, 0)
+    const sumTerminees = realData.reduce((acc, d) => acc + d.value.terminees, 0)
+
+    return {
+      demandees: Math.round(sumDemandees / realData.length),
+      terminees: Math.round(sumTerminees / realData.length),
+    }
+  }
+
+  /**
+   * Calcule la projection pour le taux de transformation (demandées et terminées séparément)
+   */
+  static calculateTransformationRateProjection(
+    historicalData: TransformationRateHistoryData[]
+  ): { demandees: number; terminees: number } {
+    if (historicalData.length === 0) return { demandees: 0, terminees: 0 }
+
+    const realData = historicalData.filter((d) => !d.isProjection)
+    if (realData.length === 0) return { demandees: 0, terminees: 0 }
+
+    const sumDemandees = realData.reduce((acc, d) => acc + d.value.demandees, 0)
+    const sumTerminees = realData.reduce((acc, d) => acc + d.value.terminees, 0)
+
+    return {
+      demandees: Math.round(sumDemandees / realData.length),
+      terminees: Math.round(sumTerminees / realData.length),
+    }
+  }
+
+  /**
+   * Calcule la projection pour le cycle moyen (moyenne simple en jours)
+   */
+  static calculateCycleTimeProjection(historicalData: CycleTimeHistoryData[]): number {
+    if (historicalData.length === 0) return 0
+
+    const realData = historicalData.filter((d) => !d.isProjection)
+    if (realData.length === 0) return 0
+
+    const sum = realData.reduce((acc, d) => acc + d.value, 0)
+    return Math.round(sum / realData.length)
+  }
+
+  /**
+   * Calcule la projection pour la marge (moyenne simple en euros)
+   */
+  static calculateMarginProjection(historicalData: MarginHistoryData[]): number {
+    if (historicalData.length === 0) return 0
+
+    const realData = historicalData.filter((d) => !d.isProjection)
+    if (realData.length === 0) return 0
+
+    const sum = realData.reduce((acc, d) => acc + d.value, 0)
+    return Math.round(sum / realData.length)
   }
 }
 

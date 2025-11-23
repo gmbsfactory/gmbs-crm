@@ -895,3 +895,117 @@ export interface RevenueHistoryResponse {
   projection?: RevenueHistoryData; // Projection de la période suivante
   currentPeriod: RevenueHistoryData; // Période actuelle
 }
+
+/**
+ * Interface générique pour les données historiques de n'importe quel KPI
+ */
+export interface KPIHistoryData<T = number> {
+  period: string;
+  periodLabel: string;
+  value: T;
+  isProjection?: boolean;
+}
+
+/**
+ * Paramètres génériques pour récupérer l'historique
+ */
+export interface KPIHistoryParams {
+  periodType: PeriodType;
+  startDate?: string;
+  endDate?: string;
+  agenceId?: string | null;
+  gestionnaireId?: string | null;
+  metierId?: string | null;
+  includeProjection?: boolean;
+}
+
+/**
+ * Réponse générique pour l'historique
+ */
+export interface KPIHistoryResponse<T = number> {
+  historical: KPIHistoryData<T>[];
+  projection?: KPIHistoryData<T>;
+  currentPeriod: KPIHistoryData<T>;
+}
+
+/**
+ * Données historiques pour les interventions (demandées + terminées)
+ */
+export interface InterventionsHistoryData {
+  period: string;
+  periodLabel: string;
+  value: {
+    demandees: number;
+    terminees: number;
+  };
+  isProjection?: boolean;
+}
+
+/**
+ * Réponse pour l'historique des interventions
+ */
+export interface InterventionsHistoryResponse {
+  historical: InterventionsHistoryData[];
+  projection?: InterventionsHistoryData;
+  currentPeriod: InterventionsHistoryData;
+}
+
+/**
+ * Données historiques pour le taux de transformation (demandées + terminées)
+ */
+export interface TransformationRateHistoryData {
+  period: string;
+  periodLabel: string;
+  value: {
+    demandees: number;
+    terminees: number;
+  };
+  isProjection?: boolean;
+}
+
+/**
+ * Réponse pour l'historique du taux de transformation
+ */
+export interface TransformationRateHistoryResponse {
+  historical: TransformationRateHistoryData[];
+  projection?: TransformationRateHistoryData;
+  currentPeriod: TransformationRateHistoryData;
+}
+
+/**
+ * Données historiques pour le cycle moyen (en jours)
+ */
+export interface CycleTimeHistoryData {
+  period: string;
+  periodLabel: string;
+  value: number; // En jours
+  isProjection?: boolean;
+}
+
+/**
+ * Réponse pour l'historique du cycle moyen
+ */
+export interface CycleTimeHistoryResponse {
+  historical: CycleTimeHistoryData[];
+  projection?: CycleTimeHistoryData;
+  currentPeriod: CycleTimeHistoryData;
+}
+
+/**
+ * Données historiques pour la marge (en euros)
+ */
+export interface MarginHistoryData {
+  period: string;
+  periodLabel: string;
+  value: number; // Marge en euros
+  isProjection?: boolean;
+}
+
+/**
+ * Réponse pour l'historique de la marge
+ */
+export interface MarginHistoryResponse {
+  historical: MarginHistoryData[];
+  projection?: MarginHistoryData;
+  currentPeriod: MarginHistoryData;
+}

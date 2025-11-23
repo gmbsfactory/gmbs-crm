@@ -9,34 +9,41 @@ import { HorizontalBarChart } from "@/components/admin-dashboard/HorizontalBarCh
 import { VirtualizedDataTable } from "@/components/admin-dashboard/VirtualizedDataTable"
 import { MarginBar } from "@/components/admin-dashboard/MarginBar"
 import { RevenueHistoryModal } from "@/components/admin-dashboard/RevenueHistoryModal"
+import { InterventionsHistoryModal } from "@/components/admin-dashboard/InterventionsHistoryModal"
+import { TransformationRateHistoryModal } from "@/components/admin-dashboard/TransformationRateHistoryModal"
+import { CycleTimeHistoryModal } from "@/components/admin-dashboard/CycleTimeHistoryModal"
+import { MarginHistoryModal } from "@/components/admin-dashboard/MarginHistoryModal"
 import { useAdminDashboardStats } from "@/hooks/useAdminDashboardStats"
 import { AdminGuard } from "@/components/admin-dashboard/AdminGuard"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 
 export default function AdminDashboardPage() {
-  const [period, setPeriod] = useState<PeriodType>("mois")
+  const [period, setPeriod] = useState<PeriodType>("mois" as PeriodType)
   const [startDate, setStartDate] = useState<string | null>(null)
   const [endDate, setEndDate] = useState<string | null>(null)
   const [agenceId, setAgenceId] = useState<string | null>(null)
   const [gestionnaireId, setGestionnaireId] = useState<string | null>(null)
   const [metierId, setMetierId] = useState<string | null>(null)
   const [isRevenueModalOpen, setIsRevenueModalOpen] = useState(false)
+  const [isInterventionsModalOpen, setIsInterventionsModalOpen] = useState(false)
+  const [isTransformationModalOpen, setIsTransformationModalOpen] = useState(false)
+  const [isCycleTimeModalOpen, setIsCycleTimeModalOpen] = useState(false)
+  const [isMarginModalOpen, setIsMarginModalOpen] = useState(false)
 
   // Convertir la période en PeriodType pour l'API
   const apiPeriodType = useMemo(() => {
     // The API expects specific string values. 
     // If PeriodType matches API expectations, we can pass it directly.
     // Assuming PeriodType in FilterBar matches API requirements or we map it here.
-    // Based on previous code, FilterBar uses "jour" | "semaine" | "mois" | "annee"
-    // And API expects "day" | "week" | "month" | "year"
+    // FilterBar uses "semaine" | "mois" | "annee" | "custom"
+    // API expects "day" | "week" | "month" | "year"
     switch (period) {
-      case "jour": return "day"
-      case "semaine": return "week"
-      case "mois": return "month"
-      case "trimestre": return "quarter" // API might not support quarter yet, fallback to month or handle
-      case "annee": return "year"
-      default: return "month"
+      case "semaine": return "week" as const
+      case "mois": return "month" as const
+      case "annee": return "year" as const
+      case "custom": return "month" as const // Fallback to month for custom
+      default: return "month" as const
     }
   }, [period])
 
@@ -211,10 +218,7 @@ export default function AdminDashboardPage() {
                   }}
                   sparklineData={dashboardStats?.sparklines.map(s => ({ date: s.date, value: s.countDemandees }))}
                   description={`${formatNumber(dashboardStats?.mainStats.nbInterventionsTerminees || 0)} terminées`}
-                  onClick={() => {
-                    // TODO: Ajouter un modal pour l'historique des interventions
-                    console.log('Interventions clicked')
-                  }}
+                  onClick={() => setIsInterventionsModalOpen(true)}
                 />
                 <KPICard
                   title="Taux Transformation"
@@ -222,10 +226,7 @@ export default function AdminDashboardPage() {
                   icon={Percent}
                   description="Demandées / Terminées"
                   className="border-l-purple-500"
-                  onClick={() => {
-                    // TODO: Ajouter un modal pour le détail du taux de transformation
-                    console.log('Taux Transformation clicked')
-                  }}
+                  onClick={() => setIsTransformationModalOpen(true)}
                 />
                 <KPICard
                   title="Cycle Moyen"
@@ -233,10 +234,7 @@ export default function AdminDashboardPage() {
                   icon={Clock}
                   description="Délai moyen de traitement"
                   className="border-l-amber-500"
-                  onClick={() => {
-                    // TODO: Ajouter un modal pour l'analyse du cycle moyen
-                    console.log('Cycle Moyen clicked')
-                  }}
+                  onClick={() => setIsCycleTimeModalOpen(true)}
                 />
                 <KPICard
                   title="Chiffre d'Affaires"
@@ -262,10 +260,7 @@ export default function AdminDashboardPage() {
                   }}
                   description={`Taux de marge: ${dashboardStats?.mainStats.tauxMarge || 0}%`}
                   className="border-l-emerald-500"
-                  onClick={() => {
-                    // TODO: Ajouter un modal pour l'historique de la marge
-                    console.log('Marge Globale clicked')
-                  }}
+                  onClick={() => setIsMarginModalOpen(true)}
                 />
               </>
             )}
@@ -354,10 +349,50 @@ export default function AdminDashboardPage() {
           </div>
         </div>
 
-        {/* Modal d'historique du chiffre d'affaires */}
+        {/* Modals d'historique */}
         <RevenueHistoryModal
           open={isRevenueModalOpen}
           onOpenChange={setIsRevenueModalOpen}
+          periodType={apiPeriodType}
+          startDate={startDate || undefined}
+          endDate={endDate || undefined}
+          agenceId={agenceId || undefined}
+          gestionnaireId={gestionnaireId || undefined}
+          metierId={metierId || undefined}
+        />
+        <InterventionsHistoryModal
+          open={isInterventionsModalOpen}
+          onOpenChange={setIsInterventionsModalOpen}
+          periodType={apiPeriodType}
+          startDate={startDate || undefined}
+          endDate={endDate || undefined}
+          agenceId={agenceId || undefined}
+          gestionnaireId={gestionnaireId || undefined}
+          metierId={metierId || undefined}
+        />
+        <TransformationRateHistoryModal
+          open={isTransformationModalOpen}
+          onOpenChange={setIsTransformationModalOpen}
+          periodType={apiPeriodType}
+          startDate={startDate || undefined}
+          endDate={endDate || undefined}
+          agenceId={agenceId || undefined}
+          gestionnaireId={gestionnaireId || undefined}
+          metierId={metierId || undefined}
+        />
+        <CycleTimeHistoryModal
+          open={isCycleTimeModalOpen}
+          onOpenChange={setIsCycleTimeModalOpen}
+          periodType={apiPeriodType}
+          startDate={startDate || undefined}
+          endDate={endDate || undefined}
+          agenceId={agenceId || undefined}
+          gestionnaireId={gestionnaireId || undefined}
+          metierId={metierId || undefined}
+        />
+        <MarginHistoryModal
+          open={isMarginModalOpen}
+          onOpenChange={setIsMarginModalOpen}
           periodType={apiPeriodType}
           startDate={startDate || undefined}
           endDate={endDate || undefined}
