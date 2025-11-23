@@ -22,6 +22,7 @@ export function MapLibreMapImpl({
   markers = [],
   circleRadiusKm,
   selectedConnection,
+  onMarkerClick,
 }: MapLibreMapProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<maplibregl.Map | null>(null)
@@ -36,6 +37,7 @@ export function MapLibreMapImpl({
   const initialCenterRef = useRef<[number, number]>([lng, lat])
   const [error, setError] = useState<string | null>(null)
   const onLocationChangeRef = useRef<MapLibreMapProps["onLocationChange"]>(onLocationChange)
+  const onMarkerClickRef = useRef<MapLibreMapProps["onMarkerClick"]>(onMarkerClick)
 
   const maptilerKey = process.env.NEXT_PUBLIC_MAPTILER_API_KEY
 
@@ -247,8 +249,16 @@ export function MapLibreMapImpl({
 
         marker.addTo(mapInstance)
 
+        const el = marker.getElement()
+        
+        // Ajouter le gestionnaire de clic si onMarkerClick est fourni et que l'ID existe
+        if (onMarkerClickRef.current && markerCandidate.id) {
+          el.addEventListener("click", () => {
+            onMarkerClickRef.current?.(markerCandidate.id!)
+          })
+        }
+
         if (hoverPopup) {
-          const el = marker.getElement()
           const showPopup = () => {
             hoverPopup!.addTo(mapInstance)
             hoverPopup!.setLngLat([markerCandidate.lng, markerCandidate.lat])
@@ -266,6 +276,10 @@ export function MapLibreMapImpl({
 
     artisanMarkersRef.current = createdMarkers
   }, [markers])
+
+  useEffect(() => {
+    onMarkerClickRef.current = onMarkerClick
+  }, [onMarkerClick])
 
   useEffect(() => {
     const mapInstance = mapRef.current

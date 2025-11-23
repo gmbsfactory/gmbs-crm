@@ -904,9 +904,25 @@ export function InterventionEditForm({
     // Encoder le message pour l'URL
     const encodedMessage = encodeURIComponent(whatsappMessage)
 
+    // Détecter si on est sur mobile
+    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent)
+    
     // Ouvrir WhatsApp avec le numéro et le message
-    const whatsappUrl = `https://wa.me/${formattedPhone}?text=${encodedMessage}`
-    window.open(whatsappUrl, '_blank')
+    if (isMobile) {
+      // Sur mobile : utiliser le protocole whatsapp:// pour ouvrir directement l'app
+      const whatsappUrl = `whatsapp://send?phone=${formattedPhone}&text=${encodedMessage}`
+      window.location.href = whatsappUrl
+    } else {
+      // Sur desktop : ouvrir dans une nouvelle fenêtre qui se fermera automatiquement
+      const whatsappUrl = `https://wa.me/${formattedPhone}?text=${encodedMessage}`
+      const popup = window.open(whatsappUrl, '_blank', 'width=1,height=1')
+      // Fermer la fenêtre après un court délai si elle existe encore
+      setTimeout(() => {
+        if (popup && !popup.closed) {
+          popup.close()
+        }
+      }, 1000)
+    }
   }, [generateEmailTemplateData, formatPhoneForWhatsApp])
 
   const handleSelectNearbyArtisan = useCallback(

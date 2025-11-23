@@ -23,6 +23,7 @@ export interface MapLibreMapProps {
     lng: number
     distanceLabel?: string
   }
+  onMarkerClick?: (id: string) => void
 }
 
 const MapLibreMapImpl = dynamic(() => import("./MapLibreMapImpl"), {
