@@ -417,7 +417,7 @@ export function InterventionEditForm({
     if (refData?.agencies && formData.agence_id) {
       const agency = refData.agencies.find((a: any) => a.id === formData.agence_id)
       if (agency) {
-        onAgencyNameChange?.(agency.label || agency.nom || "")
+        onAgencyNameChange?.(agency.label || "")
       }
     } else if (!formData.agence_id) {
       onAgencyNameChange?.("")
@@ -2425,7 +2425,7 @@ export function InterventionEditForm({
                 </div>
               </div>
               <p className="text-xs text-muted-foreground">
-                Note: Les acomptes ne sont éditables que si le statut est "Accepté" ou "Attente acompte".
+                Note: Les acomptes ne sont éditables que si le statut est &quot;Accepté&quot; ou &quot;Attente acompte&quot;.
               </p>
             </CardContent>
           </CollapsibleContent>

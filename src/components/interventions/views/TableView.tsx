@@ -87,6 +87,7 @@ import type { InterventionModalOpenOptions } from "@/hooks/useInterventionModal"
 import { iconForStatus } from "@/lib/interventions/status-icons"
 import { getStatusDisplay } from "@/lib/interventions/status-display"
 import { getStatusDisplayLabel } from "@/lib/interventions/deposit-helpers"
+import type { InterventionPayment } from "@/lib/api/v2/common/types"
 import { Pagination } from "@/components/ui/pagination"
 
 const numberFormatter = new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 2 })
@@ -217,8 +218,8 @@ const renderCell = (
 
     // Récupérer les paiements pour vérifier si l'accompte est validé
     const payments = (intervention as any).payments as Array<{ payment_type?: string; is_received?: boolean; payment_date?: string | null }> | undefined
-    const sstPayment = payments?.find(p => p.payment_type === 'acompte_sst')
-    const clientPayment = payments?.find(p => p.payment_type === 'acompte_client')
+    const sstPayment = payments?.find(p => p.payment_type === 'acompte_sst') as InterventionPayment | undefined
+    const clientPayment = payments?.find(p => p.payment_type === 'acompte_client') as InterventionPayment | undefined
     
     // Utiliser getStatusDisplayLabel pour obtenir le label avec "$" si l'accompte est validé
     const baseLabel = statusDisplay.label
