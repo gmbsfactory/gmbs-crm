@@ -2170,11 +2170,11 @@ export const interventionsApi = {
     const globalFinancials = rpcResult.globalFinancials || {};
 
     // Calculer les taux (côté client car ils nécessitent des calculs)
-    // Taux de transformation = (Interventions terminées / Interventions reçues) × 100
+    // Taux de transformation = (Interventions demandées / Interventions terminées) × 100
     const nbDemandees = mainStatsData.nbInterventionsDemandees || 0;
     const nbTerminees = mainStatsData.nbInterventionsTerminees || 0;
-    const tauxTransformation = nbDemandees > 0
-      ? Math.round((nbTerminees / nbDemandees) * 100)
+    const tauxTransformation = nbTerminees > 0
+      ? Math.round((nbDemandees / nbTerminees) * 100)
       : 0;
 
     const totalPaiements = Number(mainStatsData.chiffreAffaires || 0);
@@ -2214,6 +2214,7 @@ export const interventionsApi = {
       avgCycleTime: mainStatsData.avgCycleTime || 0,
       deltaInterventions: mainStatsData.deltaInterventions || 0,
       deltaChiffreAffaires: mainStatsData.deltaChiffreAffaires || 0,
+      deltaMarge: mainStatsData.deltaMarge || 0,
     };
 
     // Récupérer le cache de référence pour mapper les codes aux labels

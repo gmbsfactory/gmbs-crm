@@ -2584,80 +2584,6 @@
     color: var(--accent-color);
     font-weight: bold;
   }
-
-  /* === Date Range Picker Animations === */
-  /* Animation au clic sur une date */
-  .date-click-animation {
-    animation: dateClickPulse 0.3s ease-out;
-  }
-
-  @keyframes dateClickPulse {
-    0% {
-      transform: scale(1);
-      box-shadow: 0 0 0 0 hsl(var(--primary) / 0.4);
-    }
-    50% {
-      transform: scale(1.1);
-      box-shadow: 0 0 0 8px hsl(var(--primary) / 0);
-    }
-    100% {
-      transform: scale(1);
-      box-shadow: 0 0 0 0 hsl(var(--primary) / 0);
-    }
-  }
-
-  /* Surbrillance de la plage de dates complète */
-  .date-range-start-highlight,
-  .date-range-end-highlight {
-    background: hsl(var(--primary)) !important;
-    color: hsl(var(--primary-foreground)) !important;
-    font-weight: 600;
-    position: relative;
-    z-index: 10;
-  }
-
-  .date-range-start-highlight::before,
-  .date-range-end-highlight::before {
-    content: "";
-    position: absolute;
-    inset: -2px;
-    border-radius: inherit;
-    background: hsl(var(--primary) / 0.2);
-    z-index: -1;
-    animation: rangeHighlightPulse 2s ease-in-out infinite;
-  }
-
-  /* Styles pour les dates du milieu de la plage */
-  .rdp-day_range_middle,
-  [class*="day_range_middle"] {
-    background: hsl(var(--primary) / 0.15) !important;
-    color: hsl(var(--primary-foreground)) !important;
-  }
-
-  /* Animation de surbrillance pour la plage complète */
-  @keyframes rangeHighlightPulse {
-    0%, 100% {
-      opacity: 0.3;
-      transform: scale(1);
-    }
-    50% {
-      opacity: 0.5;
-      transform: scale(1.05);
-    }
-  }
-
-  /* Amélioration visuelle quand la plage est complète */
-  [data-range-complete="true"] .date-range-start-highlight,
-  [data-range-complete="true"] .date-range-end-highlight {
-    box-shadow: 
-      0 0 0 2px hsl(var(--primary)),
-      0 0 12px hsl(var(--primary) / 0.4);
-  }
-
-  [data-range-complete="true"] .rdp-day_range_middle,
-  [data-range-complete="true"] [class*="day_range_middle"] {
-    background: hsl(var(--primary) / 0.2) !important;
-  }
 }
 
 @layer utilities {
@@ -2711,6 +2637,63 @@
 
   .animate-glass-float {
     animation: glass-float 6s ease-in-out infinite;
+  }
+
+  /* Styles pour les plages de dates - Approche shadcn/ui améliorée */
+  .rdp-range_start,
+  [class*="range_start"] {
+    background: hsl(var(--primary)) !important;
+    color: hsl(var(--primary-foreground)) !important;
+    font-weight: 700 !important;
+    border-radius: 50% 0 0 50% !important;
+    box-shadow: 0 2px 8px hsl(var(--primary) / 0.3) !important;
+  }
+
+  .rdp-range_end,
+  [class*="range_end"] {
+    background: hsl(var(--primary)) !important;
+    color: hsl(var(--primary-foreground)) !important;
+    font-weight: 700 !important;
+    border-radius: 0 50% 50% 0 !important;
+    box-shadow: 0 2px 8px hsl(var(--primary) / 0.3) !important;
+  }
+
+  .rdp-range_middle,
+  [class*="range_middle"] {
+    background: hsl(var(--primary) / 0.35) !important;
+    color: hsl(var(--primary-foreground)) !important;
+    font-weight: 500 !important;
+    border-radius: 0 !important;
+  }
+
+  /* Quand la plage est complète, renforcer la visibilité */
+  [data-range-complete="true"] .rdp-range_start,
+  [data-range-complete="true"] .rdp-range_end {
+    box-shadow: 
+      0 0 0 3px hsl(var(--primary) / 0.2),
+      0 4px 12px hsl(var(--primary) / 0.4) !important;
+    transform: scale(1.05);
+  }
+
+  [data-range-complete="true"] .rdp-range_middle {
+    background: hsl(var(--primary) / 0.4) !important;
+  }
+
+  /* Hover sur les dates de début/fin */
+  .rdp-range_start:hover,
+  .rdp-range_end:hover {
+    background: hsl(var(--primary)) !important;
+    transform: scale(1.1);
+    box-shadow: 0 4px 16px hsl(var(--primary) / 0.5) !important;
+  }
+
+  /* Amélioration pour les dates sélectionnées uniques */
+  .rdp-day_selected:not(.rdp-range_start):not(.rdp-range_end):not(.rdp-range_middle) {
+    background: hsl(var(--primary)) !important;
+    color: hsl(var(--primary-foreground)) !important;
+    font-weight: 700 !important;
+    border-radius: 50% !important;
+    box-shadow: 0 2px 8px hsl(var(--primary) / 0.3) !important;
   }
 }
 

@@ -8,14 +8,13 @@ import { useQuery } from "@tanstack/react-query"
 import { referenceApi } from "@/lib/reference-api"
 import { enumsApi } from "@/lib/supabase-api-v2"
 import { DateRangePicker } from "@/components/interventions/DateRangePicker"
-import { MultiSelect } from "@/components/ui/multi-select"
-import { 
-  format, 
-  startOfWeek, 
-  endOfWeek, 
-  startOfMonth, 
-  endOfMonth, 
-  startOfYear, 
+import {
+  format,
+  startOfWeek,
+  endOfWeek,
+  startOfMonth,
+  endOfMonth,
+  startOfYear,
   endOfYear,
   getYear,
   parseISO,
@@ -33,9 +32,9 @@ export type PeriodType = "semaine" | "mois" | "annee" | "custom"
 interface FilterBarProps {
   onPeriodChange: (period: PeriodType) => void
   onDateChange: (startDate: string | null, endDate: string | null) => void
-  onAgenceChange: (agences: string[]) => void
-  onGestionnaireChange: (gestionnaires: string[]) => void
-  onMetierChange: (metiers: string[]) => void
+  onAgenceChange: (agence: string) => void
+  onGestionnaireChange: (gestionnaire: string) => void
+  onMetierChange: (metier: string) => void
 }
 
 export function FilterBar({
@@ -54,9 +53,9 @@ export function FilterBar({
   const [isCustomMode, setIsCustomMode] = useState(false)
   const isProgrammaticUpdate = useRef(false) // Flag pour éviter de basculer en custom lors des mises à jour programmatiques
 
-  const [selectedAgencies, setSelectedAgencies] = useState<string[]>([])
-  const [selectedGestionnaires, setSelectedGestionnaires] = useState<string[]>([])
-  const [selectedMetiers, setSelectedMetiers] = useState<string[]>([])
+  const [selectedAgence, setSelectedAgence] = useState<string>("all")
+  const [selectedGestionnaire, setSelectedGestionnaire] = useState<string>("all")
+  const [selectedMetier, setSelectedMetier] = useState<string>("all")
 
   // Charger les gestionnaires
   const { data: gestionnaires, isLoading: isLoadingGestionnaires } = useGestionnaires()
@@ -100,7 +99,7 @@ export function FilterBar({
       const monthStart = startOfMonth(now)
       const monthEnd = endOfMonth(now)
       const weeks = eachWeekOfInterval({ start: monthStart, end: monthEnd }, { weekStartsOn: 1 })
-      
+
       return weeks.map((weekStart) => {
         const weekEnd = addDays(weekStart, 6)
         return {
@@ -189,7 +188,7 @@ export function FilterBar({
   // Obtenir la valeur actuelle pour le Select
   const getCurrentSelectValue = () => {
     if (selectedPeriod) return selectedPeriod
-    
+
     // Par défaut, utiliser la période courante
     const now = new Date()
     if (periodType === "mois") {
@@ -219,7 +218,7 @@ export function FilterBar({
   // Gérer le changement manuel du DateRangePicker
   const handleDateRangeChange = (range: { from: Date | null; to: Date | null }) => {
     setDateRange(range)
-    
+
     // Si ce n'est pas une mise à jour programmatique, basculer en mode custom
     if (!isProgrammaticUpdate.current && range.from && range.to) {
       setIsCustomMode(true)
@@ -248,25 +247,20 @@ export function FilterBar({
   }, [periodType])
 
   // Propagation des changements de filtres
-  useEffect(() => {
-    onAgenceChange(selectedAgencies)
-  }, [selectedAgencies, onAgenceChange])
+  const handleAgenceSelect = (value: string) => {
+    setSelectedAgence(value)
+    onAgenceChange(value)
+  }
 
-  useEffect(() => {
-    onGestionnaireChange(selectedGestionnaires)
-  }, [selectedGestionnaires, onGestionnaireChange])
+  const handleGestionnaireSelect = (value: string) => {
+    setSelectedGestionnaire(value)
+    onGestionnaireChange(value)
+  }
 
-  useEffect(() => {
-    onMetierChange(selectedMetiers)
-  }, [selectedMetiers, onMetierChange])
-
-  // Options pour les MultiSelect
-  const agencyOptions = agences?.map(a => ({ label: a.label, value: a.id })) || []
-  const gestionnaireOptions = gestionnaires?.map(g => ({
-    label: `${g.firstname} ${g.lastname}`,
-    value: g.id
-  })) || []
-  const metierOptions = metiers?.map(m => ({ label: m.label, value: m.id })) || []
+  const handleMetierSelect = (value: string) => {
+    setSelectedMetier(value)
+    onMetierChange(value)
+  }
 
   return (
     <Card className="border border-border rounded-lg p-4 mb-6 shadow-sm">
@@ -312,7 +306,7 @@ export function FilterBar({
                   {(() => {
                     const currentYear = getYear(new Date())
                     const years = [currentYear - 1, currentYear, currentYear + 1]
-                    
+
                     if (periodType === "mois") {
                       return years.map((year) => {
                         const yearMonths = periodOptions.filter((opt) => opt.year === year)
@@ -331,7 +325,7 @@ export function FilterBar({
                         )
                       })
                     }
-                    
+
                     if (periodType === "semaine") {
                       return periodOptions.map((week) => (
                         <SelectItem key={week.value} value={week.value}>
@@ -339,7 +333,7 @@ export function FilterBar({
                         </SelectItem>
                       ))
                     }
-                    
+
                     // Pour year
                     return periodOptions.map((year) => (
                       <SelectItem key={year.value} value={year.value}>
@@ -363,36 +357,57 @@ export function FilterBar({
 
         <Separator />
 
-        {/* Ligne 2: Filtres Multiples */}
+        {/* Ligne 2: Filtres Simples (Select) */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
             <label className="text-sm font-medium text-foreground mb-2 block">Agences</label>
-            <MultiSelect
-              options={agencyOptions}
-              selected={selectedAgencies}
-              onChange={setSelectedAgencies}
-              placeholder="Toutes les agences"
-            />
+            <Select value={selectedAgence} onValueChange={handleAgenceSelect}>
+              <SelectTrigger>
+                <SelectValue placeholder="Toutes les agences" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Toutes les agences</SelectItem>
+                {agences?.map((agence) => (
+                  <SelectItem key={agence.id} value={agence.id}>
+                    {agence.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           <div>
             <label className="text-sm font-medium text-foreground mb-2 block">Gestionnaires</label>
-            <MultiSelect
-              options={gestionnaireOptions}
-              selected={selectedGestionnaires}
-              onChange={setSelectedGestionnaires}
-              placeholder="Tous les gestionnaires"
-            />
+            <Select value={selectedGestionnaire} onValueChange={handleGestionnaireSelect}>
+              <SelectTrigger>
+                <SelectValue placeholder="Tous les gestionnaires" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Tous les gestionnaires</SelectItem>
+                {gestionnaires?.map((gestionnaire) => (
+                  <SelectItem key={gestionnaire.id} value={gestionnaire.id}>
+                    {gestionnaire.firstname} {gestionnaire.lastname}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           <div>
             <label className="text-sm font-medium text-foreground mb-2 block">Métiers</label>
-            <MultiSelect
-              options={metierOptions}
-              selected={selectedMetiers}
-              onChange={setSelectedMetiers}
-              placeholder="Tous les métiers"
-            />
+            <Select value={selectedMetier} onValueChange={handleMetierSelect}>
+              <SelectTrigger>
+                <SelectValue placeholder="Tous les métiers" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Tous les métiers</SelectItem>
+                {metiers?.map((metier) => (
+                  <SelectItem key={metier.id} value={metier.id}>
+                    {metier.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
         </div>
       </div>

@@ -225,6 +225,42 @@ BEGIN
     LEFT JOIN couts_agreges c ON c.intervention_id = fi.intervention_id
   ),
 
+  -- CTE 5b: Stats Financières pour la période PRECEDENTE
+  financial_interventions_prev AS (
+    SELECT DISTINCT intervention_id 
+    FROM transitions_periode_prev 
+    WHERE to_status_code = p_terminee_status_code
+  ),
+
+  paiements_agreges_prev AS (
+    SELECT 
+      ic.intervention_id,
+      SUM(ic.amount)::numeric as total_paiements
+    FROM financial_interventions_prev fi
+    JOIN public.intervention_costs ic ON ic.intervention_id = fi.intervention_id
+    WHERE ic.cost_type = 'intervention'
+    GROUP BY ic.intervention_id
+  ),
+  
+  couts_agreges_prev AS (
+    SELECT 
+      ic.intervention_id,
+      SUM(ic.amount)::numeric as total_couts
+    FROM financial_interventions_prev fi
+    JOIN public.intervention_costs ic ON ic.intervention_id = fi.intervention_id
+    WHERE ic.cost_type IN ('sst', 'materiel')
+    GROUP BY ic.intervention_id
+  ),
+
+  global_financials_prev AS (
+    SELECT 
+      COALESCE(SUM(p.total_paiements), 0)::numeric as total_paiements,
+      COALESCE(SUM(c.total_couts), 0)::numeric as total_couts
+    FROM financial_interventions_prev fi
+    LEFT JOIN paiements_agreges_prev p ON p.intervention_id = fi.intervention_id
+    LEFT JOIN couts_agreges_prev c ON c.intervention_id = fi.intervention_id
+  ),
+
   -- CTE 6: Sparklines (Données journalières pour les graphiques)
   -- Génération de la série temporelle
   time_series AS (
@@ -330,12 +366,18 @@ BEGIN
         'couts', COALESCE(gf.total_couts, 0),
         'marge', COALESCE(gf.total_paiements, 0) - COALESCE(gf.total_couts, 0),
         'avgCycleTime', cts.avg_cycle_time_days,
-        'deltaInterventions', CASE WHEN msp.nb_demandees > 0 THEN ((ms.nb_demandees - msp.nb_demandees)::numeric / msp.nb_demandees) * 100 ELSE 0 END,
-        'deltaChiffreAffaires', 0 -- TODO: Calculer le delta CA si nécessaire (complexe car nécessite CA période précédente)
+        'deltaInterventions', CASE WHEN msp.nb_demandees > 0 THEN ROUND(((ms.nb_demandees - msp.nb_demandees)::numeric / msp.nb_demandees) * 100, 1) ELSE 0 END,
+        'deltaChiffreAffaires', CASE WHEN gfp.total_paiements > 0 THEN ROUND(((gf.total_paiements - gfp.total_paiements)::numeric / gfp.total_paiements) * 100, 1) ELSE 0 END,
+        'deltaMarge', CASE 
+          WHEN (gfp.total_paiements - gfp.total_couts) > 0 
+          THEN ROUND(((gf.total_paiements - gf.total_couts) - (gfp.total_paiements - gfp.total_couts))::numeric / (gfp.total_paiements - gfp.total_couts) * 100, 1) 
+          ELSE 0 
+        END
       )
       FROM main_stats_counts ms
       CROSS JOIN main_stats_counts_prev msp
       CROSS JOIN global_financials gf
+      CROSS JOIN global_financials_prev gfp
       CROSS JOIN cycle_time_stats cts
     ),
     

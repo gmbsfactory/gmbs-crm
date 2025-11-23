@@ -44,7 +44,7 @@ export function KPICard({
                 "text-xs font-medium mt-1 flex items-center",
                 trend.isPositive ? "text-emerald-600" : "text-rose-600"
               )}>
-                {trend.isPositive ? "+" : ""}{trend.value}%
+                {trend.isPositive ? "+" : ""}{Math.round(trend.value * 10) / 10}%
                 <span className="text-muted-foreground ml-1 font-normal">
                   {trend.label || "vs période précédente"}
                 </span>

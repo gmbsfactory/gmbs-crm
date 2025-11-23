@@ -208,7 +208,11 @@ export function DateColumnFilter({
                       : "Sélectionner une plage"}
                   </Button>
                 </PopoverTrigger>
-                <PopoverContent className="w-auto p-4" align="start">
+                <PopoverContent 
+                  className="w-auto p-4" 
+                  align="start"
+                  data-range-complete={range.from !== null && range.to !== null}
+                >
                   <Calendar
                     mode="range"
                     selected={{ from: range.from ?? undefined, to: range.to ?? undefined }}
@@ -220,6 +224,14 @@ export function DateColumnFilter({
                     }
                     numberOfMonths={2}
                     locale={fr}
+                    classNames={{
+                      // Style shadcn/ui amélioré pour les plages de dates
+                      range_start: "bg-primary text-primary-foreground rounded-l-md font-bold shadow-md",
+                      range_middle: "bg-primary/35 text-primary-foreground rounded-none",
+                      range_end: "bg-primary text-primary-foreground rounded-r-md font-bold shadow-md",
+                      day_selected: "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground font-bold shadow-lg",
+                      day_today: "bg-accent text-accent-foreground font-semibold",
+                    }}
                   />
                 </PopoverContent>
               </Popover>

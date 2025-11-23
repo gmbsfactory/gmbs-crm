@@ -806,6 +806,7 @@ export interface AdminDashboardStats {
     avgCycleTime: number; // En jours
     deltaInterventions: number; // Pourcentage
     deltaChiffreAffaires: number; // Pourcentage
+    deltaMarge: number; // Pourcentage
     tauxTransformation?: number; // Calculé côté front ou SQL si ajouté
     tauxMarge?: number; // Calculé côté front ou SQL si ajouté
   };

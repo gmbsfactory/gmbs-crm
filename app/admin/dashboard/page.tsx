@@ -44,17 +44,17 @@ export default function AdminDashboardPage() {
     setEndDate(end)
   }, [])
 
-  // Gérer les changements de filtres (FilterBar retourne des tableaux pour le multi-select)
-  const handleAgenceChange = useCallback((agences: string[]) => {
-    setAgenceId(agences.length > 0 ? agences[0] : null)
+  // Gérer les changements de filtres (FilterBar retourne maintenant des strings uniques)
+  const handleAgenceChange = useCallback((agence: string) => {
+    setAgenceId(agence === "all" ? null : agence)
   }, [])
 
-  const handleGestionnaireChange = useCallback((gestionnaires: string[]) => {
-    setGestionnaireId(gestionnaires.length > 0 ? gestionnaires[0] : null)
+  const handleGestionnaireChange = useCallback((gestionnaire: string) => {
+    setGestionnaireId(gestionnaire === "all" ? null : gestionnaire)
   }, [])
 
-  const handleMetierChange = useCallback((metiers: string[]) => {
-    setMetierId(metiers.length > 0 ? metiers[0] : null)
+  const handleMetierChange = useCallback((metier: string) => {
+    setMetierId(metier === "all" ? null : metier)
   }, [])
 
   // Récupérer les données du dashboard
@@ -128,7 +128,7 @@ export default function AdminDashboardPage() {
                   value={formatNumber(dashboardStats?.mainStats.nbInterventionsDemandees || 0)}
                   icon={Activity}
                   trend={{
-                    value: Math.abs(dashboardStats?.mainStats.deltaInterventions || 0),
+                    value: Math.round(Math.abs(dashboardStats?.mainStats.deltaInterventions || 0) * 10) / 10,
                     isPositive: (dashboardStats?.mainStats.deltaInterventions || 0) >= 0,
                     label: "vs période préc."
                   }}
@@ -136,12 +136,26 @@ export default function AdminDashboardPage() {
                   description={`${formatNumber(dashboardStats?.mainStats.nbInterventionsTerminees || 0)} terminées`}
                 />
                 <KPICard
+                  title="Taux Transformation"
+                  value={`${dashboardStats?.mainStats.tauxTransformation || 0}%`}
+                  icon={Percent}
+                  description="Demandées / Terminées"
+                  className="border-l-purple-500"
+                />
+                <KPICard
+                  title="Cycle Moyen"
+                  value={`${dashboardStats?.mainStats.avgCycleTime || 0}j`}
+                  icon={Clock}
+                  description="Délai moyen de traitement"
+                  className="border-l-amber-500"
+                />
+                <KPICard
                   title="Chiffre d'Affaires"
                   value={formatCurrency(dashboardStats?.mainStats.chiffreAffaires || 0)}
                   icon={DollarSign}
                   trend={{
-                    value: Math.abs(dashboardStats?.mainStats.deltaChiffreAffaires || 0),
-                    isPositive: (dashboardStats?.mainStats.deltaChiffreAffaires || 0) >= 0,
+                    value: Math.round(Math.abs(dashboardStats?.mainStats.deltaChiffreAffaires || 0) * 10) / 10,
+                    isPositive: (dashboardStats?.mainStats.deltaChiffreAffaires || 0) > 20,
                     label: "vs période préc."
                   }}
                   sparklineData={dashboardStats?.sparklines.map(s => ({ date: s.date, value: s.countTerminees }))}
@@ -152,26 +166,12 @@ export default function AdminDashboardPage() {
                   value={formatCurrency(dashboardStats?.mainStats.marge || 0)}
                   icon={TrendingUp}
                   trend={{
-                    value: 0,
-                    isPositive: true,
+                    value: Math.round(Math.abs(dashboardStats?.mainStats.deltaMarge || 0) * 10) / 10,
+                    isPositive: (dashboardStats?.mainStats.deltaMarge || 0) > 20,
                     label: "vs période préc."
                   }}
                   description={`Taux de marge: ${dashboardStats?.mainStats.tauxMarge || 0}%`}
                   className="border-l-emerald-500"
-                />
-                <KPICard
-                  title="Cycle Moyen"
-                  value={`${dashboardStats?.mainStats.avgCycleTime || 0}j`}
-                  icon={Clock}
-                  description="Délai moyen de traitement"
-                  className="border-l-amber-500"
-                />
-                <KPICard
-                  title="Taux Transformation"
-                  value={`${dashboardStats?.mainStats.tauxTransformation || 0}%`}
-                  icon={Percent}
-                  description="Terminées / Demandées"
-                  className="border-l-purple-500"
                 />
               </>
             )}
@@ -181,12 +181,26 @@ export default function AdminDashboardPage() {
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
             <div className="col-span-4">
               <FunnelChart
-                data={dashboardStats?.statusBreakdown.map(s => ({
-                  name: s.statusLabel,
-                  value: s.count,
-                  fill: s.statusCode === 'INTER_TERMINEE' ? '#10b981' : '#3b82f6',
-                  cycleTime: s.avgCycleTime
-                })) || []}
+                data={(() => {
+                  // Configuration des étapes du funnel (ordre strict)
+                  const FUNNEL_STEPS = [
+                    { code: 'DEMANDE', label: 'Demandé', fill: '#60a5fa' },
+                    { code: 'DEVIS_ENVOYE', label: 'Devis Envoyé', fill: '#3b82f6' },
+                    { code: 'ACCEPTE', label: 'Accepté', fill: '#2563eb' },
+                    { code: 'INTER_EN_COURS', label: 'En Cours', fill: '#1d4ed8' },
+                    { code: 'INTER_TERMINEE', label: 'Terminé', fill: '#10b981' },
+                  ]
+
+                  return FUNNEL_STEPS.map(step => {
+                    const stat = dashboardStats?.statusBreakdown.find(s => s.statusCode === step.code)
+                    return {
+                      name: step.label,
+                      value: stat?.count || 0,
+                      fill: step.fill,
+                      // cycleTime n'est pas disponible par statut pour le moment
+                    }
+                  })
+                })()}
                 title="Entonnoir de Conversion"
                 description="Suivi des interventions par étape"
               />

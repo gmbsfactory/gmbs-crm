@@ -73,16 +73,16 @@ export function DateRangePicker({
             cell: "h-10 w-10 text-center text-sm p-0 relative focus-within:relative focus-within:z-20",
             day: cn(
               "h-10 w-10 p-0 font-medium aria-selected:opacity-100",
-              "transition-all duration-200 ease-out",
-              "hover:scale-105 active:scale-95"
+              "transition-all duration-200 ease-out"
             ),
-            day_selected: "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground date-click-animation",
-            day_today: "bg-accent text-accent-foreground",
+            // Style shadcn/ui amélioré pour les plages de dates
+            range_start: "bg-primary text-primary-foreground rounded-l-md font-bold shadow-md",
+            range_middle: "bg-primary/35 text-primary-foreground rounded-none",
+            range_end: "bg-primary text-primary-foreground rounded-r-md font-bold shadow-md",
+            day_selected: "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground font-bold shadow-lg",
+            day_today: "bg-accent text-accent-foreground font-semibold",
             day_outside: "text-muted-foreground opacity-40",
             day_disabled: "text-muted-foreground opacity-40",
-            day_range_middle: "aria-selected:bg-primary/20 aria-selected:text-primary-foreground",
-            day_range_start: "date-range-start-highlight",
-            day_range_end: "date-range-end-highlight",
           }}
         />
       </PopoverContent>
