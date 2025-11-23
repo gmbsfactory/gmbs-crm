@@ -34,13 +34,15 @@ import type {
   YearlyStats,
 } from "./common/types";
 import {
-  SUPABASE_FUNCTIONS_URL,
+  getSupabaseFunctionsUrl,
   getHeaders,
   handleResponse,
   mapInterventionRecord,
 } from "./common/utils";
 import type { InterventionWithStatus, InterventionStatus } from "@/types/intervention";
 import { isCheckStatus } from "@/lib/interventions/checkStatus";
+import { automaticTransitionService } from "@/lib/interventions/automatic-transition-service";
+import type { InterventionStatusKey } from "@/config/interventions";
 
 // Cache pour les données de référence
 type ReferenceCache = {
@@ -248,7 +250,7 @@ export const interventionsApi = {
   async create(data: CreateInterventionData): Promise<Intervention> {
     const headers = await getHeaders();
     const response = await fetch(
-      `${SUPABASE_FUNCTIONS_URL}/interventions-v2/interventions`,
+      `${getSupabaseFunctionsUrl()}/interventions-v2/interventions`,
       {
         method: "POST",
         headers,
@@ -294,9 +296,10 @@ export const interventionsApi = {
     // Récupérer le statut actuel avant la mise à jour pour détecter si on passe à "terminé"
     let wasTerminatedBefore = false;
     let oldStatutId: string | null = null;
+    let currentIntervention: any = null; // Déclarer la variable en dehors du bloc if
 
     if (payload.statut_id && typeof window !== "undefined") {
-      const { data: currentIntervention } = await supabase
+      const { data } = await supabase
         .from("interventions")
         .select(`
           statut_id,
@@ -304,6 +307,8 @@ export const interventionsApi = {
         `)
         .eq("id", id)
         .single();
+
+      currentIntervention = data; // Assigner la valeur
 
       if (currentIntervention) {
         oldStatutId = currentIntervention.statut_id;
@@ -323,25 +328,58 @@ export const interventionsApi = {
         const { data: { user } } = await supabase.auth.getUser();
         const userId = user?.id || null;
 
-        // Enregistrer la transition explicitement via la fonction SQL
-        const { error: transitionError } = await supabase.rpc(
-          'log_status_transition_from_api',
-          {
-            p_intervention_id: id,
-            p_from_status_id: oldStatutId || null,
-            p_to_status_id: payload.statut_id,
-            p_changed_by_user_id: userId,
-            p_metadata: {
+        // Récupérer les codes de statut pour le service de transition
+        // On utilise le cache de référence pour éviter une requête supplémentaire
+        const refs = await getReferenceCache();
+
+        // Récupérer le code du nouveau statut
+        const newStatusObj = refs.interventionStatusesById.get(payload.statut_id);
+        const newStatusCode = newStatusObj?.code as InterventionStatusKey;
+
+        // Récupérer le code de l'ancien statut
+        // On essaie d'abord via currentIntervention, sinon via le cache
+        let oldStatusCode: InterventionStatusKey | undefined;
+        if (currentIntervention && (currentIntervention as any).status?.code) {
+          oldStatusCode = (currentIntervention as any).status.code as InterventionStatusKey;
+        } else if (oldStatutId) {
+          const oldStatusObj = refs.interventionStatusesById.get(oldStatutId);
+          oldStatusCode = oldStatusObj?.code as InterventionStatusKey;
+        }
+
+        if (newStatusCode && oldStatusCode) {
+          // Utiliser le service de transition automatique
+          await automaticTransitionService.executeTransition(
+            id,
+            oldStatusCode,
+            newStatusCode,
+            userId || undefined,
+            {
               updated_via: 'api_v2',
               updated_at: new Date().toISOString(),
             }
-          }
-        );
+          );
+        } else {
+          console.warn('[interventionsApi] Impossible de récupérer les codes de statut pour la transition', { oldStatutId, newStatutId: payload.statut_id });
 
-        if (transitionError) {
-          console.warn('[interventionsApi] Erreur lors de l\'enregistrement de la transition:', transitionError);
-          // Ne pas bloquer la mise à jour si l'enregistrement de la transition échoue
-          // Le trigger de sécurité prendra le relais
+          // Fallback: Enregistrer la transition directe si on n'a pas les codes
+          const { error: transitionError } = await supabase.rpc(
+            'log_status_transition_from_api',
+            {
+              p_intervention_id: id,
+              p_from_status_id: oldStatutId || null,
+              p_to_status_id: payload.statut_id,
+              p_changed_by_user_id: userId,
+              p_metadata: {
+                updated_via: 'api_v2',
+                updated_at: new Date().toISOString(),
+                fallback: true
+              }
+            }
+          );
+
+          if (transitionError) {
+            console.warn('[interventionsApi] Erreur lors de l\'enregistrement de la transition (fallback):', transitionError);
+          }
         }
       } catch (error) {
         console.warn('[interventionsApi] Erreur lors de l\'enregistrement de la transition:', error);
@@ -524,7 +562,7 @@ export const interventionsApi = {
   async delete(id: string): Promise<{ message: string; data: Intervention }> {
     const headers = await getHeaders();
     const response = await fetch(
-      `${SUPABASE_FUNCTIONS_URL}/interventions-v2/interventions/${id}`,
+      `${getSupabaseFunctionsUrl()}/interventions-v2/interventions/${id}`,
       {
         method: "DELETE",
         headers,
@@ -681,7 +719,7 @@ export const interventionsApi = {
   async upsert(data: CreateInterventionData & { id_inter?: string }): Promise<Intervention> {
     const headers = await getHeaders();
     const response = await fetch(
-      `${SUPABASE_FUNCTIONS_URL}/interventions-v2/interventions/upsert`,
+      `${getSupabaseFunctionsUrl()}/interventions-v2/interventions/upsert`,
       {
         method: "POST",
         headers,

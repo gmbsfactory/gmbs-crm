@@ -211,6 +211,10 @@ export default function AdminDashboardPage() {
                   }}
                   sparklineData={dashboardStats?.sparklines.map(s => ({ date: s.date, value: s.countDemandees }))}
                   description={`${formatNumber(dashboardStats?.mainStats.nbInterventionsTerminees || 0)} terminées`}
+                  onClick={() => {
+                    // TODO: Ajouter un modal pour l'historique des interventions
+                    console.log('Interventions clicked')
+                  }}
                 />
                 <KPICard
                   title="Taux Transformation"
@@ -218,6 +222,10 @@ export default function AdminDashboardPage() {
                   icon={Percent}
                   description="Demandées / Terminées"
                   className="border-l-purple-500"
+                  onClick={() => {
+                    // TODO: Ajouter un modal pour le détail du taux de transformation
+                    console.log('Taux Transformation clicked')
+                  }}
                 />
                 <KPICard
                   title="Cycle Moyen"
@@ -225,6 +233,10 @@ export default function AdminDashboardPage() {
                   icon={Clock}
                   description="Délai moyen de traitement"
                   className="border-l-amber-500"
+                  onClick={() => {
+                    // TODO: Ajouter un modal pour l'analyse du cycle moyen
+                    console.log('Cycle Moyen clicked')
+                  }}
                 />
                 <KPICard
                   title="Chiffre d'Affaires"
@@ -250,6 +262,10 @@ export default function AdminDashboardPage() {
                   }}
                   description={`Taux de marge: ${dashboardStats?.mainStats.tauxMarge || 0}%`}
                   className="border-l-emerald-500"
+                  onClick={() => {
+                    // TODO: Ajouter un modal pour l'historique de la marge
+                    console.log('Marge Globale clicked')
+                  }}
                 />
               </>
             )}
