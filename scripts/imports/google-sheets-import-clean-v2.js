@@ -78,6 +78,8 @@ class GoogleSheetsImportCleanV2 {
       credentialsPath: options.credentialsPath || './credentials.json',
       spreadsheetId: options.spreadsheetId || null,
       upsert: options.upsert || false,
+      dateStart: options.dateStart || null, // Format: "DD/MM/YYYY" ou "YYYY-MM-DD"
+      dateEnd: options.dateEnd || null,     // Format: "DD/MM/YYYY" ou "YYYY-MM-DD"
       ...options
     };
     
@@ -582,6 +584,17 @@ class GoogleSheetsImportCleanV2 {
       const validInterventions = [];
       const invalidInterventions = [];
       
+      // Afficher le filtre de date si activé
+      if (this.options.dateStart || this.options.dateEnd) {
+        console.log(`📅 Filtre par période activé:`);
+        if (this.options.dateStart) {
+          console.log(`   Date de début: ${this.options.dateStart}`);
+        }
+        if (this.options.dateEnd) {
+          console.log(`   Date de fin: ${this.options.dateEnd}`);
+        }
+      }
+      
       for (let i = 0; i < dataRows.length; i++) {
         const row = dataRows[i];
         
@@ -590,6 +603,15 @@ class GoogleSheetsImportCleanV2 {
         headers.forEach((header, index) => {
           interventionObj[header] = row[index] || '';
         });
+        
+        // Filtrer par période si les options sont définies
+        if (this.options.dateStart || this.options.dateEnd) {
+          const dateValue = interventionObj["Date "] || interventionObj["Date d'intervention"];
+          if (!this.isDateInRange(dateValue, this.options.dateStart, this.options.dateEnd)) {
+            // Ignorer cette intervention (ne pas compter comme traitée)
+            continue;
+          }
+        }
         
         try {
           // Mapper les données avec le DataMapper
@@ -832,6 +854,94 @@ class GoogleSheetsImportCleanV2 {
     return dataIndicators / row.length > 0.3;
   }
 
+  // ===== MÉTHODES UTILITAIRES POUR FILTRE PAR DATE =====
+
+  /**
+   * Vérifie si une date CSV est dans la plage spécifiée
+   * @param {string} dateValue - Date au format CSV (DD/MM/YYYY)
+   * @param {string} dateStart - Date de début (DD/MM/YYYY ou YYYY-MM-DD)
+   * @param {string} dateEnd - Date de fin (DD/MM/YYYY ou YYYY-MM-DD)
+   * @returns {boolean} - True si la date est dans la plage
+   */
+  isDateInRange(dateValue, dateStart, dateEnd) {
+    if (!dateValue) return false; // Si pas de date, exclure par défaut
+    
+    // Parser la date du CSV (format DD/MM/YYYY)
+    const parsedDate = this.parseDateFromCSV(dateValue);
+    if (!parsedDate) return false;
+    
+    const date = new Date(parsedDate);
+    
+    // Parser les dates de filtrage
+    const startDate = dateStart ? this.parseDateFilter(dateStart) : null;
+    const endDate = dateEnd ? this.parseDateFilter(dateEnd) : null;
+    
+    // Si date de fin, inclure le jour complet (fin de journée)
+    if (endDate) {
+      endDate.setHours(23, 59, 59, 999);
+    }
+    
+    if (startDate && date < startDate) return false;
+    if (endDate && date > endDate) return false;
+    
+    return true;
+  }
+
+  /**
+   * Parse une date depuis le CSV (format DD/MM/YYYY)
+   * @param {string} dateValue - Date au format CSV
+   * @returns {string|null} - Date au format ISO ou null
+   */
+  parseDateFromCSV(dateValue) {
+    if (!dateValue || String(dateValue).trim() === "") return null;
+    
+    const strValue = String(dateValue).trim();
+    
+    // Format DD/MM/YYYY
+    if (/^\d{2}\/\d{2}\/\d{4}/.test(strValue)) {
+      const parts = strValue.split("/");
+      if (parts.length >= 3) {
+        const day = parts[0].padStart(2, "0");
+        const month = parts[1].padStart(2, "0");
+        const year = parts[2];
+        return `${year}-${month}-${day}T00:00:00Z`;
+      }
+    }
+    
+    // Format YYYY-MM-DD
+    if (/^\d{4}-\d{2}-\d{2}/.test(strValue)) {
+      return `${strValue}T00:00:00Z`;
+    }
+    
+    return null;
+  }
+
+  /**
+   * Parse une date de filtre (accepte DD/MM/YYYY ou YYYY-MM-DD)
+   * @param {string} dateStr - Date au format DD/MM/YYYY ou YYYY-MM-DD
+   * @returns {Date|null} - Objet Date ou null
+   */
+  parseDateFilter(dateStr) {
+    if (!dateStr) return null;
+    
+    const str = String(dateStr).trim();
+    
+    // Format DD/MM/YYYY
+    if (/^\d{2}\/\d{2}\/\d{4}/.test(str)) {
+      const parts = str.split("/");
+      if (parts.length >= 3) {
+        return new Date(`${parts[2]}-${parts[1]}-${parts[0]}T00:00:00Z`);
+      }
+    }
+    
+    // Format YYYY-MM-DD
+    if (/^\d{4}-\d{2}-\d{2}/.test(str)) {
+      return new Date(`${str}T00:00:00Z`);
+    }
+    
+    return null;
+  }
+
   async validateConfiguration() {
     console.log('⚙️ Validation de la configuration...');
     
@@ -911,6 +1021,8 @@ Options:
   --upsert                   Mode upsert (met à jour les enregistrements existants au lieu de créer des doublons)
   --limit=N                  Limiter le nombre d'interventions/artisans (pour debug)
   --batch-size=N             Taille des lots (défaut: 50)
+  --date-start=DD/MM/YYYY    Filtrer les interventions à partir de cette date (inclus)
+  --date-end=DD/MM/YYYY      Filtrer les interventions jusqu'à cette date (inclus)
   --credentials=PATH         Chemin vers credentials.json (défaut: ./credentials.json)
   --spreadsheet-id=ID        ID du Google Spreadsheet
   --test-connection          Tester la connexion à la base de données
@@ -932,6 +1044,12 @@ Exemples:
   # Import rapide pour debug (10 premières interventions)
   npx tsx scripts/imports/google-sheets-import-clean-v2.js --interventions-only --limit=10 --verbose
 
+  # Import des interventions d'une période spécifique
+  npx tsx scripts/imports/google-sheets-import-clean-v2.js --interventions-only --date-start=01/01/2025 --date-end=31/01/2025
+
+  # Import des interventions depuis une date
+  npx tsx scripts/imports/google-sheets-import-clean-v2.js --interventions-only --date-start=01/01/2025
+
   # Test de connexion
   npx tsx scripts/imports/google-sheets-import-clean-v2.js --test-connection
         `);
@@ -952,6 +1070,17 @@ Exemples:
       const limitArg = args.find(arg => arg.startsWith('--limit='));
       if (limitArg) {
         options.limit = parseInt(limitArg.split('=')[1]) || null;
+      }
+      
+      // Filtre par date
+      const dateStartArg = args.find(arg => arg.startsWith('--date-start='));
+      if (dateStartArg) {
+        options.dateStart = dateStartArg.split('=')[1];
+      }
+      
+      const dateEndArg = args.find(arg => arg.startsWith('--date-end='));
+      if (dateEndArg) {
+        options.dateEnd = dateEndArg.split('=')[1];
       }
       
       // Taille des lots

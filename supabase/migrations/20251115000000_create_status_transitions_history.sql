@@ -50,7 +50,90 @@ COMMENT ON COLUMN public.intervention_status_transitions.source IS
   'Source de l''enregistrement: "api" pour enregistrement explicite depuis l''API, "trigger" pour enregistrement automatique par trigger';
 
 -- ========================================
--- TRIGGER DE SÉCURITÉ (Filet de secours)
+-- TRIGGER POUR INSERT (Création initiale)
+-- ========================================
+-- Ce trigger enregistre automatiquement la transition initiale lors de la création
+-- d'une intervention avec un statut
+
+CREATE OR REPLACE FUNCTION log_intervention_status_transition_on_insert()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+  to_status_code text;
+  existing_transition_id uuid;
+BEGIN
+  -- Ne rien faire si l'intervention n'a pas de statut
+  IF NEW.statut_id IS NULL THEN
+    RETURN NEW;
+  END IF;
+
+  -- Vérifier si une transition a déjà été enregistrée récemment (dans les 2 secondes)
+  -- Cela évite les doublons si l'API a déjà enregistré
+  SELECT id INTO existing_transition_id
+  FROM public.intervention_status_transitions
+  WHERE intervention_id = NEW.id
+    AND to_status_id = NEW.statut_id
+    AND transition_date > now() - INTERVAL '2 seconds'
+  LIMIT 1;
+
+  -- Si une transition existe déjà (enregistrée par l'API), ne pas créer de doublon
+  IF existing_transition_id IS NOT NULL THEN
+    RETURN NEW;
+  END IF;
+
+  -- Récupérer le code du statut initial
+  SELECT code INTO to_status_code
+  FROM public.intervention_statuses
+  WHERE id = NEW.statut_id;
+
+  -- Si le statut n'existe pas, ne rien faire
+  IF to_status_code IS NULL THEN
+    RETURN NEW;
+  END IF;
+
+  -- Insérer la transition initiale (création)
+  INSERT INTO public.intervention_status_transitions (
+    intervention_id,
+    from_status_id,
+    to_status_id,
+    from_status_code,
+    to_status_code,
+    changed_by_user_id,
+    transition_date,
+    source,
+    metadata
+  ) VALUES (
+    NEW.id,
+    NULL, -- Pas de statut précédent lors de la création
+    NEW.statut_id,
+    NULL,
+    to_status_code,
+    NULL, -- On ne peut pas récupérer l'utilisateur dans le trigger
+    COALESCE(NEW.created_at, now()), -- Utiliser la date de création de l'intervention
+    'trigger', -- Marque que c'est venu du trigger
+    jsonb_build_object(
+      'date_termine', NEW.date_termine,
+      'created_at', NEW.created_at,
+      'note', 'Enregistré automatiquement par trigger lors de la création de l''intervention'
+    )
+  );
+
+  RETURN NEW;
+END;
+$$;
+
+-- Créer le trigger pour INSERT
+DROP TRIGGER IF EXISTS trg_log_intervention_status_transition_on_insert ON public.interventions;
+CREATE TRIGGER trg_log_intervention_status_transition_on_insert
+  AFTER INSERT ON public.interventions
+  FOR EACH ROW
+  WHEN (NEW.statut_id IS NOT NULL)
+  EXECUTE FUNCTION log_intervention_status_transition_on_insert();
+
+-- ========================================
+-- TRIGGER DE SÉCURITÉ (Filet de secours pour UPDATE)
 -- ========================================
 -- Ce trigger enregistre automatiquement les transitions si l'API ne l'a pas fait
 -- Il évite les doublons en vérifiant s'il existe déjà une transition récente
@@ -124,7 +207,7 @@ BEGIN
 END;
 $$;
 
--- Créer le trigger
+-- Créer le trigger pour UPDATE
 DROP TRIGGER IF EXISTS trg_log_intervention_status_transition_safety ON public.interventions;
 CREATE TRIGGER trg_log_intervention_status_transition_safety
   AFTER UPDATE OF statut_id ON public.interventions
