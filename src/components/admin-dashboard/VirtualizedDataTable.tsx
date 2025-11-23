@@ -118,8 +118,17 @@ export function VirtualizedDataTable<TData, TValue>({
                                     {table.getHeaderGroups().map((headerGroup) => (
                                         <TableRow key={headerGroup.id}>
                                             {headerGroup.headers.map((header) => {
+                                                const columnSize = header.column.getSize() || 150
                                                 return (
-                                                    <TableHead key={header.id} colSpan={header.colSpan}>
+                                                    <TableHead 
+                                                        key={header.id} 
+                                                        colSpan={header.colSpan}
+                                                        style={{
+                                                            width: columnSize,
+                                                            minWidth: columnSize,
+                                                            maxWidth: columnSize,
+                                                        }}
+                                                    >
                                                         {header.isPlaceholder
                                                             ? null
                                                             : flexRender(
@@ -150,19 +159,24 @@ export function VirtualizedDataTable<TData, TValue>({
                                                     display: "table-row",
                                                 }}
                                             >
-                                                {row.getVisibleCells().map((cell) => (
-                                                    <TableCell
-                                                        key={cell.id}
-                                                        style={{
-                                                            width: cell.column.getSize() || "auto",
-                                                        }}
-                                                    >
-                                                        {flexRender(
-                                                            cell.column.columnDef.cell,
-                                                            cell.getContext()
-                                                        )}
-                                                    </TableCell>
-                                                ))}
+                                                {row.getVisibleCells().map((cell) => {
+                                                    const columnSize = cell.column.getSize() || 150
+                                                    return (
+                                                        <TableCell
+                                                            key={cell.id}
+                                                            style={{
+                                                                width: columnSize,
+                                                                minWidth: columnSize,
+                                                                maxWidth: columnSize,
+                                                            }}
+                                                        >
+                                                            {flexRender(
+                                                                cell.column.columnDef.cell,
+                                                                cell.getContext()
+                                                            )}
+                                                        </TableCell>
+                                                    )
+                                                })}
                                             </TableRow>
                                         )
                                     })}

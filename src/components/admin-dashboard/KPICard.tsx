@@ -42,9 +42,9 @@ export function KPICard({
             {trend && (
               <p className={cn(
                 "text-xs font-medium mt-1 flex items-center",
-                trend.isPositive ? "text-emerald-600" : "text-rose-600"
+                trend.isPositive ? "text-emerald-600" : "text-red-600"
               )}>
-                {trend.isPositive ? "+" : ""}{Math.round(trend.value * 10) / 10}%
+                {trend.isPositive ? "+" : "-"}{Math.round(trend.value * 10) / 10}%
                 <span className="text-muted-foreground ml-1 font-normal">
                   {trend.label || "vs période précédente"}
                 </span>
@@ -55,7 +55,7 @@ export function KPICard({
             <div className="h-[40px] w-[80px]">
               <Sparkline
                 data={sparklineData}
-                color={trend?.isPositive ? "#10b981" : "#f43f5e"}
+                color={trend?.isPositive ? "#10b981" : "#ef4444"}
               />
             </div>
           )}

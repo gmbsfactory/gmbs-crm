@@ -95,3 +95,5 @@ SELECT
   MAX(count_demandees) as max_demandees_jour,
   MAX(count_terminees) as max_terminees_jour
 FROM sparkline_data;
+
+

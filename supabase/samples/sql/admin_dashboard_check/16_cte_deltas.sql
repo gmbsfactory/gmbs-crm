@@ -87,3 +87,5 @@ SELECT
   (SELECT end FROM period_end) as periode_actuelle_end
 FROM main_stats_counts ms
 CROSS JOIN main_stats_counts_prev msp;
+
+

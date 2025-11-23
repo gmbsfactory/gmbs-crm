@@ -41,3 +41,14 @@
 - refacto seed_mockup bien avoir des fichiers clairs
 
 - OCR pour documents
+
+
+
+
+
+--------------- Discussion 23/11/2025 with DD
+
+- Tendance 
+- Projections KPIs sur des périodes
+- Prendre un pourcentage de l'augmentation des bénéfices suite à la livraison du CRM et des améliorations que l'on a apporté. En contrepartie nous sommes plus libre de la gestion et de l'amélioration de l'outil. On prend 15% des bénéfices liés à la suite. Ce pourcentage sera révalué chaque trimestre. 
+- 

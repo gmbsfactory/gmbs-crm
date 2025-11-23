@@ -2170,11 +2170,11 @@ export const interventionsApi = {
     const globalFinancials = rpcResult.globalFinancials || {};
 
     // Calculer les taux (côté client car ils nécessitent des calculs)
-    // Taux de transformation = (Interventions demandées / Interventions terminées) × 100
+    // Taux de transformation = (Interventions terminées / Interventions demandées) × 100
     const nbDemandees = mainStatsData.nbInterventionsDemandees || 0;
     const nbTerminees = mainStatsData.nbInterventionsTerminees || 0;
-    const tauxTransformation = nbTerminees > 0
-      ? Math.round((nbDemandees / nbTerminees) * 100)
+    const tauxTransformation = nbDemandees > 0
+      ? Math.round((nbTerminees / nbDemandees) * 1000) / 10
       : 0;
 
     const totalPaiements = Number(mainStatsData.chiffreAffaires || 0);

@@ -73,20 +73,95 @@ export default function AdminDashboardPage() {
 
   // Colonnes pour les tableaux
   const agencyColumns = useMemo(() => [
-    { header: "Agence", accessorKey: "agencyLabel", width: 200 },
-    { header: "Interventions", accessorKey: "nbTotalInterventions", width: 120, cell: (item: any) => formatNumber(item.nbTotalInterventions) },
-    { header: "CA", accessorKey: "ca", width: 120, cell: (item: any) => formatCurrency(item.ca) },
-    { header: "Marge", accessorKey: "marge", width: 120, cell: (item: any) => formatCurrency(item.marge) },
-    { header: "Taux Marge", accessorKey: "tauxMarge", width: 150, cell: (item: any) => <MarginBar value={item.tauxMarge} target={30} /> },
+    { 
+      header: "Agence", 
+      accessorKey: "agencyLabel", 
+      size: 200,
+      minSize: 200,
+      maxSize: 200,
+    },
+    { 
+      header: "Interventions", 
+      accessorKey: "nbTotalInterventions", 
+      size: 120,
+      minSize: 120,
+      maxSize: 120,
+      cell: (item: any) => formatNumber(item.nbTotalInterventions) 
+    },
+    { 
+      header: "CA", 
+      accessorKey: "ca", 
+      size: 120,
+      minSize: 120,
+      maxSize: 120,
+      cell: (item: any) => formatCurrency(item.ca) 
+    },
+    { 
+      header: "Marge", 
+      accessorKey: "marge", 
+      size: 120,
+      minSize: 120,
+      maxSize: 120,
+      cell: (item: any) => formatCurrency(item.marge) 
+    },
+    { 
+      header: "Taux Marge", 
+      accessorKey: "tauxMarge", 
+      size: 150,
+      minSize: 150,
+      maxSize: 150,
+      cell: (item: any) => <MarginBar value={item.tauxMarge} target={30} /> 
+    },
   ], [formatNumber, formatCurrency])
 
   const managerColumns = useMemo(() => [
-    { header: "Gestionnaire", accessorKey: "gestionnaireLabel", width: 200 },
-    { header: "Prises", accessorKey: "nbInterventionsPrises", width: 100, cell: (item: any) => formatNumber(item.nbInterventionsPrises) },
-    { header: "Terminées", accessorKey: "nbInterventionsTerminees", width: 100, cell: (item: any) => formatNumber(item.nbInterventionsTerminees) },
-    { header: "CA", accessorKey: "ca", width: 120, cell: (item: any) => formatCurrency(item.ca) },
-    { header: "Marge", accessorKey: "marge", width: 120, cell: (item: any) => formatCurrency(item.marge) },
-    { header: "Taux Marge", accessorKey: "tauxMarge", width: 150, cell: (item: any) => <MarginBar value={item.tauxMarge} target={30} /> },
+    { 
+      header: "Gestionnaire", 
+      accessorKey: "gestionnaireLabel", 
+      size: 200,
+      minSize: 200,
+      maxSize: 200,
+    },
+    { 
+      header: "Prises", 
+      accessorKey: "nbInterventionsPrises", 
+      size: 100,
+      minSize: 100,
+      maxSize: 100,
+      cell: (item: any) => formatNumber(item.nbInterventionsPrises) 
+    },
+    { 
+      header: "Terminées", 
+      accessorKey: "nbInterventionsTerminees", 
+      size: 100,
+      minSize: 100,
+      maxSize: 100,
+      cell: (item: any) => formatNumber(item.nbInterventionsTerminees) 
+    },
+    { 
+      header: "CA", 
+      accessorKey: "ca", 
+      size: 120,
+      minSize: 120,
+      maxSize: 120,
+      cell: (item: any) => formatCurrency(item.ca) 
+    },
+    { 
+      header: "Marge", 
+      accessorKey: "marge", 
+      size: 120,
+      minSize: 120,
+      maxSize: 120,
+      cell: (item: any) => formatCurrency(item.marge) 
+    },
+    { 
+      header: "Taux Marge", 
+      accessorKey: "tauxMarge", 
+      size: 150,
+      minSize: 150,
+      maxSize: 150,
+      cell: (item: any) => <MarginBar value={item.tauxMarge} target={30} /> 
+    },
   ], [formatNumber, formatCurrency])
 
   if (error) {
@@ -137,7 +212,7 @@ export default function AdminDashboardPage() {
                 />
                 <KPICard
                   title="Taux Transformation"
-                  value={`${dashboardStats?.mainStats.tauxTransformation || 0}%`}
+                  value={`${(dashboardStats?.mainStats.tauxTransformation || 0).toFixed(1)}%`}
                   icon={Percent}
                   description="Demandées / Terminées"
                   className="border-l-purple-500"
@@ -155,7 +230,7 @@ export default function AdminDashboardPage() {
                   icon={DollarSign}
                   trend={{
                     value: Math.round(Math.abs(dashboardStats?.mainStats.deltaChiffreAffaires || 0) * 10) / 10,
-                    isPositive: (dashboardStats?.mainStats.deltaChiffreAffaires || 0) > 20,
+                    isPositive: (dashboardStats?.mainStats.deltaChiffreAffaires || 0) >= 0,
                     label: "vs période préc."
                   }}
                   sparklineData={dashboardStats?.sparklines.map(s => ({ date: s.date, value: s.countTerminees }))}
@@ -167,7 +242,7 @@ export default function AdminDashboardPage() {
                   icon={TrendingUp}
                   trend={{
                     value: Math.round(Math.abs(dashboardStats?.mainStats.deltaMarge || 0) * 10) / 10,
-                    isPositive: (dashboardStats?.mainStats.deltaMarge || 0) > 20,
+                    isPositive: (dashboardStats?.mainStats.deltaMarge || 0) >= 0,
                     label: "vs période préc."
                   }}
                   description={`Taux de marge: ${dashboardStats?.mainStats.tauxMarge || 0}%`}

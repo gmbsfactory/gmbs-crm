@@ -62,7 +62,7 @@ gestionnaire_breakdown AS (
 SELECT 
   gb.gestionnaire_id,
   u.email as gestionnaire_email,
-  u.raw_user_meta_data->>'full_name' as gestionnaire_nom,
+  CONCAT(u.firstname, ' ', u.lastname) as gestionnaire_nom,
   gb.total_interventions,
   gb.terminated_interventions,
   gb.avg_cycle_time,
