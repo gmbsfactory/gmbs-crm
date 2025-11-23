@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabase-client"
+import type { InterventionPayment } from "@/lib/api/v2/common/types"
 import type {
   ArtisanSearchRecord,
   GroupedSearchResults,
@@ -197,12 +198,12 @@ export function scoreIntervention(intervention: InterventionSearchRecord, query:
       primaryArtisan.telephone,
       primaryArtisan.telephone2
     ].filter(Boolean)
-    
+
     for (const phone of telephoneCandidates) {
       if (!phone) continue
       const sanitized = sanitizePhone(phone)
       const normalizedPhone = normalizeString(phone)
-      
+
       // Exact match on sanitized phone (digits only)
       if (digitsQuery && sanitized === digitsQuery) {
         score = incrementScore(score, 85)
@@ -381,7 +382,7 @@ const buildArtisanQuery = (query: string, limit: number) => {
 
   const pattern = escapeIlike(trimmed)
   const normalizedDigits = sanitizePhone(trimmed)
-  
+
   // PostgREST .or() syntax: "column.operator.pattern,column2.operator.pattern"
   const orFilters = [
     `numero_associe.ilike.*${pattern}*`,
@@ -391,7 +392,7 @@ const buildArtisanQuery = (query: string, limit: number) => {
     `nom.ilike.*${pattern}*`,
     `email.ilike.*${pattern}*`,
   ]
-  
+
   if (normalizedDigits) {
     orFilters.push(`telephone.ilike.*${normalizedDigits}*`)
     orFilters.push(`telephone2.ilike.*${normalizedDigits}*`)
@@ -502,11 +503,11 @@ const searchArtisans = async (
     // Normaliser la structure des métiers et du status si nécessaire
     const normalizedRecord: ArtisanSearchRecord = {
       ...record,
-      metiers: Array.isArray(record.metiers) 
+      metiers: Array.isArray(record.metiers)
         ? record.metiers.map((m: any) => ({
-            is_primary: m.is_primary,
-            metier: Array.isArray(m.metier) ? m.metier[0] : m.metier,
-          }))
+          is_primary: m.is_primary,
+          metier: Array.isArray(m.metier) ? m.metier[0] : m.metier,
+        }))
         : [],
       status: Array.isArray(record.status) ? record.status[0] : record.status,
     } as unknown as ArtisanSearchRecord
@@ -567,7 +568,7 @@ const searchInterventions = async (
   }
 
   const pattern = escapeIlike(trimmed)
-  
+
   // PostgREST .or() syntax: "column.operator.pattern"
   // Only search on direct columns, not relations (PostgREST limitation with .or())
   // Note: numero_sst corresponds to artisan's telephone, so it's searched client-side
@@ -583,7 +584,7 @@ const searchInterventions = async (
     `commentaire_agent.ilike.*${pattern}*`,
     `consigne_intervention.ilike.*${pattern}*`,
   ]
-  
+
   // Build the filter string - PostgREST requires comma-separated filters
   // If this causes 400 errors, it's likely due to NULL handling in PostgREST
   const orFilterString = orFilters.join(",")
@@ -650,7 +651,8 @@ const searchInterventions = async (
             telephone,
             telephone2
           )
-        )
+        ),
+        payments:intervention_payments(*)
       `,
       { count: "exact" },
     )

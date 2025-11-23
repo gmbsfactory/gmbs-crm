@@ -308,22 +308,121 @@ function escapeHtml(text: string): string {
  */
 export function validateRequiredFields(data: EmailTemplateData): { valid: boolean; missing: string[] } {
   const missing: string[] = [];
-  
+
   if (!data.nomClient || data.nomClient.trim().length === 0) {
     missing.push('nomClient');
   }
-  
+
   if (!data.telephoneClient || data.telephoneClient.trim().length === 0) {
     missing.push('telephoneClient');
   }
-  
+
   if (!data.adresseComplete || data.adresseComplete.trim().length === 0) {
     missing.push('adresseComplete');
   }
-  
+
   return {
     valid: missing.length === 0,
     missing,
   };
+}
+
+/**
+ * Generates WhatsApp text message for "Demande de devis" (visit request)
+ */
+export function generateDevisWhatsAppText(data: EmailTemplateData): string {
+  const d = applyDefaults(data);
+
+  let message = `Bonjour,\n\n`;
+  message += `Merci d'effectuer une visite technique avant le ${d.datePrevue} :\n\n`;
+
+  // Client Information
+  message += `*Client :* ${d.nomClient}\n`;
+  message += `*Téléphone :* ${d.telephoneClient}`;
+  if (d.telephoneClient2) {
+    message += `\n*Téléphone 2 :* ${d.telephoneClient2}`;
+  }
+  message += `\n*Adresse :* ${d.adresseComplete}\n\n`;
+
+  // Consignes de visite technique
+  message += `🛠 *CONSIGNES DE VISITE TECHNIQUE :*\n`;
+  message += `Devis à effectuer : ${d.consigneArtisan}\n`;
+  message += `Se présenter en tant que technicien GMBS, mandaté par l'agence du client\n`;
+  message += `Ne pas parler de prix avec le client\n\n`;
+
+  // Commentaire
+  if (d.commentaire) {
+    message += `💬 *COMMENTAIRE :*\n${d.commentaire}\n\n`;
+  }
+
+  // À faire après la visite technique
+  message += `*À FAIRE APRÈS LA VISITE TECHNIQUE*\n`;
+  message += `1️⃣ Envoyer le devis en réponse à ce mail\n`;
+  message += `2️⃣ Envoyer les photos de la visite technique\n\n`;
+
+  // Coordonnées GMBS
+  message += `📍 *Coordonnées GMBS*\n`;
+  message += `GMBS\n`;
+  message += `44 rue de la Faisanderie\n`;
+  message += `75116 Paris\n`;
+  message += `SIRET : 914 370 689 00012\n\n`;
+
+  message += `Le suivi de cette chronologie permet un traitement rapide et efficace.\n`;
+  message += `L'équipe GMBS vous remercie pour votre collaboration !`;
+
+  return message;
+}
+
+/**
+ * Generates WhatsApp text message for "Demande d'intervention" (intervention request)
+ */
+export function generateInterventionWhatsAppText(data: EmailTemplateData): string {
+  const d = applyDefaults(data);
+  const interventionId = d.idIntervention || 'XXXX';
+
+  let message = `Bonjour,\n\n`;
+  message += `Merci d'intervenir dès que possible, avant le ${d.datePrevue}, pour le client suivant :\n\n`;
+
+  // Client Information
+  message += `*Client :* ${d.nomClient}\n`;
+  message += `*Téléphone :* ${d.telephoneClient}`;
+  if (d.telephoneClient2) {
+    message += `\n*Téléphone 2 :* ${d.telephoneClient2}`;
+  }
+  message += `\n*Adresse :* ${d.adresseComplete}\n\n`;
+
+  // Consignes d'intervention
+  message += `🛠 *CONSIGNES D'INTERVENTION :*\n`;
+  message += `Intervention à réaliser : ${d.consigneArtisan}\n`;
+  message += `Budget maximum autorisé : *${d.coutSST}*\n`;
+  message += `Se présenter en tant que technicien GMBS, mandaté par l'agence du client\n`;
+  message += `Ne pas discuter le prix avec le client\n`;
+  message += `En cas de dépassement du budget, avertir GMBS avant toute action supplémentaire\n\n`;
+
+  // Commentaire
+  if (d.commentaire) {
+    message += `💬 *COMMENTAIRE :*\n${d.commentaire}\n\n`;
+  }
+
+  // À faire après l'intervention
+  message += `*À FAIRE APRÈS L'INTERVENTION*\n`;
+  message += `1️⃣ Faire apparaître la référence GMBS (ID ${interventionId}) dans l'objet du mail et dans le corps de la facture\n`;
+  message += `2️⃣ Photos de l'intervention : avant et après obligatoires\n`;
+  message += `3️⃣ Envoyer la facture en autoliquidation\n`;
+  message += `4️⃣ RIB : à joindre avec la facture\n`;
+  message += `5️⃣ Envoyer l'ensemble des documents à : 📧 gmbs.compta@gmail.com\n`;
+  message += `⚠️ Tous les documents (photos, facture et RIB) doivent être envoyés dans le même mail\n\n`;
+
+  // Coordonnées de facturation GMBS
+  message += `📍 *Coordonnées de facturation GMBS*\n`;
+  message += `GMBS\n`;
+  message += `44 rue de la Faisanderie\n`;
+  message += `75116 Paris\n`;
+  message += `SIRET : 914 370 689 00012\n\n`;
+
+  message += `Le suivi de cette chronologie permet un traitement rapide et efficace.\n`;
+  message += `L'équipe GMBS vous remercie pour votre collaboration !`;
+
+  return message;
 }
 

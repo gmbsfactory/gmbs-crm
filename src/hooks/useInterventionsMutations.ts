@@ -80,6 +80,8 @@ export function useInterventionsMutations() {
     }: {
       id: string
       data: {
+        id_inter?: string | null
+        reference_agence?: string | null
         agence_id?: string
         client_id?: string
         assigned_user_id?: string
@@ -99,6 +101,13 @@ export function useInterventionsMutations() {
         longitude?: number
         numero_sst?: string
         pourcentage_sst?: number
+        is_vacant?: boolean
+        key_code?: string | null
+        floor?: string | null
+        apartment_number?: string | null
+        vacant_housing_instructions?: string | null
+        owner_id?: string | null
+        tenant_id?: string | null
         is_active?: boolean
       }
     }) => {

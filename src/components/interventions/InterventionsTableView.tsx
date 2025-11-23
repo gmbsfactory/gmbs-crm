@@ -8,6 +8,7 @@ import type { InterventionView } from "@/types/intervention-view"
 import useInterventionModal from "@/hooks/useInterventionModal"
 import { useReferenceData } from "@/hooks/useReferenceData"
 import { mapStatusFromDb } from "@/lib/interventions/mappers"
+import { getStatusDisplayLabel } from "@/lib/interventions/deposit-helpers"
 
 function hslToHex(h: number, s: number, l: number) {
   const a = s * Math.min(l, 1 - l)
@@ -65,6 +66,16 @@ export default function InterventionsTableView({ interventions, loading, error }
         const normalizedStatus = mapStatusFromDb(item.statusValue ?? item.statut ?? undefined)
         const managerLabel = managerInfo?.label ?? assignedCode ?? null
         const managerColor = managerInfo?.color ?? (assignedCode ? generateColorFromString(assignedCode) : null)
+
+        const sstPayment = item.payments?.find(p => p.payment_type === 'acompte_sst')
+        const clientPayment = item.payments?.find(p => p.payment_type === 'acompte_client')
+        const statusDisplayLabel = getStatusDisplayLabel(
+          normalizedStatus,
+          item.statusLabel ?? normalizedStatus,
+          sstPayment,
+          clientPayment
+        )
+
         return {
           id: item.id,
           date: item.date ?? "",
@@ -85,6 +96,7 @@ export default function InterventionsTableView({ interventions, loading, error }
           managerColor,
           isValidated: Boolean(item.idFacture),
           documents: [],
+          statusDisplayLabel,
         }
       }),
     [interventions, userLookup],

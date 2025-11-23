@@ -20,6 +20,7 @@ import { interventionsApi } from "@/lib/api/v2"
 import { commentsApi } from "@/lib/api/v2/commentsApi"
 import type { CreateInterventionData } from "@/lib/api/v2/common/types"
 import { toast } from "sonner"
+import { findOrCreateOwner, findOrCreateTenant } from "@/lib/interventions/owner-tenant-helpers"
 
 const INTERVENTION_DOCUMENT_KINDS = [
   { kind: "devis", label: "Devis" },
@@ -157,6 +158,11 @@ export function LegacyInterventionForm({ onSuccess, onCancel, mode = "centerpage
     commentairesIntervention: defaultValues?.commentairesIntervention || "",
     consigneSecondArtisan: defaultValues?.consigneSecondArtisan || "",
     artisanId: defaultValues?.artisanId || "", // ID de l'artisan pour l'assignation après création
+    is_vacant: false,
+    key_code: "",
+    floor: "",
+    apartment_number: "",
+    vacant_housing_instructions: "",
   })
 
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -411,6 +417,40 @@ export function LegacyInterventionForm({ onSuccess, onCancel, mode = "centerpage
     try {
       const referenceAgenceValue = formData.reference_agence?.trim() ?? ""
 
+      // Trouver ou créer le propriétaire et le client
+      let ownerId: string | null = null
+      let tenantId: string | null = null
+
+      try {
+        ownerId = await findOrCreateOwner({
+          nomProprietaire: formData.nomProprietaire,
+          prenomProprietaire: formData.prenomProprietaire,
+          telephoneProprietaire: formData.telephoneProprietaire,
+          emailProprietaire: formData.emailProprietaire,
+        })
+      } catch (error) {
+        console.error("[LegacyInterventionForm] Erreur lors de la gestion du propriétaire:", error)
+        toast.error("Erreur lors de la sauvegarde du propriétaire")
+      }
+
+      // Ne créer/trouver le tenant que si le logement n'est pas vacant
+      if (!formData.is_vacant) {
+        try {
+          tenantId = await findOrCreateTenant({
+            nomClient: formData.nomClient,
+            prenomClient: formData.prenomClient,
+            telephoneClient: formData.telephoneClient,
+            emailClient: formData.emailClient,
+          })
+        } catch (error) {
+          console.error("[LegacyInterventionForm] Erreur lors de la gestion du client:", error)
+          toast.error("Erreur lors de la sauvegarde du client")
+        }
+      } else {
+        // Si logement vacant, on doit mettre tenant_id à null explicitement
+        tenantId = null
+      }
+
       // Préparer les données pour l'API V2
       const createData: CreateInterventionData = {
         statut_id: formData.statut_id || undefined,
@@ -428,6 +468,15 @@ export function LegacyInterventionForm({ onSuccess, onCancel, mode = "centerpage
         latitude: formData.latitude,
         longitude: formData.longitude,
         id_inter: idInterValue,
+        is_vacant: formData.is_vacant,
+        // Toujours envoyer les champs de logement vacant si is_vacant=true, même s'ils sont vides
+        key_code: formData.is_vacant ? (formData.key_code?.trim() || null) : null,
+        floor: formData.is_vacant ? (formData.floor?.trim() || null) : null,
+        apartment_number: formData.is_vacant ? (formData.apartment_number?.trim() || null) : null,
+        vacant_housing_instructions: formData.is_vacant ? (formData.vacant_housing_instructions?.trim() || null) : null,
+        owner_id: ownerId || undefined,
+        tenant_id: tenantId || undefined,
+        // Note: client_id est un alias de tenant_id dans certains contextes, mais on utilise tenant_id ici
       }
 
       // Nettoyer les champs undefined
@@ -1025,58 +1074,119 @@ export function LegacyInterventionForm({ onSuccess, onCancel, mode = "centerpage
                     </div>
                   </div>
                   <div>
-                    <Label className="mb-2 block text-xs font-medium">Client</Label>
-                    <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                      <div>
-                        <Label htmlFor="nomClient" className="text-xs">
-                          Nom
-                        </Label>
-                        <Input
-                          id="nomClient"
-                          value={formData.nomClient}
-                          onChange={(event) => handleInputChange("nomClient", event.target.value)}
-                          placeholder="Nom du client"
-                          className="h-8 text-sm"
+                    <div className="flex items-center justify-between mb-2">
+                      <Label className="block text-xs font-medium">Client</Label>
+                      <div className="flex items-center space-x-2">
+                        <input
+                          type="checkbox"
+                          id="is_vacant"
+                          className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                          checked={formData.is_vacant}
+                          onChange={(e) => handleInputChange("is_vacant", e.target.checked)}
                         />
-                      </div>
-                      <div>
-                        <Label htmlFor="prenomClient" className="text-xs">
-                          Prénom
+                        <Label htmlFor="is_vacant" className="text-xs font-normal cursor-pointer select-none">
+                          logement vacant
                         </Label>
-                        <Input
-                          id="prenomClient"
-                          value={formData.prenomClient}
-                          onChange={(event) => handleInputChange("prenomClient", event.target.value)}
-                          placeholder="Prénom du client"
-                          className="h-8 text-sm"
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor="telephoneClient" className="text-xs">
-                          Téléphone
-                        </Label>
-                        <Input
-                          id="telephoneClient"
-                          value={formData.telephoneClient}
-                          onChange={(event) => handleInputChange("telephoneClient", event.target.value)}
-                          placeholder="06 12 34 56 78"
-                          className="h-8 text-sm"
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor="emailClient" className="text-xs">
-                          Email
-                        </Label>
-                        <Input
-                          id="emailClient"
-                          type="email"
-                          value={formData.emailClient}
-                          onChange={(event) => handleInputChange("emailClient", event.target.value)}
-                          placeholder="client@example.com"
-                          className="h-8 text-sm"
-                        />
                       </div>
                     </div>
+
+                    {formData.is_vacant ? (
+                      <div className="space-y-3">
+                        {/* Ligne 1 : Code clé, Etage, N° Appartement */}
+                        <div className="grid grid-cols-3 gap-3">
+                          <div>
+                            <Label htmlFor="key_code" className="text-xs uppercase">CODE CLÉ</Label>
+                            <Input
+                              id="key_code"
+                              value={formData.key_code}
+                              onChange={(event) => handleInputChange("key_code", event.target.value)}
+                              className="h-8 text-sm mt-1"
+                            />
+                          </div>
+                          <div>
+                            <Label htmlFor="floor" className="text-xs">etage</Label>
+                            <Input
+                              id="floor"
+                              value={formData.floor}
+                              onChange={(event) => handleInputChange("floor", event.target.value)}
+                              className="h-8 text-sm mt-1"
+                            />
+                          </div>
+                          <div>
+                            <Label htmlFor="apartment_number" className="text-xs">n° appartement</Label>
+                            <Input
+                              id="apartment_number"
+                              value={formData.apartment_number}
+                              onChange={(event) => handleInputChange("apartment_number", event.target.value)}
+                              className="h-8 text-sm mt-1"
+                            />
+                          </div>
+                        </div>
+                        {/* Ligne 2 : Consigne */}
+                        <div>
+                          <Label htmlFor="vacant_housing_instructions" className="text-xs">Consigne</Label>
+                          <Textarea
+                            id="vacant_housing_instructions"
+                            value={formData.vacant_housing_instructions}
+                            onChange={(event) => handleInputChange("vacant_housing_instructions", event.target.value)}
+                            placeholder="Consignes"
+                            className="min-h-[80px] text-sm mt-1 resize-none"
+                          />
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                        <div>
+                          <Label htmlFor="nomClient" className="text-xs">
+                            Nom
+                          </Label>
+                          <Input
+                            id="nomClient"
+                            value={formData.nomClient}
+                            onChange={(event) => handleInputChange("nomClient", event.target.value)}
+                            placeholder="Nom du client"
+                            className="h-8 text-sm"
+                          />
+                        </div>
+                        <div>
+                          <Label htmlFor="prenomClient" className="text-xs">
+                            Prénom
+                          </Label>
+                          <Input
+                            id="prenomClient"
+                            value={formData.prenomClient}
+                            onChange={(event) => handleInputChange("prenomClient", event.target.value)}
+                            placeholder="Prénom du client"
+                            className="h-8 text-sm"
+                          />
+                        </div>
+                        <div>
+                          <Label htmlFor="telephoneClient" className="text-xs">
+                            Téléphone
+                          </Label>
+                          <Input
+                            id="telephoneClient"
+                            value={formData.telephoneClient}
+                            onChange={(event) => handleInputChange("telephoneClient", event.target.value)}
+                            placeholder="06 12 34 56 78"
+                            className="h-8 text-sm"
+                          />
+                        </div>
+                        <div>
+                          <Label htmlFor="emailClient" className="text-xs">
+                            Email
+                          </Label>
+                          <Input
+                            id="emailClient"
+                            type="email"
+                            value={formData.emailClient}
+                            onChange={(event) => handleInputChange("emailClient", event.target.value)}
+                            placeholder="client@example.com"
+                            className="h-8 text-sm"
+                          />
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </CardContent>
               </CollapsibleContent>

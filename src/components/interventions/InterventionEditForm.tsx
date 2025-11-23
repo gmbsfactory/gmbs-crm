@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useQueryClient } from "@tanstack/react-query"
-import { Building, ChevronDown, ChevronRight, FileText, MessageSquare, Upload, X, Search, Eye, Mail } from "lucide-react"
+import { Building, ChevronDown, ChevronRight, FileText, MessageSquare, Upload, X, Search, Eye, Mail, MessageCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -32,7 +32,14 @@ import { Avatar } from "@/components/artisans/Avatar"
 import { useArtisanModal } from "@/hooks/useArtisanModal"
 import { toast } from "sonner"
 import { EmailEditModal } from "@/components/interventions/EmailEditModal"
-import { generateDevisEmailTemplate, generateInterventionEmailTemplate, type EmailTemplateData } from "@/lib/email-templates/intervention-emails"
+import { generateDevisEmailTemplate, generateInterventionEmailTemplate, generateDevisWhatsAppText, generateInterventionWhatsAppText, type EmailTemplateData } from "@/lib/email-templates/intervention-emails"
+import { findOrCreateOwner, findOrCreateTenant } from "@/lib/interventions/owner-tenant-helpers"
+import {
+  isSSTDepositReceived,
+  isClientDepositReceived,
+  hasAnyDepositReceived,
+  getStatusDisplayLabel
+} from "@/lib/interventions/deposit-helpers"
 
 const INTERVENTION_DOCUMENT_KINDS = [
   { kind: "devis", label: "Devis" },
@@ -80,6 +87,9 @@ interface InterventionEditFormProps {
   mode?: "halfpage" | "centerpage" | "fullpage"
   formRef?: React.RefObject<HTMLFormElement | null>
   onSubmittingChange?: (isSubmitting: boolean) => void
+  onClientNameChange?: (name: string) => void
+  onAgencyNameChange?: (name: string) => void
+  onClientPhoneChange?: (phone: string) => void
 }
 
 export function InterventionEditForm({
@@ -88,7 +98,10 @@ export function InterventionEditForm({
   onCancel,
   mode = "centerpage",
   formRef,
-  onSubmittingChange
+  onSubmittingChange,
+  onClientNameChange,
+  onAgencyNameChange,
+  onClientPhoneChange
 }: InterventionEditFormProps) {
   const { data: refData, loading: refDataLoading } = useReferenceData()
   const queryClient = useQueryClient()
@@ -103,7 +116,7 @@ export function InterventionEditForm({
     roles: string[]
   } | null>(null)
   const [pendingReasonType, setPendingReasonType] = useState<StatusReasonType | null>(null)
-  
+
   // Email modal states
   const [isDevisEmailModalOpen, setIsDevisEmailModalOpen] = useState(false)
   const [isInterventionEmailModalOpen, setIsInterventionEmailModalOpen] = useState(false)
@@ -115,6 +128,8 @@ export function InterventionEditForm({
   const sstCost = costs.find(c => c.cost_type === 'sst')
   const materielCost = costs.find(c => c.cost_type === 'materiel')
   const interventionCost = costs.find(c => c.cost_type === 'intervention')
+
+  // Extraire les paiements d'acomptes (calculés avant useState pour être utilisés dans l'initialisation)
   const sstPayment = payments.find(p => p.payment_type === 'acompte_sst')
   const clientPayment = payments.find(p => p.payment_type === 'acompte_client')
 
@@ -167,6 +182,13 @@ export function InterventionEditForm({
     telephoneClient: intervention.tenants?.telephone || "",
     emailClient: intervention.tenants?.email || "",
 
+    // Logement vacant
+    is_vacant: intervention.is_vacant || false,
+    key_code: intervention.key_code || "",
+    floor: intervention.floor || "",
+    apartment_number: intervention.apartment_number || "",
+    vacant_housing_instructions: intervention.vacant_housing_instructions || "",
+
     // Artisan
     artisan: primaryArtisan ? `${primaryArtisan.prenom || ''} ${primaryArtisan.nom || ''}`.trim() : "",
     artisanTelephone: primaryArtisan?.telephone || "",
@@ -213,7 +235,7 @@ export function InterventionEditForm({
   const [isDocumentsOpen, setIsDocumentsOpen] = useState(false)
   const [isCommentsOpen, setIsCommentsOpen] = useState(true)
   const [showArtisanSearch, setShowArtisanSearch] = useState(false)
-  const [artisanSearchPosition, setArtisanSearchPosition] = useState<{ x: number; y: number } | null>(null)
+  const [artisanSearchPosition, setArtisanSearchPosition] = useState<{ x: number; y: number; width?: number; height?: number } | null>(null)
   const { open: openArtisanModal } = useArtisanModal()
   const {
     artisans: nearbyArtisans,
@@ -229,6 +251,24 @@ export function InterventionEditForm({
     () => (selectedArtisanId ? nearbyArtisans.find((artisan) => artisan.id === selectedArtisanId) ?? null : null),
     [selectedArtisanId, nearbyArtisans],
   )
+
+  // Synchroniser formData.id_inter avec intervention.id_inter quand il change
+  // (par exemple après une sauvegarde qui génère un nouvel ID)
+  useEffect(() => {
+    if (intervention.id_inter && intervention.id_inter !== formData.id_inter) {
+      // Ne mettre à jour que si le champ est vide ou contient "AUTO" (ID provisoire)
+      // pour éviter d'écraser une saisie utilisateur en cours
+      const currentIdInter = formData.id_inter?.trim() || ""
+      const isProvisionalId = currentIdInter.length === 0 || currentIdInter.toLowerCase().includes("auto")
+
+      if (isProvisionalId) {
+        setFormData((prev) => ({
+          ...prev,
+          id_inter: intervention.id_inter || prev.id_inter || "",
+        }))
+      }
+    }
+  }, [intervention.id_inter])
 
   // Trier les artisans : archivés en bas
   const sortedNearbyArtisans = useMemo(() => {
@@ -362,6 +402,28 @@ export function InterventionEditForm({
     }
   }, [])
 
+  // Sync client name with parent
+  useEffect(() => {
+    onClientNameChange?.(formData.nomClient)
+  }, [formData.nomClient, onClientNameChange])
+
+  // Sync client phone with parent
+  useEffect(() => {
+    onClientPhoneChange?.(formData.telephoneClient)
+  }, [formData.telephoneClient, onClientPhoneChange])
+
+  // Sync agency name with parent
+  useEffect(() => {
+    if (refData?.agencies && formData.agence_id) {
+      const agency = refData.agencies.find((a: any) => a.id === formData.agence_id)
+      if (agency) {
+        onAgencyNameChange?.(agency.label || agency.nom || "")
+      }
+    } else if (!formData.agence_id) {
+      onAgencyNameChange?.("")
+    }
+  }, [formData.agence_id, refData?.agencies, onAgencyNameChange])
+
   const canEditContext = useMemo(() => {
     const roles = currentUser?.roles ?? []
     return roles.some((role) => typeof role === "string" && role.toLowerCase().includes("admin"))
@@ -429,7 +491,219 @@ export function InterventionEditForm({
     )
   }, [selectedStatus])
 
-  const handleInputChange = (field: string, value: string | boolean | number) => {
+  // --- Gestion des acomptes ---
+  // Note: sstPayment et clientPayment sont déclarés plus haut
+
+  const canEditAccomptes = useMemo(() => {
+    const currentStatusCode = getInterventionStatusCode(formData.statut_id)
+    // On autorise l'édition si le statut est ACCEPTE ou ATT_ACOMPTE (pour éviter de bloquer l'utilisateur pendant la saisie)
+    return currentStatusCode === 'ACCEPTE' || currentStatusCode === 'ATT_ACOMPTE'
+  }, [formData.statut_id, getInterventionStatusCode])
+
+  const handleAccompteSSTChange = async (value: string) => {
+    // Mettre à jour le formData local
+    handleInputChange('accompteSST', value)
+  }
+
+  const handleAccompteSSTBlur = async () => {
+    const value = formData.accompteSST
+    const amount = parseFloat(value) || 0
+
+    // Mettre à jour le paiement
+    if (amount > 0) {
+      try {
+        await interventionsApi.upsertPayment(intervention.id, {
+          payment_type: 'acompte_sst',
+          amount: amount,
+          currency: 'EUR'
+        })
+
+        // Si statut actuel est ACCEPTE, passer à ATT_ACOMPTE
+        const currentStatusCode = getInterventionStatusCode(formData.statut_id)
+        if (currentStatusCode === 'ACCEPTE') {
+          const attAcompteStatus = refData?.interventionStatuses.find(s => s.code === 'ATT_ACOMPTE')
+          if (attAcompteStatus) {
+            handleInputChange('statut_id', attAcompteStatus.id)
+            toast.success("Statut passé à 'Attente acompte'")
+          }
+        }
+      } catch (error) {
+        console.error('Erreur lors de la mise à jour de l\'acompte SST:', error)
+        toast.error('Erreur lors de la sauvegarde de l\'acompte SST')
+      }
+    }
+  }
+
+  const handleAccompteClientChange = async (value: string) => {
+    // Mettre à jour le formData local
+    handleInputChange('accompteClient', value)
+  }
+
+  const handleAccompteClientBlur = async () => {
+    const value = formData.accompteClient
+    const amount = parseFloat(value) || 0
+
+    // Mettre à jour le paiement
+    if (amount > 0) {
+      try {
+        await interventionsApi.upsertPayment(intervention.id, {
+          payment_type: 'acompte_client',
+          amount: amount,
+          currency: 'EUR'
+        })
+
+        // Si statut actuel est ACCEPTE, passer à ATT_ACOMPTE
+        const currentStatusCode = getInterventionStatusCode(formData.statut_id)
+        if (currentStatusCode === 'ACCEPTE') {
+          const attAcompteStatus = refData?.interventionStatuses.find(s => s.code === 'ATT_ACOMPTE')
+          if (attAcompteStatus) {
+            handleInputChange('statut_id', attAcompteStatus.id)
+            toast.success("Statut passé à 'Attente acompte'")
+          }
+        }
+      } catch (error) {
+        console.error('Erreur lors de la mise à jour de l\'acompte client:', error)
+        toast.error('Erreur lors de la sauvegarde de l\'acompte client')
+      }
+    }
+  }
+
+  const handleAccompteSSTRecuChange = async (checked: boolean) => {
+    try {
+      await interventionsApi.upsertPayment(intervention.id, {
+        payment_type: 'acompte_sst',
+        is_received: checked,
+        payment_date: checked ? (formData.dateAccompteSSTRecu || null) : null
+      })
+
+      // Mettre à jour le formData local
+      handleInputChange('accompteSSTRecu', checked)
+
+      // Si date saisie ET case cochée, passer à ACCEPTE
+      if (checked && formData.dateAccompteSSTRecu) {
+        const accepteStatus = refData?.interventionStatuses.find(s => s.code === 'ACCEPTE')
+        if (accepteStatus) {
+          handleInputChange('statut_id', accepteStatus.id)
+          toast.success("Acompte reçu : Statut passé à 'Accepté'")
+        }
+      } else if (!checked) {
+        // Si on décoche, vérifier si l'autre acompte est reçu, sinon remettre à ATT_ACOMPTE
+        // Note: on utilise les valeurs du hook useMemo qui sont basées sur intervention.intervention_payments
+        // Mais attention, intervention.intervention_payments n'est pas mis à jour en temps réel ici sauf si on invalide la query
+        // Pour l'instant on fait confiance à la logique locale ou on vérifie l'autre acompte via formData si possible
+        // Le mieux est de vérifier l'autre acompte via les props ou une refetch, mais ici on va simplifier
+
+        const hasClientDepositReceived = clientPayment?.is_received && clientPayment?.payment_date
+
+        if (!hasClientDepositReceived) {
+          const currentStatusCode = getInterventionStatusCode(formData.statut_id)
+          if (currentStatusCode === 'ACCEPTE') {
+            const attAcompteStatus = refData?.interventionStatuses.find(s => s.code === 'ATT_ACOMPTE')
+            if (attAcompteStatus) {
+              handleInputChange('statut_id', attAcompteStatus.id)
+              toast.info("Aucun acompte reçu : Statut passé à 'Attente acompte'")
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Erreur lors de la mise à jour de l\'acompte SST:', error)
+      toast.error('Erreur lors de la sauvegarde')
+    }
+  }
+
+  const handleDateAccompteSSTRecuChange = async (date: string) => {
+    try {
+      await interventionsApi.upsertPayment(intervention.id, {
+        payment_type: 'acompte_sst',
+        is_received: formData.accompteSSTRecu,
+        payment_date: date || null
+      })
+
+      // Mettre à jour le formData local
+      handleInputChange('dateAccompteSSTRecu', date)
+
+      // Si case cochée ET date saisie, passer à ACCEPTE
+      if (formData.accompteSSTRecu && date) {
+        const accepteStatus = refData?.interventionStatuses.find(s => s.code === 'ACCEPTE')
+        if (accepteStatus) {
+          handleInputChange('statut_id', accepteStatus.id)
+          toast.success("Acompte reçu : Statut passé à 'Accepté'")
+        }
+      }
+    } catch (error) {
+      console.error('Erreur lors de la mise à jour de la date SST:', error)
+      toast.error('Erreur lors de la sauvegarde')
+    }
+  }
+
+  const handleAccompteClientRecuChange = async (checked: boolean) => {
+    try {
+      await interventionsApi.upsertPayment(intervention.id, {
+        payment_type: 'acompte_client',
+        is_received: checked,
+        payment_date: checked ? (formData.dateAccompteClientRecu || null) : null
+      })
+
+      // Mettre à jour le formData local
+      handleInputChange('accompteClientRecu', checked)
+
+      // Si date saisie ET case cochée, passer à ACCEPTE
+      if (checked && formData.dateAccompteClientRecu) {
+        const accepteStatus = refData?.interventionStatuses.find(s => s.code === 'ACCEPTE')
+        if (accepteStatus) {
+          handleInputChange('statut_id', accepteStatus.id)
+          toast.success("Acompte reçu : Statut passé à 'Accepté'")
+        }
+      } else if (!checked) {
+        // Si on décoche, vérifier si l'autre acompte est reçu, sinon remettre à ATT_ACOMPTE
+        const hasSSTDepositReceived = sstPayment?.is_received && sstPayment?.payment_date
+
+        if (!hasSSTDepositReceived) {
+          const currentStatusCode = getInterventionStatusCode(formData.statut_id)
+          if (currentStatusCode === 'ACCEPTE') {
+            const attAcompteStatus = refData?.interventionStatuses.find(s => s.code === 'ATT_ACOMPTE')
+            if (attAcompteStatus) {
+              handleInputChange('statut_id', attAcompteStatus.id)
+              toast.info("Aucun acompte reçu : Statut passé à 'Attente acompte'")
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Erreur lors de la mise à jour de l\'acompte client:', error)
+      toast.error('Erreur lors de la sauvegarde')
+    }
+  }
+
+  const handleDateAccompteClientRecuChange = async (date: string) => {
+    try {
+      await interventionsApi.upsertPayment(intervention.id, {
+        payment_type: 'acompte_client',
+        is_received: formData.accompteClientRecu,
+        payment_date: date || null
+      })
+
+      // Mettre à jour le formData local
+      handleInputChange('dateAccompteClientRecu', date)
+
+      // Si case cochée ET date saisie, passer à ACCEPTE
+      if (formData.accompteClientRecu && date) {
+        const accepteStatus = refData?.interventionStatuses.find(s => s.code === 'ACCEPTE')
+        if (accepteStatus) {
+          handleInputChange('statut_id', accepteStatus.id)
+          toast.success("Acompte reçu : Statut passé à 'Accepté'")
+        }
+      }
+    } catch (error) {
+      console.error('Erreur lors de la mise à jour de la date client:', error)
+      toast.error('Erreur lors de la sauvegarde')
+    }
+  }
+
+  // --- Fin Gestion des acomptes ---
+
+  const handleInputChange = (field: keyof typeof formData, value: any) => {
     setFormData((prev) => ({ ...prev, [field]: value }))
   }
 
@@ -459,10 +733,11 @@ export function InterventionEditForm({
       .map((ia: any) => ({
         id: ia.artisan_id,
         email: ia.artisans.email,
+        telephone: ia.artisans.telephone || '',
         name: `${ia.artisans.prenom || ''} ${ia.artisans.nom || ''}`.trim() || ia.artisans.plain_nom || 'Artisan',
         is_primary: ia.is_primary,
       }))
-    
+
     // Add selected artisan from form if it has an email and is not already in the list
     const selectedArtisanIds = new Set(artisansFromIntervention.map((a) => a.id))
     if (selectedArtisanData && selectedArtisanData.email && selectedArtisanData.email.trim().length > 0) {
@@ -470,12 +745,13 @@ export function InterventionEditForm({
         artisansFromIntervention.push({
           id: selectedArtisanData.id,
           email: selectedArtisanData.email,
+          telephone: selectedArtisanData.telephone || '',
           name: selectedArtisanData.displayName || 'Artisan',
           is_primary: false, // Will be determined when saved
         })
       }
     }
-    
+
     return artisansFromIntervention
   }, [artisans, selectedArtisanData])
 
@@ -501,8 +777,8 @@ export function InterventionEditForm({
     // If artisan is not yet saved, use consigne_intervention as default
     const consigneArtisan = isFromIntervention
       ? (isPrimary
-          ? (formData.consigne_intervention || intervention.consigne_intervention || '')
-          : (formData.consigne_second_artisan || intervention.consigne_second_artisan || ''))
+        ? (formData.consigne_intervention || intervention.consigne_intervention || '')
+        : (formData.consigne_second_artisan || intervention.consigne_second_artisan || ''))
       : (formData.consigne_intervention || intervention.consigne_intervention || '')
 
     // Calculate coutSST
@@ -550,33 +826,114 @@ export function InterventionEditForm({
   const selectedArtisanEmail = useMemo(() => {
     const artisanId = effectiveSelectedArtisanId
     if (!artisanId) return ''
-    
+
     // First check in artisansWithEmail (from Select)
     const artisan = artisansWithEmail.find((a) => a.id === artisanId)
     if (artisan) return artisan.email
-    
+
     // Fallback to selectedArtisanData (from form selection)
     if (selectedArtisanData && selectedArtisanData.id === artisanId) {
       return selectedArtisanData.email || ''
     }
-    
+
     return ''
   }, [effectiveSelectedArtisanId, artisansWithEmail, selectedArtisanData])
+
+  // Fonction pour obtenir le numéro de téléphone de l'artisan sélectionné
+  const getSelectedArtisanPhone = useCallback((): string => {
+    const artisanId = effectiveSelectedArtisanId
+    if (!artisanId) return ''
+
+    // Chercher dans artisansWithEmail (depuis Select)
+    const artisan = artisansWithEmail.find((a) => a.id === artisanId)
+    if (artisan && artisan.telephone) return artisan.telephone
+
+    // Chercher dans selectedArtisanData (depuis form)
+    if (selectedArtisanData && selectedArtisanData.telephone) {
+      return selectedArtisanData.telephone
+    }
+
+    return ''
+  }, [effectiveSelectedArtisanId, artisansWithEmail, selectedArtisanData])
+
+  // Fonction pour formater le numéro de téléphone pour WhatsApp
+  const formatPhoneForWhatsApp = useCallback((phone: string): string => {
+    if (!phone) return ''
+
+    // Nettoyer le numéro (supprimer espaces, tirets, points, parenthèses)
+    const cleanPhone = phone.replace(/[\s\-\.\(\)]/g, '')
+
+    // Ajouter l'indicatif si nécessaire (format international)
+    // Si le numéro commence par 0, le remplacer par +33 pour la France
+    const formattedPhone = cleanPhone.startsWith('0')
+      ? `+33${cleanPhone.slice(1)}`
+      : cleanPhone.startsWith('+')
+      ? cleanPhone
+      : `+33${cleanPhone}`
+
+    return formattedPhone
+  }, [])
+
+  // Fonction pour ouvrir WhatsApp avec le message prérempli
+  const handleOpenWhatsApp = useCallback((
+    emailType: 'devis' | 'intervention',
+    artisanId: string,
+    artisanPhone: string
+  ) => {
+    if (!artisanId) {
+      toast.error('Artisan non sélectionné')
+      return
+    }
+
+    if (!artisanPhone || artisanPhone.trim() === '') {
+      toast.error('Numéro de téléphone de l\'artisan manquant')
+      return
+    }
+
+    // Générer les données du template
+    const templateData = generateEmailTemplateData(artisanId)
+
+    // Générer le message WhatsApp selon le type
+    const whatsappMessage = emailType === 'devis'
+      ? generateDevisWhatsAppText(templateData)
+      : generateInterventionWhatsAppText(templateData)
+
+    // Formater le numéro de téléphone
+    const formattedPhone = formatPhoneForWhatsApp(artisanPhone)
+
+    // Encoder le message pour l'URL
+    const encodedMessage = encodeURIComponent(whatsappMessage)
+
+    // Ouvrir WhatsApp avec le numéro et le message
+    const whatsappUrl = `https://wa.me/${formattedPhone}?text=${encodedMessage}`
+    window.open(whatsappUrl, '_blank')
+  }, [generateEmailTemplateData, formatPhoneForWhatsApp])
 
   const handleSelectNearbyArtisan = useCallback(
     (artisan: NearbyArtisan) => {
       if (selectedArtisanId === artisan.id) {
-        applyArtisanSelection(null)
-        return
+        // Désélectionner si on clique sur l'artisan déjà sélectionné
+        // Mais on garde le comportement actuel de juste mettre à jour le champ texte
+        // Si on veut permettre la désélection au clic, on pourrait le faire ici
+        // Pour l'instant on suit la spec qui demande un bouton X explicite
       }
-      applyArtisanSelection(artisan)
+
+      setSelectedArtisanId(artisan.id)
+      handleInputChange("artisan", `${artisan.prenom || ""} ${artisan.nom || ""}`.trim())
+
+      // Si l'artisan a un email, on le présélectionne pour l'envoi d'email
+      if (artisan.email) {
+        setSelectedArtisanForEmail(artisan.id)
+      }
     },
-    [applyArtisanSelection, selectedArtisanId],
+    [selectedArtisanId, handleInputChange],
   )
 
   const handleRemoveSelectedArtisan = useCallback(() => {
-    applyArtisanSelection(null)
-  }, [applyArtisanSelection])
+    setSelectedArtisanId(null)
+    // Optionnel : vider le champ texte artisan si on désélectionne ?
+    // handleInputChange("artisan", "")
+  }, [])
 
   const handleArtisanSearchSelect = useCallback((artisan: ArtisanSearchResult) => {
     const displayName = artisan.raison_sociale
@@ -734,6 +1091,40 @@ export function InterventionEditForm({
       const referenceAgenceValue = formData.reference_agence?.trim() ?? ""
       const idInterValue = formData.id_inter?.trim() ?? ""
 
+      // Trouver ou créer le propriétaire et le client
+      let ownerId: string | null = null
+      let tenantId: string | null = null
+
+      try {
+        ownerId = await findOrCreateOwner({
+          nomProprietaire: formData.nomProprietaire,
+          prenomProprietaire: formData.prenomProprietaire,
+          telephoneProprietaire: formData.telephoneProprietaire,
+          emailProprietaire: formData.emailProprietaire,
+        })
+      } catch (error) {
+        console.error("[InterventionEditForm] Erreur lors de la gestion du propriétaire:", error)
+        toast.error("Erreur lors de la sauvegarde du propriétaire")
+      }
+
+      // Ne créer/trouver le tenant que si le logement n'est pas vacant
+      if (!formData.is_vacant) {
+        try {
+          tenantId = await findOrCreateTenant({
+            nomClient: formData.nomClient,
+            prenomClient: formData.prenomClient,
+            telephoneClient: formData.telephoneClient,
+            emailClient: formData.emailClient,
+          })
+        } catch (error) {
+          console.error("[InterventionEditForm] Erreur lors de la gestion du client:", error)
+          toast.error("Erreur lors de la sauvegarde du client")
+        }
+      } else {
+        // Si logement vacant, on doit mettre tenant_id à null explicitement
+        tenantId = null
+      }
+
       const updateData: UpdateInterventionData = {
         statut_id: formData.statut_id || undefined,
         agence_id: formData.agence_id || undefined,
@@ -754,6 +1145,15 @@ export function InterventionEditForm({
         numero_sst: formData.numero_sst || undefined,
         pourcentage_sst: formData.pourcentage_sst ? parseFloat(formData.pourcentage_sst) : undefined,
         id_inter: idInterValue.length > 0 ? idInterValue : null,
+        is_vacant: formData.is_vacant,
+        // Toujours envoyer les champs de logement vacant, même s'ils sont vides
+        key_code: formData.is_vacant ? (formData.key_code?.trim() || null) : null,
+        floor: formData.is_vacant ? (formData.floor?.trim() || null) : null,
+        apartment_number: formData.is_vacant ? (formData.apartment_number?.trim() || null) : null,
+        vacant_housing_instructions: formData.is_vacant ? (formData.vacant_housing_instructions?.trim() || null) : null,
+        owner_id: ownerId,
+        tenant_id: tenantId, // null si is_vacant=true, sinon l'ID du tenant trouvé/créé
+        // Note: client_id est un alias de tenant_id dans certains contextes, mais on utilise tenant_id ici
       }
 
       if (!canEditContext) {
@@ -771,6 +1171,8 @@ export function InterventionEditForm({
       const updated = await updateMutation.mutateAsync({
         id: intervention.id,
         data: {
+          id_inter: updateData.id_inter ?? null,
+          reference_agence: updateData.reference_agence ?? null,
           agence_id: updateData.agence_id,
           assigned_user_id: updateData.assigned_user_id,
           statut_id: updateData.statut_id,
@@ -788,6 +1190,13 @@ export function InterventionEditForm({
           longitude: updateData.longitude,
           numero_sst: updateData.numero_sst,
           pourcentage_sst: updateData.pourcentage_sst,
+          is_vacant: updateData.is_vacant,
+          key_code: updateData.key_code ?? null,
+          floor: updateData.floor ?? null,
+          apartment_number: updateData.apartment_number ?? null,
+          vacant_housing_instructions: updateData.vacant_housing_instructions ?? null,
+          owner_id: updateData.owner_id ?? null,
+          tenant_id: updateData.tenant_id ?? null,
         },
       })
 
@@ -853,6 +1262,18 @@ export function InterventionEditForm({
           console.error("[InterventionEditForm] Impossible d'ajouter le commentaire obligatoire", commentError)
           throw new Error("Le commentaire obligatoire n'a pas pu être enregistré. Merci de réessayer.")
         }
+      }
+
+      // Mettre à jour le formData avec les valeurs retournées par le serveur
+      // pour synchroniser les champs qui peuvent avoir été modifiés côté serveur (comme id_inter)
+      if (payload) {
+        setFormData((prev) => ({
+          ...prev,
+          id_inter: payload.id_inter || prev.id_inter || "",
+          statut_id: payload.statut_id || prev.statut_id || "",
+          agence_id: payload.agence_id || prev.agence_id || "",
+          reference_agence: payload.reference_agence || prev.reference_agence || "",
+        }))
       }
 
       onSuccess?.(payload)
@@ -926,6 +1347,16 @@ export function InterventionEditForm({
     return refData.agencies.find((agency) => agency.id === selectedAgencyId)
   }, [selectedAgencyId, refData])
 
+  // Expose client name to parent
+  useEffect(() => {
+    onClientNameChange?.(formData.nomClient)
+  }, [formData.nomClient, onClientNameChange])
+
+  // Expose agency name to parent
+  useEffect(() => {
+    onAgencyNameChange?.(selectedAgencyData?.label || "")
+  }, [selectedAgencyData?.label, onAgencyNameChange])
+
   const showReferenceField = useMemo(() => {
     if (!selectedAgencyData) {
       return false
@@ -967,7 +1398,7 @@ export function InterventionEditForm({
                 <SelectContent>
                   {refData?.interventionStatuses.map((status) => (
                     <SelectItem key={status.id} value={status.id}>
-                      {status.label}
+                      {getStatusDisplayLabel(status.code, status.label, sstPayment, clientPayment)}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -1064,11 +1495,11 @@ export function InterventionEditForm({
       </Card>
 
 
-      
+
       {/* 2. GRANDE SECTION : LOCALISATION + ARTISANS + FINANCES */}
       <Card>
         <CardContent className="p-6 space-y-4">
-          
+
           {/* PARTIE HAUTE : CONTEXTE + CONSIGNE (2 COLONNES) */}
           <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
             <div>
@@ -1078,8 +1509,8 @@ export function InterventionEditForm({
                 value={formData.contexte_intervention}
                 onChange={
                   canEditContext
-                  ? (event) => handleInputChange("contexte_intervention", event.target.value)
-                  : undefined
+                    ? (event) => handleInputChange("contexte_intervention", event.target.value)
+                    : undefined
                 }
                 placeholder="Décrivez le contexte de l&apos;intervention..."
                 rows={5}
@@ -1114,370 +1545,527 @@ export function InterventionEditForm({
 
           {/* PARTIE MILIEU : LOCALISATION + ARTISANS (2 COLONNES) */}
           <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
-            
+
             {/* COLONNE GAUCHE : LOCALISATION */}
             <div className="flex flex-col h-full space-y-4">
-               <h3 className="font-semibold flex items-center gap-2 text-sm">Localisation</h3>
-               <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                  <div className="relative flex-1">
-                    <Input
-                      value={locationQuery}
-                      onChange={(event) => {
-                        setLocationQuery(event.target.value)
-                        setGeocodeError(null)
-                      }}
-                      onFocus={() => {
-                        setShowLocationSuggestions(true)
-                        if (suggestionBlurTimeoutRef.current) {
-                          window.clearTimeout(suggestionBlurTimeoutRef.current)
-                          suggestionBlurTimeoutRef.current = null
-                        }
-                      }}
-                      onBlur={() => {
-                        suggestionBlurTimeoutRef.current = window.setTimeout(() => {
-                          clearSuggestions()
-                          setShowLocationSuggestions(false)
-                        }, 150)
-                      }}
-                      placeholder="Rechercher une adresse..."
-                      className="h-8 text-sm"
-                    />
-                    {showLocationSuggestions && locationSuggestions.length > 0 && (
-                      <div className="absolute z-20 mt-1 max-h-56 w-full overflow-auto rounded-md border border-muted bg-background shadow-lg">
-                        <ul className="divide-y divide-border text-left text-sm">
-                          {locationSuggestions.map((suggestion) => (
-                            <li key={`${suggestion.label}-${suggestion.lat}-${suggestion.lng}`}>
-                              <button
-                                type="button"
-                                className="flex w-full flex-col gap-0.5 px-3 py-2 text-left transition hover:bg-muted/80 focus:bg-muted/80"
-                                onMouseDown={(event) => event.preventDefault()}
-                                onClick={() => handleSuggestionSelect(suggestion)}
-                              >
-                                <span className="truncate font-medium">{suggestion.label}</span>
-                                <span className="text-xs text-muted-foreground">
-                                  {suggestion.lat.toFixed(4)} • {suggestion.lng.toFixed(4)}
-                                </span>
-                              </button>
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-2 sm:w-auto">
-                    <Input
-                      id="perimeterKm"
-                      type="number"
-                      min={1}
-                      max={MAX_RADIUS_KM}
-                      value={perimeterKmInput}
-                      onChange={(event) => setPerimeterKmInput(event.target.value)}
-                      onBlur={(event) => {
-                        const raw = Number.parseFloat(event.target.value)
-                        if (!Number.isFinite(raw) || raw <= 0) {
-                          setPerimeterKmInput("50")
-                          return
-                        }
-                        const clamped = Math.min(raw, MAX_RADIUS_KM)
-                        setPerimeterKmInput(String(clamped))
-                      }}
-                      placeholder="Rayon (km)"
-                      className="h-8 w-full min-w-[90px] text-sm sm:w-28"
-                    />
-                    <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                      km
-                    </span>
-                  </div>
-                  <Button type="button" variant="secondary" size="sm" onClick={handleGeocodeAddress} disabled={isGeocoding}>
-                    {isGeocoding ? "Recherche..." : "Localiser"}
-                  </Button>
+              <h3 className="font-semibold flex items-center gap-2 text-sm">Localisation</h3>
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                <div className="relative flex-1">
+                  <Input
+                    value={locationQuery}
+                    onChange={(event) => {
+                      setLocationQuery(event.target.value)
+                      setGeocodeError(null)
+                    }}
+                    onFocus={() => {
+                      setShowLocationSuggestions(true)
+                      if (suggestionBlurTimeoutRef.current) {
+                        window.clearTimeout(suggestionBlurTimeoutRef.current)
+                        suggestionBlurTimeoutRef.current = null
+                      }
+                    }}
+                    onBlur={() => {
+                      suggestionBlurTimeoutRef.current = window.setTimeout(() => {
+                        clearSuggestions()
+                        setShowLocationSuggestions(false)
+                      }, 150)
+                    }}
+                    placeholder="Rechercher une adresse..."
+                    className="h-8 text-sm"
+                  />
+                  {showLocationSuggestions && locationSuggestions.length > 0 && (
+                    <div className="absolute z-20 mt-1 max-h-56 w-full overflow-auto rounded-md border border-muted bg-background shadow-lg">
+                      <ul className="divide-y divide-border text-left text-sm">
+                        {locationSuggestions.map((suggestion) => (
+                          <li key={`${suggestion.label}-${suggestion.lat}-${suggestion.lng}`}>
+                            <button
+                              type="button"
+                              className="flex w-full flex-col gap-0.5 px-3 py-2 text-left transition hover:bg-muted/80 focus:bg-muted/80"
+                              onMouseDown={(event) => event.preventDefault()}
+                              onClick={() => handleSuggestionSelect(suggestion)}
+                            >
+                              <span className="truncate font-medium">{suggestion.label}</span>
+                              <span className="text-xs text-muted-foreground">
+                                {suggestion.lat.toFixed(4)} • {suggestion.lng.toFixed(4)}
+                              </span>
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
                 </div>
-                {isSuggesting && (
-                  <div className="text-xs text-muted-foreground">Recherche d&apos;adresses...</div>
-                )}
-                {geocodeError && (
-                  <div className="rounded border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive">
-                    {geocodeError}
-                  </div>
-                )}
-                <div className="overflow-hidden rounded-lg border">
-                  <MapLibreMap
-                    lat={formData.latitude}
-                    lng={formData.longitude}
-                    height="200px"
-                    onLocationChange={handleLocationChange}
-                    markers={mapMarkers}
-                    circleRadiusKm={perimeterKmValue}
-                    selectedConnection={mapSelectedConnection ?? undefined}
+                <div className="flex items-center gap-2 sm:w-auto">
+                  <Input
+                    id="perimeterKm"
+                    type="number"
+                    min={1}
+                    max={MAX_RADIUS_KM}
+                    value={perimeterKmInput}
+                    onChange={(event) => setPerimeterKmInput(event.target.value)}
+                    onBlur={(event) => {
+                      const raw = Number.parseFloat(event.target.value)
+                      if (!Number.isFinite(raw) || raw <= 0) {
+                        setPerimeterKmInput("50")
+                        return
+                      }
+                      const clamped = Math.min(raw, MAX_RADIUS_KM)
+                      setPerimeterKmInput(String(clamped))
+                    }}
+                    placeholder="Rayon (km)"
+                    className="h-8 w-full min-w-[90px] text-sm sm:w-28"
+                  />
+                  <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                    km
+                  </span>
+                </div>
+                <Button type="button" variant="secondary" size="sm" onClick={handleGeocodeAddress} disabled={isGeocoding}>
+                  {isGeocoding ? "Recherche..." : "Localiser"}
+                </Button>
+              </div>
+              {isSuggesting && (
+                <div className="text-xs text-muted-foreground">Recherche d&apos;adresses...</div>
+              )}
+              {geocodeError && (
+                <div className="rounded border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+                  {geocodeError}
+                </div>
+              )}
+              <div className="overflow-hidden rounded-lg border">
+                <MapLibreMap
+                  lat={formData.latitude}
+                  lng={formData.longitude}
+                  height="200px"
+                  onLocationChange={handleLocationChange}
+                  markers={mapMarkers}
+                  circleRadiusKm={perimeterKmValue}
+                  selectedConnection={mapSelectedConnection ?? undefined}
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground">
+                <span>Lat: {formData.latitude.toFixed(4)}</span>
+                <span>Lng: {formData.longitude.toFixed(4)}</span>
+              </div>
+
+              {/* Champs Adresse éditables */}
+              <div className="space-y-2 pt-2 border-t">
+                <div>
+                  <Label htmlFor="adresse" className="text-xs">Adresse *</Label>
+                  <Textarea
+                    id="adresse"
+                    value={formData.adresse}
+                    onChange={(event) => handleInputChange("adresse", event.target.value)}
+                    placeholder="Adresse complète"
+                    rows={2}
+                    className="text-sm mt-1"
+                    required
                   />
                 </div>
-                <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground">
-                  <span>Lat: {formData.latitude.toFixed(4)}</span>
-                  <span>Lng: {formData.longitude.toFixed(4)}</span>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <Label htmlFor="codePostal" className="text-xs">Code postal</Label>
+                    <Input
+                      id="codePostal"
+                      value={formData.code_postal}
+                      onChange={(event) => handleInputChange("code_postal", event.target.value)}
+                      className="h-8 text-sm mt-1"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="ville" className="text-xs">Ville</Label>
+                    <Input
+                      id="ville"
+                      value={formData.ville}
+                      onChange={(event) => handleInputChange("ville", event.target.value)}
+                      className="h-8 text-sm mt-1"
+                    />
+                  </div>
                 </div>
-                
-                {/* Champs Adresse éditables */}
-                <div className="space-y-2 pt-2 border-t">
-                    <div>
-                        <Label htmlFor="adresse" className="text-xs">Adresse *</Label>
-                        <Textarea
-                            id="adresse"
-                            value={formData.adresse}
-                            onChange={(event) => handleInputChange("adresse", event.target.value)}
-                            placeholder="Adresse complète"
-                            rows={2}
-                            className="text-sm mt-1"
-                            required
-                        />
-                    </div>
-                    <div className="grid grid-cols-2 gap-2">
-                        <div>
-                            <Label htmlFor="codePostal" className="text-xs">Code postal</Label>
-                            <Input
-                                id="codePostal"
-                                value={formData.code_postal}
-                                onChange={(event) => handleInputChange("code_postal", event.target.value)}
-                                className="h-8 text-sm mt-1"
-                            />
-                        </div>
-                        <div>
-                            <Label htmlFor="ville" className="text-xs">Ville</Label>
-                            <Input
-                                id="ville"
-                                value={formData.ville}
-                                onChange={(event) => handleInputChange("ville", event.target.value)}
-                                className="h-8 text-sm mt-1"
-                            />
-                        </div>
-                    </div>
-                </div>
+              </div>
             </div>
 
             {/* COLONNE DROITE : ARTISANS */}
             <div className="flex flex-col h-full space-y-4">
-               <h3 className="font-semibold flex items-center justify-between gap-2 text-sm">
-                  <div className="flex items-center gap-2">
-                    <Building className="h-4 w-4" />
-                    Artisans à proximité
+              <h3 className="font-semibold flex items-center justify-between gap-2 text-sm">
+                <div className="flex items-center gap-2">
+                  <Building className="h-4 w-4" />
+                  Artisans à proximité
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="flex gap-2">
+                    <Input
+                      id="artisan"
+                      value={formData.artisan}
+                      onChange={(event) => handleInputChange("artisan", event.target.value)}
+                      placeholder="Artisan sélectionné"
+                      className="h-8 text-sm w-40"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      className="h-8 w-8 flex-shrink-0"
+                      onClick={(e) => {
+                        const rect = e.currentTarget.getBoundingClientRect()
+                        setArtisanSearchPosition({
+                          x: rect.left,
+                          y: rect.top,
+                          width: rect.width,
+                          height: rect.height
+                        })
+                        setShowArtisanSearch(true)
+                      }}
+                      title="Rechercher un artisan"
+                    >
+                      <Search className="h-4 w-4" />
+                    </Button>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <div className="flex gap-2">
-                        <Input
-                          id="artisan"
-                          value={formData.artisan}
-                          onChange={(event) => handleInputChange("artisan", event.target.value)}
-                          placeholder="Artisan sélectionné"
-                          className="h-8 text-sm w-40"
-                        />
+                </div>
+              </h3>
+
+              {/* Grouper "Envoyer un email" et la carte sélectionnée pour éviter l'espacement de space-y-4 */}
+              <div className="space-y-2">
+                {/* Email sending section */}
+                {artisansWithEmail.length > 0 && (
+                  <div className="space-y-2 p-3 bg-muted/50 rounded-lg border border-border/50">
+                    <Label className="text-xs font-semibold">Envoyer un email</Label>
+                    <div className="flex flex-col gap-2">
+                      <Select
+                        value={selectedArtisanForEmail || selectedArtisanId || ''}
+                        onValueChange={setSelectedArtisanForEmail}
+                      >
+                        <SelectTrigger className="h-8 text-sm">
+                          <SelectValue placeholder="Sélectionner un artisan" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {artisansWithEmail.map((artisan) => (
+                            <SelectItem key={artisan.id} value={artisan.id}>
+                              {artisan.name} ({artisan.email})
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {/* Ligne 1 : Boutons Email */}
+                      <div className="flex gap-2">
                         <Button
                           type="button"
                           variant="outline"
-                          size="icon"
-                          className="h-8 w-8 flex-shrink-0"
-                          onClick={(e) => {
-                            setArtisanSearchPosition({ x: e.clientX, y: e.clientY })
-                            setShowArtisanSearch(true)
-                          }}
-                          title="Rechercher un artisan"
+                          size="sm"
+                          onClick={handleOpenDevisEmailModal}
+                          disabled={!selectedArtisanForEmail && !selectedArtisanId}
+                          className="flex-1 text-xs"
                         >
-                          <Search className="h-4 w-4" />
+                          <Mail className="h-3.5 w-3.5 mr-1.5" />
+                          Mail demande de devis
                         </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={handleOpenInterventionEmailModal}
+                          disabled={!selectedArtisanForEmail && !selectedArtisanId}
+                          className="flex-1 text-xs"
+                        >
+                          <Mail className="h-3.5 w-3.5 mr-1.5" />
+                          Mail demande d&apos;intervention
+                        </Button>
+                      </div>
+
+                      {/* Ligne 2 : Boutons WhatsApp (conditionnels) */}
+                      {(() => {
+                        const artisanPhone = getSelectedArtisanPhone()
+                        const hasPhone = artisanPhone && artisanPhone.trim() !== ''
+                        const isArtisanSelected = selectedArtisanForEmail || selectedArtisanId
+                        const artisanId = effectiveSelectedArtisanId
+
+                        if (!hasPhone || !isArtisanSelected || !artisanId) return null
+
+                        return (
+                          <div className="flex gap-2">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleOpenWhatsApp('devis', artisanId, artisanPhone)}
+                              className="flex-1 text-xs bg-[#25D366]/10 hover:bg-[#25D366]/20 border-[#25D366]/30 text-[#25D366]"
+                            >
+                              <MessageCircle className="h-3.5 w-3.5 mr-1.5" />
+                              WhatsApp demande de devis
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleOpenWhatsApp('intervention', artisanId, artisanPhone)}
+                              className="flex-1 text-xs bg-[#25D366]/10 hover:bg-[#25D366]/20 border-[#25D366]/30 text-[#25D366]"
+                            >
+                              <MessageCircle className="h-3.5 w-3.5 mr-1.5" />
+                              WhatsApp demande d&apos;intervention
+                            </Button>
+                          </div>
+                        )
+                      })()}
                     </div>
                   </div>
-               </h3>
-               
-               {/* Email sending section */}
-               {artisansWithEmail.length > 0 && (
-                 <div className="space-y-2 p-3 bg-muted/50 rounded-lg border border-border/50">
-                   <Label className="text-xs font-semibold">Envoyer un email</Label>
-                   <div className="flex flex-col gap-2">
-                     <Select
-                       value={selectedArtisanForEmail || selectedArtisanId || ''}
-                       onValueChange={setSelectedArtisanForEmail}
-                     >
-                       <SelectTrigger className="h-8 text-sm">
-                         <SelectValue placeholder="Sélectionner un artisan" />
-                       </SelectTrigger>
-                       <SelectContent>
-                         {artisansWithEmail.map((artisan) => (
-                           <SelectItem key={artisan.id} value={artisan.id}>
-                             {artisan.name} ({artisan.email})
-                           </SelectItem>
-                         ))}
-                       </SelectContent>
-                     </Select>
-                     <div className="flex gap-2">
-                       <Button
-                         type="button"
-                         variant="outline"
-                         size="sm"
-                         onClick={handleOpenDevisEmailModal}
-                         disabled={!selectedArtisanForEmail && !selectedArtisanId}
-                         className="flex-1 text-xs"
-                       >
-                         <Mail className="h-3.5 w-3.5 mr-1.5" />
-                         Mail demande de devis
-                       </Button>
-                       <Button
-                         type="button"
-                         variant="outline"
-                         size="sm"
-                         onClick={handleOpenInterventionEmailModal}
-                         disabled={!selectedArtisanForEmail && !selectedArtisanId}
-                         className="flex-1 text-xs"
-                       >
-                         <Mail className="h-3.5 w-3.5 mr-1.5" />
-                         Mail demande d&apos;intervention
-                       </Button>
-                     </div>
-                   </div>
-                 </div>
-               )}
-               <div className="space-y-4 pt-0 flex-1 flex flex-col min-h-[300px]">
+                )}
+
+                {/* Carte sélectionnée affichée juste après "Envoyer un email" */}
+                {selectedArtisanId && selectedArtisanData && (() => {
+                  const artisan = selectedArtisanData
+                  const artisanName = `${artisan.prenom || ""} ${artisan.nom || ""}`.trim() || "Artisan sans nom"
+                  const artisanInitials = artisanName
+                    .split(" ")
+                    .map((part) => part.charAt(0))
+                    .join("")
+                    .slice(0, 2)
+                    .toUpperCase() || "??"
+
+                  const artisanStatus = refData?.artisanStatuses?.find((s) => s.id === artisan.statut_id)
+                  const statutArtisan = artisanStatus?.label || ""
+                  const statutArtisanColor = artisanStatus?.color || null
+
+                  return (
+                    <div className="animate-in fade-in-0 slide-in-from-top-2 duration-300">
+                      <div
+                        role="button"
+                        tabIndex={0}
+                        className="relative rounded-lg border border-primary/70 ring-2 ring-primary/50 bg-background/80 p-3 text-sm shadow-sm transition-all duration-300 ease-in-out opacity-100 scale-100"
+                        onClick={() => handleRemoveSelectedArtisan()}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter" || event.key === " ") {
+                            event.preventDefault()
+                            handleRemoveSelectedArtisan()
+                          }
+                        }}
+                      >
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="absolute right-2 top-2 h-6 w-6 rounded-full bg-background/80 text-muted-foreground shadow-sm transition-colors hover:text-destructive z-20"
+                          onClick={(event) => {
+                            event.stopPropagation()
+                            handleRemoveSelectedArtisan()
+                          }}
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                        <div className="flex items-start gap-3">
+                          <Avatar
+                            photoProfilMetadata={artisan.photoProfilMetadata}
+                            initials={artisanInitials}
+                            name={artisan.displayName}
+                            size={40}
+                          />
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center justify-between gap-2">
+                              <div className="flex flex-col">
+                                <span className="font-semibold text-foreground">
+                                  {artisan.displayName}
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                {statutArtisan && statutArtisanColor && (
+                                  <Badge
+                                    variant="outline"
+                                    className="border px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide flex-shrink-0"
+                                    style={{
+                                      backgroundColor: hexToRgba(statutArtisanColor, 0.15) || statutArtisanColor + '20',
+                                      color: statutArtisanColor,
+                                      borderColor: statutArtisanColor,
+                                    }}
+                                  >
+                                    {statutArtisan}
+                                  </Badge>
+                                )}
+                                {statutArtisan && !statutArtisanColor && (
+                                  <Badge
+                                    variant="outline"
+                                    className="border px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide bg-gray-100 text-gray-700 border-gray-300 flex-shrink-0"
+                                  >
+                                    {statutArtisan}
+                                  </Badge>
+                                )}
+                                <Badge variant="default" className="flex-shrink-0">
+                                  {formatDistanceKm(artisan.distanceKm)}
+                                </Badge>
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-6 w-6 flex-shrink-0 text-muted-foreground hover:text-foreground"
+                                  onClick={(e) => handleOpenArtisanModal(artisan.id, e)}
+                                  title="Voir les détails de l'artisan"
+                                >
+                                  <Eye className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            </div>
+                            <div className="mt-1 text-xs text-muted-foreground">
+                              {artisan.adresse ? (
+                                <span>
+                                  {artisan.adresse}
+                                  {artisan.codePostal || artisan.ville ? (
+                                    <>
+                                      , {artisan.codePostal ?? ""}
+                                      {artisan.codePostal && artisan.ville ? " " : ""}
+                                      {artisan.ville ?? ""}
+                                    </>
+                                  ) : null}
+                                </span>
+                              ) : (
+                                <span>
+                                  {artisan.codePostal ?? "—"}
+                                  {artisan.codePostal && artisan.ville ? " " : ""}
+                                  {artisan.ville ?? ""}
+                                </span>
+                              )}
+                            </div>
+                            <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+                              {artisan.telephone ? <span>📞 {artisan.telephone}</span> : null}
+                              {artisan.email ? <span>✉️ {artisan.email}</span> : null}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })()}
+              </div>
+
+              <div className="space-y-4 pt-0 flex-1 flex flex-col min-h-[300px]">
                 {isLoadingNearbyArtisans ? (
-                    <div className="flex items-center justify-center flex-1 text-sm text-muted-foreground">
-                        Recherche des artisans...
-                    </div>
+                  <div className="flex items-center justify-center flex-1 text-sm text-muted-foreground">
+                    Recherche des artisans...
+                  </div>
                 ) : nearbyArtisansError ? (
-                    <div className="rounded border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+                  <div className="rounded border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive">
                     {nearbyArtisansError}
-                    </div>
+                  </div>
                 ) : nearbyArtisans.length === 0 ? (
-                    <div className="rounded border border-border/50 bg-background px-3 py-3 text-xs text-muted-foreground">
+                  <div className="rounded border border-border/50 bg-background px-3 py-3 text-xs text-muted-foreground">
                     Aucun artisan géolocalisé n’a été trouvé dans un rayon de {perimeterKmValue} km.
-                    </div>
+                  </div>
                 ) : (
-                    <div className="flex-1 overflow-y-auto pr-1 space-y-2 max-h-[500px]">
+                  <div className="flex-1 overflow-y-auto pr-1 space-y-2 max-h-[500px]">
                     {sortedNearbyArtisans.map((artisan) => {
-                        const isSelected = selectedArtisanId === artisan.id
-                        const artisanName = `${artisan.prenom || ""} ${artisan.nom || ""}`.trim() || "Artisan sans nom"
-                        const artisanInitials = artisanName
+                      // Si un artisan est sélectionné, toutes les cartes (y compris la sélectionnée) disparaissent progressivement
+                      // La carte sélectionnée est affichée séparément juste après "Envoyer un email"
+
+                      const artisanName = `${artisan.prenom || ""} ${artisan.nom || ""}`.trim() || "Artisan sans nom"
+                      const artisanInitials = artisanName
                         .split(" ")
                         .map((part) => part.charAt(0))
                         .join("")
                         .slice(0, 2)
                         .toUpperCase() || "??"
 
-                        const artisanStatus = refData?.artisanStatuses?.find((s) => s.id === artisan.statut_id)
-                        const statutArtisan = artisanStatus?.label || ""
-                        const statutArtisanColor = artisanStatus?.color || null
+                      const artisanStatus = refData?.artisanStatuses?.find((s) => s.id === artisan.statut_id)
+                      const statutArtisan = artisanStatus?.label || ""
+                      const statutArtisanColor = artisanStatus?.color || null
 
-                        return (
+                      return (
                         <div
-                            key={artisan.id}
-                            role="button"
-                            tabIndex={0}
-                            className={cn(
-                            "relative rounded-lg border border-border/60 bg-background/80 p-3 text-sm shadow-sm transition-colors",
-                            isSelected
-                                ? "border-primary/70 ring-2 ring-primary/50"
-                                : "hover:border-primary/40",
-                            )}
-                            onClick={() => handleSelectNearbyArtisan(artisan)}
-                            onKeyDown={(event) => {
+                          key={artisan.id}
+                          role="button"
+                          tabIndex={0}
+                          className={cn(
+                            "relative rounded-lg border border-border/60 bg-background/80 p-3 text-sm shadow-sm transition-all duration-300 ease-in-out",
+                            selectedArtisanId
+                              ? "opacity-0 scale-95 max-h-0 overflow-hidden pointer-events-none m-0 p-0 border-0"
+                              : "hover:border-primary/40 opacity-100 scale-100"
+                          )}
+                          onClick={() => handleSelectNearbyArtisan(artisan)}
+                          onKeyDown={(event) => {
                             if (event.key === "Enter" || event.key === " ") {
-                                event.preventDefault()
-                                handleSelectNearbyArtisan(artisan)
+                              event.preventDefault()
+                              handleSelectNearbyArtisan(artisan)
                             }
-                            }}
+                          }}
                         >
-                            {isSelected ? (
-                            <Button
-                                type="button"
-                                variant="ghost"
-                                size="icon"
-                                className="absolute right-2 top-2 h-6 w-6 rounded-full bg-background/80 text-foreground shadow-sm transition hover:text-destructive"
-                                onClick={(event) => {
-                                event.stopPropagation()
-                                handleRemoveSelectedArtisan()
-                                }}
-                            >
-                                <X className="h-3.5 w-3.5" />
-                            </Button>
-                            ) : null}
-                            <div className="flex items-start gap-3">
+                          <div className="flex items-start gap-3">
                             <Avatar
-                                photoProfilMetadata={artisan.photoProfilMetadata}
-                                initials={artisanInitials}
-                                name={artisan.displayName}
-                                size={40}
+                              photoProfilMetadata={artisan.photoProfilMetadata}
+                              initials={artisanInitials}
+                              name={artisan.displayName}
+                              size={40}
                             />
                             <div className="flex-1 min-w-0">
-                                <div className="flex items-center justify-between gap-2">
+                              <div className="flex items-center justify-between gap-2">
                                 <div className="flex flex-col">
-                                    <span className="font-semibold text-foreground">
+                                  <span className="font-semibold text-foreground">
                                     {artisan.displayName}
-                                    </span>
+                                  </span>
                                 </div>
                                 <div className="flex items-center gap-2">
-                                    {statutArtisan && statutArtisanColor && (
+                                  {statutArtisan && statutArtisanColor && (
                                     <Badge
-                                        variant="outline"
-                                        className="border px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide flex-shrink-0"
-                                        style={{
+                                      variant="outline"
+                                      className="border px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide flex-shrink-0"
+                                      style={{
                                         backgroundColor: hexToRgba(statutArtisanColor, 0.15) || statutArtisanColor + '20',
                                         color: statutArtisanColor,
                                         borderColor: statutArtisanColor,
-                                        }}
+                                      }}
                                     >
-                                        {statutArtisan}
+                                      {statutArtisan}
                                     </Badge>
-                                    )}
-                                    {statutArtisan && !statutArtisanColor && (
+                                  )}
+                                  {statutArtisan && !statutArtisanColor && (
                                     <Badge
-                                        variant="outline"
-                                        className="border px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide bg-gray-100 text-gray-700 border-gray-300 flex-shrink-0"
+                                      variant="outline"
+                                      className="border px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide bg-gray-100 text-gray-700 border-gray-300 flex-shrink-0"
                                     >
-                                        {statutArtisan}
+                                      {statutArtisan}
                                     </Badge>
-                                    )}
-                                    <Badge variant={isSelected ? "default" : "secondary"} className="flex-shrink-0">
+                                  )}
+                                  <Badge variant="secondary" className="flex-shrink-0">
                                     {formatDistanceKm(artisan.distanceKm)}
-                                    </Badge>
-                                    <Button
+                                  </Badge>
+                                  <Button
                                     type="button"
                                     variant="ghost"
                                     size="icon"
                                     className="h-6 w-6 flex-shrink-0 text-muted-foreground hover:text-foreground"
                                     onClick={(e) => handleOpenArtisanModal(artisan.id, e)}
                                     title="Voir les détails de l'artisan"
-                                    >
+                                  >
                                     <Eye className="h-4 w-4" />
-                                    </Button>
+                                  </Button>
                                 </div>
-                                </div>
-                                <div className="mt-1 text-xs text-muted-foreground">
+                              </div>
+                              <div className="mt-1 text-xs text-muted-foreground">
                                 {artisan.adresse ? (
-                                    <span>
+                                  <span>
                                     {artisan.adresse}
                                     {artisan.codePostal || artisan.ville ? (
-                                        <>
+                                      <>
                                         , {artisan.codePostal ?? ""}
                                         {artisan.codePostal && artisan.ville ? " " : ""}
                                         {artisan.ville ?? ""}
-                                        </>
+                                      </>
                                     ) : null}
-                                    </span>
+                                  </span>
                                 ) : (
-                                    <span>
+                                  <span>
                                     {artisan.codePostal ?? "—"}
                                     {artisan.codePostal && artisan.ville ? " " : ""}
                                     {artisan.ville ?? ""}
-                                    </span>
+                                  </span>
                                 )}
-                                </div>
-                                <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+                              </div>
+                              <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
                                 {artisan.telephone ? <span>📞 {artisan.telephone}</span> : null}
                                 {artisan.email ? <span>✉️ {artisan.email}</span> : null}
-                                </div>
+                              </div>
                             </div>
-                            </div>
+                          </div>
                         </div>
-                        )
+                      )
                     })}
-                    </div>
+                  </div>
                 )}
-               </div>
+              </div>
             </div>
 
           </div>
@@ -1488,85 +2076,85 @@ export function InterventionEditForm({
           <div className="space-y-4">
             {/* LIGNE COÛTS + DATE PRÉVUE */}
             <div>
-                <Label className="mb-3 block text-xs font-medium uppercase tracking-wide text-muted-foreground">Finances & Planification</Label>
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-5 items-end">
-                    {/* Coûts */}
-                    <div>
-                        <Label htmlFor="coutIntervention" className="text-xs">Coût inter.</Label>
-                        <Input
-                            id="coutIntervention"
-                            type="number"
-                            step="0.01"
-                            min="0"
-                            value={formData.coutIntervention}
-                            onChange={(event) => handleInputChange("coutIntervention", event.target.value)}
-                            placeholder="0.00 €"
-                            className="h-9 text-sm mt-1"
-                        />
-                    </div>
-                    <div>
-                        <Label htmlFor="coutSST" className="text-xs">Coût SST</Label>
-                        <Input
-                            id="coutSST"
-                            type="number"
-                            step="0.01"
-                            min="0"
-                            value={formData.coutSST}
-                            onChange={(event) => handleInputChange("coutSST", event.target.value)}
-                            placeholder="0.00 €"
-                            className="h-9 text-sm mt-1"
-                        />
-                    </div>
-                    <div>
-                        <Label htmlFor="coutMateriel" className="text-xs">Coût mat.</Label>
-                        <Input
-                            id="coutMateriel"
-                            type="number"
-                            step="0.01"
-                            min="0"
-                            value={formData.coutMateriel}
-                            onChange={(event) => handleInputChange("coutMateriel", event.target.value)}
-                            placeholder="0.00 €"
-                            className="h-9 text-sm mt-1"
-                        />
-                    </div>
-                     {/* Marge (Calculée) */}
-                    <div>
-                         <Label className="text-xs">Marge</Label>
-                         <div className="flex h-9 w-full rounded-md border border-input bg-muted px-3 py-1 text-sm shadow-sm items-center mt-1">
-                            {(() => {
-                                const inter = parseFloat(formData.coutIntervention) || 0
-                                const sst = parseFloat(formData.coutSST) || 0
-                                const mat = parseFloat(formData.coutMateriel) || 0
-                                if (inter > 0) {
-                                    const marge = ((inter - (sst + mat)) / inter) * 100
-                                    return <span className={cn("font-medium", marge < 0 ? "text-destructive" : "text-green-600")}>{marge.toFixed(1)} %</span>
-                                }
-                                return <span className="text-muted-foreground">-- %</span>
-                            })()}
-                         </div>
-                    </div>
-                    {/* Date Prévue */}
-                    <div>
-                        <Label htmlFor="datePrevue" className="text-xs">Date prévue {requiresDatePrevue && "*"}</Label>
-                        <Input
-                            id="datePrevue"
-                            type="date"
-                            value={formData.date_prevue}
-                            onChange={(event) => handleInputChange("date_prevue", event.target.value)}
-                            className="h-9 text-sm mt-1"
-                            required={requiresDatePrevue}
-                            title={requiresDatePrevue ? "Date prévue obligatoire pour ce statut" : undefined}
-                        />
-                    </div>
+              <Label className="mb-3 block text-xs font-medium uppercase tracking-wide text-muted-foreground">Finances & Planification</Label>
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-5 items-end">
+                {/* Coûts */}
+                <div>
+                  <Label htmlFor="coutIntervention" className="text-xs">Coût inter.</Label>
+                  <Input
+                    id="coutIntervention"
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={formData.coutIntervention}
+                    onChange={(event) => handleInputChange("coutIntervention", event.target.value)}
+                    placeholder="0.00 €"
+                    className="h-9 text-sm mt-1"
+                  />
                 </div>
+                <div>
+                  <Label htmlFor="coutSST" className="text-xs">Coût SST</Label>
+                  <Input
+                    id="coutSST"
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={formData.coutSST}
+                    onChange={(event) => handleInputChange("coutSST", event.target.value)}
+                    placeholder="0.00 €"
+                    className="h-9 text-sm mt-1"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="coutMateriel" className="text-xs">Coût mat.</Label>
+                  <Input
+                    id="coutMateriel"
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={formData.coutMateriel}
+                    onChange={(event) => handleInputChange("coutMateriel", event.target.value)}
+                    placeholder="0.00 €"
+                    className="h-9 text-sm mt-1"
+                  />
+                </div>
+                {/* Marge (Calculée) */}
+                <div>
+                  <Label className="text-xs">Marge</Label>
+                  <div className="flex h-9 w-full rounded-md border border-input bg-muted px-3 py-1 text-sm shadow-sm items-center mt-1">
+                    {(() => {
+                      const inter = parseFloat(formData.coutIntervention) || 0
+                      const sst = parseFloat(formData.coutSST) || 0
+                      const mat = parseFloat(formData.coutMateriel) || 0
+                      if (inter > 0) {
+                        const marge = ((inter - (sst + mat)) / inter) * 100
+                        return <span className={cn("font-medium", marge < 0 ? "text-destructive" : "text-green-600")}>{marge.toFixed(1)} %</span>
+                      }
+                      return <span className="text-muted-foreground">-- %</span>
+                    })()}
+                  </div>
+                </div>
+                {/* Date Prévue */}
+                <div>
+                  <Label htmlFor="datePrevue" className="text-xs">Date prévue {requiresDatePrevue && "*"}</Label>
+                  <Input
+                    id="datePrevue"
+                    type="date"
+                    value={formData.date_prevue}
+                    onChange={(event) => handleInputChange("date_prevue", event.target.value)}
+                    className="h-9 text-sm mt-1"
+                    required={requiresDatePrevue}
+                    title={requiresDatePrevue ? "Date prévue obligatoire pour ce statut" : undefined}
+                  />
+                </div>
+              </div>
             </div>
           </div>
 
         </CardContent>
       </Card>
 
-{/* 4. SECTIONS PLEINE LARGEUR (Collapsibles) */}
+      {/* 4. SECTIONS PLEINE LARGEUR (Collapsibles) */}
 
       {/* Détails propriétaire et client */}
       <Collapsible open={isProprietaireOpen} onOpenChange={setIsProprietaireOpen}>
@@ -1596,7 +2184,6 @@ export function InterventionEditForm({
                           onChange={(event) => handleInputChange("nomProprietaire", event.target.value)}
                           placeholder="Nom"
                           className="h-8 text-sm mt-1"
-                          disabled
                         />
                       </div>
                       <div>
@@ -1607,7 +2194,6 @@ export function InterventionEditForm({
                           onChange={(event) => handleInputChange("prenomProprietaire", event.target.value)}
                           placeholder="Prénom"
                           className="h-8 text-sm mt-1"
-                          disabled
                         />
                       </div>
                     </div>
@@ -1621,7 +2207,6 @@ export function InterventionEditForm({
                           onChange={(event) => handleInputChange("telephoneProprietaire", event.target.value)}
                           placeholder="06 12 34 56 78"
                           className="h-8 text-sm mt-1"
-                          disabled
                         />
                       </div>
                       <div>
@@ -1633,7 +2218,6 @@ export function InterventionEditForm({
                           onChange={(event) => handleInputChange("emailProprietaire", event.target.value)}
                           placeholder="email@example.com"
                           className="h-8 text-sm mt-1"
-                          disabled
                         />
                       </div>
                     </div>
@@ -1641,60 +2225,117 @@ export function InterventionEditForm({
                 </div>
                 {/* Colonne 2 : Client */}
                 <div>
-                  <Label className="mb-2 block text-xs font-medium">Client</Label>
-                  <div className="space-y-3">
-                    {/* Ligne 1 : Nom et Prénom */}
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <Label htmlFor="nomClient" className="text-xs">Nom</Label>
-                        <Input
-                          id="nomClient"
-                          value={formData.nomClient}
-                          onChange={(event) => handleInputChange("nomClient", event.target.value)}
-                          placeholder="Nom"
-                          className="h-8 text-sm mt-1"
-                          disabled
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor="prenomClient" className="text-xs">Prénom</Label>
-                        <Input
-                          id="prenomClient"
-                          value={formData.prenomClient}
-                          onChange={(event) => handleInputChange("prenomClient", event.target.value)}
-                          placeholder="Prénom"
-                          className="h-8 text-sm mt-1"
-                          disabled
-                        />
-                      </div>
-                    </div>
-                    {/* Ligne 2 : Téléphone et Email */}
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <Label htmlFor="telephoneClient" className="text-xs">Téléphone</Label>
-                        <Input
-                          id="telephoneClient"
-                          value={formData.telephoneClient}
-                          onChange={(event) => handleInputChange("telephoneClient", event.target.value)}
-                          placeholder="06 12 34 56 78"
-                          className="h-8 text-sm mt-1"
-                          disabled
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor="emailClient" className="text-xs">Email</Label>
-                        <Input
-                          id="emailClient"
-                          type="email"
-                          value={formData.emailClient}
-                          onChange={(event) => handleInputChange("emailClient", event.target.value)}
-                          placeholder="email@example.com"
-                          className="h-8 text-sm mt-1"
-                          disabled
-                        />
-                      </div>
+                  <div className="flex items-center justify-between mb-2">
+                    <Label className="block text-xs font-medium">Client</Label>
+                    <div className="flex items-center space-x-2">
+                      <input
+                        type="checkbox"
+                        id="is_vacant"
+                        className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                        checked={formData.is_vacant}
+                        onChange={(e) => handleInputChange("is_vacant", e.target.checked)}
+                      />
+                      <Label htmlFor="is_vacant" className="text-xs font-normal cursor-pointer select-none">
+                        logement vacant
+                      </Label>
                     </div>
                   </div>
+
+                  {formData.is_vacant ? (
+                    <div className="space-y-3">
+                      {/* Ligne 1 : Code clé, Etage, N° Appartement */}
+                      <div className="grid grid-cols-3 gap-3">
+                        <div>
+                          <Label htmlFor="key_code" className="text-xs uppercase">CODE CLÉ</Label>
+                          <Input
+                            id="key_code"
+                            value={formData.key_code}
+                            onChange={(event) => handleInputChange("key_code", event.target.value)}
+                            className="h-8 text-sm mt-1"
+                          />
+                        </div>
+                        <div>
+                          <Label htmlFor="floor" className="text-xs">etage</Label>
+                          <Input
+                            id="floor"
+                            value={formData.floor}
+                            onChange={(event) => handleInputChange("floor", event.target.value)}
+                            className="h-8 text-sm mt-1"
+                          />
+                        </div>
+                        <div>
+                          <Label htmlFor="apartment_number" className="text-xs">n° appartement</Label>
+                          <Input
+                            id="apartment_number"
+                            value={formData.apartment_number}
+                            onChange={(event) => handleInputChange("apartment_number", event.target.value)}
+                            className="h-8 text-sm mt-1"
+                          />
+                        </div>
+                      </div>
+                      {/* Ligne 2 : Consigne */}
+                      <div>
+                        <Label htmlFor="vacant_housing_instructions" className="text-xs">Consigne</Label>
+                        <Textarea
+                          id="vacant_housing_instructions"
+                          value={formData.vacant_housing_instructions}
+                          onChange={(event) => handleInputChange("vacant_housing_instructions", event.target.value)}
+                          placeholder="Consignes"
+                          className="min-h-[80px] text-sm mt-1 resize-none"
+                        />
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {/* Ligne 1 : Nom et Prénom */}
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <Label htmlFor="nomClient" className="text-xs">Nom</Label>
+                          <Input
+                            id="nomClient"
+                            value={formData.nomClient}
+                            onChange={(event) => handleInputChange("nomClient", event.target.value)}
+                            placeholder="Nom"
+                            className="h-8 text-sm mt-1"
+                          />
+                        </div>
+                        <div>
+                          <Label htmlFor="prenomClient" className="text-xs">Prénom</Label>
+                          <Input
+                            id="prenomClient"
+                            value={formData.prenomClient}
+                            onChange={(event) => handleInputChange("prenomClient", event.target.value)}
+                            placeholder="Prénom"
+                            className="h-8 text-sm mt-1"
+                          />
+                        </div>
+                      </div>
+                      {/* Ligne 2 : Téléphone et Email */}
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <Label htmlFor="telephoneClient" className="text-xs">Téléphone</Label>
+                          <Input
+                            id="telephoneClient"
+                            value={formData.telephoneClient}
+                            onChange={(event) => handleInputChange("telephoneClient", event.target.value)}
+                            placeholder="06 12 34 56 78"
+                            className="h-8 text-sm mt-1"
+                          />
+                        </div>
+                        <div>
+                          <Label htmlFor="emailClient" className="text-xs">Email</Label>
+                          <Input
+                            id="emailClient"
+                            type="email"
+                            value={formData.emailClient}
+                            onChange={(event) => handleInputChange("emailClient", event.target.value)}
+                            placeholder="email@example.com"
+                            className="h-8 text-sm mt-1"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             </CardContent>
@@ -1721,9 +2362,14 @@ export function InterventionEditForm({
                   <Input
                     id="accompteSST"
                     value={formData.accompteSST}
+                    onChange={(event) => handleAccompteSSTChange(event.target.value)}
+                    onBlur={handleAccompteSSTBlur}
                     placeholder="Montant"
                     className="h-8 text-sm"
-                    disabled
+                    disabled={!canEditAccomptes}
+                    type="number"
+                    step="0.01"
+                    min="0"
                   />
                 </div>
                 <div>
@@ -1732,13 +2378,15 @@ export function InterventionEditForm({
                     <input
                       type="checkbox"
                       checked={formData.accompteSSTRecu}
-                      disabled
+                      onChange={(e) => handleAccompteSSTRecuChange(e.target.checked)}
+                      className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
                     />
                     <Input
                       type="date"
                       value={formData.dateAccompteSSTRecu}
+                      onChange={(e) => handleDateAccompteSSTRecuChange(e.target.value)}
                       className="h-8 text-sm"
-                      disabled
+                      required={formData.accompteSSTRecu && !formData.dateAccompteSSTRecu}
                     />
                   </div>
                 </div>
@@ -1747,9 +2395,14 @@ export function InterventionEditForm({
                   <Input
                     id="accompteClient"
                     value={formData.accompteClient}
+                    onChange={(event) => handleAccompteClientChange(event.target.value)}
+                    onBlur={handleAccompteClientBlur}
                     placeholder="Montant"
                     className="h-8 text-sm"
-                    disabled
+                    disabled={!canEditAccomptes}
+                    type="number"
+                    step="0.01"
+                    min="0"
                   />
                 </div>
                 <div>
@@ -1758,19 +2411,21 @@ export function InterventionEditForm({
                     <input
                       type="checkbox"
                       checked={formData.accompteClientRecu}
-                      disabled
+                      onChange={(e) => handleAccompteClientRecuChange(e.target.checked)}
+                      className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
                     />
                     <Input
                       type="date"
                       value={formData.dateAccompteClientRecu}
+                      onChange={(e) => handleDateAccompteClientRecuChange(e.target.value)}
                       className="h-8 text-sm"
-                      disabled
+                      required={formData.accompteClientRecu && !formData.dateAccompteClientRecu}
                     />
                   </div>
                 </div>
               </div>
               <p className="text-xs text-muted-foreground">
-                Note: La gestion des acomptes est en lecture seule. Utilisez l&apos;API dédiée pour modifier ces données.
+                Note: Les acomptes ne sont éditables que si le statut est "Accepté" ou "Attente acompte".
               </p>
             </CardContent>
           </CollapsibleContent>
@@ -1849,7 +2504,7 @@ export function InterventionEditForm({
         }}
         isSubmitting={isSubmitting}
       />
-      
+
       {/* Email Edit Modals */}
       {effectiveSelectedArtisanId && (
         <>

@@ -45,6 +45,11 @@ interface CreateInterventionRequest {
   longitude?: number;
   numero_sst?: string;
   pourcentage_sst?: number;
+  is_vacant?: boolean;
+  key_code?: string | null;
+  floor?: string | null;
+  apartment_number?: string | null;
+  vacant_housing_instructions?: string | null;
 }
 
 interface UpdateInterventionRequest {
@@ -72,6 +77,11 @@ interface UpdateInterventionRequest {
   numero_sst?: string;
   pourcentage_sst?: number;
   is_active?: boolean;
+  is_vacant?: boolean;
+  key_code?: string | null;
+  floor?: string | null;
+  apartment_number?: string | null;
+  vacant_housing_instructions?: string | null;
 }
 
 interface AssignArtisanRequest {
@@ -1333,6 +1343,11 @@ serve(async (req: Request) => {
               ville: body.ville,
               latitude: body.latitude,
               longitude: body.longitude,
+              is_vacant: body.is_vacant ?? false,
+              key_code: body.key_code ?? null,
+              floor: body.floor ?? null,
+              apartment_number: body.apartment_number ?? null,
+              vacant_housing_instructions: body.vacant_housing_instructions ?? null,
               updated_at: new Date().toISOString()
             })
             .eq('id', existing.id)
@@ -1383,6 +1398,11 @@ serve(async (req: Request) => {
           ville: body.ville,
           latitude: body.latitude,
           longitude: body.longitude,
+          is_vacant: body.is_vacant ?? false,
+          key_code: body.key_code ?? null,
+          floor: body.floor ?? null,
+          apartment_number: body.apartment_number ?? null,
+          vacant_housing_instructions: body.vacant_housing_instructions ?? null,
           is_active: true
         }])
         .select()
@@ -1507,6 +1527,11 @@ serve(async (req: Request) => {
           ville: body.ville,
           latitude: body.latitude,
           longitude: body.longitude,
+          is_vacant: body.is_vacant ?? false,
+          key_code: body.key_code ?? null,
+          floor: body.floor ?? null,
+          apartment_number: body.apartment_number ?? null,
+          vacant_housing_instructions: body.vacant_housing_instructions ?? null,
           is_active: true
         }])
         .select()
@@ -1547,6 +1572,11 @@ serve(async (req: Request) => {
                 ville: body.ville,
                 latitude: body.latitude,
                 longitude: body.longitude,
+                is_vacant: body.is_vacant ?? false,
+                key_code: body.key_code ?? null,
+                floor: body.floor ?? null,
+                apartment_number: body.apartment_number ?? null,
+                vacant_housing_instructions: body.vacant_housing_instructions ?? null,
                 is_active: true
               }])
               .select()
@@ -1684,6 +1714,11 @@ serve(async (req: Request) => {
           ville: body.ville,
           latitude: body.latitude,
           longitude: body.longitude,
+          is_vacant: body.is_vacant ?? false,
+          key_code: body.key_code ?? null,
+          floor: body.floor ?? null,
+          apartment_number: body.apartment_number ?? null,
+          vacant_housing_instructions: body.vacant_housing_instructions ?? null,
           is_active: body.is_active,
           updated_at: new Date().toISOString()
         })

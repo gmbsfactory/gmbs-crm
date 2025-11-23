@@ -86,6 +86,7 @@ import { TABLE_ALIGNMENT_OPTIONS } from "./column-alignment-options"
 import type { InterventionModalOpenOptions } from "@/hooks/useInterventionModal"
 import { iconForStatus } from "@/lib/interventions/status-icons"
 import { getStatusDisplay } from "@/lib/interventions/status-display"
+import { getStatusDisplayLabel } from "@/lib/interventions/deposit-helpers"
 import { Pagination } from "@/components/ui/pagination"
 
 const numberFormatter = new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 2 })
@@ -214,12 +215,26 @@ const renderCell = (
       } : undefined,
     })
 
+    // Récupérer les paiements pour vérifier si l'accompte est validé
+    const payments = (intervention as any).payments as Array<{ payment_type?: string; is_received?: boolean; payment_date?: string | null }> | undefined
+    const sstPayment = payments?.find(p => p.payment_type === 'acompte_sst')
+    const clientPayment = payments?.find(p => p.payment_type === 'acompte_client')
+    
+    // Utiliser getStatusDisplayLabel pour obtenir le label avec "$" si l'accompte est validé
+    const baseLabel = statusDisplay.label
+    const statusLabelWithDeposit = getStatusDisplayLabel(
+      statusCode,
+      baseLabel,
+      sstPayment,
+      clientPayment
+    )
+
     // DAT-001 : Vérifier si l'intervention doit afficher le statut "Check"
     const datePrevue = (intervention as any).date_prevue ?? (intervention as any).datePrevue ?? null
     const isCheck = isCheckStatus(statusCode, datePrevue)
 
     // Si Check, remplacer complètement le label par "CHECK"
-    const displayLabel = isCheck ? "CHECK" : statusDisplay.label
+    const displayLabel = isCheck ? "CHECK" : statusLabelWithDeposit
     const displayColor = isCheck ? "#EF4444" : statusDisplay.color // Rouge pour Check
 
     const appearance: TableColumnAppearance = style?.appearance ?? "solid"

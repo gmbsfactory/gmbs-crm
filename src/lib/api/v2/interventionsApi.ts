@@ -102,7 +102,8 @@ export const interventionsApi = {
       .select(
         `
           *,
-          status:intervention_statuses(id,code,label,color,sort_order)
+          status:intervention_statuses(id,code,label,color,sort_order),
+          payments:intervention_payments(*)
         `,
         { count: "exact" }
       )
@@ -290,7 +291,7 @@ export const interventionsApi = {
     // Récupérer le statut actuel avant la mise à jour pour détecter si on passe à "terminé"
     let wasTerminatedBefore = false;
     let oldStatutId: string | null = null;
-    
+
     if (payload.statut_id && typeof window !== "undefined") {
       const { data: currentIntervention } = await supabase
         .from("interventions")
@@ -303,7 +304,7 @@ export const interventionsApi = {
 
       if (currentIntervention) {
         oldStatutId = currentIntervention.statut_id;
-        
+
         if ((currentIntervention as any).status) {
           const terminatedStatusCodes = ['TERMINE', 'INTER_TERMINEE'];
           const currentStatusCode = (currentIntervention as any).status?.code;
@@ -383,8 +384,8 @@ export const interventionsApi = {
           .map(ia => ia.artisan_id)
           .filter(Boolean) as string[];
 
-        const finalArtisanIds = artisanIds.length > 0 
-          ? artisanIds 
+        const finalArtisanIds = artisanIds.length > 0
+          ? artisanIds
           : interventionArtisans.map(ia => ia.artisan_id).filter(Boolean) as string[];
 
         // Appeler l'API route pour recalculer chaque artisan en arrière-plan
@@ -596,7 +597,7 @@ export const interventionsApi = {
     }
   ): Promise<InterventionCost> {
     // "total" n'est pas un type valide pour la base de données, on le mappe vers "marge"
-    const costType: "sst" | "materiel" | "intervention" | "marge" = 
+    const costType: "sst" | "materiel" | "intervention" | "marge" =
       data.cost_type === "total" ? "marge" : data.cost_type;
 
     // Vérifier si le coût existe déjà
@@ -671,6 +672,62 @@ export const interventionsApi = {
     }
 
     return result;
+  },
+
+  // Mettre à jour ou créer un paiement pour une intervention (upsert)
+  async upsertPayment(
+    interventionId: string,
+    data: {
+      payment_type: string;
+      amount?: number;
+      currency?: string;
+      is_received?: boolean;
+      payment_date?: string | null;
+      reference?: string | null;
+    }
+  ): Promise<InterventionPayment> {
+    // Vérifier si le paiement existe déjà
+    const { data: existingPayment, error: findError } = await supabase
+      .from('intervention_payments')
+      .select('id')
+      .eq('intervention_id', interventionId)
+      .eq('payment_type', data.payment_type)
+      .maybeSingle();
+
+    if (findError && findError.code !== 'PGRST116') {
+      throw new Error(`Erreur lors de la recherche du paiement: ${findError.message}`);
+    }
+
+    if (existingPayment) {
+      // Mettre à jour le paiement existant
+      const { data: result, error: updateError } = await supabase
+        .from('intervention_payments')
+        .update({
+          ...data,
+          // Ne pas mettre à jour updated_at car il n'existe pas forcément sur cette table ou est géré par trigger
+        })
+        .eq('id', existingPayment.id)
+        .select()
+        .single();
+
+      if (updateError) {
+        throw new Error(`Erreur lors de la mise à jour du paiement: ${updateError.message}`);
+      }
+
+      return result;
+    } else {
+      // Créer un nouveau paiement
+      // Pour la création, amount est requis s'il n'est pas fourni (mais ici on suppose qu'il l'est ou que la DB a une default)
+      // On utilise addPayment qui attend amount. Si data.amount est undefined, on met 0 par défaut pour la création.
+      return this.addPayment(interventionId, {
+        payment_type: data.payment_type,
+        amount: data.amount ?? 0,
+        currency: data.currency,
+        is_received: data.is_received,
+        payment_date: data.payment_date || undefined,
+        reference: data.reference || undefined
+      });
+    }
   },
 
   // Upsert une intervention (créer ou mettre à jour)
@@ -971,12 +1028,12 @@ export const interventionsApi = {
       const status = item.status;
       const statusCode = status?.code || null;
       const datePrevue = item.date_prevue || null;
-      
+
       // Vérifier si c'est une intervention CHECK
       if (isCheckStatus(statusCode, datePrevue)) {
         interventionsAChecker++;
       }
-      
+
       if (status) {
         const code = status.code || "SANS_STATUT";
         const label = status.label || "Sans statut";
@@ -1327,7 +1384,7 @@ export const interventionsApi = {
       const diff = now.getDate() - day + (day === 0 ? -6 : 1); // Ajuster pour que lundi = 1
       monday = new Date(now.getFullYear(), now.getMonth(), diff);
       monday.setHours(0, 0, 0, 0);
-      
+
       console.log(`[WeeklyStats] Date actuelle: ${now.toISOString()}, Jour de la semaine: ${day}, Diff: ${diff}`);
       console.log(`[WeeklyStats] Lundi calculé: ${monday.toISOString()}`);
     }
@@ -1402,7 +1459,7 @@ export const interventionsApi = {
     console.log(`[WeeklyStats] Période: ${mondayStr} à ${saturdayStr}`);
     console.log(`[WeeklyStats] UserId: ${userId}`);
     console.log(`[WeeklyStats] Interventions trouvées: ${interventions?.length || 0}`);
-    
+
     // Vérifier toutes les interventions de l'utilisateur (sans filtre de date) pour debug
     const { data: allUserInterventions, count: totalCount } = await supabase
       .from("interventions")
@@ -1410,14 +1467,14 @@ export const interventionsApi = {
       .eq("assigned_user_id", userId)
       .eq("is_active", true)
       .limit(10);
-    
+
     console.log(`[WeeklyStats] Total interventions pour cet utilisateur (sans filtre date): ${totalCount ?? 0}`);
     if (allUserInterventions && allUserInterventions.length > 0) {
-      console.log(`[WeeklyStats] Exemples de dates d'interventions:`, 
+      console.log(`[WeeklyStats] Exemples de dates d'interventions:`,
         allUserInterventions.map(i => ({ id: i.id, date: i.date }))
       );
     }
-    
+
     if (interventions && interventions.length > 0) {
       const firstIntervention = interventions[0] as any;
       console.log(`[WeeklyStats] Exemple d'intervention dans la période:`, {
@@ -1480,11 +1537,11 @@ export const interventionsApi = {
     // Compter les artisans par jour
     (artisans || []).forEach((artisan: any) => {
       // Utiliser date_ajout en priorité, sinon created_at
-      const artisanDate = artisan.date_ajout 
+      const artisanDate = artisan.date_ajout
         ? new Date(artisan.date_ajout)
-        : artisan.created_at 
-        ? new Date(artisan.created_at)
-        : null;
+        : artisan.created_at
+          ? new Date(artisan.created_at)
+          : null;
 
       if (!artisanDate) return;
 
@@ -1554,7 +1611,7 @@ export const interventionsApi = {
       // Calculer les semaines du mois
       const weeks: { start: Date; end: Date }[] = [];
       let currentWeekStart = new Date(monthStart);
-      
+
       // Trouver le lundi de la première semaine
       const firstDay = currentWeekStart.getDay();
       const diffToMonday = firstDay === 0 ? -6 : 1 - firstDay;
@@ -1563,14 +1620,14 @@ export const interventionsApi = {
       while (currentWeekStart <= monthEnd) {
         const weekEnd = new Date(currentWeekStart);
         weekEnd.setDate(currentWeekStart.getDate() + 4); // Vendredi
-        
+
         if (currentWeekStart <= monthEnd) {
           weeks.push({
             start: new Date(currentWeekStart),
             end: weekEnd <= monthEnd ? weekEnd : monthEnd,
           });
         }
-        
+
         currentWeekStart.setDate(currentWeekStart.getDate() + 7); // Semaine suivante
       }
 
@@ -1618,7 +1675,7 @@ export const interventionsApi = {
           const week = weeks[i];
           if (interventionDate >= week.start && interventionDate <= week.end) {
             const weekKey = `semaine${i + 1}` as keyof MonthWeekStats;
-            
+
             if (statusCode === "DEVIS_ENVOYE") {
               devisEnvoye[weekKey]++;
               devisEnvoye.total++;
@@ -1649,11 +1706,11 @@ export const interventionsApi = {
 
       // Compter les artisans par semaine
       (artisans || []).forEach((artisan: any) => {
-        const artisanDate = artisan.date_ajout 
+        const artisanDate = artisan.date_ajout
           ? new Date(artisan.date_ajout)
-          : artisan.created_at 
-          ? new Date(artisan.created_at)
-          : null;
+          : artisan.created_at
+            ? new Date(artisan.created_at)
+            : null;
 
         if (!artisanDate) return;
 
@@ -1777,11 +1834,11 @@ export const interventionsApi = {
 
       // Compter les artisans par mois
       (artisans || []).forEach((artisan: any) => {
-        const artisanDate = artisan.date_ajout 
+        const artisanDate = artisan.date_ajout
           ? new Date(artisan.date_ajout)
-          : artisan.created_at 
-          ? new Date(artisan.created_at)
-          : null;
+          : artisan.created_at
+            ? new Date(artisan.created_at)
+            : null;
 
         if (!artisanDate) return;
 
@@ -2076,11 +2133,11 @@ export const interventionsApi = {
     params: DashboardPeriodParams
   ): Promise<AdminDashboardStats> {
     const { periodType, referenceDate, startDate, endDate, agenceId, gestionnaireId, metierId } = params;
-    
+
     // Calculer les dates de période
     let periodStart: string;
     let periodEnd: string;
-    
+
     if (startDate && endDate) {
       periodStart = startDate;
       periodEnd = endDate;
@@ -2195,10 +2252,10 @@ export const interventionsApi = {
 
     // Construire mainStats
     // Utiliser le chiffre d'affaires depuis mainStatsData si disponible, sinon depuis globalFinancials
-    const chiffreAffaires = mainStatsData.chiffreAffaires !== undefined 
+    const chiffreAffaires = mainStatsData.chiffreAffaires !== undefined
       ? Number(mainStatsData.chiffreAffaires || 0)
       : totalPaiements;
-    
+
     const mainStats = {
       nbInterventionsDemandees: mainStatsData.nbInterventionsDemandees || 0,
       nbInterventionsTerminees: mainStatsData.nbInterventionsTerminees || 0,
@@ -2215,7 +2272,7 @@ export const interventionsApi = {
     const { data: statuses } = await supabase
       .from('intervention_statuses')
       .select('id, code, label');
-    
+
     const statusMapByCode = new Map(statuses?.map((s: any) => [s.code, s]) || []);
 
     // ========================================
@@ -2224,15 +2281,15 @@ export const interventionsApi = {
     console.log('\n🔍 Opération: Calcul des statistiques par statut...');
 
     const statusCounts: Record<string, { label: string; count: number }> = {};
-    
+
     statusBreakdown.forEach((item: any) => {
       if (item.statut_code) {
         const code = item.statut_code;
         const statusInfo = statusMapByCode.get(code);
         if (!statusCounts[code]) {
-          statusCounts[code] = { 
-            label: statusInfo?.label || code, 
-            count: 0 
+          statusCounts[code] = {
+            label: statusInfo?.label || code,
+            count: 0
           };
         }
         statusCounts[code].count = item.count || 0;
@@ -2277,9 +2334,9 @@ export const interventionsApi = {
     metierBreakdown.forEach((item: any) => {
       if (item.metier_id) {
         const metierInfo = refs.metiersById.get(item.metier_id);
-        metierCounts[item.metier_id] = { 
-          label: metierInfo?.label || 'Inconnu', 
-          count: item.count || 0 
+        metierCounts[item.metier_id] = {
+          label: metierInfo?.label || 'Inconnu',
+          count: item.count || 0
         };
         totalMetiers += item.count || 0;
       }
@@ -2355,12 +2412,12 @@ export const interventionsApi = {
       const tauxMargeGestionnaire = totalPaiements > 0
         ? Math.round((marge / totalPaiements) * 100)
         : 0;
-      
+
       // Taux de transformation = (Interventions terminées / Interventions prises) × 100
       const nbInterventionsPrises = item.totalInterventions || 0;
       const nbInterventionsTerminees = item.terminatedInterventions || 0;
       const tauxTransformationGestionnaire = nbInterventionsPrises > 0
-        ? Math.round((nbInterventionsTerminees / nbInterventionsPrises) * 100) 
+        ? Math.round((nbInterventionsTerminees / nbInterventionsPrises) * 100)
         : 0;
 
       // Construire le label du gestionnaire
@@ -2459,7 +2516,7 @@ export const interventionsApi = {
         start = new Date(date);
         end = new Date(date);
         break;
-      
+
       case 'week':
         // Semaine du lundi au vendredi
         const day = date.getDay();
@@ -2470,17 +2527,17 @@ export const interventionsApi = {
         end.setDate(start.getDate() + 4); // Vendredi
         end.setHours(23, 59, 59, 999);
         break;
-      
+
       case 'month':
         start = new Date(date.getFullYear(), date.getMonth(), 1);
         end = new Date(date.getFullYear(), date.getMonth() + 1, 0);
         break;
-      
+
       case 'year':
         start = new Date(date.getFullYear(), 0, 1);
         end = new Date(date.getFullYear(), 11, 31);
         break;
-      
+
       default:
         throw new Error(`Invalid period type: ${periodType}`);
     }

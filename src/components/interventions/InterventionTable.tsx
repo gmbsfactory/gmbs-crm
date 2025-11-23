@@ -25,6 +25,7 @@ import { useInterventionModal } from "@/hooks/useInterventionModal"
 export type InterventionTableRow = InterventionWithDocuments & {
   managerLabel?: string | null
   managerColor?: string | null
+  statusDisplayLabel?: string
 }
 
 export type InterventionTableProps = {
@@ -137,7 +138,7 @@ export default function InterventionTable({ interventions, onRowClick, onRowDoub
                 className="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold shadow-sm"
                 style={pillStyles}
               >
-                {status?.label ?? statusKey}
+                {row.original.statusDisplayLabel ?? status?.label ?? statusKey}
               </span>
             </span>
           )
