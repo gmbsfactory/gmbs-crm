@@ -29,8 +29,7 @@ interventions_gestionnaires AS (
 SELECT 
   gestionnaire_id,
   COUNT(DISTINCT intervention_id) as nb_interventions,
-  COUNT(DISTINCT CASE WHEN source = 'direct' THEN intervention_id END) as nb_directes,
-  COUNT(DISTINCT CASE WHEN source = 'artisan' THEN intervention_id END) as nb_via_artisan
+  COUNT(DISTINCT CASE WHEN source = 'direct' THEN intervention_id END) as nb_directes
 FROM interventions_gestionnaires
 GROUP BY gestionnaire_id
 ORDER BY nb_interventions DESC;
