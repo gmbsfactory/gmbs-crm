@@ -3,6 +3,7 @@
 
 import { referenceApi } from "@/lib/reference-api";
 import { supabase } from "@/lib/supabase-client";
+import { RevenueProjectionService } from "@/lib/services/revenueProjection";
 import type {
   AdminDashboardStats,
   BulkOperationResult,
@@ -21,6 +22,9 @@ import type {
   MonthlyStats,
   PaginatedResponse,
   PeriodType,
+  RevenueHistoryData,
+  RevenueHistoryParams,
+  RevenueHistoryResponse,
   StatsPeriod,
   UpdateInterventionData,
   WeeklyStats,
@@ -2433,6 +2437,247 @@ export const interventionsApi = {
 
     if (error) throw error;
     return data || [];
+  },
+
+  /**
+   * Récupère l'historique du chiffre d'affaires pour les 4 dernières périodes
+   * + projection de la période suivante
+   */
+  async getRevenueHistory(
+    params: RevenueHistoryParams
+  ): Promise<RevenueHistoryResponse> {
+    const {
+      periodType,
+      startDate,
+      endDate,
+      agenceId,
+      gestionnaireId,
+      metierId,
+      includeProjection = true,
+    } = params;
+
+    // Calculer les 4 dernières périodes basées sur periodType
+    const periods = this.calculateLast4Periods(periodType, startDate, endDate);
+
+    // Récupérer les données pour chaque période
+    const historical: RevenueHistoryData[] = await Promise.all(
+      periods.map(async (period) => {
+        const stats = await this.getAdminDashboardStats({
+          periodType,
+          startDate: period.start,
+          endDate: period.end,
+          agenceId,
+          gestionnaireId,
+          metierId,
+        });
+
+        return {
+          period: period.key,
+          periodLabel: period.label,
+          revenue: stats.mainStats.chiffreAffaires,
+          isProjection: false,
+        };
+      })
+    );
+
+    // Calculer la projection
+    let projection: RevenueHistoryData | undefined;
+    if (includeProjection) {
+      const nextPeriod = this.calculateNextPeriod(periodType, startDate, endDate);
+      const projectedRevenue = RevenueProjectionService.calculateProjection(historical);
+
+      projection = {
+        period: nextPeriod.key,
+        periodLabel: nextPeriod.label,
+        revenue: projectedRevenue,
+        isProjection: true,
+      };
+    }
+
+    // Période actuelle (dernière période historique)
+    const currentPeriod =
+      historical[historical.length - 1] ||
+      ({
+        period: periods[periods.length - 1]?.key || "",
+        periodLabel: periods[periods.length - 1]?.label || "",
+        revenue: 0,
+        isProjection: false,
+      } as RevenueHistoryData);
+
+    return {
+      historical,
+      projection,
+      currentPeriod,
+    };
+  },
+
+  /**
+   * Calcule les 4 dernières périodes selon le type
+   */
+  calculateLast4Periods(
+    periodType: PeriodType,
+    startDate?: string,
+    endDate?: string
+  ): Array<{ key: string; label: string; start: string; end: string }> {
+    const periods: Array<{ key: string; label: string; start: string; end: string }> = [];
+    const now = new Date();
+
+    // Si des dates sont fournies, utiliser la dernière comme référence
+    const referenceDate = endDate ? new Date(endDate) : now;
+
+    for (let i = 3; i >= 0; i--) {
+      let periodStart: Date;
+      let periodEnd: Date;
+      let key: string;
+      let label: string;
+
+      switch (periodType) {
+        case "month": {
+          periodStart = new Date(referenceDate.getFullYear(), referenceDate.getMonth() - i, 1);
+          periodEnd = new Date(periodStart.getFullYear(), periodStart.getMonth() + 1, 0);
+          periodEnd.setHours(23, 59, 59, 999);
+          key = `${periodStart.getFullYear()}-${String(periodStart.getMonth() + 1).padStart(2, "0")}`;
+          label = periodStart.toLocaleDateString("fr-FR", { month: "long", year: "numeric" });
+          // Capitaliser la première lettre
+          label = label.charAt(0).toUpperCase() + label.slice(1);
+          break;
+        }
+
+        case "week": {
+          // Calculer le lundi de la semaine
+          const day = referenceDate.getDay();
+          const diff = referenceDate.getDate() - day + (day === 0 ? -6 : 1) - i * 7;
+          periodStart = new Date(referenceDate.getFullYear(), referenceDate.getMonth(), diff);
+          periodStart.setHours(0, 0, 0, 0);
+          periodEnd = new Date(periodStart);
+          periodEnd.setDate(periodStart.getDate() + 4);
+          periodEnd.setHours(23, 59, 59, 999);
+          const weekNumber = this.getWeekNumber(periodStart);
+          key = `W${weekNumber}-${periodStart.getFullYear()}`;
+          label = `Semaine ${weekNumber}`;
+          break;
+        }
+
+        case "day": {
+          periodStart = new Date(referenceDate);
+          periodStart.setDate(periodStart.getDate() - i);
+          periodStart.setHours(0, 0, 0, 0);
+          periodEnd = new Date(periodStart);
+          periodEnd.setHours(23, 59, 59, 999);
+          key = periodStart.toISOString().split("T")[0];
+          label = periodStart.toLocaleDateString("fr-FR", { day: "numeric", month: "short" });
+          break;
+        }
+
+        case "year": {
+          periodStart = new Date(referenceDate.getFullYear() - i, 0, 1);
+          periodStart.setHours(0, 0, 0, 0);
+          periodEnd = new Date(periodStart.getFullYear(), 11, 31);
+          periodEnd.setHours(23, 59, 59, 999);
+          key = String(periodStart.getFullYear());
+          label = String(periodStart.getFullYear());
+          break;
+        }
+
+        default:
+          throw new Error(`Invalid period type: ${periodType}`);
+      }
+
+      periods.push({
+        key,
+        label,
+        start: periodStart.toISOString().split("T")[0],
+        end: periodEnd.toISOString().split("T")[0],
+      });
+    }
+
+    return periods;
+  },
+
+  /**
+   * Calcule la période suivante pour la projection
+   */
+  calculateNextPeriod(
+    periodType: PeriodType,
+    startDate?: string,
+    endDate?: string
+  ): { key: string; label: string; start: string; end: string } {
+    const now = new Date();
+    const referenceDate = endDate ? new Date(endDate) : now;
+
+    let periodStart: Date;
+    let periodEnd: Date;
+    let key: string;
+    let label: string;
+
+    switch (periodType) {
+      case "month": {
+        periodStart = new Date(referenceDate.getFullYear(), referenceDate.getMonth() + 1, 1);
+        periodStart.setHours(0, 0, 0, 0);
+        periodEnd = new Date(periodStart.getFullYear(), periodStart.getMonth() + 1, 0);
+        periodEnd.setHours(23, 59, 59, 999);
+        key = `${periodStart.getFullYear()}-${String(periodStart.getMonth() + 1).padStart(2, "0")}`;
+        label = periodStart.toLocaleDateString("fr-FR", { month: "long", year: "numeric" });
+        label = label.charAt(0).toUpperCase() + label.slice(1);
+        break;
+      }
+
+      case "week": {
+        const day = referenceDate.getDay();
+        const diff = referenceDate.getDate() - day + (day === 0 ? -6 : 1) + 7;
+        periodStart = new Date(referenceDate.getFullYear(), referenceDate.getMonth(), diff);
+        periodStart.setHours(0, 0, 0, 0);
+        periodEnd = new Date(periodStart);
+        periodEnd.setDate(periodStart.getDate() + 4);
+        periodEnd.setHours(23, 59, 59, 999);
+        const weekNumber = this.getWeekNumber(periodStart);
+        key = `W${weekNumber}-${periodStart.getFullYear()}`;
+        label = `Semaine ${weekNumber}`;
+        break;
+      }
+
+      case "day": {
+        periodStart = new Date(referenceDate);
+        periodStart.setDate(periodStart.getDate() + 1);
+        periodStart.setHours(0, 0, 0, 0);
+        periodEnd = new Date(periodStart);
+        periodEnd.setHours(23, 59, 59, 999);
+        key = periodStart.toISOString().split("T")[0];
+        label = periodStart.toLocaleDateString("fr-FR", { day: "numeric", month: "short" });
+        break;
+      }
+
+      case "year": {
+        periodStart = new Date(referenceDate.getFullYear() + 1, 0, 1);
+        periodStart.setHours(0, 0, 0, 0);
+        periodEnd = new Date(periodStart.getFullYear(), 11, 31);
+        periodEnd.setHours(23, 59, 59, 999);
+        key = String(periodStart.getFullYear());
+        label = String(periodStart.getFullYear());
+        break;
+      }
+
+      default:
+        throw new Error(`Invalid period type: ${periodType}`);
+    }
+
+    return {
+      key,
+      label,
+      start: periodStart.toISOString().split("T")[0],
+      end: periodEnd.toISOString().split("T")[0],
+    };
+  },
+
+  /**
+   * Calcule le numéro de semaine ISO
+   */
+  getWeekNumber(date: Date): number {
+    const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+    const dayNum = d.getUTCDay() || 7;
+    d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+    const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+    return Math.ceil(((d.getTime() - yearStart.getTime()) / 86400000 + 1) / 7);
   },
 
   /**

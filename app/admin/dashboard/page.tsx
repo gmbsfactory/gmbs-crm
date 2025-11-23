@@ -8,6 +8,7 @@ import { FunnelChart } from "@/components/admin-dashboard/FunnelChart"
 import { HorizontalBarChart } from "@/components/admin-dashboard/HorizontalBarChart"
 import { VirtualizedDataTable } from "@/components/admin-dashboard/VirtualizedDataTable"
 import { MarginBar } from "@/components/admin-dashboard/MarginBar"
+import { RevenueHistoryModal } from "@/components/admin-dashboard/RevenueHistoryModal"
 import { useAdminDashboardStats } from "@/hooks/useAdminDashboardStats"
 import { AdminGuard } from "@/components/admin-dashboard/AdminGuard"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -20,6 +21,7 @@ export default function AdminDashboardPage() {
   const [agenceId, setAgenceId] = useState<string | null>(null)
   const [gestionnaireId, setGestionnaireId] = useState<string | null>(null)
   const [metierId, setMetierId] = useState<string | null>(null)
+  const [isRevenueModalOpen, setIsRevenueModalOpen] = useState(false)
 
   // Convertir la période en PeriodType pour l'API
   const apiPeriodType = useMemo(() => {
@@ -235,6 +237,7 @@ export default function AdminDashboardPage() {
                   }}
                   sparklineData={dashboardStats?.sparklines.map(s => ({ date: s.date, value: s.countTerminees }))}
                   className="border-l-blue-500"
+                  onClick={() => setIsRevenueModalOpen(true)}
                 />
                 <KPICard
                   title="Marge Globale"
@@ -334,6 +337,18 @@ export default function AdminDashboardPage() {
             </Card>
           </div>
         </div>
+
+        {/* Modal d'historique du chiffre d'affaires */}
+        <RevenueHistoryModal
+          open={isRevenueModalOpen}
+          onOpenChange={setIsRevenueModalOpen}
+          periodType={apiPeriodType}
+          startDate={startDate || undefined}
+          endDate={endDate || undefined}
+          agenceId={agenceId || undefined}
+          gestionnaireId={gestionnaireId || undefined}
+          metierId={metierId || undefined}
+        />
       </div>
     </AdminGuard>
   )

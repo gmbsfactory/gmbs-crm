@@ -15,6 +15,7 @@ interface KPICardProps {
   sparklineData?: Array<{ date: string; value: number }>
   className?: string
   description?: string
+  onClick?: () => void
 }
 
 export function KPICard({
@@ -24,10 +25,18 @@ export function KPICard({
   trend,
   sparklineData,
   className,
-  description
+  description,
+  onClick,
 }: KPICardProps) {
   return (
-    <Card className={cn("overflow-hidden border-l-4", className)}>
+    <Card
+      className={cn(
+        "overflow-hidden border-l-4",
+        onClick && "cursor-pointer hover:shadow-md transition-shadow",
+        className
+      )}
+      onClick={onClick}
+    >
       <CardContent className="p-6">
         <div className="flex items-center justify-between space-y-0 pb-2">
           <p className="text-sm font-medium text-muted-foreground">{title}</p>

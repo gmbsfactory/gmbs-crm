@@ -863,3 +863,35 @@ export interface AdminDashboardStats {
   statusStats?: any;
   metierStats?: any;
 }
+
+/**
+ * Données historiques du chiffre d'affaires par période
+ */
+export interface RevenueHistoryData {
+  period: string; // Format: "YYYY-MM" pour mois, "YYYY-WW" pour semaine, etc.
+  periodLabel: string; // Label affiché: "Janvier 2024", "Semaine 1", etc.
+  revenue: number; // Chiffre d'affaires réel
+  isProjection?: boolean; // true pour les projections
+}
+
+/**
+ * Paramètres pour récupérer l'historique du CA
+ */
+export interface RevenueHistoryParams {
+  periodType: PeriodType; // 'day' | 'week' | 'month' | 'year'
+  startDate?: string;
+  endDate?: string;
+  agenceId?: string | null;
+  gestionnaireId?: string | null;
+  metierId?: string | null;
+  includeProjection?: boolean; // Inclure la projection de la période suivante
+}
+
+/**
+ * Réponse de l'API pour l'historique du CA
+ */
+export interface RevenueHistoryResponse {
+  historical: RevenueHistoryData[]; // Les 4 dernières périodes
+  projection?: RevenueHistoryData; // Projection de la période suivante
+  currentPeriod: RevenueHistoryData; // Période actuelle
+}
