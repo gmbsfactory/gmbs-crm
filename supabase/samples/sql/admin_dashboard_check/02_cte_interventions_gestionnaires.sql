@@ -12,7 +12,7 @@ WITH interventions_periode AS (
       i.agence_id,
       i.assigned_user_id
     FROM public.interventions i
-    LEFT JOIN public.intervention_statuses ist ON ist.id = i.statut_id
+    INNER JOIN public.intervention_statuses ist ON ist.id = i.statut_id
     WHERE i.is_active = true
       AND i.date >= '2025-01-01T00:00:00Z'::timestamptz
       AND i.date < '2026-01-01T00:00:00Z'::timestamptz
@@ -25,19 +25,6 @@ interventions_gestionnaires AS (
       'direct' as source
     FROM interventions_periode i
     WHERE i.assigned_user_id IS NOT NULL
-    
-    UNION
-    
-    -- Interventions via artisans gérés par le gestionnaire
-    SELECT DISTINCT
-      i.id as intervention_id,
-      a.gestionnaire_id,
-      'artisan' as source
-    FROM interventions_periode i
-    INNER JOIN public.intervention_artisans ia ON ia.intervention_id = i.id
-    INNER JOIN public.artisans a ON a.id = ia.artisan_id
-    WHERE a.gestionnaire_id IS NOT NULL
-      AND a.is_active = true
 )
 SELECT 
   gestionnaire_id,

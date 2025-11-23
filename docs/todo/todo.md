@@ -5,11 +5,8 @@
         - implémenter les raccourcis clics sur la page dashboard 
                 Mes Artisans --> page artisan, Mes Interventions  --> page intervention
 
-        - reprendre la logique dahsboard
-                - mettre la sélection de la période que sur la partie du bas pour le tableau et pour le podium et le speedometre. 
-                        Pour le tableau du bas utiliser la table de transition de statut des interventions. 
-
         - mettre dans le cache les infos des menus hover dès le chargement
+                si ce n'est pas déjà fait
 
 - Dashboard admin
         - Voir si faire la fonction SQL permet réellement d'optimiser et qu'est ce quel permet d'optimiser
@@ -20,8 +17,9 @@
                 - Performance par gest
                 - Statistique par agence
                 que la fonction SQL remplit bien son rôle à l'aide de requêtes pilote
+
         - Affichage de la performance des gestionnaires
-        
+
         - tester sur une semaine
 
         - dans la répartition par métier j'aimerai que le composant pie par métier et nombre d'interventions par statut soit interactif
@@ -30,12 +28,7 @@
 
 - donner à Antigravity la gestion des vulnérabilités supabase
 
-- export à merger
-
-
-
-
-
+- export à merger et implémenter 
 
 
 

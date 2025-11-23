@@ -64,19 +64,6 @@ BEGIN
     FROM interventions_periode i
     WHERE i.assigned_user_id IS NOT NULL
       AND (p_gestionnaire_id IS NULL OR i.assigned_user_id = p_gestionnaire_id)
-    
-    UNION
-    
-    -- Interventions via artisans gérés par le gestionnaire
-    SELECT DISTINCT
-      i.id as intervention_id,
-      a.gestionnaire_id
-    FROM interventions_periode i
-    INNER JOIN public.intervention_artisans ia ON ia.intervention_id = i.id
-    INNER JOIN public.artisans a ON a.id = ia.artisan_id
-    WHERE a.gestionnaire_id IS NOT NULL
-      AND a.is_active = true
-      AND (p_gestionnaire_id IS NULL OR a.gestionnaire_id = p_gestionnaire_id)
   ),
   
   -- CTE 1c: Interventions filtrées (incluant le filtre gestionnaire)
