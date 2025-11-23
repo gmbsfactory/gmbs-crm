@@ -194,3 +194,5 @@ export function validateGmailEmail(email: string): boolean {
   return domain === 'gmail.com' || domain === 'googlemail.com';
 }
 
+
+

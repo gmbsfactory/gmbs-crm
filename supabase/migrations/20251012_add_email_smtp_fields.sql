@@ -89,3 +89,5 @@ COMMENT ON TABLE public.email_logs IS 'Logs des emails envoyés depuis le CRM';
 COMMENT ON COLUMN public.email_logs.email_type IS 'Type d''email: devis (visite technique) ou intervention';
 COMMENT ON COLUMN public.email_logs.status IS 'Statut: sent (envoyé), failed (échec), pending (en attente - réservé pour future évolution asynchrone)';
 
+
+

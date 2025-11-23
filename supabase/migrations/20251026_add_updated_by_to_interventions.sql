@@ -42,3 +42,5 @@ CREATE TRIGGER trg_interventions_created_by
   EXECUTE FUNCTION set_intervention_created_by();
 
 
+
+
