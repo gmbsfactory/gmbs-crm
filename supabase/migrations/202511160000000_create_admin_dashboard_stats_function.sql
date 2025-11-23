@@ -1,9 +1,10 @@
 -- ========================================
--- MIGRATION: Fonction RPC pour Dashboard Admin
+-- MIGRATION: Fonction RPC pour Dashboard Admin V2.0
 -- ========================================
--- Date: 2025-01-20
+-- Date: 2025-11-23
 -- Objectif: Réduire le nombre de requêtes SQL de 12-13 à 1 seule requête
 -- Performance: Calculs côté serveur avec CTEs et GROUP BY
+-- V2.0: Ajout Cycle Time, Sparklines, Funnel, Marges par Gestionnaire
 
 -- ========================================
 -- FONCTION RPC: get_admin_dashboard_stats
@@ -33,11 +34,17 @@ STABLE
 AS $$
 DECLARE
   result jsonb;
-  global_paiements numeric := 0;
-  global_couts numeric := 0;
+  v_interval interval;
+  v_previous_period_start timestamptz;
+  v_previous_period_end timestamptz;
 BEGIN
+  -- Calcul de la période précédente pour les comparaisons (Delta)
+  v_interval := p_period_end - p_period_start;
+  v_previous_period_start := p_period_start - v_interval;
+  v_previous_period_end := p_period_start;
+
   WITH 
-  -- CTE 1: Interventions de la période (base de données pour toutes les stats)
+  -- CTE 1: Interventions de la période ACTUELLE (base de données pour toutes les stats)
   interventions_periode AS (
     SELECT 
       i.id, 
@@ -45,7 +52,9 @@ BEGIN
       ist.code as statut_code,
       i.metier_id, 
       i.agence_id,
-      i.assigned_user_id
+      i.assigned_user_id,
+      i.date as date_intervention,
+      i.created_at
     FROM public.interventions i
     LEFT JOIN public.intervention_statuses ist ON ist.id = i.statut_id
     WHERE i.is_active = true
@@ -54,10 +63,21 @@ BEGIN
       AND (p_agence_id IS NULL OR i.agence_id = p_agence_id)
       AND (p_metier_id IS NULL OR i.metier_id = p_metier_id)
   ),
+
+  -- CTE 1b: Interventions de la période PRECEDENTE (pour calcul des deltas)
+  interventions_periode_prev AS (
+    SELECT 
+      i.id
+    FROM public.interventions i
+    WHERE i.is_active = true
+      AND i.date >= v_previous_period_start
+      AND i.date < v_previous_period_end
+      AND (p_agence_id IS NULL OR i.agence_id = p_agence_id)
+      AND (p_metier_id IS NULL OR i.metier_id = p_metier_id)
+  ),
   
-  -- CTE 1b: Interventions liées aux gestionnaires (directement via assigned_user_id ou via artisans)
+  -- CTE 1c: Interventions liées aux gestionnaires (directement via assigned_user_id)
   interventions_gestionnaires AS (
-    -- Interventions directement assignées
     SELECT DISTINCT
       i.id as intervention_id,
       i.assigned_user_id as gestionnaire_id
@@ -66,185 +86,272 @@ BEGIN
       AND (p_gestionnaire_id IS NULL OR i.assigned_user_id = p_gestionnaire_id)
   ),
   
-  -- CTE 1c: Interventions filtrées (incluant le filtre gestionnaire)
-  -- Cette CTE combine tous les filtres (agence, métier, gestionnaire) pour garantir la cohérence
+  -- CTE 1d: Interventions filtrées (incluant le filtre gestionnaire)
   interventions_filtrees AS (
-    SELECT DISTINCT ip.id
+    SELECT DISTINCT ip.id, ip.date_intervention, ip.agence_id, ip.metier_id, ip.assigned_user_id, ip.statut_code, ip.created_at
     FROM interventions_periode ip
     WHERE (p_gestionnaire_id IS NULL OR ip.id IN (SELECT intervention_id FROM interventions_gestionnaires))
   ),
-  
-  -- CTE 2: Interventions qui ont eu chaque statut pendant la période (basé sur les transitions)
-  -- Filtrer par les interventions de la période qui respectent TOUS les filtres
-  inter_demandees AS (
-    SELECT DISTINCT ist.intervention_id
-    FROM public.intervention_status_transitions ist
-    INNER JOIN interventions_filtrees ip ON ip.id = ist.intervention_id
-    WHERE ist.to_status_code = p_demande_status_code
-      AND ist.transition_date >= p_period_start
-      AND ist.transition_date <= p_period_end
-  ),
-  
-  inter_terminees AS (
-    SELECT DISTINCT ist.intervention_id
-    FROM public.intervention_status_transitions ist
-    INNER JOIN interventions_filtrees ip ON ip.id = ist.intervention_id
-    WHERE ist.to_status_code = p_terminee_status_code
-      AND ist.transition_date >= p_period_start
-      AND ist.transition_date <= p_period_end
-  ),
-  
-  inter_devis AS (
-    SELECT DISTINCT ist.intervention_id
-    FROM public.intervention_status_transitions ist
-    INNER JOIN interventions_filtrees ip ON ip.id = ist.intervention_id
-    WHERE ist.to_status_code = p_devis_status_code
-      AND ist.transition_date >= p_period_start
-      AND ist.transition_date <= p_period_end
-  ),
-  
-  inter_valides AS (
-    SELECT DISTINCT ist.intervention_id
-    FROM public.intervention_status_transitions ist
-    INNER JOIN interventions_filtrees ip ON ip.id = ist.intervention_id
-    WHERE ist.to_status_code = ANY(p_valid_status_codes)
-      AND ist.transition_date >= p_period_start
-      AND ist.transition_date <= p_period_end
-  ),
-  
-  -- CTE 3: Stats principales (comptages basés sur les transitions)
-  main_stats AS (
+
+  -- CTE 2: Transitions de statuts pour la période (pour Funnel et Cycle Time)
+  transitions_periode AS (
     SELECT 
-      (SELECT COUNT(*)::integer FROM inter_demandees) as nb_demandees,
-      (SELECT COUNT(*)::integer FROM inter_terminees) as nb_terminees,
-      (SELECT COUNT(*)::integer FROM inter_devis) as nb_devis,
-      (SELECT COUNT(*)::integer FROM inter_valides) as nb_valides
-  ),
-  
-  -- CTE 4: Breakdown par statut (basé sur les transitions pendant la période)
-  -- CORRECTION: Filtrer par interventions_filtrees pour respecter tous les filtres (agence, métier, gestionnaire)
-  status_breakdown AS (
-    SELECT 
-      ist.to_status_code as statut_code,
-      COUNT(DISTINCT ist.intervention_id)::integer as count
+      ist.intervention_id,
+      ist.to_status_code,
+      ist.transition_date,
+      ip.agence_id,
+      ip.assigned_user_id
     FROM public.intervention_status_transitions ist
     INNER JOIN interventions_filtrees ip ON ip.id = ist.intervention_id
     WHERE ist.transition_date >= p_period_start
       AND ist.transition_date <= p_period_end
-      AND ist.to_status_code IS NOT NULL
-    GROUP BY ist.to_status_code
   ),
-  
-  -- CTE 5: Breakdown par métier (GROUP BY)
-  -- CORRECTION: Utiliser interventions_filtrees pour respecter tous les filtres
-  metier_breakdown AS (
+
+  -- CTE 2b: Transitions pour la période précédente (pour Delta)
+  transitions_periode_prev AS (
     SELECT 
-      ip2.metier_id,
-      COUNT(*)::integer as count
-    FROM interventions_filtrees ip
-    INNER JOIN interventions_periode ip2 ON ip2.id = ip.id
-    WHERE ip2.metier_id IS NOT NULL
-    GROUP BY ip2.metier_id
+      ist.intervention_id,
+      ist.to_status_code
+    FROM public.intervention_status_transitions ist
+    INNER JOIN interventions_periode_prev ip ON ip.id = ist.intervention_id
+    WHERE ist.transition_date >= v_previous_period_start
+      AND ist.transition_date <= v_previous_period_end
   ),
   
-  -- CTE 6: Breakdown par agence (GROUP BY avec comptage des terminées)
-  -- CORRECTION: Utiliser interventions_filtrees pour respecter tous les filtres
-  agency_breakdown AS (
+  -- CTE 3: Stats principales (comptages basés sur les transitions)
+  main_stats_counts AS (
     SELECT 
-      ip2.agence_id,
-      COUNT(*)::integer as total_interventions,
-      COUNT(*) FILTER (WHERE ip.id IN (SELECT intervention_id FROM inter_terminees))::integer as terminated_interventions
-    FROM interventions_filtrees ip
-    INNER JOIN interventions_periode ip2 ON ip2.id = ip.id
-    WHERE ip2.agence_id IS NOT NULL
-    GROUP BY ip2.agence_id
+      COUNT(DISTINCT CASE WHEN to_status_code = p_demande_status_code THEN intervention_id END)::integer as nb_demandees,
+      COUNT(DISTINCT CASE WHEN to_status_code = p_terminee_status_code THEN intervention_id END)::integer as nb_terminees,
+      COUNT(DISTINCT CASE WHEN to_status_code = p_devis_status_code THEN intervention_id END)::integer as nb_devis,
+      COUNT(DISTINCT CASE WHEN to_status_code = ANY(p_valid_status_codes) THEN intervention_id END)::integer as nb_valides
+    FROM transitions_periode
+  ),
+
+  -- CTE 3b: Stats principales PRECEDENTES (pour Deltas)
+  main_stats_counts_prev AS (
+    SELECT 
+      COUNT(DISTINCT CASE WHEN to_status_code = p_demande_status_code THEN intervention_id END)::integer as nb_demandees,
+      COUNT(DISTINCT CASE WHEN to_status_code = p_terminee_status_code THEN intervention_id END)::integer as nb_terminees
+    FROM transitions_periode_prev
   ),
   
-  -- CTE 7: Chiffre d'affaires agrégé par intervention (basé sur les coûts de type 'intervention')
+  -- CTE 4: Cycle Time (Délai Moyen Global) - VERSION CORRIGÉE
+  -- Calcul du temps entre la PREMIERE transition vers 'DEMANDE' (ou date de création si créée en DEMANDE)
+  -- et la PREMIERE transition vers 'INTER_TERMINEE'
+  -- Filtre les transitions invalides (from_status_code = to_status_code)
+  first_demande_transition AS (
+    SELECT 
+      ip.id as intervention_id,
+      COALESCE(
+        MIN(CASE WHEN ist.to_status_code = p_demande_status_code THEN ist.transition_date END),
+        -- Si pas de transition vers DEMANDE mais que l'intervention a été créée en DEMANDE
+        CASE WHEN ip.statut_code = p_demande_status_code THEN ip.created_at END
+      ) as date_demande
+    FROM interventions_filtrees ip
+    LEFT JOIN public.intervention_status_transitions ist 
+      ON ist.intervention_id = ip.id
+      AND ist.to_status_code = p_demande_status_code
+      -- Filtrer les transitions invalides
+      AND (ist.from_status_code IS NULL OR ist.from_status_code != ist.to_status_code)
+    GROUP BY ip.id, ip.statut_code, ip.created_at
+    HAVING COALESCE(
+      MIN(CASE WHEN ist.to_status_code = p_demande_status_code THEN ist.transition_date END),
+      CASE WHEN ip.statut_code = p_demande_status_code THEN ip.created_at END
+    ) IS NOT NULL
+  ),
+
+  first_terminee_transition AS (
+    SELECT 
+      ip.id as intervention_id,
+      MIN(ist.transition_date) as date_terminee
+    FROM interventions_filtrees ip
+    INNER JOIN public.intervention_status_transitions ist 
+      ON ist.intervention_id = ip.id
+      AND ist.to_status_code = p_terminee_status_code
+      -- Filtrer les transitions invalides
+      AND (ist.from_status_code IS NULL OR ist.from_status_code != ist.to_status_code)
+    GROUP BY ip.id
+  ),
+
+  cycle_time_data AS (
+    SELECT
+      fdt.intervention_id,
+      EXTRACT(EPOCH FROM (ftt.date_terminee - fdt.date_demande)) / 86400.0 as days_diff
+    FROM first_demande_transition fdt
+    INNER JOIN first_terminee_transition ftt ON fdt.intervention_id = ftt.intervention_id
+    WHERE ftt.date_terminee >= fdt.date_demande
+  ),
+
+  cycle_time_stats AS (
+    SELECT 
+      COALESCE(AVG(days_diff), 0)::numeric(10,2) as avg_cycle_time_days
+    FROM cycle_time_data
+  ),
+
+  -- CTE 5: Stats Financières (CA et Coûts) pour les interventions TERMINÉES dans la période
+  financial_interventions AS (
+    SELECT DISTINCT intervention_id 
+    FROM transitions_periode 
+    WHERE to_status_code = p_terminee_status_code
+  ),
+
   paiements_agreges AS (
     SELECT 
       ic.intervention_id,
-      i.agence_id,
       SUM(ic.amount)::numeric as total_paiements
-    FROM inter_terminees it
-    INNER JOIN public.interventions i ON i.id = it.intervention_id
-    INNER JOIN public.intervention_costs ic ON ic.intervention_id = i.id
+    FROM financial_interventions fi
+    JOIN public.intervention_costs ic ON ic.intervention_id = fi.intervention_id
     WHERE ic.cost_type = 'intervention'
-    GROUP BY ic.intervention_id, i.agence_id
+    GROUP BY ic.intervention_id
   ),
   
-  -- CTE 8: Coûts/Pertes agrégés par intervention (sst + materiel uniquement)
   couts_agreges AS (
     SELECT 
       ic.intervention_id,
-      i.agence_id,
       SUM(ic.amount)::numeric as total_couts
-    FROM inter_terminees it
-    INNER JOIN public.interventions i ON i.id = it.intervention_id
-    INNER JOIN public.intervention_costs ic ON ic.intervention_id = i.id
+    FROM financial_interventions fi
+    JOIN public.intervention_costs ic ON ic.intervention_id = fi.intervention_id
     WHERE ic.cost_type IN ('sst', 'materiel')
-    GROUP BY ic.intervention_id, i.agence_id
+    GROUP BY ic.intervention_id
   ),
-  
-  -- CTE 9: Stats financières globales
+
   global_financials AS (
     SELECT 
-      COALESCE((SELECT SUM(total_paiements) FROM paiements_agreges), 0)::numeric as total_paiements,
-      COALESCE((SELECT SUM(total_couts) FROM couts_agreges), 0)::numeric as total_couts
+      COALESCE(SUM(p.total_paiements), 0)::numeric as total_paiements,
+      COALESCE(SUM(c.total_couts), 0)::numeric as total_couts
+    FROM financial_interventions fi
+    LEFT JOIN paiements_agreges p ON p.intervention_id = fi.intervention_id
+    LEFT JOIN couts_agreges c ON c.intervention_id = fi.intervention_id
   ),
-  
-  -- CTE 10: Stats financières par agence
+
+  -- CTE 6: Sparklines (Données journalières pour les graphiques)
+  -- Génération de la série temporelle
+  time_series AS (
+    SELECT generate_series(p_period_start, p_period_end - interval '1 day', interval '1 day') as day
+  ),
+
+  sparkline_data AS (
+    SELECT 
+      ts.day::date as date,
+      COUNT(DISTINCT CASE WHEN tp.to_status_code = p_demande_status_code THEN tp.intervention_id END)::integer as count_demandees,
+      COUNT(DISTINCT CASE WHEN tp.to_status_code = p_terminee_status_code THEN tp.intervention_id END)::integer as count_terminees
+    FROM time_series ts
+    LEFT JOIN transitions_periode tp ON date_trunc('day', tp.transition_date) = date_trunc('day', ts.day)
+    GROUP BY ts.day
+    ORDER BY ts.day
+  ),
+
+  -- CTE 7: Breakdown par Métier (Top 10 trié par volume)
+  metier_breakdown AS (
+    SELECT 
+      ip.metier_id,
+      COUNT(*)::integer as count
+    FROM interventions_filtrees ip
+    WHERE ip.metier_id IS NOT NULL
+    GROUP BY ip.metier_id
+    ORDER BY count DESC
+    LIMIT 10
+  ),
+
+  -- CTE 8: Breakdown par Agence
+  agency_breakdown AS (
+    SELECT 
+      ip.agence_id,
+      COUNT(*)::integer as total_interventions,
+      COUNT(DISTINCT CASE WHEN tp.to_status_code = p_terminee_status_code THEN tp.intervention_id END)::integer as terminated_interventions,
+      COALESCE(AVG(ct.days_diff), 0)::numeric(10,2) as avg_cycle_time
+    FROM interventions_filtrees ip
+    LEFT JOIN transitions_periode tp ON tp.intervention_id = ip.id
+    LEFT JOIN cycle_time_data ct ON ct.intervention_id = ip.id
+    WHERE ip.agence_id IS NOT NULL
+    GROUP BY ip.agence_id
+  ),
+
   agency_financials AS (
     SELECT 
-      COALESCE(a.agence_id, p.agence_id, c.agence_id) as agence_id,
+      ip.agence_id,
       COALESCE(SUM(p.total_paiements), 0)::numeric as total_paiements,
       COALESCE(SUM(c.total_couts), 0)::numeric as total_couts
-    FROM agency_breakdown a
-    LEFT JOIN paiements_agreges p ON p.agence_id = a.agence_id
-    LEFT JOIN couts_agreges c ON c.agence_id = a.agence_id
-    GROUP BY COALESCE(a.agence_id, p.agence_id, c.agence_id)
+    FROM interventions_filtrees ip
+    JOIN financial_interventions fi ON fi.intervention_id = ip.id
+    LEFT JOIN paiements_agreges p ON p.intervention_id = ip.id
+    LEFT JOIN couts_agreges c ON c.intervention_id = ip.id
+    WHERE ip.agence_id IS NOT NULL
+    GROUP BY ip.agence_id
   ),
-  
-  -- CTE 11: Breakdown par gestionnaire (comptages)
+
+  -- CTE 9: Breakdown par Gestionnaire
   gestionnaire_breakdown AS (
     SELECT 
-      ig.gestionnaire_id,
-      COUNT(DISTINCT ig.intervention_id)::integer as total_interventions,
-      COUNT(DISTINCT CASE WHEN ig.intervention_id IN (SELECT intervention_id FROM inter_terminees) THEN ig.intervention_id END)::integer as terminated_interventions
-    FROM interventions_gestionnaires ig
-    WHERE ig.gestionnaire_id IS NOT NULL
-    GROUP BY ig.gestionnaire_id
+      ip.assigned_user_id as gestionnaire_id,
+      COUNT(*)::integer as total_interventions,
+      COUNT(DISTINCT CASE WHEN tp.to_status_code = p_terminee_status_code THEN tp.intervention_id END)::integer as terminated_interventions,
+      COALESCE(AVG(ct.days_diff), 0)::numeric(10,2) as avg_cycle_time
+    FROM interventions_filtrees ip
+    LEFT JOIN transitions_periode tp ON tp.intervention_id = ip.id
+    LEFT JOIN cycle_time_data ct ON ct.intervention_id = ip.id
+    WHERE ip.assigned_user_id IS NOT NULL
+    GROUP BY ip.assigned_user_id
   ),
-  
-  -- CTE 12: Stats financières par gestionnaire (CA et coûts)
+
   gestionnaire_financials AS (
     SELECT 
-      ig.gestionnaire_id,
+      ip.assigned_user_id as gestionnaire_id,
       COALESCE(SUM(p.total_paiements), 0)::numeric as total_paiements,
       COALESCE(SUM(c.total_couts), 0)::numeric as total_couts
-    FROM interventions_gestionnaires ig
-    INNER JOIN inter_terminees it ON it.intervention_id = ig.intervention_id
-    LEFT JOIN paiements_agreges p ON p.intervention_id = ig.intervention_id
-    LEFT JOIN couts_agreges c ON c.intervention_id = ig.intervention_id
-    WHERE ig.gestionnaire_id IS NOT NULL
-    GROUP BY ig.gestionnaire_id
+    FROM interventions_filtrees ip
+    JOIN financial_interventions fi ON fi.intervention_id = ip.id
+    LEFT JOIN paiements_agreges p ON p.intervention_id = ip.id
+    LEFT JOIN couts_agreges c ON c.intervention_id = ip.id
+    WHERE ip.assigned_user_id IS NOT NULL
+    GROUP BY ip.assigned_user_id
+  ),
+
+  -- CTE 10: Funnel Data (Répartition par statut pour l'entonnoir)
+  status_breakdown AS (
+    SELECT 
+      tp.to_status_code as statut_code,
+      COUNT(DISTINCT tp.intervention_id)::integer as count
+    FROM transitions_periode tp
+    WHERE tp.to_status_code IS NOT NULL
+    GROUP BY tp.to_status_code
   )
-  
+
   SELECT jsonb_build_object(
-    -- Stats principales
+    -- Stats principales avec Deltas et Cycle Time
     'mainStats', (
       SELECT jsonb_build_object(
         'nbInterventionsDemandees', ms.nb_demandees,
         'nbInterventionsTerminees', ms.nb_terminees,
         'nbDevis', ms.nb_devis,
         'nbValides', ms.nb_valides,
-        'chiffreAffaires', COALESCE(gf.total_paiements, 0)
+        'chiffreAffaires', COALESCE(gf.total_paiements, 0),
+        'couts', COALESCE(gf.total_couts, 0),
+        'marge', COALESCE(gf.total_paiements, 0) - COALESCE(gf.total_couts, 0),
+        'avgCycleTime', cts.avg_cycle_time_days,
+        'deltaInterventions', CASE WHEN msp.nb_demandees > 0 THEN ((ms.nb_demandees - msp.nb_demandees)::numeric / msp.nb_demandees) * 100 ELSE 0 END,
+        'deltaChiffreAffaires', 0 -- TODO: Calculer le delta CA si nécessaire (complexe car nécessite CA période précédente)
       )
-      FROM main_stats ms
+      FROM main_stats_counts ms
+      CROSS JOIN main_stats_counts_prev msp
       CROSS JOIN global_financials gf
+      CROSS JOIN cycle_time_stats cts
     ),
     
-    -- Breakdown par statut
+    -- Sparklines pour les graphiques de tendance
+    'sparklines', (
+      SELECT jsonb_agg(
+        jsonb_build_object(
+          'date', sd.date,
+          'countDemandees', sd.count_demandees,
+          'countTerminees', sd.count_terminees
+        )
+      )
+      FROM sparkline_data sd
+    ),
+
+    -- Breakdown par statut (Funnel)
     'statusBreakdown', (
       SELECT COALESCE(jsonb_agg(
         jsonb_build_object(
@@ -255,7 +362,7 @@ BEGIN
       FROM status_breakdown sb
     ),
     
-    -- Breakdown par métier
+    -- Breakdown par métier (Top 10)
     'metierBreakdown', (
       SELECT COALESCE(jsonb_agg(
         jsonb_build_object(
@@ -266,43 +373,38 @@ BEGIN
       FROM metier_breakdown mb
     ),
     
-    -- Breakdown par agence avec stats financières
+    -- Breakdown par agence avec stats financières et Cycle Time
     'agencyBreakdown', (
       SELECT COALESCE(jsonb_agg(
         jsonb_build_object(
           'agence_id', a.agence_id,
           'totalInterventions', a.total_interventions,
           'terminatedInterventions', a.terminated_interventions,
+          'avgCycleTime', a.avg_cycle_time,
           'totalPaiements', COALESCE(af.total_paiements, 0),
-          'totalCouts', COALESCE(af.total_couts, 0)
+          'totalCouts', COALESCE(af.total_couts, 0),
+          'marge', COALESCE(af.total_paiements, 0) - COALESCE(af.total_couts, 0)
         )
       ), '[]'::jsonb)
       FROM agency_breakdown a
       LEFT JOIN agency_financials af ON af.agence_id = a.agence_id
     ),
     
-    -- Breakdown par gestionnaire avec stats financières
+    -- Breakdown par gestionnaire avec stats financières et Cycle Time
     'gestionnaireBreakdown', (
       SELECT COALESCE(jsonb_agg(
         jsonb_build_object(
           'gestionnaire_id', g.gestionnaire_id,
           'totalInterventions', g.total_interventions,
           'terminatedInterventions', g.terminated_interventions,
+          'avgCycleTime', g.avg_cycle_time,
           'totalPaiements', COALESCE(gf.total_paiements, 0),
-          'totalCouts', COALESCE(gf.total_couts, 0)
+          'totalCouts', COALESCE(gf.total_couts, 0),
+          'marge', COALESCE(gf.total_paiements, 0) - COALESCE(gf.total_couts, 0)
         )
       ), '[]'::jsonb)
       FROM gestionnaire_breakdown g
       LEFT JOIN gestionnaire_financials gf ON gf.gestionnaire_id = g.gestionnaire_id
-    ),
-    
-    -- Stats financières globales
-    'globalFinancials', (
-      SELECT jsonb_build_object(
-        'totalPaiements', COALESCE(gf.total_paiements, 0),
-        'totalCouts', COALESCE(gf.total_couts, 0)
-      )
-      FROM global_financials gf
     )
   ) INTO result;
   
@@ -312,13 +414,14 @@ $$;
 
 -- Commentaire pour documentation
 COMMENT ON FUNCTION public.get_admin_dashboard_stats IS 
-'Fonction RPC optimisée pour récupérer toutes les statistiques du dashboard admin en une seule requête. 
-Combine les calculs de stats principales, breakdown par statut/métier/agence, et stats financières.
-Réduit le nombre de requêtes SQL de 12-13 à 1 seule requête.
-Tous les comptages de statuts utilisent la table intervention_status_transitions pour être cohérents
-et refléter les transitions de statut pendant la période, plutôt que le statut actuel des interventions.
-Chiffre d''affaires: somme des coûts avec cost_type = ''intervention''.
-Coûts/Pertes: somme des coûts avec cost_type IN (''sst'', ''materiel'').';
+'Fonction RPC optimisée V2.0 pour le Dashboard Admin.
+Inclut:
+- Stats principales avec Deltas
+- Cycle Time (Délai moyen Demande -> Terminée)
+- Sparklines (Données journalières)
+- Funnel Data (Répartition par statut)
+- Breakdown par Métier (Top 10)
+- Performance Agence et Gestionnaire (avec Marge et Cycle Time)';
 
 -- Grant permissions
 GRANT EXECUTE ON FUNCTION public.get_admin_dashboard_stats TO authenticated;

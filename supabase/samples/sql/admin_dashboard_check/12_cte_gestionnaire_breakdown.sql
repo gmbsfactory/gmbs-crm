@@ -1,6 +1,7 @@
 -- ========================================
--- CTE 11: Breakdown par gestionnaire
+-- CTE 9: Breakdown par gestionnaire
 -- ========================================
+-- V2.0: Uniquement via assigned_user_id + Cycle Time
 
 WITH interventions_periode AS (
     SELECT 
@@ -17,38 +18,44 @@ WITH interventions_periode AS (
       AND i.date < '2026-01-01T00:00:00Z'::timestamptz
 ),
 interventions_gestionnaires AS (
-    -- Interventions directement assignées
+    -- V2.0: Uniquement via assigned_user_id
     SELECT DISTINCT
       i.id as intervention_id,
       i.assigned_user_id as gestionnaire_id
     FROM interventions_periode i
     WHERE i.assigned_user_id IS NOT NULL
-    
-    UNION
-    
-    -- Interventions via artisans gérés par le gestionnaire
-    SELECT DISTINCT
-      i.id as intervention_id,
-      a.gestionnaire_id
-    FROM interventions_periode i
-    INNER JOIN public.intervention_artisans ia ON ia.intervention_id = i.id
-    INNER JOIN public.artisans a ON a.id = ia.artisan_id
-    WHERE a.gestionnaire_id IS NOT NULL
-      AND a.is_active = true
 ),
-inter_terminees AS (
-    SELECT DISTINCT intervention_id
-    FROM public.intervention_status_transitions
-    WHERE to_status_code = 'INTER_TERMINEE'
-      AND transition_date >= '2025-01-01T00:00:00Z'::timestamptz
-      AND transition_date <= '2026-01-01T00:00:00Z'::timestamptz
+transitions_periode AS (
+    SELECT 
+      ist.intervention_id,
+      ist.to_status_code,
+      ist.transition_date
+    FROM public.intervention_status_transitions ist
+    INNER JOIN interventions_gestionnaires ig ON ig.intervention_id = ist.intervention_id
+    WHERE ist.transition_date >= '2025-01-01T00:00:00Z'::timestamptz
+      AND ist.transition_date <= '2026-01-01T00:00:00Z'::timestamptz
+),
+cycle_time_data AS (
+    SELECT
+      t_start.intervention_id,
+      EXTRACT(EPOCH FROM (MIN(t_end.transition_date) - MIN(t_start.transition_date))) / 86400.0 as days_diff
+    FROM public.intervention_status_transitions t_start
+    JOIN public.intervention_status_transitions t_end ON t_start.intervention_id = t_end.intervention_id
+    JOIN interventions_gestionnaires ig ON ig.intervention_id = t_start.intervention_id
+    WHERE t_start.to_status_code = 'DEMANDE'
+      AND t_end.to_status_code = 'INTER_TERMINEE'
+      AND t_end.transition_date >= t_start.transition_date
+    GROUP BY t_start.intervention_id
 ),
 gestionnaire_breakdown AS (
     SELECT 
       ig.gestionnaire_id,
       COUNT(DISTINCT ig.intervention_id)::integer as total_interventions,
-      COUNT(DISTINCT CASE WHEN ig.intervention_id IN (SELECT intervention_id FROM inter_terminees) THEN ig.intervention_id END)::integer as terminated_interventions
+      COUNT(DISTINCT CASE WHEN tp.to_status_code = 'INTER_TERMINEE' THEN tp.intervention_id END)::integer as terminated_interventions,
+      COALESCE(AVG(ct.days_diff), 0)::numeric(10,2) as avg_cycle_time
     FROM interventions_gestionnaires ig
+    LEFT JOIN transitions_periode tp ON tp.intervention_id = ig.intervention_id
+    LEFT JOIN cycle_time_data ct ON ct.intervention_id = ig.intervention_id
     WHERE ig.gestionnaire_id IS NOT NULL
     GROUP BY ig.gestionnaire_id
 )
@@ -58,6 +65,7 @@ SELECT
   u.raw_user_meta_data->>'full_name' as gestionnaire_nom,
   gb.total_interventions,
   gb.terminated_interventions,
+  gb.avg_cycle_time,
   CASE 
     WHEN gb.total_interventions > 0 
     THEN ROUND((gb.terminated_interventions::numeric / gb.total_interventions * 100)::numeric, 2)
@@ -83,17 +91,6 @@ interventions_gestionnaires AS (
       i.assigned_user_id as gestionnaire_id
     FROM interventions_periode i
     WHERE i.assigned_user_id IS NOT NULL
-    
-    UNION
-    
-    SELECT DISTINCT
-      i.id as intervention_id,
-      a.gestionnaire_id
-    FROM interventions_periode i
-    INNER JOIN public.intervention_artisans ia ON ia.intervention_id = i.id
-    INNER JOIN public.artisans a ON a.id = ia.artisan_id
-    WHERE a.gestionnaire_id IS NOT NULL
-      AND a.is_active = true
 )
 SELECT 
   (SELECT COUNT(*) FROM interventions_periode) as total_interventions,

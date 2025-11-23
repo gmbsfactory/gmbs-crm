@@ -1,304 +1,400 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useState, useEffect, useMemo, useRef } from "react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Card } from "@/components/ui/card"
 import { useGestionnaires } from "@/hooks/useGestionnaires"
 import { useQuery } from "@tanstack/react-query"
 import { referenceApi } from "@/lib/reference-api"
 import { enumsApi } from "@/lib/supabase-api-v2"
-import { DatePicker } from "@/components/ui/date-picker"
 import { DateRangePicker } from "@/components/interventions/DateRangePicker"
-import { format, startOfWeek, endOfWeek, addDays } from "date-fns"
+import { MultiSelect } from "@/components/ui/multi-select"
+import { 
+  format, 
+  startOfWeek, 
+  endOfWeek, 
+  startOfMonth, 
+  endOfMonth, 
+  startOfYear, 
+  endOfYear,
+  getYear,
+  parseISO,
+  addDays,
+  eachMonthOfInterval,
+  eachWeekOfInterval,
+  isSameMonth,
+} from "date-fns"
 import { fr } from "date-fns/locale"
+import { Separator } from "@/components/ui/separator"
+import { cn } from "@/lib/utils"
 
-type PeriodType = "jour" | "semaine" | "mois" | "annee"
+export type PeriodType = "semaine" | "mois" | "annee" | "custom"
 
 interface FilterBarProps {
   onPeriodChange: (period: PeriodType) => void
-  onDateChange?: (startDate: string | null, endDate: string | null) => void
-  onAgenceChange?: (agence: string) => void
-  onGestionnaireChange?: (gestionnaire: string) => void
-  onMetierChange?: (metier: string) => void
+  onDateChange: (startDate: string | null, endDate: string | null) => void
+  onAgenceChange: (agences: string[]) => void
+  onGestionnaireChange: (gestionnaires: string[]) => void
+  onMetierChange: (metiers: string[]) => void
 }
 
-const MONTHS = [
-  { value: "01", label: "Janvier" },
-  { value: "02", label: "Février" },
-  { value: "03", label: "Mars" },
-  { value: "04", label: "Avril" },
-  { value: "05", label: "Mai" },
-  { value: "06", label: "Juin" },
-  { value: "07", label: "Juillet" },
-  { value: "08", label: "Août" },
-  { value: "09", label: "Septembre" },
-  { value: "10", label: "Octobre" },
-  { value: "11", label: "Novembre" },
-  { value: "12", label: "Décembre" },
-]
-
-// Générer les années de 2020 à 2030
-const YEARS = Array.from({ length: 11 }, (_, i) => 2020 + i)
-
-export function FilterBar({ 
-  onPeriodChange, 
+export function FilterBar({
+  onPeriodChange,
   onDateChange,
-  onAgenceChange, 
-  onGestionnaireChange, 
-  onMetierChange 
+  onAgenceChange,
+  onGestionnaireChange,
+  onMetierChange
 }: FilterBarProps) {
-  const [period, setPeriod] = useState<PeriodType>("mois")
-  const [selectedYear, setSelectedYear] = useState<string>(new Date().getFullYear().toString())
-  const [selectedMonth, setSelectedMonth] = useState<string>((new Date().getMonth() + 1).toString().padStart(2, "0"))
-  const [selectedDay, setSelectedDay] = useState<Date | null>(new Date())
-  const [weekRange, setWeekRange] = useState<{ from: Date | null; to: Date | null }>({
-    from: null,
-    to: null,
+  const [periodType, setPeriodType] = useState<PeriodType>("mois")
+  const [selectedPeriod, setSelectedPeriod] = useState<string>("") // Format: "yyyy-MM" pour month, "yyyy-MM-dd" pour week, "yyyy" pour year
+  const [dateRange, setDateRange] = useState<{ from: Date | null; to: Date | null }>({
+    from: startOfMonth(new Date()),
+    to: endOfMonth(new Date()),
   })
+  const [isCustomMode, setIsCustomMode] = useState(false)
+  const isProgrammaticUpdate = useRef(false) // Flag pour éviter de basculer en custom lors des mises à jour programmatiques
 
-  // Charger les gestionnaires depuis la BDD
+  const [selectedAgencies, setSelectedAgencies] = useState<string[]>([])
+  const [selectedGestionnaires, setSelectedGestionnaires] = useState<string[]>([])
+  const [selectedMetiers, setSelectedMetiers] = useState<string[]>([])
+
+  // Charger les gestionnaires
   const { data: gestionnaires, isLoading: isLoadingGestionnaires } = useGestionnaires()
-  
-  // Charger les agences depuis la BDD
+
+  // Charger les agences
   const { data: agences, isLoading: isLoadingAgences } = useQuery({
     queryKey: ["agences"],
-    queryFn: async () => {
-      return await referenceApi.getAgencies()
-    },
-    staleTime: 5 * 60 * 1000, // 5 minutes
+    queryFn: async () => referenceApi.getAgencies(),
+    staleTime: 5 * 60 * 1000,
   })
-  
-  // Charger les métiers depuis la BDD
+
+  // Charger les métiers
   const { data: metiers, isLoading: isLoadingMetiers } = useQuery({
     queryKey: ["metiers"],
-    queryFn: async () => {
-      return await enumsApi.getMetiers()
-    },
-    staleTime: 5 * 60 * 1000, // 5 minutes
+    queryFn: async () => enumsApi.getMetiers(),
+    staleTime: 5 * 60 * 1000,
   })
 
-  // Gérer le changement de période
-  const handlePeriodChange = (newPeriod: PeriodType) => {
-    setPeriod(newPeriod)
-    onPeriodChange(newPeriod)
+  // Générer les listes selon le type de période
+  const periodOptions = useMemo(() => {
+    const currentYear = getYear(new Date())
+    const years = [currentYear - 1, currentYear, currentYear + 1]
+
+    if (periodType === "mois") {
+      const months: Date[] = []
+      years.forEach((year) => {
+        const start = startOfYear(new Date(year, 0, 1))
+        const end = endOfYear(new Date(year, 0, 1))
+        months.push(...eachMonthOfInterval({ start, end }))
+      })
+      return months.map((month) => ({
+        value: format(month, "yyyy-MM"),
+        label: format(month, "MMM yyyy", { locale: fr }),
+        year: getYear(month),
+      }))
+    }
+
+    if (periodType === "semaine") {
+      // Générer les semaines du mois courant uniquement
+      const now = new Date()
+      const monthStart = startOfMonth(now)
+      const monthEnd = endOfMonth(now)
+      const weeks = eachWeekOfInterval({ start: monthStart, end: monthEnd }, { weekStartsOn: 1 })
+      
+      return weeks.map((weekStart) => {
+        const weekEnd = addDays(weekStart, 6)
+        return {
+          value: format(weekStart, "yyyy-MM-dd"),
+          label: `${format(weekStart, "d MMM", { locale: fr })} – ${format(weekEnd, "d MMM yyyy", { locale: fr })}`,
+          year: getYear(weekStart),
+        }
+      })
+    }
+
+    // Pour year
+    return years.map((year) => ({
+      value: year.toString(),
+      label: year.toString(),
+      year,
+    }))
+  }, [periodType])
+
+  // Calculer les dates selon la période sélectionnée
+  const calculatedDates = useMemo(() => {
+    if (isCustomMode) {
+      return { from: dateRange.from, to: dateRange.to }
+    }
+
+    let startDate: Date
+    let endDate: Date
+
+    if (selectedPeriod) {
+      // Utiliser la période sélectionnée
+      if (periodType === "mois") {
+        const [year, month] = selectedPeriod.split("-").map(Number)
+        startDate = new Date(year, month - 1, 1)
+        startDate.setHours(0, 0, 0, 0)
+        endDate = new Date(year, month, 0, 23, 59, 59, 999)
+      } else if (periodType === "semaine") {
+        const selectedDate = parseISO(selectedPeriod)
+        startDate = startOfWeek(selectedDate, { weekStartsOn: 1 })
+        startDate.setHours(0, 0, 0, 0)
+        endDate = new Date(startDate)
+        endDate.setDate(startDate.getDate() + 6) // Dimanche
+        endDate.setHours(23, 59, 59, 999)
+      } else {
+        const year = parseInt(selectedPeriod)
+        startDate = new Date(year, 0, 1)
+        startDate.setHours(0, 0, 0, 0)
+        endDate = new Date(year, 11, 31, 23, 59, 59, 999)
+      }
+    } else {
+      // Comportement par défaut (période courante)
+      const now = new Date()
+      if (periodType === "semaine") {
+        const day = now.getDay()
+        const diff = now.getDate() - day + (day === 0 ? -6 : 1)
+        startDate = new Date(now.getFullYear(), now.getMonth(), diff)
+        startDate.setHours(0, 0, 0, 0)
+        endDate = new Date(startDate)
+        endDate.setDate(startDate.getDate() + 6)
+        endDate.setHours(23, 59, 59, 999)
+      } else if (periodType === "mois") {
+        startDate = new Date(now.getFullYear(), now.getMonth(), 1)
+        startDate.setHours(0, 0, 0, 0)
+        endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999)
+      } else {
+        startDate = new Date(now.getFullYear(), 0, 1)
+        startDate.setHours(0, 0, 0, 0)
+        endDate = new Date(now.getFullYear(), 11, 31, 23, 59, 59, 999)
+      }
+    }
+
+    return { from: startDate, to: endDate }
+  }, [periodType, selectedPeriod, isCustomMode])
+
+  // Synchroniser dateRange avec calculatedDates quand ce n'est pas en mode custom
+  useEffect(() => {
+    if (!isCustomMode && calculatedDates.from && calculatedDates.to) {
+      isProgrammaticUpdate.current = true
+      setDateRange({ from: calculatedDates.from, to: calculatedDates.to })
+      onDateChange(format(calculatedDates.from, "yyyy-MM-dd"), format(calculatedDates.to, "yyyy-MM-dd"))
+      // Reset le flag après un court délai
+      setTimeout(() => {
+        isProgrammaticUpdate.current = false
+      }, 100)
+    }
+  }, [calculatedDates, isCustomMode, onDateChange])
+
+  // Obtenir la valeur actuelle pour le Select
+  const getCurrentSelectValue = () => {
+    if (selectedPeriod) return selectedPeriod
     
-    // Réinitialiser les dates selon le type de période
+    // Par défaut, utiliser la période courante
     const now = new Date()
-    switch (newPeriod) {
-      case "jour":
-        setSelectedDay(now)
-        onDateChange?.(format(now, "yyyy-MM-dd"), format(now, "yyyy-MM-dd"))
-        break
-      case "semaine":
-        const weekStart = startOfWeek(now, { weekStartsOn: 1 })
-        const weekEnd = endOfWeek(now, { weekStartsOn: 1 })
-        setWeekRange({ from: weekStart, to: weekEnd })
-        onDateChange?.(format(weekStart, "yyyy-MM-dd"), format(weekEnd, "yyyy-MM-dd"))
-        break
-      case "mois":
-        setSelectedMonth((now.getMonth() + 1).toString().padStart(2, "0"))
-        setSelectedYear(now.getFullYear().toString())
-        const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
-        const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0)
-        onDateChange?.(format(monthStart, "yyyy-MM-dd"), format(monthEnd, "yyyy-MM-dd"))
-        break
-      case "annee":
-        setSelectedYear(now.getFullYear().toString())
-        const yearStart = new Date(now.getFullYear(), 0, 1)
-        const yearEnd = new Date(now.getFullYear(), 11, 31)
-        onDateChange?.(format(yearStart, "yyyy-MM-dd"), format(yearEnd, "yyyy-MM-dd"))
-        break
+    if (periodType === "mois") {
+      return format(now, "yyyy-MM")
+    }
+    if (periodType === "semaine") {
+      const weekStart = startOfWeek(now, { weekStartsOn: 1 })
+      return format(weekStart, "yyyy-MM-dd")
+    }
+    return getYear(now).toString()
+  }
+
+  // Gérer le changement de type de période
+  const handlePeriodTypeChange = (newType: PeriodType) => {
+    setPeriodType(newType)
+    setIsCustomMode(newType === "custom")
+    setSelectedPeriod("") // Réinitialiser la sélection
+    onPeriodChange(newType)
+  }
+
+  // Gérer le changement de sélection de période
+  const handlePeriodSelect = (value: string) => {
+    setSelectedPeriod(value)
+    setIsCustomMode(false)
+  }
+
+  // Gérer le changement manuel du DateRangePicker
+  const handleDateRangeChange = (range: { from: Date | null; to: Date | null }) => {
+    setDateRange(range)
+    
+    // Si ce n'est pas une mise à jour programmatique, basculer en mode custom
+    if (!isProgrammaticUpdate.current && range.from && range.to) {
+      setIsCustomMode(true)
+      setPeriodType("custom")
+      onPeriodChange("custom")
+      onDateChange(format(range.from, "yyyy-MM-dd"), format(range.to, "yyyy-MM-dd"))
+    } else if (range.from && range.to) {
+      onDateChange(format(range.from, "yyyy-MM-dd"), format(range.to, "yyyy-MM-dd"))
     }
   }
 
-  // Gérer le changement d'année
-  const handleYearChange = (year: string) => {
-    setSelectedYear(year)
-    if (period === "annee") {
-      const yearStart = new Date(parseInt(year), 0, 1)
-      const yearEnd = new Date(parseInt(year), 11, 31)
-      onDateChange?.(format(yearStart, "yyyy-MM-dd"), format(yearEnd, "yyyy-MM-dd"))
-    } else if (period === "mois") {
-      const monthStart = new Date(parseInt(year), parseInt(selectedMonth) - 1, 1)
-      const monthEnd = new Date(parseInt(year), parseInt(selectedMonth), 0)
-      onDateChange?.(format(monthStart, "yyyy-MM-dd"), format(monthEnd, "yyyy-MM-dd"))
-    }
-  }
+  // Initialisation des dates par défaut
+  useEffect(() => {
+    const now = new Date()
+    const defaultStart = startOfMonth(now)
+    const defaultEnd = endOfMonth(now)
+    setDateRange({ from: defaultStart, to: defaultEnd })
+    onDateChange(format(defaultStart, "yyyy-MM-dd"), format(defaultEnd, "yyyy-MM-dd"))
+  }, [])
 
-  // Gérer le changement de mois
-  const handleMonthChange = (month: string) => {
-    setSelectedMonth(month)
-    const monthStart = new Date(parseInt(selectedYear), parseInt(month) - 1, 1)
-    const monthEnd = new Date(parseInt(selectedYear), parseInt(month), 0)
-    onDateChange?.(format(monthStart, "yyyy-MM-dd"), format(monthEnd, "yyyy-MM-dd"))
-  }
-
-  // Gérer le changement de jour
-  const handleDayChange = (date: Date | null) => {
-    setSelectedDay(date)
-    if (date) {
-      onDateChange?.(format(date, "yyyy-MM-dd"), format(date, "yyyy-MM-dd"))
+  // Réinitialiser la sélection quand on change de type
+  useEffect(() => {
+    if (periodType !== "custom") {
+      setSelectedPeriod("")
     }
-  }
+  }, [periodType])
 
-  // Gérer le changement de semaine
-  const handleWeekRangeChange = (range: { from: Date | null; to: Date | null }) => {
-    setWeekRange(range)
-    if (range.from && range.to) {
-      onDateChange?.(format(range.from, "yyyy-MM-dd"), format(range.to, "yyyy-MM-dd"))
-    }
-  }
+  // Propagation des changements de filtres
+  useEffect(() => {
+    onAgenceChange(selectedAgencies)
+  }, [selectedAgencies, onAgenceChange])
+
+  useEffect(() => {
+    onGestionnaireChange(selectedGestionnaires)
+  }, [selectedGestionnaires, onGestionnaireChange])
+
+  useEffect(() => {
+    onMetierChange(selectedMetiers)
+  }, [selectedMetiers, onMetierChange])
+
+  // Options pour les MultiSelect
+  const agencyOptions = agences?.map(a => ({ label: a.label, value: a.id })) || []
+  const gestionnaireOptions = gestionnaires?.map(g => ({
+    label: `${g.firstname} ${g.lastname}`,
+    value: g.id
+  })) || []
+  const metierOptions = metiers?.map(m => ({ label: m.label, value: m.id })) || []
 
   return (
     <Card className="border border-border rounded-lg p-4 mb-6 shadow-sm">
-      <div className="flex flex-wrap gap-4">
-        <div className="flex-1 min-w-[200px]">
-          <label className="text-sm font-medium text-foreground mb-2 block">Période</label>
-          <Select value={period} onValueChange={handlePeriodChange}>
-            <SelectTrigger>
-              <SelectValue placeholder="Sélectionner une période" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="jour">Jour</SelectItem>
-              <SelectItem value="semaine">Semaine</SelectItem>
-              <SelectItem value="mois">Mois</SelectItem>
-              <SelectItem value="annee">Année</SelectItem>
-            </SelectContent>
-          </Select>
+      <div className="flex flex-col gap-4">
+        {/* Ligne 1: Période et Dates */}
+        <div className="flex flex-wrap gap-4 items-end">
+          <div className="w-[200px]">
+            <label className="text-sm font-medium text-foreground mb-2 block">Période</label>
+            <Select value={periodType} onValueChange={handlePeriodTypeChange}>
+              <SelectTrigger>
+                <SelectValue placeholder="Sélectionner une période" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="semaine">Semaine</SelectItem>
+                <SelectItem value="mois">Mois</SelectItem>
+                <SelectItem value="annee">Année</SelectItem>
+                <SelectItem value="custom">Personnalisé</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Sélecteur de période spécifique (affiché seulement si pas en mode custom) */}
+          {periodType !== "custom" && (
+            <div className="w-[200px]">
+              <label className="text-sm font-medium text-foreground mb-2 block">
+                {periodType === "semaine" ? "Semaine" : periodType === "mois" ? "Mois" : "Année"}
+              </label>
+              <Select
+                value={getCurrentSelectValue()}
+                onValueChange={handlePeriodSelect}
+              >
+                <SelectTrigger className={cn(
+                  "w-full",
+                  periodType === "semaine" && "min-w-[200px]",
+                  periodType === "mois" && "min-w-[150px]",
+                  periodType === "annee" && "min-w-[120px]"
+                )}>
+                  <SelectValue>
+                    {periodOptions.find((opt) => opt.value === getCurrentSelectValue())?.label || "Sélectionner"}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent className="max-h-[300px]">
+                  {(() => {
+                    const currentYear = getYear(new Date())
+                    const years = [currentYear - 1, currentYear, currentYear + 1]
+                    
+                    if (periodType === "mois") {
+                      return years.map((year) => {
+                        const yearMonths = periodOptions.filter((opt) => opt.year === year)
+                        if (yearMonths.length === 0) return null
+                        return (
+                          <div key={year}>
+                            <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground sticky top-0 bg-popover">
+                              {year}
+                            </div>
+                            {yearMonths.map((month) => (
+                              <SelectItem key={month.value} value={month.value}>
+                                {month.label}
+                              </SelectItem>
+                            ))}
+                          </div>
+                        )
+                      })
+                    }
+                    
+                    if (periodType === "semaine") {
+                      return periodOptions.map((week) => (
+                        <SelectItem key={week.value} value={week.value}>
+                          {week.label}
+                        </SelectItem>
+                      ))
+                    }
+                    
+                    // Pour year
+                    return periodOptions.map((year) => (
+                      <SelectItem key={year.value} value={year.value}>
+                        {year.label}
+                      </SelectItem>
+                    ))
+                  })()}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
+          <div className="flex-1 min-w-[300px]">
+            <label className="text-sm font-medium text-foreground mb-2 block">Plage de dates</label>
+            <DateRangePicker
+              value={dateRange}
+              onChange={handleDateRangeChange}
+            />
+          </div>
         </div>
 
-        {/* Sélecteur selon le type de période */}
-        {period === "jour" && (
-          <div className="flex-1 min-w-[200px]">
-            <label className="text-sm font-medium text-foreground mb-2 block">Date</label>
-            <DatePicker
-              date={selectedDay}
-              onDateChange={handleDayChange}
-              placeholder="Sélectionner un jour"
+        <Separator />
+
+        {/* Ligne 2: Filtres Multiples */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div>
+            <label className="text-sm font-medium text-foreground mb-2 block">Agences</label>
+            <MultiSelect
+              options={agencyOptions}
+              selected={selectedAgencies}
+              onChange={setSelectedAgencies}
+              placeholder="Toutes les agences"
             />
           </div>
-        )}
 
-        {period === "semaine" && (
-          <div className="flex-1 min-w-[300px]">
-            <label className="text-sm font-medium text-foreground mb-2 block">Semaine</label>
-            <DateRangePicker
-              value={weekRange}
-              onChange={handleWeekRangeChange}
+          <div>
+            <label className="text-sm font-medium text-foreground mb-2 block">Gestionnaires</label>
+            <MultiSelect
+              options={gestionnaireOptions}
+              selected={selectedGestionnaires}
+              onChange={setSelectedGestionnaires}
+              placeholder="Tous les gestionnaires"
             />
           </div>
-        )}
 
-        {period === "mois" && (
-          <>
-            <div className="flex-1 min-w-[150px]">
-              <label className="text-sm font-medium text-foreground mb-2 block">Mois</label>
-              <Select value={selectedMonth} onValueChange={handleMonthChange}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Mois" />
-                </SelectTrigger>
-                <SelectContent>
-                  {MONTHS.map((month) => (
-                    <SelectItem key={month.value} value={month.value}>
-                      {month.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="flex-1 min-w-[150px]">
-              <label className="text-sm font-medium text-foreground mb-2 block">Année</label>
-              <Select value={selectedYear} onValueChange={handleYearChange}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Année" />
-                </SelectTrigger>
-                <SelectContent>
-                  {YEARS.map((year) => (
-                    <SelectItem key={year} value={year.toString()}>
-                      {year}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </>
-        )}
-
-        {period === "annee" && (
-          <div className="flex-1 min-w-[150px]">
-            <label className="text-sm font-medium text-foreground mb-2 block">Année</label>
-            <Select value={selectedYear} onValueChange={handleYearChange}>
-              <SelectTrigger>
-                <SelectValue placeholder="Année" />
-              </SelectTrigger>
-              <SelectContent>
-                {YEARS.map((year) => (
-                  <SelectItem key={year} value={year.toString()}>
-                    {year}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+          <div>
+            <label className="text-sm font-medium text-foreground mb-2 block">Métiers</label>
+            <MultiSelect
+              options={metierOptions}
+              selected={selectedMetiers}
+              onChange={setSelectedMetiers}
+              placeholder="Tous les métiers"
+            />
           </div>
-        )}
-
-        {onAgenceChange && (
-          <div className="flex-1 min-w-[200px]">
-            <label className="text-sm font-medium text-foreground mb-2 block">Agence</label>
-            <Select onValueChange={onAgenceChange} disabled={isLoadingAgences}>
-              <SelectTrigger>
-                <SelectValue placeholder={isLoadingAgences ? "Chargement..." : "Toutes les agences"} />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Toutes les agences</SelectItem>
-                {agences?.map((agence) => (
-                  <SelectItem key={agence.id} value={agence.id}>
-                    {agence.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        )}
-
-        {onGestionnaireChange && (
-          <div className="flex-1 min-w-[200px]">
-            <label className="text-sm font-medium text-foreground mb-2 block">Gestionnaire</label>
-            <Select onValueChange={onGestionnaireChange} disabled={isLoadingGestionnaires}>
-              <SelectTrigger>
-                <SelectValue placeholder={isLoadingGestionnaires ? "Chargement..." : "Tous les gestionnaires"} />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Tous les gestionnaires</SelectItem>
-                {gestionnaires?.map((gestionnaire) => (
-                  <SelectItem key={gestionnaire.id} value={gestionnaire.id}>
-                    {gestionnaire.firstname} {gestionnaire.lastname}
-                    {gestionnaire.code_gestionnaire && ` (${gestionnaire.code_gestionnaire})`}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        )}
-
-        {onMetierChange && (
-          <div className="flex-1 min-w-[200px]">
-            <label className="text-sm font-medium text-foreground mb-2 block">Métier</label>
-            <Select onValueChange={onMetierChange} disabled={isLoadingMetiers}>
-              <SelectTrigger>
-                <SelectValue placeholder={isLoadingMetiers ? "Chargement..." : "Tous les métiers"} />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Tous les métiers</SelectItem>
-                {metiers?.map((metier) => (
-                  <SelectItem key={metier.id} value={metier.id}>
-                    {metier.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        )}
+        </div>
       </div>
     </Card>
   )

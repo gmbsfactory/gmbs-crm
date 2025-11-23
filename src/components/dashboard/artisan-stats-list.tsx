@@ -197,7 +197,18 @@ export function ArtisanStatsList({ period, userId: propUserId }: ArtisanStatsLis
     return (
       <Card className="bg-background border-border/5 shadow-sm/30 hover:shadow-lg hover:border-border/50 transition-all duration-300">
         <CardHeader>
-          <CardTitle>Mes Artisans</CardTitle>
+          <CardTitle 
+            className="cursor-pointer hover:text-primary transition-colors"
+            onClick={(e) => {
+              e.stopPropagation()
+              sessionStorage.setItem('pending-artisan-filter', JSON.stringify({
+                viewId: "ma-liste-artisans"
+              }))
+              router.push("/artisans")
+            }}
+          >
+            Mes Artisans
+          </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="flex items-center justify-center h-[350px]">
@@ -214,7 +225,18 @@ export function ArtisanStatsList({ period, userId: propUserId }: ArtisanStatsLis
     return (
       <Card className="bg-background border-border/5 shadow-sm/30 hover:shadow-lg hover:border-border/50 transition-all duration-300">
         <CardHeader>
-          <CardTitle>Mes Artisans</CardTitle>
+          <CardTitle 
+            className="cursor-pointer hover:text-primary transition-colors"
+            onClick={(e) => {
+              e.stopPropagation()
+              sessionStorage.setItem('pending-artisan-filter', JSON.stringify({
+                viewId: "ma-liste-artisans"
+              }))
+              router.push("/artisans")
+            }}
+          >
+            Mes Artisans
+          </CardTitle>
         </CardHeader>
         <CardContent>
           <p className="text-sm text-destructive">{error}</p>
@@ -244,7 +266,18 @@ export function ArtisanStatsList({ period, userId: propUserId }: ArtisanStatsLis
     return (
       <Card className="bg-background border-border/5 shadow-sm/30 hover:shadow-lg hover:border-border/50 transition-all duration-300">
         <CardHeader>
-          <CardTitle>Mes Artisans</CardTitle>
+          <CardTitle 
+            className="cursor-pointer hover:text-primary transition-colors"
+            onClick={(e) => {
+              e.stopPropagation()
+              sessionStorage.setItem('pending-artisan-filter', JSON.stringify({
+                viewId: "ma-liste-artisans"
+              }))
+              router.push("/artisans")
+            }}
+          >
+            Mes Artisans
+          </CardTitle>
         </CardHeader>
         <CardContent>
           <p className="text-sm text-muted-foreground">
@@ -427,7 +460,20 @@ export function ArtisanStatsList({ period, userId: propUserId }: ArtisanStatsLis
           className="bg-background border-border/5 shadow-sm/30 hover:shadow-lg hover:border-border/50 transition-all duration-300"
         >
           <CardHeader>
-            <CardTitle>Mes Artisans</CardTitle>
+            <CardTitle 
+              className="cursor-pointer hover:text-primary transition-colors"
+              onClick={(e) => {
+                e.stopPropagation()
+                // Stocker l'intention de filtre dans sessionStorage
+                sessionStorage.setItem('pending-artisan-filter', JSON.stringify({
+                  viewId: "ma-liste-artisans" // Activer la vue "Ma liste artisans"
+                }))
+                // Naviguer vers la page artisans
+                router.push("/artisans")
+              }}
+            >
+              Mes Artisans
+            </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-2">

@@ -111,7 +111,7 @@ BEGIN
     NULL,
     to_status_code,
     NULL, -- On ne peut pas récupérer l'utilisateur dans le trigger
-    COALESCE(NEW.created_at, now()), -- Utiliser la date de création de l'intervention
+    COALESCE(NEW.date, NEW.created_at, now()), -- Utiliser la date de l'intervention (depuis CSV) ou created_at en fallback
     'trigger', -- Marque que c'est venu du trigger
     jsonb_build_object(
       'date_termine', NEW.date_termine,
