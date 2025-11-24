@@ -678,62 +678,38 @@ export interface YearlyStats {
   year_start: string; // Date de début de l'année
   year_end: string; // Date de fin de l'année
   year: number; // Année
+  description?: string;
 }
 
-// Union type pour toutes les stats
-export type PeriodStatsResult = WeeklyStats | MonthlyStats | YearlyStats;
-
-// Types pour les utilitaires
-export interface FileUploadData {
-  entity_id: string;
-  entity_type: "intervention" | "artisan";
-  kind: string;
-  filename: string;
-  mime_type: string;
-  file_size: number;
-  content: string; // Base64 encoded
-  created_by?: string;
-  created_by_display?: string;
-  created_by_code?: string;
-  created_by_color?: string;
+// Types pour les réponses d'API
+export interface ApiResponse<T> {
+  success: boolean;
+  data?: T;
+  error?: string;
+  message?: string;
 }
 
-export interface SupportedDocumentTypes {
-  supported_types: Record<string, string[]>;
-  max_file_size: string;
-  allowed_mime_types: string[];
+export interface BulkOperationResult {
+  success: number;
+  errors: number;
+  details: Array<{
+    item: any;
+    success: boolean;
+    data?: any;
+    error?: string;
+  }>;
 }
 
-export interface SupportedCommentTypes {
-  comment_types: string[];
-  entity_types: string[];
-  default_type: string;
-  internal_default: boolean;
+// Types pour les statistiques
+export interface UserStats {
+  total: number;
+  by_status: Record<string, number>;
+  by_role: Record<string, number>;
+  active_today: number;
 }
 
-// ===== TYPES POUR LES TENANTS (LOCATAIRES) =====
-
-export interface Tenant {
-  id: string;
-  external_ref: string | null;
-  firstname: string | null;
-  lastname: string | null;
-  email: string | null;
-  telephone: string | null;
-  telephone2: string | null;
-  adresse: string | null;
-  ville: string | null;
-  code_postal: string | null;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface CreateTenantData {
-  external_ref?: string | null;
-  firstname?: string | null;
-  lastname?: string | null;
-  email?: string | null;
-  telephone?: string | null;
+export interface CommentStats {
+  total: number;
   telephone2?: string | null;
   adresse?: string | null;
   ville?: string | null;
@@ -837,58 +813,218 @@ export interface InterventionStatusTransition {
 }
 
 export interface AdminDashboardStats {
-  // 1. Les 5 stats principales
+  // 1. Les stats principales avec Deltas et Cycle Time
   mainStats: {
     nbInterventionsDemandees: number;
-    nbInterventionsTerminees: number; // Passées en INTER_TERMINEE pendant la période
-    tauxTransformation: number; // (Interventions terminées / Interventions reçues) × 100
-    chiffreAffaires: number; // Chiffre d'affaires total
-    tauxMarge: number; // Taux de marge sur interventions terminées
+    nbInterventionsTerminees: number;
+    nbDevis: number;
+    nbValides: number;
+    chiffreAffaires: number;
+    couts: number;
+    marge: number;
+    avgCycleTime: number; // En jours
+    deltaInterventions: number; // Pourcentage
+    deltaChiffreAffaires: number; // Pourcentage
+    deltaMarge: number; // Pourcentage
+    tauxTransformation?: number; // Calculé côté front ou SQL si ajouté
+    tauxMarge?: number; // Calculé côté front ou SQL si ajouté
   };
 
-  // 2. Statistiques des statuts
-  statusStats: {
-    nbDemandesRecues: number;
-    nbDevisEnvoye: number;
-    nbEnCours: number;
-    nbAttAcompte: number;
-    nbAccepte: number;
-    nbTermine: number;
-    breakdown: Array<{
-      statusCode: string;
-      statusLabel: string;
-      count: number;
-    }>;
-  };
+  // 2. Sparklines pour les graphiques de tendance
+  sparklines: Array<{
+    date: string;
+    countDemandees: number;
+    countTerminees: number;
+  }>;
 
-  // 3. Statistiques par métier (pour camembert)
-  metierStats: Array<{
+  // 3. Données pour le Funnel (Status Breakdown)
+  statusBreakdown: Array<{
+    statusCode: string;
+    statusLabel: string;
+    count: number;
+    avgCycleTime?: string; // Durée moyenne dans ce statut
+  }>;
+
+  // 4. Statistiques par métier
+  metierBreakdown: Array<{
     metierId: string;
     metierLabel: string;
     count: number;
     percentage: number;
   }>;
 
-  // 4. Statistiques par agence
+  // 5. Statistiques par agence
   agencyStats: Array<{
     agencyId: string;
     agencyLabel: string;
     nbTotalInterventions: number;
     nbInterventionsTerminees: number;
+    ca: number;
+    couts: number;
+    marge: number;
     tauxMarge: number;
-    ca: number; // Chiffre d'affaires
-    marge: number; // Marge absolue
   }>;
 
-  // 5. Statistiques par gestionnaire
+  // 6. Statistiques par gestionnaire
   gestionnaireStats: Array<{
     gestionnaireId: string;
     gestionnaireLabel: string;
-    nbInterventionsPrises: number; // Interventions assignées au gestionnaire
+    nbInterventionsPrises: number;
     nbInterventionsTerminees: number;
     tauxTransformation: number;
     tauxMarge: number;
     ca: number;
+    couts: number;
     marge: number;
   }>;
+
+  // Champs legacy pour compatibilité temporaire (optionnels)
+  statusStats?: any;
+  metierStats?: any;
+}
+
+/**
+ * Données historiques du chiffre d'affaires par période
+ */
+export interface RevenueHistoryData {
+  period: string; // Format: "YYYY-MM" pour mois, "YYYY-WW" pour semaine, etc.
+  periodLabel: string; // Label affiché: "Janvier 2024", "Semaine 1", etc.
+  revenue: number; // Chiffre d'affaires réel
+  isProjection?: boolean; // true pour les projections
+}
+
+/**
+ * Paramètres pour récupérer l'historique du CA
+ */
+export interface RevenueHistoryParams {
+  periodType: PeriodType; // 'day' | 'week' | 'month' | 'year'
+  startDate?: string;
+  endDate?: string;
+  agenceId?: string | null;
+  gestionnaireId?: string | null;
+  metierId?: string | null;
+  includeProjection?: boolean; // Inclure la projection de la période suivante
+}
+
+/**
+ * Réponse de l'API pour l'historique du CA
+ */
+export interface RevenueHistoryResponse {
+  historical: RevenueHistoryData[]; // Les 4 dernières périodes
+  projection?: RevenueHistoryData; // Projection de la période suivante
+  currentPeriod: RevenueHistoryData; // Période actuelle
+}
+
+/**
+ * Interface générique pour les données historiques de n'importe quel KPI
+ */
+export interface KPIHistoryData<T = number> {
+  period: string;
+  periodLabel: string;
+  value: T;
+  isProjection?: boolean;
+}
+
+/**
+ * Paramètres génériques pour récupérer l'historique
+ */
+export interface KPIHistoryParams {
+  periodType: PeriodType;
+  startDate?: string;
+  endDate?: string;
+  agenceId?: string | null;
+  gestionnaireId?: string | null;
+  metierId?: string | null;
+  includeProjection?: boolean;
+}
+
+/**
+ * Réponse générique pour l'historique
+ */
+export interface KPIHistoryResponse<T = number> {
+  historical: KPIHistoryData<T>[];
+  projection?: KPIHistoryData<T>;
+  currentPeriod: KPIHistoryData<T>;
+}
+
+/**
+ * Données historiques pour les interventions (demandées + terminées)
+ */
+export interface InterventionsHistoryData {
+  period: string;
+  periodLabel: string;
+  value: {
+    demandees: number;
+    terminees: number;
+  };
+  isProjection?: boolean;
+}
+
+/**
+ * Réponse pour l'historique des interventions
+ */
+export interface InterventionsHistoryResponse {
+  historical: InterventionsHistoryData[];
+  projection?: InterventionsHistoryData;
+  currentPeriod: InterventionsHistoryData;
+}
+
+/**
+ * Données historiques pour le taux de transformation (demandées + terminées)
+ */
+export interface TransformationRateHistoryData {
+  period: string;
+  periodLabel: string;
+  value: {
+    demandees: number;
+    terminees: number;
+  };
+  isProjection?: boolean;
+}
+
+/**
+ * Réponse pour l'historique du taux de transformation
+ */
+export interface TransformationRateHistoryResponse {
+  historical: TransformationRateHistoryData[];
+  projection?: TransformationRateHistoryData;
+  currentPeriod: TransformationRateHistoryData;
+}
+
+/**
+ * Données historiques pour le cycle moyen (en jours)
+ */
+export interface CycleTimeHistoryData {
+  period: string;
+  periodLabel: string;
+  value: number; // En jours
+  isProjection?: boolean;
+}
+
+/**
+ * Réponse pour l'historique du cycle moyen
+ */
+export interface CycleTimeHistoryResponse {
+  historical: CycleTimeHistoryData[];
+  projection?: CycleTimeHistoryData;
+  currentPeriod: CycleTimeHistoryData;
+}
+
+/**
+ * Données historiques pour la marge (en euros)
+ */
+export interface MarginHistoryData {
+  period: string;
+  periodLabel: string;
+  value: number; // Marge en euros
+  isProjection?: boolean;
+}
+
+/**
+ * Réponse pour l'historique de la marge
+ */
+export interface MarginHistoryResponse {
+  historical: MarginHistoryData[];
+  projection?: MarginHistoryData;
+  currentPeriod: MarginHistoryData;
 }

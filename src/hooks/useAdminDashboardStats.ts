@@ -25,14 +25,14 @@ export function useAdminDashboardStats(
   // Cela garantit que la clé de cache change quand la période change
   const calculatedDates = useMemo(() => {
     if (!params) return null
-    
+
     const { periodType, referenceDate, startDate, endDate } = params
-    
+
     // Si les dates sont fournies explicitement, les utiliser
     if (startDate && endDate) {
       return { start: startDate, end: endDate }
     }
-    
+
     // Sinon, calculer les dates basées sur periodType et referenceDate
     const refDate = referenceDate ? new Date(referenceDate) : new Date()
     return interventionsApi.calculatePeriodDates(periodType, refDate)
@@ -41,28 +41,28 @@ export function useAdminDashboardStats(
   return useQuery<AdminDashboardStats>({
     queryKey: params && calculatedDates
       ? [
-          "admin", 
-          "dashboard", 
-          "stats", 
-          params.periodType, 
-          calculatedDates.start, 
-          calculatedDates.end,
-          params.agenceId ?? null,
-          params.gestionnaireId ?? null,
-          params.metierId ?? null,
-        ]
+        "admin",
+        "dashboard",
+        "stats",
+        params.periodType,
+        calculatedDates.start,
+        calculatedDates.end,
+        params.agenceId ?? null,
+        params.gestionnaireId ?? null,
+        params.metierId ?? null,
+      ]
       : params
-      ? [
-          "admin", 
-          "dashboard", 
-          "stats", 
-          params.periodType, 
+        ? [
+          "admin",
+          "dashboard",
+          "stats",
+          params.periodType,
           "current",
           params.agenceId ?? null,
           params.gestionnaireId ?? null,
           params.metierId ?? null,
         ]
-      : ["admin", "dashboard", "stats", "disabled"],
+        : ["admin", "dashboard", "stats", "disabled"],
     queryFn: async () => {
       if (!params) throw new Error("Params are required")
       return await interventionsApi.getAdminDashboardStats(params)

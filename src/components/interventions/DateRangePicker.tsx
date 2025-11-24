@@ -45,7 +45,11 @@ export function DateRangePicker({
           {label}
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-[680px] p-4 shadow-lg rounded-2xl border transition-[opacity,transform,shadow] duration-150 ease-out" align="start">
+      <PopoverContent 
+        className="w-[680px] p-4 shadow-lg rounded-2xl border transition-[opacity,transform,shadow] duration-150 ease-out" 
+        align="start"
+        data-range-complete={value.from !== null && value.to !== null}
+      >
         <Calendar
           mode="range"
           selected={{ from: value.from ?? undefined, to: value.to ?? undefined }}
@@ -67,12 +71,18 @@ export function DateRangePicker({
             head_cell: "text-foreground font-semibold rounded-md w-10 text-[0.85rem]",
             row: "flex w-full mt-2",
             cell: "h-10 w-10 text-center text-sm p-0 relative focus-within:relative focus-within:z-20",
-            day: "h-10 w-10 p-0 font-medium aria-selected:opacity-100",
-            day_selected: "bg-primary text-primary-foreground hover:bg-primary",
-            day_today: "bg-accent text-accent-foreground",
+            day: cn(
+              "h-10 w-10 p-0 font-medium aria-selected:opacity-100",
+              "transition-all duration-200 ease-out"
+            ),
+            // Style shadcn/ui amélioré pour les plages de dates
+            range_start: "bg-primary text-primary-foreground rounded-l-md font-bold shadow-md",
+            range_middle: "bg-primary/35 text-primary-foreground rounded-none",
+            range_end: "bg-primary text-primary-foreground rounded-r-md font-bold shadow-md",
+            day_selected: "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground font-bold shadow-lg",
+            day_today: "bg-accent text-accent-foreground font-semibold",
             day_outside: "text-muted-foreground opacity-40",
             day_disabled: "text-muted-foreground opacity-40",
-            day_range_middle: "aria-selected:bg-accent aria-selected:text-accent-foreground",
           }}
         />
       </PopoverContent>

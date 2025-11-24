@@ -78,7 +78,7 @@ gestionnaire_financials AS (
 SELECT 
   gf.gestionnaire_id,
   u.email as gestionnaire_email,
-  u.raw_user_meta_data->>'full_name' as gestionnaire_nom,
+  CONCAT(u.firstname, ' ', u.lastname) as gestionnaire_nom,
   gf.total_paiements,
   gf.total_couts,
   (gf.total_paiements - gf.total_couts)::numeric as marge_brute,

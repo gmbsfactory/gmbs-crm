@@ -498,6 +498,18 @@ class DatabaseManager {
           delete intervention.artisanSST;
           delete intervention._originalCSVRow;
 
+          // Valider la date : si invalide, utiliser la date du jour
+          const DEFAULT_INVALID_DATE = "2000-01-01T00:00:00Z";
+          const isDateValid = intervention.date && 
+            intervention.date !== DEFAULT_INVALID_DATE &&
+            new Date(intervention.date).getFullYear() > 2000;
+
+          if (!isDateValid) {
+            // Utiliser la date du jour si la date du CSV n'est pas valide
+            intervention.date = new Date().toISOString();
+            this.log(`  ⚠️ Date invalide, utilisation de la date du jour`, "verbose");
+          }
+
           // Créer l'intervention
           const upsertedIntervention = await interventionsApi.upsertDirect(
             intervention

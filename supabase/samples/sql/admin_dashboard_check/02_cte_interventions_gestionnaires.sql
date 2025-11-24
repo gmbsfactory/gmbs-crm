@@ -1,7 +1,8 @@
 -- ========================================
--- CTE 1b: Interventions liées aux gestionnaires
+-- CTE 1c: Interventions liées aux gestionnaires
 -- ========================================
--- Vérifie les interventions directement assignées et via artisans
+-- V2.0: Uniquement via assigned_user_id (plus de jointure avec artisans)
+-- Vérifie les interventions directement assignées
 
 WITH interventions_periode AS (
     SELECT 
@@ -18,7 +19,6 @@ WITH interventions_periode AS (
       AND i.date < '2026-01-01T00:00:00Z'::timestamptz
 ),
 interventions_gestionnaires AS (
-    -- Interventions directement assignées
     SELECT DISTINCT
       i.id as intervention_id,
       i.assigned_user_id as gestionnaire_id,

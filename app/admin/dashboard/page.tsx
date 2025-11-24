@@ -1,39 +1,49 @@
 "use client"
 
 import { useState, useMemo, useCallback } from "react"
-import { TrendingUp, CheckCircle2, Percent, DollarSign } from "lucide-react"
+import { TrendingUp, DollarSign, Activity, Clock, Users, Building2, Percent } from "lucide-react"
 import { KPICard } from "@/components/admin-dashboard/KPICard"
-import { FilterBar } from "@/components/admin-dashboard/FilterBar"
-import { ManagerPerformanceTable } from "@/components/admin-dashboard/ManagerPerformanceTable"
-import { GestionnairePerformanceTable } from "@/components/admin-dashboard/GestionnairePerformanceTable"
-import { StatusChart } from "@/components/admin-dashboard/StatusChart"
-import { MetierPieChart } from "@/components/admin-dashboard/MetierPieChart"
+import { FilterBar, PeriodType } from "@/components/admin-dashboard/FilterBar"
+import { FunnelChart } from "@/components/admin-dashboard/FunnelChart"
+import { HorizontalBarChart } from "@/components/admin-dashboard/HorizontalBarChart"
+import { VirtualizedDataTable } from "@/components/admin-dashboard/VirtualizedDataTable"
+import { MarginBar } from "@/components/admin-dashboard/MarginBar"
+import { RevenueHistoryModal } from "@/components/admin-dashboard/RevenueHistoryModal"
+import { InterventionsHistoryModal } from "@/components/admin-dashboard/InterventionsHistoryModal"
+import { TransformationRateHistoryModal } from "@/components/admin-dashboard/TransformationRateHistoryModal"
+import { CycleTimeHistoryModal } from "@/components/admin-dashboard/CycleTimeHistoryModal"
+import { MarginHistoryModal } from "@/components/admin-dashboard/MarginHistoryModal"
 import { useAdminDashboardStats } from "@/hooks/useAdminDashboardStats"
 import { AdminGuard } from "@/components/admin-dashboard/AdminGuard"
-import type { PeriodType } from "@/lib/api/v2"
 import { Skeleton } from "@/components/ui/skeleton"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 
 export default function AdminDashboardPage() {
-  const [period, setPeriod] = useState<"jour" | "semaine" | "mois" | "annee">("mois")
+  const [period, setPeriod] = useState<PeriodType>("mois" as PeriodType)
   const [startDate, setStartDate] = useState<string | null>(null)
   const [endDate, setEndDate] = useState<string | null>(null)
   const [agenceId, setAgenceId] = useState<string | null>(null)
   const [gestionnaireId, setGestionnaireId] = useState<string | null>(null)
   const [metierId, setMetierId] = useState<string | null>(null)
+  const [isRevenueModalOpen, setIsRevenueModalOpen] = useState(false)
+  const [isInterventionsModalOpen, setIsInterventionsModalOpen] = useState(false)
+  const [isTransformationModalOpen, setIsTransformationModalOpen] = useState(false)
+  const [isCycleTimeModalOpen, setIsCycleTimeModalOpen] = useState(false)
+  const [isMarginModalOpen, setIsMarginModalOpen] = useState(false)
 
   // Convertir la période en PeriodType pour l'API
-  const periodType: PeriodType = useMemo(() => {
+  const apiPeriodType = useMemo(() => {
+    // The API expects specific string values. 
+    // If PeriodType matches API expectations, we can pass it directly.
+    // Assuming PeriodType in FilterBar matches API requirements or we map it here.
+    // FilterBar uses "semaine" | "mois" | "annee" | "custom"
+    // API expects "day" | "week" | "month" | "year"
     switch (period) {
-      case "jour":
-        return "day"
-      case "semaine":
-        return "week"
-      case "mois":
-        return "month"
-      case "annee":
-        return "year"
-      default:
-        return "month"
+      case "semaine": return "week" as const
+      case "mois": return "month" as const
+      case "annee": return "year" as const
+      case "custom": return "month" as const // Fallback to month for custom
+      default: return "month" as const
     }
   }, [period])
 
@@ -43,9 +53,22 @@ export default function AdminDashboardPage() {
     setEndDate(end)
   }, [])
 
+  // Gérer les changements de filtres (FilterBar retourne maintenant des strings uniques)
+  const handleAgenceChange = useCallback((agence: string) => {
+    setAgenceId(agence === "all" ? null : agence)
+  }, [])
+
+  const handleGestionnaireChange = useCallback((gestionnaire: string) => {
+    setGestionnaireId(gestionnaire === "all" ? null : gestionnaire)
+  }, [])
+
+  const handleMetierChange = useCallback((metier: string) => {
+    setMetierId(metier === "all" ? null : metier)
+  }, [])
+
   // Récupérer les données du dashboard
   const { data: dashboardStats, isLoading, error } = useAdminDashboardStats({
-    periodType,
+    periodType: apiPeriodType as any, // Cast to avoid type mismatch if API types differ slightly
     startDate: startDate || undefined,
     endDate: endDate || undefined,
     agenceId: agenceId === "all" ? null : agenceId,
@@ -53,118 +76,331 @@ export default function AdminDashboardPage() {
     metierId: metierId === "all" ? null : metierId,
   })
 
-  // Formater les nombres pour l'affichage (memoized pour éviter les recréations)
-  const formatNumber = useCallback((num: number) => {
-    return new Intl.NumberFormat("fr-FR").format(num)
-  }, [])
+  // Formater les nombres pour l'affichage
+  const formatNumber = useCallback((num: number) => new Intl.NumberFormat("fr-FR").format(num), [])
+  const formatCurrency = useCallback((num: number) => new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR", minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(num), [])
 
-  // Formater les pourcentages (memoized pour éviter les recréations)
-  const formatPercent = useCallback((num: number) => {
-    return `${num.toFixed(1)}%`
-  }, [])
+  // Colonnes pour les tableaux
+  const agencyColumns = useMemo(() => [
+    { 
+      header: "Agence", 
+      accessorKey: "agencyLabel", 
+      size: 200,
+      minSize: 200,
+      maxSize: 200,
+    },
+    { 
+      header: "Interventions", 
+      accessorKey: "nbTotalInterventions", 
+      size: 120,
+      minSize: 120,
+      maxSize: 120,
+      cell: (item: any) => formatNumber(item.nbTotalInterventions) 
+    },
+    { 
+      header: "CA", 
+      accessorKey: "ca", 
+      size: 120,
+      minSize: 120,
+      maxSize: 120,
+      cell: (item: any) => formatCurrency(item.ca) 
+    },
+    { 
+      header: "Marge", 
+      accessorKey: "marge", 
+      size: 120,
+      minSize: 120,
+      maxSize: 120,
+      cell: (item: any) => formatCurrency(item.marge) 
+    },
+    { 
+      header: "Taux Marge", 
+      accessorKey: "tauxMarge", 
+      size: 150,
+      minSize: 150,
+      maxSize: 150,
+      cell: (item: any) => <MarginBar value={item.tauxMarge} target={30} /> 
+    },
+  ], [formatNumber, formatCurrency])
 
-  // Formater la monnaie (memoized pour éviter les recréations)
-  const formatCurrency = useCallback((num: number) => {
-    return new Intl.NumberFormat("fr-FR", {
-      style: "currency",
-      currency: "EUR",
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(num)
-  }, [])
+  const managerColumns = useMemo(() => [
+    { 
+      header: "Gestionnaire", 
+      accessorKey: "gestionnaireLabel", 
+      size: 200,
+      minSize: 200,
+      maxSize: 200,
+    },
+    { 
+      header: "Prises", 
+      accessorKey: "nbInterventionsPrises", 
+      size: 100,
+      minSize: 100,
+      maxSize: 100,
+      cell: (item: any) => formatNumber(item.nbInterventionsPrises) 
+    },
+    { 
+      header: "Terminées", 
+      accessorKey: "nbInterventionsTerminees", 
+      size: 100,
+      minSize: 100,
+      maxSize: 100,
+      cell: (item: any) => formatNumber(item.nbInterventionsTerminees) 
+    },
+    { 
+      header: "CA", 
+      accessorKey: "ca", 
+      size: 120,
+      minSize: 120,
+      maxSize: 120,
+      cell: (item: any) => formatCurrency(item.ca) 
+    },
+    { 
+      header: "Marge", 
+      accessorKey: "marge", 
+      size: 120,
+      minSize: 120,
+      maxSize: 120,
+      cell: (item: any) => formatCurrency(item.marge) 
+    },
+    { 
+      header: "Taux Marge", 
+      accessorKey: "tauxMarge", 
+      size: 150,
+      minSize: 150,
+      maxSize: 150,
+      cell: (item: any) => <MarginBar value={item.tauxMarge} target={30} /> 
+    },
+  ], [formatNumber, formatCurrency])
+
+  if (error) {
+    return (
+      <AdminGuard>
+        <div className="min-h-screen bg-background p-8 flex items-center justify-center">
+          <div className="text-center text-destructive">
+            <p className="text-lg font-semibold mb-2">Erreur lors du chargement des données</p>
+            <p className="text-sm">{error instanceof Error ? error.message : "Une erreur est survenue"}</p>
+          </div>
+        </div>
+      </AdminGuard>
+    )
+  }
 
   return (
     <AdminGuard>
-      {error ? (
-        <div className="min-h-screen bg-background">
-          <div className="container mx-auto px-4 py-8">
-            <div className="text-center text-red-600 dark:text-red-400">
-              <p className="text-lg font-semibold mb-2">Erreur lors du chargement des données</p>
-              <p className="text-sm">{error instanceof Error ? error.message : "Une erreur est survenue"}</p>
-            </div>
-          </div>
-        </div>
-      ) : (
-        <div className="min-h-screen bg-background">
-          <div className="container mx-auto px-4 py-8">
-            {/* Header */}
-            <div className="mb-8">
-              <h1 className="text-3xl font-bold text-foreground mb-2">
-                Dashboard de Pilotage d&apos;Interventions
-              </h1>
-              <p className="text-muted-foreground">
-                Vue d&apos;ensemble des performances et statistiques
-              </p>
-            </div>
-
-            {/* Filters */}
-            <FilterBar 
-              onPeriodChange={(p) => setPeriod(p)}
+      <div className="min-h-screen bg-background/50">
+        <div className="container mx-auto px-4 py-8 space-y-8">
+          {/* Filter Bar - Full Width with colored border */}
+          <div className="w-full bg-card rounded-lg border-l-4 border-primary shadow-sm p-4">
+            <FilterBar
+              onPeriodChange={setPeriod}
               onDateChange={handleDateChange}
-              onAgenceChange={(value) => setAgenceId(value === "all" ? null : value)}
-              onGestionnaireChange={(value) => setGestionnaireId(value === "all" ? null : value)}
-              onMetierChange={(value) => setMetierId(value === "all" ? null : value)}
+              onAgenceChange={handleAgenceChange}
+              onGestionnaireChange={handleGestionnaireChange}
+              onMetierChange={handleMetierChange}
             />
+          </div>
 
-            {/* KPIs */}
+          {/* KPI Cards Row - 5 Columns */}
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
             {isLoading ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
-                {[1, 2, 3, 4, 5].map((i) => (
-                  <Skeleton key={i} className="h-32" />
-                ))}
-              </div>
-            ) : dashboardStats ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
+              Array(5).fill(0).map((_, i) => <Skeleton key={i} className="h-[140px] rounded-xl" />)
+            ) : (
+              <>
                 <KPICard
-                  title="Interventions reçues"
-                  value={formatNumber(dashboardStats.mainStats.nbInterventionsDemandees)}
-                  icon={TrendingUp}
+                  title="Interventions"
+                  value={formatNumber(dashboardStats?.mainStats.nbInterventionsDemandees || 0)}
+                  icon={Activity}
+                  trend={{
+                    value: Math.round(Math.abs(dashboardStats?.mainStats.deltaInterventions || 0) * 10) / 10,
+                    isPositive: (dashboardStats?.mainStats.deltaInterventions || 0) >= 0,
+                    label: "vs période préc."
+                  }}
+                  sparklineData={dashboardStats?.sparklines.map(s => ({ date: s.date, value: s.countDemandees }))}
+                  description={`${formatNumber(dashboardStats?.mainStats.nbInterventionsTerminees || 0)} terminées`}
+                  onClick={() => setIsInterventionsModalOpen(true)}
                 />
                 <KPICard
-                  title="Interventions terminées"
-                  value={formatNumber(dashboardStats.mainStats.nbInterventionsTerminees)}
-                  icon={CheckCircle2}
-                />
-                <KPICard
-                  title="Taux de transformation"
-                  value={formatPercent(dashboardStats.mainStats.tauxTransformation)}
+                  title="Taux Transformation"
+                  value={`${(dashboardStats?.mainStats.tauxTransformation || 0).toFixed(1)}%`}
                   icon={Percent}
+                  description="Demandées / Terminées"
+                  className="border-l-purple-500"
+                  onClick={() => setIsTransformationModalOpen(true)}
                 />
                 <KPICard
-                  title="Chiffre d'affaires"
-                  value={formatCurrency(dashboardStats.mainStats.chiffreAffaires)}
-                  icon={DollarSign}
+                  title="Cycle Moyen"
+                  value={`${dashboardStats?.mainStats.avgCycleTime || 0}j`}
+                  icon={Clock}
+                  description="Délai moyen de traitement"
+                  className="border-l-amber-500"
+                  onClick={() => setIsCycleTimeModalOpen(true)}
                 />
                 <KPICard
-                  title="Taux de marge"
-                  value={formatPercent(dashboardStats.mainStats.tauxMarge)}
+                  title="Chiffre d'Affaires"
+                  value={formatCurrency(dashboardStats?.mainStats.chiffreAffaires || 0)}
                   icon={DollarSign}
+                  trend={{
+                    value: Math.round(Math.abs(dashboardStats?.mainStats.deltaChiffreAffaires || 0) * 10) / 10,
+                    isPositive: (dashboardStats?.mainStats.deltaChiffreAffaires || 0) >= 0,
+                    label: "vs période préc."
+                  }}
+                  sparklineData={dashboardStats?.sparklines.map(s => ({ date: s.date, value: s.countTerminees }))}
+                  className="border-l-blue-500"
+                  onClick={() => setIsRevenueModalOpen(true)}
                 />
-              </div>
-            ) : null}
+                <KPICard
+                  title="Marge Globale"
+                  value={formatCurrency(dashboardStats?.mainStats.marge || 0)}
+                  icon={TrendingUp}
+                  trend={{
+                    value: Math.round(Math.abs(dashboardStats?.mainStats.deltaMarge || 0) * 10) / 10,
+                    isPositive: (dashboardStats?.mainStats.deltaMarge || 0) >= 0,
+                    label: "vs période préc."
+                  }}
+                  description={`Taux de marge: ${dashboardStats?.mainStats.tauxMarge || 0}%`}
+                  className="border-l-emerald-500"
+                  onClick={() => setIsMarginModalOpen(true)}
+                />
+              </>
+            )}
+          </div>
 
-            {/* Charts Row - Statistiques Par Statut et Répartition Par Métier */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-              <StatusChart data={dashboardStats?.statusStats} isLoading={isLoading} />
-              <MetierPieChart data={dashboardStats?.metierStats} isLoading={isLoading} />
-            </div>
+          {/* Charts Row */}
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
+            <div className="col-span-4">
+              <FunnelChart
+                data={(() => {
+                  // Configuration des étapes du funnel (ordre strict)
+                  const FUNNEL_STEPS = [
+                    { code: 'DEMANDE', label: 'Demandé', fill: '#60a5fa' },
+                    { code: 'DEVIS_ENVOYE', label: 'Devis Envoyé', fill: '#3b82f6' },
+                    { code: 'ACCEPTE', label: 'Accepté', fill: '#2563eb' },
+                    { code: 'INTER_EN_COURS', label: 'En Cours', fill: '#1d4ed8' },
+                    { code: 'INTER_TERMINEE', label: 'Terminé', fill: '#10b981' },
+                  ]
 
-            {/* Gestionnaire Performance Table - En dessous des graphiques */}
-            <div className="mb-6">
-              <GestionnairePerformanceTable 
-                data={dashboardStats?.gestionnaireStats} 
-                isLoading={isLoading} 
+                  return FUNNEL_STEPS.map(step => {
+                    const stat = dashboardStats?.statusBreakdown.find(s => s.statusCode === step.code)
+                    return {
+                      name: step.label,
+                      value: stat?.count || 0,
+                      fill: step.fill,
+                      // cycleTime n'est pas disponible par statut pour le moment
+                    }
+                  })
+                })()}
+                title="Entonnoir de Conversion"
+                description="Suivi des interventions par étape"
               />
             </div>
-
-            {/* Agency Stats Table - En dessous des statistiques par gestionnaire */}
-            <div className="mb-6">
-              <ManagerPerformanceTable data={dashboardStats?.agencyStats} isLoading={isLoading} />
+            <div className="col-span-3">
+              <HorizontalBarChart
+                data={dashboardStats?.metierBreakdown.map(m => ({
+                  name: m.metierLabel,
+                  value: m.count
+                })) || []}
+                title="Répartition par Métier"
+                description="Top métiers par volume"
+              />
             </div>
           </div>
+
+          {/* Tables Row - Stacked */}
+          <div className="grid gap-4 grid-cols-1">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Building2 className="h-5 w-5" />
+                  Performance Agences
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {isLoading ? (
+                  <Skeleton className="h-[300px] w-full" />
+                ) : (
+                  <VirtualizedDataTable
+                    data={dashboardStats?.agencyStats || []}
+                    columns={agencyColumns}
+                    height={300}
+                  />
+                )}
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Users className="h-5 w-5" />
+                  Performance Gestionnaires
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {isLoading ? (
+                  <Skeleton className="h-[300px] w-full" />
+                ) : (
+                  <VirtualizedDataTable
+                    data={dashboardStats?.gestionnaireStats || []}
+                    columns={managerColumns}
+                    height={300}
+                  />
+                )}
+              </CardContent>
+            </Card>
+          </div>
         </div>
-      )}
+
+        {/* Modals d'historique */}
+        <RevenueHistoryModal
+          open={isRevenueModalOpen}
+          onOpenChange={setIsRevenueModalOpen}
+          periodType={apiPeriodType}
+          startDate={startDate || undefined}
+          endDate={endDate || undefined}
+          agenceId={agenceId || undefined}
+          gestionnaireId={gestionnaireId || undefined}
+          metierId={metierId || undefined}
+        />
+        <InterventionsHistoryModal
+          open={isInterventionsModalOpen}
+          onOpenChange={setIsInterventionsModalOpen}
+          periodType={apiPeriodType}
+          startDate={startDate || undefined}
+          endDate={endDate || undefined}
+          agenceId={agenceId || undefined}
+          gestionnaireId={gestionnaireId || undefined}
+          metierId={metierId || undefined}
+        />
+        <TransformationRateHistoryModal
+          open={isTransformationModalOpen}
+          onOpenChange={setIsTransformationModalOpen}
+          periodType={apiPeriodType}
+          startDate={startDate || undefined}
+          endDate={endDate || undefined}
+          agenceId={agenceId || undefined}
+          gestionnaireId={gestionnaireId || undefined}
+          metierId={metierId || undefined}
+        />
+        <CycleTimeHistoryModal
+          open={isCycleTimeModalOpen}
+          onOpenChange={setIsCycleTimeModalOpen}
+          periodType={apiPeriodType}
+          startDate={startDate || undefined}
+          endDate={endDate || undefined}
+          agenceId={agenceId || undefined}
+          gestionnaireId={gestionnaireId || undefined}
+          metierId={metierId || undefined}
+        />
+        <MarginHistoryModal
+          open={isMarginModalOpen}
+          onOpenChange={setIsMarginModalOpen}
+          periodType={apiPeriodType}
+          startDate={startDate || undefined}
+          endDate={endDate || undefined}
+          agenceId={agenceId || undefined}
+          gestionnaireId={gestionnaireId || undefined}
+          metierId={metierId || undefined}
+        />
+      </div>
     </AdminGuard>
   )
 }
-

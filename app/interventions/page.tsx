@@ -630,6 +630,8 @@ function PageContent() {
     if (pendingFilterStr) {
       try {
         const pendingFilter = JSON.parse(pendingFilterStr)
+        
+        // Gérer le filtre isCheck
         if (pendingFilter.property === "isCheck" && pendingFilter.operator === "eq" && pendingFilter.value === true) {
           const checkFilter = { property: "isCheck", operator: "eq" as const, value: true }
           const hasCheckFilter = activeView.filters.some(
@@ -640,6 +642,23 @@ function PageContent() {
             updateFilterForProperty("isCheck", checkFilter)
           }
         }
+        
+        // Gérer le filtre par utilisateur assigné (attribueA)
+        if (pendingFilter.property === "attribueA" && pendingFilter.operator === "eq" && typeof pendingFilter.value === "string") {
+          const userFilter = { 
+            property: "attribueA", 
+            operator: "eq" as const, 
+            value: pendingFilter.value 
+          }
+          const hasUserFilter = activeView.filters.some(
+            (f) => f.property === "attribueA" && f.operator === "eq" && f.value === pendingFilter.value
+          )
+          
+          if (!hasUserFilter) {
+            updateFilterForProperty("attribueA", userFilter)
+          }
+        }
+        
         // Nettoyer sessionStorage après avoir appliqué le filtre
         sessionStorage.removeItem('pending-intervention-filter')
       } catch (error) {

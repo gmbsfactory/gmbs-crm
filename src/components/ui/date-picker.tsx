@@ -85,9 +85,9 @@ export function DatePicker({
             head_cell: "text-foreground font-semibold w-9 text-[0.8rem]",
             row: "w-full mt-2 flex",
             cell: "h-9 w-9 text-center text-sm p-0 relative focus-within:z-20",
-            day: "h-9 w-9 p-0 font-medium aria-selected:opacity-100",
-            day_selected: "bg-primary text-primary-foreground hover:bg-primary",
-            day_today: "bg-accent text-accent-foreground",
+            day: "h-9 w-9 p-0 font-medium aria-selected:opacity-100 transition-all duration-200",
+            day_selected: "bg-primary text-primary-foreground hover:bg-primary font-bold rounded-full shadow-lg scale-105",
+            day_today: "bg-accent text-accent-foreground font-semibold",
             day_outside: "text-muted-foreground opacity-40",
             day_disabled: "text-muted-foreground opacity-40",
           }}

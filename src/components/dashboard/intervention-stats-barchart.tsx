@@ -499,7 +499,22 @@ export function InterventionStatsBarChart({ period, userId: propUserId }: Interv
     return (
       <Card className="bg-background border-border/5 shadow-sm/30 hover:shadow-lg hover:border-border/50 transition-all duration-300">
         <CardHeader>
-          <CardTitle>Mes interventions</CardTitle>
+          <CardTitle 
+            className={userId ? "cursor-pointer hover:text-primary transition-colors" : ""}
+            onClick={(e) => {
+              e.stopPropagation()
+              if (userId) {
+                sessionStorage.setItem('pending-intervention-filter', JSON.stringify({
+                  property: "attribueA",
+                  operator: "eq",
+                  value: userId
+                }))
+                router.push("/interventions")
+              }
+            }}
+          >
+            Mes interventions
+          </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="flex items-center justify-center h-[350px]">
@@ -516,7 +531,22 @@ export function InterventionStatsBarChart({ period, userId: propUserId }: Interv
     return (
       <Card className="bg-background border-border/5 shadow-sm/30 hover:shadow-lg hover:border-border/50 transition-all duration-300">
         <CardHeader>
-          <CardTitle>Mes interventions</CardTitle>
+          <CardTitle 
+            className={userId ? "cursor-pointer hover:text-primary transition-colors" : ""}
+            onClick={(e) => {
+              e.stopPropagation()
+              if (userId) {
+                sessionStorage.setItem('pending-intervention-filter', JSON.stringify({
+                  property: "attribueA",
+                  operator: "eq",
+                  value: userId
+                }))
+                router.push("/interventions")
+              }
+            }}
+          >
+            Mes interventions
+          </CardTitle>
         </CardHeader>
         <CardContent>
           <p className="text-sm text-destructive">{error}</p>
@@ -544,7 +574,22 @@ export function InterventionStatsBarChart({ period, userId: propUserId }: Interv
     return (
       <Card className="bg-background border-border/5 shadow-sm/30 hover:shadow-lg hover:border-border/50 transition-all duration-300">
         <CardHeader>
-          <CardTitle>Mes interventions</CardTitle>
+          <CardTitle 
+            className={userId ? "cursor-pointer hover:text-primary transition-colors" : ""}
+            onClick={(e) => {
+              e.stopPropagation()
+              if (userId) {
+                sessionStorage.setItem('pending-intervention-filter', JSON.stringify({
+                  property: "attribueA",
+                  operator: "eq",
+                  value: userId
+                }))
+                router.push("/interventions")
+              }
+            }}
+          >
+            Mes interventions
+          </CardTitle>
         </CardHeader>
         <CardContent>
           <p className="text-sm text-muted-foreground">
@@ -753,7 +798,24 @@ export function InterventionStatsBarChart({ period, userId: propUserId }: Interv
           className="bg-background border-border/5 shadow-sm/30 hover:shadow-lg hover:border-border/50 transition-all duration-300"
         >
           <CardHeader>
-            <CardTitle>Mes interventions</CardTitle>
+            <CardTitle 
+              className="cursor-pointer hover:text-primary transition-colors"
+              onClick={(e) => {
+                e.stopPropagation()
+                if (userId) {
+                  // Stocker l'intention de filtre dans sessionStorage
+                  sessionStorage.setItem('pending-intervention-filter', JSON.stringify({
+                    property: "attribueA",
+                    operator: "eq",
+                    value: userId
+                  }))
+                  // Naviguer vers la page interventions
+                  router.push("/interventions")
+                }
+              }}
+            >
+              Mes interventions
+            </CardTitle>
           </CardHeader>
           <CardContent className="px-2 pt-2">
             <div className="w-full overflow-x-auto">

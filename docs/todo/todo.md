@@ -9,20 +9,8 @@
                 si ce n'est pas déjà fait
 
 - Dashboard admin
-        - Voir si faire la fonction SQL permet réellement d'optimiser et qu'est ce quel permet d'optimiser
-                        nombre de requêtes 
-                        (et rapidité)
-        - S'assurer que les données sont bien calculées
-                - KPI 
-                - Performance par gest
-                - Statistique par agence
-                que la fonction SQL remplit bien son rôle à l'aide de requêtes pilote
-
-        - Affichage de la performance des gestionnaires
-
-        - tester sur une semaine
-
-        - dans la répartition par métier j'aimerai que le composant pie par métier et nombre d'interventions par statut soit interactif
+        - Pie chart 
+        - Sélection date
 
 - delete Artisan via API 
 
@@ -31,7 +19,7 @@
 - export à merger et implémenter 
 
 
-
+- chaîne intervention 
 
 
 
@@ -53,3 +41,14 @@
 - refacto seed_mockup bien avoir des fichiers clairs
 
 - OCR pour documents
+
+
+
+
+
+--------------- Discussion 23/11/2025 with DD
+
+- Tendance 
+- Projections KPIs sur des périodes
+- Prendre un pourcentage de l'augmentation des bénéfices suite à la livraison du CRM et des améliorations que l'on a apporté. En contrepartie nous sommes plus libre de la gestion et de l'amélioration de l'outil. On prend 15% des bénéfices liés à la suite. Ce pourcentage sera révalué chaque trimestre. 
+- 

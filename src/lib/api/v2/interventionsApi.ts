@@ -3,25 +3,38 @@
 
 import { referenceApi } from "@/lib/reference-api";
 import { supabase } from "@/lib/supabase-client";
+import { RevenueProjectionService } from "@/lib/services/revenueProjection";
 import type {
   AdminDashboardStats,
   BulkOperationResult,
   CreateInterventionData,
+  CycleTimeHistoryData,
+  CycleTimeHistoryResponse,
   DashboardPeriodParams,
   GestionnaireMarginRanking,
   Intervention,
   InterventionCost,
   InterventionPayment,
+  InterventionsHistoryData,
+  InterventionsHistoryResponse,
   InterventionQueryParams,
   InterventionStatsByStatus,
   InterventionStatusTransition,
+  KPIHistoryParams,
   MarginCalculation,
+  MarginHistoryData,
+  MarginHistoryResponse,
   MarginRankingResult,
   MarginStats,
   MonthlyStats,
   PaginatedResponse,
   PeriodType,
+  RevenueHistoryData,
+  RevenueHistoryParams,
+  RevenueHistoryResponse,
   StatsPeriod,
+  TransformationRateHistoryData,
+  TransformationRateHistoryResponse,
   UpdateInterventionData,
   WeeklyStats,
   WeekDayStats,
@@ -30,13 +43,15 @@ import type {
   YearlyStats,
 } from "./common/types";
 import {
-  SUPABASE_FUNCTIONS_URL,
+  getSupabaseFunctionsUrl,
   getHeaders,
   handleResponse,
   mapInterventionRecord,
 } from "./common/utils";
 import type { InterventionWithStatus, InterventionStatus } from "@/types/intervention";
 import { isCheckStatus } from "@/lib/interventions/checkStatus";
+import { automaticTransitionService } from "@/lib/interventions/automatic-transition-service";
+import type { InterventionStatusKey } from "@/config/interventions";
 
 // Cache pour les données de référence
 type ReferenceCache = {
@@ -245,7 +260,7 @@ export const interventionsApi = {
   async create(data: CreateInterventionData): Promise<Intervention> {
     const headers = await getHeaders();
     const response = await fetch(
-      `${SUPABASE_FUNCTIONS_URL}/interventions-v2/interventions`,
+      `${getSupabaseFunctionsUrl()}/interventions-v2/interventions`,
       {
         method: "POST",
         headers,
@@ -291,9 +306,10 @@ export const interventionsApi = {
     // Récupérer le statut actuel avant la mise à jour pour détecter si on passe à "terminé"
     let wasTerminatedBefore = false;
     let oldStatutId: string | null = null;
+    let currentIntervention: any = null; // Déclarer la variable en dehors du bloc if
 
     if (payload.statut_id && typeof window !== "undefined") {
-      const { data: currentIntervention } = await supabase
+      const { data } = await supabase
         .from("interventions")
         .select(`
           statut_id,
@@ -301,6 +317,8 @@ export const interventionsApi = {
         `)
         .eq("id", id)
         .single();
+
+      currentIntervention = data; // Assigner la valeur
 
       if (currentIntervention) {
         oldStatutId = currentIntervention.statut_id;
@@ -320,25 +338,58 @@ export const interventionsApi = {
         const { data: { user } } = await supabase.auth.getUser();
         const userId = user?.id || null;
 
-        // Enregistrer la transition explicitement via la fonction SQL
-        const { error: transitionError } = await supabase.rpc(
-          'log_status_transition_from_api',
-          {
-            p_intervention_id: id,
-            p_from_status_id: oldStatutId || null,
-            p_to_status_id: payload.statut_id,
-            p_changed_by_user_id: userId,
-            p_metadata: {
+        // Récupérer les codes de statut pour le service de transition
+        // On utilise le cache de référence pour éviter une requête supplémentaire
+        const refs = await getReferenceCache();
+
+        // Récupérer le code du nouveau statut
+        const newStatusObj = refs.interventionStatusesById.get(payload.statut_id);
+        const newStatusCode = newStatusObj?.code as InterventionStatusKey;
+
+        // Récupérer le code de l'ancien statut
+        // On essaie d'abord via currentIntervention, sinon via le cache
+        let oldStatusCode: InterventionStatusKey | undefined;
+        if (currentIntervention && (currentIntervention as any).status?.code) {
+          oldStatusCode = (currentIntervention as any).status.code as InterventionStatusKey;
+        } else if (oldStatutId) {
+          const oldStatusObj = refs.interventionStatusesById.get(oldStatutId);
+          oldStatusCode = oldStatusObj?.code as InterventionStatusKey;
+        }
+
+        if (newStatusCode && oldStatusCode) {
+          // Utiliser le service de transition automatique
+          await automaticTransitionService.executeTransition(
+            id,
+            oldStatusCode,
+            newStatusCode,
+            userId || undefined,
+            {
               updated_via: 'api_v2',
               updated_at: new Date().toISOString(),
             }
-          }
-        );
+          );
+        } else {
+          console.warn('[interventionsApi] Impossible de récupérer les codes de statut pour la transition', { oldStatutId, newStatutId: payload.statut_id });
 
-        if (transitionError) {
-          console.warn('[interventionsApi] Erreur lors de l\'enregistrement de la transition:', transitionError);
-          // Ne pas bloquer la mise à jour si l'enregistrement de la transition échoue
-          // Le trigger de sécurité prendra le relais
+          // Fallback: Enregistrer la transition directe si on n'a pas les codes
+          const { error: transitionError } = await supabase.rpc(
+            'log_status_transition_from_api',
+            {
+              p_intervention_id: id,
+              p_from_status_id: oldStatutId || null,
+              p_to_status_id: payload.statut_id,
+              p_changed_by_user_id: userId,
+              p_metadata: {
+                updated_via: 'api_v2',
+                updated_at: new Date().toISOString(),
+                fallback: true
+              }
+            }
+          );
+
+          if (transitionError) {
+            console.warn('[interventionsApi] Erreur lors de l\'enregistrement de la transition (fallback):', transitionError);
+          }
         }
       } catch (error) {
         console.warn('[interventionsApi] Erreur lors de l\'enregistrement de la transition:', error);
@@ -521,7 +572,7 @@ export const interventionsApi = {
   async delete(id: string): Promise<{ message: string; data: Intervention }> {
     const headers = await getHeaders();
     const response = await fetch(
-      `${SUPABASE_FUNCTIONS_URL}/interventions-v2/interventions/${id}`,
+      `${getSupabaseFunctionsUrl()}/interventions-v2/interventions/${id}`,
       {
         method: "DELETE",
         headers,
@@ -734,7 +785,7 @@ export const interventionsApi = {
   async upsert(data: CreateInterventionData & { id_inter?: string }): Promise<Intervention> {
     const headers = await getHeaders();
     const response = await fetch(
-      `${SUPABASE_FUNCTIONS_URL}/interventions-v2/interventions/upsert`,
+      `${getSupabaseFunctionsUrl()}/interventions-v2/interventions/upsert`,
       {
         method: "POST",
         headers,
@@ -2218,22 +2269,24 @@ export const interventionsApi = {
 
     // Parser le résultat JSON de la fonction SQL
     const mainStatsData = rpcResult.mainStats || {};
+    const sparklines = rpcResult.sparklines || [];
     const statusBreakdown = rpcResult.statusBreakdown || [];
     const metierBreakdown = rpcResult.metierBreakdown || [];
-    const agencyBreakdown = rpcResult.agencyBreakdown || [];
-    const gestionnaireBreakdown = rpcResult.gestionnaireBreakdown || [];
+    // Support both naming conventions just in case
+    const rawAgencyStats = rpcResult.agencyStats || rpcResult.agencyBreakdown || [];
+    const rawGestionnaireStats = rpcResult.gestionnaireStats || rpcResult.gestionnaireBreakdown || [];
     const globalFinancials = rpcResult.globalFinancials || {};
 
     // Calculer les taux (côté client car ils nécessitent des calculs)
-    // Taux de transformation = (Interventions terminées / Interventions reçues) × 100
+    // Taux de transformation = (Interventions terminées / Interventions demandées) × 100
     const nbDemandees = mainStatsData.nbInterventionsDemandees || 0;
     const nbTerminees = mainStatsData.nbInterventionsTerminees || 0;
     const tauxTransformation = nbDemandees > 0
-      ? Math.round((nbTerminees / nbDemandees) * 100)
+      ? Math.round((nbTerminees / nbDemandees) * 1000) / 10
       : 0;
 
-    const totalPaiements = Number(globalFinancials.totalPaiements || 0);
-    const totalCouts = Number(globalFinancials.totalCouts || 0);
+    const totalPaiements = Number(mainStatsData.chiffreAffaires || 0);
+    const totalCouts = Number(mainStatsData.couts || 0);
     const tauxMarge = totalPaiements > 0
       ? Math.round(((totalPaiements - totalCouts) / totalPaiements) * 100)
       : 0;
@@ -2259,9 +2312,17 @@ export const interventionsApi = {
     const mainStats = {
       nbInterventionsDemandees: mainStatsData.nbInterventionsDemandees || 0,
       nbInterventionsTerminees: mainStatsData.nbInterventionsTerminees || 0,
+      nbDevis: mainStatsData.nbDevis || 0,
+      nbValides: mainStatsData.nbValides || 0,
       tauxTransformation,
       chiffreAffaires,
       tauxMarge,
+      couts: totalCouts,
+      marge: totalPaiements - totalCouts,
+      avgCycleTime: mainStatsData.avgCycleTime || 0,
+      deltaInterventions: mainStatsData.deltaInterventions || 0,
+      deltaChiffreAffaires: mainStatsData.deltaChiffreAffaires || 0,
+      deltaMarge: mainStatsData.deltaMarge || 0,
     };
 
     // Récupérer le cache de référence pour mapper les codes aux labels
@@ -2365,7 +2426,7 @@ export const interventionsApi = {
     // ========================================
     console.log('\n🔍 Opération: Calcul des statistiques par agence...');
 
-    const agencyStats = agencyBreakdown.map((item: any) => {
+    const agencyStats = rawAgencyStats.map((item: any) => {
       const agencyInfo = refs.agenciesById.get(item.agence_id);
       const totalPaiements = Number(item.totalPaiements || 0);
       const totalCouts = Number(item.totalCouts || 0);
@@ -2381,6 +2442,7 @@ export const interventionsApi = {
         nbInterventionsTerminees: item.terminatedInterventions || 0,
         tauxMarge: tauxMargeAgence,
         ca: totalPaiements,
+        couts: totalCouts,
         marge,
       };
     }).sort((a: any, b: any) => b.ca - a.ca);
@@ -2404,7 +2466,7 @@ export const interventionsApi = {
     // ========================================
     console.log('\n🔍 Opération: Calcul des statistiques par gestionnaire...');
 
-    const gestionnaireStats = gestionnaireBreakdown.map((item: any) => {
+    const gestionnaireStats = rawGestionnaireStats.map((item: any) => {
       const gestionnaireInfo = refs.usersById.get(item.gestionnaire_id);
       const totalPaiements = Number(item.totalPaiements || 0);
       const totalCouts = Number(item.totalCouts || 0);
@@ -2433,6 +2495,7 @@ export const interventionsApi = {
         tauxTransformation: tauxTransformationGestionnaire,
         tauxMarge: tauxMargeGestionnaire,
         ca: totalPaiements,
+        couts: totalCouts,
         marge,
       };
     }).sort((a: any, b: any) => b.ca - a.ca);
@@ -2452,26 +2515,13 @@ export const interventionsApi = {
       console.log(`... et ${gestionnaireStats.length - 5} autre(s) gestionnaire(s)`);
     }
 
-    // Log: Récapitulatif final
-    console.log('\n✅ ========================================');
-    console.log('✅ RÉCAPITULATIF - Toutes les opérations terminées');
-    console.log('✅ ========================================');
-    console.log(`📊 Total interventions demandées: ${mainStats.nbInterventionsDemandees}`);
-    console.log(`✅ Total interventions terminées: ${mainStats.nbInterventionsTerminees}`);
-    console.log(`📈 Taux de transformation global: ${tauxTransformation.toFixed(2)}%`);
-    console.log(`💰 Taux de marge global: ${tauxMarge.toFixed(2)}%`);
-    console.log(`💵 Chiffre d'affaires total: ${totalPaiements.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })}`);
-    console.log(`💎 Marge nette totale: ${(totalPaiements - totalCouts).toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })}`);
-    console.log(`📋 Statuts différents: ${breakdown.length}`);
-    console.log(`🔧 Métiers différents: ${metierStats.length}`);
-    console.log(`🏢 Agences différentes: ${agencyStats.length}`);
-    console.log(`👤 Gestionnaires différents: ${gestionnaireStats.length}`);
     console.log('✅ ========================================\n');
 
     return {
       mainStats,
-      statusStats,
-      metierStats,
+      sparklines,
+      statusBreakdown: breakdown,
+      metierBreakdown: metierStats,
       agencyStats,
       gestionnaireStats,
     };
@@ -2491,6 +2541,525 @@ export const interventionsApi = {
 
     if (error) throw error;
     return data || [];
+  },
+
+  /**
+   * Récupère l'historique du chiffre d'affaires pour les 4 dernières périodes
+   * + projection de la période suivante
+   */
+  async getRevenueHistory(
+    params: RevenueHistoryParams
+  ): Promise<RevenueHistoryResponse> {
+    const {
+      periodType,
+      startDate,
+      endDate,
+      agenceId,
+      gestionnaireId,
+      metierId,
+      includeProjection = true,
+    } = params;
+
+    // Calculer les 4 dernières périodes basées sur periodType
+    const periods = this.calculateLast4Periods(periodType, startDate, endDate);
+
+    // Récupérer les données pour chaque période
+    const historical: RevenueHistoryData[] = await Promise.all(
+      periods.map(async (period) => {
+        const stats = await this.getAdminDashboardStats({
+          periodType,
+          startDate: period.start,
+          endDate: period.end,
+          agenceId,
+          gestionnaireId,
+          metierId,
+        });
+
+        return {
+          period: period.key,
+          periodLabel: period.label,
+          revenue: stats.mainStats.chiffreAffaires,
+          isProjection: false,
+        };
+      })
+    );
+
+    // Calculer la projection
+    let projection: RevenueHistoryData | undefined;
+    if (includeProjection) {
+      const nextPeriod = this.calculateNextPeriod(periodType, startDate, endDate);
+      const projectedRevenue = RevenueProjectionService.calculateProjection(historical);
+
+      projection = {
+        period: nextPeriod.key,
+        periodLabel: nextPeriod.label,
+        revenue: projectedRevenue,
+        isProjection: true,
+      };
+    }
+
+    // Période actuelle (dernière période historique)
+    const currentPeriod =
+      historical[historical.length - 1] ||
+      ({
+        period: periods[periods.length - 1]?.key || "",
+        periodLabel: periods[periods.length - 1]?.label || "",
+        revenue: 0,
+        isProjection: false,
+      } as RevenueHistoryData);
+
+    return {
+      historical,
+      projection,
+      currentPeriod,
+    };
+  },
+
+  /**
+   * Calcule les 4 dernières périodes selon le type
+   */
+  calculateLast4Periods(
+    periodType: PeriodType,
+    startDate?: string,
+    endDate?: string
+  ): Array<{ key: string; label: string; start: string; end: string }> {
+    const periods: Array<{ key: string; label: string; start: string; end: string }> = [];
+    const now = new Date();
+
+    // Si des dates sont fournies, utiliser la dernière comme référence
+    const referenceDate = endDate ? new Date(endDate) : now;
+
+    for (let i = 3; i >= 0; i--) {
+      let periodStart: Date;
+      let periodEnd: Date;
+      let key: string;
+      let label: string;
+
+      switch (periodType) {
+        case "month": {
+          periodStart = new Date(referenceDate.getFullYear(), referenceDate.getMonth() - i, 1);
+          periodEnd = new Date(periodStart.getFullYear(), periodStart.getMonth() + 1, 0);
+          periodEnd.setHours(23, 59, 59, 999);
+          key = `${periodStart.getFullYear()}-${String(periodStart.getMonth() + 1).padStart(2, "0")}`;
+          label = periodStart.toLocaleDateString("fr-FR", { month: "long", year: "numeric" });
+          // Capitaliser la première lettre
+          label = label.charAt(0).toUpperCase() + label.slice(1);
+          break;
+        }
+
+        case "week": {
+          // Calculer le lundi de la semaine
+          const day = referenceDate.getDay();
+          const diff = referenceDate.getDate() - day + (day === 0 ? -6 : 1) - i * 7;
+          periodStart = new Date(referenceDate.getFullYear(), referenceDate.getMonth(), diff);
+          periodStart.setHours(0, 0, 0, 0);
+          periodEnd = new Date(periodStart);
+          periodEnd.setDate(periodStart.getDate() + 4);
+          periodEnd.setHours(23, 59, 59, 999);
+          const weekNumber = this.getWeekNumber(periodStart);
+          key = `W${weekNumber}-${periodStart.getFullYear()}`;
+          label = `Semaine ${weekNumber}`;
+          break;
+        }
+
+        case "day": {
+          periodStart = new Date(referenceDate);
+          periodStart.setDate(periodStart.getDate() - i);
+          periodStart.setHours(0, 0, 0, 0);
+          periodEnd = new Date(periodStart);
+          periodEnd.setHours(23, 59, 59, 999);
+          key = periodStart.toISOString().split("T")[0];
+          label = periodStart.toLocaleDateString("fr-FR", { day: "numeric", month: "short" });
+          break;
+        }
+
+        case "year": {
+          periodStart = new Date(referenceDate.getFullYear() - i, 0, 1);
+          periodStart.setHours(0, 0, 0, 0);
+          periodEnd = new Date(periodStart.getFullYear(), 11, 31);
+          periodEnd.setHours(23, 59, 59, 999);
+          key = String(periodStart.getFullYear());
+          label = String(periodStart.getFullYear());
+          break;
+        }
+
+        default:
+          throw new Error(`Invalid period type: ${periodType}`);
+      }
+
+      periods.push({
+        key,
+        label,
+        start: periodStart.toISOString().split("T")[0],
+        end: periodEnd.toISOString().split("T")[0],
+      });
+    }
+
+    return periods;
+  },
+
+  /**
+   * Calcule la période suivante pour la projection
+   */
+  calculateNextPeriod(
+    periodType: PeriodType,
+    startDate?: string,
+    endDate?: string
+  ): { key: string; label: string; start: string; end: string } {
+    const now = new Date();
+    const referenceDate = endDate ? new Date(endDate) : now;
+
+    let periodStart: Date;
+    let periodEnd: Date;
+    let key: string;
+    let label: string;
+
+    switch (periodType) {
+      case "month": {
+        periodStart = new Date(referenceDate.getFullYear(), referenceDate.getMonth() + 1, 1);
+        periodStart.setHours(0, 0, 0, 0);
+        periodEnd = new Date(periodStart.getFullYear(), periodStart.getMonth() + 1, 0);
+        periodEnd.setHours(23, 59, 59, 999);
+        key = `${periodStart.getFullYear()}-${String(periodStart.getMonth() + 1).padStart(2, "0")}`;
+        label = periodStart.toLocaleDateString("fr-FR", { month: "long", year: "numeric" });
+        label = label.charAt(0).toUpperCase() + label.slice(1);
+        break;
+      }
+
+      case "week": {
+        const day = referenceDate.getDay();
+        const diff = referenceDate.getDate() - day + (day === 0 ? -6 : 1) + 7;
+        periodStart = new Date(referenceDate.getFullYear(), referenceDate.getMonth(), diff);
+        periodStart.setHours(0, 0, 0, 0);
+        periodEnd = new Date(periodStart);
+        periodEnd.setDate(periodStart.getDate() + 4);
+        periodEnd.setHours(23, 59, 59, 999);
+        const weekNumber = this.getWeekNumber(periodStart);
+        key = `W${weekNumber}-${periodStart.getFullYear()}`;
+        label = `Semaine ${weekNumber}`;
+        break;
+      }
+
+      case "day": {
+        periodStart = new Date(referenceDate);
+        periodStart.setDate(periodStart.getDate() + 1);
+        periodStart.setHours(0, 0, 0, 0);
+        periodEnd = new Date(periodStart);
+        periodEnd.setHours(23, 59, 59, 999);
+        key = periodStart.toISOString().split("T")[0];
+        label = periodStart.toLocaleDateString("fr-FR", { day: "numeric", month: "short" });
+        break;
+      }
+
+      case "year": {
+        periodStart = new Date(referenceDate.getFullYear() + 1, 0, 1);
+        periodStart.setHours(0, 0, 0, 0);
+        periodEnd = new Date(periodStart.getFullYear(), 11, 31);
+        periodEnd.setHours(23, 59, 59, 999);
+        key = String(periodStart.getFullYear());
+        label = String(periodStart.getFullYear());
+        break;
+      }
+
+      default:
+        throw new Error(`Invalid period type: ${periodType}`);
+    }
+
+    return {
+      key,
+      label,
+      start: periodStart.toISOString().split("T")[0],
+      end: periodEnd.toISOString().split("T")[0],
+    };
+  },
+
+  /**
+   * Calcule le numéro de semaine ISO
+   */
+  getWeekNumber(date: Date): number {
+    const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+    const dayNum = d.getUTCDay() || 7;
+    d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+    const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+    return Math.ceil(((d.getTime() - yearStart.getTime()) / 86400000 + 1) / 7);
+  },
+
+  /**
+   * Récupère l'historique des interventions pour les 4 dernières périodes
+   * + projection de la période suivante
+   */
+  async getInterventionsHistory(
+    params: KPIHistoryParams
+  ): Promise<InterventionsHistoryResponse> {
+    const {
+      periodType,
+      startDate,
+      endDate,
+      agenceId,
+      gestionnaireId,
+      metierId,
+      includeProjection = true,
+    } = params;
+
+    const periods = this.calculateLast4Periods(periodType, startDate, endDate);
+
+    const historical: InterventionsHistoryData[] = await Promise.all(
+      periods.map(async (period) => {
+        const stats = await this.getAdminDashboardStats({
+          periodType,
+          startDate: period.start,
+          endDate: period.end,
+          agenceId,
+          gestionnaireId,
+          metierId,
+        });
+
+        return {
+          period: period.key,
+          periodLabel: period.label,
+          value: {
+            demandees: stats.mainStats.nbInterventionsDemandees,
+            terminees: stats.mainStats.nbInterventionsTerminees,
+          },
+          isProjection: false,
+        };
+      })
+    );
+
+    let projection: InterventionsHistoryData | undefined;
+    if (includeProjection) {
+      const nextPeriod = this.calculateNextPeriod(periodType, startDate, endDate);
+      const projectedValues = RevenueProjectionService.calculateInterventionsProjection(historical);
+
+      projection = {
+        period: nextPeriod.key,
+        periodLabel: nextPeriod.label,
+        value: projectedValues,
+        isProjection: true,
+      };
+    }
+
+    const currentPeriod =
+      historical[historical.length - 1] ||
+      ({
+        period: periods[periods.length - 1]?.key || "",
+        periodLabel: periods[periods.length - 1]?.label || "",
+        value: { demandees: 0, terminees: 0 },
+        isProjection: false,
+      } as InterventionsHistoryData);
+
+    return {
+      historical,
+      projection,
+      currentPeriod,
+    };
+  },
+
+  /**
+   * Récupère l'historique du taux de transformation pour les 4 dernières périodes
+   * + projection de la période suivante
+   */
+  async getTransformationRateHistory(
+    params: KPIHistoryParams
+  ): Promise<TransformationRateHistoryResponse> {
+    const {
+      periodType,
+      startDate,
+      endDate,
+      agenceId,
+      gestionnaireId,
+      metierId,
+      includeProjection = true,
+    } = params;
+
+    const periods = this.calculateLast4Periods(periodType, startDate, endDate);
+
+    const historical: TransformationRateHistoryData[] = await Promise.all(
+      periods.map(async (period) => {
+        const stats = await this.getAdminDashboardStats({
+          periodType,
+          startDate: period.start,
+          endDate: period.end,
+          agenceId,
+          gestionnaireId,
+          metierId,
+        });
+
+        return {
+          period: period.key,
+          periodLabel: period.label,
+          value: {
+            demandees: stats.mainStats.nbInterventionsDemandees,
+            terminees: stats.mainStats.nbInterventionsTerminees,
+          },
+          isProjection: false,
+        };
+      })
+    );
+
+    let projection: TransformationRateHistoryData | undefined;
+    if (includeProjection) {
+      const nextPeriod = this.calculateNextPeriod(periodType, startDate, endDate);
+      const projectedValues = RevenueProjectionService.calculateTransformationRateProjection(historical);
+
+      projection = {
+        period: nextPeriod.key,
+        periodLabel: nextPeriod.label,
+        value: projectedValues,
+        isProjection: true,
+      };
+    }
+
+    const currentPeriod =
+      historical[historical.length - 1] ||
+      ({
+        period: periods[periods.length - 1]?.key || "",
+        periodLabel: periods[periods.length - 1]?.label || "",
+        value: { demandees: 0, terminees: 0 },
+        isProjection: false,
+      } as TransformationRateHistoryData);
+
+    return {
+      historical,
+      projection,
+      currentPeriod,
+    };
+  },
+
+  /**
+   * Récupère l'historique du cycle moyen pour les 4 dernières périodes
+   * + projection de la période suivante
+   */
+  async getCycleTimeHistory(
+    params: KPIHistoryParams
+  ): Promise<CycleTimeHistoryResponse> {
+    const {
+      periodType,
+      startDate,
+      endDate,
+      agenceId,
+      gestionnaireId,
+      metierId,
+      includeProjection = true,
+    } = params;
+
+    const periods = this.calculateLast4Periods(periodType, startDate, endDate);
+
+    const historical: CycleTimeHistoryData[] = await Promise.all(
+      periods.map(async (period) => {
+        const stats = await this.getAdminDashboardStats({
+          periodType,
+          startDate: period.start,
+          endDate: period.end,
+          agenceId,
+          gestionnaireId,
+          metierId,
+        });
+
+        return {
+          period: period.key,
+          periodLabel: period.label,
+          value: stats.mainStats.avgCycleTime,
+          isProjection: false,
+        };
+      })
+    );
+
+    let projection: CycleTimeHistoryData | undefined;
+    if (includeProjection) {
+      const nextPeriod = this.calculateNextPeriod(periodType, startDate, endDate);
+      const projectedValue = RevenueProjectionService.calculateCycleTimeProjection(historical);
+
+      projection = {
+        period: nextPeriod.key,
+        periodLabel: nextPeriod.label,
+        value: projectedValue,
+        isProjection: true,
+      };
+    }
+
+    const currentPeriod =
+      historical[historical.length - 1] ||
+      ({
+        period: periods[periods.length - 1]?.key || "",
+        periodLabel: periods[periods.length - 1]?.label || "",
+        value: 0,
+        isProjection: false,
+      } as CycleTimeHistoryData);
+
+    return {
+      historical,
+      projection,
+      currentPeriod,
+    };
+  },
+
+  /**
+   * Récupère l'historique de la marge pour les 4 dernières périodes
+   * + projection de la période suivante
+   */
+  async getMarginHistory(
+    params: KPIHistoryParams
+  ): Promise<MarginHistoryResponse> {
+    const {
+      periodType,
+      startDate,
+      endDate,
+      agenceId,
+      gestionnaireId,
+      metierId,
+      includeProjection = true,
+    } = params;
+
+    const periods = this.calculateLast4Periods(periodType, startDate, endDate);
+
+    const historical: MarginHistoryData[] = await Promise.all(
+      periods.map(async (period) => {
+        const stats = await this.getAdminDashboardStats({
+          periodType,
+          startDate: period.start,
+          endDate: period.end,
+          agenceId,
+          gestionnaireId,
+          metierId,
+        });
+
+        return {
+          period: period.key,
+          periodLabel: period.label,
+          value: stats.mainStats.marge,
+          isProjection: false,
+        };
+      })
+    );
+
+    let projection: MarginHistoryData | undefined;
+    if (includeProjection) {
+      const nextPeriod = this.calculateNextPeriod(periodType, startDate, endDate);
+      const projectedValue = RevenueProjectionService.calculateMarginProjection(historical);
+
+      projection = {
+        period: nextPeriod.key,
+        periodLabel: nextPeriod.label,
+        value: projectedValue,
+        isProjection: true,
+      };
+    }
+
+    const currentPeriod =
+      historical[historical.length - 1] ||
+      ({
+        period: periods[periods.length - 1]?.key || "",
+        periodLabel: periods[periods.length - 1]?.label || "",
+        value: 0,
+        isProjection: false,
+      } as MarginHistoryData);
+
+    return {
+      historical,
+      projection,
+      currentPeriod,
+    };
   },
 
   /**

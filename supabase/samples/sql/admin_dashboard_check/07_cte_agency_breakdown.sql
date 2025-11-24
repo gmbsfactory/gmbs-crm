@@ -1,7 +1,8 @@
 -- ========================================
--- CTE 6: Breakdown par agence
+-- CTE 8: Breakdown par agence
 -- ========================================
--- Avec comptage des terminées
+-- V2.0: Avec Cycle Time
+-- Comptage basé sur les transitions, pas sur le statut actuel
 
 WITH interventions_periode AS (
     SELECT 
@@ -17,27 +18,46 @@ WITH interventions_periode AS (
       AND i.date >= '2025-01-01T00:00:00Z'::timestamptz
       AND i.date < '2026-01-01T00:00:00Z'::timestamptz
 ),
-inter_terminees AS (
-    SELECT DISTINCT intervention_id
-    FROM public.intervention_status_transitions
-    WHERE to_status_code = 'INTER_TERMINEE'
-      AND transition_date >= '2025-01-01T00:00:00Z'::timestamptz
-      AND transition_date <= '2026-01-01T00:00:00Z'::timestamptz
+transitions_periode AS (
+    SELECT 
+      ist.intervention_id,
+      ist.to_status_code,
+      ist.transition_date
+    FROM public.intervention_status_transitions ist
+    INNER JOIN interventions_periode ip ON ip.id = ist.intervention_id
+    WHERE ist.transition_date >= '2025-01-01T00:00:00Z'::timestamptz
+      AND ist.transition_date <= '2026-01-01T00:00:00Z'::timestamptz
+),
+cycle_time_data AS (
+    SELECT
+      t_start.intervention_id,
+      EXTRACT(EPOCH FROM (MIN(t_end.transition_date) - MIN(t_start.transition_date))) / 86400.0 as days_diff
+    FROM public.intervention_status_transitions t_start
+    JOIN public.intervention_status_transitions t_end ON t_start.intervention_id = t_end.intervention_id
+    JOIN interventions_periode ip ON ip.id = t_start.intervention_id
+    WHERE t_start.to_status_code = 'DEMANDE'
+      AND t_end.to_status_code = 'INTER_TERMINEE'
+      AND t_end.transition_date >= t_start.transition_date
+    GROUP BY t_start.intervention_id
 ),
 agency_breakdown AS (
     SELECT 
-      agence_id,
-      COUNT(*)::integer as total_interventions,
-      COUNT(*) FILTER (WHERE id IN (SELECT intervention_id FROM inter_terminees))::integer as terminated_interventions
-    FROM interventions_periode
-    WHERE agence_id IS NOT NULL
-    GROUP BY agence_id
+      ip.agence_id,
+      COUNT(DISTINCT ip.id)::integer as total_interventions,
+      COUNT(DISTINCT CASE WHEN tp.to_status_code = 'INTER_TERMINEE' THEN tp.intervention_id END)::integer as terminated_interventions,
+      COALESCE(AVG(ct.days_diff), 0)::numeric(10,2) as avg_cycle_time
+    FROM interventions_periode ip
+    LEFT JOIN transitions_periode tp ON tp.intervention_id = ip.id
+    LEFT JOIN cycle_time_data ct ON ct.intervention_id = ip.id
+    WHERE ip.agence_id IS NOT NULL
+    GROUP BY ip.agence_id
 )
 SELECT 
   ab.agence_id,
   a.label as agence_label,
   ab.total_interventions,
   ab.terminated_interventions,
+  ab.avg_cycle_time,
   CASE 
     WHEN ab.total_interventions > 0 
     THEN ROUND((ab.terminated_interventions::numeric / ab.total_interventions * 100)::numeric, 2)

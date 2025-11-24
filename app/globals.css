@@ -2638,6 +2638,63 @@
   .animate-glass-float {
     animation: glass-float 6s ease-in-out infinite;
   }
+
+  /* Styles pour les plages de dates - Approche shadcn/ui améliorée */
+  .rdp-range_start,
+  [class*="range_start"] {
+    background: hsl(var(--primary)) !important;
+    color: hsl(var(--primary-foreground)) !important;
+    font-weight: 700 !important;
+    border-radius: 50% 0 0 50% !important;
+    box-shadow: 0 2px 8px hsl(var(--primary) / 0.3) !important;
+  }
+
+  .rdp-range_end,
+  [class*="range_end"] {
+    background: hsl(var(--primary)) !important;
+    color: hsl(var(--primary-foreground)) !important;
+    font-weight: 700 !important;
+    border-radius: 0 50% 50% 0 !important;
+    box-shadow: 0 2px 8px hsl(var(--primary) / 0.3) !important;
+  }
+
+  .rdp-range_middle,
+  [class*="range_middle"] {
+    background: hsl(var(--primary) / 0.35) !important;
+    color: hsl(var(--primary-foreground)) !important;
+    font-weight: 500 !important;
+    border-radius: 0 !important;
+  }
+
+  /* Quand la plage est complète, renforcer la visibilité */
+  [data-range-complete="true"] .rdp-range_start,
+  [data-range-complete="true"] .rdp-range_end {
+    box-shadow: 
+      0 0 0 3px hsl(var(--primary) / 0.2),
+      0 4px 12px hsl(var(--primary) / 0.4) !important;
+    transform: scale(1.05);
+  }
+
+  [data-range-complete="true"] .rdp-range_middle {
+    background: hsl(var(--primary) / 0.4) !important;
+  }
+
+  /* Hover sur les dates de début/fin */
+  .rdp-range_start:hover,
+  .rdp-range_end:hover {
+    background: hsl(var(--primary)) !important;
+    transform: scale(1.1);
+    box-shadow: 0 4px 16px hsl(var(--primary) / 0.5) !important;
+  }
+
+  /* Amélioration pour les dates sélectionnées uniques */
+  .rdp-day_selected:not(.rdp-range_start):not(.rdp-range_end):not(.rdp-range_middle) {
+    background: hsl(var(--primary)) !important;
+    color: hsl(var(--primary-foreground)) !important;
+    font-weight: 700 !important;
+    border-radius: 50% !important;
+    box-shadow: 0 2px 8px hsl(var(--primary) / 0.3) !important;
+  }
 }
 
 input,
