@@ -35,6 +35,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+DROP TRIGGER IF EXISTS trigger_update_gestionnaire_targets_updated_at ON public.gestionnaire_targets;
 CREATE TRIGGER trigger_update_gestionnaire_targets_updated_at
   BEFORE UPDATE ON public.gestionnaire_targets
   FOR EACH ROW

@@ -350,7 +350,7 @@ export function RemindersProvider({ children }: { children: ReactNode }) {
       channel?.unsubscribe()
       authListener.subscription.unsubscribe()
     }
-  }, [refreshReminders])
+  }, [refreshReminders, openInterventionModal])
 
   const toggleReminder = useCallback(
     async (id: string, idInter?: string) => {

@@ -3,7 +3,7 @@
 import { useState, useMemo, useCallback } from "react"
 import { TrendingUp, DollarSign, Activity, Clock, Users, Building2, Percent } from "lucide-react"
 import { KPICard } from "@/components/admin-dashboard/KPICard"
-import { FilterBar, PeriodType } from "@/components/admin-dashboard/FilterBar"
+import { FilterBar, FilterPeriodType } from "@/components/admin-dashboard/FilterBar"
 import { FunnelChart } from "@/components/admin-dashboard/FunnelChart"
 import { HorizontalBarChart } from "@/components/admin-dashboard/HorizontalBarChart"
 import { VirtualizedDataTable } from "@/components/admin-dashboard/VirtualizedDataTable"
@@ -19,7 +19,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 
 export default function AdminDashboardPage() {
-  const [period, setPeriod] = useState<PeriodType>("mois" as PeriodType)
+  const [period, setPeriod] = useState<FilterPeriodType>("mois")
   const [startDate, setStartDate] = useState<string | null>(null)
   const [endDate, setEndDate] = useState<string | null>(null)
   const [agenceId, setAgenceId] = useState<string | null>(null)

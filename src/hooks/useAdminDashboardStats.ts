@@ -36,7 +36,7 @@ export function useAdminDashboardStats(
     // Sinon, calculer les dates basées sur periodType et referenceDate
     const refDate = referenceDate ? new Date(referenceDate) : new Date()
     return interventionsApi.calculatePeriodDates(periodType, refDate)
-  }, [params?.periodType, params?.referenceDate, params?.startDate, params?.endDate])
+  }, [params])
 
   return useQuery<AdminDashboardStats>({
     queryKey: params && calculatedDates

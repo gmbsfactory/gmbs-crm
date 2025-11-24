@@ -153,7 +153,7 @@ export function useInterventionContextMenu(interventionId: string, viewType?: Co
         description: "Impossible d'ouvrir le formulaire de création.",
       })
     }
-  }, [interventionId, queryClient, modal, toast])
+  }, [interventionId, queryClient, modal])
 
   // Mutation pour assigner l'intervention à l'utilisateur connecté ("Je gère")
   const assignToMeMutation = useMutation({

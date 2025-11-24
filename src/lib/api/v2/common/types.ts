@@ -458,6 +458,25 @@ export interface UpdateDocumentData {
   created_by_color?: string | null;
 }
 
+export interface FileUploadData {
+  content: string; // Base64 encoded file content
+  filename: string;
+  kind: string;
+  entity_type: "intervention" | "artisan";
+  entity_id: string;
+  mime_type: string;
+  file_size?: number;
+  created_by?: string;
+  created_by_display?: string;
+  created_by_code?: string;
+  created_by_color?: string;
+}
+
+export type SupportedDocumentTypes = {
+  intervention: string[];
+  artisan: string[];
+}
+
 export interface CreateCommentData {
   entity_id: string;
   entity_type: "intervention" | "artisan" | "client";
@@ -681,39 +700,40 @@ export interface YearlyStats {
   description?: string;
 }
 
-// Types pour les réponses d'API
-export interface ApiResponse<T> {
-  success: boolean;
-  data?: T;
-  error?: string;
-  message?: string;
-}
-
-export interface BulkOperationResult {
-  success: number;
-  errors: number;
-  details: Array<{
-    item: any;
-    success: boolean;
-    data?: any;
-    error?: string;
-  }>;
-}
-
 // Types pour les statistiques
-export interface UserStats {
-  total: number;
-  by_status: Record<string, number>;
-  by_role: Record<string, number>;
-  active_today: number;
-}
 
 export interface CommentStats {
   total: number;
+  by_type: Record<string, number>;
+  by_internal: { internal: number; external: number };
+  recent_count: number;
+}
+
+export interface Tenant {
+  id: string;
+  firstname: string | null;
+  lastname: string | null;
+  email: string | null;
+  telephone: string | null;
+  telephone2: string | null;
+  adresse: string | null;
+  ville: string | null;
+  code_postal: string | null;
+  external_ref?: string | null;
+  created_at: string | null;
+  updated_at: string | null;
+}
+
+export interface CreateTenantData {
+  firstname?: string | null;
+  lastname?: string | null;
+  email?: string | null;
+  telephone?: string | null;
   telephone2?: string | null;
   adresse?: string | null;
   ville?: string | null;
   code_postal?: string | null;
+  external_ref?: string | null;
 }
 
 export interface UpdateTenantData {
