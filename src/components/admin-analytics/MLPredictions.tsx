@@ -22,7 +22,7 @@ export function MLPredictions({ data, isLoading }: MLPredictionsProps) {
                 <CardHeader>
                     <CardTitle className="flex items-center gap-2">
                         <TrendingUp className="h-5 w-5 text-blue-500" />
-                        Prévisions de Chiffre d'Affaires
+                        Prévisions de Chiffre d&apos;Affaires
                     </CardTitle>
                     <CardDescription>
                         Projection sur les 6 prochains mois (Intervalle de confiance 95%)
@@ -82,7 +82,7 @@ export function MLPredictions({ data, isLoading }: MLPredictionsProps) {
                         <AlertTriangle className="h-5 w-5 text-orange-500" />
                         Risque de Churn
                     </CardTitle>
-                    <CardDescription>Segments à risque élevé détectés par l'IA</CardDescription>
+                    <CardDescription>Segments à risque élevé détectés par l&apos;IA</CardDescription>
                 </CardHeader>
                 <CardContent>
                     <div className="space-y-4">
@@ -102,7 +102,7 @@ export function MLPredictions({ data, isLoading }: MLPredictionsProps) {
                         ))}
                         <div className="pt-4 text-center">
                             <p className="text-sm text-muted-foreground">
-                                L'IA analyse les comportements de navigation et l'historique des tickets.
+                                L&apos;IA analyse les comportements de navigation et l&apos;historique des tickets.
                             </p>
                         </div>
                     </div>

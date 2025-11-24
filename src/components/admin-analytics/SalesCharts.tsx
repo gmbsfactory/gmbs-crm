@@ -21,7 +21,7 @@ export function SalesCharts({ data, isLoading }: SalesChartsProps) {
             <Card>
                 <CardHeader>
                     <CardTitle>Ventes par Secteur</CardTitle>
-                    <CardDescription>Répartition du CA et de la marge par secteur d'activité</CardDescription>
+                    <CardDescription>Répartition du CA et de la marge par secteur d&apos;activité</CardDescription>
                 </CardHeader>
                 <CardContent>
                     <div className="h-[300px]">
