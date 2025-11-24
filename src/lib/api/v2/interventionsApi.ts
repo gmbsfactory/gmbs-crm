@@ -117,7 +117,8 @@ export const interventionsApi = {
       .select(
         `
           *,
-          status:intervention_statuses(id,code,label,color,sort_order)
+          status:intervention_statuses(id,code,label,color,sort_order),
+          payments:intervention_payments(*)
         `,
         { count: "exact" }
       )
@@ -722,6 +723,62 @@ export const interventionsApi = {
     }
 
     return result;
+  },
+
+  // Mettre à jour ou créer un paiement pour une intervention (upsert)
+  async upsertPayment(
+    interventionId: string,
+    data: {
+      payment_type: string;
+      amount?: number;
+      currency?: string;
+      is_received?: boolean;
+      payment_date?: string | null;
+      reference?: string | null;
+    }
+  ): Promise<InterventionPayment> {
+    // Vérifier si le paiement existe déjà
+    const { data: existingPayment, error: findError } = await supabase
+      .from('intervention_payments')
+      .select('id')
+      .eq('intervention_id', interventionId)
+      .eq('payment_type', data.payment_type)
+      .maybeSingle();
+
+    if (findError && findError.code !== 'PGRST116') {
+      throw new Error(`Erreur lors de la recherche du paiement: ${findError.message}`);
+    }
+
+    if (existingPayment) {
+      // Mettre à jour le paiement existant
+      const { data: result, error: updateError } = await supabase
+        .from('intervention_payments')
+        .update({
+          ...data,
+          // Ne pas mettre à jour updated_at car il n'existe pas forcément sur cette table ou est géré par trigger
+        })
+        .eq('id', existingPayment.id)
+        .select()
+        .single();
+
+      if (updateError) {
+        throw new Error(`Erreur lors de la mise à jour du paiement: ${updateError.message}`);
+      }
+
+      return result;
+    } else {
+      // Créer un nouveau paiement
+      // Pour la création, amount est requis s'il n'est pas fourni (mais ici on suppose qu'il l'est ou que la DB a une default)
+      // On utilise addPayment qui attend amount. Si data.amount est undefined, on met 0 par défaut pour la création.
+      return this.addPayment(interventionId, {
+        payment_type: data.payment_type,
+        amount: data.amount ?? 0,
+        currency: data.currency,
+        is_received: data.is_received,
+        payment_date: data.payment_date || undefined,
+        reference: data.reference || undefined
+      });
+    }
   },
 
   // Upsert une intervention (créer ou mettre à jour)

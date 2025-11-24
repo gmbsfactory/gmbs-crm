@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, useRef } from "react"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Textarea } from "@/components/ui/textarea"
 import { Button } from "@/components/ui/button"
@@ -40,10 +40,41 @@ const MODAL_COPY: Record<StatusReasonType, {
 
 export function StatusReasonModal({ open, type, onConfirm, onCancel, isSubmitting }: StatusReasonModalProps) {
   const [reason, setReason] = useState("")
+  const wasOpenRef = useRef(false)
 
   useEffect(() => {
     if (!open) {
       setReason("")
+      
+      // Nettoyer les overlays orphelins après la fermeture
+      if (wasOpenRef.current) {
+        // Petit délai pour laisser le Dialog se fermer proprement
+        const timeoutId = setTimeout(() => {
+          // Supprimer les overlays qui pourraient rester actifs et bloquer l'interface
+          const overlays = document.querySelectorAll('.shadcn-dialog-overlay[data-state="closed"]')
+          overlays.forEach((overlay) => {
+            const element = overlay as HTMLElement
+            // Vérifier si l'overlay est vraiment fermé et orphelin
+            const dialog = document.querySelector('.shadcn-dialog-content[data-state="open"]')
+            if (!dialog) {
+              // Aucun dialog ouvert, supprimer l'overlay fermé
+              element.remove()
+            }
+          })
+          
+          // Forcer la réactivation des interactions si le body est bloqué
+          if (document.body.style.pointerEvents === 'none') {
+            document.body.style.pointerEvents = ''
+          }
+          if (document.body.style.overflow === 'hidden') {
+            document.body.style.overflow = ''
+          }
+        }, 150)
+        
+        return () => clearTimeout(timeoutId)
+      }
+    } else {
+      wasOpenRef.current = true
     }
   }, [open])
 
@@ -58,12 +89,35 @@ export function StatusReasonModal({ open, type, onConfirm, onCancel, isSubmittin
   }
 
   return (
-    <Dialog open={open} onOpenChange={(nextOpen) => {
-      if (!nextOpen) {
-        onCancel()
-      }
-    }}>
-      <DialogContent className="sm:max-w-md !z-[1300]" overlayClassName="!z-[1200]">
+    <Dialog 
+      open={open} 
+      onOpenChange={(nextOpen) => {
+        // Ne pas permettre la fermeture pendant la soumission
+        if (isSubmitting) {
+          return
+        }
+        if (!nextOpen) {
+          onCancel()
+        }
+      }}
+      modal={true}
+    >
+      <DialogContent 
+        className="sm:max-w-md !z-[1300]" 
+        overlayClassName="!z-[1200]"
+        onInteractOutside={(e) => {
+          // Empêcher la fermeture en cliquant à l'extérieur pendant la soumission
+          if (isSubmitting) {
+            e.preventDefault()
+          }
+        }}
+        onEscapeKeyDown={(e) => {
+          // Empêcher la fermeture avec Escape pendant la soumission
+          if (isSubmitting) {
+            e.preventDefault()
+          }
+        }}
+      >
         <DialogHeader>
           <DialogTitle>{copy.title}</DialogTitle>
           <DialogDescription>{copy.description}</DialogDescription>

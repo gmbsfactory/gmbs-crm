@@ -13,24 +13,26 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Switch } from "@/components/ui/switch"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import {
-  User,
-  Shield,
-  Users,
-  Plus,
-  Trash2,
-  Cog,
-  Palette,
-  PanelLeft,
-  PanelLeftClose,
-  PanelLeftOpen,
-  Sun,
-  Moon,
-  Monitor,
-  Workflow,
-  Target,
-  Settings,
-} from "lucide-react"
+  import {
+    User,
+    Shield,
+    Users,
+    Plus,
+    Trash2,
+    Cog,
+    Palette,
+    PanelLeft,
+    PanelLeftClose,
+    PanelLeftOpen,
+    Sun,
+    Moon,
+    Monitor,
+    Workflow,
+    Target,
+    Settings,
+    Mail,
+    ExternalLink,
+  } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { useInterface } from "@/contexts/interface-context"
 import { ACCENT_PRESETS, type ColorMode, type AccentOption, type AccentPresetName, applyTheme } from "@/lib/themes"
@@ -127,7 +129,7 @@ export default function SettingsPage({ activeTab = "profile", embedHeader = true
     }
   }, [sidebarMode, sidebarEnabled, accent, customAccent])
 
-  // Profile: load current user and allow editing personal info + badge color
+  // Profile: load current user and allow editing personal info + badge color + email config
   function ProfileSettings() {
     const [me, setMe] = useState<TeamUser | null>(null)
     const [loading, setLoading] = useState(true)
@@ -135,6 +137,8 @@ export default function SettingsPage({ activeTab = "profile", embedHeader = true
     const [lastNameField, setLastNameField] = useState<string>('')
     const [firstNameField, setFirstNameField] = useState<string>('')
     const [surnomField, setSurnomField] = useState<string>('')
+    const [emailSmtpField, setEmailSmtpField] = useState<string>('')
+    const [emailPasswordField, setEmailPasswordField] = useState<string>('')
     const [speedometerMarginAverageShowPercentage, setSpeedometerMarginAverageShowPercentage] = useState<boolean>(true)
     const [speedometerMarginTotalShowPercentage, setSpeedometerMarginTotalShowPercentage] = useState<boolean>(true)
     const [preferencesLoading, setPreferencesLoading] = useState(true)
@@ -152,6 +156,8 @@ export default function SettingsPage({ activeTab = "profile", embedHeader = true
           setFirstNameField(u?.firstname || u?.prenom || '')
           setLastNameField(u?.lastname || u?.name || '')
           setSurnomField(u?.code_gestionnaire || u?.surnom || '')
+          // Load email_smtp if available (email_password_encrypted is never loaded for security)
+          setEmailSmtpField((u as any)?.email_smtp || '')
           
           // Charger les préférences utilisateur
           if (u?.id) {
@@ -179,11 +185,19 @@ export default function SettingsPage({ activeTab = "profile", embedHeader = true
       try {
         const { data: session } = await supabase.auth.getSession()
         const token = session?.session?.access_token
-        const payload = {
+        const payload: Record<string, unknown> = {
           firstname: firstNameField,
           lastname: lastNameField,
           surnom: surnomField,
           color: colorField,
+        }
+        
+        // Add email fields if provided
+        if (emailSmtpField.trim().length > 0) {
+          payload.email_smtp = emailSmtpField.trim()
+        }
+        if (emailPasswordField.trim().length > 0) {
+          payload.email_password = emailPasswordField.trim()
         }
         const res = await fetch('/api/auth/profile', {
           method: 'PATCH',
@@ -268,6 +282,54 @@ export default function SettingsPage({ activeTab = "profile", embedHeader = true
                 </div>
               </div>
             </div>
+            
+            {/* Email Configuration Section */}
+            <div className="border-t pt-6 mt-6">
+              <div className="flex items-center gap-2 mb-4">
+                <Mail className="h-4 w-4" />
+                <CardTitle className="text-base">Configuration Email</CardTitle>
+              </div>
+              <div className="space-y-4">
+                <div>
+                  <Label htmlFor="email_smtp">Email Gmail</Label>
+                  <Input
+                    id="email_smtp"
+                    type="email"
+                    value={emailSmtpField}
+                    onChange={(e) => setEmailSmtpField(e.target.value)}
+                    placeholder="votre.email@gmail.com"
+                    disabled={loading}
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Adresse Gmail utilisée pour l&apos;envoi d&apos;emails aux artisans
+                  </p>
+                </div>
+                <div>
+                  <Label htmlFor="email_password">Mot de passe d&apos;application Gmail</Label>
+                  <Input
+                    id="email_password"
+                    type="password"
+                    value={emailPasswordField}
+                    onChange={(e) => setEmailPasswordField(e.target.value)}
+                    placeholder="••••••••"
+                    disabled={loading}
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Mot de passe d&apos;application Gmail (pas votre mot de passe principal)
+                    <a
+                      href="https://support.google.com/accounts/answer/185833"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="ml-1 text-primary hover:underline inline-flex items-center gap-1"
+                    >
+                      Comment créer un mot de passe d&apos;application
+                      <ExternalLink className="h-3 w-3" />
+                    </a>
+                  </p>
+                </div>
+              </div>
+            </div>
+            
             <div className="flex justify-end">
               <Button onClick={saveProfile} disabled={loading}>Sauvegarder</Button>
             </div>

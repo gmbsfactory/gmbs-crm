@@ -176,3 +176,11 @@ const retryWithBackoff = async (fn, maxRetries = 3, baseDelay = 1000)
 3. **Optimisation Artisans** : Appliquer les mêmes optimisations à `app/artisans/page.tsx` si nécessaire
 
 
+
+
+
+
+
+
+
+

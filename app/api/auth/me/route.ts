@@ -31,7 +31,7 @@ export async function GET(req: Request) {
     if (userId) {
       const byId = await supabase
         .from('users')
-        .select('id, firstname, lastname, email, status, color, code_gestionnaire, username, last_seen_at')
+        .select('id, firstname, lastname, email, status, color, code_gestionnaire, username, last_seen_at, email_smtp')
         .eq('id', userId)
         .maybeSingle()
       record = byId.data
@@ -41,7 +41,7 @@ export async function GET(req: Request) {
     if ((!record || queryError) && userEmail) {
       const fallback = await supabase
         .from('users')
-        .select('id, firstname, lastname, email, status, color, code_gestionnaire, username, last_seen_at')
+        .select('id, firstname, lastname, email, status, color, code_gestionnaire, username, last_seen_at, email_smtp')
         .eq('email', userEmail)
         .maybeSingle()
       record = fallback.data
@@ -83,6 +83,7 @@ export async function GET(req: Request) {
       surnom: record.code_gestionnaire,
       username: record.username,
       last_seen_at: record.last_seen_at,
+      email_smtp: record.email_smtp || null,
       roles,
     }
     return NextResponse.json({ user })

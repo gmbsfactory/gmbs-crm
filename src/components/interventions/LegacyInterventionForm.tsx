@@ -19,6 +19,8 @@ import { useReferenceData } from "@/hooks/useReferenceData"
 import { interventionsApi } from "@/lib/api/v2"
 import { commentsApi } from "@/lib/api/v2/commentsApi"
 import type { CreateInterventionData } from "@/lib/api/v2/common/types"
+import { toast } from "sonner"
+import { findOrCreateOwner, findOrCreateTenant } from "@/lib/interventions/owner-tenant-helpers"
 
 const INTERVENTION_DOCUMENT_KINDS = [
   { kind: "devis", label: "Devis" },
@@ -53,8 +55,8 @@ const generateAutoInterventionId = () => {
   autoIdCounter = (autoIdCounter + 1) % 100000
   const counterSegment = autoIdCounter.toString().padStart(5, "0")
   // Utiliser crypto.randomUUID si disponible pour une partie supplémentaire
-  const uuidSegment = typeof crypto !== 'undefined' && crypto.randomUUID 
-    ? crypto.randomUUID().slice(0, 8) 
+  const uuidSegment = typeof crypto !== 'undefined' && crypto.randomUUID
+    ? crypto.randomUUID().slice(0, 8)
     : Math.random().toString(36).slice(2, 10)
   return `AUTO-${timestampSegment}-${randomSegment}-${counterSegment}-${uuidSegment}`
 }
@@ -72,49 +74,95 @@ interface LegacyInterventionFormProps {
   mode?: "halfpage" | "centerpage" | "fullpage"
   formRef?: React.RefObject<HTMLFormElement | null>
   onSubmittingChange?: (isSubmitting: boolean) => void
+  defaultValues?: Partial<{
+    agence_id: string
+    reference_agence: string
+    assigned_user_id: string
+    metier_id: string
+    adresse: string
+    code_postal: string
+    ville: string
+    latitude: number
+    longitude: number
+    datePrevue: string
+    nomProprietaire: string
+    prenomProprietaire: string
+    telephoneProprietaire: string
+    emailProprietaire: string
+    nomClient: string
+    prenomClient: string
+    telephoneClient: string
+    emailClient: string
+    artisan: string
+    coutIntervention: string
+    coutSST: string
+    coutMateriel: string
+    numero_sst: string
+    pourcentage_sst: number | undefined
+    accompteSST: string
+    accompteSSTRecu: boolean
+    dateAccompteSSTRecu: string
+    accompteClient: string
+    accompteClientRecu: boolean
+    dateAccompteClientRecu: string
+    commentairesIntervention: string
+    artisanTelephone: string
+    artisanEmail: string
+    consigneSecondArtisan: string
+    artisanId: string
+  }>
 }
 
-export function LegacyInterventionForm({ onSuccess, onCancel, mode = "centerpage", formRef, onSubmittingChange }: LegacyInterventionFormProps) {
+export function LegacyInterventionForm({ onSuccess, onCancel, mode = "centerpage", formRef, onSubmittingChange, defaultValues }: LegacyInterventionFormProps) {
   const { data: refData, loading: refDataLoading } = useReferenceData()
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null)
   const [formData, setFormData] = useState({
-    statut_id: "",
-    idIntervention: "",
-    agence_id: "",
-    reference_agence: "",
-    assigned_user_id: "",
-    metier_id: "",
-    contexteIntervention: "",
-    consigneIntervention: "",
-    adresse: "",
-    code_postal: "",
-    ville: "",
-    latitude: 48.8566,
-    longitude: 2.3522,
-    adresseComplete: "Paris, France",
-    coutIntervention: "",
-    coutSST: "",
-    coutMateriel: "",
+    statut_id: "", // Sera initialisé à "DEMANDE" par le useEffect
+    idIntervention: "", // Toujours vide pour devis supp (auto-généré)
+    agence_id: defaultValues?.agence_id || "",
+    reference_agence: defaultValues?.reference_agence || "",
+    assigned_user_id: defaultValues?.assigned_user_id || "",
+    metier_id: defaultValues?.metier_id || "",
+    contexteIntervention: "", // Toujours vide pour devis supp (obligatoire à remplir)
+    consigneIntervention: "", // Toujours vide pour devis supp
+    adresse: defaultValues?.adresse || "",
+    code_postal: defaultValues?.code_postal || "",
+    ville: defaultValues?.ville || "",
+    latitude: defaultValues?.latitude || 48.8566,
+    longitude: defaultValues?.longitude || 2.3522,
+    adresseComplete: defaultValues?.adresse && defaultValues?.ville
+      ? `${defaultValues.adresse}, ${defaultValues.ville}`
+      : "Paris, France",
+    coutIntervention: defaultValues?.coutIntervention || "",
+    coutSST: defaultValues?.coutSST || "",
+    coutMateriel: defaultValues?.coutMateriel || "",
     marge: "",
-    datePrevue: "",
-    nomProprietaire: "",
-    prenomProprietaire: "",
-    telephoneProprietaire: "",
-    emailProprietaire: "",
-    nomClient: "",
-    prenomClient: "",
-    telephoneClient: "",
-    emailClient: "",
-    artisan: "",
-    artisanTelephone: "",
-    artisanEmail: "",
-    accompteSST: "",
-    accompteSSTRecu: false,
-    dateAccompteSSTRecu: "",
-    accompteClient: "",
-    accompteClientRecu: false,
-    dateAccompteClientRecu: "",
-    commentairesIntervention: "",
+    datePrevue: defaultValues?.datePrevue || "",
+    nomProprietaire: defaultValues?.nomProprietaire || "",
+    prenomProprietaire: defaultValues?.prenomProprietaire || "",
+    telephoneProprietaire: defaultValues?.telephoneProprietaire || "",
+    emailProprietaire: defaultValues?.emailProprietaire || "",
+    nomClient: defaultValues?.nomClient || "",
+    prenomClient: defaultValues?.prenomClient || "",
+    telephoneClient: defaultValues?.telephoneClient || "",
+    emailClient: defaultValues?.emailClient || "",
+    artisan: defaultValues?.artisan || "",
+    artisanTelephone: defaultValues?.artisanTelephone || "",
+    artisanEmail: defaultValues?.artisanEmail || "",
+    accompteSST: defaultValues?.accompteSST || "",
+    accompteSSTRecu: defaultValues?.accompteSSTRecu || false,
+    dateAccompteSSTRecu: defaultValues?.dateAccompteSSTRecu || "",
+    accompteClient: defaultValues?.accompteClient || "",
+    accompteClientRecu: defaultValues?.accompteClientRecu || false,
+    dateAccompteClientRecu: defaultValues?.dateAccompteClientRecu || "",
+    commentairesIntervention: defaultValues?.commentairesIntervention || "",
+    consigneSecondArtisan: defaultValues?.consigneSecondArtisan || "",
+    artisanId: defaultValues?.artisanId || "", // ID de l'artisan pour l'assignation après création
+    is_vacant: false,
+    key_code: "",
+    floor: "",
+    apartment_number: "",
+    vacant_housing_instructions: "",
   })
 
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -137,6 +185,7 @@ export function LegacyInterventionForm({ onSuccess, onCancel, mode = "centerpage
   const [createdInterventionId, setCreatedInterventionId] = useState<string | null>(null)
 
   useEffect(() => {
+    // Toujours initialiser le statut à "DEMANDE" pour les nouvelles interventions
     if (!refData?.interventionStatuses || formData.statut_id) {
       return
     }
@@ -225,14 +274,14 @@ export function LegacyInterventionForm({ onSuccess, onCancel, mode = "centerpage
       window.clearTimeout(suggestionBlurTimeoutRef.current)
       suggestionBlurTimeoutRef.current = null
     }
-    
+
     // Parser l'adresse pour extraire code postal et ville
     const addressParts = parseAddress(suggestion.label)
-    
+
     // Fermer immédiatement le dropdown
     clearSuggestions()
     setShowLocationSuggestions(false)
-    
+
     // Mettre à jour tous les champs
     setFormData((prev) => ({
       ...prev,
@@ -243,34 +292,34 @@ export function LegacyInterventionForm({ onSuccess, onCancel, mode = "centerpage
       code_postal: addressParts.postalCode || "",
       ville: addressParts.city || "",
     }))
-    
+
     // Mettre à jour la query pour refléter la sélection
     setLocationQuery(suggestion.label)
     setGeocodeError(null)
   }, [clearSuggestions, setLocationQuery])
-  
+
   // Fonction helper pour parser une adresse
   const parseAddress = (fullAddress: string): { street: string; postalCode: string; city: string } => {
     // Formats supportés :
     // OpenCage : "123 Rue de Rivoli, 75001 Paris, France"
     // Nominatim : "Rue de Rivoli, Paris, Île-de-France, 75001, France"
-    
+
     const parts = fullAddress.split(',').map(p => p.trim())
-    
+
     let street = ""
     let postalCode = ""
     let city = ""
-    
+
     // Chercher le code postal dans toutes les parties (format 5 chiffres français)
     const postalCodeRegex = /\b(\d{5})\b/
-    
+
     for (let i = 0; i < parts.length; i++) {
       const part = parts[i]
       const match = part.match(postalCodeRegex)
-      
+
       if (match) {
         postalCode = match[1]
-        
+
         // Si le code postal est dans la même partie que la ville (format "75001 Paris")
         const cityInSamePart = part.replace(match[0], '').trim()
         if (cityInSamePart) {
@@ -282,15 +331,15 @@ export function LegacyInterventionForm({ onSuccess, onCancel, mode = "centerpage
         }
       }
     }
-    
+
     // Si pas de ville trouvée, prendre la deuxième partie comme ville
     if (!city && parts.length >= 2) {
       city = parts[1].replace(postalCodeRegex, '').trim()
     }
-    
+
     // La rue est toujours la première partie (avant la première virgule)
     street = parts[0] || fullAddress
-    
+
     return { street, postalCode, city }
   }
 
@@ -336,7 +385,7 @@ export function LegacyInterventionForm({ onSuccess, onCancel, mode = "centerpage
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault()
-    
+
     // Validation des champs obligatoires (BR-INT-001)
     // Utilise la validation HTML5 native du formulaire
     const form = event.currentTarget as HTMLFormElement
@@ -368,6 +417,40 @@ export function LegacyInterventionForm({ onSuccess, onCancel, mode = "centerpage
     try {
       const referenceAgenceValue = formData.reference_agence?.trim() ?? ""
 
+      // Trouver ou créer le propriétaire et le client
+      let ownerId: string | null = null
+      let tenantId: string | null = null
+
+      try {
+        ownerId = await findOrCreateOwner({
+          nomProprietaire: formData.nomProprietaire,
+          prenomProprietaire: formData.prenomProprietaire,
+          telephoneProprietaire: formData.telephoneProprietaire,
+          emailProprietaire: formData.emailProprietaire,
+        })
+      } catch (error) {
+        console.error("[LegacyInterventionForm] Erreur lors de la gestion du propriétaire:", error)
+        toast.error("Erreur lors de la sauvegarde du propriétaire")
+      }
+
+      // Ne créer/trouver le tenant que si le logement n'est pas vacant
+      if (!formData.is_vacant) {
+        try {
+          tenantId = await findOrCreateTenant({
+            nomClient: formData.nomClient,
+            prenomClient: formData.prenomClient,
+            telephoneClient: formData.telephoneClient,
+            emailClient: formData.emailClient,
+          })
+        } catch (error) {
+          console.error("[LegacyInterventionForm] Erreur lors de la gestion du client:", error)
+          toast.error("Erreur lors de la sauvegarde du client")
+        }
+      } else {
+        // Si logement vacant, on doit mettre tenant_id à null explicitement
+        tenantId = null
+      }
+
       // Préparer les données pour l'API V2
       const createData: CreateInterventionData = {
         statut_id: formData.statut_id || undefined,
@@ -385,6 +468,15 @@ export function LegacyInterventionForm({ onSuccess, onCancel, mode = "centerpage
         latitude: formData.latitude,
         longitude: formData.longitude,
         id_inter: idInterValue,
+        is_vacant: formData.is_vacant,
+        // Toujours envoyer les champs de logement vacant si is_vacant=true, même s'ils sont vides
+        key_code: formData.is_vacant ? (formData.key_code?.trim() || null) : null,
+        floor: formData.is_vacant ? (formData.floor?.trim() || null) : null,
+        apartment_number: formData.is_vacant ? (formData.apartment_number?.trim() || null) : null,
+        vacant_housing_instructions: formData.is_vacant ? (formData.vacant_housing_instructions?.trim() || null) : null,
+        owner_id: ownerId || undefined,
+        tenant_id: tenantId || undefined,
+        // Note: client_id est un alias de tenant_id dans certains contextes, mais on utilise tenant_id ici
       }
 
       // Nettoyer les champs undefined
@@ -396,6 +488,17 @@ export function LegacyInterventionForm({ onSuccess, onCancel, mode = "centerpage
 
       const created = await interventionsApi.create(createData)
       setCreatedInterventionId(created.id)
+
+      // Assigner l'artisan si un ID est fourni (depuis defaultValues ou formData)
+      const artisanIdToAssign = defaultValues?.artisanId || formData.artisanId
+      if (artisanIdToAssign && artisanIdToAssign.trim() !== "") {
+        try {
+          await interventionsApi.setPrimaryArtisan(created.id, artisanIdToAssign)
+        } catch (artisanError) {
+          console.error("[LegacyInterventionForm] Impossible d'assigner l'artisan", artisanError)
+          // Ne pas bloquer la création si l'assignation de l'artisan échoue
+        }
+      }
 
       const trimmedInitialComment = formData.commentairesIntervention.trim()
       if (trimmedInitialComment.length > 0) {
@@ -410,9 +513,8 @@ export function LegacyInterventionForm({ onSuccess, onCancel, mode = "centerpage
           })
         } catch (commentError) {
           console.error("[LegacyInterventionForm] Impossible d'ajouter le commentaire initial", commentError)
-          alert(
-            "L'intervention a bien été créée mais le commentaire initial n'a pas pu être enregistré. Merci de l'ajouter manuellement.",
-          )
+          console.error("[LegacyInterventionForm] Impossible d'ajouter le commentaire initial", commentError)
+          toast.error("L'intervention a bien été créée mais le commentaire initial n'a pas pu être enregistré. Merci de l'ajouter manuellement.")
         }
       }
 
@@ -420,11 +522,13 @@ export function LegacyInterventionForm({ onSuccess, onCancel, mode = "centerpage
         ...prev,
         commentairesIntervention: "",
       }))
-      
+
+      toast.success("Intervention créée")
+
       // Appeler onSuccess qui devrait fermer le modal
       // Si onSuccess ne ferme pas le modal, onCancel le fera
       onSuccess?.(created)
-      
+
       // S'assurer que le modal se ferme même si onSuccess ne le fait pas
       // Utiliser un petit délai pour permettre à onSuccess de se terminer
       if (onCancel) {
@@ -434,7 +538,7 @@ export function LegacyInterventionForm({ onSuccess, onCancel, mode = "centerpage
       }
     } catch (error) {
       console.error("Erreur lors de la création:", error)
-      alert("Erreur lors de la création de l'intervention")
+      toast.error("Erreur lors de la création de l'intervention")
     } finally {
       setIsSubmitting(false)
       onSubmittingChange?.(false)
@@ -549,11 +653,11 @@ export function LegacyInterventionForm({ onSuccess, onCancel, mode = "centerpage
                   ))}
                 </SelectContent>
               </Select>
-              <input 
-                type="text" 
-                value={formData.statut_id || ""} 
-                onChange={() => {}}
-                required 
+              <input
+                type="text"
+                value={formData.statut_id || ""}
+                onChange={() => { }}
+                required
                 pattern=".+"
                 title="Statut est obligatoire"
                 style={{ position: 'absolute', opacity: 0, height: 0, width: 0, pointerEvents: 'none' }}
@@ -567,12 +671,12 @@ export function LegacyInterventionForm({ onSuccess, onCancel, mode = "centerpage
               <Label htmlFor="idIntervention" className="legacy-form-label">
                 ID Intervention {requiresDefinitiveId && "*"}
               </Label>
-              <Input 
-                id="idIntervention" 
-                value={formData.idIntervention} 
-                onChange={(event) => handleInputChange("idIntervention", event.target.value)} 
-                placeholder={requiresDefinitiveId ? "Saisir l'ID définitif" : "Auto-généré"} 
-                className="legacy-form-input" 
+              <Input
+                id="idIntervention"
+                value={formData.idIntervention}
+                onChange={(event) => handleInputChange("idIntervention", event.target.value)}
+                placeholder={requiresDefinitiveId ? "Saisir l'ID définitif" : "Auto-généré"}
+                className="legacy-form-input"
                 disabled={!requiresDefinitiveId}
                 required={requiresDefinitiveId}
                 pattern={requiresDefinitiveId ? "^(?!.*(?:[Aa][Uu][Tt][Oo])).+$" : undefined}
@@ -595,11 +699,11 @@ export function LegacyInterventionForm({ onSuccess, onCancel, mode = "centerpage
                   ))}
                 </SelectContent>
               </Select>
-              <input 
-                type="text" 
-                value={formData.agence_id || ""} 
-                onChange={() => {}}
-                required 
+              <input
+                type="text"
+                value={formData.agence_id || ""}
+                onChange={() => { }}
+                required
                 pattern=".+"
                 title="Agence est obligatoire"
                 style={{ position: 'absolute', opacity: 0, height: 0, width: 0, pointerEvents: 'none' }}
@@ -661,11 +765,11 @@ export function LegacyInterventionForm({ onSuccess, onCancel, mode = "centerpage
                   ))}
                 </SelectContent>
               </Select>
-              <input 
-                type="text" 
-                value={formData.metier_id || ""} 
-                onChange={() => {}}
-                required 
+              <input
+                type="text"
+                value={formData.metier_id || ""}
+                onChange={() => { }}
+                required
                 pattern=".+"
                 title="Métier est obligatoire"
                 style={{ position: 'absolute', opacity: 0, height: 0, width: 0, pointerEvents: 'none' }}
@@ -970,58 +1074,119 @@ export function LegacyInterventionForm({ onSuccess, onCancel, mode = "centerpage
                     </div>
                   </div>
                   <div>
-                    <Label className="mb-2 block text-xs font-medium">Client</Label>
-                    <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                      <div>
-                        <Label htmlFor="nomClient" className="text-xs">
-                          Nom
-                        </Label>
-                        <Input
-                          id="nomClient"
-                          value={formData.nomClient}
-                          onChange={(event) => handleInputChange("nomClient", event.target.value)}
-                          placeholder="Nom du client"
-                          className="h-8 text-sm"
+                    <div className="flex items-center justify-between mb-2">
+                      <Label className="block text-xs font-medium">Client</Label>
+                      <div className="flex items-center space-x-2">
+                        <input
+                          type="checkbox"
+                          id="is_vacant"
+                          className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                          checked={formData.is_vacant}
+                          onChange={(e) => handleInputChange("is_vacant", e.target.checked)}
                         />
-                      </div>
-                      <div>
-                        <Label htmlFor="prenomClient" className="text-xs">
-                          Prénom
+                        <Label htmlFor="is_vacant" className="text-xs font-normal cursor-pointer select-none">
+                          logement vacant
                         </Label>
-                        <Input
-                          id="prenomClient"
-                          value={formData.prenomClient}
-                          onChange={(event) => handleInputChange("prenomClient", event.target.value)}
-                          placeholder="Prénom du client"
-                          className="h-8 text-sm"
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor="telephoneClient" className="text-xs">
-                          Téléphone
-                        </Label>
-                        <Input
-                          id="telephoneClient"
-                          value={formData.telephoneClient}
-                          onChange={(event) => handleInputChange("telephoneClient", event.target.value)}
-                          placeholder="06 12 34 56 78"
-                          className="h-8 text-sm"
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor="emailClient" className="text-xs">
-                          Email
-                        </Label>
-                        <Input
-                          id="emailClient"
-                          type="email"
-                          value={formData.emailClient}
-                          onChange={(event) => handleInputChange("emailClient", event.target.value)}
-                          placeholder="client@example.com"
-                          className="h-8 text-sm"
-                        />
                       </div>
                     </div>
+
+                    {formData.is_vacant ? (
+                      <div className="space-y-3">
+                        {/* Ligne 1 : Code clé, Etage, N° Appartement */}
+                        <div className="grid grid-cols-3 gap-3">
+                          <div>
+                            <Label htmlFor="key_code" className="text-xs uppercase">CODE CLÉ</Label>
+                            <Input
+                              id="key_code"
+                              value={formData.key_code}
+                              onChange={(event) => handleInputChange("key_code", event.target.value)}
+                              className="h-8 text-sm mt-1"
+                            />
+                          </div>
+                          <div>
+                            <Label htmlFor="floor" className="text-xs">etage</Label>
+                            <Input
+                              id="floor"
+                              value={formData.floor}
+                              onChange={(event) => handleInputChange("floor", event.target.value)}
+                              className="h-8 text-sm mt-1"
+                            />
+                          </div>
+                          <div>
+                            <Label htmlFor="apartment_number" className="text-xs">n° appartement</Label>
+                            <Input
+                              id="apartment_number"
+                              value={formData.apartment_number}
+                              onChange={(event) => handleInputChange("apartment_number", event.target.value)}
+                              className="h-8 text-sm mt-1"
+                            />
+                          </div>
+                        </div>
+                        {/* Ligne 2 : Consigne */}
+                        <div>
+                          <Label htmlFor="vacant_housing_instructions" className="text-xs">Consigne</Label>
+                          <Textarea
+                            id="vacant_housing_instructions"
+                            value={formData.vacant_housing_instructions}
+                            onChange={(event) => handleInputChange("vacant_housing_instructions", event.target.value)}
+                            placeholder="Consignes"
+                            className="min-h-[80px] text-sm mt-1 resize-none"
+                          />
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                        <div>
+                          <Label htmlFor="nomClient" className="text-xs">
+                            Nom
+                          </Label>
+                          <Input
+                            id="nomClient"
+                            value={formData.nomClient}
+                            onChange={(event) => handleInputChange("nomClient", event.target.value)}
+                            placeholder="Nom du client"
+                            className="h-8 text-sm"
+                          />
+                        </div>
+                        <div>
+                          <Label htmlFor="prenomClient" className="text-xs">
+                            Prénom
+                          </Label>
+                          <Input
+                            id="prenomClient"
+                            value={formData.prenomClient}
+                            onChange={(event) => handleInputChange("prenomClient", event.target.value)}
+                            placeholder="Prénom du client"
+                            className="h-8 text-sm"
+                          />
+                        </div>
+                        <div>
+                          <Label htmlFor="telephoneClient" className="text-xs">
+                            Téléphone
+                          </Label>
+                          <Input
+                            id="telephoneClient"
+                            value={formData.telephoneClient}
+                            onChange={(event) => handleInputChange("telephoneClient", event.target.value)}
+                            placeholder="06 12 34 56 78"
+                            className="h-8 text-sm"
+                          />
+                        </div>
+                        <div>
+                          <Label htmlFor="emailClient" className="text-xs">
+                            Email
+                          </Label>
+                          <Input
+                            id="emailClient"
+                            type="email"
+                            value={formData.emailClient}
+                            onChange={(event) => handleInputChange("emailClient", event.target.value)}
+                            placeholder="client@example.com"
+                            className="h-8 text-sm"
+                          />
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </CardContent>
               </CollapsibleContent>

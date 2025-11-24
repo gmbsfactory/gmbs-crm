@@ -47,7 +47,7 @@ interface ArtisanSearchModalProps {
   open: boolean
   onClose: () => void
   onSelect: (artisan: ArtisanSearchResult) => void
-  position?: { x: number; y: number } | null
+  position?: { x: number; y: number; width?: number; height?: number } | null
 }
 
 const sanitizePhone = (input: string): string => {
@@ -144,7 +144,7 @@ export function ArtisanSearchModal({ open, onClose, onSelect, position }: Artisa
       // Transformer les données pour convertir status de tableau à objet unique
       const transformedData = (data || []).map((artisan: any) => ({
         ...artisan,
-        status: Array.isArray(artisan.status) 
+        status: Array.isArray(artisan.status)
           ? (artisan.status.length > 0 ? artisan.status[0] : null)
           : artisan.status
       }))
@@ -225,22 +225,41 @@ export function ArtisanSearchModal({ open, onClose, onSelect, position }: Artisa
 
   if (!open || typeof window === "undefined") return null
 
+  const MODAL_WIDTH = 600
+  const GAP = 12
+  const MIN_MARGIN = 16
+
   // Calculer la position du popover
   const popoverStyle: React.CSSProperties = position
-    ? {
+    ? (() => {
+      // Calculer la position à gauche du bouton
+      let left = position.x - MODAL_WIDTH - GAP
+
+      // Si le modal dépasse le bord gauche, l'ouvrir à droite
+      if (left < MIN_MARGIN) {
+        left = position.x + (position.width || 0) + GAP
+      }
+
+      // Vérifier que le modal ne dépasse pas le bord droit
+      const maxRight = typeof window !== "undefined" ? window.innerWidth - MIN_MARGIN : left + MODAL_WIDTH
+      if (left + MODAL_WIDTH > maxRight) {
+        left = maxRight - MODAL_WIDTH
+      }
+
+      return {
         position: "fixed",
-        left: `${position.x}px`,
+        left: `${left}px`,
         top: `${position.y}px`,
-        transform: "translate(8px, 8px)", // Petit décalage du curseur
         zIndex: 10001,
       }
+    })()
     : {
-        position: "fixed",
-        left: "50%",
-        top: "50%",
-        transform: "translate(-50%, -50%)",
-        zIndex: 10001,
-      }
+      position: "fixed",
+      left: "50%",
+      top: "50%",
+      transform: "translate(-50%, -50%)",
+      zIndex: 10001,
+    }
 
   const popoverContent = (
     <div
@@ -290,118 +309,118 @@ export function ArtisanSearchModal({ open, onClose, onSelect, position }: Artisa
 
       {/* Results */}
       <div className="flex-1 overflow-y-auto px-4 py-3">
-          {error && (
-            <div className="rounded-lg border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive">
-              {error}
-            </div>
-          )}
+        {error && (
+          <div className="rounded-lg border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+            {error}
+          </div>
+        )}
 
-          {isSearching && (
-            <div className="flex items-center justify-center py-12 text-sm text-muted-foreground">
-              Recherche en cours...
-            </div>
-          )}
+        {isSearching && (
+          <div className="flex items-center justify-center py-12 text-sm text-muted-foreground">
+            Recherche en cours...
+          </div>
+        )}
 
-          {!isSearching && !error && query && results.length === 0 && (
-            <div className="flex items-center justify-center py-12 text-sm text-muted-foreground">
-              Aucun artisan trouvé
-            </div>
-          )}
+        {!isSearching && !error && query && results.length === 0 && (
+          <div className="flex items-center justify-center py-12 text-sm text-muted-foreground">
+            Aucun artisan trouvé
+          </div>
+        )}
 
-          {!isSearching && !query && (
-            <div className="flex items-center justify-center py-12 text-sm text-muted-foreground">
-              Saisissez un nom, email ou téléphone pour rechercher
-            </div>
-          )}
+        {!isSearching && !query && (
+          <div className="flex items-center justify-center py-12 text-sm text-muted-foreground">
+            Saisissez un nom, email ou téléphone pour rechercher
+          </div>
+        )}
 
-          {!isSearching && results.length > 0 && (
-            <div className="space-y-2">
-              {results.map((artisan) => {
-                const displayName = getDisplayName(artisan)
-                const metier = getPrimaryMetier(artisan)
-                const statusColor = artisan.status?.color || "#6b7280"
-                const addressSegments = getAddressSegments(artisan)
+        {!isSearching && results.length > 0 && (
+          <div className="space-y-2">
+            {results.map((artisan) => {
+              const displayName = getDisplayName(artisan)
+              const metier = getPrimaryMetier(artisan)
+              const statusColor = artisan.status?.color || "#6b7280"
+              const addressSegments = getAddressSegments(artisan)
 
-                return (
-                  <button
-                    key={artisan.id}
-                    onClick={() => handleSelect(artisan)}
-                    className={cn(
-                      "w-full text-left rounded-lg border border-border bg-card p-4 transition-all hover:border-primary/50 hover:shadow-md",
-                      "focus:outline-none focus:ring-2 focus:ring-primary/50"
-                    )}
-                  >
-                    <div className="space-y-2">
-                      {/* Header avec nom et statut */}
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2">
-                            <User className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                            <span className="font-semibold text-foreground truncate">
-                              {displayName}
-                            </span>
-                          </div>
-                          {artisan.numero_associe && (
-                            <p className="text-xs text-muted-foreground mt-1">
-                              N° {artisan.numero_associe}
-                            </p>
-                          )}
+              return (
+                <button
+                  key={artisan.id}
+                  onClick={() => handleSelect(artisan)}
+                  className={cn(
+                    "w-full text-left rounded-lg border border-border bg-card p-4 transition-all hover:border-primary/50 hover:shadow-md",
+                    "focus:outline-none focus:ring-2 focus:ring-primary/50"
+                  )}
+                >
+                  <div className="space-y-2">
+                    {/* Header avec nom et statut */}
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <User className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                          <span className="font-semibold text-foreground truncate">
+                            {displayName}
+                          </span>
                         </div>
-                        {artisan.status && (
-                          <Badge
-                            variant="outline"
-                            className="flex-shrink-0"
-                            style={{
-                              borderColor: statusColor,
-                              color: statusColor,
-                            }}
-                          >
-                            {artisan.status.label}
-                          </Badge>
+                        {artisan.numero_associe && (
+                          <p className="text-xs text-muted-foreground mt-1">
+                            N° {artisan.numero_associe}
+                          </p>
                         )}
                       </div>
+                      {artisan.status && (
+                        <Badge
+                          variant="outline"
+                          className="flex-shrink-0"
+                          style={{
+                            borderColor: statusColor,
+                            color: statusColor,
+                          }}
+                        >
+                          {artisan.status.label}
+                        </Badge>
+                      )}
+                    </div>
 
-                      {/* Métier */}
-                      {metier && (
+                    {/* Métier */}
+                    {metier && (
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                        <Briefcase className="h-3.5 w-3.5" />
+                        <span>{metier.label}</span>
+                      </div>
+                    )}
+
+                    {/* Contact */}
+                    <div className="space-y-1">
+                      {artisan.telephone && (
                         <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                          <Briefcase className="h-3.5 w-3.5" />
-                          <span>{metier.label}</span>
+                          <Phone className="h-3.5 w-3.5" />
+                          <span>{artisan.telephone}</span>
                         </div>
                       )}
-
-                      {/* Contact */}
-                      <div className="space-y-1">
-                        {artisan.telephone && (
-                          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                            <Phone className="h-3.5 w-3.5" />
-                            <span>{artisan.telephone}</span>
-                          </div>
-                        )}
-                        {artisan.email && (
-                          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                            <Mail className="h-3.5 w-3.5" />
-                            <span className="truncate">{artisan.email}</span>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Adresse */}
-                      {(addressSegments.street || addressSegments.postalCode || addressSegments.city) && (
-                        <div className="flex items-start gap-2 text-xs text-muted-foreground">
-                          <MapPin className="h-3.5 w-3.5 mt-0.5 flex-shrink-0" />
-                          <span className="line-clamp-1">
-                            {[addressSegments.street, addressSegments.postalCode, addressSegments.city]
-                              .filter(Boolean)
-                              .join(", ")}
-                          </span>
+                      {artisan.email && (
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                          <Mail className="h-3.5 w-3.5" />
+                          <span className="truncate">{artisan.email}</span>
                         </div>
                       )}
                     </div>
-                  </button>
-                )
-              })}
-            </div>
-          )}
+
+                    {/* Adresse */}
+                    {(addressSegments.street || addressSegments.postalCode || addressSegments.city) && (
+                      <div className="flex items-start gap-2 text-xs text-muted-foreground">
+                        <MapPin className="h-3.5 w-3.5 mt-0.5 flex-shrink-0" />
+                        <span className="line-clamp-1">
+                          {[addressSegments.street, addressSegments.postalCode, addressSegments.city]
+                            .filter(Boolean)
+                            .join(", ")}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </button>
+              )
+            })}
+          </div>
+        )}
       </div>
     </div>
   )

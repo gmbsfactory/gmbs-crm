@@ -74,6 +74,8 @@ import { convertViewFiltersToServerFilters } from "@/lib/filter-converter"
 import { useInterventionStatusMap } from "@/hooks/useInterventionStatusMap"
 import { useUserMap } from "@/hooks/useUserMap"
 import { useCurrentUser } from "@/hooks/useCurrentUser"
+import { InterventionRealtimeProvider } from "@/components/interventions/InterventionRealtimeProvider"
+import { useInterventionViewCounts } from "@/hooks/useInterventionViewCounts"
 
 type GalleryViewConfig = Parameters<typeof GalleryView>[0]["view"]
 type CalendarViewConfig = Parameters<typeof CalendarView>[0]["view"]
@@ -176,6 +178,14 @@ const filtersShallowEqual = (a: ViewFilter[], b: ViewFilter[]) => {
 
 
 export default function Page() {
+  return (
+    <InterventionRealtimeProvider>
+      <PageContent />
+    </InterventionRealtimeProvider>
+  )
+}
+
+function PageContent() {
   const router = useRouter()
   const { preferredMode, setPreferredMode } = useModalDisplay()
   const {
@@ -218,9 +228,41 @@ export default function Page() {
   const { data: currentUser } = useCurrentUser()
   const currentUserId = currentUser?.id ?? undefined
   
-  // État pour stocker les counts réels de chaque vue
-  const [viewCounts, setViewCounts] = useState<Record<string, number>>({})
-  const [countsLoading, setCountsLoading] = useState(false)
+  // Signature des mappers pour détecter quand ils sont réellement prêts
+  // Vérifier que les maps ont des données (pas juste que les fonctions existent)
+  const mappersReady = useMemo(() => {
+    return {
+      statusMapReady: !statusMapLoading && Object.keys(statusMap).length > 0,
+      userMapReady: !userMapLoading && Object.keys(userMap).length > 0,
+      currentUserIdReady: currentUserId !== undefined,
+    }
+  }, [statusMapLoading, statusMap, userMapLoading, userMap, currentUserId])
+  
+  // Tous les mappers doivent être prêts avant de charger les comptages
+  const allMappersReady = mappersReady.statusMapReady && mappersReady.userMapReady && mappersReady.currentUserIdReady
+  
+  // Réutiliser convertViewFiltersToServerFilters pour éviter la duplication de logique
+  // Cette fonction convertit les filtres de vue en paramètres API pour le comptage
+  const convertFiltersToApiParams = useCallback(
+    (filters: ViewFilter[]): Partial<GetAllParams> => {
+      const { serverFilters } = convertViewFiltersToServerFilters(filters, {
+        statusCodeToId,
+        userCodeToId,
+        currentUserId,
+      })
+      return serverFilters ?? {}
+    },
+    [statusCodeToId, userCodeToId, currentUserId]
+  )
+  
+  // Utiliser TanStack Query pour charger les compteurs de toutes les vues
+  // Cela permet l'invalidation automatique lors des mises à jour temps réel
+  const { counts: viewCounts, isLoading: countsLoading } = useInterventionViewCounts({
+    views,
+    convertFiltersToApiParams,
+    enabled: isReady && allMappersReady && views.length > 0,
+    currentUserId,
+  })
   
   // currentUserId est maintenant récupéré via useCurrentUser() ci-dessus
   
@@ -270,20 +312,6 @@ export default function Page() {
     // Sérialiser les filtres de manière stable pour détecter les vrais changements
     return JSON.stringify(serverFilters, Object.keys(serverFilters).sort())
   }, [serverFilters])
-
-  // Réutiliser convertViewFiltersToServerFilters pour éviter la duplication de logique
-  // Cette fonction convertit les filtres de vue en paramètres API pour le comptage
-  const convertFiltersToApiParams = useCallback(
-    (filters: ViewFilter[]): Partial<GetAllParams> => {
-      const { serverFilters } = convertViewFiltersToServerFilters(filters, {
-        statusCodeToId,
-        userCodeToId,
-        currentUserId,
-      })
-      return serverFilters ?? {}
-    },
-    [statusCodeToId, userCodeToId, currentUserId]
-  )
 
   // Fonction de retry avec backoff exponentiel pour les erreurs réseau/Supabase
   const retryWithBackoff = async <T,>(
@@ -335,101 +363,6 @@ export default function Page() {
     }
     throw lastError || new Error("Unknown error")
   }
-
-  // Fonction pour charger un comptage avec retry
-  const loadViewCount = async (view: InterventionViewDefinition): Promise<[string, number]> => {
-    try {
-      const apiParams = convertFiltersToApiParams(view.filters)
-      const count = await retryWithBackoff(() => getInterventionTotalCount(apiParams))
-      return [view.id, count]
-    } catch (error) {
-      console.error(`Erreur lors du comptage pour la vue ${view.id}:`, error)
-      return [view.id, 0]
-    }
-  }
-
-  // Fonction pour charger les comptages par batch (limite de concurrence)
-  const loadCountsInBatches = async (
-    views: InterventionViewDefinition[],
-    batchSize = 2
-  ): Promise<Record<string, number>> => {
-    const counts: Record<string, number> = {}
-    
-    // Traiter par batch pour limiter la concurrence
-    for (let i = 0; i < views.length; i += batchSize) {
-      const batch = views.slice(i, i + batchSize)
-      const batchResults = await Promise.all(batch.map(loadViewCount))
-      
-      batchResults.forEach(([viewId, count]) => {
-        counts[viewId] = count
-      })
-      
-      // Petit délai entre les batches pour éviter de surcharger le serveur
-      if (i + batchSize < views.length) {
-        await new Promise((resolve) => setTimeout(resolve, 200))
-      }
-    }
-    
-    return counts
-  }
-
-  // Créer une signature stable des filtres pour éviter les re-renders inutiles
-  const viewsSignature = useMemo(() => {
-    return views.map((v) => ({
-      id: v.id,
-      filters: JSON.stringify(v.filters),
-    }))
-  }, [views])
-  
-  // Signature des mappers pour détecter quand ils sont réellement prêts
-  // Vérifier que les maps ont des données (pas juste que les fonctions existent)
-  const mappersReady = useMemo(() => {
-    return {
-      statusMapReady: !statusMapLoading && Object.keys(statusMap).length > 0,
-      userMapReady: !userMapLoading && Object.keys(userMap).length > 0,
-      currentUserIdReady: currentUserId !== undefined,
-    }
-  }, [statusMapLoading, statusMap, userMapLoading, userMap, currentUserId])
-  
-  // Tous les mappers doivent être prêts avant de charger les comptages
-  const allMappersReady = mappersReady.statusMapReady && mappersReady.userMapReady && mappersReady.currentUserIdReady
-
-  // Charger les counts réels pour toutes les vues avec debouncing et limitation de concurrence
-  // Attendre que les mappers soient réellement prêts avant de charger les comptages
-  useEffect(() => {
-    if (!isReady || views.length === 0) return
-    // Attendre que tous les mappers soient résolus pour éviter les comptages sans filtres
-    if (!allMappersReady) {
-      return
-    }
-
-    let cancelled = false
-    setCountsLoading(true)
-
-    // Debounce: attendre 500ms avant de charger les comptages
-    const timeoutId = setTimeout(async () => {
-      if (cancelled) return
-
-      try {
-        const counts = await loadCountsInBatches(views, 2) // Limiter à 2 requêtes parallèles
-
-        if (!cancelled) {
-          setViewCounts(counts)
-          setCountsLoading(false)
-        }
-      } catch (error) {
-        console.error("Erreur lors du chargement des comptages:", error)
-        if (!cancelled) {
-          setCountsLoading(false)
-        }
-      }
-    }, 500)
-
-    return () => {
-      cancelled = true
-      clearTimeout(timeoutId)
-    }
-  }, [viewsSignature, isReady, allMappersReady, mappersReady]) // Inclure allMappersReady pour relancer quand les mappers sont prêts
 
   // Utiliser TanStack Query pour toutes les vues (migration progressive complétée)
   const {
@@ -519,7 +452,7 @@ export default function Page() {
         isCheck: isCheckStatus(statusCode, datePrevue),
       } as InterventionEntity & { datePrevue: string | null; isCheck: boolean }
     })
-  }, [fetchedInterventions])
+  }, [fetchedInterventions, page, currentPage])
   
   // Afficher le loading si on charge OU si on change de vue (même avec des données existantes)
   const loading = remoteLoading || (isViewChanging && normalizedInterventions.length > 0)
@@ -639,11 +572,12 @@ export default function Page() {
   const isSyncingFromViewRef = useRef(false)
 
   // Extraire les valeurs de tri de activeView de manière stable
+  const activeViewSorts = activeView?.sorts
+  const firstSort = activeViewSorts?.[0]
   const activeViewSortKey = useMemo(() => {
-    if (!activeView?.sorts?.[0]) return null
-    const sort = activeView.sorts[0]
-    return `${sort.property}:${sort.direction}`
-  }, [activeView?.id, activeView?.sorts?.[0]?.property, activeView?.sorts?.[0]?.direction])
+    if (!firstSort) return null
+    return `${firstSort.property}:${firstSort.direction}`
+  }, [firstSort])
 
   // Synchroniser sortField et sortDir depuis activeView (lecture seule)
   // Ne se déclenche QUE quand activeView change, pas quand sortField/sortDir changent
@@ -659,7 +593,7 @@ export default function Page() {
       const direction = primarySort.direction === "asc" ? "asc" : "desc"
       setSortDir((prev) => prev !== direction ? direction : prev)
     }
-  }, [activeViewSortKey]) // Ne dépendre QUE de activeViewSortKey
+  }, [activeView, activeViewSortKey]) // Dépendre de activeView et activeViewSortKey
 
   // Synchroniser activeView depuis sortField et sortDir (écriture)
   useEffect(() => {
@@ -675,7 +609,7 @@ export default function Page() {
     requestAnimationFrame(() => {
       isSyncingFromViewRef.current = false
     })
-  }, [sortField, sortDir, activeView?.id, isReady, updateSorts])
+  }, [sortField, sortDir, activeView, isReady, updateSorts])
 
   const updateFilterForProperty = useCallback(
     (property: string, nextFilter: ViewFilter | null) => {

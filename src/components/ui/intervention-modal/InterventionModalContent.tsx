@@ -2,12 +2,13 @@
 
 import React, { useCallback, useRef, useState } from "react"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
-import { Bell, X } from "lucide-react"
+import { Bell, X, MessageSquare, Copy, MessageCircle } from "lucide-react"
 import { InterventionEditForm } from "@/components/interventions/InterventionEditForm"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import type { ModalDisplayMode } from "@/types/modal-display"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+import { Textarea } from "@/components/ui/textarea"
 import { ModeIcons } from "@/components/ui/mode-selector"
 import { interventionsApi } from "@/lib/api/v2"
 import type { Intervention } from "@/lib/api/v2/common/types"
@@ -27,6 +28,8 @@ import * as AlertDialogPrimitive from "@radix-ui/react-alert-dialog"
 import { ReminderMentionInput } from "@/components/interventions/ReminderMentionInput"
 import { DatePicker } from "@/components/ui/date-picker"
 import { cn } from "@/lib/utils"
+
+import { toast } from "sonner"
 
 type NoteDialogContentProps = React.ComponentPropsWithoutRef<typeof AlertDialogPrimitive.Content>
 
@@ -93,6 +96,74 @@ export function InterventionModalContent({
   const noteDialogContentRef = useRef<HTMLDivElement | null>(null)
   const isReminderSaveDisabled = noteValue.trim().length === 0 && !dueDateValue
 
+  // SMS Modal states
+  const [showSmsModal, setShowSmsModal] = useState(false)
+  const [smsText, setSmsText] = useState("")
+  const [clientName, setClientName] = useState("")
+  const [agencyName, setAgencyName] = useState("")
+  const [clientPhone, setClientPhone] = useState("")
+
+  const generateSmsText = useCallback((cName: string, aName: string) => {
+    return `Bonjour Madame / Monsieur ${cName},
+Nous avons reçu une demande d'intervention de la part de votre agence ${aName}.
+Merci de nous rappeler dès que possible sur ce numéro.
+Bonne journée,
+GMBS`
+  }, [])
+
+  const handleOpenSmsModal = useCallback(() => {
+    setSmsText(generateSmsText(clientName, agencyName || "[Nom de l'agence]"))
+    setShowSmsModal(true)
+  }, [clientName, agencyName, generateSmsText])
+
+  const handleCopySms = useCallback(async () => {
+    try {
+      await navigator.clipboard.writeText(smsText)
+      toast.success("Message copié dans le presse-papiers")
+    } catch (error) {
+      console.error('Erreur lors de la copie:', error)
+      toast.error("Erreur lors de la copie du message")
+    }
+  }, [smsText])
+
+  const handleOpenWhatsApp = useCallback(() => {
+    if (!clientPhone) return
+
+    // Nettoyer le numéro de téléphone (supprimer espaces, tirets, points, etc.)
+    const cleanPhone = clientPhone.replace(/[\s\-\.\(\)]/g, '')
+
+    // Ajouter l'indicatif si nécessaire (format international)
+    // Si le numéro commence par 0, le remplacer par +33 pour la France
+    const formattedPhone = cleanPhone.startsWith('0')
+      ? `+33${cleanPhone.slice(1)}`
+      : cleanPhone.startsWith('+')
+        ? cleanPhone
+        : `+33${cleanPhone}`
+
+    // Encoder le message pour l'URL
+    const encodedMessage = encodeURIComponent(smsText)
+
+    // Détecter si on est sur mobile
+    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent)
+    
+    // Ouvrir WhatsApp avec le numéro et le message
+    if (isMobile) {
+      // Sur mobile : utiliser le protocole whatsapp:// pour ouvrir directement l'app
+      const whatsappUrl = `whatsapp://send?phone=${formattedPhone}&text=${encodedMessage}`
+      window.location.href = whatsappUrl
+    } else {
+      // Sur desktop : ouvrir dans une nouvelle fenêtre qui se fermera automatiquement
+      const whatsappUrl = `https://wa.me/${formattedPhone}?text=${encodedMessage}`
+      const popup = window.open(whatsappUrl, '_blank', 'width=1,height=1')
+      // Fermer la fenêtre après un court délai si elle existe encore
+      setTimeout(() => {
+        if (popup && !popup.closed) {
+          popup.close()
+        }
+      }, 1000)
+    }
+  }, [clientPhone, smsText])
+
   // Récupérer les données de l'intervention
   const {
     data: intervention,
@@ -109,7 +180,7 @@ export function InterventionModalContent({
     async (data: any) => {
       // 1. Mise à jour optimiste immédiate dans React Query pour le détail
       queryClient.setQueryData(['intervention', interventionId], data)
-      
+
       // 2. Mise à jour optimiste dans toutes les listes qui contiennent cette intervention
       queryClient.setQueriesData(
         { queryKey: ['interventions'] },
@@ -123,19 +194,19 @@ export function InterventionModalContent({
           return { ...oldData, data: updatedData }
         }
       )
-      
+
       // 3. Fermer le modal pour démarrer l'animation
       onClose()
-      
+
       // 4. Attendre un court délai pour l'animation (300ms suffit)
       await new Promise(resolve => setTimeout(resolve, 300))
-      
+
       // 5. Invalider les caches React Query en arrière-plan pour recharger les données à jour
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['intervention', interventionId] }),
         queryClient.invalidateQueries({ queryKey: ['interventions'] }),
       ])
-      
+
       console.log("✅ Intervention mise à jour avec succès", data)
     },
     [queryClient, interventionId, onClose],
@@ -151,9 +222,9 @@ export function InterventionModalContent({
     (event: React.MouseEvent) => {
       event.preventDefault()
       event.stopPropagation()
-      void toggleReminder(interventionId)
+      void toggleReminder(interventionId, intervention?.id_inter || undefined)
     },
-    [interventionId, toggleReminder],
+    [intervention?.id_inter, interventionId, toggleReminder],
   )
 
   const handleReminderContextMenu = useCallback(
@@ -197,6 +268,7 @@ export function InterventionModalContent({
     if (hasContent) {
       await saveReminder({
         interventionId,
+        idInter: intervention?.id_inter || undefined,
         note: cleaned.length > 0 ? cleaned : null,
         dueDate: dueDateIso,
         mentionedUserIds: mentionIds,
@@ -209,7 +281,7 @@ export function InterventionModalContent({
     setNoteValue("")
     setDueDateValue(null)
     setMentionIds([])
-  }, [dueDateValue, interventionId, mentionIds, noteValue, removeReminder, saveReminder])
+  }, [dueDateValue, intervention?.id_inter, interventionId, mentionIds, noteValue, removeReminder, saveReminder])
 
   const handleNoteDialogOpenChange = useCallback((open: boolean) => {
     if (!open) {
@@ -306,7 +378,7 @@ export function InterventionModalContent({
             )}
           </div>
         </header>
-        
+
         <div className="modal-config-columns-body overflow-y-auto">
           <div className={bodyPadding}>
             {isLoading ? (
@@ -331,6 +403,9 @@ export function InterventionModalContent({
                 onCancel={onClose}
                 formRef={formRef}
                 onSubmittingChange={setIsSubmitting}
+                onClientNameChange={setClientName}
+                onAgencyNameChange={setAgencyName}
+                onClientPhoneChange={setClientPhone}
               />
             ) : (
               <div className="rounded border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
@@ -339,20 +414,39 @@ export function InterventionModalContent({
             )}
           </div>
         </div>
-        
-        <footer className="modal-config-columns-footer flex items-center justify-end">
+
+        <footer className="modal-config-columns-footer flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Button 
-              type="button" 
-              variant="outline" 
-              onClick={onClose} 
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="modal-config-columns-icon-button"
+                  onClick={handleOpenSmsModal}
+                  disabled={!intervention || !clientName || isSubmitting}
+                >
+                  <MessageSquare className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                {!clientName ? "Nom du client manquant" : "Générer un message SMS"}
+              </TooltipContent>
+            </Tooltip>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={onClose}
               disabled={isSubmitting}
               className="legacy-form-button"
             >
               Annuler
             </Button>
-            <Button 
-              type="button" 
+            <Button
+              type="button"
               onClick={handleSubmit}
               disabled={isSubmitting || !intervention}
               className="legacy-form-button bg-accent text-accent-foreground hover:bg-accent/90"
@@ -362,6 +456,52 @@ export function InterventionModalContent({
           </div>
         </footer>
       </div>
+
+      <AlertDialog open={showSmsModal} onOpenChange={setShowSmsModal}>
+        <AlertDialogContent className="max-w-md z-[110]">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Message SMS</AlertDialogTitle>
+            <AlertDialogDescription>
+              Message prérempli pour le client. Vous pouvez le modifier avant de le copier.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="space-y-4 py-4">
+            <Textarea
+              value={smsText}
+              onChange={(e) => setSmsText(e.target.value)}
+              className="min-h-[200px] resize-none"
+              placeholder="Le message sera prérempli automatiquement..."
+            />
+            <div className="flex items-center gap-2 flex-wrap">
+              <Button
+                variant="outline"
+                onClick={handleCopySms}
+                className="flex items-center gap-2"
+              >
+                <Copy className="h-4 w-4" />
+                Copier le message
+              </Button>
+              {clientPhone && clientPhone.trim() !== "" && (
+                <Button
+                  onClick={handleOpenWhatsApp}
+                  className="flex items-center gap-2 bg-[#25D366] hover:bg-[#20BA5A] text-white"
+                >
+                  <MessageCircle className="h-4 w-4" />
+                  Envoyer sur WhatsApp
+                </Button>
+              )}
+            </div>
+            {clientPhone && clientPhone.trim() !== "" && (
+              <p className="text-xs text-muted-foreground">
+                Numéro de téléphone : {clientPhone}
+              </p>
+            )}
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Fermer</AlertDialogCancel>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <AlertDialog open={showNoteDialog} onOpenChange={handleNoteDialogOpenChange}>
         <NoteDialogContent

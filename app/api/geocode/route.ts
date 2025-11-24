@@ -40,6 +40,62 @@ const CACHE_TTL = 60_000
 const MAX_SUGGESTIONS = 5
 
 const NOMINATIM_BASE_URL = "https://nominatim.openstreetmap.org/search"
+const DEFAULT_COUNTRY_CODE = "fr"
+
+// Constantes pour les limites géographiques de la France
+const FRANCE_BOUNDS = {
+  minLat: 41.0,
+  maxLat: 51.5,
+  minLng: -5.0,
+  maxLng: 10.0,
+}
+
+const NON_FRENCH_HINTS = [
+  "belgique",
+  "belgium",
+  "suisse",
+  "switzerland",
+  "espagne",
+  "spain",
+  "italie",
+  "italy",
+  "royaume-uni",
+  "united kingdom",
+  "angleterre",
+  "england",
+  "allemagne",
+  "germany",
+  "portugal",
+  "maroc",
+  "tunisie",
+  "canada",
+  "usa",
+  "états-unis",
+  "etats-unis",
+]
+
+// Fonction pour vérifier si des coordonnées sont en France
+function isInFrance(lat: number, lng: number): boolean {
+  return (
+    lat >= FRANCE_BOUNDS.minLat &&
+    lat <= FRANCE_BOUNDS.maxLat &&
+    lng >= FRANCE_BOUNDS.minLng &&
+    lng <= FRANCE_BOUNDS.maxLng
+  )
+}
+
+// Fonction pour enrichir l'adresse avec "France" si nécessaire
+function enrichAddressWithFrance(query: string): string {
+  const normalized = query.toLowerCase().trim()
+  const hasFrance = normalized.includes("france") ||
+    normalized.includes("fr,") ||
+    normalized.endsWith(", fr")
+
+  if (!hasFrance && normalized.length > 0) {
+    return `${query.trim()}, France`
+  }
+  return query.trim()
+}
 
 export async function GET(request: NextRequest) {
   try {
@@ -149,6 +205,7 @@ function getClientIdentifier(request: NextRequest) {
 async function geocodeAcrossProviders(query: string, limit: number, signal: AbortSignal): Promise<InternalGeocodeResult[]> {
   const results: InternalGeocodeResult[] = []
   const seen = new Set<string>()
+  const preferFrance = shouldPreferFrance(query)
 
   const pushUnique = (entries: InternalGeocodeResult[]) => {
     for (const entry of entries) {
@@ -160,29 +217,50 @@ async function geocodeAcrossProviders(query: string, limit: number, signal: Abor
     }
   }
 
-  const openCageResults = await geocodeWithOpenCage(query, limit, signal)
-  pushUnique(openCageResults)
+  const fetchQueue: Array<() => Promise<InternalGeocodeResult[]>> = []
 
-  if (results.length < limit) {
-    const nominatimResults = await geocodeWithNominatim(query, limit, signal)
-    pushUnique(nominatimResults)
+  if (preferFrance) {
+    fetchQueue.push(() => geocodeWithOpenCage(query, limit, signal, DEFAULT_COUNTRY_CODE))
+    fetchQueue.push(() => geocodeWithNominatim(query, limit, signal, DEFAULT_COUNTRY_CODE))
+  }
+
+  fetchQueue.push(() => geocodeWithOpenCage(query, limit, signal))
+  fetchQueue.push(() => geocodeWithNominatim(query, limit, signal))
+
+  for (const fetcher of fetchQueue) {
+    const entries = await fetcher()
+    pushUnique(entries)
+    if (results.length >= limit) break
   }
 
   return results.slice(0, limit)
 }
 
-async function geocodeWithOpenCage(query: string, limit: number, signal: AbortSignal): Promise<InternalGeocodeResult[]> {
+async function geocodeWithOpenCage(
+  query: string,
+  limit: number,
+  signal: AbortSignal,
+  countryCode?: string,
+): Promise<InternalGeocodeResult[]> {
   const apiKey = process.env.OPENCAGE_API_KEY
   if (!apiKey) {
     return []
   }
 
+  // Enrichir l'adresse avec "France" si on préfère la France
+  const enrichedQuery = countryCode === DEFAULT_COUNTRY_CODE
+    ? enrichAddressWithFrance(query)
+    : query
+
   const endpoint = new URL("https://api.opencagedata.com/geocode/v1/json")
-  endpoint.searchParams.set("q", query)
+  endpoint.searchParams.set("q", enrichedQuery)
   endpoint.searchParams.set("key", apiKey)
-  endpoint.searchParams.set("limit", String(Math.min(limit, MAX_SUGGESTIONS)))
+  endpoint.searchParams.set("limit", String(Math.min(limit * 2, MAX_SUGGESTIONS * 2))) // Prendre plus pour filtrer
   endpoint.searchParams.set("language", "fr")
   endpoint.searchParams.set("no_annotations", "1")
+  if (countryCode) {
+    endpoint.searchParams.set("countrycode", countryCode)
+  }
 
   const response = await fetch(endpoint, { signal, headers: { Accept: "application/json" } })
   if (!response.ok) {
@@ -194,7 +272,16 @@ async function geocodeWithOpenCage(query: string, limit: number, signal: AbortSi
   const rawResults = payload?.results ?? []
 
   return rawResults
-    .filter((result) => result?.geometry?.lat != null && result?.geometry?.lng != null && result.formatted)
+    .filter((result) => {
+      if (!result?.geometry?.lat || !result?.geometry?.lng || !result.formatted) {
+        return false
+      }
+      // Si on cherche spécifiquement en France, valider les coordonnées
+      if (countryCode === DEFAULT_COUNTRY_CODE) {
+        return isInFrance(result.geometry.lat, result.geometry.lng)
+      }
+      return true
+    })
     .slice(0, limit)
     .map(
       (result) =>
@@ -208,18 +295,32 @@ async function geocodeWithOpenCage(query: string, limit: number, signal: AbortSi
     )
 }
 
-async function geocodeWithNominatim(query: string, limit: number, signal: AbortSignal): Promise<InternalGeocodeResult[]> {
+async function geocodeWithNominatim(
+  query: string,
+  limit: number,
+  signal: AbortSignal,
+  countryCode?: string,
+): Promise<InternalGeocodeResult[]> {
+  // Enrichir l'adresse avec "France" si on préfère la France
+  const enrichedQuery = countryCode === DEFAULT_COUNTRY_CODE
+    ? enrichAddressWithFrance(query)
+    : query
+
   const endpoint = new URL(NOMINATIM_BASE_URL)
-  endpoint.searchParams.set("q", query)
+  endpoint.searchParams.set("q", enrichedQuery)
   endpoint.searchParams.set("format", "json")
-  endpoint.searchParams.set("limit", String(Math.min(limit, MAX_SUGGESTIONS)))
+  endpoint.searchParams.set("limit", String(Math.min(limit * 2, MAX_SUGGESTIONS * 2))) // Prendre plus pour filtrer
   endpoint.searchParams.set("addressdetails", "0")
+  if (countryCode) {
+    endpoint.searchParams.set("countrycodes", countryCode)
+  }
 
   const response = await fetch(endpoint, {
     signal,
     headers: {
       Accept: "application/json",
       "User-Agent": buildNominatimUserAgent(),
+      "Accept-Language": "fr",
     },
   })
 
@@ -232,23 +333,42 @@ async function geocodeWithNominatim(query: string, limit: number, signal: AbortS
   const rawResults = payload ?? []
 
   return rawResults
-    .filter((result) => result?.lat && result?.lon && result?.display_name)
+    .filter((result) => {
+      if (!result?.lat || !result?.lon || !result?.display_name) {
+        return false
+      }
+      const lat = Number.parseFloat(result.lat)
+      const lng = Number.parseFloat(result.lon)
+      // Si on cherche spécifiquement en France, valider les coordonnées
+      if (countryCode === DEFAULT_COUNTRY_CODE) {
+        return isInFrance(lat, lng)
+      }
+      return true
+    })
     .slice(0, limit)
     .map(
-      (result) =>
-        ({
-          lat: Number.parseFloat(result.lat),
-          lng: Number.parseFloat(result.lon),
+      (result) => {
+        const lat = Number.parseFloat(result.lat)
+        const lng = Number.parseFloat(result.lon)
+        return {
+          lat,
+          lng,
           precision: result.importance ? result.importance.toFixed(2) : undefined,
           label: result.display_name || "",
           provider: "nominatim",
-        }) satisfies InternalGeocodeResult,
+        } satisfies InternalGeocodeResult
+      },
     )
 }
 
 function buildNominatimUserAgent() {
   const projectUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://localhost"
   return `GMBS-CRM/1.0 (${projectUrl})`
+}
+
+function shouldPreferFrance(query: string) {
+  const lowered = query.toLowerCase()
+  return !NON_FRENCH_HINTS.some((hint) => lowered.includes(hint))
 }
 
 async function safeReadText(response: Response) {

@@ -1,0 +1,159 @@
+/**
+ * Synchronisation du cache TanStack Query entre onglets via BroadcastChannel API
+ * Permet de synchroniser les mises à jour Realtime entre plusieurs onglets ouverts
+ */
+
+import type { QueryClient } from '@tanstack/react-query'
+import type { QueryKey } from '@tanstack/react-query'
+
+const BROADCAST_CHANNEL_NAME = 'interventions-cache-sync'
+
+export interface CacheSyncMessage {
+  type: 'cache-update' | 'invalidation' | 'realtime-event'
+  queryKey: QueryKey
+  data?: unknown
+  eventType?: 'INSERT' | 'UPDATE' | 'DELETE'
+  interventionId?: string
+  timestamp: number
+}
+
+/**
+ * Crée et configure un BroadcastChannel pour synchroniser le cache entre onglets
+ * 
+ * @param queryClient - Instance QueryClient de TanStack Query
+ * @returns Objet avec méthodes de broadcast ou null si BroadcastChannel non disponible
+ */
+export function createBroadcastSync(queryClient: QueryClient) {
+  // Vérifier que BroadcastChannel est disponible (pas disponible en SSR)
+  if (typeof window === 'undefined' || !window.BroadcastChannel) {
+    console.warn('[BroadcastSync] BroadcastChannel non disponible, synchronisation multi-onglets désactivée')
+    return null
+  }
+
+  const channel = new BroadcastChannel(BROADCAST_CHANNEL_NAME)
+
+  // T091: Stocker les timestamps récents pour éviter les boucles infinies
+  const recentTimestamps = new Set<number>()
+  const MAX_RECENT_TIMESTAMPS = 100
+  const TIMESTAMP_TTL = 5000 // 5 secondes
+
+  // Nettoyer les timestamps expirés périodiquement
+  setInterval(() => {
+    const now = Date.now()
+    for (const ts of recentTimestamps) {
+      if (now - ts > TIMESTAMP_TTL) {
+        recentTimestamps.delete(ts)
+      }
+    }
+  }, 1000)
+
+  // Écouter les messages des autres onglets
+  channel.onmessage = (event: MessageEvent<CacheSyncMessage>) => {
+    const { type, queryKey, data, eventType, interventionId, timestamp } = event.data
+
+    // T091: Vérifier que la synchronisation BroadcastChannel évite les boucles infinies
+    // Ignorer les messages émis par cet onglet (éviter les boucles)
+    if (timestamp === window.__lastBroadcastTimestamp) {
+      return
+    }
+
+    // Ignorer les messages avec des timestamps récents déjà traités
+    if (recentTimestamps.has(timestamp)) {
+      console.log('[BroadcastSync] Message ignoré (timestamp déjà traité):', timestamp)
+      return
+    }
+
+    // Ajouter le timestamp aux timestamps récents
+    recentTimestamps.add(timestamp)
+    if (recentTimestamps.size > MAX_RECENT_TIMESTAMPS) {
+      // Retirer le plus ancien
+      const oldest = Math.min(...Array.from(recentTimestamps))
+      recentTimestamps.delete(oldest)
+    }
+
+    switch (type) {
+      case 'cache-update':
+        // Mettre à jour le cache directement sans refetch
+        if (data) {
+          queryClient.setQueryData(queryKey, data)
+        }
+        break
+
+      case 'invalidation':
+        // Invalider les queries correspondantes
+        queryClient.invalidateQueries({ queryKey })
+        break
+
+      case 'realtime-event':
+        // Un autre onglet a reçu un événement Realtime
+        // On peut choisir de synchroniser ou d'invalider
+        // Pour éviter les doublons, on invalide simplement
+        queryClient.invalidateQueries({ queryKey })
+        break
+    }
+  }
+
+  return {
+    /**
+     * Broadcast une mise à jour de cache aux autres onglets
+     */
+    broadcastCacheUpdate(queryKey: QueryKey, data: unknown) {
+      const message: CacheSyncMessage = {
+        type: 'cache-update',
+        queryKey,
+        data,
+        timestamp: Date.now(),
+      }
+      window.__lastBroadcastTimestamp = message.timestamp
+      channel.postMessage(message)
+    },
+
+    /**
+     * Broadcast une invalidation aux autres onglets
+     */
+    broadcastInvalidation(queryKey: QueryKey) {
+      const message: CacheSyncMessage = {
+        type: 'invalidation',
+        queryKey,
+        timestamp: Date.now(),
+      }
+      window.__lastBroadcastTimestamp = message.timestamp
+      channel.postMessage(message)
+    },
+
+    /**
+     * Broadcast un événement Realtime reçu
+     */
+    broadcastRealtimeEvent(
+      queryKey: QueryKey,
+      eventType: 'INSERT' | 'UPDATE' | 'DELETE',
+      interventionId: string
+    ) {
+      const message: CacheSyncMessage = {
+        type: 'realtime-event',
+        queryKey,
+        eventType,
+        interventionId,
+        timestamp: Date.now(),
+      }
+      window.__lastBroadcastTimestamp = message.timestamp
+      channel.postMessage(message)
+    },
+
+    /**
+     * Fermer le channel
+     */
+    close() {
+      channel.close()
+    },
+  }
+}
+
+// Extension du type Window pour stocker le dernier timestamp
+declare global {
+  interface Window {
+    __lastBroadcastTimestamp?: number
+  }
+}
+
+

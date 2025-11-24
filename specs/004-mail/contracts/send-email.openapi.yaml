@@ -1,0 +1,278 @@
+openapi: 3.0.3
+info:
+  title: Send Email API
+  description: API pour l'envoi d'emails aux artisans depuis les interventions
+  version: 1.0.0
+  contact:
+    name: GMBS CRM Team
+
+servers:
+  - url: /api/interventions/{interventionId}/send-email
+    description: API locale Next.js
+
+paths:
+  /api/interventions/{interventionId}/send-email:
+    post:
+      summary: Envoyer un email à un artisan depuis une intervention
+      description: |
+        Envoie un email (devis ou intervention) à un artisan depuis une intervention.
+        L'email est envoyé via Gmail SMTP avec les credentials de l'utilisateur authentifié.
+        Le logo GMBS est automatiquement inclus en pièce jointe inline.
+      operationId: sendEmailToArtisan
+      tags:
+        - Interventions
+        - Email
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: interventionId
+          in: path
+          required: true
+          description: ID de l'intervention
+          schema:
+            type: string
+            format: uuid
+            example: "123e4567-e89b-12d3-a456-426614174000"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SendEmailRequest'
+            examples:
+              devis:
+                summary: Email demande de devis
+                value:
+                  type: "devis"
+                  artisanId: "123e4567-e89b-12d3-a456-426614174001"
+                  subject: "Demande de devis - Intervention #12345"
+                  htmlContent: "<html><body>...</body></html>"
+                  attachments: []
+              intervention:
+                summary: Email demande d'intervention
+                value:
+                  type: "intervention"
+                  artisanId: "123e4567-e89b-12d3-a456-426614174001"
+                  subject: "Demande d'intervention - Intervention #12345"
+                  htmlContent: "<html><body>...</body></html>"
+                  attachments:
+                    - filename: "devis.pdf"
+                      contentType: "application/pdf"
+      responses:
+        '200':
+          description: Email envoyé avec succès
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SendEmailResponse'
+              example:
+                success: true
+                emailLogId: "123e4567-e89b-12d3-a456-426614174002"
+        '400':
+          description: Erreur de validation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                invalidType:
+                  summary: Type d'email invalide
+                  value:
+                    error: "Type d'email invalide. Doit être 'devis' ou 'intervention'"
+                missingArtisan:
+                  summary: Artisan manquant
+                  value:
+                    error: "Artisan ID requis"
+                missingCredentials:
+                  summary: Credentials email non configurés
+                  value:
+                    error: "Credentials email non configurés. Veuillez configurer votre email dans Settings > Profile"
+                missingRequiredFields:
+                  summary: Champs obligatoires manquants
+                  value:
+                    error: "Champs obligatoires manquants: nomClient, telephoneClient, adresseComplete"
+        '401':
+          description: Non autorisé (token manquant ou invalide)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "Authentification requise"
+        '404':
+          description: Intervention ou utilisateur non trouvé
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                interventionNotFound:
+                  summary: Intervention non trouvée
+                  value:
+                    error: "Intervention introuvable"
+                userNotFound:
+                  summary: Utilisateur non trouvé
+                  value:
+                    error: "Utilisateur non trouvé"
+        '500':
+          description: Erreur serveur
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "Erreur lors de l'envoi de l'email"
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Token JWT Supabase dans le header Authorization
+
+  schemas:
+    SendEmailRequest:
+      type: object
+      required:
+        - type
+        - artisanId
+        - subject
+        - htmlContent
+      properties:
+        type:
+          type: string
+          enum: [devis, intervention]
+          description: Type d'email à envoyer
+          example: "devis"
+        artisanId:
+          type: string
+          format: uuid
+          description: ID de l'artisan destinataire
+          example: "123e4567-e89b-12d3-a456-426614174001"
+        subject:
+          type: string
+          description: Sujet de l'email (édité dans le modal)
+          example: "Demande de devis - Intervention #12345"
+        htmlContent:
+          type: string
+          description: Corps HTML de l'email (édité dans le modal)
+          example: "<html><body><h1>Demande de devis</h1>...</body></html>"
+        attachments:
+          type: array
+          description: Pièces jointes supplémentaires (en plus du logo GMBS automatique)
+          items:
+            $ref: '#/components/schemas/Attachment'
+          default: []
+
+    Attachment:
+      type: object
+      required:
+        - filename
+      properties:
+        filename:
+          type: string
+          description: Nom du fichier
+          example: "devis.pdf"
+        contentType:
+          type: string
+          description: Type MIME du fichier
+          example: "application/pdf"
+        content:
+          type: string
+          format: base64
+          description: Contenu du fichier encodé en base64
+          example: "JVBERi0xLjQKJeLjz9MKMSAwIG9iago8PAovVHlwZSAvQ2F0YWxvZwovUGFnZXMgMiAwIFIKPj4KZW5kb2JqCg=="
+        path:
+          type: string
+          description: Chemin du fichier sur le serveur (si disponible)
+          example: "/tmp/uploads/devis.pdf"
+
+    SendEmailResponse:
+      type: object
+      required:
+        - success
+      properties:
+        success:
+          type: boolean
+          description: Indique si l'email a été envoyé avec succès
+          example: true
+        emailLogId:
+          type: string
+          format: uuid
+          description: ID du log créé dans email_logs
+          example: "123e4567-e89b-12d3-a456-426614174002"
+        error:
+          type: string
+          description: Message d'erreur si échec (non présent si success=true)
+          example: "Erreur lors de l'envoi SMTP"
+
+    ErrorResponse:
+      type: object
+      required:
+        - error
+      properties:
+        error:
+          type: string
+          description: Message d'erreur
+          example: "Erreur de validation"
+
+    EmailLog:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: "123e4567-e89b-12d3-a456-426614174002"
+        intervention_id:
+          type: string
+          format: uuid
+          nullable: true
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        artisan_id:
+          type: string
+          format: uuid
+          nullable: true
+          example: "123e4567-e89b-12d3-a456-426614174001"
+        sent_by:
+          type: string
+          format: uuid
+          nullable: true
+          example: "123e4567-e89b-12d3-a456-426614174003"
+        recipient_email:
+          type: string
+          format: email
+          example: "artisan@example.com"
+        subject:
+          type: string
+          example: "Demande de devis - Intervention #12345"
+        message_html:
+          type: string
+          nullable: true
+          example: "<html><body>...</body></html>"
+        email_type:
+          type: string
+          enum: [devis, intervention]
+          nullable: true
+          example: "devis"
+        attachments_count:
+          type: integer
+          minimum: 0
+          example: 1
+        status:
+          type: string
+          enum: [sent, failed, pending]
+          example: "sent"
+        error_message:
+          type: string
+          nullable: true
+          example: null
+        sent_at:
+          type: string
+          format: date-time
+          example: "2025-01-19T10:30:00Z"
+        created_at:
+          type: string
+          format: date-time
+          example: "2025-01-19T10:30:00Z"
+

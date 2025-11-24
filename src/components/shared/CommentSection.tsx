@@ -308,7 +308,7 @@ export function CommentSection({
     editingOriginalContentRef.current = ""
   }
 
-  const handleSaveEdit = () => {
+  const handleSaveEdit = useCallback(() => {
     const trimmed = editingContent.trim()
     if (!editingCommentId || !trimmed || updateComment.isPending) {
       return
@@ -318,7 +318,7 @@ export function CommentSection({
       return
     }
     updateComment.mutate({ id: editingCommentId, content: trimmed })
-  }
+  }, [editingContent, editingCommentId, updateComment])
 
   const handleDelete = () => {
     if (!deletingCommentId || deleteComment.isPending) {
@@ -331,13 +331,13 @@ export function CommentSection({
     deleteComment.mutate(targetId)
   }
 
-  const handleDeleteRequest = (commentId: string) => {
+  const handleDeleteRequest = useCallback((commentId: string) => {
     blurActiveElement()
     if (editingCommentId === commentId) {
       handleCancelEdit()
     }
     setDeletingCommentId(commentId)
-  }
+  }, [editingCommentId])
 
   useEffect(() => {
     if (!editingCommentId) {
@@ -721,7 +721,6 @@ export function CommentSection({
     handleSaveEdit,
     editingContent,
     updateComment.isPending,
-    CONTEXT_MENU_ENABLED,
   ])
 
   return (

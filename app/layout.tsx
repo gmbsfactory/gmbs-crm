@@ -216,37 +216,37 @@ export default async function RootLayout({
             <ReactQueryProvider>
               <AuthStateListenerProvider>
                 <ModalDisplayProvider>
-                <UserStatusProvider>
-                  <InterfaceProvider>
-                    <RemindersProvider>
-                      <ThemeWrapper>
-                        <AuthGuard>
-                          <SidebarProvider>
-                            <div className="flex min-h-screen w-full overflow-hidden flex-col">
-                              <TopbarGate />
-                              <ConditionalPadding>
-                                <SidebarGate isAuthed={isAuthed} />
-                                <main id="main" className="flex flex-1 min-h-[calc(100vh-4rem)] flex-col overflow-hidden">
-                                  <GlobalShortcuts />
-                                  <GlobalModalHost />
-                                  <div className="flex-1 overflow-auto">
-                                    {children}
-                                  </div>
-                                </main>
-                              </ConditionalPadding>
-                            </div>
-                          </SidebarProvider>
-                        </AuthGuard>
-                      </ThemeWrapper>
-                    </RemindersProvider>
-                  </InterfaceProvider>
-                </UserStatusProvider>
-              </ModalDisplayProvider>
+                  <UserStatusProvider>
+                    <InterfaceProvider>
+                      <RemindersProvider>
+                        <ThemeWrapper>
+                          <AuthGuard>
+                            <SidebarProvider>
+                              <div className="flex min-h-screen w-full overflow-hidden flex-col">
+                                <TopbarGate />
+                                <ConditionalPadding>
+                                  <SidebarGate isAuthed={isAuthed} />
+                                  <main id="main" className="flex flex-1 min-h-[calc(100vh-4rem)] flex-col overflow-hidden">
+                                    <GlobalShortcuts />
+                                    <GlobalModalHost />
+                                    <div className="flex-1 overflow-auto">
+                                      {children}
+                                    </div>
+                                  </main>
+                                </ConditionalPadding>
+                              </div>
+                            </SidebarProvider>
+                          </AuthGuard>
+                        </ThemeWrapper>
+                      </RemindersProvider>
+                    </InterfaceProvider>
+                  </UserStatusProvider>
+                </ModalDisplayProvider>
               </AuthStateListenerProvider>
             </ReactQueryProvider>
           </SettingsProvider>
         </SimpleOptimizedProvider>
-        <Toaster />
+        <Toaster position="top-right" duration={10000} />
       </body>
     </html>
   )

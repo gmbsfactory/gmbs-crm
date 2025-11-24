@@ -69,6 +69,7 @@ export interface Intervention {
   client_id?: string | null;
   artisan_id?: string | null;
   assigned_user_id: string | null;
+  updated_by: string | null; // Utilisateur qui a effectué la dernière modification
   statut_id: string | null;
   metier_id: string | null;
   date: string;
@@ -86,6 +87,11 @@ export interface Intervention {
   longitude: number | null;
   numero_sst: string | null;
   pourcentage_sst: number | null;
+  is_vacant: boolean | null;
+  key_code: string | null;
+  floor: string | null;
+  apartment_number: string | null;
+  vacant_housing_instructions: string | null;
   is_active: boolean | null;
   created_at: string | null;
   updated_at: string | null;
@@ -314,6 +320,11 @@ export interface CreateInterventionData {
   longitude?: number;
   numero_sst?: string;
   pourcentage_sst?: number;
+  is_vacant?: boolean;
+  key_code?: string | null;
+  floor?: string | null;
+  apartment_number?: string | null;
+  vacant_housing_instructions?: string | null;
 }
 
 export interface UpdateInterventionData {
@@ -341,6 +352,11 @@ export interface UpdateInterventionData {
   longitude?: number;
   numero_sst?: string;
   pourcentage_sst?: number;
+  is_vacant?: boolean;
+  key_code?: string | null;
+  floor?: string | null;
+  apartment_number?: string | null;
+  vacant_housing_instructions?: string | null;
   is_active?: boolean;
 }
 
@@ -729,6 +745,7 @@ export interface Owner {
   owner_lastname: string | null;
   telephone: string | null;
   telephone2: string | null;
+  email: string | null;
   adresse: string | null;
   ville: string | null;
   code_postal: string | null;
@@ -742,6 +759,7 @@ export interface CreateOwnerData {
   owner_lastname?: string | null;
   telephone?: string | null;
   telephone2?: string | null;
+  email?: string | null;
   adresse?: string | null;
   ville?: string | null;
   code_postal?: string | null;
@@ -752,6 +770,7 @@ export interface UpdateOwnerData {
   owner_lastname?: string | null;
   telephone?: string | null;
   telephone2?: string | null;
+  email?: string | null;
   adresse?: string | null;
   ville?: string | null;
   code_postal?: string | null;

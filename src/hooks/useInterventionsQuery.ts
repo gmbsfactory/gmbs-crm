@@ -58,7 +58,7 @@ export function useInterventionsQuery(
     enabled: enabledOption,
   } = options
 
-  // Normaliser les filtres (supprimer les valeurs undefined/null)
+  // Normaliser les filtres (supprimer uniquement les valeurs undefined, garder null pour user)
   const normalizedFilters = useMemo(() => {
     if (!serverFilters) return {}
 
@@ -68,7 +68,10 @@ export function useInterventionsQuery(
     >
 
     for (const [key, value] of entries) {
-      if (value !== undefined && value !== null) {
+      // Pour le champ 'user', null est une valeur valide (filtre "sans assignation" pour la vue Market)
+      if (key === 'user' && value === null) {
+        ;(result as any)[key] = value
+      } else if (value !== undefined && value !== null) {
         ;(result as any)[key] = value
       }
     }
@@ -153,8 +156,10 @@ export function useInterventionsQuery(
     queryKey,
     queryFn,
     enabled,
-    // Stale time spécifique : 30s pour revalidation silencieuse
-    staleTime: 30 * 1000,
+    // Stale time à 0 pour permettre les mises à jour realtime immédiates
+    // Les mises à jour realtime via setQueryData seront immédiatement visibles dans l'UI
+    // sans attendre 30 secondes
+    staleTime: 0,
     // Utiliser les données light préchargées comme placeholder si disponibles
     // Cela permet d'afficher instantanément les données préchargées pendant le chargement des données complètes
     placeholderData: (previousData) => {
@@ -183,7 +188,7 @@ export function useInterventionsQuery(
     const lastId = newArray[newArray.length - 1]?.id ?? 'none'
     console.log(`[useInterventionsQuery] interventions mis à jour - length: ${newArray.length}, page: ${page}, offset: ${offset}, firstId: ${firstId}, lastId: ${lastId}`)
     return newArray
-  }, [data?.data, page, offset, queryKey])
+  }, [data?.data, page, offset])
   const totalCount = useMemo(() => data?.total ?? 0, [data?.total])
 
   // Calculer le nombre total de pages

@@ -242,12 +242,12 @@ const mapInterventionRecord = (
       : undefined);
   const normalizedStatus = status
     ? {
-        id: status.id,
-        code: status.code,
-        label: status.label,
-        color: status.color,
-        sort_order: status.sort_order ?? null,
-      }
+      id: status.id,
+      code: status.code,
+      label: status.label,
+      color: status.color,
+      sort_order: status.sort_order ?? null,
+    }
     : undefined;
   const statusCode = normalizedStatus?.code ?? item.statut ?? item.statusValue ?? null;
   const metier = item.metier_id
@@ -380,28 +380,28 @@ const mapArtisanRecord = (item: any, refs: ReferenceCache): Artisan => {
   // Extraire les métiers depuis artisan_metiers
   const metiers = Array.isArray(item.artisan_metiers)
     ? item.artisan_metiers
-        .map((am: any) => am.metiers?.code || am.metiers?.label)
-        .filter(Boolean)
+      .map((am: any) => am.metiers?.code || am.metiers?.label)
+      .filter(Boolean)
     : Array.isArray(item.metiers)
-    ? item.metiers
-    : [];
+      ? item.metiers
+      : [];
 
   // Extraire les zones depuis artisan_zones
   const zones = Array.isArray(item.artisan_zones)
     ? item.artisan_zones
-        .map((az: any) => az.zones?.code || az.zones?.label)
-        .filter(Boolean)
+      .map((az: any) => az.zones?.code || az.zones?.label)
+      .filter(Boolean)
     : Array.isArray(item.zones)
-    ? item.zones
-    : [];
+      ? item.zones
+      : [];
 
   // Extraire les métadonnées de la photo de profil depuis artisan_attachments
-  const attachments = Array.isArray(item.artisan_attachments) 
-    ? item.artisan_attachments 
-    : Array.isArray(item.attachments) 
-    ? item.attachments 
-    : [];
-  
+  const attachments = Array.isArray(item.artisan_attachments)
+    ? item.artisan_attachments
+    : Array.isArray(item.attachments)
+      ? item.attachments
+      : [];
+
   const photoProfilAttachment = attachments.find(
     (att: any) => att?.kind === "photo_profil" && att?.url && att.url.trim() !== ""
   );
@@ -446,7 +446,7 @@ const mapArtisanRecord = (item: any, refs: ReferenceCache): Artisan => {
     is_active: item.is_active,
     created_at: item.created_at,
     updated_at: item.updated_at,
-    
+
     // Propriétés calculées et relations
     metiers,
     zones,
@@ -541,6 +541,7 @@ export interface Intervention {
   reference_agence: string | null;
   client_id: string | null;
   assigned_user_id: string | null;
+  updated_by: string | null; // Utilisateur qui a effectué la dernière modification
   statut_id: string | null;
   metier_id: string | null;
   date: string;
@@ -670,27 +671,27 @@ const PROPERTY_COLUMN_MAP: Record<string, string> = {
   id: "id",
   id_inter: "id_inter",
   idInter: "id_inter",
-  
+
   // Statut
   statusValue: "statut_id",
   statut: "statut_id",
   statut_id: "statut_id",
-  
+
   // User assigné
   attribueA: "assigned_user_id",
   assigned_user_id: "assigned_user_id",
   assignedUserName: "assigned_user_id",
   assignedUserId: "assigned_user_id",
-  
+
   // Agence
   agence: "agence_id",
   agence_id: "agence_id",
   agenceLabel: "agence_id",
-  
+
   // Métier
   metier: "metier_id",
   metier_id: "metier_id",
-  
+
   // Dates - ⚠️ La colonne principale est 'date', pas 'date_intervention'
   date: "date",
   dateIntervention: "date",
@@ -705,7 +706,7 @@ const PROPERTY_COLUMN_MAP: Record<string, string> = {
   updated_at: "updated_at",
   createdAt: "created_at",
   updatedAt: "updated_at",
-  
+
   // Localisation
   codePostal: "code_postal",
   code_postal: "code_postal",
@@ -715,7 +716,7 @@ const PROPERTY_COLUMN_MAP: Record<string, string> = {
   longitude: "longitude",
   latitudeAdresse: "latitude",
   longitudeAdresse: "longitude",
-  
+
   // Tenant / Owner
   tenantId: "tenant_id",
   tenant_id: "tenant_id",
@@ -723,7 +724,7 @@ const PROPERTY_COLUMN_MAP: Record<string, string> = {
   client_id: "tenant_id",
   ownerId: "owner_id",
   owner_id: "owner_id",
-  
+
   // Champs texte intervention
   contexteIntervention: "contexte_intervention",
   contexte_intervention: "contexte_intervention",
@@ -735,7 +736,7 @@ const PROPERTY_COLUMN_MAP: Record<string, string> = {
   commentaireAgent: "commentaire_agent",
   commentaire_agent: "commentaire_agent",
   commentaire: "commentaire_agent",
-  
+
   // État
   isActive: "is_active",
   is_active: "is_active",
@@ -784,22 +785,22 @@ const DERIVED_VIEW_FIELDS = new Set<string>([
   "artisans",
   "primaryArtisan",
   "deuxiemeArtisan",
-  
+
   // Statut (enrichi côté client avec label/color)
   "status",
   "statusLabel",
   "statusColor",
-  
+
   // User (enrichi côté client avec color)
   "assignedUserColor",
   "assignedUserCode",
-  
+
   // Relations
   "payments",
   "costs",
   "attachments",
   "comments",
-  
+
   // Coûts (table intervention_costs)
   "coutIntervention",
   "cout_intervention",
@@ -808,7 +809,7 @@ const DERIVED_VIEW_FIELDS = new Set<string>([
   "coutMateriel",
   "cout_materiel",
   "marge",
-  
+
   // Données client (table tenants)
   "nomClient",
   "nom_client",
@@ -820,7 +821,7 @@ const DERIVED_VIEW_FIELDS = new Set<string>([
   "telephone2_client",
   "emailClient",
   "email_client",
-  
+
   // Données propriétaire (table owner)
   "nomProprietaire",
   "nom_proprietaire",
@@ -830,7 +831,7 @@ const DERIVED_VIEW_FIELDS = new Set<string>([
   "telephone_proprietaire",
   "emailProprietaire",
   "email_proprietaire",
-  
+
   // Pièces jointes (table intervention_attachments)
   "pieceJointeIntervention",
   "piece_jointe_intervention",
@@ -846,7 +847,7 @@ const DERIVED_VIEW_FIELDS = new Set<string>([
   "piece_jointe_facture_artisan",
   "pieceJointeFactureMateriel",
   "piece_jointe_facture_materiel",
-  
+
   // Champs qui n'existent plus dans le nouveau schéma
   "datePrevueDeuxiemeArtisan",
   "date_prevue_deuxieme_artisan",
@@ -885,32 +886,32 @@ const resolveColumn = (property: string): string | null => {
   if (DERIVED_VIEW_FIELDS.has(property)) {
     return null;
   }
-  
+
   // Si on a un mapping, on l'utilise
   const mapped = PROPERTY_COLUMN_MAP[property];
   if (mapped) {
     // Vérifier que la colonne mappée est valide
     return VALID_INTERVENTION_COLUMNS.has(mapped) ? mapped : null;
   }
-  
+
   // Si pas de mapping, vérifier que la propriété est une colonne valide
   return VALID_INTERVENTION_COLUMNS.has(property) ? property : null;
 };
 
 const resolveSelectColumns = (fields?: string[]): string => {
   const columns = new Set<string>(DEFAULT_INTERVENTION_COLUMNS);
-  
+
   if (Array.isArray(fields) && fields.length > 0) {
     fields.forEach((field) => {
       if (!field || typeof field !== 'string') return;
-      
+
       const column = resolveColumn(field.trim());
       if (column) {
         columns.add(column);
       }
     });
   }
-  
+
   const selection = Array.from(columns).filter(Boolean);
   return selection.length > 0 ? selection.join(",") : DEFAULT_INTERVENTION_COLUMNS.join(",");
 };
@@ -1007,7 +1008,7 @@ function mapInterventionRecordsBatch(
   refs: ReferenceCache
 ): InterventionView[] {
   if (items.length === 0) return [];
-  
+
   // Mapping synchrone direct - plus rapide que les chunks async
   return items.map((item) => mapInterventionRecord(item, refs) as InterventionView);
 }
@@ -1028,18 +1029,20 @@ export const interventionsApiV2 = {
     }
 
     const appendFilterParam = (key: string, value?: FilterValue) => {
-      if (value === undefined) {
+      // Cas spécial pour user === null (vue Market) : envoyer "null" comme chaîne
+      if (key === "user" && value === null) {
+        searchParams.append(key, "null");
         return;
       }
-      if (value === null) {
-        searchParams.append(key, "null");
+
+      if (value === undefined || value === null) {
+        // Ne pas envoyer le paramètre si la valeur est undefined ou null
         return;
       }
       if (Array.isArray(value)) {
         value.forEach((entry) => {
-          if (entry === null) {
-            searchParams.append(key, "null");
-          } else if (typeof entry === "string" && entry.length > 0) {
+          // Ignorer les valeurs null dans les tableaux
+          if (entry !== null && typeof entry === "string" && entry.length > 0) {
             searchParams.append(key, entry);
           }
         });
@@ -1070,9 +1073,8 @@ export const interventionsApiV2 = {
       searchParams.set("_ts", Date.now().toString());
     }
     const queryString = searchParams.toString();
-    const url = `${SUPABASE_FUNCTIONS_URL}/interventions-v2/interventions${
-      queryString ? `?${queryString}` : ""
-    }`;
+    const url = `${SUPABASE_FUNCTIONS_URL}/interventions-v2/interventions${queryString ? `?${queryString}` : ""
+      }`;
 
     console.log(`[interventionsApiV2.getAll] URL: ${url}`)
     console.log(`[interventionsApiV2.getAll] Params: limit=${limit}, offset=${params.offset ?? 0}`)
@@ -1139,6 +1141,12 @@ export const interventionsApiV2 = {
     searchParams.set("offset", offset.toString());
 
     const appendFilterParam = (key: string, value: FilterValue) => {
+      // Cas spécial pour user === null (vue Market) : envoyer "null" comme chaîne
+      if (key === "user" && value === null) {
+        searchParams.append(key, "null");
+        return;
+      }
+
       if (!value) {
         return;
       }
@@ -1170,9 +1178,8 @@ export const interventionsApiV2 = {
       searchParams.set("_ts", Date.now().toString());
     }
     const queryString = searchParams.toString();
-    const url = `${SUPABASE_FUNCTIONS_URL}/interventions-v2/interventions/light${
-      queryString ? `?${queryString}` : ""
-    }`;
+    const url = `${SUPABASE_FUNCTIONS_URL}/interventions-v2/interventions/light${queryString ? `?${queryString}` : ""
+      }`;
 
     console.log(`[interventionsApiV2.getAllLight] URL: ${url}`)
     console.log(`[interventionsApiV2.getAllLight] Params: limit=${limit}, offset=${offset}`)
@@ -1195,38 +1202,38 @@ export const interventionsApiV2 = {
     const refs = await getReferenceCache();
     const transformedData = Array.isArray(raw?.data)
       ? raw.data.map((item: any) => {
-          // Mapping minimal pour les champs disponibles
-          const userInfo = buildUserDisplay(
-            refs.usersById.get(item.assigned_user_id ?? "")
-          );
-          const agency = item.agence_id
-            ? refs.agenciesById.get(item.agence_id)
-            : undefined;
-          const status = item.statut_id
-            ? refs.interventionStatusesById.get(item.statut_id)
-            : undefined;
-          const metier = item.metier_id
-            ? refs.metiersById.get(item.metier_id)
-            : undefined;
+        // Mapping minimal pour les champs disponibles
+        const userInfo = buildUserDisplay(
+          refs.usersById.get(item.assigned_user_id ?? "")
+        );
+        const agency = item.agence_id
+          ? refs.agenciesById.get(item.agence_id)
+          : undefined;
+        const status = item.statut_id
+          ? refs.interventionStatusesById.get(item.statut_id)
+          : undefined;
+        const metier = item.metier_id
+          ? refs.metiersById.get(item.metier_id)
+          : undefined;
 
-          return {
-            id: item.id,
-            id_inter: item.id_inter,
-            statut_id: item.statut_id,
-            date: item.date,
-            date_prevue: item.date_prevue,
-            agence_id: item.agence_id,
-            assigned_user_id: item.assigned_user_id,
-            metier_id: item.metier_id,
-            created_at: item.created_at,
-            updated_at: item.updated_at,
-            // Champs minimaux pour compatibilité avec InterventionView
-            statusValue: status?.code || null,
-            agence: agency?.label || null,
-            attribueA: userInfo.fullName || null,
-            metier: metier?.label || null,
-          } as Partial<InterventionView> as InterventionView;
-        })
+        return {
+          id: item.id,
+          id_inter: item.id_inter,
+          statut_id: item.statut_id,
+          date: item.date,
+          date_prevue: item.date_prevue,
+          agence_id: item.agence_id,
+          assigned_user_id: item.assigned_user_id,
+          metier_id: item.metier_id,
+          created_at: item.created_at,
+          updated_at: item.updated_at,
+          // Champs minimaux pour compatibilité avec InterventionView
+          statusValue: status?.code || null,
+          agence: agency?.label || null,
+          attribueA: userInfo.fullName || null,
+          metier: metier?.label || null,
+        } as Partial<InterventionView> as InterventionView;
+      })
       : [];
 
     const mapDuration = Date.now() - fetchStart - fetchDuration;
@@ -1288,9 +1295,8 @@ export const interventionsApiV2 = {
     }
 
     const queryString = searchParams.toString();
-    const url = `${SUPABASE_FUNCTIONS_URL}/interventions-v2/interventions/summary${
-      queryString ? `?${queryString}` : ""
-    }`;
+    const url = `${SUPABASE_FUNCTIONS_URL}/interventions-v2/interventions/summary${queryString ? `?${queryString}` : ""
+      }`;
 
     console.log(`[interventionsApiV2.getSummary] URL: ${url}`)
 
@@ -1320,9 +1326,8 @@ export const interventionsApiV2 = {
     const searchParams = new URLSearchParams();
     if (include) searchParams.append("include", include.join(","));
 
-    const url = `${SUPABASE_FUNCTIONS_URL}/interventions-v2/interventions/${id}${
-      searchParams.toString() ? `?${searchParams.toString()}` : ""
-    }`;
+    const url = `${SUPABASE_FUNCTIONS_URL}/interventions-v2/interventions/${id}${searchParams.toString() ? `?${searchParams.toString()}` : ""
+      }`;
 
     const response = await fetch(url, {
       headers: await getHeaders(),
@@ -1629,12 +1634,12 @@ export const artisansApiV2 = {
 
     // Filtrer par métiers AVANT le mapping pour avoir accès aux IDs
     let filteredData = data || [];
-    
+
     if (params?.metiers && params.metiers.length > 0) {
       const metierFilters = params.metiers;
       filteredData = filteredData.filter((item: any) => {
-        const artisanMetiers = Array.isArray(item.artisan_metiers) 
-          ? item.artisan_metiers 
+        const artisanMetiers = Array.isArray(item.artisan_metiers)
+          ? item.artisan_metiers
           : [];
         return metierFilters.some((metierId) =>
           artisanMetiers.some(
@@ -1645,8 +1650,8 @@ export const artisansApiV2 = {
     } else if (params?.metier) {
       const metierFilter = params.metier;
       filteredData = filteredData.filter((item: any) => {
-        const artisanMetiers = Array.isArray(item.artisan_metiers) 
-          ? item.artisan_metiers 
+        const artisanMetiers = Array.isArray(item.artisan_metiers)
+          ? item.artisan_metiers
           : [];
         return artisanMetiers.some(
           (am: any) => am.metier_id === metierFilter || am.metiers?.id === metierFilter
@@ -1791,24 +1796,23 @@ export const artisansApiV2 = {
     const searchParams = new URLSearchParams();
     if (include) searchParams.append("include", include.join(","));
 
-    const url = `${SUPABASE_FUNCTIONS_URL}/artisans-v2/artisans/${id}${
-      searchParams.toString() ? `?${searchParams.toString()}` : ""
-    }`;
+    const url = `${SUPABASE_FUNCTIONS_URL}/artisans-v2/artisans/${id}${searchParams.toString() ? `?${searchParams.toString()}` : ""
+      }`;
 
     const response = await fetch(url, {
       headers: await getHeaders(),
     });
     const raw = await handleResponse(response);
     console.log("[artisansApiV2.getById] Raw response:", raw);
-    
+
     // Si l'edge function retourne les relations directement, les préserver
     const record = raw?.data ?? raw;
     console.log("[artisansApiV2.getById] Record before mapping:", record);
-    
+
     const refs = await getReferenceCache();
     const mapped = mapArtisanRecord(record, refs);
     console.log("[artisansApiV2.getById] Mapped result:", mapped);
-    
+
     // Préserver les relations si elles existent dans la réponse brute
     if (record && typeof record === 'object') {
       const recordAny = record as any;
@@ -1828,7 +1832,7 @@ export const artisansApiV2 = {
         (mapped as any).statutDossier = recordAny.statutDossier;
       }
     }
-    
+
     return mapped;
   },
 
@@ -2110,9 +2114,8 @@ export const clientsApi = {
     if (params?.limit) searchParams.append("limit", params.limit.toString());
     if (params?.offset) searchParams.append("offset", params.offset.toString());
 
-    const url = `${SUPABASE_FUNCTIONS_URL}/clients/clients${
-      searchParams.toString() ? `?${searchParams.toString()}` : ""
-    }`;
+    const url = `${SUPABASE_FUNCTIONS_URL}/clients/clients${searchParams.toString() ? `?${searchParams.toString()}` : ""
+      }`;
 
     const response = await fetch(url, {
       headers: await getHeaders(),
@@ -2222,13 +2225,13 @@ export const clientsApi = {
  */
 function normalizeInterventionKind(kind: string): string {
   if (!kind) return kind;
-  
+
   const trimmed = kind.trim();
   if (!trimmed) return kind;
-  
+
   const lower = trimmed.toLowerCase();
   const compact = lower.replace(/[_\s-]/g, '');
-  
+
   // Mapping vers les valeurs canoniques avec 's' (comme dans l'Edge Function et la DB)
   const canonicalMap: Record<string, string> = {
     facturegmbs: 'facturesGMBS',
@@ -2238,11 +2241,11 @@ function normalizeInterventionKind(kind: string): string {
     facturemateriel: 'facturesMateriel',
     facturesmateriel: 'facturesMateriel'
   };
-  
+
   if (canonicalMap[compact]) {
     return canonicalMap[compact];
   }
-  
+
   // Gérer les cas spéciaux comme 'a_classe'
   const needsClassification = [
     'aclasser',
@@ -2261,7 +2264,7 @@ function normalizeInterventionKind(kind: string): string {
   ) {
     return 'a_classe';
   }
-  
+
   return trimmed;
 }
 
@@ -2283,9 +2286,8 @@ export const documentsApi = {
     if (params?.limit) searchParams.append("limit", params.limit.toString());
     if (params?.offset) searchParams.append("offset", params.offset.toString());
 
-    const url = `${SUPABASE_FUNCTIONS_URL}/documents/documents${
-      searchParams.toString() ? `?${searchParams.toString()}` : ""
-    }`;
+    const url = `${SUPABASE_FUNCTIONS_URL}/documents/documents${searchParams.toString() ? `?${searchParams.toString()}` : ""
+      }`;
 
     const response = await fetch(url, {
       headers: await getHeaders(),
@@ -2324,7 +2326,7 @@ export const documentsApi = {
     const normalizedKind = data.entity_type === 'intervention'
       ? normalizeInterventionKind(data.kind)
       : data.kind;
-    
+
     const response = await fetch(
       `${SUPABASE_FUNCTIONS_URL}/documents/documents`,
       {
@@ -2357,7 +2359,7 @@ export const documentsApi = {
     const normalizedKind = data.entity_type === 'intervention'
       ? normalizeInterventionKind(data.kind)
       : data.kind;
-    
+
     const response = await fetch(
       `${SUPABASE_FUNCTIONS_URL}/documents/documents/upload`,
       {
@@ -2390,12 +2392,12 @@ export const documentsApi = {
     // Normaliser le kind si présent
     const normalizedData = {
       ...data,
-      ...(data.kind && entityType === 'intervention' 
+      ...(data.kind && entityType === 'intervention'
         ? { kind: normalizeInterventionKind(data.kind) }
         : {}
       ),
     };
-    
+
     const url = `${SUPABASE_FUNCTIONS_URL}/documents/documents/${id}?entity_type=${entityType}`;
 
     const response = await fetch(url, {
@@ -2462,9 +2464,8 @@ export const commentsApi = {
     if (params?.limit) searchParams.append("limit", params.limit.toString());
     if (params?.offset) searchParams.append("offset", params.offset.toString());
 
-    const url = `${SUPABASE_FUNCTIONS_URL}/comments/comments${
-      searchParams.toString() ? `?${searchParams.toString()}` : ""
-    }`;
+    const url = `${SUPABASE_FUNCTIONS_URL}/comments/comments${searchParams.toString() ? `?${searchParams.toString()}` : ""
+      }`;
 
     const response = await fetch(url, {
       headers: await getHeaders(),
@@ -2567,9 +2568,8 @@ export const commentsApi = {
       searchParams.append("entity_type", params.entity_type);
     if (params?.entity_id) searchParams.append("entity_id", params.entity_id);
 
-    const url = `${SUPABASE_FUNCTIONS_URL}/comments/comments/stats${
-      searchParams.toString() ? `?${searchParams.toString()}` : ""
-    }`;
+    const url = `${SUPABASE_FUNCTIONS_URL}/comments/comments/stats${searchParams.toString() ? `?${searchParams.toString()}` : ""
+      }`;
 
     const response = await fetch(url, {
       headers: await getHeaders(),
@@ -3167,7 +3167,7 @@ export const usersApiV2 = {
     // 1. Soft delete dans public.users
     const { data: userData, error: profileError } = await supabase
       .from("users")
-      .update({ 
+      .update({
         is_active: false,
         status: "offline",
         updated_at: new Date().toISOString()
@@ -3610,16 +3610,34 @@ export async function getInterventionTotalCount(
     "limit" | "offset" | "fields" | "sortBy" | "sortDir" | "cursor" | "direction"
   >,
 ): Promise<number> {
-  let query = supabase
-    .from("interventions")
-    .select("id", { count: "exact", head: true });
+  try {
+    let query = supabase
+      .from("interventions")
+      .select("id", { count: "exact", head: true });
 
-  query = applyInterventionFilters(query, params);
+    query = applyInterventionFilters(query, params);
 
-  const { count, error } = await query;
-  if (error) throw error;
+    const { count, error } = await query;
 
-  return count ?? 0;
+    if (error) {
+      // Améliorer le message d'erreur pour le diagnostic
+      const errorMessage = error.message || JSON.stringify(error, Object.getOwnPropertyNames(error))
+      console.error(`[getInterventionTotalCount] Erreur Supabase:`, {
+        error,
+        errorMessage,
+        params,
+      })
+      throw new Error(`Erreur lors du comptage des interventions: ${errorMessage}`)
+    }
+
+    return count ?? 0;
+  } catch (error) {
+    // Re-lancer l'erreur avec plus de contexte si ce n'est pas déjà une Error
+    if (error instanceof Error) {
+      throw error
+    }
+    throw new Error(`Erreur inattendue lors du comptage: ${JSON.stringify(error, Object.getOwnPropertyNames(error))}`)
+  }
 }
 
 /**
@@ -3951,7 +3969,7 @@ export async function getDistinctInterventionValues(
   }
   // ⚠️ TODO: Le filtre artisan nécessite un JOIN avec intervention_artisans
   // if (params?.artisan) { ... }
-  
+
   if (params?.user) {
     if (Array.isArray(params.user)) {
       query = query.in("assigned_user_id", params.user);

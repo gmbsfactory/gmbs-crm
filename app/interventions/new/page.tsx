@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect } from "react"
+import { useEffect, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { X } from "lucide-react"
 import InterventionForm from "@/components/interventions/InterventionForm"
@@ -10,9 +10,9 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 export default function NewInterventionPage() {
   const router = useRouter()
 
-  const handleClose = () => {
+  const handleClose = useCallback(() => {
     router.push("/interventions")
-  }
+  }, [router])
 
   useEffect(() => {
     const handleEscape = (event: KeyboardEvent) => {

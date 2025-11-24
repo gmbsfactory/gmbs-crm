@@ -1,3 +1,5 @@
+import type { InterventionPayment } from "@/lib/api/v2/common/types"
+
 export type SearchEntityType = "intervention" | "artisan"
 export type SearchContext = SearchEntityType | "mixed"
 
@@ -127,6 +129,7 @@ export interface InterventionSearchRecord {
     telephone: string | null
     telephone2: string | null
   } | null
+  payments?: InterventionPayment[]
 }
 
 export interface SearchResult<TData> {

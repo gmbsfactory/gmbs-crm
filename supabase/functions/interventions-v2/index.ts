@@ -45,6 +45,11 @@ interface CreateInterventionRequest {
   longitude?: number;
   numero_sst?: string;
   pourcentage_sst?: number;
+  is_vacant?: boolean;
+  key_code?: string | null;
+  floor?: string | null;
+  apartment_number?: string | null;
+  vacant_housing_instructions?: string | null;
 }
 
 interface UpdateInterventionRequest {
@@ -72,6 +77,11 @@ interface UpdateInterventionRequest {
   numero_sst?: string;
   pourcentage_sst?: number;
   is_active?: boolean;
+  is_vacant?: boolean;
+  key_code?: string | null;
+  floor?: string | null;
+  apartment_number?: string | null;
+  vacant_housing_instructions?: string | null;
 }
 
 interface AssignArtisanRequest {
@@ -256,6 +266,7 @@ const DEFAULT_INTERVENTION_COLUMNS = [
   'updated_at',
   'statut_id',
   'assigned_user_id',
+  'updated_by',
   'agence_id',
   'reference_agence',
   'tenant_id',
@@ -931,7 +942,7 @@ serve(async (req: Request) => {
       }
 
       // Sélection minimale pour le warm-up : uniquement les champs essentiels
-      const lightSelect = 'id,id_inter,statut_id,date,date_prevue,agence_id,assigned_user_id,metier_id,created_at,updated_at';
+      const lightSelect = 'id,id_inter,statut_id,date,date_prevue,agence_id,assigned_user_id,updated_by,metier_id,created_at,updated_at';
 
       let query = supabase
         .from('interventions')
@@ -1236,6 +1247,7 @@ serve(async (req: Request) => {
           tenant_id,
           owner_id,
           assigned_user_id,
+          updated_by,
           statut_id,
           metier_id,
           date,
@@ -1331,6 +1343,11 @@ serve(async (req: Request) => {
               ville: body.ville,
               latitude: body.latitude,
               longitude: body.longitude,
+              is_vacant: body.is_vacant ?? false,
+              key_code: body.key_code ?? null,
+              floor: body.floor ?? null,
+              apartment_number: body.apartment_number ?? null,
+              vacant_housing_instructions: body.vacant_housing_instructions ?? null,
               updated_at: new Date().toISOString()
             })
             .eq('id', existing.id)
@@ -1381,6 +1398,11 @@ serve(async (req: Request) => {
           ville: body.ville,
           latitude: body.latitude,
           longitude: body.longitude,
+          is_vacant: body.is_vacant ?? false,
+          key_code: body.key_code ?? null,
+          floor: body.floor ?? null,
+          apartment_number: body.apartment_number ?? null,
+          vacant_housing_instructions: body.vacant_housing_instructions ?? null,
           is_active: true
         }])
         .select()
@@ -1505,6 +1527,11 @@ serve(async (req: Request) => {
           ville: body.ville,
           latitude: body.latitude,
           longitude: body.longitude,
+          is_vacant: body.is_vacant ?? false,
+          key_code: body.key_code ?? null,
+          floor: body.floor ?? null,
+          apartment_number: body.apartment_number ?? null,
+          vacant_housing_instructions: body.vacant_housing_instructions ?? null,
           is_active: true
         }])
         .select()
@@ -1545,6 +1572,11 @@ serve(async (req: Request) => {
                 ville: body.ville,
                 latitude: body.latitude,
                 longitude: body.longitude,
+                is_vacant: body.is_vacant ?? false,
+                key_code: body.key_code ?? null,
+                floor: body.floor ?? null,
+                apartment_number: body.apartment_number ?? null,
+                vacant_housing_instructions: body.vacant_housing_instructions ?? null,
                 is_active: true
               }])
               .select()
@@ -1682,6 +1714,11 @@ serve(async (req: Request) => {
           ville: body.ville,
           latitude: body.latitude,
           longitude: body.longitude,
+          is_vacant: body.is_vacant ?? false,
+          key_code: body.key_code ?? null,
+          floor: body.floor ?? null,
+          apartment_number: body.apartment_number ?? null,
+          vacant_housing_instructions: body.vacant_housing_instructions ?? null,
           is_active: body.is_active,
           updated_at: new Date().toISOString()
         })

@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { useDebounce } from './useDebounce';
 
 interface PaginationData {
@@ -97,13 +97,14 @@ export function useInfiniteScroll<T>({
   const debouncedLoadMore = useDebounce(loadMore, debounceDelay);
 
   // Reset quand les dépendances changent
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+  // Note: dependencies est un array dynamique passé en paramètre, donc ESLint ne peut pas le vérifier statiquement
   useEffect(() => {
     setItems([]);
     setOffset(0);
     setHasMore(true);
     setError(null);
     cacheRef.current.clear();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, dependencies);
 
   // Nettoyer le cache périodiquement

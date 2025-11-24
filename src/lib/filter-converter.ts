@@ -64,8 +64,13 @@ export function convertViewFiltersToServerFilters(
           // Cela évite de filtrer pour une valeur impossible
           continue
         }
-        // Gérer CURRENT_USER_PLACEHOLDER
-        if (filter.value === "CURRENT_USER" || filter.value === context.currentUserId) {
+        // Gérer CURRENT_USER_PLACEHOLDER (plusieurs variantes possibles)
+        if (
+          filter.value === "CURRENT_USER" ||
+          filter.value === "__CURRENT_USER__" ||
+          filter.value === "__CURRENT_USER_USERNAME__" ||
+          filter.value === context.currentUserId
+        ) {
           if (context.currentUserId) {
             serverFilters.user = context.currentUserId
           } else {
@@ -87,7 +92,12 @@ export function convertViewFiltersToServerFilters(
         if (stringValues.length > 0) {
           const userIds = stringValues
             .map((v) => {
-              if (v === "CURRENT_USER" || v === context.currentUserId) {
+              if (
+                v === "CURRENT_USER" ||
+                v === "__CURRENT_USER__" ||
+                v === "__CURRENT_USER_USERNAME__" ||
+                v === context.currentUserId
+              ) {
                 return context.currentUserId
               }
               return context.userCodeToId(v)

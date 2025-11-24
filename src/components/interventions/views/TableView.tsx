@@ -38,6 +38,13 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import {
+  ContextMenu,
+  ContextMenuTrigger,
+} from "@/components/ui/context-menu"
+import { InterventionContextMenuContent } from "@/components/interventions/InterventionContextMenu"
+import { useInterventionModal } from "@/hooks/useInterventionModal"
+import { RemoteEditBadge } from "@/components/interventions/RemoteEditBadge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -79,6 +86,8 @@ import { TABLE_ALIGNMENT_OPTIONS } from "./column-alignment-options"
 import type { InterventionModalOpenOptions } from "@/hooks/useInterventionModal"
 import { iconForStatus } from "@/lib/interventions/status-icons"
 import { getStatusDisplay } from "@/lib/interventions/status-display"
+import { getStatusDisplayLabel } from "@/lib/interventions/deposit-helpers"
+import type { InterventionPayment } from "@/lib/api/v2/common/types"
 import { Pagination } from "@/components/ui/pagination"
 
 const numberFormatter = new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 2 })
@@ -89,8 +98,8 @@ type NoteDialogContentProps = React.ComponentPropsWithoutRef<typeof AlertDialogP
 const NoteDialogContent = React.forwardRef<HTMLDivElement, NoteDialogContentProps>(
   ({ className, ...props }, ref) => (
     <AlertDialogPortal>
-      <AlertDialogPrimitive.Overlay 
-        className="fixed inset-0 z-[55] bg-black/20" 
+      <AlertDialogPrimitive.Overlay
+        className="fixed inset-0 z-[55] bg-black/20"
         onClick={(e) => {
           // Empêcher la fermeture du modal si on clique sur l'overlay
           // Le modal ne se fermera que via les boutons ou Escape
@@ -98,10 +107,10 @@ const NoteDialogContent = React.forwardRef<HTMLDivElement, NoteDialogContentProp
           e.stopPropagation()
         }}
       />
-      <AlertDialogPrimitive.Content 
-        ref={ref} 
-        className={className} 
-        {...props} 
+      <AlertDialogPrimitive.Content
+        ref={ref}
+        className={className}
+        {...props}
       />
     </AlertDialogPortal>
   ),
@@ -197,7 +206,7 @@ const renderCell = (
     if (!value) return { content: "—" }
     const statusInfo = (intervention as any).status as { code?: string; color?: string; label?: string } | undefined
     const statusCode = (statusInfo?.code ?? value ?? "") as string
-    
+
     // Utiliser getStatusDisplay pour obtenir label, color et icon de manière centralisée
     const statusDisplay = getStatusDisplay(statusCode, {
       statusFromDb: statusInfo ? {
@@ -206,20 +215,34 @@ const renderCell = (
         color: statusInfo.color ?? null,
       } : undefined,
     })
+
+    // Récupérer les paiements pour vérifier si l'accompte est validé
+    const payments = (intervention as any).payments as Array<{ payment_type?: string; is_received?: boolean; payment_date?: string | null }> | undefined
+    const sstPayment = payments?.find(p => p.payment_type === 'acompte_sst') as InterventionPayment | undefined
+    const clientPayment = payments?.find(p => p.payment_type === 'acompte_client') as InterventionPayment | undefined
     
+    // Utiliser getStatusDisplayLabel pour obtenir le label avec "$" si l'accompte est validé
+    const baseLabel = statusDisplay.label
+    const statusLabelWithDeposit = getStatusDisplayLabel(
+      statusCode,
+      baseLabel,
+      sstPayment,
+      clientPayment
+    )
+
     // DAT-001 : Vérifier si l'intervention doit afficher le statut "Check"
     const datePrevue = (intervention as any).date_prevue ?? (intervention as any).datePrevue ?? null
     const isCheck = isCheckStatus(statusCode, datePrevue)
-    
+
     // Si Check, remplacer complètement le label par "CHECK"
-    const displayLabel = isCheck ? "CHECK" : statusDisplay.label
+    const displayLabel = isCheck ? "CHECK" : statusLabelWithDeposit
     const displayColor = isCheck ? "#EF4444" : statusDisplay.color // Rouge pour Check
-    
+
     const appearance: TableColumnAppearance = style?.appearance ?? "solid"
     const statusIcon = !isCheck ? statusDisplay.icon : null
-    
+
     if (appearance === "none") {
-      return { 
+      return {
         content: isCheck ? (
           <span className="check-status-badge inline-flex items-center justify-center rounded-full px-2 py-0.5 text-xs font-semibold text-white bg-red-500">
             CHECK
@@ -266,7 +289,7 @@ const renderCell = (
       defaultTextColor: themeMode === "dark" ? "#F3F4F6" : "#111827",
       cellClassName: "font-medium",
       // 🆕 En mode gradient, utiliser la couleur du statut (rouge si Check)
-      statusGradient: isCheck 
+      statusGradient: isCheck
         ? `linear-gradient(
           to bottom,
           color-mix(in oklab, #EF4444, white 20%) 0%,
@@ -289,7 +312,7 @@ const renderCell = (
     if (!assignedCode) return { content: "—" }
     const color = (intervention as any).assignedUserColor as string | undefined
     const assignedUserName = (intervention as any).assignedUserName as string | undefined
-    
+
     // Calculer les initiales à partir du nom complet ou du code
     const getInitials = (): string => {
       if (assignedUserName) {
@@ -304,10 +327,10 @@ const renderCell = (
       // Fallback sur le code gestionnaire (première lettre)
       return assignedCode.substring(0, 2).toUpperCase() || 'U'
     }
-    
+
     const initials = getInitials()
     const appearance: TableColumnAppearance = style?.appearance ?? "solid"
-    
+
     if (!color || appearance === "none") {
       // Même sans couleur, afficher le badge circulaire
       return {
@@ -326,7 +349,7 @@ const renderCell = (
         ),
       }
     }
-    
+
     if (appearance === "badge") {
       // Mode badge : afficher le badge circulaire
       return {
@@ -346,7 +369,7 @@ const renderCell = (
         cellClassName: "font-medium",
       }
     }
-    
+
     // Mode solid : afficher le badge circulaire avec fond pastel
     const pastel = toSoftColor(color, themeMode, themeMode === "dark" ? "#1f2937" : "#e2e8f0")
     return {
@@ -446,7 +469,7 @@ export function TableView({
   useEffect(() => {
     console.log(`[TableView] Props pagination - currentPage: ${currentPage}, totalPages: ${totalPages}, totalCount: ${totalCount}, onPageChange: ${typeof onPageChange}`)
   }, [currentPage, totalPages, totalCount, onPageChange])
-  
+
   const dataset = useMemo(() => {
     // ⚠️ NE PAS réappliquer les filtres/sorts de la vue !
     // Ils sont déjà appliqués côté serveur + residualFilters dans page.tsx
@@ -479,7 +502,7 @@ export function TableView({
   const noteDialogContentRef = useRef<HTMLDivElement | null>(null)
   const isReminderSaveDisabled = noteValue.trim().length === 0 && !dueDateValue
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
-  const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+  const uuidPattern = useMemo(() => /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i, [])
 
   const columnWidths = view.layoutOptions.columnWidths ?? {}
   const tableLayoutOptions = view.layoutOptions as TableLayoutOptions
@@ -496,6 +519,10 @@ export function TableView({
   const useAccentColor = tableLayoutOptions.useAccentColor ?? false
   const rowDensity = (tableLayoutOptions.rowDensity ??
     (tableLayoutOptions.dense ? "dense" : "default")) as TableRowDensity
+  const { open: openInterventionModal } = useInterventionModal()
+  const isMarketView = view.id === "market"
+  const viewType: "default" | "market" = isMarketView ? "market" : "default"
+
   const densityTableClass =
     rowDensity === "ultra-dense" ? "text-xs" : rowDensity === "dense" ? "text-sm" : undefined
   const densityHeaderClass =
@@ -513,7 +540,7 @@ export function TableView({
   const rowHeight = getRowHeight(rowDensity)
   const isBrowser = typeof window !== "undefined"
   const isFirefox = isBrowser && typeof navigator !== "undefined" ? /firefox/i.test(navigator.userAgent) : false
-  
+
   // Créer une signature stable du dataset pour détecter les changements réels
   const datasetSignature = useMemo(() => {
     if (dataset.length === 0) return `empty-${currentPage}`
@@ -521,7 +548,7 @@ export function TableView({
     const lastId = dataset[dataset.length - 1]?.id ?? 'none'
     return `${currentPage}-${dataset.length}-${firstId}-${lastId}`
   }, [dataset, currentPage])
-  
+
   const rowVirtualizer = useVirtualizer({
     count: dataset.length,
     getScrollElement: () => tableContainerRef.current,
@@ -535,7 +562,7 @@ export function TableView({
       return item?.id ? `${item.id}-${index}` : `index-${index}`
     },
   })
-  
+
   // Réinitialiser le scroll en haut quand on change de page OU quand les données changent significativement
   useEffect(() => {
     if (tableContainerRef.current && dataset.length > 0) {
@@ -548,8 +575,8 @@ export function TableView({
         }
       })
     }
-  }, [currentPage, datasetSignature, rowVirtualizer])
-  
+  }, [currentPage, dataset.length, datasetSignature, rowVirtualizer])
+
   // Forcer la mise à jour du virtualizer quand les données changent
   useEffect(() => {
     if (dataset.length > 0) {
@@ -557,7 +584,7 @@ export function TableView({
       // Mesurer à nouveau les éléments pour s'assurer que le virtualizer est à jour
       rowVirtualizer.measure()
     }
-  }, [datasetSignature, rowVirtualizer])
+  }, [dataset.length, datasetSignature, rowVirtualizer])
   const virtualItems = rowVirtualizer.getVirtualItems()
   const totalHeight = rowVirtualizer.getTotalSize()
 
@@ -586,9 +613,9 @@ export function TableView({
     ...(statusBorderEnabled ? { "--table-status-border-width": statusBorderWidthPx } : {}),
     ...(coloredShadow
       ? {
-          "--shadow-intensity-strong": `${shadowValues.strong}%`,
-          "--shadow-intensity-soft": `${shadowValues.soft}%`,
-        }
+        "--shadow-intensity-strong": `${shadowValues.strong}%`,
+        "--shadow-intensity-soft": `${shadowValues.soft}%`,
+      }
       : {}),
     ...(rowDisplayMode === "gradient" ? { "--use-gradient-mode": "1" } : {}),
     ...(useAccentColor ? { "--use-accent-color": "1" } : {}),
@@ -750,7 +777,7 @@ export function TableView({
       const nextAlignments = { ...columnAlignment }
       const currentExplicitAlignment = columnAlignment[property]
       const currentAlignment = (currentExplicitAlignment ?? "center") as TableColumnAlignment
-      
+
       // Si on clique sur "center"
       if (nextAlignment === "center") {
         // Si "center" est déjà défini explicitement, on le supprime (retour à "center" par défaut)
@@ -818,6 +845,7 @@ export function TableView({
     if (hasContent) {
       await saveReminder({
         interventionId: noteDialogInterventionId,
+        idInter: (dataset.find(i => i.id === noteDialogInterventionId) as any)?.id_inter || undefined,
         note: cleaned.length > 0 ? cleaned : null,
         dueDate: dueDateIso,
         mentionedUserIds: mentionIds,
@@ -1017,8 +1045,8 @@ export function TableView({
             )}
           >
             <span className="text-muted-foreground">Affichage</span>
-              <Select
-                value={appearanceValue}
+            <Select
+              value={appearanceValue}
               disabled={!isAppearanceEditable}
               onValueChange={(value) => {
                 if (!isAppearanceEditable) return
@@ -1071,107 +1099,16 @@ export function TableView({
     <>
       <div className="flex flex-col flex-1 min-h-0">
         <Card className="border-2 shadow-sm flex flex-col flex-1 min-h-0">
-        <div
-          className={cn(
-            "table-horizontal-wrapper overflow-x-auto flex-1 min-h-0",
-            densityTableClass,
-            statusBorderEnabled && "table-has-status-border",
-          )}
-        >
-          <div className="min-w-fit h-full flex flex-col" style={tableInlineStyle}>
-            {/* En-tête fixe */}
-            <div className="flex-shrink-0">
-              <table
-                className={cn(
-                  "data-table shadcn-table border-separate border-spacing-0 caption-bottom text-sm",
-                  densityTableClass,
-                  statusBorderEnabled && "table-has-status-border",
-                )}
-                style={{
-                  ...tableInlineStyle,
-                  tableLayout: "fixed",
-                  width: "max-content",
-                  minWidth: "100%",
-                }}
-              >
-                <thead className="z-20">
-                  <tr className="border-b border-border/60 bg-muted/30">
-                    {view.visibleProperties.map((property) => {
-                      const width = columnWidths[property] ?? 150 // Largeur par défaut si non définie
-                      const schema = getPropertySchema(property)
-                      const activeFilter = view.filters.find((filter) => filter.property === property)
-                      const headerStyle: CSSProperties = {
-                        width,
-                        minWidth: width,
-                        maxWidth: width,
-                      }
-                      return (
-                        <th
-                          key={property}
-                          style={headerStyle}
-                          className={cn(
-                            "z-20 border-b border-border bg-muted/95 px-4 py-4 text-left text-sm font-semibold text-foreground",
-                            "whitespace-nowrap backdrop-blur-sm align-middle relative select-none",
-                            densityHeaderClass,
-                          )}
-                          onContextMenu={(event) => handleHeaderContextMenu(event, property)}
-                        >
-                          <div className="relative flex items-center gap-2">
-                            {schema?.filterable && onPropertyFilterChange ? (
-                              <ColumnFilter
-                                property={property}
-                                schema={schema}
-                                activeFilter={activeFilter}
-                                interventions={allInterventions ?? interventions}
-                                loadDistinctValues={loadDistinctValues}
-                                onFilterChange={onPropertyFilterChange}
-                              />
-                            ) : (
-                              <span>{getPropertyLabel(property)}</span>
-                            )}
-                            <div
-                              className={cn(
-                                "absolute top-0 right-0 h-full w-1 cursor-col-resize transition-colors duration-150",
-                                activeColumn === property
-                                  ? "bg-primary"
-                                  : "opacity-0 hover:opacity-100 hover:bg-primary/70",
-                              )}
-                              onPointerDown={(event) => handlePointerDown(event, property)}
-                            />
-                          </div>
-                        </th>
-                      )
-                    })}
-                    <th
-                      style={{ width: 100, minWidth: 100, maxWidth: 100 }}
-                      className={cn(
-                        "z-20 border-b border-border bg-muted/95 px-4 py-4 text-left text-sm font-semibold text-foreground",
-                        "whitespace-nowrap backdrop-blur-sm align-middle relative select-none",
-                        densityHeaderClass,
-                      )}
-                    >
-                      Actions
-                    </th>
-                  </tr>
-                </thead>
-              </table>
-            </div>
-
-            {/* Zone de scroll pour le corps */}
-            <div className="relative flex-1 min-h-0">
-              <div
-                ref={tableContainerRef}
-                className="table-scroll-wrapper relative h-full overflow-y-auto overflow-x-hidden"
-                onScroll={handleScrollWithFades}
-                style={{
-                  height: "100%",
-                  scrollbarWidth: "thin",
-                  scrollbarColor:
-                    themeMode === "dark"
-                      ? "rgba(255,255,255,0.2) rgba(255,255,255,0.05)"
-                      : "rgba(0,0,0,0.2) rgba(0,0,0,0.05)",
-                }}
-              >
+          <div
+            className={cn(
+              "table-horizontal-wrapper overflow-x-auto flex-1 min-h-0",
+              densityTableClass,
+              statusBorderEnabled && "table-has-status-border",
+            )}
+          >
+            <div className="min-w-fit h-full flex flex-col" style={tableInlineStyle}>
+              {/* En-tête fixe */}
+              <div className="flex-shrink-0">
                 <table
                   className={cn(
                     "data-table shadcn-table border-separate border-spacing-0 caption-bottom text-sm",
@@ -1185,220 +1122,338 @@ export function TableView({
                     minWidth: "100%",
                   }}
                 >
-                  <tbody>
-                    {dataset.length === 0 ? (
-                      <tr>
-                        <td
-                          colSpan={Math.max(view.visibleProperties.length + 1, 1)}
-                          className="px-4 py-12 text-center text-sm text-muted-foreground"
-                        >
-                          Aucune intervention ne correspond à ces filtres. Ajustez votre sélection pour reprendre l&apos;affichage.
-                        </td>
-                      </tr>
-                    ) : (
-                      <>
-                        {virtualItems.length > 0 && (
-                          <tr style={{ height: `${Math.max(virtualItems[0].start, 0)}px` }} />
-                        )}
-
-                        {virtualItems.map((virtualRow) => {
-                          const intervention = dataset[virtualRow.index]
-                          const rowIndex = virtualRow.index
-                          const statusColor =
-                            ((intervention as any).status?.color as string | undefined) ??
-                            (intervention as any).statusColor ??
-                            "#3B82F6"
-                          const isExpanded = expandedRowId === intervention.id
-
-                          const handleRowClick = (e: React.MouseEvent<HTMLTableRowElement>) => {
-                            if (isExpanded) {
-                              setExpandedRowId(null)
-                            } else {
-                              setExpandedRowId(intervention.id)
-                            }
-                          }
-
-                          return (
-                            <React.Fragment key={intervention.id}>
-                              <tr
-                                data-intervention-id={intervention.id}
-                                className={cn(
-                                  "group cursor-pointer border-b border-border/30 transition-colors duration-150 hover:bg-accent/10 data-[state=selected]:hover:bg-muted",
-                                  statusBorderEnabled && "table-row-status-border",
-                                  isExpanded && "bg-muted/30",
-                                )}
-                                style={
-                                  {
-                                    ...(coloredShadow ? { "--row-shadow-base": statusColor } : {}),
-                                    ...(statusBorderEnabled
-                                      ? {
-                                          "--status-border-color": statusColor,
-                                          "--table-status-border-width": statusBorderWidthPx,
-                                        }
-                                      : {}),
-                                  } as CSSProperties
-                                }
-                                onClick={handleRowClick}
-                              >
-                                {view.visibleProperties.map((property) => {
-                                  const styleEntry = columnStyles[property]
-                                  const { content, backgroundColor, defaultTextColor, cellClassName, statusGradient } =
-                                    renderCell(intervention, property, styleEntry, themeMode)
-                                  const alignment = (columnAlignment[property] ?? "center") as TableColumnAlignment
-                                  const alignmentClass =
-                                    alignment === "center"
-                                      ? "text-center"
-                                      : alignment === "right"
-                                        ? "text-right"
-                                        : "text-left"
-                                  const typographyClasses = buildTypographyClasses(styleEntry)
-                                  const textColor = styleEntry?.textColor ?? defaultTextColor
-                                  const width = columnWidths[property] ?? 150 // Largeur par défaut si non définie
-                                  const inlineStyle: CSSProperties & Record<string, any> = {
-                                    width,
-                                    minWidth: width,
-                                    maxWidth: width,
-                                  }
-                                  if (backgroundColor) inlineStyle.backgroundColor = backgroundColor
-                                  if (textColor) inlineStyle.color = textColor
-
-                                  if (rowDisplayMode === "gradient" && statusGradient) {
-                                    inlineStyle["--cell-background-layer"] = statusGradient
-                                  }
-
-                                  return (
-                                    <td
-                                      key={`${intervention.id}-${property}`}
-                                      className={cn(
-                                        "px-4 py-4 text-sm align-middle transition-colors duration-150",
-                                        densityCellClass,
-                                        alignmentClass,
-                                        typographyClasses,
-                                        cellClassName,
-                                        "max-w-[200px]",
-                                        isExpanded && "!py-[px]",
-                                      )}
-                                      style={inlineStyle}
-                                    >
-                                      <TruncatedCell content={content} />
-                                    </td>
-                                  )
-                                })}
-                                <td
-                                  className={cn(
-                                    "px-4 py-4 text-sm align-middle text-center transition-colors duration-150",
-                                    densityCellClass,
-                                    isExpanded && "!py-[7px]",
-                                  )}
-                                  style={{ width: 100, minWidth: 100, maxWidth: 100 }}
-                                  onClick={(e) => e.stopPropagation()}
-                                >
-                                  <div className="flex items-center justify-center gap-0">
-                                    {/* Cloche - Visible si reminder actif OU hover sur la ligne */}
-                                    <Button
-                                      variant="ghost"
-                                      size="icon"
-                                      className={cn(
-                                        "h-8 w-8 transition-opacity duration-150",
-                                        reminders.has(intervention.id)
-                                          ? "text-red-500 hover:text-red-600 opacity-100"
-                                          : "opacity-0 group-hover:opacity-100",
-                                      )}
-                                      onClick={(e) => {
-                                        e.stopPropagation()
-                                        void toggleReminder(intervention.id)
-                                      }}
-                                      onContextMenu={(e) => {
-                                        e.preventDefault()
-                                        handleReminderContextMenu(e, intervention.id)
-                                      }}
-                                      title={reminders.has(intervention.id) ? "Retirer le rappel" : "Ajouter un rappel"}
-                                    >
-                                      <Bell className={cn("h-4 w-4", reminders.has(intervention.id) && "fill-current")} />
-                                    </Button>
-                                    {/* Œil - Toujours visible */}
-                                    <Button
-                                      variant="ghost"
-                                      size="icon"
-                                      className="h-8 w-8"
-                                      onClick={(e) => {
-                                        e.stopPropagation()
-                                        onInterventionClick?.(intervention.id, {
-                                          layoutId: `table-row-${intervention.id}`,
-                                          orderedIds,
-                                          index: rowIndex,
-                                        })
-                                      }}
-                                      title="Voir les détails"
-                                    >
-                                      <Eye className="h-4 w-4" />
-                                    </Button>
-                                  </div>
-                                </td>
-                              </tr>
-                              {isExpanded && (
-                                <tr className="border-b-0 hover:bg-transparent">
-                                  <td colSpan={view.visibleProperties.length + 1} className="p-0 align-top">
-                                    <ExpandedRowContent
-                                      intervention={intervention}
-                                      statusColor={statusColor}
-                                      showStatusBorder={statusBorderEnabled}
-                                      statusBorderWidth={statusBorderWidthPx}
-                                      currentUserId={currentUserId}
-                                    />
-                                  </td>
-                                </tr>
+                  <thead className="z-20">
+                    <tr className="border-b border-border/60 bg-muted/30">
+                      {view.visibleProperties.map((property) => {
+                        const width = columnWidths[property] ?? 150 // Largeur par défaut si non définie
+                        const schema = getPropertySchema(property)
+                        const activeFilter = view.filters.find((filter) => filter.property === property)
+                        const headerStyle: CSSProperties = {
+                          width,
+                          minWidth: width,
+                          maxWidth: width,
+                        }
+                        return (
+                          <th
+                            key={property}
+                            style={headerStyle}
+                            className={cn(
+                              "z-20 border-b border-border bg-muted/95 px-4 py-4 text-left text-sm font-semibold text-foreground",
+                              "whitespace-nowrap backdrop-blur-sm align-middle relative select-none",
+                              densityHeaderClass,
+                            )}
+                            onContextMenu={(event) => handleHeaderContextMenu(event, property)}
+                          >
+                            <div className="relative flex items-center gap-2">
+                              {schema?.filterable && onPropertyFilterChange ? (
+                                <ColumnFilter
+                                  property={property}
+                                  schema={schema}
+                                  activeFilter={activeFilter}
+                                  interventions={allInterventions ?? interventions}
+                                  loadDistinctValues={loadDistinctValues}
+                                  onFilterChange={onPropertyFilterChange}
+                                />
+                              ) : (
+                                <span>{getPropertyLabel(property)}</span>
                               )}
-                            </React.Fragment>
-                          )
-                        })}
-
-                        {virtualItems.length > 0 && (
-                          <tr
-                            style={{
-                              height: `${Math.max(totalHeight - virtualItems[virtualItems.length - 1].end, 0)}px`,
-                            }}
-                          />
+                              <div
+                                className={cn(
+                                  "absolute top-0 right-0 h-full w-1 cursor-col-resize transition-colors duration-150",
+                                  activeColumn === property
+                                    ? "bg-primary"
+                                    : "opacity-0 hover:opacity-100 hover:bg-primary/70",
+                                )}
+                                onPointerDown={(event) => handlePointerDown(event, property)}
+                              />
+                            </div>
+                          </th>
+                        )
+                      })}
+                      <th
+                        style={{ width: 100, minWidth: 100, maxWidth: 100 }}
+                        className={cn(
+                          "z-20 border-b border-border bg-muted/95 px-4 py-4 text-left text-sm font-semibold text-foreground",
+                          "whitespace-nowrap backdrop-blur-sm align-middle relative select-none",
+                          densityHeaderClass,
                         )}
-                      </>
-                    )}
-                  </tbody>
+                      >
+                        Actions
+                      </th>
+                    </tr>
+                  </thead>
                 </table>
               </div>
-              <div
-                className={cn(
-                  "pointer-events-none absolute top-0 left-0 right-0 h-20 z-10",
-                  "transition-opacity duration-1300",
-                  showTopFade
-                    ? (themeMode === "dark" ? "opacity-100" : "opacity-25")
-                    : "opacity-0",
-                )}
-                style={{
-                  background:
-                    themeMode === "dark"
-                      ? "linear-gradient(to bottom, hsl(var(--background)) 0%, transparent 100%)"
-                      : "linear-gradient(to bottom, hsl(var(--background)) 0%, transparent 100%)",
-                }}
-              />
-              <div
-                className={cn(
-                  "pointer-events-none absolute bottom-0 left-0 right-0 h-20 z-10",
-                  "transition-opacity duration-300",
-                  showBottomFade
-                    ? (themeMode === "dark" ? "opacity-100" : "opacity-25")
-                    : "opacity-0",
-                )}
-                style={{
-                  background:
-                    themeMode === "dark"
-                      ? "linear-gradient(to top, hsl(var(--background)) 0%, transparent 100%)"
-                      : "linear-gradient(to top, hsl(var(--background)) 0%, transparent 100%)",
-                }}
-              />
+
+              {/* Zone de scroll pour le corps */}
+              <div className="relative flex-1 min-h-0">
+                <div
+                  ref={tableContainerRef}
+                  className="table-scroll-wrapper relative h-full overflow-y-auto overflow-x-hidden"
+                  onScroll={handleScrollWithFades}
+                  style={{
+                    height: "100%",
+                    scrollbarWidth: "thin",
+                    scrollbarColor:
+                      themeMode === "dark"
+                        ? "rgba(255,255,255,0.2) rgba(255,255,255,0.05)"
+                        : "rgba(0,0,0,0.2) rgba(0,0,0,0.05)",
+                  }}
+                >
+                  <table
+                    className={cn(
+                      "data-table shadcn-table border-separate border-spacing-0 caption-bottom text-sm",
+                      densityTableClass,
+                      statusBorderEnabled && "table-has-status-border",
+                    )}
+                    style={{
+                      ...tableInlineStyle,
+                      tableLayout: "fixed",
+                      width: "max-content",
+                      minWidth: "100%",
+                    }}
+                  >
+                    <tbody>
+                      {dataset.length === 0 ? (
+                        <tr>
+                          <td
+                            colSpan={Math.max(view.visibleProperties.length + 1, 1)}
+                            className="px-4 py-12 text-center text-sm text-muted-foreground"
+                          >
+                            Aucune intervention ne correspond à ces filtres. Ajustez votre sélection pour reprendre l&apos;affichage.
+                          </td>
+                        </tr>
+                      ) : (
+                        <>
+                          {virtualItems.length > 0 && (
+                            <tr style={{ height: `${Math.max(virtualItems[0].start, 0)}px` }} />
+                          )}
+
+                          {virtualItems.map((virtualRow) => {
+                            const intervention = dataset[virtualRow.index]
+                            const rowIndex = virtualRow.index
+                            const statusColor =
+                              ((intervention as any).status?.color as string | undefined) ??
+                              (intervention as any).statusColor ??
+                              "#3B82F6"
+                            const isExpanded = expandedRowId === intervention.id
+
+                            const handleRowClick = (e: React.MouseEvent<HTMLTableRowElement>) => {
+                              if (isExpanded) {
+                                setExpandedRowId(null)
+                              } else {
+                                setExpandedRowId(intervention.id)
+                              }
+                            }
+
+                            return (
+                              <React.Fragment key={intervention.id}>
+                                <ContextMenu>
+                                  <ContextMenuTrigger asChild>
+                                    <tr
+                                      data-intervention-id={intervention.id}
+                                      className={cn(
+                                        "group relative cursor-pointer border-b border-border/30 transition-colors duration-150 hover:bg-accent/10 data-[state=selected]:hover:bg-muted",
+                                        statusBorderEnabled && "table-row-status-border",
+                                        isExpanded && "bg-muted/30",
+                                      )}
+                                      style={
+                                        {
+                                          ...(coloredShadow ? { "--row-shadow-base": statusColor } : {}),
+                                          ...(statusBorderEnabled
+                                            ? {
+                                              "--status-border-color": statusColor,
+                                              "--table-status-border-width": statusBorderWidthPx,
+                                            }
+                                            : {}),
+                                        } as CSSProperties
+                                      }
+                                      onClick={handleRowClick}
+                                    >
+                                      {view.visibleProperties.map((property, propertyIndex) => {
+                                        const styleEntry = columnStyles[property]
+                                        const { content, backgroundColor, defaultTextColor, cellClassName, statusGradient } =
+                                          renderCell(intervention, property, styleEntry, themeMode)
+                                        const alignment = (columnAlignment[property] ?? "center") as TableColumnAlignment
+                                        const alignmentClass =
+                                          alignment === "center"
+                                            ? "text-center"
+                                            : alignment === "right"
+                                              ? "text-right"
+                                              : "text-left"
+                                        const typographyClasses = buildTypographyClasses(styleEntry)
+                                        const textColor = styleEntry?.textColor ?? defaultTextColor
+                                        const width = columnWidths[property] ?? 150 // Largeur par défaut si non définie
+                                        const inlineStyle: CSSProperties & Record<string, any> = {
+                                          width,
+                                          minWidth: width,
+                                          maxWidth: width,
+                                        }
+                                        if (backgroundColor) inlineStyle.backgroundColor = backgroundColor
+                                        if (textColor) inlineStyle.color = textColor
+
+                                        if (rowDisplayMode === "gradient" && statusGradient) {
+                                          inlineStyle["--cell-background-layer"] = statusGradient
+                                        }
+
+                                        return (
+                                          <td
+                                            key={`${intervention.id}-${property}`}
+                                            className={cn(
+                                              "px-4 py-4 text-sm align-middle transition-colors duration-150",
+                                              densityCellClass,
+                                              alignmentClass,
+                                              typographyClasses,
+                                              cellClassName,
+                                              "max-w-[200px]",
+                                              isExpanded && "!py-[px]",
+                                              // Ajouter relative seulement pour la première cellule pour positionner le badge
+                                              propertyIndex === 0 && "relative",
+                                            )}
+                                            style={inlineStyle}
+                                          >
+                                            {/* Badge de modification distante - seulement dans la première cellule */}
+                                            {propertyIndex === 0 && (
+                                              <RemoteEditBadge
+                                                interventionId={intervention.id}
+                                                className="top-1 left-1"
+                                              />
+                                            )}
+                                            <TruncatedCell content={content} />
+                                          </td>
+                                        )
+                                      })}
+                                      <td
+                                        className={cn(
+                                          "px-4 py-4 text-sm align-middle text-center transition-colors duration-150",
+                                          densityCellClass,
+                                          isExpanded && "!py-[7px]",
+                                        )}
+                                        style={{ width: 100, minWidth: 100, maxWidth: 100 }}
+                                        onClick={(e) => e.stopPropagation()}
+                                      >
+                                        <div className="flex items-center justify-center gap-0">
+                                          {/* Cloche - Visible si reminder actif OU hover sur la ligne */}
+                                          <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            className={cn(
+                                              "h-8 w-8 transition-opacity duration-150",
+                                              reminders.has(intervention.id)
+                                                ? "text-red-500 hover:text-red-600 opacity-100"
+                                                : "opacity-0 group-hover:opacity-100",
+                                            )}
+                                            onClick={(e) => {
+                                              e.stopPropagation()
+                                              void toggleReminder(intervention.id, (intervention as any).id_inter || undefined)
+                                            }}
+                                            onContextMenu={(e) => {
+                                              e.preventDefault()
+                                              handleReminderContextMenu(e, intervention.id)
+                                            }}
+                                            title={reminders.has(intervention.id) ? "Retirer le rappel" : "Ajouter un rappel"}
+                                          >
+                                            <Bell className={cn("h-4 w-4", reminders.has(intervention.id) && "fill-current")} />
+                                          </Button>
+                                          {/* Œil - Toujours visible */}
+                                          <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            className="h-8 w-8"
+                                            onClick={(e) => {
+                                              e.stopPropagation()
+                                              onInterventionClick?.(intervention.id, {
+                                                layoutId: `table-row-${intervention.id}`,
+                                                orderedIds,
+                                                index: rowIndex,
+                                              })
+                                            }}
+                                            title="Voir les détails"
+                                          >
+                                            <Eye className="h-4 w-4" />
+                                          </Button>
+                                        </div>
+                                      </td>
+                                    </tr>
+                                  </ContextMenuTrigger>
+                                  <InterventionContextMenuContent
+                                    intervention={intervention}
+                                    viewType={viewType}
+                                    onOpen={() => openInterventionModal(intervention.id)}
+                                    onOpenInNewTab={() => {
+                                      const newWindow = window.open(`/interventions?i=${intervention.id}`, '_blank')
+                                      // Remettre le focus sur la fenêtre actuelle après un court délai
+                                      if (newWindow) {
+                                        setTimeout(() => {
+                                          window.focus()
+                                        }, 100)
+                                      }
+                                    }}
+                                  />
+                                </ContextMenu>
+                                {isExpanded && (
+                                  <tr className="border-b-0 hover:bg-transparent">
+                                    <td colSpan={view.visibleProperties.length + 1} className="p-0 align-top">
+                                      <ExpandedRowContent
+                                        intervention={intervention}
+                                        statusColor={statusColor}
+                                        showStatusBorder={statusBorderEnabled}
+                                        statusBorderWidth={statusBorderWidthPx}
+                                        currentUserId={currentUserId}
+                                      />
+                                    </td>
+                                  </tr>
+                                )}
+                              </React.Fragment>
+                            )
+                          })}
+
+                          {virtualItems.length > 0 && (
+                            <tr
+                              style={{
+                                height: `${Math.max(totalHeight - virtualItems[virtualItems.length - 1].end, 0)}px`,
+                              }}
+                            />
+                          )}
+                        </>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+                <div
+                  className={cn(
+                    "pointer-events-none absolute top-0 left-0 right-0 h-20 z-10",
+                    "transition-opacity duration-1300",
+                    showTopFade
+                      ? (themeMode === "dark" ? "opacity-100" : "opacity-25")
+                      : "opacity-0",
+                  )}
+                  style={{
+                    background:
+                      themeMode === "dark"
+                        ? "linear-gradient(to bottom, hsl(var(--background)) 0%, transparent 100%)"
+                        : "linear-gradient(to bottom, hsl(var(--background)) 0%, transparent 100%)",
+                  }}
+                />
+                <div
+                  className={cn(
+                    "pointer-events-none absolute bottom-0 left-0 right-0 h-20 z-10",
+                    "transition-opacity duration-300",
+                    showBottomFade
+                      ? (themeMode === "dark" ? "opacity-100" : "opacity-25")
+                      : "opacity-0",
+                  )}
+                  style={{
+                    background:
+                      themeMode === "dark"
+                        ? "linear-gradient(to top, hsl(var(--background)) 0%, transparent 100%)"
+                        : "linear-gradient(to top, hsl(var(--background)) 0%, transparent 100%)",
+                  }}
+                />
+              </div>
             </div>
           </div>
-        </div>
-        <style jsx>{`
+          <style jsx>{`
           .table-scroll-wrapper::-webkit-scrollbar {
             width: 8px;
             height: 8px;
@@ -1415,7 +1470,7 @@ export function TableView({
           }
         `}</style>
         </Card>
-        
+
         {/* Pagination en bas */}
         {totalCount > 0 && onPageChange ? (
           <Pagination
@@ -1432,7 +1487,7 @@ export function TableView({
           />
         ) : null}
       </div>
-      
+
       {quickStylePanel}
 
       <AlertDialog open={showNoteDialog} onOpenChange={handleNoteDialogOpenChange}>
@@ -1515,24 +1570,24 @@ function TruncatedCell({ content, className }: { content: ReactNode; className?:
   useLayoutEffect(() => {
     const element = cellRef.current
     if (!element) return
-    
+
     // Vérifier si le contenu déborde
     const checkOverflow = () => {
       setIsOverflowing(element.scrollWidth > element.clientWidth)
     }
-    
+
     // Vérifier immédiatement après le rendu
     checkOverflow()
-    
+
     // Le ResizeObserver détectera les changements de taille ultérieurs
     const resizeObserver = new ResizeObserver(checkOverflow)
     resizeObserver.observe(element)
-    
+
     return () => resizeObserver.disconnect()
   })
 
-  const contentStr = typeof content === "string" ? content : 
-                     typeof content === "number" ? String(content) : ""
+  const contentStr = typeof content === "string" ? content :
+    typeof content === "number" ? String(content) : ""
 
   useEffect(() => {
     if (typeof document === "undefined") return
@@ -1583,17 +1638,17 @@ function TruncatedCell({ content, className }: { content: ReactNode; className?:
       </div>
       {portalElement && tooltipPos && contentStr
         ? createPortal(
-            <div
-              className="fixed z-[1000] max-w-sm break-words rounded-lg border-2 border-border bg-card p-3 text-sm font-normal text-card-foreground shadow-2xl whitespace-normal pointer-events-none"
-              style={{
-                left: `${tooltipPos.x}px`,
-                top: `${tooltipPos.y}px`,
-              }}
-            >
-              {contentStr}
-            </div>,
-            portalElement,
-          )
+          <div
+            className="fixed z-[1000] max-w-sm break-words rounded-lg border-2 border-border bg-card p-3 text-sm font-normal text-card-foreground shadow-2xl whitespace-normal pointer-events-none"
+            style={{
+              left: `${tooltipPos.x}px`,
+              top: `${tooltipPos.y}px`,
+            }}
+          >
+            {contentStr}
+          </div>,
+          portalElement,
+        )
         : null}
     </>
   )
@@ -1639,22 +1694,22 @@ function ExpandedRowContent({
   )
 
   return (
-    <div 
+    <div
       className={cn(
         "w-[100%] bg-accent/10 dark:bg-accent/15 p-2",
         showStatusBorder && "border-l"
       )}
-        style={{
-          ...(showStatusBorder ? {
-            borderLeftColor: statusColor,
-            borderLeftWidth: statusBorderWidth,
-          } : {}),
-          transform: "translate(-26px, -14px) scale(1.022)",
-          transformOrigin: "top left",
-          paddingTop: "20px",
-          paddingBottom: "-10px",
-        }}
-      >
+      style={{
+        ...(showStatusBorder ? {
+          borderLeftColor: statusColor,
+          borderLeftWidth: statusBorderWidth,
+        } : {}),
+        transform: "translate(-26px, -14px) scale(1.022)",
+        transformOrigin: "top left",
+        paddingTop: "20px",
+        paddingBottom: "-10px",
+      }}
+    >
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {/* Colonne 1 - Informations Générales */}
         <div className="space-y-1">

@@ -5,6 +5,7 @@ import type { SearchResult } from "@/types/search"
 import type { InterventionSearchRecord } from "@/types/search"
 import { getHighlightSegments } from "@/components/search/highlight"
 import { getMatchLabel } from "@/components/search/constants"
+import { getStatusDisplayLabel } from "@/lib/interventions/deposit-helpers"
 
 interface InterventionResultItemProps {
   result: SearchResult<InterventionSearchRecord>
@@ -59,7 +60,16 @@ export function InterventionResultItem({ result, query, matchLabel, onClick, isA
   const clientDisplay = clientName || "Client inconnu"
   const addressParts = [data.adresse, data.code_postal, data.ville].filter(Boolean)
   const addressDisplay = addressParts.join(", ") || "Adresse non renseignée"
-  const statusLabel = data.status?.label ?? "Statut inconnu"
+
+  const sstPayment = data.payments?.find(p => p.payment_type === 'acompte_sst')
+  const clientPayment = data.payments?.find(p => p.payment_type === 'acompte_client')
+  const statusLabel = getStatusDisplayLabel(
+    data.status?.code ?? undefined,
+    data.status?.label ?? "Statut inconnu",
+    sstPayment,
+    clientPayment
+  )
+
   const statusColor = data.status?.color ?? undefined
   const statusCode = data.status?.code ?? undefined
   const dueDate = formatDate(data.due_date ?? data.date_prevue ?? data.date)
@@ -93,12 +103,11 @@ export function InterventionResultItem({ result, query, matchLabel, onClick, isA
   )
 
   return (
-    <div 
+    <div
       ref={itemRef}
       id={`search-result-intervention-${data.id}`}
-      className={`flex items-start gap-3 p-3 transition-colors border-b last:border-b-0 ${
-        onClick ? 'cursor-pointer' : ''
-      } ${isActive ? 'bg-accent' : 'hover:bg-accent/50'}`}
+      className={`flex items-start gap-3 p-3 transition-colors border-b last:border-b-0 ${onClick ? 'cursor-pointer' : ''
+        } ${isActive ? 'bg-accent' : 'hover:bg-accent/50'}`}
       onClick={onClick}
       onKeyDown={handleKeyDown}
       role={onClick ? "option" : undefined}

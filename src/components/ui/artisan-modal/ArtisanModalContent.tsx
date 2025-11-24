@@ -32,7 +32,7 @@ import { ArtisanFinancesSection } from "./ArtisanFinancesSection"
 import { ArtisanInterventionsTable } from "./ArtisanInterventionsTable"
 import { useReferenceData } from "@/hooks/useReferenceData"
 import { interventionsApi } from "@/lib/api/v2"
-import { useToast } from "@/hooks/use-toast"
+import { toast } from "sonner"
 import { artisansApi } from "@/lib/api/v2"
 import type { Artisan } from "@/lib/api/v2/common/types"
 import { commentsApi } from "@/lib/api/v2/commentsApi"
@@ -182,13 +182,13 @@ const mapArtisanToForm = (artisan: ArtisanWithRelations | any): ArtisanFormValue
         })
         .filter((value: any): value is string => Boolean(value))
     }
-    
+
     // Format 2: metiers comme tableau de strings (format retourné par mapArtisanRecord)
     // Ces strings peuvent être des IDs, des codes ou des labels
     if (Array.isArray(artisanAny.metiers)) {
       return artisanAny.metiers.filter((value: any): value is string => Boolean(value))
     }
-    
+
     return []
   })()
 
@@ -201,17 +201,17 @@ const mapArtisanToForm = (artisan: ArtisanWithRelations | any): ArtisanFormValue
       if (first.zones?.code) return String(first.zones.code)
       if (first.zones?.label) return String(first.zones.label)
     }
-    
+
     // Format 2: zones comme tableau de strings
     if (Array.isArray(artisanAny.zones) && artisanAny.zones.length > 0) {
       return String(artisanAny.zones[0] ?? "")
     }
-    
+
     // Format 3: zoneIntervention comme valeur directe
     if (artisanAny.zoneIntervention) {
       return String(artisanAny.zoneIntervention)
     }
-    
+
     return ""
   })()
 
@@ -290,7 +290,6 @@ export function ArtisanModalContent({
 
   const { data: referenceData } = useReferenceData()
   const queryClient = useQueryClient()
-  const { toast } = useToast()
   const formRef = useRef<HTMLFormElement>(null)
 
   const {
@@ -485,18 +484,15 @@ export function ArtisanModalContent({
         )
       }
 
-      toast({
-        title: "Artisan mis à jour",
+      toast.success("Artisan mis à jour", {
         description: "Les informations de l'artisan ont été enregistrées.",
       })
       reset(values)
       onClose()
     } catch (mutationError) {
       const message = mutationError instanceof Error ? mutationError.message : "Une erreur est survenue."
-      toast({
-        title: "Échec de l'enregistrement",
+      toast.error("Échec de l'enregistrement", {
         description: message,
-        variant: "destructive",
       })
     }
   }
@@ -522,10 +518,8 @@ export function ArtisanModalContent({
       // Gérer l'archivage direct
       const archiveStatusId = referenceData?.artisanStatuses?.find((status) => status.code === "ARCHIVE")?.id
       if (!archiveStatusId) {
-        toast({
-          title: "Erreur",
+        toast.error("Erreur", {
           description: "Impossible de trouver le statut ARCHIVE",
-          variant: "destructive",
         })
         setPendingArchive(false)
         return
@@ -684,7 +678,7 @@ export function ArtisanModalContent({
   const statusOptions = useMemo(() => {
     const allStatuses = referenceData?.artisanStatuses ?? []
     const currentStatusCode = getArtisanStatusCode(artisan?.statut_id ?? null)
-    
+
     // Si l'artisan est CANDIDAT, permettre uniquement POTENTIEL et ONE_SHOT
     if (currentStatusCode === 'CANDIDAT') {
       return allStatuses
@@ -697,7 +691,7 @@ export function ArtisanModalContent({
           label: status.label ?? status.code ?? status.id,
         }))
     }
-    
+
     // Pour tous les autres statuts, ne pas permettre de changement via le dropdown
     // Le statut sera géré automatiquement par les règles métier
     return []
@@ -1076,7 +1070,7 @@ export function ArtisanModalContent({
                   render={({ field }) => {
                     const currentStatusCode = getArtisanStatusCode(artisan?.statut_id ?? null)
                     const canChangeStatus = currentStatusCode === 'CANDIDAT' && statusOptions.length > 0
-                    
+
                     if (!canChangeStatus) {
                       // Afficher le statut actuel en lecture seule
                       const currentStatus = referenceData?.artisanStatuses?.find(
@@ -1101,7 +1095,7 @@ export function ArtisanModalContent({
                         </div>
                       )
                     }
-                    
+
                     // Permettre le changement uniquement pour CANDIDAT -> POTENTIEL/ONE_SHOT
                     return (
                       <Select

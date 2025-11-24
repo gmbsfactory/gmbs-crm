@@ -1,7 +1,12 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query"
+import { toast } from "sonner"
 import { interventionsApiV2 } from "@/lib/supabase-api-v2"
+import { useInterventionModal } from "@/hooks/useInterventionModal"
 import { interventionKeys } from "@/lib/react-query/queryKeys"
 import type { Intervention, InterventionCost, InterventionPayment } from "@/lib/supabase-api-v2"
+import { getRemoteEditIndicatorManager } from "@/lib/realtime/remote-edit-indicator"
+import { getSyncQueue } from "@/lib/realtime/sync-queue"
+import { isNetworkError } from "@/lib/realtime/realtime-client"
 
 /**
  * Hook pour gérer les mutations d'interventions avec invalidation automatique
@@ -9,6 +14,8 @@ import type { Intervention, InterventionCost, InterventionPayment } from "@/lib/
  */
 export function useInterventionsMutations() {
   const queryClient = useQueryClient()
+  const { open: openInterventionModal } = useInterventionModal()
+  const syncQueue = getSyncQueue()
 
   // Mutation pour créer une intervention
   const createMutation = useMutation({
@@ -33,11 +40,35 @@ export function useInterventionsMutations() {
     }) => {
       return await interventionsApiV2.create(data)
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
+      toast.success(`Intervention (${data.id_inter || data.id}) créée avec succès`, {
+        description: new Date().toLocaleString(),
+        action: {
+          label: "Voir",
+          onClick: () => openInterventionModal(data.id),
+        },
+      })
+      // Enregistrer la modification locale pour éviter d'afficher un badge
+      if (data?.id) {
+        const indicatorManager = getRemoteEditIndicatorManager()
+        indicatorManager.recordLocalModification(data.id, data.updated_at || null)
+      }
+
       // Invalider toutes les listes d'interventions pour recharger les données
       queryClient.invalidateQueries({ queryKey: interventionKeys.invalidateLists() })
       // Invalider aussi les résumés
       queryClient.invalidateQueries({ queryKey: interventionKeys.summaries() })
+    },
+    onError: (error, variables) => {
+      // En cas d'erreur réseau, mettre en file d'attente pour synchronisation différée
+      if (isNetworkError(error)) {
+        syncQueue.enqueue({
+          interventionId: '', // Pour une création, on n'a pas encore d'ID
+          type: 'create',
+          data: variables as Partial<Intervention>,
+        })
+        console.warn('[useInterventionsMutations] Erreur réseau lors de la création, mise en file d\'attente')
+      }
     },
   })
 
@@ -49,6 +80,8 @@ export function useInterventionsMutations() {
     }: {
       id: string
       data: {
+        id_inter?: string | null
+        reference_agence?: string | null
         agence_id?: string
         client_id?: string
         assigned_user_id?: string
@@ -68,18 +101,48 @@ export function useInterventionsMutations() {
         longitude?: number
         numero_sst?: string
         pourcentage_sst?: number
+        is_vacant?: boolean
+        key_code?: string | null
+        floor?: string | null
+        apartment_number?: string | null
+        vacant_housing_instructions?: string | null
+        owner_id?: string | null
+        tenant_id?: string | null
         is_active?: boolean
       }
     }) => {
       return await interventionsApiV2.update(id, data)
     },
     onSuccess: (data, variables) => {
+      const statusLabel = (data as any).status?.label || "modifiée"
+      toast.success(`Intervention (${data.id_inter || variables.id}) ${statusLabel} avec succès`, {
+        description: new Date().toLocaleString(),
+        action: {
+          label: "Voir",
+          onClick: () => openInterventionModal(variables.id),
+        },
+      })
+      // Enregistrer la modification locale pour éviter d'afficher un badge
+      const indicatorManager = getRemoteEditIndicatorManager()
+      indicatorManager.recordLocalModification(variables.id, data?.updated_at || null)
+
       // Invalider toutes les listes d'interventions
       queryClient.invalidateQueries({ queryKey: interventionKeys.invalidateLists() })
       // Invalider aussi le détail de cette intervention spécifique
       queryClient.invalidateQueries({ queryKey: interventionKeys.detail(variables.id) })
       // Invalider les résumés
       queryClient.invalidateQueries({ queryKey: interventionKeys.summaries() })
+    },
+    onError: (error, variables) => {
+      // En cas d'erreur réseau, mettre en file d'attente pour synchronisation différée
+      if (isNetworkError(error)) {
+        syncQueue.enqueue({
+          interventionId: variables.id,
+          type: 'update',
+          data: variables.data as Partial<Intervention>,
+        })
+        console.warn(`[useInterventionsMutations] Erreur réseau lors de la mise à jour de ${variables.id}, mise en file d'attente`)
+      }
     },
   })
 
@@ -88,11 +151,26 @@ export function useInterventionsMutations() {
     mutationFn: async (id: string) => {
       return await interventionsApiV2.delete(id)
     },
-    onSuccess: () => {
+    onSuccess: (data, id) => {
+      // Enregistrer la modification locale pour éviter d'afficher un badge
+      const indicatorManager = getRemoteEditIndicatorManager()
+      indicatorManager.recordLocalModification(id, data?.data?.updated_at || null)
+
       // Invalider toutes les listes d'interventions
       queryClient.invalidateQueries({ queryKey: interventionKeys.invalidateLists() })
       // Invalider les résumés
       queryClient.invalidateQueries({ queryKey: interventionKeys.summaries() })
+    },
+    onError: (error, id) => {
+      // En cas d'erreur réseau, mettre en file d'attente pour synchronisation différée
+      if (isNetworkError(error)) {
+        syncQueue.enqueue({
+          interventionId: id,
+          type: 'delete',
+          data: {},
+        })
+        console.warn(`[useInterventionsMutations] Erreur réseau lors de la suppression de ${id}, mise en file d'attente`)
+      }
     },
   })
 
@@ -172,5 +250,9 @@ export function useInterventionsMutations() {
     addPayment: addPaymentMutation,
   }
 }
+
+
+
+
 
 

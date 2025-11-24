@@ -77,13 +77,33 @@ export function useUniversalSearch(): UseUniversalSearchReturn {
         console.error("[useUniversalSearch] search error", err)
         // Log more details about the error
         if (err && typeof err === "object") {
+          // Try to serialize the error to see its actual structure
+          let errorSerialized: any
+          try {
+            errorSerialized = JSON.stringify(err, Object.getOwnPropertyNames(err))
+          } catch {
+            errorSerialized = String(err)
+          }
+          
           console.error("[useUniversalSearch] error details:", {
             message: (err as any).message,
             code: (err as any).code,
             details: (err as any).details,
             hint: (err as any).hint,
             stack: (err as any).stack,
-            fullError: err,
+            errorType: typeof err,
+            errorConstructor: (err as any)?.constructor?.name,
+            errorKeys: Object.keys(err),
+            errorString: String(err),
+            serialized: errorSerialized,
+            query: trimmed,
+          })
+        } else {
+          console.error("[useUniversalSearch] error is not an object:", {
+            error: err,
+            errorType: typeof err,
+            errorString: String(err),
+            query: trimmed,
           })
         }
         if (latestRequestRef.current === requestId) {
