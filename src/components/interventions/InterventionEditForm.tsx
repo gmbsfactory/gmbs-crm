@@ -134,7 +134,7 @@ export function InterventionEditForm({
   const clientPayment = payments.find(p => p.payment_type === 'acompte_client')
 
   // Artisans liés
-  const artisans = intervention.intervention_artisans || []
+  const artisans = useMemo(() => intervention.intervention_artisans || [], [intervention.intervention_artisans])
   const primaryArtisan = artisans.find(a => a.is_primary)?.artisans
 
   const [formData, setFormData] = useState({

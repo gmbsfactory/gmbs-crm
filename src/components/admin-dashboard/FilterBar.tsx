@@ -170,7 +170,7 @@ export function FilterBar({
     }
 
     return { from: startDate, to: endDate }
-  }, [periodType, selectedPeriod, isCustomMode])
+  }, [periodType, selectedPeriod, isCustomMode, dateRange])
 
   // Synchroniser dateRange avec calculatedDates quand ce n'est pas en mode custom
   useEffect(() => {
@@ -231,13 +231,14 @@ export function FilterBar({
   }
 
   // Initialisation des dates par défaut
+  // onDateChange est mémorisé avec useCallback dans le parent, donc l'inclure est sûr
   useEffect(() => {
     const now = new Date()
     const defaultStart = startOfMonth(now)
     const defaultEnd = endOfMonth(now)
     setDateRange({ from: defaultStart, to: defaultEnd })
     onDateChange(format(defaultStart, "yyyy-MM-dd"), format(defaultEnd, "yyyy-MM-dd"))
-  }, [])
+  }, [onDateChange])
 
   // Réinitialiser la sélection quand on change de type
   useEffect(() => {

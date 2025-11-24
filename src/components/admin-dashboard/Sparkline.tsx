@@ -26,7 +26,7 @@ export function Sparkline({ data, color, height = 50 }: SparklineProps) {
                         offset={10}
                         allowEscapeViewBox={{ x: true, y: true }}
                         wrapperStyle={{ zIndex: 100, pointerEvents: "none" }}
-                        content={({ active, payload, coordinate, viewBox }) => {
+                        content={({ active, payload, coordinate, viewBox }: any) => {
                             if (active && payload && payload.length) {
                                 // Calculer le style de positionnement dynamique
                                 const tooltipStyle: React.CSSProperties = {}

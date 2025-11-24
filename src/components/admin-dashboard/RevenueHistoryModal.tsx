@@ -66,7 +66,7 @@ export function RevenueHistoryModal({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Évolution du Chiffre d'Affaires</DialogTitle>
+          <DialogTitle>Évolution du Chiffre d&#39;Affaires</DialogTitle>
           <DialogDescription>
             Historique des 4 dernières périodes et projection de la période suivante
           </DialogDescription>

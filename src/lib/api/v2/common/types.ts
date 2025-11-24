@@ -447,6 +447,26 @@ export interface CreateDocumentData {
   created_by_color?: string;
 }
 
+export interface FileUploadData {
+  entity_id: string;
+  entity_type: "intervention" | "artisan";
+  kind: string;
+  content: string; // Base64 encoded file content
+  filename: string;
+  mime_type?: string;
+  file_size?: number;
+  created_by?: string;
+  created_by_display?: string;
+  created_by_code?: string;
+  created_by_color?: string;
+}
+
+export interface SupportedDocumentTypes {
+  supported_types: Record<string, string[]>;
+  max_file_size: string;
+  allowed_mime_types: string[];
+}
+
 export interface UpdateDocumentData {
   kind?: string;
   filename?: string;
