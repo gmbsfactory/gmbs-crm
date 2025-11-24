@@ -6,10 +6,15 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import type { AnalyticsData } from "@/hooks/useAnalyticsData"
 
 interface Message {
     role: "user" | "assistant"
     content: string
+}
+
+interface AskAIProps {
+    analyticsData?: AnalyticsData | null
 }
 
 const PRESET_QUESTIONS = [
@@ -18,7 +23,7 @@ const PRESET_QUESTIONS = [
     "Fais-moi un résumé des performances du mois.",
 ]
 
-export function AskAI() {
+export function AskAI({ analyticsData }: AskAIProps) {
     const [input, setInput] = useState("")
     const [messages, setMessages] = useState<Message[]>([
         { role: "assistant", content: "Bonjour ! Je suis votre assistant analytique. Posez-moi une question sur vos données ou choisissez une suggestion ci-dessous." }
@@ -33,17 +38,48 @@ export function AskAI() {
         setInput("")
         setIsLoading(true)
 
-        // Simulate AI response
-        setTimeout(() => {
+        try {
+            const response = await fetch("/api/admin/analytics/ai", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                    messages: newMessages.map(msg => ({
+                        role: msg.role,
+                        content: msg.content,
+                    })),
+                    analyticsData: analyticsData || null,
+                }),
+            })
+
+            if (!response.ok) {
+                const errorData = await response.json()
+                throw new Error(errorData.error || "Erreur lors de la génération de la réponse")
+            }
+
+            const data = await response.json()
             setMessages([
                 ...newMessages,
                 {
                     role: "assistant",
-                    content: "Ceci est une réponse simulée. Dans la version finale, je serai connecté à un modèle LLM capable d'analyser vos données en temps réel."
+                    content: data.content || "Désolé, je n'ai pas pu générer de réponse."
                 }
             ])
+        } catch (error) {
+            console.error("Erreur lors de l'appel à l'API:", error)
+            setMessages([
+                ...newMessages,
+                {
+                    role: "assistant",
+                    content: error instanceof Error 
+                        ? `Erreur: ${error.message}` 
+                        : "Une erreur est survenue lors de la génération de la réponse. Veuillez réessayer."
+                }
+            ])
+        } finally {
             setIsLoading(false)
-        }, 1000)
+        }
     }
 
     return (
