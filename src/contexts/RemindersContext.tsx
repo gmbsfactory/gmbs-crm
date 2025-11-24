@@ -173,6 +173,13 @@ export function RemindersProvider({ children }: { children: ReactNode }) {
 
   const refreshReminders = useCallback(async () => {
     try {
+      // Vérifier l'authentification avant de faire la requête
+      const { data: auth } = await supabase.auth.getSession()
+      if (!auth?.session?.user) {
+        // Utilisateur non authentifié, ne pas faire la requête
+        return
+      }
+
       const remote = await remindersApi.getMyReminders()
       updateState(() => {
         const next: ReminderState = {
@@ -202,8 +209,9 @@ export function RemindersProvider({ children }: { children: ReactNode }) {
   }, [updateState])
 
   useEffect(() => {
-    refreshReminders()
-  }, [refreshReminders])
+    // Ne pas appeler refreshReminders au montage, seulement après authentification
+    // L'authentification est gérée par le deuxième useEffect avec onAuthStateChange
+  }, [])
 
   // Subscription realtime pour mettre à jour automatiquement tous les composants
   useEffect(() => {
