@@ -133,7 +133,7 @@ export function InterventionEditForm({
   const sstPayment = payments.find(p => p.payment_type === 'acompte_sst')
   const clientPayment = payments.find(p => p.payment_type === 'acompte_client')
 
-  // Artisans liés
+  // Artisans liés - memoized pour éviter les changements à chaque render
   const artisans = useMemo(() => intervention.intervention_artisans || [], [intervention.intervention_artisans])
   const primaryArtisan = artisans.find(a => a.is_primary)?.artisans
 
@@ -268,7 +268,7 @@ export function InterventionEditForm({
         }))
       }
     }
-  }, [intervention.id_inter])
+  }, [intervention.id_inter, formData.id_inter])
 
   // Trier les artisans : archivés en bas
   const sortedNearbyArtisans = useMemo(() => {
@@ -703,9 +703,9 @@ export function InterventionEditForm({
 
   // --- Fin Gestion des acomptes ---
 
-  const handleInputChange = (field: keyof typeof formData, value: any) => {
+  const handleInputChange = useCallback((field: keyof typeof formData, value: any) => {
     setFormData((prev) => ({ ...prev, [field]: value }))
-  }
+  }, [])
 
   const handleLocationChange = (lat: number, lng: number) => {
     setFormData((prev) => ({

@@ -44,7 +44,7 @@ export default function AdminAnalyticsPage() {
                             <MLPredictions data={data?.predictions} isLoading={isLoading} />
                         </div>
                         <div className="lg:col-span-1">
-                            <AskAI />
+                            <AskAI analyticsData={data || undefined} />
                         </div>
                     </div>
 

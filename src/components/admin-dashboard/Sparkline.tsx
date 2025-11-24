@@ -26,22 +26,11 @@ export function Sparkline({ data, color, height = 50 }: SparklineProps) {
                         offset={10}
                         allowEscapeViewBox={{ x: true, y: true }}
                         wrapperStyle={{ zIndex: 100, pointerEvents: "none" }}
-                        content={({ active, payload, coordinate, viewBox }: any) => {
+                        content={({ active, payload, coordinate }) => {
                             if (active && payload && payload.length) {
                                 // Calculer le style de positionnement dynamique
-                                const tooltipStyle: React.CSSProperties = {}
-                                
-                                if (coordinate && viewBox && viewBox.width) {
-                                    const relativePosition = coordinate.x / viewBox.width
-                                    // Si proche du bord droit (> 70%), aligner le tooltip à droite
-                                    if (relativePosition > 0.7) {
-                                        tooltipStyle.transform = "translateX(-100%)"
-                                    } else {
-                                        tooltipStyle.transform = "translateX(-50%)"
-                                    }
-                                } else {
-                                    // Par défaut, centrer
-                                    tooltipStyle.transform = "translateX(-50%)"
+                                const tooltipStyle: React.CSSProperties = {
+                                    transform: "translateX(-50%)"
                                 }
                                 
                                 return (

@@ -27,10 +27,10 @@ import { fr } from "date-fns/locale"
 import { Separator } from "@/components/ui/separator"
 import { cn } from "@/lib/utils"
 
-export type PeriodType = "semaine" | "mois" | "annee" | "custom"
+export type FilterPeriodType = "semaine" | "mois" | "annee" | "custom"
 
 interface FilterBarProps {
-  onPeriodChange: (period: PeriodType) => void
+  onPeriodChange: (period: FilterPeriodType) => void
   onDateChange: (startDate: string | null, endDate: string | null) => void
   onAgenceChange: (agence: string) => void
   onGestionnaireChange: (gestionnaire: string) => void
@@ -44,7 +44,7 @@ export function FilterBar({
   onGestionnaireChange,
   onMetierChange
 }: FilterBarProps) {
-  const [periodType, setPeriodType] = useState<PeriodType>("mois")
+  const [periodType, setPeriodType] = useState<FilterPeriodType>("mois")
   const [selectedPeriod, setSelectedPeriod] = useState<string>("") // Format: "yyyy-MM" pour month, "yyyy-MM-dd" pour week, "yyyy" pour year
   const [dateRange, setDateRange] = useState<{ from: Date | null; to: Date | null }>({
     from: startOfMonth(new Date()),
@@ -170,7 +170,7 @@ export function FilterBar({
     }
 
     return { from: startDate, to: endDate }
-  }, [periodType, selectedPeriod, isCustomMode, dateRange])
+  }, [periodType, selectedPeriod, isCustomMode])
 
   // Synchroniser dateRange avec calculatedDates quand ce n'est pas en mode custom
   useEffect(() => {
@@ -202,7 +202,7 @@ export function FilterBar({
   }
 
   // Gérer le changement de type de période
-  const handlePeriodTypeChange = (newType: PeriodType) => {
+  const handlePeriodTypeChange = (newType: FilterPeriodType) => {
     setPeriodType(newType)
     setIsCustomMode(newType === "custom")
     setSelectedPeriod("") // Réinitialiser la sélection
@@ -238,7 +238,7 @@ export function FilterBar({
     const defaultEnd = endOfMonth(now)
     setDateRange({ from: defaultStart, to: defaultEnd })
     onDateChange(format(defaultStart, "yyyy-MM-dd"), format(defaultEnd, "yyyy-MM-dd"))
-  }, [onDateChange])
+  }, [])
 
   // Réinitialiser la sélection quand on change de type
   useEffect(() => {

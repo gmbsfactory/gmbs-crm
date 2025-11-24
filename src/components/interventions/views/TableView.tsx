@@ -859,7 +859,7 @@ export function TableView({
     setNoteValue("")
     setDueDateValue(null)
     setMentionIds([])
-  }, [dueDateValue, mentionIds, noteDialogInterventionId, noteValue, removeReminder, saveReminder])
+  }, [dueDateValue, mentionIds, noteDialogInterventionId, noteValue, removeReminder, saveReminder, dataset])
 
   const handleNoteDialogOpenChange = useCallback((open: boolean) => {
     if (!open) {

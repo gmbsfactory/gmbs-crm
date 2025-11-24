@@ -10,6 +10,7 @@ import { convertViewFiltersToServerFilters, convertArtisanFiltersToServerFilters
 import type { InterventionViewDefinition } from "@/types/intervention-views"
 import type { ArtisanViewDefinition } from "@/hooks/useArtisanViews"
 import { getHasPreloaded, setHasPreloaded } from "@/lib/preload-flag"
+import { supabase } from "@/lib/supabase-client"
 
 const CURRENT_USER_PLACEHOLDER = "__CURRENT_USER_USERNAME__"
 
@@ -130,6 +131,12 @@ async function getDefaultViewsToPreload(currentUserId?: string): Promise<Interve
  * Crée les mappers nécessaires pour convertir les filtres
  */
 async function createMappers() {
+  // Vérifier l'authentification avant de faire les requêtes
+  const { data: auth } = await supabase.auth.getSession()
+  if (!auth?.session?.user) {
+    throw new Error("Not authenticated")
+  }
+
   const [statuses, users] = await Promise.all([
     referenceApi.getInterventionStatuses(),
     referenceApi.getUsers(),
@@ -203,6 +210,13 @@ export async function preloadCriticalData(queryClient: QueryClient) {
   // Vérifier si le préchargement a déjà été fait
   if (getHasPreloaded()) {
     console.log("[preloadCriticalData] ⏭️ Préchargement déjà effectué, skip")
+    return
+  }
+  
+  // Vérifier l'authentification avant de commencer
+  const { data: auth } = await supabase.auth.getSession()
+  if (!auth?.session?.user) {
+    console.log("[preloadCriticalData] ⏭️ Utilisateur non authentifié, skip")
     return
   }
   
