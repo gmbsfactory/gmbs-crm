@@ -9,17 +9,28 @@
                 si ce n'est pas déjà fait
 
 - Dashboard admin
-        - Pie chart 
-        - Sélection date
+        - Espace tableau à bien formatter
 
-- delete Artisan via API 
+- Dashboard 
+        - Unifier les calculs pour le podium entre les Performances Gestionnaires du dashboard  admin et le podium côté Dashboard
+        - 
 
-- donner à Antigravity la gestion des vulnérabilités supabase
+- Chaîne des statuts à respecter 
+        (au moins ceux qui sont présents dans l'entonnoir de conversion)
 
-- export à merger et implémenter 
+- Delete Artisan via API 
 
+- Donner à Antigravity la gestion des vulnérabilités supabase
 
-- chaîne intervention 
+- Export 
+        - merger sheet export
+        - s'assurer du bon fonctionnement
+        - mettre un bouton export en paramètre lorsque l'on est admin sur la page Settings (non prioritaire)
+
+- Mettre en place OCR
+        - Rcupération informations depuis appel d'offres 
+        - Estimation de marge à faire suivant les données en bdd
+        - 
 
 
 

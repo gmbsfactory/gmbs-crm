@@ -31,7 +31,7 @@ export const INTERVENTION_STATUS_CHAINS = {
         'VISITE_TECHNIQUE',
         'ACCEPTE',
         'EN_COURS',
-        'TERMINE'
+        'INTER_TERMINE'
     ] as InterventionStatusKey[],
 } as const;
 
