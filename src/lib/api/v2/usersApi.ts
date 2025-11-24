@@ -434,13 +434,9 @@ export const usersApi = {
       .select("*")
       .eq("user_id", userId)
       .eq("period_type", periodType)
-      .single();
+      .maybeSingle();
 
     if (error) {
-      if (error.code === "PGRST116") {
-        // Aucun résultat trouvé
-        return null;
-      }
       throw new Error(`Erreur lors de la récupération de l'objectif: ${error.message}`);
     }
 
