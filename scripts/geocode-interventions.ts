@@ -419,7 +419,9 @@ async function geocodeWithNominatim(
 
       return null;
     } catch (error) {
-      clearTimeout(timeoutId);
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
       const isNetworkError =
         error instanceof TypeError ||
         (error as Error).name === "AbortError" ||
@@ -504,9 +506,30 @@ async function fetchNextBatch(): Promise<InterventionRow[]> {
     throw new Error(`Erreur Supabase lors de la récupération: ${error.message}`);
   }
 
+  if (!data) {
+    return [];
+  }
+
+  // Filtrer les erreurs et typer correctement les données
+  // Vérifier que l'élément n'est pas une erreur générique
+  const validInterventions: InterventionRow[] = [];
+  for (const item of data) {
+    // Vérifier que l'élément n'est pas une erreur (qui aurait une propriété 'error')
+    if (
+      item !== null &&
+      typeof item === "object" &&
+      "id" in item &&
+      "latitude" in item &&
+      "longitude" in item &&
+      !("error" in item)
+    ) {
+      validInterventions.push(item as InterventionRow);
+    }
+  }
+
   // Filtrer côté client : uniquement celles sans coordonnées valides
   // (null, null) ou (0, 0) qui indique un échec précédent
-  return (data ?? []).filter(
+  return validInterventions.filter(
     (intervention) =>
       !intervention.latitude ||
       !intervention.longitude ||

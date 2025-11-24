@@ -568,6 +568,16 @@ const searchInterventions = async (
   }
 
   const pattern = escapeIlike(trimmed)
+  
+  // Validate pattern is not empty after escaping
+  if (!pattern || pattern.length === 0) {
+    console.warn("[searchInterventions] Pattern is empty after escaping, query:", trimmed)
+    return {
+      items: [],
+      total: 0,
+      hasMore: false,
+    }
+  }
 
   // PostgREST .or() syntax: "column.operator.pattern"
   // Only search on direct columns, not relations (PostgREST limitation with .or())
@@ -588,6 +598,16 @@ const searchInterventions = async (
   // Build the filter string - PostgREST requires comma-separated filters
   // If this causes 400 errors, it's likely due to NULL handling in PostgREST
   const orFilterString = orFilters.join(",")
+  
+  // Validate filter string is not empty
+  if (!orFilterString || orFilterString.length === 0) {
+    console.warn("[searchInterventions] Filter string is empty, pattern:", pattern)
+    return {
+      items: [],
+      total: 0,
+      hasMore: false,
+    }
+  }
 
   // Fetch more results since we'll filter/score with relations client-side
   const baseLimit = Math.max(limit * 5, limit + 10)
@@ -632,7 +652,7 @@ const searchInterventions = async (
           code,
           label
         ),
-        assigned_user:users (
+        assigned_user:users!assigned_user_id (
           id,
           firstname,
           lastname,
@@ -661,14 +681,28 @@ const searchInterventions = async (
     .limit(baseLimit)
 
   if (error) {
+    // Try to serialize the error to see its actual structure
+    let errorSerialized: any
+    try {
+      errorSerialized = JSON.stringify(error, Object.getOwnPropertyNames(error))
+    } catch {
+      errorSerialized = String(error)
+    }
+
     console.error("[searchInterventions] PostgREST error:", {
       message: error.message,
       details: error.details,
       hint: error.hint,
       code: error.code,
-      fullError: error,
+      serialized: errorSerialized,
+      errorType: typeof error,
+      errorConstructor: error?.constructor?.name,
+      errorKeys: error ? Object.keys(error) : [],
+      errorString: String(error),
       query: trimmed,
+      pattern: pattern,
       orFilters: orFilterString,
+      baseLimit: baseLimit,
     })
     throw error
   }
@@ -756,15 +790,68 @@ export async function universalSearch(
   let artisanResults: SearchResultsGroup<ArtisanSearchRecord>
   let interventionResults: SearchResultsGroup<InterventionSearchRecord>
 
-  try {
-    [artisanResults, interventionResults] = await Promise.all([
-      searchArtisans(trimmed, resolvedArtisanLimit),
-      searchInterventions(trimmed, resolvedInterventionLimit),
-    ])
-  } catch (err) {
-    console.error("[universalSearch] Error in parallel searches:", err)
-    // If one search fails, return empty results for both to avoid partial results
-    throw err
+  // Use allSettled to handle errors individually and avoid one failure canceling the other
+  const [artisanSettled, interventionSettled] = await Promise.allSettled([
+    searchArtisans(trimmed, resolvedArtisanLimit),
+    searchInterventions(trimmed, resolvedInterventionLimit),
+  ])
+
+  // Handle artisan search result
+  if (artisanSettled.status === "fulfilled") {
+    artisanResults = artisanSettled.value
+  } else {
+    const err = artisanSettled.reason
+    let errorSerialized: any
+    try {
+      errorSerialized = JSON.stringify(err, Object.getOwnPropertyNames(err))
+    } catch {
+      errorSerialized = String(err)
+    }
+    
+    console.error("[universalSearch] Error in artisan search:", {
+      error: err,
+      errorType: typeof err,
+      errorConstructor: (err as any)?.constructor?.name,
+      errorKeys: err && typeof err === "object" ? Object.keys(err) : [],
+      errorString: String(err),
+      serialized: errorSerialized,
+      query: trimmed,
+    })
+    // Return empty results instead of throwing to allow intervention search to proceed
+    artisanResults = {
+      items: [],
+      total: 0,
+      hasMore: false,
+    }
+  }
+
+  // Handle intervention search result
+  if (interventionSettled.status === "fulfilled") {
+    interventionResults = interventionSettled.value
+  } else {
+    const err = interventionSettled.reason
+    let errorSerialized: any
+    try {
+      errorSerialized = JSON.stringify(err, Object.getOwnPropertyNames(err))
+    } catch {
+      errorSerialized = String(err)
+    }
+    
+    console.error("[universalSearch] Error in intervention search:", {
+      error: err,
+      errorType: typeof err,
+      errorConstructor: (err as any)?.constructor?.name,
+      errorKeys: err && typeof err === "object" ? Object.keys(err) : [],
+      errorString: String(err),
+      serialized: errorSerialized,
+      query: trimmed,
+    })
+    // Return empty results instead of throwing to allow artisan search to proceed
+    interventionResults = {
+      items: [],
+      total: 0,
+      hasMore: false,
+    }
   }
 
   const searchTime = Math.round(performanceNow() - start)
