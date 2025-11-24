@@ -8,18 +8,37 @@ import crypto from 'crypto';
  * - EMAIL_PASSWORD_ENCRYPTION_IV: 16 character hex string
  */
 
-const ENCRYPTION_KEY = process.env.EMAIL_PASSWORD_ENCRYPTION_KEY;
-const ENCRYPTION_IV = process.env.EMAIL_PASSWORD_ENCRYPTION_IV;
-
-if (!ENCRYPTION_KEY || !ENCRYPTION_IV) {
-  throw new Error(
-    'EMAIL_PASSWORD_ENCRYPTION_KEY and EMAIL_PASSWORD_ENCRYPTION_IV must be set in environment variables'
-  );
+// Lazy initialization to avoid build-time errors
+// Check only at runtime when functions are actually called
+function getEncryptionKey(): string {
+  const key = process.env.EMAIL_PASSWORD_ENCRYPTION_KEY;
+  if (!key) {
+    // During build/static analysis, return a dummy value to allow build to pass
+    // At runtime, this will be caught by validation in the functions
+    if (typeof window === 'undefined' && (process.env.NEXT_PHASE === 'phase-production-build' || process.env.NEXT_PHASE === 'phase-development-build')) {
+      return '0'.repeat(64); // Dummy 32-byte hex key for build (64 hex chars = 32 bytes)
+    }
+    throw new Error(
+      'EMAIL_PASSWORD_ENCRYPTION_KEY must be set in environment variables'
+    );
+  }
+  return key;
 }
 
-// TypeScript assertion: these are guaranteed to be strings after the check above
-const ENCRYPTION_KEY_SAFE: string = ENCRYPTION_KEY;
-const ENCRYPTION_IV_SAFE: string = ENCRYPTION_IV;
+function getEncryptionIV(): string {
+  const iv = process.env.EMAIL_PASSWORD_ENCRYPTION_IV;
+  if (!iv) {
+    // During build/static analysis, return a dummy value to allow build to pass
+    // At runtime, this will be caught by validation in the functions
+    if (typeof window === 'undefined' && (process.env.NEXT_PHASE === 'phase-production-build' || process.env.NEXT_PHASE === 'phase-development-build')) {
+      return '0'.repeat(32); // Dummy 16-byte hex IV for build (32 hex chars = 16 bytes)
+    }
+    throw new Error(
+      'EMAIL_PASSWORD_ENCRYPTION_IV must be set in environment variables'
+    );
+  }
+  return iv;
+}
 
 /**
  * Encrypts a password using AES-256-CBC
@@ -33,6 +52,8 @@ export function encryptPassword(password: string): string {
   }
 
   try {
+    const ENCRYPTION_KEY_SAFE = getEncryptionKey();
+    const ENCRYPTION_IV_SAFE = getEncryptionIV();
     const keyBuffer = Buffer.from(ENCRYPTION_KEY_SAFE, 'hex');
     const ivBuffer = Buffer.from(ENCRYPTION_IV_SAFE, 'hex');
 
@@ -65,6 +86,8 @@ export function decryptPassword(encryptedPassword: string): string {
   }
 
   try {
+    const ENCRYPTION_KEY_SAFE = getEncryptionKey();
+    const ENCRYPTION_IV_SAFE = getEncryptionIV();
     const keyBuffer = Buffer.from(ENCRYPTION_KEY_SAFE, 'hex');
     const ivBuffer = Buffer.from(ENCRYPTION_IV_SAFE, 'hex');
 

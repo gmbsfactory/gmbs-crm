@@ -478,25 +478,6 @@ export interface UpdateDocumentData {
   created_by_color?: string | null;
 }
 
-export interface FileUploadData {
-  content: string; // Base64 encoded file content
-  filename: string;
-  kind: string;
-  entity_type: "intervention" | "artisan";
-  entity_id: string;
-  mime_type: string;
-  file_size?: number;
-  created_by?: string;
-  created_by_display?: string;
-  created_by_code?: string;
-  created_by_color?: string;
-}
-
-export type SupportedDocumentTypes = {
-  intervention: string[];
-  artisan: string[];
-}
-
 export interface CreateCommentData {
   entity_id: string;
   entity_type: "intervention" | "artisan" | "client";

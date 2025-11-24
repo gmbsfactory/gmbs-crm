@@ -1,9 +1,15 @@
 import { NextResponse } from "next/server"
 import OpenAI from "openai"
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-})
+// Lazy initialization to avoid build-time errors
+function getOpenAIClient() {
+  if (!process.env.OPENAI_API_KEY) {
+    throw new Error("OPENAI_API_KEY n'est pas configurée")
+  }
+  return new OpenAI({
+    apiKey: process.env.OPENAI_API_KEY,
+  })
+}
 
 export async function POST(request: Request) {
   try {
@@ -15,6 +21,8 @@ export async function POST(request: Request) {
         { status: 500 }
       )
     }
+
+    const openai = getOpenAIClient()
 
     // Construire le contexte avec les données analytics disponibles
     const systemPrompt = `Tu es un assistant analytique spécialisé dans l'analyse de données CRM pour une entreprise de gestion de logements vacants et d'interventions.

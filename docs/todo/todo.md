@@ -10,6 +10,7 @@
 
 - Dashboard admin
         - Espace tableau à bien formatter
+        - Multi sélection sur les filtres au lieu de sélection unique 
 
 - Dashboard 
         - Unifier les calculs pour le podium entre les Performances Gestionnaires du dashboard  admin et le podium côté Dashboard
