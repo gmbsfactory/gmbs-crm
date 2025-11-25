@@ -16,10 +16,13 @@ export interface AutomaticTransitionResult {
 export class AutomaticTransitionService {
     /**
      * Exécute une transition de statut avec gestion des statuts intermédiaires
+     * 
+     * @param fromStatus - Statut source (null lors de la création initiale)
+     * @param toStatus - Statut cible
      */
     async executeTransition(
         interventionId: string,
-        fromStatus: InterventionStatusKey,
+        fromStatus: InterventionStatusKey | null,
         toStatus: InterventionStatusKey,
         userId?: string,
         metadata?: Record<string, unknown>
@@ -34,12 +37,12 @@ export class AutomaticTransitionService {
             DEFAULT_STATUS_CHAIN
         );
 
-        if (!chainResult.isValid && chainResult.error) {
+        if (!chainResult.isValid) {
             return {
                 success: false,
                 transitionsCreated: 0,
-                finalStatus: fromStatus,
-                errors: [chainResult.error],
+                finalStatus: fromStatus || toStatus,
+                errors: [chainResult.error || 'Transition invalide'],
             };
         }
 
@@ -66,13 +69,20 @@ export class AutomaticTransitionService {
         }
 
         // Créer les transitions intermédiaires
-        const allStatuses = [fromStatus, ...chainResult.intermediateStatuses, toStatus];
+        // Si fromStatus est null (création), on commence depuis le premier statut de la chaîne
+        // Sinon, on part de fromStatus
+        const allStatuses = fromStatus === null
+            ? [...chainResult.intermediateStatuses, toStatus]
+            : [fromStatus, ...chainResult.intermediateStatuses, toStatus];
+        
         const transitionDate = new Date();
 
         // On itère jusqu'à l'avant-dernier élément pour créer les transitions
-        // Ex: A -> B -> C. allStatuses = [A, B, C].
-        // i=0: A -> B (intermédiaire)
-        // i=1: B -> C (final)
+        // Ex: Création avec INTER_TERMINEE, chaîne [DEMANDE, DEVIS_ENVOYE, INTER_TERMINEE]
+        // chainResult.intermediateStatuses = [DEMANDE, DEVIS_ENVOYE]
+        // allStatuses = [DEMANDE, DEVIS_ENVOYE, INTER_TERMINEE]
+        // i=0: DEMANDE -> DEVIS_ENVOYE (intermédiaire)
+        // i=1: DEVIS_ENVOYE -> INTER_TERMINEE (final)
         for (let i = 0; i < allStatuses.length - 1; i++) {
             const currentFrom = allStatuses[i];
             const currentTo = allStatuses[i + 1];
@@ -90,6 +100,7 @@ export class AutomaticTransitionService {
                 transition_chain: 'MAIN_PROGRESSION', // Idéalement dynamique
                 transition_order: i + 1,
                 total_transitions: allStatuses.length - 1,
+                is_initial_creation: fromStatus === null,
             };
 
             const transitionId = await this.createTransition(
@@ -120,10 +131,13 @@ export class AutomaticTransitionService {
 
     /**
      * Crée une transition dans la table intervention_status_transitions
+     * 
+     * @param fromStatus - Statut source (null lors de la création initiale)
+     * @param toStatus - Statut cible
      */
     private async createTransition(
         interventionId: string,
-        fromStatus: InterventionStatusKey,
+        fromStatus: InterventionStatusKey | null,
         toStatus: InterventionStatusKey,
         userId?: string,
         metadata?: Record<string, unknown>,
@@ -131,17 +145,18 @@ export class AutomaticTransitionService {
     ): Promise<string | null> {
         try {
             // Récupérer les IDs des statuts depuis la table intervention_statuses
+            const codesToFetch = fromStatus ? [fromStatus, toStatus] : [toStatus];
             const { data: statuses, error: statusError } = await supabase
                 .from('intervention_statuses')
                 .select('id, code')
-                .in('code', [fromStatus, toStatus]);
+                .in('code', codesToFetch);
 
             if (statusError || !statuses) {
                 console.error('Erreur lors de la récupération des statuts:', statusError);
                 return null;
             }
 
-            const fromStatusData = statuses.find((s) => s.code === fromStatus);
+            const fromStatusData = fromStatus ? statuses.find((s) => s.code === fromStatus) : null;
             const toStatusData = statuses.find((s) => s.code === toStatus);
 
             if (!toStatusData) {

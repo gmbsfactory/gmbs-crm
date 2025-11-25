@@ -98,6 +98,52 @@ interface CreateCommentRequest {
   is_internal?: boolean;
 }
 
+// Helper function pour créer les transitions automatiques lors de la création
+async function createAutomaticStatusTransitions(
+  supabase: SupabaseClient,
+  interventionId: string,
+  statusId: string | null,
+  userId: string | null,
+  requestId: string
+): Promise<void> {
+  if (!statusId) {
+    return;
+  }
+
+  try {
+    // Récupérer le code du statut
+    const { data: statusData } = await supabase
+      .from('intervention_statuses')
+      .select('code')
+      .eq('id', statusId)
+      .single();
+
+    if (statusData?.code) {
+      // Appeler la fonction SQL pour créer les transitions automatiques
+      const { error: transitionError } = await supabase.rpc(
+        'create_automatic_status_transitions_on_creation',
+        {
+          p_intervention_id: interventionId,
+          p_to_status_code: statusData.code,
+          p_changed_by_user_id: userId,
+          p_metadata: {
+            created_via: 'edge_function',
+            request_id: requestId,
+          }
+        }
+      );
+
+      if (transitionError) {
+        console.warn(`Failed to create automatic status transitions: ${transitionError.message}`);
+        // Ne pas échouer la création si les transitions échouent
+      }
+    }
+  } catch (transitionErr) {
+    console.warn(`Error creating automatic status transitions: ${transitionErr}`);
+    // Ne pas échouer la création si les transitions échouent
+  }
+}
+
 interface CreateAttachmentRequest {
   intervention_id: string;
   kind: string;
@@ -1412,6 +1458,16 @@ serve(async (req: Request) => {
         throw new Error(`Failed to create intervention: ${error.message}`);
       }
 
+      // Créer les transitions automatiques si un statut est défini
+      const authHeader = req.headers.get('authorization');
+      let userId: string | null = null;
+      if (authHeader) {
+        const token = authHeader.replace('Bearer ', '');
+        const { data: { user } } = await supabase.auth.getUser(token);
+        userId = user?.id || null;
+      }
+      await createAutomaticStatusTransitions(supabase, data.id, data.statut_id, userId, requestId);
+
       console.log(JSON.stringify({
         level: 'info',
         requestId,
@@ -1596,6 +1652,16 @@ serve(async (req: Request) => {
               message: 'Intervention created successfully with regenerated id_inter'
             }));
 
+            // Créer les transitions automatiques si un statut est défini
+            const authHeaderRetry = req.headers.get('authorization');
+            let userIdRetry: string | null = null;
+            if (authHeaderRetry) {
+              const tokenRetry = authHeaderRetry.replace('Bearer ', '');
+              const { data: { user: userRetry } } = await supabase.auth.getUser(tokenRetry);
+              userIdRetry = userRetry?.id || null;
+            }
+            await createAutomaticStatusTransitions(supabase, retryData.id, retryData.statut_id, userIdRetry, requestId);
+
             await handleInterventionCompletionSideEffects(supabase, retryData, requestId);
 
             return new Response(
@@ -1614,6 +1680,16 @@ serve(async (req: Request) => {
         timestamp: new Date().toISOString(),
         message: 'Intervention created successfully'
       }));
+
+      // Créer les transitions automatiques si un statut est défini
+      const authHeaderPost = req.headers.get('authorization');
+      let userIdPost: string | null = null;
+      if (authHeaderPost) {
+        const tokenPost = authHeaderPost.replace('Bearer ', '');
+        const { data: { user: userPost } } = await supabase.auth.getUser(tokenPost);
+        userIdPost = userPost?.id || null;
+      }
+      await createAutomaticStatusTransitions(supabase, data.id, data.statut_id, userIdPost, requestId);
 
       await handleInterventionCompletionSideEffects(supabase, data, requestId);
 

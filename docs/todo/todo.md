@@ -28,14 +28,26 @@
         - s'assurer du bon fonctionnement
         - mettre un bouton export en paramètre lorsque l'on est admin sur la page Settings (non prioritaire)
 
-- Mettre en place OCR
-        - Rcupération informations depuis appel d'offres 
-        - Estimation de marge à faire suivant les données en bdd
+- Import 
+        - vérifier les status transition
+        - les prix voir si il y en a exorbitant
+        - le calcul du CA 
+        - le delta entre inter loggés et inter en bdd 
+        - 
+
+IN PROGRESS : 
+        - status chain transition
         - 
 
 
 
+
  ### Later
+
+- Mettre en place OCR
+        - Rcupération informations depuis appel d'offres 
+        - Estimation de marge à faire suivant les données en bdd
+        - 
 
 - bouton import export Sheets <-> CRM
 

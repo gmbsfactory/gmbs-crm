@@ -9,13 +9,53 @@ export interface IntermediateStatusResult {
 
 /**
  * Calcule les statuts intermédiaires à parcourir lors d'une transition
+ * 
+ * @param fromStatus - Statut source (null lors de la création initiale)
+ * @param toStatus - Statut cible
+ * @param chain - Chaîne de progression des statuts
+ * 
+ * Si fromStatus est null (création initiale), on considère qu'on part du premier statut de la chaîne.
+ * Si le statut cible n'est pas le premier de la chaîne, tous les statuts précédents seront créés.
  */
 export function calculateIntermediateStatuses(
-    fromStatus: InterventionStatusKey,
+    fromStatus: InterventionStatusKey | null,
     toStatus: InterventionStatusKey,
     chain: InterventionStatusKey[] = DEFAULT_STATUS_CHAIN
 ): IntermediateStatusResult {
-    // Cas 1 : Même statut
+    // Cas 1 : Création initiale (fromStatus est null)
+    // Si on crée directement avec un statut qui n'est pas le premier de la chaîne,
+    // on doit créer tous les statuts précédents
+    if (fromStatus === null) {
+        const toIndex = chain.indexOf(toStatus);
+        
+        if (toIndex === -1) {
+            // Le statut cible n'est pas dans la chaîne, transition directe autorisée
+            return {
+                intermediateStatuses: [],
+                isValid: true,
+            };
+        }
+        
+        if (toIndex === 0) {
+            // Le statut cible est le premier de la chaîne, pas de statuts intermédiaires
+            return {
+                intermediateStatuses: [],
+                isValid: true,
+            };
+        }
+        
+        // Créer tous les statuts depuis le début jusqu'au statut cible (exclus)
+        // Exemple: chaîne [DEMANDE, DEVIS_ENVOYE, INTER_TERMINEE]
+        // Si on crée directement avec INTER_TERMINEE (index 2), on doit créer DEMANDE et DEVIS_ENVOYE
+        const intermediateStatuses = chain.slice(0, toIndex);
+        
+        return {
+            intermediateStatuses,
+            isValid: true,
+        };
+    }
+
+    // Cas 2 : Même statut
     if (fromStatus === toStatus) {
         return {
             intermediateStatuses: [],
@@ -23,49 +63,41 @@ export function calculateIntermediateStatuses(
         };
     }
 
-    // Cas 2 : Vérifier que les statuts sont dans la chaîne
+    // Cas 3 : Vérifier que les statuts sont dans la chaîne
     const fromIndex = chain.indexOf(fromStatus);
     const toIndex = chain.indexOf(toStatus);
-
-    if (fromIndex === -1) {
-        return {
-            intermediateStatuses: [],
-            isValid: false,
-            error: `Le statut source "${fromStatus}" n'est pas dans la chaîne de progression`,
-        };
-    }
 
     if (toIndex === -1) {
         // Le statut cible n'est pas dans la chaîne, transition directe autorisée
         return {
             intermediateStatuses: [],
             isValid: true,
-            error: `Le statut cible "${toStatus}" n'est pas dans la chaîne, transition directe`,
         };
     }
 
-    // Cas 3 : Régression (toIndex < fromIndex)
+    if (fromIndex === -1) {
+        // Le statut source n'est pas dans la chaîne, mais le statut cible oui
+        // On considère qu'on part du premier statut de la chaîne
+        // et on crée tous les statuts jusqu'au statut cible (exclus)
+        const intermediateStatuses = chain.slice(0, toIndex);
+        return {
+            intermediateStatuses,
+            isValid: true,
+        };
+    }
+
+    // Cas 4 : Régression (toIndex < fromIndex)
     if (toIndex < fromIndex) {
         return {
             intermediateStatuses: [],
             isValid: true,
-            error: `Transition régressive de "${fromStatus}" vers "${toStatus}", pas de progression intermédiaire`,
         };
     }
 
-    // Cas 4 : Progression normale
-    // Retourner tous les statuts de fromIndex+1 à toIndex (inclus)
-    // Note: toIndex est exclus dans slice, donc on utilise toIndex
-    // Attends, le prompt disait "de fromIndex+1 à toIndex (inclus)"
-    // slice(start, end) -> start inclus, end exclus.
-    // Donc si on veut jusqu'à toIndex (exclus, car c'est le statut final, pas intermédiaire), on met toIndex.
-    // Le prompt disait: "Retourner tous les statuts entre fromIndex+1 et toIndex (inclus)"
-    // Mais la fonction s'appelle calculateIntermediateStatuses. Le statut final est-il intermédiaire ? Non.
-    // Si je vais de A -> C (A, B, C). Intermédiaire = B.
-    // Index: A=0, B=1, C=2.
-    // fromIndex=0, toIndex=2.
+    // Cas 5 : Progression normale
+    // Retourner tous les statuts de fromIndex+1 à toIndex (exclus)
+    // Exemple: A -> C (A=0, B=1, C=2). Intermédiaire = B.
     // slice(1, 2) -> [B]. Correct.
-
     const intermediateStatuses = chain.slice(fromIndex + 1, toIndex);
 
     return {
