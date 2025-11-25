@@ -2257,6 +2257,15 @@ export const interventionsApi = {
     const rawGestionnaireStats = rpcResult.gestionnaireStats || rpcResult.gestionnaireBreakdown || [];
     const globalFinancials = rpcResult.globalFinancials || {};
 
+    // DEBUG: Données brutes reçues
+    console.log('\n🏢 ========================================');
+    console.log('🏢 DEBUG: Données brutes reçues');
+    console.log('🏢 ========================================');
+    console.log('📊 rawAgencyStats:', JSON.stringify(rawAgencyStats, null, 2));
+    console.log('👤 rawGestionnaireStats:', JSON.stringify(rawGestionnaireStats, null, 2));
+    console.log('📊 rawAgencyStats.length:', rawAgencyStats?.length || 0);
+    console.log('👤 rawGestionnaireStats.length:', rawGestionnaireStats?.length || 0);
+
     // Calculer les taux (côté client car ils nécessitent des calculs)
     // Taux de transformation = (Interventions terminées / Interventions demandées) × 100
     const nbDemandees = mainStatsData.nbInterventionsDemandees || 0;
@@ -2427,6 +2436,12 @@ export const interventionsApi = {
       };
     }).sort((a: any, b: any) => b.ca - a.ca);
 
+    // DEBUG: agencyStats après mapping
+    console.log('\n✅ agencyStats mappées:', agencyStats.length);
+    if (agencyStats.length > 0) {
+      console.log('📋 Premier élément:', JSON.stringify(agencyStats[0], null, 2));
+    }
+
     // Log: Statistiques par agence (top 5)
     console.log('\n🏢 ========================================');
     console.log('🏢 STATISTIQUES PAR AGENCE (Top 5)');
@@ -2479,6 +2494,12 @@ export const interventionsApi = {
         marge,
       };
     }).sort((a: any, b: any) => b.ca - a.ca);
+
+    // DEBUG: gestionnaireStats après mapping
+    console.log('\n✅ gestionnaireStats mappées:', gestionnaireStats.length);
+    if (gestionnaireStats.length > 0) {
+      console.log('📋 Premier élément:', JSON.stringify(gestionnaireStats[0], null, 2));
+    }
 
     // Log: Statistiques par gestionnaire (top 5)
     console.log('\n👤 ========================================');

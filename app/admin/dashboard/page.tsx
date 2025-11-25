@@ -82,94 +82,94 @@ export default function AdminDashboardPage() {
 
   // Colonnes pour les tableaux
   const agencyColumns = useMemo(() => [
-    { 
-      header: "Agence", 
-      accessorKey: "agencyLabel", 
+    {
+      header: "Agence",
+      accessorKey: "agencyLabel",
       size: 200,
       minSize: 200,
       maxSize: 200,
     },
-    { 
-      header: "Interventions", 
-      accessorKey: "nbTotalInterventions", 
+    {
+      header: "Interventions",
+      accessorKey: "nbTotalInterventions",
       size: 120,
       minSize: 120,
       maxSize: 120,
-      cell: (item: any) => formatNumber(item.nbTotalInterventions) 
+      cell: ({ row }: any) => formatNumber(row.original.nbTotalInterventions)
     },
-    { 
-      header: "CA", 
-      accessorKey: "ca", 
+    {
+      header: "CA",
+      accessorKey: "ca",
       size: 120,
       minSize: 120,
       maxSize: 120,
-      cell: (item: any) => formatCurrency(item.ca) 
+      cell: ({ row }: any) => formatCurrency(row.original.ca)
     },
-    { 
-      header: "Marge", 
-      accessorKey: "marge", 
+    {
+      header: "Marge",
+      accessorKey: "marge",
       size: 120,
       minSize: 120,
       maxSize: 120,
-      cell: (item: any) => formatCurrency(item.marge) 
+      cell: ({ row }: any) => formatCurrency(row.original.marge)
     },
-    { 
-      header: "Taux Marge", 
-      accessorKey: "tauxMarge", 
+    {
+      header: "Taux Marge",
+      accessorKey: "tauxMarge",
       size: 150,
       minSize: 150,
       maxSize: 150,
-      cell: (item: any) => <MarginBar value={item.tauxMarge} target={30} /> 
+      cell: ({ row }: any) => <MarginBar value={row.original.tauxMarge} target={30} />
     },
   ], [formatNumber, formatCurrency])
 
   const managerColumns = useMemo(() => [
-    { 
-      header: "Gestionnaire", 
-      accessorKey: "gestionnaireLabel", 
+    {
+      header: "Gestionnaire",
+      accessorKey: "gestionnaireLabel",
       size: 200,
       minSize: 200,
       maxSize: 200,
     },
-    { 
-      header: "Prises", 
-      accessorKey: "nbInterventionsPrises", 
+    {
+      header: "Prises",
+      accessorKey: "nbInterventionsPrises",
       size: 100,
       minSize: 100,
       maxSize: 100,
-      cell: (item: any) => formatNumber(item.nbInterventionsPrises) 
+      cell: ({ row }: any) => formatNumber(row.original.nbInterventionsPrises)
     },
-    { 
-      header: "Terminées", 
-      accessorKey: "nbInterventionsTerminees", 
+    {
+      header: "Terminées",
+      accessorKey: "nbInterventionsTerminees",
       size: 100,
       minSize: 100,
       maxSize: 100,
-      cell: (item: any) => formatNumber(item.nbInterventionsTerminees) 
+      cell: ({ row }: any) => formatNumber(row.original.nbInterventionsTerminees)
     },
-    { 
-      header: "CA", 
-      accessorKey: "ca", 
+    {
+      header: "CA",
+      accessorKey: "ca",
       size: 120,
       minSize: 120,
       maxSize: 120,
-      cell: (item: any) => formatCurrency(item.ca) 
+      cell: ({ row }: any) => formatCurrency(row.original.ca)
     },
-    { 
-      header: "Marge", 
-      accessorKey: "marge", 
+    {
+      header: "Marge",
+      accessorKey: "marge",
       size: 120,
       minSize: 120,
       maxSize: 120,
-      cell: (item: any) => formatCurrency(item.marge) 
+      cell: ({ row }: any) => formatCurrency(row.original.marge)
     },
-    { 
-      header: "Taux Marge", 
-      accessorKey: "tauxMarge", 
+    {
+      header: "Taux Marge",
+      accessorKey: "tauxMarge",
       size: 150,
       minSize: 150,
       maxSize: 150,
-      cell: (item: any) => <MarginBar value={item.tauxMarge} target={30} /> 
+      cell: ({ row }: any) => <MarginBar value={row.original.tauxMarge} target={30} />
     },
   ], [formatNumber, formatCurrency])
 
@@ -200,6 +200,16 @@ export default function AdminDashboardPage() {
               onMetierChange={handleMetierChange}
             />
           </div>
+
+          {/* Afficher un avertissement si des filtres sont actifs */}
+          {(agenceId || gestionnaireId || metierId) && (
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm text-amber-800">
+              <strong>Filtres actifs:</strong>
+              {agenceId && ` Agence: ${agenceId}`}
+              {gestionnaireId && ` Gestionnaire: ${gestionnaireId}`}
+              {metierId && ` Métier: ${metierId}`}
+            </div>
+          )}
 
           {/* KPI Cards Row - 5 Columns */}
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
@@ -308,41 +318,57 @@ export default function AdminDashboardPage() {
 
           {/* Tables Row - Stacked */}
           <div className="grid gap-4 grid-cols-1">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Building2 className="h-5 w-5" />
+            <Card className="shadow-sm">
+              <CardHeader className="border-b bg-muted/50">
+                <CardTitle className="flex items-center gap-2 text-lg">
+                  <Building2 className="h-5 w-5 text-primary" />
                   Performance Agences
                 </CardTitle>
               </CardHeader>
-              <CardContent>
+              <CardContent className="p-0">
                 {isLoading ? (
                   <Skeleton className="h-[300px] w-full" />
-                ) : (
+                ) : dashboardStats?.agencyStats && dashboardStats.agencyStats.length > 0 ? (
                   <VirtualizedDataTable
-                    data={dashboardStats?.agencyStats || []}
+                    data={dashboardStats.agencyStats}
                     columns={agencyColumns}
                     height={300}
+                    noCard
                   />
+                ) : (
+                  <div className="h-[300px] flex items-center justify-center text-muted-foreground">
+                    <div className="text-center">
+                      <Building2 className="h-12 w-12 mx-auto mb-2 opacity-50" />
+                      <p>Aucune donnée disponible pour cette période</p>
+                    </div>
+                  </div>
                 )}
               </CardContent>
             </Card>
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Users className="h-5 w-5" />
+            <Card className="shadow-sm">
+              <CardHeader className="border-b bg-muted/50">
+                <CardTitle className="flex items-center gap-2 text-lg">
+                  <Users className="h-5 w-5 text-primary" />
                   Performance Gestionnaires
                 </CardTitle>
               </CardHeader>
-              <CardContent>
+              <CardContent className="p-0">
                 {isLoading ? (
                   <Skeleton className="h-[300px] w-full" />
-                ) : (
+                ) : dashboardStats?.gestionnaireStats && dashboardStats.gestionnaireStats.length > 0 ? (
                   <VirtualizedDataTable
-                    data={dashboardStats?.gestionnaireStats || []}
+                    data={dashboardStats.gestionnaireStats}
                     columns={managerColumns}
                     height={300}
+                    noCard
                   />
+                ) : (
+                  <div className="h-[300px] flex items-center justify-center text-muted-foreground">
+                    <div className="text-center">
+                      <Users className="h-12 w-12 mx-auto mb-2 opacity-50" />
+                      <p>Aucune donnée disponible pour cette période</p>
+                    </div>
+                  </div>
                 )}
               </CardContent>
             </Card>

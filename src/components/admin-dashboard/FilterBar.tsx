@@ -52,6 +52,7 @@ export function FilterBar({
   })
   const [isCustomMode, setIsCustomMode] = useState(false)
   const isProgrammaticUpdate = useRef(false) // Flag pour éviter de basculer en custom lors des mises à jour programmatiques
+  const lastCalculatedDates = useRef<{ from: Date | null; to: Date | null } | null>(null) // Référence pour éviter les boucles infinies
 
   const [selectedAgence, setSelectedAgence] = useState<string>("all")
   const [selectedGestionnaire, setSelectedGestionnaire] = useState<string>("all")
@@ -175,13 +176,27 @@ export function FilterBar({
   // Synchroniser dateRange avec calculatedDates quand ce n'est pas en mode custom
   useEffect(() => {
     if (!isCustomMode && calculatedDates.from && calculatedDates.to) {
-      isProgrammaticUpdate.current = true
-      setDateRange({ from: calculatedDates.from, to: calculatedDates.to })
-      onDateChange(format(calculatedDates.from, "yyyy-MM-dd"), format(calculatedDates.to, "yyyy-MM-dd"))
-      // Reset le flag après un court délai
-      setTimeout(() => {
-        isProgrammaticUpdate.current = false
-      }, 100)
+      // Comparer avec les dernières dates calculées pour éviter les mises à jour inutiles
+      const datesChanged = 
+        !lastCalculatedDates.current ||
+        !lastCalculatedDates.current.from ||
+        !lastCalculatedDates.current.to ||
+        lastCalculatedDates.current.from.getTime() !== calculatedDates.from.getTime() ||
+        lastCalculatedDates.current.to.getTime() !== calculatedDates.to.getTime()
+      
+      if (datesChanged) {
+        lastCalculatedDates.current = { from: calculatedDates.from, to: calculatedDates.to }
+        isProgrammaticUpdate.current = true
+        setDateRange({ from: calculatedDates.from, to: calculatedDates.to })
+        onDateChange(format(calculatedDates.from, "yyyy-MM-dd"), format(calculatedDates.to, "yyyy-MM-dd"))
+        // Reset le flag après un court délai
+        setTimeout(() => {
+          isProgrammaticUpdate.current = false
+        }, 100)
+      }
+    } else if (isCustomMode) {
+      // Réinitialiser la référence en mode custom
+      lastCalculatedDates.current = null
     }
   }, [calculatedDates, isCustomMode, onDateChange])
 

@@ -44,7 +44,21 @@ BEGIN
   v_previous_period_end := p_period_start;
 
   WITH 
+  -- CTE 0: Calcul du CA par intervention pour filtrer les interventions avec CA > 999,999 (7 chiffres)
+  -- Cette règle exclut les interventions avec un chiffre d'affaires anormalement élevé de tous les calculs
+  interventions_ca AS (
+    SELECT 
+      i.id as intervention_id,
+      COALESCE(SUM(CASE WHEN ic.cost_type = 'intervention' THEN ic.amount ELSE 0 END), 0)::numeric as total_ca
+    FROM public.interventions i
+    LEFT JOIN public.intervention_costs ic ON ic.intervention_id = i.id
+    WHERE i.is_active = true
+    GROUP BY i.id
+    HAVING COALESCE(SUM(CASE WHEN ic.cost_type = 'intervention' THEN ic.amount ELSE 0 END), 0) <= 999999
+  ),
+
   -- CTE 1: Interventions de la période ACTUELLE (base de données pour toutes les stats)
+  -- EXCLUT les interventions avec CA > 999,999 (7 chiffres)
   interventions_periode AS (
     SELECT 
       i.id, 
@@ -57,6 +71,7 @@ BEGIN
       i.created_at
     FROM public.interventions i
     LEFT JOIN public.intervention_statuses ist ON ist.id = i.statut_id
+    INNER JOIN interventions_ca ica ON ica.intervention_id = i.id
     WHERE i.is_active = true
       AND i.date >= p_period_start
       AND i.date < p_period_end
@@ -65,10 +80,12 @@ BEGIN
   ),
 
   -- CTE 1b: Interventions de la période PRECEDENTE (pour calcul des deltas)
+  -- EXCLUT les interventions avec CA > 999,999 (7 chiffres)
   interventions_periode_prev AS (
     SELECT 
       i.id
     FROM public.interventions i
+    INNER JOIN interventions_ca ica ON ica.intervention_id = i.id
     WHERE i.is_active = true
       AND i.date >= v_previous_period_start
       AND i.date < v_previous_period_end
@@ -310,7 +327,7 @@ BEGIN
       COALESCE(SUM(p.total_paiements), 0)::numeric as total_paiements,
       COALESCE(SUM(c.total_couts), 0)::numeric as total_couts
     FROM interventions_filtrees ip
-    JOIN financial_interventions fi ON fi.intervention_id = ip.id
+    LEFT JOIN financial_interventions fi ON fi.intervention_id = ip.id
     LEFT JOIN paiements_agreges p ON p.intervention_id = ip.id
     LEFT JOIN couts_agreges c ON c.intervention_id = ip.id
     WHERE ip.agence_id IS NOT NULL
@@ -337,7 +354,7 @@ BEGIN
       COALESCE(SUM(p.total_paiements), 0)::numeric as total_paiements,
       COALESCE(SUM(c.total_couts), 0)::numeric as total_couts
     FROM interventions_filtrees ip
-    JOIN financial_interventions fi ON fi.intervention_id = ip.id
+    LEFT JOIN financial_interventions fi ON fi.intervention_id = ip.id
     LEFT JOIN paiements_agreges p ON p.intervention_id = ip.id
     LEFT JOIN couts_agreges c ON c.intervention_id = ip.id
     WHERE ip.assigned_user_id IS NOT NULL
@@ -463,7 +480,8 @@ Inclut:
 - Sparklines (Données journalières)
 - Funnel Data (Répartition par statut)
 - Breakdown par Métier (Top 10)
-- Performance Agence et Gestionnaire (avec Marge et Cycle Time)';
+- Performance Agence et Gestionnaire (avec Marge et Cycle Time)
+- FILTRE: Exclut automatiquement les interventions avec CA > 999,999 (7 chiffres) de tous les calculs';
 
 -- Grant permissions
 GRANT EXECUTE ON FUNCTION public.get_admin_dashboard_stats TO authenticated;

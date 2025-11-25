@@ -5,3 +5,6 @@ UPDATE interventions
 SET latitude = NULL, longitude = NULL 
 WHERE latitude IS NOT NULL OR longitude IS NOT NULL;
 
+
+
+
