@@ -48,3 +48,4 @@ COMMENT ON COLUMN public.interventions.latitude IS 'Latitude de l''adresse de l'
 COMMENT ON COLUMN public.interventions.longitude IS 'Longitude de l''adresse de l''intervention (coordonnées géographiques)';
 
 
+
