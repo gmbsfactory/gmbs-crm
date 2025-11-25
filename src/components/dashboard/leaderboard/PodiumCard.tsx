@@ -10,6 +10,7 @@ interface GestionnaireRankingItem {
   user_code: string | null
   user_color: string | null
   total_margin: number
+  total_revenue?: number
   total_interventions: number
   rank: number
 }
@@ -17,6 +18,7 @@ interface GestionnaireRankingItem {
 interface PodiumCardProps {
   entry: GestionnaireRankingItem
   position: 1 | 2 | 3
+  displayMetric?: 'margin' | 'revenue'
 }
 
 const positionConfig = {
@@ -92,7 +94,7 @@ const formatCurrency = (amount: number) => {
   }).format(amount)
 }
 
-export const PodiumCard = ({ entry, position }: PodiumCardProps) => {
+export const PodiumCard = ({ entry, position, displayMetric = 'margin' }: PodiumCardProps) => {
   const config = positionConfig[position]
   const Icon = config.icon
   // Utiliser firstname depuis la DB, sinon extraire depuis user_name (si différent du code), sinon user_code, sinon user_name complet
@@ -100,6 +102,11 @@ export const PodiumCard = ({ entry, position }: PodiumCardProps) => {
     ? getFirstName(entry.user_name) 
     : null
   const displayName = entry.user_firstname || firstNameFromName || entry.user_code || entry.user_name
+  
+  // Afficher soit la marge soit le CA selon displayMetric
+  const displayValue = displayMetric === 'revenue' 
+    ? (entry.total_revenue || 0)
+    : entry.total_margin
 
   return (
     <div className={cn("flex flex-col items-center gap-3", config.order)}>
@@ -171,7 +178,7 @@ export const PodiumCard = ({ entry, position }: PodiumCardProps) => {
             {displayName}
           </p>
           <p className={cn("font-extrabold", config.scoreColor, config.scoreSize)}>
-            {formatCurrency(entry.total_margin)}
+            {formatCurrency(displayValue)}
           </p>
         </div>
       </Card>

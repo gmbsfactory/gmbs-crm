@@ -588,6 +588,7 @@ export interface GestionnaireMarginRanking {
   user_code: string | null;
   user_color: string | null;
   total_margin: number;
+  total_revenue: number; // CA (chiffre d'affaires)
   total_interventions: number;
   average_margin_percentage: number;
   rank: number;

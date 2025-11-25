@@ -1286,17 +1286,31 @@ export const interventionsApi = {
     startDate?: string,
     endDate?: string
   ): Promise<MarginRankingResult> {
-    // Récupérer tous les utilisateurs (gestionnaires)
-    const { data: users, error: usersError } = await supabase
-      .from("users")
-      .select("id, firstname, lastname, code_gestionnaire, color")
-      .order("lastname", { ascending: true });
+    // Normaliser les dates pour correspondre au format attendu par la fonction SQL
+    // La fonction SQL attend des timestamps avec heures/minutes/secondes
+    // Si la date contient déjà 'T', c'est une ISO string complète, sinon on ajoute l'heure
+    let periodStart: string | null = null;
+    let periodEnd: string | null = null;
 
-    if (usersError) {
-      throw new Error(`Erreur lors de la récupération des utilisateurs: ${usersError.message}`);
+    if (startDate) {
+      periodStart = startDate.includes('T') ? startDate : `${startDate}T00:00:00`;
     }
 
-    if (!users || users.length === 0) {
+    if (endDate) {
+      if (endDate.includes('T')) {
+        periodEnd = endDate;
+      } else {
+        // Pour la fin de période, utiliser le début du jour suivant moins 1 seconde
+        // pour être cohérent avec get_admin_dashboard_stats qui utilise date < periodEnd
+        const endDateObj = new Date(endDate);
+        endDateObj.setDate(endDateObj.getDate() + 1);
+        endDateObj.setHours(0, 0, 0, 0);
+        endDateObj.setSeconds(endDateObj.getSeconds() - 1);
+        periodEnd = endDateObj.toISOString();
+      }
+    }
+
+    if (!periodStart || !periodEnd) {
       return {
         rankings: [],
         period: {
@@ -1306,105 +1320,71 @@ export const interventionsApi = {
       };
     }
 
-    // Pour chaque gestionnaire, calculer sa marge totale
-    const rankings: GestionnaireMarginRanking[] = [];
-
-    for (const user of users) {
-      try {
-        // Construire la requête avec les coûts pour ce gestionnaire
-        let query = supabase
-          .from("interventions")
-          .select(
-            `
-            id,
-            id_inter,
-            intervention_costs (
-              id,
-              cost_type,
-              amount,
-              label
-            )
-            `
-          )
-          .eq("assigned_user_id", user.id)
-          .eq("is_active", true);
-
-        // Appliquer les filtres de date si fournis
-        if (startDate) {
-          query = query.gte("date", startDate);
-        }
-        if (endDate) {
-          query = query.lte("date", endDate);
-        }
-
-        const { data: interventions, error: interventionsError } = await query;
-
-        if (interventionsError) {
-          console.warn(`Erreur pour l'utilisateur ${user.id}:`, interventionsError);
-          continue;
-        }
-
-        let totalRevenue = 0;
-        let totalCosts = 0;
-        let totalMargin = 0;
-        let interventionsWithCosts = 0;
-
-        // Parcourir les interventions et calculer les marges
-        (interventions || []).forEach((intervention: any) => {
-          const marginCalc = this.calculateMarginForIntervention(
-            intervention.intervention_costs || [],
-            intervention.id_inter || intervention.id
-          );
-
-          if (marginCalc) {
-            totalRevenue += marginCalc.revenue;
-            totalCosts += marginCalc.costs;
-            totalMargin += marginCalc.margin;
-            interventionsWithCosts++;
-          }
-        });
-
-        // ✅ CORRECTION : Calculer le pourcentage global
-        let averageMarginPercentage = 0;
-        if (totalRevenue > 0) {
-          averageMarginPercentage = (totalMargin / totalRevenue) * 100;
-        }
-
-        // Ajouter au classement seulement si le gestionnaire a des interventions avec coûts
-        if (interventionsWithCosts > 0) {
-          const fullName = `${user.firstname || ""} ${user.lastname || ""}`.trim() || user.code_gestionnaire || "Utilisateur";
-
-          rankings.push({
-            user_id: user.id,
-            user_name: fullName,
-            user_firstname: user.lastname, // Utiliser lastname car c'est le prénom dans votre système
-            user_code: user.code_gestionnaire,
-            user_color: user.color,
-            total_margin: Math.round(totalMargin * 100) / 100,
-            total_interventions: interventionsWithCosts,
-            average_margin_percentage: Math.round(averageMarginPercentage * 100) / 100,
-            rank: 0, // Sera calculé après le tri
-          });
-        }
-      } catch (error: any) {
-        console.warn(`Erreur lors du calcul de la marge pour ${user.id}:`, error);
-        continue;
+    // Appeler la fonction RPC SQL qui calcule les rankings
+    const { data: rpcResult, error: rpcError } = await supabase.rpc(
+      'get_podium_ranking_by_period',
+      {
+        p_period_start: periodStart,
+        p_period_end: periodEnd,
       }
+    );
+
+    if (rpcError) {
+      throw new Error(`Erreur lors de la récupération du classement: ${rpcError.message}`);
     }
 
-    // Trier par marge totale décroissante
-    rankings.sort((a, b) => b.total_margin - a.total_margin);
+    if (!rpcResult || !rpcResult.rankings || rpcResult.rankings.length === 0) {
+      return {
+        rankings: [],
+        period: {
+          start_date: startDate || null,
+          end_date: endDate || null,
+        },
+      };
+    }
 
-    // Assigner les rangs
-    rankings.forEach((ranking, index) => {
-      ranking.rank = index + 1;
+    // Récupérer les informations des utilisateurs pour enrichir les résultats
+    const userIds = rpcResult.rankings.map((r: any) => r.user_id);
+    const { data: users, error: usersError } = await supabase
+      .from("users")
+      .select("id, firstname, lastname, code_gestionnaire, color")
+      .in("id", userIds);
+
+    if (usersError) {
+      throw new Error(`Erreur lors de la récupération des utilisateurs: ${usersError.message}`);
+    }
+
+    // Créer un map pour accéder rapidement aux infos utilisateur
+    const usersMap = new Map(
+      (users || []).map((u) => [u.id, u])
+    );
+
+    // Mapper les résultats SQL avec les informations utilisateur
+    const rankings: GestionnaireMarginRanking[] = rpcResult.rankings.map((item: any, index: number) => {
+      const user = usersMap.get(item.user_id);
+      const fullName = user
+        ? `${user.firstname || ""} ${user.lastname || ""}`.trim() || user.code_gestionnaire || "Utilisateur"
+        : "Utilisateur";
+
+      return {
+        user_id: item.user_id,
+        user_name: fullName,
+        user_firstname: user?.lastname || null, // Utiliser lastname car c'est le prénom dans votre système
+        user_code: user?.code_gestionnaire || null,
+        user_color: user?.color || null,
+        total_margin: item.total_margin || 0,
+        total_revenue: item.total_revenue || 0,
+        total_interventions: item.total_interventions || 0,
+        average_margin_percentage: item.average_margin_percentage || 0,
+        rank: index + 1, // Les rangs sont déjà triés par la fonction SQL (par marge décroissante)
+      };
     });
 
     return {
       rankings,
       period: {
-        start_date: startDate || null,
-        end_date: endDate || null,
+        start_date: rpcResult.period?.start_date || startDate || null,
+        end_date: rpcResult.period?.end_date || endDate || null,
       },
     };
   },

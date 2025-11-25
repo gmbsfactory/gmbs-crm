@@ -2,6 +2,8 @@
 
 import { useEffect, useState, useMemo } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Switch } from "@/components/ui/switch"
+import { Label } from "@/components/ui/label"
 import { interventionsApi } from "@/lib/api/v2"
 import type { MarginRankingResult } from "@/lib/api/v2"
 import { Trophy } from "lucide-react"
@@ -20,6 +22,7 @@ export function GestionnaireRankingPodium({ period }: GestionnaireRankingPodiumP
   const [ranking, setRanking] = useState<MarginRankingResult | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [sortBy, setSortBy] = useState<'margin' | 'revenue'>('margin')
 
   useEffect(() => {
     let cancelled = false
@@ -68,8 +71,20 @@ export function GestionnaireRankingPodium({ period }: GestionnaireRankingPodiumP
     if (!ranking || ranking.rankings.length === 0) {
       return []
     }
-    return [...ranking.rankings].sort((a, b) => b.total_margin - a.total_margin)
-  }, [ranking])
+    const sorted = [...ranking.rankings].sort((a, b) => {
+      if (sortBy === 'revenue') {
+        return b.total_revenue - a.total_revenue
+      }
+      // Par défaut, trier par marge
+      return b.total_margin - a.total_margin
+    })
+    
+    // Réassigner les rangs après le tri
+    return sorted.map((item, index) => ({
+      ...item,
+      rank: index + 1
+    }))
+  }, [ranking, sortBy])
 
   const top3 = sortedRankings.slice(0, 3)
   const bottom3 = sortedRankings.length > 3 ? sortedRankings.slice(-3) : []
@@ -123,10 +138,25 @@ export function GestionnaireRankingPodium({ period }: GestionnaireRankingPodiumP
   return (
     <Card className="bg-background border-border/5 shadow-sm/30 h-full flex flex-col">
       <CardHeader className="pb-3 flex-shrink-0">
-        <div className="flex items-center justify-center gap-3">
-          <Trophy className="w-6 h-6 text-gold" />
-          <CardTitle className="text-xl font-bold">Podium</CardTitle>
-          <Trophy className="w-6 h-6 text-gold" />
+        <div className="flex items-center justify-between">
+          <div className="flex items-center justify-center gap-3">
+            <Trophy className="w-6 h-6 text-gold" />
+            <CardTitle className="text-xl font-bold">Podium</CardTitle>
+            <Trophy className="w-6 h-6 text-gold" />
+          </div>
+          <div className="flex items-center gap-3">
+            <Label htmlFor="sort-switch" className="text-sm text-muted-foreground cursor-pointer">
+              Marge
+            </Label>
+            <Switch
+              id="sort-switch"
+              checked={sortBy === 'revenue'}
+              onCheckedChange={(checked) => setSortBy(checked ? 'revenue' : 'margin')}
+            />
+            <Label htmlFor="sort-switch" className="text-sm text-muted-foreground cursor-pointer">
+              CA
+            </Label>
+          </div>
         </div>
       </CardHeader>
       <CardContent className="space-y-6 flex-1 overflow-auto pb-[30px]">
@@ -134,9 +164,9 @@ export function GestionnaireRankingPodium({ period }: GestionnaireRankingPodiumP
         {top3.length > 0 && (
           <div className="relative">
             <div className="flex items-end justify-center gap-2 md:gap-4 pt-12">
-              {top3[1] && <PodiumCard entry={top3[1]} position={2} />}
-              {top3[0] && <PodiumCard entry={top3[0]} position={1} />}
-              {top3[2] && <PodiumCard entry={top3[2]} position={3} />}
+              {top3[1] && <PodiumCard entry={top3[1]} position={2} displayMetric={sortBy} />}
+              {top3[0] && <PodiumCard entry={top3[0]} position={1} displayMetric={sortBy} />}
+              {top3[2] && <PodiumCard entry={top3[2]} position={3} displayMetric={sortBy} />}
             </div>
           </div>
         )}
@@ -154,6 +184,7 @@ export function GestionnaireRankingPodium({ period }: GestionnaireRankingPodiumP
                   entry={entry}
                   position={entry.rank}
                   totalRankings={totalRankings}
+                  displayMetric={sortBy}
                 />
               ))}
             </div>

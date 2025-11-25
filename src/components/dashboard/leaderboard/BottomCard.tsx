@@ -10,6 +10,7 @@ interface GestionnaireRankingItem {
   user_code: string | null
   user_color: string | null
   total_margin: number
+  total_revenue?: number
   total_interventions: number
   rank: number
 }
@@ -18,6 +19,7 @@ interface BottomCardProps {
   entry: GestionnaireRankingItem
   position: number
   totalRankings: number
+  displayMetric?: 'margin' | 'revenue'
 }
 
 const getInitials = (name: string) => {
@@ -42,13 +44,18 @@ const formatCurrency = (amount: number) => {
   }).format(amount)
 }
 
-export const BottomCard = ({ entry, position, totalRankings }: BottomCardProps) => {
+export const BottomCard = ({ entry, position, totalRankings, displayMetric = 'margin' }: BottomCardProps) => {
   const isLast = position === totalRankings
   // Utiliser firstname depuis la DB, sinon extraire depuis user_name (si différent du code), sinon user_code, sinon user_name complet
   const firstNameFromName = entry.user_name && entry.user_name !== entry.user_code 
     ? getFirstName(entry.user_name) 
     : null
   const displayName = entry.user_firstname || firstNameFromName || entry.user_code || entry.user_name
+  
+  // Afficher soit la marge soit le CA selon displayMetric
+  const displayValue = displayMetric === 'revenue' 
+    ? (entry.total_revenue || 0)
+    : entry.total_margin
 
   return (
     <Card
@@ -86,7 +93,7 @@ export const BottomCard = ({ entry, position, totalRankings }: BottomCardProps) 
           {isLast && <TrendingDown className="w-3 h-3 text-cold" />}
         </p>
         <p className={cn("text-sm font-bold", isLast ? "text-cold" : "text-foreground")}>
-          {formatCurrency(entry.total_margin)}
+          {formatCurrency(displayValue)}
         </p>
       </div>
     </Card>
