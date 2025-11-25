@@ -28,6 +28,7 @@ interface VirtualizedDataTableProps<TData, TValue> {
     searchPlaceholder?: string
     searchColumn?: string
     height?: number
+    noCard?: boolean
 }
 
 export function VirtualizedDataTable<TData, TValue>({
@@ -37,6 +38,7 @@ export function VirtualizedDataTable<TData, TValue>({
     searchPlaceholder = "Rechercher...",
     searchColumn,
     height = 400,
+    noCard = false,
 }: VirtualizedDataTableProps<TData, TValue>) {
     const [sorting, setSorting] = useState<SortingState>([])
     const [globalFilter, setGlobalFilter] = useState("")
@@ -77,6 +79,120 @@ export function VirtualizedDataTable<TData, TValue>({
         virtualizer.measure()
     }, [rows.length, virtualizer])
 
+    const tableContent = (
+        <div className={noCard ? "w-full" : "rounded-md border border-border/50"}>
+            {/* Virtualized Body with Header */}
+            <div
+                ref={parentRef}
+                style={{
+                    height: `${height}px`,
+                    overflowX: "auto",
+                    overflowY: "auto",
+                    position: "relative",
+                }}
+                className="w-full"
+            >
+                <div
+                    style={{
+                        height: `${virtualizer.getTotalSize()}px`,
+                        width: "100%",
+                        position: "relative",
+                    }}
+                >
+                    <Table style={{ tableLayout: "fixed", width: "100%" }}>
+                        <TableHeader className={`sticky top-0 z-10 border-b ${noCard ? "bg-background" : "bg-muted/80 backdrop-blur-sm"}`}>
+                            {table.getHeaderGroups().map((headerGroup) => (
+                                <TableRow key={headerGroup.id} className="hover:bg-transparent border-b">
+                                    {headerGroup.headers.map((header) => {
+                                        const columnSize = header.column.getSize() || 150
+                                        return (
+                                            <TableHead
+                                                key={header.id}
+                                                colSpan={header.colSpan}
+                                                style={{
+                                                    width: `${columnSize}px`,
+                                                    minWidth: `${columnSize}px`,
+                                                    maxWidth: `${columnSize}px`,
+                                                }}
+                                                className="font-semibold text-muted-foreground text-sm h-12 px-4"
+                                            >
+                                                {header.isPlaceholder
+                                                    ? null
+                                                    : flexRender(
+                                                        header.column.columnDef.header,
+                                                        header.getContext()
+                                                    )}
+                                            </TableHead>
+                                        )
+                                    })}
+                                </TableRow>
+                            ))}
+                        </TableHeader>
+                        <TableBody>
+                            {rows.length === 0 ? (
+                                <TableRow>
+                                    <TableCell
+                                        colSpan={columns.length}
+                                        className="h-24 text-center text-muted-foreground"
+                                    >
+                                        Aucune donnée disponible.
+                                    </TableCell>
+                                </TableRow>
+                            ) : (
+                                virtualizer.getVirtualItems().map((virtualRow) => {
+                                    const row = rows[virtualRow.index]
+                                    if (!row) return null
+                                    return (
+                                        <TableRow
+                                            key={row.id}
+                                            data-state={row.getIsSelected() && "selected"}
+                                            className="hover:bg-muted/50 transition-colors border-b"
+                                            style={{
+                                                position: "absolute",
+                                                top: 0,
+                                                left: 0,
+                                                width: "100%",
+                                                transform: `translateY(${virtualRow.start}px)`,
+                                                height: `${virtualRow.size}px`,
+                                                display: "table-row",
+                                                tableLayout: "fixed",
+                                            }}
+                                        >
+                                            {row.getVisibleCells().map((cell) => {
+                                                const columnSize = cell.column.getSize() || 150
+                                                return (
+                                                    <TableCell
+                                                        key={cell.id}
+                                                        style={{
+                                                            width: `${columnSize}px`,
+                                                            minWidth: `${columnSize}px`,
+                                                            maxWidth: `${columnSize}px`,
+                                                        }}
+                                                        className="p-4 text-sm"
+                                                    >
+                                                        {flexRender(
+                                                            cell.column.columnDef.cell,
+                                                            cell.getContext()
+                                                        )}
+                                                    </TableCell>
+                                                )
+                                            })}
+                                        </TableRow>
+                                    )
+                                })
+                            )}
+                        </TableBody>
+                    </Table>
+                </div>
+            </div>
+        </div>
+    )
+
+    // Si noCard est activé, retourner directement le contenu du tableau
+    if (noCard) {
+        return tableContent
+    }
+
     return (
         <Card>
             {title && (
@@ -95,106 +211,7 @@ export function VirtualizedDataTable<TData, TValue>({
                 </CardHeader>
             )}
             <CardContent className="p-0">
-                <div className="rounded-md border">
-                    {/* Virtualized Body with Header */}
-                    <div
-                        ref={parentRef}
-                        style={{
-                            height: `${height}px`,
-                            overflow: "auto",
-                            position: "relative",
-                        }}
-                        className="w-full"
-                    >
-                        <div
-                            style={{
-                                height: `${virtualizer.getTotalSize()}px`,
-                                width: "100%",
-                                position: "relative",
-                            }}
-                        >
-                            <Table>
-                                <TableHeader className="sticky top-0 z-10 bg-background">
-                                    {table.getHeaderGroups().map((headerGroup) => (
-                                        <TableRow key={headerGroup.id}>
-                                            {headerGroup.headers.map((header) => {
-                                                const columnSize = header.column.getSize() || 150
-                                                return (
-                                                    <TableHead 
-                                                        key={header.id} 
-                                                        colSpan={header.colSpan}
-                                                        style={{
-                                                            width: columnSize,
-                                                            minWidth: columnSize,
-                                                            maxWidth: columnSize,
-                                                        }}
-                                                    >
-                                                        {header.isPlaceholder
-                                                            ? null
-                                                            : flexRender(
-                                                                header.column.columnDef.header,
-                                                                header.getContext()
-                                                            )}
-                                                    </TableHead>
-                                                )
-                                            })}
-                                        </TableRow>
-                                    ))}
-                                </TableHeader>
-                                <TableBody>
-                                    {virtualizer.getVirtualItems().map((virtualRow) => {
-                                        const row = rows[virtualRow.index]
-                                        if (!row) return null
-                                        return (
-                                            <TableRow
-                                                key={row.id}
-                                                data-state={row.getIsSelected() && "selected"}
-                                                style={{
-                                                    position: "absolute",
-                                                    top: 0,
-                                                    left: 0,
-                                                    right: 0,
-                                                    transform: `translateY(${virtualRow.start}px)`,
-                                                    height: `${virtualRow.size}px`,
-                                                    display: "table-row",
-                                                }}
-                                            >
-                                                {row.getVisibleCells().map((cell) => {
-                                                    const columnSize = cell.column.getSize() || 150
-                                                    return (
-                                                        <TableCell
-                                                            key={cell.id}
-                                                            style={{
-                                                                width: columnSize,
-                                                                minWidth: columnSize,
-                                                                maxWidth: columnSize,
-                                                            }}
-                                                        >
-                                                            {flexRender(
-                                                                cell.column.columnDef.cell,
-                                                                cell.getContext()
-                                                            )}
-                                                        </TableCell>
-                                                    )
-                                                })}
-                                            </TableRow>
-                                        )
-                                    })}
-                                    {rows.length === 0 && (
-                                        <TableRow>
-                                            <TableCell
-                                                colSpan={columns.length}
-                                                className="h-24 text-center"
-                                            >
-                                                Aucun résultat.
-                                            </TableCell>
-                                        </TableRow>
-                                    )}
-                                </TableBody>
-                            </Table>
-                        </div>
-                    </div>
-                </div>
+                {tableContent}
             </CardContent>
         </Card>
     )

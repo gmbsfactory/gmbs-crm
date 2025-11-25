@@ -7,3 +7,4 @@ WHERE latitude IS NOT NULL OR longitude IS NOT NULL;
 
 
 
+
