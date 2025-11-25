@@ -861,6 +861,14 @@ class DataMapper {
     const coutSSTValue = csvRow[COUT_SST_COLUMN];
     if (coutSSTValue && this.isValidCostValue(coutSSTValue)) {
       coutSST = this.parseNumber(coutSSTValue);
+      // ⭐ Vérifier si le coût SST dépasse 7 chiffres (>= 10 000 000)
+      if (coutSST !== null && Math.abs(coutSST) >= 1000000) {
+        const idInter = csvRow["ID"] || csvRow["id_inter"] || "N/A";
+        console.log(`\n⚠️ Coût SST dépasse 6 chiffres pour id_inter: ${idInter}`);
+        console.log(`  Valeur originale: ${coutSST.toLocaleString("fr-FR")}€`);
+        console.log(`  → Valeur mise à 0\n`);
+        coutSST = 0;
+      }
     }
 
     // Coût matériel (peut contenir une URL)
@@ -875,6 +883,14 @@ class DataMapper {
     const coutInterValue = csvRow[COUT_INTER_COLUMN];
     if (coutInterValue && this.isValidCostValue(coutInterValue)) {
       coutIntervention = this.parseNumber(coutInterValue);
+      // ⭐ Vérifier si le coût intervention dépasse 7 chiffres (>= 10 000 000)
+      if (coutIntervention !== null && Math.abs(coutIntervention) >= 1000000) {
+        const idInter = csvRow["ID"] || csvRow["id_inter"] || "N/A";
+        console.log(`\n⚠️ Coût intervention dépasse 6 chiffres pour id_inter: ${idInter}`);
+        console.log(`  Valeur originale: ${coutIntervention.toLocaleString("fr-FR")}€`);
+        console.log(`  → Valeur mise à 0\n`);
+        coutIntervention = 0;
+      }
     }
 
     // Calculer la marge et vérifier si elle est dans les limites

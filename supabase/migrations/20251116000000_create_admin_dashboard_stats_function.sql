@@ -44,21 +44,7 @@ BEGIN
   v_previous_period_end := p_period_start;
 
   WITH 
-  -- CTE 0: Calcul du CA par intervention pour filtrer les interventions avec CA > 999,999 (7 chiffres)
-  -- Cette règle exclut les interventions avec un chiffre d'affaires anormalement élevé de tous les calculs
-  interventions_ca AS (
-    SELECT 
-      i.id as intervention_id,
-      COALESCE(SUM(CASE WHEN ic.cost_type = 'intervention' THEN ic.amount ELSE 0 END), 0)::numeric as total_ca
-    FROM public.interventions i
-    LEFT JOIN public.intervention_costs ic ON ic.intervention_id = i.id
-    WHERE i.is_active = true
-    GROUP BY i.id
-    HAVING COALESCE(SUM(CASE WHEN ic.cost_type = 'intervention' THEN ic.amount ELSE 0 END), 0) <= 999999
-  ),
-
   -- CTE 1: Interventions de la période ACTUELLE (base de données pour toutes les stats)
-  -- EXCLUT les interventions avec CA > 999,999 (7 chiffres)
   interventions_periode AS (
     SELECT 
       i.id, 
@@ -80,7 +66,6 @@ BEGIN
   ),
 
   -- CTE 1b: Interventions de la période PRECEDENTE (pour calcul des deltas)
-  -- EXCLUT les interventions avec CA > 999,999 (7 chiffres)
   interventions_periode_prev AS (
     SELECT 
       i.id
