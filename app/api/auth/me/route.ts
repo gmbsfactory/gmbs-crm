@@ -6,12 +6,8 @@ export const runtime = 'nodejs'
 
 export async function GET(req: Request) {
   try {
-    // Lire le token depuis le header Authorization OU depuis les cookies HTTP-only
-    // Les cookies sont la source de vérité car ils sont isolés par navigateur/fenêtre
-    // et ne peuvent pas être partagés entre différentes sessions comme localStorage
     let token = bearerFrom(req)
     
-    // Si pas de token dans le header, lire depuis les cookies HTTP-only
     if (!token) {
       const cookieStore = await cookies()
       token = cookieStore.get('sb-access-token')?.value || null
@@ -54,40 +50,46 @@ export async function GET(req: Request) {
 
     if (!record) return NextResponse.json({ user: null })
 
+    // Récupérer les rôles avec protection d'erreur
     let roles: string[] = []
     if (record.id) {
-      const { data: roleRows, error: rolesError } = await supabase
-        .from('user_roles')
-        .select('roles(name)')
-        .eq('user_id', record.id)
+      try {
+        const { data: roleRows, error: rolesError } = await supabase
+          .from('user_roles')
+          .select('roles(name)')
+          .eq('user_id', record.id)
 
-      if (!rolesError && Array.isArray(roleRows)) {
-        roles = roleRows
-          .map((entry: any) => entry?.roles?.name)
-          .filter((name: unknown): name is string => typeof name === 'string')
-      } else if (rolesError && rolesError.code !== 'PGRST116') {
-        console.warn('[auth/me] Failed to load user roles', rolesError)
+        if (!rolesError && Array.isArray(roleRows)) {
+          roles = roleRows
+            .map((entry: any) => entry?.roles?.name)
+            .filter((name: unknown): name is string => typeof name === 'string')
+        }
+      } catch (rolesException: any) {
+        // Si erreur, on continue sans les rôles plutôt que de faire échouer toute la requête
+        console.error('[auth/me] Erreur lors du chargement des rôles:', rolesException)
+        roles = []
       }
     }
 
     const user = {
       id: record.id,
-      firstname: record.firstname,
-      lastname: record.lastname,
-      prenom: record.firstname,
-      name: record.lastname,
-      email: record.email,
-      status: record.status,
-      color: record.color,
-      code_gestionnaire: record.code_gestionnaire,
-      surnom: record.code_gestionnaire,
-      username: record.username,
-      last_seen_at: record.last_seen_at,
+      firstname: record.firstname || null,
+      lastname: record.lastname || null,
+      prenom: record.firstname || null,
+      name: record.lastname || null,
+      email: record.email || null,
+      status: record.status || null,
+      color: record.color || null,
+      code_gestionnaire: record.code_gestionnaire || null,
+      surnom: record.code_gestionnaire || null,
+      username: record.username || null,
+      last_seen_at: record.last_seen_at || null,
       email_smtp: record.email_smtp || null,
       roles,
     }
     return NextResponse.json({ user })
   } catch (e: any) {
+    console.error('[auth/me] Erreur inattendue:', e)
     return NextResponse.json({ error: e?.message || 'Unexpected error' }, { status: 500 })
   }
 }

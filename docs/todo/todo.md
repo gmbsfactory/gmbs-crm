@@ -36,8 +36,11 @@
         - 
 
 IN PROGRESS : 
-        - status chain transition
-        - 
+        - status chain transition    []
+        - podium uniformisé    []
+        - tableau admin dashboard    []
+        - tableau admin dashboard    []
+
 
 
 
