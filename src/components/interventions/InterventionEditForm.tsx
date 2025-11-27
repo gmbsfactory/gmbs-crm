@@ -1234,6 +1234,7 @@ export function InterventionEditForm({
       }
 
       // Mettre à jour chaque coût
+      let costsUpdated = false
       for (const cost of costsToUpdate) {
         try {
           await interventionsApi.upsertCost(intervention.id, {
@@ -1242,10 +1243,20 @@ export function InterventionEditForm({
             amount: cost.amount,
             currency: "EUR",
           })
+          costsUpdated = true
         } catch (costError) {
           console.error(`[InterventionEditForm] Erreur lors de la mise à jour du coût ${cost.cost_type}:`, costError)
           // Ne pas bloquer la soumission si un coût échoue
         }
+      }
+
+      // Invalider le cache du dashboard si des coûts ont été mis à jour
+      if (costsUpdated) {
+        // Invalider toutes les queries du dashboard admin pour forcer le rechargement
+        await queryClient.invalidateQueries({ queryKey: ["admin", "dashboard"] })
+        // Invalider aussi les queries de podium si elles existent
+        await queryClient.invalidateQueries({ queryKey: ["podium"] })
+        console.log('[InterventionEditForm] Cache dashboard invalidé après mise à jour des coûts')
       }
 
       const currentPrimaryId = primaryArtisanIdRef.current

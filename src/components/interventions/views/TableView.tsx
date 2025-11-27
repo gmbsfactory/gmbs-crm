@@ -1453,22 +1453,7 @@ export function TableView({
               </div>
             </div>
           </div>
-          <style jsx>{`
-          .table-scroll-wrapper::-webkit-scrollbar {
-            width: 8px;
-            height: 8px;
-          }
-          .table-scroll-wrapper::-webkit-scrollbar-track {
-            background: ${themeMode === "dark" ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.05)"};
-          }
-          .table-scroll-wrapper::-webkit-scrollbar-thumb {
-            background: ${themeMode === "dark" ? "rgba(255,255,255,0.2)" : "rgba(0,0,0,0.2)"};
-            border-radius: 4px;
-          }
-          .table-scroll-wrapper::-webkit-scrollbar-thumb:hover {
-            background: ${themeMode === "dark" ? "rgba(255,255,255,0.3)" : "rgba(0,0,0,0.3)"};
-          }
-        `}</style>
+          {/* Styles scrollbar via CSS global - évite les conflits styled-jsx avec React */}
         </Card>
 
         {/* Pagination en bas */}

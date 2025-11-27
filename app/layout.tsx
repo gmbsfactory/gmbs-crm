@@ -15,6 +15,7 @@ import { InterfaceProvider } from "@/contexts/interface-context"
 import { UserStatusProvider } from "@/contexts/user-status-context"
 import { RemindersProvider } from "@/contexts/RemindersContext"
 import { AuthGuard } from "@/components/layout/auth-guard"
+import StyledComponentsRegistry from "@/lib/styled-components-registry"
 import type { Metadata } from "next"
 import { Inter } from "next/font/google"
 import { cookies } from "next/headers"
@@ -211,41 +212,43 @@ export default async function RootLayout({
         <a href="#main" className="sr-only focus:not-sr-only fixed top-2 left-2 z-[1000] bg-background border rounded px-2 py-1">
           Aller au contenu
         </a>
-        <SimpleOptimizedProvider>
-          <SettingsProvider>
-            <ReactQueryProvider>
-              <AuthStateListenerProvider>
-                <ModalDisplayProvider>
-                  <UserStatusProvider>
-                    <InterfaceProvider>
-                      <RemindersProvider>
-                        <ThemeWrapper>
-                          <AuthGuard>
-                            <SidebarProvider>
-                              <div className="flex min-h-screen w-full overflow-hidden flex-col">
-                                <TopbarGate />
-                                <ConditionalPadding>
-                                  <SidebarGate isAuthed={isAuthed} />
-                                  <main id="main" className="flex flex-1 min-h-[calc(100vh-4rem)] flex-col overflow-hidden">
-                                    <GlobalShortcuts />
-                                    <GlobalModalHost />
-                                    <div className="flex-1 overflow-auto">
-                                      {children}
-                                    </div>
-                                  </main>
-                                </ConditionalPadding>
-                              </div>
-                            </SidebarProvider>
-                          </AuthGuard>
-                        </ThemeWrapper>
-                      </RemindersProvider>
-                    </InterfaceProvider>
-                  </UserStatusProvider>
-                </ModalDisplayProvider>
-              </AuthStateListenerProvider>
-            </ReactQueryProvider>
-          </SettingsProvider>
-        </SimpleOptimizedProvider>
+        <StyledComponentsRegistry>
+          <SimpleOptimizedProvider>
+            <SettingsProvider>
+              <ReactQueryProvider>
+                <AuthStateListenerProvider>
+                  <ModalDisplayProvider>
+                    <UserStatusProvider>
+                      <InterfaceProvider>
+                        <RemindersProvider>
+                          <ThemeWrapper>
+                            <AuthGuard>
+                              <SidebarProvider>
+                                <div className="flex min-h-screen w-full overflow-hidden flex-col">
+                                  <TopbarGate />
+                                  <ConditionalPadding>
+                                    <SidebarGate isAuthed={isAuthed} />
+                                    <main id="main" className="flex flex-1 min-h-[calc(100vh-4rem)] flex-col overflow-hidden">
+                                      <GlobalShortcuts />
+                                      <GlobalModalHost />
+                                      <div className="flex-1 overflow-auto">
+                                        {children}
+                                      </div>
+                                    </main>
+                                  </ConditionalPadding>
+                                </div>
+                              </SidebarProvider>
+                            </AuthGuard>
+                          </ThemeWrapper>
+                        </RemindersProvider>
+                      </InterfaceProvider>
+                    </UserStatusProvider>
+                  </ModalDisplayProvider>
+                </AuthStateListenerProvider>
+              </ReactQueryProvider>
+            </SettingsProvider>
+          </SimpleOptimizedProvider>
+        </StyledComponentsRegistry>
         <Toaster position="top-right" duration={10000} />
       </body>
     </html>

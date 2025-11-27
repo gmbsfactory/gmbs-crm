@@ -48,6 +48,8 @@ type Props = {
   interventionId: string
   mode: ModalDisplayMode
   onClose: () => void
+  // Attendre la fin réelle de l'animation de fermeture (AnimatePresence)
+  waitForExit: () => Promise<void>
   onNext?: () => void
   onPrevious?: () => void
   canNext?: boolean
@@ -61,6 +63,7 @@ export function InterventionModalContent({
   interventionId,
   mode,
   onClose,
+  waitForExit,
   onNext,
   onPrevious,
   canNext,
@@ -198,18 +201,16 @@ GMBS`
       // 3. Fermer le modal pour démarrer l'animation
       onClose()
 
-      // 4. Attendre un court délai pour l'animation (300ms suffit)
-      await new Promise(resolve => setTimeout(resolve, 300))
-
-      // 5. Invalider les caches React Query en arrière-plan pour recharger les données à jour
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ['intervention', interventionId] }),
-        queryClient.invalidateQueries({ queryKey: ['interventions'] }),
-      ])
-
       console.log("✅ Intervention mise à jour avec succès", data)
+
+      // 4. Attendre la fin réelle de l'animation (signalé par AnimatePresence via waitForExit)
+      await waitForExit()
+
+      // 5. Invalider les caches APRÈS démontage complet pour éviter les conflits DOM
+      queryClient.invalidateQueries({ queryKey: ['intervention', interventionId] })
+      queryClient.invalidateQueries({ queryKey: ['interventions'] })
     },
-    [queryClient, interventionId, onClose],
+    [queryClient, interventionId, onClose, waitForExit],
   )
 
   const handleSubmit = () => {

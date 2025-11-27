@@ -41,28 +41,15 @@ const MODAL_COPY: Record<StatusReasonType, {
 export function StatusReasonModal({ open, type, onConfirm, onCancel, isSubmitting }: StatusReasonModalProps) {
   const [reason, setReason] = useState("")
   const wasOpenRef = useRef(false)
+  const cleanupTimeoutRef = useRef<number | null>(null)
 
   useEffect(() => {
     if (!open) {
       setReason("")
-      
-      // Nettoyer les overlays orphelins après la fermeture
+      // Laisser Radix gérer le démontage ; éviter toute manipulation manuelle du DOM
       if (wasOpenRef.current) {
-        // Petit délai pour laisser le Dialog se fermer proprement
-        const timeoutId = setTimeout(() => {
-          // Supprimer les overlays qui pourraient rester actifs et bloquer l'interface
-          const overlays = document.querySelectorAll('.shadcn-dialog-overlay[data-state="closed"]')
-          overlays.forEach((overlay) => {
-            const element = overlay as HTMLElement
-            // Vérifier si l'overlay est vraiment fermé et orphelin
-            const dialog = document.querySelector('.shadcn-dialog-content[data-state="open"]')
-            if (!dialog) {
-              // Aucun dialog ouvert, supprimer l'overlay fermé
-              element.remove()
-            }
-          })
-          
-          // Forcer la réactivation des interactions si le body est bloqué
+        const timeoutId = window.setTimeout(() => {
+          // Sécurité : réactiver le body si un style est resté coincé
           if (document.body.style.pointerEvents === 'none') {
             document.body.style.pointerEvents = ''
           }
@@ -70,8 +57,13 @@ export function StatusReasonModal({ open, type, onConfirm, onCancel, isSubmittin
             document.body.style.overflow = ''
           }
         }, 150)
-        
-        return () => clearTimeout(timeoutId)
+        cleanupTimeoutRef.current = timeoutId
+        return () => {
+          if (cleanupTimeoutRef.current !== null) {
+            clearTimeout(cleanupTimeoutRef.current)
+            cleanupTimeoutRef.current = null
+          }
+        }
       }
     } else {
       wasOpenRef.current = true

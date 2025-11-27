@@ -294,13 +294,15 @@ export async function syncCacheWithRealtimeEvent(
 
   console.log(`[cache-sync] ${updatedListCount} queries de listes complètes mises à jour, ${updatedLightCount} queries de listes light mises à jour`)
 
-  // CRITIQUE: Invalider immédiatement les queries actives pour forcer le re-render
-  // Avec staleTime: 0, cela garantit que les composants voient immédiatement les changements realtime
-  // sans attendre 30 secondes
-  queryClient.invalidateQueries({
-    queryKey: interventionKeys.invalidateLists(),
-    refetchType: 'active', // Forcer le re-render des queries actives (celles utilisées par les composants montés)
-  })
+  // CRITIQUE: Invalider les queries actives pour forcer le re-render
+  // Utiliser un délai minimal pour éviter les conflits de rendu React lors de la suppression d'interventions
+  // Cela garantit que les mises à jour du DOM sont synchronisées et évite l'erreur "removeChild"
+  setTimeout(() => {
+    queryClient.invalidateQueries({
+      queryKey: interventionKeys.invalidateLists(),
+      refetchType: 'active', // Forcer le re-render des queries actives (celles utilisées par les composants montés)
+    })
+  }, 0)
 
   // US7: Détecter les modifications distantes et créer des indicateurs
   // US8: Détecter les conflits et afficher les notifications
@@ -879,10 +881,13 @@ function handleAccessRevoked(
     queryKey: interventionKeys.detail(revokedRecord.id),
   })
 
-  queryClient.invalidateQueries({
-    queryKey: interventionKeys.invalidateLists(),
-    refetchType: 'active',
-  })
+  // Utiliser setTimeout pour éviter les conflits de rendu React lors de la suppression
+  setTimeout(() => {
+    queryClient.invalidateQueries({
+      queryKey: interventionKeys.invalidateLists(),
+      refetchType: 'active',
+    })
+  }, 0)
 
   debouncedRefreshCounts(queryClient)
 

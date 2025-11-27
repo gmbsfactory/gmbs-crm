@@ -1,10 +1,27 @@
 "use client"
 
-import { type ReactNode, useMemo } from "react"
+import { type ReactNode, useMemo, useState, useEffect, useRef } from "react"
 import { createPortal } from "react-dom"
 import { AnimatePresence, motion, type Variants } from "framer-motion"
 import type { ModalDisplayMode } from "@/types/modal-display"
 import { cn } from "@/lib/utils"
+
+// ID du conteneur portal statique
+const PORTAL_CONTAINER_ID = "modal-portal-root"
+
+// Fonction pour obtenir ou créer le conteneur portal statique
+function getPortalContainer(): HTMLElement | null {
+  if (typeof window === "undefined") return null
+  
+  let container = document.getElementById(PORTAL_CONTAINER_ID)
+  if (!container) {
+    container = document.createElement("div")
+    container.id = PORTAL_CONTAINER_ID
+    container.setAttribute("data-modal-portal", "true")
+    document.body.appendChild(container)
+  }
+  return container
+}
 
 type Props = {
   isOpen: boolean
@@ -15,6 +32,7 @@ type Props = {
   containerClassName?: string
   wrapperClassName?: string
   contentClassName?: string
+  onExitComplete?: () => void
 }
 
 const backdropVariants = {
@@ -74,9 +92,17 @@ export function GenericModal({
   containerClassName,
   wrapperClassName,
   contentClassName,
+  onExitComplete,
 }: Props) {
-  // Event handlers (Escape key, popstate) are managed by the parent component
-  // or by hooks like useInterventionModal to avoid duplication
+  // État pour indiquer si on est côté client (pour le portal)
+  const [isMounted, setIsMounted] = useState(false)
+  const portalContainerRef = useRef<HTMLElement | null>(null)
+  
+  // S'assurer qu'on est côté client avant d'utiliser le portal
+  useEffect(() => {
+    setIsMounted(true)
+    portalContainerRef.current = getPortalContainer()
+  }, [])
 
   const showBackdrop = mode === "centerpage"
 
@@ -92,7 +118,7 @@ export function GenericModal({
   const modalStyle = getModalStyle(mode)
 
   const modalContent = (
-    <AnimatePresence mode="wait">
+    <AnimatePresence mode="wait" onExitComplete={onExitComplete}>
       {isOpen ? (
         <>
           {showBackdrop && (
@@ -132,11 +158,13 @@ export function GenericModal({
     </AnimatePresence>
   )
 
-  if (mode === "fullpage" && typeof window !== "undefined") {
-    return createPortal(modalContent, document.body)
+  // Rendre tous les modals via un portal statique pour éviter tout déplacement de conteneur
+  // Côté serveur ou avant le montage, ne rien rendre
+  if (!isMounted || !portalContainerRef.current) {
+    return null
   }
 
-  return modalContent
+  return createPortal(modalContent, portalContainerRef.current)
 }
 
 export default GenericModal

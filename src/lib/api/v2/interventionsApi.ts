@@ -111,14 +111,15 @@ async function getReferenceCache(): Promise<ReferenceCache> {
 export const interventionsApi = {
   // Récupérer toutes les interventions (ULTRA-OPTIMISÉ)
   async getAll(params?: InterventionQueryParams): Promise<PaginatedResponse<InterventionWithStatus>> {
-    // Version ultra-rapide : requête simple sans joins complexes
+    // Version ultra-rapide : requête simple avec cache des coûts
     let query = supabase
       .from("interventions")
       .select(
         `
           *,
           status:intervention_statuses(id,code,label,color,sort_order),
-          payments:intervention_payments(*)
+          payments:intervention_payments(*),
+          costs_cache:intervention_costs_cache(total_ca,total_sst,total_materiel,total_marge)
         `,
         { count: "exact" }
       )
@@ -616,24 +617,51 @@ export const interventionsApi = {
       metadata?: any;
     }
   ): Promise<InterventionCost> {
-    const { data: result, error } = await supabase
-      .from('intervention_costs')
-      .insert({
-        intervention_id: interventionId,
-        cost_type: data.cost_type,
-        label: data.label || null,
-        amount: data.amount,
-        currency: data.currency || 'EUR',
-        metadata: data.metadata ? JSON.stringify(data.metadata) : null
-      })
-      .select()
-      .single();
-
-    if (error) {
-      throw new Error(`Erreur lors de l'ajout du coût: ${error.message}`);
+    // Valider l'UUID de l'intervention
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!interventionId || !uuidRegex.test(interventionId)) {
+      throw new Error(`ID d'intervention invalide: ${interventionId}`);
     }
 
-    return result;
+    // Valider le montant
+    if (typeof data.amount !== 'number' || isNaN(data.amount)) {
+      throw new Error(`Montant invalide: ${data.amount}`);
+    }
+
+    // Préparer les données d'insertion
+    const insertData = {
+      intervention_id: interventionId,
+      cost_type: data.cost_type,
+      label: data.label || null,
+      amount: data.amount,
+      currency: data.currency || 'EUR',
+      metadata: data.metadata || null // Ne pas stringify, Supabase gère automatiquement les objets vers jsonb
+    };
+
+    console.log('[addCost] Insertion du coût:', { interventionId, cost_type: data.cost_type, amount: data.amount });
+
+    try {
+      const { data: result, error } = await supabase
+        .from('intervention_costs')
+        .insert(insertData)
+        .select()
+        .single();
+
+      if (error) {
+        console.error('[addCost] Erreur Supabase:', { code: error.code, message: error.message, details: error.details, hint: error.hint });
+        throw new Error(`Erreur lors de l'ajout du coût: ${error.message || error.code || 'Erreur inconnue'}`);
+      }
+
+      console.log('[addCost] Coût ajouté avec succès:', result?.id);
+      return result;
+    } catch (err: any) {
+      // Capturer les erreurs réseau ou autres erreurs non-Supabase
+      console.error('[addCost] Erreur inattendue:', err);
+      if (err.message?.includes('invalid response') || err.message?.includes('upstream server')) {
+        throw new Error(`Erreur de connexion Supabase - veuillez réessayer: ${err.message}`);
+      }
+      throw err;
+    }
   },
 
   // Mettre à jour ou créer un coût pour une intervention (upsert)
@@ -647,12 +675,26 @@ export const interventionsApi = {
       metadata?: any;
     }
   ): Promise<InterventionCost> {
+    // Valider l'UUID de l'intervention
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!interventionId || !uuidRegex.test(interventionId)) {
+      throw new Error(`ID d'intervention invalide: ${interventionId}`);
+    }
+
+    // Valider le montant
+    if (typeof data.amount !== 'number' || isNaN(data.amount)) {
+      throw new Error(`Montant invalide: ${data.amount}`);
+    }
+
+    console.log('[upsertCost] Début upsert coût:', { interventionId, cost_type: data.cost_type, amount: data.amount });
+
     // "total" n'est pas un type valide pour la base de données, on le mappe vers "marge"
     const costType: "sst" | "materiel" | "intervention" | "marge" =
       data.cost_type === "total" ? "marge" : data.cost_type;
 
-    // Vérifier si le coût existe déjà
-    const { data: existingCost, error: findError } = await supabase
+    try {
+      // Vérifier si le coût existe déjà
+      const { data: existingCost, error: findError } = await supabase
       .from('intervention_costs')
       .select('id')
       .eq('intervention_id', interventionId)
@@ -665,13 +707,15 @@ export const interventionsApi = {
 
     if (existingCost) {
       // Mettre à jour le coût existant
+      console.log('[upsertCost] Mise à jour du coût existant:', { id: existingCost.id, cost_type: costType, amount: data.amount });
+      
       const { data: result, error: updateError } = await supabase
         .from('intervention_costs')
         .update({
           amount: data.amount,
           label: data.label || null,
           currency: data.currency || 'EUR',
-          metadata: data.metadata ? JSON.stringify(data.metadata) : null,
+          metadata: data.metadata || null, // Ne pas stringify
           updated_at: new Date().toISOString()
         })
         .eq('id', existingCost.id)
@@ -679,9 +723,28 @@ export const interventionsApi = {
         .single();
 
       if (updateError) {
-        throw new Error(`Erreur lors de la mise à jour du coût: ${updateError.message}`);
+        // Logger l'erreur complète pour le diagnostic (l'erreur Supabase peut avoir des propriétés non-standard)
+        console.error('[upsertCost] Erreur mise à jour complète:', updateError);
+        console.error('[upsertCost] Erreur mise à jour JSON:', JSON.stringify(updateError, null, 2));
+        console.error('[upsertCost] Erreur mise à jour props:', { 
+          code: updateError.code, 
+          message: updateError.message, 
+          details: updateError.details,
+          hint: (updateError as any).hint,
+          status: (updateError as any).status,
+          statusText: (updateError as any).statusText
+        });
+        
+        // Construire un message d'erreur plus informatif
+        const errorMessage = updateError.message 
+          || updateError.code 
+          || (updateError as any).hint 
+          || JSON.stringify(updateError) 
+          || 'Erreur inconnue';
+        throw new Error(`Erreur lors de la mise à jour du coût: ${errorMessage}`);
       }
 
+      console.log('[upsertCost] Coût mis à jour avec succès');
       return result;
     } else {
       // Créer un nouveau coût avec le type mappé
@@ -689,6 +752,14 @@ export const interventionsApi = {
         ...data,
         cost_type: costType
       });
+    }
+    } catch (err: any) {
+      // Capturer les erreurs réseau ou autres erreurs non-Supabase
+      console.error('[upsertCost] Erreur inattendue:', err);
+      if (err.message?.includes('invalid response') || err.message?.includes('upstream server')) {
+        throw new Error(`Erreur de connexion Supabase - veuillez réessayer: ${err.message}`);
+      }
+      throw err;
     }
   },
 

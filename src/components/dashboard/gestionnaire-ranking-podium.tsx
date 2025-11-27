@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useMemo } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Switch } from "@/components/ui/switch"
+import { StyledSwitch } from "@/components/ui/styled-switch"
 import { Label } from "@/components/ui/label"
 import { interventionsApi } from "@/lib/api/v2"
 import type { MarginRankingResult } from "@/lib/api/v2"
@@ -148,7 +148,7 @@ export function GestionnaireRankingPodium({ period }: GestionnaireRankingPodiumP
             <Label htmlFor="sort-switch" className="text-sm text-muted-foreground cursor-pointer">
               Marge
             </Label>
-            <Switch
+            <StyledSwitch
               id="sort-switch"
               checked={sortBy === 'revenue'}
               onCheckedChange={(checked) => setSortBy(checked ? 'revenue' : 'margin')}
