@@ -146,13 +146,17 @@ BEGIN
     -- Mettre à jour la date de transition pour préserver l'ordre
     -- (la fonction log_status_transition_from_api utilise now() par défaut,
     -- donc on doit mettre à jour manuellement)
+    -- Note: PostgreSQL ne supporte pas ORDER BY/LIMIT dans UPDATE, on utilise une sous-requête
     UPDATE public.intervention_status_transitions
     SET transition_date = transition_date_base + ((i - 1) * transition_delay_ms * INTERVAL '1 millisecond')
-    WHERE intervention_id = p_intervention_id
-      AND to_status_id = current_to_status_id
-      AND transition_date > transition_date_base - INTERVAL '1 second'
-    ORDER BY created_at DESC
-    LIMIT 1;
+    WHERE id = (
+      SELECT id FROM public.intervention_status_transitions
+      WHERE intervention_id = p_intervention_id
+        AND to_status_id = current_to_status_id
+        AND transition_date > transition_date_base - INTERVAL '1 second'
+      ORDER BY created_at DESC
+      LIMIT 1
+    );
     
     transitions_created := transitions_created + 1;
   END LOOP;
