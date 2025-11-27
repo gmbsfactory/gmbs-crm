@@ -233,6 +233,9 @@ export const mapInterventionRecord = (item: any, refs: any): any => {
   // Extraction des coûts depuis intervention_costs
   const interventionCosts = Array.isArray(item.intervention_costs) ? item.intervention_costs : []
 
+  // Extraction des coûts depuis le cache (intervention_costs_cache)
+  const costsCache = item.costs_cache ?? null
+
   return {
     ...item,
     tenant_id: tenantId,
@@ -244,10 +247,11 @@ export const mapInterventionRecord = (item: any, refs: any): any => {
     costs: interventionCosts, // Liste des coûts avec leurs labels
     payments: Array.isArray(item.payments) ? item.payments : [],
     attachments: Array.isArray(item.attachments) ? item.attachments : [],
-    coutIntervention: item.cout_intervention ?? item.coutIntervention ?? null,
-    coutSST: item.cout_sst ?? item.coutSST ?? null,
-    coutMateriel: item.cout_materiel ?? item.coutMateriel ?? null,
-    marge: item.marge ?? null,
+    // Utiliser le cache des coûts si disponible, sinon fallback sur les champs directs
+    coutIntervention: costsCache?.total_ca ?? item.cout_intervention ?? item.coutIntervention ?? null,
+    coutSST: costsCache?.total_sst ?? item.cout_sst ?? item.coutSST ?? null,
+    coutMateriel: costsCache?.total_materiel ?? item.cout_materiel ?? item.coutMateriel ?? null,
+    marge: costsCache?.total_marge ?? item.marge ?? null,
     agence: agency?.label ?? item.agence ?? item.agence_id ?? null,
     agenceLabel: agency?.label ?? null,
     agenceCode: agency?.code ?? null,

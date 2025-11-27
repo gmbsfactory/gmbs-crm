@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect } from "react"
+import { useCallback, useEffect, useRef } from "react"
 import { GenericModal } from "@/components/ui/modal"
 import { useModalDisplay } from "@/contexts/ModalDisplayContext"
 import { useModalState } from "@/hooks/useModalState"
@@ -40,6 +40,42 @@ export function InterventionModal({
   const setSourceLayoutId = useModalState((state) => state.setSourceLayoutId)
   const setOverrideMode = useModalState((state) => state.setOverrideMode)
   const sourceLayoutId = useModalState((state) => state.sourceLayoutId)
+  // Waiters résolus par AnimatePresence.onExitComplete pour garantir que le DOM du modal est démonté
+  const exitWaitersRef = useRef<Array<() => void>>([])
+
+  const waitForExit = useCallback(() => {
+    return new Promise<void>((resolve) => {
+      exitWaitersRef.current.push(resolve)
+    })
+  }, [])
+
+  const handleExitComplete = useCallback(() => {
+    const waiters = exitWaitersRef.current
+    exitWaitersRef.current = []
+    waiters.forEach((fn) => {
+      try {
+        fn()
+      } catch {
+        // ignorer
+      }
+    })
+  }, [])
+
+  // Fallback : si le modal est démonté sans animation (ex: shouldRenderIntervention=false),
+  // on résout quand même les promesses en attente pour ne pas bloquer les invalidations.
+  useEffect(() => {
+    if (!isOpen && exitWaitersRef.current.length) {
+      const waiters = exitWaitersRef.current
+      exitWaitersRef.current = []
+      waiters.forEach((fn) => {
+        try {
+          fn()
+        } catch {
+          // ignorer
+        }
+      })
+    }
+  }, [isOpen])
 
   useEffect(() => {
     return () => {
@@ -76,6 +112,7 @@ export function InterventionModal({
         interventionId={interventionId}
         mode={effectiveMode}
         onClose={onClose}
+        waitForExit={waitForExit}
         onNext={onNext}
         onPrevious={onPrevious}
         canNext={canNext}
@@ -97,6 +134,7 @@ export function InterventionModal({
       onClose={onClose}
       mode={effectiveMode}
       layoutId={sourceLayoutId ?? undefined}
+      onExitComplete={handleExitComplete}
     >
       {renderedContent}
     </GenericModal>
