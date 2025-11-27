@@ -38,7 +38,7 @@ export function createBroadcastSync(queryClient: QueryClient) {
   const TIMESTAMP_TTL = 5000 // 5 secondes
 
   // Nettoyer les timestamps expirés périodiquement
-  setInterval(() => {
+  const cleanupInterval = setInterval(() => {
     const now = Date.now()
     for (const ts of recentTimestamps) {
       if (now - ts > TIMESTAMP_TTL) {
@@ -144,6 +144,7 @@ export function createBroadcastSync(queryClient: QueryClient) {
      * Fermer le channel
      */
     close() {
+      clearInterval(cleanupInterval)
       channel.close()
     },
   }
@@ -155,5 +156,4 @@ declare global {
     __lastBroadcastTimestamp?: number
   }
 }
-
 

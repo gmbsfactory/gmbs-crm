@@ -156,10 +156,12 @@ export function useInterventionsQuery(
     queryKey,
     queryFn,
     enabled,
-    // Stale time à 0 pour permettre les mises à jour realtime immédiates
-    // Les mises à jour realtime via setQueryData seront immédiatement visibles dans l'UI
-    // sans attendre 30 secondes
-    staleTime: 0,
+    // Stale court pour limiter le trafic tout en gardant la réactivité via Realtime/optimistic
+    staleTime: 15 * 1000,
+    // Éviter de refetch sur focus (Realtime/polling assurent déjà la fraîcheur)
+    refetchOnWindowFocus: false,
+    // Libérer les pages non utilisées pour éviter l'accumulation en mémoire
+    gcTime: 5 * 60 * 1000,
     // Utiliser les données light préchargées comme placeholder si disponibles
     // Cela permet d'afficher instantanément les données préchargées pendant le chargement des données complètes
     placeholderData: (previousData) => {
@@ -186,7 +188,9 @@ export function useInterventionsQuery(
     const newArray = [...result]
     const firstId = newArray[0]?.id ?? 'none'
     const lastId = newArray[newArray.length - 1]?.id ?? 'none'
-    console.log(`[useInterventionsQuery] interventions mis à jour - length: ${newArray.length}, page: ${page}, offset: ${offset}, firstId: ${firstId}, lastId: ${lastId}`)
+    if (process.env.NODE_ENV !== 'production') {
+      console.log(`[useInterventionsQuery] interventions mis à jour - length: ${newArray.length}, page: ${page}, offset: ${offset}, firstId: ${firstId}, lastId: ${lastId}`)
+    }
     return newArray
   }, [data?.data, page, offset])
   const totalCount = useMemo(() => data?.total ?? 0, [data?.total])
@@ -290,23 +294,22 @@ export function useInterventionsQuery(
       if (!id || !updates) return
 
       // Mettre à jour toutes les queries de listes qui contiennent cette intervention
-      queryClient.setQueriesData(
-        { queryKey: interventionKeys.invalidateLists() },
-        (oldData: any) => {
-          if (!oldData?.data || !Array.isArray(oldData.data)) {
-            return oldData
-          }
-
-          const updatedData = oldData.data.map((intervention: InterventionView) =>
-            intervention.id === id ? { ...intervention, ...updates } : intervention
-          )
-
-          return {
-            ...oldData,
-            data: updatedData,
-          }
+      const updateLists = (oldData: any) => {
+        if (!oldData?.data || !Array.isArray(oldData.data)) {
+          return oldData
         }
-      )
+
+        const updatedData = oldData.data.map((intervention: InterventionView) =>
+          intervention.id === id ? { ...intervention, ...updates } : intervention
+        )
+
+        return {
+          ...oldData,
+          data: updatedData,
+        }
+      }
+      queryClient.setQueriesData({ queryKey: interventionKeys.lists() }, updateLists)
+      queryClient.setQueriesData({ queryKey: interventionKeys.lightLists() }, updateLists)
 
       // Mettre à jour aussi la query de détail si elle existe
       queryClient.setQueryData(
@@ -334,4 +337,3 @@ export function useInterventionsQuery(
     updateInterventionOptimistic,
   }
 }
-

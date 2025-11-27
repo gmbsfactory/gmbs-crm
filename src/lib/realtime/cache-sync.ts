@@ -302,6 +302,10 @@ export async function syncCacheWithRealtimeEvent(
       queryKey: interventionKeys.invalidateLists(),
       refetchType: 'active', // Forcer le re-render des queries actives (celles utilisées par les composants montés)
     })
+    queryClient.invalidateQueries({
+      queryKey: interventionKeys.invalidateLightLists(),
+      refetchType: 'active',
+    })
   }, 0)
 
   // US7: Détecter les modifications distantes et créer des indicateurs
@@ -419,8 +423,8 @@ export async function syncCacheWithRealtimeEvent(
 
   // Note: L'invalidation immédiate ci-dessus avec refetchType: 'active' garantit déjà
   // que les queries actives sont marquées comme stale et déclenchent un re-render.
-  // Avec staleTime: 0, les données sont toujours considérées comme stale,
-  // donc le re-render se produit immédiatement après setQueryData.
+  // Avec un staleTime court, les données restent rapidement périmées,
+  // donc le re-render se produit immédiatement après setQueryData + invalidation.
 
   // Rafraîchir les compteurs si nécessaire
   if (shouldRefreshCounts(eventType, oldIntervention as Intervention | null, enrichedNewRecord)) {
@@ -431,6 +435,11 @@ export async function syncCacheWithRealtimeEvent(
   if (broadcastSync && enrichedNewRecord) {
     broadcastSync.broadcastRealtimeEvent(
       interventionKeys.invalidateLists(),
+      eventType,
+      enrichedNewRecord.id
+    )
+    broadcastSync.broadcastRealtimeEvent(
+      interventionKeys.invalidateLightLists(),
       eventType,
       enrichedNewRecord.id
     )
@@ -887,6 +896,10 @@ function handleAccessRevoked(
       queryKey: interventionKeys.invalidateLists(),
       refetchType: 'active',
     })
+    queryClient.invalidateQueries({
+      queryKey: interventionKeys.invalidateLightLists(),
+      refetchType: 'active',
+    })
   }, 0)
 
   debouncedRefreshCounts(queryClient)
@@ -902,6 +915,11 @@ function handleAccessRevoked(
   if (broadcastSync) {
     broadcastSync.broadcastRealtimeEvent(
       interventionKeys.invalidateLists(),
+      'DELETE',
+      revokedRecord.id
+    )
+    broadcastSync.broadcastRealtimeEvent(
+      interventionKeys.invalidateLightLists(),
       'DELETE',
       revokedRecord.id
     )

@@ -28,6 +28,7 @@ export function NewInterventionModalContent({ mode, onClose, onCycleMode }: Prop
       
       // Invalider toutes les listes d'interventions pour recharger avec la nouvelle intervention
       await queryClient.invalidateQueries({ queryKey: interventionKeys.invalidateLists() })
+      await queryClient.invalidateQueries({ queryKey: interventionKeys.invalidateLightLists() })
       
       // Fermer le modal
       onClose()

@@ -50,9 +50,13 @@ export function useInterventionsRealtime() {
 
     pollingIntervalRef.current = setInterval(() => {
       console.log('[Realtime] Polling: invalidation des queries actives')
-      // Invalider les queries actives pour forcer le refetch
+      // Invalider uniquement les listes (complètes + light) pour limiter le trafic
       queryClient.invalidateQueries({
         queryKey: interventionKeys.invalidateLists(),
+        refetchType: 'active',
+      })
+      queryClient.invalidateQueries({
+        queryKey: interventionKeys.invalidateLightLists(),
         refetchType: 'active',
       })
     }, POLLING_INTERVAL)
@@ -173,4 +177,3 @@ export function useInterventionsRealtime() {
 
   return { connectionStatus }
 }
-
