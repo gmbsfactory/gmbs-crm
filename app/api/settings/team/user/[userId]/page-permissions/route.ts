@@ -3,7 +3,9 @@ import { supabaseAdmin } from "@/lib/supabase-admin"
 
 export const runtime = "nodejs"
 
-type Params = { params: { userId?: string } }
+type RouteContext = {
+  params: Promise<{ userId: string }>
+}
 
 const normalizeEntries = (raw: any): Array<{ page_key: string; has_access: boolean }> => {
   if (!raw) return []
@@ -32,9 +34,9 @@ const normalizeEntries = (raw: any): Array<{ page_key: string; has_access: boole
   return []
 }
 
-export async function GET(_req: Request, { params }: Params) {
+export async function GET(_req: Request, context: RouteContext) {
   if (!supabaseAdmin) return NextResponse.json({ error: "No DB" }, { status: 500 })
-  const userId = params?.userId
+  const { userId } = await context.params
   if (!userId) return NextResponse.json({ error: "userId required" }, { status: 400 })
 
   const { data, error } = await supabaseAdmin
@@ -55,9 +57,9 @@ export async function GET(_req: Request, { params }: Params) {
   return NextResponse.json({ permissions })
 }
 
-export async function POST(req: Request, { params }: Params) {
+export async function POST(req: Request, context: RouteContext) {
   if (!supabaseAdmin) return NextResponse.json({ error: "No DB" }, { status: 500 })
-  const userId = params?.userId
+  const { userId } = await context.params
   if (!userId) return NextResponse.json({ error: "userId required" }, { status: 400 })
 
   const body = await req.json().catch(() => ({} as Record<string, unknown>))

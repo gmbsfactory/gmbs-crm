@@ -239,7 +239,7 @@ export default function ComptabilitePage() {
           limit: 1000,
         })
         let filtered = (data || []).filter((intervention) => {
-          const statusCode = (intervention.status?.code || intervention.statut || intervention.statusValue || "").toUpperCase()
+          const statusCode = (intervention.status?.code || (intervention as any).statusValue || (intervention as any).statut || "").toUpperCase()
           return statusCode === "INTER_TERMINEE"
         })
 
@@ -353,15 +353,16 @@ export default function ComptabilitePage() {
       const acompteArtisan = getPaymentInfo(intervention, "acompte_artisan")
       
       // Nettoyer toutes les valeurs pour éviter les retours à la ligne
+      const inter = intervention as any
       return [
-        cleanValue(formatDate((intervention as any).dateIntervention ?? intervention.date)),
-        cleanValue(intervention.agenceLabel || intervention.agence || "—"),
-        cleanValue(intervention.assignedUserName || intervention.attribueA || "—"),
+        cleanValue(formatDate(inter.dateIntervention ?? intervention.date)),
+        cleanValue(inter.agenceLabel || inter.agence || "—"),
+        cleanValue(inter.assignedUserName || inter.attribueA || "—"),
         cleanValue(intervention.id_inter || "—"),
         cleanValue(formatClientName(intervention)),
         cleanValue(formatAddress(intervention)),
         cleanValue(getMetierLabel(intervention)),
-        cleanValue(intervention.contexteIntervention ?? intervention.contexte_intervention ?? "—"),
+        cleanValue(inter.contexteIntervention ?? intervention.contexte_intervention ?? "—"),
         cleanValue(formatCurrency(getCostAmountByType(intervention, "materiel"))),
         cleanValue(formatCurrency(getCostAmountByType(intervention, "intervention"))),
         cleanValue(formatCurrency(getCostAmountByType(intervention, "sst"))),
@@ -620,10 +621,10 @@ export default function ComptabilitePage() {
                       <TruncatedCell content={formatDate((intervention as any).dateIntervention ?? intervention.date)} maxWidth="75px" />
                     </TableCell>
                     <TableCell>
-                      <TruncatedCell content={intervention.agenceLabel || intervention.agence || "—"} maxWidth="70px" />
+                      <TruncatedCell content={(intervention as any).agenceLabel || (intervention as any).agence || "—"} maxWidth="70px" />
                     </TableCell>
                     <TableCell>
-                      <TruncatedCell content={intervention.assignedUserName || intervention.attribueA || "—"} maxWidth="70px" />
+                      <TruncatedCell content={(intervention as any).assignedUserName || (intervention as any).attribueA || "—"} maxWidth="70px" />
                     </TableCell>
                     <TableCell>
                       <TruncatedCell content={intervention.id_inter || "—"} maxWidth="60px" />
@@ -639,7 +640,7 @@ export default function ComptabilitePage() {
                     </TableCell>
                     <TableCell>
                       <TruncatedCell
-                        content={intervention.contexteIntervention ?? intervention.contexte_intervention ?? "—"}
+                        content={(intervention as any).contexteIntervention ?? intervention.contexte_intervention ?? "—"}
                         maxWidth="130px"
                       />
                     </TableCell>
