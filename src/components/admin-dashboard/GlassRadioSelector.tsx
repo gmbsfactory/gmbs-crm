@@ -39,20 +39,36 @@ const GlassRadioSelector: React.FC<GlassRadioSelectorProps> = ({ value, onChange
 
 const StyledWrapper = styled.div<{ $optionsCount: number }>`
   .glass-radio-group {
-    --bg: rgba(255, 255, 255, 0.06);
-    --text: #e5e5e5;
+    /* Mode clair par défaut - contraste amélioré */
+    --bg: rgba(255, 255, 255, 0.4);
+    --text: #1a1a1a;
+    --text-hover: #000000;
+    --text-checked: #ffffff;
     display: flex;
     position: relative;
     background: var(--bg);
     border-radius: 0.5rem;
     backdrop-filter: blur(12px);
     box-shadow:
-      inset 1px 1px 4px rgba(255, 255, 255, 0.2),
-      inset -1px -1px 6px rgba(0, 0, 0, 0.3),
-      0 4px 12px rgba(0, 0, 0, 0.15);
+      inset 1px 1px 4px rgba(255, 255, 255, 0.5),
+      inset -1px -1px 6px rgba(0, 0, 0, 0.1),
+      0 4px 12px rgba(0, 0, 0, 0.1);
     overflow: hidden;
     width: 240px;
     transform: scale(0.85);
+  }
+
+  /* Mode sombre - styles originaux */
+  :global(.dark) .glass-radio-group,
+  :global([data-theme="dark"]) .glass-radio-group {
+    --bg: rgba(255, 255, 255, 0.06);
+    --text: #e5e5e5;
+    --text-hover: #ffffff;
+    --text-checked: #ffffff;
+    box-shadow:
+      inset 1px 1px 4px rgba(255, 255, 255, 0.2),
+      inset -1px -1px 6px rgba(0, 0, 0, 0.3),
+      0 4px 12px rgba(0, 0, 0, 0.15);
   }
 
   .glass-radio-group input {
@@ -78,11 +94,11 @@ const StyledWrapper = styled.div<{ $optionsCount: number }>`
   }
 
   .glass-radio-group label:hover {
-    color: white;
+    color: var(--text-hover);
   }
 
   .glass-radio-group input:checked + label {
-    color: #fff;
+    color: var(--text-checked);
   }
 
   .glass-glider {

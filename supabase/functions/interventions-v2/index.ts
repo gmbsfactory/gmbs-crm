@@ -994,7 +994,7 @@ serve(async (req: Request) => {
         .from('interventions')
         .select(lightSelect, { count: 'exact' })
         .eq('is_active', true)
-        .order('date', { ascending: false })
+        .order('created_at', { ascending: false })
         .order('id', { ascending: false });
 
       query = applyFilters(query, filters);
@@ -1195,7 +1195,7 @@ serve(async (req: Request) => {
         .from('interventions')
         .select(selectClause, { count: 'exact' })
         .eq('is_active', true)
-        .order('date', { ascending: false })
+        .order('created_at', { ascending: false })
         .order('id', { ascending: false });
 
       query = applyFilters(query, filters);

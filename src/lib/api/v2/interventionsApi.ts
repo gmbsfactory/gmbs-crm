@@ -2498,7 +2498,7 @@ export const interventionsApi = {
     console.log('\n🔧 ========================================');
     console.log('🔧 STATISTIQUES PAR MÉTIER (Top 5)');
     console.log('🔧 ========================================');
-    metierStats.slice(0, 5).forEach((metier, index) => {
+    metierStats.slice(0, 5).forEach((metier: any, index: number) => {
       console.log(`${index + 1}. ${metier.metierLabel}: ${metier.count} interventions (${metier.percentage.toFixed(1)}%)`);
     });
     if (metierStats.length > 5) {

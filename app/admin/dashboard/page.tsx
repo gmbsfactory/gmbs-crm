@@ -688,7 +688,7 @@ export default function AdminDashboardPage() {
                           <CartesianGrid strokeDasharray="3 3" horizontal={false} />
                           <XAxis 
                             type="number" 
-                            tick={{ fontSize: 10, angle: -45, textAnchor: 'end' }}
+                            tick={{ fontSize: 10 }}
                             tickCount={3}
                             domain={[0, 'auto']}
                             tickFormatter={(value) => {
