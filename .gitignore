@@ -52,6 +52,11 @@ package-lock.json
 /supabase/functions/credentials.json
 credentials.json
 
+# Scripts avec données sensibles (mots de passe)
+scripts/create-auth-credentials.js
+tuto/RESET_PRODUCTION_COMPLET.md
+docs/GUIDE_REPARATION_MIGRATIONS.md
+
 # Données sensibles
 /data
 
