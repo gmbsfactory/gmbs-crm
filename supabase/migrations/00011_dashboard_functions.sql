@@ -191,9 +191,27 @@ BEGIN
     GROUP BY ts.day ORDER BY ts.day
   ),
   metier_breakdown AS (
-    SELECT ip.metier_id, COUNT(*)::integer as count
-    FROM interventions_filtrees ip WHERE ip.metier_id IS NOT NULL
-    GROUP BY ip.metier_id ORDER BY count DESC LIMIT 10
+    SELECT 
+      ip.metier_id, 
+      COUNT(*)::integer as total_interventions,
+      COUNT(DISTINCT CASE WHEN tp.to_status_code = p_terminee_status_code THEN tp.intervention_id END)::integer as terminated_interventions
+    FROM interventions_filtrees ip 
+    LEFT JOIN transitions_periode tp ON tp.intervention_id = ip.id
+    WHERE ip.metier_id IS NOT NULL 
+    GROUP BY ip.metier_id 
+    ORDER BY total_interventions DESC LIMIT 10
+  ),
+  metier_financials AS (
+    SELECT 
+      ip.metier_id, 
+      COALESCE(SUM(p.total_paiements), 0)::numeric as total_paiements, 
+      COALESCE(SUM(c.total_couts), 0)::numeric as total_couts
+    FROM interventions_filtrees ip
+    LEFT JOIN financial_interventions fi ON fi.intervention_id = ip.id
+    LEFT JOIN paiements_agreges p ON p.intervention_id = ip.id
+    LEFT JOIN couts_agreges c ON c.intervention_id = ip.id
+    WHERE ip.metier_id IS NOT NULL 
+    GROUP BY ip.metier_id
   ),
   agency_breakdown AS (
     SELECT ip.agence_id, COUNT(*)::integer as total_interventions,
@@ -252,7 +270,20 @@ BEGIN
     ),
     'sparklines', (SELECT jsonb_agg(jsonb_build_object('date', sd.date, 'countDemandees', sd.count_demandees, 'countTerminees', sd.count_terminees)) FROM sparkline_data sd),
     'statusBreakdown', (SELECT COALESCE(jsonb_agg(jsonb_build_object('statut_code', sb.statut_code, 'count', sb.count)), '[]'::jsonb) FROM status_breakdown sb),
-    'metierBreakdown', (SELECT COALESCE(jsonb_agg(jsonb_build_object('metier_id', mb.metier_id, 'count', mb.count)), '[]'::jsonb) FROM metier_breakdown mb),
+    'metierBreakdown', (
+      SELECT COALESCE(jsonb_agg(
+        jsonb_build_object(
+          'metier_id', mb.metier_id,
+          'totalInterventions', mb.total_interventions,
+          'terminatedInterventions', mb.terminated_interventions,
+          'totalPaiements', COALESCE(mf.total_paiements, 0),
+          'totalCouts', COALESCE(mf.total_couts, 0),
+          'marge', COALESCE(mf.total_paiements, 0) - COALESCE(mf.total_couts, 0)
+        )
+      ), '[]'::jsonb)
+      FROM metier_breakdown mb
+      LEFT JOIN metier_financials mf ON mf.metier_id = mb.metier_id
+    ),
     'agencyBreakdown', (SELECT COALESCE(jsonb_agg(jsonb_build_object('agence_id', a.agence_id, 'totalInterventions', a.total_interventions, 'terminatedInterventions', a.terminated_interventions, 'avgCycleTime', a.avg_cycle_time, 'totalPaiements', COALESCE(af.total_paiements, 0), 'totalCouts', COALESCE(af.total_couts, 0), 'marge', COALESCE(af.total_paiements, 0) - COALESCE(af.total_couts, 0))), '[]'::jsonb) FROM agency_breakdown a LEFT JOIN agency_financials af ON af.agence_id = a.agence_id),
     'gestionnaireBreakdown', (SELECT COALESCE(jsonb_agg(jsonb_build_object('gestionnaire_id', g.gestionnaire_id, 'totalInterventions', g.total_interventions, 'terminatedInterventions', g.terminated_interventions, 'avgCycleTime', g.avg_cycle_time, 'totalPaiements', COALESCE(gf.total_paiements, 0), 'totalCouts', COALESCE(gf.total_couts, 0), 'marge', COALESCE(gf.total_paiements, 0) - COALESCE(gf.total_couts, 0))), '[]'::jsonb) FROM gestionnaire_breakdown g LEFT JOIN gestionnaire_financials gf ON gf.gestionnaire_id = g.gestionnaire_id)
   ) INTO result;
@@ -342,4 +373,3 @@ $$;
 
 COMMENT ON FUNCTION public.get_podium_ranking_by_period IS 'Fonction RPC pour le classement du podium des gestionnaires';
 GRANT EXECUTE ON FUNCTION public.get_podium_ranking_by_period TO authenticated;
-

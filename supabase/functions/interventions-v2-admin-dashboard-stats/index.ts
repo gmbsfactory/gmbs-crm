@@ -311,42 +311,79 @@ async function getMetierStats(
   periodStartTimestamp: string,
   periodEndTimestamp: string
 ): Promise<MetierStat[]> {
-  // Récupérer toutes les interventions de la période avec leurs métiers
+  // Interventions de la période (prises + terminées)
   const { data: interventions } = await supabase
     .from('interventions')
     .select(`
+      id,
       metier_id,
-      metiers!inner(id, label)
+      metiers!inner(id, label),
+      intervention_costs!inner(cost_type, amount)
     `)
     .eq('is_active', true)
     .gte('date', periodStartTimestamp)
     .lt('date', `${periodEnd}T23:59:59`)
     .not('metier_id', 'is', null);
 
-  // Compter par métier
-  const metierCounts: Record<string, { label: string; count: number }> = {};
-  let total = 0;
+  // Interventions terminées (pour terminées + finances)
+  const { data: transitionsTerminees } = await supabase
+    .from('intervention_status_transitions')
+    .select('intervention_id')
+    .eq('to_status_code', 'INTER_TERMINEE')
+    .gte('transition_date', periodStartTimestamp)
+    .lte('transition_date', periodEndTimestamp);
+
+  const termineeIds = new Set(transitionsTerminees?.map((t: any) => t.intervention_id) || []);
+
+  const metierMap: Record<string, {
+    label: string;
+    prises: number;
+    terminees: number;
+    ca: number;
+    couts: number;
+  }> = {};
 
   if (interventions) {
     interventions.forEach((item: any) => {
       const metier = item.metiers;
-      if (metier && metier.id) {
-        if (!metierCounts[metier.id]) {
-          metierCounts[metier.id] = { label: metier.label || 'Inconnu', count: 0 };
-        }
-        metierCounts[metier.id].count++;
-        total++;
+      if (!metier || !metier.id) return;
+      if (!metierMap[metier.id]) {
+        metierMap[metier.id] = { label: metier.label || 'Inconnu', prises: 0, terminees: 0, ca: 0, couts: 0 };
       }
+      const m = metierMap[metier.id];
+      m.prises += 1;
+      if (termineeIds.has(item.id)) {
+        m.terminees += 1;
+      }
+      (item.intervention_costs || []).forEach((cost: any) => {
+        if (cost.cost_type === 'intervention') {
+          m.ca += Number(cost.amount || 0);
+        }
+        if (cost.cost_type === 'sst' || cost.cost_type === 'materiel') {
+          m.couts += Number(cost.amount || 0);
+        }
+      });
     });
   }
 
-  // Calculer les pourcentages
-  return Object.entries(metierCounts).map(([metierId, data]) => ({
-    metierId,
-    metierLabel: data.label,
-    count: data.count,
-    percentage: total > 0 ? Math.round((data.count / total) * 10000) / 100 : 0,
-  })).sort((a, b) => b.count - a.count);
+  const totalPrises = Object.values(metierMap).reduce((sum, m) => sum + m.prises, 0);
+
+  return Object.entries(metierMap).map(([metierId, data]) => {
+    const marge = data.ca - data.couts;
+    const tauxMarge = data.ca > 0 ? Math.round((marge / data.ca) * 100) : 0;
+    return {
+      metierId,
+      metierLabel: data.label,
+      nbInterventionsPrises: data.prises,
+      nbInterventionsTerminees: data.terminees,
+      ca: data.ca,
+      couts: data.couts,
+      marge,
+      tauxMarge,
+      percentage: totalPrises > 0 ? Math.round((data.prises / totalPrises) * 10000) / 100 : 0,
+      count: data.prises,
+    };
+  }).sort((a, b) => b.nbInterventionsPrises - a.nbInterventionsPrises);
 }
 
 async function getAgencyStats(
@@ -449,4 +486,3 @@ async function getAgencyStats(
 
   return agencyStats.sort((a, b) => b.ca - a.ca);
 }
-

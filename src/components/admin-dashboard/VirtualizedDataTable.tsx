@@ -66,6 +66,8 @@ export function VirtualizedDataTable<TData, TValue>({
     const { rows } = table.getRowModel()
 
     const parentRef = useRef<HTMLDivElement>(null)
+    const headerRef = useRef<HTMLTableSectionElement>(null)
+    const [tableWidth, setTableWidth] = useState<number>(0)
 
     const virtualizer = useVirtualizer({
         count: rows.length,
@@ -74,6 +76,59 @@ export function VirtualizedDataTable<TData, TValue>({
         overscan: 10,
     })
 
+    // Calculer la largeur totale du tableau basée sur les colonnes
+    const totalTableWidth = useMemo(() => {
+        return table.getHeaderGroups()[0]?.headers.reduce((sum, header) => {
+            return sum + (header.column.getSize() || 150)
+        }, 0) || 0
+    }, [table])
+
+    // Calculer les proportions de chaque colonne (en pourcentage) - Map par columnId
+    const columnProportions = useMemo(() => {
+        const headers = table.getHeaderGroups()[0]?.headers || []
+        const proportionsMap = new Map<string, { proportion: number; minWidth: number }>()
+        headers.forEach((header) => {
+            const columnSize = header.column.getSize() || 150
+            proportionsMap.set(header.column.id, {
+                proportion: totalTableWidth > 0 ? (columnSize / totalTableWidth) * 100 : 0,
+                minWidth: columnSize,
+            })
+        })
+        return proportionsMap
+    }, [table, totalTableWidth])
+
+    // Mesurer la largeur réelle du header après rendu avec ResizeObserver
+    useEffect(() => {
+        if (!headerRef.current) return
+
+        const updateTableWidth = () => {
+            if (headerRef.current) {
+                const headerWidth = headerRef.current.offsetWidth
+                if (headerWidth > 0) {
+                    setTableWidth(headerWidth)
+                }
+            }
+        }
+        
+        // Mesurer immédiatement
+        updateTableWidth()
+        
+        // Utiliser ResizeObserver pour détecter les changements de taille
+        const resizeObserver = new ResizeObserver(() => {
+            updateTableWidth()
+        })
+        
+        resizeObserver.observe(headerRef.current)
+        
+        // Également écouter les changements de fenêtre
+        window.addEventListener('resize', updateTableWidth)
+        
+        return () => {
+            resizeObserver.disconnect()
+            window.removeEventListener('resize', updateTableWidth)
+        }
+    }, [table, columnProportions, filteredData])
+
     // Force recalculation when data changes
     useEffect(() => {
         virtualizer.measure()
@@ -81,38 +136,28 @@ export function VirtualizedDataTable<TData, TValue>({
 
     const tableContent = (
         <div className={noCard ? "w-full" : "rounded-md border border-border/50"}>
-            {/* Virtualized Body with Header */}
-            <div
-                ref={parentRef}
-                style={{
-                    height: `${height}px`,
-                    overflowX: "auto",
-                    overflowY: "auto",
-                    position: "relative",
-                }}
-                className="w-full"
-            >
-                <div
-                    style={{
-                        height: `${virtualizer.getTotalSize()}px`,
-                        width: "100%",
-                        position: "relative",
-                    }}
-                >
+            <div className="w-full overflow-x-auto">
+                <div className="min-w-full">
+                    {/* Header stays visible; body handles scroll */}
                     <Table style={{ tableLayout: "fixed", width: "100%" }}>
-                        <TableHeader className={`sticky top-0 z-10 border-b ${noCard ? "bg-background" : "bg-muted/80 backdrop-blur-sm"}`}>
+                        <TableHeader
+                            ref={headerRef}
+                            className={`border-b ${noCard ? "bg-background" : "bg-muted/80 backdrop-blur-sm"}`}
+                        >
                             {table.getHeaderGroups().map((headerGroup) => (
                                 <TableRow key={headerGroup.id} className="hover:bg-transparent border-b">
                                     {headerGroup.headers.map((header) => {
                                         const columnSize = header.column.getSize() || 150
+                                        const columnProps = columnProportions.get(header.column.id)
+                                        const proportion = columnProps?.proportion || 0
+                                        const minWidth = columnProps?.minWidth || columnSize
                                         return (
                                             <TableHead
                                                 key={header.id}
                                                 colSpan={header.colSpan}
                                                 style={{
-                                                    width: `${columnSize}px`,
-                                                    minWidth: `${columnSize}px`,
-                                                    maxWidth: `${columnSize}px`,
+                                                    width: `${proportion}%`,
+                                                    minWidth: `${minWidth}px`,
                                                 }}
                                                 className="font-semibold text-muted-foreground text-sm h-12 px-4"
                                             >
@@ -128,61 +173,103 @@ export function VirtualizedDataTable<TData, TValue>({
                                 </TableRow>
                             ))}
                         </TableHeader>
-                        <TableBody>
-                            {rows.length === 0 ? (
-                                <TableRow>
-                                    <TableCell
-                                        colSpan={columns.length}
-                                        className="h-24 text-center text-muted-foreground"
-                                    >
-                                        Aucune donnée disponible.
-                                    </TableCell>
-                                </TableRow>
-                            ) : (
-                                virtualizer.getVirtualItems().map((virtualRow) => {
-                                    const row = rows[virtualRow.index]
-                                    if (!row) return null
-                                    return (
-                                        <TableRow
-                                            key={row.id}
-                                            data-state={row.getIsSelected() && "selected"}
-                                            className="hover:bg-muted/50 transition-colors border-b"
-                                            style={{
-                                                position: "absolute",
-                                                top: 0,
-                                                left: 0,
-                                                width: "100%",
-                                                transform: `translateY(${virtualRow.start}px)`,
-                                                height: `${virtualRow.size}px`,
-                                                display: "table-row",
-                                                tableLayout: "fixed",
-                                            }}
-                                        >
-                                            {row.getVisibleCells().map((cell) => {
-                                                const columnSize = cell.column.getSize() || 150
+                    </Table>
+
+                    <div
+                        ref={parentRef}
+                        style={{
+                            height: `${height}px`,
+                            overflowY: "auto",
+                            position: "relative",
+                        }}
+                        className="w-full"
+                    >
+                        <div
+                            style={{
+                                height: `${virtualizer.getTotalSize()}px`,
+                                width: "100%",
+                                position: "relative",
+                            }}
+                        >
+                            <Table style={{ tableLayout: "fixed", width: "100%" }}>
+                                <TableBody>
+                                    {rows.length === 0 ? (
+                                        <TableRow>
+                                            <TableCell
+                                                colSpan={columns.length}
+                                                className="h-24 text-center text-muted-foreground"
+                                            >
+                                                Aucune donnée disponible.
+                                            </TableCell>
+                                        </TableRow>
+                                    ) : (
+                                        <>
+                                            {virtualizer.getVirtualItems().length > 0 && (
+                                                <TableRow style={{ height: `${virtualizer.getVirtualItems()[0]?.start || 0}px` }} aria-hidden="true">
+                                                    <TableCell colSpan={columns.length} style={{ padding: 0, border: 0 }} />
+                                                </TableRow>
+                                            )}
+                                            {virtualizer.getVirtualItems().map((virtualRow) => {
+                                                const row = rows[virtualRow.index]
+                                                if (!row) return null
                                                 return (
-                                                    <TableCell
-                                                        key={cell.id}
+                                                    <TableRow
+                                                        key={row.id}
                                                         style={{
-                                                            width: `${columnSize}px`,
-                                                            minWidth: `${columnSize}px`,
-                                                            maxWidth: `${columnSize}px`,
+                                                            height: `${virtualRow.size}px`,
                                                         }}
-                                                        className="p-4 text-sm"
+                                                        className="hover:bg-muted/50 transition-colors border-b"
+                                                        data-state={row.getIsSelected() ? "selected" : undefined}
                                                     >
-                                                        {flexRender(
-                                                            cell.column.columnDef.cell,
-                                                            cell.getContext()
-                                                        )}
-                                                    </TableCell>
+                                                        {row.getVisibleCells().map((cell) => {
+                                                            const columnSize = cell.column.getSize() || 150
+                                                            const columnProps = columnProportions.get(cell.column.id)
+                                                            const proportion = columnProps?.proportion || 0
+                                                            const minWidth = columnProps?.minWidth || columnSize
+                                                            return (
+                                                                <TableCell
+                                                                    key={cell.id}
+                                                                    style={{
+                                                                        width: `${proportion}%`,
+                                                                        minWidth: `${minWidth}px`,
+                                                                        verticalAlign: "middle",
+                                                                    }}
+                                                                    className="p-4 text-sm"
+                                                                >
+                                                                    {flexRender(
+                                                                        cell.column.columnDef.cell,
+                                                                        cell.getContext()
+                                                                    )}
+                                                                </TableCell>
+                                                            )
+                                                        })}
+                                                    </TableRow>
                                                 )
                                             })}
-                                        </TableRow>
-                                    )
-                                })
-                            )}
-                        </TableBody>
-                    </Table>
+                                            {(() => {
+                                                const virtualItems = virtualizer.getVirtualItems()
+                                                if (virtualItems.length > 0) {
+                                                    const lastItem = virtualItems[virtualItems.length - 1]
+                                                    const bottomSpacerHeight = virtualizer.getTotalSize() - lastItem.end
+                                                    if (bottomSpacerHeight > 0) {
+                                                        return (
+                                                            <TableRow 
+                                                                style={{ height: `${bottomSpacerHeight}px` }} 
+                                                                aria-hidden="true"
+                                                            >
+                                                                <TableCell colSpan={columns.length} style={{ padding: 0, border: 0 }} />
+                                                            </TableRow>
+                                                        )
+                                                    }
+                                                }
+                                                return null
+                                            })()}
+                                        </>
+                                    )}
+                                </TableBody>
+                            </Table>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
