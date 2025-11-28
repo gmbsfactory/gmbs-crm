@@ -42,7 +42,7 @@
     "@notionhq/client": "^4.0.2",
     "@paper-design/shaders-react": "^0.0.46",
     "@prisma/client": "^6.17.0",
-    "@radix-ui/react-accordion": "1.2.2",
+    "@radix-ui/react-accordion": "^1.2.2",
     "@radix-ui/react-alert-dialog": "1.1.4",
     "@radix-ui/react-aspect-ratio": "1.1.1",
     "@radix-ui/react-avatar": "latest",

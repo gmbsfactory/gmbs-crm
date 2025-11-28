@@ -16,6 +16,14 @@ export function useInterventionContextMenu(interventionId: string, viewType?: Co
   // const { toast } = useToast() // Removed legacy toast
   const { open: openInterventionModal } = useInterventionModal()
   const modal = useModal()
+  const cancelListQueries = useCallback(async () => {
+    await queryClient.cancelQueries({ queryKey: interventionKeys.invalidateLists() })
+    await queryClient.cancelQueries({ queryKey: interventionKeys.invalidateLightLists() })
+  }, [queryClient])
+  const invalidateLists = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: interventionKeys.invalidateLists() })
+    queryClient.invalidateQueries({ queryKey: interventionKeys.invalidateLightLists() })
+  }, [queryClient])
 
   // Fonction pour ouvrir le modal avec les données pré-remplies (devis supp)
   const duplicateDevisSupp = useCallback(async () => {
@@ -170,7 +178,7 @@ export function useInterventionContextMenu(interventionId: string, viewType?: Co
     onMutate: async () => {
       // Annuler les requêtes en cours pour éviter les conflits
       await queryClient.cancelQueries({ queryKey: interventionKeys.detail(interventionId) })
-      await queryClient.cancelQueries({ queryKey: interventionKeys.invalidateLists() })
+      await cancelListQueries()
 
       // Snapshot de la valeur précédente pour rollback en cas d'erreur
       const previousIntervention = queryClient.getQueryData(interventionKeys.detail(interventionId))
@@ -258,7 +266,7 @@ export function useInterventionContextMenu(interventionId: string, viewType?: Co
       if (context?.previousIntervention) {
         queryClient.setQueryData(interventionKeys.detail(interventionId), context.previousIntervention)
       }
-      queryClient.invalidateQueries({ queryKey: interventionKeys.invalidateLists() })
+      invalidateLists()
       queryClient.invalidateQueries({ queryKey: interventionKeys.detail(interventionId) })
 
       toast.error("Erreur d'assignation", {
@@ -268,7 +276,7 @@ export function useInterventionContextMenu(interventionId: string, viewType?: Co
     onSuccess: (data) => {
       // Invalider les queries en arrière-plan pour récupérer les données complètes du serveur
       // La mise à jour optimiste dans onMutate assure une mise à jour immédiate de l'UI
-      queryClient.invalidateQueries({ queryKey: interventionKeys.invalidateLists() })
+      invalidateLists()
       queryClient.invalidateQueries({ queryKey: interventionKeys.detail(interventionId) })
       queryClient.invalidateQueries({ queryKey: interventionKeys.summaries() })
 
@@ -292,7 +300,7 @@ export function useInterventionContextMenu(interventionId: string, viewType?: Co
     onMutate: async () => {
       // Annuler les requêtes en cours pour éviter les conflits
       await queryClient.cancelQueries({ queryKey: interventionKeys.detail(interventionId) })
-      await queryClient.cancelQueries({ queryKey: interventionKeys.invalidateLists() })
+      await cancelListQueries()
 
       // Snapshot de la valeur précédente pour rollback en cas d'erreur
       const previousIntervention = queryClient.getQueryData(interventionKeys.detail(interventionId))
@@ -361,7 +369,7 @@ export function useInterventionContextMenu(interventionId: string, viewType?: Co
       if (context?.previousIntervention) {
         queryClient.setQueryData(interventionKeys.detail(interventionId), context.previousIntervention)
       }
-      queryClient.invalidateQueries({ queryKey: interventionKeys.invalidateLists() })
+      invalidateLists()
       queryClient.invalidateQueries({ queryKey: interventionKeys.detail(interventionId) })
 
       toast.error("Erreur de transition", {
@@ -371,7 +379,7 @@ export function useInterventionContextMenu(interventionId: string, viewType?: Co
     onSuccess: (data) => {
       // Invalider les queries en arrière-plan pour récupérer les données complètes du serveur
       // La mise à jour optimiste dans onMutate assure une mise à jour immédiate de l'UI
-      queryClient.invalidateQueries({ queryKey: interventionKeys.invalidateLists() })
+      invalidateLists()
       queryClient.invalidateQueries({ queryKey: interventionKeys.detail(interventionId) })
       queryClient.invalidateQueries({ queryKey: interventionKeys.summaries() })
 
@@ -395,7 +403,7 @@ export function useInterventionContextMenu(interventionId: string, viewType?: Co
     onMutate: async () => {
       // Annuler les requêtes en cours pour éviter les conflits
       await queryClient.cancelQueries({ queryKey: interventionKeys.detail(interventionId) })
-      await queryClient.cancelQueries({ queryKey: interventionKeys.invalidateLists() })
+      await cancelListQueries()
 
       // Snapshot de la valeur précédente pour rollback en cas d'erreur
       const previousIntervention = queryClient.getQueryData(interventionKeys.detail(interventionId))
@@ -464,7 +472,7 @@ export function useInterventionContextMenu(interventionId: string, viewType?: Co
       if (context?.previousIntervention) {
         queryClient.setQueryData(interventionKeys.detail(interventionId), context.previousIntervention)
       }
-      queryClient.invalidateQueries({ queryKey: interventionKeys.invalidateLists() })
+      invalidateLists()
       queryClient.invalidateQueries({ queryKey: interventionKeys.detail(interventionId) })
 
       toast.error("Erreur de transition", {
@@ -474,7 +482,7 @@ export function useInterventionContextMenu(interventionId: string, viewType?: Co
     onSuccess: (data) => {
       // Invalider les queries en arrière-plan pour récupérer les données complètes du serveur
       // La mise à jour optimiste dans onMutate assure une mise à jour immédiate de l'UI
-      queryClient.invalidateQueries({ queryKey: interventionKeys.invalidateLists() })
+      invalidateLists()
       queryClient.invalidateQueries({ queryKey: interventionKeys.detail(interventionId) })
       queryClient.invalidateQueries({ queryKey: interventionKeys.summaries() })
 
@@ -502,4 +510,3 @@ export function useInterventionContextMenu(interventionId: string, viewType?: Co
     viewType,
   }
 }
-

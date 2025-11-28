@@ -177,9 +177,27 @@ BEGIN
     GROUP BY ts.day ORDER BY ts.day
   ),
   metier_breakdown AS (
-    SELECT ip.metier_id, COUNT(*)::integer as count
-    FROM interventions_filtrees ip WHERE ip.metier_id IS NOT NULL
-    GROUP BY ip.metier_id ORDER BY count DESC LIMIT 10
+    SELECT 
+      ip.metier_id, 
+      COUNT(*)::integer as total_interventions,
+      COUNT(DISTINCT CASE WHEN tp.to_status_code = p_terminee_status_code THEN tp.intervention_id END)::integer as terminated_interventions
+    FROM interventions_filtrees ip 
+    LEFT JOIN transitions_periode tp ON tp.intervention_id = ip.id
+    WHERE ip.metier_id IS NOT NULL 
+    GROUP BY ip.metier_id 
+    ORDER BY total_interventions DESC LIMIT 10
+  ),
+  metier_financials AS (
+    SELECT 
+      ip.metier_id, 
+      COALESCE(SUM(p.total_paiements), 0)::numeric as total_paiements, 
+      COALESCE(SUM(c.total_couts), 0)::numeric as total_couts
+    FROM interventions_filtrees ip
+    LEFT JOIN financial_interventions fi ON fi.intervention_id = ip.id
+    LEFT JOIN paiements_agreges p ON p.intervention_id = ip.id
+    LEFT JOIN couts_agreges c ON c.intervention_id = ip.id
+    WHERE ip.metier_id IS NOT NULL 
+    GROUP BY ip.metier_id
   ),
   agency_breakdown AS (
     SELECT ip.agence_id, COUNT(*)::integer as total_interventions,
@@ -218,6 +236,49 @@ BEGIN
   status_breakdown AS (
     SELECT tp.to_status_code as statut_code, COUNT(DISTINCT tp.intervention_id)::integer as count
     FROM transitions_periode tp WHERE tp.to_status_code IS NOT NULL GROUP BY tp.to_status_code
+  ),
+  conversion_funnel AS (
+    WITH base_interventions AS (
+      -- Interventions créées dans la période (point de départ = DEMANDE)
+      SELECT DISTINCT ip.id as intervention_id
+      FROM interventions_filtrees ip
+      WHERE ip.created_at >= p_period_start
+        AND ip.created_at <= p_period_end
+    ),
+    status_ranks AS (
+      SELECT 1 as rank, p_demande_status_code as status_code UNION ALL
+      SELECT 2, p_devis_status_code UNION ALL
+      SELECT 3, p_accepte_status_code UNION ALL
+      SELECT 4, p_en_cours_status_code UNION ALL
+      SELECT 5, p_terminee_status_code
+    ),
+    last_status_reached AS (
+      SELECT 
+        bi.intervention_id,
+        COALESCE(MAX(sr.rank), 1) as max_rank
+      FROM base_interventions bi
+      LEFT JOIN public.intervention_status_transitions ist
+        ON ist.intervention_id = bi.intervention_id
+        AND ist.transition_date >= p_period_start
+        AND ist.transition_date <= p_period_end
+        AND ist.to_status_code IN (p_demande_status_code, p_devis_status_code, p_accepte_status_code, p_en_cours_status_code, p_terminee_status_code)
+      LEFT JOIN status_ranks sr ON sr.status_code = ist.to_status_code
+      GROUP BY bi.intervention_id
+    )
+    SELECT 'DEMANDE' as status_code, COUNT(*)::integer as count
+    FROM base_interventions
+    UNION ALL
+    SELECT p_devis_status_code as status_code, COUNT(*)::integer as count
+    FROM last_status_reached l WHERE l.max_rank >= 2
+    UNION ALL
+    SELECT p_accepte_status_code as status_code, COUNT(*)::integer as count
+    FROM last_status_reached l WHERE l.max_rank >= 3
+    UNION ALL
+    SELECT p_en_cours_status_code as status_code, COUNT(*)::integer as count
+    FROM last_status_reached l WHERE l.max_rank >= 4
+    UNION ALL
+    SELECT p_terminee_status_code as status_code, COUNT(*)::integer as count
+    FROM last_status_reached l WHERE l.max_rank >= 5
   )
 
   SELECT jsonb_build_object(
@@ -238,7 +299,27 @@ BEGIN
     ),
     'sparklines', (SELECT jsonb_agg(jsonb_build_object('date', sd.date, 'countDemandees', sd.count_demandees, 'countTerminees', sd.count_terminees)) FROM sparkline_data sd),
     'statusBreakdown', (SELECT COALESCE(jsonb_agg(jsonb_build_object('statut_code', sb.statut_code, 'count', sb.count)), '[]'::jsonb) FROM status_breakdown sb),
-    'metierBreakdown', (SELECT COALESCE(jsonb_agg(jsonb_build_object('metier_id', mb.metier_id, 'count', mb.count)), '[]'::jsonb) FROM metier_breakdown mb),
+    'conversionFunnel', (
+      SELECT COALESCE(jsonb_agg(jsonb_build_object(
+        'statusCode', cf.status_code,
+        'count', cf.count
+      )), '[]'::jsonb)
+      FROM conversion_funnel cf
+    ),
+    'metierBreakdown', (
+      SELECT COALESCE(jsonb_agg(
+        jsonb_build_object(
+          'metier_id', mb.metier_id,
+          'totalInterventions', mb.total_interventions,
+          'terminatedInterventions', mb.terminated_interventions,
+          'totalPaiements', COALESCE(mf.total_paiements, 0),
+          'totalCouts', COALESCE(mf.total_couts, 0),
+          'marge', COALESCE(mf.total_paiements, 0) - COALESCE(mf.total_couts, 0)
+        )
+      ), '[]'::jsonb)
+      FROM metier_breakdown mb
+      LEFT JOIN metier_financials mf ON mf.metier_id = mb.metier_id
+    ),
     'agencyBreakdown', (SELECT COALESCE(jsonb_agg(jsonb_build_object('agence_id', a.agence_id, 'totalInterventions', a.total_interventions, 'terminatedInterventions', a.terminated_interventions, 'avgCycleTime', a.avg_cycle_time, 'totalPaiements', COALESCE(af.total_paiements, 0), 'totalCouts', COALESCE(af.total_couts, 0), 'marge', COALESCE(af.total_paiements, 0) - COALESCE(af.total_couts, 0))), '[]'::jsonb) FROM agency_breakdown a LEFT JOIN agency_financials af ON af.agence_id = a.agence_id),
     'gestionnaireBreakdown', (SELECT COALESCE(jsonb_agg(jsonb_build_object('gestionnaire_id', g.gestionnaire_id, 'totalInterventions', g.total_interventions, 'terminatedInterventions', g.terminated_interventions, 'avgCycleTime', g.avg_cycle_time, 'totalPaiements', COALESCE(gf.total_paiements, 0), 'totalCouts', COALESCE(gf.total_couts, 0), 'marge', COALESCE(gf.total_paiements, 0) - COALESCE(gf.total_couts, 0))), '[]'::jsonb) FROM gestionnaire_breakdown g LEFT JOIN gestionnaire_financials gf ON gf.gestionnaire_id = g.gestionnaire_id)
   ) INTO result;
@@ -328,4 +409,3 @@ $$;
 
 COMMENT ON FUNCTION public.get_podium_ranking_by_period IS 'Fonction RPC pour le classement du podium des gestionnaires';
 GRANT EXECUTE ON FUNCTION public.get_podium_ranking_by_period TO authenticated;
-

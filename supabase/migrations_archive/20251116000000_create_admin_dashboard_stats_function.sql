@@ -280,17 +280,31 @@ BEGIN
     ORDER BY ts.day
   ),
 
-  -- CTE 7: Breakdown par Métier (Top 10 trié par volume)
-  metier_breakdown AS (
-    SELECT 
-      ip.metier_id,
-      COUNT(*)::integer as count
-    FROM interventions_filtrees ip
-    WHERE ip.metier_id IS NOT NULL
-    GROUP BY ip.metier_id
-    ORDER BY count DESC
-    LIMIT 10
-  ),
+metier_breakdown AS (
+  SELECT 
+    ip.metier_id,
+    COUNT(*)::integer as total_interventions,
+    COUNT(DISTINCT CASE WHEN tp.to_status_code = p_terminee_status_code THEN tp.intervention_id END)::integer as terminated_interventions
+  FROM interventions_filtrees ip
+  LEFT JOIN transitions_periode tp ON tp.intervention_id = ip.id
+  WHERE ip.metier_id IS NOT NULL
+  GROUP BY ip.metier_id
+  ORDER BY total_interventions DESC
+  LIMIT 10
+),
+
+metier_financials AS (
+  SELECT 
+    ip.metier_id,
+    COALESCE(SUM(p.total_paiements), 0)::numeric as total_paiements,
+    COALESCE(SUM(c.total_couts), 0)::numeric as total_couts
+  FROM interventions_filtrees ip
+  LEFT JOIN financial_interventions fi ON fi.intervention_id = ip.id
+  LEFT JOIN paiements_agreges p ON p.intervention_id = ip.id
+  LEFT JOIN couts_agreges c ON c.intervention_id = ip.id
+  WHERE ip.metier_id IS NOT NULL
+  GROUP BY ip.metier_id
+),
 
   -- CTE 8: Breakdown par Agence
   agency_breakdown AS (
@@ -411,10 +425,15 @@ BEGIN
       SELECT COALESCE(jsonb_agg(
         jsonb_build_object(
           'metier_id', mb.metier_id,
-          'count', mb.count
+          'totalInterventions', mb.total_interventions,
+          'terminatedInterventions', mb.terminated_interventions,
+          'totalPaiements', COALESCE(mf.total_paiements, 0),
+          'totalCouts', COALESCE(mf.total_couts, 0),
+          'marge', COALESCE(mf.total_paiements, 0) - COALESCE(mf.total_couts, 0)
         )
       ), '[]'::jsonb)
       FROM metier_breakdown mb
+      LEFT JOIN metier_financials mf ON mf.metier_id = mb.metier_id
     ),
     
     -- Breakdown par agence avec stats financières et Cycle Time
@@ -470,5 +489,3 @@ Inclut:
 
 -- Grant permissions
 GRANT EXECUTE ON FUNCTION public.get_admin_dashboard_stats TO authenticated;
-
-

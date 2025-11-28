@@ -2322,6 +2322,7 @@ export const interventionsApi = {
     const mainStatsData = rpcResult.mainStats || {};
     const sparklines = rpcResult.sparklines || [];
     const statusBreakdown = rpcResult.statusBreakdown || [];
+    const conversionFunnel = rpcResult.conversionFunnel || [];
     const metierBreakdown = rpcResult.metierBreakdown || [];
     // Support both naming conventions just in case
     const rawAgencyStats = rpcResult.agencyStats || rpcResult.agencyBreakdown || [];
@@ -2336,6 +2337,16 @@ export const interventionsApi = {
     console.log('👤 rawGestionnaireStats:', JSON.stringify(rawGestionnaireStats, null, 2));
     console.log('📊 rawAgencyStats.length:', rawAgencyStats?.length || 0);
     console.log('👤 rawGestionnaireStats.length:', rawGestionnaireStats?.length || 0);
+
+    // Normaliser les codes du funnel de conversion pour correspondre aux codes front
+    const normalizedConversionFunnel = conversionFunnel.map((item: any) => ({
+      statusCode: item.statusCode === 'INTER_EN_COURS'
+        ? 'EN_COURS'
+        : item.statusCode === 'INTER_TERMINEE'
+          ? 'TERMINE'
+          : item.statusCode || item.statut_code,
+      count: item.count || 0,
+    }));
 
     // Calculer les taux (côté client car ils nécessitent des calculs)
     // Taux de transformation = (Interventions terminées / Interventions demandées) × 100
@@ -2449,26 +2460,39 @@ export const interventionsApi = {
     // ========================================
     console.log('\n🔍 Opération: Calcul des statistiques par métier...');
 
-    const metierCounts: Record<string, { label: string; count: number }> = {};
-    let totalMetiers = 0;
+    const totalMetiers = metierBreakdown.reduce((sum: number, item: any) => {
+      const total = item.totalInterventions ?? item.count ?? 0;
+      return sum + total;
+    }, 0);
 
-    metierBreakdown.forEach((item: any) => {
-      if (item.metier_id) {
-        const metierInfo = refs.metiersById.get(item.metier_id);
-        metierCounts[item.metier_id] = {
-          label: metierInfo?.label || 'Inconnu',
-          count: item.count || 0
+    const metierStats = metierBreakdown
+      .map((item: any) => {
+        const metierId = item.metier_id || item.metierId;
+        if (!metierId) return null;
+
+        const metierInfo = refs.metiersById.get(metierId);
+        const totalInterventions = item.totalInterventions ?? item.count ?? 0;
+        const terminatedInterventions = item.terminatedInterventions ?? item.nbInterventionsTerminees ?? 0;
+        const ca = Number(item.totalPaiements ?? item.ca ?? 0);
+        const couts = Number(item.totalCouts ?? item.couts ?? 0);
+        const marge = ca - couts;
+        const tauxMargeMetier = ca > 0 ? Math.round((marge / ca) * 100) : 0;
+
+        return {
+          metierId,
+          metierLabel: item.metierLabel || metierInfo?.label || 'Inconnu',
+          nbInterventionsPrises: totalInterventions,
+          nbInterventionsTerminees: terminatedInterventions,
+          ca,
+          couts,
+          marge,
+          tauxMarge: tauxMargeMetier,
+          percentage: totalMetiers > 0 ? Math.round((totalInterventions / totalMetiers) * 100) : 0,
+          count: totalInterventions, // compatibilité avec les usages existants
         };
-        totalMetiers += item.count || 0;
-      }
-    });
-
-    const metierStats = Object.entries(metierCounts).map(([metierId, data]) => ({
-      metierId,
-      metierLabel: data.label,
-      count: data.count,
-      percentage: totalMetiers > 0 ? Math.round((data.count / totalMetiers) * 100) : 0,
-    })).sort((a, b) => b.count - a.count);
+      })
+      .filter(Boolean)
+      .sort((a: any, b: any) => b.nbInterventionsPrises - a.nbInterventionsPrises);
 
     // Log: Statistiques par métier (top 5)
     console.log('\n🔧 ========================================');
@@ -2593,7 +2617,9 @@ export const interventionsApi = {
       mainStats,
       sparklines,
       statusBreakdown: breakdown,
+      conversionFunnel: normalizedConversionFunnel,
       metierBreakdown: metierStats,
+      metierStats,
       agencyStats,
       gestionnaireStats,
     };

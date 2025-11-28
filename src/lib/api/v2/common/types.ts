@@ -867,12 +867,24 @@ export interface AdminDashboardStats {
     avgCycleTime?: string; // Durée moyenne dans ce statut
   }>;
 
-  // 4. Statistiques par métier
+  // Nouveau champ pour l'entonnoir de conversion
+  conversionFunnel: Array<{
+    statusCode: string;
+    count: number;
+  }>;
+
+  // 4. Statistiques par métier (breakdown complet)
   metierBreakdown: Array<{
     metierId: string;
     metierLabel: string;
-    count: number;
-    percentage: number;
+    nbInterventionsPrises: number;
+    nbInterventionsTerminees: number;
+    ca: number;
+    couts: number;
+    marge: number;
+    tauxMarge: number;
+    percentage?: number;
+    count?: number; // compatibilité avec les usages legacy
   }>;
 
   // 5. Statistiques par agence
@@ -900,9 +912,22 @@ export interface AdminDashboardStats {
     marge: number;
   }>;
 
+  // 7. Statistiques par métier
+  metierStats?: Array<{
+    metierId: string;
+    metierLabel: string;
+    nbInterventionsPrises: number;
+    nbInterventionsTerminees: number;
+    ca: number;
+    couts: number;
+    marge: number;
+    tauxMarge: number;
+    percentage?: number;
+    count?: number; // compatibilité avec les anciens graphiques qui lisent "count"
+  }>;
+
   // Champs legacy pour compatibilité temporaire (optionnels)
   statusStats?: any;
-  metierStats?: any;
 }
 
 /**

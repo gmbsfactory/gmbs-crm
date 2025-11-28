@@ -16,6 +16,10 @@ export function useInterventionsMutations() {
   const queryClient = useQueryClient()
   const { open: openInterventionModal } = useInterventionModal()
   const syncQueue = getSyncQueue()
+  const invalidateLists = () => {
+    queryClient.invalidateQueries({ queryKey: interventionKeys.invalidateLists() })
+    queryClient.invalidateQueries({ queryKey: interventionKeys.invalidateLightLists() })
+  }
 
   // Mutation pour créer une intervention
   const createMutation = useMutation({
@@ -55,7 +59,7 @@ export function useInterventionsMutations() {
       }
 
       // Invalider toutes les listes d'interventions pour recharger les données
-      queryClient.invalidateQueries({ queryKey: interventionKeys.invalidateLists() })
+      invalidateLists()
       // Invalider aussi les résumés
       queryClient.invalidateQueries({ queryKey: interventionKeys.summaries() })
     },
@@ -127,7 +131,7 @@ export function useInterventionsMutations() {
       indicatorManager.recordLocalModification(variables.id, data?.updated_at || null)
 
       // Invalider toutes les listes d'interventions
-      queryClient.invalidateQueries({ queryKey: interventionKeys.invalidateLists() })
+      invalidateLists()
       // Invalider aussi le détail de cette intervention spécifique
       queryClient.invalidateQueries({ queryKey: interventionKeys.detail(variables.id) })
       // Invalider les résumés
@@ -157,7 +161,7 @@ export function useInterventionsMutations() {
       indicatorManager.recordLocalModification(id, data?.data?.updated_at || null)
 
       // Invalider toutes les listes d'interventions
-      queryClient.invalidateQueries({ queryKey: interventionKeys.invalidateLists() })
+      invalidateLists()
       // Invalider les résumés
       queryClient.invalidateQueries({ queryKey: interventionKeys.summaries() })
     },
@@ -189,7 +193,7 @@ export function useInterventionsMutations() {
     },
     onSuccess: (data, variables) => {
       // Invalider les listes et le détail de l'intervention
-      queryClient.invalidateQueries({ queryKey: interventionKeys.invalidateLists() })
+      invalidateLists()
       queryClient.invalidateQueries({ queryKey: interventionKeys.detail(variables.interventionId) })
     },
   })
@@ -250,8 +254,6 @@ export function useInterventionsMutations() {
     addPayment: addPaymentMutation,
   }
 }
-
-
 
 
 

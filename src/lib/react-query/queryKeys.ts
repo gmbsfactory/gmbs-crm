@@ -113,13 +113,21 @@ export const interventionKeys = {
    * Clé pour invalider toutes les listes (complètes et légères)
    * Utilisée après une création, mise à jour ou suppression
    * 
-   * @returns ["interventions", "list", "light"]
+   * @returns ["interventions", "list"]
    * 
    * @example
    * // Après création d'une intervention
    * queryClient.invalidateQueries({ queryKey: interventionKeys.invalidateLists() })
+   * queryClient.invalidateQueries({ queryKey: interventionKeys.invalidateLightLists() })
    */
-  invalidateLists: () => [...interventionKeys.all, "list", "light"],
+  invalidateLists: () => interventionKeys.lists(),
+
+  /**
+   * Clé pour invalider toutes les listes légères
+   * 
+   * @returns ["interventions", "light"]
+   */
+  invalidateLightLists: () => interventionKeys.lightLists(),
   
   /**
    * Clés pour invalider une vue spécifique par ses paramètres
