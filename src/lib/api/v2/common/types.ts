@@ -867,6 +867,12 @@ export interface AdminDashboardStats {
     avgCycleTime?: string; // Durée moyenne dans ce statut
   }>;
 
+  // Nouveau champ pour l'entonnoir de conversion
+  conversionFunnel: Array<{
+    statusCode: string;
+    count: number;
+  }>;
+
   // 4. Statistiques par métier (breakdown complet)
   metierBreakdown: Array<{
     metierId: string;

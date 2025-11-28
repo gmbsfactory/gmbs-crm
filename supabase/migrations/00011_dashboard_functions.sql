@@ -250,6 +250,49 @@ BEGIN
   status_breakdown AS (
     SELECT tp.to_status_code as statut_code, COUNT(DISTINCT tp.intervention_id)::integer as count
     FROM transitions_periode tp WHERE tp.to_status_code IS NOT NULL GROUP BY tp.to_status_code
+  ),
+  conversion_funnel AS (
+    WITH base_interventions AS (
+      -- Interventions créées dans la période (point de départ = DEMANDE)
+      SELECT DISTINCT ip.id as intervention_id
+      FROM interventions_filtrees ip
+      WHERE ip.created_at >= p_period_start
+        AND ip.created_at <= p_period_end
+    ),
+    status_ranks AS (
+      SELECT 1 as rank, p_demande_status_code as status_code UNION ALL
+      SELECT 2, p_devis_status_code UNION ALL
+      SELECT 3, p_accepte_status_code UNION ALL
+      SELECT 4, p_en_cours_status_code UNION ALL
+      SELECT 5, p_terminee_status_code
+    ),
+    last_status_reached AS (
+      SELECT 
+        bi.intervention_id,
+        COALESCE(MAX(sr.rank), 1) as max_rank
+      FROM base_interventions bi
+      LEFT JOIN public.intervention_status_transitions ist
+        ON ist.intervention_id = bi.intervention_id
+        AND ist.transition_date >= p_period_start
+        AND ist.transition_date <= p_period_end
+        AND ist.to_status_code IN (p_demande_status_code, p_devis_status_code, p_accepte_status_code, p_en_cours_status_code, p_terminee_status_code)
+      LEFT JOIN status_ranks sr ON sr.status_code = ist.to_status_code
+      GROUP BY bi.intervention_id
+    )
+    SELECT 'DEMANDE' as status_code, COUNT(*)::integer as count
+    FROM base_interventions
+    UNION ALL
+    SELECT p_devis_status_code as status_code, COUNT(*)::integer as count
+    FROM last_status_reached l WHERE l.max_rank >= 2
+    UNION ALL
+    SELECT p_accepte_status_code as status_code, COUNT(*)::integer as count
+    FROM last_status_reached l WHERE l.max_rank >= 3
+    UNION ALL
+    SELECT p_en_cours_status_code as status_code, COUNT(*)::integer as count
+    FROM last_status_reached l WHERE l.max_rank >= 4
+    UNION ALL
+    SELECT p_terminee_status_code as status_code, COUNT(*)::integer as count
+    FROM last_status_reached l WHERE l.max_rank >= 5
   )
 
   SELECT jsonb_build_object(
@@ -270,6 +313,13 @@ BEGIN
     ),
     'sparklines', (SELECT jsonb_agg(jsonb_build_object('date', sd.date, 'countDemandees', sd.count_demandees, 'countTerminees', sd.count_terminees)) FROM sparkline_data sd),
     'statusBreakdown', (SELECT COALESCE(jsonb_agg(jsonb_build_object('statut_code', sb.statut_code, 'count', sb.count)), '[]'::jsonb) FROM status_breakdown sb),
+    'conversionFunnel', (
+      SELECT COALESCE(jsonb_agg(jsonb_build_object(
+        'statusCode', cf.status_code,
+        'count', cf.count
+      )), '[]'::jsonb)
+      FROM conversion_funnel cf
+    ),
     'metierBreakdown', (
       SELECT COALESCE(jsonb_agg(
         jsonb_build_object(

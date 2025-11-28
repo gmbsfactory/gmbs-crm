@@ -17,7 +17,7 @@ interface GlassRadioSelectorProps {
 
 const GlassRadioSelector: React.FC<GlassRadioSelectorProps> = ({ value, onChange, options, name }) => {
   return (
-    <StyledWrapper optionsCount={options.length}>
+    <StyledWrapper $optionsCount={options.length}>
       <div className="glass-radio-group">
         {options.map((option) => (
           <React.Fragment key={option.id}>
@@ -37,7 +37,7 @@ const GlassRadioSelector: React.FC<GlassRadioSelectorProps> = ({ value, onChange
   );
 }
 
-const StyledWrapper = styled.div<{ optionsCount: number }>`
+const StyledWrapper = styled.div<{ $optionsCount: number }>`
   .glass-radio-group {
     --bg: rgba(255, 255, 255, 0.06);
     --text: #e5e5e5;
@@ -89,7 +89,7 @@ const StyledWrapper = styled.div<{ optionsCount: number }>`
     position: absolute;
     top: 0;
     bottom: 0;
-    width: calc(100% / ${props => props.optionsCount});
+    width: calc(100% / ${props => props.$optionsCount});
     border-radius: 0.5rem;
     z-index: 1;
     transition:
@@ -154,4 +154,3 @@ const StyledWrapper = styled.div<{ optionsCount: number }>`
 `;
 
 export default GlassRadioSelector;
-

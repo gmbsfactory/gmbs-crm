@@ -2322,6 +2322,7 @@ export const interventionsApi = {
     const mainStatsData = rpcResult.mainStats || {};
     const sparklines = rpcResult.sparklines || [];
     const statusBreakdown = rpcResult.statusBreakdown || [];
+    const conversionFunnel = rpcResult.conversionFunnel || [];
     const metierBreakdown = rpcResult.metierBreakdown || [];
     // Support both naming conventions just in case
     const rawAgencyStats = rpcResult.agencyStats || rpcResult.agencyBreakdown || [];
@@ -2336,6 +2337,16 @@ export const interventionsApi = {
     console.log('👤 rawGestionnaireStats:', JSON.stringify(rawGestionnaireStats, null, 2));
     console.log('📊 rawAgencyStats.length:', rawAgencyStats?.length || 0);
     console.log('👤 rawGestionnaireStats.length:', rawGestionnaireStats?.length || 0);
+
+    // Normaliser les codes du funnel de conversion pour correspondre aux codes front
+    const normalizedConversionFunnel = conversionFunnel.map((item: any) => ({
+      statusCode: item.statusCode === 'INTER_EN_COURS'
+        ? 'EN_COURS'
+        : item.statusCode === 'INTER_TERMINEE'
+          ? 'TERMINE'
+          : item.statusCode || item.statut_code,
+      count: item.count || 0,
+    }));
 
     // Calculer les taux (côté client car ils nécessitent des calculs)
     // Taux de transformation = (Interventions terminées / Interventions demandées) × 100
@@ -2606,6 +2617,7 @@ export const interventionsApi = {
       mainStats,
       sparklines,
       statusBreakdown: breakdown,
+      conversionFunnel: normalizedConversionFunnel,
       metierBreakdown: metierStats,
       metierStats,
       agencyStats,

@@ -572,32 +572,68 @@ export default function AdminDashboardPage() {
             )}
           </div>
 
-          {/* Charts Row - Funnel */}
-          <div className="w-full">
-            <FunnelChart
-              data={(() => {
-                // Configuration des étapes du funnel (ordre strict)
-                const FUNNEL_STEPS = [
-                  { code: 'DEMANDE', label: 'Demandé', fill: '#60a5fa' },
-                  { code: 'DEVIS_ENVOYE', label: 'Devis Envoyé', fill: '#3b82f6' },
-                  { code: 'ACCEPTE', label: 'Accepté', fill: '#2563eb' },
-                  { code: 'INTER_EN_COURS', label: 'En Cours', fill: '#1d4ed8' },
-                  { code: 'INTER_TERMINEE', label: 'Terminé', fill: '#10b981' },
-                ]
+          {/* Charts Row - Deux entonnoirs côte à côte */}
+          <div className="grid gap-4 md:grid-cols-1 lg:grid-cols-2">
+            {/* Entonnoir 1 : Conversions réelles depuis DEMANDE */}
+            <div className="col-span-1">
+              <FunnelChart
+                data={(() => {
+                  const FUNNEL_STEPS = [
+                    { code: 'DEMANDE', label: 'Demandé', fill: '#60a5fa' },
+                    { code: 'DEVIS_ENVOYE', label: 'Devis Envoyé', fill: '#3b82f6' },
+                    { code: 'ACCEPTE', label: 'Accepté', fill: '#2563eb' },
+                    { code: 'INTER_EN_COURS', label: 'En Cours', fill: '#1d4ed8' },
+                    { code: 'INTER_TERMINEE', label: 'Terminé', fill: '#10b981' },
+                  ]
 
-                return FUNNEL_STEPS.map(step => {
-                  const stat = dashboardStats?.statusBreakdown.find(s => s.statusCode === step.code)
-                  return {
-                    name: step.label,
-                    value: stat?.count || 0,
-                    fill: step.fill,
-                    // cycleTime n'est pas disponible par statut pour le moment
+                  const normalizeStatusCode = (code?: string | null) => {
+                    if (!code) return ''
+                    if (code === 'INTER_EN_COURS') return 'EN_COURS'
+                    if (code === 'INTER_TERMINEE') return 'TERMINE'
+                    return code
                   }
-                })
-              })()}
-              title="Entonnoir de Conversion"
-              description="Suivi des interventions par étape"
-            />
+
+                  return FUNNEL_STEPS.map(step => {
+                    const stat = dashboardStats?.conversionFunnel?.find(
+                      s => normalizeStatusCode(s.statusCode) === normalizeStatusCode(step.code)
+                    )
+                    return {
+                      name: step.label,
+                      value: stat?.count || 0,
+                      fill: step.fill,
+                    }
+                  })
+                })()}
+                title="Entonnoir de Conversion (Réel)"
+                description="Conversions depuis le statut Demandé"
+              />
+            </div>
+
+            {/* Entonnoir 2 : État actuel (existant) */}
+            <div className="col-span-1">
+              <FunnelChart
+                data={(() => {
+                  const FUNNEL_STEPS = [
+                    { code: 'DEMANDE', label: 'Demandé', fill: '#60a5fa' },
+                    { code: 'DEVIS_ENVOYE', label: 'Devis Envoyé', fill: '#3b82f6' },
+                    { code: 'ACCEPTE', label: 'Accepté', fill: '#2563eb' },
+                    { code: 'INTER_EN_COURS', label: 'En Cours', fill: '#1d4ed8' },
+                    { code: 'INTER_TERMINEE', label: 'Terminé', fill: '#10b981' },
+                  ]
+
+                  return FUNNEL_STEPS.map(step => {
+                    const stat = dashboardStats?.statusBreakdown.find(s => s.statusCode === step.code)
+                    return {
+                      name: step.label,
+                      value: stat?.count || 0,
+                      fill: step.fill,
+                    }
+                  })
+                })()}
+                title="Répartition status actuel"
+                description="Répartition actuelle des interventions par statut"
+              />
+            </div>
           </div>
 
           {/* Charts Row - Distribution et Accordéon */}
