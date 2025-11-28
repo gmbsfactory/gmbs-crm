@@ -64,24 +64,28 @@ ON CONFLICT (id) DO UPDATE SET
   file_size_limit = EXCLUDED.file_size_limit;
 
 -- Allow public read access
+DROP POLICY IF EXISTS "Documents are publicly accessible" ON storage.objects;
 CREATE POLICY "Documents are publicly accessible"
 ON storage.objects FOR SELECT
 TO public
 USING (bucket_id = 'documents');
 
 -- Allow authenticated users to upload
+DROP POLICY IF EXISTS "Authenticated users can upload documents" ON storage.objects;
 CREATE POLICY "Authenticated users can upload documents"
 ON storage.objects FOR INSERT
 TO authenticated
 WITH CHECK (bucket_id = 'documents');
 
 -- Allow authenticated users to update their uploads
+DROP POLICY IF EXISTS "Authenticated users can update documents" ON storage.objects;
 CREATE POLICY "Authenticated users can update documents"
 ON storage.objects FOR UPDATE
 TO authenticated
 USING (bucket_id = 'documents');
 
 -- Allow authenticated users to delete their uploads
+DROP POLICY IF EXISTS "Authenticated users can delete documents" ON storage.objects;
 CREATE POLICY "Authenticated users can delete documents"
 ON storage.objects FOR DELETE
 TO authenticated
