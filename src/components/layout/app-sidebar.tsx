@@ -9,26 +9,40 @@ import {
   Home,
   HardHat,
   Settings,
+  Calculator,
   Wrench,
 } from "lucide-react"
 import { useInterface } from "@/contexts/interface-context"
+import { useCurrentUser } from "@/hooks/useCurrentUser"
 import { t } from "@/config/domain"
 
 type NavItem = { type: "link"; name: string; href: string; icon: React.ComponentType<{ className?: string }> } | { type: "spacer" }
-
-const navigation: NavItem[] = [
-  { type: "link", name: t("dashboard"), href: "/dashboard", icon: Home },
-  { type: "spacer" },
-  { type: "link", name: t("deals"), href: "/interventions", icon: Wrench },
-  { type: "link", name: t("contacts"), href: "/artisans", icon: HardHat },
-  { type: "spacer" },
-  { type: "link", name: "Paramètres", href: "/settings", icon: Settings },
-]
 
 export function AppSidebar() {
   const pathname = usePathname()
   // Source sidebar mode from Interface context to reflect Settings → Interface choices
   const { sidebarMode } = useInterface()
+  const { data: currentUser } = useCurrentUser()
+
+  const roles = currentUser?.roles || []
+  const hasRoleAccess = roles.some((role) => {
+    const normalized = (role || "").toLowerCase()
+    return normalized === "admin" || normalized === "manager"
+  })
+  const hasPagePermission = currentUser?.page_permissions?.comptabilite !== false
+  const canAccessComptabilite = hasRoleAccess && hasPagePermission
+
+  const navigation: NavItem[] = [
+    { type: "link", name: t("dashboard"), href: "/dashboard", icon: Home },
+    { type: "spacer" },
+    { type: "link", name: t("deals"), href: "/interventions", icon: Wrench },
+    ...(canAccessComptabilite
+      ? [{ type: "link", name: "Comptabilité", href: "/comptabilite", icon: Calculator }] as NavItem[]
+      : []),
+    { type: "link", name: t("contacts"), href: "/artisans", icon: HardHat },
+    { type: "spacer" },
+    { type: "link", name: "Paramètres", href: "/settings", icon: Settings },
+  ]
 
   const collapses = sidebarMode === "collapsed" || sidebarMode === "hybrid"
   const expandOnHover = sidebarMode === "hybrid"

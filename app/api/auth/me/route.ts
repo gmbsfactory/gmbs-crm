@@ -70,6 +70,26 @@ export async function GET(req: Request) {
       }
     }
 
+    let pagePermissions: Record<string, boolean> = {}
+    if (record?.id) {
+      const { data: permissionRows, error: permissionsError } = await supabase
+        .from('user_page_permissions')
+        .select('page_key, has_access')
+        .eq('user_id', record.id)
+
+      if (!permissionsError && Array.isArray(permissionRows)) {
+        pagePermissions = permissionRows.reduce((acc: Record<string, boolean>, perm: any) => {
+          if (perm?.page_key) {
+            const key = String(perm.page_key).toLowerCase()
+            acc[key] = perm.has_access !== false
+          }
+          return acc
+        }, {})
+      } else if (permissionsError && permissionsError.code !== 'PGRST116') {
+        console.warn('[auth/me] Failed to load page permissions', permissionsError)
+      }
+    }
+
     const user = {
       id: record.id,
       firstname: record.firstname,
@@ -85,6 +105,7 @@ export async function GET(req: Request) {
       last_seen_at: record.last_seen_at,
       email_smtp: record.email_smtp || null,
       roles,
+      page_permissions: pagePermissions,
     }
     return NextResponse.json({ user })
   } catch (e: any) {

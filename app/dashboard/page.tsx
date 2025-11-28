@@ -456,16 +456,18 @@ export default function DashboardPage() {
               >
                 {/* div1 : Filterbar - grid-area: 1 / 1 / 2 / 4 */}
                 <div 
-                  className="div1 relative flex items-center justify-between gap-12 p-4 bg-muted/50 rounded-lg flex-wrap flex-shrink-0 overflow-hidden"
+                  className="div1 relative grid items-center p-3 bg-muted/50 rounded-lg overflow-x-auto overflow-y-hidden"
                   style={{
                     gridArea: '1 / 1 / 2 / 4',
                     maxHeight: '100%',
+                    gridTemplateColumns: '1fr auto',
+                    gap: 'clamp(0.5rem, 1.5vw, 2rem)',
                   }}
                 >
                   {/* Partie gauche : Sélecteur de période */}
-                  <div className="flex items-center gap-4 flex-wrap">
+                  <div className="flex items-center gap-2 min-w-fit flex-shrink-0">
                     <div className="flex items-center gap-2">
-                      <span className="text-sm font-medium">Période :</span>
+                      <span className="text-sm font-medium whitespace-nowrap">Période :</span>
                       {isMounted ? (
                         <Select value={periodType} onValueChange={(value) => setPeriodType(value as PeriodType)}>
                           <SelectTrigger className="w-fit min-w-[110px]">
@@ -562,20 +564,20 @@ export default function DashboardPage() {
                     
                     {/* Dates et interventions à droite des boutons de sélection */}
                     <div className="flex items-center gap-2 text-sm">
-                      <span className="text-foreground font-medium">
+                      <span className="text-foreground font-medium hidden xl:inline whitespace-nowrap">
                         {new Date(period.startDate).toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" })} - {new Date(period.endDate).toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" })}
                       </span>
                       {totalInterventions !== null && (
-                        <Badge variant="secondary" className="text-foreground font-medium">
+                        <Badge variant="secondary" className="text-foreground font-medium whitespace-nowrap">
                           {totalInterventions} intervention{totalInterventions > 1 ? "s" : ""}
                         </Badge>
                       )}
                     </div>
                   </div>
                   
-                  {/* Partie centrale : Bienvenue centré seul - centré par rapport à toute la filterbar */}
-                  <div className="absolute left-1/2 -translate-x-1/2 flex items-center text-sm">
-                    {/* Effet "Bienvenue" centré seul */}
+                  {/* Partie centrale : Bienvenue centré absolument */}
+                  <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center justify-center pointer-events-none z-10">
+                    {/* Effet "Bienvenue" centré */}
                     {showBienvenue && currentUser?.id && selectedGestionnaireId === currentUser.id && (
                       <motion.div
                         initial={{ opacity: 0, scale: 0.8 }}
@@ -583,13 +585,13 @@ export default function DashboardPage() {
                         transition={{ duration: 0.5 }}
                         className="flex items-center"
                       >
-                        <AppleBienvenueEffect speed={0.2} className="text-primary h-8" />
+                        <AppleBienvenueEffect speed={0.2} className="text-primary h-6 lg:h-8" />
                       </motion.div>
                     )}
                   </div>
                   
                   {/* Partie droite : Badge gestionnaire sélectionné + Nom + AvatarGroup */}
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2 justify-end flex-shrink-0 min-w-fit">
                     {/* Badge du gestionnaire sélectionné */}
                     {selectedGestionnaireId && (() => {
                       const selectedGestionnaire = gestionnaires.find(g => g.id === selectedGestionnaireId)
@@ -618,7 +620,7 @@ export default function DashboardPage() {
                             />
                           </motion.div>
                           <motion.span 
-                            className="text-sm font-medium text-foreground"
+                            className="text-sm font-medium text-foreground whitespace-nowrap"
                             initial={{ opacity: 0 }}
                             animate={{ opacity: 1 }}
                             transition={{ delay: 0.1 }}
@@ -631,13 +633,14 @@ export default function DashboardPage() {
                     
                     {/* AvatarGroup des gestionnaires */}
                     {isLoadingGestionnaires ? (
-                      <div className="h-9 w-9 rounded-full bg-muted animate-pulse" />
+                      <div className="h-9 w-9 rounded-full bg-muted animate-pulse flex-shrink-0" />
                     ) : gestionnaires.length === 0 ? (
-                      <div className="text-sm text-muted-foreground">Aucun gestionnaire</div>
+                      <div className="text-sm text-muted-foreground whitespace-nowrap">Aucun gestionnaire</div>
                     ) : (
                       <motion.div
                         layout
                         transition={{ type: "spring", stiffness: 300, damping: 25 }}
+                        className="flex-shrink-0"
                       >
                         <AvatarGroup variant="motion" className="h-9 -space-x-2">
                           {gestionnaires
@@ -697,10 +700,11 @@ export default function DashboardPage() {
                         variant="outline"
                         size="sm"
                         onClick={() => router.push("/admin/dashboard")}
-                        className="flex items-center gap-2 ml-2"
+                        className="flex items-center gap-2 whitespace-nowrap flex-shrink-0"
                       >
                         <Shield className="h-4 w-4" />
-                        Mode Admin
+                        <span className="hidden lg:inline">Mode Admin</span>
+                        <span className="lg:hidden">Admin</span>
                       </Button>
                     )}
                   </div>

@@ -280,6 +280,7 @@ export const mapInterventionRecord = (item: any, refs: any): any => {
     demandeDevis: item.demande_devis ?? item.demandeDevis ?? null,
     demandeTrustPilot: item.demande_trust_pilot ?? item.demandeTrustPilot ?? null,
     metier: metier?.code ?? item.metier ?? item.metier_id ?? null,
+    metierLabel: metier?.label ?? item.metier ?? null,
     type: item.type ?? null,
     typeDeuxiemeArtisan: item.type_deuxieme_artisan ?? item.typeDeuxiemeArtisan ?? null,
     datePrevue: item.date_prevue ?? item.datePrevue ?? null,

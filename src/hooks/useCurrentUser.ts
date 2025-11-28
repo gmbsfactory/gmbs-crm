@@ -15,6 +15,7 @@ interface CurrentUser {
   color?: string | null
   status?: string | null
   roles?: string[]
+  page_permissions?: Record<string, boolean>
 }
 
 export function useCurrentUser(options?: { enabled?: boolean }) {
@@ -57,5 +58,4 @@ export function useCurrentUser(options?: { enabled?: boolean }) {
     enabled: options?.enabled !== false,
   })
 }
-
 

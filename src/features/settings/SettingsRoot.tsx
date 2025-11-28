@@ -55,6 +55,7 @@ type TeamUser = {
   color: string | null
   username?: string | null
   last_seen_at?: string | null
+  page_permissions?: Record<string, boolean>
 }
 
 const ACCENT_ORDER: AccentOption[] = ["indigo", "emerald", "violet", "amber", "rose", "custom"]
@@ -428,6 +429,8 @@ export default function SettingsPage({ activeTab = "profile", embedHeader = true
   const [editRole, setEditRole] = useState<string | null>(null)
   const [editSurnom, setEditSurnom] = useState<string>('')
   const [editColor, setEditColor] = useState<string>('')
+  const [editPagePermissions, setEditPagePermissions] = useState<Record<string, boolean>>({})
+  const [editPagePermissionsLoading, setEditPagePermissionsLoading] = useState(false)
   const [deletingUser, setDeletingUser] = useState<TeamUser | null>(null)
   const [deleteEmailConfirm, setDeleteEmailConfirm] = useState<string>('')
   useEffect(() => {
@@ -451,6 +454,55 @@ export default function SettingsPage({ activeTab = "profile", embedHeader = true
     run()
     return () => { ignore = true }
   }, [activeTab])
+
+  const defaultPagePermissions = (role: string | null | undefined) => {
+    const normalizedRole = (role || '').toLowerCase()
+    const isPrivileged = normalizedRole === 'admin' || normalizedRole === 'manager'
+    return { comptabilite: isPrivileged }
+  }
+
+  useEffect(() => {
+    if (!editUser) return
+    setEditPagePermissions((prev) => {
+      const normalizedRole = (editRole || '').toLowerCase()
+      const isPrivileged = normalizedRole === 'admin' || normalizedRole === 'manager'
+      if (!isPrivileged) {
+        if (prev.comptabilite === false) return prev
+        return { ...prev, comptabilite: false }
+      }
+      if (prev.comptabilite === undefined) {
+        return { ...prev, comptabilite: true }
+      }
+      return prev
+    })
+  }, [editRole, editUser])
+
+  useEffect(() => {
+    if (!editUser?.id) return
+    let ignore = false
+    const loadPermissions = async () => {
+      const defaults = defaultPagePermissions(editRole || editUser.role || null)
+      setEditPagePermissions((prev) => (Object.keys(prev).length === 0 ? defaults : prev))
+      setEditPagePermissionsLoading(true)
+      try {
+        const res = await fetch(`/api/settings/team/user/${editUser.id}/page-permissions`, { cache: 'no-store' })
+        const data = await res.json().catch(() => ({}))
+        if (ignore) return
+        const perms = data?.permissions
+        if (perms && typeof perms === 'object' && Object.keys(perms).length > 0) {
+          setEditPagePermissions(perms)
+        } else {
+          setEditPagePermissions(defaults)
+        }
+      } catch (error) {
+        if (!ignore) setEditPagePermissions(defaults)
+      } finally {
+        if (!ignore) setEditPagePermissionsLoading(false)
+      }
+    }
+    loadPermissions()
+    return () => { ignore = true }
+  }, [editUser?.id, editRole, editUser?.role])
 
   const handleSidebarModeChange = (mode: "collapsed" | "hybrid" | "expanded") => {
     setTempSidebarMode(mode)
@@ -1086,6 +1138,12 @@ export default function SettingsPage({ activeTab = "profile", embedHeader = true
                             setEditRole(u.role || 'gestionnaire')
                             setEditSurnom(u.code_gestionnaire || u.surnom || '')
                             setEditColor(u.color || '')
+                            const defaults = defaultPagePermissions(u.role || null)
+                            setEditPagePermissions(
+                              u.page_permissions && Object.keys(u.page_permissions).length > 0
+                                ? u.page_permissions
+                                : defaults
+                            )
                           }}>
                             <Cog className="h-4 w-4" />
                           </Button>
@@ -1148,6 +1206,8 @@ export default function SettingsPage({ activeTab = "profile", embedHeader = true
                   setEditRole(null)
                   setEditSurnom('')
                   setEditColor('')
+                  setEditPagePermissions({})
+                  setEditPagePermissionsLoading(false)
                 }
               }}
             >
@@ -1176,6 +1236,29 @@ export default function SettingsPage({ activeTab = "profile", embedHeader = true
                       <Input className="mt-1" value={editSurnom} onChange={(e) => setEditSurnom(e.target.value)} />
                     </div>
                   </div>
+                  <div className="space-y-3 pt-4 border-t">
+                    <Label className="text-base font-medium">Permissions d&apos;accès aux pages</Label>
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <Label htmlFor="page-comptabilite" className="text-sm font-normal">
+                            Page Comptabilité
+                          </Label>
+                          <p className="text-xs text-muted-foreground">
+                            Accès à la page comptabilité (admins et managers uniquement)
+                          </p>
+                        </div>
+                        <Switch
+                          id="page-comptabilite"
+                          checked={editPagePermissions.comptabilite ?? false}
+                          disabled={(editRole || '').toLowerCase() === 'gestionnaire' || editPagePermissionsLoading}
+                          onCheckedChange={(checked) =>
+                            setEditPagePermissions((prev) => ({ ...prev, comptabilite: checked }))
+                          }
+                        />
+                      </div>
+                    </div>
+                  </div>
                   <div>
                     <Label>Couleur du badge</Label>
                     <div className="flex items-center gap-2 mt-1">
@@ -1200,6 +1283,11 @@ export default function SettingsPage({ activeTab = "profile", embedHeader = true
                         body: JSON.stringify({ userId: editUser.id, role: editRole })
                       })
                     }
+                    await fetch(`/api/settings/team/user/${editUser.id}/page-permissions`, {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ permissions: editPagePermissions })
+                    })
                     const res = await fetch('/api/settings/team', { cache: 'no-store' })
                     const data = await res.json()
                     setTeam(data?.users || [])
@@ -1207,6 +1295,7 @@ export default function SettingsPage({ activeTab = "profile", embedHeader = true
                     setEditRole(null)
                     setEditSurnom('')
                     setEditColor('')
+                    setEditPagePermissions({})
                   }}>Enregistrer</Button>
                 </DialogFooter>
               </DialogContent>

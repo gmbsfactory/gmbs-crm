@@ -4,7 +4,7 @@ import * as React from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
-import { Search, Bell, Calendar, FileText, Plus, X, Home, HardHat, Settings, Wrench } from "lucide-react"
+import { Search, Bell, Calendar, FileText, Plus, X, Home, HardHat, Settings, Wrench, Calculator } from "lucide-react"
 import { AvatarStatus } from "@/components/layout/avatar-status"
 import { usePathname } from "next/navigation"
 import Link from "next/link"
@@ -23,6 +23,7 @@ import { t } from "@/config/domain"
 import { AnimatePresence, motion } from "framer-motion"
 import Image from "next/image"
 import { setPathname } from "@/lib/navigation-tracker"
+import { useCurrentUser } from "@/hooks/useCurrentUser"
 
 type ReminderFilter = "all" | "my_reminders" | "mentions"
 
@@ -42,21 +43,34 @@ type DisplayReminder = {
 
 type NavItem = { type: "link"; name: string; href: string; icon: React.ComponentType<{ className?: string }> } | { type: "spacer" }
 
-const navigation: NavItem[] = [
-  { type: "link", name: t("dashboard"), href: "/dashboard", icon: Home },
-  { type: "spacer" },
-  { type: "link", name: t("deals"), href: "/interventions", icon: Wrench },
-  { type: "link", name: t("contacts"), href: "/artisans", icon: HardHat },
-  { type: "spacer" },
-  { type: "link", name: "Paramètres", href: "/settings", icon: Settings },
-]
-
 export default function Topbar() {
   const pathname = usePathname()
   const { open: openModal } = useModal()
   const artisanModal = useArtisanModal()
   const { sidebarEnabled } = useInterface()
   const [logoHovered, setLogoHovered] = React.useState(false)
+  const { data: currentUser } = useCurrentUser()
+
+  // Construire la navigation dynamiquement pour inclure Comptabilité si l'utilisateur a les permissions
+  const roles = currentUser?.roles || []
+  const hasRoleAccess = roles.some((role) => {
+    const normalized = (role || "").toLowerCase()
+    return normalized === "admin" || normalized === "manager"
+  })
+  const hasPagePermission = currentUser?.page_permissions?.comptabilite !== false
+  const canAccessComptabilite = hasRoleAccess && hasPagePermission
+
+  const navigation: NavItem[] = [
+    { type: "link", name: t("dashboard"), href: "/dashboard", icon: Home },
+    { type: "spacer" },
+    { type: "link", name: t("deals"), href: "/interventions", icon: Wrench },
+    ...(canAccessComptabilite
+      ? [{ type: "link", name: "Comptabilité", href: "/comptabilite", icon: Calculator }] as NavItem[]
+      : []),
+    { type: "link", name: t("contacts"), href: "/artisans", icon: HardHat },
+    { type: "spacer" },
+    { type: "link", name: "Paramètres", href: "/settings", icon: Settings },
+  ]
   const {
     reminders,
     reminderRecords,

@@ -8,13 +8,22 @@ export async function GET() {
   try {
     const { data, error } = await supabaseAdmin
       .from('users')
-      .select('id, firstname, lastname, email, color, status, code_gestionnaire, username, last_seen_at, user_roles ( roles ( name ) )')
+      .select('id, firstname, lastname, email, color, status, code_gestionnaire, username, last_seen_at, user_roles ( roles ( name ) ), user_page_permissions ( page_key, has_access )')
       .order('lastname', { ascending: true })
       .order('firstname', { ascending: true })
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
     const users = (data || []).map((u: any) => {
       const roleName = u?.user_roles?.[0]?.roles?.name || null
+      const pagePermissions = Array.isArray(u?.user_page_permissions)
+        ? u.user_page_permissions.reduce((acc: Record<string, boolean>, perm: any) => {
+            if (perm?.page_key) {
+              const key = String(perm.page_key).toLowerCase()
+              acc[key] = perm.has_access !== false
+            }
+            return acc
+          }, {})
+        : {}
       return {
         id: u.id,
         firstname: u.firstname,
@@ -29,6 +38,7 @@ export async function GET() {
         role: roleName,
         username: u.username,
         last_seen_at: u.last_seen_at,
+        page_permissions: pagePermissions,
       }
     })
     return NextResponse.json({ users })

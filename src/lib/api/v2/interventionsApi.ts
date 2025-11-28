@@ -111,18 +111,52 @@ async function getReferenceCache(): Promise<ReferenceCache> {
 export const interventionsApi = {
   // Récupérer toutes les interventions (ULTRA-OPTIMISÉ)
   async getAll(params?: InterventionQueryParams): Promise<PaginatedResponse<InterventionWithStatus>> {
+    const includeCosts = params?.include?.includes("costs")
+    const includeArtisans = params?.include?.includes("artisans")
+
+    const selectColumns = [
+      "*",
+      "status:intervention_statuses(id,code,label,color,sort_order)",
+      "payments:intervention_payments(*)",
+      "costs_cache:intervention_costs_cache(total_ca,total_sst,total_materiel,total_marge)",
+    ]
+
+    if (includeCosts) {
+      selectColumns.push(
+        `
+        intervention_costs (
+          id,
+          cost_type,
+          label,
+          amount,
+          currency,
+          metadata
+        )
+        `.trim(),
+      )
+    }
+
+    if (includeArtisans) {
+      selectColumns.push(
+        `
+        intervention_artisans (
+          artisan_id,
+          role,
+          is_primary,
+          artisans (
+            id,
+            prenom,
+            nom
+          )
+        )
+        `.trim(),
+      )
+    }
+
     // Version ultra-rapide : requête simple avec cache des coûts
     let query = supabase
       .from("interventions")
-      .select(
-        `
-          *,
-          status:intervention_statuses(id,code,label,color,sort_order),
-          payments:intervention_payments(*),
-          costs_cache:intervention_costs_cache(total_ca,total_sst,total_materiel,total_marge)
-        `,
-        { count: "exact" }
-      )
+      .select(selectColumns.join(",\n"), { count: "exact" })
       .order("created_at", { ascending: false });
 
     // Appliquer les filtres si nécessaire
