@@ -1730,6 +1730,7 @@ serve(async (req: Request) => {
           }
 
           // Enregistrer la transition explicitement via la fonction SQL
+          // Le trigger SQL détectera cette transition (source='api') et ne créera pas de doublon
           const { error: transitionError } = await supabase.rpc(
             'log_status_transition_from_api',
             {
@@ -1740,6 +1741,9 @@ serve(async (req: Request) => {
               p_metadata: {
                 updated_via: 'edge_function',
                 updated_at: new Date().toISOString(),
+                created_by: 'EdgeFunction',
+                // Note: Le trigger SQL vérifie les transitions avec source='api' dans les 5 dernières secondes
+                // pour éviter les doublons lors de l'UPDATE qui suit
               }
             }
           );

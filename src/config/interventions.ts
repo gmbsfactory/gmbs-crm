@@ -26,6 +26,8 @@ export type InterventionStatusKey =
   | "ACCEPTE"
   | "EN_COURS"
   | "TERMINE"
+  | "INTER_EN_COURS"  // Code DB
+  | "INTER_TERMINEE"  // Code DB
   | "SAV"
   | "ATT_ACOMPTE"
 
@@ -44,7 +46,9 @@ export const INTERVENTION_STATUS_ORDER: InterventionStatusKey[] = [
   "VISITE_TECHNIQUE",
   "ACCEPTE",
   "EN_COURS",
+  "INTER_EN_COURS",
   "TERMINE",
+  "INTER_TERMINEE",
   "SAV",
   "STAND_BY",
   "ATT_ACOMPTE",
@@ -117,10 +121,26 @@ export const INTERVENTION_STATUS: Record<InterventionStatusKey, InterventionStat
     hexColor: "#A855F7",
     icon: Loader2,
   },
+  INTER_EN_COURS: {
+    value: "INTER_EN_COURS",
+    label: "Inter en cours",
+    description: "Intervention en réalisation (code DB)",
+    color: "bg-purple-500",
+    hexColor: "#A855F7",
+    icon: Loader2,
+  },
   TERMINE: {
     value: "TERMINE",
     label: "Terminé",
     description: "Travaux terminés",
+    color: "bg-sky-500",
+    hexColor: "#0EA5E9",
+    icon: ShieldAlert,
+  },
+  INTER_TERMINEE: {
+    value: "INTER_TERMINEE",
+    label: "Inter terminée",
+    description: "Travaux terminés (code DB)",
     color: "bg-sky-500",
     hexColor: "#0EA5E9",
     icon: ShieldAlert,
@@ -151,7 +171,9 @@ const STATUS_KEYS: InterventionStatusKey[] = [
   "VISITE_TECHNIQUE",
   "ACCEPTE",
   "EN_COURS",
+  "INTER_EN_COURS",
   "TERMINE",
+  "INTER_TERMINEE",
   "SAV",
   "STAND_BY",
   "ATT_ACOMPTE",
@@ -165,7 +187,9 @@ const STATUS_POSITIONS: Record<InterventionStatusKey, { x: number; y: number }> 
   VISITE_TECHNIQUE: { x: 3, y: 1 },
   ACCEPTE: { x: 4, y: 1 },
   EN_COURS: { x: 5, y: 1 },
+  INTER_EN_COURS: { x: 5, y: 1 }, // Même position que EN_COURS
   TERMINE: { x: 6, y: 1 },
+  INTER_TERMINEE: { x: 6, y: 1 }, // Même position que TERMINE
   SAV: { x: 7, y: 1 },
   STAND_BY: { x: 4, y: 2 },
   ATT_ACOMPTE: { x: 5, y: 2 },

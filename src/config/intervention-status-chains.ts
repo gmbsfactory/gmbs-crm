@@ -13,25 +13,27 @@ import type { InterventionStatusKey } from './interventions';
 export const INTERVENTION_STATUS_CHAINS = {
     /**
      * Chaîne principale de progression standard
+     * IMPORTANT: Utilise les codes DB (INTER_EN_COURS, INTER_TERMINEE)
      */
     MAIN_PROGRESSION: [
         'DEMANDE',
         'DEVIS_ENVOYE',
         'VISITE_TECHNIQUE',
         'ACCEPTE',
-        'EN_COURS',
-        'TERMINE'
+        'INTER_EN_COURS',
+        'INTER_TERMINEE'
     ] as InterventionStatusKey[],
 
     /**
      * Chaîne alternative (sans devis)
+     * IMPORTANT: Utilise les codes DB (INTER_EN_COURS, INTER_TERMINEE)
      */
     VISIT_FIRST_PROGRESSION: [
         'DEMANDE',
         'VISITE_TECHNIQUE',
         'ACCEPTE',
-        'EN_COURS',
-        'INTER_TERMINE'
+        'INTER_EN_COURS',
+        'INTER_TERMINEE'
     ] as InterventionStatusKey[],
 } as const;
 

@@ -24,6 +24,8 @@ import {
 import { listInterventionDocuments } from "@/lib/api/documents"
 import { interventionsApi } from "@/lib/api/v2"
 import type { InterventionStatus } from "@/types/intervention"
+import { automaticTransitionService } from "@/lib/interventions/automatic-transition-service"
+import type { InterventionStatusKey } from "@/config/interventions"
 
 const DEFAULT_LIMIT = 50
 
@@ -253,6 +255,29 @@ export async function transitionStatus(id: string, payload: StatusPayload) {
 
   if (!statusId) {
     throw new Error("Statut cible non défini")
+  }
+
+  // Récupérer le statut actuel AVANT l'UPDATE pour créer les transitions
+  const current = await interventionsApi.getById(id)
+  const currentStatusCode = current.status?.code as InterventionStatusKey | undefined
+
+  // Créer les transitions AVANT l'UPDATE si le statut change
+  // Le trigger SQL ne créera pas de doublon grâce à la détection des transitions API
+  if (currentStatusCode && currentStatusCode !== payload.status) {
+    try {
+      // Récupérer l'utilisateur depuis le contexte si disponible
+      // Pour l'instant, on passe undefined car le contexte n'est pas disponible ici
+      await automaticTransitionService.executeTransition(
+        id,
+        currentStatusCode,
+        payload.status as InterventionStatusKey,
+        undefined, // userId sera null, peut être amélioré plus tard
+        { updated_via: 'transitionStatus_api' }
+      )
+    } catch (error) {
+      // Logger l'erreur mais continuer - le trigger de sécurité prendra le relais si nécessaire
+      console.warn('[transitionStatus] Erreur lors de la création des transitions:', error)
+    }
   }
 
   const legacyPayload = buildStatusUpdatePayload(payload.status, dueAt, payload.artisanId ?? null)

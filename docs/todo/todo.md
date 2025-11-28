@@ -37,9 +37,16 @@
 
 IN PROGRESS : 
         - status chain transition    []
-        - podium uniformisé    []
+        - podium uniformisé          []
         - tableau admin dashboard    []
-        - tableau admin dashboard    []
+        - refaire architecture fonction rpc dashboard avec claude []
+        
+TODO (pour livraison)
+        - sur bar char répartition par métier, mettre un baton marge et un baton nombre d'inter
+                - pouvoir aussi le faire avec une agence
+                - pouvoir aussi le faire avec un gestionnaire
+        
+        - 
 
 
 

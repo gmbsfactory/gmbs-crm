@@ -205,7 +205,8 @@ LANGUAGE plpgsql
 SECURITY DEFINER
 AS $$
 DECLARE
-  status_chain text[] := ARRAY['DEMANDE', 'DEVIS_ENVOYE', 'VISITE_TECHNIQUE', 'ACCEPTE', 'EN_COURS', 'TERMINE'];
+  -- CORRECTION : Utiliser les codes DB (INTER_EN_COURS, INTER_TERMINEE) au lieu des codes frontend
+  status_chain text[] := ARRAY['DEMANDE', 'DEVIS_ENVOYE', 'VISITE_TECHNIQUE', 'ACCEPTE', 'INTER_EN_COURS', 'INTER_TERMINEE'];
   to_index integer;
   i integer;
   current_from_code text;

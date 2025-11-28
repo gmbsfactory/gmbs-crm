@@ -95,6 +95,8 @@ export class AutomaticTransitionService {
 
             const transitionMetadata = {
                 ...metadata,
+                created_by: 'AutomaticTransitionService',
+                service_version: '1.0',
                 is_intermediate: !isFinal,
                 final_target_status: toStatus,
                 transition_chain: 'MAIN_PROGRESSION', // Idéalement dynamique
@@ -165,12 +167,17 @@ export class AutomaticTransitionService {
             }
 
             // Appeler la fonction SQL existante
+            // Les metadata incluent created_by et service_version pour identification
             const { data, error } = await supabase.rpc('log_status_transition_from_api', {
                 p_intervention_id: interventionId,
                 p_from_status_id: fromStatusData?.id || null,
                 p_to_status_id: toStatusData.id,
                 p_changed_by_user_id: userId || null,
-                p_metadata: metadata || {},
+                p_metadata: {
+                    ...metadata,
+                    created_by: 'AutomaticTransitionService',
+                    service_version: '1.0',
+                },
             });
 
             if (error) {
