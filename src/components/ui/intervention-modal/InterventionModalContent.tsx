@@ -502,8 +502,10 @@ GMBS`
               </Button>
               {clientPhone && clientPhone.trim() !== "" && (
                 <Button
-                  onClick={handleOpenWhatsApp}
-                  className="flex items-center gap-2 bg-[#25D366] hover:bg-[#20BA5A] text-white"
+                  onClick={() => {}}
+                  disabled={true}
+                  className="flex items-center gap-2 bg-[#25D366]/50 text-white cursor-not-allowed opacity-50"
+                  title="Fonctionnalité désactivée"
                 >
                   <MessageCircle className="h-4 w-4" />
                   Envoyer sur WhatsApp

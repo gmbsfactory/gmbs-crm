@@ -201,48 +201,8 @@ export function NewArtisanModalContent({ mode, onClose, onCycleMode }: Props) {
   }
 
   const handleSiretComplete = async (siret: string) => {
-    // Ne pas vérifier si service indisponible
-    if (isUnavailable) return
-
-    if (siret.length === 14) {
-      const result = await verifySiret(siret)
-      if (result) {
-        // Pré-remplir UNIQUEMENT les champs vides
-        if (result.raison_sociale && !watch("raison_sociale")) {
-          setValue("raison_sociale", result.raison_sociale)
-        }
-        if (result.nom && !watch("nom")) {
-          setValue("nom", result.nom)
-        }
-        if (result.prenom && !watch("prenom")) {
-          setValue("prenom", result.prenom)
-        }
-        if (result.statut_juridique && !watch("statut_juridique")) {
-          setValue("statut_juridique", result.statut_juridique)
-        }
-        // Ne JAMAIS toucher à l'email (API Sirene ne le fournit pas)
-
-        // Pré-remplir l'adresse si disponible et vide
-        if (result.adresse) {
-          if (!watch("adresse_siege_social")) {
-            const adresseComplete = [
-              result.adresse.numero,
-              result.adresse.type_voie,
-              result.adresse.voie,
-            ]
-              .filter(Boolean)
-              .join(" ")
-            setValue("adresse_siege_social", adresseComplete)
-          }
-          if (!watch("code_postal_siege_social")) {
-            setValue("code_postal_siege_social", result.adresse.code_postal)
-          }
-          if (!watch("ville_siege_social")) {
-            setValue("ville_siege_social", result.adresse.ville)
-          }
-        }
-      }
-    }
+    // Fonctionnalité désactivée - ne rien faire
+    return
   }
 
   const isSubmitting = createArtisan.isPending
@@ -497,18 +457,12 @@ export function NewArtisanModalContent({ mode, onClose, onCycleMode }: Props) {
                                     type="button"
                                     variant="outline"
                                     size="sm"
-                                    onClick={() => handleSiretComplete(siretValue)}
-                                    disabled={!canVerify}
-                                    className="shrink-0"
+                                    onClick={() => {}}
+                                    disabled={true}
+                                    className="shrink-0 opacity-50 cursor-not-allowed"
+                                    title="Fonctionnalité désactivée"
                                   >
-                                    {isVerifyingSiret ? (
-                                      <>
-                                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                        Vérification...
-                                      </>
-                                    ) : (
-                                      "Vérifier"
-                                    )}
+                                    Vérifier
                                   </Button>
                                 </div>
                                 {fieldState.error && (

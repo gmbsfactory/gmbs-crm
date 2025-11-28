@@ -1813,8 +1813,10 @@ export function InterventionEditForm({
                               type="button"
                               variant="outline"
                               size="sm"
-                              onClick={() => handleOpenWhatsApp('devis', artisanId, artisanPhone)}
-                              className="flex-1 text-xs bg-[#25D366]/10 hover:bg-[#25D366]/20 border-[#25D366]/30 text-[#25D366]"
+                              onClick={() => {}}
+                              disabled={true}
+                              className="flex-1 text-xs bg-[#25D366]/10 border-[#25D366]/30 text-[#25D366]/50 cursor-not-allowed opacity-50"
+                              title="Fonctionnalité désactivée"
                             >
                               <MessageCircle className="h-3.5 w-3.5 mr-1.5" />
                               WhatsApp demande de devis
@@ -1823,8 +1825,10 @@ export function InterventionEditForm({
                               type="button"
                               variant="outline"
                               size="sm"
-                              onClick={() => handleOpenWhatsApp('intervention', artisanId, artisanPhone)}
-                              className="flex-1 text-xs bg-[#25D366]/10 hover:bg-[#25D366]/20 border-[#25D366]/30 text-[#25D366]"
+                              onClick={() => {}}
+                              disabled={true}
+                              className="flex-1 text-xs bg-[#25D366]/10 border-[#25D366]/30 text-[#25D366]/50 cursor-not-allowed opacity-50"
+                              title="Fonctionnalité désactivée"
                             >
                               <MessageCircle className="h-3.5 w-3.5 mr-1.5" />
                               WhatsApp demande d&apos;intervention
