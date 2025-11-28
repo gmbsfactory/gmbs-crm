@@ -98,16 +98,16 @@ const StyledWrapper = styled.div<{ optionsCount: number }>`
       box-shadow 0.4s ease-in-out;
   }
 
-  /* Type de données - Métier */
-  #glass-chart-type-metier:checked ~ .glass-glider {
+  /* Type de données - Gestionnaire (1ère position) */
+  #glass-chart-type-gestionnaire:checked ~ .glass-glider {
     transform: translateX(0%);
-    background: linear-gradient(135deg, #ffd70055, #ffcc00);
+    background: linear-gradient(135deg, #10b98155, #10b981);
     box-shadow:
-      0 0 18px rgba(255, 215, 0, 0.5),
-      0 0 10px rgba(255, 235, 150, 0.4) inset;
+      0 0 18px rgba(16, 185, 129, 0.5),
+      0 0 10px rgba(167, 243, 208, 0.4) inset;
   }
 
-  /* Type de données - Agences */
+  /* Type de données - Agences (2ème position) */
   #glass-chart-type-agences:checked ~ .glass-glider {
     transform: translateX(100%);
     background: linear-gradient(135deg, #3b82f655, #3b82f6);
@@ -116,13 +116,13 @@ const StyledWrapper = styled.div<{ optionsCount: number }>`
       0 0 10px rgba(147, 197, 253, 0.4) inset;
   }
 
-  /* Type de données - Gestionnaire */
-  #glass-chart-type-gestionnaire:checked ~ .glass-glider {
+  /* Type de données - Métier (3ème position) */
+  #glass-chart-type-metier:checked ~ .glass-glider {
     transform: translateX(200%);
-    background: linear-gradient(135deg, #10b98155, #10b981);
+    background: linear-gradient(135deg, #ffd70055, #ffcc00);
     box-shadow:
-      0 0 18px rgba(16, 185, 129, 0.5),
-      0 0 10px rgba(167, 243, 208, 0.4) inset;
+      0 0 18px rgba(255, 215, 0, 0.5),
+      0 0 10px rgba(255, 235, 150, 0.4) inset;
   }
 
   /* Métrique - Volume */
@@ -137,19 +137,19 @@ const StyledWrapper = styled.div<{ optionsCount: number }>`
   /* Métrique - CA */
   #glass-metric-ca:checked ~ .glass-glider {
     transform: translateX(100%);
-    background: linear-gradient(135deg, #06b6d455, #06b6d4);
+    background: linear-gradient(135deg, #f59e0b55, #f59e0b);
     box-shadow:
-      0 0 18px rgba(6, 182, 212, 0.5),
-      0 0 10px rgba(165, 243, 252, 0.4) inset;
+      0 0 18px rgba(245, 158, 11, 0.5),
+      0 0 10px rgba(253, 230, 138, 0.4) inset;
   }
 
   /* Métrique - Marge */
   #glass-metric-marge:checked ~ .glass-glider {
     transform: translateX(200%);
-    background: linear-gradient(135deg, #f59e0b55, #f59e0b);
+    background: linear-gradient(135deg, #10b98155, #10b981);
     box-shadow:
-      0 0 18px rgba(245, 158, 11, 0.5),
-      0 0 10px rgba(253, 230, 138, 0.4) inset;
+      0 0 18px rgba(16, 185, 129, 0.5),
+      0 0 10px rgba(167, 243, 208, 0.4) inset;
   }
 `;
 
