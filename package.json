@@ -13,6 +13,7 @@
     "setup": "node scripts/core-node/setup.js",
     "deploy:functions": "supabase functions deploy",
     "deploy:functions:list": "supabase functions list",
+    "auth:create-credentials": "node scripts/create-auth-credentials.js",
     "import:all": "npx tsx scripts/imports/google-sheets-import-clean-v2.js && node scripts/recalculate-artisan-statuses.js",
     "import:interventions": "npx tsx scripts/imports/google-sheets-import-clean-v2.js --interventions-only",
     "import:artisans": "npx tsx scripts/imports/google-sheets-import-clean-v2.js --artisans-only && node scripts/recalculate-artisan-statuses.js",
