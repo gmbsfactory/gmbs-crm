@@ -2439,6 +2439,17 @@ export const interventionsApi = {
       marge_jour: item.marge_jour ?? 0
     })) : [];
 
+    // Mapper les données de volume par statut depuis volume_by_status (v3)
+    const rawVolumeByStatus = rpcResult.volume_by_status || [];
+    const volumeByStatus = Array.isArray(rawVolumeByStatus) ? rawVolumeByStatus.map((item: any) => ({
+      date: item.date,
+      demande: item.demande ?? 0,
+      devis_envoye: item.devis_envoye ?? 0,
+      accepte: item.accepte ?? 0,
+      en_cours: item.en_cours ?? 0,
+      termine: item.termine ?? 0
+    })) : [];
+
     // Récupérer les données de funnel et status depuis la v3
     const rawConversionFunnel = rpcResult.conversion_funnel || [];
     const conversionFunnel = Array.isArray(rawConversionFunnel) ? rawConversionFunnel : [];
@@ -2700,6 +2711,7 @@ export const interventionsApi = {
       sparklines,
       statusBreakdown: breakdown,
       conversionFunnel: normalizedConversionFunnel,
+      volumeByStatus,
       metierBreakdown: metierStats,
       metierStats,
       agencyStats,

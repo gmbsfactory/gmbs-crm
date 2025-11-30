@@ -9,7 +9,9 @@ export const InterventionStatusValues = [
   "STAND_BY",
   "ACCEPTE",
   "EN_COURS",
+  "INTER_EN_COURS",
   "TERMINE",
+  "INTER_TERMINEE",
   "SAV",
   "ATT_ACOMPTE",
 ] as const

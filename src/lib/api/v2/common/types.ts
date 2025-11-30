@@ -857,8 +857,8 @@ export interface AdminDashboardStats {
     date: string;
     countDemandees: number;
     countTerminees: number;
-    ca_jour: number;
-    marge_jour: number;
+    ca_jour?: number; // Chiffre d'affaires quotidien
+    marge_jour?: number; // Marge quotidienne
   }>;
 
   // 3. Données pour le Funnel (Status Breakdown)
@@ -873,6 +873,16 @@ export interface AdminDashboardStats {
   conversionFunnel: Array<{
     statusCode: string;
     count: number;
+  }>;
+
+  // Données pour le Stacked Bar Chart (volumétrie par jour et par statut)
+  volumeByStatus?: Array<{
+    date: string;
+    demande: number;
+    devis_envoye: number;
+    accepte: number;
+    en_cours: number;
+    termine: number;
   }>;
 
   // 4. Statistiques par métier (breakdown complet)

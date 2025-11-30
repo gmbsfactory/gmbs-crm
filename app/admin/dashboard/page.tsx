@@ -9,6 +9,7 @@ import { KPICard } from "@/components/admin-dashboard/KPICard"
 import { FilterBar, FilterPeriodType } from "@/components/admin-dashboard/FilterBar"
 import { FunnelChart } from "@/components/admin-dashboard/FunnelChart"
 import { HorizontalBarChart } from "@/components/admin-dashboard/HorizontalBarChart"
+import { StackedBarChart } from "@/components/admin-dashboard/StackedBarChart"
 import { VirtualizedDataTable } from "@/components/admin-dashboard/VirtualizedDataTable"
 import { MarginBar } from "@/components/admin-dashboard/MarginBar"
 import { RevenueHistoryModal } from "@/components/admin-dashboard/RevenueHistoryModal"
@@ -613,34 +614,20 @@ export default function AdminDashboardPage() {
                     }
                   })
                 })()}
-                title="Entonnoir de Conversion (Réel)"
-                description="Conversions depuis le statut Demandé"
+                title="Entonnoir de Conversion"
+                description="Conversions des interventions"
               />
             </div>
 
-            {/* Entonnoir 2 : État actuel (existant) */}
+            {/* Stacked Bar Chart : Évolution volumétrie par statut */}
             <div className="col-span-1">
-              <FunnelChart
-                data={(() => {
-                  const FUNNEL_STEPS = [
-                    { code: 'DEMANDE', label: 'Demandé', fill: '#60a5fa' },
-                    { code: 'DEVIS_ENVOYE', label: 'Devis Envoyé', fill: '#3b82f6' },
-                    { code: 'ACCEPTE', label: 'Accepté', fill: '#2563eb' },
-                    { code: 'INTER_EN_COURS', label: 'En Cours', fill: '#1d4ed8' },
-                    { code: 'INTER_TERMINEE', label: 'Terminé', fill: '#10b981' },
-                  ]
-
-                  return FUNNEL_STEPS.map(step => {
-                    const stat = dashboardStats?.statusBreakdown.find(s => s.statusCode === step.code)
-                    return {
-                      name: step.label,
-                      value: stat?.count || 0,
-                      fill: step.fill,
-                    }
-                  })
-                })()}
-                title="Répartition status actuel"
-                description="Répartition actuelle des interventions par statut"
+              <StackedBarChart
+                data={dashboardStats?.volumeByStatus}
+                isLoading={isLoading}
+                periodStart={startDate || undefined}
+                periodEnd={endDate || undefined}
+                title="Évolution de la Volumétrie"
+                description="Répartition quotidienne des interventions par statut"
               />
             </div>
           </div>

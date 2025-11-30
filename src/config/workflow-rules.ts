@@ -54,7 +54,15 @@ export const WORKFLOW_RULES: Record<InterventionStatusValue, WorkflowRule> = {
     requirements: { artisan: true },
     autoActions: [],
   },
+  INTER_EN_COURS: {
+    requirements: { artisan: true },
+    autoActions: [],
+  },
   TERMINE: {
+    requirements: { artisan: true, facture: true, proprietaire: true },
+    autoActions: ["generate_invoice_if_missing"],
+  },
+  INTER_TERMINEE: {
     requirements: { artisan: true, facture: true, proprietaire: true },
     autoActions: ["generate_invoice_if_missing"],
   },
@@ -124,7 +132,7 @@ export const VALIDATION_RULES: ValidationRule[] = [
   },
   {
     key: "INTERVENTION_ID_REQUIRED",
-    statuses: ["DEVIS_ENVOYE", "VISITE_TECHNIQUE", "ACCEPTE", "EN_COURS", "TERMINE", "STAND_BY"],
+    statuses: ["DEVIS_ENVOYE", "VISITE_TECHNIQUE", "ACCEPTE", "EN_COURS", "INTER_EN_COURS", "TERMINE", "INTER_TERMINEE", "STAND_BY"],
     message: 'Un ID intervention définitif (sans la chaîne "AUTO") est requis pour ce statut',
     blockTransition: true,
     validate: (context) => {
@@ -142,8 +150,22 @@ export const VALIDATION_RULES: ValidationRule[] = [
     validate: (context) => Boolean(context.artisanId),
   },
   {
+    key: "INTER_EN_COURS_WITHOUT_ARTISAN",
+    to: "INTER_EN_COURS",
+    message: "Un artisan doit être assigné pour passer en cours",
+    blockTransition: true,
+    validate: (context) => Boolean(context.artisanId),
+  },
+  {
     key: "TERMINE_INCOMPLETE",
     to: "TERMINE",
+    message: "Facture et propriétaire requis pour finaliser l'intervention",
+    blockTransition: true,
+    validate: (context) => Boolean(context.factureId) && Boolean(context.proprietaireId),
+  },
+  {
+    key: "INTER_TERMINEE_INCOMPLETE",
+    to: "INTER_TERMINEE",
     message: "Facture et propriétaire requis pour finaliser l'intervention",
     blockTransition: true,
     validate: (context) => Boolean(context.factureId) && Boolean(context.proprietaireId),

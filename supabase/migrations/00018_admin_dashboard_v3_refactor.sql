@@ -601,6 +601,82 @@ END;
 $$;
 
 -- ============================================
+-- SECTION 5.5: VOLUME BY STATUS (Stacked Bar Chart)
+-- ============================================
+
+CREATE OR REPLACE FUNCTION get_dashboard_volume_by_status_v3(
+  p_period_start TIMESTAMP,
+  p_period_end TIMESTAMP,
+  p_agence_id UUID DEFAULT NULL,
+  p_metier_id UUID DEFAULT NULL,
+  p_gestionnaire_id UUID DEFAULT NULL
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+AS $$
+DECLARE
+  v_result JSONB;
+BEGIN
+  WITH date_series AS (
+    -- Générer série de dates pour la période
+    SELECT generate_series(
+      DATE_TRUNC('day', p_period_start),
+      DATE_TRUNC('day', p_period_end),
+      '1 day'::interval
+    )::date AS date_jour
+  ),
+
+  interventions_par_jour_et_statut AS (
+    SELECT
+      DATE_TRUNC('day', i.date)::date AS date_jour,
+      ist.code AS status_code,
+      COUNT(*) AS count
+    FROM interventions i
+    JOIN intervention_statuses ist ON i.statut_id = ist.id
+    WHERE i.date >= p_period_start
+      AND i.date <= p_period_end
+      AND i.is_active = true
+      AND (p_agence_id IS NULL OR i.agence_id = p_agence_id)
+      AND (p_metier_id IS NULL OR i.metier_id = p_metier_id)
+      AND (p_gestionnaire_id IS NULL OR i.assigned_user_id = p_gestionnaire_id)
+      AND ist.code IN ('DEMANDE', 'DEVIS_ENVOYE', 'ACCEPTE', 'INTER_EN_COURS', 'INTER_TERMINEE')
+    GROUP BY DATE_TRUNC('day', i.date)::date, ist.code
+  ),
+
+  aggregated_data AS (
+    SELECT
+      ds.date_jour,
+      COALESCE(SUM(CASE WHEN ipjs.status_code = 'DEMANDE' THEN ipjs.count ELSE 0 END), 0) AS demande,
+      COALESCE(SUM(CASE WHEN ipjs.status_code = 'DEVIS_ENVOYE' THEN ipjs.count ELSE 0 END), 0) AS devis_envoye,
+      COALESCE(SUM(CASE WHEN ipjs.status_code = 'ACCEPTE' THEN ipjs.count ELSE 0 END), 0) AS accepte,
+      COALESCE(SUM(CASE WHEN ipjs.status_code = 'INTER_EN_COURS' THEN ipjs.count ELSE 0 END), 0) AS en_cours,
+      COALESCE(SUM(CASE WHEN ipjs.status_code = 'INTER_TERMINEE' THEN ipjs.count ELSE 0 END), 0) AS termine
+    FROM date_series ds
+    LEFT JOIN interventions_par_jour_et_statut ipjs ON ds.date_jour = ipjs.date_jour
+    GROUP BY ds.date_jour
+  )
+
+  SELECT COALESCE(jsonb_agg(
+    jsonb_build_object(
+      'date', ad.date_jour,
+      'demande', ad.demande,
+      'devis_envoye', ad.devis_envoye,
+      'accepte', ad.accepte,
+      'en_cours', ad.en_cours,
+      'termine', ad.termine
+    )
+    ORDER BY ad.date_jour
+  ), '[]'::jsonb)
+  INTO v_result
+  FROM aggregated_data ad;
+
+  RETURN v_result;
+END;
+$$;
+
+-- ============================================
 -- SECTION 6: CONVERSION FUNNEL
 -- ============================================
 
@@ -805,6 +881,13 @@ BEGIN
       p_metier_id,
       p_gestionnaire_id
     ),
+    'volume_by_status', get_dashboard_volume_by_status_v3(
+      p_period_start,
+      p_period_end,
+      p_agence_id,
+      p_metier_id,
+      p_gestionnaire_id
+    ),
     'conversion_funnel', get_dashboard_conversion_funnel_v3(
       p_period_start,
       p_period_end,
@@ -835,6 +918,7 @@ COMMENT ON FUNCTION get_dashboard_performance_agences_v3 IS 'V3: Returns all age
 COMMENT ON FUNCTION get_dashboard_performance_metiers_v3 IS 'V3: Returns all trades performance sorted by volume';
 COMMENT ON FUNCTION get_dashboard_cycles_moyens_v3 IS 'V3: Returns average cycle times (placeholder)';
 COMMENT ON FUNCTION get_dashboard_sparkline_data_v3 IS 'V3: Returns daily time series data for sparklines';
+COMMENT ON FUNCTION get_dashboard_volume_by_status_v3 IS 'V3: Returns daily volume breakdown by status for stacked bar chart';
 COMMENT ON FUNCTION get_dashboard_conversion_funnel_v3 IS 'V3: Returns conversion funnel showing progressive status achievement';
 COMMENT ON FUNCTION get_dashboard_status_breakdown_v3 IS 'V3: Returns current status distribution of interventions';
 COMMENT ON FUNCTION get_admin_dashboard_stats_v3 IS 'V3: Orchestrator - calls all dashboard functions and returns complete dashboard data including funnel and status breakdown';
@@ -848,6 +932,7 @@ GRANT EXECUTE ON FUNCTION get_dashboard_performance_agences_v3 TO authenticated;
 GRANT EXECUTE ON FUNCTION get_dashboard_performance_metiers_v3 TO authenticated;
 GRANT EXECUTE ON FUNCTION get_dashboard_cycles_moyens_v3 TO authenticated;
 GRANT EXECUTE ON FUNCTION get_dashboard_sparkline_data_v3 TO authenticated;
+GRANT EXECUTE ON FUNCTION get_dashboard_volume_by_status_v3 TO authenticated;
 GRANT EXECUTE ON FUNCTION get_dashboard_conversion_funnel_v3 TO authenticated;
 GRANT EXECUTE ON FUNCTION get_dashboard_status_breakdown_v3 TO authenticated;
 GRANT EXECUTE ON FUNCTION get_admin_dashboard_stats_v3 TO authenticated;
