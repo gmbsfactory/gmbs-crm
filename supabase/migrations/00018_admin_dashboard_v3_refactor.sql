@@ -172,6 +172,8 @@ BEGIN
     SELECT
       u.id AS gestionnaire_id,
       u.firstname || ' ' || u.lastname AS gestionnaire_nom,
+      u.firstname AS gestionnaire_firstname,
+      u.lastname AS gestionnaire_lastname,
       u.email AS gestionnaire_email,
 
       -- Volume
@@ -208,6 +210,8 @@ BEGIN
     SELECT
       gestionnaire_id,
       gestionnaire_nom,
+      gestionnaire_firstname,
+      gestionnaire_lastname,
       gestionnaire_email,
       nb_interventions_prises,
       nb_interventions_terminees,
@@ -228,6 +232,8 @@ BEGIN
     jsonb_build_object(
       'gestionnaire_id', gestionnaire_id,
       'gestionnaire_nom', gestionnaire_nom,
+      'gestionnaire_firstname', gestionnaire_firstname,
+      'gestionnaire_lastname', gestionnaire_lastname,
       'gestionnaire_email', gestionnaire_email,
       'nb_interventions_prises', nb_interventions_prises,
       'nb_interventions_terminees', nb_interventions_terminees,

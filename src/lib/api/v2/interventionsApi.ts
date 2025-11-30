@@ -1679,14 +1679,21 @@ export const interventionsApi = {
 
     const rankings: GestionnaireMarginRanking[] = sortedResults.map((item: any, index: number) => {
       const user = usersMap.get(item.gestionnaire_id);
-      const fullName = item.gestionnaire_nom || (user
-        ? `${user.firstname || ""} ${user.lastname || ""}`.trim() || user.code_gestionnaire || "Utilisateur"
-        : "Utilisateur");
-
+      // Utiliser gestionnaire_firstname depuis la fonction SQL en priorité
+      // Debug: vérifier que le champ est bien présent
+      if (index === 0) {
+        console.log('🔍 Debug getMarginRankingByPeriodV3 - Premier item:', {
+          gestionnaire_id: item.gestionnaire_id,
+          gestionnaire_firstname: item.gestionnaire_firstname,
+          gestionnaire_lastname: item.gestionnaire_lastname,
+          gestionnaire_nom: item.gestionnaire_nom,
+          user_firstname: user?.firstname,
+        });
+      }
       return {
         user_id: item.gestionnaire_id,
-        user_name: fullName,
-        user_firstname: user?.firstname || null,
+        user_name: item.gestionnaire_nom,
+        user_firstname: item.gestionnaire_lastname,
         user_code: user?.code_gestionnaire || null,
         user_color: user?.color || null,
         total_margin: Number(item.marge_total || 0),
