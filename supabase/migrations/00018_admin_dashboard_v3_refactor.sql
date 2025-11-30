@@ -494,18 +494,96 @@ SECURITY DEFINER
 AS $$
 DECLARE
   v_result JSONB;
+  v_cycle_moyen_total_jours NUMERIC;
+  v_cycle_demande_prise_jours NUMERIC;
+  v_cycle_prise_terminee_jours NUMERIC;
 BEGIN
-  -- TODO: Implémenter calculs détaillés des cycles
-  -- Utiliser intervention_status_transitions pour calculer:
-  -- - Temps moyen par statut
-  -- - Temps total de traitement
-  -- - Points de blocage
+  WITH interventions_periode AS (
+    -- Interventions créées dans la période avec filtres
+    SELECT i.id
+    FROM interventions i
+    WHERE i.date >= p_period_start
+      AND i.date <= p_period_end
+      AND i.is_active = true
+      AND (array_length(p_agence_ids, 1) IS NULL OR i.agence_id = ANY(p_agence_ids))
+      AND (array_length(p_metier_ids, 1) IS NULL OR i.metier_id = ANY(p_metier_ids))
+      AND (array_length(p_gestionnaire_ids, 1) IS NULL OR i.assigned_user_id = ANY(p_gestionnaire_ids))
+  ),
 
+  interventions_terminees AS (
+    -- Uniquement les interventions terminées (statut INTER_TERMINEE)
+    SELECT ip.id
+    FROM interventions_periode ip
+    JOIN interventions i ON ip.id = i.id
+    JOIN intervention_statuses ist ON i.statut_id = ist.id
+    WHERE ist.code = 'INTER_TERMINEE'
+  ),
+
+  dates_transitions AS (
+    -- Pour chaque intervention terminée, récupérer les dates de transition
+    SELECT
+      it.id AS intervention_id,
+      -- Plus vieille date pour DEMANDE
+      MIN(CASE WHEN ist.to_status_code = 'DEMANDE' THEN ist.transition_date END) AS date_demande,
+      -- Plus récente date pour INTER_TERMINEE
+      MAX(CASE WHEN ist.to_status_code = 'INTER_TERMINEE' THEN ist.transition_date END) AS date_terminee,
+      -- Date de transition vers ACCEPTE (pour cycle_demande_prise)
+      MIN(CASE WHEN ist.to_status_code = 'ACCEPTE' THEN ist.transition_date END) AS date_accepte
+    FROM interventions_terminees it
+    JOIN intervention_status_transitions ist ON it.id = ist.intervention_id
+    GROUP BY it.id
+  ),
+
+  cycles_calcules AS (
+    -- Calculer les cycles en jours pour chaque intervention
+    SELECT
+      intervention_id,
+      -- Cycle total: DEMANDE -> INTER_TERMINEE
+      CASE
+        WHEN date_demande IS NOT NULL AND date_terminee IS NOT NULL
+        THEN EXTRACT(EPOCH FROM (date_terminee - date_demande)) / 86400.0
+        ELSE NULL
+      END AS cycle_total_jours,
+      -- Cycle demande -> prise (DEMANDE -> ACCEPTE)
+      CASE
+        WHEN date_demande IS NOT NULL AND date_accepte IS NOT NULL
+        THEN EXTRACT(EPOCH FROM (date_accepte - date_demande)) / 86400.0
+        ELSE NULL
+      END AS cycle_demande_prise_jours,
+      -- Cycle prise -> terminée (ACCEPTE -> INTER_TERMINEE)
+      CASE
+        WHEN date_accepte IS NOT NULL AND date_terminee IS NOT NULL
+        THEN EXTRACT(EPOCH FROM (date_terminee - date_accepte)) / 86400.0
+        ELSE NULL
+      END AS cycle_prise_terminee_jours
+    FROM dates_transitions
+  ),
+
+  moyennes AS (
+    -- Calculer toutes les moyennes en une seule requête
+    SELECT
+      COALESCE(ROUND(AVG(cycle_total_jours), 2), 0) AS cycle_moyen_total_jours,
+      COALESCE(ROUND(AVG(cycle_demande_prise_jours), 2), 0) AS cycle_demande_prise_jours,
+      COALESCE(ROUND(AVG(cycle_prise_terminee_jours), 2), 0) AS cycle_prise_terminee_jours
+    FROM cycles_calcules
+  )
+
+  -- Récupérer les moyennes
+  SELECT
+    cycle_moyen_total_jours,
+    cycle_demande_prise_jours,
+    cycle_prise_terminee_jours
+  INTO
+    v_cycle_moyen_total_jours,
+    v_cycle_demande_prise_jours,
+    v_cycle_prise_terminee_jours
+  FROM moyennes;
+
+  -- Construction du résultat
   v_result := jsonb_build_object(
-    'cycle_moyen_total_jours', 0,
-    'cycle_demande_prise_jours', 0,
-    'cycle_prise_terminee_jours', 0,
-    'note', 'Placeholder - detailed implementation pending'
+    'cycle_moyen_total_jours', v_cycle_moyen_total_jours,
+    'cycle_demande_prise_jours', v_cycle_demande_prise_jours,
+    'cycle_prise_terminee_jours', v_cycle_prise_terminee_jours
   );
 
   RETURN v_result;
@@ -515,9 +593,6 @@ $$;
 -- ============================================
 -- SECTION 6: SPARKLINE DATA
 -- ============================================
-
--- Drop existing function if it exists (with full signature)
-DROP FUNCTION IF EXISTS get_dashboard_sparkline_data_v3(TIMESTAMP, TIMESTAMP, UUID[], UUID[], UUID[]);
 
 CREATE OR REPLACE FUNCTION get_dashboard_sparkline_data_v3(
   p_period_start TIMESTAMP,
@@ -607,9 +682,6 @@ $$;
 -- SECTION 5.5: VOLUME BY STATUS (Stacked Bar Chart)
 -- ============================================
 
--- Drop existing function if it exists (with full signature)
-DROP FUNCTION IF EXISTS get_dashboard_volume_by_status_v3(TIMESTAMP, TIMESTAMP, UUID[], UUID[], UUID[]);
-
 CREATE OR REPLACE FUNCTION get_dashboard_volume_by_status_v3(
   p_period_start TIMESTAMP,
   p_period_end TIMESTAMP,
@@ -685,9 +757,6 @@ $$;
 -- ============================================
 -- SECTION 6: CONVERSION FUNNEL
 -- ============================================
-
--- Drop existing function if it exists (with full signature)
-DROP FUNCTION IF EXISTS get_dashboard_conversion_funnel_v3(TIMESTAMP, TIMESTAMP, UUID[], UUID[], UUID[]);
 
 CREATE OR REPLACE FUNCTION get_dashboard_conversion_funnel_v3(
   p_period_start TIMESTAMP,
@@ -779,9 +848,6 @@ $$;
 -- ============================================
 -- SECTION 6B: STATUS BREAKDOWN
 -- ============================================
-
--- Drop existing function if it exists (with full signature)
-DROP FUNCTION IF EXISTS get_dashboard_status_breakdown_v3(TIMESTAMP, TIMESTAMP, UUID[], UUID[], UUID[]);
 
 CREATE OR REPLACE FUNCTION get_dashboard_status_breakdown_v3(
   p_period_start TIMESTAMP,
@@ -928,7 +994,7 @@ COMMENT ON FUNCTION get_dashboard_kpi_main_v3 IS 'V3: Returns main KPIs (interve
 COMMENT ON FUNCTION get_dashboard_performance_gestionnaires_v3 IS 'V3: Returns top N managers performance sorted by CA';
 COMMENT ON FUNCTION get_dashboard_performance_agences_v3 IS 'V3: Returns all agencies performance sorted by CA';
 COMMENT ON FUNCTION get_dashboard_performance_metiers_v3 IS 'V3: Returns all trades performance sorted by volume';
-COMMENT ON FUNCTION get_dashboard_cycles_moyens_v3 IS 'V3: Returns average cycle times (placeholder)';
+COMMENT ON FUNCTION get_dashboard_cycles_moyens_v3 IS 'V3: Returns average cycle times (DEMANDE->INTER_TERMINEE, DEMANDE->ACCEPTE, ACCEPTE->INTER_TERMINEE)';
 COMMENT ON FUNCTION get_dashboard_sparkline_data_v3 IS 'V3: Returns daily time series data for sparklines';
 COMMENT ON FUNCTION get_dashboard_volume_by_status_v3 IS 'V3: Returns daily volume breakdown by status for stacked bar chart';
 COMMENT ON FUNCTION get_dashboard_conversion_funnel_v3 IS 'V3: Returns conversion funnel showing progressive status achievement';
