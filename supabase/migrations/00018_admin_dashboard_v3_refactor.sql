@@ -199,7 +199,7 @@ BEGIN
 
     FROM users u
     JOIN interventions_periode ip ON u.id = ip.assigned_user_id
-    LEFT JOIN interventions_terminees it ON u.id = it.assigned_user_id
+    LEFT JOIN interventions_terminees it ON ip.id = it.id
     LEFT JOIN intervention_costs cost ON it.id = cost.intervention_id
     GROUP BY u.id, u.firstname, u.lastname, u.email
   ),
@@ -326,7 +326,7 @@ BEGIN
 
     FROM agencies a
     LEFT JOIN interventions_periode ip ON a.id = ip.agence_id
-    LEFT JOIN interventions_terminees it ON a.id = it.agence_id
+    LEFT JOIN interventions_terminees it ON ip.id = it.id
     LEFT JOIN intervention_costs cost ON it.id = cost.intervention_id
     GROUP BY a.id, a.label, a.code, a.region
   )
@@ -446,7 +446,7 @@ BEGIN
 
     FROM metiers m
     LEFT JOIN interventions_periode ip ON m.id = ip.metier_id
-    LEFT JOIN interventions_terminees it ON m.id = it.metier_id
+    LEFT JOIN interventions_terminees it ON ip.id = it.id
     LEFT JOIN intervention_costs cost ON it.id = cost.intervention_id
     GROUP BY m.id, m.label, m.code
   )
