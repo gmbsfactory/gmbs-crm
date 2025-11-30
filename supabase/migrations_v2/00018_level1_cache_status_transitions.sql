@@ -23,6 +23,7 @@ CREATE TABLE IF NOT EXISTS public.intervention_status_cache (
   first_devis_date timestamptz,
   first_accepte_date timestamptz,
   first_terminee_date timestamptz,
+  last_terminee_date timestamptz,  -- Dernière date de terminaison (pour cycle time cohérent)
 
   -- Cycle times auto-calculés (en jours)
   cycle_time_days numeric(10,2),              -- terminee - demande
@@ -104,6 +105,7 @@ BEGIN
     first_devis_date,
     first_accepte_date,
     first_terminee_date,
+    last_terminee_date,
     nb_status_changes,
     last_status_change_date,
     updated_at
@@ -114,6 +116,7 @@ BEGIN
     CASE WHEN v_status_code = 'DEMANDE' THEN NEW.transition_date END,
     CASE WHEN v_status_code = 'DEVIS_ENVOYE' THEN NEW.transition_date END,
     CASE WHEN v_status_code = 'ACCEPTE' THEN NEW.transition_date END,
+    CASE WHEN v_status_code = 'INTER_TERMINEE' THEN NEW.transition_date END,
     CASE WHEN v_status_code = 'INTER_TERMINEE' THEN NEW.transition_date END,
     1,
     NEW.transition_date,
@@ -129,13 +132,17 @@ BEGIN
     first_devis_date = COALESCE(isc.first_devis_date, EXCLUDED.first_devis_date),
     first_accepte_date = COALESCE(isc.first_accepte_date, EXCLUDED.first_accepte_date),
     first_terminee_date = COALESCE(isc.first_terminee_date, EXCLUDED.first_terminee_date),
+    
+    -- Mettre à jour last_terminee_date avec la plus grande valeur (MAX pour éviter cycles négatifs)
+    -- GREATEST ignore les NULLs, donc si l'un est NULL, il retourne l'autre
+    last_terminee_date = GREATEST(isc.last_terminee_date, EXCLUDED.last_terminee_date),
 
-    -- Recalculer les cycle times automatiquement
+    -- Recalculer les cycle times automatiquement (utilise last_terminee_date pour éviter cycles négatifs)
     cycle_time_days = CASE
-      WHEN COALESCE(isc.first_terminee_date, EXCLUDED.first_terminee_date) IS NOT NULL
+      WHEN GREATEST(isc.last_terminee_date, EXCLUDED.last_terminee_date) IS NOT NULL
         AND COALESCE(isc.first_demande_date, EXCLUDED.first_demande_date) IS NOT NULL
       THEN EXTRACT(EPOCH FROM (
-        COALESCE(isc.first_terminee_date, EXCLUDED.first_terminee_date) -
+        GREATEST(isc.last_terminee_date, EXCLUDED.last_terminee_date) -
         COALESCE(isc.first_demande_date, EXCLUDED.first_demande_date)
       )) / 86400.0
       ELSE isc.cycle_time_days
@@ -192,6 +199,7 @@ INSERT INTO public.intervention_status_cache (
   first_devis_date,
   first_accepte_date,
   first_terminee_date,
+  last_terminee_date,
   cycle_time_days,
   demande_to_devis_days,
   devis_to_accepte_days,
@@ -221,12 +229,17 @@ SELECT
    FROM intervention_status_transitions
    WHERE intervention_id = i.id AND to_status_code = 'INTER_TERMINEE') as first_terminee_date,
 
-  -- Cycle times calculés
+  -- Dernière occurrence de terminaison (MAX pour cycle time cohérent)
+  (SELECT MAX(transition_date)
+   FROM intervention_status_transitions
+   WHERE intervention_id = i.id AND to_status_code = 'INTER_TERMINEE') as last_terminee_date,
+
+  -- Cycle times calculés (utilise last_terminee_date pour éviter cycles négatifs)
   CASE
-    WHEN (SELECT MIN(transition_date) FROM intervention_status_transitions WHERE intervention_id = i.id AND to_status_code = 'INTER_TERMINEE') IS NOT NULL
+    WHEN (SELECT MAX(transition_date) FROM intervention_status_transitions WHERE intervention_id = i.id AND to_status_code = 'INTER_TERMINEE') IS NOT NULL
       AND (SELECT MIN(transition_date) FROM intervention_status_transitions WHERE intervention_id = i.id AND to_status_code = 'DEMANDE') IS NOT NULL
     THEN EXTRACT(EPOCH FROM (
-      (SELECT MIN(transition_date) FROM intervention_status_transitions WHERE intervention_id = i.id AND to_status_code = 'INTER_TERMINEE') -
+      (SELECT MAX(transition_date) FROM intervention_status_transitions WHERE intervention_id = i.id AND to_status_code = 'INTER_TERMINEE') -
       (SELECT MIN(transition_date) FROM intervention_status_transitions WHERE intervention_id = i.id AND to_status_code = 'DEMANDE')
     )) / 86400.0
   END as cycle_time_days,
@@ -340,7 +353,7 @@ COMMENT ON TABLE public.intervention_status_cache IS
 ';
 
 COMMENT ON COLUMN public.intervention_status_cache.cycle_time_days IS
-'Nombre de jours entre first_demande_date et first_terminee_date (auto-calculé)';
+'Nombre de jours entre first_demande_date et last_terminee_date (auto-calculé)';
 
 COMMENT ON COLUMN public.intervention_status_cache.first_demande_date IS
 'Date de la première transition vers statut DEMANDE (immutable après set)';

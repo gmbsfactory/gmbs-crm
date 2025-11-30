@@ -28,29 +28,24 @@
         - s'assurer du bon fonctionnement
         - mettre un bouton export en paramètre lorsque l'on est admin sur la page Settings (non prioritaire)
 
+
 - Import 
         - vérifier les status transition
         - les prix voir si il y en a exorbitant
         - le calcul du CA 
         - le delta entre inter loggés et inter en bdd 
-        - 
+
 
 IN PROGRESS : 
-        - status chain transition    []
+        - status chain transition    [X]
         - podium uniformisé          []
-        - tableau admin dashboard    []
-        - refaire architecture fonction rpc dashboard avec claude []
-        
-TODO (pour livraison)
-        - sur bar char répartition par métier, mettre un baton marge et un baton nombre d'inter
-                - pouvoir aussi le faire avec une agence
-                - pouvoir aussi le faire avec un gestionnaire
-        
-        - 
+        - tableau admin dashboard    [X]  dd
+        - refaire architecture fonction rpc dashboard avec claude [X] 
+        - funnel chart
 
 
 
-
+psql -h localhost -p 54322 -U postgres -d postgres -f supabase/samples/sql/admin_dashboard_test/02_test_level1_cache.sql
 
  ### Later
 

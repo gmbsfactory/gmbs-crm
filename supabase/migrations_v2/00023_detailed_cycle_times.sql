@@ -18,7 +18,7 @@ BEGIN
       ROUND(AVG(isc.demande_to_devis_days), 1) as avg_demande_to_devis,
       ROUND(AVG(isc.devis_to_accepte_days), 1) as avg_devis_to_accepte,
       ROUND(AVG(
-        EXTRACT(EPOCH FROM (isc.first_terminee_date - isc.first_accepte_date)) / 86400
+        EXTRACT(EPOCH FROM (isc.last_terminee_date - isc.first_accepte_date)) / 86400
       ), 1) as avg_accepte_to_terminee,
       ROUND(AVG(isc.cycle_time_days), 1) as avg_total_cycle_time
     FROM intervention_status_cache isc

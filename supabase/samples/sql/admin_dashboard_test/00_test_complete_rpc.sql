@@ -5,21 +5,6 @@
 -- Utilise les mêmes paramètres que l'application
 -- V2.0: Ajout Cycle Time, Sparklines, Deltas, Filtres optionnels
 
-SELECT public.get_admin_dashboard_stats(
-  '2025-01-01T00:00:00Z'::timestamptz,
-  '2026-01-01T00:00:00Z'::timestamptz,
-  'DEMANDE',
-  'DEVIS_ENVOYE',
-  'ACCEPTE',
-  'INTER_EN_COURS',
-  'INTER_TERMINEE',
-  'ATT_ACOMPTE',
-  ARRAY['DEVIS_ENVOYE', 'ACCEPTE', 'INTER_EN_COURS', 'INTER_TERMINEE', 'ATT_ACOMPTE'],
-  NULL::uuid,  -- p_agence_id
-  NULL::uuid,  -- p_gestionnaire_id
-  NULL::uuid   -- p_metier_id
-) as rpc_result;
-
 SELECT public.get_admin_dashboard_stats_v2(
   '2025-01-01T00:00:00Z'::timestamptz,
   '2026-01-01T00:00:00Z'::timestamptz,
