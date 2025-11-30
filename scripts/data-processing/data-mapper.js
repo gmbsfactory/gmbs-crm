@@ -671,6 +671,41 @@ class DataMapper {
       coutIntervention = this.parseNumber(coutInterValue);
     }
 
+    // === Vérification des valeurs maximales autorisées ===
+    const MAX_COST = 10000;
+    if (coutIntervention !== null && coutIntervention > MAX_COST) {
+      const idInter = csvRow["ID"] || csvRow["id_inter"] || "N/A";
+      console.log(`\n⚠️ ===== COÛT INTERVENTION HORS LIMITES DÉTECTÉ =====`);
+      console.log(`  id_inter: ${idInter}`);
+      console.log(`  Coût Intervention: ${coutIntervention} EUR (max autorisé: ${MAX_COST})`);
+      console.log(`  🚫 NOT INSERTED - Valeur trop élevée`);
+      // On retourne tout nul pour empêcher l'insertion
+      return {
+        coutSST: null,
+        coutMaterielData: { amount: null, url: null },
+        coutIntervention: null,
+        marge: null,
+        margePourcentage: null,
+        shouldInsert: false,
+      };
+    }
+    if (coutSST !== null && coutSST > MAX_COST) {
+      const idInter = csvRow["ID"] || csvRow["id_inter"] || "N/A";
+      console.log(`\n⚠️ ===== COÛT SST HORS LIMITES DÉTECTÉ =====`);
+      console.log(`  id_inter: ${idInter}`);
+      console.log(`  Coût SST: ${coutSST} EUR (max autorisé: ${MAX_COST})`);
+      console.log(`  🚫 NOT INSERTED - Valeur trop élevée`);
+      // On retourne tout nul pour empêcher l'insertion
+      return {
+        coutSST: null,
+        coutMaterielData: { amount: null, url: null },
+        coutIntervention: null,
+        marge: null,
+        margePourcentage: null,
+        shouldInsert: false,
+      };
+    }
+
     // Calculer la marge (COUT INTER - COUT SST - COÛT MATERIEL)
     let marge = null;
     let margePourcentage = null;
@@ -857,12 +892,12 @@ class DataMapper {
     const COUT_INTER_COLUMN = "COUT INTER";
 
     // Extraire les valeurs des coûts SANS les ajouter au tableau pour l'instant
+    const MAX_VALUE = 10000;
     let coutSST = null;
     const coutSSTValue = csvRow[COUT_SST_COLUMN];
     if (coutSSTValue && this.isValidCostValue(coutSSTValue)) {
       coutSST = this.parseNumber(coutSSTValue);
-      // ⭐ Vérifier si le coût SST dépasse 7 chiffres (>= 10 000 000)
-      if (coutSST !== null && Math.abs(coutSST) >= 1000000) {
+      if (coutSST !== null && Math.abs(coutSST) >= MAX_VALUE) {
         const idInter = csvRow["ID"] || csvRow["id_inter"] || "N/A";
         console.log(`\n⚠️ Coût SST dépasse 6 chiffres pour id_inter: ${idInter}`);
         console.log(`  Valeur originale: ${coutSST.toLocaleString("fr-FR")}€`);
@@ -883,8 +918,7 @@ class DataMapper {
     const coutInterValue = csvRow[COUT_INTER_COLUMN];
     if (coutInterValue && this.isValidCostValue(coutInterValue)) {
       coutIntervention = this.parseNumber(coutInterValue);
-      // ⭐ Vérifier si le coût intervention dépasse 7 chiffres (>= 10 000 000)
-      if (coutIntervention !== null && Math.abs(coutIntervention) >= 1000000) {
+      if (coutIntervention !== null && Math.abs(coutIntervention) >= MAX_VALUE) {
         const idInter = csvRow["ID"] || csvRow["id_inter"] || "N/A";
         console.log(`\n⚠️ Coût intervention dépasse 6 chiffres pour id_inter: ${idInter}`);
         console.log(`  Valeur originale: ${coutIntervention.toLocaleString("fr-FR")}€`);
@@ -1814,6 +1848,152 @@ class DataMapper {
     return cleaned;
   }
 
+  /**
+   * Vérifie si une chaîne contient des lettres invalides
+   * Exceptions autorisées: "dire", "/", "*", "+", "-" (opérateurs)
+   * @param {string} str - Chaîne à vérifier
+   * @returns {boolean} - true si lettres invalides détectées, false sinon
+   */
+  _hasInvalidLetters(str) {
+    // Enlever "dire" et tout ce qui suit (ex: "2976,55 dire 2900")
+    const withoutDire = str.replace(/\s*dire\s*[\d\s,\.]*/gi, '');
+    // Enlever les opérateurs mathématiques autorisés
+    const withoutOperators = withoutDire.replace(/[\/\*\+\-]/g, '');
+    // Détecter toutes les lettres (ASCII et Unicode/accentuées)
+    return /[\p{L}]/u.test(withoutOperators);
+  }
+
+  /**
+   * Parse un nombre simple (sans opérations mathématiques)
+   * Gère les formats français (virgule) et anglais (point), les espaces comme séparateurs de milliers
+   * @param {string} str - Chaîne à parser
+   * @returns {number|null} - Nombre parsé ou null si invalide
+   */
+  _parseSimpleNumber(str) {
+    // Gérer le cas "dire" (ex: "2976,55 dire 2900" → prendre "2976,55")
+    let cleaned = str;
+    if (cleaned.toLowerCase().includes("dire")) {
+      const match = cleaned.match(/([\d\s,\.]+)\s*dire/i);
+      if (match) {
+        cleaned = match[1];
+      }
+    }
+
+    // Normaliser le format (français: virgule, anglais: point)
+    const hasComma = cleaned.includes(",");
+    const hasDot = cleaned.includes(".");
+
+    if (hasComma) {
+      // Format français: "1 300,50" → "1300.50"
+      cleaned = cleaned.replace(/\s+/g, "");
+      cleaned = cleaned.replace(",", ".");
+    } else if (hasDot) {
+      // Format anglais: "2 976.55" → "2976.55"
+      const parts = cleaned.split(".");
+      if (parts.length === 2) {
+        // Un seul point = séparateur décimal
+        cleaned = parts[0].replace(/\s+/g, "") + "." + parts[1];
+      } else {
+        // Plusieurs points = format avec points comme milliers
+        cleaned = cleaned.replace(/\s+/g, "");
+        const dotParts = cleaned.split(".");
+        cleaned = dotParts.slice(0, -1).join("") + "." + dotParts[dotParts.length - 1];
+      }
+    } else {
+      // Pas de séparateur décimal, juste supprimer les espaces
+      cleaned = cleaned.replace(/\s+/g, "");
+    }
+
+    // Supprimer les caractères non numériques sauf le point et le signe moins
+    cleaned = cleaned.replace(/[^\d.-]/g, "");
+
+    const parsed = parseFloat(cleaned);
+    if (isNaN(parsed)) return null;
+
+    return parsed;
+  }
+
+  /**
+   * Évalue une expression mathématique avec opérations (*, +, -)
+   * Priorité: multiplication d'abord, puis addition/soustraction
+   * @param {string} str - Expression à évaluer
+   * @returns {number|null} - Résultat de l'expression ou null si invalide
+   */
+  _evaluateExpression(str) {
+    let processedStr = str;
+
+    // Étape 1: Traiter les multiplications en premier (priorité)
+    if (processedStr.includes("*")) {
+      let hasChanged = true;
+      let iterations = 0;
+      const maxIterations = 100;
+
+      while (processedStr.includes("*") && hasChanged && iterations < maxIterations) {
+        iterations++;
+        hasChanged = false;
+
+        const multPattern = /([\d\s,\.]+)\s*\*\s*([\d\s,\.]+)/;
+        const match = processedStr.match(multPattern);
+
+        if (match) {
+          // Parser récursivement les deux côtés de la multiplication avec parseNumber
+          // (pour gérer les cas comme "182*2" où chaque côté peut être un nombre simple)
+          const left = this.parseNumber(match[1].trim());
+          const right = this.parseNumber(match[2].trim());
+          if (left !== null && right !== null) {
+            const multResult = left * right;
+            processedStr = processedStr.replace(match[0], multResult.toString());
+            hasChanged = true;
+          } else {
+            return null;
+          }
+        } else {
+          hasChanged = false;
+        }
+      }
+
+      if (iterations >= maxIterations) {
+        console.warn(`⚠️ Trop d'itérations lors du parsing de "${str}"`);
+        return null;
+      }
+
+      if (processedStr.includes("*")) {
+        console.warn(`⚠️ Multiplications restantes non résolues dans "${processedStr}"`);
+        return null;
+      }
+    }
+
+    // Étape 2: Traiter les additions
+    if (processedStr.includes("+")) {
+      const terms = processedStr.split("+").map(s => s.trim());
+      let sum = 0;
+      for (const term of terms) {
+        // Parser chaque terme récursivement avec parseNumber
+        // (pour gérer les cas comme "50* 30" dans "182*2+ 50* 30")
+        const termValue = this.parseNumber(term);
+        if (termValue === null) return null;
+        sum += termValue;
+      }
+      return sum;
+    }
+
+    // Étape 3: Traiter les soustractions (doit avoir un chiffre AVANT le -)
+    // Ex: "100-50" → 100 - 50 = 50
+    // Mais pas "-50" qui est un nombre négatif
+    const subtractionMatch = processedStr.match(/^([\d\s,\.]+)\s*-\s*([\d\s,\.]+)$/);
+    if (subtractionMatch) {
+      const left = this.parseNumber(subtractionMatch[1]);
+      const right = this.parseNumber(subtractionMatch[2]);
+      if (left !== null && right !== null) {
+        return left - right;
+      }
+      return null;
+    }
+
+    // Si aucune opération détectée, parser comme nombre simple
+    return this._parseSimpleNumber(processedStr);
+  }
+
   parseNumber(value) {
     if (!value) return null;
 
@@ -1821,15 +2001,9 @@ class DataMapper {
     let str = String(value).trim();
     if (str === "") return null;
 
-    // ⭐ RÈGLE 1: Rejeter si la chaîne contient des lettres (sauf "dire" et "/")
-    // Cette règle doit être vérifiée en premier avant tout traitement
-    // Vérifier s'il y a des lettres (y compris accentuées comme à, é, è, etc.)
-    const withoutDire = str.replace(/\s*dire\s*[\d\s,\.]*/gi, '');
-    // Autoriser le slash dans la vérification car on va le traiter ensuite
-    const withoutDireAndSlash = withoutDire.replace(/\//g, '');
-    // Détecter toutes les lettres (ASCII et Unicode/accentuées)
-    if (/[\p{L}]/u.test(withoutDireAndSlash)) {
-      return null; // Contient des lettres, invalide - REJET IMMÉDIAT
+    // ⭐ RÈGLE 1: Rejeter si la chaîne contient des lettres invalides
+    if (this._hasInvalidLetters(str)) {
+      return null;
     }
 
     // ⭐ RÈGLE 2: Si contient un slash (/), prendre seulement la partie avant le slash
@@ -1841,106 +2015,41 @@ class DataMapper {
       if (str === "") return null;
     }
 
-    // ⭐ RÈGLE 3: Gérer les opérations arithmétiques (+ et -)
-    // Ex: "102+75,11" → 102 + 75.11 = 177.11
-    // Ex: "100-50" → 100 - 50 = 50
-    // Note: Ne pas confondre avec les nombres négatifs comme "-50"
-    
-    // Détecter l'addition (doit avoir un + entre deux nombres)
-    const additionMatch = str.match(/^([\d\s,\.]+)\s*\+\s*([\d\s,\.]+)$/);
-    if (additionMatch) {
-      const left = this.parseNumber(additionMatch[1]);
-      const right = this.parseNumber(additionMatch[2]);
-      if (left !== null && right !== null) {
-        return left + right;
-      }
-      return null; // Si une partie est invalide, retourner null
-    }
-    
-    // Détecter la soustraction (doit avoir un chiffre AVANT le -)
-    // Ex: "100-50" → 100 - 50 = 50
-    // Mais pas "-50" qui est un nombre négatif
-    const subtractionMatch = str.match(/^([\d\s,\.]+)\s*-\s*([\d\s,\.]+)$/);
-    if (subtractionMatch) {
-      const left = this.parseNumber(subtractionMatch[1]);
-      const right = this.parseNumber(subtractionMatch[2]);
-      if (left !== null && right !== null) {
-        return left - right;
-      }
-      return null; // Si une partie est invalide, retourner null
-    }
+    // ⭐ RÈGLE 3: Détecter les opérations mathématiques
+    // Vérifier si "-" est une soustraction (pas un nombre négatif)
+    const hasSubtraction = str.includes("-") && !str.match(/^-\s*[\d\s,\.]+$/);
+    const hasOperations = str.includes("*") || str.includes("+") || hasSubtraction;
 
-    // Gérer les cas spéciaux comme "2976,55 dire 2900" - prendre le premier nombre
-    let cleaned = str;
-    if (cleaned.toLowerCase().includes("dire")) {
-      const match = cleaned.match(/([\d\s,\.]+)\s*dire/i);
-      if (match) {
-        cleaned = match[1];
-      }
-    }
-
-    // ⭐ RÈGLE 4: Supporter les espaces comme séparateurs de milliers
-    // Format français: "1 300" ou "1 300,50" ou "12 300" ou "2 976.55"
-    
-    // Détecter si on a une virgule (format français) ou un point (format anglais)
-    const hasComma = cleaned.includes(",");
-    const hasDot = cleaned.includes(".");
-    
-    // Si on a une virgule, c'est le séparateur décimal français
-    if (hasComma) {
-      // Remplacer les espaces (séparateurs de milliers) puis la virgule par un point
-      cleaned = cleaned.replace(/\s+/g, ""); // "1 300,50" -> "1300,50"
-      cleaned = cleaned.replace(",", ".");    // "1300,50" -> "1300.50"
-    } else if (hasDot) {
-      // Si on a un point, vérifier s'il y a des espaces avant (format "2 976.55")
-      // Supprimer les espaces avant le point final
-      const parts = cleaned.split(".");
-      if (parts.length === 2) {
-        // Un seul point = séparateur décimal
-        cleaned = parts[0].replace(/\s+/g, "") + "." + parts[1];
-      } else {
-        // Plusieurs points = format avec points comme milliers
-        cleaned = cleaned.replace(/\s+/g, "");
-        // Garder seulement le dernier point comme décimal
-        const dotParts = cleaned.split(".");
-        cleaned = dotParts.slice(0, -1).join("") + "." + dotParts[dotParts.length - 1];
-      }
+    let result;
+    if (hasOperations) {
+      // Expression avec opérations → utiliser _evaluateExpression
+      result = this._evaluateExpression(str);
     } else {
-      // Pas de séparateur décimal, juste supprimer les espaces
-      // Ex: "1 300" -> "1300", "12 300" -> "12300"
-      cleaned = cleaned.replace(/\s+/g, "");
+      // Nombre simple → utiliser _parseSimpleNumber
+      result = this._parseSimpleNumber(str);
     }
 
-    // Supprimer les caractères non numériques sauf le point et le signe moins (pour nombres négatifs)
-    cleaned = cleaned.replace(/[^\d.-]/g, "");
+    if (result === null) return null;
 
-    const parsed = parseFloat(cleaned);
-    if (isNaN(parsed)) return null;
-
-    // ⭐ VALIDATION: Vérifier les limites PostgreSQL numeric(12,2)
-    // Limite: 9,999,999,999.99 (presque 10 milliards)
-    const MAX_VALUE = 9999999999.99;
-
-    if (Math.abs(parsed) > MAX_VALUE) {
+    // ⭐ RÈGLE 4: Validation finale MAX_VALUE
+    const MAX_VALUE = 10000;
+    if (Math.abs(result) > MAX_VALUE) {
       console.warn(
-        `⚠️ Valeur numérique trop élevée détectée: ${parsed.toLocaleString(
+        `⚠️ Valeur numérique trop élevée détectée: ${result.toLocaleString(
           "fr-FR"
         )}€ (limite: ${MAX_VALUE.toLocaleString("fr-FR")}€)`
       );
       console.warn(`   Données originales: "${str}"`);
 
-      // Option 1: Retourner null (ignorer la valeur)
-      // return null;
-
-      // Option 2: Limiter à la valeur maximale (avec avertissement)
-      const limitedValue = parsed > 0 ? MAX_VALUE : -MAX_VALUE;
+      // Limiter à la valeur maximale (avec avertissement)
+      const limitedValue = result > 0 ? MAX_VALUE : -MAX_VALUE;
       console.warn(
         `   → Valeur limitée à: ${limitedValue.toLocaleString("fr-FR")}€`
       );
       return limitedValue;
     }
 
-    return parsed;
+    return result;
   }
 
   parseDate(dateValue) {

@@ -45,7 +45,7 @@ export function GestionnaireRankingPodium({ period }: GestionnaireRankingPodiumP
           endDate = endDate || endOfMonth.toISOString()
         }
 
-        const rankingData = await interventionsApi.getMarginRankingByPeriod(startDate, endDate)
+        const rankingData = await interventionsApi.getMarginRankingByPeriodV3(startDate, endDate)
 
         if (!cancelled) {
           setRanking(rankingData)

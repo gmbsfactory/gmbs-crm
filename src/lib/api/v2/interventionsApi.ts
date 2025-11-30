@@ -1590,6 +1590,123 @@ export const interventionsApi = {
   },
 
   /**
+   * Récupère le classement des gestionnaires par marge totale sur une période
+   * Utilise get_dashboard_performance_gestionnaires_v3 (cohérent avec admin dashboard)
+   * @param startDate - Date de début (optionnelle, format ISO string)
+   * @param endDate - Date de fin (optionnelle, format ISO string)
+   * @returns Classement des gestionnaires trié par marge totale décroissante
+   */
+  async getMarginRankingByPeriodV3(
+    startDate?: string,
+    endDate?: string
+  ): Promise<MarginRankingResult> {
+    // Normaliser les dates pour correspondre au format attendu par la fonction SQL
+    let periodStart: string | null = null;
+    let periodEnd: string | null = null;
+
+    if (startDate) {
+      periodStart = startDate.includes('T') ? startDate : `${startDate}T00:00:00`;
+    }
+
+    if (endDate) {
+      if (endDate.includes('T')) {
+        periodEnd = endDate;
+      } else {
+        // Pour la fin de période, utiliser la fin du jour
+        periodEnd = `${endDate}T23:59:59`;
+      }
+    }
+
+    if (!periodStart || !periodEnd) {
+      return {
+        rankings: [],
+        period: {
+          start_date: startDate || null,
+          end_date: endDate || null,
+        },
+      };
+    }
+
+    // Appeler la fonction RPC SQL get_dashboard_performance_gestionnaires_v3
+    const { data: rpcResult, error: rpcError } = await supabase.rpc(
+      'get_dashboard_performance_gestionnaires_v3',
+      {
+        p_period_start: periodStart,
+        p_period_end: periodEnd,
+        p_agence_ids: null,
+        p_metier_ids: null,
+        p_limit: 100, // Limite élevée pour avoir tous les gestionnaires
+      }
+    );
+
+    if (rpcError) {
+      throw new Error(`Erreur lors de la récupération du classement: ${rpcError.message}`);
+    }
+
+    if (!rpcResult || !Array.isArray(rpcResult) || rpcResult.length === 0) {
+      return {
+        rankings: [],
+        period: {
+          start_date: startDate || null,
+          end_date: endDate || null,
+        },
+      };
+    }
+
+    // Récupérer les informations des utilisateurs pour enrichir les résultats
+    const userIds = rpcResult.map((r: any) => r.gestionnaire_id);
+    const { data: users, error: usersError } = await supabase
+      .from("users")
+      .select("id, firstname, lastname, code_gestionnaire, color")
+      .in("id", userIds);
+
+    if (usersError) {
+      throw new Error(`Erreur lors de la récupération des utilisateurs: ${usersError.message}`);
+    }
+
+    // Créer un map pour accéder rapidement aux infos utilisateur
+    const usersMap = new Map(
+      (users || []).map((u) => [u.id, u])
+    );
+
+    // Mapper les résultats SQL avec les informations utilisateur
+    // Trier par marge décroissante (la fonction SQL trie par CA, on veut trier par marge)
+    const sortedResults = [...rpcResult].sort((a: any, b: any) => {
+      const margeA = Number(a.marge_total || 0);
+      const margeB = Number(b.marge_total || 0);
+      return margeB - margeA;
+    });
+
+    const rankings: GestionnaireMarginRanking[] = sortedResults.map((item: any, index: number) => {
+      const user = usersMap.get(item.gestionnaire_id);
+      const fullName = item.gestionnaire_nom || (user
+        ? `${user.firstname || ""} ${user.lastname || ""}`.trim() || user.code_gestionnaire || "Utilisateur"
+        : "Utilisateur");
+
+      return {
+        user_id: item.gestionnaire_id,
+        user_name: fullName,
+        user_firstname: user?.firstname || null,
+        user_code: user?.code_gestionnaire || null,
+        user_color: user?.color || null,
+        total_margin: Number(item.marge_total || 0),
+        total_revenue: Number(item.ca_total || 0),
+        total_interventions: Number(item.nb_interventions_terminees || 0),
+        average_margin_percentage: Number(item.taux_marge || 0),
+        rank: index + 1,
+      };
+    });
+
+    return {
+      rankings,
+      period: {
+        start_date: startDate || null,
+        end_date: endDate || null,
+      },
+    };
+  },
+
+  /**
    * Récupère les statistiques hebdomadaires pour un utilisateur (semaine en cours)
    * @param userId - ID de l'utilisateur
    * @param weekStartDate - Date de début de la semaine (optionnelle, lundi de la semaine en cours par défaut)
