@@ -41,7 +41,9 @@ export function MultiSelect({
 }: MultiSelectProps) {
     const [open, setOpen] = React.useState(false)
     const triggerRef = React.useRef<HTMLButtonElement>(null)
+    const popoverContentRef = React.useRef<HTMLDivElement>(null)
     const [popoverWidth, setPopoverWidth] = React.useState<number | undefined>(undefined)
+    const isSelectingRef = React.useRef(false)
 
     React.useEffect(() => {
         if (open && triggerRef.current) {
@@ -53,17 +55,34 @@ export function MultiSelect({
         onChange(selected.filter((i) => i !== item))
     }
 
-    const handleSelect = (optionValue: string) => {
+    const handleSelect = React.useCallback((optionValue: string) => {
+        console.log("handleSelect called", optionValue)
+        isSelectingRef.current = true
         onChange(
             selected.includes(optionValue)
                 ? selected.filter((item) => item !== optionValue)
                 : [...selected, optionValue]
         )
-        // Ne pas fermer le popover pour permettre la sélection multiple
-    }
+        // Réinitialiser le flag après un court délai pour permettre la mise à jour
+        // Utiliser requestAnimationFrame pour s'assurer que le state est mis à jour
+        setTimeout(() => {
+            isSelectingRef.current = false
+        }, 100)
+    }, [selected, onChange])
+
+    const handleOpenChange = React.useCallback((newOpen: boolean) => {
+        console.log("handleOpenChange called", { newOpen, isSelecting: isSelectingRef.current })
+        // Empêcher la fermeture si on est en train de sélectionner
+        // Cela empêche cmdk de fermer automatiquement le popover lors de la sélection
+        if (!newOpen && isSelectingRef.current) {
+            console.log("Preventing close because selecting")
+            return
+        }
+        setOpen(newOpen)
+    }, [])
 
     return (
-        <Popover open={open} onOpenChange={setOpen} modal={false}>
+        <Popover open={open} onOpenChange={handleOpenChange} modal={false}>
             <PopoverTrigger asChild>
                 <Button
                     ref={triggerRef}
@@ -113,48 +132,52 @@ export function MultiSelect({
                 </Button>
             </PopoverTrigger>
             <PopoverContent 
-                className="p-0 z-[10000]" 
+                ref={popoverContentRef}
+                className="p-1 z-[10000]" 
                 align="start"
                 side="bottom"
                 style={{ width: popoverWidth ? `${popoverWidth}px` : undefined }}
                 onInteractOutside={(e) => {
-                    // Empêcher la fermeture si on clique sur le trigger
                     const target = e.target as HTMLElement
+                    // Empêcher la fermeture si on clique sur le trigger
                     if (triggerRef.current?.contains(target)) {
                         e.preventDefault()
+                        return
                     }
+                    // Permettre la fermeture normale pour les autres clics extérieurs
+                    // Ne pas bloquer les interactions à l'intérieur du popover
                 }}
             >
-                <Command shouldFilter={false}>
-                    <CommandInput placeholder="Rechercher..." />
-                    <CommandEmpty>Aucun résultat.</CommandEmpty>
-                    <CommandGroup className="max-h-64 overflow-auto">
-                        {options.map((option) => (
-                            <CommandItem
-                                key={option.value}
-                                value={option.value}
-                                onSelect={(currentValue) => {
-                                    // Empêcher la fermeture automatique
-                                    handleSelect(option.value)
-                                }}
-                                onClick={(e) => {
-                                    e.preventDefault()
-                                    e.stopPropagation()
-                                    handleSelect(option.value)
-                                }}
-                                className="cursor-pointer"
-                            >
-                                <Check
-                                    className={cn(
-                                        "mr-2 h-4 w-4",
-                                        selected.includes(option.value) ? "opacity-100" : "opacity-0"
-                                    )}
-                                />
-                                {option.label}
-                            </CommandItem>
-                        ))}
-                    </CommandGroup>
-                </Command>
+                <div className="max-h-64 overflow-auto">
+                    {options.map((option) => (
+                        <div
+                            key={option.value}
+                            role="option"
+                            aria-selected={selected.includes(option.value)}
+                            onClick={(e) => {
+                                e.preventDefault()
+                                e.stopPropagation()
+                                console.log("Simple div onClick triggered", option.value)
+                                handleSelect(option.value)
+                            }}
+                            onMouseDown={(e) => {
+                                console.log("Simple div onMouseDown triggered", option.value)
+                            }}
+                            className={cn(
+                                "relative flex cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-accent hover:text-accent-foreground",
+                                selected.includes(option.value) && "bg-accent text-accent-foreground"
+                            )}
+                        >
+                            <Check
+                                className={cn(
+                                    "mr-2 h-4 w-4",
+                                    selected.includes(option.value) ? "opacity-100" : "opacity-0"
+                                )}
+                            />
+                            {option.label}
+                        </div>
+                    ))}
+                </div>
             </PopoverContent>
         </Popover>
     )

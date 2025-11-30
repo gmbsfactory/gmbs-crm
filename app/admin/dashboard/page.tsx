@@ -88,9 +88,9 @@ export default function AdminDashboardPage() {
   const [period, setPeriod] = useState<FilterPeriodType>("mois")
   const [startDate, setStartDate] = useState<string | null>(null)
   const [endDate, setEndDate] = useState<string | null>(null)
-  const [agenceId, setAgenceId] = useState<string | null>(null)
-  const [gestionnaireId, setGestionnaireId] = useState<string | null>(null)
-  const [metierId, setMetierId] = useState<string | null>(null)
+  const [agenceIds, setAgenceIds] = useState<string[]>([])
+  const [gestionnaireIds, setGestionnaireIds] = useState<string[]>([])
+  const [metierIds, setMetierIds] = useState<string[]>([])
   const [chartType, setChartType] = useState<"metier" | "agences" | "gestionnaire">("gestionnaire")
   const [chartMetric, setChartMetric] = useState<"volume" | "ca" | "marge">("volume")
   const [isRevenueModalOpen, setIsRevenueModalOpen] = useState(false)
@@ -121,17 +121,17 @@ export default function AdminDashboardPage() {
     setEndDate(end)
   }, [])
 
-  // Gérer les changements de filtres (FilterBar retourne maintenant des strings uniques)
-  const handleAgenceChange = useCallback((agence: string) => {
-    setAgenceId(agence === "all" ? null : agence)
+  // Gérer les changements de filtres (FilterBar retourne des tableaux)
+  const handleAgencesChange = useCallback((agences: string[]) => {
+    setAgenceIds(agences)
   }, [])
 
-  const handleGestionnaireChange = useCallback((gestionnaire: string) => {
-    setGestionnaireId(gestionnaire === "all" ? null : gestionnaire)
+  const handleGestionnairesChange = useCallback((gestionnaires: string[]) => {
+    setGestionnaireIds(gestionnaires)
   }, [])
 
-  const handleMetierChange = useCallback((metier: string) => {
-    setMetierId(metier === "all" ? null : metier)
+  const handleMetiersChange = useCallback((metiers: string[]) => {
+    setMetierIds(metiers)
   }, [])
 
   // Récupérer les données du dashboard
@@ -139,9 +139,9 @@ export default function AdminDashboardPage() {
     periodType: apiPeriodType as any, // Cast to avoid type mismatch if API types differ slightly
     startDate: startDate || undefined,
     endDate: endDate || undefined,
-    agenceId: agenceId === "all" ? null : agenceId,
-    gestionnaireId: gestionnaireId === "all" ? null : gestionnaireId,
-    metierId: metierId === "all" ? null : metierId,
+    agenceIds: agenceIds.length > 0 ? agenceIds : undefined,
+    gestionnaireIds: gestionnaireIds.length > 0 ? gestionnaireIds : undefined,
+    metierIds: metierIds.length > 0 ? metierIds : undefined,
   })
 
   // Formater les nombres pour l'affichage
@@ -492,19 +492,19 @@ export default function AdminDashboardPage() {
             <FilterBar
               onPeriodChange={setPeriod}
               onDateChange={handleDateChange}
-              onAgenceChange={handleAgenceChange}
-              onGestionnaireChange={handleGestionnaireChange}
-              onMetierChange={handleMetierChange}
+              onAgencesChange={handleAgencesChange}
+              onGestionnairesChange={handleGestionnairesChange}
+              onMetiersChange={handleMetiersChange}
             />
           </div>
 
           {/* Afficher un avertissement si des filtres sont actifs */}
-          {(agenceId || gestionnaireId || metierId) && (
+          {(agenceIds.length > 0 || gestionnaireIds.length > 0 || metierIds.length > 0) && (
             <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm text-amber-800">
               <strong>Filtres actifs:</strong>
-              {agenceId && ` Agence: ${agenceId}`}
-              {gestionnaireId && ` Gestionnaire: ${gestionnaireId}`}
-              {metierId && ` Métier: ${metierId}`}
+              {agenceIds.length > 0 && ` Agences: ${agenceIds.length} sélectionnée(s)`}
+              {gestionnaireIds.length > 0 && ` Gestionnaires: ${gestionnaireIds.length} sélectionné(s)`}
+              {metierIds.length > 0 && ` Métiers: ${metierIds.length} sélectionné(s)`}
             </div>
           )}
 
@@ -876,9 +876,9 @@ export default function AdminDashboardPage() {
           periodType={apiPeriodType}
           startDate={startDate || undefined}
           endDate={endDate || undefined}
-          agenceId={agenceId || undefined}
-          gestionnaireId={gestionnaireId || undefined}
-          metierId={metierId || undefined}
+          agenceIds={agenceIds.length > 0 ? agenceIds : undefined}
+          gestionnaireIds={gestionnaireIds.length > 0 ? gestionnaireIds : undefined}
+          metierIds={metierIds.length > 0 ? metierIds : undefined}
         />
         <InterventionsHistoryModal
           open={isInterventionsModalOpen}
@@ -886,9 +886,9 @@ export default function AdminDashboardPage() {
           periodType={apiPeriodType}
           startDate={startDate || undefined}
           endDate={endDate || undefined}
-          agenceId={agenceId || undefined}
-          gestionnaireId={gestionnaireId || undefined}
-          metierId={metierId || undefined}
+          agenceIds={agenceIds.length > 0 ? agenceIds : undefined}
+          gestionnaireIds={gestionnaireIds.length > 0 ? gestionnaireIds : undefined}
+          metierIds={metierIds.length > 0 ? metierIds : undefined}
         />
         <TransformationRateHistoryModal
           open={isTransformationModalOpen}
@@ -896,9 +896,9 @@ export default function AdminDashboardPage() {
           periodType={apiPeriodType}
           startDate={startDate || undefined}
           endDate={endDate || undefined}
-          agenceId={agenceId || undefined}
-          gestionnaireId={gestionnaireId || undefined}
-          metierId={metierId || undefined}
+          agenceIds={agenceIds.length > 0 ? agenceIds : undefined}
+          gestionnaireIds={gestionnaireIds.length > 0 ? gestionnaireIds : undefined}
+          metierIds={metierIds.length > 0 ? metierIds : undefined}
         />
         <CycleTimeHistoryModal
           open={isCycleTimeModalOpen}
@@ -906,9 +906,9 @@ export default function AdminDashboardPage() {
           periodType={apiPeriodType}
           startDate={startDate || undefined}
           endDate={endDate || undefined}
-          agenceId={agenceId || undefined}
-          gestionnaireId={gestionnaireId || undefined}
-          metierId={metierId || undefined}
+          agenceIds={agenceIds.length > 0 ? agenceIds : undefined}
+          gestionnaireIds={gestionnaireIds.length > 0 ? gestionnaireIds : undefined}
+          metierIds={metierIds.length > 0 ? metierIds : undefined}
         />
         <MarginHistoryModal
           open={isMarginModalOpen}
@@ -916,9 +916,9 @@ export default function AdminDashboardPage() {
           periodType={apiPeriodType}
           startDate={startDate || undefined}
           endDate={endDate || undefined}
-          agenceId={agenceId || undefined}
-          gestionnaireId={gestionnaireId || undefined}
-          metierId={metierId || undefined}
+          agenceIds={agenceIds.length > 0 ? agenceIds : undefined}
+          gestionnaireIds={gestionnaireIds.length > 0 ? gestionnaireIds : undefined}
+          metierIds={metierIds.length > 0 ? metierIds : undefined}
         />
       </div>
     </AdminGuard>

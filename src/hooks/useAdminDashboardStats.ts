@@ -47,9 +47,9 @@ export function useAdminDashboardStats(
         params.periodType,
         calculatedDates.start,
         calculatedDates.end,
-        params.agenceId ?? null,
-        params.gestionnaireId ?? null,
-        params.metierId ?? null,
+        JSON.stringify(params.agenceIds?.sort() ?? null),
+        JSON.stringify(params.gestionnaireIds?.sort() ?? null),
+        JSON.stringify(params.metierIds?.sort() ?? null),
       ]
       : params
         ? [
@@ -58,9 +58,9 @@ export function useAdminDashboardStats(
           "stats",
           params.periodType,
           "current",
-          params.agenceId ?? null,
-          params.gestionnaireId ?? null,
-          params.metierId ?? null,
+          JSON.stringify(params.agenceIds?.sort() ?? null),
+          JSON.stringify(params.gestionnaireIds?.sort() ?? null),
+          JSON.stringify(params.metierIds?.sort() ?? null),
         ]
         : ["admin", "dashboard", "stats", "disabled"],
     queryFn: async () => {

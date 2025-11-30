@@ -13,9 +13,9 @@ interface CycleTimeHistoryModalProps {
   periodType: PeriodType
   startDate?: string
   endDate?: string
-  agenceId?: string | null
-  gestionnaireId?: string | null
-  metierId?: string | null
+  agenceIds?: string[] | null
+  gestionnaireIds?: string[] | null
+  metierIds?: string[] | null
 }
 
 export function CycleTimeHistoryModal({
@@ -24,9 +24,9 @@ export function CycleTimeHistoryModal({
   periodType,
   startDate,
   endDate,
-  agenceId,
-  gestionnaireId,
-  metierId,
+  agenceIds,
+  gestionnaireIds,
+  metierIds,
 }: CycleTimeHistoryModalProps) {
   const { data, isLoading, error } = useCycleTimeHistory(
     open
@@ -34,9 +34,9 @@ export function CycleTimeHistoryModal({
           periodType,
           startDate,
           endDate,
-          agenceId,
-          gestionnaireId,
-          metierId,
+          agenceIds,
+          gestionnaireIds,
+          metierIds,
           includeProjection: true,
         }
       : null,

@@ -16,9 +16,9 @@ export function useTransformationRateHistory(
           params.periodType,
           params.startDate ?? null,
           params.endDate ?? null,
-          params.agenceId ?? null,
-          params.gestionnaireId ?? null,
-          params.metierId ?? null,
+          JSON.stringify(params.agenceIds?.sort() ?? null),
+          JSON.stringify(params.gestionnaireIds?.sort() ?? null),
+          JSON.stringify(params.metierIds?.sort() ?? null),
           params.includeProjection ?? true,
         ]
       : ["admin", "transformation-rate", "history", "disabled"],

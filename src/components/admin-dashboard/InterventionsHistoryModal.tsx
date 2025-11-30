@@ -13,9 +13,9 @@ interface InterventionsHistoryModalProps {
   periodType: PeriodType
   startDate?: string
   endDate?: string
-  agenceId?: string | null
-  gestionnaireId?: string | null
-  metierId?: string | null
+  agenceIds?: string[] | null
+  gestionnaireIds?: string[] | null
+  metierIds?: string[] | null
 }
 
 export function InterventionsHistoryModal({
@@ -24,9 +24,9 @@ export function InterventionsHistoryModal({
   periodType,
   startDate,
   endDate,
-  agenceId,
-  gestionnaireId,
-  metierId,
+  agenceIds,
+  gestionnaireIds,
+  metierIds,
 }: InterventionsHistoryModalProps) {
   const { data, isLoading, error } = useInterventionsHistory(
     open
@@ -34,9 +34,9 @@ export function InterventionsHistoryModal({
           periodType,
           startDate,
           endDate,
-          agenceId,
-          gestionnaireId,
-          metierId,
+          agenceIds,
+          gestionnaireIds,
+          metierIds,
           includeProjection: true,
         }
       : null,

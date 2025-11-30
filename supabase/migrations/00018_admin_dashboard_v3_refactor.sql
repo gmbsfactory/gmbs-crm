@@ -12,9 +12,9 @@
 CREATE OR REPLACE FUNCTION get_dashboard_kpi_main_v3(
   p_period_start TIMESTAMP,
   p_period_end TIMESTAMP,
-  p_agence_id UUID DEFAULT NULL,
-  p_gestionnaire_id UUID DEFAULT NULL,
-  p_metier_id UUID DEFAULT NULL
+  p_agence_ids UUID[] DEFAULT NULL,
+  p_gestionnaire_ids UUID[] DEFAULT NULL,
+  p_metier_ids UUID[] DEFAULT NULL
 )
 RETURNS JSONB
 LANGUAGE plpgsql
@@ -39,9 +39,9 @@ BEGIN
   WHERE i.date >= p_period_start
     AND i.date <= p_period_end
     AND i.is_active = true
-    AND (p_agence_id IS NULL OR i.agence_id = p_agence_id)
-    AND (p_gestionnaire_id IS NULL OR i.assigned_user_id = p_gestionnaire_id)
-    AND (p_metier_id IS NULL OR i.metier_id = p_metier_id);
+    AND (array_length(p_agence_ids, 1) IS NULL OR i.agence_id = ANY(p_agence_ids))
+    AND (array_length(p_gestionnaire_ids, 1) IS NULL OR i.assigned_user_id = ANY(p_gestionnaire_ids))
+    AND (array_length(p_metier_ids, 1) IS NULL OR i.metier_id = ANY(p_metier_ids));
 
   -- Nombre d'interventions terminées (créées dans la période ET statut INTER_TERMINEE)
   SELECT COUNT(*)
@@ -52,9 +52,9 @@ BEGIN
     AND i.date <= p_period_end
     AND i.is_active = true
     AND ist.code = 'INTER_TERMINEE'
-    AND (p_agence_id IS NULL OR i.agence_id = p_agence_id)
-    AND (p_gestionnaire_id IS NULL OR i.assigned_user_id = p_gestionnaire_id)
-    AND (p_metier_id IS NULL OR i.metier_id = p_metier_id);
+    AND (array_length(p_agence_ids, 1) IS NULL OR i.agence_id = ANY(p_agence_ids))
+    AND (array_length(p_gestionnaire_ids, 1) IS NULL OR i.assigned_user_id = ANY(p_gestionnaire_ids))
+    AND (array_length(p_metier_ids, 1) IS NULL OR i.metier_id = ANY(p_metier_ids));
 
   -- CA total (uniquement interventions terminées)
   SELECT COALESCE(SUM(CASE WHEN cost.cost_type = 'intervention' THEN cost.amount ELSE 0 END), 0)
@@ -66,9 +66,9 @@ BEGIN
     AND i.date <= p_period_end
     AND i.is_active = true
     AND ist.code = 'INTER_TERMINEE'
-    AND (p_agence_id IS NULL OR i.agence_id = p_agence_id)
-    AND (p_gestionnaire_id IS NULL OR i.assigned_user_id = p_gestionnaire_id)
-    AND (p_metier_id IS NULL OR i.metier_id = p_metier_id);
+    AND (array_length(p_agence_ids, 1) IS NULL OR i.agence_id = ANY(p_agence_ids))
+    AND (array_length(p_gestionnaire_ids, 1) IS NULL OR i.assigned_user_id = ANY(p_gestionnaire_ids))
+    AND (array_length(p_metier_ids, 1) IS NULL OR i.metier_id = ANY(p_metier_ids));
 
   -- Coûts totaux (uniquement interventions terminées)
   -- Formule: sst + materiel
@@ -85,9 +85,9 @@ BEGIN
     AND i.date <= p_period_end
     AND i.is_active = true
     AND ist.code = 'INTER_TERMINEE'
-    AND (p_agence_id IS NULL OR i.agence_id = p_agence_id)
-    AND (p_gestionnaire_id IS NULL OR i.assigned_user_id = p_gestionnaire_id)
-    AND (p_metier_id IS NULL OR i.metier_id = p_metier_id);
+    AND (array_length(p_agence_ids, 1) IS NULL OR i.agence_id = ANY(p_agence_ids))
+    AND (array_length(p_gestionnaire_ids, 1) IS NULL OR i.assigned_user_id = ANY(p_gestionnaire_ids))
+    AND (array_length(p_metier_ids, 1) IS NULL OR i.metier_id = ANY(p_metier_ids));
 
   -- Calculs dérivés
   v_marge_total := v_ca_total - v_couts_total;
@@ -133,8 +133,8 @@ $$;
 CREATE OR REPLACE FUNCTION get_dashboard_performance_gestionnaires_v3(
   p_period_start TIMESTAMP,
   p_period_end TIMESTAMP,
-  p_agence_id UUID DEFAULT NULL,
-  p_metier_id UUID DEFAULT NULL,
+  p_agence_ids UUID[] DEFAULT NULL,
+  p_metier_ids UUID[] DEFAULT NULL,
   p_limit INTEGER DEFAULT 30
 )
 RETURNS JSONB
@@ -156,8 +156,8 @@ BEGIN
       AND i.date <= p_period_end
       AND i.is_active = true
       AND i.assigned_user_id IS NOT NULL
-      AND (p_agence_id IS NULL OR i.agence_id = p_agence_id)
-      AND (p_metier_id IS NULL OR i.metier_id = p_metier_id)
+      AND (array_length(p_agence_ids, 1) IS NULL OR i.agence_id = ANY(p_agence_ids))
+      AND (array_length(p_metier_ids, 1) IS NULL OR i.metier_id = ANY(p_metier_ids))
   ),
 
   interventions_terminees AS (
@@ -251,8 +251,8 @@ $$;
 CREATE OR REPLACE FUNCTION get_dashboard_performance_agences_v3(
   p_period_start TIMESTAMP,
   p_period_end TIMESTAMP,
-  p_metier_id UUID DEFAULT NULL,
-  p_gestionnaire_id UUID DEFAULT NULL
+  p_metier_ids UUID[] DEFAULT NULL,
+  p_gestionnaire_ids UUID[] DEFAULT NULL
 )
 RETURNS JSONB
 LANGUAGE plpgsql
@@ -272,8 +272,8 @@ BEGIN
     WHERE i.date >= p_period_start
       AND i.date <= p_period_end
       AND i.is_active = true
-      AND (p_metier_id IS NULL OR i.metier_id = p_metier_id)
-      AND (p_gestionnaire_id IS NULL OR i.assigned_user_id = p_gestionnaire_id)
+      AND (array_length(p_metier_ids, 1) IS NULL OR i.metier_id = ANY(p_metier_ids))
+      AND (array_length(p_gestionnaire_ids, 1) IS NULL OR i.assigned_user_id = ANY(p_gestionnaire_ids))
   ),
 
   interventions_terminees AS (
@@ -364,8 +364,8 @@ $$;
 CREATE OR REPLACE FUNCTION get_dashboard_performance_metiers_v3(
   p_period_start TIMESTAMP,
   p_period_end TIMESTAMP,
-  p_agence_id UUID DEFAULT NULL,
-  p_gestionnaire_id UUID DEFAULT NULL
+  p_agence_ids UUID[] DEFAULT NULL,
+  p_gestionnaire_ids UUID[] DEFAULT NULL
 )
 RETURNS JSONB
 LANGUAGE plpgsql
@@ -383,8 +383,8 @@ BEGIN
   WHERE i.date >= p_period_start
     AND i.date <= p_period_end
     AND i.is_active = true
-    AND (p_agence_id IS NULL OR i.agence_id = p_agence_id)
-    AND (p_gestionnaire_id IS NULL OR i.assigned_user_id = p_gestionnaire_id);
+    AND (array_length(p_agence_ids, 1) IS NULL OR i.agence_id = ANY(p_agence_ids))
+    AND (array_length(p_gestionnaire_ids, 1) IS NULL OR i.assigned_user_id = ANY(p_gestionnaire_ids));
 
   WITH interventions_periode AS (
     -- Interventions créées dans la période
@@ -396,8 +396,8 @@ BEGIN
     WHERE i.date >= p_period_start
       AND i.date <= p_period_end
       AND i.is_active = true
-      AND (p_agence_id IS NULL OR i.agence_id = p_agence_id)
-      AND (p_gestionnaire_id IS NULL OR i.assigned_user_id = p_gestionnaire_id)
+      AND (array_length(p_agence_ids, 1) IS NULL OR i.agence_id = ANY(p_agence_ids))
+      AND (array_length(p_gestionnaire_ids, 1) IS NULL OR i.assigned_user_id = ANY(p_gestionnaire_ids))
   ),
 
   interventions_terminees AS (
@@ -483,9 +483,9 @@ $$;
 CREATE OR REPLACE FUNCTION get_dashboard_cycles_moyens_v3(
   p_period_start TIMESTAMP,
   p_period_end TIMESTAMP,
-  p_agence_id UUID DEFAULT NULL,
-  p_metier_id UUID DEFAULT NULL,
-  p_gestionnaire_id UUID DEFAULT NULL
+  p_agence_ids UUID[] DEFAULT NULL,
+  p_metier_ids UUID[] DEFAULT NULL,
+  p_gestionnaire_ids UUID[] DEFAULT NULL
 )
 RETURNS JSONB
 LANGUAGE plpgsql
@@ -516,12 +516,15 @@ $$;
 -- SECTION 6: SPARKLINE DATA
 -- ============================================
 
+-- Drop existing function if it exists (with full signature)
+DROP FUNCTION IF EXISTS get_dashboard_sparkline_data_v3(TIMESTAMP, TIMESTAMP, UUID[], UUID[], UUID[]);
+
 CREATE OR REPLACE FUNCTION get_dashboard_sparkline_data_v3(
   p_period_start TIMESTAMP,
   p_period_end TIMESTAMP,
-  p_agence_id UUID DEFAULT NULL,
-  p_metier_id UUID DEFAULT NULL,
-  p_gestionnaire_id UUID DEFAULT NULL
+  p_agence_ids UUID[] DEFAULT NULL,
+  p_metier_ids UUID[] DEFAULT NULL,
+  p_gestionnaire_ids UUID[] DEFAULT NULL
 )
 RETURNS JSONB
 LANGUAGE plpgsql
@@ -576,9 +579,9 @@ BEGIN
     WHERE i.date >= p_period_start
       AND i.date <= p_period_end
       AND i.is_active = true
-      AND (p_agence_id IS NULL OR i.agence_id = p_agence_id)
-      AND (p_metier_id IS NULL OR i.metier_id = p_metier_id)
-      AND (p_gestionnaire_id IS NULL OR i.assigned_user_id = p_gestionnaire_id)
+      AND (array_length(p_agence_ids, 1) IS NULL OR i.agence_id = ANY(p_agence_ids))
+      AND (array_length(p_metier_ids, 1) IS NULL OR i.metier_id = ANY(p_metier_ids))
+      AND (array_length(p_gestionnaire_ids, 1) IS NULL OR i.assigned_user_id = ANY(p_gestionnaire_ids))
     GROUP BY DATE_TRUNC('day', i.date)::date
   )
 
@@ -604,12 +607,15 @@ $$;
 -- SECTION 5.5: VOLUME BY STATUS (Stacked Bar Chart)
 -- ============================================
 
+-- Drop existing function if it exists (with full signature)
+DROP FUNCTION IF EXISTS get_dashboard_volume_by_status_v3(TIMESTAMP, TIMESTAMP, UUID[], UUID[], UUID[]);
+
 CREATE OR REPLACE FUNCTION get_dashboard_volume_by_status_v3(
   p_period_start TIMESTAMP,
   p_period_end TIMESTAMP,
-  p_agence_id UUID DEFAULT NULL,
-  p_metier_id UUID DEFAULT NULL,
-  p_gestionnaire_id UUID DEFAULT NULL
+  p_agence_ids UUID[] DEFAULT NULL,
+  p_metier_ids UUID[] DEFAULT NULL,
+  p_gestionnaire_ids UUID[] DEFAULT NULL
 )
 RETURNS JSONB
 LANGUAGE plpgsql
@@ -638,9 +644,9 @@ BEGIN
     WHERE i.date >= p_period_start
       AND i.date <= p_period_end
       AND i.is_active = true
-      AND (p_agence_id IS NULL OR i.agence_id = p_agence_id)
-      AND (p_metier_id IS NULL OR i.metier_id = p_metier_id)
-      AND (p_gestionnaire_id IS NULL OR i.assigned_user_id = p_gestionnaire_id)
+      AND (array_length(p_agence_ids, 1) IS NULL OR i.agence_id = ANY(p_agence_ids))
+      AND (array_length(p_metier_ids, 1) IS NULL OR i.metier_id = ANY(p_metier_ids))
+      AND (array_length(p_gestionnaire_ids, 1) IS NULL OR i.assigned_user_id = ANY(p_gestionnaire_ids))
       AND ist.code IN ('DEMANDE', 'DEVIS_ENVOYE', 'ACCEPTE', 'INTER_EN_COURS', 'INTER_TERMINEE')
     GROUP BY DATE_TRUNC('day', i.date)::date, ist.code
   ),
@@ -680,12 +686,15 @@ $$;
 -- SECTION 6: CONVERSION FUNNEL
 -- ============================================
 
+-- Drop existing function if it exists (with full signature)
+DROP FUNCTION IF EXISTS get_dashboard_conversion_funnel_v3(TIMESTAMP, TIMESTAMP, UUID[], UUID[], UUID[]);
+
 CREATE OR REPLACE FUNCTION get_dashboard_conversion_funnel_v3(
   p_period_start TIMESTAMP,
   p_period_end TIMESTAMP,
-  p_agence_id UUID DEFAULT NULL,
-  p_metier_id UUID DEFAULT NULL,
-  p_gestionnaire_id UUID DEFAULT NULL
+  p_agence_ids UUID[] DEFAULT NULL,
+  p_metier_ids UUID[] DEFAULT NULL,
+  p_gestionnaire_ids UUID[] DEFAULT NULL
 )
 RETURNS JSONB
 LANGUAGE plpgsql
@@ -709,9 +718,9 @@ BEGIN
     WHERE i.date >= p_period_start
       AND i.date <= p_period_end
       AND i.is_active = true
-      AND (p_agence_id IS NULL OR i.agence_id = p_agence_id)
-      AND (p_metier_id IS NULL OR i.metier_id = p_metier_id)
-      AND (p_gestionnaire_id IS NULL OR i.assigned_user_id = p_gestionnaire_id)
+      AND (array_length(p_agence_ids, 1) IS NULL OR i.agence_id = ANY(p_agence_ids))
+      AND (array_length(p_metier_ids, 1) IS NULL OR i.metier_id = ANY(p_metier_ids))
+      AND (array_length(p_gestionnaire_ids, 1) IS NULL OR i.assigned_user_id = ANY(p_gestionnaire_ids))
   ),
 
   status_ranks AS (
@@ -771,12 +780,15 @@ $$;
 -- SECTION 6B: STATUS BREAKDOWN
 -- ============================================
 
+-- Drop existing function if it exists (with full signature)
+DROP FUNCTION IF EXISTS get_dashboard_status_breakdown_v3(TIMESTAMP, TIMESTAMP, UUID[], UUID[], UUID[]);
+
 CREATE OR REPLACE FUNCTION get_dashboard_status_breakdown_v3(
   p_period_start TIMESTAMP,
   p_period_end TIMESTAMP,
-  p_agence_id UUID DEFAULT NULL,
-  p_metier_id UUID DEFAULT NULL,
-  p_gestionnaire_id UUID DEFAULT NULL
+  p_agence_ids UUID[] DEFAULT NULL,
+  p_metier_ids UUID[] DEFAULT NULL,
+  p_gestionnaire_ids UUID[] DEFAULT NULL
 )
 RETURNS JSONB
 LANGUAGE plpgsql
@@ -808,9 +820,9 @@ BEGIN
     WHERE i.date >= p_period_start
       AND i.date <= p_period_end
       AND i.is_active = true
-      AND (p_agence_id IS NULL OR i.agence_id = p_agence_id)
-      AND (p_metier_id IS NULL OR i.metier_id = p_metier_id)
-      AND (p_gestionnaire_id IS NULL OR i.assigned_user_id = p_gestionnaire_id)
+      AND (array_length(p_agence_ids, 1) IS NULL OR i.agence_id = ANY(p_agence_ids))
+      AND (array_length(p_metier_ids, 1) IS NULL OR i.metier_id = ANY(p_metier_ids))
+      AND (array_length(p_gestionnaire_ids, 1) IS NULL OR i.assigned_user_id = ANY(p_gestionnaire_ids))
     GROUP BY i.statut_id
   ) counts
   JOIN intervention_statuses ist ON ist.id = counts.statut_id;
@@ -826,9 +838,9 @@ $$;
 CREATE OR REPLACE FUNCTION get_admin_dashboard_stats_v3(
   p_period_start TIMESTAMP,
   p_period_end TIMESTAMP,
-  p_agence_id UUID DEFAULT NULL,
-  p_metier_id UUID DEFAULT NULL,
-  p_gestionnaire_id UUID DEFAULT NULL,
+  p_agence_ids UUID[] DEFAULT NULL,
+  p_metier_ids UUID[] DEFAULT NULL,
+  p_gestionnaire_ids UUID[] DEFAULT NULL,
   p_top_gestionnaires INTEGER DEFAULT 10,
   p_top_agences INTEGER DEFAULT 10
 )
@@ -844,63 +856,63 @@ BEGIN
     'kpi_main', get_dashboard_kpi_main_v3(
       p_period_start,
       p_period_end,
-      p_agence_id,
-      p_gestionnaire_id,
-      p_metier_id
+      p_agence_ids,
+      p_gestionnaire_ids,
+      p_metier_ids
     ),
     'performance_gestionnaires', get_dashboard_performance_gestionnaires_v3(
       p_period_start,
       p_period_end,
-      p_agence_id,
-      p_metier_id,
+      p_agence_ids,
+      p_metier_ids,
       p_top_gestionnaires
     ),
     'performance_agences', get_dashboard_performance_agences_v3(
       p_period_start,
       p_period_end,
-      p_metier_id,
-      p_gestionnaire_id
+      p_metier_ids,
+      p_gestionnaire_ids
     ),
     'performance_metiers', get_dashboard_performance_metiers_v3(
       p_period_start,
       p_period_end,
-      p_agence_id,
-      p_gestionnaire_id
+      p_agence_ids,
+      p_gestionnaire_ids
     ),
     'cycles_moyens', get_dashboard_cycles_moyens_v3(
       p_period_start,
       p_period_end,
-      p_agence_id,
-      p_metier_id,
-      p_gestionnaire_id
+      p_agence_ids,
+      p_metier_ids,
+      p_gestionnaire_ids
     ),
     'sparkline_data', get_dashboard_sparkline_data_v3(
       p_period_start,
       p_period_end,
-      p_agence_id,
-      p_metier_id,
-      p_gestionnaire_id
+      p_agence_ids,
+      p_metier_ids,
+      p_gestionnaire_ids
     ),
     'volume_by_status', get_dashboard_volume_by_status_v3(
       p_period_start,
       p_period_end,
-      p_agence_id,
-      p_metier_id,
-      p_gestionnaire_id
+      p_agence_ids,
+      p_metier_ids,
+      p_gestionnaire_ids
     ),
     'conversion_funnel', get_dashboard_conversion_funnel_v3(
       p_period_start,
       p_period_end,
-      p_agence_id,
-      p_metier_id,
-      p_gestionnaire_id
+      p_agence_ids,
+      p_metier_ids,
+      p_gestionnaire_ids
     ),
     'status_breakdown', get_dashboard_status_breakdown_v3(
       p_period_start,
       p_period_end,
-      p_agence_id,
-      p_metier_id,
-      p_gestionnaire_id
+      p_agence_ids,
+      p_metier_ids,
+      p_gestionnaire_ids
     )
   ) INTO v_result;
 

@@ -2363,7 +2363,7 @@ export const interventionsApi = {
   async getAdminDashboardStats(
     params: DashboardPeriodParams
   ): Promise<AdminDashboardStats> {
-    const { periodType, referenceDate, startDate, endDate, agenceId, gestionnaireId, metierId } = params;
+    const { periodType, referenceDate, startDate, endDate, agenceIds, gestionnaireIds, metierIds } = params;
 
     // Calculer les dates de période
     let periodStart: string;
@@ -2389,9 +2389,9 @@ export const interventionsApi = {
     console.log(`📅 Période: ${periodType}`);
     console.log(`📅 Date début: ${periodStart}`);
     console.log(`📅 Date fin: ${periodEnd}`);
-    if (agenceId) console.log(`🏢 Agence: ${agenceId}`);
-    if (gestionnaireId) console.log(`👤 Gestionnaire: ${gestionnaireId}`);
-    if (metierId) console.log(`🔧 Métier: ${metierId}`);
+    if (agenceIds?.length) console.log(`🏢 Agences: ${agenceIds.join(', ')}`);
+    if (gestionnaireIds?.length) console.log(`👤 Gestionnaires: ${gestionnaireIds.join(', ')}`);
+    if (metierIds?.length) console.log(`🔧 Métiers: ${metierIds.join(', ')}`);
 
     // Log: Opération en cours
     console.log('\n🔍 Opération: Appel de la fonction RPC get_admin_dashboard_stats_v3...');
@@ -2402,9 +2402,9 @@ export const interventionsApi = {
       {
         p_period_start: periodStartTimestamp,
         p_period_end: periodEndTimestamp,
-        p_agence_id: agenceId || null,
-        p_metier_id: metierId || null,
-        p_gestionnaire_id: gestionnaireId || null,
+        p_agence_ids: agenceIds && agenceIds.length > 0 ? agenceIds : null,
+        p_metier_ids: metierIds && metierIds.length > 0 ? metierIds : null,
+        p_gestionnaire_ids: gestionnaireIds && gestionnaireIds.length > 0 ? gestionnaireIds : null,
         p_top_gestionnaires: 10,
         p_top_agences: 10,
       }
@@ -2746,9 +2746,9 @@ export const interventionsApi = {
       periodType,
       startDate,
       endDate,
-      agenceId,
-      gestionnaireId,
-      metierId,
+      agenceIds,
+      gestionnaireIds,
+      metierIds,
       includeProjection = true,
     } = params;
 
@@ -2762,9 +2762,9 @@ export const interventionsApi = {
           periodType,
           startDate: period.start,
           endDate: period.end,
-          agenceId,
-          gestionnaireId,
-          metierId,
+          agenceIds,
+          gestionnaireIds,
+          metierIds,
         });
 
         return {
@@ -2987,9 +2987,9 @@ export const interventionsApi = {
       periodType,
       startDate,
       endDate,
-      agenceId,
-      gestionnaireId,
-      metierId,
+      agenceIds,
+      gestionnaireIds,
+      metierIds,
       includeProjection = true,
     } = params;
 
@@ -3001,9 +3001,9 @@ export const interventionsApi = {
           periodType,
           startDate: period.start,
           endDate: period.end,
-          agenceId,
-          gestionnaireId,
-          metierId,
+          agenceIds,
+          gestionnaireIds,
+          metierIds,
         });
 
         return {
@@ -3058,9 +3058,9 @@ export const interventionsApi = {
       periodType,
       startDate,
       endDate,
-      agenceId,
-      gestionnaireId,
-      metierId,
+      agenceIds,
+      gestionnaireIds,
+      metierIds,
       includeProjection = true,
     } = params;
 
@@ -3072,9 +3072,9 @@ export const interventionsApi = {
           periodType,
           startDate: period.start,
           endDate: period.end,
-          agenceId,
-          gestionnaireId,
-          metierId,
+          agenceIds,
+          gestionnaireIds,
+          metierIds,
         });
 
         return {
@@ -3129,9 +3129,9 @@ export const interventionsApi = {
       periodType,
       startDate,
       endDate,
-      agenceId,
-      gestionnaireId,
-      metierId,
+      agenceIds,
+      gestionnaireIds,
+      metierIds,
       includeProjection = true,
     } = params;
 
@@ -3143,9 +3143,9 @@ export const interventionsApi = {
           periodType,
           startDate: period.start,
           endDate: period.end,
-          agenceId,
-          gestionnaireId,
-          metierId,
+          agenceIds,
+          gestionnaireIds,
+          metierIds,
         });
 
         return {
@@ -3197,9 +3197,9 @@ export const interventionsApi = {
       periodType,
       startDate,
       endDate,
-      agenceId,
-      gestionnaireId,
-      metierId,
+      agenceIds,
+      gestionnaireIds,
+      metierIds,
       includeProjection = true,
     } = params;
 
@@ -3211,9 +3211,9 @@ export const interventionsApi = {
           periodType,
           startDate: period.start,
           endDate: period.end,
-          agenceId,
-          gestionnaireId,
-          metierId,
+          agenceIds,
+          gestionnaireIds,
+          metierIds,
         });
 
         return {

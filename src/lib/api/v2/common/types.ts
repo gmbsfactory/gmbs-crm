@@ -815,9 +815,9 @@ export interface DashboardPeriodParams {
   referenceDate?: string; // Date de référence (par défaut: aujourd'hui)
   startDate?: string; // Optionnel: date de début explicite
   endDate?: string; // Optionnel: date de fin explicite
-  agenceId?: string | null; // Optionnel: filtrer par agence
-  gestionnaireId?: string | null; // Optionnel: filtrer par gestionnaire
-  metierId?: string | null; // Optionnel: filtrer par métier
+  agenceIds?: string[] | null; // Optionnel: filtrer par agences (multisélection)
+  gestionnaireIds?: string[] | null; // Optionnel: filtrer par gestionnaires (multisélection)
+  metierIds?: string[] | null; // Optionnel: filtrer par métiers (multisélection)
 }
 
 export interface InterventionStatusTransition {
@@ -959,9 +959,9 @@ export interface RevenueHistoryParams {
   periodType: PeriodType; // 'day' | 'week' | 'month' | 'year'
   startDate?: string;
   endDate?: string;
-  agenceId?: string | null;
-  gestionnaireId?: string | null;
-  metierId?: string | null;
+  agenceIds?: string[] | null;
+  gestionnaireIds?: string[] | null;
+  metierIds?: string[] | null;
   includeProjection?: boolean; // Inclure la projection de la période suivante
 }
 
@@ -991,9 +991,9 @@ export interface KPIHistoryParams {
   periodType: PeriodType;
   startDate?: string;
   endDate?: string;
-  agenceId?: string | null;
-  gestionnaireId?: string | null;
-  metierId?: string | null;
+  agenceIds?: string[] | null;
+  gestionnaireIds?: string[] | null;
+  metierIds?: string[] | null;
   includeProjection?: boolean;
 }
 

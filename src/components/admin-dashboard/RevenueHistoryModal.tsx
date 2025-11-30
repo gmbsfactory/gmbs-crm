@@ -13,9 +13,9 @@ interface RevenueHistoryModalProps {
   periodType: PeriodType
   startDate?: string
   endDate?: string
-  agenceId?: string | null
-  gestionnaireId?: string | null
-  metierId?: string | null
+  agenceIds?: string[] | null
+  gestionnaireIds?: string[] | null
+  metierIds?: string[] | null
 }
 
 export function RevenueHistoryModal({
@@ -24,9 +24,9 @@ export function RevenueHistoryModal({
   periodType,
   startDate,
   endDate,
-  agenceId,
-  gestionnaireId,
-  metierId,
+  agenceIds,
+  gestionnaireIds,
+  metierIds,
 }: RevenueHistoryModalProps) {
   const { data, isLoading, error } = useRevenueHistory(
     open
@@ -34,9 +34,9 @@ export function RevenueHistoryModal({
           periodType,
           startDate,
           endDate,
-          agenceId,
-          gestionnaireId,
-          metierId,
+          agenceIds,
+          gestionnaireIds,
+          metierIds,
           includeProjection: true,
         }
       : null,

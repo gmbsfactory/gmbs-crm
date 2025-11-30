@@ -13,9 +13,9 @@ interface TransformationRateHistoryModalProps {
   periodType: PeriodType
   startDate?: string
   endDate?: string
-  agenceId?: string | null
-  gestionnaireId?: string | null
-  metierId?: string | null
+  agenceIds?: string[] | null
+  gestionnaireIds?: string[] | null
+  metierIds?: string[] | null
 }
 
 export function TransformationRateHistoryModal({
@@ -24,9 +24,9 @@ export function TransformationRateHistoryModal({
   periodType,
   startDate,
   endDate,
-  agenceId,
-  gestionnaireId,
-  metierId,
+  agenceIds,
+  gestionnaireIds,
+  metierIds,
 }: TransformationRateHistoryModalProps) {
   const { data, isLoading, error } = useTransformationRateHistory(
     open
@@ -34,9 +34,9 @@ export function TransformationRateHistoryModal({
           periodType,
           startDate,
           endDate,
-          agenceId,
-          gestionnaireId,
-          metierId,
+          agenceIds,
+          gestionnaireIds,
+          metierIds,
           includeProjection: true,
         }
       : null,

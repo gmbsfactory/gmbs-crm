@@ -13,9 +13,9 @@ interface MarginHistoryModalProps {
   periodType: PeriodType
   startDate?: string
   endDate?: string
-  agenceId?: string | null
-  gestionnaireId?: string | null
-  metierId?: string | null
+  agenceIds?: string[] | null
+  gestionnaireIds?: string[] | null
+  metierIds?: string[] | null
 }
 
 export function MarginHistoryModal({
@@ -24,9 +24,9 @@ export function MarginHistoryModal({
   periodType,
   startDate,
   endDate,
-  agenceId,
-  gestionnaireId,
-  metierId,
+  agenceIds,
+  gestionnaireIds,
+  metierIds,
 }: MarginHistoryModalProps) {
   const { data, isLoading, error } = useMarginHistory(
     open
@@ -34,9 +34,9 @@ export function MarginHistoryModal({
           periodType,
           startDate,
           endDate,
-          agenceId,
-          gestionnaireId,
-          metierId,
+          agenceIds,
+          gestionnaireIds,
+          metierIds,
           includeProjection: true,
         }
       : null,
