@@ -13,14 +13,15 @@ import type { InterventionStatusKey } from './interventions';
 export const INTERVENTION_STATUS_CHAINS = {
     /**
      * Chaîne principale de progression standard
+     * Note: Utilise les codes DB réels (INTER_EN_COURS et INTER_TERMINEE)
      */
     MAIN_PROGRESSION: [
         'DEMANDE',
         'DEVIS_ENVOYE',
         'VISITE_TECHNIQUE',
         'ACCEPTE',
-        'EN_COURS',
-        'TERMINE'
+        'INTER_EN_COURS',
+        'INTER_TERMINEE'
     ] as InterventionStatusKey[],
 
     /**
@@ -30,8 +31,8 @@ export const INTERVENTION_STATUS_CHAINS = {
         'DEMANDE',
         'VISITE_TECHNIQUE',
         'ACCEPTE',
-        'EN_COURS',
-        'INTER_TERMINE'
+        'INTER_EN_COURS',
+        'INTER_TERMINEE'
     ] as InterventionStatusKey[],
 } as const;
 

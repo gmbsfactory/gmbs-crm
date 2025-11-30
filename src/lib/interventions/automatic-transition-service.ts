@@ -15,6 +15,68 @@ export interface AutomaticTransitionResult {
  */
 export class AutomaticTransitionService {
     /**
+     * Crée automatiquement les transitions pour une intervention
+     * Cette méthode est un wrapper qui convertit les IDs en codes puis appelle executeTransition
+     * 
+     * @param interventionId - ID de l'intervention
+     * @param toStatusId - ID du statut cible
+     * @param fromStatusId - ID du statut source (null lors de la création)
+     * @param userId - ID de l'utilisateur qui effectue le changement
+     * @param metadata - Métadonnées supplémentaires
+     */
+    async createAutomaticTransitions(
+        interventionId: string,
+        toStatusId: string,
+        fromStatusId: string | null,
+        userId?: string,
+        metadata?: Record<string, unknown>
+    ): Promise<AutomaticTransitionResult> {
+        try {
+            // Récupérer les codes des statuts depuis leurs IDs
+            const statusIds = [toStatusId, fromStatusId].filter(Boolean) as string[];
+            const { data: statuses, error: statusError } = await supabase
+                .from('intervention_statuses')
+                .select('id, code')
+                .in('id', statusIds);
+
+            if (statusError || !statuses) {
+                return {
+                    success: false,
+                    transitionsCreated: 0,
+                    finalStatus: 'DEMANDE' as InterventionStatusKey,
+                    errors: ['Erreur lors de la récupération des statuts'],
+                };
+            }
+
+            const toStatusData = statuses.find((s) => s.id === toStatusId);
+            const fromStatusData = fromStatusId ? statuses.find((s) => s.id === fromStatusId) : null;
+
+            if (!toStatusData) {
+                return {
+                    success: false,
+                    transitionsCreated: 0,
+                    finalStatus: 'DEMANDE' as InterventionStatusKey,
+                    errors: ['Statut cible introuvable'],
+                };
+            }
+
+            const toStatus = toStatusData.code as InterventionStatusKey;
+            const fromStatus = fromStatusData ? (fromStatusData.code as InterventionStatusKey) : null;
+
+            // Utiliser executeTransition qui fait tout le travail
+            return this.executeTransition(interventionId, fromStatus, toStatus, userId, metadata);
+        } catch (error) {
+            console.error('Exception lors de createAutomaticTransitions:', error);
+            return {
+                success: false,
+                transitionsCreated: 0,
+                finalStatus: 'DEMANDE' as InterventionStatusKey,
+                errors: [error instanceof Error ? error.message : 'Erreur inconnue'],
+            };
+        }
+    }
+
+    /**
      * Exécute une transition de statut avec gestion des statuts intermédiaires
      * 
      * @param fromStatus - Statut source (null lors de la création initiale)
@@ -77,29 +139,62 @@ export class AutomaticTransitionService {
         
         const transitionDate = new Date();
 
+        // Si fromStatus est null et qu'il y a des statuts intermédiaires,
+        // créer d'abord la transition NULL → premier statut (DEMANDE) pour cohérence
+        if (fromStatus === null && chainResult.intermediateStatuses.length > 0) {
+            const firstStatus = chainResult.intermediateStatuses[0];
+            const firstTransitionMetadata = {
+                ...metadata,
+                is_intermediate: true,
+                final_target_status: toStatus,
+                transition_chain: 'MAIN_PROGRESSION',
+                transition_order: 0,
+                total_transitions: allStatuses.length + 1, // +1 pour inclure NULL → DEMANDE
+                is_initial_creation: true,
+            };
+
+            const firstTransitionId = await this.createTransition(
+                interventionId,
+                null,
+                firstStatus,
+                userId,
+                firstTransitionMetadata,
+                transitionDate
+            );
+
+            if (firstTransitionId) {
+                transitionsCreated++;
+            } else {
+                errors.push(`Échec de la transition de NULL vers ${firstStatus}`);
+            }
+        }
+
         // On itère jusqu'à l'avant-dernier élément pour créer les transitions
         // Ex: Création avec INTER_TERMINEE, chaîne [DEMANDE, DEVIS_ENVOYE, INTER_TERMINEE]
         // chainResult.intermediateStatuses = [DEMANDE, DEVIS_ENVOYE]
         // allStatuses = [DEMANDE, DEVIS_ENVOYE, INTER_TERMINEE]
         // i=0: DEMANDE -> DEVIS_ENVOYE (intermédiaire)
         // i=1: DEVIS_ENVOYE -> INTER_TERMINEE (final)
+        // Mais maintenant on a aussi créé NULL → DEMANDE avant
         for (let i = 0; i < allStatuses.length - 1; i++) {
             const currentFrom = allStatuses[i];
             const currentTo = allStatuses[i + 1];
             const isFinal = i === allStatuses.length - 2;
 
             // Calculer la date de transition (avec délai pour préserver l'ordre)
+            // Si on a créé NULL → DEMANDE, on commence à l'index 1 pour les dates
+            const dateOffset = fromStatus === null && chainResult.intermediateStatuses.length > 0 ? 1 : 0;
             const currentTransitionDate = new Date(
-                transitionDate.getTime() + i * STATUS_CHAIN_CONFIG.intermediateTransitionDelay
+                transitionDate.getTime() + (i + dateOffset) * STATUS_CHAIN_CONFIG.intermediateTransitionDelay
             );
 
             const transitionMetadata = {
                 ...metadata,
                 is_intermediate: !isFinal,
                 final_target_status: toStatus,
-                transition_chain: 'MAIN_PROGRESSION', // Idéalement dynamique
-                transition_order: i + 1,
-                total_transitions: allStatuses.length - 1,
+                transition_chain: 'MAIN_PROGRESSION',
+                transition_order: i + 1 + dateOffset, // Ajuster l'ordre si on a créé NULL → DEMANDE
+                total_transitions: allStatuses.length + (fromStatus === null && chainResult.intermediateStatuses.length > 0 ? 1 : 0),
                 is_initial_creation: fromStatus === null,
             };
 

@@ -25,7 +25,9 @@ export type InterventionStatusKey =
   | "STAND_BY"
   | "ACCEPTE"
   | "EN_COURS"
+  | "INTER_EN_COURS"  // Code DB réel
   | "TERMINE"
+  | "INTER_TERMINEE"  // Code DB réel
   | "SAV"
   | "ATT_ACOMPTE"
 

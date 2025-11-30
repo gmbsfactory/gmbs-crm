@@ -293,16 +293,49 @@ export const interventionsApi = {
 
   // Créer une intervention
   async create(data: CreateInterventionData): Promise<Intervention> {
-    const headers = await getHeaders();
-    const response = await fetch(
-      `${getSupabaseFunctionsUrl()}/interventions-v2/interventions`,
-      {
-        method: "POST",
-        headers,
-        body: JSON.stringify(data),
+    // 1. Faire l'INSERT
+    const { data: result, error } = await supabase
+      .from('interventions')
+      .insert(data)
+      .select()
+      .single();
+
+    if (error) throw new Error(`Erreur lors de la création de l'intervention: ${error.message}`);
+
+    // 2. Créer la chaîne de transitions si nécessaire
+    if (result.statut_id) {
+      try {
+        // Le trigger a créé une transition NULL → statut_actuel lors de l'INSERT
+        // On la supprime pour la remplacer par la chaîne complète
+        await supabase
+          .from('intervention_status_transitions')
+          .delete()
+          .eq('intervention_id', result.id)
+          .eq('source', 'trigger');
+
+        // Récupérer l'utilisateur actuel
+        const { data: { user } } = await supabase.auth.getUser();
+        const userId = user?.id;
+
+        // Créer les transitions automatiques
+        await automaticTransitionService.createAutomaticTransitions(
+          result.id,
+          result.statut_id,
+          null, // fromStatusId = null pour INSERT
+          userId,
+          {
+            updated_via: 'create',
+            api_operation: true,
+          }
+        );
+      } catch (transitionError) {
+        console.error('Erreur lors de la création des transitions automatiques:', transitionError);
+        // Ne pas bloquer la création si les transitions échouent
       }
-    );
-    return await handleResponse(response);
+    }
+
+    const refs = await getReferenceCache();
+    return mapInterventionRecord(result, refs);
   },
 
   // Modifier une intervention
@@ -343,7 +376,9 @@ export const interventionsApi = {
     let oldStatutId: string | null = null;
     let currentIntervention: any = null; // Déclarer la variable en dehors du bloc if
 
-    if (payload.statut_id && typeof window !== "undefined") {
+    // Retirer la condition typeof window !== "undefined" pour permettre la récupération
+    // du statut même en environnement Node.js (scripts de test, etc.)
+    if (payload.statut_id) {
       const { data } = await supabase
         .from("interventions")
         .select(`
@@ -672,8 +707,6 @@ export const interventionsApi = {
       metadata: data.metadata || null // Ne pas stringify, Supabase gère automatiquement les objets vers jsonb
     };
 
-    console.log('[addCost] Insertion du coût:', { interventionId, cost_type: data.cost_type, amount: data.amount });
-
     try {
       const { data: result, error } = await supabase
         .from('intervention_costs')
@@ -685,8 +718,7 @@ export const interventionsApi = {
         console.error('[addCost] Erreur Supabase:', { code: error.code, message: error.message, details: error.details, hint: error.hint });
         throw new Error(`Erreur lors de l'ajout du coût: ${error.message || error.code || 'Erreur inconnue'}`);
       }
-
-      console.log('[addCost] Coût ajouté avec succès:', result?.id);
+      
       return result;
     } catch (err: any) {
       // Capturer les erreurs réseau ou autres erreurs non-Supabase
@@ -902,6 +934,22 @@ export const interventionsApi = {
 
   // Upsert direct via Supabase (pour import en masse)
   async upsertDirect(data: CreateInterventionData & { id_inter?: string }): Promise<Intervention> {
+    // 1. Vérifier si l'intervention existe déjà
+    let existingIntervention = null;
+    let oldStatusId = null;
+
+    if (data.id_inter) {
+      const { data: existing } = await supabase
+        .from('interventions')
+        .select('id, statut_id')
+        .eq('id_inter', data.id_inter)
+        .maybeSingle();
+
+      existingIntervention = existing;
+      oldStatusId = existing?.statut_id || null;
+    }
+
+    // 2. Faire l'upsert
     const { data: result, error } = await supabase
       .from('interventions')
       .upsert(data, {
@@ -912,6 +960,53 @@ export const interventionsApi = {
       .single();
 
     if (error) throw new Error(`Erreur lors de l'upsert de l'intervention: ${error.message}`);
+
+    // 3. Créer la chaîne de transitions si nécessaire
+    if (result.statut_id) {
+      try {
+        // Supprimer la transition créée par le trigger
+        // - Pour INSERT: le trigger crée NULL → statut_actuel
+        // - Pour UPDATE: le trigger crée oldStatusId → newStatusId
+        // On supprime ces transitions pour les remplacer par la chaîne complète
+        if (!existingIntervention) {
+          // Cas INSERT: supprimer toutes les transitions du trigger
+          await supabase
+            .from('intervention_status_transitions')
+            .delete()
+            .eq('intervention_id', result.id)
+            .eq('source', 'trigger');
+        } else if (oldStatusId && oldStatusId !== result.statut_id) {
+          // Cas UPDATE: supprimer la transition spécifique oldStatusId → newStatusId créée par le trigger
+          await supabase
+            .from('intervention_status_transitions')
+            .delete()
+            .eq('intervention_id', result.id)
+            .eq('from_status_id', oldStatusId)
+            .eq('to_status_id', result.statut_id)
+            .eq('source', 'trigger');
+        }
+
+        // Récupérer l'utilisateur actuel
+        const { data: { user } } = await supabase.auth.getUser();
+        const userId = user?.id;
+
+        // Créer les transitions automatiques
+        await automaticTransitionService.createAutomaticTransitions(
+          result.id,
+          result.statut_id,
+          oldStatusId, // null pour INSERT, statut précédent pour UPDATE
+          userId,
+          {
+            updated_via: 'upsertDirect',
+            import_operation: true,
+            id_inter: data.id_inter,
+          }
+        );
+      } catch (transitionError) {
+        console.error('Erreur lors de la création des transitions automatiques:', transitionError);
+        // Ne pas bloquer l'upsert si les transitions échouent
+      }
+    }
 
     const refs = await getReferenceCache();
     return mapInterventionRecord(result, refs);
@@ -2298,41 +2393,20 @@ export const interventionsApi = {
     if (gestionnaireId) console.log(`👤 Gestionnaire: ${gestionnaireId}`);
     if (metierId) console.log(`🔧 Métier: ${metierId}`);
 
-    // Définir les codes de statut directement (plus besoin de chercher les IDs)
-    const demandeStatusCode = 'DEMANDE';
-    const devisEnvoyeStatusCode = 'DEVIS_ENVOYE';
-    const accepteStatusCode = 'ACCEPTE';
-    const enCoursStatusCode = 'INTER_EN_COURS';
-    const termineeStatusCode = 'INTER_TERMINEE';
-    const attAcompteStatusCode = 'ATT_ACOMPTE';
-
-    const statusCodesValides = [
-      devisEnvoyeStatusCode,
-      accepteStatusCode,
-      enCoursStatusCode,
-      termineeStatusCode,
-      attAcompteStatusCode
-    ].filter(Boolean) as string[];
-
     // Log: Opération en cours
-    console.log('\n🔍 Opération: Appel de la fonction RPC get_admin_dashboard_stats...');
+    console.log('\n🔍 Opération: Appel de la fonction RPC get_admin_dashboard_stats_v3...');
 
-    // Appeler la fonction RPC unique qui fait tout en une seule requête SQL
+    // Appeler la fonction RPC V3
     const { data: rpcResult, error: rpcError } = await supabase.rpc(
-      'get_admin_dashboard_stats',
+      'get_admin_dashboard_stats_v3',
       {
         p_period_start: periodStartTimestamp,
         p_period_end: periodEndTimestamp,
-        p_demande_status_code: demandeStatusCode,
-        p_devis_status_code: devisEnvoyeStatusCode,
-        p_accepte_status_code: accepteStatusCode,
-        p_en_cours_status_code: enCoursStatusCode,
-        p_terminee_status_code: termineeStatusCode,
-        p_att_acompte_status_code: attAcompteStatusCode,
-        p_valid_status_codes: statusCodesValides,
         p_agence_id: agenceId || null,
-        p_gestionnaire_id: gestionnaireId || null,
         p_metier_id: metierId || null,
+        p_gestionnaire_id: gestionnaireId || null,
+        p_top_gestionnaires: 10,
+        p_top_agences: 10,
       }
     );
 
@@ -2352,16 +2426,30 @@ export const interventionsApi = {
 
     console.log('✅ RPC exécuté avec succès');
 
-    // Parser le résultat JSON de la fonction SQL
-    const mainStatsData = rpcResult.mainStats || {};
-    const sparklines = rpcResult.sparklines || [];
-    const statusBreakdown = rpcResult.statusBreakdown || [];
-    const conversionFunnel = rpcResult.conversionFunnel || [];
-    const metierBreakdown = rpcResult.metierBreakdown || [];
-    // Support both naming conventions just in case
-    const rawAgencyStats = rpcResult.agencyStats || rpcResult.agencyBreakdown || [];
-    const rawGestionnaireStats = rpcResult.gestionnaireStats || rpcResult.gestionnaireBreakdown || [];
-    const globalFinancials = rpcResult.globalFinancials || {};
+    // Parser le résultat JSON de la fonction SQL V3
+    const kpiMain = rpcResult.kpi_main || {};
+
+    // Mapper les sparklines depuis sparkline_data (v3)
+    const rawSparklines = rpcResult.sparkline_data || [];
+    const sparklines = Array.isArray(rawSparklines) ? rawSparklines.map((item: any) => ({
+      date: item.date,
+      countDemandees: item.nb_interventions_demandees ?? 0,
+      countTerminees: item.nb_interventions_terminees ?? 0,
+      ca_jour: item.ca_jour ?? 0,
+      marge_jour: item.marge_jour ?? 0
+    })) : [];
+
+    // Récupérer les données de funnel et status depuis la v3
+    const rawConversionFunnel = rpcResult.conversion_funnel || [];
+    const conversionFunnel = Array.isArray(rawConversionFunnel) ? rawConversionFunnel : [];
+
+    const rawStatusBreakdown = rpcResult.status_breakdown || [];
+    const statusBreakdown = Array.isArray(rawStatusBreakdown) ? rawStatusBreakdown : [];
+
+    // Récupérer les données de performance depuis la v3
+    const rawMetierStats = rpcResult.performance_metiers || [];
+    const rawAgencyStats = rpcResult.performance_agences || [];
+    const rawGestionnaireStats = rpcResult.performance_gestionnaires || [];
 
     // DEBUG: Données brutes reçues
     console.log('\n🏢 ========================================');
@@ -2372,62 +2460,53 @@ export const interventionsApi = {
     console.log('📊 rawAgencyStats.length:', rawAgencyStats?.length || 0);
     console.log('👤 rawGestionnaireStats.length:', rawGestionnaireStats?.length || 0);
 
-    // Normaliser les codes du funnel de conversion pour correspondre aux codes front
+    // Normaliser les codes du funnel de conversion depuis v3
+    // V3 retourne déjà: { status_code: 'DEMANDE', count: X }
+    // On normalise les codes si nécessaire pour le front
     const normalizedConversionFunnel = conversionFunnel.map((item: any) => ({
-      statusCode: item.statusCode === 'INTER_EN_COURS'
-        ? 'EN_COURS'
-        : item.statusCode === 'INTER_TERMINEE'
-          ? 'TERMINE'
-          : item.statusCode || item.statut_code,
+      statusCode: item.status_code || '',
       count: item.count || 0,
     }));
 
-    // Calculer les taux (côté client car ils nécessitent des calculs)
-    // Taux de transformation = (Interventions terminées / Interventions demandées) × 100
-    const nbDemandees = mainStatsData.nbInterventionsDemandees || 0;
-    const nbTerminees = mainStatsData.nbInterventionsTerminees || 0;
-    const tauxTransformation = nbDemandees > 0
-      ? Math.round((nbTerminees / nbDemandees) * 1000) / 10
-      : 0;
+    console.log('\n🔄 Funnel de conversion:', JSON.stringify(normalizedConversionFunnel, null, 2));
+    console.log('📋 Status breakdown:', JSON.stringify(statusBreakdown, null, 2));
 
-    const totalPaiements = Number(mainStatsData.chiffreAffaires || 0);
-    const totalCouts = Number(mainStatsData.couts || 0);
-    const tauxMarge = totalPaiements > 0
-      ? Math.round(((totalPaiements - totalCouts) / totalPaiements) * 100)
-      : 0;
+    // Récupérer les valeurs depuis kpi_main (v3)
+    const nbDemandees = kpiMain.nb_interventions_demandees || 0;
+    const nbTerminees = kpiMain.nb_interventions_terminees || 0;
+    const tauxTransformation = kpiMain.taux_transformation || 0;
+    const totalPaiements = Number(kpiMain.ca_total || 0);
+    const totalCouts = Number(kpiMain.couts_total || 0);
+    const margeTotal = Number(kpiMain.marge_total || 0);
+    const tauxMarge = kpiMain.taux_marge || 0;
 
     // Log: KPIs principaux
     console.log('\n📈 ========================================');
-    console.log('📈 KPIs PRINCIPAUX');
+    console.log('📈 KPIs PRINCIPAUX (V3)');
     console.log('📈 ========================================');
-    console.log(`📥 Interventions demandées: ${mainStatsData.nbInterventionsDemandees || 0}`);
-    console.log(`✅ Interventions terminées: ${mainStatsData.nbInterventionsTerminees || 0}`);
+    console.log(`📥 Interventions demandées: ${nbDemandees}`);
+    console.log(`✅ Interventions terminées: ${nbTerminees}`);
     console.log(`📊 Taux de transformation: ${tauxTransformation.toFixed(2)}%`);
     console.log(`💰 Taux de marge: ${tauxMarge.toFixed(2)}%`);
     console.log(`💵 Chiffre d'affaires total: ${totalPaiements.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })}`);
     console.log(`💸 Coûts totaux: ${totalCouts.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })}`);
-    console.log(`💎 Marge nette: ${(totalPaiements - totalCouts).toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })}`);
+    console.log(`💎 Marge nette: ${margeTotal.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })}`);
 
     // Construire mainStats
-    // Utiliser le chiffre d'affaires depuis mainStatsData si disponible, sinon depuis globalFinancials
-    const chiffreAffaires = mainStatsData.chiffreAffaires !== undefined
-      ? Number(mainStatsData.chiffreAffaires || 0)
-      : totalPaiements;
-
     const mainStats = {
-      nbInterventionsDemandees: mainStatsData.nbInterventionsDemandees || 0,
-      nbInterventionsTerminees: mainStatsData.nbInterventionsTerminees || 0,
-      nbDevis: mainStatsData.nbDevis || 0,
-      nbValides: mainStatsData.nbValides || 0,
+      nbInterventionsDemandees: nbDemandees,
+      nbInterventionsTerminees: nbTerminees,
+      nbDevis: 0, // v3 ne retourne pas ce champ
+      nbValides: 0, // v3 ne retourne pas ce champ
       tauxTransformation,
-      chiffreAffaires,
+      chiffreAffaires: totalPaiements,
       tauxMarge,
       couts: totalCouts,
-      marge: totalPaiements - totalCouts,
-      avgCycleTime: mainStatsData.avgCycleTime || 0,
-      deltaInterventions: mainStatsData.deltaInterventions || 0,
-      deltaChiffreAffaires: mainStatsData.deltaChiffreAffaires || 0,
-      deltaMarge: mainStatsData.deltaMarge || 0,
+      marge: margeTotal,
+      avgCycleTime: 0, // TODO: récupérer depuis cycles_moyens si disponible
+      deltaInterventions: 0, // v3 ne calcule pas les deltas
+      deltaChiffreAffaires: 0, // v3 ne calcule pas les deltas
+      deltaMarge: 0, // v3 ne calcule pas les deltas
     };
 
     // Récupérer le cache de référence pour mapper les codes aux labels
@@ -2442,45 +2521,37 @@ export const interventionsApi = {
     const statusMapByCode = new Map(statuses?.map((s: any) => [s.code, s]) || []);
 
     // ========================================
-    // 2. STATISTIQUES DES STATUTS
+    // 2. STATISTIQUES DES STATUTS (V3)
     // ========================================
-    console.log('\n🔍 Opération: Calcul des statistiques par statut...');
+    console.log('\n🔍 Opération: Mapping des statistiques par statut (V3)...');
 
-    const statusCounts: Record<string, { label: string; count: number }> = {};
-
-    statusBreakdown.forEach((item: any) => {
-      if (item.statut_code) {
-        const code = item.statut_code;
-        const statusInfo = statusMapByCode.get(code);
-        if (!statusCounts[code]) {
-          statusCounts[code] = {
-            label: statusInfo?.label || code,
-            count: 0
-          };
-        }
-        statusCounts[code].count = item.count || 0;
-      }
-    });
-
-    const breakdown = Object.entries(statusCounts).map(([code, data]) => ({
-      statusCode: code,
-      statusLabel: data.label,
-      count: data.count,
+    // Mapper le status breakdown retourné par v3
+    // V3 retourne: { status_code: 'XXX', status_label: 'Label', count: N }
+    const breakdown = statusBreakdown.map((item: any) => ({
+      statusCode: item.status_code || '',
+      statusLabel: item.status_label || '',
+      count: item.count || 0,
     }));
+
+    // Construire statusStats depuis le breakdown
+    const nbDevisEnvoye = breakdown.find((s: any) => s.statusCode === 'DEVIS_ENVOYE')?.count || 0;
+    const nbEnCours = breakdown.find((s: any) => s.statusCode === 'INTER_EN_COURS')?.count || 0;
+    const nbAttAcompte = breakdown.find((s: any) => s.statusCode === 'ATT_ACOMPTE')?.count || 0;
+    const nbAccepte = breakdown.find((s: any) => s.statusCode === 'ACCEPTE')?.count || 0;
 
     const statusStats = {
       nbDemandesRecues: mainStats.nbInterventionsDemandees,
-      nbDevisEnvoye: statusCounts['DEVIS_ENVOYE']?.count || 0,
-      nbEnCours: statusCounts['INTER_EN_COURS']?.count || 0,
-      nbAttAcompte: statusCounts['ATT_ACOMPTE']?.count || 0,
-      nbAccepte: statusCounts['ACCEPTE']?.count || 0,
-      nbTermine: statusCounts['INTER_TERMINEE']?.count || 0,
+      nbDevisEnvoye,
+      nbEnCours,
+      nbAttAcompte,
+      nbAccepte,
+      nbTermine: mainStats.nbInterventionsTerminees,
       breakdown,
     };
 
     // Log: Statistiques par statut
     console.log('\n📋 ========================================');
-    console.log('📋 STATISTIQUES PAR STATUT');
+    console.log('📋 STATISTIQUES PAR STATUT (V3)');
     console.log('📋 ========================================');
     console.log(`📥 Demandes reçues: ${statusStats.nbDemandesRecues}`);
     console.log(`📄 Devis envoyés: ${statusStats.nbDevisEnvoye}`);
@@ -2490,39 +2561,33 @@ export const interventionsApi = {
     console.log(`🏁 Terminées: ${statusStats.nbTermine}`);
 
     // ========================================
-    // 3. STATISTIQUES PAR MÉTIER
+    // 3. STATISTIQUES PAR MÉTIER (V3)
     // ========================================
-    console.log('\n🔍 Opération: Calcul des statistiques par métier...');
+    console.log('\n🔍 Opération: Calcul des statistiques par métier (V3)...');
 
-    const totalMetiers = metierBreakdown.reduce((sum: number, item: any) => {
-      const total = item.totalInterventions ?? item.count ?? 0;
-      return sum + total;
-    }, 0);
-
-    const metierStats = metierBreakdown
+    const metierStats = rawMetierStats
       .map((item: any) => {
-        const metierId = item.metier_id || item.metierId;
+        const metierId = item.metier_id;
         if (!metierId) return null;
 
-        const metierInfo = refs.metiersById.get(metierId);
-        const totalInterventions = item.totalInterventions ?? item.count ?? 0;
-        const terminatedInterventions = item.terminatedInterventions ?? item.nbInterventionsTerminees ?? 0;
-        const ca = Number(item.totalPaiements ?? item.ca ?? 0);
-        const couts = Number(item.totalCouts ?? item.couts ?? 0);
-        const marge = ca - couts;
-        const tauxMargeMetier = ca > 0 ? Math.round((marge / ca) * 100) : 0;
+        const ca = Number(item.ca_total || 0);
+        const marge = Number(item.marge_total || 0);
+        const tauxMarge = Number(item.taux_marge || 0);
+        const nbInterventionsPrises = item.nb_interventions_demandees || 0;
+        const nbInterventionsTerminees = item.nb_interventions_terminees || 0;
+        const pourcentageVolume = Number(item.pourcentage_volume || 0);
 
         return {
           metierId,
-          metierLabel: item.metierLabel || metierInfo?.label || 'Inconnu',
-          nbInterventionsPrises: totalInterventions,
-          nbInterventionsTerminees: terminatedInterventions,
+          metierLabel: item.metier_nom || 'Inconnu',
+          nbInterventionsPrises,
+          nbInterventionsTerminees,
           ca,
-          couts,
+          couts: ca - marge, // Calculé depuis CA et marge
           marge,
-          tauxMarge: tauxMargeMetier,
-          percentage: totalMetiers > 0 ? Math.round((totalInterventions / totalMetiers) * 100) : 0,
-          count: totalInterventions, // compatibilité avec les usages existants
+          tauxMarge,
+          percentage: pourcentageVolume,
+          count: nbInterventionsPrises, // compatibilité avec les usages existants
         };
       })
       .filter(Boolean)
@@ -2540,27 +2605,23 @@ export const interventionsApi = {
     }
 
     // ========================================
-    // 4. STATISTIQUES PAR AGENCE
+    // 4. STATISTIQUES PAR AGENCE (V3)
     // ========================================
-    console.log('\n🔍 Opération: Calcul des statistiques par agence...');
+    console.log('\n🔍 Opération: Calcul des statistiques par agence (V3)...');
 
     const agencyStats = rawAgencyStats.map((item: any) => {
-      const agencyInfo = refs.agenciesById.get(item.agence_id);
-      const totalPaiements = Number(item.totalPaiements || 0);
-      const totalCouts = Number(item.totalCouts || 0);
-      const marge = totalPaiements - totalCouts;
-      const tauxMargeAgence = totalPaiements > 0
-        ? Math.round((marge / totalPaiements) * 100)
-        : 0;
+      const ca = Number(item.ca_total || 0);
+      const marge = Number(item.marge_total || 0);
+      const tauxMarge = Number(item.taux_marge || 0);
 
       return {
         agencyId: item.agence_id,
-        agencyLabel: agencyInfo?.label || 'Inconnu',
-        nbTotalInterventions: item.totalInterventions || 0,
-        nbInterventionsTerminees: item.terminatedInterventions || 0,
-        tauxMarge: tauxMargeAgence,
-        ca: totalPaiements,
-        couts: totalCouts,
+        agencyLabel: item.agence_nom || 'Inconnu',
+        nbTotalInterventions: item.nb_interventions_demandees || 0,
+        nbInterventionsTerminees: item.nb_interventions_terminees || 0,
+        tauxMarge,
+        ca,
+        couts: ca - marge, // Calculé depuis CA et marge
         marge,
       };
     }).sort((a: any, b: any) => b.ca - a.ca);
@@ -2586,40 +2647,27 @@ export const interventionsApi = {
     }
 
     // ========================================
-    // 5. STATISTIQUES PAR GESTIONNAIRE
+    // 5. STATISTIQUES PAR GESTIONNAIRE (V3)
     // ========================================
-    console.log('\n🔍 Opération: Calcul des statistiques par gestionnaire...');
+    console.log('\n🔍 Opération: Calcul des statistiques par gestionnaire (V3)...');
 
     const gestionnaireStats = rawGestionnaireStats.map((item: any) => {
-      const gestionnaireInfo = refs.usersById.get(item.gestionnaire_id);
-      const totalPaiements = Number(item.totalPaiements || 0);
-      const totalCouts = Number(item.totalCouts || 0);
-      const marge = totalPaiements - totalCouts;
-      const tauxMargeGestionnaire = totalPaiements > 0
-        ? Math.round((marge / totalPaiements) * 100)
-        : 0;
-
-      // Taux de transformation = (Interventions terminées / Interventions prises) × 100
-      const nbInterventionsPrises = item.totalInterventions || 0;
-      const nbInterventionsTerminees = item.terminatedInterventions || 0;
-      const tauxTransformationGestionnaire = nbInterventionsPrises > 0
-        ? Math.round((nbInterventionsTerminees / nbInterventionsPrises) * 100)
-        : 0;
-
-      // Construire le label du gestionnaire
-      const gestionnaireLabel = gestionnaireInfo
-        ? `${gestionnaireInfo.firstname || ''} ${gestionnaireInfo.lastname || ''}`.trim() || gestionnaireInfo.code_gestionnaire || 'Inconnu'
-        : 'Inconnu';
+      const ca = Number(item.ca_total || 0);
+      const marge = Number(item.marge_total || 0);
+      const tauxMarge = Number(item.taux_marge || 0);
+      const nbInterventionsPrises = item.nb_interventions_prises || 0;
+      const nbInterventionsTerminees = item.nb_interventions_terminees || 0;
+      const tauxCompletion = Number(item.taux_completion || 0);
 
       return {
         gestionnaireId: item.gestionnaire_id,
-        gestionnaireLabel,
+        gestionnaireLabel: item.gestionnaire_nom || 'Inconnu',
         nbInterventionsPrises,
         nbInterventionsTerminees,
-        tauxTransformation: tauxTransformationGestionnaire,
-        tauxMarge: tauxMargeGestionnaire,
-        ca: totalPaiements,
-        couts: totalCouts,
+        tauxTransformation: tauxCompletion, // V3 appelle ça taux_completion
+        tauxMarge,
+        ca,
+        couts: ca - marge, // Calculé depuis CA et marge
         marge,
       };
     }).sort((a: any, b: any) => b.ca - a.ca);

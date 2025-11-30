@@ -29,7 +29,9 @@
     "drive:verify-documents": "npx tsx scripts/imports/documents/verify-documents-insertion.js",
     "drive:verify-intervention-documents": "npx tsx scripts/imports/documents/verify-intervention-documents.js",
     "drive:verify-storage": "npx tsx scripts/imports/documents/verify-storage-upload.js",
-    "test:csv-interventions": "node scripts/test-interventions-folders-csv.js"
+    "test:csv-interventions": "node scripts/test-interventions-folders-csv.js",
+    "test:automatic-transitions:api-v2": "npx tsx scripts/test-api/test-automatic-transitions-api-v2.ts",
+    "test:check-status": "npx tsx scripts/test-api/check-status.ts"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

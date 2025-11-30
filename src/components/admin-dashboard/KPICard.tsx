@@ -16,6 +16,7 @@ interface KPICardProps {
   className?: string
   description?: string
   onClick?: () => void
+  showCurrencyInSparkline?: boolean
 }
 
 export function KPICard({
@@ -27,6 +28,7 @@ export function KPICard({
   className,
   description,
   onClick,
+  showCurrencyInSparkline = false,
 }: KPICardProps) {
   return (
     <Card
@@ -65,6 +67,7 @@ export function KPICard({
               <Sparkline
                 data={sparklineData}
                 color={trend?.isPositive ? "#10b981" : "#ef4444"}
+                showCurrency={showCurrencyInSparkline}
               />
             </div>
           )}

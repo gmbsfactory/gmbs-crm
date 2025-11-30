@@ -551,9 +551,13 @@ export default function AdminDashboardPage() {
                     isPositive: (dashboardStats?.mainStats.deltaChiffreAffaires || 0) >= 0,
                     label: "vs période préc."
                   }}
-                  sparklineData={dashboardStats?.sparklines.map(s => ({ date: s.date, value: s.countTerminees }))}
+                  sparklineData={dashboardStats?.sparklines.map(s => ({ 
+                    date: s.date, 
+                    value: s.ca_jour || 0 
+                  }))}
                   className="border-l-blue-500"
                   onClick={() => setIsRevenueModalOpen(true)}
+                  showCurrencyInSparkline={true}
                 />
                 <KPICard
                   title="Marge Globale"
@@ -564,9 +568,14 @@ export default function AdminDashboardPage() {
                     isPositive: (dashboardStats?.mainStats.deltaMarge || 0) >= 0,
                     label: "vs période préc."
                   }}
+                  sparklineData={dashboardStats?.sparklines.map(s => ({ 
+                    date: s.date, 
+                    value: s.marge_jour || 0 
+                  }))}
                   description={`Taux de marge: ${dashboardStats?.mainStats.tauxMarge || 0}%`}
                   className="border-l-emerald-500"
                   onClick={() => setIsMarginModalOpen(true)}
+                  showCurrencyInSparkline={true}
                 />
               </>
             )}

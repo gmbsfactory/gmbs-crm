@@ -857,6 +857,8 @@ export interface AdminDashboardStats {
     date: string;
     countDemandees: number;
     countTerminees: number;
+    ca_jour: number;
+    marge_jour: number;
   }>;
 
   // 3. Données pour le Funnel (Status Breakdown)
