@@ -1,9 +1,10 @@
 "use client"
 
 import { useQuery } from "@tanstack/react-query"
-import { useMemo } from "react"
+import { useMemo, useRef } from "react"
 import { interventionsApi } from "@/lib/api/v2"
 import type { AdminDashboardStats, DashboardPeriodParams, PeriodType } from "@/lib/api/v2"
+import { useDailySparklineCache } from "./useDailySparklineCache"
 
 /**
  * Hook pour récupérer les statistiques du dashboard administrateur
@@ -21,6 +22,9 @@ export function useAdminDashboardStats(
   params: DashboardPeriodParams | null,
   options?: { enabled?: boolean }
 ) {
+  // Utiliser le cache daily pour les sparklines
+  const dailyCache = useDailySparklineCache()
+  
   // Calculer les dates pour les inclure dans la queryKey
   // Cela garantit que la clé de cache change quand la période change
   const calculatedDates = useMemo(() => {
@@ -64,8 +68,23 @@ export function useAdminDashboardStats(
         ]
         : ["admin", "dashboard", "stats", "disabled"],
     queryFn: async () => {
-      if (!params) throw new Error("Params are required")
-      return await interventionsApi.getAdminDashboardStats(params)
+      if (!params || !calculatedDates) throw new Error("Params are required")
+      
+      // Vérifier le cache daily pour les sparklines avant de faire l'appel API
+      const cachedSparklines = dailyCache.get(calculatedDates.start, calculatedDates.end)
+      
+      // Récupérer les données complètes depuis l'API
+      const stats = await interventionsApi.getAdminDashboardStats(params)
+      
+      // Toujours mettre en cache les nouvelles données (écrase l'ancien si nécessaire)
+      // Le cache gère automatiquement la limite de 3 mois
+      if (stats.sparklines && stats.sparklines.length > 0) {
+        dailyCache.set(calculatedDates.start, calculatedDates.end, stats.sparklines)
+      }
+      
+      // Si on avait des données en cache et qu'elles sont identiques, on peut les utiliser
+      // Sinon, on utilise les données fraîches de l'API (déjà mises en cache ci-dessus)
+      return stats
     },
     enabled: params !== null && (options?.enabled !== false),
     staleTime: 30 * 1000, // 30 secondes - les stats peuvent être mises à jour fréquemment

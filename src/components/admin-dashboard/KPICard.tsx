@@ -13,6 +13,7 @@ interface KPICardProps {
     label?: string
   }
   sparklineData?: Array<{ date: string; value: number }>
+  sparklineValueFormatter?: (value: number) => string
   className?: string
   description?: string
   onClick?: () => void
@@ -24,6 +25,7 @@ export function KPICard({
   icon: Icon,
   trend,
   sparklineData,
+  sparklineValueFormatter,
   className,
   description,
   onClick,
@@ -65,6 +67,7 @@ export function KPICard({
               <Sparkline
                 data={sparklineData}
                 color={trend?.isPositive ? "#10b981" : "#ef4444"}
+                valueFormatter={sparklineValueFormatter}
               />
             </div>
           )}

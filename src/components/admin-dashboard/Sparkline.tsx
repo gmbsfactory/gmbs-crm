@@ -7,9 +7,10 @@ interface SparklineProps {
     data: { date: string; value: number }[]
     color?: string
     height?: number
+    valueFormatter?: (value: number) => string
 }
 
-export function Sparkline({ data, color, height = 50 }: SparklineProps) {
+export function Sparkline({ data, color, height = 50, valueFormatter }: SparklineProps) {
     const { theme } = useTheme()
     const isDark = theme === "dark"
 
@@ -33,14 +34,36 @@ export function Sparkline({ data, color, height = 50 }: SparklineProps) {
                                     transform: "translateX(-50%)"
                                 }
                                 
+                                // Récupérer la date et la valeur depuis les données
+                                const dataPoint = payload[0].payload as { date: string; value: number }
+                                const dateValue = dataPoint.date
+                                const kpiValue = payload[0].value
+                                
+                                // Formater la date en français
+                                const formattedDate = dateValue
+                                    ? new Date(dateValue).toLocaleDateString('fr-FR', {
+                                        day: 'numeric',
+                                        month: 'short',
+                                        year: 'numeric'
+                                      })
+                                    : ''
+
+                                // Utiliser le formatter si fourni, sinon afficher la valeur brute
+                                const formattedValue = valueFormatter
+                                    ? valueFormatter(kpiValue as number)
+                                    : kpiValue
+
                                 return (
-                                    <div 
-                                        className="rounded-lg border bg-background p-2 shadow-sm"
+                                    <div
+                                        className="rounded-lg border bg-background p-3 shadow-lg text-center"
                                         style={tooltipStyle}
                                     >
-                                        <span className="font-bold text-muted-foreground">
-                                            {payload[0].value}
-                                        </span>
+                                        <div className="text-xs text-muted-foreground mb-1">
+                                            {formattedDate}
+                                        </div>
+                                        <div className="font-bold text-sm">
+                                            {formattedValue}
+                                        </div>
                                     </div>
                                 )
                             }

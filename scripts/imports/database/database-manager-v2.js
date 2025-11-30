@@ -141,7 +141,7 @@ class DatabaseManager {
           label: "Coût SST",
           amount: costsData.sst,
           currency: "EUR",
-        });
+        }, { verbose: this.options.verbose });
         results.success++;
         this.log(`  ✓ Coût SST inséré: ${costsData.sst}€`, "verbose");
       } catch (error) {
@@ -165,7 +165,7 @@ class DatabaseManager {
           currency: "EUR",
           metadata:
             Object.keys(metadata).length > 0 ? JSON.stringify(metadata) : null,
-        });
+        }, { verbose: this.options.verbose });
         results.success++;
         this.log(`  ✓ Coût matériel inséré: ${costsData.materiel}€`, "verbose");
       } catch (error) {
@@ -186,7 +186,7 @@ class DatabaseManager {
           label: "Coût Intervention",
           amount: costsData.intervention,
           currency: "EUR",
-        });
+        }, { verbose: this.options.verbose });
         results.success++;
         this.log(
           `  ✓ Coût intervention inséré: ${costsData.intervention}€`,
@@ -207,7 +207,7 @@ class DatabaseManager {
           label: "Marge",
           amount: costsData.total,
           currency: "EUR",
-        });
+        }, { verbose: this.options.verbose });
         results.success++;
         this.log(`  ✓ Marge insérée: ${costsData.total}€`, "verbose");
       } catch (error) {

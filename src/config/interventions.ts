@@ -218,7 +218,9 @@ export const DEFAULT_WORKFLOW_CONFIG: WorkflowConfig = {
   createdAt: new Date().toISOString(),
   updatedAt: new Date().toISOString(),
   statuses: STATUS_KEYS.map((key) => {
-    const rule = WORKFLOW_RULES[key]
+    // Map database codes to workflow rule keys
+    const ruleKey = key === 'INTER_EN_COURS' ? 'EN_COURS' : key === 'INTER_TERMINEE' ? 'TERMINE' : key
+    const rule = WORKFLOW_RULES[ruleKey as keyof typeof WORKFLOW_RULES]
     const isPinned = PINNED_DEFAULT_STATUSES.includes(key)
     return {
       id: statusId(key),

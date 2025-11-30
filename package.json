@@ -28,7 +28,15 @@
     "drive:verify-documents": "npx tsx scripts/imports/documents/verify-documents-insertion.js",
     "drive:verify-intervention-documents": "npx tsx scripts/imports/documents/verify-intervention-documents.js",
     "drive:verify-storage": "npx tsx scripts/imports/documents/verify-storage-upload.js",
-    "test:csv-interventions": "node scripts/test-interventions-folders-csv.js"
+    "test:csv-interventions": "node scripts/test-interventions-folders-csv.js",
+    "test:status-transition": "node scripts/test-api/test-status-transition-api.mjs",
+    "test:status-transition:sql": "node scripts/test-api/test-status-transition-simple.mjs",
+    "test:status-transition:insert": "node scripts/test-api/test-status-transition-insert.mjs",
+    "test:import-transitions": "node scripts/test-api/test-import-transitions.mjs",
+    "test:validate-existing": "node scripts/test-api/test-validate-existing-interventions.mjs",
+    "test:transitions": "npm run test:import-transitions && npm run test:status-transition:api",
+    "test:automatic-transitions": "npx tsx scripts/test-api/test-automatic-transitions.ts",
+    "test:automatic-transitions:api-v2": "npx tsx scripts/test-api/test-automatic-transitions-api-v2.ts"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

@@ -97,9 +97,9 @@ export function VerticalBarChart({
                   angle={-45}
                   textAnchor="end"
                   height={80}
-                  tick={{ fontSize: 12 }}
+                  tick={{ fontSize: 12, fill: "#ffffff" }}
                 />
-                <YAxis tickFormatter={defaultFormatter} />
+                <YAxis tickFormatter={defaultFormatter} tick={{ fill: "#ffffff" }} />
                 <ChartTooltip
                   content={({ active, payload }) => {
                     if (active && payload && payload.length) {

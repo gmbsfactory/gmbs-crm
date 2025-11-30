@@ -810,6 +810,38 @@ export interface OwnerQueryParams extends BaseQueryParams {
 
 export type PeriodType = 'day' | 'week' | 'month' | 'year';
 
+/**
+ * Étape du funnel de conversion
+ */
+export interface ConversionFunnelStep {
+  statusCode: string;
+  count: number;
+  conversionRate: number | null; // null pour la première étape
+}
+
+/**
+ * Top artisan avec métriques de performance
+ */
+export interface TopArtisan {
+  artisanId: string;
+  artisanName: string;
+  nbInterventions: number;
+  nbTerminees: number;
+  ca: number; // Chiffre d'affaires
+  marge: number;
+  tauxMarge: number; // En pourcentage
+}
+
+/**
+ * Temps de cycle détaillés par étape du processus
+ */
+export interface DetailedCycleTimes {
+  demandeToDevis: number; // En jours
+  devisToAccepte: number; // En jours
+  accepteToTerminee: number; // En jours
+  totalCycleTime: number; // En jours
+}
+
 export interface DashboardPeriodParams {
   periodType: PeriodType;
   referenceDate?: string; // Date de référence (par défaut: aujourd'hui)
@@ -857,6 +889,8 @@ export interface AdminDashboardStats {
     date: string;
     countDemandees: number;
     countTerminees: number;
+    chiffreAffaires: number;
+    marge: number;
   }>;
 
   // 3. Données pour le Funnel (Status Breakdown)
@@ -868,10 +902,7 @@ export interface AdminDashboardStats {
   }>;
 
   // Nouveau champ pour l'entonnoir de conversion
-  conversionFunnel: Array<{
-    statusCode: string;
-    count: number;
-  }>;
+  conversionFunnel: ConversionFunnelStep[];
 
   // 4. Statistiques par métier (breakdown complet)
   metierBreakdown: Array<{

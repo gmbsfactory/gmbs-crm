@@ -78,20 +78,28 @@ LIMIT 1;
 -- ÉTAPE 3 : Mettre à jour l'intervention vers INTER_TERMINEE
 -- ========================================
 -- Cette étape met à jour le statut vers INTER_TERMINEE (code DB)
--- Le trigger SQL devrait créer une transition (ou l'API si vous passez par l'API)
+-- IMPORTANT: Utilise la fonction SQL update_intervention_status_with_chain
+-- qui crée automatiquement toute la chaîne de transitions (comme l'API TypeScript)
 -- Remplacez 'YOUR_ID' par l'id_inter de l'étape 1
 
-UPDATE interventions 
-SET 
-  statut_id = (SELECT id FROM intervention_statuses WHERE code = 'INTER_TERMINEE' LIMIT 1),
-  updated_at = now()
-WHERE id_inter = 'YOUR_ID'
-RETURNING 
-  id,
-  id_inter,
-  contexte_intervention,
-  statut_id,
-  updated_at;
+SELECT update_intervention_status_with_chain(
+  (SELECT id FROM interventions WHERE id_inter = 'YOUR_ID' LIMIT 1),
+  'INTER_TERMINEE',
+  NULL,
+  '{"test": true, "note": "Test automatique - Transitions de statut"}'::jsonb
+);
+
+-- Affichage du résultat avec détails
+SELECT 
+  i.id,
+  i.id_inter,
+  i.contexte_intervention,
+  s.code as statut_actuel,
+  s.label as statut_actuel_label,
+  (SELECT COUNT(*) FROM intervention_status_transitions WHERE intervention_id = i.id) as nb_transitions
+FROM interventions i
+LEFT JOIN intervention_statuses s ON i.statut_id = s.id
+WHERE i.id_inter = 'YOUR_ID';
 
 -- ========================================
 -- ÉTAPE 4 : Vérifier toutes les transitions créées

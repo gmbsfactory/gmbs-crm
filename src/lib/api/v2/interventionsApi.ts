@@ -259,16 +259,49 @@ export const interventionsApi = {
 
   // Créer une intervention
   async create(data: CreateInterventionData): Promise<Intervention> {
-    const headers = await getHeaders();
-    const response = await fetch(
-      `${getSupabaseFunctionsUrl()}/interventions-v2/interventions`,
-      {
-        method: "POST",
-        headers,
-        body: JSON.stringify(data),
+    // 1. Faire l'INSERT
+    const { data: result, error } = await supabase
+      .from('interventions')
+      .insert(data)
+      .select()
+      .single();
+
+    if (error) throw new Error(`Erreur lors de la création de l'intervention: ${error.message}`);
+
+    // 2. Créer la chaîne de transitions si nécessaire
+    if (result.statut_id) {
+      try {
+        // Le trigger a créé une transition NULL → statut_actuel lors de l'INSERT
+        // On la supprime pour la remplacer par la chaîne complète
+        await supabase
+          .from('intervention_status_transitions')
+          .delete()
+          .eq('intervention_id', result.id)
+          .eq('source', 'trigger');
+
+        // Récupérer l'utilisateur actuel
+        const { data: { user } } = await supabase.auth.getUser();
+        const userId = user?.id;
+
+        // Créer les transitions automatiques
+        await automaticTransitionService.createAutomaticTransitions(
+          result.id,
+          result.statut_id,
+          null, // fromStatusId = null pour INSERT
+          userId,
+          {
+            updated_via: 'create',
+            api_operation: true,
+          }
+        );
+      } catch (transitionError) {
+        console.error('Erreur lors de la création des transitions automatiques:', transitionError);
+        // Ne pas bloquer la création si les transitions échouent
       }
-    );
-    return await handleResponse(response);
+    }
+
+    const refs = await getReferenceCache();
+    return mapInterventionRecord(result, refs);
   },
 
   // Modifier une intervention
@@ -309,7 +342,9 @@ export const interventionsApi = {
     let oldStatutId: string | null = null;
     let currentIntervention: any = null; // Déclarer la variable en dehors du bloc if
 
-    if (payload.statut_id && typeof window !== "undefined") {
+    // Retirer la condition typeof window !== "undefined" pour permettre la récupération
+    // du statut même en environnement Node.js (scripts de test, etc.)
+    if (payload.statut_id) {
       const { data } = await supabase
         .from("interventions")
         .select(`
@@ -638,8 +673,6 @@ export const interventionsApi = {
       metadata: data.metadata || null // Ne pas stringify, Supabase gère automatiquement les objets vers jsonb
     };
 
-    console.log('[addCost] Insertion du coût:', { interventionId, cost_type: data.cost_type, amount: data.amount });
-
     try {
       const { data: result, error } = await supabase
         .from('intervention_costs')
@@ -652,7 +685,6 @@ export const interventionsApi = {
         throw new Error(`Erreur lors de l'ajout du coût: ${error.message || error.code || 'Erreur inconnue'}`);
       }
 
-      console.log('[addCost] Coût ajouté avec succès:', result?.id);
       return result;
     } catch (err: any) {
       // Capturer les erreurs réseau ou autres erreurs non-Supabase
@@ -868,6 +900,22 @@ export const interventionsApi = {
 
   // Upsert direct via Supabase (pour import en masse)
   async upsertDirect(data: CreateInterventionData & { id_inter?: string }): Promise<Intervention> {
+    // 1. Vérifier si l'intervention existe déjà
+    let existingIntervention = null;
+    let oldStatusId = null;
+
+    if (data.id_inter) {
+      const { data: existing } = await supabase
+        .from('interventions')
+        .select('id, statut_id')
+        .eq('id_inter', data.id_inter)
+        .maybeSingle();
+
+      existingIntervention = existing;
+      oldStatusId = existing?.statut_id || null;
+    }
+
+    // 2. Faire l'upsert
     const { data: result, error } = await supabase
       .from('interventions')
       .upsert(data, {
@@ -878,6 +926,53 @@ export const interventionsApi = {
       .single();
 
     if (error) throw new Error(`Erreur lors de l'upsert de l'intervention: ${error.message}`);
+
+    // 3. Créer la chaîne de transitions si nécessaire
+    if (result.statut_id) {
+      try {
+        // Supprimer la transition créée par le trigger
+        // - Pour INSERT: le trigger crée NULL → statut_actuel
+        // - Pour UPDATE: le trigger crée oldStatusId → newStatusId
+        // On supprime ces transitions pour les remplacer par la chaîne complète
+        if (!existingIntervention) {
+          // Cas INSERT: supprimer toutes les transitions du trigger
+          await supabase
+            .from('intervention_status_transitions')
+            .delete()
+            .eq('intervention_id', result.id)
+            .eq('source', 'trigger');
+        } else if (oldStatusId && oldStatusId !== result.statut_id) {
+          // Cas UPDATE: supprimer la transition spécifique oldStatusId → newStatusId créée par le trigger
+          await supabase
+            .from('intervention_status_transitions')
+            .delete()
+            .eq('intervention_id', result.id)
+            .eq('from_status_id', oldStatusId)
+            .eq('to_status_id', result.statut_id)
+            .eq('source', 'trigger');
+        }
+
+        // Récupérer l'utilisateur actuel
+        const { data: { user } } = await supabase.auth.getUser();
+        const userId = user?.id;
+
+        // Créer les transitions automatiques
+        await automaticTransitionService.createAutomaticTransitions(
+          result.id,
+          result.statut_id,
+          oldStatusId, // null pour INSERT, statut précédent pour UPDATE
+          userId,
+          {
+            updated_via: 'upsertDirect',
+            import_operation: true,
+            id_inter: data.id_inter,
+          }
+        );
+      } catch (transitionError) {
+        console.error('Erreur lors de la création des transitions automatiques:', transitionError);
+        // Ne pas bloquer l'upsert si les transitions échouent
+      }
+    }
 
     const refs = await getReferenceCache();
     return mapInterventionRecord(result, refs);
@@ -1393,7 +1488,7 @@ export const interventionsApi = {
 
     // Appeler la fonction RPC SQL qui calcule les rankings
     const { data: rpcResult, error: rpcError } = await supabase.rpc(
-      'get_podium_ranking_by_period',
+      'get_podium_ranking_by_period_v2',
       {
         p_period_start: periodStart,
         p_period_end: periodEnd,
@@ -2285,7 +2380,7 @@ export const interventionsApi = {
 
     // Appeler la fonction RPC unique qui fait tout en une seule requête SQL
     const { data: rpcResult, error: rpcError } = await supabase.rpc(
-      'get_admin_dashboard_stats',
+      'get_admin_dashboard_stats_v2',
       {
         p_period_start: periodStartTimestamp,
         p_period_end: periodEndTimestamp,
@@ -2348,13 +2443,15 @@ export const interventionsApi = {
       count: item.count || 0,
     }));
 
-    // Calculer les taux (côté client car ils nécessitent des calculs)
-    // Taux de transformation = (Interventions terminées / Interventions demandées) × 100
+    // Utiliser le taux de transformation calculé par SQL (corrigé dans migration 00027)
+    // Si non disponible, recalculer avec les valeurs brutes
     const nbDemandees = mainStatsData.nbInterventionsDemandees || 0;
     const nbTerminees = mainStatsData.nbInterventionsTerminees || 0;
-    const tauxTransformation = nbDemandees > 0
-      ? Math.round((nbTerminees / nbDemandees) * 1000) / 10
-      : 0;
+    const tauxTransformation = mainStatsData.tauxTransformation !== undefined
+      ? mainStatsData.tauxTransformation
+      : (nbDemandees > 0
+          ? Math.round((nbTerminees / nbDemandees) * 1000) / 10
+          : 0);
 
     const totalPaiements = Number(mainStatsData.chiffreAffaires || 0);
     const totalCouts = Number(mainStatsData.couts || 0);
@@ -2498,7 +2595,7 @@ export const interventionsApi = {
     console.log('\n🔧 ========================================');
     console.log('🔧 STATISTIQUES PAR MÉTIER (Top 5)');
     console.log('🔧 ========================================');
-    metierStats.slice(0, 5).forEach((metier, index) => {
+    metierStats.slice(0, 5).forEach((metier: any, index: number) => {
       console.log(`${index + 1}. ${metier.metierLabel}: ${metier.count} interventions (${metier.percentage.toFixed(1)}%)`);
     });
     if (metierStats.length > 5) {

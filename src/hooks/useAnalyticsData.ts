@@ -64,7 +64,7 @@ export function useAnalyticsData() {
                 const endOfPreviousMonthISO = endOfPreviousMonth.toISOString()
 
                 // 1. Fetch Stats via RPC
-                const { data: statsData, error: statsError } = await supabase.rpc('get_admin_dashboard_stats', {
+                const { data: statsData, error: statsError } = await supabase.rpc('get_admin_dashboard_stats_v2', {
                     p_period_start: startOfMonthISO,
                     p_period_end: endOfMonthISO,
                     p_demande_status_code: 'DEMANDE',

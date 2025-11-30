@@ -1,24 +1,55 @@
 -- ========================================
--- Vérification des transitions pour l'intervention H1
+-- Vérification des transitions pour l'intervention
 -- ========================================
--- Affiche toutes les transitions de statut dans l'ordre chronologique
+-- Remplacez 'H1' par l'id_inter de votre intervention
+-- ========================================
 
--- Vue chronologique complète de toutes les transitions
+-- 📊 Vue chronologique complète de toutes les transitions
 SELECT 
+  ROW_NUMBER() OVER (ORDER BY ist.transition_date ASC) as ordre,
   ist.transition_date,
   ist.from_status_code as statut_depart,
   ist.to_status_code as statut_arrivee,
-  i.id_inter,
-  ist.intervention_id,
-  ist.source,
   CASE 
-    WHEN ist.from_status_code IS NULL THEN 'Création initiale'
+    WHEN ist.from_status_code IS NULL THEN '🆕 ' || ist.to_status_code
     ELSE ist.from_status_code || ' → ' || ist.to_status_code
-  END as transition
+  END as transition,
+  ist.source,
+  COALESCE(ist.metadata->>'created_by', 'N/A') as cree_par,
+  COALESCE(ist.metadata->>'is_intermediate', 'false') as est_intermediaire,
+  CASE 
+    WHEN ist.source = 'api' AND COALESCE(ist.metadata->>'created_by', '') = 'update_intervention_status_with_chain' 
+      THEN '✅ Chaîne SQL'
+    WHEN ist.source = 'api' AND COALESCE(ist.metadata->>'created_by', '') = 'AutomaticTransitionService' 
+      THEN '✅ Chaîne API'
+    WHEN ist.source = 'trigger' 
+      THEN '⚠️ Trigger (direct)'
+    ELSE '❓ Autre'
+  END as type_creation
 FROM public.intervention_status_transitions ist
 INNER JOIN public.interventions i ON i.id = ist.intervention_id
-WHERE i.id_inter = 'H1'
+WHERE i.id_inter = '11112'
 ORDER BY ist.transition_date ASC;
+
+-- 📈 Chaîne de statut visuelle
+SELECT 
+  i.id_inter,
+  i.contexte_intervention,
+  STRING_AGG(
+    CASE 
+      WHEN ist.from_status_code IS NULL THEN '🆕 ' || ist.to_status_code
+      ELSE ist.to_status_code
+    END,
+    ' → '
+    ORDER BY ist.transition_date ASC
+  ) as chaine_complete,
+  COUNT(ist.id) as nombre_transitions,
+  MIN(ist.transition_date) as premiere_transition,
+  MAX(ist.transition_date) as derniere_transition
+FROM public.interventions i
+LEFT JOIN public.intervention_status_transitions ist ON ist.intervention_id = i.id
+WHERE i.id_inter = 'H1'
+GROUP BY i.id_inter, i.contexte_intervention;
 
 -- Résumé : Liste de tous les statuts uniques par lesquels H1 est passé
 SELECT 

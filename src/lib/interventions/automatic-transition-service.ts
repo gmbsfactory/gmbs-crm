@@ -15,6 +15,70 @@ export interface AutomaticTransitionResult {
  */
 export class AutomaticTransitionService {
     /**
+     * Crée les transitions automatiques pour une intervention
+     * UNIFIÉ pour INSERT et UPDATE
+     * 
+     * Cette méthode peut être utilisée lors de la création (INSERT) ou de la mise à jour (UPDATE)
+     * d'une intervention. Elle récupère automatiquement les codes de statut depuis les IDs.
+     * 
+     * @param interventionId - ID de l'intervention
+     * @param toStatusId - ID du statut cible
+     * @param fromStatusId - ID du statut source (null lors de la création initiale)
+     * @param userId - ID de l'utilisateur qui effectue la transition
+     * @param metadata - Métadonnées supplémentaires
+     */
+    async createAutomaticTransitions(
+        interventionId: string,
+        toStatusId: string,
+        fromStatusId: string | null = null,
+        userId?: string,
+        metadata?: Record<string, unknown>
+    ): Promise<AutomaticTransitionResult> {
+        // Récupérer les codes de statut depuis les IDs
+        const codesToFetch = fromStatusId ? [fromStatusId, toStatusId] : [toStatusId];
+        const { data: statuses } = await supabase
+            .from('intervention_statuses')
+            .select('id, code')
+            .in('id', codesToFetch);
+
+        if (!statuses) {
+            return {
+                success: false,
+                transitionsCreated: 0,
+                finalStatus: toStatusId as any,
+                errors: ['Impossible de récupérer les statuts'],
+            };
+        }
+
+        const toStatusObj = statuses.find(s => s.id === toStatusId);
+        const fromStatusObj = fromStatusId ? statuses.find(s => s.id === fromStatusId) : null;
+
+        if (!toStatusObj) {
+            return {
+                success: false,
+                transitionsCreated: 0,
+                finalStatus: toStatusId as any,
+                errors: ['Statut cible introuvable'],
+            };
+        }
+
+        const toStatusCode = toStatusObj.code as InterventionStatusKey;
+        const fromStatusCode = fromStatusObj?.code as InterventionStatusKey | null;
+
+        // Utiliser la méthode existante executeTransition
+        return this.executeTransition(
+            interventionId,
+            fromStatusCode,
+            toStatusCode,
+            userId,
+            {
+                ...metadata,
+                is_initial_creation: fromStatusId === null,
+            }
+        );
+    }
+
+    /**
      * Exécute une transition de statut avec gestion des statuts intermédiaires
      * 
      * @param fromStatus - Statut source (null lors de la création initiale)
@@ -69,20 +133,67 @@ export class AutomaticTransitionService {
         }
 
         // Créer les transitions intermédiaires
-        // Si fromStatus est null (création), on commence depuis le premier statut de la chaîne
+        // Si fromStatus est null (création), on commence depuis NULL vers le premier statut de la chaîne
         // Sinon, on part de fromStatus
         const allStatuses = fromStatus === null
             ? [...chainResult.intermediateStatuses, toStatus]
             : [fromStatus, ...chainResult.intermediateStatuses, toStatus];
-        
+
         const transitionDate = new Date();
 
-        // On itère jusqu'à l'avant-dernier élément pour créer les transitions
+        // Pour les créations (fromStatus null), on commence par NULL → premier_statut
         // Ex: Création avec INTER_TERMINEE, chaîne [DEMANDE, DEVIS_ENVOYE, INTER_TERMINEE]
-        // chainResult.intermediateStatuses = [DEMANDE, DEVIS_ENVOYE]
-        // allStatuses = [DEMANDE, DEVIS_ENVOYE, INTER_TERMINEE]
-        // i=0: DEMANDE -> DEVIS_ENVOYE (intermédiaire)
-        // i=1: DEVIS_ENVOYE -> INTER_TERMINEE (final)
+        // chainResult.intermediateStatuses = [DEMANDE, DEVIS_ENVOYE, VISITE_TECHNIQUE, ACCEPTE, INTER_EN_COURS]
+        // allStatuses = [DEMANDE, DEVIS_ENVOYE, VISITE_TECHNIQUE, ACCEPTE, INTER_EN_COURS, INTER_TERMINEE]
+        //
+        // Transitions à créer:
+        // - NULL → DEMANDE
+        // - DEMANDE → DEVIS_ENVOYE
+        // - ...
+        // - INTER_EN_COURS → INTER_TERMINEE
+
+        let transitionIndex = 0;
+
+        // Si c'est une création (fromStatus = null), créer d'abord la transition NULL → premier statut
+        if (fromStatus === null && allStatuses.length > 0) {
+            const firstStatus = allStatuses[0];
+            const currentTransitionDate = new Date(
+                transitionDate.getTime() + transitionIndex * STATUS_CHAIN_CONFIG.intermediateTransitionDelay
+            );
+
+            const transitionMetadata = {
+                ...metadata,
+                created_by: 'AutomaticTransitionService',
+                service_version: '1.0',
+                is_intermediate: allStatuses.length > 1, // Intermédiaire si pas le seul statut
+                final_target_status: toStatus,
+                transition_chain: 'MAIN_PROGRESSION',
+                transition_order: transitionIndex + 1,
+                total_transitions: allStatuses.length, // +1 pour inclure NULL → premier
+                is_initial_creation: true,
+            };
+
+            const transitionId = await this.createTransition(
+                interventionId,
+                null, // fromStatus = null pour la création initiale
+                firstStatus,
+                userId,
+                transitionMetadata,
+                currentTransitionDate
+            );
+
+            if (transitionId) {
+                transitionsCreated++;
+            } else {
+                errors.push(
+                    `Échec de la transition initiale NULL vers ${firstStatus}`
+                );
+            }
+
+            transitionIndex++;
+        }
+
+        // Ensuite, créer les transitions entre statuts consécutifs
         for (let i = 0; i < allStatuses.length - 1; i++) {
             const currentFrom = allStatuses[i];
             const currentTo = allStatuses[i + 1];
@@ -90,7 +201,7 @@ export class AutomaticTransitionService {
 
             // Calculer la date de transition (avec délai pour préserver l'ordre)
             const currentTransitionDate = new Date(
-                transitionDate.getTime() + i * STATUS_CHAIN_CONFIG.intermediateTransitionDelay
+                transitionDate.getTime() + transitionIndex * STATUS_CHAIN_CONFIG.intermediateTransitionDelay
             );
 
             const transitionMetadata = {
@@ -100,8 +211,8 @@ export class AutomaticTransitionService {
                 is_intermediate: !isFinal,
                 final_target_status: toStatus,
                 transition_chain: 'MAIN_PROGRESSION', // Idéalement dynamique
-                transition_order: i + 1,
-                total_transitions: allStatuses.length - 1,
+                transition_order: transitionIndex + 1,
+                total_transitions: fromStatus === null ? allStatuses.length : (allStatuses.length - 1),
                 is_initial_creation: fromStatus === null,
             };
 
@@ -121,6 +232,8 @@ export class AutomaticTransitionService {
                     `Échec de la transition de ${currentFrom} vers ${currentTo}`
                 );
             }
+
+            transitionIndex++;
         }
 
         return {

@@ -152,11 +152,63 @@ Les anciennes références à `EN_COURS` et `TERMINE` dans le code applicatif de
 3. ✅ `supabase/samples/sql/test_fix_status_chain.sql` - Test de vérification (nouveau)
 4. ✅ `docs/fixes/fix_status_chain_codes.md` - Documentation (ce fichier)
 
+## ⚡ Fonction SQL pour updates directs
+
+### Problème : Logique dans l'API, pas dans les triggers
+
+La logique de création de la chaîne complète de transitions est dans **`AutomaticTransitionService`** (TypeScript), PAS dans les triggers SQL.
+
+**Impact :**
+- ✅ Les updates via l'API créent la chaîne complète
+- ❌ Les updates SQL directs (`UPDATE interventions SET statut_id = ...`) ne créent qu'UNE transition
+
+### Solution : Fonction RPC SQL
+
+**Fichier :** `supabase/migrations/00019_status_update_with_chain.sql`
+
+Une nouvelle fonction SQL réplique la logique de `AutomaticTransitionService` :
+
+```sql
+SELECT update_intervention_status_with_chain(
+  intervention_uuid,
+  'INTER_TERMINEE',
+  user_uuid,
+  '{"note": "Test"}'::jsonb
+);
+```
+
+Cette fonction :
+1. ✅ Récupère le statut actuel
+2. ✅ Trouve les positions dans la chaîne
+3. ✅ Crée toutes les transitions intermédiaires
+4. ✅ Met à jour le statut de l'intervention
+
+### Utilisation dans les tests
+
+Les tests SQL ont été mis à jour pour utiliser cette fonction :
+
+```sql
+-- ❌ ANCIEN (ne créait qu'une transition)
+UPDATE interventions 
+SET statut_id = (SELECT id FROM intervention_statuses WHERE code = 'INTER_TERMINEE')
+WHERE id_inter = 'YOUR_ID';
+
+-- ✅ NOUVEAU (crée la chaîne complète)
+SELECT update_intervention_status_with_chain(
+  (SELECT id FROM interventions WHERE id_inter = 'YOUR_ID'),
+  'INTER_TERMINEE',
+  NULL,
+  '{"test": true}'::jsonb
+);
+```
+
 ## 🚀 Prochaines étapes
 
-1. Tester le fix avec le script SQL `test_fix_status_chain.sql`
-2. Vérifier que `test_intervention_statut_transition.sql` passe maintenant
-3. Identifier et migrer les références à `EN_COURS` et `TERMINE` dans le code
-4. Déployer en production
+1. ✅ Appliquer la migration `00019_status_update_with_chain.sql`
+2. Tester le fix avec le script SQL `test_fix_status_chain.sql`
+3. Vérifier que `test_intervention_statut_transition.sql` passe maintenant
+4. Identifier et migrer les références à `EN_COURS` et `TERMINE` dans le code
+5. Déployer en production
+
 
 

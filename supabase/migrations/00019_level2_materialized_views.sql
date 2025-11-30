@@ -181,7 +181,7 @@ BEGIN
       SUM(terminated_interventions)::integer as terminated_interventions,
       AVG(avg_cycle_time)::numeric(10,2) as avg_cycle_time,
       SUM(total_ca)::numeric as total_paiements,
-      SUM(total_sst + total_materiel)::numeric as total_couts
+      (SUM(total_sst) + SUM(total_materiel))::numeric as total_couts
     FROM public.mv_monthly_agency_stats
     WHERE period_month >= date_trunc('month', p_period_start)::date
       AND period_month < v_current_month
@@ -300,7 +300,7 @@ BEGIN
       SUM(terminated_interventions)::integer as terminated_interventions,
       AVG(avg_cycle_time)::numeric(10,2) as avg_cycle_time,
       SUM(total_ca)::numeric as total_paiements,
-      SUM(total_sst + total_materiel)::numeric as total_couts
+      (SUM(total_sst) + SUM(total_materiel))::numeric as total_couts
     FROM public.mv_monthly_gestionnaire_stats
     WHERE period_month >= date_trunc('month', p_period_start)::date
       AND period_month < v_current_month

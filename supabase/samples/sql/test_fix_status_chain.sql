@@ -54,19 +54,15 @@ RETURNING
 -- ⚠️ IMPORTANT : Notez l'id_inter retourné ci-dessus
 -- Remplacez 'YOUR_TEST_ID' dans les requêtes suivantes par cet id_inter
 
--- ÉTAPE 3 : Mettre à jour vers INTER_TERMINEE (code DB)
+-- ÉTAPE 3 : Mettre à jour vers INTER_TERMINEE (code DB) avec chaîne complète
 -- Remplacez YOUR_TEST_ID par l'id_inter de l'étape 2
-UPDATE interventions 
-SET 
-  statut_id = (SELECT id FROM intervention_statuses WHERE code = 'INTER_TERMINEE' LIMIT 1),
-  updated_at = now()
-WHERE id_inter = 'YOUR_TEST_ID'
-RETURNING 
-  id,
-  id_inter,
-  contexte_intervention,
-  statut_id,
-  updated_at;
+-- UTILISER LA FONCTION SQL (pas UPDATE direct) pour créer la chaîne complète
+SELECT update_intervention_status_with_chain(
+  (SELECT id FROM interventions WHERE id_inter = 'YOUR_TEST_ID' LIMIT 1),
+  'INTER_TERMINEE',
+  NULL,
+  '{"test": true, "note": "Test fix chaîne de statut"}'::jsonb
+) as result;
 
 -- ÉTAPE 4 : Vérifier les transitions créées
 -- Remplacez YOUR_TEST_ID par l'id_inter de l'étape 2
@@ -148,5 +144,6 @@ RETURNING
 --
 -- ÉTAPE 5 doit montrer tous les statuts comme "[OK] Présent"
 -- ========================================
+
 
 

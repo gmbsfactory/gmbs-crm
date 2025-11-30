@@ -530,7 +530,7 @@ export default function AdminDashboardPage() {
                   title="Taux Transformation"
                   value={`${(dashboardStats?.mainStats.tauxTransformation || 0).toFixed(1)}%`}
                   icon={Percent}
-                  description="Demandées / Terminées"
+                  description="Terminées / Demandées"
                   className="border-l-purple-500"
                   onClick={() => setIsTransformationModalOpen(true)}
                 />
@@ -551,7 +551,8 @@ export default function AdminDashboardPage() {
                     isPositive: (dashboardStats?.mainStats.deltaChiffreAffaires || 0) >= 0,
                     label: "vs période préc."
                   }}
-                  sparklineData={dashboardStats?.sparklines.map(s => ({ date: s.date, value: s.countTerminees }))}
+                  sparklineData={dashboardStats?.sparklines.map(s => ({ date: s.date, value: s.chiffreAffaires }))}
+                  sparklineValueFormatter={formatCurrency}
                   className="border-l-blue-500"
                   onClick={() => setIsRevenueModalOpen(true)}
                 />
@@ -564,6 +565,8 @@ export default function AdminDashboardPage() {
                     isPositive: (dashboardStats?.mainStats.deltaMarge || 0) >= 0,
                     label: "vs période préc."
                   }}
+                  sparklineData={dashboardStats?.sparklines.map(s => ({ date: s.date, value: s.marge }))}
+                  sparklineValueFormatter={formatCurrency}
                   description={`Taux de marge: ${dashboardStats?.mainStats.tauxMarge || 0}%`}
                   className="border-l-emerald-500"
                   onClick={() => setIsMarginModalOpen(true)}
@@ -601,11 +604,12 @@ export default function AdminDashboardPage() {
                       name: step.label,
                       value: stat?.count || 0,
                       fill: step.fill,
+                      conversionRate: stat?.conversionRate ?? null,
                     }
                   })
                 })()}
                 title="Entonnoir de Conversion (Réel)"
-                description="Conversions depuis le statut Demandé"
+                description="Taux de conversion entre chaque étape - Les zones rouges identifient les goulots"
               />
             </div>
 
@@ -686,9 +690,10 @@ export default function AdminDashboardPage() {
                           margin={{ top: 5, right: 15, left: 0, bottom: 35 }}
                         >
                           <CartesianGrid strokeDasharray="3 3" horizontal={false} />
-                          <XAxis 
-                            type="number" 
-                            tick={{ fontSize: 10, angle: -45, textAnchor: 'end' }}
+                          <XAxis
+                            type="number"
+                            tick={{ fontSize: 10, fill: "#ffffff" }}
+                            angle={-45}
                             tickCount={3}
                             domain={[0, 'auto']}
                             tickFormatter={(value) => {
@@ -709,7 +714,7 @@ export default function AdminDashboardPage() {
                             dataKey="name"
                             type="category"
                             width={90}
-                            tick={{ fontSize: 10 }}
+                            tick={{ fontSize: 10, fill: "#ffffff" }}
                             interval={0}
                           />
                           <Tooltip

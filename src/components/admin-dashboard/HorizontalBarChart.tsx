@@ -69,7 +69,7 @@ export function HorizontalBarChart({
                                 dataKey="name"
                                 type="category"
                                 width={120}
-                                tick={{ fontSize: 12 }}
+                                tick={{ fontSize: 12, fill: "#ffffff" }}
                                 interval={0}
                             />
                             <Tooltip

@@ -1,5 +1,55 @@
+-- ========================================
 -- Requête SQL pour récupérer les données complètes d'une intervention
--- Paramètre: intervention_id (UUID de l'intervention)
+-- ========================================
+-- Paramètre: intervention_id (UUID de l'intervention) ou id_inter (ex: '4281')
+-- ========================================
+
+-- 🔄 PARTIE 1 : CHAÎNE DE STATUT (NOUVELLE)
+-- ========================================
+
+WITH intervention_transitions AS (
+  SELECT 
+    i.id,
+    i.id_inter,
+    STRING_AGG(
+      CASE 
+        WHEN ist.from_status_code IS NULL THEN '🆕 ' || ist.to_status_code
+        ELSE ist.to_status_code
+      END,
+      ' → '
+      ORDER BY ist.transition_date ASC
+    ) as chaine_statuts,
+    COUNT(ist.id) as nb_transitions,
+    MIN(ist.transition_date) as premiere_transition,
+    MAX(ist.transition_date) as derniere_transition,
+    ARRAY_AGG(
+      jsonb_build_object(
+        'ordre', ROW_NUMBER() OVER (ORDER BY ist.transition_date ASC),
+        'from', ist.from_status_code,
+        'to', ist.to_status_code,
+        'date', ist.transition_date,
+        'source', ist.source,
+        'created_by', COALESCE(ist.metadata->>'created_by', 'N/A')
+      )
+      ORDER BY ist.transition_date ASC
+    ) as transitions_detail
+  FROM interventions i
+  LEFT JOIN intervention_status_transitions ist ON ist.intervention_id = i.id
+  WHERE i.id_inter = '4281'  -- Paramètre: ID de l'intervention
+  GROUP BY i.id, i.id_inter
+)
+SELECT 
+  id_inter,
+  '📊 CHAÎNE DE STATUT' as section,
+  chaine_statuts,
+  nb_transitions,
+  premiere_transition,
+  derniere_transition,
+  transitions_detail
+FROM intervention_transitions;
+
+-- 📋 PARTIE 2 : INFORMATIONS COMPLÈTES (ORIGINALE)
+-- ========================================
 
 SELECT 
     -- Informations de base de l'intervention

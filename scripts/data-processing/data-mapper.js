@@ -650,11 +650,25 @@ class DataMapper {
     const COUT_MATERIEL_COLUMN = "COÛT MATERIEL";
     const COUT_INTER_COLUMN = "COUT INTER";
 
+    const MAX_VALUE = 100000;
+
     // Coût SST
     let coutSST = null;
     const coutSSTValue = csvRow[COUT_SST_COLUMN];
     if (coutSSTValue && this.isValidCostValue(coutSSTValue)) {
       coutSST = this.parseNumber(coutSSTValue);
+      // ⭐ VALIDATION: Rejeter les valeurs trop élevées (mettre à 0)
+      if (coutSST !== null && Math.abs(coutSST) > MAX_VALUE) {
+        const idInter = csvRow["ID"] || csvRow["id_inter"] || "N/A";
+        console.warn(
+          `⚠️ Coût SST trop élevé pour id_inter: ${idInter}`
+        );
+        console.warn(
+          `   Valeur originale: ${coutSST.toLocaleString("fr-FR")}€ (limite: ${MAX_VALUE.toLocaleString("fr-FR")}€)`
+        );
+        console.warn(`   → Valeur mise à 0`);
+        coutSST = 0;
+      }
     }
 
     // Coût matériel (peut contenir une URL)
@@ -662,6 +676,18 @@ class DataMapper {
     const coutMaterielValue = csvRow[COUT_MATERIEL_COLUMN];
     if (coutMaterielValue && this.isValidCostValue(coutMaterielValue)) {
       coutMaterielData = this.parseCoutMateriel(coutMaterielValue);
+      // ⭐ VALIDATION: Rejeter les valeurs trop élevées (mettre à 0)
+      if (coutMaterielData.amount !== null && Math.abs(coutMaterielData.amount) > MAX_VALUE) {
+        const idInter = csvRow["ID"] || csvRow["id_inter"] || "N/A";
+        console.warn(
+          `⚠️ Coût Matériel trop élevé pour id_inter: ${idInter}`
+        );
+        console.warn(
+          `   Valeur originale: ${coutMaterielData.amount.toLocaleString("fr-FR")}€ (limite: ${MAX_VALUE.toLocaleString("fr-FR")}€)`
+        );
+        console.warn(`   → Valeur mise à 0`);
+        coutMaterielData.amount = 0;
+      }
     }
 
     // Coût intervention
@@ -669,6 +695,18 @@ class DataMapper {
     const coutInterValue = csvRow[COUT_INTER_COLUMN];
     if (coutInterValue && this.isValidCostValue(coutInterValue)) {
       coutIntervention = this.parseNumber(coutInterValue);
+      // ⭐ VALIDATION: Rejeter les valeurs trop élevées (mettre à 0)
+      if (coutIntervention !== null && Math.abs(coutIntervention) > MAX_VALUE) {
+        const idInter = csvRow["ID"] || csvRow["id_inter"] || "N/A";
+        console.warn(
+          `⚠️ Coût Intervention trop élevé pour id_inter: ${idInter}`
+        );
+        console.warn(
+          `   Valeur originale: ${coutIntervention.toLocaleString("fr-FR")}€ (limite: ${MAX_VALUE.toLocaleString("fr-FR")}€)`
+        );
+        console.warn(`   → Valeur mise à 0`);
+        coutIntervention = 0;
+      }
     }
 
     // Calculer la marge (COUT INTER - COUT SST - COÛT MATERIEL)
@@ -1916,29 +1954,6 @@ class DataMapper {
 
     const parsed = parseFloat(cleaned);
     if (isNaN(parsed)) return null;
-
-    // ⭐ VALIDATION: Vérifier les limites PostgreSQL numeric(12,2)
-    // Limite: 9,999,999,999.99 (presque 10 milliards)
-    const MAX_VALUE = 9999999999.99;
-
-    if (Math.abs(parsed) > MAX_VALUE) {
-      console.warn(
-        `⚠️ Valeur numérique trop élevée détectée: ${parsed.toLocaleString(
-          "fr-FR"
-        )}€ (limite: ${MAX_VALUE.toLocaleString("fr-FR")}€)`
-      );
-      console.warn(`   Données originales: "${str}"`);
-
-      // Option 1: Retourner null (ignorer la valeur)
-      // return null;
-
-      // Option 2: Limiter à la valeur maximale (avec avertissement)
-      const limitedValue = parsed > 0 ? MAX_VALUE : -MAX_VALUE;
-      console.warn(
-        `   → Valeur limitée à: ${limitedValue.toLocaleString("fr-FR")}€`
-      );
-      return limitedValue;
-    }
 
     return parsed;
   }
