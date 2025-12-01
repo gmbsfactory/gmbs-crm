@@ -22,7 +22,8 @@ interface BottomCardProps {
   displayMetric?: 'margin' | 'revenue'
 }
 
-const getInitials = (name: string) => {
+const getInitials = (name: string | null) => {
+  if (!name) return "??"
   const parts = name.split(" ").filter(Boolean)
   if (parts.length >= 2) {
     return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase()
@@ -30,7 +31,8 @@ const getInitials = (name: string) => {
   return name.substring(0, 2).toUpperCase()
 }
 
-const getFirstName = (fullName: string) => {
+const getFirstName = (fullName: string | null) => {
+  if (!fullName) return ""
   const parts = fullName.split(" ").filter(Boolean)
   return parts.length > 0 ? parts[0] : fullName
 }

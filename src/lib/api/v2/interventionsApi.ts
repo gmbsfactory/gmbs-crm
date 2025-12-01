@@ -394,7 +394,7 @@ export const interventionsApi = {
         oldStatutId = currentIntervention.statut_id;
 
         if ((currentIntervention as any).status) {
-          const terminatedStatusCodes = ['TERMINE', 'INTER_TERMINEE'];
+          const terminatedStatusCodes = ['INTER_TERMINEE'];
           const currentStatusCode = (currentIntervention as any).status?.code;
           wasTerminatedBefore = currentStatusCode && terminatedStatusCodes.includes(currentStatusCode);
         }
@@ -487,7 +487,7 @@ export const interventionsApi = {
     const mapped = mapInterventionRecord(updated, refs) as InterventionWithStatus;
 
     // Si l'intervention vient de passer à un statut terminé, recalculer les statuts des artisans associés
-    const terminatedStatusCodes = ['TERMINE', 'INTER_TERMINEE'];
+    const terminatedStatusCodes = ['INTER_TERMINEE'];
     const isTerminated = mapped.status?.code && terminatedStatusCodes.includes(mapped.status.code);
 
     // Si le statut vient de passer à "terminé", recalculer les statuts des artisans
@@ -1865,10 +1865,10 @@ export const interventionsApi = {
       if (statusCode === "DEVIS_ENVOYE") {
         devisEnvoye[dayKey]++;
         devisEnvoye.total++;
-      } else if (statusCode === "INTER_EN_COURS" || statusCode === "EN_COURS") {
+      } else if (statusCode === "INTER_EN_COURS") {
         interEnCours[dayKey]++;
         interEnCours.total++;
-      } else if (statusCode === "INTER_TERMINEE" || statusCode === "TERMINE") {
+      } else if (statusCode === "INTER_TERMINEE") {
         interFactures[dayKey]++;
         interFactures.total++;
       } else {
@@ -2034,10 +2034,10 @@ export const interventionsApi = {
             if (statusCode === "DEVIS_ENVOYE") {
               devisEnvoye[weekKey]++;
               devisEnvoye.total++;
-            } else if (statusCode === "INTER_EN_COURS" || statusCode === "EN_COURS") {
+            } else if (statusCode === "INTER_EN_COURS") {
               interEnCours[weekKey]++;
               interEnCours.total++;
-            } else if (statusCode === "INTER_TERMINEE" || statusCode === "TERMINE") {
+            } else if (statusCode === "INTER_TERMINEE") {
               interFactures[weekKey]++;
               interFactures.total++;
             }
@@ -2165,10 +2165,10 @@ export const interventionsApi = {
         if (statusCode === "DEVIS_ENVOYE") {
           devisEnvoye[monthKey]++;
           devisEnvoye.total++;
-        } else if (statusCode === "INTER_EN_COURS" || statusCode === "EN_COURS") {
+        } else if (statusCode === "INTER_EN_COURS") {
           interEnCours[monthKey]++;
           interEnCours.total++;
-        } else if (statusCode === "INTER_TERMINEE" || statusCode === "TERMINE") {
+        } else if (statusCode === "INTER_TERMINEE") {
           interFactures[monthKey]++;
           interFactures.total++;
         }

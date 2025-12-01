@@ -50,17 +50,9 @@ export const WORKFLOW_RULES: Record<InterventionStatusValue, WorkflowRule> = {
     requirements: { devisId: true },
     autoActions: [],
   },
-  EN_COURS: {
-    requirements: { artisan: true },
-    autoActions: [],
-  },
   INTER_EN_COURS: {
     requirements: { artisan: true },
     autoActions: [],
-  },
-  TERMINE: {
-    requirements: { artisan: true, facture: true, proprietaire: true },
-    autoActions: ["generate_invoice_if_missing"],
   },
   INTER_TERMINEE: {
     requirements: { artisan: true, facture: true, proprietaire: true },
@@ -90,22 +82,22 @@ export const AUTHORIZED_TRANSITIONS: AuthorizedTransition[] = [
   { from: "DEVIS_ENVOYE", to: "ACCEPTE", trigger: "Acceptation devis" },
   { from: "DEVIS_ENVOYE", to: "REFUSE", trigger: "Refus devis" },
   { from: "DEVIS_ENVOYE", to: "STAND_BY", trigger: "Mise en attente" },
-  { from: "ACCEPTE", to: "EN_COURS", trigger: "Début intervention" },
+  { from: "ACCEPTE", to: "INTER_EN_COURS", trigger: "Début intervention" },
   { from: "ACCEPTE", to: "STAND_BY", trigger: "Mise en attente" },
   { from: "ACCEPTE", to: "ANNULE", trigger: "Annulation" },
-  { from: "ACCEPTE", to: "TERMINE", trigger: "Clôture express" },
-  { from: "EN_COURS", to: "TERMINE", trigger: "Fin intervention" },
-  { from: "EN_COURS", to: "SAV", trigger: "Passage SAV" },
-  { from: "EN_COURS", to: "STAND_BY", trigger: "Mise en attente" },
-  { from: "EN_COURS", to: "VISITE_TECHNIQUE", trigger: "Nouvelle visite" },
+  { from: "ACCEPTE", to: "INTER_TERMINEE", trigger: "Clôture express" },
+  { from: "INTER_EN_COURS", to: "INTER_TERMINEE", trigger: "Fin intervention" },
+  { from: "INTER_EN_COURS", to: "SAV", trigger: "Passage SAV" },
+  { from: "INTER_EN_COURS", to: "STAND_BY", trigger: "Mise en attente" },
+  { from: "INTER_EN_COURS", to: "VISITE_TECHNIQUE", trigger: "Nouvelle visite" },
   { from: "VISITE_TECHNIQUE", to: "ACCEPTE", trigger: "Acceptation après visite" },
   { from: "VISITE_TECHNIQUE", to: "REFUSE", trigger: "Refus après visite" },
   { from: "VISITE_TECHNIQUE", to: "STAND_BY", trigger: "Mise en attente" },
-  { from: "TERMINE", to: "SAV", trigger: "Ouverture SAV" },
+  { from: "INTER_TERMINEE", to: "SAV", trigger: "Ouverture SAV" },
   { from: "STAND_BY", to: "ACCEPTE", trigger: "Reprise" },
-  { from: "STAND_BY", to: "EN_COURS", trigger: "Reprise intervention" },
+  { from: "STAND_BY", to: "INTER_EN_COURS", trigger: "Reprise intervention" },
   { from: "STAND_BY", to: "ANNULE", trigger: "Annulation" },
-  { from: "SAV", to: "TERMINE", trigger: "Résolution SAV" },
+  { from: "SAV", to: "INTER_TERMINEE", trigger: "Résolution SAV" },
 ]
 
 type ValidationRule = {
@@ -132,7 +124,7 @@ export const VALIDATION_RULES: ValidationRule[] = [
   },
   {
     key: "INTERVENTION_ID_REQUIRED",
-    statuses: ["DEVIS_ENVOYE", "VISITE_TECHNIQUE", "ACCEPTE", "EN_COURS", "INTER_EN_COURS", "TERMINE", "INTER_TERMINEE", "STAND_BY"],
+    statuses: ["DEVIS_ENVOYE", "VISITE_TECHNIQUE", "ACCEPTE", "INTER_EN_COURS", "INTER_TERMINEE", "STAND_BY"],
     message: 'Un ID intervention définitif (sans la chaîne "AUTO") est requis pour ce statut',
     blockTransition: true,
     validate: (context) => {
@@ -143,25 +135,11 @@ export const VALIDATION_RULES: ValidationRule[] = [
     },
   },
   {
-    key: "EN_COURS_WITHOUT_ARTISAN",
-    to: "EN_COURS",
-    message: "Un artisan doit être assigné pour passer en cours",
-    blockTransition: true,
-    validate: (context) => Boolean(context.artisanId),
-  },
-  {
     key: "INTER_EN_COURS_WITHOUT_ARTISAN",
     to: "INTER_EN_COURS",
     message: "Un artisan doit être assigné pour passer en cours",
     blockTransition: true,
     validate: (context) => Boolean(context.artisanId),
-  },
-  {
-    key: "TERMINE_INCOMPLETE",
-    to: "TERMINE",
-    message: "Facture et propriétaire requis pour finaliser l'intervention",
-    blockTransition: true,
-    validate: (context) => Boolean(context.factureId) && Boolean(context.proprietaireId),
   },
   {
     key: "INTER_TERMINEE_INCOMPLETE",

@@ -16,8 +16,8 @@ import { cn } from "@/lib/utils"
 
 const ARTISAN_REQUIRED_STATUSES: InterventionStatusValue[] = [
   "VISITE_TECHNIQUE",
-  "EN_COURS",
-  "TERMINE",
+  "INTER_EN_COURS",
+  "INTER_TERMINEE",
 ]
 
 export type InterventionFormProps = {
@@ -270,7 +270,7 @@ export default function InterventionForm({
                   className="intervention-form-input"
                   {...form.register("dueAt")} 
                 />
-                {status === "EN_COURS" ? (
+                {status === "INTER_EN_COURS" ? (
                   <p className="text-xs text-muted-foreground">
                     Défaut automatique à +7 jours si laissé vide.
                   </p>

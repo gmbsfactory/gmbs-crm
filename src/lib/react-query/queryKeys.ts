@@ -43,7 +43,7 @@ export const interventionKeys = {
    * @returns ["interventions", "list", params]
    * 
    * @example
-   * const key = interventionKeys.list({ statut: "EN_COURS", limit: 100, offset: 0 })
+   * const key = interventionKeys.list({ statut: "INTER_EN_COURS", limit: 100, offset: 0 })
    */
   list: (params: GetAllParams) => [...interventionKeys.lists(), params] as const,
   
@@ -138,7 +138,7 @@ export const interventionKeys = {
    * 
    * @example
    * // Invalider une vue spécifique après modification
-   * const keys = interventionKeys.invalidateView({ statut: "EN_COURS", limit: 100 })
+   * const keys = interventionKeys.invalidateView({ statut: "INTER_EN_COURS", limit: 100 })
    * keys.forEach(key => queryClient.invalidateQueries({ queryKey: key }))
    */
   invalidateView: (params: GetAllParams) => [

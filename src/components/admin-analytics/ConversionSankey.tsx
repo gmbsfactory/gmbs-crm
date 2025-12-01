@@ -21,8 +21,8 @@ const STAGE_MAPPING: Record<string, string> = {
     'ANNULE': 'G',
     'ACCEPTE': 'I',
     'STAND_BY': 'J',
-    'EN_COURS': 'M',
-    'TERMINE': 'O',
+    'INTER_EN_COURS': 'M',
+    'INTER_TERMINEE': 'O',
     'SAV': 'P',
 };
 
@@ -46,9 +46,9 @@ const getNodeLabel = (nodeId: string): string => {
         J: getStatusLabel('STAND_BY'), // Stand-by
         K: 'Visite effectuée',
         L: 'Attribution artisan',
-        M: getStatusLabel('EN_COURS'), // En cours
+        M: getStatusLabel('INTER_EN_COURS'), // Inter en cours
         N: 'Intervention terminée?',
-        O: getStatusLabel('TERMINE'), // Terminé
+        O: getStatusLabel('INTER_TERMINEE'), // Inter terminée
         P: getStatusLabel('SAV'), // SAV
         Q: 'Facturation',
         R: 'Résolution SAV',

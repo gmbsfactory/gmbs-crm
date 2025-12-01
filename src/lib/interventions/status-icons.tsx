@@ -20,12 +20,7 @@ import type { InterventionStatusValue } from "@/types/interventions"
  * Utilisée dans FiltersBar et TableView pour garantir la cohérence
  */
 export const iconForStatus = (statusKey: InterventionStatusValue | string): React.ReactNode => {
-  // Normaliser le code de statut pour gérer les variantes (EN_COURS vs INTER_EN_COURS, TERMINE vs INTER_TERMINEE)
-  const normalizedCode = statusKey === "INTER_EN_COURS" ? "EN_COURS" 
-    : statusKey === "INTER_TERMINEE" ? "TERMINE"
-    : statusKey as InterventionStatusValue
-  
-  switch (normalizedCode) {
+  switch (statusKey) {
     case "DEMANDE":
       return <Info className="h-3.5 w-3.5" />
     case "DEVIS_ENVOYE":
@@ -40,9 +35,9 @@ export const iconForStatus = (statusKey: InterventionStatusValue | string): Reac
       return <PauseCircle className="h-3.5 w-3.5" />
     case "ACCEPTE":
       return <Check className="h-3.5 w-3.5" />
-    case "EN_COURS":
+    case "INTER_EN_COURS":
       return <Play className="h-3.5 w-3.5" />
-    case "TERMINE":
+    case "INTER_TERMINEE":
       return <CheckCircle2 className="h-3.5 w-3.5" />
     case "SAV":
       return <Hammer className="h-3.5 w-3.5" />
@@ -52,4 +47,3 @@ export const iconForStatus = (statusKey: InterventionStatusValue | string): Reac
       return null
   }
 }
-

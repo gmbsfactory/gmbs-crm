@@ -41,7 +41,7 @@ export type ListResult = {
 }
 
 const computeDueDate = (payload: { status?: InterventionStatusValue; dueAt?: Date | string | null }) => {
-  if (payload.status === "EN_COURS") {
+  if (payload.status === "INTER_EN_COURS") {
     if (!payload.dueAt) {
       return addDays(new Date(), 7)
     }
@@ -52,7 +52,7 @@ const computeDueDate = (payload: { status?: InterventionStatusValue; dueAt?: Dat
 }
 
 const assertBusinessRules = (payload: { status?: InterventionStatusValue | null; artisanId?: string | null }) => {
-  if (payload.status && ["VISITE_TECHNIQUE", "EN_COURS", "TERMINE"].includes(payload.status) && !payload.artisanId) {
+  if (payload.status && ["VISITE_TECHNIQUE", "INTER_EN_COURS", "INTER_TERMINEE"].includes(payload.status) && !payload.artisanId) {
     throw new Error("Un artisan assigné est requis pour ce statut")
   }
 }

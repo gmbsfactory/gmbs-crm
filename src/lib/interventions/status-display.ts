@@ -39,16 +39,6 @@ export interface StatusDisplay {
 }
 
 /**
- * Normalise un code de statut pour gérer les variantes DB (INTER_EN_COURS → EN_COURS, etc.)
- */
-function normalizeStatusCode(code: string): string {
-  // Normaliser les variantes de la DB vers les codes canoniques
-  if (code === "INTER_EN_COURS") return "EN_COURS"
-  if (code === "INTER_TERMINEE") return "TERMINE"
-  return code
-}
-
-/**
  * Helper centralisé pour obtenir l'affichage d'un statut (label, couleur, icône).
  * 
  * Ordre de priorité :
@@ -58,7 +48,7 @@ function normalizeStatusCode(code: string): string {
  * 
  * Ce helper garantit que FiltersBar et TableView utilisent exactement les mêmes labels.
  * 
- * @param code - Code du statut (ex: "DEMANDE", "EN_COURS", "INTER_EN_COURS", etc.)
+ * @param code - Code du statut (ex: "DEMANDE", "INTER_EN_COURS", etc.)
  * @param options - Options optionnelles pour personnaliser la récupération
  * @returns Objet avec label, color (hex), et icon (ReactNode)
  */
@@ -77,22 +67,19 @@ export function getStatusDisplay(
   }
 
   const { statusFromDb, workflow } = options
-  const normalizedCode = normalizeStatusCode(code)
 
   // 1. Priorité absolue : statusFromDb (hydraté depuis la DB via mapInterventionRecord)
-  // On accepte si le code correspond (normalisé ou non)
-  if (statusFromDb && (statusFromDb.code === code || normalizeStatusCode(statusFromDb.code) === normalizedCode)) {
+  if (statusFromDb && statusFromDb.code === code) {
     return {
       label: statusFromDb.label,
-      color: statusFromDb.color ?? INTERVENTION_STATUS[normalizedCode as keyof typeof INTERVENTION_STATUS]?.hexColor ?? "#6366F1",
+      color: statusFromDb.color ?? INTERVENTION_STATUS[code as keyof typeof INTERVENTION_STATUS]?.hexColor ?? "#6366F1",
       icon: iconForStatus(code as InterventionStatusValue),
     }
   }
 
   // 2. Priorité moyenne : workflow.statuses (config workflow customisée)
-  // Chercher avec le code original d'abord, puis le code normalisé
   if (workflow?.statuses) {
-    const workflowStatus = workflow.statuses.find((s) => s.key === code || normalizeStatusCode(s.key) === normalizedCode)
+    const workflowStatus = workflow.statuses.find((s) => s.key === code)
     if (workflowStatus) {
       return {
         label: workflowStatus.label,
@@ -102,8 +89,8 @@ export function getStatusDisplay(
     }
   }
 
-  // 3. Fallback : INTERVENTION_STATUS (legacy) - utiliser le code normalisé
-  const config = INTERVENTION_STATUS[normalizedCode as keyof typeof INTERVENTION_STATUS]
+  // 3. Fallback : INTERVENTION_STATUS (legacy)
+  const config = INTERVENTION_STATUS[code as keyof typeof INTERVENTION_STATUS]
   if (config) {
     return {
       label: config.label,
@@ -119,4 +106,3 @@ export function getStatusDisplay(
     icon: iconForStatus(code as InterventionStatusValue),
   }
 }
-

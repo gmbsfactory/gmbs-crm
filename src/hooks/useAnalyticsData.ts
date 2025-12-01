@@ -70,10 +70,10 @@ export function useAnalyticsData() {
                     p_demande_status_code: 'DEMANDE',
                     p_devis_status_code: 'DEVIS_ENVOYE',
                     p_accepte_status_code: 'ACCEPTE',
-                    p_en_cours_status_code: 'EN_COURS',
-                    p_terminee_status_code: 'TERMINE',
+                    p_en_cours_status_code: 'INTER_EN_COURS',
+                    p_terminee_status_code: 'INTER_TERMINEE',
                     p_att_acompte_status_code: 'ATT_ACOMPTE',
-                    p_valid_status_codes: ['TERMINE', 'EN_COURS', 'ACCEPTE']
+                    p_valid_status_codes: ['INTER_TERMINEE', 'INTER_EN_COURS', 'ACCEPTE']
                 })
 
                 if (statsError) {

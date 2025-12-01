@@ -3,7 +3,7 @@ export type StatusReasonType = "archive" | "done"
 const normalizeCode = (code?: string | null) => (code ?? "").trim().toUpperCase()
 
 export const ARCHIVE_REASON_CODES = new Set(["ARCHIVE"])
-export const DONE_REASON_CODES = new Set(["TERMINE", "INTER_TERMINEE"])
+export const DONE_REASON_CODES = new Set(["INTER_TERMINEE"])
 
 export const getReasonTypeForCode = (code?: string | null): StatusReasonType | null => {
   const normalized = normalizeCode(code)
