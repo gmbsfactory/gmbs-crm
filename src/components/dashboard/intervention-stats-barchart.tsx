@@ -248,8 +248,8 @@ export function InterventionStatsBarChart({ period, userId: propUserId }: Interv
       "Inter en cours": "INTER_EN_COURS",
       "Inter terminée": "INTER_TERMINEE",
       "Inter Terminée": "INTER_TERMINEE",
-      "En cours": "INTER_EN_COURS", // Variante
-      "Terminé": "TERMINE", // Variante pour TERMINE (pas INTER_TERMINEE)
+      "En cours": "INTER_EN_COURS", // Alias legacy
+      "Terminé": "INTER_TERMINEE", // Alias legacy
       "Visite technique": "VISITE_TECHNIQUE", // Variante minuscule
       "Visite Technique": "VISITE_TECHNIQUE", // Label exact de la DB
       "Devis envoyé": "DEVIS_ENVOYE", // Variante minuscule

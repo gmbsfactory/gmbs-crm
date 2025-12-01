@@ -8,7 +8,7 @@ const runTests = () => {
     console.log('Running tests for calculateIntermediateStatuses...');
 
     const chain = INTERVENTION_STATUS_CHAINS.MAIN_PROGRESSION;
-    // ['DEMANDE', 'DEVIS_ENVOYE', 'VISITE_TECHNIQUE', 'ACCEPTE', 'EN_COURS', 'TERMINE']
+    // ['DEMANDE', 'DEVIS_ENVOYE', 'VISITE_TECHNIQUE', 'ACCEPTE', 'INTER_EN_COURS', 'INTER_TERMINEE']
 
     // Test 1: Transition directe (adjacente)
     const t1 = calculateIntermediateStatuses('DEMANDE', 'DEVIS_ENVOYE', chain);
@@ -23,9 +23,9 @@ const runTests = () => {
     console.assert(t2.intermediateStatuses[1] === 'VISITE_TECHNIQUE', 'Test 2 Failed: Second should be VISITE_TECHNIQUE');
     console.log('Test 2 (Intermediates):', t2.intermediateStatuses.length === 2 ? 'PASS' : 'FAIL');
 
-    // Test 3: Transition complète (DEMANDE -> TERMINE)
-    // Intermédiaires: DEVIS_ENVOYE, VISITE_TECHNIQUE, ACCEPTE, EN_COURS
-    const t3 = calculateIntermediateStatuses('DEMANDE', 'TERMINE', chain);
+    // Test 3: Transition complète (DEMANDE -> INTER_TERMINEE)
+    // Intermédiaires: DEVIS_ENVOYE, VISITE_TECHNIQUE, ACCEPTE, INTER_EN_COURS
+    const t3 = calculateIntermediateStatuses('DEMANDE', 'INTER_TERMINEE', chain);
     console.assert(t3.intermediateStatuses.length === 4, 'Test 3 Failed: Should have 4 intermediates');
     console.log('Test 3 (Full):', t3.intermediateStatuses.length === 4 ? 'PASS' : 'FAIL');
 

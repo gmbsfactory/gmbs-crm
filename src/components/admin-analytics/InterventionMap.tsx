@@ -123,8 +123,8 @@ export function InterventionMap({ interventions, isLoading }: InterventionMapPro
 
 function getColorForStatus(status: string): string {
     switch (status) {
-        case 'TERMINE': return '#22c55e' // Green
-        case 'EN_COURS': return '#3b82f6' // Blue
+        case 'INTER_TERMINEE': return '#22c55e' // Green
+        case 'INTER_EN_COURS': return '#3b82f6' // Blue
         case 'ACCEPTE': return '#8b5cf6' // Purple
         case 'DEVIS_ENVOYE': return '#f59e0b' // Amber
         case 'DEMANDE': return '#64748b' // Slate

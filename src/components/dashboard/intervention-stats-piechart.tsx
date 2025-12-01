@@ -172,8 +172,8 @@ export function InterventionStatsPieChart({ period }: InterventionStatsPieChartP
       "Inter en cours": "INTER_EN_COURS",
       "Inter terminée": "INTER_TERMINEE",
       "Inter Terminée": "INTER_TERMINEE",
-      "En cours": "INTER_EN_COURS",
-      "Terminé": "TERMINE",
+      "En cours": "INTER_EN_COURS", // Alias legacy
+      "Terminé": "INTER_TERMINEE", // Alias legacy
       "Visite technique": "VISITE_TECHNIQUE",
       "Visite Technique": "VISITE_TECHNIQUE",
       "Devis envoyé": "DEVIS_ENVOYE",

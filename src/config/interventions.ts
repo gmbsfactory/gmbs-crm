@@ -24,10 +24,8 @@ export type InterventionStatusKey =
   | "ANNULE"
   | "STAND_BY"
   | "ACCEPTE"
-  | "EN_COURS"
-  | "INTER_EN_COURS"  // Code DB réel
-  | "TERMINE"
-  | "INTER_TERMINEE"  // Code DB réel
+  | "INTER_EN_COURS"
+  | "INTER_TERMINEE"
   | "SAV"
   | "ATT_ACOMPTE"
 
@@ -45,8 +43,8 @@ export const INTERVENTION_STATUS_ORDER: InterventionStatusKey[] = [
   "DEVIS_ENVOYE",
   "VISITE_TECHNIQUE",
   "ACCEPTE",
-  "EN_COURS",
-  "TERMINE",
+  "INTER_EN_COURS",
+  "INTER_TERMINEE",
   "SAV",
   "STAND_BY",
   "ATT_ACOMPTE",
@@ -111,14 +109,6 @@ export const INTERVENTION_STATUS: Record<InterventionStatusKey, InterventionStat
     hexColor: "#10B981",
     icon: BadgeCheck,
   },
-  EN_COURS: {
-    value: "EN_COURS",
-    label: "En cours",
-    description: "Intervention en réalisation",
-    color: "bg-purple-500",
-    hexColor: "#A855F7",
-    icon: Loader2,
-  },
   INTER_EN_COURS: {
     value: "INTER_EN_COURS",
     label: "Inter en cours",
@@ -126,14 +116,6 @@ export const INTERVENTION_STATUS: Record<InterventionStatusKey, InterventionStat
     color: "bg-purple-500",
     hexColor: "#A855F7",
     icon: Loader2,
-  },
-  TERMINE: {
-    value: "TERMINE",
-    label: "Terminé",
-    description: "Travaux terminés",
-    color: "bg-sky-500",
-    hexColor: "#0EA5E9",
-    icon: ShieldAlert,
   },
   INTER_TERMINEE: {
     value: "INTER_TERMINEE",
@@ -168,8 +150,8 @@ const STATUS_KEYS: InterventionStatusKey[] = [
   "DEVIS_ENVOYE",
   "VISITE_TECHNIQUE",
   "ACCEPTE",
-  "EN_COURS",
-  "TERMINE",
+  "INTER_EN_COURS",
+  "INTER_TERMINEE",
   "SAV",
   "STAND_BY",
   "ATT_ACOMPTE",
@@ -182,9 +164,7 @@ const STATUS_POSITIONS: Record<InterventionStatusKey, { x: number; y: number }> 
   DEVIS_ENVOYE: { x: 2, y: 1 },
   VISITE_TECHNIQUE: { x: 3, y: 1 },
   ACCEPTE: { x: 4, y: 1 },
-  EN_COURS: { x: 5, y: 1 },
   INTER_EN_COURS: { x: 5, y: 1 },
-  TERMINE: { x: 6, y: 1 },
   INTER_TERMINEE: { x: 6, y: 1 },
   SAV: { x: 7, y: 1 },
   STAND_BY: { x: 4, y: 2 },
@@ -202,7 +182,7 @@ const PINNED_DEFAULT_STATUSES: InterventionStatusKey[] = [
   "DEVIS_ENVOYE",
   "VISITE_TECHNIQUE",
   "ACCEPTE",
-  "EN_COURS",
+  "INTER_EN_COURS",
 ]
 
 export const DEFAULT_WORKFLOW_CONFIG: WorkflowConfig = {

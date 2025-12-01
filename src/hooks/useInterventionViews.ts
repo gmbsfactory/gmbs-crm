@@ -324,7 +324,7 @@ const DEFAULT_VIEW_PRESETS: DefaultViewPreset[] = [
     title: "Ma liste en cours",
     description: "Interventions en cours assignées à l'utilisateur connecté",
     filters: [
-      { property: "statusValue", operator: "eq", value: "EN_COURS" },
+      { property: "statusValue", operator: "eq", value: "INTER_EN_COURS" },
       { property: "attribueA", operator: "eq", value: CURRENT_USER_PLACEHOLDER },
     ],
     showBadge: true,

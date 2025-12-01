@@ -44,9 +44,9 @@ const soon = new Date(now.getTime() + 24 * 60 * 60 * 1000)
 const cards: { label: string; data: PreviewIntervention; props?: { keyboardHovered?: boolean; selectedActionIndex?: number } }[] = [
   { label: "default", data: make("1", { statut: "DEMANDE", statusValue: "DEMANDE", dateIntervention: now.toISOString() }) },
   { label: "hover", data: make("2", { statut: "ACCEPTE", statusValue: "ACCEPTE", dateIntervention: now.toISOString() }), props: {} },
-  { label: "focus", data: make("3", { statut: "EN_COURS", statusValue: "EN_COURS", dateIntervention: now.toISOString() }), props: { keyboardHovered: true } },
-  { label: "due-soon", data: make("4", { statut: "EN_COURS", statusValue: "EN_COURS", dateIntervention: soon.toISOString() }) },
-  { label: "overdue", data: make("5", { statut: "EN_COURS", statusValue: "EN_COURS", dateIntervention: past.toISOString() }) },
+  { label: "focus", data: make("3", { statut: "INTER_EN_COURS", statusValue: "INTER_EN_COURS", dateIntervention: now.toISOString() }), props: { keyboardHovered: true } },
+  { label: "due-soon", data: make("4", { statut: "INTER_EN_COURS", statusValue: "INTER_EN_COURS", dateIntervention: soon.toISOString() }) },
+  { label: "overdue", data: make("5", { statut: "INTER_EN_COURS", statusValue: "INTER_EN_COURS", dateIntervention: past.toISOString() }) },
   { label: "blocked", data: make("6", { statut: "ANNULE", statusValue: "ANNULE", dateIntervention: now.toISOString() }) },
 ]
 

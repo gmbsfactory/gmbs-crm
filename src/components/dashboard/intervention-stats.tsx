@@ -136,7 +136,7 @@ export function InterventionStatsCards({ period }: InterventionStatsCardsProps) 
   const finishedInterventions = getStatusCount([
     "Terminé",
     "Inter terminée",
-    "TERMINE",
+    "INTER_TERMINEE",
   ])
   
   const pendingInterventions = getStatusCount([

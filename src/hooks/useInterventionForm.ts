@@ -18,8 +18,8 @@ import { CreateInterventionSchema, UpdateInterventionSchema } from "@/types/inte
 const DEFAULT_LIMIT_DUPLICATES = 5
 const REQUIRES_ARTISAN_STATUSES: InterventionStatusValue[] = [
   "VISITE_TECHNIQUE",
-  "EN_COURS",
-  "TERMINE",
+  "INTER_EN_COURS",
+  "INTER_TERMINEE",
 ]
 
 const toDateInputValue = (value: unknown) => {
@@ -30,7 +30,7 @@ const toDateInputValue = (value: unknown) => {
 }
 
 const computeDueDate = (payload: { status?: InterventionStatusValue; dueAt?: Date | string | null }) => {
-  if (payload.status === "EN_COURS") {
+  if (payload.status === "INTER_EN_COURS") {
     if (!payload.dueAt) {
       const date = new Date()
       date.setDate(date.getDate() + 7)

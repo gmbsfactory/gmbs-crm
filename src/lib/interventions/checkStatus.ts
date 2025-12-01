@@ -6,7 +6,6 @@
 
 export type InterventionStatusCode = 
   | "VISITE_TECHNIQUE" 
-  | "EN_COURS" 
   | "INTER_EN_COURS"
   | string
 
@@ -15,7 +14,6 @@ export type InterventionStatusCode =
  */
 export const CHECK_STATUS_CODES = new Set<InterventionStatusCode>([
   "VISITE_TECHNIQUE",
-  "EN_COURS",
   "INTER_EN_COURS",
 ])
 
@@ -56,14 +54,3 @@ export function isCheckStatus(
     return false
   }
 }
-
-/**
- * Obtient le code de statut normalisé pour la comparaison
- * (INTER_EN_COURS et EN_COURS sont équivalents)
- */
-export function normalizeStatusCode(code: InterventionStatusCode | null | undefined): InterventionStatusCode | null {
-  if (!code) return null
-  if (code === "INTER_EN_COURS") return "EN_COURS"
-  return code
-}
-

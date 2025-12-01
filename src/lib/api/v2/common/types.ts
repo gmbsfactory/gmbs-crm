@@ -542,8 +542,8 @@ export interface CommentStats {
 
 export interface InterventionStatsByStatus {
   total: number;
-  by_status: Record<string, number>; // Clé = code du statut (ex: "EN_COURS", "TERMINE")
-  by_status_label: Record<string, number>; // Clé = label du statut (ex: "En cours", "Terminé")
+  by_status: Record<string, number>; // Clé = code du statut (ex: "INTER_EN_COURS", "INTER_TERMINEE")
+  by_status_label: Record<string, number>; // Clé = label du statut (ex: "Inter en cours", "Inter terminée")
   interventions_a_checker?: number; // Nombre d'interventions à checker (statut CHECK)
   period?: {
     start_date: string | null;

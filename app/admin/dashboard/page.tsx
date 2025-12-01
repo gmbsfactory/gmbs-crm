@@ -598,8 +598,7 @@ export default function AdminDashboardPage() {
 
                   const normalizeStatusCode = (code?: string | null) => {
                     if (!code) return ''
-                    if (code === 'INTER_EN_COURS') return 'EN_COURS'
-                    if (code === 'INTER_TERMINEE') return 'TERMINE'
+                    // Les codes BDD sont INTER_EN_COURS et INTER_TERMINEE
                     return code
                   }
 

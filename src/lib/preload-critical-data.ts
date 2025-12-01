@@ -75,7 +75,7 @@ async function getDefaultViewsToPreload(currentUserId?: string): Promise<Interve
       layout: "table",
       visibleProperties: [],
       filters: [
-        { property: "statusValue", operator: "eq", value: "EN_COURS" },
+        { property: "statusValue", operator: "eq", value: "INTER_EN_COURS" },
         { property: "attribueA", operator: "eq", value: CURRENT_USER_PLACEHOLDER },
       ],
       sorts: [{ property: "dateIntervention", direction: "desc" }],
@@ -165,11 +165,8 @@ async function createMappers() {
   // Alias legacy
   const interEnCoursId = statusMap["INTER_EN_COURS"]
   const interTermineeId = statusMap["INTER_TERMINEE"]
-  if (interEnCoursId) addStatusMapping("EN_COURS", interEnCoursId)
-  if (interTermineeId) {
-    addStatusMapping("TERMINE", interTermineeId)
-    addStatusMapping("INTER_TERMINEE", interTermineeId)
-  }
+  // Les codes BDD sont INTER_EN_COURS et INTER_TERMINEE
+  // Pas besoin d'alias legacy car le frontend utilise maintenant les codes réels
 
   const statusCodeToId = (code: string | string[] | undefined): string | string[] | undefined => {
     if (!code) return undefined

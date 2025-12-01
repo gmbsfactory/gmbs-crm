@@ -38,17 +38,8 @@ export function useInterventionStatusMap() {
           addMapping(status.label, status.id)
         }
 
-        // Ajouter des alias pour les codes legacy (frontend) → codes BDD
-        // Permet de résoudre "EN_COURS" → UUID de "INTER_EN_COURS"
-        const interEnCoursId = map["INTER_EN_COURS"]
-        const interTermineeId = map["INTER_TERMINEE"]
-        if (interEnCoursId) {
-          addMapping("EN_COURS", interEnCoursId)
-        }
-        if (interTermineeId) {
-          addMapping("TERMINE", interTermineeId)
-          addMapping("INTER_TERMINEES", interTermineeId) // Au cas où
-        }
+        // Les codes BDD sont INTER_EN_COURS et INTER_TERMINEE
+        // Pas besoin d'alias legacy car le frontend utilise maintenant les codes réels
         
         setStatusMap(map)
         setLoading(false)
@@ -66,7 +57,7 @@ export function useInterventionStatusMap() {
 
   /**
    * Convertit un code de statut (ou array de codes) en UUID(s)
-   * @param code - Code(s) de statut (ex: "EN_COURS" ou ["EN_COURS", "TERMINE"])
+   * @param code - Code(s) de statut (ex: "INTER_EN_COURS" ou ["INTER_EN_COURS", "INTER_TERMINEE"])
    * @returns UUID(s) correspondant(s)
    */
   const codeToId = useCallback((code: string | string[] | undefined): string | string[] | undefined => {
