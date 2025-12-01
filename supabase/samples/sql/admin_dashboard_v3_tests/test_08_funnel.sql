@@ -20,11 +20,11 @@
 
 SELECT jsonb_pretty(
   get_dashboard_conversion_funnel_v3(
-    '2025-11-01T00:00:00'::timestamp,
-    '2025-11-30T23:59:59'::timestamp,
-    NULL::uuid,  -- p_agence_id
-    NULL::uuid,  -- p_metier_id
-    NULL::uuid   -- p_gestionnaire_id
+    '2025-10-01T00:00:00'::timestamp,
+    '2025-10-30T23:59:59'::timestamp,
+    NULL::uuid[],  -- ou simplement NULL
+    NULL::uuid[],
+    NULL::uuid[]
   )
 ) AS funnel_complet;
 
