@@ -85,7 +85,12 @@ class GoogleSheetsImportCleanV2 {
     
     this.sheets = null;
     this.auth = null;
-    this.dataMapper = new DataMapper();
+    
+    // Déterminer le type d'import pour le DataMapper
+    const importType = this.options.artisansOnly ? 'artisans' 
+                    : this.options.interventionsOnly ? 'interventions'
+                    : 'parsing';
+    this.dataMapper = new DataMapper({ importType });
     
     // Utiliser le nouveau DatabaseManager V2 avec l'API modulaire
     this.databaseManager = new DatabaseManager({
@@ -372,7 +377,7 @@ class GoogleSheetsImportCleanV2 {
           }
           
           // Mapper les données avec le DataMapper
-          const mappedArtisan = await this.dataMapper.mapArtisanFromCSV(artisanObj);
+          const mappedArtisan = await this.dataMapper.mapArtisanFromCSV(artisanObj, i);
           
           if (mappedArtisan) {
             // Afficher le résultat du mapping pour les premières lignes
@@ -615,7 +620,7 @@ class GoogleSheetsImportCleanV2 {
         
         try {
           // Mapper les données avec le DataMapper
-          const mappedIntervention = await this.dataMapper.mapInterventionFromCSV(interventionObj, this.options.verbose);
+          const mappedIntervention = await this.dataMapper.mapInterventionFromCSV(interventionObj, this.options.verbose, i);
           
           if (mappedIntervention) {
             // Stocker la ligne CSV originale pour l'extraction des coûts après insertion
