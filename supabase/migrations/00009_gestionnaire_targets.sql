@@ -4,7 +4,7 @@
 
 -- Table des objectifs gestionnaires
 CREATE TABLE IF NOT EXISTS public.gestionnaire_targets (
-  id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id uuid NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
   period_type target_period_type NOT NULL,
   margin_target numeric(12, 2) DEFAULT 5000.00,
