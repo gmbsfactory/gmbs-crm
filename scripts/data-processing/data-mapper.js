@@ -10,6 +10,8 @@
  */
 
 const { log } = require("console");
+const fs = require("fs");
+const path = require("path");
 const {
   artisansApi,
   interventionsApi,
@@ -56,7 +58,7 @@ const GESTIONNAIRE_LOOKUP = Object.entries(GESTIONNAIRE_CODE_MAP).reduce(
 );
 
 class DataMapper {
-  constructor() {
+  constructor(options = {}) {
     this.cache = {
       agencies: new Map(),
       users: new Map(),
@@ -85,6 +87,278 @@ class DataMapper {
     // Rate limiting simple pour les recherches SST
     this.lastSSTSearchTime = 0;
     this.sstSearchDelay = 50; // 50ms entre chaque recherche SST
+
+    // Déterminer le type d'import pour le nom du fichier de log
+    const importType = options.importType || 'parsing'; // 'artisans', 'interventions', ou 'parsing' (par défaut)
+    const logFileName = importType === 'artisans' 
+      ? `erreurs-artisans-${new Date().toISOString().split("T")[0]}.log`
+      : importType === 'interventions'
+      ? `erreurs-interventions-${new Date().toISOString().split("T")[0]}.log`
+      : `erreurs-parsing-${new Date().toISOString().split("T")[0]}.log`;
+
+    // Initialiser le fichier de log des erreurs
+    this.errorLogPath = path.join(
+      process.cwd(),
+      "logs",
+      logFileName
+    );
+    this.initErrorLog();
+  }
+
+  /**
+   * Initialise le fichier de log des erreurs de parsing
+   */
+  initErrorLog() {
+    try {
+      const logDir = path.dirname(this.errorLogPath);
+      if (!fs.existsSync(logDir)) {
+        fs.mkdirSync(logDir, { recursive: true });
+      }
+      // Créer ou vider le fichier au début
+      fs.writeFileSync(
+        this.errorLogPath,
+        `=== LOG DES ERREURS DE PARSING - ${new Date().toISOString()} ===\n\n`,
+        "utf8"
+      );
+    } catch (error) {
+      console.error("Erreur lors de l'initialisation du fichier de log:", error);
+    }
+  }
+
+  /**
+   * Log une erreur de parsing dans le fichier avec le format standardisé
+   * @param {string} idInter - ID de l'intervention
+   * @param {string} reason - Raison du rejet
+   * @param {Object} rawData - Données brutes du CSV (optionnel, pour debug)
+   * @param {number} lineNumber - Numéro de ligne dans le fichier source (optionnel)
+   */
+  logParsingError(idInter, reason, rawData = null, lineNumber = null) {
+    try {
+      // Ne logger que les IDs qui sont des nombres simples sans espace
+      // Si on a un ID normal qui est un nombre simple, l'utiliser
+      // Sinon, utiliser "N/A"
+      let logId = "N/A";
+      
+      if (idInter && /^\d+$/.test(idInter)) {
+        // ID normal est un nombre simple, l'utiliser
+        logId = idInter;
+      }
+      
+      // Formater le rawData avec JSON.stringify pour un affichage correct
+      let rawDataStr = "null";
+      if (rawData !== null && rawData !== undefined) {
+        try {
+          rawDataStr = JSON.stringify(rawData, null, 2);
+        } catch (e) {
+          rawDataStr = String(rawData);
+        }
+      }
+      
+      // Ajouter le numéro de ligne si disponible
+      const lineInfo = lineNumber !== null ? `Ligne ${lineNumber}: ` : "";
+      
+      const logEntry = `${lineInfo}${logId}, \tNot inserted reason \t{${reason}} \n rawData: \t${rawDataStr} \n  \n`;
+      fs.appendFileSync(this.errorLogPath, logEntry, "utf8");
+    } catch (error) {
+      console.error("Erreur lors de l'écriture dans le fichier de log:", error);
+    }
+  }
+
+  /**
+   * Retourne le chemin du fichier de log des erreurs
+   * @returns {string} - Chemin du fichier de log
+   */
+  getErrorLogPath() {
+    return this.errorLogPath;
+  }
+
+  /**
+   * Valide un artisan mappé selon le schéma de base de données
+   * @param {Object} mappedArtisan - Artisan mappé à valider
+   * @returns {Object} - { isValid: boolean, errors: Array<{field, reason}>, identifier: string }
+   */
+  validateArtisan(mappedArtisan) {
+    const errors = [];
+    // Identifier pour le log : nom, prénom, raison sociale ou plain_nom
+    const identifier = mappedArtisan.plain_nom || 
+                      `${mappedArtisan.prenom || ''} ${mappedArtisan.nom || ''}`.trim() ||
+                      mappedArtisan.raison_sociale ||
+                      "N/A";
+
+    // Validation : le nom est obligatoire (comme dans database-manager-v2.js)
+    // Le database manager rejette les artisans sans nom, donc on doit les rejeter ici aussi
+    if (!mappedArtisan.nom || mappedArtisan.nom.trim() === '') {
+      errors.push({
+        field: 'nom',
+        reason: 'Le champ nom invalide'
+      });
+    }
+
+    // Validation de l'email si présent
+    if (mappedArtisan.email) {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(mappedArtisan.email)) {
+        errors.push({
+          field: 'email',
+          reason: 'Format d\'email invalide'
+        });
+      }
+    }
+
+    // Validation du SIRET si présent (doit être 14 chiffres)
+    if (mappedArtisan.siret && mappedArtisan.siret.length !== 14) {
+      if (mappedArtisan.siret.length !== 14) {
+        errors.push({
+          field: 'siret',
+            reason: 'SIRET invalide (doit contenir 14 chiffres)'
+          });
+      }
+      else {
+        errors.push({
+          field: 'siret',
+          reason: 'SIRET invalide'
+        });
+      }
+    }
+
+    return {
+      isValid: errors.length === 0,
+      errors,
+      identifier
+    };
+  }
+
+  /**
+   * Valide une intervention mappée selon le schéma de base de données
+   * @param {Object} mappedIntervention - Intervention mappée à valider
+   * @returns {Object} - { isValid: boolean, errors: Array<{field, reason}>, idInter: string }
+   */
+  validateIntervention(mappedIntervention) {
+    const errors = [];
+    const idInter = mappedIntervention.id_inter || "N/A";
+
+    // Champs obligatoires 
+    const requiredFields = {
+      date: 'Champ date invalide ',
+      adresse: 'Champ adresse invalide',
+      contexte_intervention: 'Champ contexte_intervention invalide',
+      metier_id: 'Champ metier_id invalide ',
+      statut_id: 'Champ statut_id invalide ',
+      agence_id: 'Champ agence_id invalide '
+    };
+
+    // Vérifier chaque champ obligatoire
+    Object.entries(requiredFields).forEach(([field, reason]) => {
+      const value = mappedIntervention[field];
+      if (value === null || value === undefined || value === '') {
+        errors.push({
+          field,
+          reason
+        });
+      }
+    });
+
+    // Validation de la date si présente
+    if (mappedIntervention.date) {
+      const dateValue = new Date(mappedIntervention.date);
+      if (isNaN(dateValue.getTime())) {
+        errors.push({
+          field: 'date',
+          reason: 'Format de date invalide'
+        });
+      }
+    }
+
+    // Validation des coûts si présents
+    if (mappedIntervention.costs) {
+      const { sst: coutSST, materiel: coutMateriel, intervention: coutIntervention, total: margeCalculee } = mappedIntervention.costs;
+
+      // Vérification que les trois coûts sont bien présents (non null)
+      if (coutSST === null || coutIntervention === null) {
+        errors.push({
+          field: 'costs',
+          reason: `Au moins un des coûts principaux (SST, Intervention) est manquant (null) pour l'intervention ${idInter}. Données de coûts invalides.`
+        });
+        // On remet à null (ou 0 si la logique métier l'exige) tous les champs de costs
+        mappedIntervention.costs = {
+          sst: null,
+          materiel: null,
+          intervention: null,
+          total: null
+        };
+        // Ne pas continuer les autres validations de coûts
+        return {
+          isValid: false,
+          errors,
+          idInter
+        };
+      }
+
+
+      
+      // Vérification des limites de coûts
+      const MAX_COST = 1000000;
+      const costLimitErrors = this._validateCostsLimits(coutIntervention, coutSST, MAX_COST, idInter);
+      errors.push(...costLimitErrors);
+
+      let marginErrors = [];
+      if (margeCalculee !== null && coutIntervention !== null && coutIntervention > 0) {
+        // La marge a déjà été calculée dans extractCostsData, on valide juste les limites
+        const margePourcentage = (margeCalculee / coutIntervention) * 100;
+        
+        // Vérifier les limites de marge (-200% à 200%)
+        if (margePourcentage < -200 || margePourcentage > 200) {
+          marginErrors.push({
+            field: 'costs',
+            reason: `Marge hors limites: ${margePourcentage.toFixed(2)}% (limites: -200% à 200%), Marge: ${margeCalculee} EUR, Coût Intervention: ${coutIntervention} EUR, Coût SST: ${coutSST || 0} EUR, Coût Matériel: ${coutMateriel || 0} EUR`
+          });
+        } else if (margeCalculee < 0) {
+          // Warning pour marge négative (dans les limites)
+          marginErrors.push({
+            field: 'costs',
+            reason: `Marge négative: ${margePourcentage.toFixed(2)}%, Marge: ${margeCalculee} EUR, Coût Intervention: ${coutIntervention} EUR, Coût SST: ${coutSST || 0} EUR, Coût Matériel: ${coutMateriel || 0} EUR`
+          });
+        }
+      } else if (coutIntervention !== null && coutIntervention > 0) {
+        // Si la marge n'a pas été calculée (cas rare), la calculer maintenant
+        const { errors: calculatedMarginErrors } = this._calculateAndValidateMargin(
+          coutIntervention,
+          coutSST,
+          coutMateriel,
+          idInter,
+          -200,
+          200
+        );
+        marginErrors = calculatedMarginErrors;
+      }
+      
+      // Séparer les erreurs critiques (hors limites) des warnings (marge négative)
+      const criticalMarginErrors = marginErrors.filter(e => e.reason.includes('hors limites'));
+      
+      // Ajouter les erreurs critiques (bloquent l'insertion)
+      errors.push(...criticalMarginErrors);
+
+      // Si les coûts sont invalides (hors limites), marquer costs comme null
+      if (costLimitErrors.length > 0 || criticalMarginErrors.length > 0) {
+        // Les coûts seront traités comme invalides par DatabaseManager
+        mappedIntervention.costs = {
+          sst: null,
+          materiel: null,
+          intervention: null,
+          total: null
+        };
+      }
+    }
+
+    // Calculer isValid en excluant les warnings (marge négative dans les limites)
+    // Les warnings sont loggés mais ne bloquent pas l'insertion
+    const criticalErrors = errors.filter(e => !e.reason.includes('Marge négative'));
+    
+    return {
+      isValid: criticalErrors.length === 0,
+      errors,
+      idInter
+    };
   }
 
   // ===== MAPPING ARTISANS =====
@@ -92,9 +366,10 @@ class DataMapper {
   /**
    * Mappe une ligne d'artisan depuis le CSV vers le schéma de la table artisans
    * @param {Object} csvRow - Ligne du CSV artisans
+   * @param {number} lineNumber - Numéro de ligne dans le fichier source (optionnel)
    * @returns {Object} - Objet mappé pour l'insertion en base
    */
-  async mapArtisanFromCSV(csvRow) {
+  async mapArtisanFromCSV(csvRow, lineNumber = null) {
     // Nettoyer les clés CSV (trim les espaces)
     csvRow = this.cleanCSVKeys(csvRow);
 
@@ -107,9 +382,8 @@ class DataMapper {
     }
 
     // Vérifier si la ligne contient des informations valides
-    // Note: La colonne s'appelle "Nom" dans le Google Sheets, pas "Nom Prénom"
-    const nomPrenom = this.getCSVValue(csvRow, "Nom") || this.getCSVValue(csvRow, "Nom Prénom");
-    
+    const originalNomPrenom = this.getCSVValue(csvRow, "Nom Prénom") || '';
+    const nomPrenom = originalNomPrenom;
     // Extraction stricte selon les règles définies
     const { prenom, nom } = this.extractNomPrenomStrict(nomPrenom);
 
@@ -176,6 +450,23 @@ class DataMapper {
       // Ces champs seront traités par DatabaseManager et supprimés avant l'insertion
       metiers: await this.mapMetiersFromCSV(csvRow),
     };
+
+    // Validation de l'artisan mappé
+    const validation = this.validateArtisan(mapped);
+    
+    if (!validation.isValid) {
+      // Logger chaque erreur individuellement avec le format standardisé
+      validation.errors.forEach(({ field, reason }) => {
+        this.logParsingError(
+          validation.identifier,
+          `${field}: ${reason}`,
+          csvRow,
+          lineNumber
+        );
+      });
+      
+      return null;
+    }
 
     return mapped;
   }
@@ -441,9 +732,9 @@ class DataMapper {
   isValidRow(csvRow) {
     // Colonnes qui NE doivent PAS contenir de dates
     const criticalColumns = [
-      ' Statut', 'Statut',
+      ' Statut',
       'Agence',
-      ' Gest.', 'Gest.',
+      ' Gest.',
       'Métier'
     ];
     
@@ -464,7 +755,7 @@ class DataMapper {
    * @param {boolean} verbose - Mode verbose pour logging
    * @returns {Object} - Objet mappé avec données brutes pour l'insertion
    */
-  async mapInterventionFromCSV(csvRow, verbose = false) {
+  async mapInterventionFromCSV(csvRow, verbose = false, lineNumber = null) {
     // Nettoyer les clés CSV (trim les espaces)
     csvRow = this.cleanCSVKeys(csvRow);
 
@@ -477,21 +768,17 @@ class DataMapper {
       return null;
     }
     
+    const idInter = this.extractInterventionId(csvRow["ID"]);
     // Filtrer les lignes avec valeurs aberrantes (dates dans mauvaises colonnes)
-    if (!this.isValidRow(csvRow)) {
-      if (verbose) console.log("⚠️ Ligne avec valeurs aberrantes ignorée (date dans colonne incorrecte)");
+    if (!this.isValidRow(csvRow)) {      
+      this.logParsingError(
+        idInter || "N/A",
+        "Ligne avec mauvais formatage",
+        csvRow,
+        lineNumber
+      );
+      if (verbose) console.log("⚠️ Ligne avec mauvais formatag)");
       return null;
-    }
-
-    // Générer un ID automatique si la colonne ID est vide
-    let idInter = this.extractInterventionId(csvRow["ID"]);
-    if (!idInter) {
-      // Générer un ID basé sur le timestamp et un compteur
-      const timestamp = Date.now().toString().slice(-6); // 6 derniers chiffres
-      const random = Math.floor(Math.random() * 1000)
-        .toString()
-        .padStart(3, "0");
-      idInter = `AUTO-${timestamp}-${random}`;
     }
 
     // Mapper les métiers avec la même logique que pour les artisans
@@ -515,8 +802,7 @@ class DataMapper {
       // Dates (avec valeur par défaut si manquante)
       date:
         this.parseDate(csvRow["Date "]) ||
-        this.parseDate(csvRow["Date d'intervention"]) ||
-        "2000-01-01T00:00:00Z",
+        null,
       date_termine: null, // Pas dans le CSV
       date_prevue: this.parseDate(csvRow["Date d'intervention"]) || null,
       due_date: null, // Pas dans le CSV
@@ -546,9 +832,39 @@ class DataMapper {
       // Ces champs seront traités par DatabaseManager et supprimés avant l'insertion
       tenant: this.parseTenantInfo(csvRow, false),
       owner: this.parseOwnerInfo(csvRow, false),
-      costs: this.extractCostsData(csvRow),
-      artisanSST: await this.findArtisanSST(csvRow["Technicien"]),
+      artisanSST: await this.findArtisanSST(csvRow["Technicien"], idInter, csvRow, lineNumber),
     };
+
+    // Extraire les coûts bruts pour la validation
+    const extractedCosts = this.extractCostsData(csvRow);
+    
+    // Validation de l'intervention mappée (utilise les coûts bruts)
+    const mappedForValidation = { ...mapped, costs: extractedCosts };
+    const validation = this.validateIntervention(mappedForValidation);
+    
+    if (!validation.isValid) {
+      // Logger chaque erreur individuellement avec le format standardisé
+      validation.errors.forEach(({ field, reason }) => {
+        this.logParsingError(
+          validation.idInter,
+          `${field}: ${reason}`,
+          csvRow,
+          lineNumber
+        );
+      });
+      
+      console.log(`❌ Intervention ${validation.idInter} invalide:`);
+      validation.errors.forEach(({ field, reason }) => {
+        console.log(
+          `   - ${field}: ${reason}\n\t\t${JSON.stringify(csvRow, null, 2)}`
+        );
+      });
+            
+      return null;
+    }
+
+    // Formater les coûts pour insertion (sans intervention_id, sera ajouté après insertion)
+    mapped.costs = this._formatCostsForInsertion(extractedCosts, idInter, verbose);
 
     // Logging verbose - Affiche uniquement l'objet mapped
     if (verbose) {
@@ -585,21 +901,12 @@ class DataMapper {
     // Artisan SST
     console.log(`Artisan SST: ${mapped.artisanSST || "NULL"}`);
 
-    // Coûts (données brutes)
-    if (mapped.costs) {
+    // Coûts (formatés pour insertion)
+    if (mapped.costs && Array.isArray(mapped.costs)) {
       const costsDisplay = [];
-      if (mapped.costs.sst !== null)
-        costsDisplay.push(`SST: ${mapped.costs.sst}€`);
-      if (mapped.costs.materiel !== null)
-        costsDisplay.push(
-          `Matériel: ${mapped.costs.materiel}€${
-            mapped.costs.materielUrl ? " (+ URL)" : ""
-          }`
-        );
-      if (mapped.costs.intervention !== null)
-        costsDisplay.push(`Intervention: ${mapped.costs.intervention}€`);
-      if (mapped.costs.total !== null)
-        costsDisplay.push(`Marge: ${mapped.costs.total}€`);
+      mapped.costs.forEach(cost => {
+        costsDisplay.push(`${cost.label}: ${cost.amount}€`);
+      });
       console.log(
         `Coûts: ${costsDisplay.length > 0 ? costsDisplay.join(" | ") : "Aucun"}`
       );
@@ -637,380 +944,198 @@ class DataMapper {
   // ===== MAPPING COÛTS D'INTERVENTION =====
 
   /**
-   * Extrait les données de coûts depuis le CSV (sans intervention_id)
-   * Utilisé par mapInterventionFromCSV pour retourner des données brutes
-   * @param {Object} csvRow - Ligne du CSV interventions
-   * @returns {Object} - Objet avec les coûts extraits
+   * Extrait les coûts depuis le CSV
+   * @private
+   * @param {Object} csvRow - Ligne CSV nettoyée
+   * @returns {Object} - { coutSST, coutMaterielData, coutIntervention }
+   * Note: Tous les coûts sont des nombres (ou null)
    */
-  extractCostsData(csvRow) {
-    csvRow = this.cleanCSVKeys(csvRow);
-
-    // Colonnes de coûts (simplifiées - un seul sheet)
+  _extractCosts(csvRow) {
     const COUT_SST_COLUMN = "COUT SST";
     const COUT_MATERIEL_COLUMN = "COÛT MATERIEL";
     const COUT_INTER_COLUMN = "COUT INTER";
 
     // Coût SST
-    let coutSST = null;
+    let coutSST = 0;
     const coutSSTValue = csvRow[COUT_SST_COLUMN];
-    if (coutSSTValue && this.isValidCostValue(coutSSTValue)) {
+    if (coutSSTValue) {
       coutSST = this.parseNumber(coutSSTValue);
     }
 
-    // Coût matériel (peut contenir une URL)
-    let coutMaterielData = { amount: null, url: null };
+    // Coût matériel
+    let coutMaterielData = 0;
     const coutMaterielValue = csvRow[COUT_MATERIEL_COLUMN];
-    if (coutMaterielValue && this.isValidCostValue(coutMaterielValue)) {
-      coutMaterielData = this.parseCoutMateriel(coutMaterielValue);
+    if (coutMaterielValue) {
+      coutMaterielData = this.parseNumber(coutMaterielValue);
     }
 
     // Coût intervention
-    let coutIntervention = null;
+    let coutIntervention = 0;
     const coutInterValue = csvRow[COUT_INTER_COLUMN];
-    if (coutInterValue && this.isValidCostValue(coutInterValue)) {
+    if (coutInterValue) {
       coutIntervention = this.parseNumber(coutInterValue);
     }
 
-    // === Vérification des valeurs maximales autorisées ===
-    const MAX_COST = 10000;
-    if (coutIntervention !== null && coutIntervention > MAX_COST) {
-      const idInter = csvRow["ID"] || csvRow["id_inter"] || "N/A";
-      console.log(`\n⚠️ ===== COÛT INTERVENTION HORS LIMITES DÉTECTÉ =====`);
-      console.log(`  id_inter: ${idInter}`);
-      console.log(`  Coût Intervention: ${coutIntervention} EUR (max autorisé: ${MAX_COST})`);
-      console.log(`  🚫 NOT INSERTED - Valeur trop élevée`);
-      // On retourne tout nul pour empêcher l'insertion
-      return {
-        coutSST: null,
-        coutMaterielData: { amount: null, url: null },
-        coutIntervention: null,
-        marge: null,
-        margePourcentage: null,
-        shouldInsert: false,
-      };
-    }
-    if (coutSST !== null && coutSST > MAX_COST) {
-      const idInter = csvRow["ID"] || csvRow["id_inter"] || "N/A";
-      console.log(`\n⚠️ ===== COÛT SST HORS LIMITES DÉTECTÉ =====`);
-      console.log(`  id_inter: ${idInter}`);
-      console.log(`  Coût SST: ${coutSST} EUR (max autorisé: ${MAX_COST})`);
-      console.log(`  🚫 NOT INSERTED - Valeur trop élevée`);
-      // On retourne tout nul pour empêcher l'insertion
-      return {
-        coutSST: null,
-        coutMaterielData: { amount: null, url: null },
-        coutIntervention: null,
-        marge: null,
-        margePourcentage: null,
-        shouldInsert: false,
-      };
+    return { coutSST, coutMaterielData, coutIntervention };
+  }
+
+  /**
+   * Valide les coûts contre une limite maximale
+   * @private
+   * @param {number|null} coutIntervention - Coût intervention
+   * @param {number|null} coutSST - Coût SST
+   * @param {number} maxCost - Limite maximale
+   * @param {string} idInter - ID intervention
+   * @returns {Array} - Tableau d'erreurs (vide si valide)
+   */
+  _validateCostsLimits(coutIntervention, coutSST, maxCost) {
+    const errors = [];
+
+    if (coutIntervention !== null && coutIntervention > maxCost) {
+      errors.push({
+        field: 'costs',
+        reason: `Coût intervention hors limites: ${coutIntervention} EUR (max autorisé: ${maxCost} EUR)`
+      });
     }
 
-    // Calculer la marge (COUT INTER - COUT SST - COÛT MATERIEL)
+    if (coutSST !== null && coutSST > maxCost) {
+      errors.push({
+        field: 'costs',
+        reason: `Coût SST hors limites: ${coutSST} EUR (max autorisé: ${maxCost} EUR)`
+      });
+    }
+
+    return errors;
+  }
+
+  /**
+   * Calcule et valide la marge
+   * @private
+   * @param {number|null} coutIntervention - Coût intervention
+   * @param {number|null} coutSST - Coût SST
+   * @param {number|null} coutMateriel - Coût matériel
+   * @param {string} idInter - ID intervention
+   * @param {number} minMarginPercent - Pourcentage minimum de marge (-200 par défaut)
+   * @param {number} maxMarginPercent - Pourcentage maximum de marge (200 par défaut)
+   * @returns {Object} - { marge, margePourcentage, errors } où errors est un tableau d'erreurs
+   */
+  _calculateAndValidateMargin(coutIntervention, coutSST, coutMateriel, idInter, minMarginPercent = -200, maxMarginPercent = 200) {
     let marge = null;
     let margePourcentage = null;
-    let shouldInsert = true; // Flag pour déterminer si on doit insérer les coûts
+    const errors = [];
     
     if (coutIntervention !== null && coutIntervention > 0) {
       marge = coutIntervention;
       if (coutSST !== null) marge -= coutSST;
-      if (coutMaterielData.amount !== null) marge -= coutMaterielData.amount;
+      if (coutMateriel !== null) marge -= coutMateriel;
 
       // Calculer la marge en pourcentage
       margePourcentage = (marge / coutIntervention) * 100;
 
-      // ⭐ RÈGLE DE SÉCURITÉ: Ne garder que les marges entre -200% et 200%
-      if (margePourcentage < -200 || margePourcentage > 200) {
-        shouldInsert = false;
-        const idInter = csvRow["ID"] || csvRow["id_inter"] || "N/A";
-        console.log(`\n⚠️ ===== MARGE HORS LIMITES DÉTECTÉE =====`);
-        console.log(`  id_inter: ${idInter}`);
-        console.log(`  Coût Intervention (base): ${coutIntervention} EUR`);
-        console.log(`  → Marge initiale = ${coutIntervention} EUR`);
-        
-        if (coutSST !== null) {
-          console.log(`  - Coût SST: ${coutSST} EUR`);
-          console.log(`  → Marge après SST = ${coutIntervention - coutSST} EUR`);
-        } else {
-          console.log(`  - Coût SST: 0 EUR (non renseigné)`);
-        }
-        
-        if (coutMaterielData.amount !== null) {
-          console.log(`  - Coût Matériel: ${coutMaterielData.amount} EUR`);
-          console.log(`  → Marge après Matériel = ${marge} EUR`);
-        } else {
-          console.log(`  - Coût Matériel: 0 EUR (non renseigné)`);
-        }
-
-        console.log(`\n  ❌ MARGE FINALE: ${marge} EUR`);
-        console.log(`  📊 MARGE EN POURCENTAGE: ${margePourcentage.toFixed(2)}%`);
-        console.log(`  Formule: ${coutIntervention} - ${coutSST || 0} - ${coutMaterielData.amount || 0} = ${marge}`);
-        console.log(`  Formule %: (${marge} / ${coutIntervention}) × 100 = ${margePourcentage.toFixed(2)}%`);
-        console.log(`  🚫 NOT INSERTED - Marge hors limites (-200% à 200%)`);
-        console.log(`⚠️ ====================================\n`);
-        // Ne pas retourner la marge si hors limites
+      // ⭐ RÈGLE DE SÉCURITÉ: Ne garder que les marges dans les limites
+      if (margePourcentage < minMarginPercent || margePourcentage > maxMarginPercent) {
+        errors.push({
+          field: 'costs',
+          reason: `Marge hors limites: ${margePourcentage.toFixed(2)}% (limites: ${minMarginPercent}% à ${maxMarginPercent}%), Marge: ${marge} EUR, Coût Intervention: ${coutIntervention} EUR, Coût SST: ${coutSST || 0} EUR, Coût Matériel: ${coutMateriel || 0} EUR`
+        });
         marge = null;
       } else if (marge < 0) {
-        // Afficher les logs si la marge est négative mais dans les limites
-        const idInter = csvRow["ID"] || csvRow["id_inter"] || "N/A";
-        console.log(`\n⚠️ ===== MARGE NÉGATIVE DÉTECTÉE =====`);
-        console.log(`  id_inter: ${idInter}`);
-        console.log(`  Coût Intervention (base): ${coutIntervention} EUR`);
-        console.log(`  → Marge initiale = ${coutIntervention} EUR`);
-        
-        if (coutSST !== null) {
-          console.log(`  - Coût SST: ${coutSST} EUR`);
-          console.log(`  → Marge après SST = ${coutIntervention - coutSST} EUR`);
-        } else {
-          console.log(`  - Coût SST: 0 EUR (non renseigné)`);
-        }
-        
-        if (coutMaterielData.amount !== null) {
-          console.log(`  - Coût Matériel: ${coutMaterielData.amount} EUR`);
-          console.log(`  → Marge après Matériel = ${marge} EUR`);
-        } else {
-          console.log(`  - Coût Matériel: 0 EUR (non renseigné)`);
-        }
-
-        console.log(`\n  ❌ MARGE FINALE: ${marge} EUR (NÉGATIVE)`);
-        console.log(`  📊 MARGE EN POURCENTAGE: ${margePourcentage.toFixed(2)}%`);
-        console.log(`  Formule: ${coutIntervention} - ${coutSST || 0} - ${coutMaterielData.amount || 0} = ${marge}`);
-        console.log(`  Formule %: (${marge} / ${coutIntervention}) × 100 = ${margePourcentage.toFixed(2)}%`);
-        console.log(`⚠️ ====================================\n`);
+        // Logger les marges négatives (mais dans les limites) pour information
+        // Note: On ne retourne pas d'erreur pour les marges négatives dans les limites, juste un warning
+        errors.push({
+          field: 'costs',
+          reason: `Marge négative: ${margePourcentage.toFixed(2)}%, Marge: ${marge} EUR, Coût Intervention: ${coutIntervention} EUR, Coût SST: ${coutSST || 0} EUR, Coût Matériel: ${coutMateriel || 0} EUR`
+        });
       }
     }
+    
+    return { marge, margePourcentage, errors };
+  }
 
-    // ⭐ RÈGLE DE SÉCURITÉ: Si marge hors limites (-200% à 200%), ne pas retourner les coûts
-    if (!shouldInsert) {
-      return {
-        sst: null,
-        materiel: null,
-        materielUrl: null,
-        intervention: null,
-        total: null,
-        numeroSST: null,
-      };
+  /**
+   * Extrait les données de coûts depuis le CSV (sans intervention_id)
+   * Utilisé par mapInterventionFromCSV pour retourner des données brutes
+   * ⚠️ Cette méthode extrait uniquement les données, sans validation.
+   * La validation est effectuée dans validateIntervention.
+   * @param {Object} csvRow - Ligne du CSV interventions
+   * @returns {Object} - Objet avec les coûts extraits (peut contenir des valeurs null)
+   */
+  extractCostsData(csvRow) {
+    csvRow = this.cleanCSVKeys(csvRow);
+
+    // Extraire les coûts
+    const { coutSST, coutMaterielData, coutIntervention } = this._extractCosts(csvRow);
+
+    // Calculer la marge (sans validation)
+    let marge = null;
+    if (coutIntervention !== null && coutIntervention > 0) {
+      marge = coutIntervention;
+      if (coutSST !== null) marge -= coutSST;
+      if (coutMaterielData !== null) marge -= coutMaterielData;
     }
 
     return {
       sst: coutSST,
-      materiel: coutMaterielData.amount,
-      materielUrl: coutMaterielData.url,
+      materiel: coutMaterielData,
       intervention: coutIntervention,
-      total: marge,
-      numeroSST: null, // Supprimé comme demandé
+      total: marge
     };
   }
 
   /**
-   * Valide si une valeur de coût est valide selon les règles regex
-   * Règle: la chaîne doit commencer par un chiffre [0-9] et ne pas contenir de lettres
-   * @param {any} value - Valeur à valider
-   * @returns {boolean} - true si la valeur est valide
-   */
-  isValidCostValue(value) {
-    if (!value) return false;
-    
-    const str = String(value).trim();
-    if (str === "") return false;
-
-    // Permet les URLs qui commencent par http/https
-    if (str.match(/^https?:\/\//i)) {
-      return true; // Les URLs sont acceptées pour le coût matériel
-    }
-
-    // Vérifier si la chaîne commence par un chiffre
-    if (!/^[0-9]/.test(str)) {
-      return false;
-    }
-
-    // ⭐ RÈGLE 1: Rejeter si la chaîne contient des lettres (sauf cas spéciaux)
-    // Autoriser seulement: chiffres, espaces, virgules, points, +, -, /, et "dire"
-    // Vérifier s'il y a des lettres (y compris accentuées comme à, é, è, etc.)
-    const withoutDire = str.replace(/\s*dire\s*[\d\s,\.]*/gi, '');
-    const withoutDireAndSlash = withoutDire.replace(/\//g, '');
-    // Détecter toutes les lettres (ASCII et Unicode/accentuées)
-    if (/[\p{L}]/u.test(withoutDireAndSlash)) {
-      return false; // Contient des lettres, invalide - REJET IMMÉDIAT
-    }
-
-    return true;
-  }
-
-  /**
-   * Parse le coût matériel qui peut contenir un montant et/ou une URL
-   * Ex: "140 url" → { amount: 140, url: "url" }
-   * Ex: "http://..." → { amount: 0, url: "http://..." }
-   * Ex: "140" → { amount: 140, url: null }
-   * @param {any} value - Valeur à parser
-   * @returns {{amount: number|null, url: string|null}} - Objet avec montant et URL
-   */
-  parseCoutMateriel(value) {
-    if (!value || String(value).trim() === "")
-      return { amount: null, url: null };
-
-    const str = String(value).trim();
-
-    // Détecter si c'est une URL complète
-    if (str.match(/^https?:\/\//i)) {
-      return { amount: 0, url: str };
-    }
-
-    // Détecter le format "140 url" ou "140 http://..."
-    const match = str.match(/^([\d\s,\.]+)\s+(https?:\/\/.+|url.*)$/i);
-    if (match) {
-      const amount = this.parseNumber(match[1]);
-      const url = match[2].trim();
-      return { amount, url };
-    }
-
-    // Sinon, essayer de parser comme un nombre simple
-    const amount = this.parseNumber(str);
-    return { amount, url: null };
-  }
-
-  /**
-   * Mappe les coûts d'une intervention depuis le CSV
-   * @param {Object} csvRow - Ligne du CSV interventions
-   * @param {string} interventionId - ID de l'intervention créée
+   * Formate les coûts extraits pour insertion en base de données
+   * Applique les validations spécifiques (MAX_VALUE=10000, marge -250% à 250%)
+   * @private
+   * @param {Object} extractedCosts - Coûts extraits { sst, materiel, intervention, total }
+   * @param {string} idInter - ID de l'intervention (pour logging)
    * @param {boolean} verbose - Mode verbose pour logging
-   * @returns {Array} - Tableau des coûts à insérer
+   * @returns {Array} - Tableau des coûts formatés SANS intervention_id
    */
-  mapInterventionCostsFromCSV(csvRow, interventionId, verbose = false) {
-    // Nettoyer les clés CSV
-    csvRow = this.cleanCSVKeys(csvRow);
+  _formatCostsForInsertion(extractedCosts, idInter = null, verbose = false) {
+    if (!extractedCosts) return [];
 
-    // 🔍 DEBUG: Afficher les colonnes disponibles
-    if (verbose) {
-      console.log("\n📋 Colonnes disponibles dans csvRow:");
-      console.log(Object.keys(csvRow).join(", "));
-    }
+    let coutSST = extractedCosts.sst !== undefined ? extractedCosts.sst : null;
+    let coutMaterielData = extractedCosts.materiel !== undefined ? extractedCosts.materiel : null;
+    let coutIntervention = extractedCosts.intervention !== undefined ? extractedCosts.intervention : null;
 
-    // Colonnes de coûts (simplifiées - un seul sheet)
-    const COUT_SST_COLUMN = "COUT SST";
-    const COUT_MATERIEL_COLUMN = "COÛT MATERIEL";
-    const COUT_INTER_COLUMN = "COUT INTER";
-
-    // Extraire les valeurs des coûts SANS les ajouter au tableau pour l'instant
+    // Note: Cette méthode utilise une limite différente (10000) et un comportement différent
+    // pour les valeurs trop élevées (mise à 0 au lieu de rejet)
     const MAX_VALUE = 10000;
-    let coutSST = null;
-    const coutSSTValue = csvRow[COUT_SST_COLUMN];
-    if (coutSSTValue && this.isValidCostValue(coutSSTValue)) {
-      coutSST = this.parseNumber(coutSSTValue);
-      if (coutSST !== null && Math.abs(coutSST) >= MAX_VALUE) {
-        const idInter = csvRow["ID"] || csvRow["id_inter"] || "N/A";
-        console.log(`\n⚠️ Coût SST dépasse 6 chiffres pour id_inter: ${idInter}`);
-        console.log(`  Valeur originale: ${coutSST.toLocaleString("fr-FR")}€`);
-        console.log(`  → Valeur mise à 0\n`);
-        coutSST = 0;
-      }
+    if (coutSST !== null && Math.abs(coutSST) >= MAX_VALUE) {
+      console.log(`\n⚠️ Coût SST dépasse 6 chiffres pour id_inter: ${idInter || "N/A"}`);
+      console.log(`  Valeur originale: ${coutSST.toLocaleString("fr-FR")}€`);
+      console.log(`  → Valeur mise à 0\n`);
+      coutSST = 0;
+    }
+    if (coutIntervention !== null && Math.abs(coutIntervention) >= MAX_VALUE) {
+      console.log(`\n⚠️ Coût intervention dépasse 6 chiffres pour id_inter: ${idInter || "N/A"}`);
+      console.log(`  Valeur originale: ${coutIntervention.toLocaleString("fr-FR")}€`);
+      console.log(`  → Valeur mise à 0\n`);
+      coutIntervention = 0;
     }
 
-    // Coût matériel (peut contenir une URL)
-    let coutMaterielData = { amount: null, url: null };
-    const coutMaterielValue = csvRow[COUT_MATERIEL_COLUMN];
-    if (coutMaterielValue && this.isValidCostValue(coutMaterielValue)) {
-      coutMaterielData = this.parseCoutMateriel(coutMaterielValue);
-    }
+    // Calculer et valider la marge (avec limites -250% à 250% pour cette fonction)
+    const { marge, margePourcentage, errors } = this._calculateAndValidateMargin(
+      coutIntervention,
+      coutSST,
+      coutMaterielData,
+      idInter,
+      -250,
+      250
+    );
 
-    // Coût intervention
-    let coutIntervention = null;
-    const coutInterValue = csvRow[COUT_INTER_COLUMN];
-    if (coutInterValue && this.isValidCostValue(coutInterValue)) {
-      coutIntervention = this.parseNumber(coutInterValue);
-      if (coutIntervention !== null && Math.abs(coutIntervention) >= MAX_VALUE) {
-        const idInter = csvRow["ID"] || csvRow["id_inter"] || "N/A";
-        console.log(`\n⚠️ Coût intervention dépasse 6 chiffres pour id_inter: ${idInter}`);
-        console.log(`  Valeur originale: ${coutIntervention.toLocaleString("fr-FR")}€`);
-        console.log(`  → Valeur mise à 0\n`);
-        coutIntervention = 0;
-      }
-    }
-
-    // Calculer la marge et vérifier si elle est dans les limites
-    let marge = null;
-    let margePourcentage = null;
-    let shouldInsert = true; // Flag pour déterminer si on doit insérer les coûts
-    
-    if (coutIntervention !== null && coutIntervention > 0) {
-      marge = coutIntervention;
-      if (coutSST !== null) marge -= coutSST;
-      if (coutMaterielData.amount !== null) marge -= coutMaterielData.amount;
-
-      // Calculer la marge en pourcentage
-      margePourcentage = (marge / coutIntervention) * 100;
-
-      // ⭐ RÈGLE DE SÉCURITÉ: Ne garder que les marges entre -200% et 200%
-      if (margePourcentage < -200 || margePourcentage > 200) {
-        shouldInsert = false;
-        const idInter = csvRow["ID"] || csvRow["id_inter"] || "N/A";
-        console.log(`\n⚠️ ===== MARGE HORS LIMITES DÉTECTÉE =====`);
-        console.log(`  id_inter: ${idInter}`);
-        console.log(`  Intervention ID: ${interventionId}`);
-        console.log(`  Coût Intervention (base): ${coutIntervention} EUR`);
-        console.log(`  → Marge initiale = ${coutIntervention} EUR`);
-        
-        if (coutSST !== null) {
-          console.log(`  - Coût SST: ${coutSST} EUR`);
-          console.log(`  → Marge après SST = ${coutIntervention - coutSST} EUR`);
-        } else {
-          console.log(`  - Coût SST: 0 EUR (non renseigné)`);
-        }
-        
-        if (coutMaterielData.amount !== null) {
-          console.log(`  - Coût Matériel: ${coutMaterielData.amount} EUR`);
-          console.log(`  → Marge après Matériel = ${marge} EUR`);
-        } else {
-          console.log(`  - Coût Matériel: 0 EUR (non renseigné)`);
-        }
-
-        console.log(`\n  ❌ MARGE FINALE: ${marge} EUR`);
-        console.log(`  📊 MARGE EN POURCENTAGE: ${margePourcentage.toFixed(2)}%`);
-        console.log(`  Formule: ${coutIntervention} - ${coutSST || 0} - ${coutMaterielData.amount || 0} = ${marge}`);
-        console.log(`  Formule %: (${marge} / ${coutIntervention}) × 100 = ${margePourcentage.toFixed(2)}%`);
-        console.log(`  🚫 NOT INSERTED - Marge hors limites (-200% à 200%)`);
-        console.log(`⚠️ ====================================\n`);
-        // Ne pas ajouter les coûts si hors limites - retourner un tableau vide
-        return []; // Retourner un tableau vide = aucun coût inséré
-      } else if (marge < 0) {
-        // Afficher les logs si la marge est négative mais dans les limites
-        const idInter = csvRow["ID"] || csvRow["id_inter"] || "N/A";
-        console.log(`\n⚠️ ===== MARGE NÉGATIVE DÉTECTÉE =====`);
-        console.log(`  id_inter: ${idInter}`);
-        console.log(`  Intervention ID: ${interventionId}`);
-        console.log(`  Coût Intervention (base): ${coutIntervention} EUR`);
-        console.log(`  → Marge initiale = ${coutIntervention} EUR`);
-        
-        if (coutSST !== null) {
-          console.log(`  - Coût SST: ${coutSST} EUR`);
-          console.log(`  → Marge après SST = ${coutIntervention - coutSST} EUR`);
-        } else {
-          console.log(`  - Coût SST: 0 EUR (non renseigné)`);
-        }
-        
-        if (coutMaterielData.amount !== null) {
-          console.log(`  - Coût Matériel: ${coutMaterielData.amount} EUR`);
-          console.log(`  → Marge après Matériel = ${marge} EUR`);
-        } else {
-          console.log(`  - Coût Matériel: 0 EUR (non renseigné)`);
-        }
-
-        console.log(`\n  ❌ MARGE FINALE: ${marge} EUR (NÉGATIVE)`);
-        console.log(`  📊 MARGE EN POURCENTAGE: ${margePourcentage.toFixed(2)}%`);
-        console.log(`  Formule: ${coutIntervention} - ${coutSST || 0} - ${coutMaterielData.amount || 0} = ${marge}`);
-        console.log(`  Formule %: (${marge} / ${coutIntervention}) × 100 = ${margePourcentage.toFixed(2)}%`);
-        console.log(`⚠️ ====================================\n`);
-      }
+    // Si marge hors limites, retourner un tableau vide
+    if (errors.length > 0 && errors.some(e => e.reason.includes('hors limites'))) {
+      return [];
     }
 
     // Si on arrive ici, la marge est dans les limites (ou pas de coût intervention)
-    // Ajouter tous les coûts au tableau
+    // Ajouter tous les coûts au tableau (SANS intervention_id)
     const costs = [];
 
     // Coût SST
     if (coutSST !== null) {
       costs.push({
-        intervention_id: interventionId,
         cost_type: "sst",
         label: "Coût SST",
         amount: coutSST,
@@ -1018,26 +1143,19 @@ class DataMapper {
       });
     }
 
-    // Coût matériel avec metadata (sans Numéro SST)
-    if (coutMaterielData.amount !== null || coutMaterielData.url !== null) {
-      const metadata = {};
-      if (coutMaterielData.url) metadata.url = coutMaterielData.url;
-
+    // Coût matériel
+    if (coutMaterielData !== null) {
       costs.push({
-        intervention_id: interventionId,
         cost_type: "materiel",
         label: "Coût Matériel",
-        amount: coutMaterielData.amount || 0,
+        amount: coutMaterielData,
         currency: "EUR",
-        metadata:
-          Object.keys(metadata).length > 0 ? JSON.stringify(metadata) : null,
       });
     }
 
     // Coût intervention
     if (coutIntervention !== null) {
       costs.push({
-        intervention_id: interventionId,
         cost_type: "intervention",
         label: "Coût Intervention",
         amount: coutIntervention,
@@ -1046,9 +1164,8 @@ class DataMapper {
     }
 
     // Marge (ajouter seulement si calculée et dans les limites)
-    if (marge !== null && shouldInsert) {
+    if (marge !== null && !errors.some(e => e.reason.includes('hors limites'))) {
       costs.push({
-        intervention_id: interventionId,
         cost_type: "marge",
         label: "Marge",
         amount: marge,
@@ -1058,16 +1175,12 @@ class DataMapper {
 
     // Logging verbose
     if (verbose) {
-      console.log("\n💰 ===== COÛTS EXTRAITS =====");
-      console.log(`Intervention ID: ${interventionId}`);
+      console.log("\n💰 ===== COÛTS FORMATÉS =====");
+      console.log(`ID Intervention: ${idInter || "N/A"}`);
       console.log(`Coût SST: ${coutSST !== null ? coutSST + " EUR" : "N/A"}`);
       console.log(
         `Coût Matériel: ${
-          coutMaterielData.amount !== null
-            ? coutMaterielData.amount + " EUR"
-            : "N/A"
-        }${
-          coutMaterielData.url ? " (+ URL: " + coutMaterielData.url + ")" : ""
+          coutMaterielData !== null ? coutMaterielData + " EUR" : "N/A"
         }`
       );
       console.log(
@@ -1080,24 +1193,22 @@ class DataMapper {
           marge !== null ? marge + " EUR" : "N/A"
         }`
       );
-      console.log(`Nombre de coûts insérés: ${costs.length}`);
+      console.log(`Nombre de coûts formatés: ${costs.length}`);
       if (costs.length > 0) {
         costs.forEach((cost, i) => {
-          const metaStr = cost.metadata ? ` [metadata: ${cost.metadata}]` : "";
           console.log(
-            `  ${i + 1}. ${cost.label}: ${cost.amount} ${
-              cost.currency
-            }${metaStr}`
+            `  ${i + 1}. ${cost.label}: ${cost.amount} ${cost.currency}`
           );
         });
       } else {
-        console.log("  ⚠️ Aucun coût trouvé dans le CSV");
+        console.log("  ⚠️ Aucun coût formaté");
       }
       console.log("💰 ===========================\n");
     }
 
     return costs;
   }
+
 
   // ===== MAPPING CLIENTS =====
 
@@ -1570,26 +1681,29 @@ class DataMapper {
 
   /**
    * Extrait l'ID intervention en nettoyant le texte et en gardant seulement le numéro
+   * Ne retourne que les IDs qui sont des nombres simples sans espace
    * Exemple: "11754 inter meme adresse..." -> "11754"
+   * Exemple: "11754" -> "11754"
+   * Exemple: "abc123" -> null (pas un nombre simple)
    */
   extractInterventionId(idValue) {
     if (!idValue || idValue.trim() === "") return null;
 
     const cleaned = idValue.trim();
 
-    // Si c'est déjà un numéro simple, le retourner
+    // Si c'est déjà un numéro simple (uniquement des chiffres), le retourner
     if (/^\d+$/.test(cleaned)) {
       return cleaned;
     }
 
-    // Extraire le premier numéro trouvé dans le texte
+    // Extraire le premier numéro trouvé au début du texte
     const numberMatch = cleaned.match(/^(\d+)/);
     if (numberMatch) {
       return numberMatch[1];
     }
 
-    // Si aucun numéro trouvé, retourner le texte nettoyé (tronqué si trop long)
-    return cleaned.length > 50 ? cleaned.substring(0, 50) : cleaned;
+    // Si aucun numéro simple trouvé, retourner null (au lieu du texte nettoyé)
+    return null;
   }
 
   /**
@@ -1968,7 +2082,7 @@ class DataMapper {
       const terms = processedStr.split("+").map(s => s.trim());
       let sum = 0;
       for (const term of terms) {
-        // Parser chaque terme récursivement avec parseNumber
+        // Parser chaque terme récursivement
         // (pour gérer les cas comme "50* 30" dans "182*2+ 50* 30")
         const termValue = this.parseNumber(term);
         if (termValue === null) return null;
@@ -1999,54 +2113,30 @@ class DataMapper {
 
     // Convertir en string et trim
     let str = String(value).trim();
-    if (str === "") return null;
+    if (str === "") return 0;
 
-    // ⭐ RÈGLE 1: Rejeter si la chaîne contient des lettres invalides
-    if (this._hasInvalidLetters(str)) {
+    // Supprimer les espaces
+    str = str.replace(/\s+/g, "");
+
+    // ⭐ RÈGLE: Accepter uniquement les chiffres, point (.), virgule (,) et signe moins (-) au début
+    // Rejeter tout autre caractère
+    if (!/^-?[\d,\.]+$/.test(str)) {
       return null;
     }
 
-    // ⭐ RÈGLE 2: Si contient un slash (/), prendre seulement la partie avant le slash
-    // Ex: "100/50" → "100" → 100
-    // Ex: "102+75,11/50" → "102+75,11" → 177.11
-    if (str.includes("/")) {
-      const parts = str.split("/");
-      str = parts[0].trim(); // Prendre seulement la partie avant le premier slash
-      if (str === "") return null;
+    // Remplacer la virgule par un point pour le format décimal
+    str = str.replace(/,/g, ".");
+
+    // Vérifier qu'il n'y a qu'un seul point décimal
+    const dotCount = (str.match(/\./g) || []).length;
+    if (dotCount > 1) {
+      return null; // Plusieurs points décimaux = invalide
     }
 
-    // ⭐ RÈGLE 3: Détecter les opérations mathématiques
-    // Vérifier si "-" est une soustraction (pas un nombre négatif)
-    const hasSubtraction = str.includes("-") && !str.match(/^-\s*[\d\s,\.]+$/);
-    const hasOperations = str.includes("*") || str.includes("+") || hasSubtraction;
-
-    let result;
-    if (hasOperations) {
-      // Expression avec opérations → utiliser _evaluateExpression
-      result = this._evaluateExpression(str);
-    } else {
-      // Nombre simple → utiliser _parseSimpleNumber
-      result = this._parseSimpleNumber(str);
-    }
-
-    if (result === null) return null;
-
-    // ⭐ RÈGLE 4: Validation finale MAX_VALUE
-    const MAX_VALUE = 10000;
-    if (Math.abs(result) > MAX_VALUE) {
-      console.warn(
-        `⚠️ Valeur numérique trop élevée détectée: ${result.toLocaleString(
-          "fr-FR"
-        )}€ (limite: ${MAX_VALUE.toLocaleString("fr-FR")}€)`
-      );
-      console.warn(`   Données originales: "${str}"`);
-
-      // Limiter à la valeur maximale (avec avertissement)
-      const limitedValue = result > 0 ? MAX_VALUE : -MAX_VALUE;
-      console.warn(
-        `   → Valeur limitée à: ${limitedValue.toLocaleString("fr-FR")}€`
-      );
-      return limitedValue;
+    // Parser en nombre décimal
+    const result = parseFloat(str);
+    if (isNaN(result)) {
+      return null;
     }
 
     return result;
@@ -2640,9 +2730,12 @@ class DataMapper {
    * Trouve un artisan SST par son nom avec recherche intelligente
    * Gère les variations : "Prenom Nom 77", "NOM Prenom", "Raison Sociale"
    * @param {string} sstName - Nom de l'artisan SST (ex: "Mehdy Pedron 33")
+   * @param {string} idInter - ID de l'intervention (optionnel, pour logging)
+   * @param {Object} csvRow - Ligne CSV originale (optionnel, pour logging)
+   * @param {number} lineNumber - Numéro de ligne dans le fichier source (optionnel)
    * @returns {string|null} - ID de l'artisan ou null si non trouvé
    */
-  async findArtisanSST(sstName) {
+  async findArtisanSST(sstName, idInter = null, csvRow = null, lineNumber = null) {
     const { artisansApi } = require("../../src/lib/api/v2");
 
     if (!sstName || !sstName.trim()) {
@@ -2670,9 +2763,9 @@ class DataMapper {
 
       if (results.data && results.data.length > 0) {
         const found = results.data[0];
-        console.log(
-          `✅ [ARTISAN-SST] Trouvé: ${found.prenom} ${found.nom} (ID: ${found.id})`
-        );
+        //console.log(
+        //  `✅ [ARTISAN-SST] Trouvé: ${found.prenom} ${found.nom} (ID: ${found.id})`
+        //);
         return found.id;
       }
 
@@ -2724,8 +2817,11 @@ class DataMapper {
         }
       }
 
-      // Pas trouvé
-      console.log(`❌ [ARTISAN-SST] Aucun artisan trouvé pour "${sstName}"`);
+      // Pas trouvé - logger dans le fichier de log avec l'id_inter si disponible
+      const logId = idInter || "N/A";
+      const reason = `Artisan SST non trouvé: "${sstName}"`;
+      this.logParsingError(logId, reason, csvRow, lineNumber);
+      console.log(`❌ [ARTISAN-SST] Aucun artisan trouvé pour "${sstName}" (id_inter: ${logId})`);
       return null;
     } catch (error) {
       // Gérer spécifiquement les erreurs réseau avec retry simple
