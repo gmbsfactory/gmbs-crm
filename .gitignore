@@ -71,3 +71,7 @@ docs/GUIDE_REPARATION_MIGRATIONS.md
 /legacy
 
 # Geocoding logs
+
+
+# Logs
+logs/

@@ -469,8 +469,10 @@ class DatabaseManager {
           // Extraire les données complémentaires
           const tenantData = intervention.tenant;
           const ownerData = intervention.owner;
-          const originalCSVRow = intervention._originalCSVRow; // Ligne CSV originale pour extraction des coûts
           const artisanSSTId = intervention.artisanSST;
+          
+          // Sauvegarder les coûts formatés avant leur suppression (déjà formatés par mapInterventionFromCSV)
+          const formattedCosts = intervention.costs || [];
 
           // Résoudre les relations (find or create)
           if (tenantData && (tenantData.email || tenantData.telephone)) {
@@ -494,15 +496,31 @@ class DatabaseManager {
           // Nettoyer les données temporaires avant l'upsert
           delete intervention.tenant;
           delete intervention.owner;
-          delete intervention.costs;
+          delete intervention.costs; // Coûts déjà sauvegardés dans formattedCosts
           delete intervention.artisanSST;
           delete intervention._originalCSVRow;
 
-          // Valider la date : si invalide, utiliser la date du jour
+          // Valider la date : si invalide, loguer mais NE PAS modifier/interrompre le process
           const DEFAULT_INVALID_DATE = "2000-01-01T00:00:00Z";
           const isDateValid = intervention.date && 
             intervention.date !== DEFAULT_INVALID_DATE &&
             new Date(intervention.date).getFullYear() > 2000;
+
+          if (!isDateValid) {
+            // N'interrompt pas le process, utilise simplement ce qui est fourni
+            const logMsg = `INVALID DATE database-manager-v2: intervention id: ${intervention.id_inter || intervention.id || "N/A"} raw date: ${intervention.date}`;
+            console.log(logMsg);
+            // On log dans un fichier 'log-database-manager-intervention'
+            try {
+              const fs = require("fs");
+              fs.appendFileSync(
+                "log-database-manager-intervention.txt",
+                logMsg + "\n"
+              );
+            } catch (e) {
+              // Ignore erreur d'écriture (pour les environnements qui n'ont pas accès au disque)
+            }
+          }
 
           if (!isDateValid) {
             // Utiliser la date du jour si la date du CSV n'est pas valide
@@ -542,25 +560,23 @@ class DatabaseManager {
             }
           }
 
-          // Créer les coûts en utilisant mapInterventionCostsFromCSV()
-          if (originalCSVRow && upsertedIntervention.id && this.dataMapper) {
+          // Insérer les coûts formatés (déjà formatés par mapInterventionFromCSV)
+          if (upsertedIntervention.id && formattedCosts && formattedCosts.length > 0) {
             try {
-              const costs = this.dataMapper.mapInterventionCostsFromCSV(
-                originalCSVRow,
-                upsertedIntervention.id,
-                this.options.verbose
-              );
+              // Ajouter intervention_id à chaque coût
+              const costs = formattedCosts.map(cost => ({
+                ...cost,
+                intervention_id: upsertedIntervention.id
+              }));
               
-              if (costs && costs.length > 0) {
-                // Utiliser insertInterventionCosts de l'API pour insérer tous les coûts en une fois
-                const costsResult = await interventionsApi.insertInterventionCosts(costs);
-                
-                if (costsResult.success > 0) {
-                  this.log(`  ✓ ${costsResult.success} coût(s) inséré(s)`, "verbose");
-                }
-                if (costsResult.errors > 0) {
-                  this.log(`  ⚠️ ${costsResult.errors} erreur(s) lors de l'insertion des coûts`, "warning");
-                }
+              // Utiliser insertInterventionCosts de l'API pour insérer tous les coûts en une fois
+              const costsResult = await interventionsApi.insertInterventionCosts(costs);
+              
+              if (costsResult.success > 0) {
+                this.log(`  ✓ ${costsResult.success} coût(s) inséré(s)`, "verbose");
+              }
+              if (costsResult.errors > 0) {
+                this.log(`  ⚠️ ${costsResult.errors} erreur(s) lors de l'insertion des coûts`, "warning");
               }
             } catch (error) {
               this.log(`  ⚠️ Erreur coûts: ${error.message}`, "warning");
