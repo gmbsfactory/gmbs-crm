@@ -238,7 +238,9 @@ class DataMapper {
     const idInter = mappedIntervention.id_inter || "N/A";
 
     // Champs obligatoires 
+    // Note: id_inter est obligatoire pour éviter les doublons (peut être réel ou synthétique SYNTH-xxx)
     const requiredFields = {
+      id_inter: 'Champ id_inter invalide (requis pour éviter les doublons, généré automatiquement si absent)',
       date: 'Champ date invalide ',
       adresse: 'Champ adresse invalide',
       contexte_intervention: 'Champ contexte_intervention invalide',
@@ -273,31 +275,11 @@ class DataMapper {
     if (mappedIntervention.costs) {
       const { sst: coutSST, materiel: coutMateriel, intervention: coutIntervention, total: margeCalculee } = mappedIntervention.costs;
 
-      // Vérification que les trois coûts sont bien présents (non null)
-      if (coutSST === null || coutIntervention === null) {
-        errors.push({
-          field: 'costs',
-          reason: `Au moins un des coûts principaux (SST, Intervention) est manquant (null) pour l'intervention ${idInter}. Données de coûts invalides.`
-        });
-        // On remet à null (ou 0 si la logique métier l'exige) tous les champs de costs
-        mappedIntervention.costs = {
-          sst: null,
-          materiel: null,
-          intervention: null,
-          total: null
-        };
-        // Ne pas continuer les autres validations de coûts
-        return {
-          isValid: false,
-          errors,
-          idInter
-        };
-      }
-
-
+      // Note: Les coûts manquants (null) ne sont plus bloquants
+      // L'intervention sera insérée même sans coûts
       
-      // Vérification des limites de coûts
-      const MAX_COST = 1000000;
+      // Vérification des limites de coûts (uniquement si les coûts sont présents)
+      const MAX_COST = 100000;
       const costLimitErrors = this._validateCostsLimits(coutIntervention, coutSST, MAX_COST, idInter);
       errors.push(...costLimitErrors);
 
@@ -768,7 +750,7 @@ class DataMapper {
       return null;
     }
     
-    const idInter = this.extractInterventionId(csvRow["ID"]);
+    let idInter = this.extractInterventionId(csvRow["ID"]);
     // Filtrer les lignes avec valeurs aberrantes (dates dans mauvaises colonnes)
     if (!this.isValidRow(csvRow)) {      
       this.logParsingError(
@@ -787,41 +769,74 @@ class DataMapper {
     // Prendre le premier métier (principal) pour metier_id
     const metierId = metiers.length > 0 ? metiers[0].metier_id : null;
 
+    // ===== RÉCUPÉRER LES DONNÉES NÉCESSAIRES POUR ID SYNTHÉTIQUE =====
+    const agenceId = await this.getAgencyId(csvRow["Agence"]);
+    const dateValue = this.parseDate(csvRow["Date "]);
+    const adresseValue = this.extractInterventionAddress(csvRow["Adresse d'intervention"]).adresse;
+    const contexteValue = this.cleanString(csvRow["Contexte d'intervention "]);
+
+    // ===== GÉNÉRATION ID_INTER DÉTERMINISTE SI ABSENT =====
+    // Si pas d'id_inter dans le CSV, générer un ID synthétique basé sur:
+    // agence + date + adresse + contexte (pour identifier de manière unique)
+    if (!idInter) {
+      const syntheticId = this.generateDeterministicIdInter(
+        agenceId,
+        dateValue,
+        adresseValue,
+        contexteValue
+      );
+      
+      if (syntheticId) {
+        idInter = syntheticId;
+        if (verbose) {
+          console.log(`🔑 ID synthétique généré: ${idInter}`);
+          console.log(`   (agence=${agenceId ? agenceId.substring(0, 8) : 'N/A'}, date=${dateValue || 'N/A'}, adresse hash)`);
+        }
+      } else {
+        // Si on ne peut pas générer d'ID synthétique, logger l'erreur
+        this.logParsingError(
+          "N/A",
+          "Impossible de générer un id_inter: données insuffisantes (agence_id et adresse requis)",
+          csvRow,
+          lineNumber
+        );
+        if (verbose) {
+          console.log(`⚠️ Ligne ${lineNumber || '?'}: Impossible de générer un id_inter synthétique`);
+          console.log(`   agence_id=${agenceId || 'NULL'}, adresse=${adresseValue || 'NULL'}`);
+        }
+        // Ne pas retourner null ici - on laisse la validation décider si l'intervention est valide
+      }
+    }
+
+    // Extraire l'adresse une seule fois (optimisation)
+    const adresseExtracted = this.extractInterventionAddress(csvRow["Adresse d'intervention"]);
+
     const mapped = {
-      // Identifiant externe - extraire le numéro du texte si nécessaire
+      // Identifiant externe - peut être réel (du CSV) ou synthétique (généré)
       id_inter: idInter,
 
-      // Références vers autres tables (les IDs seront résolus par DatabaseManager)
-      agence_id: await this.getAgencyId(csvRow["Agence"]),
+      // Références vers autres tables (déjà récupérées ci-dessus)
+      agence_id: agenceId,
       assigned_user_id: await this.getUserIdNormalized(csvRow["Gest."]),
       statut_id: await this.getInterventionStatusIdNormalized(
         this.getStatutValue(csvRow)
       ),
       metier_id: metierId,
 
-      // Dates (avec valeur par défaut si manquante)
-      date:
-        this.parseDate(csvRow["Date "]) ||
-        null,
+      // Dates (avec valeur par défaut si manquante) - réutiliser dateValue déjà parsé
+      date: dateValue || null,
       date_termine: null, // Pas dans le CSV
       date_prevue: this.parseDate(csvRow["Date d'intervention"]) || null,
       due_date: null, // Pas dans le CSV
 
-      // Contexte et instructions (tronqué à 10000 caractères)
-      contexte_intervention: this.truncateString(
-        this.cleanString(csvRow["Contexte d'intervention "]),
-        10000
-      ),
+      // Contexte et instructions (tronqué à 10000 caractères) - contexteValue déjà extrait
+      contexte_intervention: this.truncateString(contexteValue, 10000),
       commentaire_agent: this.cleanString(csvRow["COMMENTAIRE"]),
 
-      // Adresse d'intervention
-      adresse: this.extractInterventionAddress(csvRow["Adresse d'intervention"])
-        .adresse,
-      code_postal: this.extractInterventionAddress(
-        csvRow["Adresse d'intervention"]
-      ).codePostal,
-      ville: this.extractInterventionAddress(csvRow["Adresse d'intervention"])
-        .ville,
+      // Adresse d'intervention (réutiliser adresseExtracted)
+      adresse: adresseExtracted.adresse,
+      code_postal: adresseExtracted.codePostal,
+      ville: adresseExtracted.ville,
       latitude: null, // Pas dans le CSV
       longitude: null, // Pas dans le CSV
 
@@ -1704,6 +1719,86 @@ class DataMapper {
 
     // Si aucun numéro simple trouvé, retourner null (au lieu du texte nettoyé)
     return null;
+  }
+
+  /**
+   * Génère un hash déterministe simple pour une chaîne de caractères
+   * Le même input produit TOUJOURS le même output (contrairement à Math.random())
+   * @param {string} str - Chaîne à hasher
+   * @returns {string} - Hash hexadécimal de 8 caractères
+   */
+  generateDeterministicHash(str) {
+    if (!str) return '00000000';
+    
+    // Normaliser la chaîne (minuscules, sans accents, sans espaces multiples)
+    const normalized = String(str)
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '') // Supprimer les accents
+      .replace(/[^a-z0-9]/g, '')       // Garder seulement alphanumérique
+      .trim();
+    
+    // Algorithme de hash simple mais déterministe (djb2)
+    let hash = 5381;
+    for (let i = 0; i < normalized.length; i++) {
+      const char = normalized.charCodeAt(i);
+      hash = ((hash << 5) + hash) + char; // hash * 33 + char
+      hash = hash & hash; // Convertir en 32bit integer
+    }
+    
+    // Retourner en hexadécimal (8 caractères)
+    return Math.abs(hash).toString(16).padStart(8, '0').substring(0, 8);
+  }
+
+  /**
+   * Génère un id_inter déterministe basé sur les données de l'intervention
+   * Utilisé quand id_inter est absent du CSV pour éviter les doublons lors des imports répétés
+   * 
+   * Format: AUTO-{12 caractères} (compatible avec l'ancien format)
+   * Les 12 caractères sont un hash déterministe combinant agence + date + adresse + contexte
+   * 
+   * @param {string} agenceId - UUID de l'agence
+   * @param {string} dateValue - Date ISO de l'intervention
+   * @param {string} adresse - Adresse de l'intervention
+   * @param {string} contexte - Contexte d'intervention (optionnel, pour différencier les interventions à la même adresse le même jour)
+   * @returns {string|null} - ID synthétique ou null si données insuffisantes
+   */
+  generateDeterministicIdInter(agenceId, dateValue, adresse, contexte = null) {
+    // On a besoin d'au moins l'agence et l'adresse pour générer un ID unique
+    if (!agenceId || !adresse) {
+      return null;
+    }
+    
+    // Créer une chaîne unique combinant toutes les données
+    // Format: agence|date|adresse|contexte
+    let combinedData = agenceId + '|';
+    
+    // Ajouter la date si disponible
+    if (dateValue) {
+      try {
+        const date = new Date(dateValue);
+        if (!isNaN(date.getTime())) {
+          combinedData += date.toISOString().split('T')[0];
+        }
+      } catch (e) {
+        // Ignorer
+      }
+    }
+    combinedData += '|' + adresse;
+    
+    // Ajouter le contexte si disponible
+    if (contexte) {
+      combinedData += '|' + contexte;
+    }
+    
+    // Générer un hash unique de 12 caractères
+    const fullHash = this.generateDeterministicHash(combinedData);
+    // Étendre le hash à 12 caractères en combinant avec un second hash
+    const secondHash = this.generateDeterministicHash(combinedData + fullHash);
+    const hash12chars = (fullHash + secondHash).substring(0, 12);
+    
+    // Format: AUTO-{12 caractères}
+    return `AUTO-${hash12chars}`;
   }
 
   /**
