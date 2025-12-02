@@ -7,7 +7,7 @@
 -- ========================================
 
 CREATE TABLE IF NOT EXISTS public.user_preferences (
-  id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id uuid REFERENCES public.users(id) ON DELETE CASCADE NOT NULL UNIQUE,
   speedometer_margin_average_show_percentage boolean DEFAULT true,
   speedometer_margin_total_show_percentage boolean DEFAULT true,
