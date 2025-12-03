@@ -13,6 +13,7 @@ type Params = {
 interface SendEmailRequest {
   type: 'devis' | 'intervention';
   artisanId: string;
+  artisanEmail?: string; // Email passé directement depuis le frontend (pour artisan non encore sauvegardé)
   subject: string;
   htmlContent: string;
   attachments?: Array<{
@@ -68,42 +69,10 @@ export async function POST(request: Request, { params }: Params) {
       return NextResponse.json({ error: 'Contenu HTML requis' }, { status: 400 });
     }
 
-    // Fetch intervention with related data
+    // Fetch intervention (only to verify it exists)
     const { data: intervention, error: interventionError } = await supabase
       .from('interventions')
-      .select(`
-        id,
-        id_inter,
-        adresse,
-        code_postal,
-        ville,
-        consigne_intervention,
-        consigne_second_artisan,
-        tenants (
-          id,
-          firstname,
-          lastname,
-          telephone,
-          telephone2,
-          adresse,
-          ville,
-          code_postal
-        ),
-        intervention_artisans (
-          artisan_id,
-          is_primary,
-          artisans (
-            id,
-            email
-          )
-        ),
-        intervention_costs (
-          id,
-          cost_type,
-          amount,
-          currency
-        )
-      `)
+      .select('id, id_inter')
       .eq('id', interventionId)
       .single();
 
@@ -111,20 +80,26 @@ export async function POST(request: Request, { params }: Params) {
       return NextResponse.json({ error: 'Intervention introuvable' }, { status: 404 });
     }
 
-    // Find the artisan
-    const interventionArtisans = intervention.intervention_artisans || [];
-    const selectedArtisan = interventionArtisans.find(
-      (ia: any) => ia.artisan_id === body.artisanId
-    );
+    // Determine artisan email - prioritize email from frontend (for unsaved artisan selection)
+    let artisanEmail = body.artisanEmail?.trim() || '';
 
-    if (!selectedArtisan) {
-      return NextResponse.json({ error: 'Artisan non trouvé pour cette intervention' }, { status: 404 });
+    // If no email provided in request, fetch from artisans table directly
+    if (!artisanEmail) {
+      const { data: artisanData, error: artisanError } = await supabase
+        .from('artisans')
+        .select('id, email')
+        .eq('id', body.artisanId)
+        .single();
+
+      if (artisanError || !artisanData) {
+        return NextResponse.json({ error: 'Artisan non trouvé' }, { status: 404 });
+      }
+
+      artisanEmail = artisanData.email?.trim() || '';
     }
 
-    // artisans is an array from Supabase relation
-    const artisans = selectedArtisan.artisans || [];
-    const artisan = Array.isArray(artisans) ? artisans[0] : artisans;
-    if (!artisan || !artisan.email || artisan.email.trim().length === 0) {
+    // Validate artisan email
+    if (!artisanEmail || artisanEmail.length === 0) {
       return NextResponse.json(
         { error: "L'artisan sélectionné n'a pas d'email valide" },
         { status: 400 }
@@ -233,7 +208,7 @@ export async function POST(request: Request, { params }: Params) {
     // Send email
     const emailResult = await sendEmailToArtisan({
       type: body.type,
-      artisanEmail: artisan.email,
+      artisanEmail,
       subject: body.subject,
       htmlContent: body.htmlContent,
       smtpEmail: user.email_smtp,
@@ -247,7 +222,7 @@ export async function POST(request: Request, { params }: Params) {
       intervention_id: interventionId,
       artisan_id: body.artisanId,
       sent_by: userId,
-      recipient_email: artisan.email,
+      recipient_email: artisanEmail,
       subject: body.subject,
       message_html: body.htmlContent,
       email_type: body.type,
