@@ -131,14 +131,51 @@ export async function POST(request: Request, { params }: Params) {
       );
     }
 
-    // Fetch user email credentials
-    const { data: user, error: userError } = await supabase
-      .from('users')
-      .select('email_smtp, email_password_encrypted')
-      .eq('id', userId)
-      .single();
+    // Fetch user email credentials via auth_user_mapping
+    let user: { email_smtp: string | null; email_password_encrypted: string | null } | null = null;
+    const authEmail = auth?.user?.email;
+    
+    console.log('[send-email] Looking for user credentials, authUserId:', userId, 'authEmail:', authEmail);
+    
+    // 1. Chercher via le mapping
+    const { data: mapping, error: mappingError } = await supabase
+      .from('auth_user_mapping')
+      .select('public_user_id')
+      .eq('auth_user_id', userId)
+      .maybeSingle();
+    
+    console.log('[send-email] Mapping result:', mapping?.public_user_id, 'error:', mappingError?.message);
+    
+    if (mapping?.public_user_id) {
+      const { data: userData, error: userError } = await supabase
+        .from('users')
+        .select('email_smtp, email_password_encrypted')
+        .eq('id', mapping.public_user_id)
+        .single();
+      
+      console.log('[send-email] User by mapping:', userData?.email_smtp ? 'found' : 'not found', 'error:', userError?.message);
+      
+      if (!userError) {
+        user = userData;
+      }
+    }
+    
+    // 2. Fallback: chercher par email
+    if (!user && authEmail) {
+      console.log('[send-email] Trying email fallback:', authEmail);
+      const { data: userData, error: emailError } = await supabase
+        .from('users')
+        .select('email_smtp, email_password_encrypted')
+        .eq('email', authEmail)
+        .maybeSingle();
+      
+      console.log('[send-email] User by email:', userData?.email_smtp ? 'found' : 'not found', 'error:', emailError?.message);
+      
+      user = userData;
+    }
 
-    if (userError || !user) {
+    if (!user) {
+      console.log('[send-email] User not found! authUserId:', userId, 'authEmail:', authEmail);
       return NextResponse.json({ error: 'Utilisateur non trouvé' }, { status: 404 });
     }
 
