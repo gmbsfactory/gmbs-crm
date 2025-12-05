@@ -472,18 +472,8 @@ export function InterventionStatsPieChart({ period }: InterventionStatsPieChartP
       }
     }, [statusLabel, cacheKey, period])
 
-    useEffect(() => {
-      const cleanup = setInterval(() => {
-        const now = Date.now()
-        for (const [key, entry] of Array.from(interventionsCacheRef.current.entries())) {
-          if (now - entry.timestamp > CACHE_DURATION) {
-            interventionsCacheRef.current.delete(key)
-          }
-        }
-      }, CACHE_DURATION)
-
-      return () => clearInterval(cleanup)
-    }, [])
+    // 🚀 OPTIMISATION: Supprimé le setInterval de cleanup cache (redondant)
+    // Le cache expire naturellement via la vérification isCacheValid lors du chargement
 
     if (loading) {
       return (

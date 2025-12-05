@@ -47,8 +47,8 @@ export function RemoteEditBadge({ interventionId, className }: RemoteEditBadgePr
     // Vérifier immédiatement
     checkIndicator()
 
-    // Vérifier périodiquement (toutes les 500ms) pour détecter les nouveaux indicateurs
-    const interval = setInterval(checkIndicator, 500)
+    // 🚀 OPTIMISATION: Vérifier toutes les 2000ms au lieu de 500ms (réduit charge CPU de 75%)
+    const interval = setInterval(checkIndicator, 2000)
 
     return () => {
       clearInterval(interval)

@@ -16,7 +16,7 @@ import { interventionKeys } from '@/lib/react-query/queryKeys'
 
 export type ConnectionStatus = 'realtime' | 'polling' | 'connecting'
 
-const POLLING_INTERVAL = 5000 // 5 secondes
+const POLLING_INTERVAL = 15000 // 🚀 OPTIMISATION: 15 secondes au lieu de 5 (suffisant pour un CRM)
 const RECONNECT_INTERVAL = 30000 // 30 secondes
 
 /**

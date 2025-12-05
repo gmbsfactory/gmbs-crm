@@ -707,19 +707,8 @@ export function InterventionStatsBarChart({ period, userId: propUserId }: Interv
       }
     }, [statusLabel, cacheKey, period])
 
-    // Nettoyer le cache périodiquement (optionnel, pour éviter la croissance mémoire)
-    useEffect(() => {
-      const cleanup = setInterval(() => {
-        const now = Date.now()
-        for (const [key, entry] of Array.from(interventionsCacheRef.current.entries())) {
-          if (now - entry.timestamp > CACHE_DURATION) {
-            interventionsCacheRef.current.delete(key)
-          }
-        }
-      }, CACHE_DURATION)
-
-      return () => clearInterval(cleanup)
-    }, [])
+    // 🚀 OPTIMISATION: Supprimé le setInterval de cleanup cache (redondant)
+    // Le cache expire naturellement via la vérification isCacheValid lors du chargement
 
     if (loading) {
       return (
