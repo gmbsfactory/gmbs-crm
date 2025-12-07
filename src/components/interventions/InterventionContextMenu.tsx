@@ -12,6 +12,7 @@ import {
   CheckCircle,
   Copy,
   UserCheck,
+  Trash2,
 } from "lucide-react"
 import { useInterventionContextMenu } from "@/hooks/useInterventionContextMenu"
 import type { InterventionView } from "@/types/intervention-view"
@@ -35,6 +36,7 @@ export function InterventionContextMenuContent({
     assignToMe,
     transitionToDevisEnvoye,
     transitionToAccepte,
+    deleteIntervention,
     isLoading,
   } = useInterventionContextMenu(intervention.id, viewType, intervention.id_inter || undefined)
 
@@ -53,6 +55,15 @@ export function InterventionContextMenuContent({
 
   const handleOpenInNewTab = () => {
     onOpenInNewTab?.()
+  }
+
+  const handleDelete = () => {
+    const confirmed = window.confirm(
+      "Cette action est destructive. Êtes-vous sûr de vouloir supprimer l'intervention ?"
+    )
+    if (confirmed) {
+      deleteIntervention()
+    }
   }
 
   return (
@@ -118,6 +129,19 @@ export function InterventionContextMenuContent({
       >
         <Copy className="mr-2 h-4 w-4" />
         Devis supp
+      </ContextMenuItem>
+
+      {/* Séparateur avant la suppression */}
+      <ContextMenuSeparator />
+
+      {/* Suppression */}
+      <ContextMenuItem
+        onSelect={handleDelete}
+        disabled={isLoading.delete}
+        className="text-destructive focus:text-destructive"
+      >
+        <Trash2 className="mr-2 h-4 w-4" />
+        Supprimer
       </ContextMenuItem>
     </ContextMenuContent>
   )

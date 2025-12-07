@@ -8,6 +8,7 @@ import { useModal } from "@/hooks/useModal"
 import { interventionKeys } from "@/lib/react-query/queryKeys"
 import { transitionStatus } from "@/lib/api/interventions"
 import { supabase } from "@/lib/supabase-client"
+import { interventionsApi } from "@/lib/api/v2/interventionsApi"
 import type { InterventionStatusValue } from "@/types/interventions"
 import type { ContextMenuViewType } from "@/types/context-menu"
 
@@ -496,16 +497,40 @@ export function useInterventionContextMenu(interventionId: string, viewType?: Co
     },
   })
 
+  // Mutation pour supprimer une intervention
+  const deleteInterventionMutation = useMutation({
+    mutationFn: async () => {
+      return await interventionsApi.delete(interventionId)
+    },
+    onSuccess: () => {
+      // Invalider toutes les listes d'interventions
+      invalidateLists()
+      // Invalider les résumés
+      queryClient.invalidateQueries({ queryKey: interventionKeys.summaries() })
+      // Invalider le détail de l'intervention supprimée
+      queryClient.invalidateQueries({ queryKey: interventionKeys.detail(interventionId) })
+
+      toast.success("Intervention supprimée avec succès")
+    },
+    onError: (error: Error) => {
+      toast.error("Erreur lors de la suppression de l'intervention", {
+        description: error.message || "Une erreur est survenue lors de la suppression.",
+      })
+    },
+  })
+
   return {
     duplicateDevisSupp,
     assignToMe: assignToMeMutation.mutate,
     transitionToDevisEnvoye: transitionToDevisEnvoyeMutation.mutate,
     transitionToAccepte: transitionToAccepteMutation.mutate,
+    deleteIntervention: deleteInterventionMutation.mutate,
     isLoading: {
       duplicate: false, // Plus de mutation, donc toujours false
       assign: assignToMeMutation.isPending,
       transitionDevisEnvoye: transitionToDevisEnvoyeMutation.isPending,
       transitionAccepte: transitionToAccepteMutation.isPending,
+      delete: deleteInterventionMutation.isPending,
     },
     viewType,
   }
