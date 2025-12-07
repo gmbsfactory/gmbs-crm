@@ -13,6 +13,7 @@ import TimelineView from "@/components/interventions/views/TimelineView"
 import { ViewTabs } from "@/components/interventions/views/ViewTabs"
 import ColumnConfigurationModal from "@/components/interventions/views/ColumnConfigurationModal"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import Loader from "@/components/ui/Loader"
 import {
   DropdownMenu,
@@ -37,6 +38,7 @@ import {
   MoreHorizontal,
   Palette,
   Plus,
+  Search,
   Settings,
   SquareStack,
   Table,
@@ -288,22 +290,37 @@ function PageContent() {
 
   // Convertir les filtres de la vue active en filtres serveur
   const { serverFilters, clientFilters } = useMemo(() => {
-    if (!activeView || !activeView.filters.length) {
-      return { serverFilters: undefined, clientFilters: [] }
+    const baseFilters = activeView && activeView.filters.length > 0
+      ? convertViewFiltersToServerFilters(activeView.filters, {
+          statusCodeToId: (code) => {
+            const result = statusCodeToId(code)
+            return result
+          },
+          userCodeToId: (code) => {
+            const result = userCodeToId(code)
+            return result
+          },
+          currentUserId: currentUserId,
+        })
+      : { serverFilters: undefined, clientFilters: [] }
+
+    const combinedServerFilters: Partial<GetAllParams> = {
+      ...(baseFilters.serverFilters ?? {}),
     }
 
-    return convertViewFiltersToServerFilters(activeView.filters, {
-      statusCodeToId: (code) => {
-        const result = statusCodeToId(code)
-        return result
-      },
-      userCodeToId: (code) => {
-        const result = userCodeToId(code)
-        return result
-      },
-      currentUserId: currentUserId,
-    })
-  }, [activeView, statusCodeToId, userCodeToId, currentUserId])
+    // Ajouter le paramètre de recherche si présent
+    const normalizedSearch = search.trim()
+    if (normalizedSearch) {
+      combinedServerFilters.search = normalizedSearch
+    }
+
+    const hasServerFilters = Object.keys(combinedServerFilters).length > 0
+
+    return {
+      serverFilters: hasServerFilters ? combinedServerFilters : undefined,
+      clientFilters: baseFilters.clientFilters,
+    }
+  }, [activeView, statusCodeToId, userCodeToId, currentUserId, search])
 
   // Créer une signature stable de serverFilters pour éviter les re-renders inutiles
   // Cette signature ne change que lorsque les valeurs réelles des filtres changent
@@ -415,7 +432,7 @@ function PageContent() {
   // causées par la recréation de l'objet à chaque rendu
   useEffect(() => {
     setPage(1)
-  }, [serverFiltersSignature, activeViewId])
+  }, [serverFiltersSignature, activeViewId, search])
 
   // Détecter le changement de vue pour afficher le loading même avec des données existantes
   const previousViewIdRef = useRef<string | undefined>(undefined)
@@ -471,22 +488,6 @@ function PageContent() {
     // Appliquer uniquement les filtres client (isCheck, etc.)
     return runQuery(normalizedInterventions, clientFilters, activeView.sorts)
   }, [activeView, normalizedInterventions, clientFilters])
-
-  const searchedInterventions = useMemo(() => {
-    const term = search.trim().toLowerCase()
-    if (!term) return filteredInterventions
-    return filteredInterventions.filter((intervention) => {
-      const haystack = [
-        intervention.contexteIntervention,
-        intervention.nomClient,
-        intervention.prenomClient,
-        intervention.commentaireAgent,
-      ]
-        .map((value) => (value || "").toLowerCase())
-        .join(" ")
-      return haystack.includes(term)
-    })
-  }, [search, filteredInterventions])
 
   const loadDistinctValues = useCallback(async (property: string) => {
     try {
@@ -735,7 +736,7 @@ function PageContent() {
     return Array.from(s)
   }, [filteredInterventions])
 
-  const viewInterventions = searchedInterventions
+  const viewInterventions = filteredInterventions
   
   // Log pour debug
   useEffect(() => {
@@ -1180,12 +1181,24 @@ function PageContent() {
               />
             </div>
             {!isReorderMode && (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm" className="shrink-0">
-                  <MoreHorizontal className="h-4 w-4 mr-2" /> Plus
-                </Button>
-              </DropdownMenuTrigger>
+            <div className="flex items-center gap-3">
+              {/* Barre de recherche */}
+              <div className="relative flex-1 max-w-md">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 transform text-muted-foreground" />
+                <Input
+                  placeholder="Rechercher interventions..."
+                  className="pl-10"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                />
+              </div>
+
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm" className="shrink-0">
+                    <MoreHorizontal className="h-4 w-4 mr-2" /> Plus
+                  </Button>
+                </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-80 max-h-[80vh] overflow-y-auto">
                 <div className="px-2 py-1.5">
                   <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
@@ -1556,6 +1569,7 @@ function PageContent() {
                 )}
               </DropdownMenuContent>
             </DropdownMenu>
+            </div>
           )}
         </div>
       </div>

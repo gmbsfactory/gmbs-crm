@@ -404,7 +404,46 @@ const buildSelectClause = (extraSelect: string | null, include: string[]): strin
   return `${baseSelect},${selectFragments.join(',')}`;
 };
 
-const applyFilters = <T extends { in: Function; eq: Function; gte: Function; lte: Function; ilike: Function; is: Function }>(
+// Constante pour les champs de recherche (même que dans search.ts)
+// ⚠️ IMPORTANT: Maintenir cette liste synchronisée avec src/lib/api/v2/search.ts
+const INTERVENTION_SEARCH_FIELDS = [
+  'id_inter',
+  'contexte_intervention',
+  'adresse',
+  'ville',
+  'code_postal',
+  'commentaire_agent',
+  'consigne_intervention',
+] as const;
+
+// Fonction utilitaire pour échapper les caractères spéciaux pour ilike
+const escapeIlike = (value: string): string => {
+  return value.replace(/[%_]/g, (match) => `\\${match}`);
+};
+
+// Fonction pour construire les filtres de recherche avec .or()
+// Utilise la même logique que searchInterventions dans src/lib/api/v2/search.ts
+const buildSearchOrFilters = (searchTerm: string): string => {
+  const trimmed = searchTerm.trim();
+  if (!trimmed) {
+    return '';
+  }
+
+  const pattern = escapeIlike(trimmed);
+  if (!pattern || pattern.length === 0) {
+    return '';
+  }
+
+  // Construire les filtres au format PostgREST: "column.operator.pattern"
+  const orFilters = INTERVENTION_SEARCH_FIELDS.map(
+    (field) => `${field}.ilike.*${pattern}*`
+  );
+
+  // PostgREST requiert des filtres séparés par des virgules
+  return orFilters.join(',');
+};
+
+const applyFilters = <T extends { in: Function; eq: Function; gte: Function; lte: Function; ilike: Function; is: Function; or: Function }>(
   query: T,
   filters: FilterParams,
 ) => {
@@ -437,7 +476,11 @@ const applyFilters = <T extends { in: Function; eq: Function; gte: Function; lte
   }
 
   if (filters.search) {
-    builder = builder.ilike('contexte_intervention', `%${filters.search}%`);
+    // Utiliser .or() pour rechercher dans plusieurs champs (même logique que search.ts)
+    const orFilterString = buildSearchOrFilters(filters.search);
+    if (orFilterString) {
+      builder = builder.or(orFilterString);
+    }
   }
 
   return builder;

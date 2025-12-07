@@ -31,12 +31,7 @@ export const metadata: Metadata = {
   generator: 'v0.app'
 }
 
-export const viewport = {
-  width: 'device-width',
-  initialScale: 0.9,
-  maximumScale: 5,
-  userScalable: true,
-}
+// Viewport configuration moved to inline meta tag in head for better compatibility
 
 export default async function RootLayout({
   children,
@@ -48,6 +43,7 @@ export default async function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
+        <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=5, user-scalable=yes" />
         {/* Pré-applique le thème avant l'hydratation pour éviter le flash */}
         <script
           dangerouslySetInnerHTML={{
