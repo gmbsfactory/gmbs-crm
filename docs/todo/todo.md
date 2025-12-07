@@ -8,6 +8,8 @@
         - mettre dans le cache les infos des menus hover dès le chargement
                 si ce n'est pas déjà fait
 
+        - Mes Artisans -- 82 pour développement admin ? d'où ça vient ? 
+
 - Dashboard admin
         - Espace tableau à bien formatter
         - Multi sélection sur les filtres au lieu de sélection unique 

@@ -100,3 +100,4 @@ export function TruncatedCell({ content, className, maxWidth = "300px" }: Trunca
   )
 }
 
+

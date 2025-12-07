@@ -27,25 +27,44 @@ export async function GET(req: Request) {
 
     let record: any = null
     let queryError: any = null
+    const userSelect = 'id, firstname, lastname, email, status, color, code_gestionnaire, username, last_seen_at, email_smtp'
 
+    // 1. D'abord, chercher via la table de mapping auth_user_mapping
     if (userId) {
-      const byId = await supabase
-        .from('users')
-        .select('id, firstname, lastname, email, status, color, code_gestionnaire, username, last_seen_at, email_smtp')
-        .eq('id', userId)
+      const { data: mapping } = await supabase
+        .from('auth_user_mapping')
+        .select('public_user_id')
+        .eq('auth_user_id', userId)
         .maybeSingle()
-      record = byId.data
-      queryError = byId.error
+      
+      if (mapping?.public_user_id) {
+        const byMapping = await supabase
+          .from('users')
+          .select(userSelect)
+          .eq('id', mapping.public_user_id)
+          .maybeSingle()
+        record = byMapping.data
+        queryError = byMapping.error
+      }
     }
 
+    // 2. Fallback: chercher par email si pas de mapping
     if ((!record || queryError) && userEmail) {
       const fallback = await supabase
         .from('users')
-        .select('id, firstname, lastname, email, status, color, code_gestionnaire, username, last_seen_at, email_smtp')
+        .select(userSelect)
         .eq('email', userEmail)
         .maybeSingle()
       record = fallback.data
       queryError = fallback.error
+      
+      // Si trouvé par email et qu'on a un userId, créer le mapping pour la prochaine fois
+      if (record && !queryError && userId) {
+        await supabase
+          .from('auth_user_mapping')
+          .insert({ auth_user_id: userId, public_user_id: record.id })
+          .single()
+      }
     }
 
     if (queryError && queryError.code !== 'PGRST116') {

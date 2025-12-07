@@ -53,7 +53,14 @@ export function createInterventionsChannel(
     if (status === 'SUBSCRIBED') {
       console.log('[Realtime] ✅ Channel souscrit avec succès')
     } else if (status === 'CHANNEL_ERROR') {
-      console.error('[Realtime] ❌ Erreur de channel')
+      // Log en warning car le fallback vers polling est géré par le hook
+      // Les détails de l'erreur seront capturés par le gestionnaire 'error' ci-dessous
+      console.warn('[Realtime] ⚠️ Erreur de channel Realtime', {
+        status,
+        channel: CHANNEL_NAME,
+        table: 'interventions',
+        hint: 'Vérifiez que Realtime est activé dans Supabase et que la table est dans la publication supabase_realtime. Le système basculera automatiquement vers le polling.'
+      })
     } else if (status === 'TIMED_OUT') {
       console.warn('[Realtime] ⚠️ Timeout de souscription')
     } else if (status === 'CLOSED') {
@@ -63,7 +70,11 @@ export function createInterventionsChannel(
 
   // Gestion des erreurs de connexion
   channel.on('error' as any, {}, (error: any) => {
-    console.error('[Realtime] Erreur de connexion:', error)
+    console.error('[Realtime] Erreur de connexion:', {
+      error,
+      message: error?.message || 'Erreur inconnue',
+      channel: CHANNEL_NAME
+    })
     // Le basculement vers polling sera géré par le hook
   })
 

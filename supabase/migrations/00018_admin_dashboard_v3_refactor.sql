@@ -815,8 +815,6 @@ BEGIN
     FROM base_interventions bi
     LEFT JOIN intervention_status_transitions ist
       ON ist.intervention_id = bi.intervention_id
-      AND ist.transition_date >= p_period_start
-      AND ist.transition_date <= p_period_end
       AND ist.to_status_code IN ('DEMANDE', 'DEVIS_ENVOYE', 'ACCEPTE', 'INTER_EN_COURS', 'INTER_TERMINEE')
     LEFT JOIN status_ranks sr ON sr.status_code = ist.to_status_code
     GROUP BY bi.intervention_id

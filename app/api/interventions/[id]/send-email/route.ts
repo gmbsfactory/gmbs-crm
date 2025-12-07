@@ -13,6 +13,7 @@ type Params = {
 interface SendEmailRequest {
   type: 'devis' | 'intervention';
   artisanId: string;
+  artisanEmail?: string; // Email passé directement depuis le frontend (pour artisan non encore sauvegardé)
   subject: string;
   htmlContent: string;
   attachments?: Array<{
@@ -68,42 +69,10 @@ export async function POST(request: Request, { params }: Params) {
       return NextResponse.json({ error: 'Contenu HTML requis' }, { status: 400 });
     }
 
-    // Fetch intervention with related data
+    // Fetch intervention (only to verify it exists)
     const { data: intervention, error: interventionError } = await supabase
       .from('interventions')
-      .select(`
-        id,
-        id_inter,
-        adresse,
-        code_postal,
-        ville,
-        consigne_intervention,
-        consigne_second_artisan,
-        tenants (
-          id,
-          firstname,
-          lastname,
-          telephone,
-          telephone2,
-          adresse,
-          ville,
-          code_postal
-        ),
-        intervention_artisans (
-          artisan_id,
-          is_primary,
-          artisans (
-            id,
-            email
-          )
-        ),
-        intervention_costs (
-          id,
-          cost_type,
-          amount,
-          currency
-        )
-      `)
+      .select('id, id_inter')
       .eq('id', interventionId)
       .single();
 
@@ -111,34 +80,77 @@ export async function POST(request: Request, { params }: Params) {
       return NextResponse.json({ error: 'Intervention introuvable' }, { status: 404 });
     }
 
-    // Find the artisan
-    const interventionArtisans = intervention.intervention_artisans || [];
-    const selectedArtisan = interventionArtisans.find(
-      (ia: any) => ia.artisan_id === body.artisanId
-    );
+    // Determine artisan email - prioritize email from frontend (for unsaved artisan selection)
+    let artisanEmail = body.artisanEmail?.trim() || '';
 
-    if (!selectedArtisan) {
-      return NextResponse.json({ error: 'Artisan non trouvé pour cette intervention' }, { status: 404 });
+    // If no email provided in request, fetch from artisans table directly
+    if (!artisanEmail) {
+      const { data: artisanData, error: artisanError } = await supabase
+        .from('artisans')
+        .select('id, email')
+        .eq('id', body.artisanId)
+        .single();
+
+      if (artisanError || !artisanData) {
+        return NextResponse.json({ error: 'Artisan non trouvé' }, { status: 404 });
+      }
+
+      artisanEmail = artisanData.email?.trim() || '';
     }
 
-    // artisans is an array from Supabase relation
-    const artisans = selectedArtisan.artisans || [];
-    const artisan = Array.isArray(artisans) ? artisans[0] : artisans;
-    if (!artisan || !artisan.email || artisan.email.trim().length === 0) {
+    // Validate artisan email
+    if (!artisanEmail || artisanEmail.length === 0) {
       return NextResponse.json(
         { error: "L'artisan sélectionné n'a pas d'email valide" },
         { status: 400 }
       );
     }
 
-    // Fetch user email credentials
-    const { data: user, error: userError } = await supabase
-      .from('users')
-      .select('email_smtp, email_password_encrypted')
-      .eq('id', userId)
-      .single();
+    // Fetch user email credentials via auth_user_mapping
+    let user: { email_smtp: string | null; email_password_encrypted: string | null } | null = null;
+    const authEmail = auth?.user?.email;
+    
+    console.log('[send-email] Looking for user credentials, authUserId:', userId, 'authEmail:', authEmail);
+    
+    // 1. Chercher via le mapping
+    const { data: mapping, error: mappingError } = await supabase
+      .from('auth_user_mapping')
+      .select('public_user_id')
+      .eq('auth_user_id', userId)
+      .maybeSingle();
+    
+    console.log('[send-email] Mapping result:', mapping?.public_user_id, 'error:', mappingError?.message);
+    
+    if (mapping?.public_user_id) {
+      const { data: userData, error: userError } = await supabase
+        .from('users')
+        .select('email_smtp, email_password_encrypted')
+        .eq('id', mapping.public_user_id)
+        .single();
+      
+      console.log('[send-email] User by mapping:', userData?.email_smtp ? 'found' : 'not found', 'error:', userError?.message);
+      
+      if (!userError) {
+        user = userData;
+      }
+    }
+    
+    // 2. Fallback: chercher par email
+    if (!user && authEmail) {
+      console.log('[send-email] Trying email fallback:', authEmail);
+      const { data: userData, error: emailError } = await supabase
+        .from('users')
+        .select('email_smtp, email_password_encrypted')
+        .eq('email', authEmail)
+        .maybeSingle();
+      
+      console.log('[send-email] User by email:', userData?.email_smtp ? 'found' : 'not found', 'error:', emailError?.message);
+      
+      user = userData;
+    }
 
-    if (userError || !user) {
+    if (!user) {
+      console.log('[send-email] User not found! authUserId:', userId, 'authEmail:', authEmail);
       return NextResponse.json({ error: 'Utilisateur non trouvé' }, { status: 404 });
     }
 
@@ -196,7 +208,7 @@ export async function POST(request: Request, { params }: Params) {
     // Send email
     const emailResult = await sendEmailToArtisan({
       type: body.type,
-      artisanEmail: artisan.email,
+      artisanEmail,
       subject: body.subject,
       htmlContent: body.htmlContent,
       smtpEmail: user.email_smtp,
@@ -210,7 +222,7 @@ export async function POST(request: Request, { params }: Params) {
       intervention_id: interventionId,
       artisan_id: body.artisanId,
       sent_by: userId,
-      recipient_email: artisan.email,
+      recipient_email: artisanEmail,
       subject: body.subject,
       message_html: body.htmlContent,
       email_type: body.type,
