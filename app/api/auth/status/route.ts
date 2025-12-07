@@ -30,12 +30,22 @@ export async function PATCH(req: Request) {
   let profile: { id: string } | null = null
   let profileError: any = null
 
+  // 1. Chercher via le mapping auth_user_mapping
   if (userId) {
-    const byId = await supabase.from('users').select('id').eq('id', userId).maybeSingle()
-    profile = byId.data
-    profileError = byId.error
+    const { data: mapping } = await supabase
+      .from('auth_user_mapping')
+      .select('public_user_id')
+      .eq('auth_user_id', userId)
+      .maybeSingle()
+    
+    if (mapping?.public_user_id) {
+      const byMapping = await supabase.from('users').select('id').eq('id', mapping.public_user_id).maybeSingle()
+      profile = byMapping.data
+      profileError = byMapping.error
+    }
   }
 
+  // 2. Fallback: chercher par email
   if ((!profile || profileError) && userEmail) {
     const byEmail = await supabase.from('users').select('id').eq('email', userEmail).maybeSingle()
     profile = byEmail.data

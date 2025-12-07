@@ -100,6 +100,188 @@ interface CreateAttachmentRequest {
   file_size?: number;
 }
 
+// ===== GEOCODING FUNCTIONS =====
+// Similar logic to scripts/geocode-artisans.ts
+
+interface GeocodeResult {
+  lat: number;
+  lng: number;
+  provider: 'opencage' | 'nominatim';
+}
+
+/**
+ * Build address candidates from artisan data
+ * Prioritizes intervention address, falls back to headquarters address
+ */
+function buildAddressCandidates(artisan: {
+  adresse_intervention?: string;
+  code_postal_intervention?: string;
+  ville_intervention?: string;
+  adresse_siege_social?: string;
+  code_postal_siege_social?: string;
+  ville_siege_social?: string;
+}): string[] {
+  const candidates: string[] = [];
+
+  const interventionParts = [
+    artisan.adresse_intervention,
+    artisan.code_postal_intervention,
+    artisan.ville_intervention,
+  ]
+    .filter(Boolean)
+    .map((value) => value?.trim());
+
+  if (interventionParts.length >= 2) {
+    candidates.push(interventionParts.join(', '));
+  }
+
+  const hqParts = [
+    artisan.adresse_siege_social,
+    artisan.code_postal_siege_social,
+    artisan.ville_siege_social,
+  ]
+    .filter(Boolean)
+    .map((value) => value?.trim());
+
+  if (hqParts.length >= 2) {
+    const formatted = hqParts.join(', ');
+    if (!candidates.includes(formatted)) {
+      candidates.push(formatted);
+    }
+  }
+
+  return candidates;
+}
+
+/**
+ * Geocode using OpenCage API (primary provider)
+ */
+async function geocodeWithOpenCage(address: string): Promise<GeocodeResult | null> {
+  const apiKey = Deno.env.get('OPENCAGE_API_KEY');
+  if (!apiKey) {
+    return null;
+  }
+
+  try {
+    const endpoint = new URL('https://api.opencagedata.com/geocode/v1/json');
+    endpoint.searchParams.set('q', address);
+    endpoint.searchParams.set('key', apiKey);
+    endpoint.searchParams.set('limit', '1');
+    endpoint.searchParams.set('language', 'fr');
+    endpoint.searchParams.set('no_annotations', '1');
+
+    const response = await fetch(endpoint.toString(), {
+      headers: { 'Accept': 'application/json' },
+    });
+
+    if (!response.ok) {
+      console.warn(`[geocode] OpenCage failed (${response.status})`);
+      return null;
+    }
+
+    const payload = await response.json();
+    const match = payload.results?.[0]?.geometry;
+    if (!match || match.lat == null || match.lng == null) {
+      return null;
+    }
+
+    return { lat: match.lat, lng: match.lng, provider: 'opencage' };
+  } catch (error) {
+    console.warn(`[geocode] OpenCage error: ${error.message}`);
+    return null;
+  }
+}
+
+/**
+ * Geocode using Nominatim API (fallback provider)
+ */
+async function geocodeWithNominatim(address: string): Promise<GeocodeResult | null> {
+  try {
+    const endpoint = new URL('https://nominatim.openstreetmap.org/search');
+    endpoint.searchParams.set('q', address);
+    endpoint.searchParams.set('format', 'json');
+    endpoint.searchParams.set('limit', '1');
+    endpoint.searchParams.set('addressdetails', '0');
+
+    const response = await fetch(endpoint.toString(), {
+      headers: {
+        'User-Agent': 'gmbs-crm-artisans-api/1.0 (contact@webcraft.fr)',
+        'Accept': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      console.warn(`[geocode] Nominatim failed (${response.status})`);
+      return null;
+    }
+
+    const payload = await response.json();
+    const match = payload[0];
+    if (!match?.lat || !match?.lon) {
+      return null;
+    }
+
+    return {
+      lat: parseFloat(match.lat),
+      lng: parseFloat(match.lon),
+      provider: 'nominatim',
+    };
+  } catch (error) {
+    console.warn(`[geocode] Nominatim error: ${error.message}`);
+    return null;
+  }
+}
+
+/**
+ * Geocode an address using OpenCage with Nominatim fallback
+ */
+async function geocodeAddress(address: string): Promise<GeocodeResult | null> {
+  const trimmed = address.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  // Try OpenCage first (if API key available)
+  const withOpenCage = await geocodeWithOpenCage(trimmed);
+  if (withOpenCage) {
+    return withOpenCage;
+  }
+
+  // Fallback to Nominatim
+  return geocodeWithNominatim(trimmed);
+}
+
+/**
+ * Geocode an artisan based on their address data
+ * Returns coordinates if successful, null otherwise
+ */
+async function geocodeArtisan(artisan: {
+  adresse_intervention?: string;
+  code_postal_intervention?: string;
+  ville_intervention?: string;
+  adresse_siege_social?: string;
+  code_postal_siege_social?: string;
+  ville_siege_social?: string;
+}): Promise<GeocodeResult | null> {
+  const candidates = buildAddressCandidates(artisan);
+
+  if (candidates.length === 0) {
+    console.log('[geocode] No address available for geocoding');
+    return null;
+  }
+
+  for (const candidate of candidates) {
+    const result = await geocodeAddress(candidate);
+    if (result) {
+      console.log(`[geocode] Success: ${result.lat.toFixed(6)}, ${result.lng.toFixed(6)} (${result.provider})`);
+      return result;
+    }
+  }
+
+  console.log('[geocode] No match found for any address candidate');
+  return null;
+}
+
 serve(async (req: Request) => {
   // Handle CORS preflight requests FIRST, before any other code
   // This MUST be the very first statement to ensure OPTIONS always returns 200
@@ -528,6 +710,49 @@ serve(async (req: Request) => {
           }
         }
 
+        // ===== GEOCODING AUTOMATIQUE (UPSERT - CREATION) =====
+        // Géocoder automatiquement si l'artisan a une adresse et pas de coordonnées fournies
+        let finalArtisan = artisan;
+        if (!body.intervention_latitude && !body.intervention_longitude) {
+          const geocodeResult = await geocodeArtisan({
+            adresse_intervention: body.adresse_intervention,
+            code_postal_intervention: body.code_postal_intervention,
+            ville_intervention: body.ville_intervention,
+            adresse_siege_social: body.adresse_siege_social,
+            code_postal_siege_social: body.code_postal_siege_social,
+            ville_siege_social: body.ville_siege_social,
+          });
+
+          if (geocodeResult) {
+            // Mettre à jour l'artisan avec les coordonnées
+            const { data: updatedArtisan, error: updateError } = await supabase
+              .from('artisans')
+              .update({
+                intervention_latitude: geocodeResult.lat,
+                intervention_longitude: geocodeResult.lng,
+              })
+              .eq('id', artisan.id)
+              .select()
+              .single();
+
+            if (updateError) {
+              console.warn(`[geocode] Failed to update artisan coordinates: ${updateError.message}`);
+            } else {
+              finalArtisan = updatedArtisan;
+              console.log(JSON.stringify({
+                level: 'info',
+                requestId,
+                artisanId: artisan.id,
+                latitude: geocodeResult.lat,
+                longitude: geocodeResult.lng,
+                provider: geocodeResult.provider,
+                timestamp: new Date().toISOString(),
+                message: 'Artisan geocoded successfully via upsert'
+              }));
+            }
+          }
+        }
+
         console.log(JSON.stringify({
           level: 'info',
           requestId,
@@ -537,7 +762,7 @@ serve(async (req: Request) => {
         }));
 
         return new Response(
-          JSON.stringify(artisan),
+          JSON.stringify(finalArtisan),
           { status: 201, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
@@ -653,6 +878,49 @@ serve(async (req: Request) => {
         }
       }
 
+      // ===== GEOCODING AUTOMATIQUE =====
+      // Géocoder automatiquement si l'artisan a une adresse et pas de coordonnées fournies
+      let finalArtisan = artisan;
+      if (!body.intervention_latitude && !body.intervention_longitude) {
+        const geocodeResult = await geocodeArtisan({
+          adresse_intervention: body.adresse_intervention,
+          code_postal_intervention: body.code_postal_intervention,
+          ville_intervention: body.ville_intervention,
+          adresse_siege_social: body.adresse_siege_social,
+          code_postal_siege_social: body.code_postal_siege_social,
+          ville_siege_social: body.ville_siege_social,
+        });
+
+        if (geocodeResult) {
+          // Mettre à jour l'artisan avec les coordonnées
+          const { data: updatedArtisan, error: updateError } = await supabase
+            .from('artisans')
+            .update({
+              intervention_latitude: geocodeResult.lat,
+              intervention_longitude: geocodeResult.lng,
+            })
+            .eq('id', artisan.id)
+            .select()
+            .single();
+
+          if (updateError) {
+            console.warn(`[geocode] Failed to update artisan coordinates: ${updateError.message}`);
+          } else {
+            finalArtisan = updatedArtisan;
+            console.log(JSON.stringify({
+              level: 'info',
+              requestId,
+              artisanId: artisan.id,
+              latitude: geocodeResult.lat,
+              longitude: geocodeResult.lng,
+              provider: geocodeResult.provider,
+              timestamp: new Date().toISOString(),
+              message: 'Artisan geocoded successfully'
+            }));
+          }
+        }
+      }
+
       console.log(JSON.stringify({
         level: 'info',
         requestId,
@@ -662,7 +930,7 @@ serve(async (req: Request) => {
       }));
 
       return new Response(
-        JSON.stringify(artisan),
+        JSON.stringify(finalArtisan),
         { status: 201, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }

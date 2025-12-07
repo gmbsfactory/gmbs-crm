@@ -414,7 +414,8 @@ export function RemindersProvider({ children }: { children: ReactNode }) {
       channel?.unsubscribe()
       authListener.subscription.unsubscribe()
     }
-  }, []) // Pas de dépendances pour éviter les re-subscriptions
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []) // Intentionnellement vide - éviter les re-subscriptions au channel Realtime
 
   const toggleReminder = useCallback(
     async (id: string, idInter?: string) => {

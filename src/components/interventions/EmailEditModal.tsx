@@ -312,6 +312,7 @@ export function EmailEditModal({
       }
 
       // Send email with final HTML content
+      // Include artisanEmail to allow sending to artisan not yet saved in intervention
       const response = await fetch(`/api/interventions/${interventionId}/send-email`, {
         method: 'POST',
         headers: {
@@ -321,6 +322,7 @@ export function EmailEditModal({
         body: JSON.stringify({
           type: emailType,
           artisanId,
+          artisanEmail, // Pass email directly for unsaved artisan selection
           subject: subject.trim(),
           htmlContent: finalHtmlContent.trim(),
           attachments: attachmentData,

@@ -4,7 +4,9 @@
  * Geocode artisans based on their intervention or headquarters address.
  *
  * Usage:
- *   npx tsx scripts/geocode-artisans.ts
+ *   npx tsx scripts/geocode-artisans.ts                    # Geocode all artisans without coordinates
+ *   npx tsx scripts/geocode-artisans.ts --email@example.com  # Geocode a single artisan by email
+ *   npx tsx scripts/geocode-artisans.ts --force email@example.com  # Force re-geocode even if already has coordinates
  *
  * Environment variables:
  *   SUPABASE_URL                - Supabase instance URL
@@ -41,6 +43,7 @@ type ArtisanRow = {
   prenom: string | null;
   nom: string | null;
   raison_sociale: string | null;
+  email: string | null;
   adresse_intervention: string | null;
   code_postal_intervention: string | null;
   ville_intervention: string | null;
@@ -50,6 +53,43 @@ type ArtisanRow = {
   intervention_latitude: number | null;
   intervention_longitude: number | null;
 };
+
+// Parse command line arguments
+// Supports: --email@example.com or --force email@example.com
+function parseArgs(): { email: string | null; force: boolean } {
+  const args = process.argv.slice(2);
+  let email: string | null = null;
+  let force = false;
+
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i];
+    
+    // --force flag
+    if (arg === '--force' || arg === '-f') {
+      force = true;
+      // Check if next arg is the email
+      if (args[i + 1] && !args[i + 1].startsWith('-')) {
+        email = args[i + 1];
+        i++;
+      }
+      continue;
+    }
+    
+    // --email@example.com format (email directly after --)
+    if (arg.startsWith('--') && arg.length > 2 && arg.includes('@')) {
+      email = arg.slice(2); // Remove the leading --
+      continue;
+    }
+    
+    // Standalone email argument (after --force)
+    if (arg.includes('@') && !arg.startsWith('-')) {
+      email = arg;
+      continue;
+    }
+  }
+
+  return { email, force };
+}
 
 type GeocodeResult = {
   lat: number;
@@ -258,25 +298,44 @@ async function geocodeAddress(address: string): Promise<GeocodeResult | null> {
   return geocodeWithNominatim(trimmed);
 }
 
+const ARTISAN_SELECT_FIELDS = [
+  "id",
+  "prenom",
+  "nom",
+  "raison_sociale",
+  "email",
+  "adresse_intervention",
+  "code_postal_intervention",
+  "ville_intervention",
+  "adresse_siege_social",
+  "code_postal_siege_social",
+  "ville_siege_social",
+  "intervention_latitude",
+  "intervention_longitude",
+].join(", ");
+
+async function fetchArtisanByEmail(email: string): Promise<ArtisanRow | null> {
+  const { data, error } = await supabase
+    .from("artisans")
+    .select(ARTISAN_SELECT_FIELDS)
+    .eq("email", email)
+    .single();
+
+  if (error) {
+    if (error.code === "PGRST116") {
+      // No rows found
+      return null;
+    }
+    throw new Error(`Supabase fetch error: ${error.message}`);
+  }
+
+  return data;
+}
+
 async function fetchNextBatch(): Promise<ArtisanRow[]> {
   const { data, error } = await supabase
     .from("artisans")
-    .select(
-      [
-        "id",
-        "prenom",
-        "nom",
-        "raison_sociale",
-        "adresse_intervention",
-        "code_postal_intervention",
-        "ville_intervention",
-        "adresse_siege_social",
-        "code_postal_siege_social",
-        "ville_siege_social",
-        "intervention_latitude",
-        "intervention_longitude",
-      ].join(", "),
-    )
+    .select(ARTISAN_SELECT_FIELDS)
     .or("intervention_latitude.is.null,intervention_longitude.is.null")
     .order("created_at", { ascending: true })
     .limit(BATCH_SIZE * 2); // Récupérer plus pour compenser le filtrage
@@ -354,16 +413,18 @@ function formatArtisanLabel(artisan: ArtisanRow): string {
   return parts.join(" ") || artisan.id;
 }
 
-async function processArtisan(artisan: ArtisanRow): Promise<boolean> {
+async function processArtisan(artisan: ArtisanRow, force: boolean = false): Promise<boolean> {
   const label = formatArtisanLabel(artisan);
   
-  // Vérification de sécurité : ignorer si déjà géocodé avec des coordonnées valides
+  // Vérification de sécurité : ignorer si déjà géocodé avec des coordonnées valides (sauf si force)
   if (
+    !force &&
     artisan.intervention_latitude &&
     artisan.intervention_longitude &&
     !(artisan.intervention_latitude === 0 && artisan.intervention_longitude === 0)
   ) {
     console.log(`⏭️  ${label}: déjà géocodé (${artisan.intervention_latitude}, ${artisan.intervention_longitude}), ignoré.`);
+    console.log(`   💡 Utilisez --force pour forcer le re-géocodage`);
     return false;
   }
 
@@ -420,8 +481,56 @@ async function processBatch(batch: ArtisanRow[]): Promise<number> {
   return results.filter((success) => success).length;
 }
 
-async function run() {
-  console.log("🚀 Starting artisan geocoding…");
+async function runSingleArtisan(email: string, force: boolean) {
+  console.log("🎯 Mode artisan unique");
+  console.log(`   Email:               ${email}`);
+  console.log(`   Force:               ${force ? "oui" : "non"}`);
+  console.log(`   Supabase URL:        ${SUPABASE_URL}`);
+  console.log(
+    `   Using OpenCage:      ${OPENCAGE_API_KEY ? "yes" : "no (fallback Nominatim)"}`,
+  );
+  console.log("");
+
+  const artisan = await fetchArtisanByEmail(email);
+  
+  if (!artisan) {
+    console.error(`❌ Aucun artisan trouvé avec l'email: ${email}`);
+    process.exit(1);
+  }
+
+  const label = formatArtisanLabel(artisan);
+  console.log(`📍 Artisan trouvé: ${label}`);
+  console.log(`   ID: ${artisan.id}`);
+  console.log(`   Email: ${artisan.email}`);
+  
+  const addressInfo = [
+    artisan.adresse_intervention,
+    artisan.code_postal_intervention,
+    artisan.ville_intervention,
+  ].filter(Boolean).join(", ") || "Aucune adresse d'intervention";
+  console.log(`   Adresse intervention: ${addressInfo}`);
+  
+  if (artisan.intervention_latitude && artisan.intervention_longitude) {
+    console.log(`   Coordonnées actuelles: ${artisan.intervention_latitude}, ${artisan.intervention_longitude}`);
+  } else {
+    console.log(`   Coordonnées actuelles: Non définies`);
+  }
+  console.log("");
+
+  const startTime = Date.now();
+  const success = await processArtisan(artisan, force);
+  const totalTime = ((Date.now() - startTime) / 1000).toFixed(1);
+
+  console.log("");
+  if (success) {
+    console.log(`✨ Géocodage terminé en ${totalTime}s !`);
+  } else {
+    console.log(`⚠️  Géocodage échoué ou non nécessaire (${totalTime}s)`);
+  }
+}
+
+async function runBatch() {
+  console.log("🚀 Starting artisan geocoding (batch mode)…");
   console.log(`   Supabase URL:        ${SUPABASE_URL}`);
   console.log(
     `   Using OpenCage:      ${OPENCAGE_API_KEY ? "yes" : "no (fallback Nominatim)"}`,
@@ -463,6 +572,16 @@ async function run() {
   console.log(`✨ Terminé en ${totalTime}s !`);
   console.log(`   ✅ ${totalSuccess} artisans géocodés avec succès`);
   console.log(`   ❌ ${totalFailed} artisans en échec (voir ${FAILED_LOG_FILE})`);
+}
+
+async function run() {
+  const { email, force } = parseArgs();
+
+  if (email) {
+    await runSingleArtisan(email, force);
+  } else {
+    await runBatch();
+  }
 }
 
 run().catch((error) => {
