@@ -211,6 +211,7 @@ Start-Sleep -Seconds 1
 # 3. Launch Git Bash terminal at project root
 Write-Host "`nLaunching Git Bash..." -ForegroundColor Yellow
 $gitBashPaths = @(
+    "${env:ProgramFiles}\Git\bin\git-bash.exe",
     "${env:ProgramFiles}\Git\bin\bash.exe",
     "${env:ProgramFiles(x86)}\Git\bin\bash.exe",
     "$env:LOCALAPPDATA\Programs\Git\bin\bash.exe"
