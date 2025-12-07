@@ -69,8 +69,8 @@ const getModalStyle = (mode: ModalDisplayMode) => {
       }
     case "centerpage":
       return {
-        container: "fixed inset-0 z-[70] flex items-center justify-center p-4",
-        wrapper: "pointer-events-none flex h-full w-full items-center justify-center",
+        container: "fixed inset-0 z-[70] flex items-center justify-center p-4 pointer-events-none",
+        wrapper: "flex h-full w-full items-center justify-center",
         content:
           "pointer-events-auto modal-surface flex h-[85vh] w-full max-w-[80vw] flex-col overflow-hidden p-0",
       }
