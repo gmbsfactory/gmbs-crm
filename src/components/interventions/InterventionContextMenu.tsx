@@ -174,7 +174,7 @@ export function InterventionContextMenuContent({
           <AlertDialogHeader>
             <AlertDialogTitle>Confirmer la suppression</AlertDialogTitle>
             <AlertDialogDescription>
-              Cette action est destructive. Êtes-vous sûr de vouloir supprimer l'intervention ?
+              Cette action est destructive. Êtes-vous sûr de vouloir supprimer l&apos;intervention ?
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
