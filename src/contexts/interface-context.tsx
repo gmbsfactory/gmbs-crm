@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useState, useEffect, type ReactNode } from "react"
 import { type ColorMode, type AccentOption, DEFAULT_ACCENT, applyTheme, initializeTheme } from "@/lib/themes"
+import { useSettings } from "@/stores/settings"
 
 type SidebarMode = "collapsed" | "hybrid" | "expanded"
 
@@ -60,6 +61,9 @@ export function InterfaceProvider({ children }: { children: ReactNode }) {
   const handleColorModeChange = (mode: ColorMode) => {
     setColorMode(mode)
     applyTheme(mode, accent, customAccent)
+    // Synchroniser avec le store Zustand pour que SettingsProvider soit au courant
+    const { setTheme } = useSettings.getState()
+    setTheme(mode)
   }
 
   const handleAccentChange = (value: AccentOption, overrideColor?: string) => {

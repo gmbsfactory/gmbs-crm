@@ -28,16 +28,21 @@ function applyCompleteTheme(themeFromStore?: string, classEffectFromStore?: bool
         settings = {}
       }
     }
-    // Utiliser themeFromStore en priorité, sinon lire depuis localStorage
-    let storedMode = themeFromStore
-    if (!storedMode) {
-      try {
-        storedMode = localStorage.getItem('color-mode') || undefined
-      } catch (e) {
-        console.warn('localStorage inaccessible pour color-mode:', e)
-      }
+    // PRIORITÉ: Lire color-mode en premier (source de vérité, écrit par applyTheme)
+    let storedMode = null
+    try {
+      storedMode = localStorage.getItem('color-mode')
+    } catch (e) {
+      console.warn('localStorage inaccessible pour color-mode:', e)
     }
-    if (!storedMode && settings && typeof settings.theme === 'string') storedMode = settings.theme
+    // Ensuite, utiliser themeFromStore si color-mode n'existe pas
+    if (!storedMode && themeFromStore) {
+      storedMode = themeFromStore
+    }
+    // En dernier recours, utiliser settings.theme
+    if (!storedMode && settings && typeof settings.theme === 'string') {
+      storedMode = settings.theme
+    }
     const classEffect = classEffectFromStore !== undefined ? classEffectFromStore : (settings && settings.classEffect === false ? false : true)
     const accents = {
       indigo: { light: { h: "228 78% 55%", c: "oklch(0.63 0.20 260)", l: "oklch(0.78 0.14 260)", r: "228 82% 58%", p: "228 78% 55%", pf: "0 0% 100%", af: "0 0% 100%" }, dark: { h: "228 88% 70%", c: "oklch(0.82 0.18 260)", l: "oklch(0.90 0.12 260)", r: "228 90% 72%", p: "228 88% 70%", pf: "222 84% 4.9%", af: "222 84% 4.9%" } },
