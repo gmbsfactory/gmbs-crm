@@ -908,7 +908,6 @@ export default function ArtisansPage(): ReactElement {
                           ) : (
                             filteredStatuses.map((status) => {
                               const isSelected = selectedStatuses.includes(status.label)
-                              const isVirtual = status.is_virtual === true
                               return (
                                 <label
                                   key={status.id}
@@ -920,7 +919,6 @@ export default function ArtisansPage(): ReactElement {
                                   />
                                   <span className="truncate flex-1">
                                     {status.label}
-                                    {isVirtual}
                                   </span>
                                   <span className="text-xs text-muted-foreground">
                                     ({getContactCountByStatus(status.label)})

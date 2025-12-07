@@ -425,6 +425,10 @@ CREATE INDEX idx_global_search_entity_type ON global_search_mv(entity_type);
 -- Index composite pour pagination
 CREATE INDEX idx_global_search_created_at ON global_search_mv(created_at DESC, entity_id);
 
+-- Index unique requis pour REFRESH MATERIALIZED VIEW CONCURRENTLY
+-- La combinaison (entity_type, entity_id) identifie de manière unique chaque entité
+CREATE UNIQUE INDEX idx_global_search_unique ON global_search_mv(entity_type, entity_id);
+
 COMMENT ON MATERIALIZED VIEW global_search_mv IS
 'Vue matérialisée pour recherche globale (cmd+k style) sur interventions ET artisans.
 UNION des vues interventions_search_mv et artisans_search_mv.
@@ -706,6 +710,7 @@ Paramètres:
 Retourne les interventions triées par pertinence puis date.';
 
 -- Fonction RPC pour rechercher dans les artisans avec score de pertinence
+-- Améliorée pour gérer les correspondances partielles (même logique que search_interventions)
 CREATE OR REPLACE FUNCTION search_artisans(
   p_query text,
   p_limit int DEFAULT 20,
@@ -727,7 +732,65 @@ RETURNS TABLE (
 )
 LANGUAGE plpgsql
 AS $$
+DECLARE
+  v_query_normalized text;
+  v_tsquery_full tsquery;
+  v_tsquery_prefix tsquery;
 BEGIN
+  -- Normaliser la requête
+  v_query_normalized := trim(lower(unaccent(p_query)));
+  
+  -- Si la requête est vide, retourner vide
+  IF v_query_normalized = '' THEN
+    RETURN;
+  END IF;
+  
+  -- Créer deux types de requêtes :
+  -- 1. Requête full-text standard (pour correspondances exactes)
+  -- 2. Requête avec préfixe (pour correspondances partielles)
+  BEGIN
+    v_tsquery_full := websearch_to_tsquery('french', unaccent(p_query));
+    -- Pour les préfixes, on ajoute :* à chaque terme
+    v_tsquery_prefix := to_tsquery('french', 
+      regexp_replace(
+        regexp_replace(unaccent(p_query), '''', '', 'g'),  -- Enlever les apostrophes
+        '\s+', ':* & ', 'g'  -- Remplacer espaces par ":* & "
+      ) || ':*'
+    );
+  EXCEPTION WHEN OTHERS THEN
+    -- Si la création de la requête échoue, utiliser une recherche ILIKE simple
+    RETURN QUERY
+    SELECT
+      asv.id,
+      asv.numero_associe,
+      asv.plain_nom,
+      asv.raison_sociale,
+      asv.email,
+      asv.telephone,
+      asv.ville_intervention,
+      asv.metiers_labels,
+      asv.statut_label,
+      asv.statut_color,
+      asv.active_interventions_count,
+      1.0::real AS rank
+    FROM artisans_search_mv asv
+    WHERE 
+      asv.plain_nom ILIKE '%' || p_query || '%'
+      OR asv.raison_sociale ILIKE '%' || p_query || '%'
+      OR asv.numero_associe ILIKE '%' || p_query || '%'
+    ORDER BY 
+      CASE 
+        WHEN asv.numero_associe ILIKE '%' || p_query || '%' THEN 1
+        WHEN asv.plain_nom ILIKE '%' || p_query || '%' THEN 2
+        ELSE 3
+      END,
+      asv.numero_associe ASC
+    LIMIT p_limit
+    OFFSET p_offset;
+    RETURN;
+  END;
+  
+  -- Recherche combinée : full-text + préfixe + ILIKE pour champs critiques
   RETURN QUERY
   SELECT
     asv.id,
@@ -741,9 +804,37 @@ BEGIN
     asv.statut_label,
     asv.statut_color,
     asv.active_interventions_count,
-    ts_rank(asv.search_vector, websearch_to_tsquery('french', unaccent(p_query))) AS rank
+    GREATEST(
+      -- Score full-text standard
+      COALESCE(ts_rank(asv.search_vector, v_tsquery_full), 0),
+      -- Score avec préfixe (légèrement réduit pour favoriser les correspondances exactes)
+      COALESCE(ts_rank(asv.search_vector, v_tsquery_prefix) * 0.9, 0),
+      -- Bonus pour correspondance dans numero_associe (très important)
+      CASE 
+        WHEN asv.numero_associe ILIKE '%' || p_query || '%' THEN 0.5
+        ELSE 0
+      END,
+      -- Bonus pour correspondance dans plain_nom
+      CASE 
+        WHEN asv.plain_nom ILIKE '%' || p_query || '%' THEN 0.4
+        ELSE 0
+      END,
+      -- Bonus pour correspondance dans raison_sociale
+      CASE 
+        WHEN asv.raison_sociale ILIKE '%' || p_query || '%' THEN 0.3
+        ELSE 0
+      END
+    )::real AS rank
   FROM artisans_search_mv asv
-  WHERE asv.search_vector @@ websearch_to_tsquery('french', unaccent(p_query))
+  WHERE 
+    -- Correspondance full-text standard
+    (asv.search_vector @@ v_tsquery_full)
+    -- OU correspondance avec préfixe
+    OR (asv.search_vector @@ v_tsquery_prefix)
+    -- OU correspondance partielle dans champs critiques
+    OR (asv.numero_associe ILIKE '%' || p_query || '%')
+    OR (asv.plain_nom ILIKE '%' || p_query || '%')
+    OR (asv.raison_sociale ILIKE '%' || p_query || '%')
   ORDER BY rank DESC, asv.numero_associe ASC
   LIMIT p_limit
   OFFSET p_offset;
@@ -752,6 +843,10 @@ $$;
 
 COMMENT ON FUNCTION search_artisans IS
 'Recherche full-text dans les artisans avec score de pertinence.
+Gère les correspondances partielles (ex: "Dup" trouve "Dupont") via:
+  - Recherche full-text standard (websearch_to_tsquery)
+  - Recherche avec préfixe (to_tsquery avec :*)
+  - Recherche ILIKE sur numero_associe, plain_nom, raison_sociale
 Paramètres:
   - p_query: Termes de recherche (supporte AND, OR, NOT, phrases "entre guillemets")
   - p_limit: Nombre de résultats max (défaut: 20)
@@ -759,6 +854,7 @@ Paramètres:
 Retourne les artisans triés par pertinence puis numero_associe.';
 
 -- Fonction RPC pour recherche globale (interventions + artisans)
+-- Améliorée pour gérer les correspondances partielles (même logique que search_interventions)
 CREATE OR REPLACE FUNCTION search_global(
   p_query text,
   p_limit int DEFAULT 20,
@@ -773,17 +869,113 @@ RETURNS TABLE (
 )
 LANGUAGE plpgsql
 AS $$
+DECLARE
+  v_query_normalized text;
+  v_tsquery_full tsquery;
+  v_tsquery_prefix tsquery;
 BEGIN
+  -- Normaliser la requête
+  v_query_normalized := trim(lower(unaccent(p_query)));
+  
+  -- Si la requête est vide, retourner vide
+  IF v_query_normalized = '' THEN
+    RETURN;
+  END IF;
+  
+  -- Créer deux types de requêtes :
+  -- 1. Requête full-text standard (pour correspondances exactes)
+  -- 2. Requête avec préfixe (pour correspondances partielles)
+  BEGIN
+    v_tsquery_full := websearch_to_tsquery('french', unaccent(p_query));
+    -- Pour les préfixes, on ajoute :* à chaque terme
+    v_tsquery_prefix := to_tsquery('french', 
+      regexp_replace(
+        regexp_replace(unaccent(p_query), '''', '', 'g'),  -- Enlever les apostrophes
+        '\s+', ':* & ', 'g'  -- Remplacer espaces par ":* & "
+      ) || ':*'
+    );
+  EXCEPTION WHEN OTHERS THEN
+    -- Si la création de la requête échoue, utiliser une recherche ILIKE simple
+    RETURN QUERY
+    SELECT
+      gsv.entity_type,
+      gsv.entity_id,
+      gsv.metadata,
+      1.0::real AS rank
+    FROM global_search_mv gsv
+    WHERE
+      (p_entity_type IS NULL OR gsv.entity_type = p_entity_type)
+      AND (
+        -- Pour les interventions
+        (gsv.entity_type = 'intervention' AND (
+          (gsv.metadata->>'agence')::text ILIKE '%' || p_query || '%'
+          OR (gsv.metadata->>'contexte')::text ILIKE '%' || p_query || '%'
+        ))
+        -- Pour les artisans
+        OR (gsv.entity_type = 'artisan' AND (
+          (gsv.metadata->>'numero_associe')::text ILIKE '%' || p_query || '%'
+          OR (gsv.metadata->>'plain_nom')::text ILIKE '%' || p_query || '%'
+          OR (gsv.metadata->>'raison_sociale')::text ILIKE '%' || p_query || '%'
+        ))
+      )
+    ORDER BY gsv.created_at DESC
+    LIMIT p_limit
+    OFFSET p_offset;
+    RETURN;
+  END;
+  
+  -- Recherche combinée : full-text + préfixe + ILIKE pour champs critiques
   RETURN QUERY
   SELECT
     gsv.entity_type,
     gsv.entity_id,
     gsv.metadata,
-    ts_rank(gsv.search_vector, websearch_to_tsquery('french', unaccent(p_query))) AS rank
+    GREATEST(
+      -- Score full-text standard
+      COALESCE(ts_rank(gsv.search_vector, v_tsquery_full), 0),
+      -- Score avec préfixe (légèrement réduit pour favoriser les correspondances exactes)
+      COALESCE(ts_rank(gsv.search_vector, v_tsquery_prefix) * 0.9, 0),
+      -- Bonus pour correspondances dans champs critiques selon le type d'entité
+      CASE 
+        WHEN gsv.entity_type = 'intervention' THEN
+          CASE 
+            WHEN (gsv.metadata->>'agence')::text ILIKE '%' || p_query || '%' THEN 0.5
+            WHEN (gsv.metadata->>'contexte')::text ILIKE '%' || p_query || '%' THEN 0.3
+            ELSE 0
+          END
+        WHEN gsv.entity_type = 'artisan' THEN
+          CASE 
+            WHEN (gsv.metadata->>'numero_associe')::text ILIKE '%' || p_query || '%' THEN 0.5
+            WHEN (gsv.metadata->>'plain_nom')::text ILIKE '%' || p_query || '%' THEN 0.4
+            WHEN (gsv.metadata->>'raison_sociale')::text ILIKE '%' || p_query || '%' THEN 0.3
+            ELSE 0
+          END
+        ELSE 0
+      END
+    )::real AS rank
   FROM global_search_mv gsv
   WHERE
-    gsv.search_vector @@ websearch_to_tsquery('french', unaccent(p_query))
-    AND (p_entity_type IS NULL OR gsv.entity_type = p_entity_type)
+    (p_entity_type IS NULL OR gsv.entity_type = p_entity_type)
+    AND (
+      -- Correspondance full-text standard
+      (gsv.search_vector @@ v_tsquery_full)
+      -- OU correspondance avec préfixe
+      OR (gsv.search_vector @@ v_tsquery_prefix)
+      -- OU correspondance partielle dans champs critiques selon le type
+      OR (
+        -- Pour les interventions
+        (gsv.entity_type = 'intervention' AND (
+          (gsv.metadata->>'agence')::text ILIKE '%' || p_query || '%'
+          OR (gsv.metadata->>'contexte')::text ILIKE '%' || p_query || '%'
+        ))
+        -- Pour les artisans
+        OR (gsv.entity_type = 'artisan' AND (
+          (gsv.metadata->>'numero_associe')::text ILIKE '%' || p_query || '%'
+          OR (gsv.metadata->>'plain_nom')::text ILIKE '%' || p_query || '%'
+          OR (gsv.metadata->>'raison_sociale')::text ILIKE '%' || p_query || '%'
+        ))
+      )
+    )
   ORDER BY rank DESC, gsv.created_at DESC
   LIMIT p_limit
   OFFSET p_offset;
@@ -792,6 +984,10 @@ $$;
 
 COMMENT ON FUNCTION search_global IS
 'Recherche globale full-text dans interventions ET artisans avec score de pertinence.
+Gère les correspondances partielles (même logique que search_interventions et search_artisans) via:
+  - Recherche full-text standard (websearch_to_tsquery)
+  - Recherche avec préfixe (to_tsquery avec :*)
+  - Recherche ILIKE sur champs critiques (agence pour interventions, numero_associe/plain_nom pour artisans)
 Paramètres:
   - p_query: Termes de recherche (supporte AND, OR, NOT, phrases "entre guillemets")
   - p_limit: Nombre de résultats max (défaut: 20)

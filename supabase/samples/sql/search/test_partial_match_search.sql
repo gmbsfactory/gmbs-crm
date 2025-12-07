@@ -101,7 +101,8 @@ SELECT
   'Test 6: Recherche "AFE" (préfixe)' as test_name,
   COUNT(*) as nombre_resultats,
   string_agg(DISTINCT agence_label, ', ') as agences_trouvees
-FROM search_interventions('AFE', 50, 0);
+FROM 
+interventions('AFE', 50, 0);
 
 -- Test 7: Recherche avec plusieurs mots
 SELECT * FROM search_interventions('Flat Paris', 10, 0);
