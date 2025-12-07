@@ -778,9 +778,11 @@ BEGIN
       asv.plain_nom ILIKE '%' || p_query || '%'
       OR asv.raison_sociale ILIKE '%' || p_query || '%'
       OR asv.numero_associe ILIKE '%' || p_query || '%'
+      OR asv.siret ILIKE '%' || p_query || '%'
     ORDER BY 
       CASE 
         WHEN asv.numero_associe ILIKE '%' || p_query || '%' THEN 1
+        WHEN asv.siret ILIKE '%' || p_query || '%' THEN 1
         WHEN asv.plain_nom ILIKE '%' || p_query || '%' THEN 2
         ELSE 3
       END,
@@ -823,6 +825,11 @@ BEGIN
       CASE 
         WHEN asv.raison_sociale ILIKE '%' || p_query || '%' THEN 0.3
         ELSE 0
+      END,
+      -- Bonus pour correspondance dans siret (important pour recherche par numéro)
+      CASE 
+        WHEN asv.siret ILIKE '%' || p_query || '%' THEN 0.5
+        ELSE 0
       END
     )::real AS rank
   FROM artisans_search_mv asv
@@ -835,6 +842,7 @@ BEGIN
     OR (asv.numero_associe ILIKE '%' || p_query || '%')
     OR (asv.plain_nom ILIKE '%' || p_query || '%')
     OR (asv.raison_sociale ILIKE '%' || p_query || '%')
+    OR (asv.siret ILIKE '%' || p_query || '%')
   ORDER BY rank DESC, asv.numero_associe ASC
   LIMIT p_limit
   OFFSET p_offset;
@@ -846,12 +854,13 @@ COMMENT ON FUNCTION search_artisans IS
 Gère les correspondances partielles (ex: "Dup" trouve "Dupont") via:
   - Recherche full-text standard (websearch_to_tsquery)
   - Recherche avec préfixe (to_tsquery avec :*)
-  - Recherche ILIKE sur numero_associe, plain_nom, raison_sociale
+  - Recherche ILIKE sur numero_associe, siret, plain_nom, raison_sociale
 Paramètres:
   - p_query: Termes de recherche (supporte AND, OR, NOT, phrases "entre guillemets")
   - p_limit: Nombre de résultats max (défaut: 20)
   - p_offset: Offset pour pagination (défaut: 0)
-Retourne les artisans triés par pertinence puis numero_associe.';
+Retourne les artisans triés par pertinence puis numero_associe.
+Le SIRET est recherché avec un poids A (priorité élevée) dans le vecteur full-text et via ILIKE pour les correspondances partielles.';
 
 -- Fonction RPC pour recherche globale (interventions + artisans)
 -- Améliorée pour gérer les correspondances partielles (même logique que search_interventions)

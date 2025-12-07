@@ -10,8 +10,9 @@ import type {
   SearchResultsGroup,
 } from "@/types/search"
 
-const DEFAULT_ARTISAN_LIMIT = 3
-const DEFAULT_INTERVENTION_LIMIT = 5
+// Increased limits to better utilize optimized search_global RPC
+const DEFAULT_ARTISAN_LIMIT = 10
+const DEFAULT_INTERVENTION_LIMIT = 20
 const DIACRITICS_REGEX = /[\u0300-\u036f]/g
 
 const normalizeString = (value: string | null | undefined): string => {
@@ -669,7 +670,8 @@ const searchInterventions = async (
             nom,
             numero_associe,
             telephone,
-            telephone2
+            telephone2,
+            siret
           )
         ),
         payments:intervention_payments(*)
@@ -746,6 +748,151 @@ const searchInterventions = async (
   }
 }
 
+// Helper function to fetch full artisan data by IDs
+const fetchArtisansByIds = async (ids: string[]): Promise<ArtisanSearchRecord[]> => {
+  if (ids.length === 0) return []
+
+  const { data, error } = await supabase
+    .from("artisans")
+    .select(
+      `
+        id,
+        prenom,
+        nom,
+        plain_nom,
+        raison_sociale,
+        email,
+        telephone,
+        telephone2,
+        numero_associe,
+        statut_id,
+        is_active,
+        status:artisan_statuses (
+          id,
+          code,
+          label,
+          color
+        ),
+        metiers:artisan_metiers (
+          is_primary,
+          metier:metiers (
+            id,
+            code,
+            label
+          )
+        )
+      `,
+    )
+    .in("id", ids)
+
+  if (error) {
+    console.error("[fetchArtisansByIds] Error:", error)
+    return []
+  }
+
+  return (data ?? []).map((record: any) => ({
+    ...record,
+    metiers: Array.isArray(record.metiers)
+      ? record.metiers.map((m: any) => ({
+          is_primary: m.is_primary,
+          metier: Array.isArray(m.metier) ? m.metier[0] : m.metier,
+        }))
+      : [],
+    status: Array.isArray(record.status) ? record.status[0] : record.status,
+  })) as ArtisanSearchRecord[]
+}
+
+// Helper function to fetch full intervention data by IDs
+const fetchInterventionsByIds = async (ids: string[]): Promise<InterventionSearchRecord[]> => {
+  if (ids.length === 0) return []
+
+  const { data, error } = await supabase
+    .from("interventions")
+    .select(
+      `
+        id,
+        id_inter,
+        agence_id,
+        statut_id,
+        metier_id,
+        assigned_user_id,
+        contexte_intervention,
+        consigne_intervention,
+        commentaire_agent,
+        adresse,
+        code_postal,
+        ville,
+        date,
+        date_prevue,
+        due_date,
+        tenant:tenants (
+          id,
+          firstname,
+          lastname,
+          telephone,
+          telephone2,
+          email,
+          adresse,
+          code_postal,
+          ville
+        ),
+        assigned_user:users!assigned_user_id (
+          id,
+          firstname,
+          lastname,
+          username,
+          code_gestionnaire,
+          color
+        ),
+        metier:metiers (
+          id,
+          code,
+          label
+        ),
+        intervention_artisans (
+          is_primary,
+          role,
+          artisan:artisans (
+            id,
+            prenom,
+            nom,
+            numero_associe,
+            telephone,
+            telephone2
+          )
+        ),
+        payments:intervention_payments(*)
+      `,
+    )
+    .in("id", ids)
+
+  if (error) {
+    console.error("[fetchInterventionsByIds] Error:", {
+      message: error.message,
+      details: error.details,
+      hint: error.hint,
+      code: error.code,
+      error,
+      idsCount: ids.length,
+      idsSample: ids.slice(0, 3),
+    })
+    return []
+  }
+
+  if (!data || data.length === 0) {
+    console.warn("[fetchInterventionsByIds] No data returned for IDs:", ids.slice(0, 5))
+    return []
+  }
+
+  return (data ?? []).map((record: any) => {
+    const typedRecord: InterventionSearchRecord = {
+      ...(record as unknown as InterventionSearchRecord),
+    }
+    typedRecord.primaryArtisan = getPrimaryArtisanFromIntervention(typedRecord)
+    return typedRecord
+  })
+}
+
 export async function universalSearch(
   query: string,
   options?: {
@@ -787,78 +934,169 @@ export async function universalSearch(
 
   const start = performanceNow()
 
-  let artisanResults: SearchResultsGroup<ArtisanSearchRecord>
-  let interventionResults: SearchResultsGroup<InterventionSearchRecord>
+  // Use search_global RPC function for optimized search
+  const totalLimit = resolvedArtisanLimit + resolvedInterventionLimit
+  const { data: globalResults, error: globalError } = await supabase.rpc("search_global", {
+    p_query: trimmed,
+    p_limit: totalLimit,
+    p_offset: 0,
+    p_entity_type: null, // Search both types
+  })
 
-  // Use allSettled to handle errors individually and avoid one failure canceling the other
-  const [artisanSettled, interventionSettled] = await Promise.allSettled([
-    searchArtisans(trimmed, resolvedArtisanLimit),
-    searchInterventions(trimmed, resolvedInterventionLimit),
+  if (globalError) {
+    console.error("[universalSearch] Error in search_global RPC:", globalError)
+    // Fallback to old method if RPC fails
+    const [artisanSettled, interventionSettled] = await Promise.allSettled([
+      searchArtisans(trimmed, resolvedArtisanLimit),
+      searchInterventions(trimmed, resolvedInterventionLimit),
+    ])
+
+    const artisanResults =
+      artisanSettled.status === "fulfilled"
+        ? artisanSettled.value
+        : { items: [], total: 0, hasMore: false }
+
+    const interventionResults =
+      interventionSettled.status === "fulfilled"
+        ? interventionSettled.value
+        : { items: [], total: 0, hasMore: false }
+
+    const searchTime = Math.round(performanceNow() - start)
+    return {
+      artisans: artisanResults,
+      interventions: interventionResults,
+      context,
+      searchTime,
+    }
+  }
+
+  // Separate results by entity type
+  const artisanResults = (globalResults ?? []).filter((r) => r.entity_type === "artisan")
+  const interventionResults = (globalResults ?? []).filter((r) => r.entity_type === "intervention")
+
+  // Sort by rank (already sorted by search_global, but ensure order is preserved)
+  artisanResults.sort((a, b) => (b.rank ?? 0) - (a.rank ?? 0))
+  interventionResults.sort((a, b) => (b.rank ?? 0) - (a.rank ?? 0))
+
+  // Limit results per type
+  const limitedArtisanResults = artisanResults.slice(0, resolvedArtisanLimit)
+  const limitedInterventionResults = interventionResults.slice(0, resolvedInterventionLimit)
+
+  // Extract IDs
+  const artisanIds = limitedArtisanResults.map((r) => r.entity_id)
+  const interventionIds = limitedInterventionResults.map((r) => r.entity_id)
+
+  // Fetch full data for artisans and interventions in parallel
+  const [artisanData, interventionData, artisanCounts] = await Promise.all([
+    fetchArtisansByIds(artisanIds),
+    fetchInterventionsByIds(interventionIds),
+    fetchActiveInterventionCounts(artisanIds),
   ])
 
-  // Handle artisan search result
-  if (artisanSettled.status === "fulfilled") {
-    artisanResults = artisanSettled.value
-  } else {
-    const err = artisanSettled.reason
-    let errorSerialized: any
-    try {
-      errorSerialized = JSON.stringify(err, Object.getOwnPropertyNames(err))
-    } catch {
-      errorSerialized = String(err)
-    }
-    
-    console.error("[universalSearch] Error in artisan search:", {
-      error: err,
-      errorType: typeof err,
-      errorConstructor: (err as any)?.constructor?.name,
-      errorKeys: err && typeof err === "object" ? Object.keys(err) : [],
-      errorString: String(err),
-      serialized: errorSerialized,
-      query: trimmed,
-    })
-    // Return empty results instead of throwing to allow intervention search to proceed
-    artisanResults = {
-      items: [],
-      total: 0,
-      hasMore: false,
-    }
-  }
+  // Debug logging
+  console.log("[universalSearch] Results:", {
+    globalResultsCount: globalResults?.length ?? 0,
+    artisanResultsCount: artisanResults.length,
+    interventionResultsCount: interventionResults.length,
+    artisanIdsCount: artisanIds.length,
+    interventionIdsCount: interventionIds.length,
+    artisanDataCount: artisanData.length,
+    interventionDataCount: interventionData.length,
+  })
 
-  // Handle intervention search result
-  if (interventionSettled.status === "fulfilled") {
-    interventionResults = interventionSettled.value
-  } else {
-    const err = interventionSettled.reason
-    let errorSerialized: any
-    try {
-      errorSerialized = JSON.stringify(err, Object.getOwnPropertyNames(err))
-    } catch {
-      errorSerialized = String(err)
-    }
-    
-    console.error("[universalSearch] Error in intervention search:", {
-      error: err,
-      errorType: typeof err,
-      errorConstructor: (err as any)?.constructor?.name,
-      errorKeys: err && typeof err === "object" ? Object.keys(err) : [],
-      errorString: String(err),
-      serialized: errorSerialized,
-      query: trimmed,
+  // Create a map of entity_id -> rank for scoring
+  const artisanRankMap = new Map(limitedArtisanResults.map((r) => [r.entity_id, r.rank ?? 0]))
+  const interventionRankMap = new Map(limitedInterventionResults.map((r) => [r.entity_id, r.rank ?? 0]))
+
+  // Create maps for quick lookup by ID
+  const artisanDataMap = new Map(artisanData.map((a) => [a.id, a]))
+  const interventionDataMap = new Map(interventionData.map((i) => [i.id, i]))
+
+  // Map artisans to SearchResult format, preserving order from search_global
+  const artisanItems: Array<SearchResult<ArtisanSearchRecord>> = limitedArtisanResults
+    .map((result) => {
+      const artisan = artisanDataMap.get(result.entity_id)
+      if (!artisan) {
+        console.warn("[universalSearch] Artisan not found for ID:", result.entity_id)
+        return null
+      }
+
+      const rank = result.rank ?? 0
+      // Convert rank (0-1) to score (0-100) for consistency with old scoring
+      const score = rank * 100
+      // Determine matched fields based on metadata (simplified)
+      const matchedFields: string[] = []
+      if (artisan.numero_associe && normalizeString(artisan.numero_associe).includes(normalizeString(trimmed))) {
+        matchedFields.push("code")
+      }
+      if (artisan.plain_nom && normalizeString(artisan.plain_nom).includes(normalizeString(trimmed))) {
+        matchedFields.push("nom")
+      }
+      if (artisan.raison_sociale && normalizeString(artisan.raison_sociale).includes(normalizeString(trimmed))) {
+        matchedFields.push("raison_sociale")
+      }
+
+      return {
+        type: "artisan" as const,
+        data: {
+          ...artisan,
+          activeInterventionCount: artisanCounts.get(artisan.id) ?? 0,
+        },
+        score,
+        matchedFields,
+      }
     })
-    // Return empty results instead of throwing to allow artisan search to proceed
-    interventionResults = {
-      items: [],
-      total: 0,
-      hasMore: false,
-    }
-  }
+    .filter((item): item is SearchResult<ArtisanSearchRecord> => item !== null)
+
+  // Map interventions to SearchResult format, preserving order from search_global
+  const interventionItems: Array<SearchResult<InterventionSearchRecord>> = limitedInterventionResults
+    .map((result) => {
+      const intervention = interventionDataMap.get(result.entity_id)
+      if (!intervention) {
+        console.warn("[universalSearch] Intervention not found for ID:", result.entity_id)
+        return null
+      }
+
+      const rank = result.rank ?? 0
+      // Convert rank (0-1) to score (0-100) for consistency with old scoring
+      const score = rank * 100
+      // Determine matched fields based on metadata (simplified)
+      const matchedFields: string[] = []
+      if (
+        intervention.contexte_intervention &&
+        normalizeString(intervention.contexte_intervention).includes(normalizeString(trimmed))
+      ) {
+        matchedFields.push("contexte")
+      }
+      if (intervention.adresse && normalizeString(intervention.adresse).includes(normalizeString(trimmed))) {
+        matchedFields.push("address")
+      }
+      if (intervention.ville && normalizeString(intervention.ville).includes(normalizeString(trimmed))) {
+        matchedFields.push("city")
+      }
+
+      return {
+        type: "intervention" as const,
+        data: intervention,
+        score,
+        matchedFields,
+      }
+    })
+    .filter((item): item is SearchResult<InterventionSearchRecord> => item !== null)
 
   const searchTime = Math.round(performanceNow() - start)
 
   return {
-    artisans: artisanResults,
-    interventions: interventionResults,
+    artisans: {
+      items: artisanItems,
+      total: artisanResults.length, // Total found (before limiting)
+      hasMore: artisanResults.length > resolvedArtisanLimit,
+    },
+    interventions: {
+      items: interventionItems,
+      total: interventionResults.length, // Total found (before limiting)
+      hasMore: interventionResults.length > resolvedInterventionLimit,
+    },
     context,
     searchTime,
   }

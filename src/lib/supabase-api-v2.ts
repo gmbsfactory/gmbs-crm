@@ -1576,6 +1576,184 @@ export const artisansApiV2 = {
     search?: string;
     statut_dossier?: string;
   }): Promise<PaginatedResponse<Artisan>> {
+    const limit = params?.limit || 500;
+    const offset = params?.offset || 0;
+    const hasSearch = Boolean(params?.search && params.search.trim().length >= 2);
+    const searchQuery = params?.search?.trim() || "";
+
+    // ========================================
+    // RECHERCHE OPTIMISÉE VIA VUE MATÉRIALISÉE
+    // ========================================
+    if (hasSearch) {
+      try {
+        // Appeler la fonction RPC search_artisans
+        const { data: searchResults, error: searchError } = await supabase.rpc("search_artisans", {
+          p_query: searchQuery,
+          p_limit: limit * 3, // Récupérer plus de résultats pour pouvoir filtrer après
+          p_offset: 0,
+        });
+
+        if (searchError) {
+          console.error("[artisansApiV2.getAll] Error in search_artisans RPC:", searchError);
+          // Fallback vers l'ancienne méthode si RPC échoue
+        } else if (searchResults && searchResults.length > 0) {
+          // Extraire les IDs triés par pertinence
+          const artisanIds = searchResults.map((r: any) => r.id).filter(Boolean);
+
+          // Récupérer les données complètes avec relations
+          let detailedQuery = supabase
+            .from("artisans")
+            .select(`
+              *,
+              artisan_metiers (
+                metier_id,
+                metiers (
+                  id,
+                  code,
+                  label
+                )
+              ),
+              artisan_zones (
+                zone_id,
+                zones (
+                  id,
+                  code,
+                  label
+                )
+              ),
+              artisan_attachments (
+                id,
+                kind,
+                url,
+                filename,
+                mime_type,
+                content_hash,
+                derived_sizes,
+                mime_preferred
+              )
+            `)
+            .in("id", artisanIds);
+
+          // Appliquer les filtres supplémentaires
+          if (params?.statuts && params.statuts.length > 0) {
+            detailedQuery = detailedQuery.in("statut_id", params.statuts);
+          } else if (params?.statut) {
+            detailedQuery = detailedQuery.eq("statut_id", params.statut);
+          }
+          if (params?.gestionnaire) {
+            detailedQuery = detailedQuery.eq("gestionnaire_id", params.gestionnaire);
+          }
+          if (params?.statut_dossier) {
+            detailedQuery = detailedQuery.eq("statut_dossier", params.statut_dossier);
+          }
+
+          const { data: detailedData, error: detailedError } = await detailedQuery;
+
+          if (detailedError) {
+            throw new Error(`Failed to fetch detailed data: ${detailedError.message}`);
+          }
+
+          // Réordonner selon l'ordre de pertinence de la recherche
+          const idToData = new Map((detailedData ?? []).map((item: any) => [item.id, item]));
+          let filteredData = artisanIds
+            .map((id: string) => idToData.get(id))
+            .filter((item: any) => item !== undefined);
+
+          // Filtrer par métiers si nécessaire
+          if (params?.metiers && params.metiers.length > 0) {
+            const metierFilters = params.metiers;
+            filteredData = filteredData.filter((item: any) => {
+              const artisanMetiers = Array.isArray(item.artisan_metiers)
+                ? item.artisan_metiers
+                : [];
+              return metierFilters.some((metierId) =>
+                artisanMetiers.some(
+                  (am: any) => am.metier_id === metierId || am.metiers?.id === metierId
+                )
+              );
+            });
+          } else if (params?.metier) {
+            const metierFilter = params.metier;
+            filteredData = filteredData.filter((item: any) => {
+              const artisanMetiers = Array.isArray(item.artisan_metiers)
+                ? item.artisan_metiers
+                : [];
+              return artisanMetiers.some(
+                (am: any) => am.metier_id === metierFilter || am.metiers?.id === metierFilter
+              );
+            });
+          }
+
+          // Appliquer la pagination
+          const paginatedData = filteredData.slice(offset, offset + limit);
+
+          const refs = await getReferenceCache();
+          const transformedData = paginatedData.map((item: any) => mapArtisanRecord(item, refs));
+
+          // Pour le count, utiliser search_artisans avec un limit élevé
+          let finalCount = filteredData.length;
+          if (params?.metiers && params.metiers.length > 0) {
+            // Si on filtre par métiers, il faut recalculer le count
+            const { data: countSearchResults } = await supabase.rpc("search_artisans", {
+              p_query: searchQuery,
+              p_limit: 10000, // Limite élevée pour compter tous les résultats
+              p_offset: 0,
+            });
+
+            if (countSearchResults && countSearchResults.length > 0) {
+              const countArtisanIds = countSearchResults.map((r: any) => r.id).filter(Boolean);
+              try {
+                const filteredIds = await filterArtisansByMetiers(countArtisanIds, params.metiers);
+                finalCount = filteredIds.size;
+              } catch (metierError) {
+                console.error("Erreur lors du filtrage par métiers pour le count:", metierError);
+              }
+            }
+          } else if (params?.metier) {
+            const { data: countSearchResults } = await supabase.rpc("search_artisans", {
+              p_query: searchQuery,
+              p_limit: 10000,
+              p_offset: 0,
+            });
+
+            if (countSearchResults && countSearchResults.length > 0) {
+              const countArtisanIds = countSearchResults.map((r: any) => r.id).filter(Boolean);
+              try {
+                const filteredIds = await filterArtisansByMetier(countArtisanIds, params.metier);
+                finalCount = filteredIds.size;
+              } catch (metierError) {
+                console.error("Erreur lors du filtrage par métier pour le count:", metierError);
+              }
+            }
+          } else {
+            // Pas de filtre métier, utiliser le count de search_artisans
+            const { data: countSearchResults } = await supabase.rpc("search_artisans", {
+              p_query: searchQuery,
+              p_limit: 10000,
+              p_offset: 0,
+            });
+            finalCount = countSearchResults?.length || 0;
+          }
+
+          return {
+            data: transformedData,
+            pagination: {
+              total: finalCount,
+              limit,
+              offset,
+              hasMore: offset + limit < finalCount,
+            },
+          };
+        }
+      } catch (rpcError) {
+        console.error("[artisansApiV2.getAll] Error using search_artisans RPC, falling back to standard query:", rpcError);
+        // Continue avec l'ancienne méthode en cas d'erreur
+      }
+    }
+
+    // ========================================
+    // MÉTHODE STANDARD (sans recherche ou fallback)
+    // ========================================
     // Version ultra-rapide avec jointures pour métiers, zones et attachments
     let query = supabase
       .from("artisans")
@@ -1624,8 +1802,9 @@ export const artisansApiV2 = {
     if (params?.statut_dossier) {
       query = query.eq("statut_dossier", params.statut_dossier);
     }
-    if (params?.search && params.search.trim()) {
-      const term = params.search.trim();
+    if (hasSearch) {
+      // Fallback: utiliser l'ancienne méthode de recherche
+      const term = searchQuery;
       query = query.or(
         [
           `prenom.ilike.%${term}%`,
@@ -1639,8 +1818,6 @@ export const artisansApiV2 = {
     }
 
     // Pagination
-    const limit = params?.limit || 500;
-    const offset = params?.offset || 0;
     query = query.range(offset, offset + limit - 1);
 
     const { data, error, count } = await query;
