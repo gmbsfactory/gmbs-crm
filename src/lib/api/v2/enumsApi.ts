@@ -82,12 +82,13 @@ export const findOrCreateUser = async (name: string): Promise<FindOrCreateResult
   }
 
   const normalizedName = name.trim();
+  const code = normalizedName.substring(0, 1).toUpperCase();
 
-  // Chercher d'abord par code_gestionnaire (priorité)
+  // Chercher d'abord par code_gestionnaire (avec le code généré)
   const { data: existingByCode } = await supabase
     .from('users')
     .select('id')
-    .ilike('code_gestionnaire', normalizedName)
+    .eq('code_gestionnaire', code)
     .single();
 
   if (existingByCode) {

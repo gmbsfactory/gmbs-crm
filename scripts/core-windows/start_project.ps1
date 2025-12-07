@@ -26,7 +26,7 @@ function Start-TrackedProcess {
     }
     
     if ($Arguments) {
-        $processArgs.Arguments = $Arguments
+        $processArgs.ArgumentList = $Arguments
     }
     
     if ($NoNewWindow) {
