@@ -31,6 +31,13 @@ export const metadata: Metadata = {
   generator: 'v0.app'
 }
 
+export const viewport = {
+  width: 'device-width',
+  initialScale: 0.9,
+  maximumScale: 5,
+  userScalable: true,
+}
+
 export default async function RootLayout({
   children,
 }: {
