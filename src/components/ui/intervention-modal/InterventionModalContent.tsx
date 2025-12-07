@@ -2,7 +2,7 @@
 
 import React, { useCallback, useRef, useState } from "react"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
-import { Bell, X, MessageSquare, Copy, MessageCircle } from "lucide-react"
+import { Bell, X, MessageSquare, Copy, MessageCircle, Trash2 } from "lucide-react"
 import { InterventionEditForm } from "@/components/interventions/InterventionEditForm"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -31,6 +31,7 @@ import { DatePicker } from "@/components/ui/date-picker"
 import { cn } from "@/lib/utils"
 
 import { toast } from "sonner"
+import { useInterventionContextMenu } from "@/hooks/useInterventionContextMenu"
 
 type NoteDialogContentProps = React.ComponentPropsWithoutRef<typeof AlertDialogPrimitive.Content>
 
@@ -180,6 +181,13 @@ GMBS`
     enabled: Boolean(interventionId),
   })
 
+  // Hook pour la suppression d'intervention
+  const { deleteIntervention, isLoading: contextMenuLoading } = useInterventionContextMenu(
+    interventionId,
+    "default",
+    intervention?.id_inter || undefined
+  )
+
   const handleSuccess = useCallback(
     async (data: any) => {
       // 1. Mise à jour optimiste immédiate dans React Query pour le détail
@@ -313,6 +321,18 @@ GMBS`
     }
   }, [])
 
+  // Handler pour la suppression
+  const handleDelete = useCallback(() => {
+    const confirmed = window.confirm(
+      "Cette action est destructive. Êtes-vous sûr de vouloir supprimer l'intervention ?"
+    )
+    if (confirmed) {
+      deleteIntervention()
+      // Fermer le modal avec la même logique que le bouton de fermeture
+      onClose()
+    }
+  }, [deleteIntervention, onClose])
+
   return (
     <TooltipProvider>
       <div className={`modal-config-surface ${surfaceVariantClass} ${surfaceModeClass}`}>
@@ -372,6 +392,23 @@ GMBS`
             ) : (
               <span className="modal-config-columns-icon-placeholder" />
             )}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="modal-config-columns-icon-button hover:bg-red-500/10"
+                  onClick={handleDelete}
+                  disabled={contextMenuLoading.delete || !intervention}
+                  aria-label="Supprimer l'intervention"
+                >
+                  <Trash2 className="h-4 w-4 text-red-500" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent className="modal-config-columns-tooltip">
+                Supprimer l&apos;intervention
+              </TooltipContent>
+            </Tooltip>
           </div>
           <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none">
             <div className="modal-config-columns-title">
