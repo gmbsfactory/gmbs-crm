@@ -271,6 +271,14 @@ const mapInterventionRecord = (
     (cost: any) => cost.cost_type === 'material' || cost.label === 'Coût Matériel'
   );
 
+  // Extraire les relations brutes pour la recherche (agencies et tenants)
+  const rawAgencies = item.agencies
+  const rawTenants = item.tenants
+
+  // Utiliser les relations brutes si disponibles, sinon utiliser le cache
+  const finalAgency = rawAgencies || agency
+  const finalTenant = rawTenants
+
   return {
     ...item,
     artisans: allArtisans,
@@ -281,7 +289,11 @@ const mapInterventionRecord = (
       nom: primaryArtisan.nom,
       plain_nom: primaryArtisan.plain_nom,
       telephone: primaryArtisan.telephone,
+      telephone2: primaryArtisan.telephone2,
       email: primaryArtisan.email,
+      numero_associe: primaryArtisan.numero_associe,
+      siret: primaryArtisan.siret,
+      raison_sociale: primaryArtisan.raison_sociale,
     } : null,
     costs: interventionCosts,
     payments: Array.isArray(item.payments) ? item.payments : [],
@@ -290,9 +302,9 @@ const mapInterventionRecord = (
     coutSST: coutSSTObj?.amount ?? item.cout_sst ?? item.coutSST ?? null,
     coutMateriel: coutMaterielObj?.amount ?? item.cout_materiel ?? item.coutMateriel ?? null,
     marge: item.marge ?? null,
-    agence: agency?.label ?? item.agence ?? item.agence_id ?? null,
-    agenceLabel: agency?.label ?? null,
-    agenceCode: agency?.code ?? null,
+    agence: finalAgency?.label ?? agency?.label ?? item.agence ?? item.agence_id ?? null,
+    agenceLabel: finalAgency?.label ?? agency?.label ?? null,
+    agenceCode: finalAgency?.code ?? agency?.code ?? null,
     referenceAgence: item.reference_agence ?? item.referenceAgence ?? null,
     contexteIntervention:
       item.contexte_intervention ?? item.contexteIntervention ?? null,
@@ -315,8 +327,12 @@ const mapInterventionRecord = (
     // ⚠️ Priorité à 'date' qui est la vraie colonne DB
     dateIntervention:
       item.date ?? item.dateIntervention ?? item.date_intervention ?? null,
-    prenomClient: item.prenom_client ?? item.prenomClient ?? null,
-    nomClient: item.nom_client ?? item.nomClient ?? null,
+    // Utiliser les relations brutes si disponibles, sinon les colonnes directes
+    prenomClient: finalTenant?.firstname ?? item.prenom_client ?? item.prenomClient ?? null,
+    nomClient: finalTenant?.lastname ?? item.nom_client ?? item.nomClient ?? null,
+    telephoneClient: finalTenant?.telephone ?? item.telephone_client ?? item.telephoneClient ?? null,
+    telephone2Client: finalTenant?.telephone2 ?? item.telephone2_client ?? item.telephone2Client ?? null,
+    emailClient: finalTenant?.email ?? item.email_client ?? item.emailClient ?? null,
     attribueA: userInfo.code ?? userInfo.username ?? undefined,
     assignedUserName: userInfo.fullName ?? undefined,
     assignedUserCode: userInfo.code,
@@ -346,9 +362,6 @@ const mapInterventionRecord = (
     telLoc: item.tel_loc ?? item.telLoc ?? null,
     locataire: item.locataire ?? null,
     emailLocataire: item.email_locataire ?? item.emailLocataire ?? null,
-    telephoneClient: item.telephone_client ?? item.telephoneClient ?? null,
-    telephone2Client: item.telephone2_client ?? item.telephone2Client ?? null,
-    emailClient: item.email_client ?? item.emailClient ?? null,
     prenomProprietaire:
       item.prenom_proprietaire ?? item.prenomProprietaire ?? null,
     nomProprietaire: item.nom_proprietaire ?? item.nomProprietaire ?? null,

@@ -342,7 +342,7 @@ const AVAILABLE_RELATIONS: Record<string, string> = {
   users: 'users!assigned_user_id(id,firstname,lastname,username,color,code_gestionnaire)',
   statuses: 'intervention_statuses(id,code,label,color,sort_order)',
   metiers: 'metiers(id,label,code)',
-  artisans: 'intervention_artisans(id,artisan_id,is_primary,role,artisans(id,nom,prenom,plain_nom,email,telephone))',
+  artisans: 'intervention_artisans(id,artisan_id,is_primary,role,artisans(id,nom,prenom,plain_nom,email,telephone,telephone2,numero_associe,siret,raison_sociale))',
   costs: 'intervention_costs(id,cost_type,label,amount,currency)',
   owner: 'owner:owner_id(id,owner_firstname,owner_lastname,email,telephone)',
 };
@@ -380,13 +380,16 @@ const parseListParam = (values: string[]): string[] => {
     .filter((item) => item.length > 0);
 };
 
-const buildSelectClause = (extraSelect: string | null, include: string[]): string => {
+const buildSelectClause = (extraSelect: string | null, include: string[], hasSearch: boolean = false): string => {
   const base = new Set<string>(DEFAULT_INTERVENTION_COLUMNS);
   const selectFragments: string[] = [];
   
   // ⚠️ TOUJOURS inclure les artisans et les coûts par défaut
   const defaultRelations = ['artisans', 'costs'];
-  const allIncludes = [...new Set([...defaultRelations, ...include])];
+  
+  // Si recherche active, inclure aussi agencies et tenants pour le filtrage client
+  const searchRelations = hasSearch ? ['agencies', 'tenants'] : [];
+  const allIncludes = [...new Set([...defaultRelations, ...searchRelations, ...include])];
   
   if (extraSelect) {
     selectFragments.push(extraSelect);
@@ -476,11 +479,16 @@ const applyFilters = <T extends { in: Function; eq: Function; gte: Function; lte
   }
 
   if (filters.search) {
-    // Utiliser .or() pour rechercher dans plusieurs champs (même logique que search.ts)
-    const orFilterString = buildSearchOrFilters(filters.search);
-    if (orFilterString) {
-      builder = builder.or(orFilterString);
-    }
+    // ⚠️ Filtrage serveur désactivé : laisser le client faire TOUT le filtrage
+    // (colonnes directes + relations). Cela permet de rechercher dans les relations
+    // (agence, tenant, artisan) qui ne peuvent pas être filtrées avec .or() côté serveur.
+    // Le client récupère 3x plus de résultats (300 au lieu de 100) pour compenser.
+    // 
+    // Ancien code (désactivé) :
+    // const orFilterString = buildSearchOrFilters(filters.search);
+    // if (orFilterString) {
+    //   builder = builder.or(orFilterString);
+    // }
   }
 
   return builder;
@@ -1232,8 +1240,161 @@ serve(async (req: Request) => {
         filters.userIsNull = true;
       }
 
-      const selectClause = buildSelectClause(extraSelect, include);
+      const hasSearch = Boolean(filters.search && filters.search.length > 0);
+      const selectClause = buildSelectClause(extraSelect, include, hasSearch);
 
+      // ========================================
+      // RECHERCHE OPTIMISÉE VIA VUE MATÉRIALISÉE
+      // ========================================
+      if (hasSearch && filters.search && filters.search.length >= 2) {
+        console.log(
+          JSON.stringify({
+            level: 'info',
+            requestId,
+            message: 'Using optimized search via materialized view',
+            searchQuery: filters.search,
+            limit: clampedLimit,
+            offset: clampedOffset,
+          }),
+        );
+
+        const fetchStart = Date.now();
+
+        // Appeler la fonction RPC search_interventions
+        const { data: searchResults, error: searchError } = await supabase
+          .rpc('search_interventions', {
+            p_query: filters.search,
+            p_limit: clampedLimit,
+            p_offset: clampedOffset,
+          });
+
+        const fetchDuration = Date.now() - fetchStart;
+
+        if (searchError) {
+          console.error(
+            JSON.stringify({
+              level: 'error',
+              requestId,
+              error: searchError.message,
+              searchQuery: filters.search,
+              message: 'Failed to execute optimized search',
+            }),
+          );
+          throw new Error(`Search error: ${searchError.message}`);
+        }
+
+        // Les résultats de search_interventions sont déjà triés par pertinence
+        // Mais on doit récupérer les données complètes si include est demandé
+        let filteredData = searchResults ?? [];
+
+        // Si on a des includes ou des filtres supplémentaires, récupérer les données complètes
+        if (include.length > 0 || artisanFilters.length > 0 || statutFilters.length > 0) {
+          const interventionIds = filteredData.map((r: any) => r.id);
+
+          if (interventionIds.length > 0) {
+            let detailedQuery = supabase
+              .from('interventions')
+              .select(selectClause)
+              .in('id', interventionIds);
+
+            // Appliquer les filtres supplémentaires (statut, agence, métier, user)
+            if (statutFilters.length > 0) {
+              detailedQuery = detailedQuery.in('statut_id', statutFilters);
+            }
+            if (agenceFilters.length > 0) {
+              detailedQuery = detailedQuery.in('agence_id', agenceFilters);
+            }
+            if (metierFilters.length > 0) {
+              detailedQuery = detailedQuery.in('metier_id', metierFilters);
+            }
+            if (userIds.length > 0) {
+              detailedQuery = detailedQuery.in('assigned_user_id', userIds);
+            } else if (userIsNull) {
+              detailedQuery = detailedQuery.is('assigned_user_id', null);
+            }
+
+            const { data: detailedData, error: detailedError } = await detailedQuery;
+
+            if (detailedError) {
+              throw new Error(`Failed to fetch detailed data: ${detailedError.message}`);
+            }
+
+            // Réordonner selon l'ordre de pertinence de la recherche
+            const idToData = new Map(
+              (detailedData ?? []).map((item: any) => [item.id, item])
+            );
+            filteredData = interventionIds
+              .map((id: string) => idToData.get(id))
+              .filter((item: any) => item !== undefined);
+          } else {
+            filteredData = [];
+          }
+        }
+
+        // Filtrage artisan en post-traitement si nécessaire
+        if (artisanFilters.length > 0) {
+          const { data: artisanInterventions, error: artisanError } = await supabase
+            .from('intervention_artisans')
+            .select('intervention_id')
+            .in('artisan_id', artisanFilters);
+
+          if (artisanError) {
+            console.error(
+              JSON.stringify({
+                level: 'error',
+                requestId,
+                error: artisanError.message,
+                artisanFilters,
+                message: 'Failed to filter interventions by artisan',
+              }),
+            );
+          } else {
+            const interventionIds = new Set(
+              (artisanInterventions ?? [])
+                .map((entry) => entry?.intervention_id as string | null)
+                .filter((value): value is string => Boolean(value)),
+            );
+            filteredData = filteredData.filter((intervention: any) => interventionIds.has(intervention.id));
+          }
+        }
+
+        // Pour le count, on fait une requête séparée avec les filtres
+        const totalCount = await getCachedCount(supabase, filters);
+        const hasMore = clampedOffset + clampedLimit < totalCount;
+
+        console.log(
+          JSON.stringify({
+            level: 'info',
+            requestId,
+            responseTime: fetchDuration,
+            dataCount: filteredData.length,
+            totalCount,
+            offset: clampedOffset,
+            limit: clampedLimit,
+            hasMore,
+            searchOptimized: true,
+            timestamp: new Date().toISOString(),
+            message: 'Interventions retrieved successfully via optimized search',
+          }),
+        );
+
+        return new Response(
+          JSON.stringify({
+            data: filteredData,
+            pagination: {
+              total: totalCount,
+              limit: clampedLimit,
+              offset: clampedOffset,
+              hasMore,
+            },
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+        );
+      }
+
+      // ========================================
+      // RECHERCHE CLASSIQUE (sans search)
+      // ========================================
       let query = supabase
         .from('interventions')
         .select(selectClause, { count: 'exact' })
@@ -1242,11 +1403,11 @@ serve(async (req: Request) => {
         .order('id', { ascending: false });
 
       query = applyFilters(query, filters);
-      
-      // Appliquer la pagination APRÈS les filtres
+
+      // Appliquer la pagination
       query = query.range(clampedOffset, clampedOffset + clampedLimit - 1);
-      
-      console.log(`[Edge Function] Requête avec range(${clampedOffset}, ${clampedOffset + clampedLimit - 1})`);
+
+      console.log(`[Edge Function] Requête classique avec range(${clampedOffset}, ${clampedOffset + clampedLimit - 1})`);
 
       const fetchStart = Date.now();
       const { data, error, count } = await query;

@@ -489,6 +489,11 @@ function PageContent() {
     return runQuery(normalizedInterventions, clientFilters, activeView.sorts)
   }, [activeView, normalizedInterventions, clientFilters])
 
+  // ✅ RECHERCHE OPTIMISÉE CÔTÉ SERVEUR
+  // La recherche est maintenant effectuée via la vue matérialisée `interventions_search_mv`
+  // dans l'Edge Function. Le tri par pertinence se fait côté PostgreSQL avec ts_rank.
+  // Plus besoin de fonctions utilitaires ni de scoring client ! (-280 lignes de code)
+
   const loadDistinctValues = useCallback(async (property: string) => {
     try {
       const values = await getDistinctInterventionValues(property)
@@ -736,6 +741,7 @@ function PageContent() {
     return Array.from(s)
   }, [filteredInterventions])
 
+  // Les interventions arrivent déjà triées par pertinence du serveur
   const viewInterventions = filteredInterventions
   
   // Log pour debug
