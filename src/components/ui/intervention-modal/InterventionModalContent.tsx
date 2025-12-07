@@ -99,6 +99,7 @@ export function InterventionModalContent({
   const [mentionIds, setMentionIds] = useState<string[]>([])
   const [noteDialogCoords, setNoteDialogCoords] = useState<{ top: number; left: number }>({ top: 0, left: 0 })
   const noteDialogContentRef = useRef<HTMLDivElement | null>(null)
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const isReminderSaveDisabled = noteValue.trim().length === 0 && !dueDateValue
 
   // SMS Modal states
@@ -323,14 +324,15 @@ GMBS`
 
   // Handler pour la suppression
   const handleDelete = useCallback(() => {
-    const confirmed = window.confirm(
-      "Cette action est destructive. Êtes-vous sûr de vouloir supprimer l'intervention ?"
-    )
-    if (confirmed) {
-      deleteIntervention()
-      // Fermer le modal avec la même logique que le bouton de fermeture
-      onClose()
-    }
+    // Ouvrir le dialogue au lieu d'utiliser window.confirm
+    setShowDeleteDialog(true)
+  }, [])
+
+  const handleConfirmDelete = useCallback(() => {
+    deleteIntervention()
+    setShowDeleteDialog(false)
+    // Fermer le modal avec la même logique que le bouton de fermeture
+    onClose()
   }, [deleteIntervention, onClose])
 
   return (
@@ -623,6 +625,27 @@ GMBS`
             </AlertDialogAction>
           </AlertDialogFooter>
         </NoteDialogContent>
+      </AlertDialog>
+
+      {/* Dialogue de confirmation de suppression */}
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmer la suppression</AlertDialogTitle>
+            <AlertDialogDescription>
+              Cette action est destructive. Êtes-vous sûr de vouloir supprimer l'intervention ?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annuler</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleConfirmDelete}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Supprimer
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
       </AlertDialog>
     </TooltipProvider>
   )
