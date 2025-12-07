@@ -14,6 +14,7 @@ export interface UseArtisansQueryOptions {
     metier?: string
     metiers?: string[]
     search?: string
+    statut_dossier?: string
   }
   page?: number
   /**
@@ -74,6 +75,9 @@ export function useArtisansQuery(
     }
     if (serverFilters.search && serverFilters.search.trim()) {
       result.search = serverFilters.search.trim()
+    }
+    if (serverFilters.statut_dossier) {
+      result.statut_dossier = serverFilters.statut_dossier
     }
 
     return result

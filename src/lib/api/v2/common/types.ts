@@ -257,6 +257,7 @@ export interface ArtisanQueryParams extends BaseQueryParams {
   metier?: string;
   zone?: string;
   gestionnaire?: string;
+  statut_dossier?: string;
 }
 
 export interface DocumentQueryParams extends BaseQueryParams {

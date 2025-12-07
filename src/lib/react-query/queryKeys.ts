@@ -161,6 +161,7 @@ export type ArtisanGetAllParams = {
   zone?: string
   gestionnaire?: string
   search?: string
+  statut_dossier?: string
 }
 
 /**

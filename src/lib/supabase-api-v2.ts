@@ -1561,6 +1561,7 @@ export const artisansApiV2 = {
     zone?: string;
     gestionnaire?: string;
     search?: string;
+    statut_dossier?: string;
   }): Promise<PaginatedResponse<Artisan>> {
     // Version ultra-rapide avec jointures pour métiers, zones et attachments
     let query = supabase
@@ -1606,6 +1607,9 @@ export const artisansApiV2 = {
     }
     if (params?.gestionnaire) {
       query = query.eq("gestionnaire_id", params.gestionnaire);
+    }
+    if (params?.statut_dossier) {
+      query = query.eq("statut_dossier", params.statut_dossier);
     }
     if (params?.search && params.search.trim()) {
       const term = params.search.trim();
@@ -1682,6 +1686,9 @@ export const artisansApiV2 = {
       if (params?.gestionnaire) {
         countQuery = countQuery.eq("gestionnaire_id", params.gestionnaire);
       }
+      if (params?.statut_dossier) {
+        countQuery = countQuery.eq("statut_dossier", params.statut_dossier);
+      }
       if (params?.search && params.search.trim()) {
         const term = params.search.trim();
         countQuery = countQuery.or(
@@ -1722,6 +1729,9 @@ export const artisansApiV2 = {
       }
       if (params?.gestionnaire) {
         countQuery = countQuery.eq("gestionnaire_id", params.gestionnaire);
+      }
+      if (params?.statut_dossier) {
+        countQuery = countQuery.eq("statut_dossier", params.statut_dossier);
       }
       if (params?.search && params.search.trim()) {
         const term = params.search.trim();
@@ -3683,6 +3693,7 @@ export async function getArtisanCountWithFilters(
     metier?: string
     metiers?: string[]
     search?: string
+    statut_dossier?: string
   }
 ): Promise<number> {
   let query = supabase
@@ -3698,6 +3709,10 @@ export async function getArtisanCountWithFilters(
     query = query.in("statut_id", params.statuts)
   } else if (params?.statut) {
     query = query.eq("statut_id", params.statut)
+  }
+
+  if (params?.statut_dossier) {
+    query = query.eq("statut_dossier", params.statut_dossier)
   }
 
   if (params?.search && params.search.trim()) {
@@ -3735,6 +3750,10 @@ export async function getArtisanCountWithFilters(
       idsQuery = idsQuery.in("statut_id", params.statuts)
     } else if (params?.statut) {
       idsQuery = idsQuery.eq("statut_id", params.statut)
+    }
+
+    if (params?.statut_dossier) {
+      idsQuery = idsQuery.eq("statut_dossier", params.statut_dossier)
     }
 
     if (params?.search && params.search.trim()) {

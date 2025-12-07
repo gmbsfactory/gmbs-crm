@@ -76,6 +76,9 @@ export const artisansApi = {
     if (params?.gestionnaire) {
       query = query.eq("gestionnaire_id", params.gestionnaire);
     }
+    if (params?.statut_dossier) {
+      query = query.eq("statut_dossier", params.statut_dossier);
+    }
 
     // Pagination
     const limit = params?.limit || 100;

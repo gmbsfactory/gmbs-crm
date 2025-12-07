@@ -16,7 +16,7 @@ import { ArtisanViewTabs } from "@/components/artisans/ArtisanViewTabs"
 import type { Artisan as ApiArtisan } from "@/lib/supabase-api-v2"
 import { getArtisanTotalCount, getArtisanCountWithFilters } from "@/lib/supabase-api-v2"
 import { convertArtisanFiltersToServerFilters } from "@/lib/filter-converter"
-import { Search, Eye, Edit, Trash2, Mail, Phone, X, Filter, ChevronDown } from "lucide-react"
+import { Search, Eye, Edit, Trash2, Mail, Phone, X, Filter, ChevronDown, FileText } from "lucide-react"
 import { Checkbox } from "@/components/ui/checkbox"
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
 import {
@@ -261,6 +261,9 @@ const getDossierStatusColor = (status: string) => {
   return colors[status] || "bg-gray-100 text-gray-800"
 }
 
+// Constante pour le statut virtuel "Dossier à compléter"
+const VIRTUAL_STATUS_DOSSIER_A_COMPLETER = "Dossier à compléter"
+
 export default function ArtisansPage(): ReactElement {
   const artisanModal = useArtisanModal()
   const { views, activeView, activeViewId, setActiveView, isReady } = useArtisanViews()
@@ -298,15 +301,26 @@ export default function ArtisansPage(): ReactElement {
       combinedServerFilters.search = normalizedSearch
     }
 
-    if (selectedStatuses.length > 0) {
+    // Séparer les statuts réels du statut virtuel
+    const realStatuses = selectedStatuses.filter(
+      label => label !== VIRTUAL_STATUS_DOSSIER_A_COMPLETER
+    )
+    const hasDossierFilter = selectedStatuses.includes(VIRTUAL_STATUS_DOSSIER_A_COMPLETER)
+
+    if (realStatuses.length > 0) {
       const statusIds = artisanStatuses
-        .filter((status) => selectedStatuses.includes(status.label))
+        .filter((status) => realStatuses.includes(status.label))
         .map((status) => status.id)
         .filter((statusId): statusId is string => Boolean(statusId))
 
       if (statusIds.length > 0) {
         combinedServerFilters.statuts = statusIds
       }
+    }
+
+    // Si "Dossier à compléter" est sélectionné, ajouter le filtre statut_dossier
+    if (hasDossierFilter) {
+      combinedServerFilters.statut_dossier = "À compléter"
     }
 
     if (selectedMetiers.length > 0 && metiers.length > 0) {
@@ -639,6 +653,16 @@ export default function ArtisansPage(): ReactElement {
           statusCountsMap[statusLabel] = count
         })
 
+        // Compter pour le statut virtuel "Dossier à compléter"
+        const dossierCountParams = {
+          ...baseServerFilters,
+          ...searchFilter,
+          ...metierFilter,
+          statut_dossier: "À compléter",
+        }
+        const dossierCount = await getArtisanCountWithFilters(dossierCountParams)
+        statusCountsMap[VIRTUAL_STATUS_DOSSIER_A_COMPLETER] = dossierCount
+
         if (!cancelled) {
           setStatusCounts(statusCountsMap)
         }
@@ -707,6 +731,19 @@ export default function ArtisansPage(): ReactElement {
   // Utiliser les métiers de referenceData au lieu de ceux des contacts
   const allMetiers = metiers.map((m) => m.label)
 
+  // Liste des statuts avec le statut virtuel "Dossier à compléter"
+  const extendedStatuses = useMemo(() => {
+    const virtualStatus = {
+      id: '__DOSSIER_A_COMPLETER__',
+      code: 'DOSSIER_A_COMPLETER',
+      label: VIRTUAL_STATUS_DOSSIER_A_COMPLETER,
+      color: '#F59E0B', // Couleur ambre/orange
+      is_active: true,
+      is_virtual: true, // Marqueur pour identifier les statuts virtuels
+    }
+    return [...artisanStatuses, virtualStatus]
+  }, [artisanStatuses])
+
   // États pour les filtres
   const [statusFilterOpen, setStatusFilterOpen] = useState(false)
   const [statusSearchQuery, setStatusSearchQuery] = useState("")
@@ -716,17 +753,17 @@ export default function ArtisansPage(): ReactElement {
   // Filtres calculés
   const hasStatusFilter = selectedStatuses.length > 0
   const activeStatuses = useMemo(() => 
-    artisanStatuses.filter(s => selectedStatuses.includes(s.label)),
-    [artisanStatuses, selectedStatuses]
+    extendedStatuses.filter(s => selectedStatuses.includes(s.label)),
+    [extendedStatuses, selectedStatuses]
   )
   
   const filteredStatuses = useMemo(() => {
-    if (!statusSearchQuery.trim()) return artisanStatuses.filter(s => s.is_active !== false)
+    if (!statusSearchQuery.trim()) return extendedStatuses.filter(s => s.is_active !== false)
     const query = statusSearchQuery.toLowerCase()
-    return artisanStatuses.filter(s => 
+    return extendedStatuses.filter(s => 
       s.is_active !== false && s.label.toLowerCase().includes(query)
     )
-  }, [statusSearchQuery, artisanStatuses])
+  }, [statusSearchQuery, extendedStatuses])
 
   const filteredMetiers = useMemo(() => {
     if (!metierSearchQuery.trim()) return allMetiers
@@ -871,6 +908,7 @@ export default function ArtisansPage(): ReactElement {
                           ) : (
                             filteredStatuses.map((status) => {
                               const isSelected = selectedStatuses.includes(status.label)
+                              const isVirtual = status.is_virtual === true
                               return (
                                 <label
                                   key={status.id}
@@ -880,7 +918,10 @@ export default function ArtisansPage(): ReactElement {
                                     checked={isSelected}
                                     onCheckedChange={(checked) => handleToggleStatus(status.label, Boolean(checked))}
                                   />
-                                  <span className="truncate flex-1">{status.label}</span>
+                                  <span className="truncate flex-1">
+                                    {status.label}
+                                    {isVirtual}
+                                  </span>
                                   <span className="text-xs text-muted-foreground">
                                     ({getContactCountByStatus(status.label)})
                                   </span>
