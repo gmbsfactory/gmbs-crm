@@ -1284,51 +1284,50 @@ serve(async (req: Request) => {
         }
 
         // Les résultats de search_interventions sont déjà triés par pertinence
-        // Mais on doit récupérer les données complètes si include est demandé
+        // MAIS ils ne contiennent que des champs limités, donc on doit TOUJOURS
+        // récupérer les données complètes pour le frontend
         let filteredData = searchResults ?? [];
+        const interventionIds = filteredData.map((r: any) => r.id);
 
-        // Si on a des includes ou des filtres supplémentaires, récupérer les données complètes
-        if (include.length > 0 || artisanFilters.length > 0 || statutFilters.length > 0) {
-          const interventionIds = filteredData.map((r: any) => r.id);
+        // TOUJOURS récupérer les données complètes car search_interventions ne retourne
+        // que des champs limités (id, id_inter, contexte, etc.)
+        if (interventionIds.length > 0) {
+          let detailedQuery = supabase
+            .from('interventions')
+            .select(selectClause)
+            .in('id', interventionIds);
 
-          if (interventionIds.length > 0) {
-            let detailedQuery = supabase
-              .from('interventions')
-              .select(selectClause)
-              .in('id', interventionIds);
-
-            // Appliquer les filtres supplémentaires (statut, agence, métier, user)
-            if (statutFilters.length > 0) {
-              detailedQuery = detailedQuery.in('statut_id', statutFilters);
-            }
-            if (agenceFilters.length > 0) {
-              detailedQuery = detailedQuery.in('agence_id', agenceFilters);
-            }
-            if (metierFilters.length > 0) {
-              detailedQuery = detailedQuery.in('metier_id', metierFilters);
-            }
-            if (userIds.length > 0) {
-              detailedQuery = detailedQuery.in('assigned_user_id', userIds);
-            } else if (userIsNull) {
-              detailedQuery = detailedQuery.is('assigned_user_id', null);
-            }
-
-            const { data: detailedData, error: detailedError } = await detailedQuery;
-
-            if (detailedError) {
-              throw new Error(`Failed to fetch detailed data: ${detailedError.message}`);
-            }
-
-            // Réordonner selon l'ordre de pertinence de la recherche
-            const idToData = new Map(
-              (detailedData ?? []).map((item: any) => [item.id, item])
-            );
-            filteredData = interventionIds
-              .map((id: string) => idToData.get(id))
-              .filter((item: any) => item !== undefined);
-          } else {
-            filteredData = [];
+          // Appliquer les filtres supplémentaires (statut, agence, métier, user)
+          if (statutFilters.length > 0) {
+            detailedQuery = detailedQuery.in('statut_id', statutFilters);
           }
+          if (agenceFilters.length > 0) {
+            detailedQuery = detailedQuery.in('agence_id', agenceFilters);
+          }
+          if (metierFilters.length > 0) {
+            detailedQuery = detailedQuery.in('metier_id', metierFilters);
+          }
+          if (userIds.length > 0) {
+            detailedQuery = detailedQuery.in('assigned_user_id', userIds);
+          } else if (userIsNull) {
+            detailedQuery = detailedQuery.is('assigned_user_id', null);
+          }
+
+          const { data: detailedData, error: detailedError } = await detailedQuery;
+
+          if (detailedError) {
+            throw new Error(`Failed to fetch detailed data: ${detailedError.message}`);
+          }
+
+          // Réordonner selon l'ordre de pertinence de la recherche
+          const idToData = new Map(
+            (detailedData ?? []).map((item: any) => [item.id, item])
+          );
+          filteredData = interventionIds
+            .map((id: string) => idToData.get(id))
+            .filter((item: any) => item !== undefined);
+        } else {
+          filteredData = [];
         }
 
         // Filtrage artisan en post-traitement si nécessaire
