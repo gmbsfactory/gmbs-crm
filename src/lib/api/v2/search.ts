@@ -15,6 +15,12 @@ const DEFAULT_ARTISAN_LIMIT = 10
 const DEFAULT_INTERVENTION_LIMIT = 20
 const DIACRITICS_REGEX = /[\u0300-\u036f]/g
 
+type SearchGlobalResult = {
+  entity_type: "artisan" | "intervention"
+  entity_id: string
+  rank: number | null
+}
+
 const normalizeString = (value: string | null | undefined): string => {
   if (!value) return ""
   return value
@@ -971,12 +977,12 @@ export async function universalSearch(
   }
 
   // Separate results by entity type
-  const artisanResults = (globalResults ?? []).filter((r) => r.entity_type === "artisan")
-  const interventionResults = (globalResults ?? []).filter((r) => r.entity_type === "intervention")
+  const artisanResults: SearchGlobalResult[] = (globalResults ?? []).filter((r: SearchGlobalResult) => r.entity_type === "artisan")
+  const interventionResults: SearchGlobalResult[] = (globalResults ?? []).filter((r: SearchGlobalResult) => r.entity_type === "intervention")
 
   // Sort by rank (already sorted by search_global, but ensure order is preserved)
-  artisanResults.sort((a, b) => (b.rank ?? 0) - (a.rank ?? 0))
-  interventionResults.sort((a, b) => (b.rank ?? 0) - (a.rank ?? 0))
+  artisanResults.sort((a: SearchGlobalResult, b: SearchGlobalResult) => (b.rank ?? 0) - (a.rank ?? 0))
+  interventionResults.sort((a: SearchGlobalResult, b: SearchGlobalResult) => (b.rank ?? 0) - (a.rank ?? 0))
 
   // Limit results per type
   const limitedArtisanResults = artisanResults.slice(0, resolvedArtisanLimit)
@@ -1044,7 +1050,7 @@ export async function universalSearch(
         },
         score,
         matchedFields,
-      }
+      } as SearchResult<ArtisanSearchRecord>
     })
     .filter((item): item is SearchResult<ArtisanSearchRecord> => item !== null)
 
@@ -1080,7 +1086,7 @@ export async function universalSearch(
         data: intervention,
         score,
         matchedFields,
-      }
+      } as SearchResult<InterventionSearchRecord>
     })
     .filter((item): item is SearchResult<InterventionSearchRecord> => item !== null)
 

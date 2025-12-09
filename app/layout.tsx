@@ -43,7 +43,7 @@ export default async function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
-        <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=5, user-scalable=yes" />
+        <meta name="viewport" content="width=device-width, initial-scale=0.8, maximum-scale=5, user-scalable=yes" />
         {/* Pré-applique le thème avant l'hydratation pour éviter le flash */}
         <script
           dangerouslySetInnerHTML={{

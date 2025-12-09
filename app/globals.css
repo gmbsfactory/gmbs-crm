@@ -94,6 +94,10 @@
 }
 
 @layer base {
+  html {
+    font-size: 12px; /* Réduit de 16px (défaut) à 14px pour augmenter la densité d'information */
+  }
+
   :root {
     /* Table responsive height - ajustez selon vos besoins */
     --table-view-offset: 200px; /* Espace pour header, tabs, filtres, padding */
