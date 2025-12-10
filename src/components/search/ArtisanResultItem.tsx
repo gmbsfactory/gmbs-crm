@@ -16,7 +16,7 @@ const renderSegments = (segments: ReturnType<typeof getHighlightSegments>) => {
   return segments.map((segment, index) => (
     <span
       key={`${segment.text}-${index}`}
-      className={segment.isMatch ? "font-semibold text-foreground" : undefined}
+      className={segment.isMatch ? "search-highlight" : undefined}
     >
       {segment.text}
     </span>

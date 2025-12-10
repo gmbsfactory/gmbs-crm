@@ -33,6 +33,7 @@ import { cn } from "@/lib/utils"
 import Loader from "@/components/ui/Loader"
 import { Pagination } from "@/components/ui/pagination"
 import { useCurrentUser } from "@/hooks/useCurrentUser"
+import { getHighlightSegments } from "@/components/search/highlight"
 
 // Helper pour convertir hex en rgba
 function hexToRgba(hex: string, alpha: number): string | null {
@@ -263,6 +264,26 @@ const getDossierStatusColor = (status: string) => {
 
 // Constante pour le statut virtuel "Dossier à compléter"
 const VIRTUAL_STATUS_DOSSIER_A_COMPLETER = "Dossier à compléter"
+
+/** Helper pour rendre du texte avec surlignage des termes de recherche */
+function HighlightedText({ text, searchQuery }: { text: string; searchQuery: string }) {
+  if (!searchQuery || searchQuery.trim().length === 0) {
+    return <>{text}</>
+  }
+  const segments = getHighlightSegments(text, searchQuery)
+  return (
+    <>
+      {segments.map((segment, index) => (
+        <span
+          key={`${segment.text}-${index}`}
+          className={segment.isMatch ? "search-highlight" : undefined}
+        >
+          {segment.text}
+        </span>
+      ))}
+    </>
+  )
+}
 
 export default function ArtisansPage(): ReactElement {
   const artisanModal = useArtisanModal()
@@ -1113,7 +1134,7 @@ export default function ArtisansPage(): ReactElement {
                             <div className="flex-1">
                               <div className="flex items-center justify-between gap-2">
                                 <div className="flex flex-col">
-                                  <span className="font-medium">{contact.name}</span>
+                                  <span className="font-medium"><HighlightedText text={contact.name} searchQuery={searchTerm} /></span>
                                   <span className="text-sm text-muted-foreground">Zone {contact.zoneIntervention ?? "—"}</span>
                                 </div>
                                 <div className="flex items-center">
@@ -1146,23 +1167,23 @@ export default function ArtisansPage(): ReactElement {
                         <td className="px-4 py-3">
                           <div className="space-y-1">
                             <div className="font-medium">
-                              {contact.company}
+                              <HighlightedText text={contact.company || "—"} searchQuery={searchTerm} />
                               {contact.statutJuridique && (
                                 <span className="text-muted-foreground"> / {contact.statutJuridique}</span>
                               )}
                             </div>
-                            <div className="text-sm text-muted-foreground">{contact.position}</div>
+                            <div className="text-sm text-muted-foreground"><HighlightedText text={contact.position || "—"} searchQuery={searchTerm} /></div>
                           </div>
                         </td>
                         <td className="px-4 py-3">
                           <div className="space-y-1 text-sm text-muted-foreground">
                             <div className="flex items-center gap-2">
                               <Mail className="h-3 w-3" />
-                              <span>{contact.email}</span>
+                              <span><HighlightedText text={contact.email || "—"} searchQuery={searchTerm} /></span>
                             </div>
                             <div className="flex items-center gap-2">
                               <Phone className="h-3 w-3" />
-                              <span>{contact.phone}</span>
+                              <span><HighlightedText text={contact.phone || "—"} searchQuery={searchTerm} /></span>
                             </div>
                           </div>
                         </td>
@@ -1176,7 +1197,7 @@ export default function ArtisansPage(): ReactElement {
                           </div>
                         </td>
                         <td className="px-4 py-3 text-sm text-muted-foreground">
-                          {contact.adresse || "—"}
+                          <HighlightedText text={contact.adresse || "—"} searchQuery={searchTerm} />
                         </td>
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-2">

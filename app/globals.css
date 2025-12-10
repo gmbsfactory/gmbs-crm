@@ -2591,6 +2591,23 @@
 }
 
 @layer utilities {
+  /* Style de surlignage pour les recherches */
+  .search-highlight {
+    font-weight: 600;
+    background-color: hsl(var(--primary) / 0.25);
+    color: hsl(var(--primary));
+    border-radius: 2px;
+    padding: 0 3px;
+    margin: 0 1px;
+    box-decoration-break: clone;
+    -webkit-box-decoration-break: clone;
+  }
+
+  :root[data-theme="dark"] .search-highlight {
+    background-color: hsl(var(--primary) / 0.35);
+    color: hsl(var(--accent-foreground));
+  }
+
   .gradient-micro {
     background-image: linear-gradient(
       to bottom,

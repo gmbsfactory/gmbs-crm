@@ -76,6 +76,7 @@ import { DatePicker } from "@/components/ui/date-picker"
 import { cn } from "@/lib/utils"
 import { supabase } from "@/lib/supabase-client"
 import { CommentSection } from "@/components/shared/CommentSection"
+import { getHighlightSegments } from "@/components/search/highlight"
 import {
   STYLE_ELIGIBLE_COLUMNS,
   TABLE_APPEARANCE_OPTIONS,
@@ -134,6 +135,8 @@ type TableViewProps = {
   onPageChange?: (page: number) => void
   onNextPage?: () => void
   onPreviousPage?: () => void
+  /** Terme de recherche actif pour surligner les correspondances dans les cellules */
+  searchQuery?: string
 }
 
 
@@ -464,6 +467,7 @@ export function TableView({
   onPageChange,
   onNextPage,
   onPreviousPage,
+  searchQuery = "",
 }: TableViewProps) {
   // Log pour debug pagination
   useEffect(() => {
@@ -1319,7 +1323,7 @@ export function TableView({
                                                 className="top-1 left-1"
                                               />
                                             )}
-                                            <TruncatedCell content={content} />
+                                            <TruncatedCell content={content} searchQuery={searchQuery} />
                                           </td>
                                         )
                                       })}
@@ -1400,6 +1404,7 @@ export function TableView({
                                         showStatusBorder={statusBorderEnabled}
                                         statusBorderWidth={statusBorderWidthPx}
                                         currentUserId={currentUserId}
+                                        searchQuery={searchQuery}
                                       />
                                     </td>
                                   </tr>
@@ -1546,7 +1551,24 @@ export function TableView({
 
 export default TableView
 
-function TruncatedCell({ content, className }: { content: ReactNode; className?: string }) {
+/** Helper pour rendre du texte avec surlignage des termes de recherche */
+function HighlightedText({ text, searchQuery }: { text: string; searchQuery: string }) {
+  const segments = getHighlightSegments(text, searchQuery)
+  return (
+    <>
+      {segments.map((segment, index) => (
+        <span
+          key={`${segment.text}-${index}`}
+          className={segment.isMatch ? "search-highlight" : undefined}
+        >
+          {segment.text}
+        </span>
+      ))}
+    </>
+  )
+}
+
+function TruncatedCell({ content, className, searchQuery }: { content: ReactNode; className?: string; searchQuery?: string }) {
   const [tooltipPos, setTooltipPos] = useState<{ x: number; y: number } | null>(null)
   const cellRef = useRef<HTMLDivElement>(null)
   const [isOverflowing, setIsOverflowing] = useState(false)
@@ -1573,6 +1595,14 @@ function TruncatedCell({ content, className }: { content: ReactNode; className?:
 
   const contentStr = typeof content === "string" ? content :
     typeof content === "number" ? String(content) : ""
+
+  // Appliquer le surlignage si le contenu est une string et qu'il y a une query
+  const displayContent = useMemo(() => {
+    if (typeof content === "string" && searchQuery && searchQuery.trim().length > 0) {
+      return <HighlightedText text={content} searchQuery={searchQuery} />
+    }
+    return content
+  }, [content, searchQuery])
 
   useEffect(() => {
     if (typeof document === "undefined") return
@@ -1618,7 +1648,7 @@ function TruncatedCell({ content, className }: { content: ReactNode; className?:
             className
           )}
         >
-          {content}
+          {displayContent}
         </div>
       </div>
       {portalElement && tooltipPos && contentStr
@@ -1645,12 +1675,14 @@ function ExpandedRowContent({
   showStatusBorder,
   statusBorderWidth,
   currentUserId,
+  searchQuery = "",
 }: {
   intervention: InterventionEntity
   statusColor: string
   showStatusBorder: boolean
   statusBorderWidth: string
   currentUserId?: string | null
+  searchQuery?: string
 }) {
 
   // Récupération des données de l'intervention avec useMemo pour réactivité
@@ -1678,6 +1710,14 @@ function ExpandedRowContent({
     [interventionData.agenceName, agencesRequiringRef]
   )
 
+  // Helper pour rendre du texte avec surlignage optionnel
+  const renderText = (text: string) => {
+    if (searchQuery && searchQuery.trim().length > 0 && text !== "—") {
+      return <HighlightedText text={text} searchQuery={searchQuery} />
+    }
+    return text
+  }
+
   return (
     <div
       className={cn(
@@ -1700,11 +1740,11 @@ function ExpandedRowContent({
         <div className="space-y-1">
           <div>
             <p className="text-xs font-semibold text-muted-foreground uppercase mb-1">Contexte</p>
-            <p className="text-sm">{interventionData.contexte}</p>
+            <p className="text-sm">{renderText(interventionData.contexte)}</p>
           </div>
           <div>
             <p className="text-xs font-semibold text-muted-foreground uppercase mb-1">Consigne</p>
-            <p className="text-sm">{interventionData.consigne}</p>
+            <p className="text-sm">{renderText(interventionData.consigne)}</p>
           </div>
           {interventionData.coutSST != null && (
             <div>
@@ -1719,17 +1759,17 @@ function ExpandedRowContent({
           {showReferenceAgence && (
             <div>
               <p className="text-xs font-semibold text-muted-foreground uppercase mb-1">Référence agence</p>
-              <p className="text-sm">{interventionData.referenceAgence || "—"}</p>
+              <p className="text-sm">{renderText(interventionData.referenceAgence || "—")}</p>
             </div>
           )}
           <div>
             <p className="text-xs font-semibold text-muted-foreground uppercase mb-1">Adresse</p>
             <p className="text-sm">
-              {interventionData.adresse}
+              {renderText(interventionData.adresse)}
               {(interventionData.ville || interventionData.codePostal) && (
                 <>
                   <br />
-                  {interventionData.codePostal} {interventionData.ville}
+                  {renderText(`${interventionData.codePostal} ${interventionData.ville}`.trim())}
                 </>
               )}
             </p>
@@ -1738,18 +1778,18 @@ function ExpandedRowContent({
             <div>
               <p className="text-xs font-semibold text-muted-foreground uppercase mb-1">Client</p>
               <p className="text-sm">
-                {interventionData.prenomClient} {interventionData.nomClient}
+                {renderText(`${interventionData.prenomClient} ${interventionData.nomClient}`.trim())}
               </p>
             </div>
           )}
           <div>
             <p className="text-xs font-semibold text-muted-foreground uppercase mb-1">Téléphone</p>
             <p className="text-sm">
-              {interventionData.telephoneClient}
+              {renderText(interventionData.telephoneClient)}
               {interventionData.telephone2Client && (
                 <>
                   {" | "}
-                  {interventionData.telephone2Client}
+                  {renderText(interventionData.telephone2Client)}
                 </>
               )}
             </p>

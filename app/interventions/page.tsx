@@ -1076,6 +1076,7 @@ function PageContent() {
             onPageChange={handleGoToPage}
             onNextPage={handleNextPage}
             onPreviousPage={handlePreviousPage}
+            searchQuery={search}
           />
         )
       case "kanban":
