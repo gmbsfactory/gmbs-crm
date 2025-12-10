@@ -54,9 +54,13 @@ export function MapLibreMapImpl({
         maptilerConfig.apiKey = maptilerKey
       }
 
+      // Utiliser le style Positron de OpenFreeMap (gratuit, sans restriction CORS)
+      // Le style "positron" est plus léger et compatible avec les marqueurs
+      const mapStyle = "https://tiles.openfreemap.org/styles/positron";
+      
       const mapInstance = new maplibregl.Map({
         container: containerRef.current,
-        style: `https://api.maptiler.com/maps/streets/style.json?key=${maptilerKey}`,
+        style: mapStyle,
         center: initialCenterRef.current,
         zoom,
         pitch: 50,
@@ -131,9 +135,36 @@ export function MapLibreMapImpl({
       mapRef.current = mapInstance
       markerRef.current = markerInstance
 
+      // ResizeObserver pour rafraîchir la carte automatiquement
+      // quand le conteneur change de taille (ex: liste artisans qui apparaît/disparaît)
+      const resizeObserver = new ResizeObserver(() => {
+        // Utiliser requestAnimationFrame pour s'assurer que le DOM est stable
+        // puis resize() + triggerRepaint() pour forcer le recalcul complet du viewport
+        requestAnimationFrame(() => {
+          if (mapInstance && !(mapInstance as any)._removed) {
+            mapInstance.resize()
+            mapInstance.triggerRepaint()
+          }
+        })
+      })
+      if (containerRef.current) {
+        resizeObserver.observe(containerRef.current)
+      }
+
+      // Resize de sécurité après délai pour layouts complexes (grids, modals)
+      const resizeTimeout = setTimeout(() => {
+        if (mapInstance && !(mapInstance as any)._removed) {
+          mapInstance.resize()
+          mapInstance.triggerRepaint()
+        }
+      }, 300)
+
       return () => {
+        clearTimeout(resizeTimeout)
+        // Déconnecter le ResizeObserver
+        resizeObserver.disconnect()
+
         // Copier les valeurs des refs dans des variables locales pour le cleanup
-        // Note: On copie les valeurs au moment du cleanup, pas au moment de l'exécution de l'effet
         // eslint-disable-next-line react-hooks/exhaustive-deps
         const circleOutlineLayerId = circleOutlineLayerIdRef.current
         // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -218,17 +249,21 @@ export function MapLibreMapImpl({
     }
 
     const createdMarkers: maplibregl.Marker[] = markers
-      .filter(
-        (markerCandidate) =>
-          Number.isFinite(markerCandidate.lat) && Number.isFinite(markerCandidate.lng),
-      )
       .map((markerCandidate) => {
+        const normalizedLat = normalizeCoordinate(markerCandidate.lat)
+        const normalizedLng = normalizeCoordinate(markerCandidate.lng)
+
+        if (normalizedLat == null || normalizedLng == null) {
+          return null
+        }
+
         const markerOptions: maplibregl.MarkerOptions = {}
         if (markerCandidate.color) {
           markerOptions.color = markerCandidate.color
         }
 
-        const marker = new maplibregl.Marker(markerOptions).setLngLat([markerCandidate.lng, markerCandidate.lat])
+        const normalizedPosition: [number, number] = [normalizedLng, normalizedLat]
+        const marker = new maplibregl.Marker(markerOptions).setLngLat(normalizedPosition)
 
         if (!markerOptions.color && markerCandidate.color && typeof (marker as any).setColor === "function") {
           ;(marker as any).setColor(markerCandidate.color)
@@ -261,7 +296,7 @@ export function MapLibreMapImpl({
         if (hoverPopup) {
           const showPopup = () => {
             hoverPopup!.addTo(mapInstance)
-            hoverPopup!.setLngLat([markerCandidate.lng, markerCandidate.lat])
+            hoverPopup!.setLngLat(normalizedPosition)
           }
           const hidePopup = () => {
             hoverPopup!.remove()
@@ -273,6 +308,7 @@ export function MapLibreMapImpl({
 
         return marker
       })
+      .filter((marker): marker is maplibregl.Marker => Boolean(marker))
 
     artisanMarkersRef.current = createdMarkers
   }, [markers])
@@ -682,28 +718,58 @@ function fitMapToCurrentExtent(
   circleRadiusKm?: number,
   selectedConnection?: { lat: number; lng: number },
 ) {
-  const targetLat = selectedConnection?.lat
-  const targetLng = selectedConnection?.lng
-  const hasTarget = Number.isFinite(targetLat) && Number.isFinite(targetLng)
-  const hasCircle = !hasTarget && circleRadiusKm != null && circleRadiusKm > 0
+  const centerLat = normalizeCoordinate(lat)
+  const centerLng = normalizeCoordinate(lng)
+  const targetLat = normalizeCoordinate(selectedConnection?.lat)
+  const targetLng = normalizeCoordinate(selectedConnection?.lng)
+  const hasTarget = targetLat != null && targetLng != null
+  const hasCircle = circleRadiusKm != null && circleRadiusKm > 0
+
+  if (centerLat == null || centerLng == null) {
+    return
+  }
 
   runWhenStyleLoaded(map, () => {
     if (hasTarget && targetLat != null && targetLng != null) {
-      const bounds = new maplibregl.LngLatBounds([lng, lat], [lng, lat])
-      bounds.extend([targetLng, targetLat])
+      // SÉLECTION: Zoom sur les deux marqueurs (intervention + artisan sélectionné)
+      const bounds = new maplibregl.LngLatBounds()
+      bounds.extend([centerLng, centerLat]) // Marqueur intervention
+      bounds.extend([targetLng, targetLat]) // Marqueur artisan
+      
       map.fitBounds(bounds, {
-        padding: 600,
-        duration: 600,
-        maxZoom: 24,
+        padding: { top: 100, bottom: 100, left: 100, right: 100 },
+        duration: 800,
+        maxZoom: 16,
       })
-    } else if (hasCircle && circleRadiusKm) {
-      const bounds = boundsFromCircle(lat, lng, circleRadiusKm)
+    } else if (hasCircle) {
+      // DÉSÉLECTION: Dézoom pour revenir à la vue du rayon de recherche
+      const bounds = boundsFromCircle(centerLat, centerLng, circleRadiusKm)
       map.fitBounds(bounds, {
-        padding: 20,
-        duration: 600,
+        padding: 50,
+        duration: 800,
+      })
+    } else {
+      // Aucun rayon ni sélection: Centrer sur l'intervention
+      map.flyTo({
+        center: [centerLng, centerLat],
+        zoom: 14,
+        duration: 800,
       })
     }
   })
+}
+
+function normalizeCoordinate(value: number | string | null | undefined) {
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value : null
+  }
+
+  if (typeof value === "string") {
+    const parsed = Number.parseFloat(value)
+    return Number.isFinite(parsed) ? parsed : null
+  }
+
+  return null
 }
 
 function boundsFromCircle(lat: number, lng: number, radiusKm: number) {

@@ -229,6 +229,7 @@ export function InterventionEditForm({
   const [showLocationSuggestions, setShowLocationSuggestions] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isProprietaireOpen, setIsProprietaireOpen] = useState(false)
+  const [isClientOpen, setIsClientOpen] = useState(false)
   const [isAccompteOpen, setIsAccompteOpen] = useState(false)
   const [isDocumentsOpen, setIsDocumentsOpen] = useState(false)
   const [isCommentsOpen, setIsCommentsOpen] = useState(true)
@@ -1408,1112 +1409,701 @@ export function InterventionEditForm({
   }
 
   return (
-    <form ref={formRef} className="space-y-6" onSubmit={handleSubmit}>
-      <Card className="legacy-form-card">
-        <CardContent className="pt-4">
-          <div className={mainGridClassName}>
-            <div className="legacy-form-field">
-              <Label htmlFor="statut" className="legacy-form-label">
-                Statut *
-              </Label>
-              <Select value={formData.statut_id} onValueChange={(value) => handleInputChange("statut_id", value)}>
-                <SelectTrigger className="legacy-form-select">
-                  <SelectValue placeholder="Sélectionner un statut" />
-                </SelectTrigger>
-                <SelectContent>
-                  {refData?.interventionStatuses.map((status) => (
-                    <SelectItem key={status.id} value={status.id}>
-                      {getStatusDisplayLabel(status.code, status.label, sstPayment, clientPayment)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="legacy-form-field">
-              <Label htmlFor="idIntervention" className="legacy-form-label">
-                ID Intervention {requiresDefinitiveId && "*"}
-              </Label>
-              <Input
-                id="idIntervention"
-                value={formData.id_inter}
-                onChange={(event) => handleInputChange("id_inter", event.target.value)}
-                placeholder="Auto-généré (provisoire)"
-                className="legacy-form-input"
-                required={requiresDefinitiveId}
-                pattern={requiresDefinitiveId ? "^(?!.*(?:[Aa][Uu][Tt][Oo])).+$" : undefined}
-                title={requiresDefinitiveId ? "ID intervention définitif requis (sans la chaîne \"AUTO\")" : undefined}
-                autoComplete="off"
-              />
-            </div>
-            <div className="legacy-form-field">
-              <Label htmlFor="agence" className="legacy-form-label">
-                Agence
-              </Label>
-              <Select value={formData.agence_id} onValueChange={(value) => handleInputChange("agence_id", value)}>
-                <SelectTrigger className="legacy-form-select">
-                  <SelectValue placeholder="Sélectionner une agence" />
-                </SelectTrigger>
-                <SelectContent>
-                  {refData?.agencies.map((agency) => (
-                    <SelectItem key={agency.id} value={agency.id}>
-                      {agency.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            {showReferenceField && (
-              <div className="legacy-form-field">
-                <Label htmlFor="reference_agence" className="legacy-form-label">
-                  Référence agence
-                </Label>
+    <form ref={formRef} onSubmit={handleSubmit}>
+      {/* GRID LAYOUT PRINCIPAL 6 colonnes x 8 lignes */}
+      <div
+        className="grid gap-3"
+        style={{
+          gridTemplateColumns: "repeat(6, 1fr)",
+          gridTemplateRows: "auto auto auto 1fr 1fr 1fr auto auto",
+        }}
+      >
+        {/* DIV1: HEADER PRINCIPAL - Row 1, Cols 1-6 */}
+        <Card className="legacy-form-card" style={{ gridArea: "1 / 1 / 2 / 7" }}>
+          <CardContent className="py-2 px-3">
+            <div className="grid grid-cols-6 gap-2">
+              <div>
+                <Label htmlFor="statut" className="text-[10px] text-muted-foreground mb-0.5 block">Statut *</Label>
+                <Select value={formData.statut_id} onValueChange={(value) => handleInputChange("statut_id", value)}>
+                  <SelectTrigger className="h-7 text-xs">
+                    <SelectValue placeholder="Statut" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {refData?.interventionStatuses.map((status) => (
+                      <SelectItem key={status.id} value={status.id}>
+                        {getStatusDisplayLabel(status.code, status.label, sstPayment, clientPayment)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label htmlFor="idIntervention" className="text-[10px] text-muted-foreground mb-0.5 block">ID Inter. {requiresDefinitiveId && "*"}</Label>
                 <Input
-                  id="reference_agence"
-                  name="reference_agence"
-                  value={formData.reference_agence}
-                  onChange={(event) => handleInputChange("reference_agence", event.target.value)}
-                  placeholder="Ex: REF-12345"
-                  className="legacy-form-input"
+                  id="idIntervention"
+                  value={formData.id_inter}
+                  onChange={(event) => handleInputChange("id_inter", event.target.value)}
+                  placeholder="Auto"
+                  className="h-7 text-xs"
+                  required={requiresDefinitiveId}
+                  pattern={requiresDefinitiveId ? "^(?!.*(?:[Aa][Uu][Tt][Oo])).+$" : undefined}
+                  title={requiresDefinitiveId ? "ID définitif requis" : undefined}
                   autoComplete="off"
                 />
               </div>
-            )}
-            <div className="legacy-form-field">
-              <Label htmlFor="attribueA" className="legacy-form-label">
-                Attribué à
-              </Label>
-              <Select value={formData.assigned_user_id} onValueChange={(value) => handleInputChange("assigned_user_id", value)}>
-                <SelectTrigger className="legacy-form-select">
-                  <SelectValue placeholder="Utilisateur" />
-                </SelectTrigger>
-                <SelectContent>
-                  {refData?.users.map((user) => {
-                    const displayName = [user.firstname, user.lastname].filter(Boolean).join(" ").trim() || user.username
-                    return (
-                      <SelectItem key={user.id} value={user.id}>
-                        {user.code_gestionnaire ? `${user.code_gestionnaire} - ${displayName}` : displayName}
+              <div>
+                <Label htmlFor="agence" className="text-[10px] text-muted-foreground mb-0.5 block">Agence</Label>
+                <Select value={formData.agence_id} onValueChange={(value) => handleInputChange("agence_id", value)}>
+                  <SelectTrigger className="h-7 text-xs">
+                    <SelectValue placeholder="Agence" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {refData?.agencies.map((agency) => (
+                      <SelectItem key={agency.id} value={agency.id}>
+                        {agency.label}
                       </SelectItem>
-                    )
-                  })}
-                </SelectContent>
-              </Select>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              {showReferenceField ? (
+                <div>
+                  <Label htmlFor="reference_agence" className="text-[10px] text-muted-foreground mb-0.5 block">Réf. agence</Label>
+                  <Input
+                    id="reference_agence"
+                    name="reference_agence"
+                    value={formData.reference_agence}
+                    onChange={(event) => handleInputChange("reference_agence", event.target.value)}
+                    placeholder="REF-..."
+                    className="h-7 text-xs"
+                    autoComplete="off"
+                  />
+                </div>
+              ) : (
+                <div>
+                  <Label htmlFor="attribueA" className="text-[10px] text-muted-foreground mb-0.5 block">Attribué à</Label>
+                  <Select value={formData.assigned_user_id} onValueChange={(value) => handleInputChange("assigned_user_id", value)}>
+                    <SelectTrigger className="h-7 text-xs">
+                      <SelectValue placeholder="User" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {refData?.users.map((user) => {
+                        const displayName = [user.firstname, user.lastname].filter(Boolean).join(" ").trim() || user.username
+                        return (
+                          <SelectItem key={user.id} value={user.id}>
+                            {user.code_gestionnaire ? `${user.code_gestionnaire} - ${displayName}` : displayName}
+                          </SelectItem>
+                        )
+                      })}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+              {showReferenceField && (
+                <div>
+                  <Label htmlFor="attribueA" className="text-[10px] text-muted-foreground mb-0.5 block">Attribué à</Label>
+                  <Select value={formData.assigned_user_id} onValueChange={(value) => handleInputChange("assigned_user_id", value)}>
+                    <SelectTrigger className="h-7 text-xs">
+                      <SelectValue placeholder="User" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {refData?.users.map((user) => {
+                        const displayName = [user.firstname, user.lastname].filter(Boolean).join(" ").trim() || user.username
+                        return (
+                          <SelectItem key={user.id} value={user.id}>
+                            {user.code_gestionnaire ? `${user.code_gestionnaire} - ${displayName}` : displayName}
+                          </SelectItem>
+                        )
+                      })}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+              <div>
+                <Label htmlFor="typeMetier" className="text-[10px] text-muted-foreground mb-0.5 block">Métier</Label>
+                <Select value={formData.metier_id} onValueChange={(value) => handleInputChange("metier_id", value)}>
+                  <SelectTrigger className="h-7 text-xs">
+                    <SelectValue placeholder="Métier" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {refData?.metiers.map((metier) => (
+                      <SelectItem key={metier.id} value={metier.id}>
+                        {metier.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
-            <div className="legacy-form-field">
-              <Label htmlFor="typeMetier" className="legacy-form-label">
-                Type (Métier)
-              </Label>
-              <Select value={formData.metier_id} onValueChange={(value) => handleInputChange("metier_id", value)}>
-                <SelectTrigger className="legacy-form-select">
-                  <SelectValue placeholder="Métier" />
-                </SelectTrigger>
-                <SelectContent>
-                  {refData?.metiers.map((metier) => (
-                    <SelectItem key={metier.id} value={metier.id}>
-                      {metier.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
 
-
-
-      {/* 2. GRANDE SECTION : LOCALISATION + ARTISANS + FINANCES */}
-      <Card>
-        <CardContent className="p-6 space-y-4">
-
-          {/* PARTIE HAUTE : CONTEXTE + CONSIGNE (2 COLONNES) */}
-          <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-            <div>
-              <Label htmlFor="contexteIntervention" className="text-xs mb-2 block font-medium">Contexte intervention *</Label>
-              <Textarea
-                id="contexteIntervention"
-                value={formData.contexte_intervention}
-                onChange={
-                  canEditContext
-                    ? (event) => handleInputChange("contexte_intervention", event.target.value)
-                    : undefined
-                }
-                placeholder="Décrivez le contexte de l&apos;intervention..."
-                rows={5}
-                className={cn(
-                  "text-sm resize-none",
-                  !canEditContext && "cursor-not-allowed bg-muted/50 text-muted-foreground",
-                )}
-                readOnly={!canEditContext}
-                aria-readonly={!canEditContext}
+        {/* DIV2: ADRESSE - Row 2, Cols 1-4 */}
+        <Card style={{ gridArea: "2 / 1 / 3 / 5" }}>
+          <CardContent className="py-2 px-3">
+            <div className="flex items-center gap-2">
+              <Label htmlFor="adresse" className="text-[10px] text-muted-foreground whitespace-nowrap">Adresse *</Label>
+              <Input
+                id="adresse"
+                value={formData.adresse}
+                onChange={(event) => handleInputChange("adresse", event.target.value)}
+                placeholder="Adresse complète de l'intervention..."
+                className="h-7 text-xs flex-1"
                 required
               />
-              {!canEditContext && (
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Seuls les administrateurs peuvent modifier ce champ après création.
-                </p>
-              )}
             </div>
-            <div>
-              <Label htmlFor="consigneIntervention" className="text-xs mb-2 block font-medium">Consigne pour l&apos;artisan</Label>
-              <Textarea
-                id="consigneIntervention"
-                value={formData.consigne_intervention}
-                onChange={(event) => handleInputChange("consigne_intervention", event.target.value)}
-                placeholder="Consignes spécifiques pour l&apos;intervention..."
-                rows={5}
-                className="text-sm resize-none"
-              />
-            </div>
-          </div>
+          </CardContent>
+        </Card>
 
-          <div className="border-t pt-4" />
-
-          {/* PARTIE MILIEU : LOCALISATION + ARTISANS (2 COLONNES) */}
-          <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
-
-            {/* COLONNE GAUCHE : LOCALISATION */}
-            <div className="flex flex-col h-full space-y-4">
-              <h3 className="font-semibold flex items-center gap-2 text-sm">Localisation</h3>
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                <div className="relative flex-1">
-                  <Input
-                    value={locationQuery}
-                    onChange={(event) => {
-                      setLocationQuery(event.target.value)
-                      setGeocodeError(null)
-                    }}
-                    onFocus={() => {
-                      setShowLocationSuggestions(true)
-                      if (suggestionBlurTimeoutRef.current) {
-                        window.clearTimeout(suggestionBlurTimeoutRef.current)
-                        suggestionBlurTimeoutRef.current = null
-                      }
-                    }}
-                    onBlur={() => {
-                      suggestionBlurTimeoutRef.current = window.setTimeout(() => {
-                        clearSuggestions()
-                        setShowLocationSuggestions(false)
-                      }, 150)
-                    }}
-                    placeholder="Rechercher une adresse..."
-                    className="h-8 text-sm"
-                  />
-                  {showLocationSuggestions && locationSuggestions.length > 0 && (
-                    <div className="absolute z-20 mt-1 max-h-56 w-full overflow-auto rounded-md border border-muted bg-background shadow-lg">
-                      <ul className="divide-y divide-border text-left text-sm">
-                        {locationSuggestions.map((suggestion) => (
-                          <li key={`${suggestion.label}-${suggestion.lat}-${suggestion.lng}`}>
-                            <button
-                              type="button"
-                              className="flex w-full flex-col gap-0.5 px-3 py-2 text-left transition hover:bg-muted/80 focus:bg-muted/80"
-                              onMouseDown={(event) => event.preventDefault()}
-                              onClick={() => handleSuggestionSelect(suggestion)}
-                            >
-                              <span className="truncate font-medium">{suggestion.label}</span>
-                              <span className="text-xs text-muted-foreground">
-                                {suggestion.lat.toFixed(4)} • {suggestion.lng.toFixed(4)}
-                              </span>
-                            </button>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-                </div>
-                <div className="flex items-center gap-2 sm:w-auto">
-                  <Input
-                    id="perimeterKm"
-                    type="number"
-                    min={1}
-                    max={MAX_RADIUS_KM}
-                    value={perimeterKmInput}
-                    onChange={(event) => setPerimeterKmInput(event.target.value)}
-                    onBlur={(event) => {
-                      const raw = Number.parseFloat(event.target.value)
-                      if (!Number.isFinite(raw) || raw <= 0) {
-                        setPerimeterKmInput("50")
-                        return
-                      }
-                      const clamped = Math.min(raw, MAX_RADIUS_KM)
-                      setPerimeterKmInput(String(clamped))
-                    }}
-                    placeholder="Rayon (km)"
-                    className="h-8 w-full min-w-[90px] text-sm sm:w-28"
-                  />
-                  <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                    km
-                  </span>
-                </div>
-                <Button type="button" variant="secondary" size="sm" onClick={handleGeocodeAddress} disabled={isGeocoding}>
-                  {isGeocoding ? "Recherche..." : "Localiser"}
-                </Button>
-              </div>
-              {isSuggesting && (
-                <div className="text-xs text-muted-foreground">Recherche d&apos;adresses...</div>
-              )}
-              {geocodeError && (
-                <div className="rounded border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive">
-                  {geocodeError}
-                </div>
-              )}
-              <div className="overflow-hidden rounded-lg border">
-                <MapLibreMap
-                  lat={formData.latitude}
-                  lng={formData.longitude}
-                  height="200px"
-                  onLocationChange={handleLocationChange}
-                  markers={mapMarkers}
-                  circleRadiusKm={perimeterKmValue}
-                  selectedConnection={mapSelectedConnection ?? undefined}
+        {/* DIV3: LOCALISATION + RAYON + BOUTON - Row 3, Cols 1-4 */}
+        <Card style={{ gridArea: "3 / 1 / 4 / 5" }}>
+          <CardContent className="py-2 px-3">
+            <div className="flex items-center gap-2">
+              <div className="relative flex-1">
+                <Input
+                  value={locationQuery}
+                  onChange={(event) => {
+                    setLocationQuery(event.target.value)
+                    setGeocodeError(null)
+                  }}
+                  onFocus={() => {
+                    setShowLocationSuggestions(true)
+                    if (suggestionBlurTimeoutRef.current) {
+                      window.clearTimeout(suggestionBlurTimeoutRef.current)
+                      suggestionBlurTimeoutRef.current = null
+                    }
+                  }}
+                  onBlur={() => {
+                    suggestionBlurTimeoutRef.current = window.setTimeout(() => {
+                      clearSuggestions()
+                      setShowLocationSuggestions(false)
+                    }, 150)
+                  }}
+                  placeholder="Rechercher une adresse pour localiser..."
+                  className="h-7 text-xs"
                 />
-              </div>
-              <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground">
-                <span>Lat: {formData.latitude.toFixed(4)}</span>
-                <span>Lng: {formData.longitude.toFixed(4)}</span>
-              </div>
-
-              {/* Champs Adresse éditables */}
-              <div className="space-y-2 pt-2 border-t">
-                <div>
-                  <Label htmlFor="adresse" className="text-xs">Adresse *</Label>
-                  <Textarea
-                    id="adresse"
-                    value={formData.adresse}
-                    onChange={(event) => handleInputChange("adresse", event.target.value)}
-                    placeholder="Adresse complète"
-                    rows={2}
-                    className="text-sm mt-1"
-                    required
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <Label htmlFor="codePostal" className="text-xs">Code postal</Label>
-                    <Input
-                      id="codePostal"
-                      value={formData.code_postal}
-                      onChange={(event) => handleInputChange("code_postal", event.target.value)}
-                      className="h-8 text-sm mt-1"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="ville" className="text-xs">Ville</Label>
-                    <Input
-                      id="ville"
-                      value={formData.ville}
-                      onChange={(event) => handleInputChange("ville", event.target.value)}
-                      className="h-8 text-sm mt-1"
-                    />
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* COLONNE DROITE : ARTISANS */}
-            <div className="flex flex-col h-full space-y-4">
-              <h3 className="font-semibold flex items-center justify-between gap-2 text-sm">
-                <div className="flex items-center gap-2">
-                  <Building className="h-4 w-4" />
-                  Artisans à proximité
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="flex gap-2">
-                    <Input
-                      id="artisan"
-                      value={formData.artisan}
-                      onChange={(event) => handleInputChange("artisan", event.target.value)}
-                      placeholder="Artisan sélectionné"
-                      className="h-8 text-sm w-40"
-                    />
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="icon"
-                      className="h-8 w-8 flex-shrink-0"
-                      onClick={(e) => {
-                        const rect = e.currentTarget.getBoundingClientRect()
-                        setArtisanSearchPosition({
-                          x: rect.left,
-                          y: rect.top,
-                          width: rect.width,
-                          height: rect.height
-                        })
-                        setShowArtisanSearch(true)
-                      }}
-                      title="Rechercher un artisan"
-                    >
-                      <Search className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-              </h3>
-
-              {/* Grouper "Envoyer un email" et la carte sélectionnée pour éviter l'espacement de space-y-4 */}
-              <div className="space-y-2">
-                {/* Email sending section */}
-                {artisansWithEmail.length > 0 && (
-                  <div className="space-y-2 p-3 bg-muted/50 rounded-lg border border-border/50">
-                    <Label className="text-xs font-semibold">Envoyer un email</Label>
-                    <div className="flex flex-col gap-2">
-                      <Select
-                        value={selectedArtisanForEmail || selectedArtisanId || ''}
-                        onValueChange={setSelectedArtisanForEmail}
-                      >
-                        <SelectTrigger className="h-8 text-sm">
-                          <SelectValue placeholder="Sélectionner un artisan" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {artisansWithEmail.map((artisan) => (
-                            <SelectItem key={artisan.id} value={artisan.id}>
-                              {artisan.name} ({artisan.email})
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      {/* Ligne 1 : Boutons Email */}
-                      <div className="flex gap-2">
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={handleOpenDevisEmailModal}
-                          disabled={!selectedArtisanForEmail && !selectedArtisanId}
-                          className="flex-1 text-xs"
-                        >
-                          <Mail className="h-3.5 w-3.5 mr-1.5" />
-                          Mail demande de devis
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={handleOpenInterventionEmailModal}
-                          disabled={!selectedArtisanForEmail && !selectedArtisanId}
-                          className="flex-1 text-xs"
-                        >
-                          <Mail className="h-3.5 w-3.5 mr-1.5" />
-                          Mail demande d&apos;intervention
-                        </Button>
-                      </div>
-
-                      {/* Ligne 2 : Boutons WhatsApp (conditionnels) */}
-                      {(() => {
-                        const artisanPhone = getSelectedArtisanPhone()
-                        const hasPhone = artisanPhone && artisanPhone.trim() !== ''
-                        const isArtisanSelected = selectedArtisanForEmail || selectedArtisanId
-                        const artisanId = effectiveSelectedArtisanId
-
-                        if (!hasPhone || !isArtisanSelected || !artisanId) return null
-
-                        return (
-                          <div className="flex gap-2">
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              onClick={() => {}}
-                              disabled={true}
-                              className="flex-1 text-xs bg-[#25D366]/10 border-[#25D366]/30 text-[#25D366]/50 cursor-not-allowed opacity-50"
-                              title="Fonctionnalité désactivée"
-                            >
-                              <MessageCircle className="h-3.5 w-3.5 mr-1.5" />
-                              WhatsApp demande de devis
-                            </Button>
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              onClick={() => {}}
-                              disabled={true}
-                              className="flex-1 text-xs bg-[#25D366]/10 border-[#25D366]/30 text-[#25D366]/50 cursor-not-allowed opacity-50"
-                              title="Fonctionnalité désactivée"
-                            >
-                              <MessageCircle className="h-3.5 w-3.5 mr-1.5" />
-                              WhatsApp demande d&apos;intervention
-                            </Button>
-                          </div>
-                        )
-                      })()}
-                    </div>
+                {showLocationSuggestions && locationSuggestions.length > 0 && (
+                  <div className="absolute z-20 mt-1 max-h-56 w-full overflow-auto rounded-md border border-muted bg-background shadow-lg">
+                    <ul className="divide-y divide-border text-left text-xs">
+                      {locationSuggestions.map((suggestion) => (
+                        <li key={`${suggestion.label}-${suggestion.lat}-${suggestion.lng}`}>
+                          <button
+                            type="button"
+                            className="flex w-full flex-col gap-0.5 px-2 py-1.5 text-left transition hover:bg-muted/80 focus:bg-muted/80"
+                            onMouseDown={(event) => event.preventDefault()}
+                            onClick={() => handleSuggestionSelect(suggestion)}
+                          >
+                            <span className="truncate font-medium">{suggestion.label}</span>
+                            <span className="text-[10px] text-muted-foreground">
+                              {suggestion.lat.toFixed(4)} • {suggestion.lng.toFixed(4)}
+                            </span>
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
                   </div>
                 )}
+              </div>
+              <Input
+                id="perimeterKm"
+                type="number"
+                min={1}
+                max={MAX_RADIUS_KM}
+                value={perimeterKmInput}
+                onChange={(event) => setPerimeterKmInput(event.target.value)}
+                onBlur={(event) => {
+                  const raw = Number.parseFloat(event.target.value)
+                  if (!Number.isFinite(raw) || raw <= 0) {
+                    setPerimeterKmInput("50")
+                    return
+                  }
+                  const clamped = Math.min(raw, MAX_RADIUS_KM)
+                  setPerimeterKmInput(String(clamped))
+                }}
+                placeholder="km"
+                className="h-7 w-14 text-xs"
+              />
+              <span className="text-[10px] text-muted-foreground">km</span>
+              <Button type="button" variant="secondary" size="sm" className="h-7 text-xs px-2" onClick={handleGeocodeAddress} disabled={isGeocoding}>
+                {isGeocoding ? "..." : "Localiser"}
+              </Button>
+            </div>
+            {geocodeError && (
+              <div className="rounded border border-destructive/40 bg-destructive/10 px-2 py-1 text-[10px] text-destructive mt-1">
+                {geocodeError}
+              </div>
+            )}
+          </CardContent>
+        </Card>
 
-                {/* Carte sélectionnée affichée juste après "Envoyer un email" */}
-                {selectedArtisanId && selectedArtisanData && (() => {
-                  const artisan = selectedArtisanData
+        {/* DIV7: CARTE MAPLIBRE - Rows 4-6, Cols 1-3 */}
+        {/* FIX: Hauteur dynamique basée sur la sélection d'artisan pour éviter la boucle infinie */}
+        <Card style={{ gridArea: "4 / 1 / 7 / 4" }} className="overflow-hidden">
+          <CardContent className="p-0 h-full">
+            <MapLibreMap
+              lat={formData.latitude}
+              lng={formData.longitude}
+              height={selectedArtisanId ? "260px" : "450px"}
+              onLocationChange={handleLocationChange}
+              markers={mapMarkers}
+              circleRadiusKm={perimeterKmValue}
+              selectedConnection={mapSelectedConnection ?? undefined}
+            />
+          </CardContent>
+        </Card>
+
+        {/* DIV8: COLONNE ARTISANS - Rows 4-6, Col 4 */}
+        <Card style={{ gridArea: "4 / 4 / 7 / 5" }} className="flex flex-col overflow-hidden">
+          <CardContent className="p-3 flex flex-col h-full overflow-hidden">
+            {/* Header artisans */}
+            <div className="flex items-center justify-between gap-2 mb-3 flex-shrink-0">
+              <h3 className="font-semibold text-sm flex items-center gap-2">
+                <Building className="h-4 w-4" />
+                Artisans
+              </h3>
+              <div className="flex gap-1">
+                <Input
+                  id="artisan"
+                  value={formData.artisan}
+                  onChange={(event) => handleInputChange("artisan", event.target.value)}
+                  placeholder="Artisan"
+                  className="h-7 text-xs w-24"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  className="h-7 w-7 flex-shrink-0"
+                  onClick={(e) => {
+                    const rect = e.currentTarget.getBoundingClientRect()
+                    setArtisanSearchPosition({
+                      x: rect.left,
+                      y: rect.top,
+                      width: rect.width,
+                      height: rect.height
+                    })
+                    setShowArtisanSearch(true)
+                  }}
+                  title="Rechercher un artisan"
+                >
+                  <Search className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            </div>
+
+            {/* Email sending section */}
+            {artisansWithEmail.length > 0 && (
+              <div className="space-y-2 p-2 bg-muted/50 rounded-lg border border-border/50 mb-2 flex-shrink-0">
+                <Select
+                  value={selectedArtisanForEmail || selectedArtisanId || ''}
+                  onValueChange={setSelectedArtisanForEmail}
+                >
+                  <SelectTrigger className="h-7 text-xs">
+                    <SelectValue placeholder="Artisan pour email" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {artisansWithEmail.map((artisan) => (
+                      <SelectItem key={artisan.id} value={artisan.id}>
+                        {artisan.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <div className="flex gap-1">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={handleOpenDevisEmailModal}
+                    disabled={!selectedArtisanForEmail && !selectedArtisanId}
+                    className="flex-1 text-[10px] h-7 px-2"
+                  >
+                    <Mail className="h-3 w-3 mr-1" />
+                    Devis
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={handleOpenInterventionEmailModal}
+                    disabled={!selectedArtisanForEmail && !selectedArtisanId}
+                    className="flex-1 text-[10px] h-7 px-2"
+                  >
+                    <Mail className="h-3 w-3 mr-1" />
+                    Inter.
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {/* Artisan sélectionné */}
+            {selectedArtisanId && selectedArtisanData && (() => {
+              const artisan = selectedArtisanData
+              const artisanName = `${artisan.prenom || ""} ${artisan.nom || ""}`.trim() || "Artisan sans nom"
+              const artisanInitials = artisanName.split(" ").map((p) => p.charAt(0)).join("").slice(0, 2).toUpperCase() || "??"
+              const artisanStatus = refData?.artisanStatuses?.find((s) => s.id === artisan.statut_id)
+              const statutArtisan = artisanStatus?.label || ""
+              const statutArtisanColor = artisanStatus?.color || null
+
+              return (
+                <div className="mb-2 flex-shrink-0">
+                  <div className="relative rounded-lg border border-primary/70 ring-2 ring-primary/50 bg-background/80 p-2 text-xs shadow-sm">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="absolute right-1 top-1 h-5 w-5 rounded-full bg-background/80 text-muted-foreground shadow-sm hover:text-destructive z-20"
+                      onClick={() => handleRemoveSelectedArtisan()}
+                    >
+                      <X className="h-3 w-3" />
+                    </Button>
+                    <div className="flex items-start gap-2">
+                      <Avatar photoProfilMetadata={artisan.photoProfilMetadata} initials={artisanInitials} name={artisan.displayName} size={32} />
+                      <div className="flex-1 min-w-0">
+                        <span className="font-semibold text-foreground block truncate">{artisan.displayName}</span>
+                        <div className="flex items-center gap-1 mt-1">
+                          {statutArtisan && (
+                            <Badge variant="outline" className="text-[9px] px-1 py-0" style={statutArtisanColor ? { backgroundColor: hexToRgba(statutArtisanColor, 0.15) || undefined, color: statutArtisanColor, borderColor: statutArtisanColor } : undefined}>
+                              {statutArtisan}
+                            </Badge>
+                          )}
+                          <Badge variant="default" className="text-[9px] px-1 py-0">{formatDistanceKm(artisan.distanceKm)}</Badge>
+                        </div>
+                        <div className="mt-1 text-[10px] text-muted-foreground truncate">
+                          {artisan.telephone && <span>📞 {artisan.telephone}</span>}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )
+            })()}
+
+            {/* Liste des artisans - max 8 visibles avec scroll */}
+            <div className="flex-1 overflow-y-auto space-y-1 min-h-0 max-h-[400px]">
+              {isLoadingNearbyArtisans ? (
+                <div className="flex items-center justify-center h-full text-xs text-muted-foreground">Recherche...</div>
+              ) : nearbyArtisansError ? (
+                <div className="rounded border border-destructive/40 bg-destructive/10 px-2 py-1 text-[10px] text-destructive">{nearbyArtisansError}</div>
+              ) : nearbyArtisans.length === 0 ? (
+                <div className="rounded border border-border/50 bg-background px-2 py-2 text-[10px] text-muted-foreground">Aucun artisan dans un rayon de {perimeterKmValue} km.</div>
+              ) : (
+                sortedNearbyArtisans.map((artisan) => {
                   const artisanName = `${artisan.prenom || ""} ${artisan.nom || ""}`.trim() || "Artisan sans nom"
-                  const artisanInitials = artisanName
-                    .split(" ")
-                    .map((part) => part.charAt(0))
-                    .join("")
-                    .slice(0, 2)
-                    .toUpperCase() || "??"
-
+                  const artisanInitials = artisanName.split(" ").map((p) => p.charAt(0)).join("").slice(0, 2).toUpperCase() || "??"
                   const artisanStatus = refData?.artisanStatuses?.find((s) => s.id === artisan.statut_id)
                   const statutArtisan = artisanStatus?.label || ""
                   const statutArtisanColor = artisanStatus?.color || null
 
                   return (
-                    <div className="animate-in fade-in-0 slide-in-from-top-2 duration-300">
-                      <div
-                        role="button"
-                        tabIndex={0}
-                        className="relative rounded-lg border border-primary/70 ring-2 ring-primary/50 bg-background/80 p-3 text-sm shadow-sm transition-all duration-300 ease-in-out opacity-100 scale-100"
-                        onClick={() => handleRemoveSelectedArtisan()}
-                        onKeyDown={(event) => {
-                          if (event.key === "Enter" || event.key === " ") {
-                            event.preventDefault()
-                            handleRemoveSelectedArtisan()
-                          }
-                        }}
-                      >
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          className="absolute right-2 top-2 h-6 w-6 rounded-full bg-background/80 text-muted-foreground shadow-sm transition-colors hover:text-destructive z-20"
-                          onClick={(event) => {
-                            event.stopPropagation()
-                            handleRemoveSelectedArtisan()
-                          }}
-                        >
-                          <X className="h-4 w-4" />
-                        </Button>
-                        <div className="flex items-start gap-3">
-                          <Avatar
-                            photoProfilMetadata={artisan.photoProfilMetadata}
-                            initials={artisanInitials}
-                            name={artisan.displayName}
-                            size={40}
-                          />
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center justify-between gap-2">
-                              <div className="flex flex-col">
-                                <span className="font-semibold text-foreground">
-                                  {artisan.displayName}
-                                </span>
-                              </div>
-                              <div className="flex items-center gap-2">
-                                {statutArtisan && statutArtisanColor && (
-                                  <Badge
-                                    variant="outline"
-                                    className="border px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide flex-shrink-0"
-                                    style={{
-                                      backgroundColor: hexToRgba(statutArtisanColor, 0.15) || statutArtisanColor + '20',
-                                      color: statutArtisanColor,
-                                      borderColor: statutArtisanColor,
-                                    }}
-                                  >
-                                    {statutArtisan}
-                                  </Badge>
-                                )}
-                                {statutArtisan && !statutArtisanColor && (
-                                  <Badge
-                                    variant="outline"
-                                    className="border px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide bg-gray-100 text-gray-700 border-gray-300 flex-shrink-0"
-                                  >
-                                    {statutArtisan}
-                                  </Badge>
-                                )}
-                                <Badge variant="default" className="flex-shrink-0">
-                                  {formatDistanceKm(artisan.distanceKm)}
-                                </Badge>
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-6 w-6 flex-shrink-0 text-muted-foreground hover:text-foreground"
-                                  onClick={(e) => handleOpenArtisanModal(artisan.id, e)}
-                                  title="Voir les détails de l'artisan"
-                                >
-                                  <Eye className="h-4 w-4" />
-                                </Button>
-                              </div>
-                            </div>
-                            <div className="mt-1 text-xs text-muted-foreground">
-                              {artisan.adresse ? (
-                                <span>
-                                  {artisan.adresse}
-                                  {artisan.codePostal || artisan.ville ? (
-                                    <>
-                                      , {artisan.codePostal ?? ""}
-                                      {artisan.codePostal && artisan.ville ? " " : ""}
-                                      {artisan.ville ?? ""}
-                                    </>
-                                  ) : null}
-                                </span>
-                              ) : (
-                                <span>
-                                  {artisan.codePostal ?? "—"}
-                                  {artisan.codePostal && artisan.ville ? " " : ""}
-                                  {artisan.ville ?? ""}
-                                </span>
-                              )}
-                            </div>
-                            <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
-                              {artisan.telephone ? <span>📞 {artisan.telephone}</span> : null}
-                              {artisan.email ? <span>✉️ {artisan.email}</span> : null}
-                            </div>
+                    <div
+                      key={artisan.id}
+                      role="button"
+                      tabIndex={0}
+                      className={cn(
+                        "rounded-lg border border-border/60 bg-background/80 p-2 text-xs shadow-sm transition-all cursor-pointer",
+                        selectedArtisanId ? "opacity-0 scale-95 max-h-0 overflow-hidden pointer-events-none m-0 p-0 border-0" : "hover:border-primary/40"
+                      )}
+                      onClick={() => handleSelectNearbyArtisan(artisan)}
+                      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); handleSelectNearbyArtisan(artisan) } }}
+                    >
+                      <div className="flex items-center gap-2">
+                        <Avatar photoProfilMetadata={artisan.photoProfilMetadata} initials={artisanInitials} name={artisan.displayName} size={28} />
+                        <div className="flex-1 min-w-0">
+                          <span className="font-medium text-foreground block truncate text-[11px]">{artisan.displayName}</span>
+                          <div className="flex items-center gap-1 flex-wrap">
+                            {statutArtisan && (
+                              <Badge variant="outline" className="text-[9px] px-1 py-0" style={statutArtisanColor ? { backgroundColor: hexToRgba(statutArtisanColor, 0.15) || undefined, color: statutArtisanColor, borderColor: statutArtisanColor } : undefined}>
+                                {statutArtisan}
+                              </Badge>
+                            )}
+                            <Badge variant="secondary" className="text-[9px] px-1 py-0">{formatDistanceKm(artisan.distanceKm)}</Badge>
+                            <Button type="button" variant="ghost" size="icon" className="h-5 w-5 text-muted-foreground hover:text-foreground" onClick={(e) => handleOpenArtisanModal(artisan.id, e)}>
+                              <Eye className="h-3 w-3" />
+                            </Button>
                           </div>
                         </div>
                       </div>
                     </div>
                   )
-                })()}
+                })
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* DIV5: CONTEXTE INTERVENTION - Row 7, Cols 1-2 */}
+        <Card style={{ gridArea: "7 / 1 / 8 / 3" }}>
+          <CardContent className="p-4">
+            <Label htmlFor="contexteIntervention" className="text-xs font-medium mb-2 block">Contexte intervention *</Label>
+            <Textarea
+              id="contexteIntervention"
+              value={formData.contexte_intervention}
+              onChange={canEditContext ? (event) => handleInputChange("contexte_intervention", event.target.value) : undefined}
+              placeholder="Décrivez le contexte..."
+              rows={4}
+              className={cn("text-sm resize-none", !canEditContext && "cursor-not-allowed bg-muted/50 text-muted-foreground")}
+              readOnly={!canEditContext}
+              aria-readonly={!canEditContext}
+              required
+            />
+            {!canEditContext && <p className="mt-1 text-[10px] text-muted-foreground">Admin uniquement</p>}
+          </CardContent>
+        </Card>
+
+        {/* DIV6: CONSIGNE INTERVENTION - Row 7, Cols 3-4 */}
+        <Card style={{ gridArea: "7 / 3 / 8 / 5" }}>
+          <CardContent className="p-4">
+            <Label htmlFor="consigneIntervention" className="text-xs font-medium mb-2 block">Consigne pour l&apos;artisan</Label>
+            <Textarea
+              id="consigneIntervention"
+              value={formData.consigne_intervention}
+              onChange={(event) => handleInputChange("consigne_intervention", event.target.value)}
+              placeholder="Consignes spécifiques..."
+              rows={4}
+              className="text-sm resize-none"
+            />
+          </CardContent>
+        </Card>
+
+        {/* DIV4: FINANCES & PLANIFICATION - Row 8, Cols 1-4 */}
+        <Card style={{ gridArea: "8 / 1 / 9 / 5" }}>
+          <CardContent className="p-4">
+            <Label className="mb-3 block text-xs font-medium uppercase tracking-wide text-muted-foreground">Finances & Planification</Label>
+            <div className="grid grid-cols-5 gap-3 items-end">
+              <div>
+                <Label htmlFor="coutIntervention" className="text-xs">Coût inter.</Label>
+                <Input id="coutIntervention" type="number" step="0.01" min="0" value={formData.coutIntervention} onChange={(e) => handleInputChange("coutIntervention", e.target.value)} placeholder="0.00 €" className="h-8 text-sm mt-1" />
               </div>
-
-              <div className="space-y-4 pt-0 flex-1 flex flex-col min-h-[300px]">
-                {isLoadingNearbyArtisans ? (
-                  <div className="flex items-center justify-center flex-1 text-sm text-muted-foreground">
-                    Recherche des artisans...
-                  </div>
-                ) : nearbyArtisansError ? (
-                  <div className="rounded border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive">
-                    {nearbyArtisansError}
-                  </div>
-                ) : nearbyArtisans.length === 0 ? (
-                  <div className="rounded border border-border/50 bg-background px-3 py-3 text-xs text-muted-foreground">
-                    Aucun artisan géolocalisé n’a été trouvé dans un rayon de {perimeterKmValue} km.
-                  </div>
-                ) : (
-                  <div className="flex-1 overflow-y-auto pr-1 space-y-2 max-h-[500px]">
-                    {sortedNearbyArtisans.map((artisan) => {
-                      // Si un artisan est sélectionné, toutes les cartes (y compris la sélectionnée) disparaissent progressivement
-                      // La carte sélectionnée est affichée séparément juste après "Envoyer un email"
-
-                      const artisanName = `${artisan.prenom || ""} ${artisan.nom || ""}`.trim() || "Artisan sans nom"
-                      const artisanInitials = artisanName
-                        .split(" ")
-                        .map((part) => part.charAt(0))
-                        .join("")
-                        .slice(0, 2)
-                        .toUpperCase() || "??"
-
-                      const artisanStatus = refData?.artisanStatuses?.find((s) => s.id === artisan.statut_id)
-                      const statutArtisan = artisanStatus?.label || ""
-                      const statutArtisanColor = artisanStatus?.color || null
-
-                      return (
-                        <div
-                          key={artisan.id}
-                          role="button"
-                          tabIndex={0}
-                          className={cn(
-                            "relative rounded-lg border border-border/60 bg-background/80 p-3 text-sm shadow-sm transition-all duration-300 ease-in-out",
-                            selectedArtisanId
-                              ? "opacity-0 scale-95 max-h-0 overflow-hidden pointer-events-none m-0 p-0 border-0"
-                              : "hover:border-primary/40 opacity-100 scale-100"
-                          )}
-                          onClick={() => handleSelectNearbyArtisan(artisan)}
-                          onKeyDown={(event) => {
-                            if (event.key === "Enter" || event.key === " ") {
-                              event.preventDefault()
-                              handleSelectNearbyArtisan(artisan)
-                            }
-                          }}
-                        >
-                          <div className="flex items-start gap-3">
-                            <Avatar
-                              photoProfilMetadata={artisan.photoProfilMetadata}
-                              initials={artisanInitials}
-                              name={artisan.displayName}
-                              size={40}
-                            />
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center justify-between gap-2">
-                                <div className="flex flex-col">
-                                  <span className="font-semibold text-foreground">
-                                    {artisan.displayName}
-                                  </span>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                  {statutArtisan && statutArtisanColor && (
-                                    <Badge
-                                      variant="outline"
-                                      className="border px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide flex-shrink-0"
-                                      style={{
-                                        backgroundColor: hexToRgba(statutArtisanColor, 0.15) || statutArtisanColor + '20',
-                                        color: statutArtisanColor,
-                                        borderColor: statutArtisanColor,
-                                      }}
-                                    >
-                                      {statutArtisan}
-                                    </Badge>
-                                  )}
-                                  {statutArtisan && !statutArtisanColor && (
-                                    <Badge
-                                      variant="outline"
-                                      className="border px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide bg-gray-100 text-gray-700 border-gray-300 flex-shrink-0"
-                                    >
-                                      {statutArtisan}
-                                    </Badge>
-                                  )}
-                                  <Badge variant="secondary" className="flex-shrink-0">
-                                    {formatDistanceKm(artisan.distanceKm)}
-                                  </Badge>
-                                  <Button
-                                    type="button"
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-6 w-6 flex-shrink-0 text-muted-foreground hover:text-foreground"
-                                    onClick={(e) => handleOpenArtisanModal(artisan.id, e)}
-                                    title="Voir les détails de l'artisan"
-                                  >
-                                    <Eye className="h-4 w-4" />
-                                  </Button>
-                                </div>
-                              </div>
-                              <div className="mt-1 text-xs text-muted-foreground">
-                                {artisan.adresse ? (
-                                  <span>
-                                    {artisan.adresse}
-                                    {artisan.codePostal || artisan.ville ? (
-                                      <>
-                                        , {artisan.codePostal ?? ""}
-                                        {artisan.codePostal && artisan.ville ? " " : ""}
-                                        {artisan.ville ?? ""}
-                                      </>
-                                    ) : null}
-                                  </span>
-                                ) : (
-                                  <span>
-                                    {artisan.codePostal ?? "—"}
-                                    {artisan.codePostal && artisan.ville ? " " : ""}
-                                    {artisan.ville ?? ""}
-                                  </span>
-                                )}
-                              </div>
-                              <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
-                                {artisan.telephone ? <span>📞 {artisan.telephone}</span> : null}
-                                {artisan.email ? <span>✉️ {artisan.email}</span> : null}
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      )
-                    })}
-                  </div>
-                )}
+              <div>
+                <Label htmlFor="coutSST" className="text-xs">Coût SST</Label>
+                <Input id="coutSST" type="number" step="0.01" min="0" value={formData.coutSST} onChange={(e) => handleInputChange("coutSST", e.target.value)} placeholder="0.00 €" className="h-8 text-sm mt-1" />
+              </div>
+              <div>
+                <Label htmlFor="coutMateriel" className="text-xs">Coût mat.</Label>
+                <Input id="coutMateriel" type="number" step="0.01" min="0" value={formData.coutMateriel} onChange={(e) => handleInputChange("coutMateriel", e.target.value)} placeholder="0.00 €" className="h-8 text-sm mt-1" />
+              </div>
+              <div>
+                <Label className="text-xs">Marge</Label>
+                <div className="flex h-8 w-full rounded-md border border-input bg-muted px-3 py-1 text-sm shadow-sm items-center mt-1">
+                  {(() => {
+                    const inter = parseFloat(formData.coutIntervention) || 0
+                    const sst = parseFloat(formData.coutSST) || 0
+                    const mat = parseFloat(formData.coutMateriel) || 0
+                    if (inter > 0) {
+                      const marge = ((inter - (sst + mat)) / inter) * 100
+                      return <span className={cn("font-medium", marge < 0 ? "text-destructive" : "text-green-600")}>{marge.toFixed(1)} %</span>
+                    }
+                    return <span className="text-muted-foreground">-- %</span>
+                  })()}
+                </div>
+              </div>
+              <div>
+                <Label htmlFor="datePrevue" className="text-xs">Date prévue {requiresDatePrevue && "*"}</Label>
+                <Input id="datePrevue" type="date" value={formData.date_prevue} onChange={(e) => handleInputChange("date_prevue", e.target.value)} className="h-8 text-sm mt-1" required={requiresDatePrevue} />
               </div>
             </div>
+          </CardContent>
+        </Card>
 
-          </div>
-
-          <div className="border-t pt-4" />
-
-          {/* PARTIE BASSE : FINANCES + PLANIFICATION */}
-          <div className="space-y-4">
-            {/* LIGNE COÛTS + DATE PRÉVUE */}
-            <div>
-              <Label className="mb-3 block text-xs font-medium uppercase tracking-wide text-muted-foreground">Finances & Planification</Label>
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-5 items-end">
-                {/* Coûts */}
-                <div>
-                  <Label htmlFor="coutIntervention" className="text-xs">Coût inter.</Label>
-                  <Input
-                    id="coutIntervention"
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    value={formData.coutIntervention}
-                    onChange={(event) => handleInputChange("coutIntervention", event.target.value)}
-                    placeholder="0.00 €"
-                    className="h-9 text-sm mt-1"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="coutSST" className="text-xs">Coût SST</Label>
-                  <Input
-                    id="coutSST"
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    value={formData.coutSST}
-                    onChange={(event) => handleInputChange("coutSST", event.target.value)}
-                    placeholder="0.00 €"
-                    className="h-9 text-sm mt-1"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="coutMateriel" className="text-xs">Coût mat.</Label>
-                  <Input
-                    id="coutMateriel"
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    value={formData.coutMateriel}
-                    onChange={(event) => handleInputChange("coutMateriel", event.target.value)}
-                    placeholder="0.00 €"
-                    className="h-9 text-sm mt-1"
-                  />
-                </div>
-                {/* Marge (Calculée) */}
-                <div>
-                  <Label className="text-xs">Marge</Label>
-                  <div className="flex h-9 w-full rounded-md border border-input bg-muted px-3 py-1 text-sm shadow-sm items-center mt-1">
-                    {(() => {
-                      const inter = parseFloat(formData.coutIntervention) || 0
-                      const sst = parseFloat(formData.coutSST) || 0
-                      const mat = parseFloat(formData.coutMateriel) || 0
-                      if (inter > 0) {
-                        const marge = ((inter - (sst + mat)) / inter) * 100
-                        return <span className={cn("font-medium", marge < 0 ? "text-destructive" : "text-green-600")}>{marge.toFixed(1)} %</span>
-                      }
-                      return <span className="text-muted-foreground">-- %</span>
-                    })()}
-                  </div>
-                </div>
-                {/* Date Prévue */}
-                <div>
-                  <Label htmlFor="datePrevue" className="text-xs">Date prévue {requiresDatePrevue && "*"}</Label>
-                  <Input
-                    id="datePrevue"
-                    type="date"
-                    value={formData.date_prevue}
-                    onChange={(event) => handleInputChange("date_prevue", event.target.value)}
-                    className="h-9 text-sm mt-1"
-                    required={requiresDatePrevue}
-                    title={requiresDatePrevue ? "Date prévue obligatoire pour ce statut" : undefined}
-                  />
-                </div>
-              </div>
-            </div>
-          </div>
-
-        </CardContent>
-      </Card>
-
-      {/* 4. SECTIONS PLEINE LARGEUR (Collapsibles) */}
-
-      {/* Détails propriétaire et client */}
-      <Collapsible open={isProprietaireOpen} onOpenChange={setIsProprietaireOpen}>
-        <Card>
-          <CollapsibleTrigger asChild>
-            <CardHeader className="cursor-pointer pb-3 hover:bg-muted/50">
-              <CardTitle className="flex items-center gap-2 text-sm">
-                Détails propriétaire et client
-                {isProprietaireOpen ? <ChevronDown className="ml-auto h-4 w-4" /> : <ChevronRight className="ml-auto h-4 w-4" />}
-              </CardTitle>
-            </CardHeader>
-          </CollapsibleTrigger>
-          <CollapsibleContent>
-            <CardContent className="pt-0">
-              <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-                {/* Colonne 1 : Propriétaire */}
-                <div>
-                  <Label className="mb-2 block text-xs font-medium">Propriétaire</Label>
-                  <div className="space-y-3">
-                    {/* Ligne 1 : Nom et Prénom */}
-                    <div className="grid grid-cols-2 gap-3">
+        {/* DIV9: COLLAPSIBLES EN COLONNE - Rows 2-8, Cols 5-6 */}
+        <div style={{ gridArea: "2 / 5 / 9 / 7" }} className="flex flex-col gap-2 overflow-y-auto">
+          {/* Détails propriétaire */}
+          <Collapsible open={isProprietaireOpen} onOpenChange={setIsProprietaireOpen}>
+            <Card>
+              <CollapsibleTrigger asChild>
+                <CardHeader className="cursor-pointer py-2 px-3 hover:bg-muted/50">
+                  <CardTitle className="flex items-center gap-2 text-xs">
+                    Détails propriétaire
+                    {isProprietaireOpen ? <ChevronDown className="ml-auto h-3 w-3" /> : <ChevronRight className="ml-auto h-3 w-3" />}
+                  </CardTitle>
+                </CardHeader>
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                <CardContent className="pt-0 px-3 pb-3">
+                  <div className="space-y-2">
+                    <div className="grid grid-cols-2 gap-2">
                       <div>
-                        <Label htmlFor="nomProprietaire" className="text-xs">Nom</Label>
-                        <Input
-                          id="nomProprietaire"
-                          value={formData.nomProprietaire}
-                          onChange={(event) => handleInputChange("nomProprietaire", event.target.value)}
-                          placeholder="Nom"
-                          className="h-8 text-sm mt-1"
-                        />
+                        <Label htmlFor="nomProprietaire" className="text-[10px]">Nom</Label>
+                        <Input id="nomProprietaire" value={formData.nomProprietaire} onChange={(e) => handleInputChange("nomProprietaire", e.target.value)} placeholder="Nom" className="h-7 text-xs mt-1" />
                       </div>
                       <div>
-                        <Label htmlFor="prenomProprietaire" className="text-xs">Prénom</Label>
-                        <Input
-                          id="prenomProprietaire"
-                          value={formData.prenomProprietaire}
-                          onChange={(event) => handleInputChange("prenomProprietaire", event.target.value)}
-                          placeholder="Prénom"
-                          className="h-8 text-sm mt-1"
-                        />
+                        <Label htmlFor="prenomProprietaire" className="text-[10px]">Prénom</Label>
+                        <Input id="prenomProprietaire" value={formData.prenomProprietaire} onChange={(e) => handleInputChange("prenomProprietaire", e.target.value)} placeholder="Prénom" className="h-7 text-xs mt-1" />
                       </div>
                     </div>
-                    {/* Ligne 2 : Téléphone et Email */}
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-2 gap-2">
                       <div>
-                        <Label htmlFor="telephoneProprietaire" className="text-xs">Téléphone</Label>
-                        <Input
-                          id="telephoneProprietaire"
-                          value={formData.telephoneProprietaire}
-                          onChange={(event) => handleInputChange("telephoneProprietaire", event.target.value)}
-                          placeholder="06 12 34 56 78"
-                          className="h-8 text-sm mt-1"
-                        />
+                        <Label htmlFor="telephoneProprietaire" className="text-[10px]">Téléphone</Label>
+                        <Input id="telephoneProprietaire" value={formData.telephoneProprietaire} onChange={(e) => handleInputChange("telephoneProprietaire", e.target.value)} placeholder="06..." className="h-7 text-xs mt-1" />
                       </div>
                       <div>
-                        <Label htmlFor="emailProprietaire" className="text-xs">Email</Label>
-                        <Input
-                          id="emailProprietaire"
-                          type="email"
-                          value={formData.emailProprietaire}
-                          onChange={(event) => handleInputChange("emailProprietaire", event.target.value)}
-                          placeholder="email@example.com"
-                          className="h-8 text-sm mt-1"
-                        />
+                        <Label htmlFor="emailProprietaire" className="text-[10px]">Email</Label>
+                        <Input id="emailProprietaire" type="email" value={formData.emailProprietaire} onChange={(e) => handleInputChange("emailProprietaire", e.target.value)} placeholder="email@..." className="h-7 text-xs mt-1" />
                       </div>
                     </div>
                   </div>
-                </div>
-                {/* Colonne 2 : Client */}
-                <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <Label className="block text-xs font-medium">Client</Label>
+                </CardContent>
+              </CollapsibleContent>
+            </Card>
+          </Collapsible>
+
+          {/* Détails client */}
+          <Collapsible open={isClientOpen} onOpenChange={setIsClientOpen}>
+            <Card>
+              <CollapsibleTrigger asChild>
+                <CardHeader className="cursor-pointer py-2 px-3 hover:bg-muted/50">
+                  <CardTitle className="flex items-center gap-2 text-xs">
+                    Détails client
+                    {isClientOpen ? <ChevronDown className="ml-auto h-3 w-3" /> : <ChevronRight className="ml-auto h-3 w-3" />}
+                  </CardTitle>
+                </CardHeader>
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                <CardContent className="pt-0 px-3 pb-3">
+                  <div className="flex items-center justify-end mb-2">
                     <div className="flex items-center space-x-2">
-                      <input
-                        type="checkbox"
-                        id="is_vacant"
-                        className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
-                        checked={formData.is_vacant}
-                        onChange={(e) => handleInputChange("is_vacant", e.target.checked)}
-                      />
-                      <Label htmlFor="is_vacant" className="text-xs font-normal cursor-pointer select-none">
-                        logement vacant
-                      </Label>
+                      <input type="checkbox" id="is_vacant" className="h-3 w-3 rounded border-gray-300" checked={formData.is_vacant} onChange={(e) => handleInputChange("is_vacant", e.target.checked)} />
+                      <Label htmlFor="is_vacant" className="text-[10px] font-normal cursor-pointer">logement vacant</Label>
                     </div>
                   </div>
-
                   {formData.is_vacant ? (
-                    <div className="space-y-3">
-                      {/* Ligne 1 : Code clé, Etage, N° Appartement */}
-                      <div className="grid grid-cols-3 gap-3">
+                    <div className="space-y-2">
+                      <div className="grid grid-cols-3 gap-2">
                         <div>
-                          <Label htmlFor="key_code" className="text-xs uppercase">CODE CLÉ</Label>
-                          <Input
-                            id="key_code"
-                            value={formData.key_code}
-                            onChange={(event) => handleInputChange("key_code", event.target.value)}
-                            className="h-8 text-sm mt-1"
-                          />
+                          <Label htmlFor="key_code" className="text-[10px]">CODE CLÉ</Label>
+                          <Input id="key_code" value={formData.key_code} onChange={(e) => handleInputChange("key_code", e.target.value)} className="h-7 text-xs mt-1" />
                         </div>
                         <div>
-                          <Label htmlFor="floor" className="text-xs">etage</Label>
-                          <Input
-                            id="floor"
-                            value={formData.floor}
-                            onChange={(event) => handleInputChange("floor", event.target.value)}
-                            className="h-8 text-sm mt-1"
-                          />
+                          <Label htmlFor="floor" className="text-[10px]">Étage</Label>
+                          <Input id="floor" value={formData.floor} onChange={(e) => handleInputChange("floor", e.target.value)} className="h-7 text-xs mt-1" />
                         </div>
                         <div>
-                          <Label htmlFor="apartment_number" className="text-xs">n° appartement</Label>
-                          <Input
-                            id="apartment_number"
-                            value={formData.apartment_number}
-                            onChange={(event) => handleInputChange("apartment_number", event.target.value)}
-                            className="h-8 text-sm mt-1"
-                          />
+                          <Label htmlFor="apartment_number" className="text-[10px]">N° appart.</Label>
+                          <Input id="apartment_number" value={formData.apartment_number} onChange={(e) => handleInputChange("apartment_number", e.target.value)} className="h-7 text-xs mt-1" />
                         </div>
                       </div>
-                      {/* Ligne 2 : Consigne */}
                       <div>
-                        <Label htmlFor="vacant_housing_instructions" className="text-xs">Consigne</Label>
-                        <Textarea
-                          id="vacant_housing_instructions"
-                          value={formData.vacant_housing_instructions}
-                          onChange={(event) => handleInputChange("vacant_housing_instructions", event.target.value)}
-                          placeholder="Consignes"
-                          className="min-h-[80px] text-sm mt-1 resize-none"
-                        />
+                        <Label htmlFor="vacant_housing_instructions" className="text-[10px]">Consigne</Label>
+                        <Textarea id="vacant_housing_instructions" value={formData.vacant_housing_instructions} onChange={(e) => handleInputChange("vacant_housing_instructions", e.target.value)} placeholder="Consignes..." className="min-h-[60px] text-xs mt-1 resize-none" />
                       </div>
                     </div>
                   ) : (
-                    <div className="space-y-3">
-                      {/* Ligne 1 : Nom et Prénom */}
-                      <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-2">
+                      <div className="grid grid-cols-2 gap-2">
                         <div>
-                          <Label htmlFor="nomClient" className="text-xs">Nom</Label>
-                          <Input
-                            id="nomClient"
-                            value={formData.nomClient}
-                            onChange={(event) => handleInputChange("nomClient", event.target.value)}
-                            placeholder="Nom"
-                            className="h-8 text-sm mt-1"
-                          />
+                          <Label htmlFor="nomClient" className="text-[10px]">Nom</Label>
+                          <Input id="nomClient" value={formData.nomClient} onChange={(e) => handleInputChange("nomClient", e.target.value)} placeholder="Nom" className="h-7 text-xs mt-1" />
                         </div>
                         <div>
-                          <Label htmlFor="prenomClient" className="text-xs">Prénom</Label>
-                          <Input
-                            id="prenomClient"
-                            value={formData.prenomClient}
-                            onChange={(event) => handleInputChange("prenomClient", event.target.value)}
-                            placeholder="Prénom"
-                            className="h-8 text-sm mt-1"
-                          />
+                          <Label htmlFor="prenomClient" className="text-[10px]">Prénom</Label>
+                          <Input id="prenomClient" value={formData.prenomClient} onChange={(e) => handleInputChange("prenomClient", e.target.value)} placeholder="Prénom" className="h-7 text-xs mt-1" />
                         </div>
                       </div>
-                      {/* Ligne 2 : Téléphone et Email */}
-                      <div className="grid grid-cols-2 gap-3">
+                      <div className="grid grid-cols-2 gap-2">
                         <div>
-                          <Label htmlFor="telephoneClient" className="text-xs">Téléphone</Label>
-                          <Input
-                            id="telephoneClient"
-                            value={formData.telephoneClient}
-                            onChange={(event) => handleInputChange("telephoneClient", event.target.value)}
-                            placeholder="06 12 34 56 78"
-                            className="h-8 text-sm mt-1"
-                          />
+                          <Label htmlFor="telephoneClient" className="text-[10px]">Téléphone</Label>
+                          <Input id="telephoneClient" value={formData.telephoneClient} onChange={(e) => handleInputChange("telephoneClient", e.target.value)} placeholder="06..." className="h-7 text-xs mt-1" />
                         </div>
                         <div>
-                          <Label htmlFor="emailClient" className="text-xs">Email</Label>
-                          <Input
-                            id="emailClient"
-                            type="email"
-                            value={formData.emailClient}
-                            onChange={(event) => handleInputChange("emailClient", event.target.value)}
-                            placeholder="email@example.com"
-                            className="h-8 text-sm mt-1"
-                          />
+                          <Label htmlFor="emailClient" className="text-[10px]">Email</Label>
+                          <Input id="emailClient" type="email" value={formData.emailClient} onChange={(e) => handleInputChange("emailClient", e.target.value)} placeholder="email@..." className="h-7 text-xs mt-1" />
                         </div>
                       </div>
                     </div>
                   )}
-                </div>
-              </div>
-            </CardContent>
-          </CollapsibleContent>
-        </Card>
-      </Collapsible>
+                </CardContent>
+              </CollapsibleContent>
+            </Card>
+          </Collapsible>
 
-      {/* Gestion des acomptes */}
-      <Collapsible open={isAccompteOpen} onOpenChange={setIsAccompteOpen}>
-        <Card>
-          <CollapsibleTrigger asChild>
-            <CardHeader className="cursor-pointer pb-3 hover:bg-muted/50">
-              <CardTitle className="flex items-center gap-2 text-sm">
-                Gestion des acomptes
-                {isAccompteOpen ? <ChevronDown className="ml-auto h-4 w-4" /> : <ChevronRight className="ml-auto h-4 w-4" />}
-              </CardTitle>
-            </CardHeader>
-          </CollapsibleTrigger>
-          <CollapsibleContent>
-            <CardContent className="space-y-4 pt-0">
-              <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                <div>
-                  <Label htmlFor="accompteSST" className="text-xs">Acompte SST</Label>
-                  <Input
-                    id="accompteSST"
-                    value={formData.accompteSST}
-                    onChange={(event) => handleAccompteSSTChange(event.target.value)}
-                    onBlur={handleAccompteSSTBlur}
-                    placeholder="Montant"
-                    className="h-8 text-sm"
-                    disabled={!canEditAccomptes}
-                    type="number"
-                    step="0.01"
-                    min="0"
-                  />
-                </div>
-                <div>
-                  <Label className="text-xs">Acompte SST reçu</Label>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      checked={formData.accompteSSTRecu}
-                      onChange={(e) => handleAccompteSSTRecuChange(e.target.checked)}
-                      className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
-                    />
-                    <Input
-                      type="date"
-                      value={formData.dateAccompteSSTRecu}
-                      onChange={(e) => handleDateAccompteSSTRecuChange(e.target.value)}
-                      className="h-8 text-sm"
-                      required={formData.accompteSSTRecu && !formData.dateAccompteSSTRecu}
-                    />
+          {/* Gestion des acomptes */}
+          <Collapsible open={isAccompteOpen} onOpenChange={setIsAccompteOpen}>
+            <Card>
+              <CollapsibleTrigger asChild>
+                <CardHeader className="cursor-pointer py-2 px-3 hover:bg-muted/50">
+                  <CardTitle className="flex items-center gap-2 text-xs">
+                    Gestion des acomptes
+                    {isAccompteOpen ? <ChevronDown className="ml-auto h-3 w-3" /> : <ChevronRight className="ml-auto h-3 w-3" />}
+                  </CardTitle>
+                </CardHeader>
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                <CardContent className="pt-0 px-3 pb-3 space-y-2">
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <Label htmlFor="accompteSST" className="text-[10px]">Acompte SST</Label>
+                      <Input id="accompteSST" value={formData.accompteSST} onChange={(e) => handleAccompteSSTChange(e.target.value)} onBlur={handleAccompteSSTBlur} placeholder="Montant" className="h-7 text-xs" disabled={!canEditAccomptes} type="number" step="0.01" min="0" />
+                    </div>
+                    <div>
+                      <Label className="text-[10px]">Reçu</Label>
+                      <div className="flex items-center gap-1">
+                        <input type="checkbox" checked={formData.accompteSSTRecu} onChange={(e) => handleAccompteSSTRecuChange(e.target.checked)} className="h-3 w-3" />
+                        <Input type="date" value={formData.dateAccompteSSTRecu} onChange={(e) => handleDateAccompteSSTRecuChange(e.target.value)} className="h-7 text-xs flex-1" />
+                      </div>
+                    </div>
                   </div>
-                </div>
-                <div>
-                  <Label htmlFor="accompteClient" className="text-xs">Acompte client</Label>
-                  <Input
-                    id="accompteClient"
-                    value={formData.accompteClient}
-                    onChange={(event) => handleAccompteClientChange(event.target.value)}
-                    onBlur={handleAccompteClientBlur}
-                    placeholder="Montant"
-                    className="h-8 text-sm"
-                    disabled={!canEditAccomptes}
-                    type="number"
-                    step="0.01"
-                    min="0"
-                  />
-                </div>
-                <div>
-                  <Label className="text-xs">Acompte client reçu</Label>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      checked={formData.accompteClientRecu}
-                      onChange={(e) => handleAccompteClientRecuChange(e.target.checked)}
-                      className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
-                    />
-                    <Input
-                      type="date"
-                      value={formData.dateAccompteClientRecu}
-                      onChange={(e) => handleDateAccompteClientRecuChange(e.target.value)}
-                      className="h-8 text-sm"
-                      required={formData.accompteClientRecu && !formData.dateAccompteClientRecu}
-                    />
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <Label htmlFor="accompteClient" className="text-[10px]">Acompte client</Label>
+                      <Input id="accompteClient" value={formData.accompteClient} onChange={(e) => handleAccompteClientChange(e.target.value)} onBlur={handleAccompteClientBlur} placeholder="Montant" className="h-7 text-xs" disabled={!canEditAccomptes} type="number" step="0.01" min="0" />
+                    </div>
+                    <div>
+                      <Label className="text-[10px]">Reçu</Label>
+                      <div className="flex items-center gap-1">
+                        <input type="checkbox" checked={formData.accompteClientRecu} onChange={(e) => handleAccompteClientRecuChange(e.target.checked)} className="h-3 w-3" />
+                        <Input type="date" value={formData.dateAccompteClientRecu} onChange={(e) => handleDateAccompteClientRecuChange(e.target.value)} className="h-7 text-xs flex-1" />
+                      </div>
+                    </div>
                   </div>
-                </div>
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Note: Les acomptes ne sont éditables que si le statut est &quot;Accepté&quot; ou &quot;Attente acompte&quot;.
-              </p>
-            </CardContent>
-          </CollapsibleContent>
-        </Card>
-      </Collapsible>
+                  <p className="text-[9px] text-muted-foreground">Éditable si statut = Accepté ou Attente acompte</p>
+                </CardContent>
+              </CollapsibleContent>
+            </Card>
+          </Collapsible>
 
-      {/* Documents */}
-      <Collapsible open={isDocumentsOpen} onOpenChange={setIsDocumentsOpen}>
-        <Card>
-          <CollapsibleTrigger asChild>
-            <CardHeader className="cursor-pointer pb-3 hover:bg-muted/50">
-              <CardTitle className="flex items-center gap-2 text-sm">
-                <Upload className="h-4 w-4" />
-                Documents
-                {isDocumentsOpen ? <ChevronDown className="ml-auto h-4 w-4" /> : <ChevronRight className="ml-auto h-4 w-4" />}
-              </CardTitle>
-            </CardHeader>
-          </CollapsibleTrigger>
-          <CollapsibleContent>
-            <CardContent className="space-y-4 pt-0">
-              <DocumentManager
-                entityType="intervention"
-                entityId={intervention.id}
-                kinds={INTERVENTION_DOCUMENT_KINDS}
-                currentUser={currentUser ?? undefined}
-              />
-            </CardContent>
-          </CollapsibleContent>
-        </Card>
-      </Collapsible>
+          {/* Documents */}
+          <Collapsible open={isDocumentsOpen} onOpenChange={setIsDocumentsOpen}>
+            <Card>
+              <CollapsibleTrigger asChild>
+                <CardHeader className="cursor-pointer py-2 px-3 hover:bg-muted/50">
+                  <CardTitle className="flex items-center gap-2 text-xs">
+                    <Upload className="h-3 w-3" />
+                    Documents
+                    {isDocumentsOpen ? <ChevronDown className="ml-auto h-3 w-3" /> : <ChevronRight className="ml-auto h-3 w-3" />}
+                  </CardTitle>
+                </CardHeader>
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                <CardContent className="pt-0 px-3 pb-3">
+                  <DocumentManager entityType="intervention" entityId={intervention.id} kinds={INTERVENTION_DOCUMENT_KINDS} currentUser={currentUser ?? undefined} />
+                </CardContent>
+              </CollapsibleContent>
+            </Card>
+          </Collapsible>
 
-      {/* Commentaires (Historique) */}
-      <Collapsible open={isCommentsOpen} onOpenChange={setIsCommentsOpen}>
-        <Card>
-          <CollapsibleTrigger asChild>
-            <CardHeader className="cursor-pointer pb-3 hover:bg-muted/50">
-              <CardTitle className="flex items-center gap-2 text-sm">
-                <MessageSquare className="h-4 w-4" />
-                Commentaires
-                <ChevronDown
-                  className={cn(
-                    "ml-auto h-4 w-4 transition-transform",
-                    isCommentsOpen && "rotate-180",
-                  )}
-                />
-              </CardTitle>
-            </CardHeader>
-          </CollapsibleTrigger>
-          <CollapsibleContent>
-            <CardContent className="pt-0">
-              <CommentSection
-                entityType="intervention"
-                entityId={intervention.id}
-                currentUserId={currentUser?.id}
-              />
-            </CardContent>
-          </CollapsibleContent>
-        </Card>
-      </Collapsible>
+          {/* Commentaires - ouvert par défaut */}
+          <Collapsible open={isCommentsOpen} onOpenChange={setIsCommentsOpen}>
+            <Card className="flex-1 flex flex-col">
+              <CollapsibleTrigger asChild>
+                <CardHeader className="cursor-pointer py-2 px-3 hover:bg-muted/50">
+                  <CardTitle className="flex items-center gap-2 text-xs">
+                    <MessageSquare className="h-3 w-3" />
+                    Commentaires
+                    <ChevronDown className={cn("ml-auto h-3 w-3 transition-transform", isCommentsOpen && "rotate-180")} />
+                  </CardTitle>
+                </CardHeader>
+              </CollapsibleTrigger>
+              <CollapsibleContent className="flex-1">
+                <CardContent className="pt-0 px-3 pb-3">
+                  <CommentSection entityType="intervention" entityId={intervention.id} currentUserId={currentUser?.id} />
+                </CardContent>
+              </CollapsibleContent>
+            </Card>
+          </Collapsible>
+        </div>
+      </div>
+
       {/* Modal de recherche d'artisan */}
       <ArtisanSearchModal
         open={showArtisanSearch}
