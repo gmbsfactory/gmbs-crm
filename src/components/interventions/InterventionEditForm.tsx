@@ -1908,13 +1908,13 @@ export function InterventionEditForm({
 
         {/* DIV9: COLLAPSIBLES EN COLONNE - Rows 2-8, Cols 5-6 */}
         <div style={{ gridArea: "2 / 5 / 9 / 7" }} className="flex flex-col gap-2 overflow-y-auto">
-          {/* Détails propriétaire */}
+          {/* Détails facturation */}
           <Collapsible open={isProprietaireOpen} onOpenChange={setIsProprietaireOpen}>
             <Card>
               <CollapsibleTrigger asChild>
                 <CardHeader className="cursor-pointer py-2 px-3 hover:bg-muted/50">
                   <CardTitle className="flex items-center gap-2 text-xs">
-                    Détails propriétaire
+                    Détails facturation
                     {isProprietaireOpen ? <ChevronDown className="ml-auto h-3 w-3" /> : <ChevronRight className="ml-auto h-3 w-3" />}
                   </CardTitle>
                 </CardHeader>
