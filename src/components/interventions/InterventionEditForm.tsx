@@ -1758,7 +1758,7 @@ export function InterventionEditForm({
                       <X className="h-3 w-3" />
                     </Button>
                     <div className="flex items-start gap-2">
-                      <Avatar photoProfilMetadata={artisan.photoProfilMetadata} initials={artisanInitials} name={artisan.displayName} size={32} />
+                      <Avatar photoProfilMetadata={artisan.photoProfilMetadata} initials={artisanInitials} name={artisan.displayName} size={40} />
                       <div className="flex-1 min-w-0">
                         <span className="font-semibold text-foreground block truncate">{artisan.displayName}</span>
                         <div className="flex items-center gap-1 mt-1">
@@ -1808,7 +1808,7 @@ export function InterventionEditForm({
                       onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); handleSelectNearbyArtisan(artisan) } }}
                     >
                       <div className="flex items-center gap-2">
-                        <Avatar photoProfilMetadata={artisan.photoProfilMetadata} initials={artisanInitials} name={artisan.displayName} size={28} />
+                        <Avatar photoProfilMetadata={artisan.photoProfilMetadata} initials={artisanInitials} name={artisan.displayName} size={40} />
                         <div className="flex-1 min-w-0">
                           <span className="font-medium text-foreground block truncate text-[11px]">{artisan.displayName}</span>
                           <div className="flex items-center gap-1 flex-wrap">
