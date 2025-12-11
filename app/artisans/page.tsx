@@ -38,6 +38,16 @@ import { useQueryClient } from "@tanstack/react-query"
 import { artisansApi } from "@/lib/api/v2"
 import { artisanKeys } from "@/lib/react-query/queryKeys"
 import { toast } from "sonner"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 
 // Helper pour convertir hex en rgba
 function hexToRgba(hex: string, alpha: number): string | null {
@@ -614,30 +624,47 @@ export default function ArtisansPage(): ReactElement {
     artisanModal.open(contact.id)
   }, [artisanModal])
 
-  const handleDeleteContact = useCallback(async (contact: Contact) => {
-    if (!confirm(`Êtes-vous sûr de vouloir supprimer l'artisan "${contact.name}" ?`)) {
-      return
-    }
+  // État pour le dialogue de confirmation de suppression
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false)
+  const [contactToDelete, setContactToDelete] = useState<Contact | null>(null)
+
+  const handleDeleteContact = useCallback((contact: Contact) => {
+    // Ouvrir le dialogue au lieu d'utiliser window.confirm
+    setContactToDelete(contact)
+    setShowDeleteDialog(true)
+  }, [])
+
+  const handleConfirmDelete = useCallback(async () => {
+    if (!contactToDelete) return
 
     try {
       // Appel API pour supprimer l'artisan (soft delete)
-      await artisansApi.delete(contact.id)
+      await artisansApi.delete(contactToDelete.id)
       
       // Invalider le cache pour forcer le rechargement des données
       queryClient.invalidateQueries({ queryKey: artisanKeys.invalidateLists() })
-      queryClient.invalidateQueries({ queryKey: artisanKeys.detail(contact.id) })
+      queryClient.invalidateQueries({ queryKey: artisanKeys.detail(contactToDelete.id) })
       
       // Mise à jour optimiste de l'état local
-      setContacts((prev) => prev.filter((c) => c.id !== contact.id))
+      setContacts((prev) => prev.filter((c) => c.id !== contactToDelete.id))
       
       toast.success("Artisan supprimé avec succès")
+      
+      // Fermer le dialogue
+      setShowDeleteDialog(false)
+      setContactToDelete(null)
     } catch (error) {
       console.error("Erreur lors de la suppression de l'artisan:", error)
       toast.error("Erreur lors de la suppression", {
         description: error instanceof Error ? error.message : "Une erreur est survenue"
       })
     }
-  }, [queryClient])
+  }, [contactToDelete, queryClient])
+
+  const handleCancelDelete = useCallback(() => {
+    setShowDeleteDialog(false)
+    setContactToDelete(null)
+  }, [])
 
   const handleSendEmail = useCallback((contact: Contact) => {
     console.log("Send email to:", contact.email)
@@ -1270,6 +1297,27 @@ export default function ArtisansPage(): ReactElement {
           )}
         </div>
       </div>
+
+      {/* Dialogue de confirmation de suppression */}
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent onEscapeKeyDown={handleCancelDelete}>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmer la suppression</AlertDialogTitle>
+            <AlertDialogDescription>
+              Cette action est destructive. Êtes-vous sûr de vouloir supprimer l&apos;artisan &quot;{contactToDelete?.name}&quot; ?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={handleCancelDelete}>Annuler</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleConfirmDelete}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Supprimer
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }
