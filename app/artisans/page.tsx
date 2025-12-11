@@ -34,6 +34,10 @@ import Loader from "@/components/ui/Loader"
 import { Pagination } from "@/components/ui/pagination"
 import { useCurrentUser } from "@/hooks/useCurrentUser"
 import { getHighlightSegments } from "@/components/search/highlight"
+import { useQueryClient } from "@tanstack/react-query"
+import { artisansApi } from "@/lib/api/v2"
+import { artisanKeys } from "@/lib/react-query/queryKeys"
+import { toast } from "sonner"
 
 // Helper pour convertir hex en rgba
 function hexToRgba(hex: string, alpha: number): string | null {
@@ -288,6 +292,7 @@ function HighlightedText({ text, searchQuery }: { text: string; searchQuery: str
 export default function ArtisansPage(): ReactElement {
   const artisanModal = useArtisanModal()
   const { views, activeView, activeViewId, setActiveView, isReady } = useArtisanViews()
+  const queryClient = useQueryClient()
   
   const { data: currentUser } = useCurrentUser()
   const currentUserId = currentUser?.id ?? undefined
@@ -549,8 +554,11 @@ export default function ArtisansPage(): ReactElement {
     const metiersData = referenceData.metiers || []
     setMetiers(metiersData)
     
+    // Filtrer uniquement les artisans actifs (is_active === true)
+    const activeArtisans = artisans.filter((artisan) => artisan.is_active !== false)
+    
     // Trier d'abord les artisans par created_at (du plus récent au plus ancien)
-    const sortedArtisans = [...artisans].sort((a, b) => {
+    const sortedArtisans = [...activeArtisans].sort((a, b) => {
       const dateA = a.created_at ? new Date(a.created_at).getTime() : 0
       const dateB = b.created_at ? new Date(b.created_at).getTime() : 0
       // Si les dates sont invalides, retourner 0 pour garder l'ordre original
@@ -606,11 +614,30 @@ export default function ArtisansPage(): ReactElement {
     artisanModal.open(contact.id)
   }, [artisanModal])
 
-  const handleDeleteContact = useCallback((contact: Contact) => {
-    if (confirm(`Êtes-vous sûr de vouloir supprimer l'artisan "${contact.name}" ?`)) {
-      setContacts((prev) => prev.filter((c) => c.id !== contact.id))
+  const handleDeleteContact = useCallback(async (contact: Contact) => {
+    if (!confirm(`Êtes-vous sûr de vouloir supprimer l'artisan "${contact.name}" ?`)) {
+      return
     }
-  }, [])
+
+    try {
+      // Appel API pour supprimer l'artisan (soft delete)
+      await artisansApi.delete(contact.id)
+      
+      // Invalider le cache pour forcer le rechargement des données
+      queryClient.invalidateQueries({ queryKey: artisanKeys.invalidateLists() })
+      queryClient.invalidateQueries({ queryKey: artisanKeys.detail(contact.id) })
+      
+      // Mise à jour optimiste de l'état local
+      setContacts((prev) => prev.filter((c) => c.id !== contact.id))
+      
+      toast.success("Artisan supprimé avec succès")
+    } catch (error) {
+      console.error("Erreur lors de la suppression de l'artisan:", error)
+      toast.error("Erreur lors de la suppression", {
+        description: error instanceof Error ? error.message : "Une erreur est survenue"
+      })
+    }
+  }, [queryClient])
 
   const handleSendEmail = useCallback((contact: Contact) => {
     console.log("Send email to:", contact.email)

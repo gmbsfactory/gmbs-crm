@@ -67,6 +67,7 @@ export const artisansApi = {
     let query = supabase
       .from("artisans")
       .select("*", { count: "exact" })
+      .eq("is_active", true) // Filtrer uniquement les artisans actifs
       .order("created_at", { ascending: false });
 
     // Appliquer les filtres si nécessaire
