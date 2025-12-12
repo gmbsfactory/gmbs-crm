@@ -638,6 +638,103 @@ export const interventionsApi = {
     }
   },
 
+  async setSecondaryArtisan(interventionId: string, artisanId: string | null): Promise<void> {
+    if (!interventionId) {
+      throw new Error("interventionId is required");
+    }
+
+    // Récupérer l'artisan secondaire actuel
+    const { data: existingSecondary, error: secondaryError } = await supabase
+      .from('intervention_artisans')
+      .select('id, artisan_id, role')
+      .eq('intervention_id', interventionId)
+      .eq('is_primary', false)
+      .maybeSingle();
+
+    if (secondaryError) {
+      throw new Error(`Erreur lors de la récupération de l'artisan secondaire: ${secondaryError.message}`);
+    }
+
+    // Aucun artisan sélectionné => supprimer le secondaire courant
+    if (!artisanId) {
+      if (existingSecondary?.id) {
+        const { error: deleteError } = await supabase
+          .from('intervention_artisans')
+          .delete()
+          .eq('id', existingSecondary.id);
+
+        if (deleteError) {
+          throw new Error(`Erreur lors de la suppression de l'artisan secondaire: ${deleteError.message}`);
+        }
+      }
+      return;
+    }
+
+    // Rien à faire, c'est déjà le bon artisan
+    if (existingSecondary?.artisan_id === artisanId) {
+      return;
+    }
+
+    // Vérifier si l'artisan est déjà lié (peut-être comme primaire)
+    const { data: existingLink, error: linkError } = await supabase
+      .from('intervention_artisans')
+      .select('id, is_primary')
+      .eq('intervention_id', interventionId)
+      .eq('artisan_id', artisanId)
+      .maybeSingle();
+
+    if (linkError) {
+      throw new Error(`Erreur lors de la récupération de l'artisan: ${linkError.message}`);
+    }
+
+    // Si l'artisan est déjà le primaire, ne pas le rétrograder
+    if (existingLink?.is_primary) {
+      throw new Error("Cet artisan est déjà l'artisan principal. Veuillez d'abord le retirer.");
+    }
+
+    // Supprimer l'ancien artisan secondaire s'il existe
+    if (existingSecondary?.id) {
+      const { error: deleteError } = await supabase
+        .from('intervention_artisans')
+        .delete()
+        .eq('id', existingSecondary.id);
+
+      if (deleteError) {
+        throw new Error(`Erreur lors de la suppression de l'ancien artisan secondaire: ${deleteError.message}`);
+      }
+    }
+
+    // Si un lien existe déjà avec cet artisan (mais pas comme primaire), le mettre à jour
+    if (existingLink?.id) {
+      const { error: updateError } = await supabase
+        .from('intervention_artisans')
+        .update({
+          role: 'secondary',
+          is_primary: false,
+        })
+        .eq('id', existingLink.id);
+
+      if (updateError) {
+        throw new Error(`Erreur lors de la mise à jour de l'artisan secondaire: ${updateError.message}`);
+      }
+      return;
+    }
+
+    // Insérer le nouvel artisan secondaire
+    const { error: insertError } = await supabase
+      .from('intervention_artisans')
+      .insert({
+        intervention_id: interventionId,
+        artisan_id: artisanId,
+        role: 'secondary',
+        is_primary: false,
+      });
+
+    if (insertError) {
+      throw new Error(`Erreur lors de l'assignation de l'artisan secondaire: ${insertError.message}`);
+    }
+  },
+
   // Supprimer une intervention (soft delete)
   async delete(id: string): Promise<{ message: string; data: Intervention }> {
     const headers = await getHeaders();

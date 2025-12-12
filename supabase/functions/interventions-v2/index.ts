@@ -82,6 +82,14 @@ interface UpdateInterventionRequest {
   floor?: string | null;
   apartment_number?: string | null;
   vacant_housing_instructions?: string | null;
+  // Sous-statut personnalisé
+  sous_statut_text?: string | null;
+  sous_statut_text_color?: string | null;
+  sous_statut_bg_color?: string | null;
+  // Deuxième artisan - métier et coûts
+  metier_second_artisan_id?: string | null;
+  cout_sst_second_artisan?: number | null;
+  cout_materiel_second_artisan?: number | null;
 }
 
 interface AssignArtisanRequest {
@@ -1597,6 +1605,12 @@ serve(async (req: Request) => {
               floor: body.floor ?? null,
               apartment_number: body.apartment_number ?? null,
               vacant_housing_instructions: body.vacant_housing_instructions ?? null,
+              sous_statut_text: body.sous_statut_text ?? null,
+              sous_statut_text_color: body.sous_statut_text_color ?? '#000000',
+              sous_statut_bg_color: body.sous_statut_bg_color ?? 'transparent',
+              metier_second_artisan_id: body.metier_second_artisan_id ?? null,
+              cout_sst_second_artisan: body.cout_sst_second_artisan ?? 0,
+              cout_materiel_second_artisan: body.cout_materiel_second_artisan ?? 0,
               updated_at: new Date().toISOString()
             })
             .eq('id', existing.id)
@@ -1652,6 +1666,12 @@ serve(async (req: Request) => {
           floor: body.floor ?? null,
           apartment_number: body.apartment_number ?? null,
           vacant_housing_instructions: body.vacant_housing_instructions ?? null,
+          sous_statut_text: body.sous_statut_text ?? null,
+          sous_statut_text_color: body.sous_statut_text_color ?? '#000000',
+          sous_statut_bg_color: body.sous_statut_bg_color ?? 'transparent',
+          metier_second_artisan_id: body.metier_second_artisan_id ?? null,
+          cout_sst_second_artisan: body.cout_sst_second_artisan ?? 0,
+          cout_materiel_second_artisan: body.cout_materiel_second_artisan ?? 0,
           is_active: true
         }])
         .select()
@@ -1791,6 +1811,12 @@ serve(async (req: Request) => {
           floor: body.floor ?? null,
           apartment_number: body.apartment_number ?? null,
           vacant_housing_instructions: body.vacant_housing_instructions ?? null,
+          sous_statut_text: body.sous_statut_text ?? null,
+          sous_statut_text_color: body.sous_statut_text_color ?? '#000000',
+          sous_statut_bg_color: body.sous_statut_bg_color ?? 'transparent',
+          metier_second_artisan_id: body.metier_second_artisan_id ?? null,
+          cout_sst_second_artisan: body.cout_sst_second_artisan ?? 0,
+          cout_materiel_second_artisan: body.cout_materiel_second_artisan ?? 0,
           is_active: true
         }])
         .select()
@@ -1836,6 +1862,12 @@ serve(async (req: Request) => {
                 floor: body.floor ?? null,
                 apartment_number: body.apartment_number ?? null,
                 vacant_housing_instructions: body.vacant_housing_instructions ?? null,
+                sous_statut_text: body.sous_statut_text ?? null,
+                sous_statut_text_color: body.sous_statut_text_color ?? '#000000',
+                sous_statut_bg_color: body.sous_statut_bg_color ?? 'transparent',
+                metier_second_artisan_id: body.metier_second_artisan_id ?? null,
+                cout_sst_second_artisan: body.cout_sst_second_artisan ?? 0,
+                cout_materiel_second_artisan: body.cout_materiel_second_artisan ?? 0,
                 is_active: true
               }])
               .select()
@@ -1998,6 +2030,12 @@ serve(async (req: Request) => {
           floor: body.floor ?? null,
           apartment_number: body.apartment_number ?? null,
           vacant_housing_instructions: body.vacant_housing_instructions ?? null,
+          sous_statut_text: body.sous_statut_text ?? null,
+          sous_statut_text_color: body.sous_statut_text_color ?? '#000000',
+          sous_statut_bg_color: body.sous_statut_bg_color ?? 'transparent',
+          metier_second_artisan_id: body.metier_second_artisan_id ?? null,
+          cout_sst_second_artisan: body.cout_sst_second_artisan ?? 0,
+          cout_materiel_second_artisan: body.cout_materiel_second_artisan ?? 0,
           is_active: body.is_active,
           updated_at: new Date().toISOString()
         })

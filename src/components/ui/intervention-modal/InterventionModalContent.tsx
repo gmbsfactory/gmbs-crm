@@ -464,6 +464,7 @@ GMBS`
                 onClientNameChange={setClientName}
                 onAgencyNameChange={setAgencyName}
                 onClientPhoneChange={setClientPhone}
+                onOpenSmsModal={handleOpenSmsModal}
               />
             ) : (
               <div className="rounded border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">

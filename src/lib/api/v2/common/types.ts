@@ -95,6 +95,14 @@ export interface Intervention {
   is_active: boolean | null;
   created_at: string | null;
   updated_at: string | null;
+  // Sous-statut personnalisé
+  sous_statut_text: string | null;
+  sous_statut_text_color: string | null;
+  sous_statut_bg_color: string | null;
+  // Deuxième artisan - métier et coûts
+  metier_second_artisan_id: string | null;
+  cout_sst_second_artisan: number | null;
+  cout_materiel_second_artisan: number | null;
   artisans?: string[];
   costs?: InterventionCost[];
   payments?: InterventionPayment[];
@@ -359,6 +367,14 @@ export interface UpdateInterventionData {
   apartment_number?: string | null;
   vacant_housing_instructions?: string | null;
   is_active?: boolean;
+  // Sous-statut personnalisé
+  sous_statut_text?: string | null;
+  sous_statut_text_color?: string | null;
+  sous_statut_bg_color?: string | null;
+  // Deuxième artisan - métier et coûts
+  metier_second_artisan_id?: string | null;
+  cout_sst_second_artisan?: number | null;
+  cout_materiel_second_artisan?: number | null;
 }
 
 export interface CreateArtisanData {
@@ -716,6 +732,7 @@ export interface Tenant {
   id: string;
   firstname: string | null;
   lastname: string | null;
+  plain_nom_client: string | null;
   email: string | null;
   telephone: string | null;
   telephone2: string | null;
@@ -730,6 +747,7 @@ export interface Tenant {
 export interface CreateTenantData {
   firstname?: string | null;
   lastname?: string | null;
+  plain_nom_client?: string | null;
   email?: string | null;
   telephone?: string | null;
   telephone2?: string | null;
@@ -742,6 +760,7 @@ export interface CreateTenantData {
 export interface UpdateTenantData {
   firstname?: string | null;
   lastname?: string | null;
+  plain_nom_client?: string | null;
   email?: string | null;
   telephone?: string | null;
   telephone2?: string | null;
@@ -766,6 +785,7 @@ export interface Owner {
   external_ref: string | null;
   owner_firstname: string | null;
   owner_lastname: string | null;
+  plain_nom_facturation: string | null;
   telephone: string | null;
   telephone2: string | null;
   email: string | null;
@@ -780,6 +800,7 @@ export interface CreateOwnerData {
   external_ref?: string | null;
   owner_firstname?: string | null;
   owner_lastname?: string | null;
+  plain_nom_facturation?: string | null;
   telephone?: string | null;
   telephone2?: string | null;
   email?: string | null;
@@ -791,6 +812,7 @@ export interface CreateOwnerData {
 export interface UpdateOwnerData {
   owner_firstname?: string | null;
   owner_lastname?: string | null;
+  plain_nom_facturation?: string | null;
   telephone?: string | null;
   telephone2?: string | null;
   email?: string | null;

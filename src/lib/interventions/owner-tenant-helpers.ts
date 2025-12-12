@@ -9,15 +9,14 @@ import type { CreateOwnerData, CreateTenantData } from "@/lib/api/v2/common/type
  * @returns L'ID du owner trouvé ou créé, ou null si aucune donnée valide
  */
 export async function findOrCreateOwner(ownerData: {
-  nomProprietaire?: string;
-  prenomProprietaire?: string;
+  nomPrenomFacturation?: string;
   telephoneProprietaire?: string;
   emailProprietaire?: string;
 }): Promise<string | null> {
-  const { nomProprietaire, prenomProprietaire, telephoneProprietaire, emailProprietaire } = ownerData;
+  const { nomPrenomFacturation, telephoneProprietaire, emailProprietaire } = ownerData;
 
   // Si aucune donnée n'est fournie, retourner null
-  if (!nomProprietaire && !prenomProprietaire && !telephoneProprietaire && !emailProprietaire) {
+  if (!nomPrenomFacturation && !telephoneProprietaire && !emailProprietaire) {
     return null;
   }
 
@@ -29,14 +28,12 @@ export async function findOrCreateOwner(ownerData: {
         // Mettre à jour l'owner existant avec les nouvelles données si nécessaire
         const existingOwner = existingOwners[0];
         const needsUpdate =
-          (nomProprietaire && nomProprietaire.trim() !== existingOwner.owner_lastname) ||
-          (prenomProprietaire && prenomProprietaire.trim() !== existingOwner.owner_firstname) ||
+          (nomPrenomFacturation && nomPrenomFacturation.trim() !== existingOwner.plain_nom_facturation) ||
           (emailProprietaire && emailProprietaire.trim() !== existingOwner.email);
 
         if (needsUpdate) {
           await ownersApi.update(existingOwner.id, {
-            owner_firstname: prenomProprietaire?.trim() || existingOwner.owner_firstname,
-            owner_lastname: nomProprietaire?.trim() || existingOwner.owner_lastname,
+            plain_nom_facturation: nomPrenomFacturation?.trim() || existingOwner.plain_nom_facturation,
             email: emailProprietaire?.trim() || existingOwner.email,
           });
         }
@@ -50,14 +47,13 @@ export async function findOrCreateOwner(ownerData: {
   // Si pas trouvé, créer un nouvel owner
   try {
     const createData: CreateOwnerData = {
-      owner_firstname: prenomProprietaire?.trim() || null,
-      owner_lastname: nomProprietaire?.trim() || null,
+      plain_nom_facturation: nomPrenomFacturation?.trim() || null,
       telephone: telephoneProprietaire?.trim() || null,
       email: emailProprietaire?.trim() || null,
     };
 
     // Ne créer que si on a au moins un nom ou un téléphone
-    if (!createData.owner_firstname && !createData.owner_lastname && !createData.telephone) {
+    if (!createData.plain_nom_facturation && !createData.telephone) {
       return null;
     }
 
@@ -75,15 +71,14 @@ export async function findOrCreateOwner(ownerData: {
  * @returns L'ID du tenant trouvé ou créé, ou null si aucune donnée valide
  */
 export async function findOrCreateTenant(tenantData: {
-  nomClient?: string;
-  prenomClient?: string;
+  nomPrenomClient?: string;
   telephoneClient?: string;
   emailClient?: string;
 }): Promise<string | null> {
-  const { nomClient, prenomClient, telephoneClient, emailClient } = tenantData;
+  const { nomPrenomClient, telephoneClient, emailClient } = tenantData;
 
   // Si aucune donnée n'est fournie, retourner null
-  if (!nomClient && !prenomClient && !telephoneClient && !emailClient) {
+  if (!nomPrenomClient && !telephoneClient && !emailClient) {
     return null;
   }
 
@@ -95,14 +90,12 @@ export async function findOrCreateTenant(tenantData: {
         // Mettre à jour le tenant existant avec les nouvelles données si nécessaire
         const existingTenant = existingTenants[0];
         const needsUpdate =
-          (nomClient && nomClient.trim() !== existingTenant.lastname) ||
-          (prenomClient && prenomClient.trim() !== existingTenant.firstname) ||
+          (nomPrenomClient && nomPrenomClient.trim() !== existingTenant.plain_nom_client) ||
           (emailClient && emailClient.trim() !== existingTenant.email);
 
         if (needsUpdate) {
           await tenantsApi.update(existingTenant.id, {
-            firstname: prenomClient?.trim() || existingTenant.firstname,
-            lastname: nomClient?.trim() || existingTenant.lastname,
+            plain_nom_client: nomPrenomClient?.trim() || existingTenant.plain_nom_client,
             email: emailClient?.trim() || existingTenant.email,
           });
         }
@@ -121,14 +114,12 @@ export async function findOrCreateTenant(tenantData: {
         // Mettre à jour le tenant existant avec les nouvelles données si nécessaire
         const existingTenant = existingTenants[0];
         const needsUpdate =
-          (nomClient && nomClient.trim() !== existingTenant.lastname) ||
-          (prenomClient && prenomClient.trim() !== existingTenant.firstname) ||
+          (nomPrenomClient && nomPrenomClient.trim() !== existingTenant.plain_nom_client) ||
           (telephoneClient && telephoneClient.trim() !== existingTenant.telephone);
 
         if (needsUpdate) {
           await tenantsApi.update(existingTenant.id, {
-            firstname: prenomClient?.trim() || existingTenant.firstname,
-            lastname: nomClient?.trim() || existingTenant.lastname,
+            plain_nom_client: nomPrenomClient?.trim() || existingTenant.plain_nom_client,
             telephone: telephoneClient?.trim() || existingTenant.telephone,
           });
         }
@@ -142,14 +133,13 @@ export async function findOrCreateTenant(tenantData: {
   // Si pas trouvé, créer un nouveau tenant
   try {
     const createData: CreateTenantData = {
-      firstname: prenomClient?.trim() || null,
-      lastname: nomClient?.trim() || null,
+      plain_nom_client: nomPrenomClient?.trim() || null,
       telephone: telephoneClient?.trim() || null,
       email: emailClient?.trim() || null,
     };
 
     // Ne créer que si on a au moins un nom ou un téléphone ou un email
-    if (!createData.firstname && !createData.lastname && !createData.telephone && !createData.email) {
+    if (!createData.plain_nom_client && !createData.telephone && !createData.email) {
       return null;
     }
 

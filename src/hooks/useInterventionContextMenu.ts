@@ -95,14 +95,14 @@ export function useInterventionContextMenu(interventionId: string, viewType?: Co
           ? interventionData.date_prevue.split('T')[0]
           : interventionData.date_prevue
         : "",
-      // Propriétaire
-      nomProprietaire: owner?.owner_lastname || "",
-      prenomProprietaire: owner?.owner_firstname || "",
+      // Propriétaire - Champ fusionné nom-prénom
+      nomPrenomFacturation: owner?.plain_nom_facturation || 
+        `${owner?.owner_lastname || ''} ${owner?.owner_firstname || ''}`.trim() || "",
       telephoneProprietaire: owner?.telephone || "",
       emailProprietaire: owner?.email || "",
-      // Client/Tenant
-      nomClient: tenant?.lastname || "",
-      prenomClient: tenant?.firstname || "",
+      // Client/Tenant - Champ fusionné nom-prénom
+      nomPrenomClient: tenant?.plain_nom_client || 
+        `${tenant?.lastname || ''} ${tenant?.firstname || ''}`.trim() || "",
       telephoneClient: tenant?.telephone || "",
       emailClient: tenant?.email || "",
       // Artisan principal - utiliser le nom complet comme dans InterventionEditForm

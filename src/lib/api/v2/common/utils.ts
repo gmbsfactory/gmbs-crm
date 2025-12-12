@@ -266,6 +266,10 @@ export const mapInterventionRecord = (item: any, refs: any): any => {
     dateIntervention: item.date_intervention ?? item.dateIntervention ?? item.date ?? null,
     prenomClient: item.prenom_client ?? item.prenomClient ?? null,
     nomClient: item.nom_client ?? item.nomClient ?? null,
+    nomPrenomClient: item.plain_nom_client ?? item.nomPrenomClient ?? 
+      ((item.nom_client || item.nomClient || item.prenom_client || item.prenomClient) 
+        ? `${item.nom_client ?? item.nomClient ?? ''} ${item.prenom_client ?? item.prenomClient ?? ''}`.trim() 
+        : null),
     attribueA: userInfo.code ?? userInfo.username ?? undefined,
     assignedUserName: userInfo.fullName ?? undefined,
     assignedUserCode: userInfo.code,
@@ -293,6 +297,10 @@ export const mapInterventionRecord = (item: any, refs: any): any => {
     emailClient: item.email_client ?? item.emailClient ?? null,
     prenomProprietaire: item.prenom_proprietaire ?? item.prenomProprietaire ?? null,
     nomProprietaire: item.nom_proprietaire ?? item.nomProprietaire ?? null,
+    nomPrenomFacturation: item.plain_nom_facturation ?? item.nomPrenomFacturation ?? 
+      ((item.nom_proprietaire || item.nomProprietaire || item.prenom_proprietaire || item.prenomProprietaire) 
+        ? `${item.nom_proprietaire ?? item.nomProprietaire ?? ''} ${item.prenom_proprietaire ?? item.prenomProprietaire ?? ''}`.trim() 
+        : null),
     telephoneProprietaire: item.telephone_proprietaire ?? item.telephoneProprietaire ?? null,
     emailProprietaire: item.email_proprietaire ?? item.emailProprietaire ?? null,
     pieceJointeIntervention: item.piece_jointe_intervention ?? item.pieceJointeIntervention ?? [],

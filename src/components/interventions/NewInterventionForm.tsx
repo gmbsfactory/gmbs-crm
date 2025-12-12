@@ -90,6 +90,7 @@ interface NewInterventionFormProps {
   onClientNameChange?: (name: string) => void
   onAgencyNameChange?: (name: string) => void
   onClientPhoneChange?: (phone: string) => void
+  onOpenSmsModal?: () => void
   defaultValues?: Partial<{
     agence_id: string
     reference_agence: string
@@ -101,12 +102,10 @@ interface NewInterventionFormProps {
     latitude: number
     longitude: number
     datePrevue: string
-    nomProprietaire: string
-    prenomProprietaire: string
+    nomPrenomFacturation: string
     telephoneProprietaire: string
     emailProprietaire: string
-    nomClient: string
-    prenomClient: string
+    nomPrenomClient: string
     telephoneClient: string
     emailClient: string
     artisan: string
@@ -128,6 +127,7 @@ export function NewInterventionForm({
   onClientNameChange,
   onAgencyNameChange,
   onClientPhoneChange,
+  onOpenSmsModal,
   defaultValues
 }: NewInterventionFormProps) {
   const { data: refData, loading: refDataLoading } = useReferenceData()
@@ -171,15 +171,13 @@ export function NewInterventionForm({
     consigne_second_artisan: "",
     commentaire_initial: "",
 
-    // Propriétaire (owner)
-    nomProprietaire: defaultValues?.nomProprietaire || "",
-    prenomProprietaire: defaultValues?.prenomProprietaire || "",
+    // Propriétaire (owner) - Champ fusionné nom-prénom
+    nomPrenomFacturation: defaultValues?.nomPrenomFacturation || "",
     telephoneProprietaire: defaultValues?.telephoneProprietaire || "",
     emailProprietaire: defaultValues?.emailProprietaire || "",
 
-    // Client (tenant)
-    nomClient: defaultValues?.nomClient || "",
-    prenomClient: defaultValues?.prenomClient || "",
+    // Client (tenant) - Champ fusionné nom-prénom
+    nomPrenomClient: defaultValues?.nomPrenomClient || "",
     telephoneClient: defaultValues?.telephoneClient || "",
     emailClient: defaultValues?.emailClient || "",
 
@@ -387,8 +385,8 @@ export function NewInterventionForm({
 
   // Sync client name with parent
   useEffect(() => {
-    onClientNameChange?.(formData.nomClient)
-  }, [formData.nomClient, onClientNameChange])
+    onClientNameChange?.(formData.nomPrenomClient)
+  }, [formData.nomPrenomClient, onClientNameChange])
 
   // Sync client phone with parent
   useEffect(() => {
@@ -648,8 +646,7 @@ export function NewInterventionForm({
 
       try {
         ownerId = await findOrCreateOwner({
-          nomProprietaire: formData.nomProprietaire,
-          prenomProprietaire: formData.prenomProprietaire,
+          nomPrenomFacturation: formData.nomPrenomFacturation,
           telephoneProprietaire: formData.telephoneProprietaire,
           emailProprietaire: formData.emailProprietaire,
         })
@@ -661,8 +658,7 @@ export function NewInterventionForm({
       if (!formData.is_vacant) {
         try {
           tenantId = await findOrCreateTenant({
-            nomClient: formData.nomClient,
-            prenomClient: formData.prenomClient,
+            nomPrenomClient: formData.nomPrenomClient,
             telephoneClient: formData.telephoneClient,
             emailClient: formData.emailClient,
           })
@@ -1292,15 +1288,9 @@ export function NewInterventionForm({
               <CollapsibleContent>
                 <CardContent className="pt-0 px-3 pb-3">
                   <div className="space-y-2">
-                    <div className="grid grid-cols-2 gap-2">
-                      <div>
-                        <Label htmlFor="nomProprietaire" className="text-[10px]">Nom</Label>
-                        <Input id="nomProprietaire" value={formData.nomProprietaire} onChange={(e) => handleInputChange("nomProprietaire", e.target.value)} placeholder="Nom" className="h-7 text-xs mt-1" />
-                      </div>
-                      <div>
-                        <Label htmlFor="prenomProprietaire" className="text-[10px]">Prénom</Label>
-                        <Input id="prenomProprietaire" value={formData.prenomProprietaire} onChange={(e) => handleInputChange("prenomProprietaire", e.target.value)} placeholder="Prénom" className="h-7 text-xs mt-1" />
-                      </div>
+                    <div>
+                      <Label htmlFor="nomPrenomFacturation" className="text-[10px]">Nom Prénom</Label>
+                      <Input id="nomPrenomFacturation" value={formData.nomPrenomFacturation} onChange={(e) => handleInputChange("nomPrenomFacturation", e.target.value)} placeholder="Nom Prénom" className="h-7 text-xs mt-1" />
                     </div>
                     <div className="grid grid-cols-2 gap-2">
                       <div>
@@ -1331,11 +1321,24 @@ export function NewInterventionForm({
               </CollapsibleTrigger>
               <CollapsibleContent>
                 <CardContent className="pt-0 px-3 pb-3">
-                  <div className="flex items-center justify-end mb-2">
+                  <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center space-x-2">
                       <input type="checkbox" id="is_vacant" className="h-3 w-3 rounded border-gray-300" checked={formData.is_vacant} onChange={(e) => handleInputChange("is_vacant", e.target.checked)} />
                       <Label htmlFor="is_vacant" className="text-[10px] font-normal cursor-pointer">logement vacant</Label>
                     </div>
+                    {!formData.is_vacant && onOpenSmsModal && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-6 px-2 text-[10px] flex items-center gap-1"
+                        onClick={onOpenSmsModal}
+                        disabled={!formData.nomPrenomClient || !formData.telephoneClient}
+                      >
+                        <MessageSquare className="h-3 w-3" />
+                        SMS
+                      </Button>
+                    )}
                   </div>
                   {formData.is_vacant ? (
                     <div className="space-y-2">
@@ -1360,15 +1363,9 @@ export function NewInterventionForm({
                     </div>
                   ) : (
                     <div className="space-y-2">
-                      <div className="grid grid-cols-2 gap-2">
-                        <div>
-                          <Label htmlFor="nomClient" className="text-[10px]">Nom</Label>
-                          <Input id="nomClient" value={formData.nomClient} onChange={(e) => handleInputChange("nomClient", e.target.value)} placeholder="Nom" className="h-7 text-xs mt-1" />
-                        </div>
-                        <div>
-                          <Label htmlFor="prenomClient" className="text-[10px]">Prénom</Label>
-                          <Input id="prenomClient" value={formData.prenomClient} onChange={(e) => handleInputChange("prenomClient", e.target.value)} placeholder="Prénom" className="h-7 text-xs mt-1" />
-                        </div>
+                      <div>
+                        <Label htmlFor="nomPrenomClient" className="text-[10px]">Nom Prénom</Label>
+                        <Input id="nomPrenomClient" value={formData.nomPrenomClient} onChange={(e) => handleInputChange("nomPrenomClient", e.target.value)} placeholder="Nom Prénom" className="h-7 text-xs mt-1" />
                       </div>
                       <div className="grid grid-cols-2 gap-2">
                         <div>

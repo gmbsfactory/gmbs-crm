@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useQueryClient } from "@tanstack/react-query"
-import { Building, ChevronDown, ChevronRight, FileText, MessageSquare, Upload, X, Search, Eye, Mail, MessageCircle } from "lucide-react"
+import { Building, ChevronDown, ChevronRight, FileText, MessageSquare, Upload, X, Search, Eye, Mail, MessageCircle, Users, Palette } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -88,6 +88,7 @@ interface InterventionEditFormProps {
   onClientNameChange?: (name: string) => void
   onAgencyNameChange?: (name: string) => void
   onClientPhoneChange?: (phone: string) => void
+  onOpenSmsModal?: () => void
 }
 
 export function InterventionEditForm({
@@ -99,7 +100,8 @@ export function InterventionEditForm({
   onSubmittingChange,
   onClientNameChange,
   onAgencyNameChange,
-  onClientPhoneChange
+  onClientPhoneChange,
+  onOpenSmsModal
 }: InterventionEditFormProps) {
   const { data: refData, loading: refDataLoading } = useReferenceData()
   const queryClient = useQueryClient()
@@ -134,6 +136,7 @@ export function InterventionEditForm({
   // Artisans liés - memoized pour éviter les changements à chaque render
   const artisans = useMemo(() => intervention.intervention_artisans || [], [intervention.intervention_artisans])
   const primaryArtisan = artisans.find(a => a.is_primary)?.artisans
+  const secondaryArtisan = artisans.find(a => !a.is_primary)?.artisans
 
   const [formData, setFormData] = useState({
     // Champs principaux
@@ -168,15 +171,15 @@ export function InterventionEditForm({
     consigne_second_artisan: intervention.consigne_second_artisan || "",
     commentaire_agent: intervention.commentaire_agent || "",
 
-    // Propriétaire (owner)
-    nomProprietaire: intervention.owner?.owner_lastname || "",
-    prenomProprietaire: intervention.owner?.owner_firstname || "",
+    // Propriétaire (owner) - Champ fusionné nom-prénom
+    nomPrenomFacturation: intervention.owner?.plain_nom_facturation || 
+      `${intervention.owner?.owner_lastname || ''} ${intervention.owner?.owner_firstname || ''}`.trim() || "",
     telephoneProprietaire: intervention.owner?.telephone || "",
     emailProprietaire: intervention.owner?.email || "",
 
-    // Client (tenant)
-    nomClient: intervention.tenants?.lastname || "",
-    prenomClient: intervention.tenants?.firstname || "",
+    // Client (tenant) - Champ fusionné nom-prénom
+    nomPrenomClient: intervention.tenants?.plain_nom_client || 
+      `${intervention.tenants?.lastname || ''} ${intervention.tenants?.firstname || ''}`.trim() || "",
     telephoneClient: intervention.tenants?.telephone || "",
     emailClient: intervention.tenants?.email || "",
 
@@ -204,6 +207,19 @@ export function InterventionEditForm({
     accompteClient: clientPayment?.amount?.toString() || "",
     accompteClientRecu: clientPayment?.is_received || false,
     dateAccompteClientRecu: clientPayment?.payment_date?.split('T')[0] || "",
+
+    // Sous-statut personnalisé
+    sousStatutText: (intervention as any).sous_statut_text || "",
+    sousStatutTextColor: (intervention as any).sous_statut_text_color || "#000000",
+    sousStatutBgColor: (intervention as any).sous_statut_bg_color || "transparent",
+
+    // Deuxième artisan
+    secondArtisan: secondaryArtisan ? `${secondaryArtisan.prenom || ''} ${secondaryArtisan.nom || ''}`.trim() : "",
+    secondArtisanTelephone: secondaryArtisan?.telephone || "",
+    secondArtisanEmail: secondaryArtisan?.email || "",
+    metierSecondArtisanId: (intervention as any).metier_second_artisan_id || "",
+    coutSSTSecondArtisan: (intervention as any).cout_sst_second_artisan?.toString() || "",
+    coutMaterielSecondArtisan: (intervention as any).cout_materiel_second_artisan?.toString() || "",
   })
   const isStatusReasonModalOpen = pendingReasonType !== null
   const [perimeterKmInput, setPerimeterKmInput] = useState("50")
@@ -216,6 +232,9 @@ export function InterventionEditForm({
   }, [perimeterKmInput])
   const [selectedArtisanId, setSelectedArtisanId] = useState<string | null>(primaryArtisan?.id ?? null)
   const primaryArtisanIdRef = useRef<string | null>(primaryArtisan?.id ?? null)
+  const [selectedSecondArtisanId, setSelectedSecondArtisanId] = useState<string | null>(secondaryArtisan?.id ?? null)
+  const secondaryArtisanIdRef = useRef<string | null>(secondaryArtisan?.id ?? null)
+  const [secondArtisanSearchPosition, setSecondArtisanSearchPosition] = useState<{ x: number; y: number; width?: number; height?: number } | null>(null)
 
   const {
     query: locationQuery,
@@ -233,7 +252,10 @@ export function InterventionEditForm({
   const [isAccompteOpen, setIsAccompteOpen] = useState(false)
   const [isDocumentsOpen, setIsDocumentsOpen] = useState(false)
   const [isCommentsOpen, setIsCommentsOpen] = useState(true)
+  const [isSecondArtisanOpen, setIsSecondArtisanOpen] = useState(false)
+  const [isSousStatutOpen, setIsSousStatutOpen] = useState(false)
   const [showArtisanSearch, setShowArtisanSearch] = useState(false)
+  const [showSecondArtisanSearch, setShowSecondArtisanSearch] = useState(false)
   const [artisanSearchPosition, setArtisanSearchPosition] = useState<{ x: number; y: number; width?: number; height?: number } | null>(null)
   const { open: openArtisanModal } = useArtisanModal()
   const {
@@ -250,6 +272,29 @@ export function InterventionEditForm({
     () => (selectedArtisanId ? nearbyArtisans.find((artisan) => artisan.id === selectedArtisanId) ?? null : null),
     [selectedArtisanId, nearbyArtisans],
   )
+  const selectedSecondArtisanData = useMemo(
+    () => (selectedSecondArtisanId ? nearbyArtisans.find((artisan) => artisan.id === selectedSecondArtisanId) ?? null : null),
+    [selectedSecondArtisanId, nearbyArtisans],
+  )
+
+  // Calcul de la marge du 2ème artisan
+  // Formule: coutInter2 = coutIntervention - (coutSST1 + coutMat1)
+  //          marge2 = coutInter2 - (coutSST2 + coutMat2)
+  const margeSecondArtisan = useMemo(() => {
+    const coutInter = parseFloat(formData.coutIntervention) || 0
+    const coutSST1 = parseFloat(formData.coutSST) || 0
+    const coutMat1 = parseFloat(formData.coutMateriel) || 0
+    const coutSST2 = parseFloat(formData.coutSSTSecondArtisan) || 0
+    const coutMat2 = parseFloat(formData.coutMaterielSecondArtisan) || 0
+    
+    // coutInter2 = coutIntervention - (coutSST1 + coutMat1)
+    const coutInter2 = coutInter - (coutSST1 + coutMat1)
+    
+    // marge2 = coutInter2 - (coutSST2 + coutMat2)
+    const marge2 = coutInter2 - (coutSST2 + coutMat2)
+    
+    return marge2
+  }, [formData.coutIntervention, formData.coutSST, formData.coutMateriel, formData.coutSSTSecondArtisan, formData.coutMaterielSecondArtisan])
 
   // Synchroniser formData.id_inter avec intervention.id_inter quand il change
   // (par exemple après une sauvegarde qui génère un nouvel ID)
@@ -346,6 +391,10 @@ export function InterventionEditForm({
   }, [primaryArtisan?.id])
 
   useEffect(() => {
+    secondaryArtisanIdRef.current = secondaryArtisan?.id ?? null
+  }, [secondaryArtisan?.id])
+
+  useEffect(() => {
     return () => {
       if (suggestionBlurTimeoutRef.current) {
         window.clearTimeout(suggestionBlurTimeoutRef.current)
@@ -403,8 +452,8 @@ export function InterventionEditForm({
 
   // Sync client name with parent
   useEffect(() => {
-    onClientNameChange?.(formData.nomClient)
-  }, [formData.nomClient, onClientNameChange])
+    onClientNameChange?.(formData.nomPrenomClient)
+  }, [formData.nomPrenomClient, onClientNameChange])
 
   // Sync client phone with parent
   useEffect(() => {
@@ -950,6 +999,38 @@ export function InterventionEditForm({
     // handleInputChange("artisan", "")
   }, [])
 
+  const handleSelectSecondArtisan = useCallback(
+    (artisan: NearbyArtisan) => {
+      setSelectedSecondArtisanId(artisan.id)
+      handleInputChange("secondArtisan", `${artisan.prenom || ""} ${artisan.nom || ""}`.trim())
+      handleInputChange("secondArtisanTelephone", artisan.telephone || "")
+      handleInputChange("secondArtisanEmail", artisan.email || "")
+    },
+    [handleInputChange],
+  )
+
+  const handleRemoveSecondArtisan = useCallback(() => {
+    setSelectedSecondArtisanId(null)
+    handleInputChange("secondArtisan", "")
+    handleInputChange("secondArtisanTelephone", "")
+    handleInputChange("secondArtisanEmail", "")
+  }, [handleInputChange])
+
+  const handleSecondArtisanSearchSelect = useCallback((artisan: ArtisanSearchResult) => {
+    const displayName = artisan.raison_sociale
+      || artisan.plain_nom
+      || [artisan.prenom, artisan.nom].filter(Boolean).join(" ")
+      || "Artisan sans nom"
+
+    setSelectedSecondArtisanId(artisan.id)
+    setFormData((prev) => ({
+      ...prev,
+      secondArtisan: displayName,
+      secondArtisanTelephone: artisan.telephone || "",
+      secondArtisanEmail: artisan.email || "",
+    }))
+  }, [])
+
   const handleArtisanSearchSelect = useCallback((artisan: ArtisanSearchResult) => {
     const displayName = artisan.raison_sociale
       || artisan.plain_nom
@@ -1112,8 +1193,7 @@ export function InterventionEditForm({
 
       try {
         ownerId = await findOrCreateOwner({
-          nomProprietaire: formData.nomProprietaire,
-          prenomProprietaire: formData.prenomProprietaire,
+          nomPrenomFacturation: formData.nomPrenomFacturation,
           telephoneProprietaire: formData.telephoneProprietaire,
           emailProprietaire: formData.emailProprietaire,
         })
@@ -1126,8 +1206,7 @@ export function InterventionEditForm({
       if (!formData.is_vacant) {
         try {
           tenantId = await findOrCreateTenant({
-            nomClient: formData.nomClient,
-            prenomClient: formData.prenomClient,
+            nomPrenomClient: formData.nomPrenomClient,
             telephoneClient: formData.telephoneClient,
             emailClient: formData.emailClient,
           })
@@ -1168,6 +1247,14 @@ export function InterventionEditForm({
         vacant_housing_instructions: formData.is_vacant ? (formData.vacant_housing_instructions?.trim() || null) : null,
         owner_id: ownerId,
         tenant_id: tenantId, // null si is_vacant=true, sinon l'ID du tenant trouvé/créé
+        // Sous-statut personnalisé
+        sous_statut_text: formData.sousStatutText?.trim() || null,
+        sous_statut_text_color: formData.sousStatutTextColor || '#000000',
+        sous_statut_bg_color: formData.sousStatutBgColor || 'transparent',
+        // Deuxième artisan - métier et coûts
+        metier_second_artisan_id: formData.metierSecondArtisanId || null,
+        cout_sst_second_artisan: formData.coutSSTSecondArtisan ? parseFloat(formData.coutSSTSecondArtisan) : 0,
+        cout_materiel_second_artisan: formData.coutMaterielSecondArtisan ? parseFloat(formData.coutMaterielSecondArtisan) : 0,
         // Note: client_id est un alias de tenant_id dans certains contextes, mais on utilise tenant_id ici
       }
 
@@ -1212,6 +1299,12 @@ export function InterventionEditForm({
           vacant_housing_instructions: updateData.vacant_housing_instructions ?? null,
           owner_id: updateData.owner_id ?? null,
           tenant_id: updateData.tenant_id ?? null,
+          sous_statut_text: updateData.sous_statut_text ?? null,
+          sous_statut_text_color: updateData.sous_statut_text_color ?? '#000000',
+          sous_statut_bg_color: updateData.sous_statut_bg_color ?? 'transparent',
+          metier_second_artisan_id: updateData.metier_second_artisan_id ?? null,
+          cout_sst_second_artisan: updateData.cout_sst_second_artisan ?? 0,
+          cout_materiel_second_artisan: updateData.cout_materiel_second_artisan ?? 0,
         },
       })
 
@@ -1260,17 +1353,25 @@ export function InterventionEditForm({
 
       const currentPrimaryId = primaryArtisanIdRef.current
       const nextPrimaryId = selectedArtisanId ?? null
+      const currentSecondaryId = secondaryArtisanIdRef.current
+      const nextSecondaryId = selectedSecondArtisanId ?? null
 
       let payload: InterventionWithStatus = updated as InterventionWithStatus
 
+      // Gérer l'artisan principal
       if (currentPrimaryId !== nextPrimaryId) {
         await interventionsApi.setPrimaryArtisan(intervention.id, nextPrimaryId)
         primaryArtisanIdRef.current = nextPrimaryId
-        payload = await interventionsApi.getById(intervention.id)
-      } else {
-        // Recharger les données pour avoir les coûts à jour
-        payload = await interventionsApi.getById(intervention.id)
       }
+
+      // Gérer l'artisan secondaire
+      if (currentSecondaryId !== nextSecondaryId) {
+        await interventionsApi.setSecondaryArtisan(intervention.id, nextSecondaryId)
+        secondaryArtisanIdRef.current = nextSecondaryId
+      }
+
+      // Recharger les données pour avoir les coûts et artisans à jour
+      payload = await interventionsApi.getById(intervention.id)
 
       if (options?.reason && options.reasonType) {
         try {
@@ -1375,8 +1476,8 @@ export function InterventionEditForm({
 
   // Expose client name to parent
   useEffect(() => {
-    onClientNameChange?.(formData.nomClient)
-  }, [formData.nomClient, onClientNameChange])
+    onClientNameChange?.(formData.nomPrenomClient)
+  }, [formData.nomPrenomClient, onClientNameChange])
 
   // Expose agency name to parent
   useEffect(() => {
@@ -1907,7 +2008,8 @@ export function InterventionEditForm({
         </Card>
 
         {/* DIV9: COLLAPSIBLES EN COLONNE - Rows 2-8, Cols 5-6 */}
-        <div style={{ gridArea: "2 / 5 / 9 / 7" }} className="flex flex-col gap-2 overflow-y-auto">
+        {/* alignSelf: start empêche cette div de pousser les autres rows de la grille */}
+        <div style={{ gridArea: "2 / 5 / 9 / 7", alignSelf: "start", maxHeight: "calc(100vh - 200px)" }} className="flex flex-col gap-2 overflow-y-auto">
           {/* Détails facturation */}
           <Collapsible open={isProprietaireOpen} onOpenChange={setIsProprietaireOpen}>
             <Card>
@@ -1922,15 +2024,9 @@ export function InterventionEditForm({
               <CollapsibleContent>
                 <CardContent className="pt-0 px-3 pb-3">
                   <div className="space-y-2">
-                    <div className="grid grid-cols-2 gap-2">
-                      <div>
-                        <Label htmlFor="nomProprietaire" className="text-[10px]">Nom</Label>
-                        <Input id="nomProprietaire" value={formData.nomProprietaire} onChange={(e) => handleInputChange("nomProprietaire", e.target.value)} placeholder="Nom" className="h-7 text-xs mt-1" />
-                      </div>
-                      <div>
-                        <Label htmlFor="prenomProprietaire" className="text-[10px]">Prénom</Label>
-                        <Input id="prenomProprietaire" value={formData.prenomProprietaire} onChange={(e) => handleInputChange("prenomProprietaire", e.target.value)} placeholder="Prénom" className="h-7 text-xs mt-1" />
-                      </div>
+                    <div>
+                      <Label htmlFor="nomPrenomFacturation" className="text-[10px]">Nom Prénom</Label>
+                      <Input id="nomPrenomFacturation" value={formData.nomPrenomFacturation} onChange={(e) => handleInputChange("nomPrenomFacturation", e.target.value)} placeholder="Nom Prénom" className="h-7 text-xs mt-1" />
                     </div>
                     <div className="grid grid-cols-2 gap-2">
                       <div>
@@ -1961,11 +2057,24 @@ export function InterventionEditForm({
               </CollapsibleTrigger>
               <CollapsibleContent>
                 <CardContent className="pt-0 px-3 pb-3">
-                  <div className="flex items-center justify-end mb-2">
+                  <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center space-x-2">
                       <input type="checkbox" id="is_vacant" className="h-3 w-3 rounded border-gray-300" checked={formData.is_vacant} onChange={(e) => handleInputChange("is_vacant", e.target.checked)} />
                       <Label htmlFor="is_vacant" className="text-[10px] font-normal cursor-pointer">logement vacant</Label>
                     </div>
+                    {!formData.is_vacant && onOpenSmsModal && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-6 px-2 text-[10px] flex items-center gap-1"
+                        onClick={onOpenSmsModal}
+                        disabled={!formData.nomPrenomClient || !formData.telephoneClient}
+                      >
+                        <MessageSquare className="h-3 w-3" />
+                        SMS
+                      </Button>
+                    )}
                   </div>
                   {formData.is_vacant ? (
                     <div className="space-y-2">
@@ -1990,15 +2099,9 @@ export function InterventionEditForm({
                     </div>
                   ) : (
                     <div className="space-y-2">
-                      <div className="grid grid-cols-2 gap-2">
-                        <div>
-                          <Label htmlFor="nomClient" className="text-[10px]">Nom</Label>
-                          <Input id="nomClient" value={formData.nomClient} onChange={(e) => handleInputChange("nomClient", e.target.value)} placeholder="Nom" className="h-7 text-xs mt-1" />
-                        </div>
-                        <div>
-                          <Label htmlFor="prenomClient" className="text-[10px]">Prénom</Label>
-                          <Input id="prenomClient" value={formData.prenomClient} onChange={(e) => handleInputChange("prenomClient", e.target.value)} placeholder="Prénom" className="h-7 text-xs mt-1" />
-                        </div>
+                      <div>
+                        <Label htmlFor="nomPrenomClient" className="text-[10px]">Nom Prénom</Label>
+                        <Input id="nomPrenomClient" value={formData.nomPrenomClient} onChange={(e) => handleInputChange("nomPrenomClient", e.target.value)} placeholder="Nom Prénom" className="h-7 text-xs mt-1" />
                       </div>
                       <div className="grid grid-cols-2 gap-2">
                         <div>
@@ -2012,6 +2115,203 @@ export function InterventionEditForm({
                       </div>
                     </div>
                   )}
+                </CardContent>
+              </CollapsibleContent>
+            </Card>
+          </Collapsible>
+
+          {/* Deuxième artisan */}
+          <Collapsible open={isSecondArtisanOpen} onOpenChange={setIsSecondArtisanOpen}>
+            <Card>
+              <CollapsibleTrigger asChild>
+                <CardHeader className="cursor-pointer py-2 px-3 hover:bg-muted/50">
+                  <CardTitle className="flex items-center gap-2 text-xs">
+                    <Users className="h-3 w-3" />
+                    Deuxième artisan
+                    {isSecondArtisanOpen ? <ChevronDown className="ml-auto h-3 w-3" /> : <ChevronRight className="ml-auto h-3 w-3" />}
+                  </CardTitle>
+                </CardHeader>
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                <CardContent className="pt-0 px-3 pb-3">
+                  <div className="space-y-3">
+                    {/* Sélection du métier pour le 2ème artisan */}
+                    <div>
+                      <Label htmlFor="metierSecondArtisan" className="text-[10px]">Type / Métier</Label>
+                      <Select 
+                        value={formData.metierSecondArtisanId} 
+                        onValueChange={(value) => handleInputChange("metierSecondArtisanId", value)}
+                      >
+                        <SelectTrigger className="h-7 text-xs mt-1">
+                          <SelectValue placeholder="Sélectionner un métier..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {refData?.metiers.map((metier) => (
+                            <SelectItem key={metier.id} value={metier.id}>
+                              {metier.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {/* Header avec recherche */}
+                    <div className="flex items-center justify-between gap-2">
+                      <Label className="text-[10px]">Sélectionner un artisan</Label>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        className="h-7 w-7 flex-shrink-0"
+                        onClick={(e) => {
+                          const rect = e.currentTarget.getBoundingClientRect()
+                          setSecondArtisanSearchPosition({
+                            x: rect.left,
+                            y: rect.top,
+                            width: rect.width,
+                            height: rect.height
+                          })
+                          setShowSecondArtisanSearch(true)
+                        }}
+                        title="Rechercher un artisan"
+                      >
+                        <Search className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+
+                    {/* Artisan secondaire sélectionné */}
+                    {selectedSecondArtisanId && selectedSecondArtisanData && (() => {
+                      const artisan = selectedSecondArtisanData
+                      const artisanName = `${artisan.prenom || ""} ${artisan.nom || ""}`.trim() || "Artisan sans nom"
+                      const artisanInitials = artisanName.split(" ").map((p) => p.charAt(0)).join("").slice(0, 2).toUpperCase() || "??"
+                      const artisanStatus = refData?.artisanStatuses?.find((s) => s.id === artisan.statut_id)
+                      const statutArtisan = artisanStatus?.label || ""
+                      const statutArtisanColor = artisanStatus?.color || null
+
+                      return (
+                        <div className="relative rounded-lg border border-orange-500/70 ring-2 ring-orange-500/50 bg-background/80 p-2 text-xs shadow-sm">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="absolute right-1 top-1 h-5 w-5 rounded-full bg-background/80 text-muted-foreground shadow-sm hover:text-destructive z-20"
+                            onClick={() => handleRemoveSecondArtisan()}
+                          >
+                            <X className="h-3 w-3" />
+                          </Button>
+                          <div className="flex items-start gap-2">
+                            <Avatar photoProfilMetadata={artisan.photoProfilMetadata} initials={artisanInitials} name={artisan.displayName} size={40} />
+                            <div className="flex-1 min-w-0">
+                              <span className="font-semibold text-foreground block truncate">{artisan.displayName}</span>
+                              <div className="flex items-center gap-1 mt-1">
+                                {statutArtisan && (
+                                  <Badge variant="outline" className="text-[9px] px-1 py-0" style={statutArtisanColor ? { backgroundColor: hexToRgba(statutArtisanColor, 0.15) || undefined, color: statutArtisanColor, borderColor: statutArtisanColor } : undefined}>
+                                    {statutArtisan}
+                                  </Badge>
+                                )}
+                                <Badge variant="default" className="text-[9px] px-1 py-0 bg-orange-500">{formatDistanceKm(artisan.distanceKm)}</Badge>
+                              </div>
+                              <div className="mt-1 text-[10px] text-muted-foreground truncate">
+                                {artisan.telephone && <span>📞 {artisan.telephone}</span>}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      )
+                    })()}
+
+                    {/* Liste des artisans pour sélection (affichée uniquement si pas d'artisan sélectionné) */}
+                    {!selectedSecondArtisanId && (
+                      <div className="max-h-[150px] overflow-y-auto space-y-1">
+                        {sortedNearbyArtisans
+                          .filter(artisan => artisan.id !== selectedArtisanId) // Exclure l'artisan principal
+                          .slice(0, 5)
+                          .map((artisan) => {
+                            const artisanName = `${artisan.prenom || ""} ${artisan.nom || ""}`.trim() || "Artisan sans nom"
+                            const artisanInitials = artisanName.split(" ").map((p) => p.charAt(0)).join("").slice(0, 2).toUpperCase() || "??"
+                            const artisanStatus = refData?.artisanStatuses?.find((s) => s.id === artisan.statut_id)
+                            const statutArtisan = artisanStatus?.label || ""
+                            const statutArtisanColor = artisanStatus?.color || null
+
+                            return (
+                              <div
+                                key={artisan.id}
+                                role="button"
+                                tabIndex={0}
+                                className="rounded-lg border border-border/60 bg-background/80 p-2 text-xs shadow-sm transition-all cursor-pointer hover:border-orange-500/40"
+                                onClick={() => handleSelectSecondArtisan(artisan)}
+                                onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); handleSelectSecondArtisan(artisan) } }}
+                              >
+                                <div className="flex items-center gap-2">
+                                  <Avatar photoProfilMetadata={artisan.photoProfilMetadata} initials={artisanInitials} name={artisan.displayName} size={32} />
+                                  <div className="flex-1 min-w-0">
+                                    <span className="font-medium text-foreground block truncate text-[11px]">{artisan.displayName}</span>
+                                    <div className="flex items-center gap-1 flex-wrap">
+                                      {statutArtisan && (
+                                        <Badge variant="outline" className="text-[9px] px-1 py-0" style={statutArtisanColor ? { backgroundColor: hexToRgba(statutArtisanColor, 0.15) || undefined, color: statutArtisanColor, borderColor: statutArtisanColor } : undefined}>
+                                          {statutArtisan}
+                                        </Badge>
+                                      )}
+                                      <Badge variant="secondary" className="text-[9px] px-1 py-0">{formatDistanceKm(artisan.distanceKm)}</Badge>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            )
+                          })}
+                      </div>
+                    )}
+
+                    {/* Consigne pour le deuxième artisan */}
+                    <div>
+                      <Label htmlFor="consigne_second_artisan" className="text-[10px]">Consigne 2ème artisan</Label>
+                      <Textarea
+                        id="consigne_second_artisan"
+                        value={formData.consigne_second_artisan}
+                        onChange={(e) => handleInputChange("consigne_second_artisan", e.target.value)}
+                        placeholder="Consignes spécifiques..."
+                        className="min-h-[50px] text-xs mt-1 resize-none"
+                      />
+                    </div>
+
+                    {/* Coûts du 2ème artisan */}
+                    <div className="grid grid-cols-3 gap-2">
+                      <div>
+                        <Label htmlFor="coutSSTSecondArtisan" className="text-[10px]">Coût SST</Label>
+                        <Input
+                          id="coutSSTSecondArtisan"
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          value={formData.coutSSTSecondArtisan}
+                          onChange={(e) => handleInputChange("coutSSTSecondArtisan", e.target.value)}
+                          placeholder="0.00 €"
+                          className="h-7 text-xs mt-1"
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="coutMaterielSecondArtisan" className="text-[10px]">Coût mat.</Label>
+                        <Input
+                          id="coutMaterielSecondArtisan"
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          value={formData.coutMaterielSecondArtisan}
+                          onChange={(e) => handleInputChange("coutMaterielSecondArtisan", e.target.value)}
+                          placeholder="0.00 €"
+                          className="h-7 text-xs mt-1"
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-[10px]">Marge 2</Label>
+                        <div className="flex h-7 w-full rounded-md border border-input bg-muted px-2 py-1 text-xs shadow-sm items-center mt-1">
+                          <span className={cn("font-medium", margeSecondArtisan < 0 ? "text-destructive" : "text-green-600")}>
+                            {margeSecondArtisan.toFixed(2)} €
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                 </CardContent>
               </CollapsibleContent>
             </Card>
@@ -2101,10 +2401,125 @@ export function InterventionEditForm({
               </CollapsibleContent>
             </Card>
           </Collapsible>
+
+          {/* Sous-statut personnalisé */}
+          <Collapsible open={isSousStatutOpen} onOpenChange={setIsSousStatutOpen}>
+            <Card>
+              <CollapsibleTrigger asChild>
+                <CardHeader className="cursor-pointer py-2 px-3 hover:bg-muted/50">
+                  <CardTitle className="flex items-center gap-2 text-xs">
+                    <Palette className="h-3 w-3" />
+                    Sous-statut
+                    {formData.sousStatutText && (
+                      <span
+                        className="ml-2 text-[10px] font-medium px-1.5 py-0.5 rounded"
+                        style={{ 
+                          color: formData.sousStatutTextColor,
+                          backgroundColor: formData.sousStatutBgColor !== 'transparent' ? formData.sousStatutBgColor : undefined
+                        }}
+                      >
+                        {formData.sousStatutText}
+                      </span>
+                    )}
+                    {isSousStatutOpen ? <ChevronDown className="ml-auto h-3 w-3" /> : <ChevronRight className="ml-auto h-3 w-3" />}
+                  </CardTitle>
+                </CardHeader>
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                <CardContent className="pt-0 px-3 pb-3">
+                  <div className="space-y-3">
+                    <p className="text-[10px] text-muted-foreground">
+                      Ajoutez un sous-statut personnalisé pour cette intervention (max 25 caractères).
+                    </p>
+                    <div>
+                      <Label htmlFor="sousStatutText" className="text-[10px]">Texte du sous-statut</Label>
+                      <Input
+                        id="sousStatutText"
+                        value={formData.sousStatutText}
+                        onChange={(e) => handleInputChange("sousStatutText", e.target.value)}
+                        placeholder="Ex: Devis supp, Urgent..."
+                        maxLength={25}
+                        className="h-7 text-xs mt-1"
+                      />
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <div className="flex-1">
+                        <Label htmlFor="sousStatutTextColor" className="text-[10px]">Couleur du texte</Label>
+                        <div className="flex items-center gap-2 mt-1">
+                          <input
+                            type="color"
+                            id="sousStatutTextColor"
+                            value={formData.sousStatutTextColor}
+                            onChange={(e) => handleInputChange("sousStatutTextColor", e.target.value)}
+                            className="h-7 w-12 rounded border border-input cursor-pointer p-0.5"
+                            title="Couleur du texte"
+                          />
+                          <span className="text-[10px] text-muted-foreground">{formData.sousStatutTextColor}</span>
+                        </div>
+                      </div>
+                      <div className="flex-1">
+                        <Label htmlFor="sousStatutBgColor" className="text-[10px]">Surlignage</Label>
+                        <div className="flex items-center gap-2 mt-1">
+                          <input
+                            type="color"
+                            id="sousStatutBgColor"
+                            value={formData.sousStatutBgColor === 'transparent' ? '#ffffff' : formData.sousStatutBgColor}
+                            onChange={(e) => handleInputChange("sousStatutBgColor", e.target.value)}
+                            className="h-7 w-12 rounded border border-input cursor-pointer p-0.5"
+                            title="Couleur de surlignage"
+                          />
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 px-1.5 text-[9px]"
+                            onClick={() => handleInputChange("sousStatutBgColor", "transparent")}
+                            title="Supprimer le surlignage"
+                          >
+                            <X className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                    {formData.sousStatutText && (
+                      <div className="p-2 bg-muted/50 rounded-lg border border-border/50">
+                        <p className="text-[10px] text-muted-foreground mb-1">Aperçu :</p>
+                        <span
+                          className="text-sm font-medium px-1.5 py-0.5 rounded"
+                          style={{ 
+                            color: formData.sousStatutTextColor,
+                            backgroundColor: formData.sousStatutBgColor !== 'transparent' ? formData.sousStatutBgColor : undefined
+                          }}
+                        >
+                          {formData.sousStatutText}
+                        </span>
+                      </div>
+                    )}
+                    {formData.sousStatutText && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 text-[10px] text-destructive hover:text-destructive"
+                        onClick={() => {
+                          handleInputChange("sousStatutText", "")
+                          handleInputChange("sousStatutTextColor", "#000000")
+                          handleInputChange("sousStatutBgColor", "transparent")
+                        }}
+                      >
+                        <X className="h-3 w-3 mr-1" />
+                        Effacer le sous-statut
+                      </Button>
+                    )}
+                  </div>
+                </CardContent>
+              </CollapsibleContent>
+            </Card>
+          </Collapsible>
         </div>
       </div>
 
-      {/* Modal de recherche d'artisan */}
+      {/* Modal de recherche d'artisan principal */}
       <ArtisanSearchModal
         open={showArtisanSearch}
         onClose={() => {
@@ -2113,6 +2528,17 @@ export function InterventionEditForm({
         }}
         onSelect={handleArtisanSearchSelect}
         position={artisanSearchPosition}
+      />
+
+      {/* Modal de recherche d'artisan secondaire */}
+      <ArtisanSearchModal
+        open={showSecondArtisanSearch}
+        onClose={() => {
+          setShowSecondArtisanSearch(false)
+          setSecondArtisanSearchPosition(null)
+        }}
+        onSelect={handleSecondArtisanSearchSelect}
+        position={secondArtisanSearchPosition}
       />
       <StatusReasonModal
         open={isStatusReasonModalOpen}

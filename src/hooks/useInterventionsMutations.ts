@@ -113,6 +113,12 @@ export function useInterventionsMutations() {
         owner_id?: string | null
         tenant_id?: string | null
         is_active?: boolean
+        sous_statut_text?: string | null
+        sous_statut_text_color?: string | null
+        sous_statut_bg_color?: string | null
+        metier_second_artisan_id?: string | null
+        cout_sst_second_artisan?: number | null
+        cout_materiel_second_artisan?: number | null
       }
     }) => {
       return await interventionsApiV2.update(id, data)

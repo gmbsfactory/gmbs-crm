@@ -83,12 +83,10 @@ interface LegacyInterventionFormProps {
     latitude: number
     longitude: number
     datePrevue: string
-    nomProprietaire: string
-    prenomProprietaire: string
+    nomPrenomFacturation: string
     telephoneProprietaire: string
     emailProprietaire: string
-    nomClient: string
-    prenomClient: string
+    nomPrenomClient: string
     telephoneClient: string
     emailClient: string
     artisan: string
@@ -136,12 +134,10 @@ export function LegacyInterventionForm({ onSuccess, onCancel, mode = "centerpage
     coutMateriel: defaultValues?.coutMateriel || "",
     marge: "",
     datePrevue: defaultValues?.datePrevue || "",
-    nomProprietaire: defaultValues?.nomProprietaire || "",
-    prenomProprietaire: defaultValues?.prenomProprietaire || "",
+    nomPrenomFacturation: defaultValues?.nomPrenomFacturation || "",
     telephoneProprietaire: defaultValues?.telephoneProprietaire || "",
     emailProprietaire: defaultValues?.emailProprietaire || "",
-    nomClient: defaultValues?.nomClient || "",
-    prenomClient: defaultValues?.prenomClient || "",
+    nomPrenomClient: defaultValues?.nomPrenomClient || "",
     telephoneClient: defaultValues?.telephoneClient || "",
     emailClient: defaultValues?.emailClient || "",
     artisan: defaultValues?.artisan || "",
@@ -421,8 +417,7 @@ export function LegacyInterventionForm({ onSuccess, onCancel, mode = "centerpage
 
       try {
         ownerId = await findOrCreateOwner({
-          nomProprietaire: formData.nomProprietaire,
-          prenomProprietaire: formData.prenomProprietaire,
+          nomPrenomFacturation: formData.nomPrenomFacturation,
           telephoneProprietaire: formData.telephoneProprietaire,
           emailProprietaire: formData.emailProprietaire,
         })
@@ -435,8 +430,7 @@ export function LegacyInterventionForm({ onSuccess, onCancel, mode = "centerpage
       if (!formData.is_vacant) {
         try {
           tenantId = await findOrCreateTenant({
-            nomClient: formData.nomClient,
-            prenomClient: formData.prenomClient,
+            nomPrenomClient: formData.nomPrenomClient,
             telephoneClient: formData.telephoneClient,
             emailClient: formData.emailClient,
           })
@@ -1018,56 +1012,46 @@ export function LegacyInterventionForm({ onSuccess, onCancel, mode = "centerpage
               <CollapsibleContent>
                 <CardContent className="space-y-4 pt-0">
                   <div>
-                    <Label className="mb-2 block text-xs font-medium">Propriétaire</Label>
-                    <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                    <Label className="mb-2 block text-xs font-medium">Propriétaire (Facturation)</Label>
+                    <div className="space-y-3">
                       <div>
-                        <Label htmlFor="nomProprietaire" className="text-xs">
-                          Nom
+                        <Label htmlFor="nomPrenomFacturation" className="text-xs">
+                          Nom Prénom
                         </Label>
                         <Input
-                          id="nomProprietaire"
-                          value={formData.nomProprietaire}
-                          onChange={(event) => handleInputChange("nomProprietaire", event.target.value)}
-                          placeholder="Nom du propriétaire"
+                          id="nomPrenomFacturation"
+                          value={formData.nomPrenomFacturation}
+                          onChange={(event) => handleInputChange("nomPrenomFacturation", event.target.value)}
+                          placeholder="Nom Prénom du propriétaire"
                           className="h-8 text-sm"
                         />
                       </div>
-                      <div>
-                        <Label htmlFor="prenomProprietaire" className="text-xs">
-                          Prénom
-                        </Label>
-                        <Input
-                          id="prenomProprietaire"
-                          value={formData.prenomProprietaire}
-                          onChange={(event) => handleInputChange("prenomProprietaire", event.target.value)}
-                          placeholder="Prénom du propriétaire"
-                          className="h-8 text-sm"
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor="telephoneProprietaire" className="text-xs">
-                          Téléphone
-                        </Label>
-                        <Input
-                          id="telephoneProprietaire"
-                          value={formData.telephoneProprietaire}
-                          onChange={(event) => handleInputChange("telephoneProprietaire", event.target.value)}
-                          placeholder="06 12 34 56 78"
-                          className="h-8 text-sm"
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor="emailProprietaire" className="text-xs">
-                          Email
-                        </Label>
-                        <Input
-                          id="emailProprietaire"
-                          type="email"
-                          value={formData.emailProprietaire}
-                          onChange={(event) => handleInputChange("emailProprietaire", event.target.value)}
-                          placeholder="proprietaire@example.com"
-                          className="h-8 text-sm"
-                        />
+                      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                        <div>
+                          <Label htmlFor="telephoneProprietaire" className="text-xs">
+                            Téléphone
+                          </Label>
+                          <Input
+                            id="telephoneProprietaire"
+                            value={formData.telephoneProprietaire}
+                            onChange={(event) => handleInputChange("telephoneProprietaire", event.target.value)}
+                            placeholder="06 12 34 56 78"
+                            className="h-8 text-sm"
+                          />
+                        </div>
+                        <div>
+                          <Label htmlFor="emailProprietaire" className="text-xs">
+                            Email
+                          </Label>
+                          <Input
+                            id="emailProprietaire"
+                            type="email"
+                            value={formData.emailProprietaire}
+                            onChange={(event) => handleInputChange("emailProprietaire", event.target.value)}
+                            placeholder="proprietaire@example.com"
+                            className="h-8 text-sm"
+                          />
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -1133,55 +1117,45 @@ export function LegacyInterventionForm({ onSuccess, onCancel, mode = "centerpage
                         </div>
                       </div>
                     ) : (
-                      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                      <div className="space-y-3">
                         <div>
-                          <Label htmlFor="nomClient" className="text-xs">
-                            Nom
+                          <Label htmlFor="nomPrenomClient" className="text-xs">
+                            Nom Prénom
                           </Label>
                           <Input
-                            id="nomClient"
-                            value={formData.nomClient}
-                            onChange={(event) => handleInputChange("nomClient", event.target.value)}
-                            placeholder="Nom du client"
+                            id="nomPrenomClient"
+                            value={formData.nomPrenomClient}
+                            onChange={(event) => handleInputChange("nomPrenomClient", event.target.value)}
+                            placeholder="Nom Prénom du client"
                             className="h-8 text-sm"
                           />
                         </div>
-                        <div>
-                          <Label htmlFor="prenomClient" className="text-xs">
-                            Prénom
-                          </Label>
-                          <Input
-                            id="prenomClient"
-                            value={formData.prenomClient}
-                            onChange={(event) => handleInputChange("prenomClient", event.target.value)}
-                            placeholder="Prénom du client"
-                            className="h-8 text-sm"
-                          />
-                        </div>
-                        <div>
-                          <Label htmlFor="telephoneClient" className="text-xs">
-                            Téléphone
-                          </Label>
-                          <Input
-                            id="telephoneClient"
-                            value={formData.telephoneClient}
-                            onChange={(event) => handleInputChange("telephoneClient", event.target.value)}
-                            placeholder="06 12 34 56 78"
-                            className="h-8 text-sm"
-                          />
-                        </div>
-                        <div>
-                          <Label htmlFor="emailClient" className="text-xs">
-                            Email
-                          </Label>
-                          <Input
-                            id="emailClient"
-                            type="email"
-                            value={formData.emailClient}
-                            onChange={(event) => handleInputChange("emailClient", event.target.value)}
-                            placeholder="client@example.com"
-                            className="h-8 text-sm"
-                          />
+                        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                          <div>
+                            <Label htmlFor="telephoneClient" className="text-xs">
+                              Téléphone
+                            </Label>
+                            <Input
+                              id="telephoneClient"
+                              value={formData.telephoneClient}
+                              onChange={(event) => handleInputChange("telephoneClient", event.target.value)}
+                              placeholder="06 12 34 56 78"
+                              className="h-8 text-sm"
+                            />
+                          </div>
+                          <div>
+                            <Label htmlFor="emailClient" className="text-xs">
+                              Email
+                            </Label>
+                            <Input
+                              id="emailClient"
+                              type="email"
+                              value={formData.emailClient}
+                              onChange={(event) => handleInputChange("emailClient", event.target.value)}
+                              placeholder="client@example.com"
+                              className="h-8 text-sm"
+                            />
+                          </div>
                         </div>
                       </div>
                     )}
