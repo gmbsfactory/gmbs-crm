@@ -6,13 +6,22 @@ import { useEffect, useState, useRef } from "react"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { cn } from "@/lib/utils"
 import { useUserRoles } from "@/hooks/useUserRoles"
+import {
+  User,
+  Palette,
+  Users,
+  Target,
+  Shield,
+  Cog,
+} from "lucide-react"
 
 const ALL_TABS = [
-  { key: "profile", label: "Profile", requiresRole: null },
-  { key: "interface", label: "Interface", requiresRole: null },
-  { key: "team", label: "Team", requiresRole: "admin" },
-  { key: "targets", label: "Perf", requiresRole: ["admin", "manager"] },
-  { key: "security", label: "Security", requiresRole: null },
+  { key: "profile", label: "Profile", icon: User, requiresRole: null },
+  { key: "interface", label: "Interface", icon: Palette, requiresRole: null },
+  { key: "team", label: "Team", icon: Users, requiresRole: "admin" },
+  { key: "enums", label: "Configuration Enums", icon: Cog, requiresRole: "admin" },
+  { key: "targets", label: "Perf", icon: Target, requiresRole: ["admin", "manager"] },
+  { key: "security", label: "Security", icon: Shield, requiresRole: null },
 ]
 
 export default function SettingsNav() {
@@ -146,11 +155,13 @@ export default function SettingsNav() {
             visibleTabs.length === 3 ? "grid-cols-3" :
             visibleTabs.length === 4 ? "grid-cols-2 sm:grid-cols-4" :
             visibleTabs.length === 5 ? "grid-cols-2 sm:grid-cols-5" :
+            visibleTabs.length === 6 ? "grid-cols-3 sm:grid-cols-6" :
             "grid-cols-2 sm:grid-cols-4"
           }`}>
             {visibleTabs.map((t) => {
               const href = t.key === "targets" ? "/settings/targets" : `/settings/${t.key}`
               const isActive = active === t.key
+              const Icon = t.icon
               return (
                 <TabsTrigger key={t.key} value={t.key} asChild>
                   <Link
@@ -158,7 +169,9 @@ export default function SettingsNav() {
                     prefetch
                     aria-current={isActive ? "page" : undefined}
                     onMouseEnter={() => router.prefetch(href)}
+                    className="flex items-center gap-2"
                   >
+                    <Icon className="h-4 w-4" />
                     {t.label}
                   </Link>
                 </TabsTrigger>

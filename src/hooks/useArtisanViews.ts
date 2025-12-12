@@ -39,6 +39,23 @@ const DEFAULT_VIEW_PRESETS: Array<{
       { property: "gestionnaire_id", operator: "eq", value: CURRENT_USER_PLACEHOLDER },
     ],
   },
+  {
+    id: "mes-artisans-a-completer",
+    title: "Mes Artisans à compléter",
+    description: "Artisans assignés au gestionnaire connecté avec le statut Dossier à compléter",
+    filters: [
+      { property: "gestionnaire_id", operator: "eq", value: CURRENT_USER_PLACEHOLDER },
+      { property: "statut_dossier", operator: "eq", value: "À compléter" },
+    ],
+  },
+  {
+    id: "artisans-a-completer",
+    title: "Artisans à compléter",
+    description: "Tous les artisans avec le statut Dossier à compléter",
+    filters: [
+      { property: "statut_dossier", operator: "eq", value: "À compléter" },
+    ],
+  },
 ]
 
 const DEFAULT_VIEWS: ArtisanViewDefinition[] = DEFAULT_VIEW_PRESETS.map((preset) => ({

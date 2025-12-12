@@ -48,28 +48,28 @@ ON CONFLICT (id) DO UPDATE SET
 -- 2️⃣ MÉTIERS (REFERENCE DATA)
 -- ========================================
 
-INSERT INTO public.metiers (code, label, description) VALUES 
-('AUTRES', 'AUTRES', 'Autres métiers'),
-('BRICOLAGE', 'Bricolage', 'Bricolage et petits travaux'),
-('CAMION', 'CAMION', 'Services de camion'),
-('CHAUFFAGE', 'Chauffage', 'Installation et réparation chauffage'),
-('CLIMATISATION', 'Climatisation', 'Climatisation et ventilation'),
-('ELECTRICITE', 'Electricite', 'Électricité générale'),
-('ELECTROMENAGER', 'Electroménager', 'Électroménager'),
-('ENTRETIEN_GENERAL', 'Entretien général', 'Entretien général'),
-('JARDINAGE', 'Jardinage', 'Jardinage et espaces verts'),
-('MENUISIER', 'Menuiserie', 'Menuiserie et ébénisterie'),
-('MULTI-SERVICE', 'Multi-Service', 'Services multiples'),
-('MENAGE', 'Menage', 'Services de ménage'),
-('NETTOYAGE', 'Nettoyage', 'Services de nettoyage'),
-('NUISIBLE', 'Nuisible', 'Lutte contre les nuisibles'),
-('PEINTURE', 'Peinture', 'Peinture et décoration'),
-('PLOMBERIE', 'Plomberie', 'Plomberie générale'),
-('RDF', 'RDF', 'Réparation de défauts'),
-('RENOVATION', 'Renovation', 'Rénovation générale'),
-('SERRURERIE', 'Serrurerie', 'Serrurerie et sécurité'),
-('VITRERIE', 'Vitrerie', 'Vitrerie et miroiterie'),
-('VOLET-STORE', 'Volet/Store', 'Volets et stores')
+INSERT INTO public.metiers (code, label, description, color) VALUES
+('AUTRES', 'AUTRES', 'Autres métiers', '#6B7280'),
+('BRICOLAGE', 'Bricolage', 'Bricolage et petits travaux', '#6366F1'),
+('CAMION', 'CAMION', 'Services de camion', '#84CC16'),
+('CHAUFFAGE', 'Chauffage', 'Installation et réparation chauffage', '#EF4444'),
+('CLIMATISATION', 'Climatisation', 'Climatisation et ventilation', '#06B6D4'),
+('ELECTRICITE', 'Electricite', 'Électricité générale', '#F59E0B'),
+('ELECTROMENAGER', 'Electroménager', 'Électroménager', '#0EA5E9'),
+('ENTRETIEN_GENERAL', 'Entretien général', 'Entretien général', '#14B8A6'),
+('JARDINAGE', 'Jardinage', 'Jardinage et espaces verts', '#22C55E'),
+('MENUISIER', 'Menuiserie', 'Menuiserie et ébénisterie', '#10B981'),
+('MULTI-SERVICE', 'Multi-Service', 'Services multiples', '#A855F7'),
+('MENAGE', 'Menage', 'Services de ménage', '#FB7185'),
+('NETTOYAGE', 'Nettoyage', 'Services de nettoyage', '#34D399'),
+('NUISIBLE', 'Nuisible', 'Lutte contre les nuisibles', '#F87171'),
+('PEINTURE', 'Peinture', 'Peinture et décoration', '#8B5CF6'),
+('PLOMBERIE', 'Plomberie', 'Plomberie générale', '#3B82F6'),
+('RDF', 'RDF', 'Réparation de défauts', '#60A5FA'),
+('RENOVATION', 'Renovation', 'Rénovation générale', '#C084FC'),
+('SERRURERIE', 'Serrurerie', 'Serrurerie et sécurité', '#F97316'),
+('VITRERIE', 'Vitrerie', 'Vitrerie et miroiterie', '#EC4899'),
+('VOLET-STORE', 'Volet/Store', 'Volets et stores', '#818CF8')
 ON CONFLICT (code) DO NOTHING;
 
 -- ========================================

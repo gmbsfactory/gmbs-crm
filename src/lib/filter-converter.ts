@@ -190,6 +190,18 @@ export function convertArtisanFiltersToServerFilters(
       continue
     }
 
+    // Filtre sur statut_dossier → statut_dossier (serveur)
+    // Ce filtre est déjà supporté dans l'API et utilisé dans page.tsx pour les filtres UI
+    // On l'ajoute ici pour permettre aux vues de l'utiliser directement dans leurs filtres
+    if (filter.property === "statut_dossier") {
+      if (filter.operator === "eq" && typeof filter.value === "string") {
+        serverFilters.statut_dossier = filter.value
+      } else {
+        clientFilters.push(filter)
+      }
+      continue
+    }
+
     // Filtres non supportés côté serveur → côté client
     clientFilters.push(filter)
   }

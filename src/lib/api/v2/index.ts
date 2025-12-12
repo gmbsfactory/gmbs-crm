@@ -11,6 +11,7 @@ export type { FindOrCreateResult } from "./enumsApi";
 export * from "./common/utils";
 
 // Imports des APIs spécialisées
+import { agenciesApi } from "./agenciesApi";
 import { artisansApi } from "./artisansApi";
 import { clientsApi } from "./clientsApi";
 import { commentsApi } from "./commentsApi";
@@ -25,9 +26,10 @@ import { usersApi } from "./usersApi";
 import { utilsApi } from "./utilsApi";
 
 // Exports des APIs spécialisées
-export { artisansApi, clientsApi, commentsApi, documentsApi, enumsApi, interventionsApi, invalidateReferenceCache, ownersApi, permissionsApi, remindersApi, rolesApi, tenantsApi, usersApi, utilsApi };
+export { agenciesApi, artisansApi, clientsApi, commentsApi, documentsApi, enumsApi, interventionsApi, invalidateReferenceCache, ownersApi, permissionsApi, remindersApi, rolesApi, tenantsApi, usersApi, utilsApi };
 
 // Exports avec alias pour compatibilité
+export const agenciesApiV2 = agenciesApi;
 export const usersApiV2 = usersApi;
 export const interventionsApiV2 = interventionsApi;
 export const artisansApiV2 = artisansApi;
@@ -44,6 +46,7 @@ export const utilsApiV2 = utilsApi;
 
 // Export par défaut avec toutes les APIs
 const apiV2 = {
+  agencies: agenciesApi,
   users: usersApi,
   interventions: interventionsApi,
   artisans: artisansApi,
@@ -57,8 +60,9 @@ const apiV2 = {
   reminders: remindersApi,
   enums: enumsApi,
   utils: utilsApi,
-  
+
   // Alias pour compatibilité
+  agenciesApiV2,
   usersApiV2,
   interventionsApiV2,
   artisansApiV2,

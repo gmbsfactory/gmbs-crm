@@ -1,29 +1,11 @@
 ### Now 
 
-
 - Dashboard
-        - implémenter les raccourcis clics sur la page dashboard 
-                Mes Artisans --> page artisan, Mes Interventions  --> page intervention
-
         - mettre dans le cache les infos des menus hover dès le chargement
                 si ce n'est pas déjà fait
 
-        - Mes Artisans -- 82 pour développement admin ? d'où ça vient ? 
 
-- Dashboard admin
-        - Espace tableau à bien formatter
-        - Multi sélection sur les filtres au lieu de sélection unique 
-
-- Dashboard 
-        - Unifier les calculs pour le podium entre les Performances Gestionnaires du dashboard  admin et le podium côté Dashboard
-        - 
-
-- Chaîne des statuts à respecter 
-        (au moins ceux qui sont présents dans l'entonnoir de conversion)
-
-- Delete Artisan via API 
-
-- Donner à Antigravity la gestion des vulnérabilités supabase
+- Création des bulles pour les vues filtrées Ms artisans à compléter. 
 
 - Export 
         - merger sheet export
@@ -37,14 +19,16 @@
         - le delta entre inter loggés et inter en bdd 
         - 
 
-IN PROGRESS : 
-        - status chain transition
-        - 
+
+
+
 
 
 
 
  ### Later
+
+- Donner à Antigravity la gestion des vulnérabilités supabase
 
 - Mettre en place OCR
         - Rcupération informations depuis appel d'offres 

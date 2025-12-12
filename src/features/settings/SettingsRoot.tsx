@@ -40,6 +40,7 @@ import { useRouter } from "next/navigation"
 import { supabase } from "@/lib/supabase-client"
 import { TargetsSettings } from "./TargetsSettings"
 import { usersApi } from "@/lib/api/v2"
+import { EnumManager } from "./EnumManager"
 
 type TeamUser = {
   id: string
@@ -58,9 +59,20 @@ type TeamUser = {
   page_permissions?: Record<string, boolean>
 }
 
+type Agency = {
+  id: string
+  code: string // Généré automatiquement, affiché en lecture seule
+  label: string
+  region: string | null
+  color: string | null
+  is_active: boolean
+  created_at: string
+  updated_at: string
+}
+
 const ACCENT_ORDER: AccentOption[] = ["indigo", "emerald", "violet", "amber", "rose", "custom"]
 
-export type SettingsTab = "profile" | "interface" | "team" | "security" | "targets"
+export type SettingsTab = "profile" | "interface" | "team" | "enums" | "security" | "targets"
 
 export default function SettingsPage({ activeTab = "profile", embedHeader = true }: { activeTab?: SettingsTab; embedHeader?: boolean }) {
   const { toast } = useToast()
@@ -433,6 +445,22 @@ export default function SettingsPage({ activeTab = "profile", embedHeader = true
   const [editPagePermissionsLoading, setEditPagePermissionsLoading] = useState(false)
   const [deletingUser, setDeletingUser] = useState<TeamUser | null>(null)
   const [deleteEmailConfirm, setDeleteEmailConfirm] = useState<string>('')
+
+  // Agency management state
+  const [agencies, setAgencies] = useState<Agency[]>([])
+  const [agenciesLoading, setAgenciesLoading] = useState(false)
+  const [agenciesLastSync, setAgenciesLastSync] = useState<Date | null>(null)
+  const [addingNewAgency, setAddingNewAgency] = useState(false)
+  const [newAgencyLabel, setNewAgencyLabel] = useState('')
+  const [newAgencyRegion, setNewAgencyRegion] = useState('')
+  const [newAgencyColor, setNewAgencyColor] = useState('#6366f1')
+  const [editAgency, setEditAgency] = useState<Agency | null>(null)
+  const [editAgencyLabel, setEditAgencyLabel] = useState('')
+  const [editAgencyRegion, setEditAgencyRegion] = useState('')
+  const [editAgencyColor, setEditAgencyColor] = useState('')
+  const [deletingAgency, setDeletingAgency] = useState<Agency | null>(null)
+  const [deleteAgencyCodeConfirm, setDeleteAgencyCodeConfirm] = useState('')
+
   useEffect(() => {
     if (activeTab !== 'team') return
     let ignore = false
@@ -596,6 +624,60 @@ export default function SettingsPage({ activeTab = "profile", embedHeader = true
     resetNewUser()
   }
 
+  // Agency management handlers
+  function resetNewAgency() {
+    setNewAgencyLabel('')
+    setNewAgencyRegion('')
+    setNewAgencyColor('#6366f1')
+  }
+
+  async function handleCreateAgency() {
+    if (!newAgencyLabel) {
+      setAddingNewAgency(false)
+      resetNewAgency()
+      return
+    }
+
+    const payload = {
+      label: newAgencyLabel,
+      region: newAgencyRegion || null,
+      color: newAgencyColor
+    }
+
+    const resp = await fetch('/api/settings/agency', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    })
+
+    const j = await resp.json().catch(() => ({}))
+
+    if (!resp.ok) {
+      if (j?.error === 'duplicate_code') {
+        toast({
+          title: 'Code déjà utilisé',
+          description: 'Une agence avec ce nom existe déjà (code généré identique).',
+          variant: 'destructive' as any
+        })
+      } else {
+        toast({
+          title: 'Erreur',
+          description: j?.error || 'Impossible de créer l\'agence',
+          variant: 'destructive' as any
+        })
+      }
+      return
+    }
+
+    const res = await fetch('/api/settings/agency', { cache: 'no-store' })
+    const data = await res.json()
+    setAgencies(data?.agencies || [])
+    setAgenciesLastSync(new Date())
+    setAddingNewAgency(false)
+    resetNewAgency()
+    toast({ title: 'Agence créée avec succès' })
+  }
+
   return (
     <div className="flex flex-col min-h-[1px]">
       <Tabs
@@ -613,7 +695,7 @@ export default function SettingsPage({ activeTab = "profile", embedHeader = true
               <h1 className="text-3xl font-bold tracking-tight">Settings</h1>
               <p className="text-muted-foreground">Manage your account settings and preferences</p>
             </div>
-            <TabsList className={`grid w-full ${isAdmin && canManageTargets ? "grid-cols-5" : isAdmin || canManageTargets ? "grid-cols-4" : "grid-cols-3"}`}>
+            <TabsList className={`grid w-full ${isAdmin && canManageTargets ? "grid-cols-6" : isAdmin || canManageTargets ? "grid-cols-4" : "grid-cols-3"}`}>
               <TabsTrigger value="profile" className="flex items-center gap-2">
                 <User className="h-4 w-4" />
                 Profile
@@ -1341,6 +1423,12 @@ export default function SettingsPage({ activeTab = "profile", embedHeader = true
                 </DialogFooter>
               </DialogContent>
             </Dialog>
+            </TabsContent>
+          )}
+
+          {isAdmin && (
+            <TabsContent value="enums" className="space-y-6">
+              <EnumManager />
             </TabsContent>
           )}
 
