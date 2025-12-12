@@ -3,7 +3,11 @@
     "allow": [
       "Bash(cat:*)",
       "Bash(grep:*)",
-      "Bash(npm run build:*)"
+      "Bash(npm run build:*)",
+      "Bash(ls:*)",
+      "Bash(timeout 10 grep:*)",
+      "Bash(xargs basename:*)",
+      "Bash(find:*)"
     ],
     "deny": [],
     "ask": []

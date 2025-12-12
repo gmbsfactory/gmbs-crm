@@ -396,8 +396,16 @@ export default function ArtisansPage(): ReactElement {
 
   // Fonction pour convertir ArtisanViewFilter en paramètres API pour le comptage
   const convertFiltersToApiParams = useCallback(
-    (filters: Array<{ property: string; operator: string; value?: string | null }>): { gestionnaire?: string; statut?: string } => {
-      const params: { gestionnaire?: string; statut?: string } = {}
+    (filters: Array<{ property: string; operator: string; value?: string | null }>): { 
+      gestionnaire?: string
+      statut?: string
+      statut_dossier?: string
+    } => {
+      const params: { 
+        gestionnaire?: string
+        statut?: string
+        statut_dossier?: string
+      } = {}
 
       for (const filter of filters) {
         if (filter.property === "gestionnaire_id" && filter.operator === "eq") {
@@ -411,6 +419,10 @@ export default function ArtisansPage(): ReactElement {
             }
           } else if (typeof filter.value === "string") {
             params.gestionnaire = filter.value
+          }
+        } else if (filter.property === "statut_dossier" && filter.operator === "eq") {
+          if (typeof filter.value === "string") {
+            params.statut_dossier = filter.value
           }
         }
       }
@@ -456,8 +468,8 @@ export default function ArtisansPage(): ReactElement {
           // Convertir les filtres de la vue en paramètres API
           const apiParams = convertFiltersToApiParams(view.filters)
 
-          // Appeler getArtisanTotalCount avec les filtres
-          const count = await getArtisanTotalCount(apiParams)
+          // Utiliser getArtisanCountWithFilters qui supporte tous les filtres (gestionnaire, statut_dossier, etc.)
+          const count = await getArtisanCountWithFilters(apiParams)
 
           if (!cancelled) {
             counts[view.id] = count

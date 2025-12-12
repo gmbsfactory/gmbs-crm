@@ -50,7 +50,7 @@ const DEFAULT_VIEW_PRESETS: Array<{
   },
   {
     id: "artisans-a-completer",
-    title: "Artisans à compléter",
+    title: "Liste Artisans à compléter",
     description: "Tous les artisans avec le statut Dossier à compléter",
     filters: [
       { property: "statut_dossier", operator: "eq", value: "À compléter" },
@@ -142,8 +142,28 @@ export function useArtisanViews() {
       if (stored) {
         const parsed = JSON.parse(stored) as { views: ArtisanViewDefinition[]; activeViewId: string }
         if (parsed.views && Array.isArray(parsed.views)) {
-          setViews(parsed.views)
-          if (parsed.activeViewId) {
+          // Fusionner les vues sauvegardées avec les vues par défaut
+          // S'assurer que toutes les vues par défaut sont présentes et à jour
+          const mergedViews: ArtisanViewDefinition[] = []
+          const seenIds = new Set<string>()
+          
+          // D'abord, ajouter toutes les vues par défaut (toujours prioritaires)
+          DEFAULT_VIEWS.forEach((defaultView) => {
+            mergedViews.push(defaultView)
+            seenIds.add(defaultView.id)
+          })
+          
+          // Ensuite, ajouter les vues personnalisées (non par défaut) depuis le localStorage
+          // Ignorer les vues par défaut du localStorage car elles peuvent être obsolètes
+          parsed.views.forEach((storedView) => {
+            if (!storedView.isDefault && !seenIds.has(storedView.id)) {
+              mergedViews.push(storedView)
+              seenIds.add(storedView.id)
+            }
+          })
+          
+          setViews(mergedViews)
+          if (parsed.activeViewId && mergedViews.some(v => v.id === parsed.activeViewId)) {
             setActiveViewId(parsed.activeViewId)
           }
         }
