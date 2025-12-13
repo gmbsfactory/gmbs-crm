@@ -76,6 +76,48 @@
   border-radius: 3px;
 }
 
+/* Scrollbars minimales et discrètes - visibles au survol */
+.scrollbar-minimal {
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+
+.scrollbar-minimal:hover {
+  scrollbar-color: hsl(var(--muted-foreground) / 0.2) transparent;
+}
+
+.scrollbar-minimal::-webkit-scrollbar {
+  width: 3px;
+  height: 3px;
+}
+
+.scrollbar-minimal::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.scrollbar-minimal::-webkit-scrollbar-thumb {
+  background-color: transparent;
+  border-radius: 1.5px;
+  transition: background-color 0.2s ease;
+}
+
+.scrollbar-minimal:hover::-webkit-scrollbar-thumb {
+  background-color: hsl(var(--muted-foreground) / 0.25);
+}
+
+.scrollbar-minimal::-webkit-scrollbar-thumb:hover {
+  background-color: hsl(var(--muted-foreground) / 0.4);
+}
+
+/* Scrollbar à gauche - utilise direction RTL trick */
+.scrollbar-left {
+  direction: rtl;
+}
+
+.scrollbar-left > * {
+  direction: ltr;
+}
+
 .chat-content-scroll::-webkit-scrollbar-thumb:hover {
   background-color: hsl(var(--muted-foreground) / 0.5);
 }

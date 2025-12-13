@@ -262,6 +262,10 @@ export function InterventionEditForm({
   const [showArtisanSearch, setShowArtisanSearch] = useState(false)
   const [showSecondArtisanSearch, setShowSecondArtisanSearch] = useState(false)
   const [artisanSearchPosition, setArtisanSearchPosition] = useState<{ x: number; y: number; width?: number; height?: number } | null>(null)
+  // État pour stocker l'artisan sélectionné via recherche (qui peut ne pas être dans nearbyArtisans)
+  const [searchSelectedArtisan, setSearchSelectedArtisan] = useState<NearbyArtisan | null>(null)
+  // État pour stocker le second artisan sélectionné via recherche (qui peut ne pas être dans nearbyArtisansSecondMetier)
+  const [searchSelectedSecondArtisan, setSearchSelectedSecondArtisan] = useState<NearbyArtisan | null>(null)
   const { open: openArtisanModal } = useArtisanModal()
   const {
     artisans: nearbyArtisans,
@@ -286,12 +290,26 @@ export function InterventionEditForm({
   })
   
   const selectedArtisanData = useMemo(
-    () => (selectedArtisanId ? nearbyArtisans.find((artisan) => artisan.id === selectedArtisanId) ?? null : null),
-    [selectedArtisanId, nearbyArtisans],
+    () => {
+      if (!selectedArtisanId) return null
+      // D'abord chercher dans les artisans à proximité
+      const nearbyArtisan = nearbyArtisans.find((artisan) => artisan.id === selectedArtisanId)
+      if (nearbyArtisan) return nearbyArtisan
+      // Sinon utiliser l'artisan de la recherche (qui peut ne pas être à proximité)
+      return searchSelectedArtisan
+    },
+    [selectedArtisanId, nearbyArtisans, searchSelectedArtisan],
   )
   const selectedSecondArtisanData = useMemo(
-    () => (selectedSecondArtisanId ? nearbyArtisansSecondMetier.find((artisan) => artisan.id === selectedSecondArtisanId) ?? null : null),
-    [selectedSecondArtisanId, nearbyArtisansSecondMetier],
+    () => {
+      if (!selectedSecondArtisanId) return null
+      // D'abord chercher dans les artisans à proximité du second métier
+      const nearbyArtisan = nearbyArtisansSecondMetier.find((artisan) => artisan.id === selectedSecondArtisanId)
+      if (nearbyArtisan) return nearbyArtisan
+      // Sinon utiliser l'artisan de la recherche (qui peut ne pas être à proximité)
+      return searchSelectedSecondArtisan
+    },
+    [selectedSecondArtisanId, nearbyArtisansSecondMetier, searchSelectedSecondArtisan],
   )
 
   // Calcul de la marge du 2ème artisan en pourcentage
@@ -894,19 +912,27 @@ export function InterventionEditForm({
   }, [selectedArtisanForEmail, selectedArtisanId])
 
   // Handle opening devis email modal
-  const handleOpenDevisEmailModal = useCallback(() => {
-    if (!effectiveSelectedArtisanId) {
+  const handleOpenDevisEmailModal = useCallback((artisanId?: string) => {
+    const targetArtisanId = artisanId || effectiveSelectedArtisanId
+    if (!targetArtisanId) {
       toast.error('Veuillez sélectionner un artisan')
       return
+    }
+    if (artisanId) {
+      setSelectedArtisanForEmail(artisanId)
     }
     setIsDevisEmailModalOpen(true)
   }, [effectiveSelectedArtisanId])
 
   // Handle opening intervention email modal
-  const handleOpenInterventionEmailModal = useCallback(() => {
-    if (!effectiveSelectedArtisanId) {
+  const handleOpenInterventionEmailModal = useCallback((artisanId?: string) => {
+    const targetArtisanId = artisanId || effectiveSelectedArtisanId
+    if (!targetArtisanId) {
       toast.error('Veuillez sélectionner un artisan')
       return
+    }
+    if (artisanId) {
+      setSelectedArtisanForEmail(artisanId)
     }
     setIsInterventionEmailModalOpen(true)
   }, [effectiveSelectedArtisanId])
@@ -916,34 +942,44 @@ export function InterventionEditForm({
     const artisanId = effectiveSelectedArtisanId
     if (!artisanId) return ''
 
-    // First check in artisansWithEmail (from Select)
+    // First check in artisansWithEmail (from intervention_artisans)
     const artisan = artisansWithEmail.find((a) => a.id === artisanId)
     if (artisan) return artisan.email
 
-    // Fallback to selectedArtisanData (from form selection)
+    // Vérifier si c'est le premier artisan sélectionné dans le form
     if (selectedArtisanData && selectedArtisanData.id === artisanId) {
       return selectedArtisanData.email || ''
     }
 
+    // Vérifier si c'est le second artisan sélectionné dans le form
+    if (selectedSecondArtisanData && selectedSecondArtisanData.id === artisanId) {
+      return selectedSecondArtisanData.email || ''
+    }
+
     return ''
-  }, [effectiveSelectedArtisanId, artisansWithEmail, selectedArtisanData])
+  }, [effectiveSelectedArtisanId, artisansWithEmail, selectedArtisanData, selectedSecondArtisanData])
 
   // Fonction pour obtenir le numéro de téléphone de l'artisan sélectionné
   const getSelectedArtisanPhone = useCallback((): string => {
     const artisanId = effectiveSelectedArtisanId
     if (!artisanId) return ''
 
-    // Chercher dans artisansWithEmail (depuis Select)
+    // Chercher dans artisansWithEmail (depuis intervention_artisans)
     const artisan = artisansWithEmail.find((a) => a.id === artisanId)
     if (artisan && artisan.telephone) return artisan.telephone
 
-    // Chercher dans selectedArtisanData (depuis form)
-    if (selectedArtisanData && selectedArtisanData.telephone) {
+    // Vérifier si c'est le premier artisan sélectionné dans le form
+    if (selectedArtisanData && selectedArtisanData.id === artisanId && selectedArtisanData.telephone) {
       return selectedArtisanData.telephone
     }
 
+    // Vérifier si c'est le second artisan sélectionné dans le form
+    if (selectedSecondArtisanData && selectedSecondArtisanData.id === artisanId && selectedSecondArtisanData.telephone) {
+      return selectedSecondArtisanData.telephone
+    }
+
     return ''
-  }, [effectiveSelectedArtisanId, artisansWithEmail, selectedArtisanData])
+  }, [effectiveSelectedArtisanId, artisansWithEmail, selectedArtisanData, selectedSecondArtisanData])
 
   // Fonction pour formater le numéro de téléphone pour WhatsApp
   const formatPhoneForWhatsApp = useCallback((phone: string): string => {
@@ -1036,6 +1072,7 @@ export function InterventionEditForm({
 
   const handleRemoveSelectedArtisan = useCallback(() => {
     setSelectedArtisanId(null)
+    setSearchSelectedArtisan(null)
     // Optionnel : vider le champ texte artisan si on désélectionne ?
     // handleInputChange("artisan", "")
   }, [])
@@ -1052,6 +1089,7 @@ export function InterventionEditForm({
 
   const handleRemoveSecondArtisan = useCallback(() => {
     setSelectedSecondArtisanId(null)
+    setSearchSelectedSecondArtisan(null)
     handleInputChange("secondArtisan", "")
     handleInputChange("secondArtisanTelephone", "")
     handleInputChange("secondArtisanEmail", "")
@@ -1070,7 +1108,34 @@ export function InterventionEditForm({
       secondArtisanTelephone: artisan.telephone || "",
       secondArtisanEmail: artisan.email || "",
     }))
-  }, [])
+
+    // Si l'artisan sélectionné via recherche n'est pas dans la liste de proximité,
+    // on le convertit au format NearbyArtisan et on le stocke pour l'afficher
+    const isInProximity = nearbyArtisansSecondMetier.some(a => a.id === artisan.id)
+    if (!isInProximity) {
+      // Convertir l'artisan de la recherche au format NearbyArtisan
+      const nearbyArtisanFormat: NearbyArtisan = {
+        id: artisan.id,
+        displayName: displayName,
+        distanceKm: 0, // Distance inconnue pour artisan hors proximité
+        telephone: artisan.telephone || null,
+        email: artisan.email || null,
+        adresse: artisan.adresse_intervention || artisan.adresse_siege_social || null,
+        ville: artisan.ville_intervention || artisan.ville_siege_social || null,
+        codePostal: artisan.code_postal_intervention || artisan.code_postal_siege_social || null,
+        lat: 0,
+        lng: 0,
+        prenom: artisan.prenom || null,
+        nom: artisan.nom || null,
+        statut_id: artisan.statut_id || null,
+        photoProfilMetadata: null,
+      }
+      setSearchSelectedSecondArtisan(nearbyArtisanFormat)
+    } else {
+      // Si l'artisan est dans la liste de proximité, pas besoin de le stocker séparément
+      setSearchSelectedSecondArtisan(null)
+    }
+  }, [nearbyArtisansSecondMetier])
 
   const handleArtisanSearchSelect = useCallback((artisan: ArtisanSearchResult) => {
     const displayName = artisan.raison_sociale
@@ -1087,11 +1152,30 @@ export function InterventionEditForm({
     }))
 
     // Si l'artisan sélectionné via recherche n'est pas dans la liste de proximité,
-    // on le convertit au format NearbyArtisan et on le stockera pour l'afficher
+    // on le convertit au format NearbyArtisan et on le stocke pour l'afficher
     const isInProximity = nearbyArtisans.some(a => a.id === artisan.id)
-    if (!isInProximity && artisan.adresse_intervention && artisan.ville_intervention) {
-      // On pourrait l'ajouter à une liste séparée, mais pour l'instant
-      // la synchronisation visuelle via selectedArtisanId suffit
+    if (!isInProximity) {
+      // Convertir l'artisan de la recherche au format NearbyArtisan
+      const nearbyArtisanFormat: NearbyArtisan = {
+        id: artisan.id,
+        displayName: displayName,
+        distanceKm: 0, // Distance inconnue pour artisan hors proximité
+        telephone: artisan.telephone || null,
+        email: artisan.email || null,
+        adresse: artisan.adresse_intervention || artisan.adresse_siege_social || null,
+        ville: artisan.ville_intervention || artisan.ville_siege_social || null,
+        codePostal: artisan.code_postal_intervention || artisan.code_postal_siege_social || null,
+        lat: 0,
+        lng: 0,
+        prenom: artisan.prenom || null,
+        nom: artisan.nom || null,
+        statut_id: artisan.statut_id || null,
+        photoProfilMetadata: null,
+      }
+      setSearchSelectedArtisan(nearbyArtisanFormat)
+    } else {
+      // Si l'artisan est dans la liste de proximité, pas besoin de le stocker séparément
+      setSearchSelectedArtisan(null)
     }
   }, [nearbyArtisans])
 
@@ -1581,18 +1665,25 @@ export function InterventionEditForm({
     )
   }
 
+  // Hauteur de la section carte+artisans basée sur la sélection d'artisan
+  // Cette hauteur reste fixe une fois l'artisan sélectionné pour éviter les redimensionnements
+  const mapSectionHeight = selectedArtisanId ? "260px" : "450px"
+
   return (
-    <form ref={formRef} onSubmit={handleSubmit}>
-      {/* GRID LAYOUT PRINCIPAL 6 colonnes x 8 lignes */}
-      <div
-        className="grid gap-3"
-        style={{
-          gridTemplateColumns: "repeat(6, 1fr)",
-          gridTemplateRows: "auto auto auto 1fr 1fr 1fr auto auto",
-        }}
-      >
-        {/* DIV1: HEADER PRINCIPAL - Row 1, Cols 1-6 */}
-        <Card className="legacy-form-card" style={{ gridArea: "1 / 1 / 2 / 7" }}>
+    <form ref={formRef} onSubmit={handleSubmit} className="flex-1 min-h-0 flex flex-col">
+      {/* LAYOUT DEUX COLONNES DISTINCTES - Chaque colonne a son propre scroll */}
+      <div className="flex gap-3 flex-1 min-h-0">
+        {/* COLONNE GAUCHE - Scroll indépendant avec scrollbar minimale à gauche */}
+        <div className="flex-1 min-w-0 overflow-y-auto min-h-0 scrollbar-minimal scrollbar-left">
+          <div
+            className="grid gap-3 pb-4"
+            style={{
+              gridTemplateColumns: "repeat(4, 1fr)",
+              gridTemplateRows: `auto auto auto ${mapSectionHeight} auto auto`,
+            }}
+          >
+            {/* DIV1: HEADER PRINCIPAL - Row 1, Cols 1-4 */}
+            <Card className="legacy-form-card" style={{ gridArea: "1 / 1 / 2 / 5" }}>
           <CardContent className="py-2 px-3">
             <div className="grid grid-cols-6 gap-2">
               <div>
@@ -1711,8 +1802,8 @@ export function InterventionEditForm({
           </CardContent>
         </Card>
 
-        {/* DIV2: ADRESSE - Row 2, Cols 1-4 */}
-        <Card style={{ gridArea: "2 / 1 / 3 / 5" }}>
+            {/* DIV2: ADRESSE - Row 2, Cols 1-4 */}
+            <Card style={{ gridArea: "2 / 1 / 3 / 5" }}>
           <CardContent className="py-2 px-3">
             <div className="flex items-center gap-2">
               <Label htmlFor="adresse" className="text-[10px] text-muted-foreground whitespace-nowrap">Adresse *</Label>
@@ -1809,14 +1900,14 @@ export function InterventionEditForm({
           </CardContent>
         </Card>
 
-        {/* DIV7: CARTE MAPLIBRE - Rows 4-6, Cols 1-3 */}
-        {/* FIX: Hauteur dynamique basée sur la sélection d'artisan pour éviter la boucle infinie */}
-        <Card style={{ gridArea: "4 / 1 / 7 / 4" }} className="overflow-hidden">
+        {/* DIV7: CARTE MAPLIBRE - Row 4, Cols 1-3 */}
+        {/* Hauteur fixée par la row de la grille (mapSectionHeight) pour éviter les redimensionnements */}
+        <Card style={{ gridArea: "4 / 1 / 5 / 4" }} className="overflow-hidden">
           <CardContent className="p-0 h-full">
             <MapLibreMap
               lat={formData.latitude}
               lng={formData.longitude}
-              height={selectedArtisanId ? "260px" : "450px"}
+              height="100%"
               onLocationChange={handleLocationChange}
               markers={mapMarkers}
               circleRadiusKm={perimeterKmValue}
@@ -1825,8 +1916,8 @@ export function InterventionEditForm({
           </CardContent>
         </Card>
 
-        {/* DIV8: COLONNE ARTISANS - Rows 4-6, Col 4 */}
-        <Card style={{ gridArea: "4 / 4 / 7 / 5" }} className="flex flex-col overflow-hidden">
+        {/* DIV8: COLONNE ARTISANS - Row 4, Col 4 */}
+        <Card style={{ gridArea: "4 / 4 / 5 / 5" }} className="flex flex-col overflow-hidden">
           <CardContent className="p-3 flex flex-col h-full overflow-hidden">
             {/* Header artisans */}
             <div className="flex items-center justify-between gap-2 mb-3 flex-shrink-0">
@@ -1865,47 +1956,30 @@ export function InterventionEditForm({
             </div>
 
             {/* Email sending section */}
-            {artisansWithEmail.length > 0 && (
-              <div className="space-y-2 p-2 bg-muted/50 rounded-lg border border-border/50 mb-2 flex-shrink-0">
-                <Select
-                  value={selectedArtisanForEmail || selectedArtisanId || ''}
-                  onValueChange={setSelectedArtisanForEmail}
+            {selectedArtisanId && selectedArtisanData && (
+              <div className="flex gap-1 p-2 bg-muted/50 rounded-lg border border-border/50 mb-2 flex-shrink-0">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={handleOpenDevisEmailModal}
+                  disabled={!selectedArtisanId}
+                  className="flex-1 text-[10px] h-7 px-2"
                 >
-                  <SelectTrigger className="h-7 text-xs">
-                    <SelectValue placeholder="Artisan pour email" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {artisansWithEmail.map((artisan) => (
-                      <SelectItem key={artisan.id} value={artisan.id}>
-                        {artisan.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <div className="flex gap-1">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={handleOpenDevisEmailModal}
-                    disabled={!selectedArtisanForEmail && !selectedArtisanId}
-                    className="flex-1 text-[10px] h-7 px-2"
-                  >
-                    <Mail className="h-3 w-3 mr-1" />
-                    Devis
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={handleOpenInterventionEmailModal}
-                    disabled={!selectedArtisanForEmail && !selectedArtisanId}
-                    className="flex-1 text-[10px] h-7 px-2"
-                  >
-                    <Mail className="h-3 w-3 mr-1" />
-                    Inter.
-                  </Button>
-                </div>
+                  <Mail className="h-3 w-3 mr-1" />
+                  Devis
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={handleOpenInterventionEmailModal}
+                  disabled={!selectedArtisanId}
+                  className="flex-1 text-[10px] h-7 px-2"
+                >
+                  <Mail className="h-3 w-3 mr-1" />
+                  Inter.
+                </Button>
               </div>
             )}
 
@@ -1953,7 +2027,7 @@ export function InterventionEditForm({
             })()}
 
             {/* Liste des artisans - max 8 visibles avec scroll */}
-            <div className="flex-1 overflow-y-auto space-y-1 min-h-0 max-h-[400px]">
+            <div className="flex-1 overflow-y-auto space-y-1 min-h-0 max-h-[400px] scrollbar-minimal">
               {isLoadingNearbyArtisans ? (
                 <div className="flex items-center justify-center h-full text-xs text-muted-foreground">Recherche...</div>
               ) : nearbyArtisansError ? (
@@ -2005,8 +2079,8 @@ export function InterventionEditForm({
           </CardContent>
         </Card>
 
-        {/* DIV5: CONTEXTE INTERVENTION - Row 7, Cols 1-2 */}
-        <Card style={{ gridArea: "7 / 1 / 8 / 3" }}>
+        {/* DIV5: CONTEXTE INTERVENTION - Row 5, Cols 1-2 */}
+        <Card style={{ gridArea: "5 / 1 / 6 / 3" }}>
           <CardContent className="p-4">
             <Label htmlFor="contexteIntervention" className="text-xs font-medium mb-2 block">Contexte intervention *</Label>
             <Textarea
@@ -2024,8 +2098,8 @@ export function InterventionEditForm({
           </CardContent>
         </Card>
 
-        {/* DIV6: CONSIGNE INTERVENTION - Row 7, Cols 3-4 */}
-        <Card style={{ gridArea: "7 / 3 / 8 / 5" }}>
+        {/* DIV6: CONSIGNE INTERVENTION - Row 5, Cols 3-4 */}
+        <Card style={{ gridArea: "5 / 3 / 6 / 5" }}>
           <CardContent className="p-4">
             <Label htmlFor="consigneIntervention" className="text-xs font-medium mb-2 block">Consigne pour l&apos;artisan</Label>
             <Textarea
@@ -2039,49 +2113,51 @@ export function InterventionEditForm({
           </CardContent>
         </Card>
 
-        {/* DIV4: FINANCES & PLANIFICATION - Row 8, Cols 1-4 */}
-        <Card style={{ gridArea: "8 / 1 / 9 / 5" }}>
-          <CardContent className="p-4">
-            <Label className="mb-3 block text-xs font-medium uppercase tracking-wide text-muted-foreground">Finances & Planification</Label>
-            <div className="grid grid-cols-5 gap-3 items-end">
-              <div>
-                <Label htmlFor="coutIntervention" className="text-xs">Coût inter.</Label>
-                <Input id="coutIntervention" type="number" step="0.01" min="0" value={formData.coutIntervention} onChange={(e) => handleInputChange("coutIntervention", e.target.value)} placeholder="0.00 €" className="h-8 text-sm mt-1" />
-              </div>
-              <div>
-                <Label htmlFor="coutSST" className="text-xs">Coût SST</Label>
-                <Input id="coutSST" type="number" step="0.01" min="0" value={formData.coutSST} onChange={(e) => handleInputChange("coutSST", e.target.value)} placeholder="0.00 €" className="h-8 text-sm mt-1" />
-              </div>
-              <div>
-                <Label htmlFor="coutMateriel" className="text-xs">Coût mat.</Label>
-                <Input id="coutMateriel" type="number" step="0.01" min="0" value={formData.coutMateriel} onChange={(e) => handleInputChange("coutMateriel", e.target.value)} placeholder="0.00 €" className="h-8 text-sm mt-1" />
-              </div>
-              <div>
-                <Label className="text-xs">Marge</Label>
-                <div className="flex h-8 w-full rounded-md border border-input bg-muted px-3 py-1 text-sm shadow-sm items-center mt-1">
-                  {(() => {
-                    const inter = parseFloat(formData.coutIntervention) || 0
-                    const sst = parseFloat(formData.coutSST) || 0
-                    const mat = parseFloat(formData.coutMateriel) || 0
-                    if (inter > 0) {
-                      const marge = ((inter - (sst + mat)) / inter) * 100
-                      return <span className={cn("font-medium", marge < 0 ? "text-destructive" : "text-green-600")}>{marge.toFixed(1)} %</span>
-                    }
-                    return <span className="text-muted-foreground">-- %</span>
-                  })()}
+            {/* DIV4: FINANCES & PLANIFICATION - Row 6, Cols 1-4 */}
+            <Card style={{ gridArea: "6 / 1 / 7 / 5" }}>
+              <CardContent className="p-4">
+                <Label className="mb-3 block text-xs font-medium uppercase tracking-wide text-muted-foreground">Finances & Planification</Label>
+                <div className="grid grid-cols-5 gap-3 items-end">
+                  <div>
+                    <Label htmlFor="coutIntervention" className="text-xs">Coût inter.</Label>
+                    <Input id="coutIntervention" type="number" step="0.01" min="0" value={formData.coutIntervention} onChange={(e) => handleInputChange("coutIntervention", e.target.value)} placeholder="0.00 €" className="h-8 text-sm mt-1" />
+                  </div>
+                  <div>
+                    <Label htmlFor="coutSST" className="text-xs">Coût SST</Label>
+                    <Input id="coutSST" type="number" step="0.01" min="0" value={formData.coutSST} onChange={(e) => handleInputChange("coutSST", e.target.value)} placeholder="0.00 €" className="h-8 text-sm mt-1" />
+                  </div>
+                  <div>
+                    <Label htmlFor="coutMateriel" className="text-xs">Coût mat.</Label>
+                    <Input id="coutMateriel" type="number" step="0.01" min="0" value={formData.coutMateriel} onChange={(e) => handleInputChange("coutMateriel", e.target.value)} placeholder="0.00 €" className="h-8 text-sm mt-1" />
+                  </div>
+                  <div>
+                    <Label className="text-xs">Marge</Label>
+                    <div className="flex h-8 w-full rounded-md border border-input bg-muted px-3 py-1 text-sm shadow-sm items-center mt-1">
+                      {(() => {
+                        const inter = parseFloat(formData.coutIntervention) || 0
+                        const sst = parseFloat(formData.coutSST) || 0
+                        const mat = parseFloat(formData.coutMateriel) || 0
+                        if (inter > 0) {
+                          const marge = ((inter - (sst + mat)) / inter) * 100
+                          return <span className={cn("font-medium", marge < 0 ? "text-destructive" : "text-green-600")}>{marge.toFixed(1)} %</span>
+                        }
+                        return <span className="text-muted-foreground">-- %</span>
+                      })()}
+                    </div>
+                  </div>
+                  <div>
+                    <Label htmlFor="datePrevue" className="text-xs">Date prévue {requiresDatePrevue && "*"}</Label>
+                    <Input id="datePrevue" type="date" value={formData.date_prevue} onChange={(e) => handleInputChange("date_prevue", e.target.value)} className="h-8 text-sm mt-1" required={requiresDatePrevue} />
+                  </div>
                 </div>
-              </div>
-              <div>
-                <Label htmlFor="datePrevue" className="text-xs">Date prévue {requiresDatePrevue && "*"}</Label>
-                <Input id="datePrevue" type="date" value={formData.date_prevue} onChange={(e) => handleInputChange("date_prevue", e.target.value)} className="h-8 text-sm mt-1" required={requiresDatePrevue} />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
 
-        {/* DIV9: COLLAPSIBLES EN COLONNE - Rows 2-8, Cols 5-6 */}
-        {/* alignSelf: start empêche cette div de pousser les autres rows de la grille */}
-        <div style={{ gridArea: "2 / 5 / 9 / 7", alignSelf: "start", maxHeight: "calc(100vh - 200px)" }} className="flex flex-col gap-2 overflow-y-auto">
+        {/* COLONNE DROITE - Collapsibles avec scroll indépendant et scrollbar minimale */}
+        <div className="w-[320px] flex-shrink-0 overflow-y-auto min-h-0 scrollbar-minimal">
+          <div className="flex flex-col gap-2 pb-4">
           {/* Détails facturation */}
           <Collapsible open={isProprietaireOpen} onOpenChange={setIsProprietaireOpen}>
             <Card>
@@ -2292,9 +2368,35 @@ export function InterventionEditForm({
                       )
                     })()}
 
+                    {/* Email sending section for second artisan */}
+                    {selectedSecondArtisanId && selectedSecondArtisanData && (
+                      <div className="flex gap-1 p-2 bg-orange-50 dark:bg-orange-950/20 rounded-lg border border-orange-200 dark:border-orange-800/50">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleOpenDevisEmailModal(selectedSecondArtisanId)}
+                          className="flex-1 text-[10px] h-7 px-2 border-orange-300 hover:bg-orange-100 dark:border-orange-700 dark:hover:bg-orange-900/30"
+                        >
+                          <Mail className="h-3 w-3 mr-1" />
+                          Devis
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleOpenInterventionEmailModal(selectedSecondArtisanId)}
+                          className="flex-1 text-[10px] h-7 px-2 border-orange-300 hover:bg-orange-100 dark:border-orange-700 dark:hover:bg-orange-900/30"
+                        >
+                          <Mail className="h-3 w-3 mr-1" />
+                          Inter.
+                        </Button>
+                      </div>
+                    )}
+
                     {/* Liste des artisans pour sélection (affichée uniquement si pas d'artisan sélectionné) */}
                     {!selectedSecondArtisanId && (
-                      <div className="max-h-[150px] overflow-y-auto space-y-1">
+                      <div className="max-h-[150px] overflow-y-auto space-y-1 scrollbar-minimal">
                         {sortedNearbyArtisansSecondMetier
                           .filter(artisan => artisan.id !== selectedArtisanId) // Exclure l'artisan principal
                           .slice(0, 5)
@@ -2588,6 +2690,7 @@ export function InterventionEditForm({
               </CollapsibleContent>
             </Card>
           </Collapsible>
+          </div>
         </div>
       </div>
 

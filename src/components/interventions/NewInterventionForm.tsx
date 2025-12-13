@@ -226,6 +226,8 @@ export function NewInterventionForm({
   const [isCommentsOpen, setIsCommentsOpen] = useState(true)
   const [showArtisanSearch, setShowArtisanSearch] = useState(false)
   const [artisanSearchPosition, setArtisanSearchPosition] = useState<{ x: number; y: number; width?: number; height?: number } | null>(null)
+  // État pour stocker l'artisan sélectionné via recherche (qui peut ne pas être dans nearbyArtisans)
+  const [searchSelectedArtisan, setSearchSelectedArtisan] = useState<NearbyArtisan | null>(null)
   const { open: openArtisanModal } = useArtisanModal()
   const [createdInterventionId, setCreatedInterventionId] = useState<string | null>(null)
 
@@ -241,8 +243,15 @@ export function NewInterventionForm({
   })
 
   const selectedArtisanData = useMemo(
-    () => (selectedArtisanId ? nearbyArtisans.find((artisan) => artisan.id === selectedArtisanId) ?? null : null),
-    [selectedArtisanId, nearbyArtisans],
+    () => {
+      if (!selectedArtisanId) return null
+      // D'abord chercher dans les artisans à proximité
+      const nearbyArtisan = nearbyArtisans.find((artisan) => artisan.id === selectedArtisanId)
+      if (nearbyArtisan) return nearbyArtisan
+      // Sinon utiliser l'artisan de la recherche (qui peut ne pas être à proximité)
+      return searchSelectedArtisan
+    },
+    [selectedArtisanId, nearbyArtisans, searchSelectedArtisan],
   )
 
   // Initialiser le statut par défaut à "DEMANDE"
@@ -485,6 +494,7 @@ export function NewInterventionForm({
 
   const handleRemoveSelectedArtisan = useCallback(() => {
     setSelectedArtisanId(null)
+    setSearchSelectedArtisan(null)
   }, [])
 
   const handleArtisanSearchSelect = useCallback((artisan: ArtisanSearchResult) => {
@@ -500,7 +510,34 @@ export function NewInterventionForm({
       artisanTelephone: artisan.telephone || "",
       artisanEmail: artisan.email || "",
     }))
-  }, [])
+
+    // Si l'artisan sélectionné via recherche n'est pas dans la liste de proximité,
+    // on le convertit au format NearbyArtisan et on le stocke pour l'afficher
+    const isInProximity = nearbyArtisans.some(a => a.id === artisan.id)
+    if (!isInProximity) {
+      // Convertir l'artisan de la recherche au format NearbyArtisan
+      const nearbyArtisanFormat: NearbyArtisan = {
+        id: artisan.id,
+        displayName: displayName,
+        distanceKm: 0, // Distance inconnue pour artisan hors proximité
+        telephone: artisan.telephone || null,
+        email: artisan.email || null,
+        adresse: artisan.adresse_intervention || artisan.adresse_siege_social || null,
+        ville: artisan.ville_intervention || artisan.ville_siege_social || null,
+        codePostal: artisan.code_postal_intervention || artisan.code_postal_siege_social || null,
+        lat: 0,
+        lng: 0,
+        prenom: artisan.prenom || null,
+        nom: artisan.nom || null,
+        statut_id: artisan.statut_id || null,
+        photoProfilMetadata: null,
+      }
+      setSearchSelectedArtisan(nearbyArtisanFormat)
+    } else {
+      // Si l'artisan est dans la liste de proximité, pas besoin de le stocker séparément
+      setSearchSelectedArtisan(null)
+    }
+  }, [nearbyArtisans])
 
   const handleOpenArtisanModal = useCallback((artisanId: string, event: React.MouseEvent) => {
     event.stopPropagation()

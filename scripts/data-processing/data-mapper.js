@@ -771,7 +771,9 @@ class DataMapper {
 
     // ===== RÉCUPÉRER LES DONNÉES NÉCESSAIRES POUR ID SYNTHÉTIQUE =====
     const agenceId = await this.getAgencyId(csvRow["Agence"]);
-    const dateValue = this.parseDate(csvRow["Date "]);
+    // Chercher la date dans plusieurs colonnes possibles (FErn est un nom alternatif utilisé dans certains sheets)
+    const rawDate = csvRow["Date "] || csvRow["Date"] || csvRow["FErn"] || csvRow["Date d'intervention"];
+    const dateValue = this.parseDate(rawDate);
     const adresseValue = this.extractInterventionAddress(csvRow["Adresse d'intervention"]).adresse;
     const contexteValue = this.cleanString(csvRow["Contexte d'intervention "]);
 
