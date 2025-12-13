@@ -125,9 +125,13 @@ export function InterventionEditForm({
   // Extraire les coûts et paiements
   const costs = intervention.intervention_costs || []
   const payments = intervention.intervention_payments || []
-  const sstCost = costs.find(c => c.cost_type === 'sst')
-  const materielCost = costs.find(c => c.cost_type === 'materiel')
+  // Coûts artisan principal (artisan_order = 1 ou undefined/null pour rétrocompatibilité)
+  const sstCost = costs.find(c => c.cost_type === 'sst' && (c.artisan_order === 1 || c.artisan_order === undefined || c.artisan_order === null))
+  const materielCost = costs.find(c => c.cost_type === 'materiel' && (c.artisan_order === 1 || c.artisan_order === undefined || c.artisan_order === null))
   const interventionCost = costs.find(c => c.cost_type === 'intervention')
+  // Coûts second artisan (artisan_order = 2)
+  const sstCostSecondArtisan = costs.find(c => c.cost_type === 'sst' && c.artisan_order === 2)
+  const materielCostSecondArtisan = costs.find(c => c.cost_type === 'materiel' && c.artisan_order === 2)
 
   // Extraire les paiements d'acomptes (calculés avant useState pour être utilisés dans l'initialisation)
   const sstPayment = payments.find(p => p.payment_type === 'acompte_sst')
@@ -218,8 +222,9 @@ export function InterventionEditForm({
     secondArtisanTelephone: secondaryArtisan?.telephone || "",
     secondArtisanEmail: secondaryArtisan?.email || "",
     metierSecondArtisanId: (intervention as any).metier_second_artisan_id || "",
-    coutSSTSecondArtisan: (intervention as any).cout_sst_second_artisan?.toString() || "",
-    coutMaterielSecondArtisan: (intervention as any).cout_materiel_second_artisan?.toString() || "",
+    // Coûts du 2ème artisan depuis intervention_costs avec artisan_order = 2
+    coutSSTSecondArtisan: sstCostSecondArtisan?.amount?.toString() || "",
+    coutMaterielSecondArtisan: materielCostSecondArtisan?.amount?.toString() || "",
   })
   const isStatusReasonModalOpen = pendingReasonType !== null
   const [perimeterKmInput, setPerimeterKmInput] = useState("50")
@@ -268,19 +273,32 @@ export function InterventionEditForm({
     sampleSize: 400,
     metier_id: formData.metier_id || null,
   })
+  
+  // Hook séparé pour les artisans du second métier
+  const {
+    artisans: nearbyArtisansSecondMetier,
+    loading: isLoadingNearbyArtisansSecondMetier,
+  } = useNearbyArtisans(formData.latitude, formData.longitude, {
+    limit: 100,
+    maxDistanceKm: perimeterKmValue,
+    sampleSize: 400,
+    metier_id: formData.metierSecondArtisanId || null,
+  })
+  
   const selectedArtisanData = useMemo(
     () => (selectedArtisanId ? nearbyArtisans.find((artisan) => artisan.id === selectedArtisanId) ?? null : null),
     [selectedArtisanId, nearbyArtisans],
   )
   const selectedSecondArtisanData = useMemo(
-    () => (selectedSecondArtisanId ? nearbyArtisans.find((artisan) => artisan.id === selectedSecondArtisanId) ?? null : null),
-    [selectedSecondArtisanId, nearbyArtisans],
+    () => (selectedSecondArtisanId ? nearbyArtisansSecondMetier.find((artisan) => artisan.id === selectedSecondArtisanId) ?? null : null),
+    [selectedSecondArtisanId, nearbyArtisansSecondMetier],
   )
 
-  // Calcul de la marge du 2ème artisan
+  // Calcul de la marge du 2ème artisan en pourcentage
   // Formule: coutInter2 = coutIntervention - (coutSST1 + coutMat1)
   //          marge2 = coutInter2 - (coutSST2 + coutMat2)
-  const margeSecondArtisan = useMemo(() => {
+  //          marge2Pct = (marge2 / coutInter2) * 100
+  const margeSecondArtisanPct = useMemo(() => {
     const coutInter = parseFloat(formData.coutIntervention) || 0
     const coutSST1 = parseFloat(formData.coutSST) || 0
     const coutMat1 = parseFloat(formData.coutMateriel) || 0
@@ -293,7 +311,9 @@ export function InterventionEditForm({
     // marge2 = coutInter2 - (coutSST2 + coutMat2)
     const marge2 = coutInter2 - (coutSST2 + coutMat2)
     
-    return marge2
+    // Calcul du pourcentage (éviter division par zéro)
+    if (coutInter2 <= 0) return 0
+    return (marge2 / coutInter2) * 100
   }, [formData.coutIntervention, formData.coutSST, formData.coutMateriel, formData.coutSSTSecondArtisan, formData.coutMaterielSecondArtisan])
 
   // Synchroniser formData.id_inter avec intervention.id_inter quand il change
@@ -337,6 +357,27 @@ export function InterventionEditForm({
     // Retourner : non archivés d'abord (triés par distance), puis archivés (triés par distance)
     return [...nonArchived, ...archived]
   }, [nearbyArtisans, refData?.artisanStatuses])
+
+  // Trier les artisans du second métier : archivés en bas
+  const sortedNearbyArtisansSecondMetier = useMemo(() => {
+    if (!refData?.artisanStatuses) return nearbyArtisansSecondMetier
+
+    const archiveStatuses = refData.artisanStatuses.filter(
+      (s) => s.code === "ARCHIVE" || s.code === "ARCHIVER"
+    )
+    if (archiveStatuses.length === 0) return nearbyArtisansSecondMetier
+
+    const archiveStatusIds = new Set(archiveStatuses.map((s) => s.id))
+
+    const nonArchived = nearbyArtisansSecondMetier.filter(
+      (artisan) => !artisan.statut_id || !archiveStatusIds.has(artisan.statut_id)
+    )
+    const archived = nearbyArtisansSecondMetier.filter(
+      (artisan) => artisan.statut_id && archiveStatusIds.has(artisan.statut_id)
+    )
+
+    return [...nonArchived, ...archived]
+  }, [nearbyArtisansSecondMetier, refData?.artisanStatuses])
 
   const mapMarkers = useMemo(() => {
     if (!refData?.artisanStatuses) {
@@ -1251,11 +1292,10 @@ export function InterventionEditForm({
         sous_statut_text: formData.sousStatutText?.trim() || null,
         sous_statut_text_color: formData.sousStatutTextColor || '#000000',
         sous_statut_bg_color: formData.sousStatutBgColor || 'transparent',
-        // Deuxième artisan - métier et coûts
+        // Deuxième artisan - métier
         metier_second_artisan_id: formData.metierSecondArtisanId || null,
-        cout_sst_second_artisan: formData.coutSSTSecondArtisan ? parseFloat(formData.coutSSTSecondArtisan) : 0,
-        cout_materiel_second_artisan: formData.coutMaterielSecondArtisan ? parseFloat(formData.coutMaterielSecondArtisan) : 0,
         // Note: client_id est un alias de tenant_id dans certains contextes, mais on utilise tenant_id ici
+        // Note: Les coûts du 2ème artisan sont gérés via intervention_costs avec artisan_order = 2
       }
 
       if (!canEditContext) {
@@ -1303,8 +1343,6 @@ export function InterventionEditForm({
           sous_statut_text_color: updateData.sous_statut_text_color ?? '#000000',
           sous_statut_bg_color: updateData.sous_statut_bg_color ?? 'transparent',
           metier_second_artisan_id: updateData.metier_second_artisan_id ?? null,
-          cout_sst_second_artisan: updateData.cout_sst_second_artisan ?? 0,
-          cout_materiel_second_artisan: updateData.cout_materiel_second_artisan ?? 0,
         },
       })
 
@@ -1325,7 +1363,7 @@ export function InterventionEditForm({
         costsToUpdate.push({ cost_type: "intervention", amount: coutInterventionValue })
       }
 
-      // Mettre à jour chaque coût
+      // Mettre à jour chaque coût (artisan principal = artisan_order 1, sauf pour 'intervention' qui est global)
       let costsUpdated = false
       for (const cost of costsToUpdate) {
         try {
@@ -1333,12 +1371,46 @@ export function InterventionEditForm({
             cost_type: cost.cost_type,
             label: cost.cost_type === "sst" ? "Coût SST" : cost.cost_type === "materiel" ? "Coût Matériel" : "Coût Intervention",
             amount: cost.amount,
-            currency: "EUR",
+            // artisan_order: null pour 'intervention' (coût global), 1 pour sst/materiel de l'artisan principal
+            artisan_order: cost.cost_type === "intervention" ? null : 1,
           })
           costsUpdated = true
         } catch (costError) {
           console.error(`[InterventionEditForm] Erreur lors de la mise à jour du coût ${cost.cost_type}:`, costError)
           // Ne pas bloquer la soumission si un coût échoue
+        }
+      }
+
+      // Mettre à jour les coûts du 2ème artisan (artisan_order = 2)
+      const coutSST2Value = parseFloat(formData.coutSSTSecondArtisan) || 0
+      const coutMateriel2Value = parseFloat(formData.coutMaterielSecondArtisan) || 0
+
+      if (selectedSecondArtisanId) {
+        // Si un 2ème artisan est sélectionné, créer/mettre à jour ses coûts
+        try {
+          await interventionsApi.upsertCost(intervention.id, {
+            cost_type: "sst",
+            label: "Coût SST 2ème artisan",
+            amount: coutSST2Value,
+            artisan_order: 2,
+          })
+          await interventionsApi.upsertCost(intervention.id, {
+            cost_type: "materiel",
+            label: "Coût Matériel 2ème artisan",
+            amount: coutMateriel2Value,
+            artisan_order: 2,
+          })
+          costsUpdated = true
+        } catch (costError) {
+          console.error(`[InterventionEditForm] Erreur lors de la mise à jour des coûts du 2ème artisan:`, costError)
+        }
+      } else {
+        // Si pas de 2ème artisan, supprimer ses coûts
+        try {
+          await interventionsApi.deleteCost(intervention.id, "sst", 2)
+          await interventionsApi.deleteCost(intervention.id, "materiel", 2)
+        } catch (deleteError) {
+          // Ignorer les erreurs de suppression (le coût n'existait peut-être pas)
         }
       }
 
@@ -2223,7 +2295,7 @@ export function InterventionEditForm({
                     {/* Liste des artisans pour sélection (affichée uniquement si pas d'artisan sélectionné) */}
                     {!selectedSecondArtisanId && (
                       <div className="max-h-[150px] overflow-y-auto space-y-1">
-                        {sortedNearbyArtisans
+                        {sortedNearbyArtisansSecondMetier
                           .filter(artisan => artisan.id !== selectedArtisanId) // Exclure l'artisan principal
                           .slice(0, 5)
                           .map((artisan) => {
@@ -2305,8 +2377,8 @@ export function InterventionEditForm({
                       <div>
                         <Label className="text-[10px]">Marge 2</Label>
                         <div className="flex h-7 w-full rounded-md border border-input bg-muted px-2 py-1 text-xs shadow-sm items-center mt-1">
-                          <span className={cn("font-medium", margeSecondArtisan < 0 ? "text-destructive" : "text-green-600")}>
-                            {margeSecondArtisan.toFixed(2)} €
+                          <span className={cn("font-medium", margeSecondArtisanPct < 0 ? "text-destructive" : "text-green-600")}>
+                            {margeSecondArtisanPct.toFixed(1)} %
                           </span>
                         </div>
                       </div>

@@ -99,10 +99,8 @@ export interface Intervention {
   sous_statut_text: string | null;
   sous_statut_text_color: string | null;
   sous_statut_bg_color: string | null;
-  // Deuxième artisan - métier et coûts
+  // Deuxième artisan - métier
   metier_second_artisan_id: string | null;
-  cout_sst_second_artisan: number | null;
-  cout_materiel_second_artisan: number | null;
   artisans?: string[];
   costs?: InterventionCost[];
   payments?: InterventionPayment[];
@@ -116,9 +114,17 @@ export interface InterventionCost {
   label: string | null;
   amount: number;
   currency: string | null;
+  artisan_order: 1 | 2 | null; // 1=principal, 2=secondaire, null=global
   metadata: any;
   created_at: string | null;
   updated_at: string | null;
+}
+
+export interface UpsertInterventionCostData {
+  cost_type: "sst" | "materiel" | "intervention" | "marge";
+  amount: number;
+  artisan_order?: 1 | 2 | null;
+  label?: string | null;
 }
 
 export interface InterventionPayment {
@@ -373,8 +379,6 @@ export interface UpdateInterventionData {
   sous_statut_bg_color?: string | null;
   // Deuxième artisan - métier et coûts
   metier_second_artisan_id?: string | null;
-  cout_sst_second_artisan?: number | null;
-  cout_materiel_second_artisan?: number | null;
 }
 
 export interface CreateArtisanData {

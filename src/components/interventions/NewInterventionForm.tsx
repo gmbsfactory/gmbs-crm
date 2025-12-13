@@ -726,7 +726,7 @@ export function NewInterventionForm({
             cost_type: "sst",
             label: "Coût SST",
             amount: coutSSTValue,
-            currency: "EUR",
+            artisan_order: 1,
           })
         } catch (costError) {
           console.error("[NewInterventionForm] Erreur coût SST:", costError)
@@ -739,7 +739,7 @@ export function NewInterventionForm({
             cost_type: "materiel",
             label: "Coût Matériel",
             amount: coutMaterielValue,
-            currency: "EUR",
+            artisan_order: 1,
           })
         } catch (costError) {
           console.error("[NewInterventionForm] Erreur coût matériel:", costError)
@@ -752,7 +752,7 @@ export function NewInterventionForm({
             cost_type: "intervention",
             label: "Coût Intervention",
             amount: coutInterventionValue,
-            currency: "EUR",
+            artisan_order: null, // Coût global
           })
         } catch (costError) {
           console.error("[NewInterventionForm] Erreur coût intervention:", costError)

@@ -117,8 +117,7 @@ export function useInterventionsMutations() {
         sous_statut_text_color?: string | null
         sous_statut_bg_color?: string | null
         metier_second_artisan_id?: string | null
-        cout_sst_second_artisan?: number | null
-        cout_materiel_second_artisan?: number | null
+        // Note: Les coûts du 2ème artisan sont gérés via intervention_costs avec artisan_order = 2
       }
     }) => {
       return await interventionsApiV2.update(id, data)

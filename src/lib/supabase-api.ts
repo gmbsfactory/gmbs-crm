@@ -219,6 +219,7 @@ export interface InterventionCost {
   label: string | null;
   amount: number;
   currency: string | null;
+  artisan_order: 1 | 2 | null; // 1=principal, 2=secondaire, null=global
   metadata: any;
   created_at: string | null;
   updated_at: string | null;
