@@ -1,3 +1,5 @@
+[string]$ProjectRoot = Resolve-Path "$PSScriptRoot\..\..\.."
+
 function Start-TrackedProcess {
     param(
         [string]$FilePath,
@@ -5,27 +7,24 @@ function Start-TrackedProcess {
         [string]$WorkingDirectory = $ProjectRoot,
         [switch]$NoNewWindow
     )
-    
+
     $processArgs = @{
-        FilePath = $FilePath
+        FilePath         = $FilePath
         WorkingDirectory = $WorkingDirectory
-        PassThru = $true
+        PassThru         = $true
     }
-    
+
     if ($Arguments) {
         $processArgs.ArgumentList = $Arguments
     }
-    
+
     if ($NoNewWindow) {
         $processArgs.NoNewWindow = $true
     }
-    
+
     try {
         $process = Start-Process @processArgs
-        $script:LaunchedProcesses += $process.Id
-        $processName = [System.IO.Path]::GetFileNameWithoutExtension($FilePath)
-        $script:MainProcessNames += $processName
-        Write-Host "Started: $FilePath (PID: $process.Id)" -ForegroundColor Green
+        Write-Host "Started: $FilePath (PID: $($process.Id))" -ForegroundColor Green
         return $process
     }
     catch {
@@ -34,6 +33,4 @@ function Start-TrackedProcess {
     }
 }
 
- [string]$ProjectRoot = $PSScriptRoot + "\..\.."
-$cmdArgs = "/k cd /d `"$ProjectRoot`" && `"$launchCmdPath`""
-Start-TrackedProcess -FilePath "cmd.exe" -Arguments $cmdArgs -WorkingDirectory $ProjectRoot
+Start-TrackedProcess -FilePath "cmd.exe" -Arguments "/k" -WorkingDirectory $ProjectRoot

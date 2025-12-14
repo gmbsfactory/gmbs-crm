@@ -14,6 +14,7 @@ import { t } from "@/config/domain"
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from "@/components/ui/context-menu"
 import { Plus, Shield } from "lucide-react"
 import { useRouter } from "next/navigation"
+import { toast } from "sonner"
 import { interventionsApi } from "@/lib/api/v2"
 import { useRevealTransition } from "@/hooks/useRevealTransition"
 import { useCurrentUser } from "@/hooks/useCurrentUser"
@@ -142,6 +143,39 @@ export default function DashboardPage() {
     }
     // Ne pas afficher l'animation si on ne vient pas de la page login
   }, [isMounted, startAnimationFromPosition])
+
+  // Effect to check for lateness notification and show toast
+  useEffect(() => {
+    if (!isMounted || !currentUser?.id) return
+
+    const checkLateness = async () => {
+      try {
+        // Check if we should show the lateness notification
+        const checkResponse = await fetch('/api/lateness/check', {
+          credentials: 'include',
+          cache: 'no-store'
+        })
+
+        if (!checkResponse.ok) return
+
+        const checkData = await checkResponse.json()
+
+        if (checkData.showNotification && checkData.latenessCount > 0) {
+          const message = `Tu as eu ${checkData.latenessCount} retard${checkData.latenessCount > 1 ? 's' : ''} cette année`
+
+          toast.info(message, {
+            duration: 8000,
+            icon: '⏰',
+            description: 'Pense à respecter les horaires de travail (8h00-18h00)'
+          })
+        }
+      } catch (error) {
+        console.error('Failed to check lateness:', error)
+      }
+    }
+
+    checkLateness()
+  }, [isMounted, currentUser?.id])
 
   // Appliquer le clipPath au contenu dashboard pendant l'animation
   useEffect(() => {

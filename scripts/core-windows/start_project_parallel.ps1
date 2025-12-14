@@ -1,6 +1,7 @@
-# PowerShell script to start all development tools
-# This script launches Docker, CMD, Git Bash, Cursor, and VSCode
+# PowerShell script to start all development tools (PARALLEL VERSION)
+# This script launches Docker, CMD, Git Bash, Cursor, and VSCode in parallel where possible
 # When you close this PowerShell window, all launched processes will be terminated
+# Compatible with PowerShell 5.1+
 
 param(
     [string]$ProjectRoot = $PSScriptRoot + "\..\.."
@@ -178,10 +179,10 @@ $null = Register-EngineEvent -SourceIdentifier PowerShell.Exiting -Action {
 }
 
 # Also set up cleanup for Ctrl+C
-$Host.UI.RawUI.WindowTitle = "Project Startup - Close this window to stop all launched processes"
+$Host.UI.RawUI.WindowTitle = "Project Startup (Parallel) - Close this window to stop all launched processes"
 
 Write-Host "========================================" -ForegroundColor Cyan
-Write-Host "  Project Startup Script" -ForegroundColor Cyan
+Write-Host "  Project Startup Script (PARALLEL)" -ForegroundColor Cyan
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host "Project Root: $ProjectRoot" -ForegroundColor Gray
 Write-Host ""
@@ -193,16 +194,30 @@ if (-not $ProjectRoot) {
     exit 1
 }
 
-# 1. Start Docker
+# 1. Start Docker (must be sequential - other processes depend on it)
 Start-DockerDesktop
 
+# 1.5. Run fresh_start_db.ps1 in background using Start-Process
+# This runs in a separate PowerShell window so it doesn't block
+$freshStartDbPath = Join-Path $PSScriptRoot "fresh_start_db.ps1"
+if (Test-Path $freshStartDbPath) {
+    Write-Host "`nInitializing Supabase database in background..." -ForegroundColor Yellow
+    Start-Process powershell.exe -ArgumentList "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "`"$freshStartDbPath`"" -WindowStyle Normal
+}
+else {
+    Write-Host "Warning: fresh_start_db.ps1 not found at $freshStartDbPath" -ForegroundColor Yellow
+}
+
+# 2-5. Launch all other processes in parallel (no sleeps between them)
+# Start-Process is already asynchronous, so we can launch them all at once
+Write-Host "`nLaunching all development tools in parallel..." -ForegroundColor Yellow
+
 # 2. Launch CMD window
-Write-Host "`nLaunching CMD window..." -ForegroundColor Yellow
+Write-Host "Launching CMD window..." -ForegroundColor Yellow
 Start-TrackedProcess -FilePath "cmd.exe" -Arguments "/k" -WorkingDirectory $ProjectRoot
-Start-Sleep -Seconds 1
 
 # 3. Launch Git Bash terminal at project root
-Write-Host "`nLaunching Git Bash..." -ForegroundColor Yellow
+Write-Host "Launching Git Bash..." -ForegroundColor Yellow
 $gitBashPaths = @(
     "${env:ProgramFiles}\Git\bin\git-bash.exe",
     "${env:ProgramFiles}\Git\bin\bash.exe",
@@ -222,10 +237,9 @@ foreach ($path in $gitBashPaths) {
 if (-not $gitBashFound) {
     Write-Host "Warning: Git Bash not found in common locations" -ForegroundColor Yellow
 }
-Start-Sleep -Seconds 1
 
 # 4. Launch Cursor at project root
-Write-Host "`nLaunching Cursor..." -ForegroundColor Yellow
+Write-Host "Launching Cursor..." -ForegroundColor Yellow
 $cursorPaths = @(
     "C:\Program Files\cursor\Cursor.exe",
     "$env:LOCALAPPDATA\Programs\cursor\Cursor.exe",
@@ -245,10 +259,9 @@ foreach ($path in $cursorPaths) {
 if (-not $cursorFound) {
     Write-Host "Warning: Cursor not found in common locations" -ForegroundColor Yellow
 }
-Start-Sleep -Seconds 1
 
 # 5. Launch VSCode at project root
-Write-Host "`nLaunching VSCode..." -ForegroundColor Yellow
+Write-Host "Launching VSCode..." -ForegroundColor Yellow
 $codePaths = @(
     "C:\Users\bigp_\AppData\Local\Programs\MicrosoftVSCode\Code.exe",
     "$env:LOCALAPPDATA\Programs\Microsoft VS Code\Code.exe",
@@ -268,16 +281,6 @@ foreach ($path in $codePaths) {
 
 if (-not $codeFound) {
     Write-Host "Warning: VSCode not found in common locations" -ForegroundColor Yellow
-}
-
-# 1.5. Run fresh_start_db.ps1 to initialize/restart Supabase
-$freshStartDbPath = Join-Path $PSScriptRoot "fresh_start_db.ps1"
-if (Test-Path $freshStartDbPath) {
-    Write-Host "`nInitializing Supabase database..." -ForegroundColor Yellow
-    & $freshStartDbPath
-}
-else {
-    Write-Host "Warning: fresh_start_db.ps1 not found at $freshStartDbPath" -ForegroundColor Yellow
 }
 
 Write-Host "`n========================================" -ForegroundColor Cyan

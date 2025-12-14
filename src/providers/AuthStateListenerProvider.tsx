@@ -5,6 +5,7 @@ import { useQueryClient } from "@tanstack/react-query"
 import { supabase } from "@/lib/supabase-client"
 import { preloadCriticalDataAsync } from "@/lib/preload-critical-data"
 import { resetPreloadFlag } from "@/lib/preload-flag"
+import { useCurrentUser } from "@/hooks/useCurrentUser"
 
 /**
  * Provider qui gère un seul listener onAuthStateChange global
@@ -12,6 +13,7 @@ import { resetPreloadFlag } from "@/lib/preload-flag"
  */
 export function AuthStateListenerProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient()
+  const { data: currentUser } = useCurrentUser()
   
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
@@ -108,7 +110,56 @@ export function AuthStateListenerProvider({ children }: { children: ReactNode })
       subscription.unsubscribe()
     }
   }, [queryClient])
-  
+
+  // Check for first activity of the day (lateness tracking)
+  // This runs once when the app loads with an authenticated user
+  useEffect(() => {
+    if (!currentUser?.id) return
+
+    const checkFirstActivity = async () => {
+      try {
+        // Check localStorage to see if we already checked today (client-side optimization)
+        // Include user ID in the key to handle multiple users on same browser
+        const storageKey = `last_activity_check_${currentUser.id}`
+        const lastCheck = localStorage.getItem(storageKey)
+        const today = new Date().toISOString().split('T')[0] // YYYY-MM-DD
+
+        if (lastCheck === today) {
+          // Already checked today, skip API call
+          console.log('[AuthStateListenerProvider] Already checked first activity today, skipping')
+          return
+        }
+
+        console.log('[AuthStateListenerProvider] Checking first activity of the day...')
+
+        // Call API to check and log first activity
+        const response = await fetch('/api/auth/first-activity', {
+          method: 'POST',
+          credentials: 'include'
+        })
+
+        if (!response.ok) {
+          console.error('[AuthStateListenerProvider] Failed to check first activity:', response.status)
+          return
+        }
+
+        const data = await response.json()
+        console.log('[AuthStateListenerProvider] First activity check result:', data)
+
+        // Mark as checked today in localStorage (with user-specific key)
+        localStorage.setItem(storageKey, today)
+
+        if (data.wasFirstActivity) {
+          console.log('[AuthStateListenerProvider] ✅ First activity of the day detected')
+        }
+      } catch (error) {
+        console.error('[AuthStateListenerProvider] Error checking first activity:', error)
+      }
+    }
+
+    checkFirstActivity()
+  }, [currentUser?.id])
+
   return <>{children}</>
 }
 

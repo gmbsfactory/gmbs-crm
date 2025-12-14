@@ -7,7 +7,8 @@
       "Bash(ls:*)",
       "Bash(timeout 10 grep:*)",
       "Bash(xargs basename:*)",
-      "Bash(find:*)"
+      "Bash(find:*)",
+      "Bash(npm run dev:*)"
     ],
     "deny": [],
     "ask": []
