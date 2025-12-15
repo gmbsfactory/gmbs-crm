@@ -506,6 +506,8 @@ interface NewInterventionFormProps {
     artisanTelephone: string
     artisanEmail: string
     artisanId: string
+    commentairesIntervention: string
+    consigneSecondArtisan: string
   }>
 }
 
@@ -559,8 +561,8 @@ export function NewInterventionForm({
     date_prevue: defaultValues?.datePrevue || "",
 
     // Commentaires
-    consigne_second_artisan: "",
-    commentaire_initial: "",
+    consigne_second_artisan: defaultValues?.consigneSecondArtisan || "",
+    commentaire_initial: defaultValues?.commentairesIntervention || "",
 
     // Propriétaire (owner) - Champ fusionné nom-prénom
     nomPrenomFacturation: defaultValues?.nomPrenomFacturation || "",
