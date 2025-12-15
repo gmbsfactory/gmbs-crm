@@ -1,6 +1,7 @@
 import GlobalModalHost from "@/components/layout/GlobalModalHost"
 import GlobalShortcuts from "@/components/layout/global-shortcuts"
 import { ConditionalPadding } from "@/components/layout/conditional-padding"
+import { LowPowerModeDetector } from "@/components/layout/LowPowerModeDetector"
 import { SettingsProvider } from "@/components/layout/settings-provider"
 import SidebarGate from "@/components/layout/sidebar-gate"
 import ThemeWrapper from "@/components/layout/theme-wrapper"
@@ -198,6 +199,37 @@ export default async function RootLayout({
       console.error("Erreur lors de l'application du thème de secours:", fallbackError);
     }
   }
+
+  // ========== LOW POWER MODE ==========
+  // Appliquer avant hydratation pour éviter le flash d'animations
+  try {
+    let isLowPower = false;
+    
+    // 1. Vérifier localStorage (préférence utilisateur)
+    try {
+      const stored = localStorage.getItem('lowPowerMode');
+      if (stored !== null) {
+        isLowPower = stored === 'true';
+      } else {
+        // 2. Détecter automatiquement l'appareil
+        const memory = navigator.deviceMemory; // GB de RAM
+        const cores = navigator.hardwareConcurrency;
+        const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        
+        isLowPower = (memory && memory < 4) || (cores && cores < 4) || prefersReducedMotion;
+      }
+    } catch (e) {
+      // localStorage inaccessible, détecter seulement
+      const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      isLowPower = prefersReducedMotion;
+    }
+    
+    if (isLowPower) {
+      root.classList.add('low-power-mode');
+    }
+  } catch (e) {
+    // Ignorer silencieusement
+  }
 })();`,
           }}
         />
@@ -232,6 +264,7 @@ export default async function RootLayout({
                                   <ConditionalPadding>
                                     <SidebarGate isAuthed={isAuthed} />
                                     <main id="main" className="flex flex-1 h-[calc(100vh-4rem)] flex-col overflow-hidden">
+                                      <LowPowerModeDetector />
                                       <GlobalShortcuts />
                                       <GlobalModalHost />
                                       <div className="flex-1 flex flex-col min-h-0 overflow-hidden">

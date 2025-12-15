@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { createPortal } from "react-dom"
 import { useVirtualizer } from "@tanstack/react-virtual"
 import type { ChangeEvent, ReactNode, CSSProperties } from "react"
@@ -686,28 +686,33 @@ export function TableView({
     },
   })
 
-  // Réinitialiser le scroll en haut quand on change de page OU quand les données changent significativement
+  // Réinitialiser le scroll en haut SEULEMENT quand la page change (pas à chaque changement de dataset)
+  const previousPageRef = useRef(currentPage)
   useEffect(() => {
-    if (tableContainerRef.current && dataset.length > 0) {
-      console.log(`[TableView] Réinitialisation du scroll pour la page ${currentPage}, dataset.length: ${dataset.length}, signature: ${datasetSignature}`)
-      tableContainerRef.current.scrollTop = 0
-      // Utiliser requestAnimationFrame pour s'assurer que le DOM est prêt
-      requestAnimationFrame(() => {
-        if (tableContainerRef.current) {
-          rowVirtualizer.scrollToIndex(0, { align: 'start' })
-        }
-      })
+    // Ne reset que si la page a réellement changé
+    if (previousPageRef.current !== currentPage) {
+      previousPageRef.current = currentPage
+      if (tableContainerRef.current && dataset.length > 0) {
+        console.log(`[TableView] Réinitialisation du scroll pour la page ${currentPage}`)
+        tableContainerRef.current.scrollTop = 0
+        requestAnimationFrame(() => {
+          if (tableContainerRef.current) {
+            rowVirtualizer.scrollToIndex(0, { align: 'start' })
+          }
+        })
+      }
     }
-  }, [currentPage, dataset.length, datasetSignature, rowVirtualizer])
+  }, [currentPage, dataset.length, rowVirtualizer])
 
-  // Forcer la mise à jour du virtualizer quand les données changent
+  // Forcer la mise à jour du virtualizer SEULEMENT quand rowHeight change (pas à chaque render)
+  const previousRowHeightRef = useRef(rowHeight)
   useEffect(() => {
-    if (dataset.length > 0) {
-      console.log(`[TableView] Forcer la mise à jour du virtualizer - dataset.length: ${dataset.length}, signature: ${datasetSignature}`)
-      // Mesurer à nouveau les éléments pour s'assurer que le virtualizer est à jour
+    if (previousRowHeightRef.current !== rowHeight && dataset.length > 0) {
+      previousRowHeightRef.current = rowHeight
+      console.log(`[TableView] Mise à jour du virtualizer - rowHeight changé: ${rowHeight}`)
       rowVirtualizer.measure()
     }
-  }, [dataset.length, datasetSignature, rowVirtualizer])
+  }, [rowHeight, dataset.length, rowVirtualizer])
   const virtualItems = rowVirtualizer.getVirtualItems()
   const totalHeight = rowVirtualizer.getTotalSize()
 
@@ -778,20 +783,46 @@ export function TableView({
       isMounted = false
     }
   }, [])
+  // Throttle le scroll handler avec requestAnimationFrame pour éviter les re-renders continus
+  const rafIdRef = useRef<number | null>(null)
   const handleScrollWithFades = useCallback(() => {
-    const scroller = tableContainerRef.current
-    if (!scroller) return
+    // Annuler la frame précédente si elle n'a pas encore été exécutée
+    if (rafIdRef.current !== null) {
+      return // Déjà une frame en attente
+    }
+    
+    rafIdRef.current = requestAnimationFrame(() => {
+      rafIdRef.current = null
+      const scroller = tableContainerRef.current
+      if (!scroller) return
 
-    const { scrollTop, scrollHeight, clientHeight } = scroller
-    const scrollBottom = scrollHeight - scrollTop - clientHeight
+      const { scrollTop, scrollHeight, clientHeight } = scroller
+      const scrollBottom = scrollHeight - scrollTop - clientHeight
 
-    setShowTopFade(scrollTop > rowHeight * 0.5)
-    setShowBottomFade(scrollBottom > rowHeight * 0.5)
+      setShowTopFade(scrollTop > rowHeight * 0.5)
+      setShowBottomFade(scrollBottom > rowHeight * 0.5)
+    })
   }, [rowHeight])
 
+  // Nettoyer le RAF au démontage
   useEffect(() => {
-    handleScrollWithFades()
-  }, [handleScrollWithFades, dataset.length, expandedRowId])
+    return () => {
+      if (rafIdRef.current !== null) {
+        cancelAnimationFrame(rafIdRef.current)
+      }
+    }
+  }, [])
+
+  // Appel initial au montage et quand le dataset change significativement
+  useEffect(() => {
+    // Exécuter directement sans RAF pour l'état initial
+    const scroller = tableContainerRef.current
+    if (!scroller) return
+    const { scrollTop, scrollHeight, clientHeight } = scroller
+    const scrollBottom = scrollHeight - scrollTop - clientHeight
+    setShowTopFade(scrollTop > rowHeight * 0.5)
+    setShowBottomFade(scrollBottom > rowHeight * 0.5)
+  }, [dataset.length, expandedRowId, rowHeight])
 
   // Plus besoin de gérer le resize, on utilise flex-1
 
@@ -1220,7 +1251,8 @@ export function TableView({
 
   return (
     <>
-      <div className="flex flex-col flex-1 min-h-0">
+      {/* data-view-type="table" permet de désactiver les animations skeleton/glass-float en CSS */}
+      <div className="flex flex-col flex-1 min-h-0" data-view-type="table">
         <Card 
           className={cn(
             "border-2 shadow-sm flex flex-col flex-1 min-h-0 rounded-tl-none",
@@ -1733,25 +1765,6 @@ function TruncatedCell({ content, className, searchQuery }: { content: ReactNode
   const [isOverflowing, setIsOverflowing] = useState(false)
   const [portalElement, setPortalElement] = useState<HTMLElement | null>(null)
 
-  useLayoutEffect(() => {
-    const element = cellRef.current
-    if (!element) return
-
-    // Vérifier si le contenu déborde
-    const checkOverflow = () => {
-      setIsOverflowing(element.scrollWidth > element.clientWidth)
-    }
-
-    // Vérifier immédiatement après le rendu
-    checkOverflow()
-
-    // Le ResizeObserver détectera les changements de taille ultérieurs
-    const resizeObserver = new ResizeObserver(checkOverflow)
-    resizeObserver.observe(element)
-
-    return () => resizeObserver.disconnect()
-  })
-
   const contentStr = typeof content === "string" ? content :
     typeof content === "number" ? String(content) : ""
 
@@ -1781,8 +1794,16 @@ function TruncatedCell({ content, className, searchQuery }: { content: ReactNode
   }
 
   const handleMouseEnter = (event: React.MouseEvent) => {
-    if (!isOverflowing) return
-    updateTooltipPosition(event)
+    // Vérifier le débordement seulement au hover (plus efficace que ResizeObserver continu)
+    const element = cellRef.current
+    if (!element) return
+
+    const overflowing = element.scrollWidth > element.clientWidth
+    setIsOverflowing(overflowing)
+
+    if (overflowing) {
+      updateTooltipPosition(event)
+    }
   }
 
   const handleMouseLeave = () => {

@@ -29,3 +29,4 @@ COMMENT ON COLUMN public.owner.plain_nom_facturation IS 'Nom complet fusionné p
 COMMENT ON COLUMN public.tenants.plain_nom_client IS 'Nom complet fusionné du client (nom + prénom)';
 
 
+
