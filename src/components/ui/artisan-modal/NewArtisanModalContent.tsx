@@ -546,7 +546,9 @@ export function NewArtisanModalContent({ mode, onClose, onCycleMode, artisanId }
   // Fonction interne pour créer l'artisan (appelée après vérification des doublons)
   const performCreateArtisan = async (values: ArtisanFormValues) => {
     const payload = buildCreatePayload(values)
-    const created = await createArtisan.mutateAsync(payload)
+    
+    try {
+      const created = await createArtisan.mutateAsync(payload)
 
     // Créer les absences
     if (pendingAbsences.length > 0 && created.id) {
@@ -598,6 +600,43 @@ export function NewArtisanModalContent({ mode, onClose, onCycleMode, artisanId }
     reset(buildDefaultFormValues())
     setPendingAbsences([])
     onClose()
+    } catch (error: any) {
+      // Vérifier si c'est une erreur de doublon avec artisan supprimé (code 409)
+      const errorMessage = error?.message || ""
+      
+      // Essayer de parser le message d'erreur JSON
+      try {
+        // L'erreur peut contenir le JSON directement ou dans le message
+        let errorData = null
+        if (errorMessage.includes("DELETED_ARTISAN_EXISTS")) {
+          // Extraire le JSON de l'erreur
+          const jsonMatch = errorMessage.match(/\{[\s\S]*\}/)
+          if (jsonMatch) {
+            errorData = JSON.parse(jsonMatch[0])
+          }
+        } else if (error?.response) {
+          // Si c'est une erreur fetch avec response
+          errorData = await error.response.json?.()
+        }
+
+        if (errorData?.error === "DELETED_ARTISAN_EXISTS" && errorData?.artisan) {
+          // Artisan supprimé trouvé - afficher le dialogue
+          setDeletedArtisanDialog({
+            isOpen: true,
+            artisan: errorData.artisan,
+            deletedAt: errorData.deleted_at || null,
+            pendingFormValues: values,
+          })
+          return
+        }
+      } catch (parseError) {
+        // Erreur de parsing, continuer avec l'erreur originale
+        console.warn("Erreur lors du parsing de l'erreur:", parseError)
+      }
+
+      // Relancer l'erreur pour la gestion normale
+      throw error
+    }
   }
 
   // Restaurer l'artisan supprimé (uniquement réactiver is_active = true, sans modifier les données)
@@ -796,12 +835,13 @@ export function NewArtisanModalContent({ mode, onClose, onCycleMode, artisanId }
               return
             }
           } catch (checkError) {
-            // Ignorer les erreurs de vérification et continuer avec la création
+            // Si la vérification échoue, on doit quand même vérifier côté serveur
+            // L'Edge Function va gérer les doublons avec un message approprié
             console.warn("Erreur lors de la vérification des artisans supprimés:", checkError)
           }
         }
 
-        // Pas de doublon, créer normalement
+        // Créer l'artisan - l'Edge Function gère les doublons
         await performCreateArtisan(values)
       }
     } catch (error) {

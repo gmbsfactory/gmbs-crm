@@ -782,6 +782,84 @@ serve(async (req: Request) => {
     if (req.method === 'POST' && resource === 'artisans' && !isUpsert) {
       const body: CreateArtisanRequest = await req.json();
 
+      // ===== VÉRIFICATION DES DOUBLONS (email/siret) =====
+      // Vérifier si un artisan existe déjà avec cet email ou SIRET (actif OU supprimé)
+      if (body.email || body.siret) {
+        // Vérifier par email
+        if (body.email) {
+          const { data: existingByEmail } = await supabase
+            .from('artisans')
+            .select('id, prenom, nom, email, siret, raison_sociale, is_active, updated_at')
+            .eq('email', body.email)
+            .maybeSingle();
+
+          if (existingByEmail) {
+            if (!existingByEmail.is_active) {
+              // Artisan supprimé trouvé - retourner un code spécial pour le frontend
+              return new Response(
+                JSON.stringify({
+                  error: 'DELETED_ARTISAN_EXISTS',
+                  message: 'Un artisan supprimé existe déjà avec cet email',
+                  artisan: {
+                    id: existingByEmail.id,
+                    prenom: existingByEmail.prenom,
+                    nom: existingByEmail.nom,
+                    email: existingByEmail.email,
+                    siret: existingByEmail.siret,
+                    raison_sociale: existingByEmail.raison_sociale,
+                  },
+                  deleted_at: existingByEmail.updated_at,
+                }),
+                { status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+              );
+            } else {
+              // Artisan actif trouvé
+              return new Response(
+                JSON.stringify({ error: `Un artisan actif existe déjà avec l'email ${body.email}` }),
+                { status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+              );
+            }
+          }
+        }
+
+        // Vérifier par SIRET
+        if (body.siret) {
+          const { data: existingBySiret } = await supabase
+            .from('artisans')
+            .select('id, prenom, nom, email, siret, raison_sociale, is_active, updated_at')
+            .eq('siret', body.siret)
+            .maybeSingle();
+
+          if (existingBySiret) {
+            if (!existingBySiret.is_active) {
+              // Artisan supprimé trouvé
+              return new Response(
+                JSON.stringify({
+                  error: 'DELETED_ARTISAN_EXISTS',
+                  message: 'Un artisan supprimé existe déjà avec ce SIRET',
+                  artisan: {
+                    id: existingBySiret.id,
+                    prenom: existingBySiret.prenom,
+                    nom: existingBySiret.nom,
+                    email: existingBySiret.email,
+                    siret: existingBySiret.siret,
+                    raison_sociale: existingBySiret.raison_sociale,
+                  },
+                  deleted_at: existingBySiret.updated_at,
+                }),
+                { status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+              );
+            } else {
+              // Artisan actif trouvé
+              return new Response(
+                JSON.stringify({ error: `Un artisan actif existe déjà avec le SIRET ${body.siret}` }),
+                { status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+              );
+            }
+          }
+        }
+      }
+
       // Règle : À la création, l'artisan doit être soit CANDIDAT (par défaut) soit POTENTIEL
       // Si aucun statut n'est fourni ou si le statut fourni n'est pas autorisé, utiliser CANDIDAT
       let finalStatutId = body.statut_id;
