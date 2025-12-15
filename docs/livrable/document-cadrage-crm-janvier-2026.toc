@@ -1,0 +1,19 @@
+\babel@toc {french}{}\relax 
+\contentsline {section}{\numberline {1}Objet du document}{2}{section.1}%
+\contentsline {section}{\numberline {2}Tableau récapitulatif – Fonctionnalités incluses}{2}{section.2}%
+\contentsline {section}{\numberline {3}Détail des fonctionnalités}{3}{section.3}%
+\contentsline {subsection}{\numberline {3.1}SEARCH-001 — Barre de recherche interventions}{3}{subsection.3.1}%
+\contentsline {subsection}{\numberline {3.2}SEARCH-003 — Surlignage des résultats}{4}{subsection.3.2}%
+\contentsline {subsection}{\numberline {3.3}MODAL-001 — Réorganisation des champs du modal intervention}{4}{subsection.3.3}%
+\contentsline {subsection}{\numberline {3.4}MODAL-002 — Réorganisation graphique du modal}{4}{subsection.3.4}%
+\contentsline {subsection}{\numberline {3.5}DEL-001 — Suppression d'intervention}{4}{subsection.3.5}%
+\contentsline {subsection}{\numberline {3.6}UX-001 — Fermeture hors modal}{5}{subsection.3.6}%
+\contentsline {subsection}{\numberline {3.7}BUG-001 — Bug de rafraîchissement du fond CRM}{5}{subsection.3.7}%
+\contentsline {subsection}{\numberline {3.8}ART-REL-001 — Mes artisans à relancer}{5}{subsection.3.8}%
+\contentsline {subsection}{\numberline {3.9}STAT-001 — Sous-statuts intervention}{5}{subsection.3.9}%
+\contentsline {subsection}{\numberline {3.10}RETARD-001 — Retard dans le dashboard}{6}{subsection.3.10}%
+\contentsline {subsection}{\numberline {3.11}UI-002 — Homogénéisation des couleurs}{6}{subsection.3.11}%
+\contentsline {subsection}{\numberline {3.12}AGN-GEST-001 — Gestion Agences}{7}{subsection.3.12}%
+\contentsline {subsection}{\numberline {3.13}PERM-001 — Gestion des permissions}{7}{subsection.3.13}%
+\contentsline {subsection}{\numberline {3.14}DASH-001 — Rafraîchissement du dashboard hebdomadaire}{7}{subsection.3.14}%
+\contentsline {section}{\numberline {4}Conclusion}{8}{section.4}%

@@ -754,6 +754,45 @@ export function InterventionEditForm({
     },
     [selectedArtisanId, nearbyArtisans, searchSelectedArtisan],
   )
+
+  // CORRECTIF: Initialiser searchSelectedArtisan avec primaryArtisan si non trouvé dans nearbyArtisans
+  // Cela permet d'afficher la carte de l'artisan déjà sélectionné lors de l'ouverture du modal
+  useEffect(() => {
+    // Ne rien faire si pas d'artisan principal ou si loading en cours
+    if (!primaryArtisan?.id || isLoadingNearbyArtisans) return
+    
+    // Vérifier si l'artisan principal est bien celui sélectionné
+    if (selectedArtisanId !== primaryArtisan.id) return
+    
+    // Vérifier si l'artisan est déjà dans nearbyArtisans
+    const isInNearbyArtisans = nearbyArtisans.some(a => a.id === primaryArtisan.id)
+    if (isInNearbyArtisans) return
+    
+    // Vérifier si on a déjà un searchSelectedArtisan valide pour cet artisan
+    if (searchSelectedArtisan?.id === primaryArtisan.id) return
+    
+    // Créer un objet NearbyArtisan à partir de primaryArtisan
+    const displayName = primaryArtisan.plain_nom
+      || [primaryArtisan.prenom, primaryArtisan.nom].filter(Boolean).join(" ")
+      || "Artisan sans nom"
+
+    setSearchSelectedArtisan({
+      id: primaryArtisan.id,
+      displayName,
+      distanceKm: 0,
+      telephone: primaryArtisan.telephone || null,
+      email: primaryArtisan.email || null,
+      adresse: null,
+      ville: null,
+      codePostal: null,
+      lat: 0,
+      lng: 0,
+      prenom: primaryArtisan.prenom || null,
+      nom: primaryArtisan.nom || null,
+      statut_id: null,
+      photoProfilMetadata: null,
+    })
+  }, [primaryArtisan, selectedArtisanId, isLoadingNearbyArtisans, nearbyArtisans, searchSelectedArtisan])
   const selectedSecondArtisanData = useMemo(
     () => {
       if (!selectedSecondArtisanId) return null
