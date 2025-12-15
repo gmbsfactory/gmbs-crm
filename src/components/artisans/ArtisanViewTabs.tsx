@@ -1,9 +1,9 @@
 "use client"
 
-import { useCallback } from "react"
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
+import { ChevronLeft, ChevronRight, Table } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { ArtisanViewDefinition } from "@/hooks/useArtisanViews"
-import { Table } from "lucide-react"
 
 type ArtisanViewTabsProps = {
   views: ArtisanViewDefinition[]
@@ -18,9 +18,57 @@ export function ArtisanViewTabs({
   onSelect,
   artisanCounts = {},
 }: ArtisanViewTabsProps) {
+  const scrollContainerRef = useRef<HTMLDivElement>(null)
+  const [canScrollLeft, setCanScrollLeft] = useState(false)
+  const [canScrollRight, setCanScrollRight] = useState(false)
+
+  const updateScrollState = useCallback(() => {
+    const node = scrollContainerRef.current
+    if (!node) return
+    const { scrollLeft, scrollWidth, clientWidth } = node
+    setCanScrollLeft(scrollLeft > 4)
+    setCanScrollRight(scrollLeft + clientWidth < scrollWidth - 4)
+  }, [])
+
+  useEffect(() => {
+    const node = scrollContainerRef.current
+    if (!node) return
+
+    updateScrollState()
+
+    const handleScroll = () => updateScrollState()
+    node.addEventListener("scroll", handleScroll)
+    window.addEventListener("resize", updateScrollState)
+
+    return () => {
+      node.removeEventListener("scroll", handleScroll)
+      window.removeEventListener("resize", updateScrollState)
+    }
+  }, [updateScrollState])
+
+  const scrollToEnd = useCallback((direction: 'left' | 'right') => {
+    const node = scrollContainerRef.current
+    if (!node) return
+    
+    if (direction === 'left') {
+      node.scrollTo({ left: 0, behavior: "smooth" })
+    } else {
+      node.scrollTo({ left: node.scrollWidth - node.clientWidth, behavior: "smooth" })
+    }
+    
+    requestAnimationFrame(updateScrollState)
+  }, [updateScrollState])
+
+  useLayoutEffect(() => {
+    updateScrollState()
+  }, [views.length, updateScrollState])
+
   return (
-    <div className="relative border-b border-border/60 pb-2">
-      <div className="flex items-center gap-4 overflow-x-auto scrollbar-hide h-11">
+    <div className="relative overflow-visible">
+      <div
+        ref={scrollContainerRef}
+        className="flex items-end gap-4 overflow-x-auto overflow-y-visible scrollbar-hide pt-3 pb-1"
+      >
         {views.map((view) => {
           const isActive = view.id === activeViewId
           const count = artisanCounts[view.id] || 0
@@ -31,8 +79,13 @@ export function ArtisanViewTabs({
               type="button"
               onClick={() => onSelect(view.id)}
               className={cn(
-                "relative flex items-center gap-2 rounded-full border border-transparent bg-muted/60 px-3 py-1.5 text-sm transition-colors hover:bg-muted",
-                isActive && "border-primary/40 bg-primary/10 text-primary",
+                "relative flex items-center gap-2 border px-3 py-1.5 text-sm font-medium transition-all duration-200",
+                // PILULE INACTIVE : rounded-full, flotte au-dessus
+                !isActive && "rounded-full",
+                !isActive && "border-primary/40 bg-primary/15 text-primary hover:bg-primary/25",
+                // INTERCALAIRE ACTIF : coins supérieurs arrondis, inférieurs carrés, fusionne avec table
+                isActive && "rounded-t-lg rounded-b-none border-b-0 relative z-20 -mb-[4px]",
+                isActive && "border-primary bg-primary text-primary-foreground",
               )}
             >
               <Table className="h-4 w-4" />
@@ -46,8 +99,30 @@ export function ArtisanViewTabs({
           )
         })}
       </div>
+      {canScrollLeft && (
+        <div className="pointer-events-none absolute left-0 top-1/2 -translate-y-1/2 flex h-11 items-center bg-gradient-to-r from-background via-background/80 to-transparent pl-2 pr-4">
+          <button
+            type="button"
+            className="pointer-events-auto inline-flex h-8 w-8 items-center justify-center rounded-full border border-border/60 bg-background/80 backdrop-blur-sm shadow-sm transition hover:bg-background"
+            onClick={() => scrollToEnd('left')}
+            aria-label="Défiler vers la gauche"
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </button>
+        </div>
+      )}
+      {canScrollRight && (
+        <div className="pointer-events-none absolute right-0 top-1/2 -translate-y-1/2 flex h-11 items-center bg-gradient-to-l from-background via-background/80 to-transparent pr-4 pl-4">
+          <button
+            type="button"
+            className="pointer-events-auto inline-flex h-8 w-8 items-center justify-center rounded-full border border-border/60 bg-background/80 backdrop-blur-sm shadow-sm transition hover:bg-background"
+            onClick={() => scrollToEnd('right')}
+            aria-label="Défiler vers la droite"
+          >
+            <ChevronRight className="h-4 w-4" />
+          </button>
+        </div>
+      )}
     </div>
   )
 }
-
-

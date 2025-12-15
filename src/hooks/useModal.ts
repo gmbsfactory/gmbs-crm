@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation"
 import { useModalState } from "./useModalState"
 import type { ModalContent, ModalOpenOptions } from "@/types/modal"
 
-const VALID_CONTENT: ModalContent[] = ["intervention", "chat", "artisan", "new-intervention", "new-artisan"]
+const VALID_CONTENT: ModalContent[] = ["intervention", "chat", "artisan", "new-intervention", "new-artisan", "edit-artisan"]
 
 const MODAL_PARAM = "i"
 const CONTENT_PARAM = "mc"
@@ -85,7 +85,12 @@ export function useModal() {
       setOverrideMode(options?.modeOverride ?? null)
       setContent(modalContent)
       setContext(options?.context ?? null)
-      setMetadata(options?.origin ? { origin: options.origin } : null)
+      // Fusionner les metadata passées avec l'origin
+      const metadataToSet = {
+        ...(options?.metadata ?? {}),
+        ...(options?.origin ? { origin: options.origin } : {}),
+      }
+      setMetadata(Object.keys(metadataToSet).length > 0 ? metadataToSet : null)
       setIsOpen(true)
       pendingModalId = id
 

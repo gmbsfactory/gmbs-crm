@@ -58,11 +58,11 @@ export function useInterventionModal() {
     // Fermer le modal d'intervention
     modal.close()
 
-    // Si le modal venait d'un artisan, rouvrir le modal d'artisan
+    // Si le modal venait d'un artisan, rouvrir le modal d'artisan avec la vue statistiques
     if (isFromArtisan && artisanId) {
       // Petit délai pour laisser le modal d'intervention se fermer proprement
       setTimeout(() => {
-        openArtisanModal(artisanId)
+        openArtisanModal(artisanId, { defaultView: "statistics" })
       }, 100)
     }
   }, [context, metadata, modal, openArtisanModal])

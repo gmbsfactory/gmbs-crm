@@ -15,9 +15,10 @@ import type { Intervention } from "@/lib/api/v2/common/types"
 
 type ArtisanInterventionsTableProps = {
   artisanId: string
+  enableInternalScroll?: boolean
 }
 
-export function ArtisanInterventionsTable({ artisanId }: ArtisanInterventionsTableProps) {
+export function ArtisanInterventionsTable({ artisanId, enableInternalScroll = false }: ArtisanInterventionsTableProps) {
   const { open: openInterventionModal } = useInterventionModal()
   const { data: referenceData } = useReferenceData()
 
@@ -66,41 +67,41 @@ export function ArtisanInterventionsTable({ artisanId }: ArtisanInterventionsTab
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Interventions de l&apos;artisan</CardTitle>
+    <Card className={cn(enableInternalScroll && "h-full flex flex-col")}>
+      <CardHeader className={cn(enableInternalScroll && "shrink-0 py-3 px-4")}>
+        <CardTitle className={cn(enableInternalScroll && "text-sm")}>Interventions de l&apos;artisan</CardTitle>
       </CardHeader>
-      <CardContent>
-        <div className="rounded-md border">
-          <Table>
+      <CardContent className={cn(enableInternalScroll && "flex-1 min-h-0 overflow-hidden p-0 px-4 pb-4")}>
+        <div className={cn("rounded-md border overflow-hidden", enableInternalScroll && "h-full overflow-y-auto scrollbar-minimal")}>
+          <Table className="w-full table-fixed">
             <TableHeader>
               <TableRow>
-                <TableHead>Date intervention</TableHead>
-                <TableHead>ID</TableHead>
-                <TableHead>Assigné à</TableHead>
-                <TableHead>Agence</TableHead>
-                <TableHead>Ville + Code postal</TableHead>
-                <TableHead>Statut</TableHead>
-                <TableHead className="w-[60px]">Action</TableHead>
+                <TableHead className="w-[70px] text-xs px-2">Date</TableHead>
+                <TableHead className="w-[50px] text-xs px-2">ID</TableHead>
+                <TableHead className="text-xs px-2">Assigné</TableHead>
+                <TableHead className="w-[80px] text-xs px-2">Agence</TableHead>
+                <TableHead className="text-xs px-2">Lieu</TableHead>
+                <TableHead className="w-[90px] text-xs px-2">Statut</TableHead>
+                <TableHead className="w-[40px] text-xs px-1"></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center text-muted-foreground">
+                  <TableCell colSpan={7} className="text-center text-muted-foreground text-xs py-4">
                     Chargement...
                   </TableCell>
                 </TableRow>
               ) : error ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center text-destructive">
-                    Erreur lors du chargement des interventions
+                  <TableCell colSpan={7} className="text-center text-destructive text-xs py-4">
+                    Erreur lors du chargement
                   </TableCell>
                 </TableRow>
               ) : interventions.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center text-muted-foreground">
-                    Aucune intervention trouvée
+                  <TableCell colSpan={7} className="text-center text-muted-foreground text-xs py-4">
+                    Aucune intervention
                   </TableCell>
                 </TableRow>
               ) : (
@@ -116,38 +117,38 @@ export function ArtisanInterventionsTable({ artisanId }: ArtisanInterventionsTab
 
                   return (
                     <TableRow key={intervention.id}>
-                      <TableCell className="text-sm">{formatDate(intervention.date)}</TableCell>
-                      <TableCell className="text-sm">{intervention.id_inter || "—"}</TableCell>
-                      <TableCell className="text-sm">{assignedUserName || "—"}</TableCell>
-                      <TableCell className="text-sm">
+                      <TableCell className="text-xs px-2 py-1.5">{formatDate(intervention.date)}</TableCell>
+                      <TableCell className="text-xs px-2 py-1.5 font-mono truncate">{intervention.id_inter || "—"}</TableCell>
+                      <TableCell className="text-xs px-2 py-1.5 truncate">{assignedUserName || "—"}</TableCell>
+                      <TableCell className="text-xs px-2 py-1.5">
                         {agency ? (
                           agency.color ? (
                             <Badge
                               variant="outline"
-                              className={cn("text-xs")}
+                              className="text-[10px] px-1 py-0"
                               style={{
                                 borderColor: agency.color,
                                 backgroundColor: `${agency.color}15`,
                                 color: agency.color,
                               }}
                             >
-                              {agency.label || agency.code}
+                              {agency.code || agency.label?.slice(0, 3)}
                             </Badge>
                           ) : (
-                            agency.label || agency.code
+                            <span className="truncate">{agency.code || agency.label?.slice(0, 3)}</span>
                           )
                         ) : (
                           "—"
                         )}
                       </TableCell>
-                      <TableCell className="text-sm">
-                        {[intervention.code_postal, intervention.ville].filter(Boolean).join(" ") || "—"}
+                      <TableCell className="text-xs px-2 py-1.5 truncate">
+                        {intervention.ville || intervention.code_postal || "—"}
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="px-2 py-1.5">
                         {statusLabel ? (
                           <Badge
                             variant="outline"
-                            className={cn("text-xs")}
+                            className="text-[10px] px-1 py-0 truncate max-w-full"
                             style={
                               statusColor
                                 ? {
@@ -164,15 +165,15 @@ export function ArtisanInterventionsTable({ artisanId }: ArtisanInterventionsTab
                           "—"
                         )}
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="px-1 py-1.5">
                         <Button
                           variant="ghost"
                           size="icon"
                           onClick={() => handleViewIntervention(intervention.id)}
-                          className="h-8 w-8"
+                          className="h-6 w-6"
                           aria-label="Voir l'intervention"
                         >
-                          <Eye className="h-4 w-4" />
+                          <Eye className="h-3 w-3" />
                         </Button>
                       </TableCell>
                     </TableRow>

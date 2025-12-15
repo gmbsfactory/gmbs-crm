@@ -26,6 +26,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { GestionnaireBadge } from "@/components/ui/gestionnaire-badge";
 import {
   useDocumentUpload,
   DocumentUploaderInfo,
@@ -237,21 +238,34 @@ function ManagerBadge({
   color?: string | null;
   fallback?: string;
 } = {}) {
-  const content = code || displayName || fallback;
-  if (!content) {
+  // Extraire prénom et nom du displayName
+  const nameParts = displayName?.split(" ") ?? [];
+  const firstname = nameParts[0] || null;
+  const lastname = nameParts.slice(1).join(" ") || null;
+
+  // Si aucune info disponible, afficher un tiret
+  if (!displayName && !code && !fallback) {
     return <span className="text-[9px] text-muted-foreground">—</span>;
   }
 
-  const style = computeBadgeStyle(color);
-
   return (
-    <Badge
-      variant="outline"
-      className="border px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide"
-      style={style}
-    >
-      {content}
-    </Badge>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <div className="inline-flex">
+          <GestionnaireBadge
+            firstname={firstname}
+            lastname={lastname}
+            color={color}
+            size="sm"
+            showBorder={true}
+            className="h-6 w-6"
+          />
+        </div>
+      </TooltipTrigger>
+      <TooltipContent side="top" className="text-[10px]">
+        {displayName || code || fallback || "Inconnu"}
+      </TooltipContent>
+    </Tooltip>
   );
 }
 

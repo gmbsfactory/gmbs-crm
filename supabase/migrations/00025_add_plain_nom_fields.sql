@@ -28,3 +28,4 @@ CREATE INDEX IF NOT EXISTS idx_tenants_plain_nom_client ON public.tenants(plain_
 COMMENT ON COLUMN public.owner.plain_nom_facturation IS 'Nom complet fusionné pour la facturation (nom + prénom)';
 COMMENT ON COLUMN public.tenants.plain_nom_client IS 'Nom complet fusionné du client (nom + prénom)';
 
+
