@@ -8,6 +8,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { ModeIcons } from "@/components/ui/mode-selector"
 import { NewInterventionForm } from "@/components/interventions/NewInterventionForm"
 import { useModalState } from "@/hooks/useModalState"
+import { useModal } from "@/hooks/useModal"
 import type { ModalDisplayMode } from "@/types/modal-display"
 import { interventionKeys } from "@/lib/react-query/queryKeys"
 
@@ -19,14 +20,27 @@ type Props = {
 
 export function NewInterventionModalContent({ mode, onClose, onCycleMode }: Props) {
   const queryClient = useQueryClient()
+  const modal = useModal()
   const context = useModalState((state) => state.context)
   const defaultValues = context?.defaultValues as any
+  const duplicateFromId = context?.duplicateFrom as string | undefined
   
   // State pour les infos du header dynamique
   const [clientName, setClientName] = useState("")
   const [agencyName, setAgencyName] = useState("")
   const [clientPhone, setClientPhone] = useState("")
   
+  // Fonction pour annuler/fermer le modal - retourne à l'intervention initiale si c'est un devis supp
+  const handleCancel = useCallback(() => {
+    if (duplicateFromId) {
+      // Retourner à l'intervention initiale
+      modal.open(duplicateFromId, { content: "intervention" })
+    } else {
+      // Fermer le modal normalement
+      onClose()
+    }
+  }, [duplicateFromId, modal, onClose])
+
   const handleSuccess = useCallback(
     async (data: { id: string }) => {
       if (!data?.id) return
@@ -35,7 +49,7 @@ export function NewInterventionModalContent({ mode, onClose, onCycleMode }: Prop
       await queryClient.invalidateQueries({ queryKey: interventionKeys.invalidateLists() })
       await queryClient.invalidateQueries({ queryKey: interventionKeys.invalidateLightLists() })
       
-      // Fermer le modal
+      // Fermer le modal (pas de retour à l'intervention initiale lors de la création réussie)
       onClose()
     },
     [queryClient, onClose],
@@ -122,13 +136,15 @@ export function NewInterventionModalContent({ mode, onClose, onCycleMode }: Prop
                 variant="ghost"
                 size="icon"
                 className="modal-config-columns-icon-button"
-                onClick={onClose}
+                onClick={handleCancel}
                 aria-label="Fermer"
               >
                 <X className="h-4 w-4" />
               </Button>
             </TooltipTrigger>
-            <TooltipContent className="modal-config-columns-tooltip">Fermer (Esc)</TooltipContent>
+            <TooltipContent className="modal-config-columns-tooltip">
+              {duplicateFromId ? "Retour à l'intervention (Esc)" : "Fermer (Esc)"}
+            </TooltipContent>
           </Tooltip>
         </header>
         
@@ -137,7 +153,7 @@ export function NewInterventionModalContent({ mode, onClose, onCycleMode }: Prop
             <NewInterventionForm
               mode={mode}
               onSuccess={handleSuccess}
-              onCancel={onClose}
+              onCancel={handleCancel}
               formRef={formRef}
               onSubmittingChange={setIsSubmitting}
               defaultValues={defaultValues}
@@ -153,11 +169,11 @@ export function NewInterventionModalContent({ mode, onClose, onCycleMode }: Prop
             <Button 
               type="button" 
               variant="outline" 
-              onClick={onClose} 
+              onClick={handleCancel} 
               disabled={isSubmitting}
               className="legacy-form-button"
             >
-              Annuler
+              {duplicateFromId ? "Retour" : "Annuler"}
             </Button>
             <Button 
               type="button" 

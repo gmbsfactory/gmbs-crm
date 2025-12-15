@@ -17,6 +17,7 @@ export function useInterventionModal() {
   const setSourceLayoutId = useModalState((state) => state.setSourceLayoutId)
   const setOverrideMode = useModalState((state) => state.setOverrideMode)
   const metadata = useModalState((state) => state.metadata)
+  const context = useModalState((state) => state.context)
 
   const open = useCallback(
     (id: string, options?: InterventionModalOpenOptions) => {
@@ -36,11 +37,23 @@ export function useInterventionModal() {
     // Guard: only close if actually open and is an intervention-related modal
     if (!modal.isOpen || (modal.content !== "intervention" && modal.content !== "new-intervention")) return
 
+    // Vérifier si c'est un modal new-intervention qui vient d'une duplication (devis supp)
+    // AVANT de fermer car modal.close() va réinitialiser le state
+    const duplicateFromId = modal.content === "new-intervention" && typeof context?.duplicateFrom === "string" 
+      ? context.duplicateFrom 
+      : null
+
     // Vérifier si le modal d'intervention vient d'un modal d'artisan AVANT de fermer
     // car modal.close() va réinitialiser le state
     const origin = typeof metadata?.origin === "string" ? metadata.origin : null
     const isFromArtisan = origin?.startsWith("artisan:")
     const artisanId = isFromArtisan ? origin?.replace("artisan:", "") : null
+
+    // Si c'est un devis supp, retourner à l'intervention initiale
+    if (duplicateFromId) {
+      modal.open(duplicateFromId, { content: "intervention" })
+      return
+    }
 
     // Fermer le modal d'intervention
     modal.close()
@@ -52,7 +65,7 @@ export function useInterventionModal() {
         openArtisanModal(artisanId)
       }, 100)
     }
-  }, [metadata, modal, openArtisanModal])
+  }, [context, metadata, modal, openArtisanModal])
 
   const openAtIndex = useCallback(
     (ids: string[], index: number, options?: Omit<InterventionModalOpenOptions, "orderedIds" | "index">) => {

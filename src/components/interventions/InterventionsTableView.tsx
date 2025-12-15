@@ -83,6 +83,8 @@ export default function InterventionsTableView({ interventions, loading, error }
           updatedAt: item.date ?? "",
           name: item.contexteIntervention || item.commentaireAgent || "Intervention",
           agency: item.agence ?? null,
+          agencyLabel: item.agenceLabel ?? item.agence ?? null,
+          agencyColor: item.agenceColor ?? null,
           address: item.adresse ?? "",
           context: item.contexteIntervention || "",
           consigne: item.consigneIntervention ?? null,
@@ -97,6 +99,8 @@ export default function InterventionsTableView({ interventions, loading, error }
           isValidated: Boolean(item.idFacture),
           documents: [],
           statusDisplayLabel,
+          metierLabel: item.metierLabel ?? null,
+          metierColor: item.metierColor ?? null,
         }
       }),
     [interventions, userLookup],

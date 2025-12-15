@@ -58,9 +58,13 @@ export type InterventionView = Intervention & {
   agence?: string | null
   agenceLabel?: string | null
   agenceCode?: string | null
+  agenceColor?: string | null
 
   // Métier
   metier?: string | null
+  metierLabel?: string | null
+  metierCode?: string | null
+  metierColor?: string | null
 
   // Artisans
   artisan?: string | null // Nom de l'artisan principal (plain_nom)
@@ -86,6 +90,9 @@ export type InterventionView = Intervention & {
   idFacture?: number | null
   sousStatutText?: string | null
   sousStatutTextColor?: string | null
+  
+  // Understatement
+  understatement?: string | null
 
   // Demandes
   demandeIntervention?: string | null

@@ -1,6 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { motion, useScroll, useTransform, useSpring, type MotionValue } from "framer-motion"
 import { useQueryClient } from "@tanstack/react-query"
 import { Building, ChevronDown, ChevronRight, FileText, MessageSquare, Upload, X, Search, Eye, Mail, MessageCircle, Users, Palette } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -11,6 +12,9 @@ import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { Badge } from "@/components/ui/badge"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { GestionnaireBadge } from "@/components/ui/gestionnaire-badge"
+import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable"
 import { MapLibreMap } from "@/components/maps/MapLibreMap"
 import { DocumentManager } from "@/components/documents/DocumentManager"
 import { CommentSection } from "@/components/shared/CommentSection"
@@ -67,6 +71,456 @@ const formatDistanceKm = (value: number) => {
   if (value < 1) return "< 1 km"
   if (value < 10) return `${value.toFixed(1)} km`
   return `${Math.round(value)} km`
+}
+
+// Fonction pour calculer la couleur de texte lisible (blanc ou noir)
+function getReadableTextColor(bgColor: string | null | undefined): string {
+  if (!bgColor) return "#1f2937"
+  const hex = bgColor.replace("#", "")
+  if (hex.length !== 6) return "#1f2937"
+  const r = parseInt(hex.slice(0, 2), 16)
+  const g = parseInt(hex.slice(2, 4), 16)
+  const b = parseInt(hex.slice(4, 6), 16)
+  // Formule de luminance relative
+  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255
+  return luminance > 0.5 ? "#1f2937" : "#ffffff"
+}
+
+// Composant ColorBadgeSelect - Sélecteur visuel avec badges colorés
+interface ColorBadgeOption {
+  id: string
+  label: string
+  color?: string | null
+}
+
+interface ColorBadgeSelectProps {
+  label: string
+  value: string
+  options: ColorBadgeOption[]
+  onChange: (value: string) => void
+  placeholder?: string
+  required?: boolean
+  minWidth?: string
+  hideLabel?: boolean
+}
+
+function ColorBadgeSelect({ label, value, options, onChange, placeholder = "Sélectionner", required, minWidth = "70px", hideLabel = false }: ColorBadgeSelectProps) {
+  const [open, setOpen] = useState(false)
+  const listRef = useRef<HTMLDivElement>(null)
+  const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const searchBufferRef = useRef<string>("")
+
+  // Trier les options par ordre alphabétique
+  const sortedOptions = useMemo(() => 
+    [...options].sort((a, b) => a.label.localeCompare(b.label, 'fr', { sensitivity: 'base' })),
+    [options]
+  )
+
+  const selectedOption = options.find(o => o.id === value)
+  const selectedColor = selectedOption?.color || "#6b7280"
+  const selectedLabel = selectedOption?.label || placeholder
+
+  // Gestion de la recherche rapide au clavier et navigation
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (e.key === "Escape") {
+      setOpen(false)
+      return
+    }
+
+    // Navigation avec les flèches
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      e.preventDefault()
+      
+      if (!listRef.current) return
+      
+      const items = Array.from(listRef.current.querySelectorAll("[data-option-id]")) as HTMLElement[]
+      if (items.length === 0) return
+      
+      const currentIndex = items.findIndex(item => item === document.activeElement)
+      let nextIndex: number
+      
+      if (e.key === "ArrowDown") {
+        nextIndex = currentIndex === -1 ? 0 : Math.min(currentIndex + 1, items.length - 1)
+      } else {
+        nextIndex = currentIndex === -1 ? items.length - 1 : Math.max(currentIndex - 1, 0)
+      }
+      
+      const nextItem = items[nextIndex]
+      if (nextItem) {
+        nextItem.scrollIntoView({ block: "nearest", behavior: "smooth" })
+        nextItem.focus()
+      }
+      return
+    }
+
+    // Si c'est une lettre ou un chiffre, on fait une recherche rapide
+    if (e.key.length === 1 && /[a-zA-Z0-9]/.test(e.key)) {
+      e.preventDefault()
+      
+      // Ajouter la lettre au buffer de recherche
+      searchBufferRef.current += e.key.toLowerCase()
+      
+      // Trouver l'option qui commence par le buffer (dans la liste triée)
+      const matchIndex = sortedOptions.findIndex(o => 
+        o.label.toLowerCase().startsWith(searchBufferRef.current)
+      )
+      
+      if (matchIndex !== -1 && listRef.current) {
+        const items = listRef.current.querySelectorAll("[data-option-id]")
+        const targetItem = items[matchIndex] as HTMLElement
+        if (targetItem) {
+          targetItem.scrollIntoView({ block: "nearest", behavior: "smooth" })
+          targetItem.focus()
+        }
+      }
+      
+      // Reset le buffer après un délai
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current)
+      }
+      searchTimeoutRef.current = setTimeout(() => {
+        searchBufferRef.current = ""
+      }, 800)
+    }
+  }, [sortedOptions])
+
+  // Cleanup du timeout
+  useEffect(() => {
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current)
+      }
+    }
+  }, [])
+
+  return (
+    <div className="flex flex-col gap-0.5">
+      {!hideLabel && <Label className="text-[10px] text-muted-foreground leading-none">{label}{required && " *"}</Label>}
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <button
+            type="button"
+            className="inline-flex items-center justify-center rounded-full h-7 px-3 text-xs font-semibold transition-all hover:scale-105 hover:shadow-md cursor-pointer"
+            style={{
+              backgroundColor: selectedColor,
+              color: getReadableTextColor(selectedColor),
+              minWidth: minWidth,
+            }}
+          >
+            {selectedLabel}
+          </button>
+        </PopoverTrigger>
+        <PopoverContent 
+          className="p-0 border-none bg-transparent shadow-none"
+          align="start"
+          style={{ width: 'var(--radix-popover-trigger-width)' }}
+          onKeyDown={handleKeyDown}
+          onOpenAutoFocus={(e) => {
+            e.preventDefault()
+            // Focus le premier élément ou l'élément sélectionné
+            setTimeout(() => {
+              if (listRef.current) {
+                const selected = listRef.current.querySelector("[data-selected='true']") as HTMLElement
+                const firstItem = listRef.current.querySelector("[data-option-id]") as HTMLElement
+                ;(selected || firstItem)?.focus()
+              }
+            }, 0)
+          }}
+        >
+          <div 
+            ref={listRef}
+            className="flex flex-col gap-1 py-1"
+          >
+            {sortedOptions.map((option) => {
+              const isSelected = option.id === value
+              const optionColor = option.color || "#6b7280"
+              return (
+                <button
+                  key={option.id}
+                  type="button"
+                  data-option-id={option.id}
+                  data-selected={isSelected}
+                  className={cn(
+                    "inline-flex items-center justify-center rounded-full h-7 px-3 text-xs font-semibold transition-all outline-none shadow-md hover:shadow-lg hover:scale-105",
+                    "focus:ring-2 focus:ring-primary focus:ring-offset-1",
+                    isSelected && "ring-2 ring-primary ring-offset-1"
+                  )}
+                  style={{
+                    backgroundColor: optionColor,
+                    color: getReadableTextColor(optionColor),
+                  }}
+                  onClick={() => {
+                    onChange(option.id)
+                    setOpen(false)
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault()
+                      onChange(option.id)
+                      setOpen(false)
+                    }
+                  }}
+                >
+                  {option.label}
+                </button>
+              )
+            })}
+          </div>
+        </PopoverContent>
+      </Popover>
+    </div>
+  )
+}
+
+// Composant ColorBadgeSelectStacking - Sélecteur avec effet Stacking Cards (style Skiper16)
+interface ColorBadgeSelectStackingProps {
+  label: string
+  value: string
+  options: ColorBadgeOption[]
+  onChange: (value: string) => void
+  placeholder?: string
+  required?: boolean
+  minWidth?: string
+  hideLabel?: boolean
+}
+
+// Hauteur d'une carte
+const CARD_HEIGHT = 36
+
+function StackingCard({
+  option,
+  index,
+  isSelected,
+  scrollProgress,
+  totalItems,
+  onSelect,
+}: {
+  option: ColorBadgeOption
+  index: number
+  isSelected: boolean
+  scrollProgress: MotionValue<number>
+  totalItems: number
+  onSelect: () => void
+}) {
+  const total = Math.max(totalItems, 1)
+  const segment = 1 / total
+  const rangeStart = Math.max(0, index * segment)
+  // Transition plus rapide : la carte atteint son scale final à 60% de son segment
+  const rangeEnd = Math.min(1, rangeStart + segment * 0.6)
+
+  // Scale de 1 à 0.92 (légèrement plus prononcé)
+  const scale = useTransform(scrollProgress, [rangeStart, rangeEnd], [1, 0.92])
+  
+  const optionColor = option.color || "#6b7280"
+  
+  return (
+    <div
+      className="sticky flex items-center justify-center"
+      style={{ 
+        top: 0,
+        zIndex: index + 1,
+        height: `${CARD_HEIGHT}px`,
+      }}
+    >
+      <motion.button
+        type="button"
+        data-option-id={option.id}
+        data-selected={isSelected}
+        style={{
+          scale,
+          backgroundColor: optionColor,
+          color: getReadableTextColor(optionColor),
+        }}
+        className={cn(
+          "w-full flex items-center justify-center rounded-full px-3 h-8 text-xs font-semibold origin-top",
+          "border border-white/30",
+          "cursor-pointer",
+          "hover:border-white/50",
+          "focus:outline-none focus:ring-2 focus:ring-white/60 focus:ring-offset-1",
+          isSelected && "ring-2 ring-white"
+        )}
+        initial={false}
+        whileHover={{ scale: 1.02 }}
+        whileTap={{ scale: 0.98 }}
+        onClick={onSelect}
+      >
+        {option.label}
+      </motion.button>
+    </div>
+  )
+}
+
+// Composant interne pour la liste avec scroll - rendu uniquement quand le Popover est ouvert
+function StackingCardsList({
+  sortedOptions,
+  value,
+  onChange,
+  onClose,
+}: {
+  sortedOptions: ColorBadgeOption[]
+  value: string
+  onChange: (value: string) => void
+  onClose: () => void
+}) {
+  const scrollContainerRef = useRef<HTMLDivElement>(null)
+  const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const searchBufferRef = useRef<string>("")
+
+  // Progress du scroll pour les animations (comme dans Skiper16)
+  const { scrollYProgress } = useScroll({
+    container: scrollContainerRef,
+    offset: ["start start", "end end"],
+  })
+  
+  // Spring pour des animations fluides
+  const smoothProgress = useSpring(scrollYProgress, {
+    stiffness: 150,
+    damping: 25,
+    restDelta: 0.001
+  })
+
+  // Gestion de la recherche rapide au clavier
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (e.key === "Escape") {
+      onClose()
+      return
+    }
+
+    if (e.key.length === 1 && /[a-zA-Z0-9]/.test(e.key)) {
+      e.preventDefault()
+      
+      searchBufferRef.current += e.key.toLowerCase()
+      
+      const matchIndex = sortedOptions.findIndex(o => 
+        o.label.toLowerCase().startsWith(searchBufferRef.current)
+      )
+      
+      if (matchIndex !== -1 && scrollContainerRef.current) {
+        const items = scrollContainerRef.current.querySelectorAll("[data-option-id]")
+        const targetItem = items[matchIndex] as HTMLElement
+        if (targetItem) {
+          targetItem.scrollIntoView({ block: "center", behavior: "smooth" })
+        }
+      }
+      
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current)
+      }
+      searchTimeoutRef.current = setTimeout(() => {
+        searchBufferRef.current = ""
+      }, 800)
+    }
+  }, [sortedOptions, onClose])
+
+  useEffect(() => {
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current)
+      }
+    }
+  }, [])
+
+  const totalCards = sortedOptions.length
+  // Hauteur visible du conteneur (montre quelques cartes)
+  const containerHeight = Math.min(280, Math.max(180, totalCards * CARD_HEIGHT * 0.6))
+  // Padding réduit : 75% du scroll suffit pour empiler toutes les cartes
+  const scrollPadding = totalCards * CARD_HEIGHT * 0.75
+
+  return (
+    <div onKeyDown={handleKeyDown}>
+      <div 
+        ref={scrollContainerRef}
+        className="relative overflow-y-auto overflow-x-hidden scrollbar-minimal bg-transparent"
+        style={{ 
+          height: `${containerHeight}px`,
+        }}
+      >
+        <div 
+          className="relative px-1 pt-1"
+          style={{ 
+            // Le padding permet de scroller suffisamment pour empiler toutes les cartes
+            paddingBottom: `${scrollPadding}px`,
+          }}
+        >
+          {sortedOptions.map((option, i) => {
+            const isSelected = option.id === value
+            
+            return (
+              <StackingCard
+                key={option.id}
+                option={option}
+                index={i}
+                isSelected={isSelected}
+                scrollProgress={smoothProgress}
+                totalItems={totalCards}
+                onSelect={() => {
+                  onChange(option.id)
+                  onClose()
+                }}
+              />
+            )
+          })}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function ColorBadgeSelectStacking({ 
+  label, 
+  value, 
+  options, 
+  onChange, 
+  placeholder = "Sélectionner", 
+  required, 
+  minWidth = "70px", 
+  hideLabel = false 
+}: ColorBadgeSelectStackingProps) {
+  const [open, setOpen] = useState(false)
+
+  // Trier les options par ordre alphabétique
+  const sortedOptions = useMemo(() => 
+    [...options].sort((a, b) => a.label.localeCompare(b.label, 'fr', { sensitivity: 'base' })),
+    [options]
+  )
+
+  const selectedOption = options.find(o => o.id === value)
+  const selectedColor = selectedOption?.color || "#6b7280"
+  const selectedLabel = selectedOption?.label || placeholder
+
+  return (
+    <div className="flex flex-col gap-0.5">
+      {!hideLabel && <Label className="text-[10px] text-muted-foreground leading-none">{label}{required && " *"}</Label>}
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <button
+            type="button"
+            className="inline-flex items-center justify-center rounded-full h-7 px-3 text-xs font-semibold transition-all hover:scale-105 hover:shadow-md cursor-pointer"
+            style={{
+              backgroundColor: selectedColor,
+              color: getReadableTextColor(selectedColor),
+              minWidth: minWidth,
+            }}
+          >
+            {selectedLabel}
+          </button>
+        </PopoverTrigger>
+        <PopoverContent 
+          className="p-0 border-none bg-transparent shadow-none"
+          align="start"
+          style={{ width: '160px' }}
+          sideOffset={6}
+        >
+          <StackingCardsList
+            sortedOptions={sortedOptions}
+            value={value}
+            onChange={onChange}
+            onClose={() => setOpen(false)}
+          />
+        </PopoverContent>
+      </Popover>
+    </div>
+  )
 }
 
 function hexToRgba(hex: string, alpha: number): string | null {
@@ -1684,119 +2138,142 @@ export function InterventionEditForm({
           >
             {/* DIV1: HEADER PRINCIPAL - Row 1, Cols 1-4 */}
             <Card className="legacy-form-card" style={{ gridArea: "1 / 1 / 2 / 5" }}>
-          <CardContent className="py-2 px-3">
-            <div className="grid grid-cols-6 gap-2">
-              <div>
-                <Label htmlFor="statut" className="text-[10px] text-muted-foreground mb-0.5 block">Statut *</Label>
-                <Select value={formData.statut_id} onValueChange={(value) => handleInputChange("statut_id", value)}>
-                  <SelectTrigger className="h-7 text-xs">
-                    <SelectValue placeholder="Statut" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {refData?.interventionStatuses.map((status) => (
-                      <SelectItem key={status.id} value={status.id}>
-                        {getStatusDisplayLabel(status.code, status.label, sstPayment, clientPayment)}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+          <CardContent className="py-0.5 px-3">
+            <div 
+              className="grid gap-2 items-end"
+              style={{
+                gridTemplateColumns: showReferenceField 
+                  ? "auto 1fr 1fr 1fr 1fr 1fr" 
+                  : "auto 1fr 1fr 1fr 1fr"
+              }}
+            >
+              {/* Badge utilisateur assigné - Largeur fixe à gauche */}
+              <div className="flex items-center">
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <button type="button" className="flex items-center justify-center h-7 w-7 cursor-pointer group rounded-full">
+                      {(() => {
+                        const assignedUser = refData?.users.find(u => u.id === formData.assigned_user_id)
+                        return (
+                          <GestionnaireBadge
+                            firstname={assignedUser?.firstname}
+                            lastname={assignedUser?.lastname}
+                            color={assignedUser?.color}
+                            size="sm"
+                            className="transition-transform group-hover:scale-110 h-7 w-7"
+                          />
+                        )
+                      })()}
+                    </button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-56 p-2" align="start">
+                    <div className="space-y-1">
+                      <p className="text-xs font-medium text-muted-foreground mb-2">Attribuer à</p>
+                      <div className="space-y-1">
+                        {refData?.users.map((user) => {
+                          const displayName = [user.firstname, user.lastname].filter(Boolean).join(" ").trim() || user.username
+                          const isSelected = user.id === formData.assigned_user_id
+                          return (
+                            <button
+                              key={user.id}
+                              type="button"
+                              className={cn(
+                                "w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-left transition-colors",
+                                isSelected ? "bg-primary/10 text-primary" : "hover:bg-muted"
+                              )}
+                              onClick={() => handleInputChange("assigned_user_id", user.id)}
+                            >
+                              <GestionnaireBadge
+                                firstname={user.firstname}
+                                lastname={user.lastname}
+                                color={user.color}
+                                size="sm"
+                                showBorder={false}
+                              />
+                              <span className="text-xs truncate flex-1">
+                                {user.code_gestionnaire ? `${user.code_gestionnaire} - ${displayName}` : displayName}
+                              </span>
+                            </button>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  </PopoverContent>
+                </Popover>
               </div>
-              <div>
-                <Label htmlFor="idIntervention" className="text-[10px] text-muted-foreground mb-0.5 block">ID Inter. {requiresDefinitiveId && "*"}</Label>
-                <Input
-                  id="idIntervention"
-                  value={formData.id_inter}
-                  onChange={(event) => handleInputChange("id_inter", event.target.value)}
-                  placeholder="Auto"
-                  className="h-7 text-xs"
-                  required={requiresDefinitiveId}
-                  pattern={requiresDefinitiveId ? "^(?!.*(?:[Aa][Uu][Tt][Oo])).+$" : undefined}
-                  title={requiresDefinitiveId ? "ID définitif requis" : undefined}
-                  autoComplete="off"
-                />
-              </div>
-              <div>
-                <Label htmlFor="agence" className="text-[10px] text-muted-foreground mb-0.5 block">Agence</Label>
-                <Select value={formData.agence_id} onValueChange={(value) => handleInputChange("agence_id", value)}>
-                  <SelectTrigger className="h-7 text-xs">
-                    <SelectValue placeholder="Agence" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {refData?.agencies.map((agency) => (
-                      <SelectItem key={agency.id} value={agency.id}>
-                        {agency.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              {showReferenceField ? (
-                <div>
-                  <Label htmlFor="reference_agence" className="text-[10px] text-muted-foreground mb-0.5 block">Réf. agence</Label>
+
+              {/* Statut - Badge coloré */}
+              <ColorBadgeSelect
+                label="Statut"
+                required
+                hideLabel
+                value={formData.statut_id}
+                onChange={(value) => handleInputChange("statut_id", value)}
+                placeholder="Statut"
+                options={(refData?.interventionStatuses || []).map(s => ({
+                  id: s.id,
+                  label: getStatusDisplayLabel(s.code, s.label, sstPayment, clientPayment),
+                  color: s.color,
+                }))}
+              />
+
+              {/* Agence - Badge coloré */}
+              <ColorBadgeSelect
+                label="Agence"
+                hideLabel
+                value={formData.agence_id}
+                onChange={(value) => handleInputChange("agence_id", value)}
+                placeholder="Agence"
+                options={(refData?.agencies || []).map(a => ({
+                  id: a.id,
+                  label: a.label,
+                  color: a.color,
+                }))}
+              />
+
+              {/* Réf. agence - Input conditionnel */}
+              {showReferenceField && (
+                <div className="flex items-center">
                   <Input
                     id="reference_agence"
                     name="reference_agence"
                     value={formData.reference_agence}
                     onChange={(event) => handleInputChange("reference_agence", event.target.value)}
-                    placeholder="REF-..."
-                    className="h-7 text-xs"
+                    placeholder="Réf. agence"
+                    className="h-7 text-xs rounded-full px-3"
                     autoComplete="off"
                   />
                 </div>
-              ) : (
-                <div>
-                  <Label htmlFor="attribueA" className="text-[10px] text-muted-foreground mb-0.5 block">Attribué à</Label>
-                  <Select value={formData.assigned_user_id} onValueChange={(value) => handleInputChange("assigned_user_id", value)}>
-                    <SelectTrigger className="h-7 text-xs">
-                      <SelectValue placeholder="User" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {refData?.users.map((user) => {
-                        const displayName = [user.firstname, user.lastname].filter(Boolean).join(" ").trim() || user.username
-                        return (
-                          <SelectItem key={user.id} value={user.id}>
-                            {user.code_gestionnaire ? `${user.code_gestionnaire} - ${displayName}` : displayName}
-                          </SelectItem>
-                        )
-                      })}
-                    </SelectContent>
-                  </Select>
-                </div>
               )}
-              {showReferenceField && (
-                <div>
-                  <Label htmlFor="attribueA" className="text-[10px] text-muted-foreground mb-0.5 block">Attribué à</Label>
-                  <Select value={formData.assigned_user_id} onValueChange={(value) => handleInputChange("assigned_user_id", value)}>
-                    <SelectTrigger className="h-7 text-xs">
-                      <SelectValue placeholder="User" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {refData?.users.map((user) => {
-                        const displayName = [user.firstname, user.lastname].filter(Boolean).join(" ").trim() || user.username
-                        return (
-                          <SelectItem key={user.id} value={user.id}>
-                            {user.code_gestionnaire ? `${user.code_gestionnaire} - ${displayName}` : displayName}
-                          </SelectItem>
-                        )
-                      })}
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
-              <div>
-                <Label htmlFor="typeMetier" className="text-[10px] text-muted-foreground mb-0.5 block">Métier</Label>
-                <Select value={formData.metier_id} onValueChange={(value) => handleInputChange("metier_id", value)}>
-                  <SelectTrigger className="h-7 text-xs">
-                    <SelectValue placeholder="Métier" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {refData?.metiers.map((metier) => (
-                      <SelectItem key={metier.id} value={metier.id}>
-                        {metier.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+
+              {/* Métier - Badge coloré */}
+              <ColorBadgeSelect
+                label="Métier"
+                hideLabel
+                value={formData.metier_id}
+                onChange={(value) => handleInputChange("metier_id", value)}
+                placeholder="Métier"
+                minWidth="100px"
+                options={(refData?.metiers || []).map(m => ({
+                  id: m.id,
+                  label: m.label,
+                  color: m.color,
+                }))}
+              />
+
+              {/* ID Intervention - Input */}
+              <div className="flex items-center">
+                <Input
+                  id="idIntervention"
+                  value={formData.id_inter}
+                  onChange={(event) => handleInputChange("id_inter", event.target.value)}
+                  placeholder="ID Inter."
+                  className="h-7 text-xs rounded-full px-3"
+                  required={requiresDefinitiveId}
+                  pattern={requiresDefinitiveId ? "^(?!.*(?:[Aa][Uu][Tt][Oo])).+$" : undefined}
+                  title={requiresDefinitiveId ? "ID définitif requis" : undefined}
+                  autoComplete="off"
+                />
               </div>
             </div>
           </CardContent>
@@ -1900,184 +2377,196 @@ export function InterventionEditForm({
           </CardContent>
         </Card>
 
-        {/* DIV7: CARTE MAPLIBRE - Row 4, Cols 1-3 */}
-        {/* Hauteur fixée par la row de la grille (mapSectionHeight) pour éviter les redimensionnements */}
-        <Card style={{ gridArea: "4 / 1 / 5 / 4" }} className="overflow-hidden">
-          <CardContent className="p-0 h-full">
-            <MapLibreMap
-              lat={formData.latitude}
-              lng={formData.longitude}
-              height="100%"
-              onLocationChange={handleLocationChange}
-              markers={mapMarkers}
-              circleRadiusKm={perimeterKmValue}
-              selectedConnection={mapSelectedConnection ?? undefined}
-            />
-          </CardContent>
-        </Card>
+        {/* DIV7+8: CARTE + ARTISANS REDIMENSIONNABLES - Row 4, Cols 1-4 */}
+        <div style={{ gridArea: "4 / 1 / 5 / 5", height: mapSectionHeight }}>
+          <ResizablePanelGroup direction="horizontal" className="h-full rounded-lg">
+            {/* Panel Carte */}
+            <ResizablePanel defaultSize={70} minSize={30} maxSize={85}>
+              <Card className="h-full overflow-hidden rounded-r-none border-r-0">
+                <CardContent className="p-0 h-full">
+                  <MapLibreMap
+                    lat={formData.latitude}
+                    lng={formData.longitude}
+                    height="100%"
+                    onLocationChange={handleLocationChange}
+                    markers={mapMarkers}
+                    circleRadiusKm={perimeterKmValue}
+                    selectedConnection={mapSelectedConnection ?? undefined}
+                  />
+                </CardContent>
+              </Card>
+            </ResizablePanel>
 
-        {/* DIV8: COLONNE ARTISANS - Row 4, Col 4 */}
-        <Card style={{ gridArea: "4 / 4 / 5 / 5" }} className="flex flex-col overflow-hidden">
-          <CardContent className="p-3 flex flex-col h-full overflow-hidden">
-            {/* Header artisans */}
-            <div className="flex items-center justify-between gap-2 mb-3 flex-shrink-0">
-              <h3 className="font-semibold text-sm flex items-center gap-2">
-                <Building className="h-4 w-4" />
-                Artisans
-              </h3>
-              <div className="flex gap-1">
-                <Input
-                  id="artisan"
-                  value={formData.artisan}
-                  onChange={(event) => handleInputChange("artisan", event.target.value)}
-                  placeholder="Artisan"
-                  className="h-7 text-xs w-24"
-                />
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="icon"
-                  className="h-7 w-7 flex-shrink-0"
-                  onClick={(e) => {
-                    const rect = e.currentTarget.getBoundingClientRect()
-                    setArtisanSearchPosition({
-                      x: rect.left,
-                      y: rect.top,
-                      width: rect.width,
-                      height: rect.height
-                    })
-                    setShowArtisanSearch(true)
-                  }}
-                  title="Rechercher un artisan"
-                >
-                  <Search className="h-3.5 w-3.5" />
-                </Button>
+            {/* Handle de redimensionnement avec trois points */}
+            <ResizableHandle className="w-2 bg-muted/50 hover:bg-primary/20 transition-colors data-[resize-handle-active]:bg-primary/30 group">
+              <div className="flex h-full items-center justify-center">
+                <div className="flex flex-col gap-0.5 opacity-40 group-hover:opacity-70 transition-opacity">
+                  <div className="h-1 w-1 rounded-full bg-muted-foreground" />
+                  <div className="h-1 w-1 rounded-full bg-muted-foreground" />
+                  <div className="h-1 w-1 rounded-full bg-muted-foreground" />
+                </div>
               </div>
-            </div>
+            </ResizableHandle>
 
-            {/* Email sending section */}
-            {selectedArtisanId && selectedArtisanData && (
-              <div className="flex gap-1 p-2 bg-muted/50 rounded-lg border border-border/50 mb-2 flex-shrink-0">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={handleOpenDevisEmailModal}
-                  disabled={!selectedArtisanId}
-                  className="flex-1 text-[10px] h-7 px-2"
-                >
-                  <Mail className="h-3 w-3 mr-1" />
-                  Devis
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={handleOpenInterventionEmailModal}
-                  disabled={!selectedArtisanId}
-                  className="flex-1 text-[10px] h-7 px-2"
-                >
-                  <Mail className="h-3 w-3 mr-1" />
-                  Inter.
-                </Button>
-              </div>
-            )}
-
-            {/* Artisan sélectionné */}
-            {selectedArtisanId && selectedArtisanData && (() => {
-              const artisan = selectedArtisanData
-              const artisanName = `${artisan.prenom || ""} ${artisan.nom || ""}`.trim() || "Artisan sans nom"
-              const artisanInitials = artisanName.split(" ").map((p) => p.charAt(0)).join("").slice(0, 2).toUpperCase() || "??"
-              const artisanStatus = refData?.artisanStatuses?.find((s) => s.id === artisan.statut_id)
-              const statutArtisan = artisanStatus?.label || ""
-              const statutArtisanColor = artisanStatus?.color || null
-
-              return (
-                <div className="mb-2 flex-shrink-0">
-                  <div className="relative rounded-lg border border-primary/70 ring-2 ring-primary/50 bg-background/80 p-2 text-xs shadow-sm">
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="absolute right-1 top-1 h-5 w-5 rounded-full bg-background/80 text-muted-foreground shadow-sm hover:text-destructive z-20"
-                      onClick={() => handleRemoveSelectedArtisan()}
-                    >
-                      <X className="h-3 w-3" />
-                    </Button>
-                    <div className="flex items-start gap-2">
-                      <Avatar photoProfilMetadata={artisan.photoProfilMetadata} initials={artisanInitials} name={artisan.displayName} size={40} />
-                      <div className="flex-1 min-w-0">
-                        <span className="font-semibold text-foreground block truncate">{artisan.displayName}</span>
-                        <div className="flex items-center gap-1 mt-1">
-                          {statutArtisan && (
-                            <Badge variant="outline" className="text-[9px] px-1 py-0" style={statutArtisanColor ? { backgroundColor: hexToRgba(statutArtisanColor, 0.15) || undefined, color: statutArtisanColor, borderColor: statutArtisanColor } : undefined}>
-                              {statutArtisan}
-                            </Badge>
-                          )}
-                          <Badge variant="default" className="text-[9px] px-1 py-0">{formatDistanceKm(artisan.distanceKm)}</Badge>
-                        </div>
-                        <div className="mt-1 text-[10px] text-muted-foreground truncate">
-                          {artisan.telephone && <span>📞 {artisan.telephone}</span>}
-                        </div>
-                      </div>
+            {/* Panel Artisans */}
+            <ResizablePanel defaultSize={30} minSize={15} maxSize={70}>
+              <Card className="h-full flex flex-col overflow-hidden rounded-l-none border-l-0">
+                <CardContent className="p-3 flex flex-col h-full overflow-hidden">
+                  {/* Header artisans */}
+                  <div className="flex items-center justify-between gap-2 mb-3 flex-shrink-0">
+                    <h3 className="font-semibold text-sm flex items-center gap-2">
+                      <Building className="h-4 w-4" />
+                      Artisans
+                    </h3>
+                    <div className="flex gap-1">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        className="h-7 w-7 flex-shrink-0"
+                        onClick={(e) => {
+                          const rect = e.currentTarget.getBoundingClientRect()
+                          setArtisanSearchPosition({
+                            x: rect.left,
+                            y: rect.top,
+                            width: rect.width,
+                            height: rect.height
+                          })
+                          setShowArtisanSearch(true)
+                        }}
+                        title="Rechercher un artisan"
+                      >
+                        <Search className="h-3.5 w-3.5" />
+                      </Button>
                     </div>
                   </div>
-                </div>
-              )
-            })()}
 
-            {/* Liste des artisans - max 8 visibles avec scroll */}
-            <div className="flex-1 overflow-y-auto space-y-1 min-h-0 max-h-[400px] scrollbar-minimal">
-              {isLoadingNearbyArtisans ? (
-                <div className="flex items-center justify-center h-full text-xs text-muted-foreground">Recherche...</div>
-              ) : nearbyArtisansError ? (
-                <div className="rounded border border-destructive/40 bg-destructive/10 px-2 py-1 text-[10px] text-destructive">{nearbyArtisansError}</div>
-              ) : nearbyArtisans.length === 0 ? (
-                <div className="rounded border border-border/50 bg-background px-2 py-2 text-[10px] text-muted-foreground">Aucun artisan dans un rayon de {perimeterKmValue} km.</div>
-              ) : (
-                sortedNearbyArtisans.map((artisan) => {
-                  const artisanName = `${artisan.prenom || ""} ${artisan.nom || ""}`.trim() || "Artisan sans nom"
-                  const artisanInitials = artisanName.split(" ").map((p) => p.charAt(0)).join("").slice(0, 2).toUpperCase() || "??"
-                  const artisanStatus = refData?.artisanStatuses?.find((s) => s.id === artisan.statut_id)
-                  const statutArtisan = artisanStatus?.label || ""
-                  const statutArtisanColor = artisanStatus?.color || null
+                  {/* Artisan sélectionné */}
+                  {selectedArtisanId && selectedArtisanData && (() => {
+                    const artisan = selectedArtisanData
+                    const artisanName = `${artisan.prenom || ""} ${artisan.nom || ""}`.trim() || "Artisan sans nom"
+                    const artisanInitials = artisanName.split(" ").map((p) => p.charAt(0)).join("").slice(0, 2).toUpperCase() || "??"
+                    const artisanStatus = refData?.artisanStatuses?.find((s) => s.id === artisan.statut_id)
+                    const statutArtisan = artisanStatus?.label || ""
+                    const statutArtisanColor = artisanStatus?.color || null
 
-                  return (
-                    <div
-                      key={artisan.id}
-                      role="button"
-                      tabIndex={0}
-                      className={cn(
-                        "rounded-lg border border-border/60 bg-background/80 p-2 text-xs shadow-sm transition-all cursor-pointer",
-                        selectedArtisanId ? "opacity-0 scale-95 max-h-0 overflow-hidden pointer-events-none m-0 p-0 border-0" : "hover:border-primary/40"
-                      )}
-                      onClick={() => handleSelectNearbyArtisan(artisan)}
-                      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); handleSelectNearbyArtisan(artisan) } }}
-                    >
-                      <div className="flex items-center gap-2">
-                        <Avatar photoProfilMetadata={artisan.photoProfilMetadata} initials={artisanInitials} name={artisan.displayName} size={40} />
-                        <div className="flex-1 min-w-0">
-                          <span className="font-medium text-foreground block truncate text-[11px]">{artisan.displayName}</span>
-                          <div className="flex items-center gap-1 flex-wrap">
-                            {statutArtisan && (
-                              <Badge variant="outline" className="text-[9px] px-1 py-0" style={statutArtisanColor ? { backgroundColor: hexToRgba(statutArtisanColor, 0.15) || undefined, color: statutArtisanColor, borderColor: statutArtisanColor } : undefined}>
-                                {statutArtisan}
-                              </Badge>
-                            )}
-                            <Badge variant="secondary" className="text-[9px] px-1 py-0">{formatDistanceKm(artisan.distanceKm)}</Badge>
-                            <Button type="button" variant="ghost" size="icon" className="h-5 w-5 text-muted-foreground hover:text-foreground" onClick={(e) => handleOpenArtisanModal(artisan.id, e)}>
-                              <Eye className="h-3 w-3" />
-                            </Button>
+                    return (
+                      <div className="mb-2 flex-shrink-0">
+                        <div className="relative rounded-lg border border-primary/70 ring-2 ring-primary/50 bg-background/80 p-2 text-xs shadow-sm">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="absolute right-1 top-1 h-5 w-5 rounded-full bg-background/80 text-muted-foreground shadow-sm hover:text-destructive z-20"
+                            onClick={() => handleRemoveSelectedArtisan()}
+                          >
+                            <X className="h-3 w-3" />
+                          </Button>
+                          <div className="flex items-start gap-2">
+                            <Avatar photoProfilMetadata={artisan.photoProfilMetadata} initials={artisanInitials} name={artisan.displayName} size={40} />
+                            <div className="flex-1 min-w-0">
+                              <span className="font-semibold text-foreground block truncate">{artisan.displayName}</span>
+                              <div className="flex items-center gap-1 mt-1">
+                                {statutArtisan && (
+                                  <Badge variant="outline" className="text-[9px] px-1 py-0" style={statutArtisanColor ? { backgroundColor: hexToRgba(statutArtisanColor, 0.15) || undefined, color: statutArtisanColor, borderColor: statutArtisanColor } : undefined}>
+                                    {statutArtisan}
+                                  </Badge>
+                                )}
+                                <Badge variant="default" className="text-[9px] px-1 py-0">{formatDistanceKm(artisan.distanceKm)}</Badge>
+                              </div>
+                              <div className="mt-1 text-[10px] text-muted-foreground truncate">
+                                {artisan.telephone && <span>📞 {artisan.telephone}</span>}
+                              </div>
+                            </div>
                           </div>
                         </div>
                       </div>
+                    )
+                  })()}
+
+                  {/* Email sending section */}
+                  {selectedArtisanId && selectedArtisanData && (
+                    <div className="flex gap-1 p-2 bg-primary/5 dark:bg-primary/10 rounded-lg border border-primary/20 dark:border-primary/30 mb-2 flex-shrink-0">
+	                      <Button
+	                        type="button"
+	                        variant="outline"
+	                        size="sm"
+	                        onClick={() => handleOpenDevisEmailModal()}
+	                        disabled={!selectedArtisanId}
+	                        className="flex-1 text-[10px] h-7 px-2 border-primary/30 hover:bg-primary/10 dark:border-primary/40 dark:hover:bg-primary/20"
+	                      >
+	                        <Mail className="h-3 w-3 mr-1" />
+	                        Devis
+                      </Button>
+	                      <Button
+	                        type="button"
+	                        variant="outline"
+	                        size="sm"
+	                        onClick={() => handleOpenInterventionEmailModal()}
+	                        disabled={!selectedArtisanId}
+	                        className="flex-1 text-[10px] h-7 px-2 border-primary/30 hover:bg-primary/10 dark:border-primary/40 dark:hover:bg-primary/20"
+	                      >
+	                        <Mail className="h-3 w-3 mr-1" />
+	                        Inter.
+                      </Button>
                     </div>
-                  )
-                })
-              )}
-            </div>
-          </CardContent>
-        </Card>
+                  )}
+
+                  {/* Liste des artisans - max 8 visibles avec scroll */}
+                  <div className="flex-1 overflow-y-auto space-y-1 min-h-0 scrollbar-minimal">
+                    {isLoadingNearbyArtisans ? (
+                      <div className="flex items-center justify-center h-full text-xs text-muted-foreground">Recherche...</div>
+                    ) : nearbyArtisansError ? (
+                      <div className="rounded border border-destructive/40 bg-destructive/10 px-2 py-1 text-[10px] text-destructive">{nearbyArtisansError}</div>
+                    ) : nearbyArtisans.length === 0 ? (
+                      <div className="rounded border border-border/50 bg-background px-2 py-2 text-[10px] text-muted-foreground">Aucun artisan dans un rayon de {perimeterKmValue} km.</div>
+                    ) : (
+                      sortedNearbyArtisans.map((artisan) => {
+                        const artisanName = `${artisan.prenom || ""} ${artisan.nom || ""}`.trim() || "Artisan sans nom"
+                        const artisanInitials = artisanName.split(" ").map((p) => p.charAt(0)).join("").slice(0, 2).toUpperCase() || "??"
+                        const artisanStatus = refData?.artisanStatuses?.find((s) => s.id === artisan.statut_id)
+                        const statutArtisan = artisanStatus?.label || ""
+                        const statutArtisanColor = artisanStatus?.color || null
+
+                        return (
+                          <div
+                            key={artisan.id}
+                            role="button"
+                            tabIndex={0}
+                            className={cn(
+                              "rounded-lg border border-border/60 bg-background/80 p-2 text-xs shadow-sm transition-all cursor-pointer",
+                              selectedArtisanId ? "opacity-0 scale-95 max-h-0 overflow-hidden pointer-events-none m-0 p-0 border-0" : "hover:border-primary/40"
+                            )}
+                            onClick={() => handleSelectNearbyArtisan(artisan)}
+                            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); handleSelectNearbyArtisan(artisan) } }}
+                          >
+                            <div className="flex items-center gap-2">
+                              <Avatar photoProfilMetadata={artisan.photoProfilMetadata} initials={artisanInitials} name={artisan.displayName} size={40} />
+                              <div className="flex-1 min-w-0">
+                                <span className="font-medium text-foreground block truncate text-[11px]">{artisan.displayName}</span>
+                                <div className="flex items-center gap-1 flex-wrap">
+                                  {statutArtisan && (
+                                    <Badge variant="outline" className="text-[9px] px-1 py-0" style={statutArtisanColor ? { backgroundColor: hexToRgba(statutArtisanColor, 0.15) || undefined, color: statutArtisanColor, borderColor: statutArtisanColor } : undefined}>
+                                      {statutArtisan}
+                                    </Badge>
+                                  )}
+                                  <Badge variant="secondary" className="text-[9px] px-1 py-0">{formatDistanceKm(artisan.distanceKm)}</Badge>
+                                  <Button type="button" variant="ghost" size="icon" className="h-5 w-5 text-muted-foreground hover:text-foreground" onClick={(e) => handleOpenArtisanModal(artisan.id, e)}>
+                                    <Eye className="h-3 w-3" />
+                                  </Button>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        )
+                      })
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            </ResizablePanel>
+          </ResizablePanelGroup>
+        </div>
 
         {/* DIV5: CONTEXTE INTERVENTION - Row 5, Cols 1-2 */}
         <Card style={{ gridArea: "5 / 1 / 6 / 3" }}>
@@ -2116,7 +2605,6 @@ export function InterventionEditForm({
             {/* DIV4: FINANCES & PLANIFICATION - Row 6, Cols 1-4 */}
             <Card style={{ gridArea: "6 / 1 / 7 / 5" }}>
               <CardContent className="p-4">
-                <Label className="mb-3 block text-xs font-medium uppercase tracking-wide text-muted-foreground">Finances & Planification</Label>
                 <div className="grid grid-cols-5 gap-3 items-end">
                   <div>
                     <Label htmlFor="coutIntervention" className="text-xs">Coût inter.</Label>
@@ -2268,6 +2756,71 @@ export function InterventionEditForm({
             </Card>
           </Collapsible>
 
+          {/* Gestion des acomptes */}
+          <Collapsible open={isAccompteOpen} onOpenChange={setIsAccompteOpen}>
+            <Card>
+              <CollapsibleTrigger asChild>
+                <CardHeader className="cursor-pointer py-2 px-3 hover:bg-muted/50">
+                  <CardTitle className="flex items-center gap-2 text-xs">
+                    Gestion des acomptes
+                    {isAccompteOpen ? <ChevronDown className="ml-auto h-3 w-3" /> : <ChevronRight className="ml-auto h-3 w-3" />}
+                  </CardTitle>
+                </CardHeader>
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                <CardContent className="pt-0 px-3 pb-3 space-y-2">
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <Label htmlFor="accompteSST" className="text-[10px]">Acompte SST</Label>
+                      <Input id="accompteSST" value={formData.accompteSST} onChange={(e) => handleAccompteSSTChange(e.target.value)} onBlur={handleAccompteSSTBlur} placeholder="Montant" className="h-7 text-xs" disabled={!canEditAccomptes} type="number" step="0.01" min="0" />
+                    </div>
+                    <div>
+                      <Label className="text-[10px]">Reçu</Label>
+                      <div className="flex items-center gap-1">
+                        <input type="checkbox" checked={formData.accompteSSTRecu} onChange={(e) => handleAccompteSSTRecuChange(e.target.checked)} className="h-3 w-3" />
+                        <Input type="date" value={formData.dateAccompteSSTRecu} onChange={(e) => handleDateAccompteSSTRecuChange(e.target.value)} className="h-7 text-xs flex-1" />
+                      </div>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <Label htmlFor="accompteClient" className="text-[10px]">Acompte client</Label>
+                      <Input id="accompteClient" value={formData.accompteClient} onChange={(e) => handleAccompteClientChange(e.target.value)} onBlur={handleAccompteClientBlur} placeholder="Montant" className="h-7 text-xs" disabled={!canEditAccomptes} type="number" step="0.01" min="0" />
+                    </div>
+                    <div>
+                      <Label className="text-[10px]">Reçu</Label>
+                      <div className="flex items-center gap-1">
+                        <input type="checkbox" checked={formData.accompteClientRecu} onChange={(e) => handleAccompteClientRecuChange(e.target.checked)} className="h-3 w-3" />
+                        <Input type="date" value={formData.dateAccompteClientRecu} onChange={(e) => handleDateAccompteClientRecuChange(e.target.value)} className="h-7 text-xs flex-1" />
+                      </div>
+                    </div>
+                  </div>
+                  <p className="text-[9px] text-muted-foreground">Éditable si statut = Accepté ou Attente acompte</p>
+                </CardContent>
+              </CollapsibleContent>
+            </Card>
+          </Collapsible>
+
+          {/* Documents */}
+          <Collapsible open={isDocumentsOpen} onOpenChange={setIsDocumentsOpen}>
+            <Card>
+              <CollapsibleTrigger asChild>
+                <CardHeader className="cursor-pointer py-2 px-3 hover:bg-muted/50">
+                  <CardTitle className="flex items-center gap-2 text-xs">
+                    <Upload className="h-3 w-3" />
+                    Documents
+                    {isDocumentsOpen ? <ChevronDown className="ml-auto h-3 w-3" /> : <ChevronRight className="ml-auto h-3 w-3" />}
+                  </CardTitle>
+                </CardHeader>
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                <CardContent className="pt-0 px-3 pb-3">
+                  <DocumentManager entityType="intervention" entityId={intervention.id} kinds={INTERVENTION_DOCUMENT_KINDS} currentUser={currentUser ?? undefined} />
+                </CardContent>
+              </CollapsibleContent>
+            </Card>
+          </Collapsible>
+
           {/* Deuxième artisan */}
           <Collapsible open={isSecondArtisanOpen} onOpenChange={setIsSecondArtisanOpen}>
             <Card>
@@ -2283,29 +2836,21 @@ export function InterventionEditForm({
               <CollapsibleContent>
                 <CardContent className="pt-0 px-3 pb-3">
                   <div className="space-y-3">
-                    {/* Sélection du métier pour le 2ème artisan */}
-                    <div>
-                      <Label htmlFor="metierSecondArtisan" className="text-[10px]">Type / Métier</Label>
-                      <Select 
-                        value={formData.metierSecondArtisanId} 
-                        onValueChange={(value) => handleInputChange("metierSecondArtisanId", value)}
-                      >
-                        <SelectTrigger className="h-7 text-xs mt-1">
-                          <SelectValue placeholder="Sélectionner un métier..." />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {refData?.metiers.map((metier) => (
-                            <SelectItem key={metier.id} value={metier.id}>
-                              {metier.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    {/* Header avec recherche */}
-                    <div className="flex items-center justify-between gap-2">
-                      <Label className="text-[10px]">Sélectionner un artisan</Label>
+                    {/* Header artisans - même style que colonne gauche */}
+                    <div className="flex items-center justify-between gap-2 flex-shrink-0 pt-[13px]">
+                      <ColorBadgeSelectStacking
+                        label="Métier"
+                        value={formData.metierSecondArtisanId}
+                        onChange={(value) => handleInputChange("metierSecondArtisanId", value)}
+                        placeholder="Métier..."
+                        minWidth="100px"
+                        hideLabel
+                        options={(refData?.metiers || []).map(m => ({
+                          id: m.id,
+                          label: m.label,
+                          color: m.color,
+                        }))}
+                      />
                       <Button
                         type="button"
                         variant="outline"
@@ -2486,71 +3031,6 @@ export function InterventionEditForm({
                       </div>
                     </div>
                   </div>
-                </CardContent>
-              </CollapsibleContent>
-            </Card>
-          </Collapsible>
-
-          {/* Gestion des acomptes */}
-          <Collapsible open={isAccompteOpen} onOpenChange={setIsAccompteOpen}>
-            <Card>
-              <CollapsibleTrigger asChild>
-                <CardHeader className="cursor-pointer py-2 px-3 hover:bg-muted/50">
-                  <CardTitle className="flex items-center gap-2 text-xs">
-                    Gestion des acomptes
-                    {isAccompteOpen ? <ChevronDown className="ml-auto h-3 w-3" /> : <ChevronRight className="ml-auto h-3 w-3" />}
-                  </CardTitle>
-                </CardHeader>
-              </CollapsibleTrigger>
-              <CollapsibleContent>
-                <CardContent className="pt-0 px-3 pb-3 space-y-2">
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <Label htmlFor="accompteSST" className="text-[10px]">Acompte SST</Label>
-                      <Input id="accompteSST" value={formData.accompteSST} onChange={(e) => handleAccompteSSTChange(e.target.value)} onBlur={handleAccompteSSTBlur} placeholder="Montant" className="h-7 text-xs" disabled={!canEditAccomptes} type="number" step="0.01" min="0" />
-                    </div>
-                    <div>
-                      <Label className="text-[10px]">Reçu</Label>
-                      <div className="flex items-center gap-1">
-                        <input type="checkbox" checked={formData.accompteSSTRecu} onChange={(e) => handleAccompteSSTRecuChange(e.target.checked)} className="h-3 w-3" />
-                        <Input type="date" value={formData.dateAccompteSSTRecu} onChange={(e) => handleDateAccompteSSTRecuChange(e.target.value)} className="h-7 text-xs flex-1" />
-                      </div>
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <Label htmlFor="accompteClient" className="text-[10px]">Acompte client</Label>
-                      <Input id="accompteClient" value={formData.accompteClient} onChange={(e) => handleAccompteClientChange(e.target.value)} onBlur={handleAccompteClientBlur} placeholder="Montant" className="h-7 text-xs" disabled={!canEditAccomptes} type="number" step="0.01" min="0" />
-                    </div>
-                    <div>
-                      <Label className="text-[10px]">Reçu</Label>
-                      <div className="flex items-center gap-1">
-                        <input type="checkbox" checked={formData.accompteClientRecu} onChange={(e) => handleAccompteClientRecuChange(e.target.checked)} className="h-3 w-3" />
-                        <Input type="date" value={formData.dateAccompteClientRecu} onChange={(e) => handleDateAccompteClientRecuChange(e.target.value)} className="h-7 text-xs flex-1" />
-                      </div>
-                    </div>
-                  </div>
-                  <p className="text-[9px] text-muted-foreground">Éditable si statut = Accepté ou Attente acompte</p>
-                </CardContent>
-              </CollapsibleContent>
-            </Card>
-          </Collapsible>
-
-          {/* Documents */}
-          <Collapsible open={isDocumentsOpen} onOpenChange={setIsDocumentsOpen}>
-            <Card>
-              <CollapsibleTrigger asChild>
-                <CardHeader className="cursor-pointer py-2 px-3 hover:bg-muted/50">
-                  <CardTitle className="flex items-center gap-2 text-xs">
-                    <Upload className="h-3 w-3" />
-                    Documents
-                    {isDocumentsOpen ? <ChevronDown className="ml-auto h-3 w-3" /> : <ChevronRight className="ml-auto h-3 w-3" />}
-                  </CardTitle>
-                </CardHeader>
-              </CollapsibleTrigger>
-              <CollapsibleContent>
-                <CardContent className="pt-0 px-3 pb-3">
-                  <DocumentManager entityType="intervention" entityId={intervention.id} kinds={INTERVENTION_DOCUMENT_KINDS} currentUser={currentUser ?? undefined} />
                 </CardContent>
               </CollapsibleContent>
             </Card>

@@ -137,6 +137,8 @@ type TableViewProps = {
   onPreviousPage?: () => void
   /** Terme de recherche actif pour surligner les correspondances dans les cellules */
   searchQuery?: string
+  /** Couleur du header (provenant de l'onglet de vue actif) */
+  headerColor?: string | null
 }
 
 
@@ -182,13 +184,14 @@ const getReadableTextColor = (hex: string | undefined, fallback = "#ffffff") => 
 const getRowHeight = (density: TableRowDensity): number => {
   switch (density) {
     case "ultra-dense":
-      return 28
+      // Inclut le badge/pill (~24px de hauteur) + padding + bordure
+      return 37
     case "dense":
-      return 36
+      return 40
     case "default":
-      return 44
+      return 48
     default:
-      return 36
+      return 40
   }
 }
 
@@ -402,6 +405,124 @@ const renderCell = (
     }
   }
 
+  // Rendu personnalisé pour le sous-statut avec couleurs personnalisées
+  if (property === "understatement") {
+    const sousStatutText = value as string | null
+    if (!sousStatutText) return { content: "—" }
+    
+    const textColor = (intervention as any).sousStatutTextColor ?? '#000000'
+    const bgColor = (intervention as any).sousStatutBgColor ?? 'transparent'
+    
+    return {
+      content: (
+        <span
+          className="inline-flex items-center justify-center rounded px-1.5 py-0.5 text-xs font-medium leading-tight"
+          style={{
+            color: textColor,
+            backgroundColor: bgColor !== 'transparent' ? bgColor : undefined,
+          }}
+        >
+          {sousStatutText}
+        </span>
+      ),
+      cellClassName: "font-medium",
+    }
+  }
+
+  // Rendu personnalisé pour la colonne Agence avec badge coloré
+  if (property === "agence") {
+    const agenceLabel = (intervention as any).agenceLabel ?? value
+    if (!agenceLabel) return { content: "—" }
+    
+    const agenceColor = (intervention as any).agenceColor as string | undefined
+    const appearance: TableColumnAppearance = style?.appearance ?? "badge"
+
+    if (!agenceColor || appearance === "none") {
+      return { content: String(agenceLabel) }
+    }
+
+    if (appearance === "badge") {
+      const textColor = style?.textColor ?? getReadableTextColor(agenceColor)
+      return {
+        content: (
+          <span
+            className="inline-flex items-center justify-center gap-1.5 rounded-full px-2 py-0.5 leading-tight text-xs font-semibold"
+            style={{ backgroundColor: agenceColor, color: textColor }}
+          >
+            {agenceLabel}
+          </span>
+        ),
+        cellClassName: "font-medium",
+      }
+    }
+
+    // Mode solid : fond pastel
+    const pastel = toSoftColor(agenceColor, themeMode)
+    return {
+      content: (
+        <span className="inline-flex items-center gap-1.5">
+          {agenceLabel}
+        </span>
+      ),
+      backgroundColor: pastel,
+      defaultTextColor: themeMode === "dark" ? "#F3F4F6" : "#111827",
+      cellClassName: "font-medium",
+      statusGradient: `linear-gradient(
+        to bottom,
+        color-mix(in oklab, ${agenceColor}, white 20%) 0%,
+        ${agenceColor} 50%,
+        color-mix(in oklab, ${agenceColor}, black 20%) 100%
+      )`,
+    }
+  }
+
+  // Rendu personnalisé pour la colonne Métier avec badge coloré
+  if (property === "metier") {
+    const metierLabel = (intervention as any).metierLabel ?? value
+    if (!metierLabel) return { content: "—" }
+    
+    const metierColor = (intervention as any).metierColor as string | undefined
+    const appearance: TableColumnAppearance = style?.appearance ?? "badge"
+
+    if (!metierColor || appearance === "none") {
+      return { content: String(metierLabel) }
+    }
+
+    if (appearance === "badge") {
+      const textColor = style?.textColor ?? getReadableTextColor(metierColor)
+      return {
+        content: (
+          <span
+            className="inline-flex items-center justify-center gap-1.5 rounded-full px-2 py-0.5 leading-tight text-xs font-semibold"
+            style={{ backgroundColor: metierColor, color: textColor }}
+          >
+            {metierLabel}
+          </span>
+        ),
+        cellClassName: "font-medium",
+      }
+    }
+
+    // Mode solid : fond pastel
+    const pastel = toSoftColor(metierColor, themeMode)
+    return {
+      content: (
+        <span className="inline-flex items-center gap-1.5">
+          {metierLabel}
+        </span>
+      ),
+      backgroundColor: pastel,
+      defaultTextColor: themeMode === "dark" ? "#F3F4F6" : "#111827",
+      cellClassName: "font-medium",
+      statusGradient: `linear-gradient(
+        to bottom,
+        color-mix(in oklab, ${metierColor}, white 20%) 0%,
+        ${metierColor} 50%,
+        color-mix(in oklab, ${metierColor}, black 20%) 100%
+      )`,
+    }
+  }
+
   switch (schema.type) {
     case "date": {
       if (!value) return { content: "—" }
@@ -468,6 +589,7 @@ export function TableView({
   onNextPage,
   onPreviousPage,
   searchQuery = "",
+  headerColor,
 }: TableViewProps) {
   // Log pour debug pagination
   useEffect(() => {
@@ -528,7 +650,7 @@ export function TableView({
   const viewType: "default" | "market" = isMarketView ? "market" : "default"
 
   const densityTableClass =
-    rowDensity === "ultra-dense" ? "text-xs" : rowDensity === "dense" ? "text-sm" : undefined
+    rowDensity === "ultra-dense" ? "text-xs" : "text-sm"
   const densityHeaderClass =
     rowDensity === "ultra-dense"
       ? "!h-8 !py-1.5 !pl-2.5 !pr-2.5"
@@ -542,8 +664,6 @@ export function TableView({
         ? "!py-2 !pl-3 !pr-3"
         : "py-3"
   const rowHeight = getRowHeight(rowDensity)
-  const isBrowser = typeof window !== "undefined"
-  const isFirefox = isBrowser && typeof navigator !== "undefined" ? /firefox/i.test(navigator.userAgent) : false
 
   // Créer une signature stable du dataset pour détecter les changements réels
   const datasetSignature = useMemo(() => {
@@ -558,8 +678,7 @@ export function TableView({
     getScrollElement: () => tableContainerRef.current,
     estimateSize: () => rowHeight,
     overscan: SCROLL_CONFIG.OVERSCAN,
-    measureElement: isBrowser && !isFirefox ? (element) => element.getBoundingClientRect().height : undefined,
-    scrollMargin: tableContainerRef.current?.offsetTop ?? 0,
+    // Les hauteurs réelles sont mesurées via le ref sur chaque <tr> pour éviter les décalages en bas de liste
     getItemKey: (index) => {
       const item = dataset[index]
       // Utiliser une clé unique qui inclut l'ID et l'index pour éviter les collisions entre pages
@@ -1102,7 +1221,15 @@ export function TableView({
   return (
     <>
       <div className="flex flex-col flex-1 min-h-0">
-        <Card className="border-2 shadow-sm flex flex-col flex-1 min-h-0">
+        <Card 
+          className={cn(
+            "border-2 shadow-sm flex flex-col flex-1 min-h-0 rounded-tl-none",
+            !headerColor && "border-t-primary/40"
+          )}
+          style={headerColor ? { 
+            borderTopColor: `${headerColor}40`,
+          } : undefined}
+        >
           <div
             className={cn(
               "table-horizontal-wrapper overflow-x-auto flex-1 min-h-0",
@@ -1115,7 +1242,7 @@ export function TableView({
               <div className="flex-shrink-0">
                 <table
                   className={cn(
-                    "data-table shadcn-table border-separate border-spacing-0 caption-bottom text-sm",
+                    "data-table shadcn-table border-separate border-spacing-0 caption-bottom",
                     densityTableClass,
                     statusBorderEnabled && "table-has-status-border",
                   )}
@@ -1127,63 +1254,90 @@ export function TableView({
                   }}
                 >
                   <thead className="z-20">
-                    <tr className="border-b border-border/60 bg-muted/30">
-                      {view.visibleProperties.map((property) => {
-                        const width = columnWidths[property] ?? 150 // Largeur par défaut si non définie
-                        const schema = getPropertySchema(property)
-                        const activeFilter = view.filters.find((filter) => filter.property === property)
-                        const headerStyle: CSSProperties = {
-                          width,
-                          minWidth: width,
-                          maxWidth: width,
-                        }
+                    <tr className="border-b border-border/60">
+                      {(() => {
+                        // Calculer la couleur du texte en fonction de la luminosité du header
+                        const headerTextColor = headerColor ? getReadableTextColor(headerColor) : undefined
+                        
                         return (
-                          <th
-                            key={property}
-                            style={headerStyle}
-                            className={cn(
-                              "z-20 border-b border-border bg-muted/95 px-4 py-4 text-left text-sm font-semibold text-foreground",
-                              "whitespace-nowrap backdrop-blur-sm align-middle relative select-none",
-                              densityHeaderClass,
-                            )}
-                            onContextMenu={(event) => handleHeaderContextMenu(event, property)}
-                          >
-                            <div className="relative flex items-center gap-2">
-                              {schema?.filterable && onPropertyFilterChange ? (
-                                <ColumnFilter
-                                  property={property}
-                                  schema={schema}
-                                  activeFilter={activeFilter}
-                                  interventions={allInterventions ?? interventions}
-                                  loadDistinctValues={loadDistinctValues}
-                                  onFilterChange={onPropertyFilterChange}
-                                />
-                              ) : (
-                                <span>{getPropertyLabel(property)}</span>
+                          <>
+                            {view.visibleProperties.map((property) => {
+                              const width = columnWidths[property] ?? 150 // Largeur par défaut si non définie
+                              const schema = getPropertySchema(property)
+                              const activeFilter = view.filters.find((filter) => filter.property === property)
+                              const headerCellStyle: CSSProperties = {
+                                width,
+                                minWidth: width,
+                                maxWidth: width,
+                                ...(headerColor ? {
+                                  backgroundColor: `${headerColor}25`, // Version pastel (15% opacité)
+                                  borderColor: `${headerColor}40`,
+                                  color: headerColor, // Texte dans la couleur du statut
+                                } : {}),
+                              }
+                              return (
+                                <th
+                                  key={property}
+                                  style={headerCellStyle}
+                                  className={cn(
+                                    "z-20 border-b px-4 py-4 text-center text-sm font-semibold",
+                                    "whitespace-nowrap backdrop-blur-sm align-middle relative select-none",
+                                    // Sans couleur spécifique → couleur d'accentuation (primary) en version pastel
+                                    !headerColor && "border-primary/40 bg-primary/15 text-primary",
+                                    densityHeaderClass,
+                                  )}
+                                  onContextMenu={(event) => handleHeaderContextMenu(event, property)}
+                                >
+                                  <div className="relative flex items-center justify-center gap-2">
+                                    {schema?.filterable && onPropertyFilterChange ? (
+                                      <ColumnFilter
+                                        property={property}
+                                        schema={schema}
+                                        activeFilter={activeFilter}
+                                        interventions={allInterventions ?? interventions}
+                                        loadDistinctValues={loadDistinctValues}
+                                        onFilterChange={onPropertyFilterChange}
+                                      />
+                                    ) : (
+                                      <span>{getPropertyLabel(property)}</span>
+                                    )}
+                                    <div
+                                      className={cn(
+                                        "absolute top-0 right-0 h-full w-1 cursor-col-resize transition-colors duration-150",
+                                        activeColumn === property
+                                          ? "bg-white/50"
+                                          : "opacity-0 hover:opacity-100 hover:bg-white/30",
+                                      )}
+                                      onPointerDown={(event) => handlePointerDown(event, property)}
+                                    />
+                                  </div>
+                                </th>
+                              )
+                            })}
+                            <th
+                              style={{ 
+                                width: 100, 
+                                minWidth: 100, 
+                                maxWidth: 100,
+                                ...(headerColor ? {
+                                  backgroundColor: `${headerColor}25`, // Version pastel (15% opacité)
+                                  borderColor: `${headerColor}40`,
+                                  color: headerColor, // Texte dans la couleur du statut
+                                } : {}),
+                              }}
+                              className={cn(
+                                "z-20 border-b px-4 py-4 text-center text-sm font-semibold",
+                                "whitespace-nowrap backdrop-blur-sm align-middle relative select-none",
+                                // Sans couleur spécifique → couleur d'accentuation (primary)
+                                !headerColor && "border-primary/40 bg-primary/15 text-primary",
+                                densityHeaderClass,
                               )}
-                              <div
-                                className={cn(
-                                  "absolute top-0 right-0 h-full w-1 cursor-col-resize transition-colors duration-150",
-                                  activeColumn === property
-                                    ? "bg-primary"
-                                    : "opacity-0 hover:opacity-100 hover:bg-primary/70",
-                                )}
-                                onPointerDown={(event) => handlePointerDown(event, property)}
-                              />
-                            </div>
-                          </th>
+                            >
+                              Actions
+                            </th>
+                          </>
                         )
-                      })}
-                      <th
-                        style={{ width: 100, minWidth: 100, maxWidth: 100 }}
-                        className={cn(
-                          "z-20 border-b border-border bg-muted/95 px-4 py-4 text-left text-sm font-semibold text-foreground",
-                          "whitespace-nowrap backdrop-blur-sm align-middle relative select-none",
-                          densityHeaderClass,
-                        )}
-                      >
-                        Actions
-                      </th>
+                      })()}
                     </tr>
                   </thead>
                 </table>
@@ -1206,7 +1360,7 @@ export function TableView({
                 >
                   <table
                     className={cn(
-                      "data-table shadcn-table border-separate border-spacing-0 caption-bottom text-sm",
+                      "data-table shadcn-table border-separate border-spacing-0 caption-bottom",
                       densityTableClass,
                       statusBorderEnabled && "table-has-status-border",
                     )}
@@ -1251,15 +1405,20 @@ export function TableView({
                             }
 
                             return (
-                              <React.Fragment key={intervention.id}>
+                              <React.Fragment key={virtualRow.key}>
                                 <ContextMenu>
                                   <ContextMenuTrigger asChild>
                                     <tr
+                                      ref={rowVirtualizer.measureElement}
+                                      data-index={virtualRow.index}
                                       data-intervention-id={intervention.id}
+                                      data-row-index={rowIndex}
                                       className={cn(
                                         "group relative cursor-pointer border-b border-border/30 transition-colors duration-150 hover:bg-accent/10 data-[state=selected]:hover:bg-muted",
                                         statusBorderEnabled && "table-row-status-border",
                                         isExpanded && "bg-muted/30",
+                                        // Classes pour les stripes colorées basées sur l'index réel (pas la position DOM)
+                                        rowIndex % 2 === 0 ? "table-row-even" : "table-row-odd",
                                       )}
                                       style={
                                         {
@@ -1304,7 +1463,7 @@ export function TableView({
                                           <td
                                             key={`${intervention.id}-${property}`}
                                             className={cn(
-                                              "px-4 py-4 text-sm align-middle transition-colors duration-150",
+                                              "px-4 align-middle transition-colors duration-150",
                                               densityCellClass,
                                               alignmentClass,
                                               typographyClasses,
@@ -1329,7 +1488,7 @@ export function TableView({
                                       })}
                                       <td
                                         className={cn(
-                                          "px-4 py-4 text-sm align-middle text-center transition-colors duration-150",
+                                          "px-4 align-middle text-center transition-colors duration-150",
                                           densityCellClass,
                                           isExpanded && "!py-[7px]",
                                         )}

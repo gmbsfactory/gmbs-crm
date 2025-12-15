@@ -340,6 +340,12 @@ export interface CreateInterventionData {
   floor?: string | null;
   apartment_number?: string | null;
   vacant_housing_instructions?: string | null;
+  // Sous-statut personnalisé
+  sous_statut_text?: string | null;
+  sous_statut_text_color?: string | null;
+  sous_statut_bg_color?: string | null;
+  // Deuxième artisan - métier
+  metier_second_artisan_id?: string | null;
 }
 
 export interface UpdateInterventionData {

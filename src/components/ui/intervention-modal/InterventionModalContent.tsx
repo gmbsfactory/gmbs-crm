@@ -2,7 +2,7 @@
 
 import React, { useCallback, useRef, useState } from "react"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
-import { Bell, X, MessageSquare, Copy, MessageCircle, Trash2 } from "lucide-react"
+import { Bell, X, MessageSquare, Copy, MessageCircle, Trash2, Plus } from "lucide-react"
 import { InterventionEditForm } from "@/components/interventions/InterventionEditForm"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -182,8 +182,8 @@ GMBS`
     enabled: Boolean(interventionId),
   })
 
-  // Hook pour la suppression d'intervention
-  const { deleteIntervention, isLoading: contextMenuLoading } = useInterventionContextMenu(
+  // Hook pour la suppression et duplication d'intervention
+  const { deleteIntervention, duplicateDevisSupp, isLoading: contextMenuLoading } = useInterventionContextMenu(
     interventionId,
     "default",
     intervention?.id_inter || undefined
@@ -423,6 +423,24 @@ GMBS`
             </div>
           </div>
           <div className="flex items-center gap-3">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-7 text-xs"
+                  onClick={() => duplicateDevisSupp()}
+                  disabled={!intervention || contextMenuLoading.duplicate}
+                >
+                  <Plus className="mr-1.5 h-3.5 w-3.5" />
+                  Devis supp
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent className="modal-config-columns-tooltip">
+                Créer un devis supplémentaire à partir de cette intervention
+              </TooltipContent>
+            </Tooltip>
             {intervention?.updated_at && (
               <span className="text-xs text-muted-foreground">
                 Mis à jour le {new Date(intervention.updated_at).toLocaleDateString('fr-FR', {

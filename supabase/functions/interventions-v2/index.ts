@@ -339,6 +339,10 @@ const DEFAULT_INTERVENTION_COLUMNS = [
   'latitude',
   'longitude',
   'is_active',
+  // Sous-statut personnalisé
+  'sous_statut_text',
+  'sous_statut_text_color',
+  'sous_statut_bg_color',
 ];
 
 const DEFAULT_SELECT = DEFAULT_INTERVENTION_COLUMNS.join(',');

@@ -119,7 +119,27 @@ export function ArtisanInterventionsTable({ artisanId }: ArtisanInterventionsTab
                       <TableCell className="text-sm">{formatDate(intervention.date)}</TableCell>
                       <TableCell className="text-sm">{intervention.id_inter || "—"}</TableCell>
                       <TableCell className="text-sm">{assignedUserName || "—"}</TableCell>
-                      <TableCell className="text-sm">{agency?.label || agency?.code || "—"}</TableCell>
+                      <TableCell className="text-sm">
+                        {agency ? (
+                          agency.color ? (
+                            <Badge
+                              variant="outline"
+                              className={cn("text-xs")}
+                              style={{
+                                borderColor: agency.color,
+                                backgroundColor: `${agency.color}15`,
+                                color: agency.color,
+                              }}
+                            >
+                              {agency.label || agency.code}
+                            </Badge>
+                          ) : (
+                            agency.label || agency.code
+                          )
+                        ) : (
+                          "—"
+                        )}
+                      </TableCell>
                       <TableCell className="text-sm">
                         {[intervention.code_postal, intervention.ville].filter(Boolean).join(" ") || "—"}
                       </TableCell>

@@ -231,10 +231,10 @@ export default async function RootLayout({
                                   <TopbarGate />
                                   <ConditionalPadding>
                                     <SidebarGate isAuthed={isAuthed} />
-                                    <main id="main" className="flex flex-1 min-h-[calc(100vh-4rem)] flex-col overflow-hidden">
+                                    <main id="main" className="flex flex-1 h-[calc(100vh-4rem)] flex-col overflow-hidden">
                                       <GlobalShortcuts />
                                       <GlobalModalHost />
-                                      <div className="flex-1 overflow-auto">
+                                      <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
                                         {children}
                                       </div>
                                     </main>
