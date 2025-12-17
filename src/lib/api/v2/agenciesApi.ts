@@ -13,6 +13,7 @@ export interface Agency {
   is_active: boolean;
   created_at: string;
   updated_at: string;
+  requires_reference?: boolean; // Depuis agency_config - si true, affiche le champ "Réf. agence"
 }
 
 export interface CreateAgencyData {
@@ -35,7 +36,10 @@ export const agenciesApi = {
   async getAll(params?: { includeInactive?: boolean }): Promise<Agency[]> {
     let query = supabase
       .from("agencies")
-      .select("*")
+      .select(`
+        *,
+        agency_config!left(requires_reference)
+      `)
       .order("label", { ascending: true });
 
     // Par défaut, afficher seulement les agences actives
@@ -47,7 +51,18 @@ export const agenciesApi = {
 
     if (error) throw new Error(`Erreur lors de la récupération des agences: ${error.message}`);
 
-    return data || [];
+    // Mapper pour extraire requires_reference depuis agency_config
+    return (data || []).map((item: any) => ({
+      id: item.id,
+      code: item.code,
+      label: item.label,
+      region: item.region,
+      color: item.color,
+      is_active: item.is_active,
+      created_at: item.created_at,
+      updated_at: item.updated_at,
+      requires_reference: item.agency_config?.requires_reference ?? false,
+    }));
   },
 
   /**
@@ -56,13 +71,27 @@ export const agenciesApi = {
   async getById(id: string): Promise<Agency> {
     const { data, error } = await supabase
       .from("agencies")
-      .select("*")
+      .select(`
+        *,
+        agency_config!left(requires_reference)
+      `)
       .eq("id", id)
       .single();
 
     if (error) throw new Error(`Erreur lors de la récupération de l'agence: ${error.message}`);
 
-    return data;
+    // Mapper pour extraire requires_reference depuis agency_config
+    return {
+      id: data.id,
+      code: data.code,
+      label: data.label,
+      region: data.region,
+      color: data.color,
+      is_active: data.is_active,
+      created_at: data.created_at,
+      updated_at: data.updated_at,
+      requires_reference: data.agency_config?.requires_reference ?? false,
+    };
   },
 
   /**
@@ -172,5 +201,24 @@ export const agenciesApi = {
       message: "Agence désactivée avec succès",
       data,
     };
+  },
+
+  /**
+   * Mettre à jour l'option requires_reference pour une agence
+   * Fait un UPSERT dans la table agency_config
+   */
+  async updateRequiresReference(agencyId: string, requiresReference: boolean): Promise<void> {
+    const { error } = await supabase
+      .from("agency_config")
+      .upsert({
+        agency_id: agencyId,
+        requires_reference: requiresReference,
+      }, {
+        onConflict: 'agency_id'
+      });
+
+    if (error) {
+      throw new Error(`Erreur lors de la mise à jour de requires_reference: ${error.message}`);
+    }
   },
 };

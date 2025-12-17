@@ -45,7 +45,7 @@ const INTERVENTION_DOCUMENT_KINDS = [
 
 const MAX_RADIUS_KM = 10000
 
-const AGENCIES_WITH_OPTIONAL_REFERENCE = new Set(["imodirect", "afedim", "oqoro"])
+// Note: requires_reference est maintenant géré via la table agency_config en base de données
 const STATUSES_REQUIRING_DATE_PREVUE = new Set(["VISITE_TECHNIQUE", "INTER_EN_COURS"])
 const STATUSES_REQUIRING_DEFINITIVE_ID = new Set([
   "DEVIS_ENVOYE",
@@ -1488,13 +1488,8 @@ export function NewInterventionForm({
     if (!selectedAgencyData) {
       return false
     }
-    const normalize = (value?: string | null) => (value ?? "").trim().toLowerCase()
-    const normalizedLabel = normalize(selectedAgencyData.label)
-    const normalizedCode = normalize(selectedAgencyData.code)
-    return (
-      AGENCIES_WITH_OPTIONAL_REFERENCE.has(normalizedLabel) ||
-      AGENCIES_WITH_OPTIONAL_REFERENCE.has(normalizedCode)
-    )
+    // Utilise la configuration depuis agency_config en base de données
+    return selectedAgencyData.requires_reference === true
   }, [selectedAgencyData])
 
   if (refDataLoading) {

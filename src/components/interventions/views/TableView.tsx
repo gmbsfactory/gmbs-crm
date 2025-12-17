@@ -1883,10 +1883,10 @@ function ExpandedRowContent({
     }
   }, [intervention])
 
-  const agencesRequiringRef = useMemo(() => ["ImoDirect", "AFEDIM", "Oqoro"], [])
+  // Afficher la référence agence si elle existe (plus simple que de vérifier la config)
   const showReferenceAgence = useMemo(
-    () => agencesRequiringRef.includes(interventionData.agenceName),
-    [interventionData.agenceName, agencesRequiringRef]
+    () => !!interventionData.referenceAgence && interventionData.referenceAgence !== "—",
+    [interventionData.referenceAgence]
   )
 
   // Helper pour rendre du texte avec surlignage optionnel

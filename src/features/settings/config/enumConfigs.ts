@@ -7,10 +7,11 @@ export type EntityType = 'agencies' | 'metiers' | 'intervention-statuses';
 export interface FieldConfig {
   name: string;
   label: string;
-  type: 'text' | 'color' | 'textarea';
+  type: 'text' | 'color' | 'textarea' | 'checkbox';
   editable: boolean;
   required?: boolean;
   generated?: boolean; // Pour le code auto-généré
+  inlineToggle?: boolean; // Pour les checkbox éditables directement dans le tableau
 }
 
 export interface EnumConfig {
@@ -34,6 +35,7 @@ export const ENUM_CONFIGS: Record<EntityType, EnumConfig> = {
       { name: 'code', label: 'Code', type: 'text', editable: false, generated: true },
       { name: 'label', label: 'Label', type: 'text', editable: true, required: true },
       { name: 'color', label: 'Couleur', type: 'color', editable: true },
+      { name: 'requires_reference', label: 'Réf. agence requise', type: 'checkbox', editable: true, inlineToggle: true },
     ],
     api: agenciesApi,
   },

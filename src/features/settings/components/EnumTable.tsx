@@ -6,9 +6,12 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
-import { Plus, Cog, Trash2 } from 'lucide-react';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Plus, Cog, Trash2, Loader2 } from 'lucide-react';
 import { EnumConfig } from '@/features/settings/config/enumConfigs';
 import { EnumEditDialog } from './EnumEditDialog';
+import { agenciesApi } from '@/lib/api/v2/agenciesApi';
+import { toast } from 'sonner';
 
 interface EnumTableProps {
   config: EnumConfig;
@@ -21,6 +24,7 @@ export function EnumTable({ config }: EnumTableProps) {
   const [deleteItem, setDeleteItem] = useState<any | null>(null);
   const [deleteCodeConfirm, setDeleteCodeConfirm] = useState('');
   const [creating, setCreating] = useState(false);
+  const [togglingIds, setTogglingIds] = useState<Set<string>>(new Set()); // IDs en cours de mise à jour
 
   // Charger les données
   const loadData = useCallback(async () => {
@@ -65,6 +69,35 @@ export function EnumTable({ config }: EnumTableProps) {
     await loadData();
     setEditItem(null);
     setCreating(false);
+  };
+
+  // Handler pour le toggle des checkbox inline (requires_reference)
+  const handleInlineToggle = async (itemId: string, fieldName: string, currentValue: boolean) => {
+    if (fieldName !== 'requires_reference' || config.type !== 'agencies') {
+      return;
+    }
+
+    setTogglingIds(prev => new Set(prev).add(itemId));
+    
+    try {
+      await agenciesApi.updateRequiresReference(itemId, !currentValue);
+      // Mettre à jour les données localement pour éviter un rechargement complet
+      setData(prev => prev.map(item => 
+        item.id === itemId 
+          ? { ...item, requires_reference: !currentValue }
+          : item
+      ));
+      toast.success(!currentValue ? 'Référence agence activée' : 'Référence agence désactivée');
+    } catch (error: any) {
+      console.error('Erreur lors de la mise à jour:', error);
+      toast.error(`Erreur: ${error.message}`);
+    } finally {
+      setTogglingIds(prev => {
+        const next = new Set(prev);
+        next.delete(itemId);
+        return next;
+      });
+    }
   };
 
   // Filtrer les champs pour exclure "code" de l'affichage
@@ -120,7 +153,20 @@ export function EnumTable({ config }: EnumTableProps) {
               <TableRow key={item.id}>
                 {displayFields.map(field => (
                   <TableCell key={field.name}>
-                    {field.type === 'color' && item[field.name] ? (
+                    {field.type === 'checkbox' && field.inlineToggle ? (
+                      // Checkbox cliquable directement dans le tableau
+                      <div className="flex items-center justify-center">
+                        {togglingIds.has(item.id) ? (
+                          <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                        ) : (
+                          <Checkbox
+                            checked={item[field.name] || false}
+                            onCheckedChange={() => handleInlineToggle(item.id, field.name, item[field.name] || false)}
+                            aria-label={field.label}
+                          />
+                        )}
+                      </div>
+                    ) : field.type === 'color' && item[field.name] ? (
                       <div className="flex items-center gap-2">
                         <div
                           className="h-6 w-6 rounded border"
