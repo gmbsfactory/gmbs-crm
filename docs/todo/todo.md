@@ -1,11 +1,13 @@
 ### Now 
 
+- Bugs
+        - Gestion des filtres et leur affichage en page interventions et artisans
+                Les filtres ne refont pas une seule page mais sont éparpillés sur plusieurs pages
+                Vérifier pour les artisans le filtrage par métier
+        - Première connexion au CRM obligé de recharger la page
+
 - Dashboard
-        - mettre dans le cache les infos des menus hover dès le chargement
-                si ce n'est pas déjà fait
-
-
-- Création des bulles pour les vues filtrées Ms artisans à compléter. 
+        - Raffraîchissement du podium à une date / heure donnée dans la semaine 
 
 - Export 
         - merger sheet export
@@ -18,12 +20,6 @@
         - le calcul du CA 
         - le delta entre inter loggés et inter en bdd 
         - 
-
-
-
-
-
-
 
 
  ### Later
@@ -42,23 +38,4 @@
         pour le dépot de document
         pour l'optim IA
 
-- voir le coût vs le gain de migrer les appels côté serveur avec des edge function
-
-- npx tsx scripts/geocode-artisans.ts à ajouter dans le package.json
-
-- refacto migrations make one clean schema business operations, one for user
-
-- refacto seed_mockup bien avoir des fichiers clairs
-
 - OCR pour documents
-
-
-
-
-
---------------- Discussion 23/11/2025 with DD
-
-- Tendance 
-- Projections KPIs sur des périodes
-- Prendre un pourcentage de l'augmentation des bénéfices suite à la livraison du CRM et des améliorations que l'on a apporté. En contrepartie nous sommes plus libre de la gestion et de l'amélioration de l'outil. On prend 15% des bénéfices liés à la suite. Ce pourcentage sera révalué chaque trimestre. 
-- 
