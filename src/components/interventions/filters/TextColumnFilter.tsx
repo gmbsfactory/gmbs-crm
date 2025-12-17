@@ -112,11 +112,6 @@ export function TextColumnFilter({
               {hasActiveFilter ? <Filter className="h-3.5 w-3.5" /> : null}
             </span>
           </button>
-          {hasActiveFilter && activeFilter && (
-            <Badge variant="secondary" className="text-xs shrink-0">
-              {formatFilterSummary(activeFilter, schema)}
-            </Badge>
-          )}
         </div>
       </DropdownMenuTrigger>
       <DropdownMenuContent side="bottom" align="start" className="w-72">

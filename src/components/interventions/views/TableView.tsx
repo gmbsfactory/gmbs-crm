@@ -1365,7 +1365,9 @@ export function TableView({
                                 densityHeaderClass,
                               )}
                             >
-                              Actions
+                              <div className="flex items-center justify-center">
+                                Actions
+                              </div>
                             </th>
                           </>
                         )

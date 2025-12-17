@@ -271,11 +271,6 @@ export function SelectColumnFilter({
               <ChevronDown className="h-3.5 w-3.5" />
             </span>
           </button>
-          {hasActiveFilter && activeFilter && (
-            <Badge variant="secondary" className="text-xs shrink-0 max-w-[120px] truncate">
-              {formatFilterSummary(activeFilter, schema)}
-            </Badge>
-          )}
         </div>
       </DropdownMenuTrigger>
       <DropdownMenuContent side="bottom" align="start" className="w-72">
