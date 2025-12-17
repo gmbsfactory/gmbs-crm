@@ -235,6 +235,8 @@ function PageContent() {
       const status = getStatusByCode(statusCode)
       colors[viewId] = status?.color ?? null
     })
+    // Market : couleur rouge fixe (pas liée à un statut)
+    colors["market"] = "#EF4444"
     return colors
   }, [getStatusByCode])
   
