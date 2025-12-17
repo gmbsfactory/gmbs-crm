@@ -305,6 +305,7 @@ const mapInterventionRecord = (
     agence: finalAgency?.label ?? agency?.label ?? item.agence ?? item.agence_id ?? null,
     agenceLabel: finalAgency?.label ?? agency?.label ?? null,
     agenceCode: finalAgency?.code ?? agency?.code ?? null,
+    agenceColor: finalAgency?.color ?? agency?.color ?? null,
     referenceAgence: item.reference_agence ?? item.referenceAgence ?? null,
     contexteIntervention:
       item.contexte_intervention ?? item.contexteIntervention ?? null,
@@ -351,6 +352,9 @@ const mapInterventionRecord = (
     demandeTrustPilot:
       item.demande_trust_pilot ?? item.demandeTrustPilot ?? null,
     metier: metier?.code ?? item.metier ?? item.metier_id ?? null,
+    metierLabel: metier?.label ?? null,
+    metierCode: metier?.code ?? null,
+    metierColor: metier?.color ?? null,
     type: item.type ?? null,
     typeDeuxiemeArtisan:
       item.type_deuxieme_artisan ?? item.typeDeuxiemeArtisan ?? null,
@@ -382,6 +386,10 @@ const mapInterventionRecord = (
       item.piece_jointe_facture_materiel ??
       item.pieceJointeFactureMateriel ??
       [],
+    // Sous-statut personnalisé
+    understatement: item.sous_statut_text ?? item.understatement ?? null,
+    sousStatutTextColor: item.sous_statut_text_color ?? '#000000',
+    sousStatutBgColor: item.sous_statut_bg_color ?? 'transparent',
   };
 };
 
@@ -588,6 +596,7 @@ export interface InterventionCost {
   label: string | null;
   amount: number;
   currency: string | null;
+  artisan_order: 1 | 2 | null; // 1=principal, 2=secondaire, null=global
   metadata: any;
   created_at: string | null;
   updated_at: string | null;
@@ -1030,15 +1039,13 @@ export const interventionsApiV2 = {
   // Récupérer toutes les interventions (chargement complet)
   async getAll(params: GetAllParams = {}): Promise<{ data: InterventionView[]; total: number }> {
     const limit = Math.max(1, params.limit ?? 100);
-    const selectColumns = resolveSelectColumns(params?.fields);
+    // Note: Ne pas envoyer le paramètre 'select' - le backend gère déjà les colonnes par défaut
+    // Cela évite la duplication des colonnes dans les requêtes SQL
 
     const searchParams = new URLSearchParams();
     searchParams.set("limit", limit.toString());
     if (params.offset !== undefined) {
       searchParams.set("offset", params.offset.toString());
-    }
-    if (selectColumns) {
-      searchParams.set("select", selectColumns);
     }
 
     const appendFilterParam = (key: string, value?: FilterValue) => {
@@ -4083,8 +4090,10 @@ export async function getDistinctInterventionValues(
       case "statusvalue": {
         const { data } = await getReferenceCache();
         const statuses = data.interventionStatuses ?? [];
+        // Priorité au CODE pour correspondre au schéma INTERVENTION_PROPERTIES
+        // qui utilise des codes (ACCEPTE, ANNULE) comme valeurs d'options
         const values = statuses
-          .map((status) => status.label || status.code || status.id)
+          .map((status) => status.code || status.label || status.id)
           .filter((value): value is string => Boolean(value));
         if (!values.length) return [];
         return Array.from(new Set(values)).sort((a, b) =>
@@ -4107,11 +4116,10 @@ export async function getDistinctInterventionValues(
       case "assigned_user_id": {
         const { data } = await getReferenceCache();
         const users = data.users ?? [];
+        // Priorité au code_gestionnaire pour correspondre à mapInterventionRecord
+        // qui utilise userInfo.code ?? userInfo.username
         const values = users
-          .map((user) => {
-            const fullName = `${user.firstname ?? ""} ${user.lastname ?? ""}`.trim();
-            return fullName || user.username || user.id;
-          })
+          .map((user) => user.code_gestionnaire || user.username || user.id)
           .filter((value): value is string => Boolean(value));
         if (!values.length) return [];
         return Array.from(new Set(values)).sort((a, b) =>

@@ -371,3 +371,45 @@ export function hexToHsl(hex: string): string {
   const [h, s, l] = hexToHslParts(normalized)
   return `${h} ${s}% ${l}%`
 }
+
+function hslToHex(h: number, s: number, l: number): string {
+  s /= 100
+  l /= 100
+  const a = s * Math.min(l, 1 - l)
+  const f = (n: number) => {
+    const k = (n + h / 30) % 12
+    const color = l - a * Math.max(Math.min(k - 3, 9 - k, 1), -1)
+    return Math.round(255 * color).toString(16).padStart(2, '0')
+  }
+  return `#${f(0)}${f(8)}${f(4)}`
+}
+
+/**
+ * Récupère la couleur hex de l'accent actuel (preset ou custom)
+ * Prend en compte le thème clair/sombre
+ */
+export function getAccentHexColor(accent: AccentOption, customAccent?: string): string {
+  if (typeof window === "undefined") return "#6366f1" // Fallback indigo
+  
+  const isDark = document.documentElement.classList.contains("dark")
+  const resolvedTheme: ResolvedTheme = isDark ? "dark" : "light"
+  
+  if (accent === "custom" && customAccent) {
+    const normalized = normalizeHex(customAccent)
+    return normalized ?? "#6366f1"
+  }
+  
+  const preset = ACCENT_PRESETS[accent as AccentPresetName] ?? ACCENT_PRESETS[DEFAULT_ACCENT]
+  const tone = resolvedTheme === "dark" ? preset.dark : preset.light
+  
+  // Convertir HSL en hex
+  const hslMatch = tone.accentHsl.match(/(\d+)\s+(\d+)%\s+(\d+)%/)
+  if (hslMatch) {
+    const h = parseInt(hslMatch[1], 10)
+    const s = parseInt(hslMatch[2], 10)
+    const l = parseInt(hslMatch[3], 10)
+    return hslToHex(h, s, l)
+  }
+  
+  return "#6366f1" // Fallback
+}

@@ -1,6 +1,6 @@
 import type { TableColumnAppearance, TableColumnStyle, TableColumnTextSize } from "@/types/intervention-views"
 
-export const STYLE_ELIGIBLE_COLUMNS = new Set(["statusValue", "attribueA"])
+export const STYLE_ELIGIBLE_COLUMNS = new Set(["statusValue", "attribueA", "agence", "metier"])
 
 export const TABLE_TEXT_SIZE_VALUES: TableColumnTextSize[] = ["xl", "lg", "md", "sm", "xs"]
 

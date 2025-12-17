@@ -82,6 +82,13 @@ interface UpdateInterventionRequest {
   floor?: string | null;
   apartment_number?: string | null;
   vacant_housing_instructions?: string | null;
+  // Sous-statut personnalisé
+  sous_statut_text?: string | null;
+  sous_statut_text_color?: string | null;
+  sous_statut_bg_color?: string | null;
+  // Deuxième artisan - métier et coûts
+  metier_second_artisan_id?: string | null;
+  // Note: Les coûts du 2ème artisan sont gérés via intervention_costs avec artisan_order = 2
 }
 
 interface AssignArtisanRequest {
@@ -332,6 +339,10 @@ const DEFAULT_INTERVENTION_COLUMNS = [
   'latitude',
   'longitude',
   'is_active',
+  // Sous-statut personnalisé
+  'sous_statut_text',
+  'sous_statut_text_color',
+  'sous_statut_bg_color',
 ];
 
 const DEFAULT_SELECT = DEFAULT_INTERVENTION_COLUMNS.join(',');
@@ -1597,6 +1608,10 @@ serve(async (req: Request) => {
               floor: body.floor ?? null,
               apartment_number: body.apartment_number ?? null,
               vacant_housing_instructions: body.vacant_housing_instructions ?? null,
+              sous_statut_text: body.sous_statut_text ?? null,
+              sous_statut_text_color: body.sous_statut_text_color ?? '#000000',
+              sous_statut_bg_color: body.sous_statut_bg_color ?? 'transparent',
+              metier_second_artisan_id: body.metier_second_artisan_id ?? null,
               updated_at: new Date().toISOString()
             })
             .eq('id', existing.id)
@@ -1652,6 +1667,10 @@ serve(async (req: Request) => {
           floor: body.floor ?? null,
           apartment_number: body.apartment_number ?? null,
           vacant_housing_instructions: body.vacant_housing_instructions ?? null,
+          sous_statut_text: body.sous_statut_text ?? null,
+          sous_statut_text_color: body.sous_statut_text_color ?? '#000000',
+          sous_statut_bg_color: body.sous_statut_bg_color ?? 'transparent',
+          metier_second_artisan_id: body.metier_second_artisan_id ?? null,
           is_active: true
         }])
         .select()
@@ -1791,6 +1810,10 @@ serve(async (req: Request) => {
           floor: body.floor ?? null,
           apartment_number: body.apartment_number ?? null,
           vacant_housing_instructions: body.vacant_housing_instructions ?? null,
+          sous_statut_text: body.sous_statut_text ?? null,
+          sous_statut_text_color: body.sous_statut_text_color ?? '#000000',
+          sous_statut_bg_color: body.sous_statut_bg_color ?? 'transparent',
+          metier_second_artisan_id: body.metier_second_artisan_id ?? null,
           is_active: true
         }])
         .select()
@@ -1836,6 +1859,10 @@ serve(async (req: Request) => {
                 floor: body.floor ?? null,
                 apartment_number: body.apartment_number ?? null,
                 vacant_housing_instructions: body.vacant_housing_instructions ?? null,
+                sous_statut_text: body.sous_statut_text ?? null,
+                sous_statut_text_color: body.sous_statut_text_color ?? '#000000',
+                sous_statut_bg_color: body.sous_statut_bg_color ?? 'transparent',
+                metier_second_artisan_id: body.metier_second_artisan_id ?? null,
                 is_active: true
               }])
               .select()
@@ -1998,6 +2025,10 @@ serve(async (req: Request) => {
           floor: body.floor ?? null,
           apartment_number: body.apartment_number ?? null,
           vacant_housing_instructions: body.vacant_housing_instructions ?? null,
+          sous_statut_text: body.sous_statut_text ?? null,
+          sous_statut_text_color: body.sous_statut_text_color ?? '#000000',
+          sous_statut_bg_color: body.sous_statut_bg_color ?? 'transparent',
+          metier_second_artisan_id: body.metier_second_artisan_id ?? null,
           is_active: body.is_active,
           updated_at: new Date().toISOString()
         })

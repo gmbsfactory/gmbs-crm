@@ -138,74 +138,81 @@ export function ArtisanFinancesSection({ interventions, artisanId }: ArtisanFina
   }, [interventions, referenceData])
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <TrendingUp className="h-5 w-5" />
+    <Card className="h-full flex flex-col">
+      <CardHeader className="shrink-0 py-2 px-3">
+        <CardTitle className="flex items-center gap-2 text-sm">
+          <TrendingUp className="h-4 w-4" />
           Finances liées à l&apos;artisan
         </CardTitle>
       </CardHeader>
-      <CardContent className="space-y-6">
-        {/* Statistiques de base */}
-        <div className="grid gap-4 md:grid-cols-2">
-          <div className="space-y-1">
-            <p className="text-sm text-muted-foreground">Total d&apos;interventions</p>
-            <p className="text-2xl font-semibold">{stats.totalInterventions}</p>
-          </div>
-          <div className="space-y-1">
-            <p className="text-sm text-muted-foreground">Marge moyenne</p>
-            <p className="text-2xl font-semibold">{stats.averageMarge.toFixed(2)}%</p>
-          </div>
-        </div>
-
-        {/* Graphiques */}
-        <div className="grid gap-6 md:grid-cols-2">
-          {/* Bar Chart */}
-          <div className="space-y-2">
-            <p className="text-sm font-medium">Stat Cout Artisan</p>
-            <ResponsiveContainer width="100%" height={200}>
-              <BarChart data={barChartData}>
-                <XAxis dataKey="name" hide />
-                <YAxis
-                  tickFormatter={(value) => `€${value.toLocaleString("fr-FR", { maximumFractionDigits: 0 })}`}
-                />
-                <Tooltip
-                  formatter={(value: number) => [
-                    `€${value.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
-                    "",
-                  ]}
-                />
-                <Bar dataKey="value" radius={[4, 4, 0, 0]}>
-                  {barChartData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={index === 0 ? "#FF0000" : "#28a745"} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
+      <CardContent className="flex-1 min-h-0 p-3 pt-0 overflow-hidden">
+        <div className="h-full flex flex-col gap-2">
+          {/* Statistiques de base - toujours visibles */}
+          <div className="shrink-0 grid grid-cols-2 gap-2">
+            <div className="p-2 rounded-md bg-muted/50">
+              <p className="text-[10px] text-muted-foreground uppercase">Interventions</p>
+              <p className="text-lg font-bold">{stats.totalInterventions}</p>
+            </div>
+            <div className="p-2 rounded-md bg-muted/50">
+              <p className="text-[10px] text-muted-foreground uppercase">Marge moy.</p>
+              <p className="text-lg font-bold">{stats.averageMarge.toFixed(1)}%</p>
+            </div>
           </div>
 
-          {/* Pie Chart */}
-          <div className="space-y-2">
-            <p className="text-sm font-medium">Stat Intervention Artisan</p>
-            <ResponsiveContainer width="100%" height={200}>
-              <PieChart>
-                <Pie
-                  data={pieChartData}
-                  cx="50%"
-                  cy="50%"
-                  labelLine={false}
-                  label={(entry: any) => (entry.value > 0 ? `${entry.name}: ${entry.value}` : "")}
-                  outerRadius={70}
-                  fill="#8884d8"
-                  dataKey="value"
-                >
-                  {pieChartData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.color} />
-                  ))}
-                </Pie>
-                <Tooltip />
-              </PieChart>
-            </ResponsiveContainer>
+          {/* Graphiques - zone scrollable si nécessaire */}
+          <div className="flex-1 min-h-0 grid grid-cols-2 gap-2">
+            {/* Bar Chart */}
+            <div className="flex flex-col">
+              <p className="text-[10px] font-medium text-muted-foreground mb-1">Coûts</p>
+              <div className="flex-1 min-h-[80px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={barChartData}>
+                    <XAxis dataKey="name" hide />
+                    <YAxis
+                      tick={{ fontSize: 10 }}
+                      width={45}
+                      tickFormatter={(value) => `€${(value / 1000).toFixed(0)}k`}
+                    />
+                    <Tooltip
+                      formatter={(value: number) => [
+                        `€${value.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+                        "",
+                      ]}
+                    />
+                    <Bar dataKey="value" radius={[4, 4, 0, 0]}>
+                      {barChartData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={index === 0 ? "#ef4444" : "#22c55e"} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+
+            {/* Pie Chart */}
+            <div className="flex flex-col">
+              <p className="text-[10px] font-medium text-muted-foreground mb-1">Statuts</p>
+              <div className="flex-1 min-h-[80px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={pieChartData}
+                      cx="50%"
+                      cy="50%"
+                      labelLine={false}
+                      outerRadius="80%"
+                      fill="#8884d8"
+                      dataKey="value"
+                    >
+                      {pieChartData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.color} />
+                      ))}
+                    </Pie>
+                    <Tooltip />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
           </div>
         </div>
       </CardContent>

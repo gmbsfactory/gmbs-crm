@@ -638,6 +638,233 @@ export const interventionsApi = {
     }
   },
 
+  async setSecondaryArtisan(interventionId: string, artisanId: string | null): Promise<void> {
+    if (!interventionId) {
+      throw new Error("interventionId is required");
+    }
+
+    // Récupérer l'artisan secondaire actuel
+    const { data: existingSecondary, error: secondaryError } = await supabase
+      .from('intervention_artisans')
+      .select('id, artisan_id, role')
+      .eq('intervention_id', interventionId)
+      .eq('is_primary', false)
+      .maybeSingle();
+
+    if (secondaryError) {
+      throw new Error(`Erreur lors de la récupération de l'artisan secondaire: ${secondaryError.message}`);
+    }
+
+    // Aucun artisan sélectionné => supprimer le secondaire courant
+    if (!artisanId) {
+      if (existingSecondary?.id) {
+        const { error: deleteError } = await supabase
+          .from('intervention_artisans')
+          .delete()
+          .eq('id', existingSecondary.id);
+
+        if (deleteError) {
+          throw new Error(`Erreur lors de la suppression de l'artisan secondaire: ${deleteError.message}`);
+        }
+      }
+      return;
+    }
+
+    // Rien à faire, c'est déjà le bon artisan
+    if (existingSecondary?.artisan_id === artisanId) {
+      return;
+    }
+
+    // Vérifier si l'artisan est déjà lié (peut-être comme primaire)
+    const { data: existingLink, error: linkError } = await supabase
+      .from('intervention_artisans')
+      .select('id, is_primary')
+      .eq('intervention_id', interventionId)
+      .eq('artisan_id', artisanId)
+      .maybeSingle();
+
+    if (linkError) {
+      throw new Error(`Erreur lors de la récupération de l'artisan: ${linkError.message}`);
+    }
+
+    // Si l'artisan est déjà le primaire, ne pas le rétrograder
+    if (existingLink?.is_primary) {
+      throw new Error("Cet artisan est déjà l'artisan principal. Veuillez d'abord le retirer.");
+    }
+
+    // Supprimer l'ancien artisan secondaire s'il existe
+    if (existingSecondary?.id) {
+      const { error: deleteError } = await supabase
+        .from('intervention_artisans')
+        .delete()
+        .eq('id', existingSecondary.id);
+
+      if (deleteError) {
+        throw new Error(`Erreur lors de la suppression de l'ancien artisan secondaire: ${deleteError.message}`);
+      }
+    }
+
+    // Si un lien existe déjà avec cet artisan (mais pas comme primaire), le mettre à jour
+    if (existingLink?.id) {
+      const { error: updateError } = await supabase
+        .from('intervention_artisans')
+        .update({
+          role: 'secondary',
+          is_primary: false,
+        })
+        .eq('id', existingLink.id);
+
+      if (updateError) {
+        throw new Error(`Erreur lors de la mise à jour de l'artisan secondaire: ${updateError.message}`);
+      }
+      return;
+    }
+
+    // Insérer le nouvel artisan secondaire
+    const { error: insertError } = await supabase
+      .from('intervention_artisans')
+      .insert({
+        intervention_id: interventionId,
+        artisan_id: artisanId,
+        role: 'secondary',
+        is_primary: false,
+      });
+
+    if (insertError) {
+      throw new Error(`Erreur lors de l'assignation de l'artisan secondaire: ${insertError.message}`);
+    }
+  },
+
+  /**
+   * Créer ou mettre à jour un coût d'intervention
+   * @param interventionId - ID de l'intervention
+   * @param cost - Données du coût (type, montant, ordre artisan)
+   */
+  async upsertCost(interventionId: string, cost: {
+    cost_type: 'sst' | 'materiel' | 'intervention' | 'marge';
+    amount: number;
+    artisan_order?: 1 | 2 | null;
+    label?: string | null;
+  }): Promise<void> {
+    if (!interventionId) {
+      throw new Error("interventionId is required");
+    }
+
+    const artisanOrder = cost.artisan_order ?? (cost.cost_type === 'intervention' || cost.cost_type === 'marge' ? null : 1);
+
+    // Chercher un coût existant avec le même type et ordre
+    let query = supabase
+      .from('intervention_costs')
+      .select('id')
+      .eq('intervention_id', interventionId)
+      .eq('cost_type', cost.cost_type);
+
+    if (artisanOrder === null) {
+      query = query.is('artisan_order', null);
+    } else {
+      query = query.eq('artisan_order', artisanOrder);
+    }
+
+    const { data: existing, error: selectError } = await query.maybeSingle();
+
+    if (selectError) {
+      throw new Error(`Erreur lors de la recherche du coût: ${selectError.message}`);
+    }
+
+    if (existing) {
+      // Mettre à jour le coût existant
+      const { error: updateError } = await supabase
+        .from('intervention_costs')
+        .update({ 
+          amount: cost.amount, 
+          label: cost.label ?? null,
+          updated_at: new Date().toISOString() 
+        })
+        .eq('id', existing.id);
+
+      if (updateError) {
+        throw new Error(`Erreur lors de la mise à jour du coût: ${updateError.message}`);
+      }
+    } else {
+      // Créer un nouveau coût
+      const { error: insertError } = await supabase
+        .from('intervention_costs')
+        .insert({
+          intervention_id: interventionId,
+          cost_type: cost.cost_type,
+          amount: cost.amount,
+          artisan_order: artisanOrder,
+          label: cost.label ?? null,
+        });
+
+      if (insertError) {
+        throw new Error(`Erreur lors de la création du coût: ${insertError.message}`);
+      }
+    }
+  },
+
+  /**
+   * Récupérer les coûts d'une intervention
+   * @param interventionId - ID de l'intervention
+   * @param artisanOrder - Optionnel: filtrer par ordre d'artisan (1, 2 ou null pour global)
+   */
+  async getCosts(interventionId: string, artisanOrder?: 1 | 2 | null): Promise<any[]> {
+    if (!interventionId) {
+      throw new Error("interventionId is required");
+    }
+
+    let query = supabase
+      .from('intervention_costs')
+      .select('*')
+      .eq('intervention_id', interventionId);
+
+    if (artisanOrder !== undefined) {
+      if (artisanOrder === null) {
+        query = query.is('artisan_order', null);
+      } else {
+        query = query.eq('artisan_order', artisanOrder);
+      }
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+      throw new Error(`Erreur lors de la récupération des coûts: ${error.message}`);
+    }
+
+    return data || [];
+  },
+
+  /**
+   * Supprimer un coût d'intervention
+   * @param interventionId - ID de l'intervention
+   * @param costType - Type de coût
+   * @param artisanOrder - Ordre de l'artisan
+   */
+  async deleteCost(interventionId: string, costType: string, artisanOrder?: 1 | 2 | null): Promise<void> {
+    if (!interventionId) {
+      throw new Error("interventionId is required");
+    }
+
+    let query = supabase
+      .from('intervention_costs')
+      .delete()
+      .eq('intervention_id', interventionId)
+      .eq('cost_type', costType);
+
+    if (artisanOrder === null || artisanOrder === undefined) {
+      query = query.is('artisan_order', null);
+    } else {
+      query = query.eq('artisan_order', artisanOrder);
+    }
+
+    const { error } = await query;
+
+    if (error) {
+      throw new Error(`Erreur lors de la suppression du coût: ${error.message}`);
+    }
+  },
+
   // Supprimer une intervention (soft delete)
   async delete(id: string): Promise<{ message: string; data: Intervention }> {
     const headers = await getHeaders();
@@ -723,105 +950,6 @@ export const interventionsApi = {
     } catch (err: any) {
       // Capturer les erreurs réseau ou autres erreurs non-Supabase
       console.error('[addCost] Erreur inattendue:', err);
-      if (err.message?.includes('invalid response') || err.message?.includes('upstream server')) {
-        throw new Error(`Erreur de connexion Supabase - veuillez réessayer: ${err.message}`);
-      }
-      throw err;
-    }
-  },
-
-  // Mettre à jour ou créer un coût pour une intervention (upsert)
-  async upsertCost(
-    interventionId: string,
-    data: {
-      cost_type: "sst" | "materiel" | "intervention" | "total";
-      label?: string;
-      amount: number;
-      currency?: string;
-      metadata?: any;
-    }
-  ): Promise<InterventionCost> {
-    // Valider l'UUID de l'intervention
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    if (!interventionId || !uuidRegex.test(interventionId)) {
-      throw new Error(`ID d'intervention invalide: ${interventionId}`);
-    }
-
-    // Valider le montant
-    if (typeof data.amount !== 'number' || isNaN(data.amount)) {
-      throw new Error(`Montant invalide: ${data.amount}`);
-    }
-
-    console.log('[upsertCost] Début upsert coût:', { interventionId, cost_type: data.cost_type, amount: data.amount });
-
-    // "total" n'est pas un type valide pour la base de données, on le mappe vers "marge"
-    const costType: "sst" | "materiel" | "intervention" | "marge" =
-      data.cost_type === "total" ? "marge" : data.cost_type;
-
-    try {
-      // Vérifier si le coût existe déjà
-      const { data: existingCost, error: findError } = await supabase
-      .from('intervention_costs')
-      .select('id')
-      .eq('intervention_id', interventionId)
-      .eq('cost_type', costType)
-      .maybeSingle();
-
-    if (findError && findError.code !== 'PGRST116') {
-      throw new Error(`Erreur lors de la recherche du coût: ${findError.message}`);
-    }
-
-    if (existingCost) {
-      // Mettre à jour le coût existant
-      console.log('[upsertCost] Mise à jour du coût existant:', { id: existingCost.id, cost_type: costType, amount: data.amount });
-      
-      const { data: result, error: updateError } = await supabase
-        .from('intervention_costs')
-        .update({
-          amount: data.amount,
-          label: data.label || null,
-          currency: data.currency || 'EUR',
-          metadata: data.metadata || null, // Ne pas stringify
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', existingCost.id)
-        .select()
-        .single();
-
-      if (updateError) {
-        // Logger l'erreur complète pour le diagnostic (l'erreur Supabase peut avoir des propriétés non-standard)
-        console.error('[upsertCost] Erreur mise à jour complète:', updateError);
-        console.error('[upsertCost] Erreur mise à jour JSON:', JSON.stringify(updateError, null, 2));
-        console.error('[upsertCost] Erreur mise à jour props:', { 
-          code: updateError.code, 
-          message: updateError.message, 
-          details: updateError.details,
-          hint: (updateError as any).hint,
-          status: (updateError as any).status,
-          statusText: (updateError as any).statusText
-        });
-        
-        // Construire un message d'erreur plus informatif
-        const errorMessage = updateError.message 
-          || updateError.code 
-          || (updateError as any).hint 
-          || JSON.stringify(updateError) 
-          || 'Erreur inconnue';
-        throw new Error(`Erreur lors de la mise à jour du coût: ${errorMessage}`);
-      }
-
-      console.log('[upsertCost] Coût mis à jour avec succès');
-      return result;
-    } else {
-      // Créer un nouveau coût avec le type mappé
-      return this.addCost(interventionId, {
-        ...data,
-        cost_type: costType
-      });
-    }
-    } catch (err: any) {
-      // Capturer les erreurs réseau ou autres erreurs non-Supabase
-      console.error('[upsertCost] Erreur inattendue:', err);
       if (err.message?.includes('invalid response') || err.message?.includes('upstream server')) {
         throw new Error(`Erreur de connexion Supabase - veuillez réessayer: ${err.message}`);
       }

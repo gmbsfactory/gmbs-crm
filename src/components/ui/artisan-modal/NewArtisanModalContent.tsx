@@ -1,14 +1,36 @@
 "use client"
 
-import React, { useMemo, useRef } from "react"
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { Controller, useForm } from "react-hook-form"
-import { useMutation } from "@tanstack/react-query"
-import { ChevronRight, X, Loader2, CheckCircle2, AlertCircle } from "lucide-react"
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { 
+  ChevronRight, 
+  ChevronDown, 
+  X, 
+  Loader2, 
+  CheckCircle2, 
+  AlertCircle, 
+  MapPin, 
+  User, 
+  Building2,
+  Calendar,
+  Upload,
+  MessageSquare,
+  Trash2,
+  Plus,
+  UserCheck,
+  Pencil,
+  RefreshCw,
+  AlertTriangle
+} from "lucide-react"
+import { useGeocodeSearch, type GeocodeSuggestion } from "@/hooks/useGeocodeSearch"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
   DropdownMenu,
@@ -17,12 +39,27 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { GestionnaireBadge } from "@/components/ui/gestionnaire-badge"
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { ModeIcons } from "@/components/ui/mode-selector"
+import { DocumentManager } from "@/components/documents/DocumentManager"
+import { CommentSection } from "@/components/shared/CommentSection"
 import { useReferenceData } from "@/hooks/useReferenceData"
 import { toast } from "sonner"
 import { useSiretVerification } from "@/hooks/useSiretVerification"
 import { validateSiret } from "@/lib/siret-validation"
-import { artisansApiV2 } from "@/lib/supabase-api-v2"
+import { artisansApiV2, getArtisanTotalCount } from "@/lib/supabase-api-v2"
+import { artisansApi } from "@/lib/api/v2"
+import { commentsApi } from "@/lib/api/v2/commentsApi"
+import { supabase } from "@/lib/supabase-client"
 import { cn } from "@/lib/utils"
 import type { ModalDisplayMode } from "@/types/modal-display"
 import { REGEXP_ONLY_DIGITS } from "input-otp"
@@ -33,16 +70,62 @@ import {
   InputOTPSlot,
 } from "@/components/ui/input-otp"
 
-type NewArtisanFormValues = {
+// ===== HELPERS =====
+
+// Fonction pour calculer la couleur de texte lisible (blanc ou noir)
+function getReadableTextColor(bgColor: string | null | undefined): string {
+  if (!bgColor) return "#1f2937"
+  const hex = bgColor.replace("#", "")
+  if (hex.length !== 6) return "#1f2937"
+  const r = parseInt(hex.slice(0, 2), 16)
+  const g = parseInt(hex.slice(2, 4), 16)
+  const b = parseInt(hex.slice(4, 6), 16)
+  // Formule de luminance relative
+  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255
+  return luminance > 0.5 ? "#1f2937" : "#ffffff"
+}
+
+// ===== CONSTANTES =====
+
+const STATUT_JURIDIQUE_OPTIONS = [
+  { value: "SARL", label: "SARL" },
+  { value: "EIRL", label: "EIRL" },
+  { value: "EURL", label: "EURL" },
+  { value: "SAS", label: "SAS" },
+  { value: "SASU", label: "SASU" },
+  { value: "Auto-entrepreneur", label: "Auto-entrepreneur" },
+  { value: "SA", label: "SA" },
+  { value: "SNC", label: "SNC" },
+  { value: "SCS", label: "SCS" },
+  { value: "SCA", label: "SCA" },
+]
+
+const ZONE_INTERVENTION_OPTIONS = [
+  { value: "20", label: "0 à 20 km" },
+  { value: "35", label: "20 à 35 km" },
+  { value: "50", label: "35 à 50 km" },
+  { value: "150", label: "50 et + km" },
+]
+
+const ARTISAN_DOCUMENT_KINDS = [
+  { kind: "kbis", label: "Extrait Kbis" },
+  { kind: "assurance", label: "Attestation d'assurance" },
+  { kind: "cni_recto_verso", label: "CNI recto/verso" },
+  { kind: "iban", label: "IBAN" },
+  { kind: "decharge_partenariat", label: "Décharge partenariat" },
+  { kind: "photo_profil", label: "Photo de profil" },
+  { kind: "autre", label: "Autre document" },
+]
+
+// ===== TYPES =====
+
+type ArtisanFormValues = {
   prenom: string
   nom: string
   raison_sociale: string
   telephone: string
   telephone2: string
   email: string
-  adresse_intervention: string
-  code_postal_intervention: string
-  ville_intervention: string
   adresse_siege_social: string
   code_postal_siege_social: string
   ville_siege_social: string
@@ -53,18 +136,35 @@ type NewArtisanFormValues = {
   gestionnaire_id: string
   statut_id: string
   numero_associe: string
+  intervention_latitude: number | null
+  intervention_longitude: number | null
+  commentaire_initial: string
 }
 
-const buildDefaultFormValues = (): NewArtisanFormValues => ({
+type PendingAbsence = {
+  id: string
+  start_date: string
+  end_date: string
+  reason: string
+}
+
+type ExistingAbsence = {
+  id: string
+  start_date: string
+  end_date: string
+  reason: string | null
+  is_confirmed: boolean
+}
+
+// ===== HELPERS =====
+
+const buildDefaultFormValues = (): ArtisanFormValues => ({
   prenom: "",
   nom: "",
   raison_sociale: "",
   telephone: "",
   telephone2: "",
   email: "",
-  adresse_intervention: "",
-  code_postal_intervention: "",
-  ville_intervention: "",
   adresse_siege_social: "",
   code_postal_siege_social: "",
   ville_siege_social: "",
@@ -75,40 +175,147 @@ const buildDefaultFormValues = (): NewArtisanFormValues => ({
   gestionnaire_id: "",
   statut_id: "",
   numero_associe: "",
+  intervention_latitude: null,
+  intervention_longitude: null,
+  commentaire_initial: "",
 })
 
-const buildCreatePayload = (values: NewArtisanFormValues) => ({
-  prenom: values.prenom || undefined,
-  nom: values.nom || undefined,
-  raison_sociale: values.raison_sociale || undefined,
-  telephone: values.telephone || undefined,
-  telephone2: values.telephone2 || undefined,
-  email: values.email || undefined,
-  adresse_intervention: values.adresse_intervention || undefined,
-  code_postal_intervention: values.code_postal_intervention || undefined,
-  ville_intervention: values.ville_intervention || undefined,
-  adresse_siege_social: values.adresse_siege_social || undefined,
-  code_postal_siege_social: values.code_postal_siege_social || undefined,
-  ville_siege_social: values.ville_siege_social || undefined,
-  statut_juridique: values.statut_juridique || undefined,
-  siret: values.siret || undefined,
-  metiers: (values.metiers ?? []).filter(Boolean),
-  zones: values.zone_intervention ? [values.zone_intervention] : [],
-  gestionnaire_id: values.gestionnaire_id || undefined,
-  statut_id: values.statut_id || undefined,
-  numero_associe: values.numero_associe || undefined,
-})
+const buildCreatePayload = (values: ArtisanFormValues) => {
+  // S'assurer que les métiers et zones sont toujours des tableaux (même vides)
+  // pour que l'API les mette à jour correctement
+  const metiers = (values.metiers ?? []).filter(Boolean)
+  const zones = values.zone_intervention ? [values.zone_intervention] : []
+  
+  return {
+    prenom: values.prenom || undefined,
+    nom: values.nom || undefined,
+    raison_sociale: values.raison_sociale || undefined,
+    telephone: values.telephone || undefined,
+    telephone2: values.telephone2 || undefined,
+    email: values.email || undefined,
+    adresse_siege_social: values.adresse_siege_social || undefined,
+    code_postal_siege_social: values.code_postal_siege_social || undefined,
+    ville_siege_social: values.ville_siege_social || undefined,
+    statut_juridique: values.statut_juridique || undefined,
+    siret: values.siret || undefined,
+    metiers, // Toujours inclus, même si vide (pour permettre la suppression)
+    zones, // Toujours inclus, même si vide (pour permettre la suppression)
+    gestionnaire_id: values.gestionnaire_id || undefined,
+    statut_id: values.statut_id || undefined,
+    numero_associe: values.numero_associe || undefined,
+    intervention_latitude: values.intervention_latitude ?? undefined,
+    intervention_longitude: values.intervention_longitude ?? undefined,
+  }
+}
+
+// ===== COMPOSANT PRINCIPAL =====
 
 type Props = {
   mode: ModalDisplayMode
   onClose: () => void
   onCycleMode?: () => void
+  artisanId?: string // Si fourni, mode édition
 }
 
-export function NewArtisanModalContent({ mode, onClose, onCycleMode }: Props) {
+export function NewArtisanModalContent({ mode, onClose, onCycleMode, artisanId }: Props) {
+  const isEditMode = Boolean(artisanId)
   const ModeIcon = ModeIcons[mode]
   const { data: referenceData, loading: referenceLoading } = useReferenceData()
+  const queryClient = useQueryClient()
   const formRef = useRef<HTMLFormElement>(null)
+  const suggestionBlurTimeoutRef = useRef<number | null>(null)
+
+  // États pour les sections collapsibles
+  const [isAbsencesOpen, setIsAbsencesOpen] = useState(false)
+  const [isDocumentsOpen, setIsDocumentsOpen] = useState(false)
+  const [isCommentsOpen, setIsCommentsOpen] = useState(false)
+
+  // Hook géocodage pour l'adresse du siège social
+  const {
+    query: addressQuery,
+    setQuery: setAddressQuery,
+    suggestions: addressSuggestions,
+    isSuggesting,
+    clearSuggestions,
+  } = useGeocodeSearch({ minQueryLength: 3, debounceMs: 300 })
+  const [showSuggestions, setShowSuggestions] = useState(false)
+  const [generatedNumeroAssocie, setGeneratedNumeroAssocie] = useState<string>("")
+
+  // Gestion des absences
+  const [pendingAbsences, setPendingAbsences] = useState<PendingAbsence[]>([])
+  const [existingAbsences, setExistingAbsences] = useState<ExistingAbsence[]>([])
+  const [newAbsence, setNewAbsence] = useState({ start_date: "", end_date: "", reason: "" })
+
+  // État pour le dialogue de confirmation d'artisan supprimé
+  const [deletedArtisanDialog, setDeletedArtisanDialog] = useState<{
+    isOpen: boolean
+    artisan: {
+      id: string
+      prenom: string | null
+      nom: string | null
+      email: string | null
+      siret: string | null
+      raison_sociale: string | null
+    } | null
+    deletedAt: string | null
+    pendingFormValues: ArtisanFormValues | null
+  }>({
+    isOpen: false,
+    artisan: null,
+    deletedAt: null,
+    pendingFormValues: null,
+  })
+  const [isRestoringOrDeleting, setIsRestoringOrDeleting] = useState(false)
+
+  // Utilisateur courant
+  const [currentUser, setCurrentUser] = useState<{
+    id: string
+    displayName: string
+  } | null>(null)
+
+  // Charger l'artisan existant en mode édition
+  const { data: existingArtisan, isLoading: isLoadingArtisan } = useQuery({
+    queryKey: ["artisan", artisanId],
+    enabled: Boolean(artisanId),
+    queryFn: () => artisansApi.getById(artisanId!),
+  })
+
+  // Charger l'utilisateur courant
+  useEffect(() => {
+    const loadCurrentUser = async () => {
+      try {
+        const { data: session } = await supabase.auth.getSession()
+        const token = session?.session?.access_token
+        const response = await fetch("/api/auth/me", {
+          cache: "no-store",
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        })
+        if (!response.ok) return
+        const payload = await response.json()
+        const user = payload?.user
+        if (!user) return
+
+        const first = user.firstname ?? user.prenom ?? ""
+        const last = user.lastname ?? user.nom ?? ""
+        const displayNameCandidate = [first, last].filter(Boolean).join(" ").trim()
+        const displayName = displayNameCandidate || user.username || user.email || "Vous"
+
+        setCurrentUser({ id: user.id, displayName })
+      } catch (error) {
+        console.warn("Impossible de charger l'utilisateur courant", error)
+      }
+    }
+    loadCurrentUser()
+  }, [])
+
+  // Cleanup du timeout
+  useEffect(() => {
+    return () => {
+      if (suggestionBlurTimeoutRef.current) {
+        window.clearTimeout(suggestionBlurTimeoutRef.current)
+      }
+    }
+  }, [])
 
   // Trouver le statut CANDIDAT par défaut
   const defaultCandidatStatusId = useMemo(() => {
@@ -117,12 +324,124 @@ export function NewArtisanModalContent({ mode, onClose, onCycleMode }: Props) {
     )?.id || "";
   }, [referenceData]);
 
-  const { control, register, handleSubmit, reset, setValue, watch, formState: { errors } } = useForm<NewArtisanFormValues>({
-    defaultValues: {
-      ...buildDefaultFormValues(),
-      statut_id: defaultCandidatStatusId,
-    },
+  const { control, register, handleSubmit, reset, setValue, watch, formState: { errors, isDirty } } = useForm<ArtisanFormValues>({
+    defaultValues: buildDefaultFormValues(),
   })
+
+  // Charger les données de l'artisan existant dans le formulaire
+  useEffect(() => {
+    if (existingArtisan && isEditMode) {
+      const artisanAny = existingArtisan as any
+      
+      // Extraire les métiers
+      const metierIds: string[] = (() => {
+        if (Array.isArray(artisanAny.artisan_metiers)) {
+          return artisanAny.artisan_metiers
+            .map((item: any) => item.metier_id || item.metiers?.id)
+            .filter(Boolean)
+        }
+        if (Array.isArray(artisanAny.metiers)) {
+          return artisanAny.metiers.filter(Boolean)
+        }
+        return []
+      })()
+
+      // Extraire la zone
+      const zoneValue = (() => {
+        if (Array.isArray(artisanAny.artisan_zones) && artisanAny.artisan_zones.length > 0) {
+          return artisanAny.artisan_zones[0].zone_id || ""
+        }
+        if (Array.isArray(artisanAny.zones) && artisanAny.zones.length > 0) {
+          return artisanAny.zones[0]
+        }
+        return ""
+      })()
+      
+      // Debug: vérifier ce qui est chargé
+      console.log("[NewArtisanModalContent] Chargement artisan existant:", {
+        artisan_metiers: artisanAny.artisan_metiers,
+        metiers: artisanAny.metiers,
+        metierIds,
+        artisan_zones: artisanAny.artisan_zones,
+        zones: artisanAny.zones,
+        zoneValue,
+      })
+
+      // Charger les absences existantes
+      if (Array.isArray(artisanAny.artisan_absences)) {
+        setExistingAbsences(artisanAny.artisan_absences.map((a: any) => ({
+          id: a.id,
+          start_date: a.start_date,
+          end_date: a.end_date,
+          reason: a.reason,
+          is_confirmed: a.is_confirmed ?? false,
+        })))
+      }
+
+      // Remplir le formulaire
+      reset({
+        prenom: artisanAny.prenom ?? "",
+        nom: artisanAny.nom ?? "",
+        raison_sociale: artisanAny.raison_sociale ?? "",
+        telephone: artisanAny.telephone ?? "",
+        telephone2: artisanAny.telephone2 ?? "",
+        email: artisanAny.email ?? "",
+        adresse_siege_social: artisanAny.adresse_siege_social ?? "",
+        code_postal_siege_social: artisanAny.code_postal_siege_social ?? "",
+        ville_siege_social: artisanAny.ville_siege_social ?? "",
+        statut_juridique: artisanAny.statut_juridique ?? "",
+        siret: artisanAny.siret ?? "",
+        metiers: metierIds,
+        zone_intervention: zoneValue,
+        gestionnaire_id: artisanAny.gestionnaire_id ?? "",
+        statut_id: artisanAny.statut_id ?? "",
+        numero_associe: artisanAny.numero_associe ?? "",
+        intervention_latitude: artisanAny.intervention_latitude ?? null,
+        intervention_longitude: artisanAny.intervention_longitude ?? null,
+        commentaire_initial: "",
+      })
+
+      // Mettre à jour l'adresse query pour le géocodage
+      const fullAddress = [
+        artisanAny.adresse_siege_social,
+        artisanAny.code_postal_siege_social,
+        artisanAny.ville_siege_social
+      ].filter(Boolean).join(", ")
+      if (fullAddress) {
+        setAddressQuery(fullAddress)
+      }
+
+      // Mettre à jour le numéro associé
+      if (artisanAny.numero_associe) {
+        setGeneratedNumeroAssocie(artisanAny.numero_associe)
+      }
+    }
+  }, [existingArtisan, isEditMode, reset, setAddressQuery])
+
+  // Mettre à jour le statut par défaut en mode création
+  useEffect(() => {
+    if (!isEditMode && defaultCandidatStatusId) {
+      setValue("statut_id", defaultCandidatStatusId)
+    }
+  }, [defaultCandidatStatusId, setValue, isEditMode])
+
+  // Récupérer le nombre d'artisans pour générer le numéro associé (création uniquement)
+  useEffect(() => {
+    if (isEditMode) return
+    
+    const fetchArtisanCount = async () => {
+      try {
+        const count = await getArtisanTotalCount()
+        const nextNumber = String(count + 1)
+        setGeneratedNumeroAssocie(nextNumber)
+        setValue("numero_associe", nextNumber)
+      } catch (error) {
+        console.error("Erreur lors de la récupération du nombre d'artisans:", error)
+        setGeneratedNumeroAssocie("")
+      }
+    }
+    fetchArtisanCount()
+  }, [setValue, isEditMode])
 
   const { verifySiret, isLoading: isVerifyingSiret, isUnavailable } = useSiretVerification()
 
@@ -130,25 +449,17 @@ export function NewArtisanModalContent({ mode, onClose, onCycleMode }: Props) {
     mutationFn: (payload: ReturnType<typeof buildCreatePayload>) => artisansApiV2.create(payload),
   })
 
+  const updateArtisan = useMutation({
+    mutationFn: (payload: { id: string; data: ReturnType<typeof buildCreatePayload> }) => 
+      artisansApiV2.update(payload.id, payload.data),
+  })
+
   const metierOptions = useMemo(
     () => (referenceData?.metiers ?? []).map((metier) => ({
       id: metier.id,
       label: metier.label ?? metier.code ?? metier.id,
+      color: metier.color ?? null,
     })),
-    [referenceData],
-  )
-
-  // Filtrer les statuts pour ne permettre que CANDIDAT et POTENTIEL à la création
-  const statusOptions = useMemo(
-    () => (referenceData?.artisanStatuses ?? [])
-      .filter((status) => {
-        const code = status.code?.toUpperCase();
-        return code === 'CANDIDAT' || code === 'POTENTIEL';
-      })
-      .map((status) => ({
-        id: status.id,
-        label: status.label ?? status.code ?? status.id,
-      })),
     [referenceData],
   )
 
@@ -163,34 +474,379 @@ export function NewArtisanModalContent({ mode, onClose, onCycleMode }: Props) {
     [referenceData],
   )
 
-  const onSubmit = async (values: NewArtisanFormValues) => {
+  // Gestionnaire de sélection d'une suggestion d'adresse (siège social)
+  const handleSuggestionSelect = useCallback((suggestion: GeocodeSuggestion) => {
+    if (suggestionBlurTimeoutRef.current) {
+      window.clearTimeout(suggestionBlurTimeoutRef.current)
+    }
+    
+    const parts = suggestion.label.split(',').map(p => p.trim())
+    const postalMatch = suggestion.label.match(/\b(\d{5})\b/)
+    
+    let street = parts[0] || suggestion.label
+    let postalCode = postalMatch?.[1] || ""
+    let city = ""
+    
+    for (const part of parts) {
+      if (postalMatch && part.includes(postalMatch[1])) {
+        const cityMatch = part.replace(postalMatch[1], '').trim()
+        if (cityMatch) city = cityMatch
+      } else if (!part.toLowerCase().includes("france") && !postalMatch?.[1]?.includes(part) && part !== street && part.length > 1) {
+        if (!city) city = part
+      }
+    }
+
+    setValue("adresse_siege_social", street)
+    setValue("code_postal_siege_social", postalCode)
+    setValue("ville_siege_social", city)
+    setValue("intervention_latitude", suggestion.lat)
+    setValue("intervention_longitude", suggestion.lng)
+    
+    setAddressQuery(suggestion.label)
+    clearSuggestions()
+    setShowSuggestions(false)
+  }, [setValue, clearSuggestions, setAddressQuery])
+
+  const watchedLat = watch("intervention_latitude")
+  const watchedLng = watch("intervention_longitude")
+
+  // Gestion des absences
+  const handleAddAbsence = useCallback(() => {
+    if (!newAbsence.start_date || !newAbsence.end_date) {
+      toast.error("Veuillez renseigner les dates de début et de fin")
+      return
+    }
+    
+    const newEntry: PendingAbsence = {
+      id: `pending-${Date.now()}`,
+      start_date: newAbsence.start_date,
+      end_date: newAbsence.end_date,
+      reason: newAbsence.reason,
+    }
+    
+    setPendingAbsences(prev => [...prev, newEntry])
+    setNewAbsence({ start_date: "", end_date: "", reason: "" })
+    toast.success("Absence ajoutée")
+  }, [newAbsence])
+
+  const handleRemovePendingAbsence = useCallback((id: string) => {
+    setPendingAbsences(prev => prev.filter(a => a.id !== id))
+  }, [])
+
+  const handleDeleteExistingAbsence = useCallback(async (id: string) => {
     try {
-      const payload = buildCreatePayload(values)
+      await artisansApi.deleteAbsence(id)
+      setExistingAbsences(prev => prev.filter(a => a.id !== id))
+      toast.success("Absence supprimée")
+    } catch (error) {
+      toast.error("Erreur lors de la suppression de l'absence")
+    }
+  }, [])
+
+  // Fonction interne pour créer l'artisan (appelée après vérification des doublons)
+  const performCreateArtisan = async (values: ArtisanFormValues) => {
+    const payload = buildCreatePayload(values)
+    
+    try {
       const created = await createArtisan.mutateAsync(payload)
+
+    // Créer les absences
+    if (pendingAbsences.length > 0 && created.id) {
+      for (const absence of pendingAbsences) {
+        try {
+          await artisansApi.createAbsence(created.id, {
+            start_date: absence.start_date,
+            end_date: absence.end_date,
+            reason: absence.reason || undefined,
+            is_confirmed: false,
+          })
+        } catch (absenceError) {
+          console.error("Erreur lors de la création de l'absence:", absenceError)
+        }
+      }
+    }
+
+    // Ajouter le commentaire initial si renseigné
+    const trimmedComment = values.commentaire_initial.trim()
+    if (trimmedComment.length > 0 && created.id) {
+      try {
+        await commentsApi.create({
+          entity_id: created.id,
+          entity_type: "artisan",
+          content: trimmedComment,
+          comment_type: "internal",
+          is_internal: true,
+          author_id: currentUser?.id,
+        })
+      } catch (commentError) {
+        console.error("Impossible d'ajouter le commentaire initial:", commentError)
+        toast.error("L'artisan a été créé mais le commentaire n'a pas pu être enregistré.")
+      }
+    }
+
+    queryClient.invalidateQueries({ queryKey: ["artisans"] })
+
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(
+        new CustomEvent("artisan-updated", {
+          detail: { id: created.id, data: created, optimistic: true, type: "create" },
+        }),
+      )
+    }
+
+    toast.success("Artisan créé", {
+      description: "La fiche artisan a été enregistrée.",
+    })
+    reset(buildDefaultFormValues())
+    setPendingAbsences([])
+    onClose()
+    } catch (error: any) {
+      // Vérifier si c'est une erreur de doublon avec artisan supprimé (code 409)
+      const errorMessage = error?.message || ""
+      
+      // Essayer de parser le message d'erreur JSON
+      try {
+        // L'erreur peut contenir le JSON directement ou dans le message
+        let errorData = null
+        if (errorMessage.includes("DELETED_ARTISAN_EXISTS")) {
+          // Extraire le JSON de l'erreur
+          const jsonMatch = errorMessage.match(/\{[\s\S]*\}/)
+          if (jsonMatch) {
+            errorData = JSON.parse(jsonMatch[0])
+          }
+        } else if (error?.response) {
+          // Si c'est une erreur fetch avec response
+          errorData = await error.response.json?.()
+        }
+
+        if (errorData?.error === "DELETED_ARTISAN_EXISTS" && errorData?.artisan) {
+          // Artisan supprimé trouvé - afficher le dialogue
+          setDeletedArtisanDialog({
+            isOpen: true,
+            artisan: errorData.artisan,
+            deletedAt: errorData.deleted_at || null,
+            pendingFormValues: values,
+          })
+          return
+        }
+      } catch (parseError) {
+        // Erreur de parsing, continuer avec l'erreur originale
+        console.warn("Erreur lors du parsing de l'erreur:", parseError)
+      }
+
+      // Relancer l'erreur pour la gestion normale
+      throw error
+    }
+  }
+
+  // Restaurer l'artisan supprimé (uniquement réactiver is_active = true, sans modifier les données)
+  const handleRestoreArtisan = async () => {
+    if (!deletedArtisanDialog.artisan) return
+
+    setIsRestoringOrDeleting(true)
+    try {
+      // Restaurer uniquement (is_active = true) sans modifier les autres données
+      const restored = await artisansApi.restore(deletedArtisanDialog.artisan.id)
+
+      queryClient.invalidateQueries({ queryKey: ["artisans"] })
 
       if (typeof window !== "undefined") {
         window.dispatchEvent(
           new CustomEvent("artisan-updated", {
-            detail: {
-              id: created.id,
-              data: created,
-              optimistic: true,
-              type: "create",
-            },
+            detail: { id: restored.id, data: restored, optimistic: true, type: "restore" },
           }),
         )
       }
 
-      toast.success("Artisan créé", {
-        description: "La fiche artisan a été enregistrée.",
+      toast.success("Artisan restauré", {
+        description: "L'artisan a été réactivé avec ses données d'origine.",
       })
+      
+      setDeletedArtisanDialog({ isOpen: false, artisan: null, deletedAt: null, pendingFormValues: null })
       reset(buildDefaultFormValues())
+      setPendingAbsences([])
       onClose()
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Impossible de créer l'artisan."
-      toast.error("Échec de la création", {
+      const message = error instanceof Error ? error.message : "Impossible de restaurer l'artisan."
+      toast.error("Échec de la restauration", {
         description: message,
       })
+    } finally {
+      setIsRestoringOrDeleting(false)
+    }
+  }
+
+  // Écraser les données de l'artisan supprimé avec les nouvelles données du formulaire
+  const handleOverwriteAndCreate = async () => {
+    if (!deletedArtisanDialog.artisan || !deletedArtisanDialog.pendingFormValues) return
+
+    setIsRestoringOrDeleting(true)
+    try {
+      // Restaurer l'artisan avec les nouvelles données (écrase les anciennes)
+      const payload = buildCreatePayload(deletedArtisanDialog.pendingFormValues)
+      const restored = await artisansApi.restore(deletedArtisanDialog.artisan.id, payload)
+
+      // Créer les absences
+      if (pendingAbsences.length > 0 && restored.id) {
+        for (const absence of pendingAbsences) {
+          try {
+            await artisansApi.createAbsence(restored.id, {
+              start_date: absence.start_date,
+              end_date: absence.end_date,
+              reason: absence.reason || undefined,
+              is_confirmed: false,
+            })
+          } catch (absenceError) {
+            console.error("Erreur lors de la création de l'absence:", absenceError)
+          }
+        }
+      }
+
+      // Ajouter le commentaire initial si renseigné
+      const trimmedComment = deletedArtisanDialog.pendingFormValues.commentaire_initial.trim()
+      if (trimmedComment.length > 0 && restored.id) {
+        try {
+          await commentsApi.create({
+            entity_id: restored.id,
+            entity_type: "artisan",
+            content: trimmedComment,
+            comment_type: "internal",
+            is_internal: true,
+            author_id: currentUser?.id,
+          })
+        } catch (commentError) {
+          console.error("Impossible d'ajouter le commentaire initial:", commentError)
+        }
+      }
+
+      queryClient.invalidateQueries({ queryKey: ["artisans"] })
+
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(
+          new CustomEvent("artisan-updated", {
+            detail: { id: restored.id, data: restored, optimistic: true, type: "overwrite" },
+          }),
+        )
+      }
+
+      toast.success("Artisan mis à jour", {
+        description: "L'artisan a été réactivé avec les nouvelles informations.",
+      })
+      
+      setDeletedArtisanDialog({ isOpen: false, artisan: null, deletedAt: null, pendingFormValues: null })
+      reset(buildDefaultFormValues())
+      setPendingAbsences([])
+      onClose()
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Impossible de mettre à jour l'artisan."
+      toast.error("Échec de l'opération", {
+        description: message,
+      })
+    } finally {
+      setIsRestoringOrDeleting(false)
+    }
+  }
+
+  // Fermer le dialogue sans action
+  const handleCloseDeletedDialog = () => {
+    setDeletedArtisanDialog({ isOpen: false, artisan: null, deletedAt: null, pendingFormValues: null })
+  }
+
+  const onSubmit = async (values: ArtisanFormValues) => {
+    try {
+      const payload = buildCreatePayload(values)
+      
+      // Debug: vérifier que les métiers et zones sont bien inclus
+      console.log("[NewArtisanModalContent] Payload avant envoi:", {
+        payload_complet: payload,
+        metiers: payload.metiers,
+        zones: payload.zones,
+        zone_intervention: values.zone_intervention,
+        metiers_values: values.metiers,
+        metierOptions: metierOptions.map(m => ({ id: m.id, label: m.label })),
+      })
+      
+      if (isEditMode && artisanId) {
+        // Mode édition
+        const updated = await updateArtisan.mutateAsync({ id: artisanId, data: payload })
+
+        // Créer les nouvelles absences
+        for (const absence of pendingAbsences) {
+          try {
+            await artisansApi.createAbsence(artisanId, {
+              start_date: absence.start_date,
+              end_date: absence.end_date,
+              reason: absence.reason || undefined,
+              is_confirmed: false,
+            })
+          } catch (absenceError) {
+            console.error("Erreur lors de la création de l'absence:", absenceError)
+          }
+        }
+
+        // Ajouter le commentaire initial si renseigné
+        const trimmedComment = values.commentaire_initial.trim()
+        if (trimmedComment.length > 0) {
+          try {
+            await commentsApi.create({
+              entity_id: artisanId,
+              entity_type: "artisan",
+              content: trimmedComment,
+              comment_type: "internal",
+              is_internal: true,
+              author_id: currentUser?.id,
+            })
+          } catch (commentError) {
+            console.error("Impossible d'ajouter le commentaire:", commentError)
+            toast.error("Le commentaire n'a pas pu être enregistré.")
+          }
+        }
+
+        queryClient.invalidateQueries({ queryKey: ["artisan", artisanId] })
+        queryClient.invalidateQueries({ queryKey: ["artisans"] })
+
+        if (typeof window !== "undefined") {
+          window.dispatchEvent(
+            new CustomEvent("artisan-updated", {
+              detail: { id: artisanId, data: updated, type: "update" },
+            }),
+          )
+        }
+
+        toast.success("Artisan mis à jour")
+        onClose()
+      } else {
+        // Mode création - Vérifier d'abord si un artisan supprimé existe
+        if (values.email || values.siret) {
+          try {
+            const checkResult = await artisansApi.checkDeletedArtisan({
+              email: values.email || undefined,
+              siret: values.siret || undefined,
+            })
+
+            if (checkResult.found && checkResult.artisan) {
+              // Un artisan supprimé existe, afficher le dialogue
+              setDeletedArtisanDialog({
+                isOpen: true,
+                artisan: checkResult.artisan,
+                deletedAt: checkResult.deleted_at || null,
+                pendingFormValues: values,
+              })
+              return
+            }
+          } catch (checkError) {
+            // Si la vérification échoue, on doit quand même vérifier côté serveur
+            // L'Edge Function va gérer les doublons avec un message approprié
+            console.warn("Erreur lors de la vérification des artisans supprimés:", checkError)
+          }
+        }
+
+        // Créer l'artisan - l'Edge Function gère les doublons
+        await performCreateArtisan(values)
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Impossible de sauvegarder l'artisan."
+      toast.error("Échec de la sauvegarde", { description: message })
     }
   }
 
@@ -200,17 +856,18 @@ export function NewArtisanModalContent({ mode, onClose, onCycleMode }: Props) {
     }
   }
 
-  const handleSiretComplete = async (siret: string) => {
-    // Fonctionnalité désactivée - ne rien faire
-    return
-  }
-
-  const isSubmitting = createArtisan.isPending
-  const isLoading = referenceLoading && !referenceData
-  const bodyPadding = mode === "fullpage" ? "px-8 py-6 md:px-12" : "px-5 py-4 md:px-8"
+  const isSubmitting = createArtisan.isPending || updateArtisan.isPending
+  const isLoading = (referenceLoading && !referenceData) || (isEditMode && isLoadingArtisan)
   const surfaceVariantClass = mode === "fullpage" ? "modal-config-surface-full" : undefined
   const surfaceModeClass = `modal-config--${mode}`
 
+  const inputClass = "h-8 text-sm bg-background border-input/80 focus:border-primary focus:ring-1 focus:ring-primary/30 placeholder:text-muted-foreground/60"
+  const labelClass = "text-xs font-medium text-foreground/80"
+
+  // Toutes les absences combinées pour affichage
+  const allAbsences = [...existingAbsences.map(a => ({ ...a, isPending: false })), ...pendingAbsences.map(a => ({ ...a, isPending: true, is_confirmed: false }))]
+
+  // Rendu du contrôle métiers
   const renderMetiersControl = () => (
     <Controller
       name="metiers"
@@ -230,49 +887,83 @@ export function NewArtisanModalContent({ mode, onClose, onCycleMode }: Props) {
         const selectedLabels = metierOptions.filter((option) => selected.includes(option.id))
 
         return (
-          <div className="space-y-2">
+          <div className="space-y-1.5">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button type="button" variant="outline" className="w-full justify-between">
-                  <span>
+                <Button type="button" variant="outline" size="sm" className="w-full justify-between h-8 text-sm bg-background border-border/80 hover:bg-muted/50">
+                  <span className="truncate text-foreground">
                     {selected.length > 0
-                      ? `${selected.length} métier${selected.length > 1 ? "s" : ""} sélectionné${selected.length > 1 ? "s" : ""}`
-                      : "Sélectionner des métiers"}
+                      ? `${selected.length} métier${selected.length > 1 ? "s" : ""}`
+                      : "Sélectionner"}
                   </span>
-                  <ChevronRight className="ml-2 h-4 w-4 opacity-60" />
+                  <ChevronRight className="ml-1 h-3 w-3 text-muted-foreground shrink-0" />
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent className="w-64 max-h-64 overflow-y-auto">
+              <DropdownMenuContent className="w-64 max-h-48 overflow-y-auto bg-popover border-border p-1">
                 {metierOptions.length ? (
-                  metierOptions.map((option) => (
-                    <DropdownMenuCheckboxItem
-                      key={option.id}
-                      checked={selected.includes(option.id)}
-                      onCheckedChange={() => toggleMetier(option.id)}
-                    >
-                      {option.label}
-                    </DropdownMenuCheckboxItem>
-                  ))
+                  metierOptions.map((option) => {
+                    const isSelected = selected.includes(option.id)
+                    const bgColor = option.color || "#6b7280"
+                    const textColor = getReadableTextColor(bgColor)
+                    return (
+                      <button
+                        key={option.id}
+                        type="button"
+                        className={cn(
+                          "w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-left transition-colors mb-0.5",
+                          isSelected ? "ring-2 ring-primary ring-offset-1" : "hover:opacity-80"
+                        )}
+                        onClick={() => toggleMetier(option.id)}
+                      >
+                        <span 
+                          className="inline-flex items-center justify-center rounded-full px-2.5 py-0.5 text-xs font-semibold min-w-[80px]"
+                          style={{
+                            backgroundColor: bgColor,
+                            color: textColor,
+                          }}
+                        >
+                          {option.label}
+                        </span>
+                      </button>
+                    )
+                  })
                 ) : (
-                  <DropdownMenuCheckboxItem disabled checked={false}>
-                    Aucun métier disponible
-                  </DropdownMenuCheckboxItem>
+                  <div className="text-sm text-muted-foreground px-2 py-1.5">
+                    Aucun métier
+                  </div>
                 )}
               </DropdownMenuContent>
             </DropdownMenu>
 
-            {selectedLabels.length > 0 ? (
-              <div className="flex flex-wrap gap-2">
-                {selectedLabels.map((option) => (
-                  <Badge key={option.id} variant="secondary" className="flex items-center gap-1">
-                    {option.label}
-                    <button type="button" className="focus:outline-none" onClick={() => toggleMetier(option.id)}>
-                      <X className="h-3 w-3" />
-                    </button>
-                  </Badge>
-                ))}
+            {selectedLabels.length > 0 && (
+              <div className="flex flex-wrap gap-1">
+                {selectedLabels.map((option) => {
+                  const bgColor = option.color || "#6b7280"
+                  const textColor = getReadableTextColor(bgColor)
+                  return (
+                    <Badge 
+                      key={option.id} 
+                      variant="secondary" 
+                      className="text-xs px-2 py-0.5 h-auto border-0 font-semibold"
+                      style={{
+                        backgroundColor: bgColor,
+                        color: textColor,
+                      }}
+                    >
+                      {option.label}
+                      <button 
+                        type="button" 
+                        className="ml-1 focus:outline-none opacity-70 hover:opacity-100" 
+                        style={{ color: textColor }}
+                        onClick={() => toggleMetier(option.id)}
+                      >
+                        <X className="h-2.5 w-2.5" />
+                      </button>
+                    </Badge>
+                  )
+                })}
               </div>
-            ) : null}
+            )}
           </div>
         )
       }}
@@ -282,7 +973,8 @@ export function NewArtisanModalContent({ mode, onClose, onCycleMode }: Props) {
   return (
     <TooltipProvider>
       <div className={cn("modal-config-surface", surfaceVariantClass, surfaceModeClass)}>
-        <header className="modal-config-columns-header">
+        {/* Header */}
+        <header className="modal-config-columns-header bg-[#8DA5CE] dark:bg-transparent">
           <div className="flex items-center gap-3">
             {onCycleMode ? (
               <Tooltip>
@@ -305,7 +997,16 @@ export function NewArtisanModalContent({ mode, onClose, onCycleMode }: Props) {
               <span className="modal-config-columns-icon-placeholder" />
             )}
           </div>
-          <div className="modal-config-columns-title">Créer un artisan</div>
+          <div className="modal-config-columns-title flex items-center gap-2">
+            {isEditMode ? (
+              <>
+                <Pencil className="h-4 w-4" />
+                Modifier l&apos;artisan
+              </>
+            ) : (
+              "Créer un artisan"
+            )}
+          </div>
           <Tooltip>
             <TooltipTrigger asChild>
               <Button
@@ -323,304 +1024,763 @@ export function NewArtisanModalContent({ mode, onClose, onCycleMode }: Props) {
         </header>
 
         <form ref={formRef} onSubmit={handleSubmit(onSubmit)} className="flex flex-1 min-h-0 flex-col">
-          <div className="modal-config-columns-body overflow-y-auto">
-            <div className={cn(bodyPadding, "space-y-6")}>
-              {isLoading ? (
-                <div className="space-y-5">
-                  <div className="h-7 w-60 rounded bg-muted animate-pulse" />
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <div className="h-32 rounded-lg bg-muted animate-pulse" />
-                    <div className="h-32 rounded-lg bg-muted animate-pulse" />
+          <div className="modal-config-columns-body flex-1 min-h-0 bg-[#C6CEDC] dark:bg-transparent">
+            {isLoading ? (
+              <div className="grid gap-4 md:grid-cols-2 px-4 py-3 md:px-6">
+                <div className="h-64 rounded-lg bg-muted animate-pulse" />
+                <div className="h-64 rounded-lg bg-muted animate-pulse" />
+              </div>
+            ) : (
+              <div className="flex gap-4 h-full px-4 py-3 md:px-6">
+                {/* ===== COLONNE GAUCHE - Scroll indépendant ===== */}
+                <div className="flex-1 min-w-0 overflow-y-auto min-h-0 scrollbar-minimal">
+                  <div className="space-y-4 pb-4">
+                    {/* Informations de l'artisan */}
+                    <Card>
+                      <CardHeader className="py-3 px-4">
+                        <CardTitle className="flex items-center gap-2 text-sm">
+                          <User className="h-4 w-4" />
+                          Informations de l&apos;artisan
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent className="px-4 pb-4 pt-0 space-y-3">
+                        <div className="grid grid-cols-2 gap-2">
+                          <div className="space-y-1">
+                            <Label htmlFor="prenom" className={labelClass}>Prénom</Label>
+                            <Input id="prenom" placeholder="Prénom" className={inputClass} {...register("prenom")} />
+                          </div>
+                          <div className="space-y-1">
+                            <Label htmlFor="nom" className={labelClass}>Nom</Label>
+                            <Input id="nom" placeholder="Nom" className={inputClass} {...register("nom")} />
+                          </div>
+                        </div>
+
+                        <div className="space-y-1">
+                          <Label htmlFor="raison_sociale" className={labelClass}>Raison sociale</Label>
+                          <Input id="raison_sociale" placeholder="Nom de l'entreprise" className={inputClass} {...register("raison_sociale")} />
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-2">
+                          <div className="space-y-1">
+                            <Label htmlFor="telephone" className={labelClass}>Téléphone</Label>
+                            <Input id="telephone" placeholder="06 00 00 00 00" className={inputClass} {...register("telephone")} />
+                          </div>
+                          <div className="space-y-1">
+                            <Label htmlFor="telephone2" className={labelClass}>Tél. secondaire</Label>
+                            <Input id="telephone2" placeholder="Optionnel" className={inputClass} {...register("telephone2")} />
+                          </div>
+                        </div>
+
+                        <div className="space-y-1">
+                          <Label htmlFor="email" className={labelClass}>Email</Label>
+                          <Input id="email" type="email" placeholder="contact@email.com" className={inputClass} {...register("email")} />
+                        </div>
+
+                        {/* Adresse du siège social avec géocodage */}
+                        <div className="space-y-1">
+                          <Label className={labelClass}>Adresse du siège social</Label>
+                          <div className="relative">
+                            <Input
+                              placeholder="Rechercher une adresse..."
+                              value={addressQuery}
+                              className={inputClass}
+                              onChange={(e) => {
+                                setAddressQuery(e.target.value)
+                                setValue("adresse_siege_social", e.target.value)
+                                setValue("intervention_latitude", null)
+                                setValue("intervention_longitude", null)
+                                setShowSuggestions(true)
+                              }}
+                              onFocus={() => setShowSuggestions(true)}
+                              onBlur={() => {
+                                suggestionBlurTimeoutRef.current = window.setTimeout(() => {
+                                  setShowSuggestions(false)
+                                }, 150)
+                              }}
+                            />
+                            {isSuggesting && (
+                              <Loader2 className="absolute right-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 animate-spin text-muted-foreground" />
+                            )}
+                            {showSuggestions && addressSuggestions.length > 0 && (
+                              <div className="absolute z-20 mt-1 max-h-40 w-full overflow-auto rounded-lg border border-border bg-popover shadow-xl">
+                                <ul className="divide-y divide-border/50 text-xs">
+                                  {addressSuggestions.map((suggestion) => (
+                                    <li key={`${suggestion.label}-${suggestion.lat}-${suggestion.lng}`}>
+                                      <button
+                                        type="button"
+                                        className="w-full px-3 py-2 text-left hover:bg-accent/50 transition-colors text-foreground"
+                                        onMouseDown={(e) => e.preventDefault()}
+                                        onClick={() => handleSuggestionSelect(suggestion)}
+                                      >
+                                        <span className="flex items-center gap-2">
+                                          <MapPin className="h-3.5 w-3.5 text-primary shrink-0" />
+                                          <span className="truncate">{suggestion.label}</span>
+                                        </span>
+                                      </button>
+                                    </li>
+                                  ))}
+                                </ul>
+                              </div>
+                            )}
+                          </div>
+                          <div className="grid grid-cols-2 gap-1.5 mt-1.5">
+                            <Input
+                              id="code_postal_siege_social"
+                              placeholder="Code postal"
+                              className={inputClass}
+                              {...register("code_postal_siege_social")}
+                            />
+                            <Input
+                              id="ville_siege_social"
+                              placeholder="Ville"
+                              className={inputClass}
+                              {...register("ville_siege_social")}
+                            />
+                          </div>
+                          {watchedLat && watchedLng && (
+                            <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 mt-1.5">
+                              <CheckCircle2 className="h-3 w-3 text-green-600 dark:text-green-400 shrink-0" />
+                              <span className="text-xs text-green-700 dark:text-green-300 font-medium">GPS:</span>
+                              <span className="text-xs text-green-600 dark:text-green-400 font-mono">
+                                {watchedLat.toFixed(5)}, {watchedLng.toFixed(5)}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      </CardContent>
+                    </Card>
+
+                    {/* Attribution */}
+                    <Card>
+                      <CardHeader className="py-3 px-4">
+                        <CardTitle className="flex items-center gap-2 text-sm">
+                          <UserCheck className="h-4 w-4" />
+                          Attribution
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent className="px-4 pb-4 pt-0">
+                        <div className="grid grid-cols-2 gap-2 items-end">
+                          {/* Sélecteur de gestionnaire avec badge */}
+                          <div className="space-y-1">
+                            <Label className={labelClass}>Attribué à</Label>
+                            <Controller
+                              name="gestionnaire_id"
+                              control={control}
+                              render={({ field }) => {
+                                const assignedUser = referenceData?.users?.find(u => u.id === field.value)
+                                return (
+                                  <div className="flex items-center gap-2">
+                                    <Popover>
+                                      <PopoverTrigger asChild>
+                                        <button 
+                                          type="button" 
+                                          className="flex items-center justify-center h-8 w-8 cursor-pointer group rounded-full"
+                                        >
+                                          <GestionnaireBadge
+                                            firstname={assignedUser?.firstname}
+                                            lastname={assignedUser?.lastname}
+                                            color={assignedUser?.color}
+                                            size="sm"
+                                            className="transition-transform group-hover:scale-110 h-8 w-8"
+                                          />
+                                        </button>
+                                      </PopoverTrigger>
+                                      <PopoverContent className="w-56 p-2" align="start">
+                                        <div className="space-y-1">
+                                          <p className="text-xs font-medium text-muted-foreground mb-2">Attribuer à</p>
+                                          <div className="space-y-1 max-h-48 overflow-y-auto">
+                                            {/* Option non assigné */}
+                                            <button
+                                              type="button"
+                                              className={cn(
+                                                "w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-left transition-colors",
+                                                !field.value ? "bg-primary/10 text-primary" : "hover:bg-muted"
+                                              )}
+                                              onClick={() => field.onChange("")}
+                                            >
+                                              <GestionnaireBadge
+                                                firstname="?"
+                                                lastname=""
+                                                color="#9ca3af"
+                                                size="sm"
+                                                showBorder={false}
+                                              />
+                                              <span className="text-xs truncate flex-1">Non assigné</span>
+                                            </button>
+                                            {referenceData?.users?.map((user) => {
+                                              const displayName = [user.firstname, user.lastname].filter(Boolean).join(" ").trim() || user.username
+                                              const isSelected = user.id === field.value
+                                              return (
+                                                <button
+                                                  key={user.id}
+                                                  type="button"
+                                                  className={cn(
+                                                    "w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-left transition-colors",
+                                                    isSelected ? "bg-primary/10 text-primary" : "hover:bg-muted"
+                                                  )}
+                                                  onClick={() => field.onChange(user.id)}
+                                                >
+                                                  <GestionnaireBadge
+                                                    firstname={user.firstname}
+                                                    lastname={user.lastname}
+                                                    color={user.color}
+                                                    size="sm"
+                                                    showBorder={false}
+                                                  />
+                                                  <span className="text-xs truncate flex-1">{displayName}</span>
+                                                </button>
+                                              )
+                                            })}
+                                          </div>
+                                        </div>
+                                      </PopoverContent>
+                                    </Popover>
+                                    {/* Afficher le nom de l'utilisateur assigné */}
+                                    {assignedUser && (
+                                      <Badge 
+                                        variant="secondary" 
+                                        className="text-xs px-2 py-0.5 h-auto flex items-center gap-1"
+                                        style={{
+                                          backgroundColor: assignedUser.color ? `${assignedUser.color}20` : undefined,
+                                          borderColor: assignedUser.color || undefined,
+                                          color: assignedUser.color || undefined,
+                                        }}
+                                      >
+                                        {[assignedUser.firstname, assignedUser.lastname].filter(Boolean).join(" ").trim() || assignedUser.username}
+                                        <button 
+                                          type="button" 
+                                          className="ml-0.5 hover:text-destructive focus:outline-none"
+                                          onClick={() => field.onChange("")}
+                                        >
+                                          <X className="h-3 w-3" />
+                                        </button>
+                                      </Badge>
+                                    )}
+                                  </div>
+                                )
+                              }}
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <Label className={labelClass}>Statut</Label>
+                            {(() => {
+                              const currentStatusId = watch("statut_id")
+                              const currentStatus = referenceData?.artisanStatuses?.find(
+                                (s) => s.id === currentStatusId
+                              )
+                              return (
+                                <div className="flex items-center gap-2 rounded-md border bg-muted px-3 py-2 h-8 text-sm">
+                                  {currentStatus ? (
+                                    <>
+                                      <span
+                                        className="inline-block h-2.5 w-2.5 rounded-full shrink-0"
+                                        style={{ backgroundColor: currentStatus.color ?? '#6B7280' }}
+                                      />
+                                      <span className="truncate">{currentStatus.label}</span>
+                                    </>
+                                  ) : (
+                                    <span className="text-muted-foreground">Non défini</span>
+                                  )}
+                                  <span className="ml-auto text-[10px] text-muted-foreground shrink-0">
+                                    (Auto)
+                                  </span>
+                                </div>
+                              )
+                            })()}
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
                   </div>
-                  <div className="h-48 rounded-lg bg-muted animate-pulse" />
                 </div>
-              ) : (
-                <>
-                  <Card>
-                    <CardHeader>
-                      <CardTitle>Identité du contact</CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                      <div className="grid gap-4 md:grid-cols-2">
-                        <div className="space-y-2">
-                          <Label htmlFor="prenom">Prénom</Label>
-                          <Input id="prenom" placeholder="Prénom" {...register("prenom")} />
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="nom">Nom</Label>
-                          <Input id="nom" placeholder="Nom" {...register("nom")} />
-                        </div>
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="raison_sociale">Raison sociale</Label>
-                        <Input id="raison_sociale" placeholder="Entreprise" {...register("raison_sociale")} />
-                      </div>
-                      <div className="grid gap-4 md:grid-cols-2">
-                        <div className="space-y-2">
-                          <Label htmlFor="telephone">Téléphone</Label>
-                          <Input id="telephone" placeholder="06 00 00 00 00" {...register("telephone")} />
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="telephone2">Téléphone secondaire</Label>
-                          <Input id="telephone2" placeholder="Optionnel" {...register("telephone2")} />
-                        </div>
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="email">Email</Label>
-                        <Input id="email" type="email" placeholder="contact@email.com" {...register("email")} />
-                      </div>
-                    </CardContent>
-                  </Card>
 
-                  <Card>
-                    <CardHeader>
-                      <CardTitle>Informations administratives</CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                      <div className="grid gap-4 md:grid-cols-2">
-                        <div className="space-y-2">
-                          <Label htmlFor="statut_juridique">Statut juridique</Label>
-                          <Input id="statut_juridique" placeholder="SARL, SAS..." {...register("statut_juridique")} />
+                {/* ===== COLONNE DROITE - Scroll indépendant ===== */}
+                <div className="flex-1 min-w-0 overflow-y-auto min-h-0 scrollbar-minimal">
+                  <div className="space-y-4 pb-4">
+                    {/* Paramètres de l'entreprise */}
+                    <Card>
+                      <CardHeader className="py-3 px-4">
+                        <CardTitle className="flex items-center gap-2 text-sm">
+                          <Building2 className="h-4 w-4" />
+                          Paramètres de l&apos;entreprise
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent className="px-4 pb-4 pt-0 space-y-3">
+                        <div className="grid grid-cols-2 gap-2">
+                          <div className="space-y-1">
+                            <Label className={labelClass}>Statut juridique</Label>
+                            <Controller
+                              name="statut_juridique"
+                              control={control}
+                              render={({ field }) => (
+                                <Select value={field.value || ""} onValueChange={field.onChange}>
+                                  <SelectTrigger className={inputClass}>
+                                    <SelectValue placeholder="Sélectionner..." />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {STATUT_JURIDIQUE_OPTIONS.map((option) => (
+                                      <SelectItem key={option.value} value={option.value}>
+                                        {option.label}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              )}
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <Label htmlFor="numero_associe" className={labelClass}>N° associé</Label>
+                            <Input 
+                              id="numero_associe" 
+                              placeholder={generatedNumeroAssocie ? "" : "Chargement..."}
+                              className={`${inputClass} bg-muted/50 font-medium`}
+                              value={generatedNumeroAssocie}
+                              readOnly
+                              {...register("numero_associe")}
+                            />
+                          </div>
                         </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="numero_associe">Numéro associé</Label>
-                          <Input id="numero_associe" placeholder="Code interne" {...register("numero_associe")} />
-                        </div>
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="siret">Siret</Label>
-                        <Controller
-                          name="siret"
-                          control={control}
-                          rules={{
-                            validate: (value) => {
-                              const siret = value?.trim() || ""
-                              if (siret.length === 0) return true // Vide est valide
-                              if (siret.length === 14 && /^\d+$/.test(siret)) return true // 14 chiffres est valide
-                              return "Le SIRET doit être soit vide, soit contenir exactement 14 chiffres"
-                            },
-                          }}
-                          render={({ field, fieldState }) => {
-                            const siretValue = field.value?.replace(/\s/g, "") || ""
-                            const siretValidation = validateSiret(siretValue)
-                            const isSiretValid = siretValidation.isValid && siretValue.length === 14
-                            const canVerify = isSiretValid && !isVerifyingSiret && !isUnavailable
-                            const showValidationFeedback = siretValue.length > 0
 
-                            return (
-                              <div className="space-y-1">
-                                <div className="flex items-center gap-2">
-                                  <div className="flex-1 relative">
+                        <div className="space-y-1">
+                          <Label htmlFor="siret" className={labelClass}>SIRET</Label>
+                          <Controller
+                            name="siret"
+                            control={control}
+                            rules={{
+                              validate: (value) => {
+                                const siret = value?.trim() || ""
+                                if (siret.length === 0) return true
+                                if (siret.length === 14 && /^\d+$/.test(siret)) return true
+                                return "14 chiffres requis"
+                              },
+                            }}
+                            render={({ field, fieldState }) => {
+                              const siretValue = field.value?.replace(/\s/g, "") || ""
+                              const siretValidation = validateSiret(siretValue)
+                              const isSiretValid = siretValidation.isValid && siretValue.length === 14
+
+                              return (
+                                <div className="space-y-1">
+                                  <div className="flex items-center gap-2">
                                     <InputOTP
                                       maxLength={14}
                                       pattern={REGEXP_ONLY_DIGITS}
                                       value={field.value}
                                       onChange={(value) => field.onChange(value)}
+                                      className="gap-0.5"
                                     >
-                                      <InputOTPGroup>
-                                        <InputOTPSlot index={0} />
-                                        <InputOTPSlot index={1} />
-                                        <InputOTPSlot index={2} />
+                                      <InputOTPGroup className="gap-0">
+                                        <InputOTPSlot index={0} className="w-8 h-7 text-xs bg-background border-2 border-[#C6CEDC] text-foreground" />
+                                        <InputOTPSlot index={1} className="w-8 h-7 text-xs bg-background border-2 border-[#C6CEDC] text-foreground" />
+                                        <InputOTPSlot index={2} className="w-8 h-7 text-xs bg-background border-2 border-[#C6CEDC] text-foreground" />
                                       </InputOTPGroup>
-                                      <InputOTPSeparator />
-                                      <InputOTPGroup>
-                                        <InputOTPSlot index={3} />
-                                        <InputOTPSlot index={4} />
-                                        <InputOTPSlot index={5} />
+                                      <InputOTPSeparator className="mx-1.5 text-muted-foreground" />
+                                      <InputOTPGroup className="gap-0">
+                                        <InputOTPSlot index={3} className="w-8 h-7 text-xs bg-background border-2 border-[#C6CEDC] text-foreground" />
+                                        <InputOTPSlot index={4} className="w-8 h-7 text-xs bg-background border-2 border-[#C6CEDC] text-foreground" />
+                                        <InputOTPSlot index={5} className="w-8 h-7 text-xs bg-background border-2 border-[#C6CEDC] text-foreground" />
                                       </InputOTPGroup>
-                                      <InputOTPSeparator />
-                                      <InputOTPGroup>
-                                        <InputOTPSlot index={6} />
-                                        <InputOTPSlot index={7} />
-                                        <InputOTPSlot index={8} />
+                                      <InputOTPSeparator className="mx-1.5 text-muted-foreground" />
+                                      <InputOTPGroup className="gap-0">
+                                        <InputOTPSlot index={6} className="w-8 h-7 text-xs bg-background border-2 border-[#C6CEDC] text-foreground" />
+                                        <InputOTPSlot index={7} className="w-8 h-7 text-xs bg-background border-2 border-[#C6CEDC] text-foreground" />
+                                        <InputOTPSlot index={8} className="w-8 h-7 text-xs bg-background border-2 border-[#C6CEDC] text-foreground" />
                                       </InputOTPGroup>
-                                      <InputOTPSeparator />
-                                      <InputOTPGroup>
-                                        <InputOTPSlot index={9} />
-                                        <InputOTPSlot index={10} />
-                                        <InputOTPSlot index={11} />
-                                        <InputOTPSlot index={12} />
-                                        <InputOTPSlot index={13} />
+                                      <InputOTPSeparator className="mx-1.5 text-muted-foreground" />
+                                      <InputOTPGroup className="gap-0">
+                                        <InputOTPSlot index={9} className="w-8 h-7 text-xs bg-background border-2 border-[#C6CEDC] text-foreground" />
+                                        <InputOTPSlot index={10} className="w-8 h-7 text-xs bg-background border-2 border-[#C6CEDC] text-foreground" />
+                                        <InputOTPSlot index={11} className="w-8 h-7 text-xs bg-background border-2 border-[#C6CEDC] text-foreground" />
+                                        <InputOTPSlot index={12} className="w-8 h-7 text-xs bg-background border-2 border-[#C6CEDC] text-foreground" />
+                                        <InputOTPSlot index={13} className="w-8 h-7 text-xs bg-background border-2 border-[#C6CEDC] text-foreground" />
                                       </InputOTPGroup>
                                     </InputOTP>
-                                    {showValidationFeedback && (
-                                      <div className="absolute right-2 top-1/2 -translate-y-1/2">
-                                        {isSiretValid ? (
-                                          <CheckCircle2 className="h-4 w-4 text-green-600" />
-                                        ) : siretValue.length === 14 ? (
-                                          <AlertCircle className="h-4 w-4 text-destructive" />
-                                        ) : null}
-                                      </div>
+                                    {siretValue.length > 0 && (
+                                      isSiretValid ? (
+                                        <CheckCircle2 className="h-4 w-4 text-green-600 shrink-0" />
+                                      ) : siretValue.length === 14 ? (
+                                        <AlertCircle className="h-4 w-4 text-destructive shrink-0" />
+                                      ) : null
                                     )}
                                   </div>
-                                  <Button
-                                    type="button"
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => {}}
-                                    disabled={true}
-                                    className="shrink-0 opacity-50 cursor-not-allowed"
-                                    title="Fonctionnalité désactivée"
-                                  >
-                                    Vérifier
-                                  </Button>
+                                  {fieldState.error && (
+                                    <p className="text-xs text-destructive">{fieldState.error.message}</p>
+                                  )}
                                 </div>
-                                {fieldState.error && (
-                                  <p className="text-sm text-destructive">{fieldState.error.message}</p>
-                                )}
-                                {showValidationFeedback && !fieldState.error && (
-                                  <p
+                              )
+                            }}
+                          />
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-2">
+                          <div className="space-y-1">
+                            <Label className={labelClass}>Métiers</Label>
+                            {renderMetiersControl()}
+                          </div>
+                          <div className="space-y-1">
+                            <Label className={labelClass}>Zone d&apos;intervention</Label>
+                            <Controller
+                              name="zone_intervention"
+                              control={control}
+                              render={({ field }) => (
+                                <Select value={field.value || ""} onValueChange={field.onChange}>
+                                  <SelectTrigger className={inputClass}>
+                                    <SelectValue placeholder="Sélectionner..." />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {ZONE_INTERVENTION_OPTIONS.map((option) => (
+                                      <SelectItem key={option.value} value={option.value}>
+                                        {option.label}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              )}
+                            />
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+
+                    {/* Gestion des absences (collapsible) */}
+                    <Collapsible open={isAbsencesOpen} onOpenChange={setIsAbsencesOpen}>
+                      <Card>
+                        <CollapsibleTrigger asChild>
+                          <CardHeader className="cursor-pointer py-3 px-4 hover:bg-muted/50">
+                            <CardTitle className="flex items-center gap-2 text-sm">
+                              <Calendar className="h-4 w-4" />
+                              Gestion des absences
+                              {isAbsencesOpen ? (
+                                <ChevronDown className="ml-auto h-4 w-4" />
+                              ) : (
+                                <ChevronRight className="ml-auto h-4 w-4" />
+                              )}
+                              {allAbsences.length > 0 && (
+                                <Badge variant="secondary" className="ml-2 text-xs">
+                                  {allAbsences.length}
+                                </Badge>
+                              )}
+                            </CardTitle>
+                          </CardHeader>
+                        </CollapsibleTrigger>
+                        <CollapsibleContent>
+                          <CardContent className="px-4 pb-4 pt-0 space-y-3">
+                            {/* Formulaire d'ajout d'absence */}
+                            <div className="space-y-2 p-3 rounded-lg bg-muted/30 border border-border/50">
+                              <div className="grid grid-cols-2 gap-2">
+                                <div className="space-y-1">
+                                  <Label className={labelClass}>Date de début</Label>
+                                  <Input
+                                    type="date"
+                                    className={inputClass}
+                                    value={newAbsence.start_date}
+                                    onChange={(e) => setNewAbsence(prev => ({ ...prev, start_date: e.target.value }))}
+                                  />
+                                </div>
+                                <div className="space-y-1">
+                                  <Label className={labelClass}>Date de fin</Label>
+                                  <Input
+                                    type="date"
+                                    className={inputClass}
+                                    value={newAbsence.end_date}
+                                    onChange={(e) => setNewAbsence(prev => ({ ...prev, end_date: e.target.value }))}
+                                  />
+                                </div>
+                              </div>
+                              <div className="space-y-1">
+                                <Label className={labelClass}>Motif (optionnel)</Label>
+                                <Input
+                                  placeholder="Ex: Congés, Maladie..."
+                                  className={inputClass}
+                                  value={newAbsence.reason}
+                                  onChange={(e) => setNewAbsence(prev => ({ ...prev, reason: e.target.value }))}
+                                />
+                              </div>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                className="w-full mt-2"
+                                onClick={handleAddAbsence}
+                              >
+                                <Plus className="h-3 w-3 mr-1" />
+                                Ajouter une absence
+                              </Button>
+                            </div>
+
+                            {/* Liste des absences */}
+                            {allAbsences.length > 0 && (
+                              <div className="space-y-1.5">
+                                {allAbsences.map((absence) => (
+                                  <div
+                                    key={absence.id}
                                     className={cn(
-                                      "text-sm",
-                                      isSiretValid
-                                        ? "text-green-600"
-                                        : siretValidation.errorMessage
-                                          ? "text-destructive"
-                                          : "text-muted-foreground"
+                                      "flex items-center justify-between p-2 rounded border text-xs",
+                                      absence.isPending 
+                                        ? "bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800"
+                                        : "bg-background border-border"
                                     )}
                                   >
-                                    {isSiretValid ? (
-                                      "SIRET valide"
-                                    ) : siretValidation.errorMessage ? (
-                                      siretValidation.errorMessage
-                                    ) : siretValue.length > 0 && siretValue.length < 14 ? (
-                                      `Saisissez ${14 - siretValue.length} chiffre${14 - siretValue.length > 1 ? "s" : ""} supplémentaire${14 - siretValue.length > 1 ? "s" : ""}`
-                                    ) : null}
-                                  </p>
-                                )}
-                                {isUnavailable && (
-                                  <div className="space-y-1">
-                                    <p className="text-sm text-destructive font-medium">
-                                      Service de vérification indisponible
-                                    </p>
-                                    <p className="text-sm text-muted-foreground">
-                                      Vérifiez que la variable d&apos;environnement INSEE_API_KEY (clé API simple) OU INSEE_CLIENT_ID et INSEE_CLIENT_SECRET (OAuth2) sont configurées dans .env.local et redémarrez le serveur.
-                                    </p>
+                                    <div className="flex items-center gap-2">
+                                      <Calendar className={cn("h-3 w-3", absence.isPending ? "text-amber-600" : "text-muted-foreground")} />
+                                      <span>
+                                        Du {new Date(absence.start_date).toLocaleDateString('fr-FR')} au {new Date(absence.end_date).toLocaleDateString('fr-FR')}
+                                      </span>
+                                      {absence.reason && (
+                                        <Badge variant="outline" className="text-[10px]">
+                                          {absence.reason}
+                                        </Badge>
+                                      )}
+                                      {absence.isPending && (
+                                        <Badge variant="secondary" className="text-[10px] bg-amber-100 text-amber-700">
+                                          En attente
+                                        </Badge>
+                                      )}
+                                    </div>
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-6 w-6 text-destructive hover:text-destructive"
+                                      onClick={() => absence.isPending 
+                                        ? handleRemovePendingAbsence(absence.id)
+                                        : handleDeleteExistingAbsence(absence.id)
+                                      }
+                                    >
+                                      <Trash2 className="h-3 w-3" />
+                                    </Button>
                                   </div>
-                                )}
+                                ))}
                               </div>
-                            )
-                          }}
-                        />
-                      </div>
-                    </CardContent>
-                  </Card>
+                            )}
 
-                  <Card>
-                    <CardHeader>
-                      <CardTitle>Paramètres de l&apos;entreprise</CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-6">
-                      <div className="space-y-2">
-                        <Label>Métiers</Label>
-                        {renderMetiersControl()}
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="zone_intervention">Zone d&apos;intervention (km)</Label>
-                        <Input
-                          id="zone_intervention"
-                          type="number"
-                          min="0"
-                          step="1"
-                          placeholder="Rayon"
-                          {...register("zone_intervention")}
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label>Adresse d&apos;intervention</Label>
-                        <div className="grid gap-2 md:grid-cols-[2fr_1fr_1fr]">
-                          <Input id="adresse_intervention" placeholder="Adresse" {...register("adresse_intervention")} />
-                          <Input id="code_postal_intervention" placeholder="Code postal" {...register("code_postal_intervention")} />
-                          <Input id="ville_intervention" placeholder="Ville" {...register("ville_intervention")} />
-                        </div>
-                      </div>
-                      <div className="space-y-2">
-                        <Label>Adresse du siège social</Label>
-                        <div className="grid gap-2 md:grid-cols-[2fr_1fr_1fr]">
-                          <Input id="adresse_siege_social" placeholder="Adresse" {...register("adresse_siege_social")} />
-                          <Input id="code_postal_siege_social" placeholder="Code postal" {...register("code_postal_siege_social")} />
-                          <Input id="ville_siege_social" placeholder="Ville" {...register("ville_siege_social")} />
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
+                            {allAbsences.length === 0 && (
+                              <p className="text-xs italic text-muted-foreground text-center py-2">
+                                Aucune absence planifiée
+                              </p>
+                            )}
+                          </CardContent>
+                        </CollapsibleContent>
+                      </Card>
+                    </Collapsible>
 
-                  <Card>
-                    <CardHeader>
-                      <CardTitle>Suivi & Statuts</CardTitle>
-                    </CardHeader>
-                    <CardContent className={cn("space-y-4", mode === "halfpage" ? "md:grid md:grid-cols-2 md:gap-6" : "")}>
-                      <div className="space-y-2">
-                        <Label>Attribué à</Label>
-                        <Controller
-                          name="gestionnaire_id"
-                          control={control}
-                          render={({ field }) => (
-                            <Select
-                              value={field.value || undefined}
-                              onValueChange={(value) => field.onChange(value === "__none__" ? "" : value)}
-                            >
-                              <SelectTrigger>
-                                <SelectValue placeholder="Sélectionner un gestionnaire" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="__none__">Non assigné</SelectItem>
-                                {gestionnaireOptions.map((option) => (
-                                  <SelectItem key={option.id} value={option.id}>
-                                    {option.label}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          )}
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label>Statut artisan</Label>
-                        <Controller
-                          name="statut_id"
-                          control={control}
-                          render={({ field }) => (
-                            <Select
-                              value={field.value || undefined}
-                              onValueChange={(value) => field.onChange(value === "__none__" ? "" : value)}
-                            >
-                              <SelectTrigger>
-                                <SelectValue placeholder="Sélectionner un statut" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="__none__">Non défini</SelectItem>
-                                {statusOptions.map((status) => (
-                                  <SelectItem key={status.id} value={status.id}>
-                                    {status.label}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          )}
-                        />
-                      </div>
-                    </CardContent>
-                  </Card>
-                </>
-              )}
-            </div>
+                    {/* DIV 4: Documents de l'entreprise (collapsible) */}
+                    <Collapsible open={isDocumentsOpen} onOpenChange={setIsDocumentsOpen}>
+                      <Card>
+                        <CollapsibleTrigger asChild>
+                          <CardHeader className="cursor-pointer py-3 px-4 hover:bg-muted/50">
+                            <CardTitle className="flex items-center gap-2 text-sm">
+                              <Upload className="h-4 w-4" />
+                              Documents de l&apos;entreprise
+                              {isDocumentsOpen ? (
+                                <ChevronDown className="ml-auto h-4 w-4" />
+                              ) : (
+                                <ChevronRight className="ml-auto h-4 w-4" />
+                              )}
+                            </CardTitle>
+                          </CardHeader>
+                        </CollapsibleTrigger>
+                        <CollapsibleContent>
+                          <CardContent className="px-4 pb-4 pt-0">
+                            {isEditMode && artisanId ? (
+                              <DocumentManager
+                                entityType="artisan"
+                                entityId={artisanId}
+                                kinds={ARTISAN_DOCUMENT_KINDS}
+                                currentUser={currentUser ?? undefined}
+                              />
+                            ) : (
+                              <div className="text-center py-6 space-y-2">
+                                <Upload className="h-8 w-8 mx-auto text-muted-foreground/50" />
+                                <p className="text-xs italic text-muted-foreground">
+                                  Les documents pourront être ajoutés après la création de l&apos;artisan
+                                </p>
+                                <p className="text-[10px] text-muted-foreground">
+                                  (KBIS, Attestation d&apos;assurance, CNI, IBAN, Décharge partenariat, Photo de profil)
+                                </p>
+                              </div>
+                            )}
+                          </CardContent>
+                        </CollapsibleContent>
+                      </Card>
+                    </Collapsible>
+
+                    {/* DIV 5: Commentaires (collapsible) */}
+                    <Collapsible open={isCommentsOpen} onOpenChange={setIsCommentsOpen}>
+                      <Card>
+                        <CollapsibleTrigger asChild>
+                          <CardHeader className="cursor-pointer py-3 px-4 hover:bg-muted/50">
+                            <CardTitle className="flex items-center gap-2 text-sm">
+                              <MessageSquare className="h-4 w-4" />
+                              Commentaires
+                              {isCommentsOpen ? (
+                                <ChevronDown className="ml-auto h-4 w-4" />
+                              ) : (
+                                <ChevronRight className="ml-auto h-4 w-4" />
+                              )}
+                            </CardTitle>
+                          </CardHeader>
+                        </CollapsibleTrigger>
+                        <CollapsibleContent>
+                          <CardContent className="px-4 pb-4 pt-0">
+                            {isEditMode && artisanId ? (
+                              /* Mode édition : utiliser CommentSection comme dans ArtisanModalContent */
+                              <CommentSection
+                                entityType="artisan"
+                                entityId={artisanId}
+                                currentUserId={currentUser?.id ?? undefined}
+                              />
+                            ) : (
+                              /* Mode création : champ commentaire initial */
+                              <div className="space-y-1">
+                                <Label className={labelClass}>Commentaire initial</Label>
+                                <Textarea
+                                  placeholder="Commentaire sur l'artisan..."
+                                  className="text-sm resize-none min-h-[80px]"
+                                  {...register("commentaire_initial")}
+                                />
+                                <p className="text-[10px] text-muted-foreground">
+                                  Ce commentaire sera enregistré lors de la sauvegarde
+                                </p>
+                              </div>
+                            )}
+                          </CardContent>
+                        </CollapsibleContent>
+                      </Card>
+                    </Collapsible>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
-          <footer className="modal-config-columns-footer flex items-center justify-end gap-2">
-            <Button type="button" variant="outline" onClick={onClose} disabled={isSubmitting}>
+          {/* Footer */}
+          <footer className="modal-config-columns-footer flex items-center justify-end gap-2 px-4 py-3 md:px-6 bg-[#8DA5CE] dark:bg-transparent">
+            <Button type="button" variant="outline" size="sm" onClick={onClose} disabled={isSubmitting}>
               Annuler
             </Button>
             <Button
               type="button"
+              size="sm"
               onClick={handleSubmitClick}
               disabled={isSubmitting}
-              className="bg-accent text-accent-foreground hover:bg-accent/90"
+              className="bg-primary text-primary-foreground hover:bg-primary/90"
             >
-              {isSubmitting ? "Création..." : "Créer l'artisan"}
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                  {isEditMode ? "Mise à jour..." : "Création..."}
+                </>
+              ) : (
+                isEditMode ? "Enregistrer" : "Créer l'artisan"
+              )}
             </Button>
           </footer>
         </form>
+
+        {/* Dialogue de confirmation pour artisan supprimé - z-[200] pour être au-dessus du modal */}
+        <AlertDialog 
+          open={deletedArtisanDialog.isOpen} 
+          onOpenChange={(open) => !open && handleCloseDeletedDialog()}
+        >
+          <AlertDialogContent className="max-w-md z-[200]">
+            <AlertDialogHeader>
+              <AlertDialogTitle className="flex items-center gap-2 text-amber-600">
+                <AlertTriangle className="h-5 w-5" />
+                Artisan déjà existant
+              </AlertDialogTitle>
+              <AlertDialogDescription asChild>
+                <div className="space-y-3">
+                  <p>
+                    Un artisan avec ces informations a déjà été supprimé
+                    {deletedArtisanDialog.deletedAt && (
+                      <span className="font-medium">
+                        {" "}le {new Date(deletedArtisanDialog.deletedAt).toLocaleDateString('fr-FR', {
+                          day: 'numeric',
+                          month: 'long',
+                          year: 'numeric',
+                        })}
+                      </span>
+                    )}
+                    .
+                  </p>
+                  
+                  {deletedArtisanDialog.artisan && (
+                    <div className="p-3 rounded-lg bg-muted/50 border text-sm space-y-1">
+                      <p className="font-medium text-foreground">
+                        {[deletedArtisanDialog.artisan.prenom, deletedArtisanDialog.artisan.nom]
+                          .filter(Boolean)
+                          .join(' ') || 'Sans nom'}
+                      </p>
+                      {deletedArtisanDialog.artisan.raison_sociale && (
+                        <p className="text-muted-foreground">
+                          {deletedArtisanDialog.artisan.raison_sociale}
+                        </p>
+                      )}
+                      {deletedArtisanDialog.artisan.email && (
+                        <p className="text-xs text-muted-foreground">
+                          📧 {deletedArtisanDialog.artisan.email}
+                        </p>
+                      )}
+                      {deletedArtisanDialog.artisan.siret && (
+                        <p className="text-xs text-muted-foreground">
+                          🏢 SIRET: {deletedArtisanDialog.artisan.siret}
+                        </p>
+                      )}
+                    </div>
+                  )}
+
+                  <p className="text-sm font-medium mt-2">
+                    Que souhaitez-vous faire ?
+                  </p>
+                  <ul className="text-xs text-muted-foreground space-y-1 ml-2">
+                    <li>• <strong>Restaurer</strong> : réactive l&apos;artisan avec ses données d&apos;origine</li>
+                    <li>• <strong>Écraser</strong> : réactive et remplace par les nouvelles données saisies</li>
+                  </ul>
+                </div>
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter className="flex-col sm:flex-row gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleCloseDeletedDialog}
+                disabled={isRestoringOrDeleting}
+                className="sm:order-1"
+              >
+                Annuler
+              </Button>
+              <Button
+                variant="default"
+                size="sm"
+                onClick={handleRestoreArtisan}
+                disabled={isRestoringOrDeleting}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white sm:order-2"
+              >
+                {isRestoringOrDeleting ? (
+                  <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
+                )}
+                Restaurer
+              </Button>
+              <Button
+                variant="default"
+                size="sm"
+                onClick={handleOverwriteAndCreate}
+                disabled={isRestoringOrDeleting}
+                className="bg-blue-600 hover:bg-blue-700 text-white sm:order-3"
+              >
+                {isRestoringOrDeleting ? (
+                  <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Pencil className="mr-1.5 h-3.5 w-3.5" />
+                )}
+                Écraser avec nouvelles données
+              </Button>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </TooltipProvider>
   )

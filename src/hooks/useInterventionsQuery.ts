@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { interventionsApiV2, type GetAllParams } from "@/lib/supabase-api-v2"
 import type { InterventionView } from "@/types/intervention-view"
 import { interventionKeys } from "@/lib/react-query/queryKeys"
+import { getPreloadConfig } from "@/lib/device-capabilities"
 
 type ServerFilters = Pick<
   GetAllParams,
@@ -146,6 +147,9 @@ export function useInterventionsQuery(
     return viewId ? [...baseKey, viewId] : baseKey
   }, [requestParams, useLight, viewId])
 
+  // Configuration adaptative selon les capacités de l'appareil
+  const preloadConfig = useMemo(() => getPreloadConfig(), [])
+
   // Requête TanStack Query
   const {
     data,
@@ -156,12 +160,16 @@ export function useInterventionsQuery(
     queryKey,
     queryFn,
     enabled,
-    // Stale court pour limiter le trafic tout en gardant la réactivité via Realtime/optimistic
-    staleTime: 15 * 1000,
+    // Stale time adaptatif : plus long sur PC faibles pour éviter les refetch
+    // PC normal: 5 min, PC faible: 10 min
+    staleTime: preloadConfig.staleTime,
     // Éviter de refetch sur focus (Realtime/polling assurent déjà la fraîcheur)
     refetchOnWindowFocus: false,
-    // Libérer les pages non utilisées pour éviter l'accumulation en mémoire
-    gcTime: 5 * 60 * 1000,
+    // Ne pas refetch au montage si les données sont en cache (navigation instantanée)
+    refetchOnMount: false,
+    // GC time adaptatif : garder les données plus longtemps pour navigation instantanée
+    // PC normal: 15 min, PC faible: 30 min
+    gcTime: preloadConfig.gcTime,
     // Utiliser les données light préchargées comme placeholder si disponibles
     // Cela permet d'afficher instantanément les données préchargées pendant le chargement des données complètes
     placeholderData: (previousData) => {
@@ -219,74 +227,55 @@ export function useInterventionsQuery(
     console.warn("[useInterventionsQuery] previousPage doit être géré par le composant parent via le paramètre page")
   }, [])
 
-  // Préchargement automatique de la page suivante et précédente
+  // Extraire les valeurs primitives pour des dépendances stables
+  const isLowEnd = preloadConfig.isLowEnd
+  const prefetchStaleTime = preloadConfig.staleTime
+
+  // Préchargement automatique de la page suivante (en idle pour ne pas bloquer)
   useEffect(() => {
     if (!enabled || !data) return
 
-    // Précharger la page suivante si elle existe
+    // Sur PC faibles, ne pas précharger automatiquement (indépendant du support idle)
+    if (isLowEnd) {
+      return // Skip prefetch sur PC faibles - ils utiliseront le cache existant
+    }
+
+    // Précharger seulement la page suivante (pas la précédente pour économiser le CPU)
     if (page < totalPages) {
-      const nextPageNum = page + 1
-      const nextOffset = (nextPageNum - 1) * limit
-      
-      const nextPageParams: GetAllParams = {
-        ...requestParams,
-        offset: nextOffset,
-      }
+      // Attendre un peu avant de précharger pour ne pas interférer avec le rendu
+      const timeoutId = setTimeout(() => {
+        const nextPageNum = page + 1
+        const nextOffset = (nextPageNum - 1) * limit
+        
+        const nextPageParams: GetAllParams = {
+          ...requestParams,
+          offset: nextOffset,
+        }
 
-      const nextPageQueryKey = useLight
-        ? interventionKeys.lightList(nextPageParams)
-        : interventionKeys.list(nextPageParams)
-      
-      const fullNextPageQueryKey = viewId ? [...nextPageQueryKey, viewId] : nextPageQueryKey
+        const nextPageQueryKey = useLight
+          ? interventionKeys.lightList(nextPageParams)
+          : interventionKeys.list(nextPageParams)
+        
+        const fullNextPageQueryKey = viewId ? [...nextPageQueryKey, viewId] : nextPageQueryKey
 
-      // Précharger en arrière-plan (fire-and-forget)
-      queryClient.prefetchQuery({
-        queryKey: fullNextPageQueryKey,
-        queryFn: async () => {
-          if (useLight) {
-            return await interventionsApiV2.getAllLight(nextPageParams)
-          }
-          return await interventionsApiV2.getAll(nextPageParams)
-        },
-        staleTime: 30 * 1000, // 30 secondes
-      }).catch((err) => {
-        // Ignorer les erreurs de préchargement silencieusement
-        console.debug(`[useInterventionsQuery] Préchargement page ${nextPageNum} échoué:`, err)
-      })
+        // Précharger en arrière-plan avec le staleTime adaptatif
+        queryClient.prefetchQuery({
+          queryKey: fullNextPageQueryKey,
+          queryFn: async () => {
+            if (useLight) {
+              return await interventionsApiV2.getAllLight(nextPageParams)
+            }
+            return await interventionsApiV2.getAll(nextPageParams)
+          },
+          staleTime: prefetchStaleTime,
+        }).catch(() => {
+          // Ignorer silencieusement les erreurs de préchargement
+        })
+      }, 500) // Délai de 500ms pour laisser le rendu se terminer
+
+      return () => clearTimeout(timeoutId)
     }
-
-    // Précharger la page précédente si on est sur la page 2 ou plus
-    if (page > 1) {
-      const prevPageNum = page - 1
-      const prevOffset = (prevPageNum - 1) * limit
-      
-      const prevPageParams: GetAllParams = {
-        ...requestParams,
-        offset: prevOffset,
-      }
-
-      const prevPageQueryKey = useLight
-        ? interventionKeys.lightList(prevPageParams)
-        : interventionKeys.list(prevPageParams)
-      
-      const fullPrevPageQueryKey = viewId ? [...prevPageQueryKey, viewId] : prevPageQueryKey
-
-      // Précharger en arrière-plan (fire-and-forget)
-      queryClient.prefetchQuery({
-        queryKey: fullPrevPageQueryKey,
-        queryFn: async () => {
-          if (useLight) {
-            return await interventionsApiV2.getAllLight(prevPageParams)
-          }
-          return await interventionsApiV2.getAll(prevPageParams)
-        },
-        staleTime: 30 * 1000, // 30 secondes
-      }).catch((err) => {
-        // Ignorer les erreurs de préchargement silencieusement
-        console.debug(`[useInterventionsQuery] Préchargement page ${prevPageNum} échoué:`, err)
-      })
-    }
-  }, [page, totalPages, limit, requestParams, useLight, viewId, enabled, data, queryClient])
+  }, [page, totalPages, limit, requestParams, useLight, viewId, enabled, data, queryClient, isLowEnd, prefetchStaleTime])
 
   // Mise à jour optimiste : met à jour le cache TanStack Query directement
   const updateInterventionOptimistic = useCallback(

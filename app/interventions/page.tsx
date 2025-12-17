@@ -78,6 +78,17 @@ import { useUserMap } from "@/hooks/useUserMap"
 import { useCurrentUser } from "@/hooks/useCurrentUser"
 import { InterventionRealtimeProvider } from "@/components/interventions/InterventionRealtimeProvider"
 import { useInterventionViewCounts } from "@/hooks/useInterventionViewCounts"
+import { useInterventionStatuses } from "@/hooks/useInterventionStatuses"
+import { useInterface } from "@/contexts/interface-context"
+import { getAccentHexColor } from "@/lib/themes"
+
+// Mapping des IDs de vues vers les codes de statuts pour les couleurs dynamiques
+const VIEW_TO_STATUS_CODE: Record<string, string> = {
+  "mes-demandes": "DEMANDE",
+  "ma-liste-en-cours": "INTER_EN_COURS",
+  "mes-visites-technique": "VISITE_TECHNIQUE",
+  "ma-liste-accepte": "ACCEPTE",
+}
 
 type GalleryViewConfig = Parameters<typeof GalleryView>[0]["view"]
 type CalendarViewConfig = Parameters<typeof CalendarView>[0]["view"]
@@ -210,6 +221,33 @@ function PageContent() {
 
   // Précharger les vues par défaut en arrière-plan
   usePreloadDefaultViews()
+  
+  // Récupérer les statuts pour les couleurs dynamiques des vues
+  const { getStatusByCode } = useInterventionStatuses()
+  
+  // Récupérer la couleur d'accentuation actuelle
+  const { accent, customAccent } = useInterface()
+  
+  // Calculer les couleurs de toutes les vues (pour les onglets et le header)
+  const viewStatusColors = useMemo(() => {
+    const colors: Record<string, string | null> = {}
+    Object.entries(VIEW_TO_STATUS_CODE).forEach(([viewId, statusCode]) => {
+      const status = getStatusByCode(statusCode)
+      colors[viewId] = status?.color ?? null
+    })
+    return colors
+  }, [getStatusByCode])
+  
+  // Couleur de la vue active (pour le header de la table)
+  const activeViewColor = useMemo(() => {
+    if (!activeViewId) return null
+    // Vue avec statut spécifique → couleur du statut
+    if (viewStatusColors[activeViewId]) {
+      return viewStatusColors[activeViewId]
+    }
+    // Vues sans statut (Market, Liste générale) → couleur d'accentuation
+    return getAccentHexColor(accent, customAccent)
+  }, [activeViewId, viewStatusColors, accent, customAccent])
 
   const [statusError, setStatusError] = useState<string | null>(null)
   const [columnConfigViewId, setColumnConfigViewId] = useState<string | null>(null)
@@ -1077,6 +1115,7 @@ function PageContent() {
             onNextPage={handleNextPage}
             onPreviousPage={handlePreviousPage}
             searchQuery={search}
+            headerColor={activeViewColor}
           />
         )
       case "kanban":
@@ -1152,10 +1191,10 @@ function PageContent() {
   }, [isReorderMode])
 
   return (
-    <div className="flex flex-col overflow-hidden" style={{ height: 'calc(100vh - 64px - 2px)', maxHeight: 'calc(100vh - 64px - 2px)', boxSizing: 'border-box' }}>
-      <div className="flex-1 space-y-4 p-6 overflow-hidden flex flex-col min-h-0" style={{ maxHeight: '100%', boxSizing: 'border-box' }}>
+    <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
+      <div className="flex-1 space-y-0 px-6 pt-4 pb-2 overflow-hidden flex flex-col min-h-0">
         {/* Zone des vues et filtres */}
-        <div className="space-y-2 flex-shrink-0">
+        <div className="space-y-1.5 flex-shrink-0">
           {isReorderMode && (
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <Button
@@ -1169,8 +1208,8 @@ function PageContent() {
               <span>Réorganisez vos vues, puis appuyez sur ESC</span>
             </div>
           )}
-          <div className="flex flex-wrap items-center gap-4">
-            <div className="flex-1 min-w-0">
+          <div className="flex flex-wrap items-end gap-4 overflow-visible pt-3">
+            <div className="flex-1 min-w-0 overflow-visible">
               <ViewTabs
                 views={views}
                 activeViewId={activeViewId}
@@ -1185,6 +1224,7 @@ function PageContent() {
                 isReorderMode={isReorderMode}
                 onEnterReorderMode={() => setIsReorderMode(true)}
                 interventionCounts={combinedViewCounts}
+                viewStatusColors={viewStatusColors}
               />
             </div>
             {!isReorderMode && (

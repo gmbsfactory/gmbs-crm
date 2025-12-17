@@ -43,9 +43,11 @@ export function GestionnaireBadge({
     return (firstInitial + lastInitial).toUpperCase() || "?"
   }, [firstname, lastname, prenom, name])
 
-  const borderColor = color || "#e5e7eb"
-  const bgColor = color || undefined
-  const textColor = color ? "#ffffff" : "#1f2937"
+  // Couleur par défaut si aucune couleur assignée
+  const defaultColor = "#6b7280" // gris neutre
+  const borderColor = color || defaultColor
+  const bgColor = color || defaultColor
+  const textColor = "#ffffff" // toujours blanc pour lisibilité
   const sizeConfig = sizeMap[size]
 
   return (

@@ -473,7 +473,7 @@ export function CommentSection({
         <div
           ref={scrollRef}
           onScroll={handleScroll}
-          className="flex flex-col gap-3 overflow-y-auto pr-1"
+          className="flex flex-col gap-3 overflow-y-auto pr-1 scrollbar-minimal"
           style={{ maxHeight: 320 }}
         >
           {orderedComments.map((comment) => {
@@ -490,8 +490,19 @@ export function CommentSection({
             const avatarTextClass = userColor ? getAvatarTextColorClass(userColor) : ""
             const isCurrentUserComment = Boolean(currentUserId && comment.author_id === currentUserId)
             const formattedDate = formatDateTime(comment.created_at)
+            
+            // Calcul dynamique de l'arrondi basé sur le nombre de lignes
+            const lineCount = (comment.content?.split('\n').length ?? 1) + Math.floor((comment.content?.length ?? 0) / 40)
+            const getBubbleRounding = (lines: number): string => {
+              if (lines <= 1) return "rounded-2xl" // Court: arrondis modérés pour éviter l'effet cercle
+              if (lines <= 2) return "rounded-2xl"
+              if (lines <= 4) return "rounded-xl"
+              return "rounded-lg" // Long: arrondis plus subtils pour une vraie bulle
+            }
+            const bubbleRounding = getBubbleRounding(lineCount)
+            
             const bubbleBaseClass =
-              "message-bubble inline-flex max-w-full whitespace-pre-wrap break-words rounded-full border px-4 py-2 text-left text-sm leading-relaxed shadow-inner shadow-black/10 backdrop-blur-sm transition-all data-[new=true]:animate-in data-[new=true]:fade-in-0 data-[new=true]:slide-in-from-bottom-2"
+              `message-bubble inline-flex max-w-full whitespace-pre-wrap break-words ${bubbleRounding} border px-4 py-2 text-left text-sm leading-relaxed shadow-inner shadow-black/10 backdrop-blur-sm transition-all data-[new=true]:animate-in data-[new=true]:fade-in-0 data-[new=true]:slide-in-from-bottom-2`
             const bubbleToneClass = normalizedBubbleColor
               ? ""
               : isCurrentUserComment

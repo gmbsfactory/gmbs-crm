@@ -6,8 +6,9 @@ import { X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { ModeIcons } from "@/components/ui/mode-selector"
-import { LegacyInterventionForm } from "@/components/interventions/LegacyInterventionForm"
+import { NewInterventionForm } from "@/components/interventions/NewInterventionForm"
 import { useModalState } from "@/hooks/useModalState"
+import { useModal } from "@/hooks/useModal"
 import type { ModalDisplayMode } from "@/types/modal-display"
 import { interventionKeys } from "@/lib/react-query/queryKeys"
 
@@ -19,9 +20,27 @@ type Props = {
 
 export function NewInterventionModalContent({ mode, onClose, onCycleMode }: Props) {
   const queryClient = useQueryClient()
+  const modal = useModal()
   const context = useModalState((state) => state.context)
   const defaultValues = context?.defaultValues as any
+  const duplicateFromId = context?.duplicateFrom as string | undefined
   
+  // State pour les infos du header dynamique
+  const [clientName, setClientName] = useState("")
+  const [agencyName, setAgencyName] = useState("")
+  const [clientPhone, setClientPhone] = useState("")
+  
+  // Fonction pour annuler/fermer le modal - retourne à l'intervention initiale si c'est un devis supp
+  const handleCancel = useCallback(() => {
+    if (duplicateFromId) {
+      // Retourner à l'intervention initiale
+      modal.open(duplicateFromId, { content: "intervention" })
+    } else {
+      // Fermer le modal normalement
+      onClose()
+    }
+  }, [duplicateFromId, modal, onClose])
+
   const handleSuccess = useCallback(
     async (data: { id: string }) => {
       if (!data?.id) return
@@ -30,14 +49,14 @@ export function NewInterventionModalContent({ mode, onClose, onCycleMode }: Prop
       await queryClient.invalidateQueries({ queryKey: interventionKeys.invalidateLists() })
       await queryClient.invalidateQueries({ queryKey: interventionKeys.invalidateLightLists() })
       
-      // Fermer le modal
+      // Fermer le modal (pas de retour à l'intervention initiale lors de la création réussie)
       onClose()
     },
     [queryClient, onClose],
   )
 
   const ModeIcon = ModeIcons[mode]
-  const bodyPadding = mode === "fullpage" ? "px-8 py-6 md:px-12" : "px-5 py-4 md:px-8"
+  const bodyPadding = mode === "fullpage" ? "px-4 py-4" : "px-4 py-3"
   const surfaceVariantClass = mode === "fullpage" ? "modal-config-surface-full" : undefined
   const surfaceModeClass = `modal-config--${mode}`
 
@@ -48,6 +67,31 @@ export function NewInterventionModalContent({ mode, onClose, onCycleMode }: Prop
     if (formRef.current) {
       formRef.current.requestSubmit()
     }
+  }
+  
+  // Construire le titre dynamique
+  const buildTitle = () => {
+    const parts: string[] = []
+    if (context?.duplicateFrom) {
+      parts.push("Nouveau devis")
+    } else {
+      parts.push("Nouvelle intervention")
+    }
+    if (clientName) {
+      parts.push(`— ${clientName}`)
+    }
+    if (agencyName) {
+      parts.push(`(${agencyName})`)
+    }
+    return parts.join(" ")
+  }
+  
+  // Construire le sous-titre avec le téléphone
+  const buildSubtitle = () => {
+    if (clientPhone) {
+      return `📞 ${clientPhone}`
+    }
+    return null
   }
 
   return (
@@ -76,8 +120,15 @@ export function NewInterventionModalContent({ mode, onClose, onCycleMode }: Prop
               <span className="modal-config-columns-icon-placeholder" />
             )}
           </div>
-          <div className="modal-config-columns-title">
-            {context?.duplicateFrom ? "Créer un devis supplémentaire" : "Créer une intervention"}
+          <div className="flex flex-col items-center">
+            <div className="modal-config-columns-title">
+              {buildTitle()}
+            </div>
+            {buildSubtitle() && (
+              <div className="text-xs text-muted-foreground">
+                {buildSubtitle()}
+              </div>
+            )}
           </div>
           <Tooltip>
             <TooltipTrigger asChild>
@@ -85,25 +136,30 @@ export function NewInterventionModalContent({ mode, onClose, onCycleMode }: Prop
                 variant="ghost"
                 size="icon"
                 className="modal-config-columns-icon-button"
-                onClick={onClose}
+                onClick={handleCancel}
                 aria-label="Fermer"
               >
                 <X className="h-4 w-4" />
               </Button>
             </TooltipTrigger>
-            <TooltipContent className="modal-config-columns-tooltip">Fermer (Esc)</TooltipContent>
+            <TooltipContent className="modal-config-columns-tooltip">
+              {duplicateFromId ? "Retour à l'intervention (Esc)" : "Fermer (Esc)"}
+            </TooltipContent>
           </Tooltip>
         </header>
         
         <div className="modal-config-columns-body overflow-y-auto">
           <div className={bodyPadding}>
-            <LegacyInterventionForm
+            <NewInterventionForm
               mode={mode}
               onSuccess={handleSuccess}
-              onCancel={onClose}
+              onCancel={handleCancel}
               formRef={formRef}
               onSubmittingChange={setIsSubmitting}
               defaultValues={defaultValues}
+              onClientNameChange={setClientName}
+              onAgencyNameChange={setAgencyName}
+              onClientPhoneChange={setClientPhone}
             />
           </div>
         </div>
@@ -113,11 +169,11 @@ export function NewInterventionModalContent({ mode, onClose, onCycleMode }: Prop
             <Button 
               type="button" 
               variant="outline" 
-              onClick={onClose} 
+              onClick={handleCancel} 
               disabled={isSubmitting}
               className="legacy-form-button"
             >
-              Annuler
+              {duplicateFromId ? "Retour" : "Annuler"}
             </Button>
             <Button 
               type="button" 

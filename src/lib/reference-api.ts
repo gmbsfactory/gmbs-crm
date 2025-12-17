@@ -6,8 +6,8 @@ import { supabase } from './supabase-client';
 export interface ReferenceData {
   interventionStatuses: Array<{ id: string; code: string; label: string; color: string; sort_order: number | null }>;
   artisanStatuses: Array<{ id: string; code: string; label: string; color: string }>;
-  agencies: Array<{ id: string; code: string; label: string }>;
-  metiers: Array<{ id: string; code: string; label: string }>;
+  agencies: Array<{ id: string; code: string; label: string; color: string | null }>;
+  metiers: Array<{ id: string; code: string; label: string; color: string | null }>;
   users: Array<{ id: string; username: string; firstname: string; lastname: string; code_gestionnaire: string; color: string | null }>;
 }
 
@@ -17,8 +17,8 @@ export const referenceApi = {
     const [interventionStatuses, artisanStatuses, agencies, metiers, users] = await Promise.all([
       supabase.from('intervention_statuses').select('id, code, label, color, sort_order').eq('is_active', true).order('sort_order'),
       supabase.from('artisan_statuses').select('id, code, label, color').eq('is_active', true).order('sort_order'),
-      supabase.from('agencies').select('id, code, label').eq('is_active', true).order('label'),
-      supabase.from('metiers').select('id, code, label').eq('is_active', true).order('label'),
+      supabase.from('agencies').select('id, code, label, color').eq('is_active', true).order('label'),
+      supabase.from('metiers').select('id, code, label, color').eq('is_active', true).order('label'),
       supabase.from('users').select('id, username, firstname, lastname, code_gestionnaire, color').order('username')
     ]);
 
@@ -46,7 +46,7 @@ export const referenceApi = {
   async getAgencies() {
     const { data, error } = await supabase
       .from('agencies')
-      .select('id, code, label')
+      .select('id, code, label, color')
       .order('label');
     
     if (error) throw error;
@@ -57,7 +57,7 @@ export const referenceApi = {
   async getMetiers() {
     const { data, error } = await supabase
       .from('metiers')
-      .select('id, code, label')
+      .select('id, code, label, color')
       .order('label');
 
     if (error) throw error;

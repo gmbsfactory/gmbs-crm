@@ -40,6 +40,10 @@ export function ArtisanModal({
   const setSourceLayoutId = useModalState((state) => state.setSourceLayoutId)
   const setOverrideMode = useModalState((state) => state.setOverrideMode)
   const sourceLayoutId = useModalState((state) => state.sourceLayoutId)
+  const metadata = useModalState((state) => state.metadata)
+  
+  // Récupérer la vue par défaut depuis les metadata
+  const defaultView = metadata?.defaultView as "informations" | "statistics" | undefined
 
   useEffect(() => {
     return () => {
@@ -60,6 +64,13 @@ export function ArtisanModal({
   const renderedContent = (() => {
     if (currentContent === "new-artisan") {
       return <NewArtisanModalContent mode={effectiveMode} onClose={onClose} onCycleMode={cycleMode} />
+    }
+
+    if (currentContent === "edit-artisan") {
+      if (!artisanId) {
+        return null
+      }
+      return <NewArtisanModalContent mode={effectiveMode} onClose={onClose} onCycleMode={cycleMode} artisanId={artisanId} />
     }
 
     if (currentContent !== "artisan") {
@@ -83,6 +94,7 @@ export function ArtisanModal({
         onCycleMode={cycleMode}
         activeIndex={activeIndex}
         totalCount={totalCount}
+        defaultView={defaultView}
       />
     )
   })()

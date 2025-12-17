@@ -84,7 +84,7 @@ function UserBadge({ initials, color, name }: { initials: string; color?: string
 
   return (
     <div 
-      className="relative h-8 w-8 rounded-full grid place-items-center font-semibold text-xs uppercase select-none border-2"
+      className="relative h-8 w-8 rounded-full grid place-items-center font-semibold text-[10px] uppercase select-none border"
       style={{ 
         background: bgColor, 
         borderColor: borderColor,
@@ -318,7 +318,7 @@ export default function ArtisansPage(): ReactElement {
   const [selectedStatuses, setSelectedStatuses] = useState<string[]>([])
   const [artisanStatuses, setArtisanStatuses] = useState<any[]>([])
   const [selectedMetiers, setSelectedMetiers] = useState<string[]>([])
-  const [metiers, setMetiers] = useState<Array<{ id: string; code: string; label: string }>>([])
+  const [metiers, setMetiers] = useState<Array<{ id: string; code: string; label: string; color: string | null }>>([])
   
   // Convertir les filtres de la vue active en filtres serveur et y ajouter recherche + filtres UI
   const { serverFilters, clientFilters } = useMemo(() => {
@@ -629,7 +629,7 @@ export default function ArtisansPage(): ReactElement {
   // Utiliser viewCounts (counts réels depuis BDD) au lieu de calculer localement
 
   const handleEditContact = useCallback((contact: Contact) => {
-    artisanModal.open(contact.id)
+    artisanModal.openEdit(contact.id)
   }, [artisanModal])
 
   const handleViewDetails = useCallback((contact: Contact) => {
@@ -817,6 +817,20 @@ export default function ArtisansPage(): ReactElement {
 
   // Utiliser les métiers de referenceData au lieu de ceux des contacts
   const allMetiers = metiers.map((m) => m.label)
+  
+  // Map (code ou label) → { color, label } pour les métiers (pour afficher les badges colorés)
+  // Les métiers dans contact.metiers peuvent être des codes OU des labels
+  const metierColorMap = useMemo(() => {
+    const map: Record<string, { color: string | null; label: string }> = {}
+    metiers.forEach((m) => {
+      // Mapper par code ET par label pour couvrir les deux cas
+      if (m.code) {
+        map[m.code] = { color: m.color, label: m.label }
+      }
+      map[m.label] = { color: m.color, label: m.label }
+    })
+    return map
+  }, [metiers])
 
   // Liste des statuts avec le statut virtuel "Dossier à compléter"
   const extendedStatuses = useMemo(() => {
@@ -940,11 +954,11 @@ export default function ArtisansPage(): ReactElement {
   }
 
   return (
-    <div className="flex flex-col overflow-hidden" style={{ height: 'calc(100vh - 64px - 2px)', maxHeight: 'calc(100vh - 64px - 2px)', boxSizing: 'border-box' }}>
-      <div className="flex-1 space-y-4 p-6 overflow-hidden flex flex-col min-h-0" style={{ maxHeight: '100%', boxSizing: 'border-box' }}>
+    <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
+      <div className="flex-1 space-y-0 px-6 pt-4 pb-2 overflow-hidden flex flex-col min-h-0">
         {/* Sélection des vues et filtres sur la même ligne */}
         {isReady && (
-          <div className="flex items-center justify-between gap-4 mb-4">
+          <div className="flex items-center justify-between gap-4 flex-shrink-0">
             <ArtisanViewTabs
               views={views}
               activeViewId={activeViewId}
@@ -1168,19 +1182,21 @@ export default function ArtisansPage(): ReactElement {
           </div>
         )}
 
+        {/* Zone de contenu avec scroll */}
         <div className="flex flex-col flex-1 min-h-0">
-          <Card className="border-2 shadow-sm flex flex-col flex-1 min-h-0">
+          <Card className="border-2 shadow-sm flex flex-col flex-1 min-h-0 rounded-tl-none border-t-primary/40">
             <CardContent className="p-0 flex flex-col flex-1 min-h-0">
               <div className="overflow-auto flex-1 min-h-0">
-                <table className="min-w-full divide-y-2 divide-border">
-                  <thead className="sticky top-0 z-10 bg-slate-100 dark:bg-muted/50 border-b-2">
+                <table className="min-w-full divide-y-2 divide-border text-xs">
+                  <thead className="sticky top-0 z-10 bg-primary/15 border-b-2 border-primary/40">
                     <tr>
-                      <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-foreground">Artisan</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-foreground">Entreprise</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-foreground">Contact</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-foreground">Gest.</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-foreground">Adresse siège</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-foreground">Actions</th>
+                      <th className="px-2.5 py-1.5 text-left text-xs font-semibold uppercase tracking-wider text-primary w-[140px]">Artisan</th>
+                      <th className="px-2.5 py-1.5 text-left text-xs font-semibold uppercase tracking-wider text-primary">Entreprise</th>
+                      <th className="px-2.5 py-1.5 text-left text-xs font-semibold uppercase tracking-wider text-primary">Métier</th>
+                      <th className="px-2.5 py-1.5 text-left text-xs font-semibold uppercase tracking-wider text-primary">Contact</th>
+                      <th className="px-2.5 py-1.5 text-center text-xs font-semibold uppercase tracking-wider text-primary">Gest.</th>
+                      <th className="px-2.5 py-1.5 text-left text-xs font-semibold uppercase tracking-wider text-primary">Adresse siège</th>
+                      <th className="px-2.5 py-1.5 text-center text-xs font-semibold uppercase tracking-wider text-primary w-[100px]">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border bg-background">
@@ -1188,8 +1204,8 @@ export default function ArtisansPage(): ReactElement {
                       <ContextMenu key={contact.id}>
                         <ContextMenuTrigger asChild>
                           <tr className={`hover:bg-slate-100/60 dark:hover:bg-muted/30 transition-colors ${index % 2 === 0 ? 'bg-white dark:bg-background' : 'bg-slate-50 dark:bg-muted/10'}`}>
-                        <td className="px-4 py-3">
-                          <div className="flex items-center gap-3">
+                        <td className="px-2.5 py-1.5">
+                          <div className="flex items-center gap-2">
                             <Avatar 
                               photoProfilMetadata={contact.photoProfilMetadata}
                               initials={contact.artisanInitials || "??"}
@@ -1197,17 +1213,17 @@ export default function ArtisansPage(): ReactElement {
                               size={40}
                               priority={index < 3}
                             />
-                            <div className="flex-1">
-                              <div className="flex items-center justify-between gap-2">
-                                <div className="flex flex-col">
-                                  <span className="font-medium"><HighlightedText text={contact.name} searchQuery={searchTerm} /></span>
-                                  <span className="text-sm text-muted-foreground">Zone {contact.zoneIntervention ?? "—"}</span>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center justify-between gap-1.5">
+                                <div className="flex flex-col min-w-0">
+                                  <span className="font-medium truncate" title={contact.name}><HighlightedText text={contact.name} searchQuery={searchTerm} /></span>
+                                  <span className="text-[10px] text-muted-foreground">Zone {contact.zoneIntervention ?? "—"}</span>
                                 </div>
-                                <div className="flex items-center">
+                                <div className="flex items-center flex-shrink-0">
                                   {contact.statutArtisan && contact.statutArtisanColor && (
                                     <Badge 
                                       variant="outline" 
-                                      className="border px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide"
+                                      className="border px-1.5 py-0 text-[9px] font-semibold uppercase tracking-wide"
                                       style={{
                                         backgroundColor: hexToRgba(contact.statutArtisanColor, 0.15) || contact.statutArtisanColor + '20',
                                         color: contact.statutArtisanColor,
@@ -1220,7 +1236,7 @@ export default function ArtisansPage(): ReactElement {
                                   {contact.statutArtisan && !contact.statutArtisanColor && (
                                     <Badge 
                                       variant="outline" 
-                                      className="border px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide bg-gray-100 text-gray-700 border-gray-300"
+                                      className="border px-1.5 py-0 text-[9px] font-semibold uppercase tracking-wide bg-gray-100 text-gray-700 border-gray-300"
                                     >
                                       {contact.statutArtisan}
                                     </Badge>
@@ -1230,30 +1246,66 @@ export default function ArtisansPage(): ReactElement {
                             </div>
                           </div>
                         </td>
-                        <td className="px-4 py-3">
-                          <div className="space-y-1">
-                            <div className="font-medium">
+                        <td className="px-2.5 py-1.5 max-w-[180px]">
+                          <div className="space-y-0.5">
+                            <div className="font-medium truncate" title={`${contact.company || "—"}${contact.statutJuridique ? ` / ${contact.statutJuridique}` : ""}`}>
                               <HighlightedText text={contact.company || "—"} searchQuery={searchTerm} />
                               {contact.statutJuridique && (
                                 <span className="text-muted-foreground"> / {contact.statutJuridique}</span>
                               )}
                             </div>
-                            <div className="text-sm text-muted-foreground"><HighlightedText text={contact.position || "—"} searchQuery={searchTerm} /></div>
                           </div>
                         </td>
-                        <td className="px-4 py-3">
-                          <div className="space-y-1 text-sm text-muted-foreground">
-                            <div className="flex items-center gap-2">
-                              <Mail className="h-3 w-3" />
-                              <span><HighlightedText text={contact.email || "—"} searchQuery={searchTerm} /></span>
+                        <td className="px-2.5 py-1.5 max-w-[160px]">
+                          <div className="flex flex-wrap gap-1">
+                            {contact.metiers && contact.metiers.length > 0 ? (
+                              contact.metiers.slice(0, 2).map((metierKey, idx) => {
+                                const metierInfo = metierColorMap[metierKey]
+                                const color = metierInfo?.color
+                                const displayLabel = metierInfo?.label || metierKey
+                                return (
+                                  <Badge
+                                    key={idx}
+                                    variant="outline"
+                                    className="px-1.5 py-0 text-[9px] font-medium border whitespace-nowrap"
+                                    style={color ? {
+                                      backgroundColor: hexToRgba(color, 0.15) || `${color}20`,
+                                      color: color,
+                                      borderColor: color,
+                                    } : undefined}
+                                    title={displayLabel}
+                                  >
+                                    {displayLabel}
+                                  </Badge>
+                                )
+                              })
+                            ) : (
+                              <span className="text-muted-foreground">—</span>
+                            )}
+                            {contact.metiers && contact.metiers.length > 2 && (
+                              <Badge
+                                variant="outline"
+                                className="px-1.5 py-0 text-[9px] font-medium border"
+                                title={contact.metiers.slice(2).map(k => metierColorMap[k]?.label || k).join(", ")}
+                              >
+                                +{contact.metiers.length - 2}
+                              </Badge>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-2.5 py-1.5 max-w-[140px]">
+                          <div className="space-y-0.5 text-muted-foreground">
+                            <div className="flex items-center gap-1.5 truncate" title={contact.email || "—"}>
+                              <Mail className="h-3 w-3 flex-shrink-0" />
+                              <span className="truncate"><HighlightedText text={contact.email || "—"} searchQuery={searchTerm} /></span>
                             </div>
-                            <div className="flex items-center gap-2">
-                              <Phone className="h-3 w-3" />
+                            <div className="flex items-center gap-1.5">
+                              <Phone className="h-3 w-3 flex-shrink-0" />
                               <span><HighlightedText text={contact.phone || "—"} searchQuery={searchTerm} /></span>
                             </div>
                           </div>
                         </td>
-                        <td className="px-4 py-3">
+                        <td className="px-2.5 py-1.5">
                           <div className="flex items-center justify-center">
                             <UserBadge 
                               initials={contact.gestionnaireInitials || '—'}
@@ -1262,19 +1314,21 @@ export default function ArtisansPage(): ReactElement {
                             />
                           </div>
                         </td>
-                        <td className="px-4 py-3 text-sm text-muted-foreground">
-                          <HighlightedText text={contact.adresse || "—"} searchQuery={searchTerm} />
+                        <td className="px-2.5 py-1.5 text-muted-foreground max-w-[200px]">
+                          <span className="line-clamp-2" title={contact.adresse || "—"}>
+                            <HighlightedText text={contact.adresse || "—"} searchQuery={searchTerm} />
+                          </span>
                         </td>
-                        <td className="px-4 py-3">
-                          <div className="flex items-center gap-2">
-                            <Button variant="ghost" size="icon" onClick={() => handleViewDetails(contact)}>
-                              <Eye className="h-4 w-4" />
+                        <td className="px-2.5 py-1.5">
+                          <div className="flex items-center gap-0.5">
+                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleViewDetails(contact)}>
+                              <Eye className="h-3.5 w-3.5" />
                             </Button>
-                            <Button variant="ghost" size="icon" onClick={() => handleEditContact(contact)}>
-                              <Edit className="h-4 w-4" />
+                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleEditContact(contact)}>
+                              <Edit className="h-3.5 w-3.5" />
                             </Button>
-                            <Button variant="ghost" size="icon" className="text-red-600" onClick={() => handleDeleteContact(contact)}>
-                              <Trash2 className="h-4 w-4" />
+                            <Button variant="ghost" size="icon" className="h-7 w-7 text-red-600" onClick={() => handleDeleteContact(contact)}>
+                              <Trash2 className="h-3.5 w-3.5" />
                             </Button>
                           </div>
                         </td>

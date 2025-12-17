@@ -1,8 +1,9 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { motion, useScroll, useTransform, useSpring, type MotionValue } from "framer-motion"
 import { useQueryClient } from "@tanstack/react-query"
-import { Building, ChevronDown, ChevronRight, FileText, MessageSquare, Upload, X, Search, Eye, Mail, MessageCircle } from "lucide-react"
+import { Building, ChevronDown, ChevronRight, FileText, MessageSquare, Upload, X, Search, Eye, Mail, MessageCircle, Users, Palette } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -11,6 +12,9 @@ import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { Badge } from "@/components/ui/badge"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { GestionnaireBadge } from "@/components/ui/gestionnaire-badge"
+import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable"
 import { MapLibreMap } from "@/components/maps/MapLibreMap"
 import { DocumentManager } from "@/components/documents/DocumentManager"
 import { CommentSection } from "@/components/shared/CommentSection"
@@ -69,6 +73,456 @@ const formatDistanceKm = (value: number) => {
   return `${Math.round(value)} km`
 }
 
+// Fonction pour calculer la couleur de texte lisible (blanc ou noir)
+function getReadableTextColor(bgColor: string | null | undefined): string {
+  if (!bgColor) return "#1f2937"
+  const hex = bgColor.replace("#", "")
+  if (hex.length !== 6) return "#1f2937"
+  const r = parseInt(hex.slice(0, 2), 16)
+  const g = parseInt(hex.slice(2, 4), 16)
+  const b = parseInt(hex.slice(4, 6), 16)
+  // Formule de luminance relative
+  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255
+  return luminance > 0.5 ? "#1f2937" : "#ffffff"
+}
+
+// Composant ColorBadgeSelect - Sélecteur visuel avec badges colorés
+interface ColorBadgeOption {
+  id: string
+  label: string
+  color?: string | null
+}
+
+interface ColorBadgeSelectProps {
+  label: string
+  value: string
+  options: ColorBadgeOption[]
+  onChange: (value: string) => void
+  placeholder?: string
+  required?: boolean
+  minWidth?: string
+  hideLabel?: boolean
+}
+
+function ColorBadgeSelect({ label, value, options, onChange, placeholder = "Sélectionner", required, minWidth = "70px", hideLabel = false }: ColorBadgeSelectProps) {
+  const [open, setOpen] = useState(false)
+  const listRef = useRef<HTMLDivElement>(null)
+  const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const searchBufferRef = useRef<string>("")
+
+  // Trier les options par ordre alphabétique
+  const sortedOptions = useMemo(() => 
+    [...options].sort((a, b) => a.label.localeCompare(b.label, 'fr', { sensitivity: 'base' })),
+    [options]
+  )
+
+  const selectedOption = options.find(o => o.id === value)
+  const selectedColor = selectedOption?.color || "#6b7280"
+  const selectedLabel = selectedOption?.label || placeholder
+
+  // Gestion de la recherche rapide au clavier et navigation
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (e.key === "Escape") {
+      setOpen(false)
+      return
+    }
+
+    // Navigation avec les flèches
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      e.preventDefault()
+      
+      if (!listRef.current) return
+      
+      const items = Array.from(listRef.current.querySelectorAll("[data-option-id]")) as HTMLElement[]
+      if (items.length === 0) return
+      
+      const currentIndex = items.findIndex(item => item === document.activeElement)
+      let nextIndex: number
+      
+      if (e.key === "ArrowDown") {
+        nextIndex = currentIndex === -1 ? 0 : Math.min(currentIndex + 1, items.length - 1)
+      } else {
+        nextIndex = currentIndex === -1 ? items.length - 1 : Math.max(currentIndex - 1, 0)
+      }
+      
+      const nextItem = items[nextIndex]
+      if (nextItem) {
+        nextItem.scrollIntoView({ block: "nearest", behavior: "smooth" })
+        nextItem.focus()
+      }
+      return
+    }
+
+    // Si c'est une lettre ou un chiffre, on fait une recherche rapide
+    if (e.key.length === 1 && /[a-zA-Z0-9]/.test(e.key)) {
+      e.preventDefault()
+      
+      // Ajouter la lettre au buffer de recherche
+      searchBufferRef.current += e.key.toLowerCase()
+      
+      // Trouver l'option qui commence par le buffer (dans la liste triée)
+      const matchIndex = sortedOptions.findIndex(o => 
+        o.label.toLowerCase().startsWith(searchBufferRef.current)
+      )
+      
+      if (matchIndex !== -1 && listRef.current) {
+        const items = listRef.current.querySelectorAll("[data-option-id]")
+        const targetItem = items[matchIndex] as HTMLElement
+        if (targetItem) {
+          targetItem.scrollIntoView({ block: "nearest", behavior: "smooth" })
+          targetItem.focus()
+        }
+      }
+      
+      // Reset le buffer après un délai
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current)
+      }
+      searchTimeoutRef.current = setTimeout(() => {
+        searchBufferRef.current = ""
+      }, 800)
+    }
+  }, [sortedOptions])
+
+  // Cleanup du timeout
+  useEffect(() => {
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current)
+      }
+    }
+  }, [])
+
+  return (
+    <div className="flex flex-col gap-0.5">
+      {!hideLabel && <Label className="text-[10px] text-muted-foreground leading-none">{label}{required && " *"}</Label>}
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <button
+            type="button"
+            className="inline-flex items-center justify-center rounded-full h-7 px-3 text-xs font-semibold transition-all hover:scale-105 hover:shadow-md cursor-pointer"
+            style={{
+              backgroundColor: selectedColor,
+              color: getReadableTextColor(selectedColor),
+              minWidth: minWidth,
+            }}
+          >
+            {selectedLabel}
+          </button>
+        </PopoverTrigger>
+        <PopoverContent 
+          className="p-0 border-none bg-transparent shadow-none"
+          align="start"
+          style={{ width: 'var(--radix-popover-trigger-width)' }}
+          onKeyDown={handleKeyDown}
+          onOpenAutoFocus={(e) => {
+            e.preventDefault()
+            // Focus le premier élément ou l'élément sélectionné
+            setTimeout(() => {
+              if (listRef.current) {
+                const selected = listRef.current.querySelector("[data-selected='true']") as HTMLElement
+                const firstItem = listRef.current.querySelector("[data-option-id]") as HTMLElement
+                ;(selected || firstItem)?.focus()
+              }
+            }, 0)
+          }}
+        >
+          <div 
+            ref={listRef}
+            className="flex flex-col gap-1 py-1"
+          >
+            {sortedOptions.map((option) => {
+              const isSelected = option.id === value
+              const optionColor = option.color || "#6b7280"
+              return (
+                <button
+                  key={option.id}
+                  type="button"
+                  data-option-id={option.id}
+                  data-selected={isSelected}
+                  className={cn(
+                    "inline-flex items-center justify-center rounded-full h-7 px-3 text-xs font-semibold transition-all outline-none shadow-md hover:shadow-lg hover:scale-105",
+                    "focus:ring-2 focus:ring-primary focus:ring-offset-1",
+                    isSelected && "ring-2 ring-primary ring-offset-1"
+                  )}
+                  style={{
+                    backgroundColor: optionColor,
+                    color: getReadableTextColor(optionColor),
+                  }}
+                  onClick={() => {
+                    onChange(option.id)
+                    setOpen(false)
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault()
+                      onChange(option.id)
+                      setOpen(false)
+                    }
+                  }}
+                >
+                  {option.label}
+                </button>
+              )
+            })}
+          </div>
+        </PopoverContent>
+      </Popover>
+    </div>
+  )
+}
+
+// Composant ColorBadgeSelectStacking - Sélecteur avec effet Stacking Cards (style Skiper16)
+interface ColorBadgeSelectStackingProps {
+  label: string
+  value: string
+  options: ColorBadgeOption[]
+  onChange: (value: string) => void
+  placeholder?: string
+  required?: boolean
+  minWidth?: string
+  hideLabel?: boolean
+}
+
+// Hauteur d'une carte
+const CARD_HEIGHT = 36
+
+function StackingCard({
+  option,
+  index,
+  isSelected,
+  scrollProgress,
+  totalItems,
+  onSelect,
+}: {
+  option: ColorBadgeOption
+  index: number
+  isSelected: boolean
+  scrollProgress: MotionValue<number>
+  totalItems: number
+  onSelect: () => void
+}) {
+  const total = Math.max(totalItems, 1)
+  const segment = 1 / total
+  const rangeStart = Math.max(0, index * segment)
+  // Transition plus rapide : la carte atteint son scale final à 60% de son segment
+  const rangeEnd = Math.min(1, rangeStart + segment * 0.6)
+
+  // Scale de 1 à 0.92 (légèrement plus prononcé)
+  const scale = useTransform(scrollProgress, [rangeStart, rangeEnd], [1, 0.92])
+  
+  const optionColor = option.color || "#6b7280"
+  
+  return (
+    <div
+      className="sticky flex items-center justify-center"
+      style={{ 
+        top: 0,
+        zIndex: index + 1,
+        height: `${CARD_HEIGHT}px`,
+      }}
+    >
+      <motion.button
+        type="button"
+        data-option-id={option.id}
+        data-selected={isSelected}
+        style={{
+          scale,
+          backgroundColor: optionColor,
+          color: getReadableTextColor(optionColor),
+        }}
+        className={cn(
+          "w-full flex items-center justify-center rounded-full px-3 h-8 text-xs font-semibold origin-top",
+          "border border-white/30",
+          "cursor-pointer",
+          "hover:border-white/50",
+          "focus:outline-none focus:ring-2 focus:ring-white/60 focus:ring-offset-1",
+          isSelected && "ring-2 ring-white"
+        )}
+        initial={false}
+        whileHover={{ scale: 1.02 }}
+        whileTap={{ scale: 0.98 }}
+        onClick={onSelect}
+      >
+        {option.label}
+      </motion.button>
+    </div>
+  )
+}
+
+// Composant interne pour la liste avec scroll - rendu uniquement quand le Popover est ouvert
+function StackingCardsList({
+  sortedOptions,
+  value,
+  onChange,
+  onClose,
+}: {
+  sortedOptions: ColorBadgeOption[]
+  value: string
+  onChange: (value: string) => void
+  onClose: () => void
+}) {
+  const scrollContainerRef = useRef<HTMLDivElement>(null)
+  const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const searchBufferRef = useRef<string>("")
+
+  // Progress du scroll pour les animations (comme dans Skiper16)
+  const { scrollYProgress } = useScroll({
+    container: scrollContainerRef,
+    offset: ["start start", "end end"],
+  })
+  
+  // Spring pour des animations fluides
+  const smoothProgress = useSpring(scrollYProgress, {
+    stiffness: 150,
+    damping: 25,
+    restDelta: 0.001
+  })
+
+  // Gestion de la recherche rapide au clavier
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (e.key === "Escape") {
+      onClose()
+      return
+    }
+
+    if (e.key.length === 1 && /[a-zA-Z0-9]/.test(e.key)) {
+      e.preventDefault()
+      
+      searchBufferRef.current += e.key.toLowerCase()
+      
+      const matchIndex = sortedOptions.findIndex(o => 
+        o.label.toLowerCase().startsWith(searchBufferRef.current)
+      )
+      
+      if (matchIndex !== -1 && scrollContainerRef.current) {
+        const items = scrollContainerRef.current.querySelectorAll("[data-option-id]")
+        const targetItem = items[matchIndex] as HTMLElement
+        if (targetItem) {
+          targetItem.scrollIntoView({ block: "center", behavior: "smooth" })
+        }
+      }
+      
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current)
+      }
+      searchTimeoutRef.current = setTimeout(() => {
+        searchBufferRef.current = ""
+      }, 800)
+    }
+  }, [sortedOptions, onClose])
+
+  useEffect(() => {
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current)
+      }
+    }
+  }, [])
+
+  const totalCards = sortedOptions.length
+  // Hauteur visible du conteneur (montre quelques cartes)
+  const containerHeight = Math.min(280, Math.max(180, totalCards * CARD_HEIGHT * 0.6))
+  // Padding réduit : 75% du scroll suffit pour empiler toutes les cartes
+  const scrollPadding = totalCards * CARD_HEIGHT * 0.75
+
+  return (
+    <div onKeyDown={handleKeyDown}>
+      <div 
+        ref={scrollContainerRef}
+        className="relative overflow-y-auto overflow-x-hidden scrollbar-minimal bg-transparent"
+        style={{ 
+          height: `${containerHeight}px`,
+        }}
+      >
+        <div 
+          className="relative px-1 pt-1"
+          style={{ 
+            // Le padding permet de scroller suffisamment pour empiler toutes les cartes
+            paddingBottom: `${scrollPadding}px`,
+          }}
+        >
+          {sortedOptions.map((option, i) => {
+            const isSelected = option.id === value
+            
+            return (
+              <StackingCard
+                key={option.id}
+                option={option}
+                index={i}
+                isSelected={isSelected}
+                scrollProgress={smoothProgress}
+                totalItems={totalCards}
+                onSelect={() => {
+                  onChange(option.id)
+                  onClose()
+                }}
+              />
+            )
+          })}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function ColorBadgeSelectStacking({ 
+  label, 
+  value, 
+  options, 
+  onChange, 
+  placeholder = "Sélectionner", 
+  required, 
+  minWidth = "70px", 
+  hideLabel = false 
+}: ColorBadgeSelectStackingProps) {
+  const [open, setOpen] = useState(false)
+
+  // Trier les options par ordre alphabétique
+  const sortedOptions = useMemo(() => 
+    [...options].sort((a, b) => a.label.localeCompare(b.label, 'fr', { sensitivity: 'base' })),
+    [options]
+  )
+
+  const selectedOption = options.find(o => o.id === value)
+  const selectedColor = selectedOption?.color || "#6b7280"
+  const selectedLabel = selectedOption?.label || placeholder
+
+  return (
+    <div className="flex flex-col gap-0.5">
+      {!hideLabel && <Label className="text-[10px] text-muted-foreground leading-none">{label}{required && " *"}</Label>}
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <button
+            type="button"
+            className="inline-flex items-center justify-center rounded-full h-7 px-3 text-xs font-semibold transition-all hover:scale-105 hover:shadow-md cursor-pointer"
+            style={{
+              backgroundColor: selectedColor,
+              color: getReadableTextColor(selectedColor),
+              minWidth: minWidth,
+            }}
+          >
+            {selectedLabel}
+          </button>
+        </PopoverTrigger>
+        <PopoverContent 
+          className="p-0 border-none bg-transparent shadow-none"
+          align="start"
+          style={{ width: '160px' }}
+          sideOffset={6}
+        >
+          <StackingCardsList
+            sortedOptions={sortedOptions}
+            value={value}
+            onChange={onChange}
+            onClose={() => setOpen(false)}
+          />
+        </PopoverContent>
+      </Popover>
+    </div>
+  )
+}
+
 function hexToRgba(hex: string, alpha: number): string | null {
   const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex)
   if (!result) return null
@@ -88,6 +542,7 @@ interface InterventionEditFormProps {
   onClientNameChange?: (name: string) => void
   onAgencyNameChange?: (name: string) => void
   onClientPhoneChange?: (phone: string) => void
+  onOpenSmsModal?: () => void
 }
 
 export function InterventionEditForm({
@@ -99,7 +554,8 @@ export function InterventionEditForm({
   onSubmittingChange,
   onClientNameChange,
   onAgencyNameChange,
-  onClientPhoneChange
+  onClientPhoneChange,
+  onOpenSmsModal
 }: InterventionEditFormProps) {
   const { data: refData, loading: refDataLoading } = useReferenceData()
   const queryClient = useQueryClient()
@@ -123,9 +579,13 @@ export function InterventionEditForm({
   // Extraire les coûts et paiements
   const costs = intervention.intervention_costs || []
   const payments = intervention.intervention_payments || []
-  const sstCost = costs.find(c => c.cost_type === 'sst')
-  const materielCost = costs.find(c => c.cost_type === 'materiel')
+  // Coûts artisan principal (artisan_order = 1 ou undefined/null pour rétrocompatibilité)
+  const sstCost = costs.find(c => c.cost_type === 'sst' && (c.artisan_order === 1 || c.artisan_order === undefined || c.artisan_order === null))
+  const materielCost = costs.find(c => c.cost_type === 'materiel' && (c.artisan_order === 1 || c.artisan_order === undefined || c.artisan_order === null))
   const interventionCost = costs.find(c => c.cost_type === 'intervention')
+  // Coûts second artisan (artisan_order = 2)
+  const sstCostSecondArtisan = costs.find(c => c.cost_type === 'sst' && c.artisan_order === 2)
+  const materielCostSecondArtisan = costs.find(c => c.cost_type === 'materiel' && c.artisan_order === 2)
 
   // Extraire les paiements d'acomptes (calculés avant useState pour être utilisés dans l'initialisation)
   const sstPayment = payments.find(p => p.payment_type === 'acompte_sst')
@@ -134,6 +594,7 @@ export function InterventionEditForm({
   // Artisans liés - memoized pour éviter les changements à chaque render
   const artisans = useMemo(() => intervention.intervention_artisans || [], [intervention.intervention_artisans])
   const primaryArtisan = artisans.find(a => a.is_primary)?.artisans
+  const secondaryArtisan = artisans.find(a => !a.is_primary)?.artisans
 
   const [formData, setFormData] = useState({
     // Champs principaux
@@ -168,15 +629,15 @@ export function InterventionEditForm({
     consigne_second_artisan: intervention.consigne_second_artisan || "",
     commentaire_agent: intervention.commentaire_agent || "",
 
-    // Propriétaire (owner)
-    nomProprietaire: intervention.owner?.owner_lastname || "",
-    prenomProprietaire: intervention.owner?.owner_firstname || "",
+    // Propriétaire (owner) - Champ fusionné nom-prénom
+    nomPrenomFacturation: intervention.owner?.plain_nom_facturation || 
+      `${intervention.owner?.owner_lastname || ''} ${intervention.owner?.owner_firstname || ''}`.trim() || "",
     telephoneProprietaire: intervention.owner?.telephone || "",
     emailProprietaire: intervention.owner?.email || "",
 
-    // Client (tenant)
-    nomClient: intervention.tenants?.lastname || "",
-    prenomClient: intervention.tenants?.firstname || "",
+    // Client (tenant) - Champ fusionné nom-prénom
+    nomPrenomClient: intervention.tenants?.plain_nom_client || 
+      `${intervention.tenants?.lastname || ''} ${intervention.tenants?.firstname || ''}`.trim() || "",
     telephoneClient: intervention.tenants?.telephone || "",
     emailClient: intervention.tenants?.email || "",
 
@@ -204,6 +665,20 @@ export function InterventionEditForm({
     accompteClient: clientPayment?.amount?.toString() || "",
     accompteClientRecu: clientPayment?.is_received || false,
     dateAccompteClientRecu: clientPayment?.payment_date?.split('T')[0] || "",
+
+    // Sous-statut personnalisé
+    sousStatutText: (intervention as any).sous_statut_text || "",
+    sousStatutTextColor: (intervention as any).sous_statut_text_color || "#000000",
+    sousStatutBgColor: (intervention as any).sous_statut_bg_color || "transparent",
+
+    // Deuxième artisan
+    secondArtisan: secondaryArtisan ? `${secondaryArtisan.prenom || ''} ${secondaryArtisan.nom || ''}`.trim() : "",
+    secondArtisanTelephone: secondaryArtisan?.telephone || "",
+    secondArtisanEmail: secondaryArtisan?.email || "",
+    metierSecondArtisanId: (intervention as any).metier_second_artisan_id || "",
+    // Coûts du 2ème artisan depuis intervention_costs avec artisan_order = 2
+    coutSSTSecondArtisan: sstCostSecondArtisan?.amount?.toString() || "",
+    coutMaterielSecondArtisan: materielCostSecondArtisan?.amount?.toString() || "",
   })
   const isStatusReasonModalOpen = pendingReasonType !== null
   const [perimeterKmInput, setPerimeterKmInput] = useState("50")
@@ -216,6 +691,9 @@ export function InterventionEditForm({
   }, [perimeterKmInput])
   const [selectedArtisanId, setSelectedArtisanId] = useState<string | null>(primaryArtisan?.id ?? null)
   const primaryArtisanIdRef = useRef<string | null>(primaryArtisan?.id ?? null)
+  const [selectedSecondArtisanId, setSelectedSecondArtisanId] = useState<string | null>(secondaryArtisan?.id ?? null)
+  const secondaryArtisanIdRef = useRef<string | null>(secondaryArtisan?.id ?? null)
+  const [secondArtisanSearchPosition, setSecondArtisanSearchPosition] = useState<{ x: number; y: number; width?: number; height?: number } | null>(null)
 
   const {
     query: locationQuery,
@@ -233,8 +711,15 @@ export function InterventionEditForm({
   const [isAccompteOpen, setIsAccompteOpen] = useState(false)
   const [isDocumentsOpen, setIsDocumentsOpen] = useState(false)
   const [isCommentsOpen, setIsCommentsOpen] = useState(true)
+  const [isSecondArtisanOpen, setIsSecondArtisanOpen] = useState(false)
+  const [isSousStatutOpen, setIsSousStatutOpen] = useState(false)
   const [showArtisanSearch, setShowArtisanSearch] = useState(false)
+  const [showSecondArtisanSearch, setShowSecondArtisanSearch] = useState(false)
   const [artisanSearchPosition, setArtisanSearchPosition] = useState<{ x: number; y: number; width?: number; height?: number } | null>(null)
+  // État pour stocker l'artisan sélectionné via recherche (qui peut ne pas être dans nearbyArtisans)
+  const [searchSelectedArtisan, setSearchSelectedArtisan] = useState<NearbyArtisan | null>(null)
+  // État pour stocker le second artisan sélectionné via recherche (qui peut ne pas être dans nearbyArtisansSecondMetier)
+  const [searchSelectedSecondArtisan, setSearchSelectedSecondArtisan] = useState<NearbyArtisan | null>(null)
   const { open: openArtisanModal } = useArtisanModal()
   const {
     artisans: nearbyArtisans,
@@ -246,10 +731,101 @@ export function InterventionEditForm({
     sampleSize: 400,
     metier_id: formData.metier_id || null,
   })
+  
+  // Hook séparé pour les artisans du second métier
+  const {
+    artisans: nearbyArtisansSecondMetier,
+    loading: isLoadingNearbyArtisansSecondMetier,
+  } = useNearbyArtisans(formData.latitude, formData.longitude, {
+    limit: 100,
+    maxDistanceKm: perimeterKmValue,
+    sampleSize: 400,
+    metier_id: formData.metierSecondArtisanId || null,
+  })
+  
   const selectedArtisanData = useMemo(
-    () => (selectedArtisanId ? nearbyArtisans.find((artisan) => artisan.id === selectedArtisanId) ?? null : null),
-    [selectedArtisanId, nearbyArtisans],
+    () => {
+      if (!selectedArtisanId) return null
+      // D'abord chercher dans les artisans à proximité
+      const nearbyArtisan = nearbyArtisans.find((artisan) => artisan.id === selectedArtisanId)
+      if (nearbyArtisan) return nearbyArtisan
+      // Sinon utiliser l'artisan de la recherche (qui peut ne pas être à proximité)
+      return searchSelectedArtisan
+    },
+    [selectedArtisanId, nearbyArtisans, searchSelectedArtisan],
   )
+
+  // CORRECTIF: Initialiser searchSelectedArtisan avec primaryArtisan si non trouvé dans nearbyArtisans
+  // Cela permet d'afficher la carte de l'artisan déjà sélectionné lors de l'ouverture du modal
+  useEffect(() => {
+    // Ne rien faire si pas d'artisan principal ou si loading en cours
+    if (!primaryArtisan?.id || isLoadingNearbyArtisans) return
+    
+    // Vérifier si l'artisan principal est bien celui sélectionné
+    if (selectedArtisanId !== primaryArtisan.id) return
+    
+    // Vérifier si l'artisan est déjà dans nearbyArtisans
+    const isInNearbyArtisans = nearbyArtisans.some(a => a.id === primaryArtisan.id)
+    if (isInNearbyArtisans) return
+    
+    // Vérifier si on a déjà un searchSelectedArtisan valide pour cet artisan
+    if (searchSelectedArtisan?.id === primaryArtisan.id) return
+    
+    // Créer un objet NearbyArtisan à partir de primaryArtisan
+    const displayName = primaryArtisan.plain_nom
+      || [primaryArtisan.prenom, primaryArtisan.nom].filter(Boolean).join(" ")
+      || "Artisan sans nom"
+
+    setSearchSelectedArtisan({
+      id: primaryArtisan.id,
+      displayName,
+      distanceKm: 0,
+      telephone: primaryArtisan.telephone || null,
+      email: primaryArtisan.email || null,
+      adresse: null,
+      ville: null,
+      codePostal: null,
+      lat: 0,
+      lng: 0,
+      prenom: primaryArtisan.prenom || null,
+      nom: primaryArtisan.nom || null,
+      statut_id: null,
+      photoProfilMetadata: null,
+    })
+  }, [primaryArtisan, selectedArtisanId, isLoadingNearbyArtisans, nearbyArtisans, searchSelectedArtisan])
+  const selectedSecondArtisanData = useMemo(
+    () => {
+      if (!selectedSecondArtisanId) return null
+      // D'abord chercher dans les artisans à proximité du second métier
+      const nearbyArtisan = nearbyArtisansSecondMetier.find((artisan) => artisan.id === selectedSecondArtisanId)
+      if (nearbyArtisan) return nearbyArtisan
+      // Sinon utiliser l'artisan de la recherche (qui peut ne pas être à proximité)
+      return searchSelectedSecondArtisan
+    },
+    [selectedSecondArtisanId, nearbyArtisansSecondMetier, searchSelectedSecondArtisan],
+  )
+
+  // Calcul de la marge du 2ème artisan en pourcentage
+  // Formule: coutInter2 = coutIntervention - (coutSST1 + coutMat1)
+  //          marge2 = coutInter2 - (coutSST2 + coutMat2)
+  //          marge2Pct = (marge2 / coutInter2) * 100
+  const margeSecondArtisanPct = useMemo(() => {
+    const coutInter = parseFloat(formData.coutIntervention) || 0
+    const coutSST1 = parseFloat(formData.coutSST) || 0
+    const coutMat1 = parseFloat(formData.coutMateriel) || 0
+    const coutSST2 = parseFloat(formData.coutSSTSecondArtisan) || 0
+    const coutMat2 = parseFloat(formData.coutMaterielSecondArtisan) || 0
+    
+    // coutInter2 = coutIntervention - (coutSST1 + coutMat1)
+    const coutInter2 = coutInter - (coutSST1 + coutMat1)
+    
+    // marge2 = coutInter2 - (coutSST2 + coutMat2)
+    const marge2 = coutInter2 - (coutSST2 + coutMat2)
+    
+    // Calcul du pourcentage (éviter division par zéro)
+    if (coutInter2 <= 0) return 0
+    return (marge2 / coutInter2) * 100
+  }, [formData.coutIntervention, formData.coutSST, formData.coutMateriel, formData.coutSSTSecondArtisan, formData.coutMaterielSecondArtisan])
 
   // Synchroniser formData.id_inter avec intervention.id_inter quand il change
   // (par exemple après une sauvegarde qui génère un nouvel ID)
@@ -292,6 +868,27 @@ export function InterventionEditForm({
     // Retourner : non archivés d'abord (triés par distance), puis archivés (triés par distance)
     return [...nonArchived, ...archived]
   }, [nearbyArtisans, refData?.artisanStatuses])
+
+  // Trier les artisans du second métier : archivés en bas
+  const sortedNearbyArtisansSecondMetier = useMemo(() => {
+    if (!refData?.artisanStatuses) return nearbyArtisansSecondMetier
+
+    const archiveStatuses = refData.artisanStatuses.filter(
+      (s) => s.code === "ARCHIVE" || s.code === "ARCHIVER"
+    )
+    if (archiveStatuses.length === 0) return nearbyArtisansSecondMetier
+
+    const archiveStatusIds = new Set(archiveStatuses.map((s) => s.id))
+
+    const nonArchived = nearbyArtisansSecondMetier.filter(
+      (artisan) => !artisan.statut_id || !archiveStatusIds.has(artisan.statut_id)
+    )
+    const archived = nearbyArtisansSecondMetier.filter(
+      (artisan) => artisan.statut_id && archiveStatusIds.has(artisan.statut_id)
+    )
+
+    return [...nonArchived, ...archived]
+  }, [nearbyArtisansSecondMetier, refData?.artisanStatuses])
 
   const mapMarkers = useMemo(() => {
     if (!refData?.artisanStatuses) {
@@ -344,6 +941,10 @@ export function InterventionEditForm({
   useEffect(() => {
     primaryArtisanIdRef.current = primaryArtisan?.id ?? null
   }, [primaryArtisan?.id])
+
+  useEffect(() => {
+    secondaryArtisanIdRef.current = secondaryArtisan?.id ?? null
+  }, [secondaryArtisan?.id])
 
   useEffect(() => {
     return () => {
@@ -403,8 +1004,8 @@ export function InterventionEditForm({
 
   // Sync client name with parent
   useEffect(() => {
-    onClientNameChange?.(formData.nomClient)
-  }, [formData.nomClient, onClientNameChange])
+    onClientNameChange?.(formData.nomPrenomClient)
+  }, [formData.nomPrenomClient, onClientNameChange])
 
   // Sync client phone with parent
   useEffect(() => {
@@ -804,19 +1405,27 @@ export function InterventionEditForm({
   }, [selectedArtisanForEmail, selectedArtisanId])
 
   // Handle opening devis email modal
-  const handleOpenDevisEmailModal = useCallback(() => {
-    if (!effectiveSelectedArtisanId) {
+  const handleOpenDevisEmailModal = useCallback((artisanId?: string) => {
+    const targetArtisanId = artisanId || effectiveSelectedArtisanId
+    if (!targetArtisanId) {
       toast.error('Veuillez sélectionner un artisan')
       return
+    }
+    if (artisanId) {
+      setSelectedArtisanForEmail(artisanId)
     }
     setIsDevisEmailModalOpen(true)
   }, [effectiveSelectedArtisanId])
 
   // Handle opening intervention email modal
-  const handleOpenInterventionEmailModal = useCallback(() => {
-    if (!effectiveSelectedArtisanId) {
+  const handleOpenInterventionEmailModal = useCallback((artisanId?: string) => {
+    const targetArtisanId = artisanId || effectiveSelectedArtisanId
+    if (!targetArtisanId) {
       toast.error('Veuillez sélectionner un artisan')
       return
+    }
+    if (artisanId) {
+      setSelectedArtisanForEmail(artisanId)
     }
     setIsInterventionEmailModalOpen(true)
   }, [effectiveSelectedArtisanId])
@@ -826,34 +1435,44 @@ export function InterventionEditForm({
     const artisanId = effectiveSelectedArtisanId
     if (!artisanId) return ''
 
-    // First check in artisansWithEmail (from Select)
+    // First check in artisansWithEmail (from intervention_artisans)
     const artisan = artisansWithEmail.find((a) => a.id === artisanId)
     if (artisan) return artisan.email
 
-    // Fallback to selectedArtisanData (from form selection)
+    // Vérifier si c'est le premier artisan sélectionné dans le form
     if (selectedArtisanData && selectedArtisanData.id === artisanId) {
       return selectedArtisanData.email || ''
     }
 
+    // Vérifier si c'est le second artisan sélectionné dans le form
+    if (selectedSecondArtisanData && selectedSecondArtisanData.id === artisanId) {
+      return selectedSecondArtisanData.email || ''
+    }
+
     return ''
-  }, [effectiveSelectedArtisanId, artisansWithEmail, selectedArtisanData])
+  }, [effectiveSelectedArtisanId, artisansWithEmail, selectedArtisanData, selectedSecondArtisanData])
 
   // Fonction pour obtenir le numéro de téléphone de l'artisan sélectionné
   const getSelectedArtisanPhone = useCallback((): string => {
     const artisanId = effectiveSelectedArtisanId
     if (!artisanId) return ''
 
-    // Chercher dans artisansWithEmail (depuis Select)
+    // Chercher dans artisansWithEmail (depuis intervention_artisans)
     const artisan = artisansWithEmail.find((a) => a.id === artisanId)
     if (artisan && artisan.telephone) return artisan.telephone
 
-    // Chercher dans selectedArtisanData (depuis form)
-    if (selectedArtisanData && selectedArtisanData.telephone) {
+    // Vérifier si c'est le premier artisan sélectionné dans le form
+    if (selectedArtisanData && selectedArtisanData.id === artisanId && selectedArtisanData.telephone) {
       return selectedArtisanData.telephone
     }
 
+    // Vérifier si c'est le second artisan sélectionné dans le form
+    if (selectedSecondArtisanData && selectedSecondArtisanData.id === artisanId && selectedSecondArtisanData.telephone) {
+      return selectedSecondArtisanData.telephone
+    }
+
     return ''
-  }, [effectiveSelectedArtisanId, artisansWithEmail, selectedArtisanData])
+  }, [effectiveSelectedArtisanId, artisansWithEmail, selectedArtisanData, selectedSecondArtisanData])
 
   // Fonction pour formater le numéro de téléphone pour WhatsApp
   const formatPhoneForWhatsApp = useCallback((phone: string): string => {
@@ -912,15 +1531,19 @@ export function InterventionEditForm({
       const whatsappUrl = `whatsapp://send?phone=${formattedPhone}&text=${encodedMessage}`
       window.location.href = whatsappUrl
     } else {
-      // Sur desktop : ouvrir dans une nouvelle fenêtre qui se fermera automatiquement
+      // Sur desktop : ouvrir dans une nouvelle fenêtre centrée et de taille confortable
       const whatsappUrl = `https://wa.me/${formattedPhone}?text=${encodedMessage}`
-      const popup = window.open(whatsappUrl, '_blank', 'width=1,height=1')
-      // Fermer la fenêtre après un court délai si elle existe encore
-      setTimeout(() => {
-        if (popup && !popup.closed) {
-          popup.close()
-        }
-      }, 1000)
+      // Taille de la fenêtre (30% plus grande que standard)
+      const popupWidth = 780
+      const popupHeight = 910
+      // Centrer la fenêtre sur l'écran
+      const left = Math.round((window.screen.width - popupWidth) / 2)
+      const top = Math.round((window.screen.height - popupHeight) / 2)
+      window.open(
+        whatsappUrl, 
+        '_blank', 
+        `width=${popupWidth},height=${popupHeight},left=${left},top=${top},resizable=yes,scrollbars=yes`
+      )
     }
   }, [generateEmailTemplateData, formatPhoneForWhatsApp])
 
@@ -946,9 +1569,70 @@ export function InterventionEditForm({
 
   const handleRemoveSelectedArtisan = useCallback(() => {
     setSelectedArtisanId(null)
+    setSearchSelectedArtisan(null)
     // Optionnel : vider le champ texte artisan si on désélectionne ?
     // handleInputChange("artisan", "")
   }, [])
+
+  const handleSelectSecondArtisan = useCallback(
+    (artisan: NearbyArtisan) => {
+      setSelectedSecondArtisanId(artisan.id)
+      handleInputChange("secondArtisan", `${artisan.prenom || ""} ${artisan.nom || ""}`.trim())
+      handleInputChange("secondArtisanTelephone", artisan.telephone || "")
+      handleInputChange("secondArtisanEmail", artisan.email || "")
+    },
+    [handleInputChange],
+  )
+
+  const handleRemoveSecondArtisan = useCallback(() => {
+    setSelectedSecondArtisanId(null)
+    setSearchSelectedSecondArtisan(null)
+    handleInputChange("secondArtisan", "")
+    handleInputChange("secondArtisanTelephone", "")
+    handleInputChange("secondArtisanEmail", "")
+  }, [handleInputChange])
+
+  const handleSecondArtisanSearchSelect = useCallback((artisan: ArtisanSearchResult) => {
+    const displayName = artisan.raison_sociale
+      || artisan.plain_nom
+      || [artisan.prenom, artisan.nom].filter(Boolean).join(" ")
+      || "Artisan sans nom"
+
+    setSelectedSecondArtisanId(artisan.id)
+    setFormData((prev) => ({
+      ...prev,
+      secondArtisan: displayName,
+      secondArtisanTelephone: artisan.telephone || "",
+      secondArtisanEmail: artisan.email || "",
+    }))
+
+    // Si l'artisan sélectionné via recherche n'est pas dans la liste de proximité,
+    // on le convertit au format NearbyArtisan et on le stocke pour l'afficher
+    const isInProximity = nearbyArtisansSecondMetier.some(a => a.id === artisan.id)
+    if (!isInProximity) {
+      // Convertir l'artisan de la recherche au format NearbyArtisan
+      const nearbyArtisanFormat: NearbyArtisan = {
+        id: artisan.id,
+        displayName: displayName,
+        distanceKm: 0, // Distance inconnue pour artisan hors proximité
+        telephone: artisan.telephone || null,
+        email: artisan.email || null,
+        adresse: artisan.adresse_intervention || artisan.adresse_siege_social || null,
+        ville: artisan.ville_intervention || artisan.ville_siege_social || null,
+        codePostal: artisan.code_postal_intervention || artisan.code_postal_siege_social || null,
+        lat: 0,
+        lng: 0,
+        prenom: artisan.prenom || null,
+        nom: artisan.nom || null,
+        statut_id: artisan.statut_id || null,
+        photoProfilMetadata: null,
+      }
+      setSearchSelectedSecondArtisan(nearbyArtisanFormat)
+    } else {
+      // Si l'artisan est dans la liste de proximité, pas besoin de le stocker séparément
+      setSearchSelectedSecondArtisan(null)
+    }
+  }, [nearbyArtisansSecondMetier])
 
   const handleArtisanSearchSelect = useCallback((artisan: ArtisanSearchResult) => {
     const displayName = artisan.raison_sociale
@@ -965,11 +1649,30 @@ export function InterventionEditForm({
     }))
 
     // Si l'artisan sélectionné via recherche n'est pas dans la liste de proximité,
-    // on le convertit au format NearbyArtisan et on le stockera pour l'afficher
+    // on le convertit au format NearbyArtisan et on le stocke pour l'afficher
     const isInProximity = nearbyArtisans.some(a => a.id === artisan.id)
-    if (!isInProximity && artisan.adresse_intervention && artisan.ville_intervention) {
-      // On pourrait l'ajouter à une liste séparée, mais pour l'instant
-      // la synchronisation visuelle via selectedArtisanId suffit
+    if (!isInProximity) {
+      // Convertir l'artisan de la recherche au format NearbyArtisan
+      const nearbyArtisanFormat: NearbyArtisan = {
+        id: artisan.id,
+        displayName: displayName,
+        distanceKm: 0, // Distance inconnue pour artisan hors proximité
+        telephone: artisan.telephone || null,
+        email: artisan.email || null,
+        adresse: artisan.adresse_intervention || artisan.adresse_siege_social || null,
+        ville: artisan.ville_intervention || artisan.ville_siege_social || null,
+        codePostal: artisan.code_postal_intervention || artisan.code_postal_siege_social || null,
+        lat: 0,
+        lng: 0,
+        prenom: artisan.prenom || null,
+        nom: artisan.nom || null,
+        statut_id: artisan.statut_id || null,
+        photoProfilMetadata: null,
+      }
+      setSearchSelectedArtisan(nearbyArtisanFormat)
+    } else {
+      // Si l'artisan est dans la liste de proximité, pas besoin de le stocker séparément
+      setSearchSelectedArtisan(null)
     }
   }, [nearbyArtisans])
 
@@ -1112,8 +1815,7 @@ export function InterventionEditForm({
 
       try {
         ownerId = await findOrCreateOwner({
-          nomProprietaire: formData.nomProprietaire,
-          prenomProprietaire: formData.prenomProprietaire,
+          nomPrenomFacturation: formData.nomPrenomFacturation,
           telephoneProprietaire: formData.telephoneProprietaire,
           emailProprietaire: formData.emailProprietaire,
         })
@@ -1126,8 +1828,7 @@ export function InterventionEditForm({
       if (!formData.is_vacant) {
         try {
           tenantId = await findOrCreateTenant({
-            nomClient: formData.nomClient,
-            prenomClient: formData.prenomClient,
+            nomPrenomClient: formData.nomPrenomClient,
             telephoneClient: formData.telephoneClient,
             emailClient: formData.emailClient,
           })
@@ -1168,7 +1869,14 @@ export function InterventionEditForm({
         vacant_housing_instructions: formData.is_vacant ? (formData.vacant_housing_instructions?.trim() || null) : null,
         owner_id: ownerId,
         tenant_id: tenantId, // null si is_vacant=true, sinon l'ID du tenant trouvé/créé
+        // Sous-statut personnalisé
+        sous_statut_text: formData.sousStatutText?.trim() || null,
+        sous_statut_text_color: formData.sousStatutTextColor || '#000000',
+        sous_statut_bg_color: formData.sousStatutBgColor || 'transparent',
+        // Deuxième artisan - métier
+        metier_second_artisan_id: formData.metierSecondArtisanId || null,
         // Note: client_id est un alias de tenant_id dans certains contextes, mais on utilise tenant_id ici
+        // Note: Les coûts du 2ème artisan sont gérés via intervention_costs avec artisan_order = 2
       }
 
       if (!canEditContext) {
@@ -1212,6 +1920,10 @@ export function InterventionEditForm({
           vacant_housing_instructions: updateData.vacant_housing_instructions ?? null,
           owner_id: updateData.owner_id ?? null,
           tenant_id: updateData.tenant_id ?? null,
+          sous_statut_text: updateData.sous_statut_text ?? null,
+          sous_statut_text_color: updateData.sous_statut_text_color ?? '#000000',
+          sous_statut_bg_color: updateData.sous_statut_bg_color ?? 'transparent',
+          metier_second_artisan_id: updateData.metier_second_artisan_id ?? null,
         },
       })
 
@@ -1232,7 +1944,7 @@ export function InterventionEditForm({
         costsToUpdate.push({ cost_type: "intervention", amount: coutInterventionValue })
       }
 
-      // Mettre à jour chaque coût
+      // Mettre à jour chaque coût (artisan principal = artisan_order 1, sauf pour 'intervention' qui est global)
       let costsUpdated = false
       for (const cost of costsToUpdate) {
         try {
@@ -1240,12 +1952,46 @@ export function InterventionEditForm({
             cost_type: cost.cost_type,
             label: cost.cost_type === "sst" ? "Coût SST" : cost.cost_type === "materiel" ? "Coût Matériel" : "Coût Intervention",
             amount: cost.amount,
-            currency: "EUR",
+            // artisan_order: null pour 'intervention' (coût global), 1 pour sst/materiel de l'artisan principal
+            artisan_order: cost.cost_type === "intervention" ? null : 1,
           })
           costsUpdated = true
         } catch (costError) {
           console.error(`[InterventionEditForm] Erreur lors de la mise à jour du coût ${cost.cost_type}:`, costError)
           // Ne pas bloquer la soumission si un coût échoue
+        }
+      }
+
+      // Mettre à jour les coûts du 2ème artisan (artisan_order = 2)
+      const coutSST2Value = parseFloat(formData.coutSSTSecondArtisan) || 0
+      const coutMateriel2Value = parseFloat(formData.coutMaterielSecondArtisan) || 0
+
+      if (selectedSecondArtisanId) {
+        // Si un 2ème artisan est sélectionné, créer/mettre à jour ses coûts
+        try {
+          await interventionsApi.upsertCost(intervention.id, {
+            cost_type: "sst",
+            label: "Coût SST 2ème artisan",
+            amount: coutSST2Value,
+            artisan_order: 2,
+          })
+          await interventionsApi.upsertCost(intervention.id, {
+            cost_type: "materiel",
+            label: "Coût Matériel 2ème artisan",
+            amount: coutMateriel2Value,
+            artisan_order: 2,
+          })
+          costsUpdated = true
+        } catch (costError) {
+          console.error(`[InterventionEditForm] Erreur lors de la mise à jour des coûts du 2ème artisan:`, costError)
+        }
+      } else {
+        // Si pas de 2ème artisan, supprimer ses coûts
+        try {
+          await interventionsApi.deleteCost(intervention.id, "sst", 2)
+          await interventionsApi.deleteCost(intervention.id, "materiel", 2)
+        } catch (deleteError) {
+          // Ignorer les erreurs de suppression (le coût n'existait peut-être pas)
         }
       }
 
@@ -1260,17 +2006,25 @@ export function InterventionEditForm({
 
       const currentPrimaryId = primaryArtisanIdRef.current
       const nextPrimaryId = selectedArtisanId ?? null
+      const currentSecondaryId = secondaryArtisanIdRef.current
+      const nextSecondaryId = selectedSecondArtisanId ?? null
 
       let payload: InterventionWithStatus = updated as InterventionWithStatus
 
+      // Gérer l'artisan principal
       if (currentPrimaryId !== nextPrimaryId) {
         await interventionsApi.setPrimaryArtisan(intervention.id, nextPrimaryId)
         primaryArtisanIdRef.current = nextPrimaryId
-        payload = await interventionsApi.getById(intervention.id)
-      } else {
-        // Recharger les données pour avoir les coûts à jour
-        payload = await interventionsApi.getById(intervention.id)
       }
+
+      // Gérer l'artisan secondaire
+      if (currentSecondaryId !== nextSecondaryId) {
+        await interventionsApi.setSecondaryArtisan(intervention.id, nextSecondaryId)
+        secondaryArtisanIdRef.current = nextSecondaryId
+      }
+
+      // Recharger les données pour avoir les coûts et artisans à jour
+      payload = await interventionsApi.getById(intervention.id)
 
       if (options?.reason && options.reasonType) {
         try {
@@ -1375,8 +2129,8 @@ export function InterventionEditForm({
 
   // Expose client name to parent
   useEffect(() => {
-    onClientNameChange?.(formData.nomClient)
-  }, [formData.nomClient, onClientNameChange])
+    onClientNameChange?.(formData.nomPrenomClient)
+  }, [formData.nomPrenomClient, onClientNameChange])
 
   // Expose agency name to parent
   useEffect(() => {
@@ -1408,138 +2162,168 @@ export function InterventionEditForm({
     )
   }
 
+  // Hauteur de la section carte+artisans basée sur la sélection d'artisan
+  // Cette hauteur reste fixe une fois l'artisan sélectionné pour éviter les redimensionnements
+  const mapSectionHeight = selectedArtisanId ? "260px" : "450px"
+
   return (
-    <form ref={formRef} onSubmit={handleSubmit}>
-      {/* GRID LAYOUT PRINCIPAL 6 colonnes x 8 lignes */}
-      <div
-        className="grid gap-3"
-        style={{
-          gridTemplateColumns: "repeat(6, 1fr)",
-          gridTemplateRows: "auto auto auto 1fr 1fr 1fr auto auto",
-        }}
-      >
-        {/* DIV1: HEADER PRINCIPAL - Row 1, Cols 1-6 */}
-        <Card className="legacy-form-card" style={{ gridArea: "1 / 1 / 2 / 7" }}>
-          <CardContent className="py-2 px-3">
-            <div className="grid grid-cols-6 gap-2">
-              <div>
-                <Label htmlFor="statut" className="text-[10px] text-muted-foreground mb-0.5 block">Statut *</Label>
-                <Select value={formData.statut_id} onValueChange={(value) => handleInputChange("statut_id", value)}>
-                  <SelectTrigger className="h-7 text-xs">
-                    <SelectValue placeholder="Statut" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {refData?.interventionStatuses.map((status) => (
-                      <SelectItem key={status.id} value={status.id}>
-                        {getStatusDisplayLabel(status.code, status.label, sstPayment, clientPayment)}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+    <form ref={formRef} onSubmit={handleSubmit} className="flex-1 min-h-0 flex flex-col">
+      {/* LAYOUT DEUX COLONNES DISTINCTES - Chaque colonne a son propre scroll */}
+      <div className="flex gap-3 flex-1 min-h-0">
+        {/* COLONNE GAUCHE - Scroll indépendant avec scrollbar minimale à gauche */}
+        <div className="flex-1 min-w-0 overflow-y-auto min-h-0 scrollbar-minimal scrollbar-left">
+          <div
+            className="grid gap-3 pb-4"
+            style={{
+              gridTemplateColumns: "repeat(4, 1fr)",
+              gridTemplateRows: `auto auto auto ${mapSectionHeight} auto auto`,
+            }}
+          >
+            {/* DIV1: HEADER PRINCIPAL - Row 1, Cols 1-4 */}
+            <Card className="legacy-form-card" style={{ gridArea: "1 / 1 / 2 / 5" }}>
+          <CardContent className="py-0.5 px-3">
+            <div 
+              className="grid gap-2 items-end"
+              style={{
+                gridTemplateColumns: showReferenceField 
+                  ? "auto 1fr 1fr 1fr 1fr 1fr" 
+                  : "auto 1fr 1fr 1fr 1fr"
+              }}
+            >
+              {/* Badge utilisateur assigné - Largeur fixe à gauche */}
+              <div className="flex items-center">
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <button type="button" className="flex items-center justify-center h-7 w-7 cursor-pointer group rounded-full">
+                      {(() => {
+                        const assignedUser = refData?.users.find(u => u.id === formData.assigned_user_id)
+                        return (
+                          <GestionnaireBadge
+                            firstname={assignedUser?.firstname}
+                            lastname={assignedUser?.lastname}
+                            color={assignedUser?.color}
+                            size="sm"
+                            className="transition-transform group-hover:scale-110 h-7 w-7"
+                          />
+                        )
+                      })()}
+                    </button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-56 p-2" align="start">
+                    <div className="space-y-1">
+                      <p className="text-xs font-medium text-muted-foreground mb-2">Attribuer à</p>
+                      <div className="space-y-1">
+                        {refData?.users.map((user) => {
+                          const displayName = [user.firstname, user.lastname].filter(Boolean).join(" ").trim() || user.username
+                          const isSelected = user.id === formData.assigned_user_id
+                          return (
+                            <button
+                              key={user.id}
+                              type="button"
+                              className={cn(
+                                "w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-left transition-colors",
+                                isSelected ? "bg-primary/10 text-primary" : "hover:bg-muted"
+                              )}
+                              onClick={() => handleInputChange("assigned_user_id", user.id)}
+                            >
+                              <GestionnaireBadge
+                                firstname={user.firstname}
+                                lastname={user.lastname}
+                                color={user.color}
+                                size="sm"
+                                showBorder={false}
+                              />
+                              <span className="text-xs truncate flex-1">
+                                {user.code_gestionnaire ? `${user.code_gestionnaire} - ${displayName}` : displayName}
+                              </span>
+                            </button>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  </PopoverContent>
+                </Popover>
               </div>
-              <div>
-                <Label htmlFor="idIntervention" className="text-[10px] text-muted-foreground mb-0.5 block">ID Inter. {requiresDefinitiveId && "*"}</Label>
+
+              {/* Statut - Badge coloré */}
+              <ColorBadgeSelect
+                label="Statut"
+                required
+                hideLabel
+                value={formData.statut_id}
+                onChange={(value) => handleInputChange("statut_id", value)}
+                placeholder="Statut"
+                options={(refData?.interventionStatuses || []).map(s => ({
+                  id: s.id,
+                  label: getStatusDisplayLabel(s.code, s.label, sstPayment, clientPayment),
+                  color: s.color,
+                }))}
+              />
+
+              {/* Agence - Badge coloré */}
+              <ColorBadgeSelect
+                label="Agence"
+                hideLabel
+                value={formData.agence_id}
+                onChange={(value) => handleInputChange("agence_id", value)}
+                placeholder="Agence"
+                options={(refData?.agencies || []).map(a => ({
+                  id: a.id,
+                  label: a.label,
+                  color: a.color,
+                }))}
+              />
+
+              {/* Réf. agence - Input conditionnel */}
+              {showReferenceField && (
+                <div className="flex items-center">
+                  <Input
+                    id="reference_agence"
+                    name="reference_agence"
+                    value={formData.reference_agence}
+                    onChange={(event) => handleInputChange("reference_agence", event.target.value)}
+                    placeholder="Réf. agence"
+                    className="h-7 text-xs rounded-full px-3"
+                    autoComplete="off"
+                  />
+                </div>
+              )}
+
+              {/* Métier - Badge coloré */}
+              <ColorBadgeSelect
+                label="Métier"
+                hideLabel
+                value={formData.metier_id}
+                onChange={(value) => handleInputChange("metier_id", value)}
+                placeholder="Métier"
+                minWidth="100px"
+                options={(refData?.metiers || []).map(m => ({
+                  id: m.id,
+                  label: m.label,
+                  color: m.color,
+                }))}
+              />
+
+              {/* ID Intervention - Input */}
+              <div className="flex items-center">
                 <Input
                   id="idIntervention"
                   value={formData.id_inter}
                   onChange={(event) => handleInputChange("id_inter", event.target.value)}
-                  placeholder="Auto"
-                  className="h-7 text-xs"
+                  placeholder="ID Inter."
+                  className="h-7 text-xs rounded-full px-3"
                   required={requiresDefinitiveId}
                   pattern={requiresDefinitiveId ? "^(?!.*(?:[Aa][Uu][Tt][Oo])).+$" : undefined}
                   title={requiresDefinitiveId ? "ID définitif requis" : undefined}
                   autoComplete="off"
                 />
               </div>
-              <div>
-                <Label htmlFor="agence" className="text-[10px] text-muted-foreground mb-0.5 block">Agence</Label>
-                <Select value={formData.agence_id} onValueChange={(value) => handleInputChange("agence_id", value)}>
-                  <SelectTrigger className="h-7 text-xs">
-                    <SelectValue placeholder="Agence" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {refData?.agencies.map((agency) => (
-                      <SelectItem key={agency.id} value={agency.id}>
-                        {agency.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              {showReferenceField ? (
-                <div>
-                  <Label htmlFor="reference_agence" className="text-[10px] text-muted-foreground mb-0.5 block">Réf. agence</Label>
-                  <Input
-                    id="reference_agence"
-                    name="reference_agence"
-                    value={formData.reference_agence}
-                    onChange={(event) => handleInputChange("reference_agence", event.target.value)}
-                    placeholder="REF-..."
-                    className="h-7 text-xs"
-                    autoComplete="off"
-                  />
-                </div>
-              ) : (
-                <div>
-                  <Label htmlFor="attribueA" className="text-[10px] text-muted-foreground mb-0.5 block">Attribué à</Label>
-                  <Select value={formData.assigned_user_id} onValueChange={(value) => handleInputChange("assigned_user_id", value)}>
-                    <SelectTrigger className="h-7 text-xs">
-                      <SelectValue placeholder="User" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {refData?.users.map((user) => {
-                        const displayName = [user.firstname, user.lastname].filter(Boolean).join(" ").trim() || user.username
-                        return (
-                          <SelectItem key={user.id} value={user.id}>
-                            {user.code_gestionnaire ? `${user.code_gestionnaire} - ${displayName}` : displayName}
-                          </SelectItem>
-                        )
-                      })}
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
-              {showReferenceField && (
-                <div>
-                  <Label htmlFor="attribueA" className="text-[10px] text-muted-foreground mb-0.5 block">Attribué à</Label>
-                  <Select value={formData.assigned_user_id} onValueChange={(value) => handleInputChange("assigned_user_id", value)}>
-                    <SelectTrigger className="h-7 text-xs">
-                      <SelectValue placeholder="User" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {refData?.users.map((user) => {
-                        const displayName = [user.firstname, user.lastname].filter(Boolean).join(" ").trim() || user.username
-                        return (
-                          <SelectItem key={user.id} value={user.id}>
-                            {user.code_gestionnaire ? `${user.code_gestionnaire} - ${displayName}` : displayName}
-                          </SelectItem>
-                        )
-                      })}
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
-              <div>
-                <Label htmlFor="typeMetier" className="text-[10px] text-muted-foreground mb-0.5 block">Métier</Label>
-                <Select value={formData.metier_id} onValueChange={(value) => handleInputChange("metier_id", value)}>
-                  <SelectTrigger className="h-7 text-xs">
-                    <SelectValue placeholder="Métier" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {refData?.metiers.map((metier) => (
-                      <SelectItem key={metier.id} value={metier.id}>
-                        {metier.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
             </div>
           </CardContent>
         </Card>
 
-        {/* DIV2: ADRESSE - Row 2, Cols 1-4 */}
-        <Card style={{ gridArea: "2 / 1 / 3 / 5" }}>
+            {/* DIV2: ADRESSE - Row 2, Cols 1-4 */}
+            <Card style={{ gridArea: "2 / 1 / 3 / 5" }}>
           <CardContent className="py-2 px-3">
             <div className="flex items-center gap-2">
               <Label htmlFor="adresse" className="text-[10px] text-muted-foreground whitespace-nowrap">Adresse *</Label>
@@ -1636,204 +2420,227 @@ export function InterventionEditForm({
           </CardContent>
         </Card>
 
-        {/* DIV7: CARTE MAPLIBRE - Rows 4-6, Cols 1-3 */}
-        {/* FIX: Hauteur dynamique basée sur la sélection d'artisan pour éviter la boucle infinie */}
-        <Card style={{ gridArea: "4 / 1 / 7 / 4" }} className="overflow-hidden">
-          <CardContent className="p-0 h-full">
-            <MapLibreMap
-              lat={formData.latitude}
-              lng={formData.longitude}
-              height={selectedArtisanId ? "260px" : "450px"}
-              onLocationChange={handleLocationChange}
-              markers={mapMarkers}
-              circleRadiusKm={perimeterKmValue}
-              selectedConnection={mapSelectedConnection ?? undefined}
-            />
-          </CardContent>
-        </Card>
+        {/* DIV7+8: CARTE + ARTISANS REDIMENSIONNABLES - Row 4, Cols 1-4 */}
+        <div style={{ gridArea: "4 / 1 / 5 / 5", height: mapSectionHeight }}>
+          <ResizablePanelGroup direction="horizontal" className="h-full rounded-lg">
+            {/* Panel Carte */}
+            <ResizablePanel defaultSize={70} minSize={30} maxSize={85}>
+              <Card className="h-full overflow-hidden rounded-r-none border-r-0">
+                <CardContent className="p-0 h-full">
+                  <MapLibreMap
+                    lat={formData.latitude}
+                    lng={formData.longitude}
+                    height="100%"
+                    onLocationChange={handleLocationChange}
+                    markers={mapMarkers}
+                    circleRadiusKm={perimeterKmValue}
+                    selectedConnection={mapSelectedConnection ?? undefined}
+                  />
+                </CardContent>
+              </Card>
+            </ResizablePanel>
 
-        {/* DIV8: COLONNE ARTISANS - Rows 4-6, Col 4 */}
-        <Card style={{ gridArea: "4 / 4 / 7 / 5" }} className="flex flex-col overflow-hidden">
-          <CardContent className="p-3 flex flex-col h-full overflow-hidden">
-            {/* Header artisans */}
-            <div className="flex items-center justify-between gap-2 mb-3 flex-shrink-0">
-              <h3 className="font-semibold text-sm flex items-center gap-2">
-                <Building className="h-4 w-4" />
-                Artisans
-              </h3>
-              <div className="flex gap-1">
-                <Input
-                  id="artisan"
-                  value={formData.artisan}
-                  onChange={(event) => handleInputChange("artisan", event.target.value)}
-                  placeholder="Artisan"
-                  className="h-7 text-xs w-24"
-                />
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="icon"
-                  className="h-7 w-7 flex-shrink-0"
-                  onClick={(e) => {
-                    const rect = e.currentTarget.getBoundingClientRect()
-                    setArtisanSearchPosition({
-                      x: rect.left,
-                      y: rect.top,
-                      width: rect.width,
-                      height: rect.height
-                    })
-                    setShowArtisanSearch(true)
-                  }}
-                  title="Rechercher un artisan"
-                >
-                  <Search className="h-3.5 w-3.5" />
-                </Button>
-              </div>
-            </div>
-
-            {/* Email sending section */}
-            {artisansWithEmail.length > 0 && (
-              <div className="space-y-2 p-2 bg-muted/50 rounded-lg border border-border/50 mb-2 flex-shrink-0">
-                <Select
-                  value={selectedArtisanForEmail || selectedArtisanId || ''}
-                  onValueChange={setSelectedArtisanForEmail}
-                >
-                  <SelectTrigger className="h-7 text-xs">
-                    <SelectValue placeholder="Artisan pour email" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {artisansWithEmail.map((artisan) => (
-                      <SelectItem key={artisan.id} value={artisan.id}>
-                        {artisan.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <div className="flex gap-1">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={handleOpenDevisEmailModal}
-                    disabled={!selectedArtisanForEmail && !selectedArtisanId}
-                    className="flex-1 text-[10px] h-7 px-2"
-                  >
-                    <Mail className="h-3 w-3 mr-1" />
-                    Devis
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={handleOpenInterventionEmailModal}
-                    disabled={!selectedArtisanForEmail && !selectedArtisanId}
-                    className="flex-1 text-[10px] h-7 px-2"
-                  >
-                    <Mail className="h-3 w-3 mr-1" />
-                    Inter.
-                  </Button>
+            {/* Handle de redimensionnement avec trois points */}
+            <ResizableHandle className="w-2 bg-muted/50 hover:bg-primary/20 transition-colors data-[resize-handle-active]:bg-primary/30 group">
+              <div className="flex h-full items-center justify-center">
+                <div className="flex flex-col gap-0.5 opacity-40 group-hover:opacity-70 transition-opacity">
+                  <div className="h-1 w-1 rounded-full bg-muted-foreground" />
+                  <div className="h-1 w-1 rounded-full bg-muted-foreground" />
+                  <div className="h-1 w-1 rounded-full bg-muted-foreground" />
                 </div>
               </div>
-            )}
+            </ResizableHandle>
 
-            {/* Artisan sélectionné */}
-            {selectedArtisanId && selectedArtisanData && (() => {
-              const artisan = selectedArtisanData
-              const artisanName = `${artisan.prenom || ""} ${artisan.nom || ""}`.trim() || "Artisan sans nom"
-              const artisanInitials = artisanName.split(" ").map((p) => p.charAt(0)).join("").slice(0, 2).toUpperCase() || "??"
-              const artisanStatus = refData?.artisanStatuses?.find((s) => s.id === artisan.statut_id)
-              const statutArtisan = artisanStatus?.label || ""
-              const statutArtisanColor = artisanStatus?.color || null
-
-              return (
-                <div className="mb-2 flex-shrink-0">
-                  <div className="relative rounded-lg border border-primary/70 ring-2 ring-primary/50 bg-background/80 p-2 text-xs shadow-sm">
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="absolute right-1 top-1 h-5 w-5 rounded-full bg-background/80 text-muted-foreground shadow-sm hover:text-destructive z-20"
-                      onClick={() => handleRemoveSelectedArtisan()}
-                    >
-                      <X className="h-3 w-3" />
-                    </Button>
-                    <div className="flex items-start gap-2">
-                      <Avatar photoProfilMetadata={artisan.photoProfilMetadata} initials={artisanInitials} name={artisan.displayName} size={40} />
-                      <div className="flex-1 min-w-0">
-                        <span className="font-semibold text-foreground block truncate">{artisan.displayName}</span>
-                        <div className="flex items-center gap-1 mt-1">
-                          {statutArtisan && (
-                            <Badge variant="outline" className="text-[9px] px-1 py-0" style={statutArtisanColor ? { backgroundColor: hexToRgba(statutArtisanColor, 0.15) || undefined, color: statutArtisanColor, borderColor: statutArtisanColor } : undefined}>
-                              {statutArtisan}
-                            </Badge>
-                          )}
-                          <Badge variant="default" className="text-[9px] px-1 py-0">{formatDistanceKm(artisan.distanceKm)}</Badge>
-                        </div>
-                        <div className="mt-1 text-[10px] text-muted-foreground truncate">
-                          {artisan.telephone && <span>📞 {artisan.telephone}</span>}
-                        </div>
-                      </div>
+            {/* Panel Artisans */}
+            <ResizablePanel defaultSize={30} minSize={15} maxSize={70}>
+              <Card className="h-full flex flex-col overflow-hidden rounded-l-none border-l-0">
+                <CardContent className="p-3 flex flex-col h-full overflow-hidden">
+                  {/* Header artisans */}
+                  <div className="flex items-center justify-between gap-2 mb-3 flex-shrink-0">
+                    <h3 className="font-semibold text-sm flex items-center gap-2">
+                      <Building className="h-4 w-4" />
+                      Artisans
+                    </h3>
+                    <div className="flex gap-1">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        className="h-7 w-7 flex-shrink-0"
+                        onClick={(e) => {
+                          const rect = e.currentTarget.getBoundingClientRect()
+                          setArtisanSearchPosition({
+                            x: rect.left,
+                            y: rect.top,
+                            width: rect.width,
+                            height: rect.height
+                          })
+                          setShowArtisanSearch(true)
+                        }}
+                        title="Rechercher un artisan"
+                      >
+                        <Search className="h-3.5 w-3.5" />
+                      </Button>
                     </div>
                   </div>
-                </div>
-              )
-            })()}
 
-            {/* Liste des artisans - max 8 visibles avec scroll */}
-            <div className="flex-1 overflow-y-auto space-y-1 min-h-0 max-h-[400px]">
-              {isLoadingNearbyArtisans ? (
-                <div className="flex items-center justify-center h-full text-xs text-muted-foreground">Recherche...</div>
-              ) : nearbyArtisansError ? (
-                <div className="rounded border border-destructive/40 bg-destructive/10 px-2 py-1 text-[10px] text-destructive">{nearbyArtisansError}</div>
-              ) : nearbyArtisans.length === 0 ? (
-                <div className="rounded border border-border/50 bg-background px-2 py-2 text-[10px] text-muted-foreground">Aucun artisan dans un rayon de {perimeterKmValue} km.</div>
-              ) : (
-                sortedNearbyArtisans.map((artisan) => {
-                  const artisanName = `${artisan.prenom || ""} ${artisan.nom || ""}`.trim() || "Artisan sans nom"
-                  const artisanInitials = artisanName.split(" ").map((p) => p.charAt(0)).join("").slice(0, 2).toUpperCase() || "??"
-                  const artisanStatus = refData?.artisanStatuses?.find((s) => s.id === artisan.statut_id)
-                  const statutArtisan = artisanStatus?.label || ""
-                  const statutArtisanColor = artisanStatus?.color || null
+                  {/* Artisan sélectionné */}
+                  {selectedArtisanId && selectedArtisanData && (() => {
+                    const artisan = selectedArtisanData
+                    const artisanName = `${artisan.prenom || ""} ${artisan.nom || ""}`.trim() || "Artisan sans nom"
+                    const artisanInitials = artisanName.split(" ").map((p) => p.charAt(0)).join("").slice(0, 2).toUpperCase() || "??"
+                    const artisanStatus = refData?.artisanStatuses?.find((s) => s.id === artisan.statut_id)
+                    const statutArtisan = artisanStatus?.label || ""
+                    const statutArtisanColor = artisanStatus?.color || null
 
-                  return (
-                    <div
-                      key={artisan.id}
-                      role="button"
-                      tabIndex={0}
-                      className={cn(
-                        "rounded-lg border border-border/60 bg-background/80 p-2 text-xs shadow-sm transition-all cursor-pointer",
-                        selectedArtisanId ? "opacity-0 scale-95 max-h-0 overflow-hidden pointer-events-none m-0 p-0 border-0" : "hover:border-primary/40"
-                      )}
-                      onClick={() => handleSelectNearbyArtisan(artisan)}
-                      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); handleSelectNearbyArtisan(artisan) } }}
-                    >
-                      <div className="flex items-center gap-2">
-                        <Avatar photoProfilMetadata={artisan.photoProfilMetadata} initials={artisanInitials} name={artisan.displayName} size={40} />
-                        <div className="flex-1 min-w-0">
-                          <span className="font-medium text-foreground block truncate text-[11px]">{artisan.displayName}</span>
-                          <div className="flex items-center gap-1 flex-wrap">
-                            {statutArtisan && (
-                              <Badge variant="outline" className="text-[9px] px-1 py-0" style={statutArtisanColor ? { backgroundColor: hexToRgba(statutArtisanColor, 0.15) || undefined, color: statutArtisanColor, borderColor: statutArtisanColor } : undefined}>
-                                {statutArtisan}
-                              </Badge>
-                            )}
-                            <Badge variant="secondary" className="text-[9px] px-1 py-0">{formatDistanceKm(artisan.distanceKm)}</Badge>
-                            <Button type="button" variant="ghost" size="icon" className="h-5 w-5 text-muted-foreground hover:text-foreground" onClick={(e) => handleOpenArtisanModal(artisan.id, e)}>
-                              <Eye className="h-3 w-3" />
-                            </Button>
+                    return (
+                      <div className="mb-2 flex-shrink-0">
+                        <div className="relative rounded-lg border border-primary/70 ring-2 ring-primary/50 bg-background/80 p-2 text-xs shadow-sm">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="absolute right-1 top-1 h-5 w-5 rounded-full bg-background/80 text-muted-foreground shadow-sm hover:text-destructive z-20"
+                            onClick={() => handleRemoveSelectedArtisan()}
+                          >
+                            <X className="h-3 w-3" />
+                          </Button>
+                          <div className="flex items-start gap-2">
+                            <Avatar photoProfilMetadata={artisan.photoProfilMetadata} initials={artisanInitials} name={artisan.displayName} size={40} />
+                            <div className="flex-1 min-w-0">
+                              <span className="font-semibold text-foreground block truncate">{artisan.displayName}</span>
+                              <div className="flex items-center gap-1 mt-1">
+                                {statutArtisan && (
+                                  <Badge variant="outline" className="text-[9px] px-1 py-0" style={statutArtisanColor ? { backgroundColor: hexToRgba(statutArtisanColor, 0.15) || undefined, color: statutArtisanColor, borderColor: statutArtisanColor } : undefined}>
+                                    {statutArtisan}
+                                  </Badge>
+                                )}
+                                <Badge variant="default" className="text-[9px] px-1 py-0">{formatDistanceKm(artisan.distanceKm)}</Badge>
+                              </div>
+                              <div className="mt-1 text-[10px] text-muted-foreground truncate">
+                                {artisan.telephone && <span>📞 {artisan.telephone}</span>}
+                              </div>
+                            </div>
                           </div>
                         </div>
                       </div>
-                    </div>
-                  )
-                })
-              )}
-            </div>
-          </CardContent>
-        </Card>
+                    )
+                  })()}
 
-        {/* DIV5: CONTEXTE INTERVENTION - Row 7, Cols 1-2 */}
-        <Card style={{ gridArea: "7 / 1 / 8 / 3" }}>
+                  {/* Email sending section */}
+                  {selectedArtisanId && selectedArtisanData && (
+                    <div className="flex flex-col gap-1 p-2 bg-primary/5 dark:bg-primary/10 rounded-lg border border-primary/20 dark:border-primary/30 mb-2 flex-shrink-0">
+                      {/* Boutons Email */}
+                      <div className="flex gap-1">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleOpenDevisEmailModal()}
+                          disabled={!selectedArtisanId}
+                          className="flex-1 text-[10px] h-7 px-2 border-primary/30 hover:bg-primary/10 dark:border-primary/40 dark:hover:bg-primary/20"
+                        >
+                          <Mail className="h-3 w-3 mr-1" />
+                          Devis
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleOpenInterventionEmailModal()}
+                          disabled={!selectedArtisanId}
+                          className="flex-1 text-[10px] h-7 px-2 border-primary/30 hover:bg-primary/10 dark:border-primary/40 dark:hover:bg-primary/20"
+                        >
+                          <Mail className="h-3 w-3 mr-1" />
+                          Inter.
+                        </Button>
+                      </div>
+                      {/* Boutons WhatsApp */}
+                      {selectedArtisanData.telephone && (
+                        <div className="flex gap-1">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleOpenWhatsApp('devis', selectedArtisanId, selectedArtisanData.telephone || '')}
+                            className="flex-1 text-[10px] h-7 px-2 bg-[#25D366]/10 hover:bg-[#25D366]/20 border-[#25D366]/30 text-[#25D366]"
+                          >
+                            <MessageCircle className="h-3 w-3 mr-1" />
+                            WA Devis
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleOpenWhatsApp('intervention', selectedArtisanId, selectedArtisanData.telephone || '')}
+                            className="flex-1 text-[10px] h-7 px-2 bg-[#25D366]/10 hover:bg-[#25D366]/20 border-[#25D366]/30 text-[#25D366]"
+                          >
+                            <MessageCircle className="h-3 w-3 mr-1" />
+                            WA Inter.
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Liste des artisans - max 8 visibles avec scroll */}
+                  <div className="flex-1 overflow-y-auto space-y-1 min-h-0 scrollbar-minimal">
+                    {isLoadingNearbyArtisans ? (
+                      <div className="flex items-center justify-center h-full text-xs text-muted-foreground">Recherche...</div>
+                    ) : nearbyArtisansError ? (
+                      <div className="rounded border border-destructive/40 bg-destructive/10 px-2 py-1 text-[10px] text-destructive">{nearbyArtisansError}</div>
+                    ) : nearbyArtisans.length === 0 ? (
+                      <div className="rounded border border-border/50 bg-background px-2 py-2 text-[10px] text-muted-foreground">Aucun artisan dans un rayon de {perimeterKmValue} km.</div>
+                    ) : (
+                      sortedNearbyArtisans.map((artisan) => {
+                        const artisanName = `${artisan.prenom || ""} ${artisan.nom || ""}`.trim() || "Artisan sans nom"
+                        const artisanInitials = artisanName.split(" ").map((p) => p.charAt(0)).join("").slice(0, 2).toUpperCase() || "??"
+                        const artisanStatus = refData?.artisanStatuses?.find((s) => s.id === artisan.statut_id)
+                        const statutArtisan = artisanStatus?.label || ""
+                        const statutArtisanColor = artisanStatus?.color || null
+
+                        return (
+                          <div
+                            key={artisan.id}
+                            role="button"
+                            tabIndex={0}
+                            className={cn(
+                              "rounded-lg border border-border/60 bg-background/80 p-2 text-xs shadow-sm transition-all cursor-pointer",
+                              selectedArtisanId ? "opacity-0 scale-95 max-h-0 overflow-hidden pointer-events-none m-0 p-0 border-0" : "hover:border-primary/40"
+                            )}
+                            onClick={() => handleSelectNearbyArtisan(artisan)}
+                            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); handleSelectNearbyArtisan(artisan) } }}
+                          >
+                            <div className="flex items-center gap-2">
+                              <Avatar photoProfilMetadata={artisan.photoProfilMetadata} initials={artisanInitials} name={artisan.displayName} size={40} />
+                              <div className="flex-1 min-w-0">
+                                <span className="font-medium text-foreground block truncate text-[11px]">{artisan.displayName}</span>
+                                <div className="flex items-center gap-1 flex-wrap">
+                                  {statutArtisan && (
+                                    <Badge variant="outline" className="text-[9px] px-1 py-0" style={statutArtisanColor ? { backgroundColor: hexToRgba(statutArtisanColor, 0.15) || undefined, color: statutArtisanColor, borderColor: statutArtisanColor } : undefined}>
+                                      {statutArtisan}
+                                    </Badge>
+                                  )}
+                                  <Badge variant="secondary" className="text-[9px] px-1 py-0">{formatDistanceKm(artisan.distanceKm)}</Badge>
+                                  <Button type="button" variant="ghost" size="icon" className="h-5 w-5 text-muted-foreground hover:text-foreground" onClick={(e) => handleOpenArtisanModal(artisan.id, e)}>
+                                    <Eye className="h-3 w-3" />
+                                  </Button>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        )
+                      })
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            </ResizablePanel>
+          </ResizablePanelGroup>
+        </div>
+
+        {/* DIV5: CONTEXTE INTERVENTION - Row 5, Cols 1-2 */}
+        <Card style={{ gridArea: "5 / 1 / 6 / 3" }}>
           <CardContent className="p-4">
             <Label htmlFor="contexteIntervention" className="text-xs font-medium mb-2 block">Contexte intervention *</Label>
             <Textarea
@@ -1851,8 +2658,8 @@ export function InterventionEditForm({
           </CardContent>
         </Card>
 
-        {/* DIV6: CONSIGNE INTERVENTION - Row 7, Cols 3-4 */}
-        <Card style={{ gridArea: "7 / 3 / 8 / 5" }}>
+        {/* DIV6: CONSIGNE INTERVENTION - Row 5, Cols 3-4 */}
+        <Card style={{ gridArea: "5 / 3 / 6 / 5" }}>
           <CardContent className="p-4">
             <Label htmlFor="consigneIntervention" className="text-xs font-medium mb-2 block">Consigne pour l&apos;artisan</Label>
             <Textarea
@@ -1866,48 +2673,50 @@ export function InterventionEditForm({
           </CardContent>
         </Card>
 
-        {/* DIV4: FINANCES & PLANIFICATION - Row 8, Cols 1-4 */}
-        <Card style={{ gridArea: "8 / 1 / 9 / 5" }}>
-          <CardContent className="p-4">
-            <Label className="mb-3 block text-xs font-medium uppercase tracking-wide text-muted-foreground">Finances & Planification</Label>
-            <div className="grid grid-cols-5 gap-3 items-end">
-              <div>
-                <Label htmlFor="coutIntervention" className="text-xs">Coût inter.</Label>
-                <Input id="coutIntervention" type="number" step="0.01" min="0" value={formData.coutIntervention} onChange={(e) => handleInputChange("coutIntervention", e.target.value)} placeholder="0.00 €" className="h-8 text-sm mt-1" />
-              </div>
-              <div>
-                <Label htmlFor="coutSST" className="text-xs">Coût SST</Label>
-                <Input id="coutSST" type="number" step="0.01" min="0" value={formData.coutSST} onChange={(e) => handleInputChange("coutSST", e.target.value)} placeholder="0.00 €" className="h-8 text-sm mt-1" />
-              </div>
-              <div>
-                <Label htmlFor="coutMateriel" className="text-xs">Coût mat.</Label>
-                <Input id="coutMateriel" type="number" step="0.01" min="0" value={formData.coutMateriel} onChange={(e) => handleInputChange("coutMateriel", e.target.value)} placeholder="0.00 €" className="h-8 text-sm mt-1" />
-              </div>
-              <div>
-                <Label className="text-xs">Marge</Label>
-                <div className="flex h-8 w-full rounded-md border border-input bg-muted px-3 py-1 text-sm shadow-sm items-center mt-1">
-                  {(() => {
-                    const inter = parseFloat(formData.coutIntervention) || 0
-                    const sst = parseFloat(formData.coutSST) || 0
-                    const mat = parseFloat(formData.coutMateriel) || 0
-                    if (inter > 0) {
-                      const marge = ((inter - (sst + mat)) / inter) * 100
-                      return <span className={cn("font-medium", marge < 0 ? "text-destructive" : "text-green-600")}>{marge.toFixed(1)} %</span>
-                    }
-                    return <span className="text-muted-foreground">-- %</span>
-                  })()}
+            {/* DIV4: FINANCES & PLANIFICATION - Row 6, Cols 1-4 */}
+            <Card style={{ gridArea: "6 / 1 / 7 / 5" }}>
+              <CardContent className="p-4">
+                <div className="grid grid-cols-5 gap-3 items-end">
+                  <div>
+                    <Label htmlFor="coutIntervention" className="text-xs">Coût inter.</Label>
+                    <Input id="coutIntervention" type="number" step="0.01" min="0" value={formData.coutIntervention} onChange={(e) => handleInputChange("coutIntervention", e.target.value)} placeholder="0.00 €" className="h-8 text-sm mt-1" />
+                  </div>
+                  <div>
+                    <Label htmlFor="coutSST" className="text-xs">Coût SST</Label>
+                    <Input id="coutSST" type="number" step="0.01" min="0" value={formData.coutSST} onChange={(e) => handleInputChange("coutSST", e.target.value)} placeholder="0.00 €" className="h-8 text-sm mt-1" />
+                  </div>
+                  <div>
+                    <Label htmlFor="coutMateriel" className="text-xs">Coût mat.</Label>
+                    <Input id="coutMateriel" type="number" step="0.01" min="0" value={formData.coutMateriel} onChange={(e) => handleInputChange("coutMateriel", e.target.value)} placeholder="0.00 €" className="h-8 text-sm mt-1" />
+                  </div>
+                  <div>
+                    <Label className="text-xs">Marge</Label>
+                    <div className="flex h-8 w-full rounded-md border border-input bg-muted px-3 py-1 text-sm shadow-sm items-center mt-1">
+                      {(() => {
+                        const inter = parseFloat(formData.coutIntervention) || 0
+                        const sst = parseFloat(formData.coutSST) || 0
+                        const mat = parseFloat(formData.coutMateriel) || 0
+                        if (inter > 0) {
+                          const marge = ((inter - (sst + mat)) / inter) * 100
+                          return <span className={cn("font-medium", marge < 0 ? "text-destructive" : "text-green-600")}>{marge.toFixed(1)} %</span>
+                        }
+                        return <span className="text-muted-foreground">-- %</span>
+                      })()}
+                    </div>
+                  </div>
+                  <div>
+                    <Label htmlFor="datePrevue" className="text-xs">Date prévue {requiresDatePrevue && "*"}</Label>
+                    <Input id="datePrevue" type="date" value={formData.date_prevue} onChange={(e) => handleInputChange("date_prevue", e.target.value)} className="h-8 text-sm mt-1" required={requiresDatePrevue} />
+                  </div>
                 </div>
-              </div>
-              <div>
-                <Label htmlFor="datePrevue" className="text-xs">Date prévue {requiresDatePrevue && "*"}</Label>
-                <Input id="datePrevue" type="date" value={formData.date_prevue} onChange={(e) => handleInputChange("date_prevue", e.target.value)} className="h-8 text-sm mt-1" required={requiresDatePrevue} />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
 
-        {/* DIV9: COLLAPSIBLES EN COLONNE - Rows 2-8, Cols 5-6 */}
-        <div style={{ gridArea: "2 / 5 / 9 / 7" }} className="flex flex-col gap-2 overflow-y-auto">
+        {/* COLONNE DROITE - Collapsibles avec scroll indépendant et scrollbar minimale */}
+        <div className="w-[320px] flex-shrink-0 overflow-y-auto min-h-0 scrollbar-minimal">
+          <div className="flex flex-col gap-2 pb-4">
           {/* Détails facturation */}
           <Collapsible open={isProprietaireOpen} onOpenChange={setIsProprietaireOpen}>
             <Card>
@@ -1922,15 +2731,9 @@ export function InterventionEditForm({
               <CollapsibleContent>
                 <CardContent className="pt-0 px-3 pb-3">
                   <div className="space-y-2">
-                    <div className="grid grid-cols-2 gap-2">
-                      <div>
-                        <Label htmlFor="nomProprietaire" className="text-[10px]">Nom</Label>
-                        <Input id="nomProprietaire" value={formData.nomProprietaire} onChange={(e) => handleInputChange("nomProprietaire", e.target.value)} placeholder="Nom" className="h-7 text-xs mt-1" />
-                      </div>
-                      <div>
-                        <Label htmlFor="prenomProprietaire" className="text-[10px]">Prénom</Label>
-                        <Input id="prenomProprietaire" value={formData.prenomProprietaire} onChange={(e) => handleInputChange("prenomProprietaire", e.target.value)} placeholder="Prénom" className="h-7 text-xs mt-1" />
-                      </div>
+                    <div>
+                      <Label htmlFor="nomPrenomFacturation" className="text-[10px]">Nom Prénom</Label>
+                      <Input id="nomPrenomFacturation" value={formData.nomPrenomFacturation} onChange={(e) => handleInputChange("nomPrenomFacturation", e.target.value)} placeholder="Nom Prénom" className="h-7 text-xs mt-1" />
                     </div>
                     <div className="grid grid-cols-2 gap-2">
                       <div>
@@ -1961,11 +2764,24 @@ export function InterventionEditForm({
               </CollapsibleTrigger>
               <CollapsibleContent>
                 <CardContent className="pt-0 px-3 pb-3">
-                  <div className="flex items-center justify-end mb-2">
+                  <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center space-x-2">
                       <input type="checkbox" id="is_vacant" className="h-3 w-3 rounded border-gray-300" checked={formData.is_vacant} onChange={(e) => handleInputChange("is_vacant", e.target.checked)} />
                       <Label htmlFor="is_vacant" className="text-[10px] font-normal cursor-pointer">logement vacant</Label>
                     </div>
+                    {!formData.is_vacant && onOpenSmsModal && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-6 px-2 text-[10px] flex items-center gap-1"
+                        onClick={onOpenSmsModal}
+                        disabled={!formData.nomPrenomClient || !formData.telephoneClient}
+                      >
+                        <MessageSquare className="h-3 w-3" />
+                        SMS
+                      </Button>
+                    )}
                   </div>
                   {formData.is_vacant ? (
                     <div className="space-y-2">
@@ -1990,15 +2806,9 @@ export function InterventionEditForm({
                     </div>
                   ) : (
                     <div className="space-y-2">
-                      <div className="grid grid-cols-2 gap-2">
-                        <div>
-                          <Label htmlFor="nomClient" className="text-[10px]">Nom</Label>
-                          <Input id="nomClient" value={formData.nomClient} onChange={(e) => handleInputChange("nomClient", e.target.value)} placeholder="Nom" className="h-7 text-xs mt-1" />
-                        </div>
-                        <div>
-                          <Label htmlFor="prenomClient" className="text-[10px]">Prénom</Label>
-                          <Input id="prenomClient" value={formData.prenomClient} onChange={(e) => handleInputChange("prenomClient", e.target.value)} placeholder="Prénom" className="h-7 text-xs mt-1" />
-                        </div>
+                      <div>
+                        <Label htmlFor="nomPrenomClient" className="text-[10px]">Nom Prénom</Label>
+                        <Input id="nomPrenomClient" value={formData.nomPrenomClient} onChange={(e) => handleInputChange("nomPrenomClient", e.target.value)} placeholder="Nom Prénom" className="h-7 text-xs mt-1" />
                       </div>
                       <div className="grid grid-cols-2 gap-2">
                         <div>
@@ -2082,6 +2892,249 @@ export function InterventionEditForm({
             </Card>
           </Collapsible>
 
+          {/* Deuxième artisan */}
+          <Collapsible open={isSecondArtisanOpen} onOpenChange={setIsSecondArtisanOpen}>
+            <Card>
+              <CollapsibleTrigger asChild>
+                <CardHeader className="cursor-pointer py-2 px-3 hover:bg-muted/50">
+                  <CardTitle className="flex items-center gap-2 text-xs">
+                    <Users className="h-3 w-3" />
+                    Deuxième artisan
+                    {isSecondArtisanOpen ? <ChevronDown className="ml-auto h-3 w-3" /> : <ChevronRight className="ml-auto h-3 w-3" />}
+                  </CardTitle>
+                </CardHeader>
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                <CardContent className="pt-0 px-3 pb-3">
+                  <div className="space-y-3">
+                    {/* Header artisans - même style que colonne gauche */}
+                    <div className="flex items-center justify-between gap-2 flex-shrink-0 pt-[13px]">
+                      <ColorBadgeSelectStacking
+                        label="Métier"
+                        value={formData.metierSecondArtisanId}
+                        onChange={(value) => handleInputChange("metierSecondArtisanId", value)}
+                        placeholder="Métier..."
+                        minWidth="100px"
+                        hideLabel
+                        options={(refData?.metiers || []).map(m => ({
+                          id: m.id,
+                          label: m.label,
+                          color: m.color,
+                        }))}
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        className="h-7 w-7 flex-shrink-0"
+                        onClick={(e) => {
+                          const rect = e.currentTarget.getBoundingClientRect()
+                          setSecondArtisanSearchPosition({
+                            x: rect.left,
+                            y: rect.top,
+                            width: rect.width,
+                            height: rect.height
+                          })
+                          setShowSecondArtisanSearch(true)
+                        }}
+                        title="Rechercher un artisan"
+                      >
+                        <Search className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+
+                    {/* Artisan secondaire sélectionné */}
+                    {selectedSecondArtisanId && selectedSecondArtisanData && (() => {
+                      const artisan = selectedSecondArtisanData
+                      const artisanName = `${artisan.prenom || ""} ${artisan.nom || ""}`.trim() || "Artisan sans nom"
+                      const artisanInitials = artisanName.split(" ").map((p) => p.charAt(0)).join("").slice(0, 2).toUpperCase() || "??"
+                      const artisanStatus = refData?.artisanStatuses?.find((s) => s.id === artisan.statut_id)
+                      const statutArtisan = artisanStatus?.label || ""
+                      const statutArtisanColor = artisanStatus?.color || null
+
+                      return (
+                        <div className="relative rounded-lg border border-orange-500/70 ring-2 ring-orange-500/50 bg-background/80 p-2 text-xs shadow-sm">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="absolute right-1 top-1 h-5 w-5 rounded-full bg-background/80 text-muted-foreground shadow-sm hover:text-destructive z-20"
+                            onClick={() => handleRemoveSecondArtisan()}
+                          >
+                            <X className="h-3 w-3" />
+                          </Button>
+                          <div className="flex items-start gap-2">
+                            <Avatar photoProfilMetadata={artisan.photoProfilMetadata} initials={artisanInitials} name={artisan.displayName} size={40} />
+                            <div className="flex-1 min-w-0">
+                              <span className="font-semibold text-foreground block truncate">{artisan.displayName}</span>
+                              <div className="flex items-center gap-1 mt-1">
+                                {statutArtisan && (
+                                  <Badge variant="outline" className="text-[9px] px-1 py-0" style={statutArtisanColor ? { backgroundColor: hexToRgba(statutArtisanColor, 0.15) || undefined, color: statutArtisanColor, borderColor: statutArtisanColor } : undefined}>
+                                    {statutArtisan}
+                                  </Badge>
+                                )}
+                                <Badge variant="default" className="text-[9px] px-1 py-0 bg-orange-500">{formatDistanceKm(artisan.distanceKm)}</Badge>
+                              </div>
+                              <div className="mt-1 text-[10px] text-muted-foreground truncate">
+                                {artisan.telephone && <span>📞 {artisan.telephone}</span>}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      )
+                    })()}
+
+                    {/* Email sending section for second artisan */}
+                    {selectedSecondArtisanId && selectedSecondArtisanData && (
+                      <div className="flex flex-col gap-1 p-2 bg-orange-50 dark:bg-orange-950/20 rounded-lg border border-orange-200 dark:border-orange-800/50">
+                        {/* Boutons Email */}
+                        <div className="flex gap-1">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleOpenDevisEmailModal(selectedSecondArtisanId)}
+                            className="flex-1 text-[10px] h-7 px-2 border-orange-300 hover:bg-orange-100 dark:border-orange-700 dark:hover:bg-orange-900/30"
+                          >
+                            <Mail className="h-3 w-3 mr-1" />
+                            Devis
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleOpenInterventionEmailModal(selectedSecondArtisanId)}
+                            className="flex-1 text-[10px] h-7 px-2 border-orange-300 hover:bg-orange-100 dark:border-orange-700 dark:hover:bg-orange-900/30"
+                          >
+                            <Mail className="h-3 w-3 mr-1" />
+                            Inter.
+                          </Button>
+                        </div>
+                        {/* Boutons WhatsApp */}
+                        {selectedSecondArtisanData.telephone && (
+                          <div className="flex gap-1">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleOpenWhatsApp('devis', selectedSecondArtisanId, selectedSecondArtisanData.telephone || '')}
+                              className="flex-1 text-[10px] h-7 px-2 bg-[#25D366]/10 hover:bg-[#25D366]/20 border-[#25D366]/30 text-[#25D366]"
+                            >
+                              <MessageCircle className="h-3 w-3 mr-1" />
+                              WA Devis
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleOpenWhatsApp('intervention', selectedSecondArtisanId, selectedSecondArtisanData.telephone || '')}
+                              className="flex-1 text-[10px] h-7 px-2 bg-[#25D366]/10 hover:bg-[#25D366]/20 border-[#25D366]/30 text-[#25D366]"
+                            >
+                              <MessageCircle className="h-3 w-3 mr-1" />
+                              WA Inter.
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Liste des artisans pour sélection (affichée uniquement si pas d'artisan sélectionné) */}
+                    {!selectedSecondArtisanId && (
+                      <div className="max-h-[150px] overflow-y-auto space-y-1 scrollbar-minimal">
+                        {sortedNearbyArtisansSecondMetier
+                          .filter(artisan => artisan.id !== selectedArtisanId) // Exclure l'artisan principal
+                          .slice(0, 5)
+                          .map((artisan) => {
+                            const artisanName = `${artisan.prenom || ""} ${artisan.nom || ""}`.trim() || "Artisan sans nom"
+                            const artisanInitials = artisanName.split(" ").map((p) => p.charAt(0)).join("").slice(0, 2).toUpperCase() || "??"
+                            const artisanStatus = refData?.artisanStatuses?.find((s) => s.id === artisan.statut_id)
+                            const statutArtisan = artisanStatus?.label || ""
+                            const statutArtisanColor = artisanStatus?.color || null
+
+                            return (
+                              <div
+                                key={artisan.id}
+                                role="button"
+                                tabIndex={0}
+                                className="rounded-lg border border-border/60 bg-background/80 p-2 text-xs shadow-sm transition-all cursor-pointer hover:border-orange-500/40"
+                                onClick={() => handleSelectSecondArtisan(artisan)}
+                                onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); handleSelectSecondArtisan(artisan) } }}
+                              >
+                                <div className="flex items-center gap-2">
+                                  <Avatar photoProfilMetadata={artisan.photoProfilMetadata} initials={artisanInitials} name={artisan.displayName} size={40} />
+                                  <div className="flex-1 min-w-0">
+                                    <span className="font-medium text-foreground block truncate text-[11px]">{artisan.displayName}</span>
+                                    <div className="flex items-center gap-1 flex-wrap">
+                                      {statutArtisan && (
+                                        <Badge variant="outline" className="text-[9px] px-1 py-0" style={statutArtisanColor ? { backgroundColor: hexToRgba(statutArtisanColor, 0.15) || undefined, color: statutArtisanColor, borderColor: statutArtisanColor } : undefined}>
+                                          {statutArtisan}
+                                        </Badge>
+                                      )}
+                                      <Badge variant="secondary" className="text-[9px] px-1 py-0">{formatDistanceKm(artisan.distanceKm)}</Badge>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            )
+                          })}
+                      </div>
+                    )}
+
+                    {/* Consigne pour le deuxième artisan */}
+                    <div>
+                      <Label htmlFor="consigne_second_artisan" className="text-[10px]">Consigne 2ème artisan</Label>
+                      <Textarea
+                        id="consigne_second_artisan"
+                        value={formData.consigne_second_artisan}
+                        onChange={(e) => handleInputChange("consigne_second_artisan", e.target.value)}
+                        placeholder="Consignes spécifiques..."
+                        className="min-h-[50px] text-xs mt-1 resize-none"
+                      />
+                    </div>
+
+                    {/* Coûts du 2ème artisan */}
+                    <div className="grid grid-cols-3 gap-2">
+                      <div>
+                        <Label htmlFor="coutSSTSecondArtisan" className="text-[10px]">Coût SST</Label>
+                        <Input
+                          id="coutSSTSecondArtisan"
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          value={formData.coutSSTSecondArtisan}
+                          onChange={(e) => handleInputChange("coutSSTSecondArtisan", e.target.value)}
+                          placeholder="0.00 €"
+                          className="h-7 text-xs mt-1"
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="coutMaterielSecondArtisan" className="text-[10px]">Coût mat.</Label>
+                        <Input
+                          id="coutMaterielSecondArtisan"
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          value={formData.coutMaterielSecondArtisan}
+                          onChange={(e) => handleInputChange("coutMaterielSecondArtisan", e.target.value)}
+                          placeholder="0.00 €"
+                          className="h-7 text-xs mt-1"
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-[10px]">Marge 2</Label>
+                        <div className="flex h-7 w-full rounded-md border border-input bg-muted px-2 py-1 text-xs shadow-sm items-center mt-1">
+                          <span className={cn("font-medium", margeSecondArtisanPct < 0 ? "text-destructive" : "text-green-600")}>
+                            {margeSecondArtisanPct.toFixed(1)} %
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </CollapsibleContent>
+            </Card>
+          </Collapsible>
+
           {/* Commentaires - ouvert par défaut */}
           <Collapsible open={isCommentsOpen} onOpenChange={setIsCommentsOpen}>
             <Card className="flex-1 flex flex-col">
@@ -2101,10 +3154,126 @@ export function InterventionEditForm({
               </CollapsibleContent>
             </Card>
           </Collapsible>
+
+          {/* Sous-statut personnalisé */}
+          <Collapsible open={isSousStatutOpen} onOpenChange={setIsSousStatutOpen}>
+            <Card>
+              <CollapsibleTrigger asChild>
+                <CardHeader className="cursor-pointer py-2 px-3 hover:bg-muted/50">
+                  <CardTitle className="flex items-center gap-2 text-xs">
+                    <Palette className="h-3 w-3" />
+                    Sous-statut
+                    {formData.sousStatutText && (
+                      <span
+                        className="ml-2 text-[10px] font-medium px-1.5 py-0.5 rounded"
+                        style={{ 
+                          color: formData.sousStatutTextColor,
+                          backgroundColor: formData.sousStatutBgColor !== 'transparent' ? formData.sousStatutBgColor : undefined
+                        }}
+                      >
+                        {formData.sousStatutText}
+                      </span>
+                    )}
+                    {isSousStatutOpen ? <ChevronDown className="ml-auto h-3 w-3" /> : <ChevronRight className="ml-auto h-3 w-3" />}
+                  </CardTitle>
+                </CardHeader>
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                <CardContent className="pt-0 px-3 pb-3">
+                  <div className="space-y-3">
+                    <p className="text-[10px] text-muted-foreground">
+                      Ajoutez un sous-statut personnalisé pour cette intervention (max 25 caractères).
+                    </p>
+                    <div>
+                      <Label htmlFor="sousStatutText" className="text-[10px]">Texte du sous-statut</Label>
+                      <Input
+                        id="sousStatutText"
+                        value={formData.sousStatutText}
+                        onChange={(e) => handleInputChange("sousStatutText", e.target.value)}
+                        placeholder="Ex: Devis supp, Urgent..."
+                        maxLength={25}
+                        className="h-7 text-xs mt-1"
+                      />
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <div className="flex-1">
+                        <Label htmlFor="sousStatutTextColor" className="text-[10px]">Couleur du texte</Label>
+                        <div className="flex items-center gap-2 mt-1">
+                          <input
+                            type="color"
+                            id="sousStatutTextColor"
+                            value={formData.sousStatutTextColor}
+                            onChange={(e) => handleInputChange("sousStatutTextColor", e.target.value)}
+                            className="h-7 w-12 rounded border border-input cursor-pointer p-0.5"
+                            title="Couleur du texte"
+                          />
+                          <span className="text-[10px] text-muted-foreground">{formData.sousStatutTextColor}</span>
+                        </div>
+                      </div>
+                      <div className="flex-1">
+                        <Label htmlFor="sousStatutBgColor" className="text-[10px]">Surlignage</Label>
+                        <div className="flex items-center gap-2 mt-1">
+                          <input
+                            type="color"
+                            id="sousStatutBgColor"
+                            value={formData.sousStatutBgColor === 'transparent' ? '#ffffff' : formData.sousStatutBgColor}
+                            onChange={(e) => handleInputChange("sousStatutBgColor", e.target.value)}
+                            className="h-7 w-12 rounded border border-input cursor-pointer p-0.5"
+                            title="Couleur de surlignage"
+                          />
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 px-1.5 text-[9px]"
+                            onClick={() => handleInputChange("sousStatutBgColor", "transparent")}
+                            title="Supprimer le surlignage"
+                          >
+                            <X className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                    {formData.sousStatutText && (
+                      <div className="p-2 bg-muted/50 rounded-lg border border-border/50">
+                        <p className="text-[10px] text-muted-foreground mb-1">Aperçu :</p>
+                        <span
+                          className="text-sm font-medium px-1.5 py-0.5 rounded"
+                          style={{ 
+                            color: formData.sousStatutTextColor,
+                            backgroundColor: formData.sousStatutBgColor !== 'transparent' ? formData.sousStatutBgColor : undefined
+                          }}
+                        >
+                          {formData.sousStatutText}
+                        </span>
+                      </div>
+                    )}
+                    {formData.sousStatutText && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 text-[10px] text-destructive hover:text-destructive"
+                        onClick={() => {
+                          handleInputChange("sousStatutText", "")
+                          handleInputChange("sousStatutTextColor", "#000000")
+                          handleInputChange("sousStatutBgColor", "transparent")
+                        }}
+                      >
+                        <X className="h-3 w-3 mr-1" />
+                        Effacer le sous-statut
+                      </Button>
+                    )}
+                  </div>
+                </CardContent>
+              </CollapsibleContent>
+            </Card>
+          </Collapsible>
+          </div>
         </div>
       </div>
 
-      {/* Modal de recherche d'artisan */}
+      {/* Modal de recherche d'artisan principal */}
       <ArtisanSearchModal
         open={showArtisanSearch}
         onClose={() => {
@@ -2113,6 +3282,17 @@ export function InterventionEditForm({
         }}
         onSelect={handleArtisanSearchSelect}
         position={artisanSearchPosition}
+      />
+
+      {/* Modal de recherche d'artisan secondaire */}
+      <ArtisanSearchModal
+        open={showSecondArtisanSearch}
+        onClose={() => {
+          setShowSecondArtisanSearch(false)
+          setSecondArtisanSearchPosition(null)
+        }}
+        onSelect={handleSecondArtisanSearchSelect}
+        position={secondArtisanSearchPosition}
       />
       <StatusReasonModal
         open={isStatusReasonModalOpen}

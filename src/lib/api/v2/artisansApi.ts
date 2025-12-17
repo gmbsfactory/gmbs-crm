@@ -1001,4 +1001,208 @@ export const artisansApi = {
       artisan_prenom: a.prenom || "",
     }));
   },
+
+  // ===== GESTION DES ABSENCES =====
+
+  /**
+   * Récupère les absences d'un artisan
+   */
+  async getAbsences(artisanId: string): Promise<Array<{
+    id: string;
+    start_date: string;
+    end_date: string;
+    reason: string | null;
+    is_confirmed: boolean;
+  }>> {
+    if (!artisanId) {
+      throw new Error("artisanId is required");
+    }
+
+    const { data, error } = await supabase
+      .from("artisan_absences")
+      .select("id, start_date, end_date, reason, is_confirmed")
+      .eq("artisan_id", artisanId)
+      .order("start_date", { ascending: false });
+
+    if (error) {
+      throw new Error(`Erreur lors de la récupération des absences: ${error.message}`);
+    }
+
+    return (data || []).map((absence: any) => ({
+      id: absence.id,
+      start_date: absence.start_date,
+      end_date: absence.end_date,
+      reason: absence.reason,
+      is_confirmed: absence.is_confirmed ?? false,
+    }));
+  },
+
+  /**
+   * Crée une nouvelle absence pour un artisan
+   */
+  async createAbsence(artisanId: string, absence: {
+    start_date: string;
+    end_date: string;
+    reason?: string;
+    is_confirmed?: boolean;
+  }): Promise<{
+    id: string;
+    start_date: string;
+    end_date: string;
+    reason: string | null;
+    is_confirmed: boolean;
+  }> {
+    if (!artisanId) {
+      throw new Error("artisanId is required");
+    }
+    if (!absence.start_date || !absence.end_date) {
+      throw new Error("start_date and end_date are required");
+    }
+
+    const { data, error } = await supabase
+      .from("artisan_absences")
+      .insert({
+        artisan_id: artisanId,
+        start_date: absence.start_date,
+        end_date: absence.end_date,
+        reason: absence.reason || null,
+        is_confirmed: absence.is_confirmed ?? false,
+      })
+      .select("id, start_date, end_date, reason, is_confirmed")
+      .single();
+
+    if (error) {
+      throw new Error(`Erreur lors de la création de l'absence: ${error.message}`);
+    }
+
+    return {
+      id: data.id,
+      start_date: data.start_date,
+      end_date: data.end_date,
+      reason: data.reason,
+      is_confirmed: data.is_confirmed ?? false,
+    };
+  },
+
+  /**
+   * Supprime une absence
+   */
+  async deleteAbsence(absenceId: string): Promise<void> {
+    if (!absenceId) {
+      throw new Error("absenceId is required");
+    }
+
+    const { error } = await supabase
+      .from("artisan_absences")
+      .delete()
+      .eq("id", absenceId);
+
+    if (error) {
+      throw new Error(`Erreur lors de la suppression de l'absence: ${error.message}`);
+    }
+  },
+
+  // ===== GESTION DES ARTISANS SUPPRIMÉS =====
+
+  /**
+   * Vérifie si un artisan supprimé existe avec cet email ou SIRET
+   * @returns L'artisan supprimé si trouvé, null sinon
+   */
+  async checkDeletedArtisan(params: { email?: string; siret?: string }): Promise<{
+    found: boolean;
+    artisan?: {
+      id: string;
+      prenom: string | null;
+      nom: string | null;
+      email: string | null;
+      siret: string | null;
+      raison_sociale: string | null;
+      status?: { id: string; code: string | null; label: string | null } | null;
+    };
+    deleted_at?: string;
+  }> {
+    const headers = await getHeaders();
+    const response = await fetch(
+      `${SUPABASE_FUNCTIONS_URL}/artisans-v2/artisans/check-deleted`,
+      {
+        method: "POST",
+        headers,
+        body: JSON.stringify(params),
+      }
+    );
+    return handleResponse(response);
+  },
+
+  /**
+   * Restaure un artisan supprimé avec optionnellement de nouvelles données
+   */
+  async restore(artisanId: string, newData?: CreateArtisanData): Promise<Artisan> {
+    const headers = await getHeaders();
+    const response = await fetch(
+      `${SUPABASE_FUNCTIONS_URL}/artisans-v2/artisans/${artisanId}/restore`,
+      {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ newData }),
+      }
+    );
+    const result = await handleResponse(response);
+    const refs = await getReferenceCache();
+    return mapArtisanRecord(result.data, refs);
+  },
+
+  /**
+   * Supprime définitivement un artisan (hard delete)
+   * Cela libère l'email et le SIRET pour une nouvelle création
+   */
+  async permanentDelete(artisanId: string): Promise<void> {
+    const headers = await getHeaders();
+    const response = await fetch(
+      `${SUPABASE_FUNCTIONS_URL}/artisans-v2/artisans/${artisanId}/permanent`,
+      {
+        method: "DELETE",
+        headers,
+      }
+    );
+    await handleResponse(response);
+  },
+
+  /**
+   * Met à jour une absence
+   */
+  async updateAbsence(absenceId: string, updates: {
+    start_date?: string;
+    end_date?: string;
+    reason?: string;
+    is_confirmed?: boolean;
+  }): Promise<{
+    id: string;
+    start_date: string;
+    end_date: string;
+    reason: string | null;
+    is_confirmed: boolean;
+  }> {
+    if (!absenceId) {
+      throw new Error("absenceId is required");
+    }
+
+    const { data, error } = await supabase
+      .from("artisan_absences")
+      .update(updates)
+      .eq("id", absenceId)
+      .select("id, start_date, end_date, reason, is_confirmed")
+      .single();
+
+    if (error) {
+      throw new Error(`Erreur lors de la mise à jour de l'absence: ${error.message}`);
+    }
+
+    return {
+      id: data.id,
+      start_date: data.start_date,
+      end_date: data.end_date,
+      reason: data.reason,
+      is_confirmed: data.is_confirmed ?? false,
+    };
+  },
 };

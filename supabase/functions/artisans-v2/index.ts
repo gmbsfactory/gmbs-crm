@@ -318,14 +318,24 @@ serve(async (req: Request) => {
     let resourceId = null;
     let isUpsert = false;
     
+    // Routes spéciales sans ID (ex: /artisans/check-deleted)
+    const specialRoutes = ['check-deleted', 'upsert'];
+    
     // Détecter si c'est une requête upsert
     if (pathSegments.includes('upsert')) {
       isUpsert = true;
       resource = 'artisans';
     }
     
-    // Pour /artisans-v2/artisans/{id}/metiers
-    if (pathSegments.length >= 4 && pathSegments[pathSegments.length - 3] === 'artisans') {
+    // Pour /artisans-v2/artisans/check-deleted (routes spéciales sans ID)
+    if (pathSegments.length >= 3 && 
+        pathSegments[pathSegments.length - 2] === 'artisans' && 
+        specialRoutes.includes(pathSegments[pathSegments.length - 1])) {
+      resource = pathSegments[pathSegments.length - 1];
+      resourceId = null;
+    }
+    // Pour /artisans-v2/artisans/{id}/metiers, /artisans/{id}/restore, /artisans/{id}/permanent
+    else if (pathSegments.length >= 4 && pathSegments[pathSegments.length - 3] === 'artisans') {
       resourceId = pathSegments[pathSegments.length - 2];
       resource = pathSegments[pathSegments.length - 1];
     }
@@ -771,6 +781,84 @@ serve(async (req: Request) => {
     // ===== POST /artisans - Créer un artisan =====
     if (req.method === 'POST' && resource === 'artisans' && !isUpsert) {
       const body: CreateArtisanRequest = await req.json();
+
+      // ===== VÉRIFICATION DES DOUBLONS (email/siret) =====
+      // Vérifier si un artisan existe déjà avec cet email ou SIRET (actif OU supprimé)
+      if (body.email || body.siret) {
+        // Vérifier par email
+        if (body.email) {
+          const { data: existingByEmail } = await supabase
+            .from('artisans')
+            .select('id, prenom, nom, email, siret, raison_sociale, is_active, updated_at')
+            .eq('email', body.email)
+            .maybeSingle();
+
+          if (existingByEmail) {
+            if (!existingByEmail.is_active) {
+              // Artisan supprimé trouvé - retourner un code spécial pour le frontend
+              return new Response(
+                JSON.stringify({
+                  error: 'DELETED_ARTISAN_EXISTS',
+                  message: 'Un artisan supprimé existe déjà avec cet email',
+                  artisan: {
+                    id: existingByEmail.id,
+                    prenom: existingByEmail.prenom,
+                    nom: existingByEmail.nom,
+                    email: existingByEmail.email,
+                    siret: existingByEmail.siret,
+                    raison_sociale: existingByEmail.raison_sociale,
+                  },
+                  deleted_at: existingByEmail.updated_at,
+                }),
+                { status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+              );
+            } else {
+              // Artisan actif trouvé
+              return new Response(
+                JSON.stringify({ error: `Un artisan actif existe déjà avec l'email ${body.email}` }),
+                { status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+              );
+            }
+          }
+        }
+
+        // Vérifier par SIRET
+        if (body.siret) {
+          const { data: existingBySiret } = await supabase
+            .from('artisans')
+            .select('id, prenom, nom, email, siret, raison_sociale, is_active, updated_at')
+            .eq('siret', body.siret)
+            .maybeSingle();
+
+          if (existingBySiret) {
+            if (!existingBySiret.is_active) {
+              // Artisan supprimé trouvé
+              return new Response(
+                JSON.stringify({
+                  error: 'DELETED_ARTISAN_EXISTS',
+                  message: 'Un artisan supprimé existe déjà avec ce SIRET',
+                  artisan: {
+                    id: existingBySiret.id,
+                    prenom: existingBySiret.prenom,
+                    nom: existingBySiret.nom,
+                    email: existingBySiret.email,
+                    siret: existingBySiret.siret,
+                    raison_sociale: existingBySiret.raison_sociale,
+                  },
+                  deleted_at: existingBySiret.updated_at,
+                }),
+                { status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+              );
+            } else {
+              // Artisan actif trouvé
+              return new Response(
+                JSON.stringify({ error: `Un artisan actif existe déjà avec le SIRET ${body.siret}` }),
+                { status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+              );
+            }
+          }
+        }
+      }
 
       // Règle : À la création, l'artisan doit être soit CANDIDAT (par défaut) soit POTENTIEL
       // Si aucun statut n'est fourni ou si le statut fourni n'est pas autorisé, utiliser CANDIDAT
@@ -1440,6 +1528,242 @@ serve(async (req: Request) => {
       return new Response(
         JSON.stringify(data),
         { status: 201, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // ===== POST /artisans/check-deleted - Vérifier si un artisan supprimé existe =====
+    if (req.method === 'POST' && resource === 'check-deleted') {
+      const body = await req.json();
+      const { email, siret } = body;
+
+      if (!email && !siret) {
+        return new Response(
+          JSON.stringify({ error: 'Email or SIRET is required' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      // Chercher un artisan supprimé avec cet email ou SIRET
+      let deletedArtisan = null;
+
+      if (email) {
+        const { data: emailArtisan } = await supabase
+          .from('artisans')
+          .select(`
+            id, prenom, nom, email, siret, raison_sociale,
+            is_active, updated_at,
+            status:artisan_statuses(id, code, label)
+          `)
+          .eq('email', email)
+          .eq('is_active', false)
+          .order('updated_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (emailArtisan) {
+          deletedArtisan = emailArtisan;
+        }
+      }
+
+      if (!deletedArtisan && siret) {
+        const { data: siretArtisan } = await supabase
+          .from('artisans')
+          .select(`
+            id, prenom, nom, email, siret, raison_sociale,
+            is_active, updated_at,
+            status:artisan_statuses(id, code, label)
+          `)
+          .eq('siret', siret)
+          .eq('is_active', false)
+          .order('updated_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (siretArtisan) {
+          deletedArtisan = siretArtisan;
+        }
+      }
+
+      if (deletedArtisan) {
+        return new Response(
+          JSON.stringify({
+            found: true,
+            artisan: deletedArtisan,
+            deleted_at: deletedArtisan.updated_at,
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      return new Response(
+        JSON.stringify({ found: false }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // ===== POST /artisans/{id}/restore - Restaurer un artisan supprimé =====
+    if (req.method === 'POST' && resourceId && resource === 'restore') {
+      const body = await req.json();
+      const { newData } = body; // Données optionnelles pour mettre à jour l'artisan lors de la restauration
+
+      // Vérifier que l'artisan existe et est supprimé
+      const { data: existingArtisan, error: findError } = await supabase
+        .from('artisans')
+        .select('id, is_active')
+        .eq('id', resourceId)
+        .single();
+
+      if (findError || !existingArtisan) {
+        return new Response(
+          JSON.stringify({ error: 'Artisan not found' }),
+          { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      if (existingArtisan.is_active) {
+        return new Response(
+          JSON.stringify({ error: 'Artisan is already active' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      // Restaurer l'artisan et mettre à jour les données si fournies
+      const updatePayload: Record<string, any> = {
+        is_active: true,
+        updated_at: new Date().toISOString(),
+      };
+
+      // Appliquer les nouvelles données si fournies
+      if (newData) {
+        if (newData.prenom !== undefined) updatePayload.prenom = newData.prenom;
+        if (newData.nom !== undefined) updatePayload.nom = newData.nom;
+        if (newData.telephone !== undefined) updatePayload.telephone = newData.telephone;
+        if (newData.telephone2 !== undefined) updatePayload.telephone2 = newData.telephone2;
+        if (newData.email !== undefined) updatePayload.email = newData.email;
+        if (newData.raison_sociale !== undefined) updatePayload.raison_sociale = newData.raison_sociale;
+        if (newData.siret !== undefined) updatePayload.siret = newData.siret;
+        if (newData.statut_juridique !== undefined) updatePayload.statut_juridique = newData.statut_juridique;
+        if (newData.statut_id !== undefined) updatePayload.statut_id = newData.statut_id;
+        if (newData.gestionnaire_id !== undefined) updatePayload.gestionnaire_id = newData.gestionnaire_id;
+        if (newData.adresse_siege_social !== undefined) updatePayload.adresse_siege_social = newData.adresse_siege_social;
+        if (newData.ville_siege_social !== undefined) updatePayload.ville_siege_social = newData.ville_siege_social;
+        if (newData.code_postal_siege_social !== undefined) updatePayload.code_postal_siege_social = newData.code_postal_siege_social;
+        if (newData.adresse_intervention !== undefined) updatePayload.adresse_intervention = newData.adresse_intervention;
+        if (newData.ville_intervention !== undefined) updatePayload.ville_intervention = newData.ville_intervention;
+        if (newData.code_postal_intervention !== undefined) updatePayload.code_postal_intervention = newData.code_postal_intervention;
+        if (newData.intervention_latitude !== undefined) updatePayload.intervention_latitude = newData.intervention_latitude;
+        if (newData.intervention_longitude !== undefined) updatePayload.intervention_longitude = newData.intervention_longitude;
+        if (newData.numero_associe !== undefined) updatePayload.numero_associe = newData.numero_associe;
+        if (newData.suivi_relances_docs !== undefined) updatePayload.suivi_relances_docs = newData.suivi_relances_docs;
+      }
+
+      const { data: restoredArtisan, error: restoreError } = await supabase
+        .from('artisans')
+        .update(updatePayload)
+        .eq('id', resourceId)
+        .select()
+        .single();
+
+      if (restoreError) {
+        throw new Error(`Failed to restore artisan: ${restoreError.message}`);
+      }
+
+      // Mettre à jour les métiers si spécifiés
+      if (newData?.metiers && newData.metiers.length > 0) {
+        // Supprimer les anciens métiers
+        await supabase
+          .from('artisan_metiers')
+          .delete()
+          .eq('artisan_id', resourceId);
+
+        // Ajouter les nouveaux métiers
+        const metierInserts = newData.metiers.map((metierId: string, index: number) => ({
+          artisan_id: resourceId,
+          metier_id: metierId,
+          is_primary: index === 0
+        }));
+
+        await supabase
+          .from('artisan_metiers')
+          .insert(metierInserts);
+      }
+
+      // Mettre à jour les zones si spécifiées
+      if (newData?.zones && newData.zones.length > 0) {
+        // Supprimer les anciennes zones
+        await supabase
+          .from('artisan_zones')
+          .delete()
+          .eq('artisan_id', resourceId);
+
+        // Ajouter les nouvelles zones
+        const zoneInserts = newData.zones.map((zoneId: string) => ({
+          artisan_id: resourceId,
+          zone_id: zoneId
+        }));
+
+        await supabase
+          .from('artisan_zones')
+          .insert(zoneInserts);
+      }
+
+      console.log(JSON.stringify({
+        level: 'info',
+        requestId,
+        artisanId: resourceId,
+        timestamp: new Date().toISOString(),
+        message: 'Artisan restored successfully'
+      }));
+
+      return new Response(
+        JSON.stringify({ message: 'Artisan restored successfully', data: restoredArtisan }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // ===== DELETE /artisans/{id}/permanent - Suppression définitive (hard delete) =====
+    if (req.method === 'DELETE' && resourceId && resource === 'permanent') {
+      // Vérifier que l'artisan existe et est déjà soft-deleted
+      const { data: existingArtisan, error: findError } = await supabase
+        .from('artisans')
+        .select('id, is_active')
+        .eq('id', resourceId)
+        .single();
+
+      if (findError || !existingArtisan) {
+        return new Response(
+          JSON.stringify({ error: 'Artisan not found' }),
+          { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      // Supprimer les relations
+      await supabase.from('artisan_metiers').delete().eq('artisan_id', resourceId);
+      await supabase.from('artisan_zones').delete().eq('artisan_id', resourceId);
+      await supabase.from('artisan_absences').delete().eq('artisan_id', resourceId);
+      await supabase.from('artisan_attachments').delete().eq('artisan_id', resourceId);
+
+      // Suppression définitive
+      const { error: deleteError } = await supabase
+        .from('artisans')
+        .delete()
+        .eq('id', resourceId);
+
+      if (deleteError) {
+        throw new Error(`Failed to permanently delete artisan: ${deleteError.message}`);
+      }
+
+      console.log(JSON.stringify({
+        level: 'info',
+        requestId,
+        artisanId: resourceId,
+        timestamp: new Date().toISOString(),
+        message: 'Artisan permanently deleted'
+      }));
+
+      return new Response(
+        JSON.stringify({ message: 'Artisan permanently deleted' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 

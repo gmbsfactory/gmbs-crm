@@ -27,7 +27,9 @@ export function GlobalModalHost() {
     ((content === "intervention" && Boolean(activeId)) || content === "new-intervention")
   const shouldRenderArtisan =
     isOpen &&
-    ((content === "artisan" && Boolean(activeId)) || content === "new-artisan")
+    ((content === "artisan" && Boolean(activeId)) || 
+     (content === "edit-artisan" && Boolean(activeId)) || 
+     content === "new-artisan")
 
   return (
     <Suspense fallback={null}>
@@ -47,7 +49,7 @@ export function GlobalModalHost() {
       ) : null}
       {shouldRenderArtisan ? (
         <ArtisanModal
-          artisanId={artisanModal.content === "artisan" ? artisanModal.activeId : null}
+          artisanId={(artisanModal.content === "artisan" || artisanModal.content === "edit-artisan") ? artisanModal.activeId : null}
           isOpen={artisanModal.isOpen}
           onClose={artisanModal.close}
           onNext={artisanModal.goToNext}

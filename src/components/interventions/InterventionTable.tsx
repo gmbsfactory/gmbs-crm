@@ -26,6 +26,10 @@ export type InterventionTableRow = InterventionWithDocuments & {
   managerLabel?: string | null
   managerColor?: string | null
   statusDisplayLabel?: string
+  agencyLabel?: string | null
+  agencyColor?: string | null
+  metierLabel?: string | null
+  metierColor?: string | null
 }
 
 export type InterventionTableProps = {
@@ -172,7 +176,40 @@ export default function InterventionTable({ interventions, onRowClick, onRowDoub
       {
         header: "Agence",
         accessorKey: "agency",
-        cell: ({ row }) => row.original.agency || "—",
+        cell: ({ row }) => {
+          const label = row.original.agencyLabel || row.original.agency
+          if (!label) return "—"
+          const agencyColor = row.original.agencyColor
+          if (!agencyColor) return label
+          const pillStyles = buildSolidPillStyles(agencyColor)
+          return (
+            <span
+              className="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold shadow-sm"
+              style={pillStyles}
+            >
+              {label}
+            </span>
+          )
+        },
+      },
+      {
+        header: "Métier",
+        accessorKey: "metier",
+        cell: ({ row }) => {
+          const label = row.original.metierLabel
+          if (!label) return "—"
+          const metierColor = row.original.metierColor
+          if (!metierColor) return label
+          const pillStyles = buildSolidPillStyles(metierColor)
+          return (
+            <span
+              className="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold shadow-sm"
+              style={pillStyles}
+            >
+              {label}
+            </span>
+          )
+        },
       },
       {
         header: "Échéance",

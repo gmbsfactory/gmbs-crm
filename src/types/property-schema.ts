@@ -43,6 +43,7 @@ export const INTERVENTION_PROPERTIES: PropertySchema[] = [
       { value: "ATT_ACOMPTE", label: "Attente acompte", color: "pink" },
     ],
   },
+  { key: "understatement", label: "ST", type: "text", sortable: true, filterable: true },
   { key: "metier_id", label: "ID Métier", type: "text", sortable: true, filterable: true },
   { key: "metier", label: "Métier", type: "select", sortable: true, filterable: true },
   

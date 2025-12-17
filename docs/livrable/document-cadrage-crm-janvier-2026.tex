@@ -1,0 +1,492 @@
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Document de Cadrage – CRM GMBS
+%% Livraison prévue : Janvier 2026
+%% Date : 10/12/2025
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\documentclass[12pt,a4paper]{article}
+
+%% ─────────────────────────────────────────────────────────────────────
+%% Packages
+%% ─────────────────────────────────────────────────────────────────────
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[french]{babel}
+\usepackage{geometry}
+\usepackage{graphicx}
+\usepackage{xcolor}
+\usepackage{titlesec}
+\usepackage{enumitem}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{tabularx}
+\usepackage{fancyhdr}
+\usepackage{hyperref}
+\usepackage{tcolorbox}
+\usepackage{fontawesome5}
+\usepackage{array}
+\usepackage{colortbl}
+\usepackage{pifont}
+
+%% ─────────────────────────────────────────────────────────────────────
+%% Configuration de la page
+%% ─────────────────────────────────────────────────────────────────────
+\geometry{
+    top=2.5cm,
+    bottom=2.5cm,
+    left=2.5cm,
+    right=2.5cm
+}
+
+%% ─────────────────────────────────────────────────────────────────────
+%% Couleurs personnalisées
+%% ─────────────────────────────────────────────────────────────────────
+\definecolor{gmbs-primary}{HTML}{1E3A5F}
+\definecolor{gmbs-secondary}{HTML}{3B82F6}
+\definecolor{gmbs-accent}{HTML}{10B981}
+\definecolor{gmbs-warning}{HTML}{F59E0B}
+\definecolor{gmbs-light}{HTML}{F8FAFC}
+\definecolor{gmbs-gray}{HTML}{64748B}
+\definecolor{table-header}{HTML}{1E3A5F}
+\definecolor{table-row-alt}{HTML}{F1F5F9}
+
+%% ─────────────────────────────────────────────────────────────────────
+%% Configuration des titres
+%% ─────────────────────────────────────────────────────────────────────
+\titleformat{\section}
+    {\Large\bfseries\color{gmbs-primary}}
+    {\thesection.}{0.5em}{}
+    [\vspace{-0.5em}\rule{\textwidth}{0.5pt}]
+
+\titleformat{\subsection}
+    {\large\bfseries\color{gmbs-secondary}}
+    {\thesubsection}{0.5em}{}
+
+%% ─────────────────────────────────────────────────────────────────────
+%% En-tête et pied de page
+%% ─────────────────────────────────────────────────────────────────────
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small\color{gmbs-gray}Document de Cadrage CRM – GMBS/HPAB}
+\fancyhead[R]{\small\color{gmbs-gray}10/12/2025}
+\fancyfoot[C]{\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+\renewcommand{\footrulewidth}{0pt}
+
+%% ─────────────────────────────────────────────────────────────────────
+%% Boîtes personnalisées
+%% ─────────────────────────────────────────────────────────────────────
+\newtcolorbox{featurebox}[2][]{
+    colback=gmbs-light,
+    colframe=gmbs-secondary,
+    fonttitle=\bfseries,
+    title=#2,
+    #1
+}
+
+\newtcolorbox{testbox}{
+    colback=white,
+    colframe=gmbs-accent,
+    fonttitle=\bfseries,
+    title={\faCheckCircle\ Tests de validation},
+    left=5pt,
+    right=5pt
+}
+
+%% ─────────────────────────────────────────────────────────────────────
+%% Commandes personnalisées
+%% ─────────────────────────────────────────────────────────────────────
+\newcommand{\featuretag}[1]{%
+    \tikz[baseline=(char.base)]{
+        \node[fill=gmbs-secondary,text=white,rounded corners=2pt,inner sep=2pt,font=\footnotesize\bfseries] (char) {#1};
+    }%
+}
+
+\newcommand{\checkmark}{\ding{51}}
+
+%% ─────────────────────────────────────────────────────────────────────
+%% Début du document
+%% ─────────────────────────────────────────────────────────────────────
+\begin{document}
+
+%% ─────────────────────────────────────────────────────────────────────
+%% Page de titre
+%% ─────────────────────────────────────────────────────────────────────
+\begin{titlepage}
+    \centering
+    \vspace*{2cm}
+    
+    {\Huge\bfseries\color{gmbs-primary} Document de Cadrage}\\[0.5cm]
+    {\LARGE\color{gmbs-secondary} CRM GMBS}\\[2cm]
+    
+    \rule{\textwidth}{1pt}\\[0.5cm]
+    {\Large Livraison prévue : \textbf{Janvier 2026}}\\[0.5cm]
+    \rule{\textwidth}{1pt}\\[2cm]
+    
+    \begin{tabular}{ll}
+        \textbf{Date :} & 10/12/2025 \\[0.3cm]
+        \textbf{Participants :} & Andréa, Badr (GMBS) \\
+        & André, Harold (HPAB) \\
+    \end{tabular}
+    
+    \vfill
+    
+    {\large\color{gmbs-gray} GMBS $\times$ HPAB}
+    
+\end{titlepage}
+
+%% ─────────────────────────────────────────────────────────────────────
+%% Table des matières
+%% ─────────────────────────────────────────────────────────────────────
+\tableofcontents
+\newpage
+
+%% ═════════════════════════════════════════════════════════════════════
+%% SECTION 1 : Objet du document
+%% ═════════════════════════════════════════════════════════════════════
+\section{Objet du document}
+
+Ce document présente le \textbf{périmètre fonctionnel final} validé conjointement entre HPAB et GMBS pour la livraison CRM prévue en \textbf{janvier 2026}.
+
+\vspace{0.5cm}
+Il inclut :
+\begin{itemize}[leftmargin=2em]
+    \item un compte rendu de la réunion,
+    \item un tableau de synthèse des fonctionnalités livrées,
+    \item le détail des fonctionnalités, rédigé sous le formalisme \textit{Description / Tests de validation}.
+\end{itemize}
+
+\vspace{0.5cm}
+\begin{tcolorbox}[colback=gmbs-warning!10,colframe=gmbs-warning,title={\faExclamationTriangle\ Note importante}]
+Il a été confirmé que GMBS attend le \textbf{go de HPAB} pour enclencher la phase de test. Ce go ne signifie pas que toutes les fonctionnalités considérées seront implémentées. Les implémentations se feront au fil de l'eau.
+\end{tcolorbox}
+
+%% ═════════════════════════════════════════════════════════════════════
+%% SECTION 2 : Tableau récapitulatif
+%% ═════════════════════════════════════════════════════════════════════
+\section{Tableau récapitulatif – Fonctionnalités incluses}
+
+\begin{center}
+\renewcommand{\arraystretch}{1.4}
+\rowcolors{2}{white}{table-row-alt}
+\begin{longtable}{>{\bfseries\small}p{2.5cm} p{4cm} p{7cm}}
+    \toprule
+    \rowcolor{table-header}
+    \textcolor{white}{\textbf{ID}} & \textcolor{white}{\textbf{Fonctionnalité}} & \textcolor{white}{\textbf{Description synthétique}} \\
+    \midrule
+    \endfirsthead
+    
+    \toprule
+    \rowcolor{table-header}
+    \textcolor{white}{\textbf{ID}} & \textcolor{white}{\textbf{Fonctionnalité}} & \textcolor{white}{\textbf{Description synthétique}} \\
+    \midrule
+    \endhead
+    
+    \bottomrule
+    \endfoot
+    
+    SEARCH-001 & Barre de recherche interventions & Barre dédiée dans la section interventions \\
+    SEARCH-003 & Surlignage des résultats & Mise en évidence des mots recherchés \\
+    MODAL-001 & Réorganisation champs modal & Application des demandes GMBS du 03/12/2025 \\
+    MODAL-002 & Réorganisation graphique modal & Harmonisation visuelle \\
+    DEL-001 & Suppression d'intervention & Suppression via modal + clic droit \\
+    UX-001 & Fermeture hors modal & Clic extérieur = fermeture \\
+    ART-REL-001 & Mes artisans à relancer & Filtre dédié + bulle + tri \\
+    STAT-001 & Sous-statuts intervention & Ajout de sous-catégories \\
+    RETARD-001 & Retard dans le dashboard & Affichage retard + compteur annuel + alertes mail \\
+    UI-002 & Homogénéisation couleurs & Palette UI uniforme \\
+    AGN-GEST-001 & Gestion Agences & Création / suppression d'agence \\
+    PERM-001 & Gestion des permissions & Reprise logique ancien CRM \\
+    BUG-001 & Bug rafraîchissement fond & Correction couleur au refresh \\
+    DASH-001 & Rafraîchissement dashboard hebdomadaire & Rafraîchir les performances une fois par semaine \\
+    
+\end{longtable}
+\end{center}
+
+%% ═════════════════════════════════════════════════════════════════════
+%% SECTION 3 : Détail des fonctionnalités
+%% ═════════════════════════════════════════════════════════════════════
+\section{Détail des fonctionnalités}
+
+Chaque fonctionnalité est structurée selon le format \textbf{Description} puis \textbf{Tests de validation}.
+
+%% ─────────────────────────────────────────────────────────────────────
+\subsection{SEARCH-001 — Barre de recherche interventions}
+\label{subsec:search-001}
+
+\begin{featurebox}{\faSearch\ Description \hfill \textit{Type : Fonctionnel}}
+Création d'une barre de recherche dans la page Interventions permettant de filtrer les interventions sur les champs suivants :
+\begin{itemize}[leftmargin=2em, itemsep=0pt]
+    \item commentaires,
+    \item contexte,
+    \item consigne,
+    \item adresse de l'intervention,
+    \item artisan (nom, email, téléphone),
+    \item client et facturation (nom, prénom, téléphone),
+    \item recherche par ID.
+\end{itemize}
+\end{featurebox}
+
+\begin{testbox}
+\begin{itemize}[leftmargin=2em, itemsep=2pt]
+    \item[\checkmark] Recherche par ID d'intervention.
+    \item[\checkmark] Recherche par adresse.
+    \item[\checkmark] Recherche par nom d'artisan.
+    \item[\checkmark] Recherche par contenu d'un commentaire.
+\end{itemize}
+\end{testbox}
+
+%% ─────────────────────────────────────────────────────────────────────
+\subsection{SEARCH-003 — Surlignage des résultats}
+\label{subsec:search-003}
+
+\begin{featurebox}{\faMarker\ Description \hfill \textit{Type : UX}}
+Mise en évidence des termes recherchés dans les résultats affichés dans la liste d'interventions.
+\end{featurebox}
+
+\begin{testbox}
+\begin{itemize}[leftmargin=2em, itemsep=2pt]
+    \item[\checkmark] Les occurrences des mots recherchés apparaissent surlignées.
+    \item[\checkmark] Le surlignage disparaît lorsque le champ de recherche est vidé.
+\end{itemize}
+\end{testbox}
+
+%% ─────────────────────────────────────────────────────────────────────
+\subsection{MODAL-001 — Réorganisation des champs du modal intervention}
+\label{subsec:modal-001}
+
+\begin{featurebox}{\faCogs\ Description \hfill \textit{Type : UX}}
+Réorganisation des champs dans le modal selon les spécifications fournies par GMBS le 03/12/2025.
+\end{featurebox}
+
+\begin{testbox}
+\begin{itemize}[leftmargin=2em, itemsep=2pt]
+    \item[\checkmark] Le modal respecte la nouvelle disposition.
+\end{itemize}
+\end{testbox}
+
+%% ─────────────────────────────────────────────────────────────────────
+\subsection{MODAL-002 — Réorganisation graphique du modal}
+\label{subsec:modal-002}
+
+\begin{featurebox}{\faPalette\ Description \hfill \textit{Type : UI}}
+Ajouter des contrastes et rendre le modal d'intervention agréable et opérationnel.
+\end{featurebox}
+
+\begin{testbox}
+\begin{itemize}[leftmargin=2em, itemsep=2pt]
+    \item[\checkmark] Le modal est visuellement harmonieux.
+    \item[\checkmark] Uniformité des couleurs de la charte CRM.
+\end{itemize}
+\end{testbox}
+
+%% ─────────────────────────────────────────────────────────────────────
+\subsection{DEL-001 — Suppression d'intervention}
+\label{subsec:del-001}
+
+\begin{featurebox}{\faTrash\ Description \hfill \textit{Type : Fonctionnel}}
+Ajout de deux moyens de suppression :
+\begin{itemize}[leftmargin=2em, itemsep=0pt]
+    \item clic droit sur une intervention dans la liste,
+    \item bouton « supprimer » dans le modal.
+\end{itemize}
+\vspace{0.3cm}
+La suppression doit ouvrir une page de confirmation.
+\end{featurebox}
+
+\begin{testbox}
+\begin{itemize}[leftmargin=2em, itemsep=2pt]
+    \item[\checkmark] L'ouverture de la page de confirmation est obligatoire avant suppression.
+    \item[\checkmark] La suppression est effective après confirmation.
+    \item[\checkmark] La suppression est annulée si l'utilisateur clique sur « annuler ».
+\end{itemize}
+\end{testbox}
+
+%% ─────────────────────────────────────────────────────────────────────
+\subsection{UX-001 — Fermeture hors modal}
+\label{subsec:ux-001}
+
+\begin{featurebox}{\faTimes\ Description \hfill \textit{Type : UX}}
+Un clic extérieur au modal doit entraîner sa fermeture automatique.
+\end{featurebox}
+
+\begin{testbox}
+\begin{itemize}[leftmargin=2em, itemsep=2pt]
+    \item[\checkmark] Clic hors du modal = fermeture.
+    \item[\checkmark] Clic dans le modal = aucune fermeture.
+\end{itemize}
+\end{testbox}
+
+%% ─────────────────────────────────────────────────────────────────────
+\subsection{BUG-001 — Bug de rafraîchissement du fond CRM}
+\label{subsec:bug-001}
+
+\begin{featurebox}{\faBug\ Description \hfill \textit{Type : Correctif}}
+Correction du bug occasionnant un changement inapproprié de couleur lors du rafraîchissement de la page.
+\end{featurebox}
+
+\begin{testbox}
+\begin{itemize}[leftmargin=2em, itemsep=2pt]
+    \item[\checkmark] Le fond conserve la couleur attendue après refresh.
+\end{itemize}
+\end{testbox}
+
+%% ─────────────────────────────────────────────────────────────────────
+\subsection{ART-REL-001 — Mes artisans à relancer}
+\label{subsec:art-rel-001}
+
+\begin{featurebox}{\faBell\ Description \hfill \textit{Type : Fonctionnel}}
+Ajout d'un système permettant d'identifier les artisans n'ayant pas répondu :
+\begin{itemize}[leftmargin=2em, itemsep=0pt]
+    \item filtres dédiés,
+    \item bulle indicative (\textit{Mes artisans à compléter} et \textit{Les artisans à compléter}).
+\end{itemize}
+\end{featurebox}
+
+\begin{testbox}
+\begin{itemize}[leftmargin=2em, itemsep=2pt]
+    \item[\checkmark] Le filtre renvoie uniquement les artisans concernés.
+\end{itemize}
+\end{testbox}
+
+%% ─────────────────────────────────────────────────────────────────────
+\subsection{STAT-001 — Sous-statuts intervention}
+\label{subsec:stat-001}
+
+\begin{featurebox}{\faTags\ Description \hfill \textit{Type : Fonctionnel}}
+Ajout de sous-statuts afin d'affiner les suivis.
+\end{featurebox}
+
+\begin{testbox}
+\begin{itemize}[leftmargin=2em, itemsep=2pt]
+    \item[\checkmark] Les sous-statuts apparaissent sur le modal.
+    \item[\checkmark] Les couleurs associées sont visibles sur la page intervention.
+    \item[\checkmark] Le changement de sous-statut est correctement enregistré.
+\end{itemize}
+\end{testbox}
+
+%% ─────────────────────────────────────────────────────────────────────
+\subsection{RETARD-001 — Retard dans le dashboard}
+\label{subsec:retard-001}
+
+\begin{featurebox}{\faClock\ Description \hfill \textit{Type : Fonctionnel}}
+Affichage du nombre de retards dans l'année d'un gestionnaire lors de la première connexion de ce dernier dans la journée.
+
+\vspace{0.3cm}
+\textbf{Caractéristiques :}
+\begin{itemize}[leftmargin=2em, itemsep=0pt]
+    \item L'heure est fixée en dur en base de données et ne sera pas accessible ou modifiable via l'interface graphique.
+    \item Envoi d'un mail templatisé de la part de \texttt{contact@gmbs.fr} pour chaque retard.
+    \item Le score de retard est réactualisé tous les ans.
+\end{itemize}
+\end{featurebox}
+
+\begin{testbox}
+\begin{itemize}[leftmargin=2em, itemsep=2pt]
+    \item[\checkmark] Une connexion après l'heure seuil affiche l'indicateur.
+    \item[\checkmark] Une connexion avant l'heure seuil n'affiche rien.
+    \item[\checkmark] La donnée se réactualise bien à 0 pour chaque 1\textsuperscript{er} janvier de l'année.
+\end{itemize}
+\end{testbox}
+
+%% ─────────────────────────────────────────────────────────────────────
+\subsection{UI-002 — Homogénéisation des couleurs}
+\label{subsec:ui-002}
+
+\begin{featurebox}{\faPaintRoller\ Description \hfill \textit{Type : UI}}
+Uniformisation de la palette de couleurs sur l'ensemble du CRM (statuts, agences, sous-statuts…).
+\end{featurebox}
+
+\begin{testbox}
+\begin{itemize}[leftmargin=2em, itemsep=2pt]
+    \item[\checkmark] Les couleurs sont cohérentes entre les différents modules.
+\end{itemize}
+\end{testbox}
+
+%% ─────────────────────────────────────────────────────────────────────
+\subsection{AGN-GEST-001 — Gestion Agences}
+\label{subsec:agn-gest-001}
+
+\begin{featurebox}{\faBuilding\ Description \hfill \textit{Type : Fonctionnel}}
+Création d'un espace permettant :
+\begin{itemize}[leftmargin=2em, itemsep=0pt]
+    \item l'ajout d'une agence,
+    \item la désactivation / suppression d'une agence,
+    \item la gestion des gestionnaires associés.
+\end{itemize}
+
+\vspace{0.3cm}
+L'espace de configuration incluera également la gestion des statuts et métiers.
+
+\vspace{0.3cm}
+\textbf{Pour les statuts :} il sera simplement possible de les éditer. Ceci est dû au fait que des règles métiers ont été implémentées pour les transitions de statut et que supprimer des statuts pourrait casser les logiques mises en place.
+
+\vspace{0.3cm}
+\begin{tcolorbox}[colback=gmbs-gray!10,colframe=gmbs-gray,title={\faInfoCircle\ Non inclus}]
+Dans une prochaine livraison, HPAB pourra développer un espace de configuration complet des statuts.
+\end{tcolorbox}
+\end{featurebox}
+
+\begin{testbox}
+\begin{itemize}[leftmargin=2em, itemsep=2pt]
+    \item[\checkmark] Ajout d'agence fonctionnel.
+    \item[\checkmark] Suppression / désactivation fonctionnelle.
+\end{itemize}
+\end{testbox}
+
+%% ─────────────────────────────────────────────────────────────────────
+\subsection{PERM-001 — Gestion des permissions}
+\label{subsec:perm-001}
+
+\begin{featurebox}{\faLock\ Description \hfill \textit{Type : Fonctionnel}}
+Reprise des logiques et de l'organisation de l'ancien CRM pour la gestion des permissions utilisateurs.
+\end{featurebox}
+
+\begin{testbox}
+\begin{itemize}[leftmargin=2em, itemsep=2pt]
+    \item[\checkmark] Les rôles appliquent correctement les restrictions attendues.
+    \item[\checkmark] Aucun utilisateur n'accède à un espace non autorisé.
+\end{itemize}
+\end{testbox}
+
+%% ─────────────────────────────────────────────────────────────────────
+\subsection{DASH-001 — Rafraîchissement du dashboard hebdomadaire}
+\label{subsec:dash-001}
+
+\begin{featurebox}{\faChartBar\ Description \hfill \textit{Type : Fonctionnel}}
+Ne rafraîchir les performances du dashboard qu'une fois par semaine.
+
+\vspace{0.3cm}
+Les gestionnaires connaîtront le résultat rafraîchi qui sera affiché \textbf{chaque vendredi à 16h}.
+\end{featurebox}
+
+\begin{testbox}
+\begin{itemize}[leftmargin=2em, itemsep=2pt]
+    \item[\checkmark] Le dashboard affiche les données mises à jour chaque vendredi.
+    \item[\checkmark] Les données ne changent pas entre deux rafraîchissements hebdomadaires.
+\end{itemize}
+\end{testbox}
+
+%% ═════════════════════════════════════════════════════════════════════
+%% SECTION 4 : Conclusion
+%% ═════════════════════════════════════════════════════════════════════
+\section{Conclusion}
+
+Le présent document constitue la \textbf{référence} pour la livraison prévue en \textbf{janvier 2026}. Il formalise les engagements fonctionnels validés par HPAB et GMBS ainsi que les règles de test attendues.
+
+\vspace{1cm}
+
+\begin{tcolorbox}[colback=gmbs-accent!10,colframe=gmbs-accent,title={\faCheckCircle\ Prochaine étape}]
+\textbf{HPAB} doit désormais fournir son \textbf{go} pour permettre à \textbf{GMBS} d'entamer la phase de tests du CRM.
+\end{tcolorbox}
+
+\vspace{2cm}
+
+\begin{center}
+\rule{0.5\textwidth}{0.5pt}\\[0.5cm]
+{\large\color{gmbs-gray} Document validé le 10/12/2025}\\
+{\small\color{gmbs-gray} GMBS $\times$ HPAB}
+\end{center}
+
+\end{document}
+

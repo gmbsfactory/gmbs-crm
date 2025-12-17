@@ -2,7 +2,7 @@
 
 import React, { useCallback, useRef, useState } from "react"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
-import { Bell, X, MessageSquare, Copy, MessageCircle, Trash2 } from "lucide-react"
+import { Bell, X, MessageSquare, Copy, MessageCircle, Trash2, Plus } from "lucide-react"
 import { InterventionEditForm } from "@/components/interventions/InterventionEditForm"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -45,6 +45,24 @@ const NoteDialogContent = React.forwardRef<HTMLDivElement, NoteDialogContentProp
 )
 
 NoteDialogContent.displayName = "NoteDialogContent"
+
+// Modal SMS sans overlay sombre (déjà dans un modal)
+const SmsDialogContent = React.forwardRef<HTMLDivElement, NoteDialogContentProps>(
+  ({ className, ...props }, ref) => (
+    <AlertDialogPortal>
+      <AlertDialogPrimitive.Content 
+        ref={ref} 
+        className={cn(
+          "fixed left-[50%] top-[50%] z-[201] grid w-full max-w-md translate-x-[-50%] translate-y-[-50%] gap-4 border bg-background p-6 shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 sm:rounded-lg",
+          className
+        )} 
+        {...props} 
+      />
+    </AlertDialogPortal>
+  ),
+)
+
+SmsDialogContent.displayName = "SmsDialogContent"
 
 type Props = {
   interventionId: string
@@ -158,15 +176,19 @@ GMBS`
       const whatsappUrl = `whatsapp://send?phone=${formattedPhone}&text=${encodedMessage}`
       window.location.href = whatsappUrl
     } else {
-      // Sur desktop : ouvrir dans une nouvelle fenêtre qui se fermera automatiquement
+      // Sur desktop : ouvrir dans une nouvelle fenêtre centrée et de taille confortable
       const whatsappUrl = `https://wa.me/${formattedPhone}?text=${encodedMessage}`
-      const popup = window.open(whatsappUrl, '_blank', 'width=1,height=1')
-      // Fermer la fenêtre après un court délai si elle existe encore
-      setTimeout(() => {
-        if (popup && !popup.closed) {
-          popup.close()
-        }
-      }, 1000)
+      // Taille de la fenêtre (30% plus grande que standard)
+      const popupWidth = 780
+      const popupHeight = 910
+      // Centrer la fenêtre sur l'écran
+      const left = Math.round((window.screen.width - popupWidth) / 2)
+      const top = Math.round((window.screen.height - popupHeight) / 2)
+      window.open(
+        whatsappUrl, 
+        '_blank', 
+        `width=${popupWidth},height=${popupHeight},left=${left},top=${top},resizable=yes,scrollbars=yes`
+      )
     }
   }, [clientPhone, smsText])
 
@@ -182,8 +204,8 @@ GMBS`
     enabled: Boolean(interventionId),
   })
 
-  // Hook pour la suppression d'intervention
-  const { deleteIntervention, isLoading: contextMenuLoading } = useInterventionContextMenu(
+  // Hook pour la suppression et duplication d'intervention
+  const { deleteIntervention, duplicateDevisSupp, isLoading: contextMenuLoading } = useInterventionContextMenu(
     interventionId,
     "default",
     intervention?.id_inter || undefined
@@ -423,6 +445,24 @@ GMBS`
             </div>
           </div>
           <div className="flex items-center gap-3">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-7 text-xs"
+                  onClick={() => duplicateDevisSupp()}
+                  disabled={!intervention || contextMenuLoading.duplicate}
+                >
+                  <Plus className="mr-1.5 h-3.5 w-3.5" />
+                  Devis supp
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent className="modal-config-columns-tooltip">
+                Créer un devis supplémentaire à partir de cette intervention
+              </TooltipContent>
+            </Tooltip>
             {intervention?.updated_at && (
               <span className="text-xs text-muted-foreground">
                 Mis à jour le {new Date(intervention.updated_at).toLocaleDateString('fr-FR', {
@@ -437,8 +477,8 @@ GMBS`
           </div>
         </header>
 
-        <div className="modal-config-columns-body overflow-y-auto">
-          <div className={bodyPadding}>
+        <div className="modal-config-columns-body overflow-hidden flex flex-col">
+          <div className={`${bodyPadding} flex-1 min-h-0 flex flex-col`}>
             {isLoading ? (
               <div className="space-y-4">
                 <div className="h-6 w-48 rounded bg-muted animate-pulse" />
@@ -464,6 +504,7 @@ GMBS`
                 onClientNameChange={setClientName}
                 onAgencyNameChange={setAgencyName}
                 onClientPhoneChange={setClientPhone}
+                onOpenSmsModal={handleOpenSmsModal}
               />
             ) : (
               <div className="rounded border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
@@ -516,7 +557,7 @@ GMBS`
       </div>
 
       <AlertDialog open={showSmsModal} onOpenChange={setShowSmsModal}>
-        <AlertDialogContent className="max-w-md z-[110]">
+        <SmsDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Message SMS</AlertDialogTitle>
             <AlertDialogDescription>
@@ -541,10 +582,8 @@ GMBS`
               </Button>
               {clientPhone && clientPhone.trim() !== "" && (
                 <Button
-                  onClick={() => {}}
-                  disabled={true}
-                  className="flex items-center gap-2 bg-[#25D366]/50 text-white cursor-not-allowed opacity-50"
-                  title="Fonctionnalité désactivée"
+                  onClick={handleOpenWhatsApp}
+                  className="flex items-center gap-2 bg-[#25D366] hover:bg-[#20BA5A] text-white"
                 >
                   <MessageCircle className="h-4 w-4" />
                   Envoyer sur WhatsApp
@@ -560,7 +599,7 @@ GMBS`
           <AlertDialogFooter>
             <AlertDialogCancel>Fermer</AlertDialogCancel>
           </AlertDialogFooter>
-        </AlertDialogContent>
+        </SmsDialogContent>
       </AlertDialog>
 
       <AlertDialog open={showNoteDialog} onOpenChange={handleNoteDialogOpenChange}>

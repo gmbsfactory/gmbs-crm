@@ -195,6 +195,7 @@ export const utilsApi = {
       agence: agency?.label ?? item.agence ?? item.agence_id ?? null,
       agenceLabel: agency?.label ?? null,
       agenceCode: agency?.code ?? null,
+      agenceColor: agency?.color ?? null,
       contexteIntervention: item.contexte_intervention ?? item.contexteIntervention ?? null,
       consigneIntervention: item.consigne_intervention ?? item.consigneIntervention ?? null,
       consigneDeuxiemeArtisanIntervention: item.consigne_second_artisan ?? item.consigneDeuxiemeArtisanIntervention ?? null,
@@ -219,6 +220,9 @@ export const utilsApi = {
       demandeDevis: item.demande_devis ?? item.demandeDevis ?? null,
       demandeTrustPilot: item.demande_trust_pilot ?? item.demandeTrustPilot ?? null,
       metier: metier?.code ?? item.metier ?? item.metier_id ?? null,
+      metierLabel: metier?.label ?? null,
+      metierCode: metier?.code ?? null,
+      metierColor: metier?.color ?? null,
       type: item.type ?? null,
       typeDeuxiemeArtisan: item.type_deuxieme_artisan ?? item.typeDeuxiemeArtisan ?? null,
       datePrevue: item.date_prevue ?? item.datePrevue ?? null,
@@ -240,6 +244,10 @@ export const utilsApi = {
       pieceJointeFactureGMBS: item.piece_jointe_facture_gmbs ?? item.pieceJointeFactureGMBS ?? [],
       pieceJointeFactureArtisan: item.piece_jointe_facture_artisan ?? item.pieceJointeFactureArtisan ?? [],
       pieceJointeFactureMateriel: item.piece_jointe_facture_materiel ?? item.pieceJointeFactureMateriel ?? [],
+      // Sous-statut personnalisé
+      understatement: item.sous_statut_text ?? item.understatement ?? null,
+      sousStatutTextColor: item.sous_statut_text_color ?? '#000000',
+      sousStatutBgColor: item.sous_statut_bg_color ?? 'transparent',
     };
   },
 

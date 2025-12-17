@@ -113,9 +113,75 @@ export function useInterventionsMutations() {
         owner_id?: string | null
         tenant_id?: string | null
         is_active?: boolean
+        sous_statut_text?: string | null
+        sous_statut_text_color?: string | null
+        sous_statut_bg_color?: string | null
+        metier_second_artisan_id?: string | null
+        // Note: Les coûts du 2ème artisan sont gérés via intervention_costs avec artisan_order = 2
       }
     }) => {
       return await interventionsApiV2.update(id, data)
+    },
+    // Mise à jour optimiste du cache pour un affichage instantané
+    onMutate: async (variables) => {
+      // Annuler les requêtes en cours pour éviter les conflits
+      await queryClient.cancelQueries({ queryKey: interventionKeys.lists() })
+      await queryClient.cancelQueries({ queryKey: interventionKeys.lightLists() })
+
+      // Préparer les données optimistes à appliquer
+      const optimisticData: Record<string, unknown> = {}
+      
+      // Mapper les champs de la mutation vers les champs utilisés dans le cache
+      if (variables.data.sous_statut_text !== undefined) {
+        optimisticData.understatement = variables.data.sous_statut_text
+        optimisticData.sous_statut_text = variables.data.sous_statut_text
+      }
+      if (variables.data.sous_statut_text_color !== undefined) {
+        optimisticData.sousStatutTextColor = variables.data.sous_statut_text_color
+        optimisticData.sous_statut_text_color = variables.data.sous_statut_text_color
+      }
+      if (variables.data.sous_statut_bg_color !== undefined) {
+        optimisticData.sousStatutBgColor = variables.data.sous_statut_bg_color
+        optimisticData.sous_statut_bg_color = variables.data.sous_statut_bg_color
+      }
+
+      // Copier les autres champs de la mutation
+      Object.entries(variables.data).forEach(([key, value]) => {
+        if (value !== undefined) {
+          optimisticData[key] = value
+        }
+      })
+
+      // Fonction pour mettre à jour les listes d'interventions dans le cache
+      const updateLists = (oldData: any) => {
+        if (!oldData?.data || !Array.isArray(oldData.data)) {
+          return oldData
+        }
+
+        const updatedData = oldData.data.map((intervention: any) =>
+          intervention.id === variables.id ? { ...intervention, ...optimisticData } : intervention
+        )
+
+        return {
+          ...oldData,
+          data: updatedData,
+        }
+      }
+
+      // Appliquer la mise à jour optimiste sur toutes les listes
+      queryClient.setQueriesData({ queryKey: interventionKeys.lists() }, updateLists)
+      queryClient.setQueriesData({ queryKey: interventionKeys.lightLists() }, updateLists)
+
+      // Mettre à jour aussi le détail si présent dans le cache
+      queryClient.setQueryData(
+        interventionKeys.detail(variables.id),
+        (oldData: any) => {
+          if (!oldData) return oldData
+          return { ...oldData, ...optimisticData }
+        }
+      )
+
+      console.log(`[useInterventionsMutations] 🚀 Mise à jour optimiste appliquée pour ${variables.id}`, optimisticData)
     },
     onSuccess: (data, variables) => {
       const statusLabel = (data as any).status?.label || "modifiée"
@@ -147,6 +213,9 @@ export function useInterventionsMutations() {
         })
         console.warn(`[useInterventionsMutations] Erreur réseau lors de la mise à jour de ${variables.id}, mise en file d'attente`)
       }
+      // En cas d'erreur, invalider pour restaurer les données correctes du serveur
+      invalidateLists()
+      queryClient.invalidateQueries({ queryKey: interventionKeys.detail(variables.id) })
     },
   })
 

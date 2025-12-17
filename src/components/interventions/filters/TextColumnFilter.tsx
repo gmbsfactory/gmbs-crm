@@ -99,16 +99,16 @@ export function TextColumnFilter({
   return (
     <DropdownMenu open={open} onOpenChange={setOpen}>
       <DropdownMenuTrigger asChild>
-        <div className="flex w-full items-center gap-1.5">
+        <div className="flex w-full items-center justify-center gap-1.5">
           <button
             type="button"
             className={cn(
-              "flex flex-1 items-center gap-1 rounded px-1 py-0.5 text-left text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-              hasActiveFilter ? "bg-primary/10 text-primary" : "hover:bg-muted/80",
+              "flex items-center gap-1 rounded px-1 py-0.5 text-center text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+              hasActiveFilter ? "bg-white/20" : "hover:bg-white/10",
             )}
           >
             <span className="truncate">{schema.label}</span>
-            <span className="ml-auto flex items-center gap-0.5 text-muted-foreground">
+            <span className="flex items-center gap-0.5 opacity-70">
               {hasActiveFilter ? <Filter className="h-3.5 w-3.5" /> : null}
             </span>
           </button>

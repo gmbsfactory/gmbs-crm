@@ -1,0 +1,606 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Livrable HTML — Sprint Décembre 2025 — Fonctionnalités CRM</title>
+<style>
+  :root {
+    --bg:#0b1021;
+    --panel:#111834;
+    --ink:#e6e9f2;
+    --muted:#b7bed1;
+    --accent:#7aa2f7;
+    --ok:#34d399;
+    --warn:#fbbf24;
+    --open:#f87171;
+    --progress:#a78bfa;
+    --chip:#1f2a4a;
+    --rule:#243055;
+    --highlight:#19254b;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin:0; padding:0; background:var(--bg); color:var(--ink); font: 16px/1.6 system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,"Helvetica Neue",Helvetica,Arial; }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  header { padding: 32px 24px 8px; background: linear-gradient(180deg, #0b1021 0%, #0b1021 60%, #0c1430 100%); border-bottom: 1px solid var(--rule); }
+  header h1 { margin:0 0 8px; font-size: 28px; font-weight: 700; letter-spacing: 0.2px; }
+  header p { margin: 0; color: var(--muted); }
+  .container { max-width: 1100px; margin: 0 auto; padding: 20px 24px 64px; }
+  nav.toc { background: var(--panel); border:1px solid var(--rule); border-radius: 12px; padding:16px; margin:20px 0 28px; }
+  nav.toc h2 { font-size: 18px; margin:0 0 10px; }
+  nav.toc ul { margin:0; padding:0; columns: 2; column-gap: 24px; }
+  nav.toc li { list-style:none; margin: 6px 0; }
+  section { background: var(--panel); border:1px solid var(--rule); border-radius: 14px; padding: 18px 18px 4px; margin: 22px 0; }
+  section h2 { margin: 4px 0 12px; font-size: 22px; }
+  section h3 { margin: 18px 0 8px; font-size: 18px; }
+  .chips { display:flex; gap:10px; flex-wrap: wrap; margin: 8px 0 4px; }
+  .chip { display:inline-flex; align-items:center; gap:8px; padding:6px 10px; border-radius:999px; background:var(--chip); border:1px solid var(--rule); font-size: 13px; color: var(--muted); }
+  .chip b { color: var(--ink); }
+  .badge { font-weight:700; padding:2px 8px; border-radius:999px; font-size:12px; display:inline-block; vertical-align: middle; }
+  .valide { background: rgba(52,211,153,.15); color: var(--ok); border:1px solid rgba(52,211,153,.35); }
+  .avalider { background: rgba(251,191,36,.12); color: var(--warn); border:1px solid rgba(251,191,36,.35); }
+  .aclarifier { background: rgba(248,113,113,.12); color: var(--open); border:1px solid rgba(248,113,113,.35); }
+  .inprogress { background: rgba(167,139,250,.12); color: var(--progress); border:1px solid rgba(167,139,250,.35); }
+  .atester { background: rgba(96,165,250,.12); color: #60a5fa; border:1px solid rgba(96,165,250,.35); }
+  .req { background: #0f1732; border:1px solid var(--rule); border-radius: 12px; padding: 14px; margin: 12px 0; }
+  .req header { display:flex; justify-content:space-between; align-items:center; background: transparent; border:0; padding:0; }
+  .req header h4 { margin: 0; font-size:16px; }
+  .req .meta { color: var(--muted); font-size: 13px; display:flex; gap:12px; flex-wrap: wrap; }
+  .req .body p { margin: 8px 0; }
+  .req ul { margin: 6px 0 6px 18px; }
+  .kv { display:grid; grid-template-columns: 200px 1fr; gap:8px 14px; margin: 6px 0; }
+  .kv div { padding: 4px 0; }
+  code, pre { background: var(--highlight); padding: 2px 6px; border-radius: 6px; border:1px solid var(--rule); }
+  .note { color: var(--muted); font-size: 14px; }
+  .table { width:100%; border-collapse: collapse; border: 1px solid var(--rule); margin: 10px 0 0; }
+  .table th, .table td { border:1px solid var(--rule); padding:8px 10px; vertical-align: top; }
+  .table th { background: #0f1837; }
+  .callout { border-left: 4px solid var(--accent); background: #0f1632; padding: 10px 12px; border-radius: 8px; margin: 12px 0; }
+  .callout.warning { border-left-color: var(--warn); background: rgba(251,191,36,.05); }
+  .callout.success { border-left-color: var(--ok); background: rgba(52,211,153,.05); }
+  .foot { color: var(--muted); font-size: 13px; margin-top: 18px; }
+  .access-info { background: linear-gradient(135deg, rgba(52,211,153,.1) 0%, rgba(52,211,153,.05) 100%); border: 2px solid rgba(52,211,153,.3); border-radius: 14px; padding: 20px; margin: 20px 0 28px; }
+  .access-info h2 { margin: 0 0 16px; font-size: 20px; color: var(--ok); }
+  .access-info .link { font-size: 18px; margin: 12px 0; }
+  .access-info .credentials { background: var(--highlight); border: 1px solid var(--rule); border-radius: 8px; padding: 12px; margin: 8px 0; }
+  .access-info .credentials strong { color: var(--accent); display: block; margin-bottom: 4px; }
+  .summary-box { background: linear-gradient(135deg, rgba(122,162,247,.1) 0%, rgba(122,162,247,.05) 100%); border: 2px solid rgba(122,162,247,.3); border-radius: 14px; padding: 20px; margin: 20px 0 28px; }
+  .summary-box h2 { margin: 0 0 16px; font-size: 20px; color: var(--accent); }
+  .summary-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-top: 12px; }
+  .stat-item { background: var(--highlight); border: 1px solid var(--rule); border-radius: 8px; padding: 12px; text-align: center; }
+  .stat-item .number { font-size: 28px; font-weight: 700; }
+  .stat-item .label { font-size: 13px; color: var(--muted); }
+  .stat-item.done .number { color: var(--ok); }
+  .stat-item.progress .number { color: var(--progress); }
+  .stat-item.todo .number { color: var(--warn); }
+  .stat-item.test .number { color: #60a5fa; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Livrable Sprint Décembre 2025 — Fonctionnalités CRM</h1>
+  <p>Dernière mise à jour&nbsp;: 10/12/2025 &middot; État des implémentations et fonctionnalités à effectuer</p>
+</header>
+<div class="container">
+
+  <div class="access-info">
+    <h2>🔗 Accès au site</h2>
+    <div class="link">
+      <strong>URL :</strong> <a href="https://gmbs-crm-nine.vercel.app/login" target="_blank">https://gmbs-crm-nine.vercel.app/login</a>
+    </div>
+    <div class="credentials">
+      <strong>Comptes de test :</strong>
+      <div style="margin-top: 8px;">
+        <div><strong>badr@gmbs.fr</strong> / <code>badr123</code></div>
+        <div style="margin-top: 6px;"><strong>andrea@gmbs.fr</strong> / <code>andrea123</code></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="summary-box">
+    <h2>📊 Résumé du Sprint</h2>
+    <div class="summary-stats">
+      <div class="stat-item done">
+        <div class="number">5</div>
+        <div class="label">Terminées ✅</div>
+      </div>
+      <div class="stat-item test">
+        <div class="number">2</div>
+        <div class="label">À tester 🧪</div>
+      </div>
+      <div class="stat-item progress">
+        <div class="number">1</div>
+        <div class="label">En cours 🔄</div>
+      </div>
+      <div class="stat-item todo">
+        <div class="number">8</div>
+        <div class="label">À faire 📝</div>
+      </div>
+    </div>
+  </div>
+
+  <nav class="toc">
+    <h2>Sommaire</h2>
+    <ul>
+      <li><a href="#taches-effectuees">1. Tâches effectuées</a></li>
+      <li><a href="#taches-a-tester">2. À tester / finaliser</a></li>
+      <li><a href="#taches-en-cours">3. En cours</a></li>
+      <li><a href="#fonctionnalites-restantes">4. Fonctionnalités à implémenter</a></li>
+    </ul>
+  </nav>
+
+  <!-- SECTION 1 : TÂCHES EFFECTUÉES -->
+  <section id="taches-effectuees">
+    <h2>1) Tâches effectuées ✅</h2>
+    <div class="chips">
+      <span class="chip"><b>Validé</b> : éléments actés et livrés</span>
+    </div>
+
+    <div class="req" id="DEL-001">
+      <header>
+        <h4>DEL‑001 · Suppression d'intervention</h4>
+        <div class="meta">
+          <span class="badge valide">Validé</span>
+          <span class="chip">Type&nbsp;: Fonctionnel</span>
+        </div>
+      </header>
+      <div class="body">
+        <p>Ajout d'un <b>bouton supprimer</b> dans le modal d'intervention.</p>
+        <ul>
+          <li>Bouton visible dans le modal d'édition d'intervention</li>
+          <li>Confirmation avant suppression définitive</li>
+          <li>Fonction de base demandée par le métier</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="req" id="UX-001">
+      <header>
+        <h4>UX‑001 · Fermeture hors modal</h4>
+        <div class="meta">
+          <span class="badge valide">Validé</span>
+          <span class="chip">Type&nbsp;: UX</span>
+        </div>
+      </header>
+      <div class="body">
+        <p>Clic extérieur au modal = <b>fermeture automatique</b>.</p>
+        <ul>
+          <li>Standard UX respecté</li>
+          <li>Amélioration de l'expérience utilisateur</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="req" id="MODAL-001">
+      <header>
+        <h4>MODAL‑001 · Réorganisation champs modal intervention</h4>
+        <div class="meta">
+          <span class="badge valide">Validé</span>
+          <span class="chip">Type&nbsp;: UX</span>
+        </div>
+      </header>
+      <div class="body">
+        <p>Ajustement UX des champs dans le modal d'intervention.</p>
+        <ul>
+          <li><b>Nom</b> : champ renommé et repositionné</li>
+          <li><b>Adresse</b> : séparation du code postal</li>
+          <li><b>Réagencement</b> des champs pour une meilleure ergonomie</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="req" id="BUG-001">
+      <header>
+        <h4>BUG‑001 · Bug rafraîchissement CRM</h4>
+        <div class="meta">
+          <span class="badge valide">Corrigé</span>
+          <span class="chip">Type&nbsp;: Bug fix</span>
+        </div>
+      </header>
+      <div class="body">
+        <p>Correction du bug de <b>changement de background color</b> lors du rafraîchissement du CRM.</p>
+      </div>
+    </div>
+
+    <div class="req" id="RSZ-001">
+      <header>
+        <h4>RSZ‑001 · Resize CRM</h4>
+        <div class="meta">
+          <span class="badge valide">Corrigé</span>
+          <span class="chip">Type&nbsp;: UI</span>
+        </div>
+      </header>
+      <div class="body">
+        <p>Correction du <b>niveau de zoom</b> sur le CRM (refonte du legacy).</p>
+        <ul>
+          <li>Bon niveau de zoom appliqué par défaut</li>
+          <li>Amélioration de l'affichage responsive</li>
+        </ul>
+      </div>
+    </div>
+
+  </section>
+
+  <!-- SECTION 2 : À TESTER -->
+  <section id="taches-a-tester">
+    <h2>2) À tester / finaliser 🧪</h2>
+    <div class="chips">
+      <span class="chip"><b>À tester</b> : implémentation terminée, validation requise</span>
+    </div>
+
+    <div class="req" id="SEARCH-001">
+      <header>
+        <h4>SEARCH‑001 · Barre de recherche interventions</h4>
+        <div class="meta">
+          <span class="badge atester">À tester</span>
+          <span class="chip">Type&nbsp;: Fonctionnel</span>
+        </div>
+      </header>
+      <div class="body">
+        <p><b>Barre de recherche dédiée</b> dans la section interventions.</p>
+        <ul>
+          <li>Recherche rapide dans toutes les interventions</li>
+          <li>Harmonisation prévue sur les autres pages</li>
+        </ul>
+        <div class="callout">
+          <b>📝 Tests à effectuer :</b>
+          <ul style="margin: 8px 0 0 0;">
+            <li>Recherche par nom d'intervention</li>
+            <li>Recherche par adresse</li>
+            <li>Recherche par artisan</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="req" id="SEARCH-003">
+      <header>
+        <h4>SEARCH‑003 · Surlignage des résultats de recherche</h4>
+        <div class="meta">
+          <span class="badge atester">À tester</span>
+          <span class="chip">Type&nbsp;: UX</span>
+          <span class="chip">Inclus</span>
+        </div>
+      </header>
+      <div class="body">
+        <p><b>Mise en évidence</b> des mots recherchés dans les résultats.</p>
+        <ul>
+          <li>Surlignage des termes correspondants</li>
+          <li>Facilite l'identification rapide des résultats pertinents</li>
+        </ul>
+      </div>
+    </div>
+
+  </section>
+
+  <!-- SECTION 3 : EN COURS -->
+  <section id="taches-en-cours">
+    <h2>3) En cours 🔄</h2>
+    <div class="chips">
+      <span class="chip"><b>In progress</b> : développement en cours</span>
+    </div>
+
+    <div class="req" id="AGN-GEST-001">
+      <header>
+        <h4>AGN‑GEST‑001 · Gestion Agence / Gestionnaires</h4>
+        <div class="meta">
+          <span class="badge inprogress">En cours</span>
+          <span class="chip">Type&nbsp;: Configuration</span>
+        </div>
+      </header>
+      <div class="body">
+        <p>Configuration des <b>Agences</b> et <b>Gestionnaires</b> via l'espace de configuration.</p>
+        <ul>
+          <li><b>Création</b> d'agences et gestionnaires</li>
+          <li><b>Suppression</b> d'agences et gestionnaires</li>
+          <li>Interface dédiée dans les paramètres</li>
+        </ul>
+      </div>
+    </div>
+
+  </section>
+
+  <!-- SECTION 4 : FONCTIONNALITÉS À IMPLÉMENTER -->
+  <section id="fonctionnalites-restantes">
+    <h2>4) Fonctionnalités à implémenter 📝</h2>
+    <div class="chips">
+      <span class="chip"><b>À faire</b> : développement non commencé</span>
+      <span class="chip"><b>Inclus</b> : dans le périmètre du sprint</span>
+    </div>
+
+    <div class="req" id="SEARCH-002">
+      <header>
+        <h4>SEARCH‑002 · Recherche dans les commentaires</h4>
+        <div class="meta">
+          <span class="badge avalider">À faire</span>
+          <span class="chip">Type&nbsp;: Fonctionnel</span>
+          <span class="chip">Inclus</span>
+        </div>
+      </header>
+      <div class="body">
+        <p>Ajout de la <b>table commentaires</b> dans le périmètre de recherche.</p>
+        <ul>
+          <li>Recherche étendue aux commentaires des interventions</li>
+          <li>Amélioration de la couverture de recherche</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="req" id="ART-REL-001">
+      <header>
+        <h4>ART‑REL‑001 · Liste «&nbsp;Mes artisans à relancer&nbsp;»</h4>
+        <div class="meta">
+          <span class="badge avalider">À faire</span>
+          <span class="chip">Type&nbsp;: Métier</span>
+          <span class="chip">Inclus</span>
+        </div>
+      </header>
+      <div class="body">
+        <p>Création d'un <b>filtre / section dédiée</b> pour les artisans à relancer.</p>
+        <ul>
+          <li><b>Deux boutons de filtres</b> dédiés à créer</li>
+          <li><b>Bulle spécifique</b> pour identifier rapidement les artisans</li>
+          <li><b>Tri</b> personnalisé disponible</li>
+          <li>Utilité métier forte pour le suivi des relances</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="req" id="MODAL-002">
+      <header>
+        <h4>MODAL‑002 · Réorganisation graphique du modal</h4>
+        <div class="meta">
+          <span class="badge avalider">À faire</span>
+          <span class="chip">Type&nbsp;: UI</span>
+          <span class="chip">Inclus</span>
+        </div>
+      </header>
+      <div class="body">
+        <p><b>Harmonisation</b> de la disposition et des couleurs du modal.</p>
+        <ul>
+          <li>Correction de l'interface visuelle</li>
+          <li>Cohérence avec le reste de l'application</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="req" id="STAT-001">
+      <header>
+        <h4>STAT‑001 · Sous-statuts intervention</h4>
+        <div class="meta">
+          <span class="badge avalider">À faire</span>
+          <span class="chip">Type&nbsp;: Métier</span>
+          <span class="chip">Inclus</span>
+        </div>
+      </header>
+      <div class="body">
+        <p>Ajout de <b>sous-catégories</b> aux statuts d'intervention.</p>
+        <ul>
+          <li>Prévu dans l'évolution métier</li>
+          <li>Permettra une granularité plus fine dans le suivi</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="req" id="RETARD-001">
+      <header>
+        <h4>RETARD‑001 · Gestion des retards dans le dashboard</h4>
+        <div class="meta">
+          <span class="badge avalider">À faire</span>
+          <span class="chip">Type&nbsp;: Dashboard</span>
+          <span class="chip">Inclus</span>
+        </div>
+      </header>
+      <div class="body">
+        <p>Amélioration du dashboard pour la <b>gestion des retards</b>.</p>
+        <h3>Fonctionnalités à implémenter</h3>
+        <ul>
+          <li><b>Affichage du retard</b> : quel heure de retard ? (seuil : 10h)</li>
+          <li><b>Enregistrement</b> du nombre de retards dans l'année</li>
+          <li><b>Notification par mail</b> lors d'un retard</li>
+          <li><b>Affichage</b> du nombre de retards annuels sur le dashboard</li>
+        </ul>
+        <div class="callout">
+          <b>📋 Spécifications :</b>
+          <ul style="margin: 8px 0 0 0;">
+            <li>Seuil de retard à définir : <b>10 heures</b> de dépassement</li>
+            <li>Compteur annuel visible sur le dashboard</li>
+            <li>Système d'alerte email automatique</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="req" id="UI-002">
+      <header>
+        <h4>UI‑002 · Homogénéisation des couleurs</h4>
+        <div class="meta">
+          <span class="badge avalider">À faire</span>
+          <span class="chip">Type&nbsp;: UI</span>
+          <span class="chip">Inclus</span>
+        </div>
+      </header>
+      <div class="body">
+        <p>Mise en place d'une <b>palette uniforme</b> sur l'ensemble de l'application.</p>
+        <ul>
+          <li>Finalisation UI globale</li>
+          <li>Cohérence visuelle sur toutes les pages</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="req" id="PERM-001">
+      <header>
+        <h4>PERM‑001 · Gestion des permissions</h4>
+        <div class="meta">
+          <span class="badge avalider">À faire</span>
+          <span class="chip">Type&nbsp;: Sécurité</span>
+          <span class="chip">Inclus</span>
+        </div>
+      </header>
+      <div class="body">
+        <p>Mise en place de la <b>gestion des permissions</b> utilisateurs.</p>
+        <ul>
+          <li>Définition des rôles (Admin, Gestionnaire, etc.)</li>
+          <li>Contrôle des accès selon le profil</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="req" id="FACT-001">
+      <header>
+        <h4>FACT‑001 · Fusion nom/prénom facturation</h4>
+        <div class="meta">
+          <span class="badge avalider">À faire</span>
+          <span class="chip">Type&nbsp;: Données</span>
+          <span class="chip">Inclus</span>
+        </div>
+      </header>
+      <div class="body">
+        <p><b>Fusionner nom et prénom</b> dans les champs de facturation.</p>
+        <ul>
+          <li>Anciennement champ «&nbsp;Propriétaire&nbsp;»</li>
+          <li>Un seul champ au lieu de deux</li>
+        </ul>
+      </div>
+    </div>
+
+  </section>
+
+  <!-- TABLEAU RÉCAPITULATIF -->
+  <section id="recapitulatif">
+    <h2>📋 Tableau récapitulatif</h2>
+    <table class="table">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Fonctionnalité</th>
+          <th>Description</th>
+          <th>Statut</th>
+          <th>Charge</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>SEARCH-001</code></td>
+          <td>Barre de recherche interventions</td>
+          <td>Barre dédiée dans la section interventions</td>
+          <td><span class="badge atester">À tester</span></td>
+          <td>Inclus</td>
+        </tr>
+        <tr>
+          <td><code>SEARCH-002</code></td>
+          <td>Recherche dans les commentaires</td>
+          <td>Ajout des commentaires dans le périmètre de recherche</td>
+          <td><span class="badge avalider">À faire</span></td>
+          <td>Inclus</td>
+        </tr>
+        <tr>
+          <td><code>SEARCH-003</code></td>
+          <td>Surlignage des résultats</td>
+          <td>Mise en évidence des mots recherchés</td>
+          <td><span class="badge atester">À tester</span></td>
+          <td>Inclus</td>
+        </tr>
+        <tr>
+          <td><code>MODAL-001</code></td>
+          <td>Réorganisation champs modal</td>
+          <td>Nom ; Adresse sans CP ; réagencement</td>
+          <td><span class="badge valide">Validé</span></td>
+          <td>Inclus</td>
+        </tr>
+        <tr>
+          <td><code>MODAL-002</code></td>
+          <td>Réorganisation graphique modal</td>
+          <td>Harmonisation disposition + couleurs</td>
+          <td><span class="badge avalider">À faire</span></td>
+          <td>Inclus</td>
+        </tr>
+        <tr>
+          <td><code>DEL-001</code></td>
+          <td>Suppression d'intervention</td>
+          <td>Bouton supprimer dans le modal</td>
+          <td><span class="badge valide">Validé</span></td>
+          <td>Inclus</td>
+        </tr>
+        <tr>
+          <td><code>UX-001</code></td>
+          <td>Fermeture hors modal</td>
+          <td>Clic extérieur = fermeture</td>
+          <td><span class="badge valide">Validé</span></td>
+          <td>Inclus</td>
+        </tr>
+        <tr>
+          <td><code>ART-REL-001</code></td>
+          <td>Mes artisans à relancer</td>
+          <td>Deux boutons filtres dédiés, bulle et tri</td>
+          <td><span class="badge avalider">À faire</span></td>
+          <td>Inclus</td>
+        </tr>
+        <tr>
+          <td><code>STAT-001</code></td>
+          <td>Sous-statuts intervention</td>
+          <td>Ajout de sous-catégories</td>
+          <td><span class="badge avalider">À faire</span></td>
+          <td>Inclus</td>
+        </tr>
+        <tr>
+          <td><code>RETARD-001</code></td>
+          <td>Retard dans le dashboard</td>
+          <td>Affichage retard, compteur annuel, alertes mail</td>
+          <td><span class="badge avalider">À faire</span></td>
+          <td>Inclus</td>
+        </tr>
+        <tr>
+          <td><code>UI-002</code></td>
+          <td>Homogénéisation couleurs</td>
+          <td>Palette uniforme</td>
+          <td><span class="badge avalider">À faire</span></td>
+          <td>Inclus</td>
+        </tr>
+        <tr>
+          <td><code>AGN-GEST-001</code></td>
+          <td>Gestion Agence / Gestionnaires</td>
+          <td>Configuration création/suppression</td>
+          <td><span class="badge inprogress">En cours</span></td>
+          <td>Inclus</td>
+        </tr>
+        <tr>
+          <td><code>BUG-001</code></td>
+          <td>Bug rafraîchissement CRM</td>
+          <td>Correction background color</td>
+          <td><span class="badge valide">Corrigé</span></td>
+          <td>—</td>
+        </tr>
+        <tr>
+          <td><code>RSZ-001</code></td>
+          <td>Resize CRM</td>
+          <td>Bon niveau de zoom</td>
+          <td><span class="badge valide">Corrigé</span></td>
+          <td>—</td>
+        </tr>
+        <tr>
+          <td><code>PERM-001</code></td>
+          <td>Gestion des permissions</td>
+          <td>Définition des rôles et accès</td>
+          <td><span class="badge avalider">À faire</span></td>
+          <td>Inclus</td>
+        </tr>
+        <tr>
+          <td><code>FACT-001</code></td>
+          <td>Fusion nom/prénom facturation</td>
+          <td>Champs de facturation (ex-propriétaire)</td>
+          <td><span class="badge avalider">À faire</span></td>
+          <td>Inclus</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <p class="foot">Pour toute correction ou ajout, merci d'indiquer l'ID de la demande (ex.&nbsp;«&nbsp;SEARCH‑001&nbsp;»).</p>
+
+</div>
+</body>
+</html>
+

@@ -96,6 +96,7 @@ type SortableTabProps = {
   isReorderMode?: boolean
   onEnterReorderMode?: () => void
   interventionCount?: number
+  statusColor?: string | null  // Couleur du statut correspondant (dynamique depuis la DB)
 }
 
 function SortableTab({
@@ -111,6 +112,7 @@ function SortableTab({
   isReorderMode = false,
   onEnterReorderMode,
   interventionCount = 0,
+  statusColor,
 }: SortableTabProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: view.id,
@@ -153,22 +155,70 @@ function SortableTab({
       )}
       <ContextMenu>
         <ContextMenuTrigger asChild>
-          <button
-            type="button"
-            onClick={() => onSelect(view.id)}
-            className={cn(
-              "relative flex items-center gap-2 rounded-full border border-transparent bg-muted/60 px-3 py-1.5 text-sm transition-colors hover:bg-muted",
-              isActive && "border-primary/40 bg-primary/10 text-primary",
-            )}
-          >
-            <Icon className="h-4 w-4" />
-            <span className="whitespace-nowrap">{view.title}</span>
-            {view.showBadge && interventionCount > 0 && (
-              <span className="absolute -top-1 -right-1 flex h-5 min-w-[20px] items-center justify-center rounded-full bg-primary px-1.5 text-[10px] font-semibold text-primary-foreground shadow-sm">
-                {interventionCount}
-              </span>
-            )}
-          </button>
+          {(() => {
+            const hasStatusColor = Boolean(statusColor)
+            
+            // Styles inline pour les couleurs dynamiques
+            const getButtonStyle = (): React.CSSProperties | undefined => {
+              if (isActive) {
+                // INTERCALAIRE ACTIF : couleur pleine, fusionné avec la table
+                if (hasStatusColor && statusColor) {
+                  return {
+                    backgroundColor: statusColor,
+                    borderColor: statusColor,
+                    color: "#FFFFFF",
+                  }
+                }
+                // Sans couleur de statut : utiliser les classes CSS (primary)
+                return undefined
+              }
+              
+              // PILULE INACTIVE
+              if (hasStatusColor && statusColor) {
+                return {
+                  borderColor: `${statusColor}40`,
+                  backgroundColor: `${statusColor}15`,
+                  color: statusColor,
+                }
+              }
+              return undefined
+            }
+            
+            return (
+              <button
+                type="button"
+                onClick={() => onSelect(view.id)}
+                className={cn(
+                  "relative flex items-center gap-2 border px-3 py-1.5 text-sm font-medium transition-all duration-200",
+                  // PILULE INACTIVE : rounded-full, flotte au-dessus
+                  !isActive && "rounded-full",
+                  !isActive && !hasStatusColor && "border-primary/40 bg-primary/15 text-primary hover:bg-primary/25",
+                  !isActive && hasStatusColor && "hover:opacity-80",
+                  // INTERCALAIRE ACTIF : coins supérieurs arrondis, inférieurs carrés, fusionne avec table
+                  isActive && "rounded-t-lg rounded-b-none border-b-0 relative z-20 -mb-[4px]",
+                  isActive && !hasStatusColor && "border-primary bg-primary text-primary-foreground",
+                )}
+                style={getButtonStyle()}
+              >
+                <Icon className="h-4 w-4" />
+                <span className="whitespace-nowrap">{view.title}</span>
+                {view.showBadge && interventionCount > 0 && (
+                  <span 
+                    className={cn(
+                      "absolute -top-1 -right-1 flex h-5 min-w-[20px] items-center justify-center rounded-full px-1.5 text-[10px] font-semibold shadow-sm",
+                      !hasStatusColor && "bg-primary text-primary-foreground"
+                    )}
+                    style={hasStatusColor && statusColor ? {
+                      backgroundColor: statusColor,
+                      color: "#FFFFFF",
+                    } : undefined}
+                  >
+                    {interventionCount}
+                  </span>
+                )}
+              </button>
+            )
+          })()}
         </ContextMenuTrigger>
         <ContextMenuContent className="w-56">
           {showRename && (
@@ -342,6 +392,8 @@ type ViewTabsProps = {
   isReorderMode?: boolean
   onEnterReorderMode?: () => void
   interventionCounts?: Record<string, number>
+  /** Couleurs des vues basées sur les statuts (passées depuis le parent) */
+  viewStatusColors?: Record<string, string | null>
 }
 
 export function ViewTabs({
@@ -358,11 +410,13 @@ export function ViewTabs({
   isReorderMode = false,
   onEnterReorderMode,
   interventionCounts = {},
+  viewStatusColors = {},
 }: ViewTabsProps) {
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   )
+  
   const visibleViews = useMemo(
     () => views.filter((view) => VISIBLE_VIEW_LAYOUTS.includes(view.layout)),
     [views]
@@ -429,11 +483,11 @@ export function ViewTabs({
 
   return (
     <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
-      <div className="relative border-b border-border/60 pb-2">
+      <div className="relative overflow-visible">
         <SortableContext items={viewIds} strategy={horizontalListSortingStrategy}>
           <div
             ref={scrollContainerRef}
-            className="flex items-center gap-4 overflow-x-auto  scrollbar-hide h-11"
+            className="flex items-end gap-4 overflow-x-auto overflow-y-visible scrollbar-hide pt-3 pb-1"
           >
             {visibleViews.map((view) => (
               <SortableTab
@@ -450,6 +504,7 @@ export function ViewTabs({
                 isReorderMode={isReorderMode}
                 onEnterReorderMode={onEnterReorderMode}
                 interventionCount={interventionCounts[view.id] || 0}
+                statusColor={viewStatusColors[view.id]}
               />
             ))}
           </div>

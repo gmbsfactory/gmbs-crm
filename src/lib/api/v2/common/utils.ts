@@ -255,6 +255,7 @@ export const mapInterventionRecord = (item: any, refs: any): any => {
     agence: agency?.label ?? item.agence ?? item.agence_id ?? null,
     agenceLabel: agency?.label ?? null,
     agenceCode: agency?.code ?? null,
+    agenceColor: agency?.color ?? null,
     reference_agence: item.reference_agence ?? item.referenceAgence ?? null,
     contexteIntervention: item.contexte_intervention ?? item.contexteIntervention ?? null,
     consigneIntervention: item.consigne_intervention ?? item.consigneIntervention ?? null,
@@ -266,6 +267,10 @@ export const mapInterventionRecord = (item: any, refs: any): any => {
     dateIntervention: item.date_intervention ?? item.dateIntervention ?? item.date ?? null,
     prenomClient: item.prenom_client ?? item.prenomClient ?? null,
     nomClient: item.nom_client ?? item.nomClient ?? null,
+    nomPrenomClient: item.plain_nom_client ?? item.nomPrenomClient ?? 
+      ((item.nom_client || item.nomClient || item.prenom_client || item.prenomClient) 
+        ? `${item.nom_client ?? item.nomClient ?? ''} ${item.prenom_client ?? item.prenomClient ?? ''}`.trim() 
+        : null),
     attribueA: userInfo.code ?? userInfo.username ?? undefined,
     assignedUserName: userInfo.fullName ?? undefined,
     assignedUserCode: userInfo.code,
@@ -280,7 +285,9 @@ export const mapInterventionRecord = (item: any, refs: any): any => {
     demandeDevis: item.demande_devis ?? item.demandeDevis ?? null,
     demandeTrustPilot: item.demande_trust_pilot ?? item.demandeTrustPilot ?? null,
     metier: metier?.code ?? item.metier ?? item.metier_id ?? null,
-    metierLabel: metier?.label ?? item.metier ?? null,
+    metierLabel: metier?.label ?? null,
+    metierCode: metier?.code ?? null,
+    metierColor: metier?.color ?? null,
     type: item.type ?? null,
     typeDeuxiemeArtisan: item.type_deuxieme_artisan ?? item.typeDeuxiemeArtisan ?? null,
     datePrevue: item.date_prevue ?? item.datePrevue ?? null,
@@ -293,6 +300,10 @@ export const mapInterventionRecord = (item: any, refs: any): any => {
     emailClient: item.email_client ?? item.emailClient ?? null,
     prenomProprietaire: item.prenom_proprietaire ?? item.prenomProprietaire ?? null,
     nomProprietaire: item.nom_proprietaire ?? item.nomProprietaire ?? null,
+    nomPrenomFacturation: item.plain_nom_facturation ?? item.nomPrenomFacturation ?? 
+      ((item.nom_proprietaire || item.nomProprietaire || item.prenom_proprietaire || item.prenomProprietaire) 
+        ? `${item.nom_proprietaire ?? item.nomProprietaire ?? ''} ${item.prenom_proprietaire ?? item.prenomProprietaire ?? ''}`.trim() 
+        : null),
     telephoneProprietaire: item.telephone_proprietaire ?? item.telephoneProprietaire ?? null,
     emailProprietaire: item.email_proprietaire ?? item.emailProprietaire ?? null,
     pieceJointeIntervention: item.piece_jointe_intervention ?? item.pieceJointeIntervention ?? [],
@@ -302,6 +313,10 @@ export const mapInterventionRecord = (item: any, refs: any): any => {
     pieceJointeFactureGMBS: item.piece_jointe_facture_gmbs ?? item.pieceJointeFactureGMBS ?? [],
     pieceJointeFactureArtisan: item.piece_jointe_facture_artisan ?? item.pieceJointeFactureArtisan ?? [],
     pieceJointeFactureMateriel: item.piece_jointe_facture_materiel ?? item.pieceJointeFactureMateriel ?? [],
+    // Sous-statut personnalisé
+    understatement: item.sous_statut_text ?? item.understatement ?? null,
+    sousStatutTextColor: item.sous_statut_text_color ?? '#000000',
+    sousStatutBgColor: item.sous_statut_bg_color ?? 'transparent',
   };
 };
 
