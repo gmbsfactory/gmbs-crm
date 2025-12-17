@@ -1588,7 +1588,7 @@ export function TableView({
                                 </ContextMenu>
                                 {isExpanded && (
                                   <tr className="border-b-0 hover:bg-transparent">
-                                    <td colSpan={view.visibleProperties.length + 1} className="p-0 align-top">
+                                    <td colSpan={view.visibleProperties.length + 1} className="expanded-row-cell p-0 align-top">
                                       <ExpandedRowContent
                                         intervention={intervention}
                                         statusColor={statusColor}
@@ -1864,7 +1864,6 @@ function ExpandedRowContent({
   currentUserId?: string | null
   searchQuery?: string
 }) {
-
   // Récupération des données de l'intervention avec useMemo pour réactivité
   const interventionData = useMemo(() => {
     const intervAny = intervention as any
@@ -1901,7 +1900,7 @@ function ExpandedRowContent({
   return (
     <div
       className={cn(
-        "w-[100%] bg-accent/10 dark:bg-accent/15 p-2",
+        "w-full bg-accent/10 dark:bg-accent/15",
         showStatusBorder && "border-l"
       )}
       style={{
@@ -1909,13 +1908,9 @@ function ExpandedRowContent({
           borderLeftColor: statusColor,
           borderLeftWidth: statusBorderWidth,
         } : {}),
-        transform: "translate(-26px, -14px) scale(1.022)",
-        transformOrigin: "top left",
-        paddingTop: "20px",
-        paddingBottom: "-10px",
       }}
     >
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4">
         {/* Colonne 1 - Informations Générales */}
         <div className="space-y-1">
           <div>

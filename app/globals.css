@@ -603,6 +603,12 @@
     /* Background géré par stripe pattern (Design v1.5) */
   }
 
+  /* Cellule du contenu étendu - pas de padding pour qu'elle prenne toute la largeur du tr */
+  .data-table td.expanded-row-cell,
+  .shadcn-table td.expanded-row-cell {
+    padding: 0 !important;
+  }
+
   .shadcn-table {
     font-feature-settings: "tnum", "lnum";
     background: color-mix(in oklab, var(--card), var(--bg-light) 6%);
