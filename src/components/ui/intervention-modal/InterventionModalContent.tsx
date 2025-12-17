@@ -46,6 +46,24 @@ const NoteDialogContent = React.forwardRef<HTMLDivElement, NoteDialogContentProp
 
 NoteDialogContent.displayName = "NoteDialogContent"
 
+// Modal SMS sans overlay sombre (déjà dans un modal)
+const SmsDialogContent = React.forwardRef<HTMLDivElement, NoteDialogContentProps>(
+  ({ className, ...props }, ref) => (
+    <AlertDialogPortal>
+      <AlertDialogPrimitive.Content 
+        ref={ref} 
+        className={cn(
+          "fixed left-[50%] top-[50%] z-[201] grid w-full max-w-md translate-x-[-50%] translate-y-[-50%] gap-4 border bg-background p-6 shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 sm:rounded-lg",
+          className
+        )} 
+        {...props} 
+      />
+    </AlertDialogPortal>
+  ),
+)
+
+SmsDialogContent.displayName = "SmsDialogContent"
+
 type Props = {
   interventionId: string
   mode: ModalDisplayMode
@@ -158,15 +176,19 @@ GMBS`
       const whatsappUrl = `whatsapp://send?phone=${formattedPhone}&text=${encodedMessage}`
       window.location.href = whatsappUrl
     } else {
-      // Sur desktop : ouvrir dans une nouvelle fenêtre qui se fermera automatiquement
+      // Sur desktop : ouvrir dans une nouvelle fenêtre centrée et de taille confortable
       const whatsappUrl = `https://wa.me/${formattedPhone}?text=${encodedMessage}`
-      const popup = window.open(whatsappUrl, '_blank', 'width=1,height=1')
-      // Fermer la fenêtre après un court délai si elle existe encore
-      setTimeout(() => {
-        if (popup && !popup.closed) {
-          popup.close()
-        }
-      }, 1000)
+      // Taille de la fenêtre (30% plus grande que standard)
+      const popupWidth = 780
+      const popupHeight = 910
+      // Centrer la fenêtre sur l'écran
+      const left = Math.round((window.screen.width - popupWidth) / 2)
+      const top = Math.round((window.screen.height - popupHeight) / 2)
+      window.open(
+        whatsappUrl, 
+        '_blank', 
+        `width=${popupWidth},height=${popupHeight},left=${left},top=${top},resizable=yes,scrollbars=yes`
+      )
     }
   }, [clientPhone, smsText])
 
@@ -535,7 +557,7 @@ GMBS`
       </div>
 
       <AlertDialog open={showSmsModal} onOpenChange={setShowSmsModal}>
-        <AlertDialogContent className="max-w-md z-[110]">
+        <SmsDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Message SMS</AlertDialogTitle>
             <AlertDialogDescription>
@@ -560,10 +582,8 @@ GMBS`
               </Button>
               {clientPhone && clientPhone.trim() !== "" && (
                 <Button
-                  onClick={() => {}}
-                  disabled={true}
-                  className="flex items-center gap-2 bg-[#25D366]/50 text-white cursor-not-allowed opacity-50"
-                  title="Fonctionnalité désactivée"
+                  onClick={handleOpenWhatsApp}
+                  className="flex items-center gap-2 bg-[#25D366] hover:bg-[#20BA5A] text-white"
                 >
                   <MessageCircle className="h-4 w-4" />
                   Envoyer sur WhatsApp
@@ -579,7 +599,7 @@ GMBS`
           <AlertDialogFooter>
             <AlertDialogCancel>Fermer</AlertDialogCancel>
           </AlertDialogFooter>
-        </AlertDialogContent>
+        </SmsDialogContent>
       </AlertDialog>
 
       <AlertDialog open={showNoteDialog} onOpenChange={handleNoteDialogOpenChange}>

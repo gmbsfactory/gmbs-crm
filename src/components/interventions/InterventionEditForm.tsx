@@ -1531,15 +1531,19 @@ export function InterventionEditForm({
       const whatsappUrl = `whatsapp://send?phone=${formattedPhone}&text=${encodedMessage}`
       window.location.href = whatsappUrl
     } else {
-      // Sur desktop : ouvrir dans une nouvelle fenêtre qui se fermera automatiquement
+      // Sur desktop : ouvrir dans une nouvelle fenêtre centrée et de taille confortable
       const whatsappUrl = `https://wa.me/${formattedPhone}?text=${encodedMessage}`
-      const popup = window.open(whatsappUrl, '_blank', 'width=1,height=1')
-      // Fermer la fenêtre après un court délai si elle existe encore
-      setTimeout(() => {
-        if (popup && !popup.closed) {
-          popup.close()
-        }
-      }, 1000)
+      // Taille de la fenêtre (30% plus grande que standard)
+      const popupWidth = 780
+      const popupHeight = 910
+      // Centrer la fenêtre sur l'écran
+      const left = Math.round((window.screen.width - popupWidth) / 2)
+      const top = Math.round((window.screen.height - popupHeight) / 2)
+      window.open(
+        whatsappUrl, 
+        '_blank', 
+        `width=${popupWidth},height=${popupHeight},left=${left},top=${top},resizable=yes,scrollbars=yes`
+      )
     }
   }, [generateEmailTemplateData, formatPhoneForWhatsApp])
 
@@ -2525,29 +2529,57 @@ export function InterventionEditForm({
 
                   {/* Email sending section */}
                   {selectedArtisanId && selectedArtisanData && (
-                    <div className="flex gap-1 p-2 bg-primary/5 dark:bg-primary/10 rounded-lg border border-primary/20 dark:border-primary/30 mb-2 flex-shrink-0">
-	                      <Button
-	                        type="button"
-	                        variant="outline"
-	                        size="sm"
-	                        onClick={() => handleOpenDevisEmailModal()}
-	                        disabled={!selectedArtisanId}
-	                        className="flex-1 text-[10px] h-7 px-2 border-primary/30 hover:bg-primary/10 dark:border-primary/40 dark:hover:bg-primary/20"
-	                      >
-	                        <Mail className="h-3 w-3 mr-1" />
-	                        Devis
-                      </Button>
-	                      <Button
-	                        type="button"
-	                        variant="outline"
-	                        size="sm"
-	                        onClick={() => handleOpenInterventionEmailModal()}
-	                        disabled={!selectedArtisanId}
-	                        className="flex-1 text-[10px] h-7 px-2 border-primary/30 hover:bg-primary/10 dark:border-primary/40 dark:hover:bg-primary/20"
-	                      >
-	                        <Mail className="h-3 w-3 mr-1" />
-	                        Inter.
-                      </Button>
+                    <div className="flex flex-col gap-1 p-2 bg-primary/5 dark:bg-primary/10 rounded-lg border border-primary/20 dark:border-primary/30 mb-2 flex-shrink-0">
+                      {/* Boutons Email */}
+                      <div className="flex gap-1">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleOpenDevisEmailModal()}
+                          disabled={!selectedArtisanId}
+                          className="flex-1 text-[10px] h-7 px-2 border-primary/30 hover:bg-primary/10 dark:border-primary/40 dark:hover:bg-primary/20"
+                        >
+                          <Mail className="h-3 w-3 mr-1" />
+                          Devis
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleOpenInterventionEmailModal()}
+                          disabled={!selectedArtisanId}
+                          className="flex-1 text-[10px] h-7 px-2 border-primary/30 hover:bg-primary/10 dark:border-primary/40 dark:hover:bg-primary/20"
+                        >
+                          <Mail className="h-3 w-3 mr-1" />
+                          Inter.
+                        </Button>
+                      </div>
+                      {/* Boutons WhatsApp */}
+                      {selectedArtisanData.telephone && (
+                        <div className="flex gap-1">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleOpenWhatsApp('devis', selectedArtisanId, selectedArtisanData.telephone || '')}
+                            className="flex-1 text-[10px] h-7 px-2 bg-[#25D366]/10 hover:bg-[#25D366]/20 border-[#25D366]/30 text-[#25D366]"
+                          >
+                            <MessageCircle className="h-3 w-3 mr-1" />
+                            WA Devis
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleOpenWhatsApp('intervention', selectedArtisanId, selectedArtisanData.telephone || '')}
+                            className="flex-1 text-[10px] h-7 px-2 bg-[#25D366]/10 hover:bg-[#25D366]/20 border-[#25D366]/30 text-[#25D366]"
+                          >
+                            <MessageCircle className="h-3 w-3 mr-1" />
+                            WA Inter.
+                          </Button>
+                        </div>
+                      )}
                     </div>
                   )}
 
@@ -2954,27 +2986,55 @@ export function InterventionEditForm({
 
                     {/* Email sending section for second artisan */}
                     {selectedSecondArtisanId && selectedSecondArtisanData && (
-                      <div className="flex gap-1 p-2 bg-orange-50 dark:bg-orange-950/20 rounded-lg border border-orange-200 dark:border-orange-800/50">
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleOpenDevisEmailModal(selectedSecondArtisanId)}
-                          className="flex-1 text-[10px] h-7 px-2 border-orange-300 hover:bg-orange-100 dark:border-orange-700 dark:hover:bg-orange-900/30"
-                        >
-                          <Mail className="h-3 w-3 mr-1" />
-                          Devis
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleOpenInterventionEmailModal(selectedSecondArtisanId)}
-                          className="flex-1 text-[10px] h-7 px-2 border-orange-300 hover:bg-orange-100 dark:border-orange-700 dark:hover:bg-orange-900/30"
-                        >
-                          <Mail className="h-3 w-3 mr-1" />
-                          Inter.
-                        </Button>
+                      <div className="flex flex-col gap-1 p-2 bg-orange-50 dark:bg-orange-950/20 rounded-lg border border-orange-200 dark:border-orange-800/50">
+                        {/* Boutons Email */}
+                        <div className="flex gap-1">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleOpenDevisEmailModal(selectedSecondArtisanId)}
+                            className="flex-1 text-[10px] h-7 px-2 border-orange-300 hover:bg-orange-100 dark:border-orange-700 dark:hover:bg-orange-900/30"
+                          >
+                            <Mail className="h-3 w-3 mr-1" />
+                            Devis
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleOpenInterventionEmailModal(selectedSecondArtisanId)}
+                            className="flex-1 text-[10px] h-7 px-2 border-orange-300 hover:bg-orange-100 dark:border-orange-700 dark:hover:bg-orange-900/30"
+                          >
+                            <Mail className="h-3 w-3 mr-1" />
+                            Inter.
+                          </Button>
+                        </div>
+                        {/* Boutons WhatsApp */}
+                        {selectedSecondArtisanData.telephone && (
+                          <div className="flex gap-1">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleOpenWhatsApp('devis', selectedSecondArtisanId, selectedSecondArtisanData.telephone || '')}
+                              className="flex-1 text-[10px] h-7 px-2 bg-[#25D366]/10 hover:bg-[#25D366]/20 border-[#25D366]/30 text-[#25D366]"
+                            >
+                              <MessageCircle className="h-3 w-3 mr-1" />
+                              WA Devis
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleOpenWhatsApp('intervention', selectedSecondArtisanId, selectedSecondArtisanData.telephone || '')}
+                              className="flex-1 text-[10px] h-7 px-2 bg-[#25D366]/10 hover:bg-[#25D366]/20 border-[#25D366]/30 text-[#25D366]"
+                            >
+                              <MessageCircle className="h-3 w-3 mr-1" />
+                              WA Inter.
+                            </Button>
+                          </div>
+                        )}
                       </div>
                     )}
 
