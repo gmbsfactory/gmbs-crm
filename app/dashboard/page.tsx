@@ -483,32 +483,24 @@ export default function DashboardPage() {
 
       <ContextMenu>
         <ContextMenuTrigger asChild>
-          <div 
+          <div
             ref={dashboardContentRef}
-            className="flex flex-col h-full relative z-10"
+            className="flex flex-col min-h-screen relative z-10"
             style={{ willChange: isAnimating ? 'clip-path' : 'auto' } as React.CSSProperties}
           >
-            <div className="flex flex-col h-full p-6">
-              {/* Layout Grid avec la structure demandée */}
+            <div className="flex flex-col p-6 gap-3">
+              {/* ═══════════════════════════════════════════════════════════════
+                  FILTERBAR - Hauteur fixe en haut
+                  ═══════════════════════════════════════════════════════════════ */}
               <div 
-                className="parent grid h-full overflow-hidden"
+                className="flex-shrink-0 relative grid items-center p-3 bg-muted/50 rounded-lg overflow-x-auto overflow-y-hidden"
                 style={{
-                  gridTemplateColumns: 'repeat(3, 33%)',
-                  gridTemplateRows: '10% repeat(3, 1fr)',
-                  gridColumnGap: '10px',
-                  gridRowGap: '1px',
+                  height: '60px',
+                  minHeight: '50px',
+                  gridTemplateColumns: '1fr auto',
+                  gap: 'clamp(0.5rem, 1.5vw, 2rem)',
                 }}
               >
-                {/* div1 : Filterbar - grid-area: 1 / 1 / 2 / 4 */}
-                <div 
-                  className="div1 relative grid items-center p-3 bg-muted/50 rounded-lg overflow-x-auto overflow-y-hidden"
-                  style={{
-                    gridArea: '1 / 1 / 2 / 4',
-                    maxHeight: '100%',
-                    gridTemplateColumns: '1fr auto',
-                    gap: 'clamp(0.5rem, 1.5vw, 2rem)',
-                  }}
-                >
                   {/* Partie gauche : Sélecteur de période */}
                   <div className="flex items-center gap-2 min-w-fit flex-shrink-0">
                     <div className="flex items-center gap-2">
@@ -753,59 +745,66 @@ export default function DashboardPage() {
                       </Button>
                     )}
                   </div>
-                </div>
+              </div>
 
-                {/* div2 : Mes interventions - grid-area: 2 / 1 / 4 / 2 */}
-                <div 
-                  className="div2 overflow-hidden"
-                  style={{
-                    gridArea: '2 / 1 / 4 / 2',
-                  }}
-                >
-                  <div className="h-full">
-                    <InterventionStatsBarChart period={period} userId={effectiveUserId} />
+              {/* ═══════════════════════════════════════════════════════════════
+                  CONTENU PRINCIPAL - Prend tout l'espace restant
+                  flex-1 + min-h-0 permet au contenu de shrink si nécessaire
+                  ═══════════════════════════════════════════════════════════════ */}
+              <div className="flex gap-3 min-h-[800px]">
+
+                {/* ─────────────────────────────────────────────────────────────
+                    COLONNE GAUCHE : Interventions + Artisans + Tableau
+                    flex-[2] = prend 2 parts de l'espace horizontal (~66%)
+                    ───────────────────────────────────────────────────────────── */}
+                <div className="flex-[2] flex flex-col gap-3">
+
+                  {/* Interventions + Artisans côte à côte */}
+                  <div className="flex gap-3 min-h-[400px]">
+                    <div className="flex-1">
+                      <InterventionStatsBarChart period={period} userId={effectiveUserId} />
+                    </div>
+                    <div className="flex-1">
+                      <ArtisanStatsList period={period} userId={effectiveUserId} />
+                    </div>
                   </div>
-                </div>
 
-                {/* div3 : Mes artisans - grid-area: 2 / 2 / 4 / 3 */}
-                <div 
-                  className="div3 overflow-hidden"
-                  style={{
-                    gridArea: '2 / 2 / 4 / 3',
-                  }}
-                >
-                  <div className="h-full">
-                    <ArtisanStatsList period={period} userId={effectiveUserId} />
+                  {/* Tableau en dessous */}
+                  <div className="min-h-[400px]">
+                    <WeeklyStatsTable period={period} userId={effectiveUserId} />
                   </div>
+
                 </div>
 
-                {/* div4 : Les deux speedomètres - grid-area: 2 / 3 / 3 / 4 */}
-                <div
-                  className="div4 overflow-hidden"
-                  style={{
-                    gridArea: '2 / 3 / 3 / 4',
-                    maxHeight: '100%',
-                  }}
-                >
-                  <div className="h-full flex flex-col p-2">
+                {/* ─────────────────────────────────────────────────────────────
+                    COLONNE DROITE : KPIs tactiques
+                    flex-1 = prend 1 part de l'espace horizontal (~33%)
+                    ───────────────────────────────────────────────────────────── */}
+                <div className="flex-1 flex flex-col gap-2 min-h-0">
+
+                  {/* ═══ BLOC RETARD + SPEEDOMÈTRES ═══ */}
+                  <div className="flex flex-col flex-shrink-0 p-2 bg-muted/30 rounded-lg" style={{ height: '30%', minHeight: '180px' }}>
+                    
                     {/* Indicateur de retards */}
                     <div
-                      className="mb-1 flex-shrink-0 rounded-md px-2 py-1 text-center font-semibold text-base transition-colors duration-300"
+                      className="mb-2 flex-shrink-0 rounded-md px-2 py-1 text-center font-semibold text-base transition-colors duration-300"
                       style={{
-                        backgroundColor: `${getLatenessColor(latenessCount)}20`, // 20 = opacité 12.5%
+                        backgroundColor: `${getLatenessColor(latenessCount)}20`,
                         color: getLatenessColor(latenessCount),
                         border: `2px solid ${getLatenessColor(latenessCount)}`,
                       }}
                     >
                       ⏰ Retard dans l&apos;année : {latenessCount}
                     </div>
-                    {/* Titres au-dessus */}
+                    
+                    {/* Titres des speedomètres */}
                     <div className="grid grid-cols-2 gap-4 mb-1 flex-shrink-0">
                       <h3 className="text-sm text-muted-foreground font-medium">Marge moyenne</h3>
                       <h3 className="text-sm text-muted-foreground font-medium">Marge totale</h3>
                     </div>
-                    {/* Speedomètres côte à côte */}
-                    <div className="flex-1 grid grid-cols-2 gap-2 overflow-hidden">
+                    
+                    {/* Speedomètres côte à côte - prennent l'espace restant */}
+                    <div className="flex-1 grid grid-cols-2 gap-2 min-h-0 overflow-hidden">
                       <div className="h-full overflow-hidden">
                         <MarginStatsCard period={period} userId={effectiveUserId} compact />
                       </div>
@@ -813,35 +812,16 @@ export default function DashboardPage() {
                         <MarginTotalCard period={period} userId={effectiveUserId} compact />
                       </div>
                     </div>
-                  </div>
-                </div>
 
-                {/* div5 : Podium - grid-area: 3 / 3 / 5 / 4 */}
-                <div 
-                  className="div5 overflow-hidden"
-                  style={{
-                    gridArea: '3 / 3 / 5 / 4',
-                    minHeight: '90%',
-                  }}
-                >
-                  <div className="h-full flex flex-col overflow-hidden">
-                    <div className="flex-1 overflow-hidden">
-                      <GestionnaireRankingPodium period={period} />
-                    </div>
                   </div>
-                </div>
 
-                {/* div6 : Table - grid-area: 4 / 1 / 5 / 3 */}
-                <div 
-                  className="div6 overflow-hidden"
-                  style={{
-                    gridArea: '4 / 1 / 5 / 3',
-                  }}
-                >
-                  <div className="h-full">
-                    <WeeklyStatsTable period={period} userId={effectiveUserId} />
+                  {/* ═══ PODIUM ═══ */}
+                  <div className="flex-1 overflow-hidden min-h-0">
+                    <GestionnaireRankingPodium period={period} />
                   </div>
+                  
                 </div>
+                
               </div>
             </div>
           </div>
