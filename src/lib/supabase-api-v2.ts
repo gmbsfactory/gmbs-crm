@@ -1039,15 +1039,13 @@ export const interventionsApiV2 = {
   // Récupérer toutes les interventions (chargement complet)
   async getAll(params: GetAllParams = {}): Promise<{ data: InterventionView[]; total: number }> {
     const limit = Math.max(1, params.limit ?? 100);
-    const selectColumns = resolveSelectColumns(params?.fields);
+    // Note: Ne pas envoyer le paramètre 'select' - le backend gère déjà les colonnes par défaut
+    // Cela évite la duplication des colonnes dans les requêtes SQL
 
     const searchParams = new URLSearchParams();
     searchParams.set("limit", limit.toString());
     if (params.offset !== undefined) {
       searchParams.set("offset", params.offset.toString());
-    }
-    if (selectColumns) {
-      searchParams.set("select", selectColumns);
     }
 
     const appendFilterParam = (key: string, value?: FilterValue) => {
