@@ -56,6 +56,7 @@ export default function DashboardPage() {
   const [showTransition, setShowTransition] = useState(false)
   const [showBienvenue, setShowBienvenue] = useState(false)
   const [selectedGestionnaireId, setSelectedGestionnaireId] = useState<string | null>(null)
+  const [latenessCount, setLatenessCount] = useState<number>(0)
   const { open: openModal } = useModal()
   const artisanModal = useArtisanModal()
   const router = useRouter()
@@ -85,7 +86,22 @@ export default function DashboardPage() {
   
   // Filtrer les données selon le gestionnaire sélectionné
   const effectiveUserId = selectedGestionnaireId || currentUser?.id || null
-  
+
+  // Fonction pour calculer la couleur selon le nombre de retards (0 = vert, 10+ = rouge)
+  const getLatenessColor = (count: number): string => {
+    if (count === 0) return 'rgb(34, 197, 94)' // green-500
+
+    // Normaliser entre 0 et 1 (cap à 10 retards)
+    const ratio = Math.min(count / 10, 1)
+
+    // Interpolation RGB de vert (34, 197, 94) vers rouge (239, 68, 68)
+    const r = Math.round(34 + (239 - 34) * ratio)
+    const g = Math.round(197 + (68 - 197) * ratio)
+    const b = Math.round(94 + (68 - 94) * ratio)
+
+    return `rgb(${r}, ${g}, ${b})`
+  }
+
   // Références pour l'animation
   const dashboardContentRef = useRef<HTMLDivElement>(null)
   const loginIframeRef = useRef<HTMLIFrameElement>(null)
@@ -144,13 +160,13 @@ export default function DashboardPage() {
     // Ne pas afficher l'animation si on ne vient pas de la page login
   }, [isMounted, startAnimationFromPosition])
 
-  // Effect to check for lateness notification and show toast
+  // Effect to check for lateness and update count
   useEffect(() => {
     if (!isMounted || !currentUser?.id) return
 
     const checkLateness = async () => {
       try {
-        // Check if we should show the lateness notification
+        // Check lateness count for the year
         const checkResponse = await fetch('/api/lateness/check', {
           credentials: 'include',
           cache: 'no-store'
@@ -160,14 +176,9 @@ export default function DashboardPage() {
 
         const checkData = await checkResponse.json()
 
-        if (checkData.showNotification && checkData.latenessCount > 0) {
-          const message = `Tu as eu ${checkData.latenessCount} retard${checkData.latenessCount > 1 ? 's' : ''} cette année`
-
-          toast.info(message, {
-            duration: 8000,
-            icon: '⏰',
-            description: 'Pense à respecter les horaires de travail (8h00-18h00)'
-          })
+        // Update the lateness count state
+        if (checkData.latenessCount !== undefined) {
+          setLatenessCount(checkData.latenessCount)
         }
       } catch (error) {
         console.error('Failed to check lateness:', error)
@@ -769,7 +780,7 @@ export default function DashboardPage() {
                 </div>
 
                 {/* div4 : Les deux speedomètres - grid-area: 2 / 3 / 3 / 4 */}
-                <div 
+                <div
                   className="div4 overflow-hidden"
                   style={{
                     gridArea: '2 / 3 / 3 / 4',
@@ -777,8 +788,19 @@ export default function DashboardPage() {
                   }}
                 >
                   <div className="h-full flex flex-col p-2">
+                    {/* Indicateur de retards */}
+                    <div
+                      className="mb-1 flex-shrink-0 rounded-md px-2 py-1 text-center font-semibold text-base transition-colors duration-300"
+                      style={{
+                        backgroundColor: `${getLatenessColor(latenessCount)}20`, // 20 = opacité 12.5%
+                        color: getLatenessColor(latenessCount),
+                        border: `2px solid ${getLatenessColor(latenessCount)}`,
+                      }}
+                    >
+                      ⏰ Retard dans l&apos;année : {latenessCount}
+                    </div>
                     {/* Titres au-dessus */}
-                    <div className="grid grid-cols-2 gap-4 mb-2 flex-shrink-0">
+                    <div className="grid grid-cols-2 gap-4 mb-1 flex-shrink-0">
                       <h3 className="text-sm text-muted-foreground font-medium">Marge moyenne</h3>
                       <h3 className="text-sm text-muted-foreground font-medium">Marge totale</h3>
                     </div>

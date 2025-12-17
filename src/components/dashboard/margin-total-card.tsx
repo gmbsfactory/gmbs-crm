@@ -230,7 +230,7 @@ export function MarginTotalCard({ period, userId: propUserId, compact = false }:
                     {/* Informations */}
                     <div className={compact ? "space-y-1 mt-1" : "space-y-1 mt-2"}>
                         <div className="flex flex-col items-center gap-1">
-                            <div className={`text-sm font-semibold ${percentageColor}`}>
+                            <div className={`text-lg font-bold ${percentageColor}`}>
                                 {formatCurrency(stats.total_margin)}
                             </div>
                             <div className="text-[10px] text-muted-foreground font-light tracking-wide">
