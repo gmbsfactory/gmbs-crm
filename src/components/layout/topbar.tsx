@@ -602,7 +602,7 @@ export default function Topbar() {
             onMouseEnter={() => setSearchHovering(true)}
             onMouseLeave={() => !searchPinned && setSearchHovering(false)}
           >
-            <Button variant="ghost" size="icon" onClick={onSearchIconClick} aria-label="Rechercher">
+            <Button variant="ghost" size="icon" onClick={onSearchIconClick} aria-label="Rechercher (⌘K)">
               <Search className="h-4 w-4" />
             </Button>
             <div
@@ -624,6 +624,17 @@ export default function Topbar() {
                 className="h-10 w-full rounded-full border-0 bg-transparent px-5 py-2.5 text-base text-neutral-900 placeholder:text-neutral-500 shadow-[inset_1px_2px_6px_rgba(5,5,5,0.55)] transition-[box-shadow,background-color,color] duration-200 ease-out focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 dark:text-white dark:placeholder:text-white/60"
               />
             </div>
+            {/* Indicateur raccourci clavier ⌘K */}
+            {!searchOpen && (
+              <div className="ml-1 hidden md:flex items-center gap-0.5 text-xs text-muted-foreground">
+                <kbd className="pointer-events-none inline-flex h-5 select-none items-center gap-0.5 rounded border border-border bg-muted px-1.5 font-mono text-[10px] font-medium text-muted-foreground">
+                  ⌘
+                </kbd>
+                <kbd className="pointer-events-none inline-flex h-5 select-none items-center gap-0.5 rounded border border-border bg-muted px-1.5 font-mono text-[10px] font-medium text-muted-foreground">
+                  K
+                </kbd>
+              </div>
+            )}
             {shouldShowDropdown ? (
               <UniversalSearchResults
                 results={universalResults}

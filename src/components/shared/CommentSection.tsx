@@ -26,6 +26,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { Badge } from "@/components/ui/badge"
+import { getHighlightSegments } from "@/components/search/highlight"
 
 interface CommentSectionProps {
   entityType: "artisan" | "intervention"
@@ -36,6 +37,8 @@ interface CommentSectionProps {
   scrollFadeInsetLeft?: number
   scrollFadeInsetRight?: number
   disableScrollFades?: boolean
+  /** Requête de recherche pour surligner les termes correspondants */
+  searchQuery?: string
 }
 
 const formatDateTime = (value: string | null | undefined) => {
@@ -125,6 +128,26 @@ const blurActiveElement = () => {
   }
 }
 
+/** Helper pour rendre du texte avec surlignage des termes de recherche */
+function HighlightedText({ text, searchQuery }: { text: string; searchQuery: string }) {
+  if (!searchQuery || searchQuery.trim().length === 0) {
+    return <>{text}</>
+  }
+  const segments = getHighlightSegments(text, searchQuery)
+  return (
+    <>
+      {segments.map((segment, index) => (
+        <span
+          key={`${segment.text}-${index}`}
+          className={segment.isMatch ? "search-highlight" : undefined}
+        >
+          {segment.text}
+        </span>
+      ))}
+    </>
+  )
+}
+
 export function CommentSection({
   entityType,
   entityId,
@@ -134,6 +157,7 @@ export function CommentSection({
   scrollFadeInsetLeft = 0,
   scrollFadeInsetRight = 0,
   disableScrollFades = false,
+  searchQuery = "",
 }: CommentSectionProps) {
   const [newComment, setNewComment] = useState("")
   const textareaId = useId()
@@ -540,7 +564,11 @@ export function CommentSection({
 
             const bubbleElement = (
               <div className={bubbleClassName} style={bubbleStyle} data-new={comment.id === latestCommentId}>
-                {comment.content}
+                {searchQuery && searchQuery.trim().length > 0 ? (
+                  <HighlightedText text={comment.content} searchQuery={searchQuery} />
+                ) : (
+                  comment.content
+                )}
               </div>
             )
 

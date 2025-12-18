@@ -17,6 +17,7 @@ import type { Artisan as ApiArtisan } from "@/lib/supabase-api-v2"
 import { getArtisanTotalCount, getArtisanCountWithFilters } from "@/lib/supabase-api-v2"
 import { convertArtisanFiltersToServerFilters } from "@/lib/filter-converter"
 import { Search, Eye, Edit, Trash2, Mail, Phone, X, Filter, ChevronDown, FileText } from "lucide-react"
+import { PageSearchBar } from "@/components/ui/page-search-bar"
 import { Checkbox } from "@/components/ui/checkbox"
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
 import {
@@ -1168,16 +1169,14 @@ export default function ArtisansPage(): ReactElement {
                 </DropdownMenuContent>
               </DropdownMenu>
 
-              {/* Barre de recherche */}
-              <div className="relative flex-1 max-w-md">
-                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 transform text-muted-foreground" />
-                <Input
-                  placeholder="Rechercher artisans..."
-                  className="pl-10"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                />
-              </div>
+              {/* Barre de recherche style topbar avec raccourci Cmd+F */}
+              <PageSearchBar
+                value={searchTerm}
+                onChange={setSearchTerm}
+                placeholder="Rechercher artisans..."
+                enableShortcut
+                shortcutId="artisans"
+              />
             </div>
           </div>
         )}

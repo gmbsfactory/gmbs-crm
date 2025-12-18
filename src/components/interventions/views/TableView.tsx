@@ -1981,6 +1981,7 @@ function ExpandedRowContent({
             entityId={intervention.id}
             currentUserId={currentUserId}
             disableScrollFades
+            searchQuery={searchQuery}
           />
         </div>
       </div>

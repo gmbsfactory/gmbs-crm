@@ -38,12 +38,12 @@ import {
   MoreHorizontal,
   Palette,
   Plus,
-  Search,
   Settings,
   SquareStack,
   Table,
   X,
 } from "lucide-react"
+import { PageSearchBar } from "@/components/ui/page-search-bar"
 import { getStatusDisplay } from "@/lib/interventions/status-display"
 import { ModeIcons } from "@/components/ui/mode-selector/ModeIcons"
 import { MODE_OPTIONS } from "@/components/ui/mode-selector/ModeSelector"
@@ -1231,16 +1231,14 @@ function PageContent() {
             </div>
             {!isReorderMode && (
             <div className="flex items-center gap-3">
-              {/* Barre de recherche */}
-              <div className="relative flex-1 max-w-md">
-                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 transform text-muted-foreground" />
-                <Input
-                  placeholder="Rechercher interventions..."
-                  className="pl-10"
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                />
-              </div>
+              {/* Barre de recherche style topbar avec raccourci Cmd+F */}
+              <PageSearchBar
+                value={search}
+                onChange={setSearch}
+                placeholder="Rechercher interventions..."
+                enableShortcut
+                shortcutId="interventions"
+              />
 
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
