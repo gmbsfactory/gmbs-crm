@@ -797,7 +797,7 @@ export const artisansApi = {
           is_active,
           statut_id,
           status:intervention_statuses(id, code, label, color),
-          metier:metiers(id, label, code),
+          metier:metiers!metier_id(id, label, code),
           intervention_costs (
             cost_type,
             amount

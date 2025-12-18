@@ -2499,7 +2499,7 @@ export const interventionsApi = {
         metier_id,
         status:intervention_statuses(id, code, label, color),
         agence:agencies(id, label, code),
-        metier:metiers(id, label, code),
+        metier:metiers!metier_id(id, label, code),
         intervention_costs (
           cost_type,
           amount

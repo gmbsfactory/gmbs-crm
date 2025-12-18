@@ -379,8 +379,42 @@ export function RemindersProvider({ children }: { children: ReactNode }) {
     const ensureSubscription = async () => {
       const { data } = await supabase.auth.getSession()
       currentUserId = data?.session?.user?.id ?? null
-      if (data?.session && mounted && !isSubscribed) {
-        bindChannel()
+      if (data?.session && mounted) {
+        // Charger les reminders au démarrage si l'utilisateur est déjà connecté
+        try {
+          const remote = await remindersApi.getMyReminders()
+          if (mounted) {
+            setState(() => {
+              const next: ReminderState = {
+                reminders: new Set<string>(),
+                notes: new Map<string, string>(),
+                mentions: new Map<string, string[]>(),
+                dueDates: new Map<string, string | null>(),
+                records: new Map<string, InterventionReminder>(),
+              }
+
+              remote.forEach((reminder) => {
+                const interventionId = reminder.intervention_id
+                next.reminders.add(interventionId)
+                if (reminder.note) {
+                  next.notes.set(interventionId, reminder.note)
+                }
+                next.mentions.set(interventionId, reminder.mentioned_user_ids ?? [])
+                next.dueDates.set(interventionId, reminder.due_date ?? null)
+                next.records.set(interventionId, reminder)
+              })
+
+              return next
+            })
+          }
+        } catch (error) {
+          console.warn("[RemindersContext] Unable to load initial reminders", error)
+        }
+        
+        // Bind le channel realtime
+        if (!isSubscribed) {
+          bindChannel()
+        }
       }
     }
 

@@ -285,7 +285,7 @@ export default async function RootLayout({
             </SettingsProvider>
           </SimpleOptimizedProvider>
         </StyledComponentsRegistry>
-        <Toaster position="top-right" duration={10000} />
+        <Toaster position="bottom-right" duration={10000} />
       </body>
     </html>
   )
