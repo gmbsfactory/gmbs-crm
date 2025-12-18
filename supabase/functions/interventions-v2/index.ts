@@ -395,11 +395,12 @@ const buildSelectClause = (extraSelect: string | null, include: string[], hasSea
   const base = new Set<string>(DEFAULT_INTERVENTION_COLUMNS);
   const selectFragments: string[] = [];
   
-  // ⚠️ TOUJOURS inclure les artisans et les coûts par défaut
-  const defaultRelations = ['artisans', 'costs'];
+  // ⚠️ TOUJOURS inclure les artisans, coûts et tenants (données client) par défaut
+  // Les tenants sont nécessaires pour l'affichage des informations client dans ExpandedRowContent
+  const defaultRelations = ['artisans', 'costs', 'tenants'];
   
-  // Si recherche active, inclure aussi agencies et tenants pour le filtrage client
-  const searchRelations = hasSearch ? ['agencies', 'tenants'] : [];
+  // Si recherche active, inclure aussi agencies pour le filtrage client
+  const searchRelations = hasSearch ? ['agencies'] : [];
   const allIncludes = [...new Set([...defaultRelations, ...searchRelations, ...include])];
   
   if (extraSelect) {
