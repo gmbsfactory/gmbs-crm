@@ -63,10 +63,26 @@ export const remindersApi = {
       throw new Error("Not authenticated");
     }
 
+    // Récupérer le public.users.id correspondant à l'utilisateur auth
+    const { data: publicUser } = await supabase
+      .from("users")
+      .select("id")
+      .or(`auth_user_id.eq.${user.id},email.ilike.${user.email}`)
+      .limit(1)
+      .maybeSingle();
+
+    if (!publicUser) {
+      // Pas de profil utilisateur trouvé, retourner une liste vide
+      console.warn(`No public user profile found for auth user ${user.id}`);
+      return [];
+    }
+
+    const publicUserId = publicUser.id;
+
     const { data, error } = await supabase
       .from("intervention_reminders")
       .select(REMINDER_SELECT)
-      .or(`user_id.eq.${user.id},mentioned_user_ids.cs.{${user.id}}`)
+      .or(`user_id.eq.${publicUserId},mentioned_user_ids.cs.{${publicUserId}}`)
       .eq("is_active", true)
       .order("created_at", { ascending: false });
 
@@ -88,11 +104,31 @@ export const remindersApi = {
       throw new Error("Not authenticated");
     }
 
+    // Récupérer le public.users.id correspondant à l'utilisateur auth
+    // On cherche d'abord par auth_user_id, sinon par email
+    const { data: publicUser, error: publicUserError } = await supabase
+      .from("users")
+      .select("id")
+      .or(`auth_user_id.eq.${user.id},email.ilike.${user.email}`)
+      .limit(1)
+      .maybeSingle();
+
+    if (publicUserError) {
+      console.error("Error fetching public user:", publicUserError);
+      throw new Error("Unable to find user profile");
+    }
+
+    if (!publicUser) {
+      throw new Error(`User profile not found for email ${user.email}. Please contact administrator.`);
+    }
+
+    const publicUserId = publicUser.id;
+
     const { data: existing, error: existingError } = await supabase
       .from("intervention_reminders")
       .select("id")
       .eq("intervention_id", params.intervention_id)
-      .eq("user_id", user.id)
+      .eq("user_id", publicUserId)
       .maybeSingle();
 
     if (existingError && existingError.code !== "PGRST116") {
@@ -135,7 +171,7 @@ export const remindersApi = {
       .from("intervention_reminders")
       .insert({
         intervention_id: params.intervention_id,
-        user_id: user.id,
+        user_id: publicUserId,
         ...payload,
       })
       .select(REMINDER_SELECT)
@@ -161,11 +197,25 @@ export const remindersApi = {
       throw new Error("Not authenticated");
     }
 
+    // Récupérer le public.users.id correspondant à l'utilisateur auth
+    const { data: publicUser } = await supabase
+      .from("users")
+      .select("id")
+      .or(`auth_user_id.eq.${user.id},email.ilike.${user.email}`)
+      .limit(1)
+      .maybeSingle();
+
+    if (!publicUser) {
+      return null;
+    }
+
+    const publicUserId = publicUser.id;
+
     const { data, error } = await supabase
       .from("intervention_reminders")
       .select(REMINDER_SELECT)
       .eq("intervention_id", intervention_id)
-      .eq("user_id", user.id)
+      .eq("user_id", publicUserId)
       .eq("is_active", true)
       .single();
 
