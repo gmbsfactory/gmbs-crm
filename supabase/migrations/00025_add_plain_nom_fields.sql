@@ -31,3 +31,5 @@ COMMENT ON COLUMN public.tenants.plain_nom_client IS 'Nom complet fusionné du c
 
 
 
+
+
