@@ -90,6 +90,7 @@ export type InterventionView = Intervention & {
   idFacture?: number | null
   sousStatutText?: string | null
   sousStatutTextColor?: string | null
+  sousStatutBgColor?: string | null
   
   // Understatement
   understatement?: string | null
