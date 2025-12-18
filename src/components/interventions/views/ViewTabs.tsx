@@ -189,13 +189,11 @@ function SortableTab({
                 type="button"
                 onClick={() => onSelect(view.id)}
                 className={cn(
-                  "relative flex items-center gap-2 border px-3 py-1.5 text-sm font-medium transition-all duration-200",
-                  // PILULE INACTIVE : rounded-full, flotte au-dessus
-                  !isActive && "rounded-full",
+                  "relative flex items-center gap-2 border px-3 py-1.5 text-sm font-medium rounded-full",
+                  // PILULE INACTIVE : style léger
                   !isActive && !hasStatusColor && "border-primary/40 bg-primary/15 text-primary hover:bg-primary/25",
                   !isActive && hasStatusColor && "hover:opacity-80",
-                  // INTERCALAIRE ACTIF : coins supérieurs arrondis, inférieurs carrés, fusionne avec table
-                  isActive && "rounded-t-lg rounded-b-none border-b-0 relative z-20 -mb-[4px]",
+                  // PILULE ACTIVE : style plein
                   isActive && !hasStatusColor && "border-primary bg-primary text-primary-foreground",
                 )}
                 style={getButtonStyle()}
@@ -205,13 +203,27 @@ function SortableTab({
                 {view.showBadge && interventionCount > 0 && (
                   <span 
                     className={cn(
-                      "absolute -top-1 -right-1 flex h-5 min-w-[20px] items-center justify-center rounded-full px-1.5 text-[10px] font-semibold shadow-sm",
-                      !hasStatusColor && "bg-primary text-primary-foreground"
+                      "absolute -top-2.5 -right-2.5 flex h-5 min-w-[20px] items-center justify-center rounded-full px-1.5 text-[10px] font-bold shadow-md border-2",
+                      // Vue ACTIVE : pastille style PASTEL avec fond visible
+                      isActive && !hasStatusColor && "border-primary/60 bg-background text-primary",
+                      // Vue INACTIVE : pastille style PLEIN
+                      !isActive && !hasStatusColor && "bg-primary text-primary-foreground border-primary"
                     )}
-                    style={hasStatusColor && statusColor ? {
-                      backgroundColor: statusColor,
-                      color: "#FFFFFF",
-                    } : undefined}
+                    style={hasStatusColor && statusColor ? (
+                      isActive 
+                        ? {
+                            // Vue active : style pastel avec fond blanc pour contraste
+                            borderColor: statusColor,
+                            backgroundColor: "hsl(var(--background))",
+                            color: statusColor,
+                          }
+                        : {
+                            // Vue inactive : style plein
+                            backgroundColor: statusColor,
+                            color: "#FFFFFF",
+                            borderColor: statusColor,
+                          }
+                    ) : undefined}
                   >
                     {interventionCount}
                   </span>
