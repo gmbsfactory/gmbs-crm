@@ -88,6 +88,7 @@ const VIEW_TO_STATUS_CODE: Record<string, string> = {
   "ma-liste-en-cours": "INTER_EN_COURS",
   "mes-visites-technique": "VISITE_TECHNIQUE",
   "ma-liste-accepte": "ACCEPTE",
+  "ma-liste-att-acompte": "ATT_ACOMPTE",
 }
 
 type GalleryViewConfig = Parameters<typeof GalleryView>[0]["view"]
