@@ -363,6 +363,7 @@ export function RemindersProvider({ children }: { children: ReactNode }) {
 
               // Si on n'est pas le créateur, c'est qu'on a été identifié/mentionné
               if (!isCreator && newReminder) {
+                const interventionId = newReminder.intervention_id
                 toast("Vous avez été identifié dans un reminder", {
                   description: newReminder.note || "Aucune description",
                   duration: Infinity,
@@ -370,11 +371,10 @@ export function RemindersProvider({ children }: { children: ReactNode }) {
                   action: {
                     label: "Voir",
                     onClick: () => {
-                      // Importer dynamiquement pour éviter les problèmes de dépendances
-                      import("@/hooks/useInterventionModal").then(({ useInterventionModal }) => {
-                        // Note: ceci ne fonctionnera pas car c'est un hook
-                        // On laisse le toast sans action pour l'instant
-                      }).catch(() => {})
+                      // Ouvrir l'intervention référencée par le reminder
+                      if (interventionId) {
+                        openInterventionModal(interventionId)
+                      }
                     },
                   },
                 })
