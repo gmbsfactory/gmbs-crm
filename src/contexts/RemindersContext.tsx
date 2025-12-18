@@ -221,8 +221,31 @@ export function RemindersProvider({ children }: { children: ReactNode }) {
 
     let mounted = true
     let channel: ReturnType<typeof supabase.channel> | null = null
-    let currentUserId: string | null = null
+    let currentAuthUserId: string | null = null
+    let currentPublicUserId: string | null = null // ID dans public.users
     let isSubscribed = false // Flag pour éviter les subscriptions multiples
+
+    // Fonction pour récupérer le public.users.id correspondant à l'utilisateur auth
+    const getPublicUserId = async (): Promise<string | null> => {
+      if (currentPublicUserId) return currentPublicUserId
+      
+      const { data: session } = await supabase.auth.getSession()
+      if (!session?.session?.user) return null
+      
+      currentAuthUserId = session.session.user.id
+      const userEmail = session.session.user.email
+      
+      // Chercher le public.users.id via auth_user_id ou email
+      const { data: publicUser } = await supabase
+        .from("users")
+        .select("id")
+        .or(`auth_user_id.eq.${currentAuthUserId},email.ilike.${userEmail}`)
+        .limit(1)
+        .maybeSingle()
+      
+      currentPublicUserId = publicUser?.id ?? null
+      return currentPublicUserId
+    }
 
     const checkIfEventConcernsUser = async (
       payload: RealtimePostgresChangesPayload<{
@@ -233,18 +256,14 @@ export function RemindersProvider({ children }: { children: ReactNode }) {
         is_active: boolean | null
       }>
     ): Promise<boolean> => {
-      if (!currentUserId) {
-        const { data } = await supabase.auth.getSession()
-        currentUserId = data?.session?.user?.id ?? null
-      }
+      const publicUserId = await getPublicUserId()
+      if (!publicUserId) return false
 
-      if (!currentUserId) return false
-
-      // Vérifier si le nouveau reminder concerne l'utilisateur
+      // Vérifier si le nouveau reminder concerne l'utilisateur (via public.users.id)
       if (payload.new && 'user_id' in payload.new) {
         const newUserId = payload.new.user_id
         const newMentionedIds = payload.new.mentioned_user_ids ?? []
-        if (newUserId === currentUserId || (Array.isArray(newMentionedIds) && newMentionedIds.includes(currentUserId))) {
+        if (newUserId === publicUserId || (Array.isArray(newMentionedIds) && newMentionedIds.includes(publicUserId))) {
           return true
         }
       }
@@ -253,7 +272,7 @@ export function RemindersProvider({ children }: { children: ReactNode }) {
       if (payload.old && 'user_id' in payload.old) {
         const oldUserId = payload.old.user_id
         const oldMentionedIds = payload.old.mentioned_user_ids ?? []
-        if (oldUserId === currentUserId || (Array.isArray(oldMentionedIds) && oldMentionedIds.includes(currentUserId))) {
+        if (oldUserId === publicUserId || (Array.isArray(oldMentionedIds) && oldMentionedIds.includes(publicUserId))) {
           return true
         }
       }
@@ -339,7 +358,8 @@ export function RemindersProvider({ children }: { children: ReactNode }) {
 
               // Si c'est un nouveau reminder ou une mise à jour qui concerne l'utilisateur
               // et que ce n'est PAS l'utilisateur courant qui l'a créé (pour éviter le double toast)
-              const isCreator = newReminder?.user_id === currentUserId
+              const publicUserId = await getPublicUserId()
+              const isCreator = newReminder?.user_id === publicUserId
 
               // Si on n'est pas le créateur, c'est qu'on a été identifié/mentionné
               if (!isCreator && newReminder) {
@@ -378,7 +398,11 @@ export function RemindersProvider({ children }: { children: ReactNode }) {
 
     const ensureSubscription = async () => {
       const { data } = await supabase.auth.getSession()
-      currentUserId = data?.session?.user?.id ?? null
+      currentAuthUserId = data?.session?.user?.id ?? null
+      // Pré-charger le public user id
+      if (data?.session) {
+        await getPublicUserId()
+      }
       if (data?.session && mounted) {
         // Charger les reminders au démarrage si l'utilisateur est déjà connecté
         try {
@@ -423,8 +447,11 @@ export function RemindersProvider({ children }: { children: ReactNode }) {
     const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
       if (!mounted) return
 
-      currentUserId = session?.user?.id ?? null
+      currentAuthUserId = session?.user?.id ?? null
+      currentPublicUserId = null // Réinitialiser pour forcer le rechargement
       if (session) {
+        // Pré-charger le public user id
+        getPublicUserId()
         // Seulement bind si pas déjà subscribed
         if (!isSubscribed) {
           bindChannel()
@@ -438,7 +465,8 @@ export function RemindersProvider({ children }: { children: ReactNode }) {
           channel.unsubscribe()
           channel = null
         }
-        currentUserId = null
+        currentAuthUserId = null
+        currentPublicUserId = null
       }
     })
 
