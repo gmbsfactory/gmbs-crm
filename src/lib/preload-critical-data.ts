@@ -28,6 +28,7 @@ async function getDefaultViewsToPreload(currentUserId?: string): Promise<Interve
     "ma-liste-en-cours",
     "mes-visites-technique",
     "ma-liste-accepte",
+    "ma-liste-att-acompte",
   ]
 
   // Créer des vues simplifiées pour le préchargement
@@ -102,6 +103,19 @@ async function getDefaultViewsToPreload(currentUserId?: string): Promise<Interve
       visibleProperties: [],
       filters: [
         { property: "statusValue", operator: "eq", value: "ACCEPTE" },
+        { property: "attribueA", operator: "eq", value: CURRENT_USER_PLACEHOLDER },
+      ],
+      sorts: [{ property: "dateIntervention", direction: "desc" }],
+      layoutOptions: { layout: "table" },
+      isDefault: true,
+    },
+    {
+      id: "ma-liste-att-acompte",
+      title: "En attente d'acompte",
+      layout: "table",
+      visibleProperties: [],
+      filters: [
+        { property: "statusValue", operator: "eq", value: "ATT_ACOMPTE" },
         { property: "attribueA", operator: "eq", value: CURRENT_USER_PLACEHOLDER },
       ],
       sorts: [{ property: "dateIntervention", direction: "desc" }],
