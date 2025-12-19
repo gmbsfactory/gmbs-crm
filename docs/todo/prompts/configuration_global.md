@@ -1,4 +1,0 @@
-J'aimerai que l'espace de paramètrage des agences soient amélioré. J'aimerai que cet espace puisse non pas seulement ajouté, modifié et supprimé des agences mais également, les statuts des interventions (table public.intervention_statuses), les métiers disponibles (table public.metiers). 
-Serait-il possible du coup de changer l'onglet Agences dans la page paramètres par un onglet Configuration Enums ? 
-Dans cette page il y a aura du coup trois volets (peut-être menu déroulant) et pour chacun des volets la possibilité d'édition d'ajout et de supression est-ce que mon besoin est clair ? 
-Peux-tu faire un plan en accordance ? 

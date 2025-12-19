@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react"
+  import { useCallback, useMemo, useState } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { supabase } from "@/lib/supabase-client"
@@ -60,7 +60,14 @@ type DuplicateSummary = {
   id: string
   name: string
   address: string
-  agency?: string | null
+  agencyId?: string | null
+  agencyLabel?: string | null
+  managerName?: string | null
+}
+
+type DuplicateCheckResult = {
+  blockingDuplicates: DuplicateSummary[] // adresse + contexte exact
+  confirmableDuplicates: DuplicateSummary[] // adresse + agence (besoin confirmation)
 }
 
 export function useInterventionForm({
@@ -95,14 +102,18 @@ export function useInterventionForm({
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [serverError, setServerError] = useState<string | null>(null)
   const [duplicates, setDuplicates] = useState<DuplicateSummary[]>([])
+  const [confirmableDuplicates, setConfirmableDuplicates] = useState<DuplicateSummary[]>([])
+  const [skipDuplicateCheck, setSkipDuplicateCheck] = useState(false)
 
-  const runDuplicateCheck = useCallback(async (payload: { name: string; address: string; agency?: string }) => {
+  const runDuplicateCheck = useCallback(async (payload: { name: string; address: string; agency?: string }): Promise<DuplicateCheckResult> => {
     const name = payload.name?.trim()
     const address = payload.address?.trim()
-    if (!name || !address) return []
+    if (!name || !address) return { blockingDuplicates: [], confirmableDuplicates: [] }
 
-    const results = new Map<string, DuplicateSummary>()
+    const blockingResults = new Map<string, DuplicateSummary>()
+    const confirmableResults = new Map<string, DuplicateSummary>()
 
+    // Règle 1 : Adresse + Contexte exact (bloque silencieusement)
     const { data: exactMatches } = await supabase
       .from("interventions")
       .select("id, contexte_intervention, adresse, agence_id, commentaire_agent")
@@ -112,35 +123,61 @@ export function useInterventionForm({
 
     if (exactMatches) {
       for (const item of buildDuplicateSummary(exactMatches)) {
-        results.set(item.id, item)
+        blockingResults.set(item.id, item)
       }
     }
 
+    // Règle 2 : Adresse + Agence (demande confirmation avec infos enrichies)
     if (payload.agency) {
       const agency = payload.agency.trim()
       if (agency) {
         const { data: agencyMatches } = await supabase
           .from("interventions")
-          .select("id, contexte_intervention, adresse, agence_id, commentaire_agent")
+          .select(`
+            id,
+            contexte_intervention,
+            adresse,
+            agence_id,
+            commentaire_agent,
+            agences:agence_id(label),
+            users:assigned_user_id(firstname, lastname)
+          `)
           .eq("adresse", address)
           .eq("agence_id", agency)
           .limit(DEFAULT_LIMIT_DUPLICATES)
 
         if (agencyMatches) {
-          for (const item of buildDuplicateSummary(agencyMatches)) {
-            results.set(item.id, item)
+          for (const match of agencyMatches) {
+            // Ne pas ajouter si déjà dans blockingResults
+            if (!blockingResults.has(match.id)) {
+              const agencyData = match.agences as any
+              const userData = match.users as any
+
+              confirmableResults.set(match.id, {
+                id: match.id,
+                name: match.contexte_intervention || match.commentaire_agent || "Intervention sans nom",
+                address: match.adresse || "",
+                agencyId: match.agence_id,
+                agencyLabel: agencyData?.label || null,
+                managerName: userData ? `${userData.firstname || ''} ${userData.lastname || ''}`.trim() || null : null,
+              })
+            }
           }
         }
       }
     }
 
-    return Array.from(results.values())
+    return {
+      blockingDuplicates: Array.from(blockingResults.values()),
+      confirmableDuplicates: Array.from(confirmableResults.values()),
+    }
   }, [])
 
   const submit = form.handleSubmit(async (values) => {
     setIsSubmitting(true)
     setServerError(null)
     setDuplicates([])
+    setConfirmableDuplicates([])
 
     try {
       const dueAtValue = (() => {
@@ -163,15 +200,29 @@ export function useInterventionForm({
       ensureBusinessRules(normalizedValues.status, normalizedValues.artisanId as string | null | undefined)
 
       if (mode === "create") {
-        const dup = await runDuplicateCheck({
-          name: String(values.name ?? ""),
-          address: String(values.address ?? ""),
-          agency: values.agency ? String(values.agency) : undefined,
-        })
-        if (dup.length) {
-          setDuplicates(dup)
-          return
+        // Vérifier les doublons sauf si l'utilisateur a confirmé
+        if (!skipDuplicateCheck) {
+          const dupCheck = await runDuplicateCheck({
+            name: String(values.name ?? ""),
+            address: String(values.address ?? ""),
+            agency: values.agency ? String(values.agency) : undefined,
+          })
+
+          // S'il y a des doublons bloquants (adresse + contexte exact), on bloque
+          if (dupCheck.blockingDuplicates.length > 0) {
+            setDuplicates(dupCheck.blockingDuplicates)
+            return
+          }
+
+          // S'il y a des doublons confirmables (adresse + agence), on demande confirmation
+          if (dupCheck.confirmableDuplicates.length > 0) {
+            setConfirmableDuplicates(dupCheck.confirmableDuplicates)
+            return
+          }
         }
+
+        // Réinitialiser le flag de skip après utilisation
+        setSkipDuplicateCheck(false)
 
         const insertPayload = buildInsertPayload({ ...normalizedValues, dueAt: dueAt ?? undefined } as CreateInterventionInput)
         const { data, error } = await supabase
@@ -220,8 +271,9 @@ export function useInterventionForm({
     async (payload: { name: string; address: string; agency?: string }) => {
       if (!payload.name || !payload.address) return
       try {
-        const dup = await runDuplicateCheck(payload)
-        setDuplicates(dup)
+        const dupCheck = await runDuplicateCheck(payload)
+        setDuplicates(dupCheck.blockingDuplicates)
+        setConfirmableDuplicates(dupCheck.confirmableDuplicates)
       } catch (error) {
         console.warn("[useInterventionForm] duplicate check failed", error)
       }
@@ -229,14 +281,29 @@ export function useInterventionForm({
     [runDuplicateCheck],
   )
 
+  const confirmAndSubmit = useCallback(() => {
+    setSkipDuplicateCheck(true)
+    setConfirmableDuplicates([])
+    // Soumettre le formulaire à nouveau
+    submit()
+  }, [submit])
+
+  const cancelDuplicateConfirmation = useCallback(() => {
+    setConfirmableDuplicates([])
+    setIsSubmitting(false)
+  }, [])
+
   return {
     form,
     submit,
     isSubmitting,
     serverError,
     duplicates,
+    confirmableDuplicates,
     setDuplicates,
     checkDuplicates,
+    confirmAndSubmit,
+    cancelDuplicateConfirmation,
   }
 }
 

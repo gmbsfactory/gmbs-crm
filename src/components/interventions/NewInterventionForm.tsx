@@ -22,6 +22,7 @@ import { useReferenceData } from "@/hooks/useReferenceData"
 import { useGeocodeSearch } from "@/hooks/useGeocodeSearch"
 import type { GeocodeSuggestion } from "@/hooks/useGeocodeSearch"
 import { useNearbyArtisans, type NearbyArtisan } from "@/hooks/useNearbyArtisans"
+import { useFormDataChanges } from "@/hooks/useFormDataChanges"
 import { interventionsApi } from "@/lib/api/v2"
 import { commentsApi } from "@/lib/api/v2/commentsApi"
 import type { CreateInterventionData } from "@/lib/api/v2/common/types"
@@ -34,6 +35,7 @@ import { toast } from "sonner"
 import { findOrCreateOwner, findOrCreateTenant } from "@/lib/interventions/owner-tenant-helpers"
 import { EmailEditModal } from "@/components/interventions/EmailEditModal"
 import { generateDevisEmailTemplate, generateInterventionEmailTemplate, generateDevisWhatsAppText, generateInterventionWhatsAppText, type EmailTemplateData } from "@/lib/email-templates/intervention-emails"
+import { DuplicateInterventionDialog } from "@/components/interventions/DuplicateInterventionDialog"
 
 const INTERVENTION_DOCUMENT_KINDS = [
   { kind: "devis", label: "Devis" },
@@ -482,6 +484,7 @@ interface NewInterventionFormProps {
   onAgencyNameChange?: (name: string) => void
   onClientPhoneChange?: (phone: string) => void
   onOpenSmsModal?: () => void
+  onHasUnsavedChanges?: (hasChanges: boolean) => void
   defaultValues?: Partial<{
     agence_id: string
     reference_agence: string
@@ -521,6 +524,7 @@ export function NewInterventionForm({
   onAgencyNameChange,
   onClientPhoneChange,
   onOpenSmsModal,
+  onHasUnsavedChanges,
   defaultValues
 }: NewInterventionFormProps) {
   const { data: refData, loading: refDataLoading } = useReferenceData()
@@ -623,6 +627,17 @@ export function NewInterventionForm({
   }, [perimeterKmInput])
   const [selectedArtisanId, setSelectedArtisanId] = useState<string | null>(defaultValues?.artisanId ?? null)
 
+  // États pour la gestion des doublons
+  const [confirmableDuplicates, setConfirmableDuplicates] = useState<Array<{
+    id: string
+    name: string
+    address: string
+    agencyId?: string | null
+    agencyLabel?: string | null
+    managerName?: string | null
+  }>>([])
+  const [skipDuplicateCheck, setSkipDuplicateCheck] = useState(false)
+
   const {
     query: locationQuery,
     setQuery: setLocationQuery,
@@ -634,6 +649,15 @@ export function NewInterventionForm({
   const suggestionBlurTimeoutRef = useRef<number | null>(null)
   const [showLocationSuggestions, setShowLocationSuggestions] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
+
+  // Détection des modifications non sauvegardées
+  const hasUnsavedChanges = useFormDataChanges(formData, isSubmitting)
+
+  // Notifier le parent des modifications non sauvegardées
+  useEffect(() => {
+    onHasUnsavedChanges?.(hasUnsavedChanges)
+  }, [hasUnsavedChanges, onHasUnsavedChanges])
+
   const [isProprietaireOpen, setIsProprietaireOpen] = useState(false)
   const [isClientOpen, setIsClientOpen] = useState(false)
   const [isAccompteOpen, setIsAccompteOpen] = useState(false)
@@ -1253,6 +1277,22 @@ export function NewInterventionForm({
     }
   }, [locationQuery, geocodeQuery, clearSuggestions, setLocationQuery])
 
+  // Handlers pour la gestion des doublons
+  const handleConfirmDuplicate = useCallback(() => {
+    setSkipDuplicateCheck(true)
+    setConfirmableDuplicates([])
+    // Re-soumettre le formulaire
+    if (formRef?.current) {
+      formRef.current.requestSubmit()
+    }
+  }, [formRef])
+
+  const handleCancelDuplicate = useCallback(() => {
+    setConfirmableDuplicates([])
+    setIsSubmitting(false)
+    onSubmittingChange?.(false)
+  }, [onSubmittingChange])
+
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
 
@@ -1352,6 +1392,50 @@ export function NewInterventionForm({
           delete createData[key as keyof CreateInterventionData]
         }
       })
+
+      // Vérifier les doublons sauf si l'utilisateur a déjà confirmé
+      if (!skipDuplicateCheck && createData.adresse && createData.agence_id) {
+        const { data: duplicates } = await supabase
+          .from("interventions")
+          .select(`
+            id,
+            contexte_intervention,
+            adresse,
+            agence_id,
+            commentaire_agent,
+            agences:agence_id(label),
+            users:assigned_user_id(firstname, lastname)
+          `)
+          .eq("adresse", createData.adresse)
+          .eq("agence_id", createData.agence_id)
+          .limit(5)
+
+        if (duplicates && duplicates.length > 0) {
+          setConfirmableDuplicates(
+            duplicates.map((match: any) => {
+              const agencyData = match.agences as any
+              const userData = match.users as any
+
+              return {
+                id: match.id,
+                name: match.contexte_intervention || match.commentaire_agent || "Intervention sans nom",
+                address: match.adresse || "",
+                agencyId: match.agence_id,
+                agencyLabel: agencyData?.label || null,
+                managerName: userData
+                  ? `${userData.firstname || ""} ${userData.lastname || ""}`.trim() || null
+                  : null,
+              }
+            })
+          )
+          setIsSubmitting(false)
+          onSubmittingChange?.(false)
+          return
+        }
+      }
+
+      // Réinitialiser le flag après vérification
+      setSkipDuplicateCheck(false)
 
       console.log(`[NewInterventionForm] 📝 Création de l'intervention via interventionsApi`)
       const created = await interventionsApi.create(createData)
@@ -2719,6 +2803,13 @@ export function NewInterventionForm({
           templateData={generateEmailTemplateData(effectiveSelectedArtisanId)}
         />
       )}
+
+      {/* Dialog de confirmation pour les doublons */}
+      <DuplicateInterventionDialog
+        duplicates={confirmableDuplicates}
+        onConfirm={handleConfirmDuplicate}
+        onCancel={handleCancelDuplicate}
+      />
     </form>
   )
 }

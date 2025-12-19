@@ -1,5 +1,8 @@
 ### Now 
 
+- Artisan
+        - Mettre nouvel artisan en haut ???
+
 - Bugs
         - Gestion des filtres et leur affichage en page interventions et artisans
                 Les filtres ne refont pas une seule page mais sont éparpillés sur plusieurs pages
@@ -20,6 +23,16 @@
         - le calcul du CA 
         - le delta entre inter loggés et inter en bdd 
         - 
+
+
+- Search 
+        - telephone client ou propriétaire non trouvable via recherche
+                voir l'insertion du numéro de téléphone
+
+
+- Couleur
+        - 
+
 
 
  ### Later

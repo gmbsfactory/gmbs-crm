@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { ModeIcons } from "@/components/ui/mode-selector"
 import { NewInterventionForm } from "@/components/interventions/NewInterventionForm"
+import { UnsavedChangesDialog } from "@/components/interventions/UnsavedChangesDialog"
 import { useModalState } from "@/hooks/useModalState"
 import { useModal } from "@/hooks/useModal"
 import type { ModalDisplayMode } from "@/types/modal-display"
@@ -24,22 +25,55 @@ export function NewInterventionModalContent({ mode, onClose, onCycleMode }: Prop
   const context = useModalState((state) => state.context)
   const defaultValues = context?.defaultValues as any
   const duplicateFromId = context?.duplicateFrom as string | undefined
-  
+
   // State pour les infos du header dynamique
   const [clientName, setClientName] = useState("")
   const [agencyName, setAgencyName] = useState("")
   const [clientPhone, setClientPhone] = useState("")
-  
+
+  // State pour la protection des modifications non sauvegardées
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
+  const [showUnsavedDialog, setShowUnsavedDialog] = useState(false)
+  const pendingCloseAction = useRef<(() => void) | null>(null)
+
+  // Fonction pour confirmer la fermeture après l'alerte
+  const handleConfirmClose = useCallback(() => {
+    setShowUnsavedDialog(false)
+    if (pendingCloseAction.current) {
+      pendingCloseAction.current()
+      pendingCloseAction.current = null
+    }
+  }, [])
+
+  // Fonction pour annuler la fermeture
+  const handleCancelClose = useCallback(() => {
+    setShowUnsavedDialog(false)
+    pendingCloseAction.current = null
+  }, [])
+
   // Fonction pour annuler/fermer le modal - retourne à l'intervention initiale si c'est un devis supp
   const handleCancel = useCallback(() => {
+    // Si des modifications non sauvegardées existent et qu'on n'est pas en train de soumettre
+    if (hasUnsavedChanges && !isSubmitting) {
+      // Stocker l'action de fermeture pour l'exécuter après confirmation
+      pendingCloseAction.current = () => {
+        if (duplicateFromId) {
+          modal.open(duplicateFromId, { content: "intervention" })
+        } else {
+          onClose()
+        }
+      }
+      setShowUnsavedDialog(true)
+      return
+    }
+
+    // Pas de modifications ou soumission en cours : fermer directement
     if (duplicateFromId) {
-      // Retourner à l'intervention initiale
       modal.open(duplicateFromId, { content: "intervention" })
     } else {
-      // Fermer le modal normalement
       onClose()
     }
-  }, [duplicateFromId, modal, onClose])
+  }, [hasUnsavedChanges, isSubmitting, duplicateFromId, modal, onClose])
 
   const handleSuccess = useCallback(
     async (data: { id: string }) => {
@@ -160,6 +194,7 @@ export function NewInterventionModalContent({ mode, onClose, onCycleMode }: Prop
               onClientNameChange={setClientName}
               onAgencyNameChange={setAgencyName}
               onClientPhoneChange={setClientPhone}
+              onHasUnsavedChanges={setHasUnsavedChanges}
             />
           </div>
         </div>
@@ -186,6 +221,12 @@ export function NewInterventionModalContent({ mode, onClose, onCycleMode }: Prop
           </div>
         </footer>
       </div>
+
+      <UnsavedChangesDialog
+        open={showUnsavedDialog}
+        onCancel={handleCancelClose}
+        onConfirm={handleConfirmClose}
+      />
     </TooltipProvider>
   )
 }

@@ -1,15 +1,16 @@
 "use client"
 
-import { useEffect, useMemo, useState, type FormEvent } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { INTERVENTION_STATUS, INTERVENTION_STATUS_ORDER } from "@/config/interventions"
 import { useInterventionForm, useStatusGuard } from "@/hooks/useInterventionForm"
+import { useUnsavedChanges } from "@/hooks/useUnsavedChanges"
+import { UnsavedChangesDialog } from "@/components/interventions/UnsavedChangesDialog"
 import type { CreateInterventionInput, UpdateInterventionInput, InterventionStatusValue } from "@/types/interventions"
 import { supabase } from "@/lib/supabase-client"
 import { cn } from "@/lib/utils"
@@ -25,6 +26,7 @@ export type InterventionFormProps = {
   interventionId?: string
   defaultValues?: Partial<CreateInterventionInput & UpdateInterventionInput>
   onSuccess?: (payload: unknown) => void
+  onCancel?: () => void
 }
 
 export default function InterventionForm({
@@ -32,8 +34,13 @@ export default function InterventionForm({
   interventionId,
   defaultValues,
   onSuccess,
+  onCancel,
 }: InterventionFormProps) {
   const [canEditContext, setCanEditContext] = useState(mode !== "edit")
+
+  // State pour la protection des modifications non sauvegardées
+  const [showUnsavedDialog, setShowUnsavedDialog] = useState(false)
+  const pendingCancelAction = useRef<(() => void) | null>(null)
 
   const { form, submit, isSubmitting, serverError, duplicates, checkDuplicates } = useInterventionForm({
     mode,
@@ -42,6 +49,39 @@ export default function InterventionForm({
     onSuccess,
     canEditContext: mode === "create" ? true : canEditContext,
   })
+
+  // Détection des modifications non sauvegardées
+  const hasUnsavedChanges = useUnsavedChanges(form, isSubmitting)
+
+  // Fonction pour confirmer la fermeture après l'alerte
+  const handleConfirmCancel = useCallback(() => {
+    setShowUnsavedDialog(false)
+    if (pendingCancelAction.current) {
+      pendingCancelAction.current()
+      pendingCancelAction.current = null
+    }
+  }, [])
+
+  // Fonction pour annuler la fermeture
+  const handleCancelClose = useCallback(() => {
+    setShowUnsavedDialog(false)
+    pendingCancelAction.current = null
+  }, [])
+
+  // Fonction pour gérer l'annulation avec vérification des modifications
+  const handleCancel = useCallback(() => {
+    if (!onCancel) return
+
+    // Si des modifications non sauvegardées existent et qu'on n'est pas en train de soumettre
+    if (hasUnsavedChanges && !isSubmitting) {
+      pendingCancelAction.current = onCancel
+      setShowUnsavedDialog(true)
+      return
+    }
+
+    // Pas de modifications ou soumission en cours : annuler directement
+    onCancel()
+  }, [hasUnsavedChanges, isSubmitting, onCancel])
 
   useEffect(() => {
     if (mode !== "edit") {
@@ -147,7 +187,8 @@ export default function InterventionForm({
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
+    <>
+      <form onSubmit={handleSubmit} className="space-y-6">
         <div className="intervention-form-section">
           <div className="intervention-form-section-header">
             <div className="intervention-form-section-title">Informations principales</div>
@@ -334,7 +375,7 @@ export default function InterventionForm({
                     <Link href={`/interventions/${dup.id}`} className="underline">
                       {dup.name} — {dup.address}
                     </Link>
-                    {dup.agency ? <span className="text-muted-foreground"> ({dup.agency})</span> : null}
+                    {dup.agencyLabel ? <span className="text-muted-foreground"> ({dup.agencyLabel})</span> : null}
                   </li>
                 ))}
               </ul>
@@ -349,8 +390,18 @@ export default function InterventionForm({
         ) : null}
         
         <div className="flex justify-end gap-2 pt-4">
-          <Button 
-            type="submit" 
+          {onCancel && (
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleCancel}
+              disabled={isSubmitting}
+            >
+              Annuler
+            </Button>
+          )}
+          <Button
+            type="submit"
             className="intervention-form-button--primary"
             disabled={isSubmitting}
           >
@@ -358,5 +409,12 @@ export default function InterventionForm({
           </Button>
         </div>
       </form>
+
+      <UnsavedChangesDialog
+        open={showUnsavedDialog}
+        onCancel={handleCancelClose}
+        onConfirm={handleConfirmCancel}
+      />
+    </>
   )
 }

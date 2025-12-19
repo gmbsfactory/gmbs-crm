@@ -760,6 +760,7 @@ export function CommentSection({
     handleSaveEdit,
     editingContent,
     updateComment.isPending,
+    searchQuery,
   ])
 
   return (
