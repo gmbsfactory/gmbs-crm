@@ -297,6 +297,7 @@ export type Database = {
           prenom: string | null
           raison_sociale: string | null
           siret: string | null
+          iban: string | null
           statut_id: string | null
           statut_juridique: string | null
           suivi_relances_docs: string | null
@@ -324,6 +325,7 @@ export type Database = {
           prenom?: string | null
           raison_sociale?: string | null
           siret?: string | null
+          iban?: string | null
           statut_id?: string | null
           statut_juridique?: string | null
           suivi_relances_docs?: string | null
@@ -351,6 +353,7 @@ export type Database = {
           prenom?: string | null
           raison_sociale?: string | null
           siret?: string | null
+          iban?: string | null
           statut_id?: string | null
           statut_juridique?: string | null
           suivi_relances_docs?: string | null
@@ -1800,4 +1803,3 @@ export const Constants = {
     },
   },
 } as const
-

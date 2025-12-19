@@ -11,6 +11,7 @@ import {
   X,
   User,
   Building2,
+  Landmark,
   UserCheck,
   MessageSquare,
   Trash2,
@@ -53,7 +54,7 @@ import { supabase } from "@/lib/supabase-client"
 import { getReasonTypeForTransition, type StatusReasonType } from "@/lib/comments/statusReason"
 import { cn } from "@/lib/utils"
 import type { ModalDisplayMode } from "@/types/modal-display"
-import { REGEXP_ONLY_DIGITS } from "input-otp"
+import { REGEXP_ONLY_DIGITS, REGEXP_ONLY_DIGITS_AND_CHARS } from "input-otp"
 import { validateSiret } from "@/lib/siret-validation"
 import {
   InputOTP,
@@ -98,6 +99,9 @@ const ZONE_INTERVENTION_OPTIONS = [
   { value: "50", label: "35 à 50 km" },
   { value: "150", label: "50 et + km" },
 ]
+
+const IBAN_LENGTH = 27
+const IBAN_GROUPS = [4, 4, 4, 4, 4, 4, 3]
 
 type ArtisanWithRelations = Artisan & {
   artisan_metiers?: Array<{
@@ -156,6 +160,7 @@ type ArtisanFormValues = {
   ville_siege_social: string
   statut_juridique: string
   siret: string
+  iban: string
   metiers: string[]
   zone_intervention: string
   gestionnaire_id: string
@@ -282,6 +287,7 @@ const mapArtisanToForm = (artisan: ArtisanWithRelations | any): ArtisanFormValue
     ville_siege_social: artisanAny.ville_siege_social ?? "",
     statut_juridique: artisanAny.statut_juridique ?? "",
     siret: artisanAny.siret ?? "",
+    iban: artisanAny.iban ?? "",
     metiers: metierIds,
     zone_intervention: zoneValue,
     gestionnaire_id: artisanAny.gestionnaire_id ?? "",
@@ -300,6 +306,14 @@ const buildUpdatePayload = (values: ArtisanFormValues) => {
     return undefined
   })()
 
+  const normalizedIban = (() => {
+    const iban = values.iban?.replace(/\s/g, "").toUpperCase() || ""
+    if (iban.length === 0) return undefined
+    if (iban.length !== IBAN_LENGTH) return undefined
+    if (!/^[A-Z0-9]+$/.test(iban)) return undefined
+    return iban
+  })()
+
   return {
     raison_sociale: values.raison_sociale || undefined,
     prenom: values.prenom || undefined,
@@ -315,6 +329,7 @@ const buildUpdatePayload = (values: ArtisanFormValues) => {
     ville_siege_social: values.ville_siege_social || undefined,
     statut_juridique: values.statut_juridique || undefined,
     siret: normalizedSiret,
+    iban: normalizedIban,
     zones: values.zone_intervention ? [values.zone_intervention] : [],
     metiers: values.metiers ?? [],
     gestionnaire_id: values.gestionnaire_id || undefined,
@@ -383,6 +398,7 @@ export function ArtisanModalContent({
       ville_siege_social: "",
       statut_juridique: "",
       siret: "",
+      iban: "",
       metiers: [],
       zone_intervention: "",
       gestionnaire_id: "",
@@ -1314,7 +1330,7 @@ export function ArtisanModalContent({
                           </div>
                         </div>
 
-                        <div className="space-y-1">
+                        <div className="space-y-1 overflow-hidden">
                           <Label htmlFor="siret" className={labelClass}>SIRET</Label>
                           <Controller
                             name="siret"
@@ -1333,46 +1349,49 @@ export function ArtisanModalContent({
                               const isSiretValid = siretValidation.isValid && siretValue.length === 14
 
                               return (
-                                <div className="space-y-1">
-                                  <div className="flex items-center gap-2">
-                                    <InputOTP
-                                      maxLength={14}
-                                      pattern={REGEXP_ONLY_DIGITS}
-                                      value={field.value}
-                                      onChange={(value) => field.onChange(value)}
-                                      className="gap-0.5"
-                                    >
-                                      <InputOTPGroup className="gap-0">
-                                        <InputOTPSlot index={0} className="w-8 h-7 text-xs bg-background border-2 border-[#C6CEDC] text-foreground" />
-                                        <InputOTPSlot index={1} className="w-8 h-7 text-xs bg-background border-2 border-[#C6CEDC] text-foreground" />
-                                        <InputOTPSlot index={2} className="w-8 h-7 text-xs bg-background border-2 border-[#C6CEDC] text-foreground" />
-                                      </InputOTPGroup>
-                                      <InputOTPSeparator className="mx-1.5 text-muted-foreground" />
-                                      <InputOTPGroup className="gap-0">
-                                        <InputOTPSlot index={3} className="w-8 h-7 text-xs bg-background border-2 border-[#C6CEDC] text-foreground" />
-                                        <InputOTPSlot index={4} className="w-8 h-7 text-xs bg-background border-2 border-[#C6CEDC] text-foreground" />
-                                        <InputOTPSlot index={5} className="w-8 h-7 text-xs bg-background border-2 border-[#C6CEDC] text-foreground" />
-                                      </InputOTPGroup>
-                                      <InputOTPSeparator className="mx-1.5 text-muted-foreground" />
-                                      <InputOTPGroup className="gap-0">
-                                        <InputOTPSlot index={6} className="w-8 h-7 text-xs bg-background border-2 border-[#C6CEDC] text-foreground" />
-                                        <InputOTPSlot index={7} className="w-8 h-7 text-xs bg-background border-2 border-[#C6CEDC] text-foreground" />
-                                        <InputOTPSlot index={8} className="w-8 h-7 text-xs bg-background border-2 border-[#C6CEDC] text-foreground" />
-                                      </InputOTPGroup>
-                                      <InputOTPSeparator className="mx-1.5 text-muted-foreground" />
-                                      <InputOTPGroup className="gap-0">
-                                        <InputOTPSlot index={9} className="w-8 h-7 text-xs bg-background border-2 border-[#C6CEDC] text-foreground" />
-                                        <InputOTPSlot index={10} className="w-8 h-7 text-xs bg-background border-2 border-[#C6CEDC] text-foreground" />
-                                        <InputOTPSlot index={11} className="w-8 h-7 text-xs bg-background border-2 border-[#C6CEDC] text-foreground" />
-                                        <InputOTPSlot index={12} className="w-8 h-7 text-xs bg-background border-2 border-[#C6CEDC] text-foreground" />
-                                        <InputOTPSlot index={13} className="w-8 h-7 text-xs bg-background border-2 border-[#C6CEDC] text-foreground" />
-                                      </InputOTPGroup>
-                                    </InputOTP>
+                                <div className="space-y-1 w-full overflow-hidden">
+                                  <div className="flex items-center gap-1 w-full overflow-hidden">
+                                    <div className="flex-1 min-w-0 overflow-hidden">
+                                      <InputOTP
+                                        maxLength={14}
+                                        pattern={REGEXP_ONLY_DIGITS}
+                                        value={field.value}
+                                        onChange={(value) => field.onChange(value)}
+                                        containerClassName="flex flex-nowrap items-center w-full"
+                                        className="gap-0 w-full"
+                                      >
+                                        <InputOTPGroup className="gap-0 flex-1 min-w-0">
+                                          <InputOTPSlot index={0} className="!w-[calc(100%/3)] !max-w-[22px] h-6 text-[10px] bg-background border border-[#C6CEDC] text-foreground font-mono p-0" />
+                                          <InputOTPSlot index={1} className="!w-[calc(100%/3)] !max-w-[22px] h-6 text-[10px] bg-background border border-[#C6CEDC] text-foreground font-mono p-0" />
+                                          <InputOTPSlot index={2} className="!w-[calc(100%/3)] !max-w-[22px] h-6 text-[10px] bg-background border border-[#C6CEDC] text-foreground font-mono p-0" />
+                                        </InputOTPGroup>
+                                        <span className="text-muted-foreground text-[8px] shrink-0 px-px">·</span>
+                                        <InputOTPGroup className="gap-0 flex-1 min-w-0">
+                                          <InputOTPSlot index={3} className="!w-[calc(100%/3)] !max-w-[22px] h-6 text-[10px] bg-background border border-[#C6CEDC] text-foreground font-mono p-0" />
+                                          <InputOTPSlot index={4} className="!w-[calc(100%/3)] !max-w-[22px] h-6 text-[10px] bg-background border border-[#C6CEDC] text-foreground font-mono p-0" />
+                                          <InputOTPSlot index={5} className="!w-[calc(100%/3)] !max-w-[22px] h-6 text-[10px] bg-background border border-[#C6CEDC] text-foreground font-mono p-0" />
+                                        </InputOTPGroup>
+                                        <span className="text-muted-foreground text-[8px] shrink-0 px-px">·</span>
+                                        <InputOTPGroup className="gap-0 flex-1 min-w-0">
+                                          <InputOTPSlot index={6} className="!w-[calc(100%/3)] !max-w-[22px] h-6 text-[10px] bg-background border border-[#C6CEDC] text-foreground font-mono p-0" />
+                                          <InputOTPSlot index={7} className="!w-[calc(100%/3)] !max-w-[22px] h-6 text-[10px] bg-background border border-[#C6CEDC] text-foreground font-mono p-0" />
+                                          <InputOTPSlot index={8} className="!w-[calc(100%/3)] !max-w-[22px] h-6 text-[10px] bg-background border border-[#C6CEDC] text-foreground font-mono p-0" />
+                                        </InputOTPGroup>
+                                        <span className="text-muted-foreground text-[8px] shrink-0 px-px">·</span>
+                                        <InputOTPGroup className="gap-0 flex-[1.67] min-w-0">
+                                          <InputOTPSlot index={9} className="!w-[calc(100%/5)] !max-w-[22px] h-6 text-[10px] bg-background border border-[#C6CEDC] text-foreground font-mono p-0" />
+                                          <InputOTPSlot index={10} className="!w-[calc(100%/5)] !max-w-[22px] h-6 text-[10px] bg-background border border-[#C6CEDC] text-foreground font-mono p-0" />
+                                          <InputOTPSlot index={11} className="!w-[calc(100%/5)] !max-w-[22px] h-6 text-[10px] bg-background border border-[#C6CEDC] text-foreground font-mono p-0" />
+                                          <InputOTPSlot index={12} className="!w-[calc(100%/5)] !max-w-[22px] h-6 text-[10px] bg-background border border-[#C6CEDC] text-foreground font-mono p-0" />
+                                          <InputOTPSlot index={13} className="!w-[calc(100%/5)] !max-w-[22px] h-6 text-[10px] bg-background border border-[#C6CEDC] text-foreground font-mono p-0" />
+                                        </InputOTPGroup>
+                                      </InputOTP>
+                                    </div>
                                     {siretValue.length > 0 && (
                                       isSiretValid ? (
-                                        <CheckCircle2 className="h-4 w-4 text-green-600 shrink-0" />
+                                        <CheckCircle2 className="h-3.5 w-3.5 text-green-600 shrink-0" />
                                       ) : siretValue.length === 14 ? (
-                                        <AlertCircle className="h-4 w-4 text-destructive shrink-0" />
+                                        <AlertCircle className="h-3.5 w-3.5 text-destructive shrink-0" />
                                       ) : null
                                     )}
                                   </div>
@@ -1413,6 +1432,88 @@ export function ArtisanModalContent({
                           </div>
                         </div>
 
+                      </CardContent>
+                    </Card>
+
+                    {/* IBAN */}
+                    <Card>
+                      <CardHeader className="py-3 px-4">
+                        <CardTitle className="flex items-center gap-2 text-sm">
+                          <Landmark className="h-4 w-4" />
+                          IBAN
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent className="px-4 pb-4 pt-0 overflow-hidden">
+                        <Controller
+                          name="iban"
+                          control={control}
+                          rules={{
+                            validate: (value) => {
+                              const raw = value?.trim() || ""
+                              if (raw.length === 0) return true
+                              const iban = raw.replace(/\s/g, "").toUpperCase()
+                              if (iban.length !== IBAN_LENGTH) return "27 caractères requis"
+                              if (!/^[A-Z0-9]+$/.test(iban)) return "Caractères invalides"
+                              return true
+                            },
+                          }}
+                          render={({ field, fieldState }) => {
+                            const ibanValue = field.value?.replace(/\s/g, "").toUpperCase() || ""
+                            const isIbanComplete = ibanValue.length === IBAN_LENGTH
+                            const isIbanValid = isIbanComplete && /^[A-Z0-9]+$/.test(ibanValue)
+
+                            return (
+                              <div className="space-y-1 w-full overflow-hidden">
+                                <div className="flex items-center gap-1 w-full overflow-hidden">
+                                  <div className="flex-1 min-w-0 overflow-hidden">
+                                    <InputOTP
+                                      maxLength={IBAN_LENGTH}
+                                      pattern={REGEXP_ONLY_DIGITS_AND_CHARS}
+                                      inputMode="text"
+                                      value={field.value}
+                                      onChange={(value) => field.onChange(value.toUpperCase())}
+                                      containerClassName="flex flex-nowrap items-center w-full"
+                                      className="gap-0 w-full"
+                                    >
+                                      {IBAN_GROUPS.map((size, groupIndex) => {
+                                        const startIndex = IBAN_GROUPS.slice(0, groupIndex).reduce(
+                                          (sum, groupSize) => sum + groupSize,
+                                          0
+                                        )
+                                        return (
+                                          <React.Fragment key={`iban-group-${groupIndex}`}>
+                                            <InputOTPGroup className="gap-0 flex-1 min-w-0">
+                                              {Array.from({ length: size }).map((_, slotIndex) => (
+                                                <InputOTPSlot
+                                                  key={`iban-slot-${startIndex + slotIndex}`}
+                                                  index={startIndex + slotIndex}
+                                                  className="!w-[calc(100%/4)] !max-w-[18px] h-6 text-[9px] bg-background border border-[#C6CEDC] text-foreground font-mono p-0"
+                                                />
+                                              ))}
+                                            </InputOTPGroup>
+                                            {groupIndex < IBAN_GROUPS.length - 1 && (
+                                              <span className="text-muted-foreground text-[8px] shrink-0 px-px">·</span>
+                                            )}
+                                          </React.Fragment>
+                                        )
+                                      })}
+                                    </InputOTP>
+                                  </div>
+                                  {ibanValue.length > 0 && (
+                                    isIbanValid ? (
+                                      <CheckCircle2 className="h-3.5 w-3.5 text-green-600 shrink-0" />
+                                    ) : isIbanComplete ? (
+                                      <AlertCircle className="h-3.5 w-3.5 text-destructive shrink-0" />
+                                    ) : null
+                                  )}
+                                </div>
+                                {fieldState.error && (
+                                  <p className="text-xs text-destructive">{fieldState.error.message}</p>
+                                )}
+                              </div>
+                            )
+                          }}
+                        />
                       </CardContent>
                     </Card>
 

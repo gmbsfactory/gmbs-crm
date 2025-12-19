@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useState, useRef } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { Search, X, User, Phone, Mail, MapPin, Briefcase } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
 import { supabase } from "@/lib/supabase-client"
 import { createPortal } from "react-dom"
+import { useReferenceData } from "@/hooks/useReferenceData"
 
 export interface ArtisanSearchResult {
   id: string
@@ -61,14 +62,50 @@ const escapeIlike = (input: string): string => {
 export function ArtisanSearchModal({ open, onClose, onSelect, position }: ArtisanSearchModalProps) {
   const [query, setQuery] = useState("")
   const [results, setResults] = useState<ArtisanSearchResult[]>([])
+  const [absentArtisanIds, setAbsentArtisanIds] = useState<Set<string>>(new Set())
   const [isSearching, setIsSearching] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const popoverRef = useRef<HTMLDivElement>(null)
+  const { data: refData } = useReferenceData()
+  const archiveStatusFilterRef = useRef<string | null | undefined>(undefined)
+
+  const buildArchiveStatusFilter = useCallback(async () => {
+    if (archiveStatusFilterRef.current !== undefined) {
+      return archiveStatusFilterRef.current
+    }
+
+    const archiveStatusIds =
+      refData?.artisanStatuses
+        ?.filter((status) => status.code === "ARCHIVE" || status.code === "ARCHIVER")
+        .map((status) => status.id) ?? []
+
+    if (archiveStatusIds.length > 0) {
+      const filter = `(${archiveStatusIds.map((id) => `"${id}"`).join(",")})`
+      archiveStatusFilterRef.current = filter
+      return filter
+    }
+
+    const { data, error } = await supabase
+      .from("artisan_statuses")
+      .select("id")
+      .in("code", ["ARCHIVE", "ARCHIVER"])
+
+    if (error) {
+      console.warn("[ArtisanSearchModal] Impossible de charger les statuts archivés:", error)
+      return null
+    }
+
+    const ids = data?.map((status) => status.id).filter(Boolean) || []
+    const filter = ids.length > 0 ? `(${ids.map((id) => `"${id}"`).join(",")})` : null
+    archiveStatusFilterRef.current = filter
+    return filter
+  }, [refData?.artisanStatuses])
 
   const searchArtisans = useCallback(async (searchQuery: string) => {
     const trimmed = searchQuery.trim()
     if (!trimmed) {
       setResults([])
+      setAbsentArtisanIds(new Set())
       return
     }
 
@@ -96,7 +133,9 @@ export function ArtisanSearchModal({ open, onClose, onSelect, position }: Artisa
         orFilters.push(`telephone2.ilike.*${pattern}*`)
       }
 
-      const { data, error: searchError } = await supabase
+      const archiveStatusFilter = await buildArchiveStatusFilter()
+
+      let queryBuilder = supabase
         .from("artisans")
         .select(
           `
@@ -137,6 +176,12 @@ export function ArtisanSearchModal({ open, onClose, onSelect, position }: Artisa
         .order("numero_associe", { ascending: true })
         .limit(50)
 
+      if (archiveStatusFilter) {
+        queryBuilder = queryBuilder.not("statut_id", "in", archiveStatusFilter)
+      }
+
+      const { data, error: searchError } = await queryBuilder
+
       if (searchError) {
         throw searchError
       }
@@ -150,14 +195,38 @@ export function ArtisanSearchModal({ open, onClose, onSelect, position }: Artisa
       }))
 
       setResults(transformedData)
+      setAbsentArtisanIds(new Set())
+
+      if (transformedData.length === 0) {
+        return
+      }
+
+      const nowIso = new Date().toISOString()
+      const artisanIds = transformedData.map((artisan) => artisan.id)
+      const { data: absences, error: absencesError } = await supabase
+        .from("artisan_absences")
+        .select("artisan_id")
+        .in("artisan_id", artisanIds)
+        .lte("start_date", nowIso)
+        .gte("end_date", nowIso)
+
+      if (absencesError) {
+        console.warn("[ArtisanSearchModal] Erreur lors du chargement des absences:", absencesError)
+        setAbsentArtisanIds(new Set())
+      } else {
+        setAbsentArtisanIds(
+          new Set((absences ?? []).map((absence) => absence.artisan_id).filter(Boolean)),
+        )
+      }
     } catch (err) {
       console.error("Erreur lors de la recherche d'artisans:", err)
       setError("Erreur lors de la recherche")
       setResults([])
+      setAbsentArtisanIds(new Set())
     } finally {
       setIsSearching(false)
     }
-  }, [])
+  }, [buildArchiveStatusFilter])
 
   useEffect(() => {
     const timeoutId = setTimeout(() => {
@@ -366,17 +435,29 @@ export function ArtisanSearchModal({ open, onClose, onSelect, position }: Artisa
                           </p>
                         )}
                       </div>
-                      {artisan.status && (
-                        <Badge
-                          variant="outline"
-                          className="flex-shrink-0"
-                          style={{
-                            borderColor: statusColor,
-                            color: statusColor,
-                          }}
-                        >
-                          {artisan.status.label}
-                        </Badge>
+                      {(artisan.status || absentArtisanIds.has(artisan.id)) && (
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          {artisan.status && (
+                            <Badge
+                              variant="outline"
+                              className="flex-shrink-0"
+                              style={{
+                                borderColor: statusColor,
+                                color: statusColor,
+                              }}
+                            >
+                              {artisan.status.label}
+                            </Badge>
+                          )}
+                          {absentArtisanIds.has(artisan.id) && (
+                            <Badge
+                              variant="outline"
+                              className="flex-shrink-0 bg-orange-100 text-orange-800 border-orange-300"
+                            >
+                              Indisponible
+                            </Badge>
+                          )}
+                        </div>
                       )}
                     </div>
 

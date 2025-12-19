@@ -648,6 +648,7 @@ export function NewInterventionForm({
   // État pour stocker l'artisan sélectionné via recherche (qui peut ne pas être dans nearbyArtisans)
   const [searchSelectedArtisan, setSearchSelectedArtisan] = useState<NearbyArtisan | null>(null)
   const [searchSelectedSecondArtisan, setSearchSelectedSecondArtisan] = useState<NearbyArtisan | null>(null)
+  const [absentArtisanIds, setAbsentArtisanIds] = useState<Set<string>>(new Set())
   const [selectedSecondArtisanId, setSelectedSecondArtisanId] = useState<string | null>(null)
   const { open: openArtisanModal } = useArtisanModal()
   const [createdInterventionId, setCreatedInterventionId] = useState<string | null>(null)
@@ -701,6 +702,56 @@ export function NewInterventionForm({
     [selectedSecondArtisanId, nearbyArtisansSecondMetier, searchSelectedSecondArtisan],
   )
 
+  useEffect(() => {
+    let cancelled = false
+    const artisanIds = new Set<string>()
+
+    nearbyArtisans.forEach((artisan) => artisanIds.add(artisan.id))
+    nearbyArtisansSecondMetier.forEach((artisan) => artisanIds.add(artisan.id))
+    if (searchSelectedArtisan?.id) artisanIds.add(searchSelectedArtisan.id)
+    if (searchSelectedSecondArtisan?.id) artisanIds.add(searchSelectedSecondArtisan.id)
+
+    if (artisanIds.size === 0) {
+      setAbsentArtisanIds(new Set())
+      return
+    }
+
+    setAbsentArtisanIds(new Set())
+    const nowIso = new Date().toISOString()
+
+    const loadAbsences = async () => {
+      const { data, error } = await supabase
+        .from("artisan_absences")
+        .select("artisan_id")
+        .in("artisan_id", Array.from(artisanIds))
+        .lte("start_date", nowIso)
+        .gte("end_date", nowIso)
+
+      if (cancelled) return
+
+      if (error) {
+        console.warn("[NewInterventionForm] Erreur lors du chargement des absences:", error)
+        setAbsentArtisanIds(new Set())
+        return
+      }
+
+      setAbsentArtisanIds(
+        new Set((data ?? []).map((absence) => absence.artisan_id).filter(Boolean)),
+      )
+    }
+
+    loadAbsences()
+
+    return () => {
+      cancelled = true
+    }
+  }, [
+    nearbyArtisans,
+    nearbyArtisansSecondMetier,
+    searchSelectedArtisan?.id,
+    searchSelectedSecondArtisan?.id,
+  ])
+
   // Calcul de la marge du 2ème artisan en pourcentage
   const margeSecondArtisanPct = useMemo(() => {
     const coutInter = parseFloat(formData.coutIntervention) || 0
@@ -730,44 +781,6 @@ export function NewInterventionForm({
     }
   }, [refData, formData.statut_id])
 
-  // Trier les artisans : archivés en bas
-  const sortedNearbyArtisans = useMemo(() => {
-    if (!refData?.artisanStatuses) return nearbyArtisans
-
-    const archiveStatuses = refData.artisanStatuses.filter(
-      (s) => s.code === "ARCHIVE" || s.code === "ARCHIVER"
-    )
-    if (archiveStatuses.length === 0) return nearbyArtisans
-
-    const archiveStatusIds = new Set(archiveStatuses.map((s) => s.id))
-
-    const nonArchived = nearbyArtisans.filter(
-      (artisan) => !artisan.statut_id || !archiveStatusIds.has(artisan.statut_id)
-    )
-    const archived = nearbyArtisans.filter(
-      (artisan) => artisan.statut_id && archiveStatusIds.has(artisan.statut_id)
-    )
-
-    return [...nonArchived, ...archived]
-  }, [nearbyArtisans, refData?.artisanStatuses])
-
-  // Trier les artisans du second métier : archivés en bas
-  const sortedNearbyArtisansSecondMetier = useMemo(() => {
-    if (!refData?.artisanStatuses) return nearbyArtisansSecondMetier
-    const archiveStatuses = refData.artisanStatuses.filter(
-      (s) => s.code === "ARCHIVE" || s.code === "ARCHIVER"
-    )
-    if (archiveStatuses.length === 0) return nearbyArtisansSecondMetier
-    const archiveStatusIds = new Set(archiveStatuses.map((s) => s.id))
-    const nonArchived = nearbyArtisansSecondMetier.filter(
-      (artisan) => !artisan.statut_id || !archiveStatusIds.has(artisan.statut_id)
-    )
-    const archived = nearbyArtisansSecondMetier.filter(
-      (artisan) => artisan.statut_id && archiveStatusIds.has(artisan.statut_id)
-    )
-    return [...nonArchived, ...archived]
-  }, [nearbyArtisansSecondMetier, refData?.artisanStatuses])
-
   const mapMarkers = useMemo(() => {
     if (!refData?.artisanStatuses) {
       return nearbyArtisans.map((artisan) => ({
@@ -783,25 +796,20 @@ export function NewInterventionForm({
       (s) => s.code === "ARCHIVE" || s.code === "ARCHIVER"
     )
     const archiveStatusIds = new Set(archiveStatuses.map((s) => s.id))
+    const visibleArtisans =
+      archiveStatusIds.size > 0
+        ? nearbyArtisans.filter(
+          (artisan) => !artisan.statut_id || !archiveStatusIds.has(artisan.statut_id),
+        )
+        : nearbyArtisans
 
-    const markers = nearbyArtisans.map((artisan) => {
-      const isArchived =
-        artisan.statut_id && archiveStatusIds.has(artisan.statut_id)
-      const baseColor = isArchived
-        ? "#6B7280"
-        : artisan.id === selectedArtisanData?.id
-          ? "#f97316"
-          : "#2563eb"
-
-      return {
-        id: artisan.id,
-        lat: artisan.lat,
-        lng: artisan.lng,
-        color: baseColor,
-        title: artisan.displayName,
-      }
-    })
-    return markers
+    return visibleArtisans.map((artisan) => ({
+      id: artisan.id,
+      lat: artisan.lat,
+      lng: artisan.lng,
+      color: artisan.id === selectedArtisanData?.id ? "#f97316" : "#2563eb",
+      title: artisan.displayName,
+    }))
   }, [nearbyArtisans, selectedArtisanData, refData?.artisanStatuses])
 
   const mapSelectedConnection = useMemo(() => {
@@ -1859,6 +1867,11 @@ export function NewInterventionForm({
                                     {statutArtisan}
                                   </Badge>
                                 )}
+                                {absentArtisanIds.has(artisan.id) && (
+                                  <Badge variant="outline" className="text-[9px] px-1 py-0 bg-orange-100 text-orange-800 border-orange-300">
+                                    Indisponible
+                                  </Badge>
+                                )}
                                 <Badge variant="default" className="text-[9px] px-1 py-0">{formatDistanceKm(artisan.distanceKm)}</Badge>
                               </div>
                               <div className="mt-1 text-[10px] text-muted-foreground truncate">
@@ -1926,7 +1939,7 @@ export function NewInterventionForm({
                     ) : nearbyArtisans.length === 0 ? (
                       <div className="rounded border border-border/50 bg-background px-2 py-2 text-[10px] text-muted-foreground">Aucun artisan dans un rayon de {perimeterKmValue} km.</div>
                     ) : (
-                      sortedNearbyArtisans.map((artisan) => {
+                      nearbyArtisans.map((artisan) => {
                         const artisanName = `${artisan.prenom || ""} ${artisan.nom || ""}`.trim() || "Artisan sans nom"
                         const artisanInitials = artisanName.split(" ").map((p) => p.charAt(0)).join("").slice(0, 2).toUpperCase() || "??"
                         const artisanStatus = refData?.artisanStatuses?.find((s) => s.id === artisan.statut_id)
@@ -1953,6 +1966,11 @@ export function NewInterventionForm({
                                   {statutArtisan && (
                                     <Badge variant="outline" className="text-[9px] px-1 py-0" style={statutArtisanColor ? { backgroundColor: hexToRgba(statutArtisanColor, 0.15) || undefined, color: statutArtisanColor, borderColor: statutArtisanColor } : undefined}>
                                       {statutArtisan}
+                                    </Badge>
+                                  )}
+                                  {absentArtisanIds.has(artisan.id) && (
+                                    <Badge variant="outline" className="text-[9px] px-1 py-0 bg-orange-100 text-orange-800 border-orange-300">
+                                      Indisponible
                                     </Badge>
                                   )}
                                   <Badge variant="secondary" className="text-[9px] px-1 py-0">{formatDistanceKm(artisan.distanceKm)}</Badge>
@@ -2353,6 +2371,11 @@ export function NewInterventionForm({
                                   {statutArtisan}
                                 </Badge>
                               )}
+                              {absentArtisanIds.has(artisan.id) && (
+                                <Badge variant="outline" className="text-[8px] px-1 py-0 bg-orange-100 text-orange-800 border-orange-300">
+                                  Indisponible
+                                </Badge>
+                              )}
                             </div>
                           </div>
                         </div>
@@ -2411,10 +2434,10 @@ export function NewInterventionForm({
                     <div className="max-h-32 overflow-y-auto space-y-1">
                       {isLoadingNearbyArtisansSecondMetier ? (
                         <div className="flex items-center justify-center h-16 text-xs text-muted-foreground">Recherche...</div>
-                      ) : sortedNearbyArtisansSecondMetier.length === 0 ? (
+                      ) : nearbyArtisansSecondMetier.length === 0 ? (
                         <div className="text-[10px] text-muted-foreground text-center py-2">Aucun artisan trouvé</div>
                       ) : (
-                        sortedNearbyArtisansSecondMetier.slice(0, 5).map((artisan) => {
+                        nearbyArtisansSecondMetier.slice(0, 5).map((artisan) => {
                           const artisanName = `${artisan.prenom || ""} ${artisan.nom || ""}`.trim() || "Artisan sans nom"
                           const artisanInitials = artisanName.split(" ").map((p) => p.charAt(0)).join("").slice(0, 2).toUpperCase() || "??"
 
@@ -2430,6 +2453,11 @@ export function NewInterventionForm({
                               <div className="flex items-center gap-2">
                                 <Avatar photoProfilMetadata={artisan.photoProfilMetadata} initials={artisanInitials} name={artisan.displayName} size={40} />
                                 <span className="font-medium text-foreground truncate text-[10px] flex-1">{artisan.displayName}</span>
+                                {absentArtisanIds.has(artisan.id) && (
+                                  <Badge variant="outline" className="text-[8px] px-1 py-0 bg-orange-100 text-orange-800 border-orange-300">
+                                    Indisponible
+                                  </Badge>
+                                )}
                                 <Badge variant="secondary" className="text-[8px] px-1 py-0">{formatDistanceKm(artisan.distanceKm)}</Badge>
                               </div>
                             </div>
@@ -2696,4 +2724,3 @@ export function NewInterventionForm({
 }
 
 export default NewInterventionForm
-

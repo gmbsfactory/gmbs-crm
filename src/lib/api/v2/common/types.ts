@@ -37,6 +37,7 @@ export interface Artisan {
   email: string | null;
   raison_sociale: string | null;
   siret: string | null;
+  iban: string | null;
   statut_juridique: string | null;
   statut_id: string | null;
   gestionnaire_id: string | null;
@@ -396,6 +397,7 @@ export interface CreateArtisanData {
   email?: string;
   raison_sociale?: string;
   siret?: string;
+  iban?: string;
   statut_juridique?: string;
   statut_id?: string;
   gestionnaire_id?: string;
@@ -422,6 +424,7 @@ export interface UpdateArtisanData {
   email?: string;
   raison_sociale?: string;
   siret?: string;
+  iban?: string;
   statut_juridique?: string;
   statut_id?: string;
   gestionnaire_id?: string;

@@ -122,6 +122,25 @@ export function useNearbyArtisans(
         }
       }
 
+      let archiveStatusIds: string[] = []
+      const { data: archiveStatuses, error: archiveStatusesError } = await supabase
+        .from("artisan_statuses")
+        .select("id")
+        .in("code", ["ARCHIVE", "ARCHIVER"])
+
+      if (cancelled) return
+
+      if (archiveStatusesError) {
+        console.warn("[useNearbyArtisans] Impossible de charger les statuts archivés", archiveStatusesError)
+      } else {
+        archiveStatusIds = archiveStatuses?.map((status) => status.id).filter(Boolean) || []
+      }
+
+      const archiveStatusFilter =
+        archiveStatusIds.length > 0
+          ? `(${archiveStatusIds.map((id) => `"${id}"`).join(",")})`
+          : null
+
       // Récupérer les artisans par lots si nécessaire pour éviter les URLs trop longues
       const BATCH_SIZE = 100
       const allArtisans: any[] = []
@@ -150,6 +169,10 @@ export function useNearbyArtisans(
           )
           .not("intervention_latitude", "is", null)
           .not("intervention_longitude", "is", null)
+
+        if (archiveStatusFilter) {
+          query = query.not("statut_id", "in", archiveStatusFilter)
+        }
 
         // Filtrer par métier si nécessaire
         if (artisanIdsWithMetier && artisanIdsWithMetier.length > 0) {

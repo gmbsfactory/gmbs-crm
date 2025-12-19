@@ -720,6 +720,7 @@ export function InterventionEditForm({
   const [searchSelectedArtisan, setSearchSelectedArtisan] = useState<NearbyArtisan | null>(null)
   // État pour stocker le second artisan sélectionné via recherche (qui peut ne pas être dans nearbyArtisansSecondMetier)
   const [searchSelectedSecondArtisan, setSearchSelectedSecondArtisan] = useState<NearbyArtisan | null>(null)
+  const [absentArtisanIds, setAbsentArtisanIds] = useState<Set<string>>(new Set())
   const { open: openArtisanModal } = useArtisanModal()
   const {
     artisans: nearbyArtisans,
@@ -805,6 +806,56 @@ export function InterventionEditForm({
     [selectedSecondArtisanId, nearbyArtisansSecondMetier, searchSelectedSecondArtisan],
   )
 
+  useEffect(() => {
+    let cancelled = false
+    const artisanIds = new Set<string>()
+
+    nearbyArtisans.forEach((artisan) => artisanIds.add(artisan.id))
+    nearbyArtisansSecondMetier.forEach((artisan) => artisanIds.add(artisan.id))
+    if (searchSelectedArtisan?.id) artisanIds.add(searchSelectedArtisan.id)
+    if (searchSelectedSecondArtisan?.id) artisanIds.add(searchSelectedSecondArtisan.id)
+
+    if (artisanIds.size === 0) {
+      setAbsentArtisanIds(new Set())
+      return
+    }
+
+    setAbsentArtisanIds(new Set())
+    const nowIso = new Date().toISOString()
+
+    const loadAbsences = async () => {
+      const { data, error } = await supabase
+        .from("artisan_absences")
+        .select("artisan_id")
+        .in("artisan_id", Array.from(artisanIds))
+        .lte("start_date", nowIso)
+        .gte("end_date", nowIso)
+
+      if (cancelled) return
+
+      if (error) {
+        console.warn("[InterventionEditForm] Erreur lors du chargement des absences:", error)
+        setAbsentArtisanIds(new Set())
+        return
+      }
+
+      setAbsentArtisanIds(
+        new Set((data ?? []).map((absence) => absence.artisan_id).filter(Boolean)),
+      )
+    }
+
+    loadAbsences()
+
+    return () => {
+      cancelled = true
+    }
+  }, [
+    nearbyArtisans,
+    nearbyArtisansSecondMetier,
+    searchSelectedArtisan?.id,
+    searchSelectedSecondArtisan?.id,
+  ])
+
   // Calcul de la marge du 2ème artisan en pourcentage
   // Formule: coutInter2 = coutIntervention - (coutSST1 + coutMat1)
   //          marge2 = coutInter2 - (coutSST2 + coutMat2)
@@ -845,51 +896,6 @@ export function InterventionEditForm({
     }
   }, [intervention.id_inter, formData.id_inter])
 
-  // Trier les artisans : archivés en bas
-  const sortedNearbyArtisans = useMemo(() => {
-    if (!refData?.artisanStatuses) return nearbyArtisans
-
-    // Trouver les IDs des statuts ARCHIVE et ARCHIVER
-    const archiveStatuses = refData.artisanStatuses.filter(
-      (s) => s.code === "ARCHIVE" || s.code === "ARCHIVER"
-    )
-    if (archiveStatuses.length === 0) return nearbyArtisans
-
-    const archiveStatusIds = new Set(archiveStatuses.map((s) => s.id))
-
-    // Séparer les artisans archivés et non archivés
-    const nonArchived = nearbyArtisans.filter(
-      (artisan) => !artisan.statut_id || !archiveStatusIds.has(artisan.statut_id)
-    )
-    const archived = nearbyArtisans.filter(
-      (artisan) => artisan.statut_id && archiveStatusIds.has(artisan.statut_id)
-    )
-
-    // Retourner : non archivés d'abord (triés par distance), puis archivés (triés par distance)
-    return [...nonArchived, ...archived]
-  }, [nearbyArtisans, refData?.artisanStatuses])
-
-  // Trier les artisans du second métier : archivés en bas
-  const sortedNearbyArtisansSecondMetier = useMemo(() => {
-    if (!refData?.artisanStatuses) return nearbyArtisansSecondMetier
-
-    const archiveStatuses = refData.artisanStatuses.filter(
-      (s) => s.code === "ARCHIVE" || s.code === "ARCHIVER"
-    )
-    if (archiveStatuses.length === 0) return nearbyArtisansSecondMetier
-
-    const archiveStatusIds = new Set(archiveStatuses.map((s) => s.id))
-
-    const nonArchived = nearbyArtisansSecondMetier.filter(
-      (artisan) => !artisan.statut_id || !archiveStatusIds.has(artisan.statut_id)
-    )
-    const archived = nearbyArtisansSecondMetier.filter(
-      (artisan) => artisan.statut_id && archiveStatusIds.has(artisan.statut_id)
-    )
-
-    return [...nonArchived, ...archived]
-  }, [nearbyArtisansSecondMetier, refData?.artisanStatuses])
-
   const mapMarkers = useMemo(() => {
     if (!refData?.artisanStatuses) {
       // Fallback si pas de refData
@@ -907,26 +913,20 @@ export function InterventionEditForm({
       (s) => s.code === "ARCHIVE" || s.code === "ARCHIVER"
     )
     const archiveStatusIds = new Set(archiveStatuses.map((s) => s.id))
+    const visibleArtisans =
+      archiveStatusIds.size > 0
+        ? nearbyArtisans.filter(
+          (artisan) => !artisan.statut_id || !archiveStatusIds.has(artisan.statut_id),
+        )
+        : nearbyArtisans
 
-    const markers = nearbyArtisans.map((artisan) => {
-      // Si l'artisan est archivé (ARCHIVE ou ARCHIVER), utiliser la couleur grise
-      const isArchived =
-        artisan.statut_id && archiveStatusIds.has(artisan.statut_id)
-      const baseColor = isArchived
-        ? "#6B7280"
-        : artisan.id === selectedArtisanData?.id
-          ? "#f97316"
-          : "#2563eb"
-
-      return {
-        id: artisan.id,
-        lat: artisan.lat,
-        lng: artisan.lng,
-        color: baseColor,
-        title: artisan.displayName,
-      }
-    })
-    return markers
+    return visibleArtisans.map((artisan) => ({
+      id: artisan.id,
+      lat: artisan.lat,
+      lng: artisan.lng,
+      color: artisan.id === selectedArtisanData?.id ? "#f97316" : "#2563eb",
+      title: artisan.displayName,
+    }))
   }, [nearbyArtisans, selectedArtisanData, refData?.artisanStatuses])
 
   const mapSelectedConnection = useMemo(() => {
@@ -2510,6 +2510,11 @@ export function InterventionEditForm({
                                     {statutArtisan}
                                   </Badge>
                                 )}
+                                {absentArtisanIds.has(artisan.id) && (
+                                  <Badge variant="outline" className="text-[9px] px-1 py-0 bg-orange-100 text-orange-800 border-orange-300">
+                                    Indisponible
+                                  </Badge>
+                                )}
                                 <Badge variant="default" className="text-[9px] px-1 py-0">{formatDistanceKm(artisan.distanceKm)}</Badge>
                               </div>
                               <div className="mt-1 text-[10px] text-muted-foreground truncate">
@@ -2587,7 +2592,7 @@ export function InterventionEditForm({
                     ) : nearbyArtisans.length === 0 ? (
                       <div className="rounded border border-border/50 bg-background px-2 py-2 text-[10px] text-muted-foreground">Aucun artisan dans un rayon de {perimeterKmValue} km.</div>
                     ) : (
-                      sortedNearbyArtisans.map((artisan) => {
+                      nearbyArtisans.map((artisan) => {
                         const artisanName = `${artisan.prenom || ""} ${artisan.nom || ""}`.trim() || "Artisan sans nom"
                         const artisanInitials = artisanName.split(" ").map((p) => p.charAt(0)).join("").slice(0, 2).toUpperCase() || "??"
                         const artisanStatus = refData?.artisanStatuses?.find((s) => s.id === artisan.statut_id)
@@ -2614,6 +2619,11 @@ export function InterventionEditForm({
                                   {statutArtisan && (
                                     <Badge variant="outline" className="text-[9px] px-1 py-0" style={statutArtisanColor ? { backgroundColor: hexToRgba(statutArtisanColor, 0.15) || undefined, color: statutArtisanColor, borderColor: statutArtisanColor } : undefined}>
                                       {statutArtisan}
+                                    </Badge>
+                                  )}
+                                  {absentArtisanIds.has(artisan.id) && (
+                                    <Badge variant="outline" className="text-[9px] px-1 py-0 bg-orange-100 text-orange-800 border-orange-300">
+                                      Indisponible
                                     </Badge>
                                   )}
                                   <Badge variant="secondary" className="text-[9px] px-1 py-0">{formatDistanceKm(artisan.distanceKm)}</Badge>
@@ -2968,6 +2978,11 @@ export function InterventionEditForm({
                                     {statutArtisan}
                                   </Badge>
                                 )}
+                                {absentArtisanIds.has(artisan.id) && (
+                                  <Badge variant="outline" className="text-[9px] px-1 py-0 bg-orange-100 text-orange-800 border-orange-300">
+                                    Indisponible
+                                  </Badge>
+                                )}
                                 <Badge variant="default" className="text-[9px] px-1 py-0 bg-orange-500">{formatDistanceKm(artisan.distanceKm)}</Badge>
                               </div>
                               <div className="mt-1 text-[10px] text-muted-foreground truncate">
@@ -3036,7 +3051,7 @@ export function InterventionEditForm({
                     {/* Liste des artisans pour sélection (affichée uniquement si pas d'artisan sélectionné) */}
                     {!selectedSecondArtisanId && (
                       <div className="max-h-[150px] overflow-y-auto space-y-1 scrollbar-minimal">
-                        {sortedNearbyArtisansSecondMetier
+                        {nearbyArtisansSecondMetier
                           .filter(artisan => artisan.id !== selectedArtisanId) // Exclure l'artisan principal
                           .slice(0, 5)
                           .map((artisan) => {
@@ -3063,6 +3078,11 @@ export function InterventionEditForm({
                                       {statutArtisan && (
                                         <Badge variant="outline" className="text-[9px] px-1 py-0" style={statutArtisanColor ? { backgroundColor: hexToRgba(statutArtisanColor, 0.15) || undefined, color: statutArtisanColor, borderColor: statutArtisanColor } : undefined}>
                                           {statutArtisan}
+                                        </Badge>
+                                      )}
+                                      {absentArtisanIds.has(artisan.id) && (
+                                        <Badge variant="outline" className="text-[9px] px-1 py-0 bg-orange-100 text-orange-800 border-orange-300">
+                                          Indisponible
                                         </Badge>
                                       )}
                                       <Badge variant="secondary" className="text-[9px] px-1 py-0">{formatDistanceKm(artisan.distanceKm)}</Badge>
