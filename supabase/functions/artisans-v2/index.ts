@@ -29,6 +29,7 @@ interface CreateArtisanRequest {
   email?: string;
   raison_sociale?: string;
   siret?: string;
+  iban?: string;
   statut_juridique?: string;
   statut_id?: string;
   gestionnaire_id?: string;
@@ -54,6 +55,7 @@ interface UpdateArtisanRequest {
   email?: string;
   raison_sociale?: string;
   siret?: string;
+  iban?: string;
   statut_juridique?: string;
   statut_id?: string;
   gestionnaire_id?: string;
@@ -570,6 +572,7 @@ serve(async (req: Request) => {
             telephone2: body.telephone2,
             raison_sociale: body.raison_sociale,
             siret: body.siret,
+            iban: body.iban,
             statut_juridique: body.statut_juridique,
             statut_id: body.statut_id,
             gestionnaire_id: body.gestionnaire_id,
@@ -664,6 +667,7 @@ serve(async (req: Request) => {
             email: body.email,
             raison_sociale: body.raison_sociale,
             siret: body.siret,
+            iban: body.iban,
             statut_juridique: body.statut_juridique,
             statut_id: body.statut_id,
             gestionnaire_id: body.gestionnaire_id,
@@ -909,6 +913,7 @@ serve(async (req: Request) => {
           email: body.email,
           raison_sociale: body.raison_sociale,
           siret: body.siret,
+          iban: body.iban,
           statut_juridique: body.statut_juridique,
           statut_id: finalStatutId, // Utiliser finalStatutId (CANDIDAT ou POTENTIEL uniquement)
           statut_dossier: 'INCOMPLET', // Initialiser le statut de dossier à INCOMPLET
@@ -1087,6 +1092,7 @@ serve(async (req: Request) => {
           email: body.email,
           raison_sociale: body.raison_sociale,
           siret: body.siret,
+          iban: body.iban,
           statut_juridique: body.statut_juridique,
           statut_id: body.statut_id,
           gestionnaire_id: body.gestionnaire_id,
@@ -1642,6 +1648,7 @@ serve(async (req: Request) => {
         if (newData.email !== undefined) updatePayload.email = newData.email;
         if (newData.raison_sociale !== undefined) updatePayload.raison_sociale = newData.raison_sociale;
         if (newData.siret !== undefined) updatePayload.siret = newData.siret;
+        if (newData.iban !== undefined) updatePayload.iban = newData.iban;
         if (newData.statut_juridique !== undefined) updatePayload.statut_juridique = newData.statut_juridique;
         if (newData.statut_id !== undefined) updatePayload.statut_id = newData.statut_id;
         if (newData.gestionnaire_id !== undefined) updatePayload.gestionnaire_id = newData.gestionnaire_id;

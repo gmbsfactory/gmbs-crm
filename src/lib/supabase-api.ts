@@ -71,6 +71,7 @@ export interface Artisan {
   email: string | null;
   raison_sociale: string | null;
   siret: string | null;
+  iban: string | null;
   statut_juridique: string | null;
   metiers: string[]; // Computed from artisan_metiers table
   zones: string[]; // Computed from artisan_zones table

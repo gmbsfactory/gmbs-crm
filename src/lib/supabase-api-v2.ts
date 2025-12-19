@@ -450,6 +450,7 @@ const mapArtisanRecord = (item: any, refs: ReferenceCache): Artisan => {
     departement: item.departement,
     raison_sociale: item.raison_sociale,
     siret: item.siret,
+    iban: item.iban,
     statut_juridique: item.statut_juridique,
     adresse_siege_social: item.adresse_siege_social,
     ville_siege_social: item.ville_siege_social,
@@ -516,6 +517,7 @@ export interface Artisan {
   email: string | null;
   raison_sociale: string | null;
   siret: string | null;
+  iban: string | null;
   statut_juridique: string | null;
   statut_id: string | null;
   gestionnaire_id: string | null;
@@ -2054,6 +2056,7 @@ export const artisansApiV2 = {
     email?: string;
     raison_sociale?: string;
     siret?: string;
+    iban?: string;
     statut_juridique?: string;
     statut_id?: string;
     gestionnaire_id?: string;
@@ -2093,6 +2096,7 @@ export const artisansApiV2 = {
     email?: string;
     raison_sociale?: string;
     siret?: string;
+    iban?: string;
     statut_juridique?: string;
     statut_id?: string;
     gestionnaire_id?: string;
@@ -2184,6 +2188,7 @@ export const artisansApiV2 = {
       email?: string;
       raison_sociale?: string;
       siret?: string;
+      iban?: string;
       statut_juridique?: string;
       statut_id?: string;
       gestionnaire_id?: string;
