@@ -38,12 +38,20 @@ SELECT * FROM search_global('Dupont', 20, 0, NULL);
 -- Test 2: Recherche uniquement interventions
 SELECT * FROM search_global('Flat', 20, 0, 'intervention');
 
+SELECT * FROM search_global('Ursula von', 20, 0, 'intervention');
+SELECT * FROM search_global('0678909870', 20, 0, 'intervention');
+
 -- Test 3: Recherche uniquement artisans
 SELECT * FROM search_global('Dupont', 20, 0, 'artisan');
 
 -- Test 4: Recherche avec limite et offset (pagination)
 SELECT * FROM search_global('Dupont', 10, 0, NULL);   -- Première page
 SELECT * FROM search_global('Dupont', 10, 10, NULL);  -- Deuxième page
+
+-- Voir ligne avec commentaires_aggresgs non null
+SELECT *
+FROM interventions_search_mv
+WHERE commentaires_aggreges IS NOT NULL;
 
 -- ========================================
 -- 3. TESTS DE CORRESPONDANCES PARTIELLES

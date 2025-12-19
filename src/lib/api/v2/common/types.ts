@@ -955,7 +955,18 @@ export interface AdminDashboardStats {
     ca: number;
     couts: number;
     marge: number;
+    nbNouveauxArtisansMissionnes?: number; // Nouveaux artisans en statut POTENTIEL avec interventions
   }>;
+
+  // 6b. Nouveaux artisans missionnés (détail par gestionnaire)
+  nouveauxArtisansMissionnes?: Array<{
+    gestionnaireId: string;
+    gestionnaireNom: string;
+    nbNouveauxArtisansMissionnes: number;
+  }>;
+
+  // 6c. Total de nouveaux artisans missionnés
+  totalNouveauxArtisansMissionnes?: number;
 
   // 7. Statistiques par métier
   metierStats?: Array<{

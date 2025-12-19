@@ -271,14 +271,14 @@ if (-not $codeFound) {
 }
 
 # 1.5. Run fresh_start_db.ps1 to initialize/restart Supabase
-$freshStartDbPath = Join-Path $PSScriptRoot "fresh_start_db.ps1"
-if (Test-Path $freshStartDbPath) {
-    Write-Host "`nInitializing Supabase database..." -ForegroundColor Yellow
-    & $freshStartDbPath
-}
-else {
-    Write-Host "Warning: fresh_start_db.ps1 not found at $freshStartDbPath" -ForegroundColor Yellow
-}
+# $freshStartDbPath = Join-Path $PSScriptRoot "fresh_start_db.ps1"
+# if (Test-Path $freshStartDbPath) {
+#     Write-Host "`nInitializing Supabase database..." -ForegroundColor Yellow
+#     & $freshStartDbPath
+# }
+# else {
+#     Write-Host "Warning: fresh_start_db.ps1 not found at $freshStartDbPath" -ForegroundColor Yellow
+# }
 
 Write-Host "`n========================================" -ForegroundColor Cyan
 Write-Host "  All processes launched!" -ForegroundColor Green
