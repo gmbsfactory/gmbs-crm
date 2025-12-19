@@ -2042,11 +2042,75 @@ export const interventionsApi = {
       }
     });
 
+    // Récupérer les artisans POTENTIEL avec interventions (artisans missionnés)
+    const artisansMissionnes: WeekDayStats = {
+      lundi: 0,
+      mardi: 0,
+      mercredi: 0,
+      jeudi: 0,
+      vendredi: 0,
+      total: 0,
+    };
+
+    // Récupérer les artisans POTENTIEL créés par l'utilisateur pour la semaine
+    const { data: artisansPotentiels, error: artisansPotentielsError } = await supabase
+      .from("artisans")
+      .select(`
+        id,
+        date_ajout,
+        created_at,
+        gestionnaire_id,
+        artisan_statuses!inner(code)
+      `)
+      .eq("gestionnaire_id", userId)
+      .eq("is_active", true)
+      .eq("artisan_statuses.code", "POTENTIEL")
+      .gte("date_ajout", mondayStr)
+      .lt("date_ajout", saturdayStr);
+
+    if (artisansPotentielsError) {
+      console.error("Erreur lors de la récupération des artisans POTENTIEL:", artisansPotentielsError);
+    } else {
+      // Pour chaque artisan POTENTIEL, vérifier s'il a au moins une intervention
+      for (const artisan of artisansPotentiels || []) {
+        const { data: interventionsCount } = await supabase
+          .from("interventions")
+          .select("id", { count: "exact", head: true })
+          .eq("artisan_id", artisan.id)
+          .eq("is_active", true);
+
+        // Si l'artisan a au moins une intervention, le compter
+        if (interventionsCount && interventionsCount.length > 0) {
+          const artisanDate = artisan.date_ajout
+            ? new Date(artisan.date_ajout)
+            : artisan.created_at
+              ? new Date(artisan.created_at)
+              : null;
+
+          if (!artisanDate) continue;
+
+          const dateStr = formatDate(artisanDate);
+          let dayKey: keyof WeekDayStats | null = null;
+          if (dateStr === mondayStr) dayKey = "lundi";
+          else if (dateStr === tuesdayStr) dayKey = "mardi";
+          else if (dateStr === wednesdayStr) dayKey = "mercredi";
+          else if (dateStr === thursdayStr) dayKey = "jeudi";
+          else if (dateStr === fridayStr) dayKey = "vendredi";
+
+          if (dayKey) {
+            artisansMissionnes[dayKey]++;
+            artisansMissionnes.total++;
+          }
+        }
+      }
+    }
+
     return {
       devis_envoye: devisEnvoye,
       inter_en_cours: interEnCours,
       inter_factures: interFactures,
       nouveaux_artisans: nouveauxArtisans,
+      artisans_missionnes: artisansMissionnes,
       week_start: monday.toISOString(),
       week_end: friday.toISOString(),
     };
@@ -2208,11 +2272,60 @@ export const interventionsApi = {
         }
       });
 
+      // Récupérer les artisans POTENTIEL avec interventions (artisans missionnés)
+      const artisansMissionnes = initWeekStats();
+
+      const { data: artisansPotentiels, error: artisansPotentielsError } = await supabase
+        .from("artisans")
+        .select(`
+          id,
+          date_ajout,
+          created_at,
+          gestionnaire_id,
+          artisan_statuses!inner(code)
+        `)
+        .eq("gestionnaire_id", userId)
+        .eq("is_active", true)
+        .eq("artisan_statuses.code", "POTENTIEL")
+        .gte("date_ajout", monthStartStr)
+        .lte("date_ajout", monthEndStr);
+
+      if (!artisansPotentielsError && artisansPotentiels) {
+        for (const artisan of artisansPotentiels) {
+          const { data: interventionsCount } = await supabase
+            .from("interventions")
+            .select("id", { count: "exact", head: true })
+            .eq("artisan_id", artisan.id)
+            .eq("is_active", true);
+
+          if (interventionsCount && interventionsCount.length > 0) {
+            const artisanDate = artisan.date_ajout
+              ? new Date(artisan.date_ajout)
+              : artisan.created_at
+                ? new Date(artisan.created_at)
+                : null;
+
+            if (!artisanDate) continue;
+
+            for (let i = 0; i < weeks.length && i < 5; i++) {
+              const week = weeks[i];
+              if (artisanDate >= week.start && artisanDate <= week.end) {
+                const weekKey = `semaine${i + 1}` as keyof MonthWeekStats;
+                artisansMissionnes[weekKey]++;
+                artisansMissionnes.total++;
+                break;
+              }
+            }
+          }
+        }
+      }
+
       return {
         devis_envoye: devisEnvoye,
         inter_en_cours: interEnCours,
         inter_factures: interFactures,
         nouveaux_artisans: nouveauxArtisans,
+        artisans_missionnes: artisansMissionnes,
         month_start: monthStart.toISOString(),
         month_end: monthEnd.toISOString(),
         month: monthStart.getMonth() + 1,
@@ -2333,11 +2446,57 @@ export const interventionsApi = {
         }
       });
 
+      // Récupérer les artisans POTENTIEL avec interventions (artisans missionnés)
+      const artisansMissionnes = initMonthStats();
+
+      const { data: artisansPotentiels, error: artisansPotentielsError } = await supabase
+        .from("artisans")
+        .select(`
+          id,
+          date_ajout,
+          created_at,
+          gestionnaire_id,
+          artisan_statuses!inner(code)
+        `)
+        .eq("gestionnaire_id", userId)
+        .eq("is_active", true)
+        .eq("artisan_statuses.code", "POTENTIEL")
+        .gte("date_ajout", yearStartStr)
+        .lte("date_ajout", yearEndStr);
+
+      if (!artisansPotentielsError && artisansPotentiels) {
+        for (const artisan of artisansPotentiels) {
+          const { data: interventionsCount } = await supabase
+            .from("interventions")
+            .select("id", { count: "exact", head: true })
+            .eq("artisan_id", artisan.id)
+            .eq("is_active", true);
+
+          if (interventionsCount && interventionsCount.length > 0) {
+            const artisanDate = artisan.date_ajout
+              ? new Date(artisan.date_ajout)
+              : artisan.created_at
+                ? new Date(artisan.created_at)
+                : null;
+
+            if (!artisanDate) continue;
+
+            const monthIndex = artisanDate.getMonth();
+            const monthKey = monthNames[monthIndex];
+            if (monthKey) {
+              artisansMissionnes[monthKey]++;
+              artisansMissionnes.total++;
+            }
+          }
+        }
+      }
+
       return {
         devis_envoye: devisEnvoye,
         inter_en_cours: interEnCours,
         inter_factures: interFactures,
         nouveaux_artisans: nouveauxArtisans,
+        artisans_missionnes: artisansMissionnes,
         year_start: yearStart.toISOString(),
         year_end: yearEnd.toISOString(),
         year: yearStart.getFullYear(),

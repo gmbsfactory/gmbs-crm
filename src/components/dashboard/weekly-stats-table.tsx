@@ -128,6 +128,7 @@ export function WeeklyStatsTable({ weekStartDate, period: externalPeriod, userId
       { label: "Inter en cours", data: weekStats.inter_en_cours },
       { label: "Inter Facturés", data: weekStats.inter_factures },
       { label: "Nouveaux Artisans", data: weekStats.nouveaux_artisans },
+      { label: "Artisans Missionnés", data: weekStats.artisans_missionnes },
     ]
 
     return (
@@ -172,6 +173,12 @@ export function WeeklyStatsTable({ weekStartDate, period: externalPeriod, userId
                       hover: "hover:bg-purple-100/80 dark:hover:bg-purple-900/50",
                       label: "text-purple-700 dark:text-purple-300",
                       border: "border-purple-400 dark:border-purple-600"
+                    },
+                    "Artisans Missionnés": {
+                      bg: "bg-yellow-50/60 dark:bg-yellow-950/30",
+                      hover: "hover:bg-yellow-100/80 dark:hover:bg-yellow-900/50",
+                      label: "text-yellow-700 dark:text-yellow-300",
+                      border: "border-yellow-400 dark:border-yellow-600"
                     }
                   }
                   const colors = rowColors[row.label as keyof typeof rowColors] || {
@@ -211,6 +218,7 @@ export function WeeklyStatsTable({ weekStartDate, period: externalPeriod, userId
       { label: "Inter en cours", data: monthStats.inter_en_cours },
       { label: "Inter Facturés", data: monthStats.inter_factures },
       { label: "Nouveaux Artisans", data: monthStats.nouveaux_artisans },
+      { label: "Artisans Missionnés", data: monthStats.artisans_missionnes },
     ]
 
     return (
@@ -255,6 +263,12 @@ export function WeeklyStatsTable({ weekStartDate, period: externalPeriod, userId
                       hover: "hover:bg-purple-100/80 dark:hover:bg-purple-900/50",
                       label: "text-purple-700 dark:text-purple-300",
                       border: "border-purple-400 dark:border-purple-600"
+                    },
+                    "Artisans Missionnés": {
+                      bg: "bg-yellow-50/60 dark:bg-yellow-950/30",
+                      hover: "hover:bg-yellow-100/80 dark:hover:bg-yellow-900/50",
+                      label: "text-yellow-700 dark:text-yellow-300",
+                      border: "border-yellow-400 dark:border-yellow-600"
                     }
                   }
                   const colors = rowColors[row.label as keyof typeof rowColors] || {
@@ -294,6 +308,7 @@ export function WeeklyStatsTable({ weekStartDate, period: externalPeriod, userId
       { label: "Inter en cours", data: yearStats.inter_en_cours },
       { label: "Inter Facturés", data: yearStats.inter_factures },
       { label: "Nouveaux Artisans", data: yearStats.nouveaux_artisans },
+      { label: "Artisans Missionnés", data: yearStats.artisans_missionnes },
     ]
 
     const monthLabels = [
@@ -343,6 +358,12 @@ export function WeeklyStatsTable({ weekStartDate, period: externalPeriod, userId
                       hover: "hover:bg-purple-100/80 dark:hover:bg-purple-900/50",
                       label: "text-purple-700 dark:text-purple-300",
                       border: "border-purple-400 dark:border-purple-600"
+                    },
+                    "Artisans Missionnés": {
+                      bg: "bg-yellow-50/60 dark:bg-yellow-950/30",
+                      hover: "hover:bg-yellow-100/80 dark:hover:bg-yellow-900/50",
+                      label: "text-yellow-700 dark:text-yellow-300",
+                      border: "border-yellow-400 dark:border-yellow-600"
                     }
                   }
                   const colors = rowColors[row.label as keyof typeof rowColors] || {
