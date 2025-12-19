@@ -706,6 +706,7 @@ export interface WeeklyStats {
   inter_en_cours: WeekDayStats;
   inter_factures: WeekDayStats;
   nouveaux_artisans: WeekDayStats;
+  artisans_missionnes: WeekDayStats; // Artisans POTENTIEL avec au moins une intervention
   week_start: string; // Date de début de la semaine (lundi)
   week_end: string; // Date de fin de la semaine (vendredi)
 }
@@ -715,6 +716,7 @@ export interface MonthlyStats {
   inter_en_cours: MonthWeekStats;
   inter_factures: MonthWeekStats;
   nouveaux_artisans: MonthWeekStats;
+  artisans_missionnes: MonthWeekStats; // Artisans POTENTIEL avec au moins une intervention
   month_start: string; // Date de début du mois
   month_end: string; // Date de fin du mois
   month: number; // Mois (1-12)
@@ -726,6 +728,7 @@ export interface YearlyStats {
   inter_en_cours: YearMonthStats;
   inter_factures: YearMonthStats;
   nouveaux_artisans: YearMonthStats;
+  artisans_missionnes: YearMonthStats; // Artisans POTENTIEL avec au moins une intervention
   year_start: string; // Date de début de l'année
   year_end: string; // Date de fin de l'année
   year: number; // Année
@@ -958,18 +961,7 @@ export interface AdminDashboardStats {
     ca: number;
     couts: number;
     marge: number;
-    nbNouveauxArtisansMissionnes?: number; // Nouveaux artisans en statut POTENTIEL avec interventions
   }>;
-
-  // 6b. Nouveaux artisans missionnés (détail par gestionnaire)
-  nouveauxArtisansMissionnes?: Array<{
-    gestionnaireId: string;
-    gestionnaireNom: string;
-    nbNouveauxArtisansMissionnes: number;
-  }>;
-
-  // 6c. Total de nouveaux artisans missionnés
-  totalNouveauxArtisansMissionnes?: number;
 
   // 7. Statistiques par métier
   metierStats?: Array<{

@@ -2713,8 +2713,6 @@ export const interventionsApi = {
     const rawMetierStats = rpcResult.performance_metiers || [];
     const rawAgencyStats = rpcResult.performance_agences || [];
     const rawGestionnaireStats = rpcResult.performance_gestionnaires || [];
-    const rawNouveauxArtisansMissionnes = rpcResult.nouveaux_artisans_missionnes || [];
-    const totalNouveauxArtisansMissionnes = rpcResult.total_nouveaux_artisans_missionnes || 0;
 
     // DEBUG: Données brutes reçues
     console.log('\n🏢 ========================================');
@@ -2916,14 +2914,6 @@ export const interventionsApi = {
     // ========================================
     console.log('\n🔍 Opération: Calcul des statistiques par gestionnaire (V3)...');
 
-    // Créer un map des nouveaux artisans missionnés par gestionnaire
-    const artisansParGestionnaire = new Map(
-      rawNouveauxArtisansMissionnes.map((item: any) => [
-        item.gestionnaire_id,
-        item.nb_nouveaux_artisans_missionnes || 0
-      ])
-    );
-
     const gestionnaireStats = rawGestionnaireStats.map((item: any) => {
       const ca = Number(item.ca_total || 0);
       const marge = Number(item.marge_total || 0);
@@ -2931,7 +2921,6 @@ export const interventionsApi = {
       const nbInterventionsPrises = item.nb_interventions_prises || 0;
       const nbInterventionsTerminees = item.nb_interventions_terminees || 0;
       const tauxCompletion = Number(item.taux_completion || 0);
-      const nbNouveauxArtisansMissionnes = artisansParGestionnaire.get(item.gestionnaire_id) || 0;
 
       return {
         gestionnaireId: item.gestionnaire_id,
@@ -2943,7 +2932,6 @@ export const interventionsApi = {
         ca,
         couts: ca - marge, // Calculé depuis CA et marge
         marge,
-        nbNouveauxArtisansMissionnes,
       };
     }).sort((a: any, b: any) => b.ca - a.ca);
 
@@ -2968,26 +2956,6 @@ export const interventionsApi = {
       console.log(`... et ${gestionnaireStats.length - 5} autre(s) gestionnaire(s)`);
     }
 
-    // ========================================
-    // 6. NOUVEAUX ARTISANS MISSIONNÉS
-    // ========================================
-    const nouveauxArtisansMissionnes = rawNouveauxArtisansMissionnes.map((item: any) => ({
-      gestionnaireId: item.gestionnaire_id,
-      gestionnaireNom: item.gestionnaire_nom || 'Inconnu',
-      nbNouveauxArtisansMissionnes: item.nb_nouveaux_artisans_missionnes || 0,
-    }));
-
-    console.log('\n🎯 ========================================');
-    console.log('🎯 NOUVEAUX ARTISANS MISSIONNÉS');
-    console.log('🎯 ========================================');
-    console.log(`📊 Total: ${totalNouveauxArtisansMissionnes}`);
-    if (nouveauxArtisansMissionnes.length > 0) {
-      console.log('📋 Top 5:');
-      nouveauxArtisansMissionnes.slice(0, 5).forEach((item: any, index: number) => {
-        console.log(`${index + 1}. ${item.gestionnaireNom}: ${item.nbNouveauxArtisansMissionnes} artisans`);
-      });
-    }
-
     console.log('✅ ========================================\n');
 
     return {
@@ -3000,8 +2968,6 @@ export const interventionsApi = {
       metierStats,
       agencyStats,
       gestionnaireStats,
-      nouveauxArtisansMissionnes,
-      totalNouveauxArtisansMissionnes,
     };
   },
 

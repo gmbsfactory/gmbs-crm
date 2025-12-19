@@ -388,15 +388,6 @@ export default function AdminDashboardPage() {
       cell: ({ row }: any) => <div className="text-center">{formatNumber(row.original.nbInterventionsTerminees)}</div>
     },
     {
-      header: () => createSortableHeader("Nouveaux Artisans", "artisans", "nbNouveauxArtisansMissionnes"),
-      accessorKey: "nbNouveauxArtisansMissionnes",
-      size: 110,
-      minSize: 110,
-      maxSize: 110,
-      enableSorting: true,
-      cell: ({ row }: any) => <div className="text-center">{formatNumber(row.original.nbNouveauxArtisansMissionnes || 0)}</div>
-    },
-    {
       header: () => createSortableHeader("CA", "ca", "ca"),
       accessorKey: "ca",
       size: 120,
