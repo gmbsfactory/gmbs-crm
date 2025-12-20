@@ -35,6 +35,7 @@ export function NewInterventionModalContent({ mode, onClose, onCycleMode }: Prop
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
   const [showUnsavedDialog, setShowUnsavedDialog] = useState(false)
   const pendingCloseAction = useRef<(() => void) | null>(null)
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
   // Fonction pour confirmer la fermeture après l'alerte
   const handleConfirmClose = useCallback(() => {
@@ -95,7 +96,6 @@ export function NewInterventionModalContent({ mode, onClose, onCycleMode }: Prop
   const surfaceModeClass = `modal-config--${mode}`
 
   const formRef = useRef<HTMLFormElement>(null)
-  const [isSubmitting, setIsSubmitting] = useState(false)
 
   const handleSubmit = () => {
     if (formRef.current) {

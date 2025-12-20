@@ -2062,12 +2062,14 @@ export const interventionsApi = {
         created_at,
         gestionnaire_id,
         artisan_statuses!inner(code),
-        interventions!inner(id, is_active)
+        intervention_artisans!inner(
+          interventions!inner(id, is_active)
+        )
       `)
       .eq("gestionnaire_id", userId)
       .eq("is_active", true)
       .eq("artisan_statuses.code", "POTENTIEL")
-      .eq("interventions.is_active", true)
+      .eq("intervention_artisans.interventions.is_active", true)
       .gte("date_ajout", mondayStr)
       .lt("date_ajout", saturdayStr);
 
