@@ -23,6 +23,7 @@ import { useReferenceData } from "@/hooks/useReferenceData"
 import { useGeocodeSearch } from "@/hooks/useGeocodeSearch"
 import type { GeocodeSuggestion } from "@/hooks/useGeocodeSearch"
 import { useNearbyArtisans, type NearbyArtisan } from "@/hooks/useNearbyArtisans"
+import { useFormDataChanges } from "@/hooks/useFormDataChanges"
 import { interventionsApi } from "@/lib/api/v2"
 import { commentsApi } from "@/lib/api/v2/commentsApi"
 import type { Intervention, UpdateInterventionData } from "@/lib/api/v2/common/types"
@@ -543,6 +544,7 @@ interface InterventionEditFormProps {
   onAgencyNameChange?: (name: string) => void
   onClientPhoneChange?: (phone: string) => void
   onOpenSmsModal?: () => void
+  onHasUnsavedChanges?: (hasChanges: boolean) => void
 }
 
 export function InterventionEditForm({
@@ -555,7 +557,8 @@ export function InterventionEditForm({
   onClientNameChange,
   onAgencyNameChange,
   onClientPhoneChange,
-  onOpenSmsModal
+  onOpenSmsModal,
+  onHasUnsavedChanges
 }: InterventionEditFormProps) {
   const { data: refData, loading: refDataLoading } = useReferenceData()
   const queryClient = useQueryClient()
@@ -706,6 +709,15 @@ export function InterventionEditForm({
   const suggestionBlurTimeoutRef = useRef<number | null>(null)
   const [showLocationSuggestions, setShowLocationSuggestions] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
+
+  // Détection des modifications non sauvegardées
+  const hasUnsavedChanges = useFormDataChanges(formData, isSubmitting)
+
+  // Notifier le parent des modifications non sauvegardées
+  useEffect(() => {
+    onHasUnsavedChanges?.(hasUnsavedChanges)
+  }, [hasUnsavedChanges, onHasUnsavedChanges])
+
   const [isProprietaireOpen, setIsProprietaireOpen] = useState(false)
   const [isClientOpen, setIsClientOpen] = useState(false)
   const [isAccompteOpen, setIsAccompteOpen] = useState(false)

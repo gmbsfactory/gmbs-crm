@@ -1,9 +1,10 @@
 "use client"
 
-import React, { useCallback, useRef, useState } from "react"
+import React, { useCallback, useEffect, useRef, useState } from "react"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { Bell, X, MessageSquare, Copy, MessageCircle, Trash2, Plus } from "lucide-react"
 import { InterventionEditForm } from "@/components/interventions/InterventionEditForm"
+import { UnsavedChangesDialog } from "@/components/interventions/UnsavedChangesDialog"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import type { ModalDisplayMode } from "@/types/modal-display"
@@ -100,6 +101,11 @@ export function InterventionModalContent({
   const formRef = useRef<HTMLFormElement>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const queryClient = useQueryClient()
+
+  // State pour la protection des modifications non sauvegardées
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
+  const [showUnsavedDialog, setShowUnsavedDialog] = useState(false)
+  const pendingCloseAction = useRef<(() => void) | null>(null)
 
   // Reminder states
   const {
@@ -210,6 +216,51 @@ GMBS`
     "default",
     intervention?.id_inter || undefined
   )
+
+  // Fonction pour confirmer la fermeture après l'alerte
+  const handleConfirmClose = useCallback(() => {
+    setShowUnsavedDialog(false)
+    if (pendingCloseAction.current) {
+      pendingCloseAction.current()
+      pendingCloseAction.current = null
+    }
+  }, [])
+
+  // Fonction pour annuler la fermeture
+  const handleCancelClose = useCallback(() => {
+    setShowUnsavedDialog(false)
+    pendingCloseAction.current = null
+  }, [])
+
+  // Fonction pour gérer l'annulation avec vérification des modifications
+  const handleCancel = useCallback(() => {
+    // Si des modifications non sauvegardées existent et qu'on n'est pas en train de soumettre
+    if (hasUnsavedChanges && !isSubmitting) {
+      // Stocker l'action de fermeture pour l'exécuter après confirmation
+      pendingCloseAction.current = onClose
+      setShowUnsavedDialog(true)
+      return
+    }
+
+    // Pas de modifications ou soumission en cours : fermer directement
+    onClose()
+  }, [hasUnsavedChanges, isSubmitting, onClose])
+
+  // Intercepter la touche Échap pour appliquer la même logique que handleCancel
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault()
+        event.stopPropagation()
+        handleCancel()
+      }
+    }
+
+    document.addEventListener("keydown", handleKeyDown, true) // Utiliser capture phase
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown, true)
+    }
+  }, [handleCancel])
 
   const handleSuccess = useCallback(
     async (data: any) => {
@@ -368,7 +419,7 @@ GMBS`
                   variant="ghost"
                   size="icon"
                   className="modal-config-columns-icon-button"
-                  onClick={onClose}
+                  onClick={handleCancel}
                   aria-label="Fermer"
                 >
                   <X className="h-4 w-4" />
@@ -498,13 +549,14 @@ GMBS`
                 intervention={intervention}
                 mode={mode}
                 onSuccess={handleSuccess}
-                onCancel={onClose}
+                onCancel={handleCancel}
                 formRef={formRef}
                 onSubmittingChange={setIsSubmitting}
                 onClientNameChange={setClientName}
                 onAgencyNameChange={setAgencyName}
                 onClientPhoneChange={setClientPhone}
                 onOpenSmsModal={handleOpenSmsModal}
+                onHasUnsavedChanges={setHasUnsavedChanges}
               />
             ) : (
               <div className="rounded border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
@@ -538,7 +590,7 @@ GMBS`
             <Button
               type="button"
               variant="outline"
-              onClick={onClose}
+              onClick={handleCancel}
               disabled={isSubmitting}
               className="legacy-form-button"
             >
@@ -686,6 +738,12 @@ GMBS`
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <UnsavedChangesDialog
+        open={showUnsavedDialog}
+        onCancel={handleCancelClose}
+        onConfirm={handleConfirmClose}
+      />
     </TooltipProvider>
   )
 }
