@@ -900,23 +900,39 @@ export function InterventionEditForm({
     return (marge2 / coutInter2) * 100
   }, [formData.coutIntervention, formData.coutSST, formData.coutMateriel, formData.coutSSTSecondArtisan, formData.coutMaterielSecondArtisan])
 
+  // Référence pour tracker si l'utilisateur a modifié manuellement le champ id_inter
+  const userEditedIdInterRef = useRef(false)
+  
+  // Réinitialiser le flag quand on change d'intervention
+  useEffect(() => {
+    userEditedIdInterRef.current = false
+  }, [intervention.id])
+  
   // Synchroniser formData.id_inter avec intervention.id_inter quand il change
   // (par exemple après une sauvegarde qui génère un nouvel ID)
+  // Ne PAS inclure formData.id_inter dans les dépendances pour éviter la boucle
   useEffect(() => {
-    if (intervention.id_inter && intervention.id_inter !== formData.id_inter) {
-      // Ne mettre à jour que si le champ est vide ou contient "AUTO" (ID provisoire)
-      // pour éviter d'écraser une saisie utilisateur en cours
-      const currentIdInter = formData.id_inter?.trim() || ""
-      const isProvisionalId = currentIdInter.length === 0 || currentIdInter.toLowerCase().includes("auto")
-
-      if (isProvisionalId) {
-        setFormData((prev) => ({
-          ...prev,
-          id_inter: intervention.id_inter || prev.id_inter || "",
-        }))
-      }
+    // Ne pas écraser si l'utilisateur a explicitement modifié le champ
+    if (userEditedIdInterRef.current) {
+      return
     }
-  }, [intervention.id_inter, formData.id_inter])
+    
+    if (intervention.id_inter) {
+      setFormData((prev) => {
+        const currentIdInter = prev.id_inter?.trim() || ""
+        const isProvisionalId = currentIdInter.length === 0 || currentIdInter.toLowerCase().includes("auto")
+        
+        // Ne mettre à jour que si le champ est vide ou contient "AUTO" (ID provisoire)
+        if (isProvisionalId && intervention.id_inter !== currentIdInter) {
+          return {
+            ...prev,
+            id_inter: intervention.id_inter || "",
+          }
+        }
+        return prev
+      })
+    }
+  }, [intervention.id_inter])
 
   const mapMarkers = useMemo(() => {
     if (!refData?.artisanStatuses) {
@@ -1278,6 +1294,10 @@ export function InterventionEditForm({
   // --- Fin Gestion des acomptes ---
 
   const handleInputChange = useCallback((field: keyof typeof formData, value: any) => {
+    // Marquer que l'utilisateur a modifié manuellement le champ id_inter
+    if (field === "id_inter") {
+      userEditedIdInterRef.current = true
+    }
     setFormData((prev) => ({ ...prev, [field]: value }))
   }, [])
 

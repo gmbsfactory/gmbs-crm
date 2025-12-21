@@ -12,6 +12,7 @@ import { useModalState } from "@/hooks/useModalState"
 import { useModal } from "@/hooks/useModal"
 import type { ModalDisplayMode } from "@/types/modal-display"
 import { interventionKeys } from "@/lib/react-query/queryKeys"
+import { useSubmitShortcut } from "@/hooks/useSubmitShortcut"
 
 type Props = {
   mode: ModalDisplayMode
@@ -96,6 +97,9 @@ export function NewInterventionModalContent({ mode, onClose, onCycleMode }: Prop
   const surfaceModeClass = `modal-config--${mode}`
 
   const formRef = useRef<HTMLFormElement>(null)
+
+  // Raccourci clavier Cmd/Ctrl+Enter pour enregistrer
+  const { shortcutHint } = useSubmitShortcut({ formRef, isSubmitting })
 
   const handleSubmit = () => {
     if (formRef.current) {
@@ -216,7 +220,14 @@ export function NewInterventionModalContent({ mode, onClose, onCycleMode }: Prop
               disabled={isSubmitting}
               className="legacy-form-button bg-accent text-accent-foreground hover:bg-accent/90"
             >
-              {isSubmitting ? "Création..." : "Créer l'intervention"}
+              {isSubmitting ? "Création..." : (
+                <>
+                  Créer l&apos;intervention
+                  <kbd className="ml-2 pointer-events-none hidden md:inline-flex h-5 select-none items-center gap-0.5 rounded border border-accent-foreground/30 bg-accent-foreground/10 px-1.5 font-mono text-[10px] font-medium text-accent-foreground/70">
+                    {shortcutHint}
+                  </kbd>
+                </>
+              )}
             </Button>
           </div>
         </footer>

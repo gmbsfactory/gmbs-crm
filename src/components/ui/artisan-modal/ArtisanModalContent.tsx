@@ -54,6 +54,7 @@ import { useCurrentUser } from "@/hooks/useCurrentUser"
 import { getReasonTypeForTransition, type StatusReasonType } from "@/lib/comments/statusReason"
 import { cn } from "@/lib/utils"
 import type { ModalDisplayMode } from "@/types/modal-display"
+import { useSubmitShortcut } from "@/hooks/useSubmitShortcut"
 import { REGEXP_ONLY_DIGITS, REGEXP_ONLY_DIGITS_AND_CHARS } from "input-otp"
 import { validateSiret } from "@/lib/siret-validation"
 import {
@@ -754,6 +755,9 @@ export function ArtisanModalContent({
   }, [artisan, referenceData])
 
   const isSaving = updateArtisan.isPending
+
+  // Raccourci clavier Cmd/Ctrl+Enter pour enregistrer
+  const { shortcutHint } = useSubmitShortcut({ formRef, isSubmitting: isSaving })
 
   // Rendu du contrôle métiers (style NewArtisanModalContent)
   const renderMetiersControl = () => (
@@ -1677,7 +1681,14 @@ export function ArtisanModalContent({
               Annuler
             </Button>
             <Button type="submit" size="sm" disabled={isSaving || isLoading}>
-              {isSaving ? "Enregistrement..." : "Enregistrer"}
+              {isSaving ? "Enregistrement..." : (
+                <>
+                  Enregistrer
+                  <kbd className="ml-2 pointer-events-none hidden md:inline-flex h-5 select-none items-center gap-0.5 rounded border border-primary-foreground/30 bg-primary-foreground/10 px-1.5 font-mono text-[10px] font-medium text-primary-foreground/70">
+                    {shortcutHint}
+                  </kbd>
+                </>
+              )}
             </Button>
           </footer>
         </form>
