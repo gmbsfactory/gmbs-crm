@@ -2,9 +2,10 @@
 
 import React, { useCallback, useEffect, useRef, useState } from "react"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
-import { Bell, X, MessageSquare, Copy, MessageCircle, Trash2, Plus } from "lucide-react"
+import { Bell, X, MessageSquare, Copy, MessageCircle, Trash2, Plus, Info } from "lucide-react"
 import { InterventionEditForm } from "@/components/interventions/InterventionEditForm"
 import { UnsavedChangesDialog } from "@/components/interventions/UnsavedChangesDialog"
+import { InterventionHistoryPanel } from "@/components/interventions/history/InterventionHistoryPanel"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import type { ModalDisplayMode } from "@/types/modal-display"
@@ -132,6 +133,7 @@ export function InterventionModalContent({
   const [clientName, setClientName] = useState("")
   const [agencyName, setAgencyName] = useState("")
   const [clientPhone, setClientPhone] = useState("")
+  const [showHistoryPanel, setShowHistoryPanel] = useState(false)
 
   const generateSmsText = useCallback((cName: string, aName: string) => {
     return `Bonjour Madame / Monsieur ${cName},
@@ -447,6 +449,20 @@ GMBS`
                 {reminders.has(interventionId) ? "Retirer le rappel" : "Ajouter un rappel"} (Clic droit pour détails)
               </TooltipContent>
             </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="modal-config-columns-icon-button"
+                  onClick={() => setShowHistoryPanel(true)}
+                  aria-label="Voir l'historique"
+                >
+                  <Info className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent className="modal-config-columns-tooltip">Historique des actions</TooltipContent>
+            </Tooltip>
             {onCycleMode ? (
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -607,6 +623,12 @@ GMBS`
           </div>
         </footer>
       </div>
+
+      <InterventionHistoryPanel
+        interventionId={interventionId}
+        isOpen={showHistoryPanel}
+        onClose={() => setShowHistoryPanel(false)}
+      />
 
       <AlertDialog open={showSmsModal} onOpenChange={setShowSmsModal}>
         <SmsDialogContent>
