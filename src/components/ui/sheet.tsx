@@ -28,6 +28,7 @@ SheetOverlay.displayName = DialogPrimitive.Overlay.displayName
 type SheetContentProps = React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content> & {
   side?: "right" | "left" | "top" | "bottom"
   overlayClassName?: string
+  hideCloseButton?: boolean
 }
 
 const sideClasses: Record<NonNullable<SheetContentProps["side"]>, string> = {
@@ -40,7 +41,7 @@ const sideClasses: Record<NonNullable<SheetContentProps["side"]>, string> = {
 const SheetContent = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Content>,
   SheetContentProps
->(({ className, children, side = "right", overlayClassName, ...props }, ref) => (
+>(({ className, children, side = "right", overlayClassName, hideCloseButton = false, ...props }, ref) => (
   <SheetPortal>
     <SheetOverlay className={overlayClassName} />
     <DialogPrimitive.Content
@@ -53,10 +54,12 @@ const SheetContent = React.forwardRef<
       {...props}
     >
       {children}
-      <SheetClose className="absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2">
-        <X className="h-4 w-4" />
-        <span className="sr-only">Close</span>
-      </SheetClose>
+      {!hideCloseButton && (
+        <SheetClose className="absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2">
+          <X className="h-4 w-4" />
+          <span className="sr-only">Close</span>
+        </SheetClose>
+      )}
     </DialogPrimitive.Content>
   </SheetPortal>
 ))

@@ -8,11 +8,13 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Sheet, SheetContent } from "@/components/ui/sheet"
+import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet"
 import { cn } from "@/lib/utils"
 import { useCurrentUser } from "@/hooks/useCurrentUser"
+import { useReferenceData } from "@/hooks/useReferenceData"
 import { useInterventionHistory, type InterventionHistoryItem } from "@/hooks/useInterventionHistory"
-import { HistoryItem } from "./HistoryItem"
+import { useBatchResolver } from "@/hooks/useBatchResolver"
+import { HistoryItem, type HistoryValueResolver } from "./HistoryItem"
 
 type DateFilter = "all" | "today" | "week" | "month"
 type ActionFilter =
@@ -92,6 +94,115 @@ const matchesCurrentUser = (item: InterventionHistoryItem, currentUser: ReturnTy
   )
 }
 
+const collectIdsFromItems = (
+  items: InterventionHistoryItem[],
+  keys: string[]
+) => {
+  const ids = new Set<string>()
+  items.forEach((item) => {
+    const oldValues = (item.old_values ?? {}) as Record<string, unknown>
+    const newValues = (item.new_values ?? {}) as Record<string, unknown>
+    keys.forEach((key) => {
+      const oldValue = oldValues[key]
+      const newValue = newValues[key]
+      if (typeof oldValue === "string" && oldValue.trim()) {
+        ids.add(oldValue)
+      }
+      if (typeof newValue === "string" && newValue.trim()) {
+        ids.add(newValue)
+      }
+    })
+  })
+  return Array.from(ids)
+}
+
+const buildTenantLabel = (tenant: {
+  plain_nom_client?: string | null
+  firstname?: string | null
+  lastname?: string | null
+  email?: string | null
+  telephone?: string | null
+  id: string
+}) => {
+  const plain = tenant.plain_nom_client?.trim()
+  if (plain) return plain
+  const fullName = [tenant.firstname, tenant.lastname].filter(Boolean).join(" ").trim()
+  return fullName || tenant.email || tenant.telephone || tenant.id
+}
+
+const buildOwnerLabel = (owner: {
+  plain_nom_facturation?: string | null
+  owner_firstname?: string | null
+  owner_lastname?: string | null
+  email?: string | null
+  telephone?: string | null
+  id: string
+}) => {
+  const plain = owner.plain_nom_facturation?.trim()
+  if (plain) return plain
+  const fullName = [owner.owner_firstname, owner.owner_lastname].filter(Boolean).join(" ").trim()
+  return fullName || owner.email || owner.telephone || owner.id
+}
+
+const buildTenantMapValue = (tenant: {
+  plain_nom_client?: string | null
+  firstname?: string | null
+  lastname?: string | null
+  email?: string | null
+  telephone?: string | null
+  id: string
+}) => ({ label: buildTenantLabel(tenant) })
+
+const buildOwnerMapValue = (owner: {
+  plain_nom_facturation?: string | null
+  owner_firstname?: string | null
+  owner_lastname?: string | null
+  email?: string | null
+  telephone?: string | null
+  id: string
+}) => ({ label: buildOwnerLabel(owner) })
+
+const buildArtisanLabel = (artisan: {
+  plain_nom?: string | null
+  prenom?: string | null
+  nom?: string | null
+  raison_sociale?: string | null
+  email?: string | null
+  telephone?: string | null
+  id: string
+}) => {
+  const plain = artisan.plain_nom?.trim()
+  if (plain) return plain
+  const business = artisan.raison_sociale?.trim()
+  if (business) return business
+  const fullName = [artisan.prenom, artisan.nom].filter(Boolean).join(" ").trim()
+  return fullName || artisan.email || artisan.telephone || artisan.id
+}
+
+const buildArtisanMapValue = (artisan: {
+  plain_nom?: string | null
+  prenom?: string | null
+  nom?: string | null
+  raison_sociale?: string | null
+  email?: string | null
+  telephone?: string | null
+  id: string
+}) => ({ label: buildArtisanLabel(artisan) })
+
+const buildInterventionLabel = (intervention: {
+  id_inter?: string | null
+  contexte_intervention?: string | null
+  id: string
+}) => {
+  return intervention.id_inter || intervention.contexte_intervention || intervention.id
+}
+
+const buildInterventionMapValue = (intervention: {
+  id_inter?: string | null
+  contexte_intervention?: string | null
+  id: string
+}) => ({ label: buildInterventionLabel(intervention) })
+
 interface InterventionHistoryPanelProps {
   interventionId: string
   isOpen: boolean
@@ -107,6 +218,7 @@ export function InterventionHistoryPanel({ interventionId, isOpen, onClose }: In
   const loadMoreRef = useRef<HTMLDivElement | null>(null)
 
   const { data: currentUser } = useCurrentUser({ enabled: isOpen })
+  const { data: referenceData } = useReferenceData()
   const {
     data,
     isLoading,
@@ -144,6 +256,192 @@ export function InterventionHistoryPanel({ interventionId, isOpen, onClose }: In
   const items = useMemo(
     () => data?.pages.flatMap((page) => page.items) ?? [],
     [data?.pages]
+  )
+
+  const tenantIds = useMemo(() => collectIdsFromItems(items, ["tenant_id", "client_id"]), [items])
+  const ownerIds = useMemo(() => collectIdsFromItems(items, ["owner_id"]), [items])
+  const artisanIds = useMemo(() => collectIdsFromItems(items, ["artisan_id"]), [items])
+  const interventionIds = useMemo(() => collectIdsFromItems(items, ["intervention_id"]), [items])
+  const { map: tenantMap } = useBatchResolver({
+    ids: tenantIds,
+    table: "tenants",
+    select: "id, firstname, lastname, plain_nom_client, email, telephone",
+    buildLabel: buildTenantMapValue,
+    enabled: isOpen,
+  })
+
+  const { map: ownerMap } = useBatchResolver({
+    ids: ownerIds,
+    table: "owner",
+    select: "id, owner_firstname, owner_lastname, plain_nom_facturation, email, telephone",
+    buildLabel: buildOwnerMapValue,
+    enabled: isOpen,
+  })
+
+  const { map: artisanMap } = useBatchResolver({
+    ids: artisanIds,
+    table: "artisans",
+    select: "id, plain_nom, prenom, nom, raison_sociale, email, telephone",
+    buildLabel: buildArtisanMapValue,
+    enabled: isOpen,
+  })
+
+  const { map: interventionMap } = useBatchResolver({
+    ids: interventionIds,
+    table: "interventions",
+    select: "id, id_inter, contexte_intervention",
+    buildLabel: buildInterventionMapValue,
+    enabled: isOpen,
+  })
+
+  const userMap = useMemo(() => {
+    const map = new Map<string, { label: string; color?: string | null }>()
+    referenceData?.users.forEach((user) => {
+      const displayName =
+        user.code_gestionnaire ||
+        [user.firstname, user.lastname].filter(Boolean).join(" ").trim() ||
+        user.username
+      if (displayName) {
+        map.set(user.id, { label: displayName, color: user.color ?? null })
+      }
+    })
+    return map
+  }, [referenceData?.users])
+
+  const agencyMap = useMemo(() => {
+    const map = new Map<string, { label: string; color?: string | null }>()
+    referenceData?.agencies.forEach((agency) => {
+      map.set(agency.id, { label: agency.label || agency.code, color: agency.color ?? null })
+    })
+    return map
+  }, [referenceData?.agencies])
+
+  const metierMap = useMemo(() => {
+    const map = new Map<string, { label: string; color?: string | null }>()
+    referenceData?.metiers.forEach((metier) => {
+      map.set(metier.id, { label: metier.label || metier.code, color: metier.color ?? null })
+    })
+    return map
+  }, [referenceData?.metiers])
+
+  const metierByCode = useMemo(() => {
+    const map = new Map<string, { label: string; color?: string | null }>()
+    referenceData?.metiers.forEach((metier) => {
+      if (metier.code) {
+        map.set(metier.code, { label: metier.label || metier.code, color: metier.color ?? null })
+      }
+    })
+    return map
+  }, [referenceData?.metiers])
+
+  const agencyByCode = useMemo(() => {
+    const map = new Map<string, { label: string; color?: string | null }>()
+    referenceData?.agencies.forEach((agency) => {
+      if (agency.code) {
+        map.set(agency.code, { label: agency.label || agency.code, color: agency.color ?? null })
+      }
+    })
+    return map
+  }, [referenceData?.agencies])
+
+  const statusById = useMemo(() => {
+    const map = new Map<string, { label: string; color?: string | null }>()
+    referenceData?.interventionStatuses.forEach((status) => {
+      map.set(status.id, { label: status.label || status.code, color: status.color ?? null })
+    })
+    return map
+  }, [referenceData?.interventionStatuses])
+
+  const statusByCode = useMemo(() => {
+    const map = new Map<string, { label: string; color?: string | null }>()
+    referenceData?.interventionStatuses.forEach((status) => {
+      if (status.code) {
+        map.set(status.code, { label: status.label || status.code, color: status.color ?? null })
+      }
+    })
+    return map
+  }, [referenceData?.interventionStatuses])
+
+  const valueResolver: HistoryValueResolver = useMemo(
+    () => (field, value) => {
+      if (!value || typeof value !== "string") return null
+      const normalized = field.toLowerCase()
+
+      if (normalized === "agence_id" || normalized === "agency_id") {
+        return agencyMap.get(value) ?? null
+      }
+
+      if (normalized === "agence_code" || normalized === "agency_code") {
+        return agencyByCode.get(value) ?? null
+      }
+
+      if (normalized === "metier_id") {
+        return metierMap.get(value) ?? null
+      }
+
+      if (normalized === "metier_second_artisan_id") {
+        return metierMap.get(value) ?? null
+      }
+
+      if (normalized === "metier_code") {
+        return metierByCode.get(value) ?? null
+      }
+
+      if (normalized === "owner_id") {
+        return ownerMap[value] ?? null
+      }
+
+      if (normalized === "tenant_id" || normalized === "client_id") {
+        return tenantMap[value] ?? null
+      }
+
+      if (normalized === "artisan_id") {
+        return artisanMap[value] ?? null
+      }
+
+      if (normalized === "intervention_id") {
+        return interventionMap[value] ?? null
+      }
+
+      if (normalized === "status_id" || normalized === "statut_id") {
+        return statusById.get(value) ?? null
+      }
+
+      if (normalized === "status_code") {
+        return statusByCode.get(value) ?? null
+      }
+
+      if (normalized === "statut_code") {
+        return statusByCode.get(value) ?? null
+      }
+
+      if (
+        normalized.endsWith("_user_id") ||
+        normalized === "assigned_user_id" ||
+        normalized === "created_by" ||
+        normalized === "updated_by" ||
+        normalized === "gestionnaire_id" ||
+        normalized === "author_id" ||
+        normalized === "changed_by_user_id"
+      ) {
+        return userMap.get(value) ?? null
+      }
+
+      return null
+    },
+    [
+      agencyMap,
+      agencyByCode,
+      metierMap,
+      metierByCode,
+      ownerMap,
+      tenantMap,
+      artisanMap,
+      interventionMap,
+      statusById,
+      statusByCode,
+      userMap,
+    ]
   )
 
   const filteredItems = useMemo(() => {
@@ -220,8 +518,9 @@ export function InterventionHistoryPanel({ interventionId, isOpen, onClose }: In
     <Sheet open={isOpen} onOpenChange={(open) => (!open ? onClose() : undefined)}>
       <SheetContent
         side="right"
-        overlayClassName="!bg-black/30 !z-[110] backdrop-blur-[2px]"
-        className="history-panel !z-[120] flex h-full w-[440px] max-w-[94vw] flex-col border-l p-0 sm:w-[500px] sm:max-w-[540px]"
+        hideCloseButton
+        overlayClassName="!z-[110]"
+        className="history-panel !z-[120] flex h-full w-[440px] max-w-[94vw] flex-col p-0 sm:w-[500px] sm:max-w-[540px]"
       >
         {/* Header */}
         <div className="history-panel-header">
@@ -230,7 +529,7 @@ export function InterventionHistoryPanel({ interventionId, isOpen, onClose }: In
               <History className="h-4 w-4" />
             </div>
             <div className="min-w-0 flex-1">
-              <h2 className="history-panel-title">Historique des actions</h2>
+              <SheetTitle className="history-panel-title">Historique des actions</SheetTitle>
               <p className="history-panel-subtitle">
                 {items.length > 0
                   ? `${items.length} action${items.length > 1 ? "s" : ""} enregistrée${items.length > 1 ? "s" : ""}`
@@ -386,6 +685,7 @@ export function InterventionHistoryPanel({ interventionId, isOpen, onClose }: In
                           item={item}
                           isFirst={index === 0}
                           isLast={index === group.items.length - 1}
+                          valueResolver={valueResolver}
                         />
                       ))}
                     </div>
