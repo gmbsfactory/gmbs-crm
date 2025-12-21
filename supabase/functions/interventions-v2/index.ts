@@ -105,6 +105,28 @@ interface CreateCommentRequest {
   is_internal?: boolean;
 }
 
+async function getAuthUserIdFromRequest(req: Request, supabase: SupabaseClient): Promise<string | null> {
+  const authHeader = req.headers.get('authorization');
+  if (!authHeader) {
+    return null;
+  }
+
+  const token = authHeader.replace('Bearer ', '');
+  if (!token) {
+    return null;
+  }
+
+  try {
+    const { data: { user }, error } = await supabase.auth.getUser(token);
+    if (error) {
+      return null;
+    }
+    return user?.id ?? null;
+  } catch (_error) {
+    return null;
+  }
+}
+
 // Helper function pour créer les transitions automatiques lors de la création
 async function createAutomaticStatusTransitions(
   supabase: SupabaseClient,
@@ -976,6 +998,7 @@ serve(async (req: Request) => {
       Deno.env.get('SUPABASE_URL')!,
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     );
+    const authUserId = await getAuthUserIdFromRequest(req, supabase);
 
     const url = new URL(req.url);
     const pathSegments = url.pathname.split('/').filter(segment => segment);
@@ -1613,7 +1636,8 @@ serve(async (req: Request) => {
               sous_statut_text_color: body.sous_statut_text_color ?? '#000000',
               sous_statut_bg_color: body.sous_statut_bg_color ?? 'transparent',
               metier_second_artisan_id: body.metier_second_artisan_id ?? null,
-              updated_at: new Date().toISOString()
+              updated_at: new Date().toISOString(),
+              ...(authUserId ? { updated_by: authUserId } : {}),
             })
             .eq('id', existing.id)
             .select()
@@ -1672,7 +1696,8 @@ serve(async (req: Request) => {
           sous_statut_text_color: body.sous_statut_text_color ?? '#000000',
           sous_statut_bg_color: body.sous_statut_bg_color ?? 'transparent',
           metier_second_artisan_id: body.metier_second_artisan_id ?? null,
-          is_active: true
+          is_active: true,
+          ...(authUserId ? { created_by: authUserId, updated_by: authUserId } : {}),
         }])
         .select()
         .single();
@@ -1682,14 +1707,7 @@ serve(async (req: Request) => {
       }
 
       // Créer les transitions automatiques si un statut est défini
-      const authHeader = req.headers.get('authorization');
-      let userId: string | null = null;
-      if (authHeader) {
-        const token = authHeader.replace('Bearer ', '');
-        const { data: { user } } = await supabase.auth.getUser(token);
-        userId = user?.id || null;
-      }
-      await createAutomaticStatusTransitions(supabase, data.id, data.statut_id, userId, requestId);
+      await createAutomaticStatusTransitions(supabase, data.id, data.statut_id, authUserId, requestId);
 
       console.log(JSON.stringify({
         level: 'info',
@@ -1815,7 +1833,8 @@ serve(async (req: Request) => {
           sous_statut_text_color: body.sous_statut_text_color ?? '#000000',
           sous_statut_bg_color: body.sous_statut_bg_color ?? 'transparent',
           metier_second_artisan_id: body.metier_second_artisan_id ?? null,
-          is_active: true
+          is_active: true,
+          ...(authUserId ? { created_by: authUserId, updated_by: authUserId } : {}),
         }])
         .select()
         .single();
@@ -1864,7 +1883,8 @@ serve(async (req: Request) => {
                 sous_statut_text_color: body.sous_statut_text_color ?? '#000000',
                 sous_statut_bg_color: body.sous_statut_bg_color ?? 'transparent',
                 metier_second_artisan_id: body.metier_second_artisan_id ?? null,
-                is_active: true
+                is_active: true,
+                ...(authUserId ? { created_by: authUserId, updated_by: authUserId } : {}),
               }])
               .select()
               .single();
@@ -1884,14 +1904,7 @@ serve(async (req: Request) => {
             }));
 
             // Créer les transitions automatiques si un statut est défini
-            const authHeaderRetry = req.headers.get('authorization');
-            let userIdRetry: string | null = null;
-            if (authHeaderRetry) {
-              const tokenRetry = authHeaderRetry.replace('Bearer ', '');
-              const { data: { user: userRetry } } = await supabase.auth.getUser(tokenRetry);
-              userIdRetry = userRetry?.id || null;
-            }
-            await createAutomaticStatusTransitions(supabase, retryData.id, retryData.statut_id, userIdRetry, requestId);
+            await createAutomaticStatusTransitions(supabase, retryData.id, retryData.statut_id, authUserId, requestId);
 
             await handleInterventionCompletionSideEffects(supabase, retryData, requestId);
 
@@ -1913,14 +1926,7 @@ serve(async (req: Request) => {
       }));
 
       // Créer les transitions automatiques si un statut est défini
-      const authHeaderPost = req.headers.get('authorization');
-      let userIdPost: string | null = null;
-      if (authHeaderPost) {
-        const tokenPost = authHeaderPost.replace('Bearer ', '');
-        const { data: { user: userPost } } = await supabase.auth.getUser(tokenPost);
-        userIdPost = userPost?.id || null;
-      }
-      await createAutomaticStatusTransitions(supabase, data.id, data.statut_id, userIdPost, requestId);
+      await createAutomaticStatusTransitions(supabase, data.id, data.statut_id, authUserId, requestId);
 
       await handleInterventionCompletionSideEffects(supabase, data, requestId);
 
@@ -1950,16 +1956,6 @@ serve(async (req: Request) => {
       // Si le statut change, enregistrer la transition AVANT la mise à jour
       if (body.statut_id && oldStatutId !== body.statut_id) {
         try {
-          // Récupérer l'utilisateur depuis le token JWT
-          const authHeader = req.headers.get('authorization');
-          let userId: string | null = null;
-
-          if (authHeader) {
-            const token = authHeader.replace('Bearer ', '');
-            const { data: { user } } = await supabase.auth.getUser(token);
-            userId = user?.id || null;
-          }
-
           // Enregistrer la transition explicitement via la fonction SQL
           const { error: transitionError } = await supabase.rpc(
             'log_status_transition_from_api',
@@ -1967,7 +1963,7 @@ serve(async (req: Request) => {
               p_intervention_id: resourceId,
               p_from_status_id: oldStatutId,
               p_to_status_id: body.statut_id,
-              p_changed_by_user_id: userId,
+              p_changed_by_user_id: authUserId,
               p_metadata: {
                 updated_via: 'edge_function',
                 updated_at: new Date().toISOString(),
@@ -2031,7 +2027,8 @@ serve(async (req: Request) => {
           sous_statut_bg_color: body.sous_statut_bg_color ?? 'transparent',
           metier_second_artisan_id: body.metier_second_artisan_id ?? null,
           is_active: body.is_active,
-          updated_at: new Date().toISOString()
+          updated_at: new Date().toISOString(),
+          ...(authUserId ? { updated_by: authUserId } : {}),
         })
         .eq('id', resourceId)
         .select()
@@ -2063,7 +2060,8 @@ serve(async (req: Request) => {
         .from('interventions')
         .update({ 
           is_active: false,
-          updated_at: new Date().toISOString()
+          updated_at: new Date().toISOString(),
+          ...(authUserId ? { updated_by: authUserId } : {}),
         })
         .eq('id', resourceId)
         .select()
