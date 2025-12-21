@@ -646,7 +646,9 @@ export function NewInterventionForm({
     agencyLabel?: string | null
     managerName?: string | null
   }>>([])
-  const [skipDuplicateCheck, setSkipDuplicateCheck] = useState(false)
+  // Utiliser useRef pour éviter la race condition avec le state async
+  // Le ref est synchrone et garantit que la valeur est mise à jour avant requestSubmit()
+  const skipDuplicateCheckRef = useRef(false)
 
   const {
     query: locationQuery,
@@ -1241,7 +1243,9 @@ export function NewInterventionForm({
 
   // Handlers pour la gestion des doublons
   const handleConfirmDuplicate = useCallback(() => {
-    setSkipDuplicateCheck(true)
+    // Utiliser le ref (synchrone) pour éviter la race condition
+    // avec le state async qui causait la réapparition de la popup
+    skipDuplicateCheckRef.current = true
     setConfirmableDuplicates([])
     // Re-soumettre le formulaire
     if (formRef?.current) {
@@ -1356,7 +1360,7 @@ export function NewInterventionForm({
       })
 
       // Vérifier les doublons sauf si l'utilisateur a déjà confirmé
-      if (!skipDuplicateCheck && createData.adresse && createData.agence_id) {
+      if (!skipDuplicateCheckRef.current && createData.adresse && createData.agence_id) {
         const { data: duplicates } = await supabase
           .from("interventions")
           .select(`
@@ -1397,7 +1401,7 @@ export function NewInterventionForm({
       }
 
       // Réinitialiser le flag après vérification
-      setSkipDuplicateCheck(false)
+      skipDuplicateCheckRef.current = false
 
       console.log(`[NewInterventionForm] 📝 Création de l'intervention via interventionsApi`)
       const created = await interventionsApi.create(createData)
