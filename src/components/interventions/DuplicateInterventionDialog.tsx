@@ -1,5 +1,6 @@
 "use client"
 
+import { useRef } from "react"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -28,8 +29,14 @@ type Props = {
 
 export function DuplicateInterventionDialog({ duplicates, onConfirm, onCancel }: Props) {
   const isOpen = duplicates.length > 0
+  // Ref pour tracker si l'utilisateur a cliqué sur Confirmer
+  const hasConfirmedRef = useRef(false)
 
-  if (!isOpen) return null
+  if (!isOpen) {
+    // Réinitialiser le ref quand la popup se ferme
+    hasConfirmedRef.current = false
+    return null
+  }
 
   // Prendre le premier doublon pour le message
   const duplicate = duplicates[0]
@@ -37,8 +44,22 @@ export function DuplicateInterventionDialog({ duplicates, onConfirm, onCancel }:
   const agency = duplicate.agencyLabel || "cette agence"
   const manager = duplicate.managerName || "un gestionnaire inconnu"
 
+  const handleConfirm = () => {
+    hasConfirmedRef.current = true
+    onConfirm()
+  }
+
+  const handleOpenChange = (open: boolean) => {
+    // Ne pas appeler onCancel si l'utilisateur a cliqué sur Confirmer
+    // Cela évite que onCancel() soit appelé après onConfirm() quand
+    // AlertDialogAction ferme automatiquement la dialog
+    if (!open && !hasConfirmedRef.current) {
+      onCancel()
+    }
+  }
+
   return (
-    <AlertDialog open={isOpen} onOpenChange={(open) => !open && onCancel()}>
+    <AlertDialog open={isOpen} onOpenChange={handleOpenChange}>
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>Intervention similaire détectée</AlertDialogTitle>
@@ -53,7 +74,7 @@ export function DuplicateInterventionDialog({ duplicates, onConfirm, onCancel }:
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel onClick={onCancel}>Annuler</AlertDialogCancel>
-          <AlertDialogAction onClick={onConfirm}>Confirmer</AlertDialogAction>
+          <AlertDialogAction onClick={handleConfirm}>Confirmer</AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>
