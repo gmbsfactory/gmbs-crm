@@ -916,7 +916,7 @@ export function InterventionEditForm({
         if (isProvisionalId && intervention.id_inter !== currentIdInter) {
           return {
             ...prev,
-            id_inter: intervention.id_inter,
+            id_inter: intervention.id_inter || "",
           }
         }
         return prev
