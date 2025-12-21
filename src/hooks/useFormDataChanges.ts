@@ -19,6 +19,7 @@ export function useFormDataChanges<T extends Record<string, any>>(
     if (!initialValuesRef.current) {
       initialValuesRef.current = { ...formData }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   // Détecter les changements par rapport aux valeurs initiales

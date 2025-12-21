@@ -53,6 +53,17 @@ export function NewInterventionModalContent({ mode, onClose, onCycleMode }: Prop
     pendingCloseAction.current = null
   }, [])
 
+  // Fonction pour enregistrer et fermer
+  const handleSaveAndConfirm = useCallback(() => {
+    setShowUnsavedDialog(false)
+    // Soumettre le formulaire
+    if (formRef.current) {
+      formRef.current.requestSubmit()
+    }
+    // La fermeture sera gérée automatiquement par handleSuccess après la sauvegarde
+    pendingCloseAction.current = null
+  }, [])
+
   // Fonction pour annuler/fermer le modal - retourne à l'intervention initiale si c'est un devis supp
   const handleCancel = useCallback(() => {
     // Si des modifications non sauvegardées existent et qu'on n'est pas en train de soumettre
@@ -237,6 +248,7 @@ export function NewInterventionModalContent({ mode, onClose, onCycleMode }: Prop
         open={showUnsavedDialog}
         onCancel={handleCancelClose}
         onConfirm={handleConfirmClose}
+        onSaveAndConfirm={handleSaveAndConfirm}
       />
     </TooltipProvider>
   )

@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { createServerSupabase, bearerFrom} from '@/lib/supabase/server'
 import { cookies } from 'next/headers'
 import { isLateLogin } from '@/lib/utils/business-days'
-import { isSameDay } from '@/lib/date-utils'
+import { getLocalDateString } from '@/lib/date-utils'
 
 export const runtime = 'nodejs'
 
@@ -93,7 +93,7 @@ export async function POST(req: Request) {
     }
 
     const now = new Date()
-    const today = now.toISOString().split('T')[0] // YYYY-MM-DD
+    const today = getLocalDateString(now) // YYYY-MM-DD in local timezone
     const currentYear = now.getFullYear()
 
     const lastActivityDate = userData.last_activity_date
@@ -117,6 +117,7 @@ export async function POST(req: Request) {
     // This IS the first activity of the day!
     console.log('[first-activity] 🎯 First activity of the day detected!')
 
+    // Build the patch object
     const patch: any = {
       last_activity_date: today,
       last_seen_at: now.toISOString()
@@ -170,15 +171,46 @@ export async function POST(req: Request) {
       console.log('[first-activity] 🚫 Admin/Manager, skipping lateness tracking')
     }
 
-    // Update user record
-    const { error: updateError } = await supabase
+    // Update user record with atomic conditional update to prevent race conditions
+    // Only update if last_activity_date is NULL or different from today (atomic check)
+    // This ensures that even if multiple requests arrive simultaneously, only one will succeed
+    let updateQuery = supabase
       .from('users')
       .update(patch)
       .eq('id', profile.id)
 
+    // Add condition: only update if last_activity_date is NULL or different from today
+    if (lastActivityDate === null) {
+      updateQuery = updateQuery.is('last_activity_date', null)
+    } else {
+      updateQuery = updateQuery.neq('last_activity_date', today)
+    }
+
+    const { data: updatedData, error: updateError } = await updateQuery
+      .select('lateness_count, last_activity_date')
+      .single()
+
     if (updateError) {
       console.error('[first-activity] ❌ Error updating user:', updateError)
       return NextResponse.json({ error: updateError.message }, { status: 500 })
+    }
+
+    // Check if the update actually happened (race condition protection)
+    // If updatedData is null or last_activity_date wasn't updated, another request already processed it
+    if (!updatedData || updatedData.last_activity_date !== today) {
+      console.log('[first-activity] ⚠️ Race condition detected: another request already processed first activity')
+      // Fetch the current state to return accurate data
+      const { data: currentData } = await supabase
+        .from('users')
+        .select('lateness_count')
+        .eq('id', profile.id)
+        .single()
+      
+      return NextResponse.json({
+        ok: true,
+        wasFirstActivity: false, // Another request already handled it
+        latenessCount: currentData?.lateness_count || userData.lateness_count || 0
+      })
     }
 
     console.log('[first-activity] ✅ Successfully updated user')

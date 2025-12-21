@@ -41,12 +41,26 @@ export default function InterventionForm({
   // State pour la protection des modifications non sauvegardées
   const [showUnsavedDialog, setShowUnsavedDialog] = useState(false)
   const pendingCancelAction = useRef<(() => void) | null>(null)
+  const shouldCloseAfterSave = useRef(false)
+  const formRef = useRef<HTMLFormElement | null>(null)
+
+  // Wrapper pour onSuccess qui gère la fermeture après sauvegarde
+  const handleSuccess = useCallback((payload: unknown) => {
+    if (onSuccess) {
+      onSuccess(payload)
+    }
+    // Si on doit fermer après sauvegarde, appeler onCancel
+    if (shouldCloseAfterSave.current && onCancel) {
+      shouldCloseAfterSave.current = false
+      onCancel()
+    }
+  }, [onSuccess, onCancel])
 
   const { form, submit, isSubmitting, serverError, duplicates, checkDuplicates } = useInterventionForm({
     mode,
     interventionId,
     defaultValues,
-    onSuccess,
+    onSuccess: handleSuccess,
     canEditContext: mode === "create" ? true : canEditContext,
   })
 
@@ -66,6 +80,17 @@ export default function InterventionForm({
   const handleCancelClose = useCallback(() => {
     setShowUnsavedDialog(false)
     pendingCancelAction.current = null
+  }, [])
+
+  // Fonction pour enregistrer et fermer
+  const handleSaveAndConfirm = useCallback(() => {
+    setShowUnsavedDialog(false)
+    shouldCloseAfterSave.current = true
+    
+    // Soumettre le formulaire programmatiquement
+    if (formRef.current) {
+      formRef.current.requestSubmit()
+    }
   }, [])
 
   // Fonction pour gérer l'annulation avec vérification des modifications
@@ -160,7 +185,7 @@ export default function InterventionForm({
 
   return (
     <>
-      <form onSubmit={handleSubmit} className="space-y-6">
+      <form ref={formRef} onSubmit={handleSubmit} className="space-y-6">
         <div className="intervention-form-section">
           <div className="intervention-form-section-header">
             <div className="intervention-form-section-title">Informations principales</div>
@@ -386,6 +411,7 @@ export default function InterventionForm({
         open={showUnsavedDialog}
         onCancel={handleCancelClose}
         onConfirm={handleConfirmCancel}
+        onSaveAndConfirm={handleSaveAndConfirm}
       />
     </>
   )

@@ -11,6 +11,7 @@ import { Mail, ExternalLink } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { useCurrentUser } from "@/hooks/useCurrentUser"
 import { usersApi } from "@/lib/api/v2"
+import { supabase } from "@/lib/supabase-client"
 
 type TeamUser = {
   id: string

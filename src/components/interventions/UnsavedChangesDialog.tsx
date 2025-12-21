@@ -15,6 +15,7 @@ export type UnsavedChangesDialogProps = {
   open: boolean
   onCancel: () => void
   onConfirm: () => void
+  onSaveAndConfirm: () => void
 }
 
 /**
@@ -24,6 +25,7 @@ export function UnsavedChangesDialog({
   open,
   onCancel,
   onConfirm,
+  onSaveAndConfirm,
 }: UnsavedChangesDialogProps) {
   return (
     <AlertDialog open={open} onOpenChange={(isOpen) => !isOpen && onCancel()}>
@@ -31,12 +33,23 @@ export function UnsavedChangesDialog({
         <AlertDialogHeader>
           <AlertDialogTitle>Modifications non enregistrées</AlertDialogTitle>
           <AlertDialogDescription>
-            Vous allez quitter le modal, sans enregistrer vos modifications. Êtes-vous sûr ?
+            Vous êtes sur le point de quitter le modal avec des modifications non enregistrées.
           </AlertDialogDescription>
         </AlertDialogHeader>
-        <AlertDialogFooter>
-          <AlertDialogCancel onClick={onCancel}>Non</AlertDialogCancel>
-          <AlertDialogAction onClick={onConfirm}>Oui</AlertDialogAction>
+        <AlertDialogFooter className="flex-col sm:flex-row gap-2">
+          <AlertDialogCancel onClick={onCancel}>Annuler</AlertDialogCancel>
+          <AlertDialogAction
+            onClick={onSaveAndConfirm}
+            className="bg-accent text-accent-foreground hover:bg-accent/90"
+          >
+            Enregistrer & Quitter
+          </AlertDialogAction>
+          <AlertDialogAction
+            onClick={onConfirm}
+            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+          >
+            Quitter sans enregistrer
+          </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>

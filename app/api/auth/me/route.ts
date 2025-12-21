@@ -27,8 +27,7 @@ interface UserRecord {
   username: string | null
   last_seen_at: string | null
   email_smtp: string | null
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  user_roles?: Array<{ roles: { name: string } | null } | any>
+  user_roles?: Array<{ roles: { name: string } | null } | null>
   user_page_permissions?: Array<{ page_key: string; has_access: boolean }>
 }
 
@@ -121,7 +120,7 @@ export async function GET(req: Request) {
         .maybeSingle()
 
       if (!fallbackError && fallbackResult) {
-        record = fallbackResult as UserRecord
+        record = fallbackResult as unknown as UserRecord
         needsMapping = true
       } else if (fallbackError && fallbackError.code !== 'PGRST116') {
         return NextResponse.json({ error: fallbackError.message }, { status: 500 })

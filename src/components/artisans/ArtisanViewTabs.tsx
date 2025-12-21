@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 import { ChevronLeft, ChevronRight, Table } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { ArtisanViewDefinition } from "@/hooks/useArtisanViews"
@@ -21,6 +21,18 @@ export function ArtisanViewTabs({
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const [canScrollLeft, setCanScrollLeft] = useState(false)
   const [canScrollRight, setCanScrollRight] = useState(false)
+  
+  // Refs pour les boutons de vues pour la navigation Tab
+  const tabRefs = useRef<Record<string, React.RefObject<HTMLButtonElement | null>>>({})
+  
+  // Initialiser les refs pour chaque vue
+  useEffect(() => {
+    views.forEach((view) => {
+      if (!tabRefs.current[view.id]) {
+        tabRefs.current[view.id] = React.createRef<HTMLButtonElement>()
+      }
+    })
+  }, [views])
 
   const updateScrollState = useCallback(() => {
     const node = scrollContainerRef.current
@@ -73,10 +85,17 @@ export function ArtisanViewTabs({
           const isActive = view.id === activeViewId
           const count = artisanCounts[view.id] || 0
           
+          // Créer une ref pour chaque bouton si elle n'existe pas
+          if (!tabRefs.current[view.id]) {
+            tabRefs.current[view.id] = React.createRef<HTMLButtonElement>()
+          }
+          
           return (
             <button
               key={view.id}
+              ref={tabRefs.current[view.id]}
               type="button"
+              tabIndex={0}
               onClick={() => onSelect(view.id)}
               className={cn(
                 "relative flex items-center gap-2 border px-3 py-1.5 text-sm font-medium transition-all duration-200",

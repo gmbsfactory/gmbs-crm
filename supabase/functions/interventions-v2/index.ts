@@ -371,13 +371,13 @@ const DEFAULT_SELECT = DEFAULT_INTERVENTION_COLUMNS.join(',');
 
 const AVAILABLE_RELATIONS: Record<string, string> = {
   agencies: 'agencies(id,label,code)',
-  tenants: 'tenants:tenant_id(id,firstname,lastname,email,telephone,telephone2)',
+  tenants: 'tenants:tenant_id(id,firstname,lastname,plain_nom_client,email,telephone,telephone2)',
   users: 'users!assigned_user_id(id,firstname,lastname,username,color,code_gestionnaire)',
   statuses: 'intervention_statuses(id,code,label,color,sort_order)',
   metiers: 'metiers(id,label,code)',
   artisans: 'intervention_artisans(id,artisan_id,is_primary,role,artisans(id,nom,prenom,plain_nom,email,telephone,telephone2,numero_associe,siret,raison_sociale))',
   costs: 'intervention_costs(id,cost_type,label,amount,currency)',
-  owner: 'owner:owner_id(id,owner_firstname,owner_lastname,email,telephone)',
+  owner: 'owner:owner_id(id,owner_firstname,owner_lastname,plain_nom_facturation,email,telephone)',
 };
 
 const parseJson = <T>(raw: string | null): T | null => {
@@ -1553,7 +1553,7 @@ serve(async (req: Request) => {
           ${includeRelations.includes('agencies') ? ',agencies(id,label,code)' : ''}
           ${
             includeRelations.includes('tenants') || includeRelations.includes('clients')
-              ? ',tenants:tenant_id(id,firstname,lastname,email,telephone,telephone2)'
+              ? ',tenants:tenant_id(id,firstname,lastname,plain_nom_client,email,telephone,telephone2)'
               : ''
           }
           ${includeRelations.includes('users') ? ',users!assigned_user_id(id,firstname,lastname,username)' : ''}
@@ -1564,6 +1564,7 @@ serve(async (req: Request) => {
           ${includeRelations.includes('payments') ? ',intervention_payments(id,payment_type,amount,is_received,payment_date,reference)' : ''}
           ${includeRelations.includes('attachments') ? ',intervention_attachments(id,kind,url,filename,mime_type,file_size)' : ''}
           ${includeRelations.includes('comments') ? ',comments(id,content,comment_type,is_internal,created_at,users!author_id(firstname,lastname))' : ''}
+          ${includeRelations.includes('owner') ? ',owner:owner_id(id,owner_firstname,owner_lastname,plain_nom_facturation,email,telephone)' : ''}
         `)
         .eq('id', resourceId)
         .single();

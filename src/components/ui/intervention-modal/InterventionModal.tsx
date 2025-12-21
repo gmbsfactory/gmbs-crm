@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useRef } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { GenericModal } from "@/components/ui/modal"
 import { useModalDisplay } from "@/contexts/ModalDisplayContext"
 import { useModalState } from "@/hooks/useModalState"
@@ -42,6 +42,21 @@ export function InterventionModal({
   const sourceLayoutId = useModalState((state) => state.sourceLayoutId)
   // Waiters résolus par AnimatePresence.onExitComplete pour garantir que le DOM du modal est démonté
   const exitWaitersRef = useRef<Array<() => void>>([])
+
+  // États pour gérer les modifications non sauvegardées
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const showUnsavedDialogRef = useRef<(() => void) | null>(null)
+
+  // Callbacks pour recevoir les informations de InterventionModalContent
+  const handleUnsavedChangesStateChange = useCallback((hasChanges: boolean, submitting: boolean) => {
+    setHasUnsavedChanges(hasChanges)
+    setIsSubmitting(submitting)
+  }, [])
+
+  const handleRegisterShowDialog = useCallback((showDialog: () => void) => {
+    showUnsavedDialogRef.current = showDialog
+  }, [])
 
   const waitForExit = useCallback(() => {
     return new Promise<void>((resolve) => {
@@ -120,6 +135,8 @@ export function InterventionModal({
         onCycleMode={cycleMode}
         activeIndex={activeIndex}
         totalCount={totalCount}
+        onUnsavedChangesStateChange={handleUnsavedChangesStateChange}
+        onRegisterShowDialog={handleRegisterShowDialog}
       />
     )
   })()
@@ -135,6 +152,9 @@ export function InterventionModal({
       mode={effectiveMode}
       layoutId={sourceLayoutId ?? undefined}
       onExitComplete={handleExitComplete}
+      hasUnsavedChanges={hasUnsavedChanges}
+      isSubmitting={isSubmitting}
+      onShowUnsavedDialog={() => showUnsavedDialogRef.current?.()}
     >
       {renderedContent}
     </GenericModal>

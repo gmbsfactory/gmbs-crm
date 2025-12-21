@@ -8,7 +8,6 @@ import { getDay } from 'date-fns'
  * @returns true if the date is a weekday (Mon-Fri), false otherwise
  */
 export function isBusinessDay(date: Date): boolean {
-  // return true
   const dayOfWeek = getDay(date) // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
   return dayOfWeek >= 1 && dayOfWeek <= 5 // Monday (1) to Friday (5)
 }
@@ -20,7 +19,6 @@ export function isBusinessDay(date: Date): boolean {
  * @returns true if time is >= 10:00 AM
  */
 export function isAfter10AM(date: Date = new Date()): boolean {
-  // returns true // TEMPORAIRE - Pour tester
   const hours = date.getHours()
   return hours >= 10
 }

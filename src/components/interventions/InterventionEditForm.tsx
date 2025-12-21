@@ -26,6 +26,7 @@ import { useNearbyArtisans, type NearbyArtisan } from "@/hooks/useNearbyArtisans
 import { useFormDataChanges } from "@/hooks/useFormDataChanges"
 import { interventionsApi } from "@/lib/api/v2"
 import { commentsApi } from "@/lib/api/v2/commentsApi"
+import { supabase } from "@/lib/supabase-client"
 import type { Intervention, UpdateInterventionData } from "@/lib/api/v2/common/types"
 import type { InterventionWithStatus } from "@/types/intervention"
 import { useCurrentUser } from "@/hooks/useCurrentUser"

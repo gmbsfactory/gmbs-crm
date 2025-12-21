@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createServerSupabase, bearerFrom } from '@/lib/supabase/server'
 import { cookies } from 'next/headers'
-import { isSameDay } from '@/lib/date-utils'
+import { getLocalDateString } from '@/lib/date-utils'
 
 export const runtime = 'nodejs'
 
@@ -86,18 +86,17 @@ export async function GET(req: Request) {
     }
 
     const now = new Date()
-    const lastLatenessDate = userData.last_lateness_date
-      ? new Date(userData.last_lateness_date)
-      : null
+    const today = getLocalDateString(now) // YYYY-MM-DD in local timezone
+    const lastLatenessDate = userData.last_lateness_date || null
     const notificationShownAt = userData.lateness_notification_shown_at
       ? new Date(userData.lateness_notification_shown_at)
       : null
 
-    // Check if user was late today
-    const wasLateToday = lastLatenessDate && isSameDay(lastLatenessDate, now)
+    // Check if user was late today (compare date strings for consistency)
+    const wasLateToday = lastLatenessDate && lastLatenessDate === today
 
-    // Check if notification has been shown today
-    const notificationShownToday = notificationShownAt && isSameDay(notificationShownAt, now)
+    // Check if notification has been shown today (compare date strings for consistency)
+    const notificationShownToday = notificationShownAt && getLocalDateString(notificationShownAt) === today
 
     // Show notification if late today and not yet shown
     const showNotification = wasLateToday && !notificationShownToday

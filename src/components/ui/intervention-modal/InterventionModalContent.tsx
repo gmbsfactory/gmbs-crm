@@ -80,6 +80,10 @@ type Props = {
   onCycleMode?: () => void
   activeIndex?: number
   totalCount?: number
+  // Callback pour exposer l'état des modifications non sauvegardées au parent
+  onUnsavedChangesStateChange?: (hasChanges: boolean, isSubmitting: boolean) => void
+  // Callback pour exposer la fonction d'affichage du dialog au parent
+  onRegisterShowDialog?: (showDialog: () => void) => void
 }
 
 export function InterventionModalContent({
@@ -94,6 +98,8 @@ export function InterventionModalContent({
   onCycleMode,
   activeIndex,
   totalCount,
+  onUnsavedChangesStateChange,
+  onRegisterShowDialog,
 }: Props) {
   const bodyPadding = mode === "fullpage" ? "px-8 py-6 md:px-12" : "px-5 py-4 md:px-8"
   const surfaceVariantClass = mode === "fullpage" ? "modal-config-surface-full" : undefined
@@ -112,6 +118,20 @@ export function InterventionModalContent({
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
   const [showUnsavedDialog, setShowUnsavedDialog] = useState(false)
   const pendingCloseAction = useRef<(() => void) | null>(null)
+
+  // Notifier le parent des changements d'état pour la gestion du clic sur backdrop
+  useEffect(() => {
+    onUnsavedChangesStateChange?.(hasUnsavedChanges, isSubmitting)
+  }, [hasUnsavedChanges, isSubmitting, onUnsavedChangesStateChange])
+
+  // Exposer la fonction pour afficher le dialog au parent
+  useEffect(() => {
+    const showDialog = () => {
+      pendingCloseAction.current = onClose
+      setShowUnsavedDialog(true)
+    }
+    onRegisterShowDialog?.(showDialog)
+  }, [onClose, onRegisterShowDialog])
 
   // Reminder states
   const {
@@ -239,6 +259,17 @@ GMBS`
     pendingCloseAction.current = null
   }, [])
 
+  // Fonction pour enregistrer et fermer
+  const handleSaveAndClose = useCallback(() => {
+    setShowUnsavedDialog(false)
+    // Soumettre le formulaire
+    if (formRef.current) {
+      formRef.current.requestSubmit()
+    }
+    // La fermeture sera gérée automatiquement par handleSuccess après la sauvegarde
+    pendingCloseAction.current = null
+  }, [])
+
   // Fonction pour gérer l'annulation avec vérification des modifications
   const handleCancel = useCallback(() => {
     // Si des modifications non sauvegardées existent et qu'on n'est pas en train de soumettre
@@ -252,6 +283,7 @@ GMBS`
     // Pas de modifications ou soumission en cours : fermer directement
     onClose()
   }, [hasUnsavedChanges, isSubmitting, onClose])
+
 
   // Intercepter la touche Échap pour appliquer la même logique que handleCancel
   useEffect(() => {
@@ -838,6 +870,7 @@ GMBS`
         open={showUnsavedDialog}
         onCancel={handleCancelClose}
         onConfirm={handleConfirmClose}
+        onSaveAndConfirm={handleSaveAndClose}
       />
     </TooltipProvider>
   )

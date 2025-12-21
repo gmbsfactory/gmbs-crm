@@ -6,6 +6,7 @@ import { supabase } from "@/lib/supabase-client"
 import { preloadCriticalDataAsync } from "@/lib/preload-critical-data"
 import { resetPreloadFlag } from "@/lib/preload-flag"
 import { useCurrentUser } from "@/hooks/useCurrentUser"
+import { getLocalDateString } from "@/lib/date-utils"
 
 /**
  * Provider qui gère un seul listener onAuthStateChange global
@@ -122,7 +123,7 @@ export function AuthStateListenerProvider({ children }: { children: ReactNode })
         // Include user ID in the key to handle multiple users on same browser
         const storageKey = `last_activity_check_${currentUser.id}`
         const lastCheck = localStorage.getItem(storageKey)
-        const today = new Date().toISOString().split('T')[0] // YYYY-MM-DD
+        const today = getLocalDateString() // YYYY-MM-DD in local timezone
 
         if (lastCheck === today) {
           // Already checked today, skip API call
@@ -146,11 +147,17 @@ export function AuthStateListenerProvider({ children }: { children: ReactNode })
         const data = await response.json()
         console.log('[AuthStateListenerProvider] First activity check result:', data)
 
-        // Mark as checked today in localStorage (with user-specific key)
-        localStorage.setItem(storageKey, today)
+        // Only update localStorage if the API call was successful
+        // Check both ok flag and wasFirstActivity to ensure we got a valid response
+        if (data.ok === true && data.wasFirstActivity !== undefined) {
+          // Mark as checked today in localStorage (with user-specific key)
+          localStorage.setItem(storageKey, today)
 
-        if (data.wasFirstActivity) {
-          console.log('[AuthStateListenerProvider] ✅ First activity of the day detected')
+          if (data.wasFirstActivity) {
+            console.log('[AuthStateListenerProvider] ✅ First activity of the day detected')
+          }
+        } else {
+          console.warn('[AuthStateListenerProvider] Invalid response from first-activity API, not updating localStorage')
         }
       } catch (error) {
         console.error('[AuthStateListenerProvider] Error checking first activity:', error)

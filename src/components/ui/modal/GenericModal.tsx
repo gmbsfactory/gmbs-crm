@@ -34,6 +34,10 @@ type Props = {
   wrapperClassName?: string
   contentClassName?: string
   onExitComplete?: () => void
+  // Props pour la gestion des modifications non sauvegardées
+  hasUnsavedChanges?: boolean
+  isSubmitting?: boolean
+  onShowUnsavedDialog?: () => void
 }
 
 const backdropVariants = {
@@ -94,6 +98,9 @@ export function GenericModal({
   wrapperClassName,
   contentClassName,
   onExitComplete,
+  hasUnsavedChanges,
+  isSubmitting,
+  onShowUnsavedDialog,
 }: Props) {
   // État pour indiquer si on est côté client (pour le portal)
   const [isMounted, setIsMounted] = useState(false)
@@ -118,6 +125,18 @@ export function GenericModal({
 
   const modalStyle = getModalStyle(mode)
 
+  // Gestion du clic sur le backdrop avec vérification des modifications non sauvegardées
+  const handleBackdropClick = () => {
+    // Si des modifications non sauvegardées existent et qu'on n'est pas en train de soumettre
+    if (hasUnsavedChanges && !isSubmitting && onShowUnsavedDialog) {
+      onShowUnsavedDialog()
+      return
+    }
+
+    // Pas de modifications ou soumission en cours : fermer directement
+    onClose()
+  }
+
   const modalContent = (
     <AnimatePresence mode="wait" onExitComplete={onExitComplete}>
       {isOpen ? (
@@ -141,7 +160,7 @@ export function GenericModal({
                 exit="exit"
                 variants={backdropVariants}
                 transition={{ duration: 0.2 }}
-                onClick={onClose}
+                onClick={handleBackdropClick}
               />
             )}
             <motion.div

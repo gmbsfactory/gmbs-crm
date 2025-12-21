@@ -27,14 +27,21 @@ export async function findOrCreateOwner(ownerData: {
       if (existingOwners && existingOwners.length > 0) {
         // Mettre à jour l'owner existant avec les nouvelles données si nécessaire
         const existingOwner = existingOwners[0];
+
+        // Normaliser les valeurs pour la comparaison (gérer null/undefined/espaces)
+        const newNom = nomPrenomFacturation?.trim() || null;
+        const existingNom = existingOwner.plain_nom_facturation?.trim() || null;
+        const newEmail = emailProprietaire?.trim() || null;
+        const existingEmail = existingOwner.email?.trim() || null;
+
         const needsUpdate =
-          (nomPrenomFacturation && nomPrenomFacturation.trim() !== existingOwner.plain_nom_facturation) ||
-          (emailProprietaire && emailProprietaire.trim() !== existingOwner.email);
+          (newNom !== null && newNom !== existingNom) ||
+          (newEmail !== null && newEmail !== existingEmail);
 
         if (needsUpdate) {
           await ownersApi.update(existingOwner.id, {
-            plain_nom_facturation: nomPrenomFacturation?.trim() || existingOwner.plain_nom_facturation,
-            email: emailProprietaire?.trim() || existingOwner.email,
+            plain_nom_facturation: newNom || existingOwner.plain_nom_facturation,
+            email: newEmail || existingOwner.email,
           });
         }
         return existingOwner.id;
@@ -89,14 +96,21 @@ export async function findOrCreateTenant(tenantData: {
       if (existingTenants && existingTenants.length > 0) {
         // Mettre à jour le tenant existant avec les nouvelles données si nécessaire
         const existingTenant = existingTenants[0];
+
+        // Normaliser les valeurs pour la comparaison (gérer null/undefined/espaces)
+        const newNom = nomPrenomClient?.trim() || null;
+        const existingNom = existingTenant.plain_nom_client?.trim() || null;
+        const newEmail = emailClient?.trim() || null;
+        const existingEmail = existingTenant.email?.trim() || null;
+
         const needsUpdate =
-          (nomPrenomClient && nomPrenomClient.trim() !== existingTenant.plain_nom_client) ||
-          (emailClient && emailClient.trim() !== existingTenant.email);
+          (newNom !== null && newNom !== existingNom) ||
+          (newEmail !== null && newEmail !== existingEmail);
 
         if (needsUpdate) {
           await tenantsApi.update(existingTenant.id, {
-            plain_nom_client: nomPrenomClient?.trim() || existingTenant.plain_nom_client,
-            email: emailClient?.trim() || existingTenant.email,
+            plain_nom_client: newNom || existingTenant.plain_nom_client,
+            email: newEmail || existingTenant.email,
           });
         }
         return existingTenant.id;
@@ -113,14 +127,21 @@ export async function findOrCreateTenant(tenantData: {
       if (existingTenants && existingTenants.length > 0) {
         // Mettre à jour le tenant existant avec les nouvelles données si nécessaire
         const existingTenant = existingTenants[0];
+
+        // Normaliser les valeurs pour la comparaison (gérer null/undefined/espaces)
+        const newNom = nomPrenomClient?.trim() || null;
+        const existingNom = existingTenant.plain_nom_client?.trim() || null;
+        const newTelephone = telephoneClient?.trim() || null;
+        const existingTelephone = existingTenant.telephone?.trim() || null;
+
         const needsUpdate =
-          (nomPrenomClient && nomPrenomClient.trim() !== existingTenant.plain_nom_client) ||
-          (telephoneClient && telephoneClient.trim() !== existingTenant.telephone);
+          (newNom !== null && newNom !== existingNom) ||
+          (newTelephone !== null && newTelephone !== existingTelephone);
 
         if (needsUpdate) {
           await tenantsApi.update(existingTenant.id, {
-            plain_nom_client: nomPrenomClient?.trim() || existingTenant.plain_nom_client,
-            telephone: telephoneClient?.trim() || existingTenant.telephone,
+            plain_nom_client: newNom || existingTenant.plain_nom_client,
+            telephone: newTelephone || existingTenant.telephone,
           });
         }
         return existingTenant.id;

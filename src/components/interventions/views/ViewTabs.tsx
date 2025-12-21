@@ -1,6 +1,6 @@
 "use client"
 
-import { type ComponentType, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
+import React, { type ComponentType, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 import {
   CalendarRange,
   ChevronLeft,
@@ -97,6 +97,8 @@ type SortableTabProps = {
   onEnterReorderMode?: () => void
   interventionCount?: number
   statusColor?: string | null  // Couleur du statut correspondant (dynamique depuis la DB)
+  tabRef?: React.RefObject<HTMLButtonElement | null>
+  tabIndex?: number
 }
 
 function SortableTab({
@@ -113,6 +115,8 @@ function SortableTab({
   onEnterReorderMode,
   interventionCount = 0,
   statusColor,
+  tabRef,
+  tabIndex,
 }: SortableTabProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: view.id,
@@ -186,7 +190,9 @@ function SortableTab({
             
             return (
               <button
+                ref={tabRef}
                 type="button"
+                tabIndex={tabIndex}
                 onClick={() => onSelect(view.id)}
                 className={cn(
                   "relative flex items-center gap-2 border px-3 py-1.5 text-sm font-medium rounded-full",
@@ -438,6 +444,18 @@ export function ViewTabs({
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const [canScrollLeft, setCanScrollLeft] = useState(false)
   const [canScrollRight, setCanScrollRight] = useState(false)
+  
+  // Refs pour les boutons de vues pour la navigation Tab
+  const tabRefs = useRef<Record<string, React.RefObject<HTMLButtonElement | null>>>({})
+  
+  // Initialiser les refs pour chaque vue
+  useEffect(() => {
+    visibleViews.forEach((view) => {
+      if (!tabRefs.current[view.id]) {
+        tabRefs.current[view.id] = { current: null }
+      }
+    })
+  }, [visibleViews])
 
   const updateScrollState = useCallback(() => {
     const node = scrollContainerRef.current
@@ -480,6 +498,61 @@ export function ViewTabs({
     updateScrollState()
   }, [visibleViewCount, updateScrollState])
 
+  // Navigation Tab entre les vues pastillées
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Ne gérer que Tab (sans Shift) et Shift+Tab
+      if (e.key !== "Tab") return
+      
+      // Ignorer si on est dans un champ éditable, un modal, ou un AlertDialog
+      const target = e.target as HTMLElement
+      const isEditable = ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName) || target.isContentEditable
+      if (isEditable) return
+      
+      // Vérifier si on est dans un modal ou un AlertDialog
+      const isInModal = target.closest('[role="dialog"]') !== null
+      const isInAlertDialog = target.closest('[role="alertdialog"]') !== null
+      if (isInModal || isInAlertDialog) return
+      
+      // Vérifier si le focus est actuellement sur un des boutons de vue
+      const currentFocusedButton = Object.values(tabRefs.current).find(
+        (ref) => ref.current === document.activeElement
+      )
+      
+      if (!currentFocusedButton) {
+        // Si aucun bouton n'a le focus, ne rien faire (laisser le comportement par défaut)
+        return
+      }
+      
+      // Trouver l'index du bouton actuellement focusé
+      const currentIndex = visibleViews.findIndex(
+        (view) => tabRefs.current[view.id]?.current === document.activeElement
+      )
+      
+      if (currentIndex === -1) return
+      
+      // Calculer le prochain index
+      let nextIndex: number
+      if (e.shiftKey) {
+        // Shift+Tab : navigation inverse
+        nextIndex = currentIndex === 0 ? visibleViews.length - 1 : currentIndex - 1
+      } else {
+        // Tab : navigation normale
+        nextIndex = (currentIndex + 1) % visibleViews.length
+      }
+      
+      // Empêcher le comportement par défaut et focuser le prochain bouton
+      e.preventDefault()
+      const nextButton = tabRefs.current[visibleViews[nextIndex].id]?.current
+      if (nextButton) {
+        nextButton.focus()
+      }
+    }
+    
+    window.addEventListener("keydown", handleKeyDown)
+    return () => window.removeEventListener("keydown", handleKeyDown)
+  }, [visibleViews])
+
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event
     if (!over || active.id === over.id) return
@@ -501,24 +574,33 @@ export function ViewTabs({
             ref={scrollContainerRef}
             className="flex items-end gap-4 overflow-x-auto overflow-y-visible scrollbar-hide pt-3 pb-1"
           >
-            {visibleViews.map((view) => (
-              <SortableTab
-                key={view.id}
-                view={view}
-                isActive={view.id === activeViewId}
-                onSelect={onSelect}
-                onRenameView={onRenameView}
-                onDuplicateView={onDuplicateView}
-                onDeleteView={onDeleteView}
-                onResetDefault={onResetDefault}
-                onConfigureColumns={onConfigureColumns}
-                onToggleBadge={onToggleBadge}
-                isReorderMode={isReorderMode}
-                onEnterReorderMode={onEnterReorderMode}
-                interventionCount={interventionCounts[view.id] || 0}
-                statusColor={viewStatusColors[view.id]}
-              />
-            ))}
+            {visibleViews.map((view, index) => {
+              // Créer une ref pour chaque bouton si elle n'existe pas
+              if (!tabRefs.current[view.id]) {
+                tabRefs.current[view.id] = React.createRef<HTMLButtonElement>()
+              }
+              
+              return (
+                <SortableTab
+                  key={view.id}
+                  view={view}
+                  isActive={view.id === activeViewId}
+                  onSelect={onSelect}
+                  onRenameView={onRenameView}
+                  onDuplicateView={onDuplicateView}
+                  onDeleteView={onDeleteView}
+                  onResetDefault={onResetDefault}
+                  onConfigureColumns={onConfigureColumns}
+                  onToggleBadge={onToggleBadge}
+                  isReorderMode={isReorderMode}
+                  onEnterReorderMode={onEnterReorderMode}
+                  interventionCount={interventionCounts[view.id] || 0}
+                  statusColor={viewStatusColors[view.id]}
+                  tabRef={tabRefs.current[view.id]}
+                  tabIndex={0}
+                />
+              )
+            })}
           </div>
         </SortableContext>
         {canScrollLeft && (
