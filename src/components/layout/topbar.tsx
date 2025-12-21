@@ -24,6 +24,7 @@ import { AnimatePresence, motion } from "framer-motion"
 import Image from "next/image"
 import { setPathname } from "@/lib/navigation-tracker"
 import { useCurrentUser } from "@/hooks/useCurrentUser"
+import { usePlatformKey } from "@/hooks/usePlatformKey"
 
 type ReminderFilter = "all" | "my_reminders" | "mentions"
 
@@ -50,6 +51,7 @@ export default function Topbar() {
   const { sidebarEnabled } = useInterface()
   const [logoHovered, setLogoHovered] = React.useState(false)
   const { data: currentUser } = useCurrentUser()
+  const { modifierSymbol, isModifierPressed } = usePlatformKey()
 
   // Construire la navigation dynamiquement pour inclure Comptabilité si l'utilisateur a les permissions
   const roles = currentUser?.roles || []
@@ -416,8 +418,7 @@ export default function Topbar() {
   // Cmd/Ctrl+K opens extended search and focuses input
   React.useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      const isMac = navigator.platform.toUpperCase().includes("MAC")
-      if ((isMac ? e.metaKey : e.ctrlKey) && (e.key === "k" || e.key === "K")) {
+      if (isModifierPressed(e) && (e.key === "k" || e.key === "K")) {
         e.preventDefault()
         setSearchPinned(true)
         setSearchHovering(true)
@@ -429,7 +430,7 @@ export default function Topbar() {
     }
     window.addEventListener("keydown", onKey)
     return () => window.removeEventListener("keydown", onKey)
-  }, [trimmedSearchQuery])
+  }, [trimmedSearchQuery, isModifierPressed])
 
   const handleSearchItemClick = React.useCallback(
     (id: string, type: "artisan" | "intervention") => {
@@ -602,7 +603,7 @@ export default function Topbar() {
             onMouseEnter={() => setSearchHovering(true)}
             onMouseLeave={() => !searchPinned && setSearchHovering(false)}
           >
-            <Button variant="ghost" size="icon" onClick={onSearchIconClick} aria-label="Rechercher (⌘K)">
+            <Button variant="ghost" size="icon" onClick={onSearchIconClick} aria-label={`Rechercher (${modifierSymbol}K)`}>
               <Search className="h-4 w-4" />
             </Button>
             <div
@@ -624,11 +625,11 @@ export default function Topbar() {
                 className="h-10 w-full rounded-full border-0 bg-transparent px-5 py-2.5 text-base text-neutral-900 placeholder:text-neutral-500 shadow-[inset_1px_2px_6px_rgba(5,5,5,0.55)] transition-[box-shadow,background-color,color] duration-200 ease-out focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 dark:text-white dark:placeholder:text-white/60"
               />
             </div>
-            {/* Indicateur raccourci clavier ⌘K */}
+            {/* Indicateur raccourci clavier ⌘K ou Ctrl+K */}
             {!searchOpen && (
               <div className="ml-1 hidden md:flex items-center gap-0.5 text-xs text-muted-foreground">
                 <kbd className="pointer-events-none inline-flex h-5 select-none items-center gap-0.5 rounded border border-border bg-muted px-1.5 font-mono text-[10px] font-medium text-muted-foreground">
-                  ⌘
+                  {modifierSymbol}
                 </kbd>
                 <kbd className="pointer-events-none inline-flex h-5 select-none items-center gap-0.5 rounded border border-border bg-muted px-1.5 font-mono text-[10px] font-medium text-muted-foreground">
                   K

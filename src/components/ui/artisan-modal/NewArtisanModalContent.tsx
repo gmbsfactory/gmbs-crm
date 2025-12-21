@@ -63,6 +63,7 @@ import { commentsApi } from "@/lib/api/v2/commentsApi"
 import { supabase } from "@/lib/supabase-client"
 import { cn } from "@/lib/utils"
 import type { ModalDisplayMode } from "@/types/modal-display"
+import { useSubmitShortcut } from "@/hooks/useSubmitShortcut"
 import { REGEXP_ONLY_DIGITS, REGEXP_ONLY_DIGITS_AND_CHARS } from "input-otp"
 import {
   InputOTP,
@@ -874,6 +875,9 @@ export function NewArtisanModalContent({ mode, onClose, onCycleMode, artisanId }
 
   const isSubmitting = createArtisan.isPending || updateArtisan.isPending
   const isLoading = (referenceLoading && !referenceData) || (isEditMode && isLoadingArtisan)
+
+  // Raccourci clavier Cmd/Ctrl+Enter pour enregistrer
+  const { shortcutHint } = useSubmitShortcut({ formRef, isSubmitting })
   const surfaceVariantClass = mode === "fullpage" ? "modal-config-surface-full" : undefined
   const surfaceModeClass = `modal-config--${mode}`
 
@@ -1773,7 +1777,12 @@ export function NewArtisanModalContent({ mode, onClose, onCycleMode, artisanId }
                   {isEditMode ? "Mise à jour..." : "Création..."}
                 </>
               ) : (
-                isEditMode ? "Enregistrer" : "Créer l'artisan"
+                <>
+                  {isEditMode ? "Enregistrer" : "Créer l'artisan"}
+                  <kbd className="ml-2 pointer-events-none hidden md:inline-flex h-5 select-none items-center gap-0.5 rounded border border-primary-foreground/30 bg-primary-foreground/10 px-1.5 font-mono text-[10px] font-medium text-primary-foreground/70">
+                    {shortcutHint}
+                  </kbd>
+                </>
               )}
             </Button>
           </footer>

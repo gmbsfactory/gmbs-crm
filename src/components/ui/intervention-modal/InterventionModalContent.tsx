@@ -34,6 +34,7 @@ import { cn } from "@/lib/utils"
 
 import { toast } from "sonner"
 import { useInterventionContextMenu } from "@/hooks/useInterventionContextMenu"
+import { useSubmitShortcut } from "@/hooks/useSubmitShortcut"
 
 type NoteDialogContentProps = React.ComponentPropsWithoutRef<typeof AlertDialogPrimitive.Content>
 
@@ -102,6 +103,9 @@ export function InterventionModalContent({
   const formRef = useRef<HTMLFormElement>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const queryClient = useQueryClient()
+
+  // Raccourci clavier Cmd/Ctrl+Enter pour enregistrer
+  const { shortcutHint } = useSubmitShortcut({ formRef, isSubmitting })
 
   // State pour la protection des modifications non sauvegardées
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
@@ -618,7 +622,14 @@ GMBS`
               disabled={isSubmitting || !intervention}
               className="legacy-form-button bg-accent text-accent-foreground hover:bg-accent/90"
             >
-              {isSubmitting ? "Enregistrement..." : "Enregistrer les modifications"}
+              {isSubmitting ? "Enregistrement..." : (
+                <>
+                  Enregistrer les modifications
+                  <kbd className="ml-2 pointer-events-none hidden md:inline-flex h-5 select-none items-center gap-0.5 rounded border border-accent-foreground/30 bg-accent-foreground/10 px-1.5 font-mono text-[10px] font-medium text-accent-foreground/70">
+                    {shortcutHint}
+                  </kbd>
+                </>
+              )}
             </Button>
           </div>
         </footer>

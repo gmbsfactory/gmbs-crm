@@ -5,6 +5,7 @@ import { Search, X } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
+import { usePlatformKey } from "@/hooks/usePlatformKey"
 
 interface PageSearchBarProps {
   value: string
@@ -30,19 +31,15 @@ export function PageSearchBar({
   const [isFocused, setIsFocused] = React.useState(false)
   const containerRef = React.useRef<HTMLDivElement>(null)
 
-  // Détection du système d'exploitation pour le raccourci
-  const isMac = React.useMemo(() => {
-    if (typeof navigator === "undefined") return false
-    return navigator.platform.toUpperCase().includes("MAC")
-  }, [])
+  // Utiliser le hook centralisé pour la détection de plateforme
+  const { modifierSymbol, isModifierPressed } = usePlatformKey()
 
   // Raccourci Cmd/Ctrl+F pour focus
   React.useEffect(() => {
     if (!enableShortcut) return
 
     const handleKeyDown = (e: KeyboardEvent) => {
-      const modifier = isMac ? e.metaKey : e.ctrlKey
-      if (modifier && (e.key === "f" || e.key === "F")) {
+      if (isModifierPressed(e) && (e.key === "f" || e.key === "F")) {
         e.preventDefault()
         setIsExpanded(true)
         requestAnimationFrame(() => {
@@ -54,7 +51,7 @@ export function PageSearchBar({
 
     window.addEventListener("keydown", handleKeyDown)
     return () => window.removeEventListener("keydown", handleKeyDown)
-  }, [enableShortcut, isMac])
+  }, [enableShortcut, isModifierPressed])
 
   // Fermer quand on clique en dehors
   React.useEffect(() => {
@@ -152,7 +149,7 @@ export function PageSearchBar({
       {enableShortcut && !showExpanded && (
         <div className="ml-2 hidden md:flex items-center gap-0.5 text-xs text-muted-foreground">
           <kbd className="pointer-events-none inline-flex h-5 select-none items-center gap-0.5 rounded border border-border bg-muted px-1.5 font-mono text-[10px] font-medium text-muted-foreground">
-            {isMac ? "⌘" : "Ctrl"}
+            {modifierSymbol}
           </kbd>
           <kbd className="pointer-events-none inline-flex h-5 select-none items-center gap-0.5 rounded border border-border bg-muted px-1.5 font-mono text-[10px] font-medium text-muted-foreground">
             F
