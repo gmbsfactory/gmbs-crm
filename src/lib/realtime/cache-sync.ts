@@ -298,6 +298,21 @@ export async function syncCacheWithRealtimeEvent(
   // Utiliser un délai minimal pour éviter les conflits de rendu React lors de la suppression d'interventions
   // Cela garantit que les mises à jour du DOM sont synchronisées et évite l'erreur "removeChild"
   setTimeout(() => {
+    // Debug: Compter les queries qui seront invalidées
+    const listQueries = queryClient.getQueryCache().findAll({ 
+      queryKey: interventionKeys.invalidateLists() 
+    })
+    const lightQueries = queryClient.getQueryCache().findAll({ 
+      queryKey: interventionKeys.invalidateLightLists() 
+    })
+    
+    if (process.env.NODE_ENV !== 'production') {
+      console.log(`[cache-sync] Invalidating ${listQueries.length} list queries and ${lightQueries.length} light queries`)
+      if (listQueries.length === 0 && lightQueries.length === 0) {
+        console.warn('[cache-sync] ⚠️ Aucune query trouvée pour invalidation - vérifier les clés de requête')
+      }
+    }
+    
     queryClient.invalidateQueries({
       queryKey: interventionKeys.invalidateLists(),
       refetchType: 'active', // Forcer le re-render des queries actives (celles utilisées par les composants montés)

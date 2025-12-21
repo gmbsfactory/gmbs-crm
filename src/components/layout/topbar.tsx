@@ -13,7 +13,6 @@ import { useInterventionReminders } from "@/hooks/useInterventionReminders"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from "@/components/ui/context-menu"
 import { cn } from "@/lib/utils"
-import { supabase } from "@/lib/supabase-client"
 import { normalizeReminderIdentifier } from "@/contexts/RemindersContext"
 import { useUniversalSearch } from "@/hooks/useUniversalSearch"
 import { UniversalSearchResults } from "@/components/search/UniversalSearchResults"
@@ -226,64 +225,30 @@ export default function Topbar() {
     }
     return map[seg] || seg.charAt(0).toUpperCase() + seg.slice(1)
   }, [pathname])
+  // Synchroniser les identifiers de rappel avec useCurrentUser (au lieu d'un fetch direct)
   React.useEffect(() => {
-    let cancelled = false
-    const resolveCurrentUser = async () => {
-      try {
-        const { data: session } = await supabase.auth.getSession()
-        const token = session?.session?.access_token
-        if (!token) {
-          if (!cancelled) {
-            setCurrentUserId(null)
-            setCurrentUserIdentifiers([])
-          }
-          return
-        }
-        const response = await fetch("/api/auth/me", {
-          cache: "no-store",
-          headers: { Authorization: `Bearer ${token}` },
-        })
-        if (!response.ok) {
-          throw new Error("Unable to fetch current user")
-        }
-        const payload = await response.json()
-        const user = payload?.user ?? null
-        const identifiers = new Set<string>()
-        if (user?.code_gestionnaire) {
-          identifiers.add(normalizeReminderIdentifier(user.code_gestionnaire))
-        }
-        if (user?.username) {
-          identifiers.add(normalizeReminderIdentifier(user.username))
-        }
-        if (user?.email) {
-          const local = String(user.email).split("@")[0]
-          if (local) {
-            identifiers.add(normalizeReminderIdentifier(local))
-          }
-        }
-        if (!cancelled) {
-          setCurrentUserId(user?.id ?? null)
-          setCurrentUserIdentifiers(Array.from(identifiers))
-        }
-      } catch (error) {
-        if (!cancelled) {
-          console.warn("[Topbar] Unable to resolve current user for reminders", error)
-          setCurrentUserId(null)
-          setCurrentUserIdentifiers([])
-        }
+    if (!currentUser) {
+      setCurrentUserId(null)
+      setCurrentUserIdentifiers([])
+      return
+    }
+    
+    const identifiers = new Set<string>()
+    if (currentUser.code_gestionnaire) {
+      identifiers.add(normalizeReminderIdentifier(currentUser.code_gestionnaire))
+    }
+    if (currentUser.username) {
+      identifiers.add(normalizeReminderIdentifier(currentUser.username))
+    }
+    if (currentUser.email) {
+      const local = String(currentUser.email).split("@")[0]
+      if (local) {
+        identifiers.add(normalizeReminderIdentifier(local))
       }
     }
-
-    resolveCurrentUser()
-    const { data: authListener } = supabase.auth.onAuthStateChange(() => {
-      resolveCurrentUser()
-    })
-
-    return () => {
-      cancelled = true
-      authListener.subscription.unsubscribe()
-    }
-  }, [])
+    setCurrentUserId(currentUser.id ?? null)
+    setCurrentUserIdentifiers(Array.from(identifiers))
+  }, [currentUser])
 
   // Show New Intervention button on Interventions page
   const isInterventions = pathname?.startsWith("/interventions")

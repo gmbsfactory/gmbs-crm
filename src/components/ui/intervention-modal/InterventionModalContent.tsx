@@ -99,6 +99,7 @@ export function InterventionModalContent({
   const ModeIcon = ModeIcons[mode]
 
   const formRef = useRef<HTMLFormElement>(null)
+  const modalRef = useRef<HTMLDivElement>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const queryClient = useQueryClient()
 
@@ -262,6 +263,67 @@ GMBS`
     }
   }, [handleCancel])
 
+  // Focus trap - empêcher le focus de sortir du modal lors de la navigation Tab
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Tab") return
+
+      const modalElement = modalRef.current
+      if (!modalElement) return
+
+      // Vérifier si le focus est actuellement dans le modal
+      if (!modalElement.contains(document.activeElement)) return
+
+      const focusableElements = modalElement.querySelectorAll<HTMLElement>(
+        'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"]):not([disabled])'
+      )
+
+      const focusableArray = Array.from(focusableElements).filter(
+        (el) => {
+          // Filtrer les éléments invisibles ou masqués
+          const style = window.getComputedStyle(el)
+          return style.display !== "none" && style.visibility !== "hidden" && el.offsetParent !== null
+        }
+      )
+
+      if (focusableArray.length === 0) return
+
+      const firstElement = focusableArray[0]
+      const lastElement = focusableArray[focusableArray.length - 1]
+      const activeElement = document.activeElement as HTMLElement
+
+      // Debug logs
+      console.log("🔍 Focus Trap Debug:")
+      console.log("  - Élément actif:", activeElement)
+      console.log("  - Premier élément:", firstElement)
+      console.log("  - Dernier élément:", lastElement)
+      console.log("  - Total éléments focusables:", focusableArray.length)
+      console.log("  - Shift?", event.shiftKey)
+
+      if (event.shiftKey) {
+        // Shift + Tab : navigation arrière
+        if (activeElement === firstElement) {
+          console.log("  ✅ TRAP: Premier élément -> Dernier")
+          event.preventDefault()
+          lastElement.focus()
+        }
+      } else {
+        // Tab : navigation avant
+        if (activeElement === lastElement) {
+          console.log("  ✅ TRAP: Dernier élément -> Premier")
+          event.preventDefault()
+          firstElement.focus()
+        }
+      }
+    }
+
+    // Utiliser capture phase pour intercepter AVANT que le focus ne change
+    document.addEventListener("keydown", handleKeyDown, true)
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown, true)
+    }
+  }, [])
+
   const handleSuccess = useCallback(
     async (data: any) => {
       // 1. Mise à jour optimiste immédiate dans React Query pour le détail
@@ -410,7 +472,7 @@ GMBS`
 
   return (
     <TooltipProvider>
-      <div className={`modal-config-surface ${surfaceVariantClass} ${surfaceModeClass}`}>
+      <div ref={modalRef} className={`modal-config-surface ${surfaceVariantClass} ${surfaceModeClass}`}>
         <header className="modal-config-columns-header relative">
           <div className="flex items-center gap-3">
             <Tooltip>

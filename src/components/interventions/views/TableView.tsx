@@ -74,7 +74,7 @@ import * as AlertDialogPrimitive from "@radix-ui/react-alert-dialog"
 import { ReminderMentionInput } from "@/components/interventions/ReminderMentionInput"
 import { DatePicker } from "@/components/ui/date-picker"
 import { cn } from "@/lib/utils"
-import { supabase } from "@/lib/supabase-client"
+import { useCurrentUser } from "@/hooks/useCurrentUser"
 import { CommentSection } from "@/components/shared/CommentSection"
 import { getHighlightSegments } from "@/components/search/highlight"
 import {
@@ -627,7 +627,11 @@ export function TableView({
   const [noteDialogCoords, setNoteDialogCoords] = useState<{ top: number; left: number }>({ top: 0, left: 0 })
   const noteDialogContentRef = useRef<HTMLDivElement | null>(null)
   const isReminderSaveDisabled = noteValue.trim().length === 0 && !dueDateValue
-  const [currentUserId, setCurrentUserId] = useState<string | null>(null)
+  
+  // Utiliser le hook centralisé useCurrentUser au lieu d'un fetch direct
+  const { data: currentUserData } = useCurrentUser()
+  const currentUserId = currentUserData?.id ?? null
+  
   const uuidPattern = useMemo(() => /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i, [])
 
   const columnWidths = view.layoutOptions.columnWidths ?? {}
@@ -755,34 +759,6 @@ export function TableView({
     onLayoutOptionsChange?.({ columnWidths: widths })
   })
 
-  useEffect(() => {
-    let isMounted = true
-
-    const loadCurrentUser = async () => {
-      try {
-        const { data: session } = await supabase.auth.getSession()
-        const token = session?.session?.access_token
-        const response = await fetch("/api/auth/me", {
-          cache: "no-store",
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
-        })
-        if (!response.ok) {
-          throw new Error("Unable to load current user")
-        }
-        const payload = await response.json()
-        if (!isMounted) return
-        setCurrentUserId(payload?.user?.id ?? null)
-      } catch (loadError) {
-        console.warn("[TableView] Impossible de charger l'utilisateur courant", loadError)
-      }
-    }
-
-    loadCurrentUser()
-
-    return () => {
-      isMounted = false
-    }
-  }, [])
   // Throttle le scroll handler avec requestAnimationFrame pour éviter les re-renders continus
   const rafIdRef = useRef<number | null>(null)
   const handleScrollWithFades = useCallback(() => {

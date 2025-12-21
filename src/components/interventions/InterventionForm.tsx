@@ -12,7 +12,7 @@ import { useInterventionForm, useStatusGuard } from "@/hooks/useInterventionForm
 import { useUnsavedChanges } from "@/hooks/useUnsavedChanges"
 import { UnsavedChangesDialog } from "@/components/interventions/UnsavedChangesDialog"
 import type { CreateInterventionInput, UpdateInterventionInput, InterventionStatusValue } from "@/types/interventions"
-import { supabase } from "@/lib/supabase-client"
+import { useCurrentUser } from "@/hooks/useCurrentUser"
 import { cn } from "@/lib/utils"
 
 const ARTISAN_REQUIRED_STATUSES: InterventionStatusValue[] = [
@@ -83,47 +83,19 @@ export default function InterventionForm({
     onCancel()
   }, [hasUnsavedChanges, isSubmitting, onCancel])
 
+  // Utiliser le hook centralisé useCurrentUser au lieu d'un fetch direct
+  const { data: currentUser } = useCurrentUser()
+  
+  // Déterminer si l'utilisateur peut éditer le contexte (admin uniquement)
   useEffect(() => {
-    if (mode !== "edit") {
-      return
-    }
-
-    let cancelled = false
-
-    const loadRoles = async () => {
-      try {
-        const { data: session } = await supabase.auth.getSession()
-        const token = session?.session?.access_token
-        const response = await fetch("/api/auth/me", {
-          cache: "no-store",
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
-        })
-
-        if (!response.ok) {
-          throw new Error("Impossible de récupérer l'utilisateur courant")
-        }
-
-        const payload = await response.json()
-        if (cancelled) return
-
-        const roles: string[] = Array.isArray(payload?.user?.roles) ? payload.user.roles : []
-        const isAdmin = roles.some(
-          (role) => typeof role === "string" && role.toLowerCase().includes("admin"),
-        )
-        setCanEditContext(isAdmin)
-      } catch (error) {
-        if (!cancelled) {
-          setCanEditContext(false)
-        }
-      }
-    }
-
-    loadRoles()
-
-    return () => {
-      cancelled = true
-    }
-  }, [mode])
+    if (mode !== "edit") return
+    
+    const roles: string[] = Array.isArray(currentUser?.roles) ? currentUser.roles : []
+    const isAdmin = roles.some(
+      (role) => typeof role === "string" && role.toLowerCase().includes("admin"),
+    )
+    setCanEditContext(isAdmin)
+  }, [mode, currentUser])
 
   const status = (form.watch("status") as InterventionStatusValue | undefined) ?? "DEMANDE"
   const artisanId = form.watch("artisanId") as string | undefined

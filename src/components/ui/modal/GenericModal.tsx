@@ -3,6 +3,7 @@
 import { type ReactNode, useMemo, useState, useEffect, useRef } from "react"
 import { createPortal } from "react-dom"
 import { AnimatePresence, motion, type Variants } from "framer-motion"
+import FocusTrap from "focus-trap-react"
 import type { ModalDisplayMode } from "@/types/modal-display"
 import { cn } from "@/lib/utils"
 
@@ -97,7 +98,7 @@ export function GenericModal({
   // État pour indiquer si on est côté client (pour le portal)
   const [isMounted, setIsMounted] = useState(false)
   const portalContainerRef = useRef<HTMLElement | null>(null)
-  
+
   // S'assurer qu'on est côté client avant d'utiliser le portal
   useEffect(() => {
     setIsMounted(true)
@@ -120,40 +121,50 @@ export function GenericModal({
   const modalContent = (
     <AnimatePresence mode="wait" onExitComplete={onExitComplete}>
       {isOpen ? (
-        <>
-          {showBackdrop && (
+        <FocusTrap
+          focusTrapOptions={{
+            initialFocus: false,
+            escapeDeactivates: true,
+            clickOutsideDeactivates: false,
+            returnFocusOnDeactivate: true,
+            allowOutsideClick: true,
+          }}
+        >
+          <div>
+            {showBackdrop && (
+              <motion.div
+                role="presentation"
+                aria-hidden
+                className="modal-overlay z-[60]"
+                initial="initial"
+                animate="animate"
+                exit="exit"
+                variants={backdropVariants}
+                transition={{ duration: 0.2 }}
+                onClick={onClose}
+              />
+            )}
             <motion.div
-              role="presentation"
-              aria-hidden
-              className="modal-overlay z-[60]"
+              key="modal-container"
+              className={cn(modalStyle.container, containerClassName)}
               initial="initial"
               animate="animate"
               exit="exit"
-              variants={backdropVariants}
-              transition={{ duration: 0.2 }}
-              onClick={onClose}
-            />
-          )}
-          <motion.div
-            key="modal-container"
-            className={cn(modalStyle.container, containerClassName)}
-            initial="initial"
-            animate="animate"
-            exit="exit"
-            variants={containerVariants[mode]}
-            transition={transition}
-            layout
-            layoutId={layoutId ?? undefined}
-            role="dialog"
-            aria-modal="true"
-          >
-            <div className={cn(modalStyle.wrapper, wrapperClassName)}>
-              <div className={cn(modalStyle.content, contentClassName)}>
-                {children}
+              variants={containerVariants[mode]}
+              transition={transition}
+              layout
+              layoutId={layoutId ?? undefined}
+              role="dialog"
+              aria-modal="true"
+            >
+              <div className={cn(modalStyle.wrapper, wrapperClassName)}>
+                <div className={cn(modalStyle.content, contentClassName)}>
+                  {children}
+                </div>
               </div>
-            </div>
-          </motion.div>
-        </>
+            </motion.div>
+          </div>
+        </FocusTrap>
       ) : null}
     </AnimatePresence>
   )

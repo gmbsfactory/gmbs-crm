@@ -16,7 +16,7 @@ import type {
   TableColumnAppearance,
 } from "@/types/intervention-views"
 import { STYLE_ELIGIBLE_COLUMNS, normalizeColumnStyle } from "@/lib/interventions/column-style"
-import { supabase } from "@/lib/supabase-client"
+import { useCurrentUser } from "@/hooks/useCurrentUser"
 
 const CURRENT_USER_PLACEHOLDER = "__CURRENT_USER_USERNAME__"
 const NO_USER_PLACEHOLDER = "__NO_USER_USERNAME__"
@@ -810,53 +810,10 @@ export function useInterventionViews(): UseInterventionViewsResult {
     return defaultView.id
   })
   const [isReady, setIsReady] = useState(false)
-  const [currentUsername, setCurrentUsername] = useState<string | null>(null)
-
-  useEffect(() => {
-    let cancelled = false
-
-    const resolveUser = async () => {
-      try {
-        const { data: session } = await supabase.auth.getSession()
-        const token = session?.session?.access_token
-        if (!token) {
-          if (!cancelled) {
-            setCurrentUsername(null)
-          }
-          return
-        }
-
-        const response = await fetch("/api/auth/me", {
-          headers: { Authorization: `Bearer ${token}` },
-          cache: "no-store",
-        })
-        if (!response.ok) {
-          throw new Error("Unable to fetch current user")
-        }
-        const payload = await response.json()
-        const user = payload?.user ?? null
-        const identifier: string | null =
-          user?.code_gestionnaire ?? user?.username ?? user?.surnom ?? null
-        if (!cancelled) {
-          setCurrentUsername(identifier)
-        }
-      } catch (error) {
-        if (!cancelled) {
-          setCurrentUsername(null)
-        }
-      }
-    }
-
-    resolveUser()
-    const { data: authListener } = supabase.auth.onAuthStateChange(() => {
-      resolveUser()
-    })
-
-    return () => {
-      cancelled = true
-      authListener?.subscription.unsubscribe()
-    }
-  }, [])
+  
+  // Utiliser le hook centralisé useCurrentUser au lieu d'un fetch direct
+  const { data: currentUser } = useCurrentUser()
+  const currentUsername = currentUser?.code_gestionnaire ?? currentUser?.username ?? currentUser?.surnom ?? null
 
   useEffect(() => {
     if (typeof window === "undefined") return

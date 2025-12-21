@@ -377,3 +377,68 @@ export const dashboardKeys = {
    */
   invalidateStats: () => [...dashboardKeys.all, "stats", "margin", "period"],
 } as const
+
+/**
+ * Factory pour générer les clés de requête TanStack Query pour les données de référence
+ * Centralise toutes les clés pour faciliter l'invalidation ciblée
+ * 
+ * @example
+ * // Invalider toutes les données de référence après un import
+ * queryClient.invalidateQueries({ queryKey: referenceKeys.invalidateAll() })
+ */
+export const referenceKeys = {
+  /**
+   * Clé racine pour toutes les queries de données de référence
+   * Utilisée pour invalider l'ensemble du cache
+   * 
+   * @example
+   * queryClient.invalidateQueries({ queryKey: referenceKeys.all })
+   */
+  all: ["references"] as const,
+  
+  /**
+   * Clé pour toutes les données de référence (statuts, utilisateurs, agences, métiers, etc.)
+   * 
+   * @returns ["references", "all"]
+   */
+  allData: () => [...referenceKeys.all, "all"] as const,
+  
+  /**
+   * Préfixe pour les statuts d'interventions
+   * 
+   * @returns ["references", "statuses"]
+   */
+  statuses: () => [...referenceKeys.all, "statuses"] as const,
+  
+  /**
+   * Préfixe pour les utilisateurs
+   * 
+   * @returns ["references", "users"]
+   */
+  users: () => [...referenceKeys.all, "users"] as const,
+  
+  /**
+   * Préfixe pour les agences
+   * 
+   * @returns ["references", "agencies"]
+   */
+  agencies: () => [...referenceKeys.all, "agencies"] as const,
+  
+  /**
+   * Préfixe pour les métiers
+   * 
+   * @returns ["references", "metiers"]
+   */
+  metiers: () => [...referenceKeys.all, "metiers"] as const,
+  
+  /**
+   * Clé pour invalider toutes les queries de données de référence
+   * 
+   * @returns ["references"]
+   * 
+   * @example
+   * // Après un import massif de données de référence
+   * queryClient.invalidateQueries({ queryKey: referenceKeys.invalidateAll() })
+   */
+  invalidateAll: () => referenceKeys.all,
+} as const

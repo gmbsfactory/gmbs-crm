@@ -1,3 +1,12 @@
+### In progress
+
+Gestion api/auth
+
+Navigation Tab CRM 
+
+
+
+
 ### Now 
 
 - Artisan
@@ -8,30 +17,11 @@
                 Les filtres ne refont pas une seule page mais sont éparpillés sur plusieurs pages
                 Vérifier pour les artisans le filtrage par métier
         - Première connexion au CRM obligé de recharger la page
+        - Tab va de interventions vers artisans est-ce normal 
+                Voir la navigation au clavier du CRM 
 
 - Dashboard
         - Raffraîchissement du podium à une date / heure donnée dans la semaine 
-
-- Export 
-        - merger sheet export
-        - s'assurer du bon fonctionnement
-        - mettre un bouton export en paramètre lorsque l'on est admin sur la page Settings (non prioritaire)
-
-- Import 
-        - vérifier les status transition
-        - les prix voir si il y en a exorbitant
-        - le calcul du CA 
-        - le delta entre inter loggés et inter en bdd 
-        - 
-
-
-- Search 
-        - telephone client ou propriétaire non trouvable via recherche
-                voir l'insertion du numéro de téléphone
-
-
-- Couleur
-        - 
 
 
 

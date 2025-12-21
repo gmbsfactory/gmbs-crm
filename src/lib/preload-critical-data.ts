@@ -284,57 +284,74 @@ export async function preloadCriticalData(queryClient: QueryClient) {
       staleTime: 30 * 1000, // 30 secondes
     })
 
-    // 5. Précharger toutes les vues par défaut (excluant calendar) avec limitation de concurrence
-    console.log(`[preloadCriticalData] 📋 Préchargement de ${defaultViews.length} vues par défaut`)
+    // 5. Préchargement progressif des vues par défaut
+    // Stratégie : Précharger la vue principale immédiatement, les autres en arrière-plan
+    console.log(`[preloadCriticalData] 📋 Préchargement progressif de ${defaultViews.length} vues par défaut`)
     
-    const batchSize = 2 // Limiter à 2 requêtes parallèles
-    const batchDelay = 300 // Délai entre les batches
-    
-    for (let i = 0; i < defaultViews.length; i += batchSize) {
-      const batch = defaultViews.slice(i, i + batchSize)
-      
-      // Précharger le batch en parallèle
-      await Promise.all(
-        batch.map(async (view) => {
+    // Identifier la vue principale (liste-generale ou mes-demandes en priorité)
+    const primaryViewId = currentUserId ? "mes-demandes" : "liste-generale"
+    const primaryView = defaultViews.find((v) => v.id === primaryViewId) || defaultViews[0]
+    const remainingViews = defaultViews.filter((v) => v.id !== primaryView?.id)
+
+    // Précharger la vue principale immédiatement
+    if (primaryView) {
       try {
-        // Convertir les filtres de la vue en filtres serveur
-        const { serverFilters } = convertViewFiltersToServerFilters(view.filters, {
+        const { serverFilters } = convertViewFiltersToServerFilters(primaryView.filters, {
           statusCodeToId,
           userCodeToId,
           currentUserId,
         })
 
-        // Créer les paramètres de requête
         const params: GetAllParams = {
           limit: 100,
           offset: 0,
           ...serverFilters,
         }
 
-        // Précharger avec TanStack Query (utilise le dedup automatique)
         const queryKey = interventionKeys.lightList(params)
-        const fullQueryKey = view.id ? [...queryKey, view.id] : queryKey
+        const fullQueryKey = primaryView.id ? [...queryKey, primaryView.id] : queryKey
 
-            await queryClient.prefetchQuery({
+        await queryClient.prefetchQuery({
           queryKey: fullQueryKey,
           queryFn: async () => {
             return await interventionsApiV2.getAllLight(params)
           },
-          staleTime: 30 * 1000, // 30 secondes
+          staleTime: 30 * 1000,
         })
 
-        console.log(`[preloadCriticalData] ✅ Vue "${view.title}" préchargée`)
+        console.log(`[preloadCriticalData] ✅ Vue principale "${primaryView.title}" préchargée immédiatement`)
       } catch (err) {
-        console.warn(`[preloadCriticalData] ⚠️ Erreur lors du préchargement vue "${view.title}":`, err)
-          }
-        })
-      )
-      
-      // Attendre avant le prochain batch (sauf pour le dernier)
-      if (i + batchSize < defaultViews.length) {
-        await new Promise((resolve) => setTimeout(resolve, batchDelay))
+        console.warn(`[preloadCriticalData] ⚠️ Erreur lors du préchargement vue principale "${primaryView.title}":`, err)
       }
     }
+
+    // Précharger les autres vues en arrière-plan après un délai
+    // Utiliser requestIdleCallback si disponible, sinon setTimeout
+    const scheduleBackgroundPreload = () => {
+      if (typeof window !== "undefined" && "requestIdleCallback" in window) {
+        window.requestIdleCallback(
+          () => {
+            preloadRemainingViews(remainingViews, queryClient, {
+              statusCodeToId,
+              userCodeToId,
+              currentUserId,
+            })
+          },
+          { timeout: 5000 } // Forcer l'exécution après 5s max
+        )
+      } else {
+        // Fallback pour les navigateurs sans requestIdleCallback
+        setTimeout(() => {
+          preloadRemainingViews(remainingViews, queryClient, {
+            statusCodeToId,
+            userCodeToId,
+            currentUserId,
+          })
+        }, 2000) // Démarrer après 2 secondes
+      }
+    }
+
+    scheduleBackgroundPreload()
 
     // 6. Précharger les vues par défaut des artisans
     console.log("[preloadCriticalData] 🎨 Préchargement des vues artisans")
@@ -515,6 +532,68 @@ async function preloadArtisanViews(queryClient: QueryClient, currentUserId?: str
   } catch (error) {
     console.warn("[preloadArtisanViews] ⚠️ Erreur lors du préchargement des vues artisans:", error)
   }
+}
+
+/**
+ * Précharge les vues restantes en arrière-plan avec limitation de concurrence
+ * Cette fonction est appelée après le préchargement de la vue principale
+ */
+async function preloadRemainingViews(
+  views: InterventionViewDefinition[],
+  queryClient: QueryClient,
+  helpers: {
+    statusCodeToId: (code: string | string[]) => string | string[] | undefined
+    userCodeToId: (code: string | string[]) => string | string[] | undefined
+    currentUserId?: string
+  }
+) {
+  if (views.length === 0) return
+
+  console.log(`[preloadCriticalData] 📋 Préchargement en arrière-plan de ${views.length} vues restantes`)
+
+  const batchSize = 2 // Limiter à 2 requêtes parallèles
+  const batchDelay = 300 // Délai entre les batches
+
+  for (let i = 0; i < views.length; i += batchSize) {
+    const batch = views.slice(i, i + batchSize)
+
+    // Précharger le batch en parallèle
+    await Promise.all(
+      batch.map(async (view) => {
+        try {
+          const { serverFilters } = convertViewFiltersToServerFilters(view.filters, helpers)
+
+          const params: GetAllParams = {
+            limit: 100,
+            offset: 0,
+            ...serverFilters,
+          }
+
+          const queryKey = interventionKeys.lightList(params)
+          const fullQueryKey = view.id ? [...queryKey, view.id] : queryKey
+
+          await queryClient.prefetchQuery({
+            queryKey: fullQueryKey,
+            queryFn: async () => {
+              return await interventionsApiV2.getAllLight(params)
+            },
+            staleTime: 30 * 1000,
+          })
+
+          console.log(`[preloadCriticalData] ✅ Vue "${view.title}" préchargée en arrière-plan`)
+        } catch (err) {
+          console.warn(`[preloadCriticalData] ⚠️ Erreur lors du préchargement vue "${view.title}":`, err)
+        }
+      })
+    )
+
+    // Attendre avant le prochain batch (sauf pour le dernier)
+    if (i + batchSize < views.length) {
+      await new Promise((resolve) => setTimeout(resolve, batchDelay))
+    }
+  }
+
+  console.log(`[preloadCriticalData] ✅ Toutes les vues restantes ont été préchargées`)
 }
 
 /**

@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useCallback, useMemo } from "react"
-import { supabase } from "@/lib/supabase-client"
+import { useCurrentUser } from "@/hooks/useCurrentUser"
 
 export type ArtisanViewFilter = {
   property: string
@@ -86,53 +86,10 @@ export function useArtisanViews() {
     return defaultView.id
   })
   const [isReady, setIsReady] = useState(false)
-  const [currentUserId, setCurrentUserId] = useState<string | null>(null)
-
-  useEffect(() => {
-    let cancelled = false
-
-    const resolveUser = async () => {
-      try {
-        const { data: session } = await supabase.auth.getSession()
-        const token = session?.session?.access_token
-        if (!token) {
-          if (!cancelled) {
-            setCurrentUserId(null)
-          }
-          return
-        }
-
-        const response = await fetch("/api/auth/me", {
-          headers: { Authorization: `Bearer ${token}` },
-          cache: "no-store",
-        })
-        if (!response.ok) {
-          throw new Error("Unable to fetch current user")
-        }
-        const payload = await response.json()
-        const user = payload?.user ?? null
-        // Pour les artisans, gestionnaire_id est un UUID qui référence users.id
-        const userId: string | null = user?.id ?? null
-        if (!cancelled) {
-          setCurrentUserId(userId)
-        }
-      } catch (error) {
-        if (!cancelled) {
-          setCurrentUserId(null)
-        }
-      }
-    }
-
-    resolveUser()
-    const { data: authListener } = supabase.auth.onAuthStateChange(() => {
-      resolveUser()
-    })
-
-    return () => {
-      cancelled = true
-      authListener?.subscription.unsubscribe()
-    }
-  }, [])
+  
+  // Utiliser le hook centralisé useCurrentUser au lieu d'un fetch direct
+  const { data: currentUser } = useCurrentUser()
+  const currentUserId = currentUser?.id ?? null
 
   useEffect(() => {
     if (typeof window === "undefined") return

@@ -12,7 +12,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { MapLibreMap } from "@/components/maps/MapLibreMap"
 import { DocumentManager } from "@/components/documents/DocumentManager"
 import { CommentSection } from "@/components/shared/CommentSection"
-import { supabase } from "@/lib/supabase-client"
+import { useCurrentUser } from "@/hooks/useCurrentUser"
 import { useGeocodeSearch } from "@/hooks/useGeocodeSearch"
 import type { GeocodeSuggestion } from "@/hooks/useGeocodeSearch"
 import { useReferenceData } from "@/hooks/useReferenceData"
@@ -111,7 +111,15 @@ interface LegacyInterventionFormProps {
 
 export function LegacyInterventionForm({ onSuccess, onCancel, mode = "centerpage", formRef, onSubmittingChange, defaultValues }: LegacyInterventionFormProps) {
   const { data: refData, loading: refDataLoading } = useReferenceData()
-  const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null)
+  
+  // Utiliser le hook centralisé useCurrentUser au lieu d'un fetch direct
+  const { data: currentUserData } = useCurrentUser()
+  const currentUser: CurrentUser | null = currentUserData ? {
+    id: currentUserData.id,
+    displayName: [currentUserData.firstname, currentUserData.lastname].filter(Boolean).join(" ").trim() || currentUserData.username || currentUserData.email || "Vous",
+    code: currentUserData.code_gestionnaire ?? null,
+    color: currentUserData.color ?? null,
+  } : null
   const [formData, setFormData] = useState({
     statut_id: "", // Sera initialisé à "DEMANDE" par le useEffect
     idIntervention: "", // Toujours vide pour devis supp (auto-généré)
@@ -193,53 +201,6 @@ export function LegacyInterventionForm({ onSuccess, onCancel, mode = "centerpage
       setFormData((prev) => ({ ...prev, statut_id: defaultStatus.id }))
     }
   }, [refData, formData.statut_id])
-
-  useEffect(() => {
-    let isMounted = true
-
-    const loadCurrentUser = async () => {
-      try {
-        const { data: session } = await supabase.auth.getSession()
-        const token = session?.session?.access_token
-        const response = await fetch("/api/auth/me", {
-          cache: "no-store",
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
-        })
-        if (!response.ok) {
-          throw new Error("Une erreur est survenue lors du chargement de l'utilisateur")
-        }
-        const payload = await response.json()
-        if (!isMounted) return
-
-        const user = payload?.user
-        if (!user) return
-
-        const first = user.firstname ?? user.prenom ?? ""
-        const last = user.lastname ?? user.name ?? ""
-        const displayNameCandidate = [first, last].filter(Boolean).join(" ").trim()
-        const displayName =
-          displayNameCandidate || user.username || user.email || "Vous"
-
-        setCurrentUser({
-          id: user.id,
-          displayName,
-          code: user.code_gestionnaire ?? null,
-          color: user.color ?? null,
-        })
-      } catch (error) {
-        console.warn(
-          "[LegacyInterventionForm] Impossible de charger l'utilisateur courant",
-          error,
-        )
-      }
-    }
-
-    loadCurrentUser()
-
-    return () => {
-      isMounted = false
-    }
-  }, [])
 
   useEffect(() => {
     return () => {

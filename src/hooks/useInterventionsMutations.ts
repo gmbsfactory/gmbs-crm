@@ -17,8 +17,26 @@ export function useInterventionsMutations() {
   const { open: openInterventionModal } = useInterventionModal()
   const syncQueue = getSyncQueue()
   const invalidateLists = () => {
-    queryClient.invalidateQueries({ queryKey: interventionKeys.invalidateLists() })
-    queryClient.invalidateQueries({ queryKey: interventionKeys.invalidateLightLists() })
+    // Debug: Compter les queries qui seront invalidées
+    const listQueries = queryClient.getQueryCache().findAll({ 
+      queryKey: interventionKeys.invalidateLists() 
+    })
+    const lightQueries = queryClient.getQueryCache().findAll({ 
+      queryKey: interventionKeys.invalidateLightLists() 
+    })
+    
+    if (process.env.NODE_ENV !== 'production') {
+      console.log(`[useInterventionsMutations] Invalidating ${listQueries.length} list queries and ${lightQueries.length} light queries`)
+    }
+    
+    queryClient.invalidateQueries({ 
+      queryKey: interventionKeys.invalidateLists(),
+      refetchType: 'active' // Invalider seulement les queries actives (montées)
+    })
+    queryClient.invalidateQueries({ 
+      queryKey: interventionKeys.invalidateLightLists(),
+      refetchType: 'active'
+    })
   }
 
   // Mutation pour créer une intervention

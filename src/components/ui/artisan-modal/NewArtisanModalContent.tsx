@@ -60,7 +60,7 @@ import { validateSiret } from "@/lib/siret-validation"
 import { artisansApiV2, getArtisanTotalCount } from "@/lib/supabase-api-v2"
 import { artisansApi } from "@/lib/api/v2"
 import { commentsApi } from "@/lib/api/v2/commentsApi"
-import { supabase } from "@/lib/supabase-client"
+import { useCurrentUser } from "@/hooks/useCurrentUser"
 import { cn } from "@/lib/utils"
 import type { ModalDisplayMode } from "@/types/modal-display"
 import { REGEXP_ONLY_DIGITS, REGEXP_ONLY_DIGITS_AND_CHARS } from "input-otp"
@@ -282,11 +282,16 @@ export function NewArtisanModalContent({ mode, onClose, onCycleMode, artisanId }
   })
   const [isRestoringOrDeleting, setIsRestoringOrDeleting] = useState(false)
 
-  // Utilisateur courant
-  const [currentUser, setCurrentUser] = useState<{
-    id: string
-    displayName: string
-  } | null>(null)
+  // Utiliser le hook centralisé useCurrentUser au lieu d'un fetch direct
+  const { data: currentUserData } = useCurrentUser()
+  const currentUser = useMemo(() => {
+    if (!currentUserData) return null
+    const first = currentUserData.firstname ?? currentUserData.prenom ?? ""
+    const last = currentUserData.lastname ?? currentUserData.nom ?? ""
+    const displayNameCandidate = [first, last].filter(Boolean).join(" ").trim()
+    const displayName = displayNameCandidate || currentUserData.username || currentUserData.email || "Vous"
+    return { id: currentUserData.id, displayName }
+  }, [currentUserData])
 
   // Charger l'artisan existant en mode édition
   const { data: existingArtisan, isLoading: isLoadingArtisan } = useQuery({
@@ -294,34 +299,6 @@ export function NewArtisanModalContent({ mode, onClose, onCycleMode, artisanId }
     enabled: Boolean(artisanId),
     queryFn: () => artisansApi.getById(artisanId!),
   })
-
-  // Charger l'utilisateur courant
-  useEffect(() => {
-    const loadCurrentUser = async () => {
-      try {
-        const { data: session } = await supabase.auth.getSession()
-        const token = session?.session?.access_token
-        const response = await fetch("/api/auth/me", {
-          cache: "no-store",
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
-        })
-        if (!response.ok) return
-        const payload = await response.json()
-        const user = payload?.user
-        if (!user) return
-
-        const first = user.firstname ?? user.prenom ?? ""
-        const last = user.lastname ?? user.nom ?? ""
-        const displayNameCandidate = [first, last].filter(Boolean).join(" ").trim()
-        const displayName = displayNameCandidate || user.username || user.email || "Vous"
-
-        setCurrentUser({ id: user.id, displayName })
-      } catch (error) {
-        console.warn("Impossible de charger l'utilisateur courant", error)
-      }
-    }
-    loadCurrentUser()
-  }, [])
 
   // Cleanup du timeout
   useEffect(() => {

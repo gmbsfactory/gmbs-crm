@@ -45,7 +45,7 @@ export function useInterventionsRealtime() {
       return // Déjà en cours
     }
 
-    console.log('[Realtime] Démarrage du polling de fallback (5s)')
+    console.log('[Realtime] Démarrage du polling de fallback (60s - synchronisé avec cron Supabase)')
     setConnectionStatus('polling')
 
     pollingIntervalRef.current = setInterval(() => {
@@ -82,38 +82,54 @@ export function useInterventionsRealtime() {
     reconnectTimeoutRef.current = setTimeout(() => {
       reconnectTimeoutRef.current = null
       
-      // Essayer de créer un nouveau channel
-      if (channelRef.current) {
-        channelRef.current.unsubscribe()
-        channelRef.current = null
-      }
-
-      const channel = createInterventionsChannel(async (payload) => {
-        const newIntervention = payload.new && 'id' in payload.new ? payload.new : null
-        const oldIntervention = payload.old && 'id' in payload.old ? payload.old : null
-        console.log('[Realtime] Événement reçu:', payload.eventType, newIntervention?.id || oldIntervention?.id)
-        await syncCacheWithRealtimeEvent(queryClient, payload, currentUserId)
-      })
-
-      channelRef.current = channel
-
-      // Vérifier le statut de souscription après un court délai
+      // CRITIQUE: Arrêter le polling AVANT de tenter la reconnexion Realtime
+      // pour éviter qu'ils tournent en parallèle
+      stopPolling()
+      
+      // Attendre un court délai pour s'assurer que le polling est complètement arrêté
       setTimeout(() => {
+        // Essayer de créer un nouveau channel
         if (channelRef.current) {
-          channelRef.current.subscribe((status) => {
-            if (status === 'SUBSCRIBED') {
-              console.log('[Realtime] ✅ Reconnexion réussie, arrêt du polling')
-              stopPolling()
-              setConnectionStatus('realtime')
-            } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
-              console.warn('[Realtime] ⚠️ Échec de reconnexion, maintien du polling')
-              startPolling()
-              // Réessayer dans 30s
-              attemptReconnect()
-            }
-          })
+          channelRef.current.unsubscribe()
+          channelRef.current = null
         }
-      }, 1000)
+
+        const channel = createInterventionsChannel(async (payload) => {
+          const newIntervention = payload.new && 'id' in payload.new ? payload.new : null
+          const oldIntervention = payload.old && 'id' in payload.old ? payload.old : null
+          console.log('[Realtime] Événement reçu:', payload.eventType, newIntervention?.id || oldIntervention?.id)
+          await syncCacheWithRealtimeEvent(queryClient, payload, currentUserId)
+        })
+
+        channelRef.current = channel
+
+        // Vérifier le statut de souscription après un court délai
+        setTimeout(() => {
+          if (channelRef.current) {
+            channelRef.current.subscribe((status) => {
+              if (status === 'SUBSCRIBED') {
+                console.log('[Realtime] ✅ Reconnexion réussie')
+                // S'assurer que le polling est bien arrêté (défensif)
+                stopPolling()
+                setConnectionStatus('realtime')
+              } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+                console.warn('[Realtime] ⚠️ Échec de reconnexion, retour au polling')
+                // S'assurer que Realtime est complètement arrêté avant de démarrer le polling
+                if (channelRef.current) {
+                  channelRef.current.unsubscribe()
+                  channelRef.current = null
+                }
+                // Démarrer le polling seulement après un court délai
+                setTimeout(() => {
+                  startPolling()
+                  // Réessayer dans 30s
+                  attemptReconnect()
+                }, 100)
+              }
+            })
+          }
+        }, 1000)
+      }, 100) // Délai pour garantir l'arrêt du polling
     }, RECONNECT_INTERVAL)
   }, [queryClient, currentUserId, startPolling, stopPolling])
 
@@ -137,27 +153,50 @@ export function useInterventionsRealtime() {
     channel.subscribe((status) => {
       if (status === 'SUBSCRIBED') {
         console.log('[Realtime] ✅ Channel souscrit avec succès')
+        // S'assurer que le polling est arrêté AVANT de changer le statut
         stopPolling()
-        setConnectionStatus('realtime')
+        // Petit délai pour éviter les race conditions
+        setTimeout(() => {
+          setConnectionStatus('realtime')
+        }, 50)
       } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
         console.warn(`[Realtime] ⚠️ Problème de connexion (${status}), basculement vers polling`)
-        startPolling()
-        attemptReconnect()
+        // S'assurer que Realtime est complètement arrêté avant de démarrer le polling
+        if (channelRef.current) {
+          channelRef.current.unsubscribe()
+        }
+        // Démarrer le polling seulement après un court délai pour éviter les chevauchements
+        setTimeout(() => {
+          startPolling()
+          attemptReconnect()
+        }, 100)
       }
     })
 
     // Gestion des erreurs de connexion
     channel.on('error' as any, {}, (error: any) => {
       console.error('[Realtime] Erreur de connexion:', error)
-      startPolling()
-      attemptReconnect()
+      // S'assurer que Realtime est arrêté avant de démarrer le polling
+      if (channelRef.current) {
+        channelRef.current.unsubscribe()
+      }
+      setTimeout(() => {
+        startPolling()
+        attemptReconnect()
+      }, 100)
     })
 
     // Gestion de la déconnexion
     channel.on('disconnect' as any, {}, () => {
       console.warn('[Realtime] Déconnexion détectée, basculement vers polling')
-      startPolling()
-      attemptReconnect()
+      // S'assurer que Realtime est arrêté avant de démarrer le polling
+      if (channelRef.current) {
+        channelRef.current.unsubscribe()
+      }
+      setTimeout(() => {
+        startPolling()
+        attemptReconnect()
+      }, 100)
     })
 
     // Nettoyage lors du démontage

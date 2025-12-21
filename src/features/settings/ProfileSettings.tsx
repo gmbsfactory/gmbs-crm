@@ -9,7 +9,7 @@ import { TabsContent } from "@/components/ui/tabs"
 import { Switch } from "@/components/ui/switch"
 import { Mail, ExternalLink } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
-import { supabase } from "@/lib/supabase-client"
+import { useCurrentUser } from "@/hooks/useCurrentUser"
 import { usersApi } from "@/lib/api/v2"
 
 type TeamUser = {
@@ -31,8 +31,8 @@ type TeamUser = {
 
 export function ProfileSettings() {
   const { toast } = useToast()
+  const { data: currentUser, isLoading: userLoading } = useCurrentUser()
   const [me, setMe] = useState<TeamUser | null>(null)
-  const [loading, setLoading] = useState(true)
   const [colorField, setColorField] = useState<string>('')
   const [lastNameField, setLastNameField] = useState<string>('')
   const [firstNameField, setFirstNameField] = useState<string>('')
@@ -42,42 +42,56 @@ export function ProfileSettings() {
   const [speedometerMarginAverageShowPercentage, setSpeedometerMarginAverageShowPercentage] = useState<boolean>(true)
   const [speedometerMarginTotalShowPercentage, setSpeedometerMarginTotalShowPercentage] = useState<boolean>(true)
   const [preferencesLoading, setPreferencesLoading] = useState(true)
+  
+  const loading = userLoading
 
+  // Synchroniser les champs avec l'utilisateur courant via useCurrentUser
   useEffect(() => {
-    const run = async () => {
+    if (!currentUser) {
+      if (!userLoading) {
+        setPreferencesLoading(false)
+      }
+      return
+    }
+    
+    const u: TeamUser = {
+      id: currentUser.id,
+      firstname: currentUser.firstname ?? null,
+      lastname: currentUser.lastname ?? null,
+      prenom: currentUser.prenom ?? null,
+      name: currentUser.nom ?? null,
+      email: currentUser.email ?? null,
+      role: null,
+      status: currentUser.status ?? null,
+      code_gestionnaire: currentUser.code_gestionnaire ?? null,
+      surnom: currentUser.surnom ?? null,
+      color: currentUser.color ?? null,
+      page_permissions: currentUser.page_permissions,
+    }
+    
+    setMe(u)
+    setColorField(u.color || '')
+    setFirstNameField(u.firstname || u.prenom || '')
+    setLastNameField(u.lastname || u.name || '')
+    setSurnomField(u.code_gestionnaire || u.surnom || '')
+    setEmailSmtpField((currentUser as any)?.email_smtp || '')
+    
+    // Charger les préférences utilisateur
+    const loadPreferences = async () => {
       try {
-        const { data: session } = await supabase.auth.getSession()
-        const token = session?.session?.access_token
-        const res = await fetch('/api/auth/me', { headers: token ? { Authorization: `Bearer ${token}` } : {} })
-        const j = await res.json()
-        const u: TeamUser | null = j?.user || null
-        setMe(u)
-        setColorField(u?.color || '')
-        setFirstNameField(u?.firstname || u?.prenom || '')
-        setLastNameField(u?.lastname || u?.name || '')
-        setSurnomField(u?.code_gestionnaire || u?.surnom || '')
-        // Load email_smtp if available (email_password_encrypted is never loaded for security)
-        setEmailSmtpField((u as any)?.email_smtp || '')
-        
-        // Charger les préférences utilisateur
-        if (u?.id) {
-          try {
-            const preferences = await usersApi.getUserPreferences(u.id)
-            if (preferences) {
-              setSpeedometerMarginAverageShowPercentage(preferences.speedometer_margin_average_show_percentage)
-              setSpeedometerMarginTotalShowPercentage(preferences.speedometer_margin_total_show_percentage)
-            }
-          } catch (err) {
-            console.error("Erreur lors du chargement des préférences:", err)
-          }
+        const preferences = await usersApi.getUserPreferences(currentUser.id)
+        if (preferences) {
+          setSpeedometerMarginAverageShowPercentage(preferences.speedometer_margin_average_show_percentage)
+          setSpeedometerMarginTotalShowPercentage(preferences.speedometer_margin_total_show_percentage)
         }
+      } catch (err) {
+        console.error("Erreur lors du chargement des préférences:", err)
       } finally {
-        setLoading(false)
         setPreferencesLoading(false)
       }
     }
-    run()
-  }, [])
+    loadPreferences()
+  }, [currentUser, userLoading])
 
   const initials = ((firstNameField?.[0] || 'U') + (lastNameField?.[0] || '')).toUpperCase()
 

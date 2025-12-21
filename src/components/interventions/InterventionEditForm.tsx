@@ -28,7 +28,7 @@ import { interventionsApi } from "@/lib/api/v2"
 import { commentsApi } from "@/lib/api/v2/commentsApi"
 import type { Intervention, UpdateInterventionData } from "@/lib/api/v2/common/types"
 import type { InterventionWithStatus } from "@/types/intervention"
-import { supabase } from "@/lib/supabase-client"
+import { useCurrentUser } from "@/hooks/useCurrentUser"
 import { useInterventionsMutations } from "@/hooks/useInterventionsMutations"
 import { getReasonTypeForTransition, type StatusReasonType } from "@/lib/comments/statusReason"
 import { cn } from "@/lib/utils"
@@ -565,14 +565,24 @@ export function InterventionEditForm({
   const { update: updateMutation } = useInterventionsMutations()
   const [isGeocoding, setIsGeocoding] = useState(false)
   const [geocodeError, setGeocodeError] = useState<string | null>(null)
-  const [currentUser, setCurrentUser] = useState<{
-    id: string
-    displayName: string
-    code: string | null
-    color: string | null
-    roles: string[]
-  } | null>(null)
   const [pendingReasonType, setPendingReasonType] = useState<StatusReasonType | null>(null)
+
+  // Utiliser le hook centralisé useCurrentUser au lieu d'un fetch direct
+  const { data: currentUserData } = useCurrentUser()
+  const currentUser = useMemo(() => {
+    if (!currentUserData) return null
+    const first = currentUserData.firstname ?? currentUserData.prenom ?? ""
+    const last = currentUserData.lastname ?? currentUserData.nom ?? ""
+    const displayNameCandidate = [first, last].filter(Boolean).join(" ").trim()
+    const displayName = displayNameCandidate || currentUserData.username || currentUserData.email || "Vous"
+    return {
+      id: currentUserData.id,
+      displayName,
+      code: currentUserData.code_gestionnaire ?? null,
+      color: currentUserData.color ?? null,
+      roles: Array.isArray(currentUserData.roles) ? currentUserData.roles : [],
+    }
+  }, [currentUserData])
 
   // Email modal states
   const [isDevisEmailModalOpen, setIsDevisEmailModalOpen] = useState(false)
@@ -963,54 +973,6 @@ export function InterventionEditForm({
       if (suggestionBlurTimeoutRef.current) {
         window.clearTimeout(suggestionBlurTimeoutRef.current)
       }
-    }
-  }, [])
-
-  useEffect(() => {
-    let isMounted = true
-
-    const loadCurrentUser = async () => {
-      try {
-        const { data: session } = await supabase.auth.getSession()
-        const token = session?.session?.access_token
-        const response = await fetch("/api/auth/me", {
-          cache: "no-store",
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
-        })
-        if (!response.ok) {
-          throw new Error("Une erreur est survenue lors du chargement de l'utilisateur")
-        }
-        const payload = await response.json()
-        if (!isMounted) return
-
-        const user = payload?.user
-        if (!user) return
-
-        const first = user.firstname ?? user.prenom ?? ""
-        const last = user.lastname ?? user.name ?? ""
-        const displayNameCandidate = [first, last].filter(Boolean).join(" ").trim()
-        const displayName =
-          displayNameCandidate || user.username || user.email || "Vous"
-
-        setCurrentUser({
-          id: user.id,
-          displayName,
-          code: user.code_gestionnaire ?? null,
-          color: user.color ?? null,
-          roles: Array.isArray(user.roles) ? user.roles : [],
-        })
-      } catch (error) {
-        console.warn(
-          "[InterventionEditForm] Impossible de charger l'utilisateur courant",
-          error,
-        )
-      }
-    }
-
-    loadCurrentUser()
-
-    return () => {
-      isMounted = false
     }
   }, [])
 

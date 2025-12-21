@@ -1,19 +1,34 @@
 "use client"
 
-import { useCallback } from "react"
+import { useCallback, useMemo } from "react"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
 import { useInterventionModal } from "@/hooks/useInterventionModal"
 import { useModal } from "@/hooks/useModal"
+import { useCurrentUser } from "@/hooks/useCurrentUser"
 import { interventionKeys } from "@/lib/react-query/queryKeys"
 import { transitionStatus } from "@/lib/api/interventions"
-import { supabase } from "@/lib/supabase-client"
 import { interventionsApi } from "@/lib/api/v2/interventionsApi"
 import type { InterventionStatusValue } from "@/types/interventions"
 import type { ContextMenuViewType } from "@/types/context-menu"
 
 export function useInterventionContextMenu(interventionId: string, viewType?: ContextMenuViewType, idInter?: string) {
   const queryClient = useQueryClient()
+  
+  // Utiliser le hook centralisé useCurrentUser au lieu d'un fetch direct
+  const { data: currentUserData } = useCurrentUser()
+  const currentUserInfo = useMemo(() => {
+    if (!currentUserData) return null
+    const first = currentUserData.firstname ?? currentUserData.prenom ?? ""
+    const last = currentUserData.lastname ?? currentUserData.nom ?? ""
+    const displayName = [first, last].filter(Boolean).join(" ").trim() || currentUserData.username || currentUserData.email || "Vous"
+    return {
+      id: currentUserData.id,
+      name: displayName,
+      code: currentUserData.code_gestionnaire ?? null,
+      color: currentUserData.color ?? null,
+    }
+  }, [currentUserData])
   // const { toast } = useToast() // Removed legacy toast
   const { open: openInterventionModal } = useInterventionModal()
   const modal = useModal()
@@ -183,36 +198,6 @@ export function useInterventionContextMenu(interventionId: string, viewType?: Co
 
       // Snapshot de la valeur précédente pour rollback en cas d'erreur
       const previousIntervention = queryClient.getQueryData(interventionKeys.detail(interventionId))
-
-      // Récupérer les informations de l'utilisateur connecté pour la mise à jour optimiste
-      let currentUserInfo: { id: string; name: string; code: string | null; color: string | null } | null = null
-      try {
-        const { data: session } = await supabase.auth.getSession()
-        const token = session?.session?.access_token
-        if (token) {
-          const userResponse = await fetch("/api/auth/me", {
-            cache: "no-store",
-            headers: { Authorization: `Bearer ${token}` },
-          })
-          if (userResponse.ok) {
-            const payload = await userResponse.json()
-            const user = payload?.user
-            if (user) {
-              const first = user.firstname ?? user.prenom ?? ""
-              const last = user.lastname ?? user.nom ?? ""
-              const displayName = [first, last].filter(Boolean).join(" ").trim() || user.username || user.email || "Vous"
-              currentUserInfo = {
-                id: user.id,
-                name: displayName,
-                code: user.code_gestionnaire ?? null,
-                color: user.color ?? null,
-              }
-            }
-          }
-        }
-      } catch (error) {
-        console.warn("[useInterventionContextMenu] Impossible de récupérer l'utilisateur connecté", error)
-      }
 
       // Mise à jour optimiste immédiate dans toutes les listes (complètes et légères)
       if (currentUserInfo) {

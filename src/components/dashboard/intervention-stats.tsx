@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { interventionsApi } from "@/lib/api/v2"
-import { supabase } from "@/lib/supabase-client"
+import { useCurrentUser } from "@/hooks/useCurrentUser"
 import type { InterventionStatsByStatus } from "@/lib/api/v2"
 import Loader from "@/components/ui/Loader"
 
@@ -18,57 +18,14 @@ export function InterventionStatsCards({ period }: InterventionStatsCardsProps) 
   const [stats, setStats] = useState<InterventionStatsByStatus | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [userId, setUserId] = useState<string | null>(null)
-
-  // Charger l'utilisateur actuel
-  useEffect(() => {
-    let cancelled = false
-
-    const loadUser = async () => {
-      try {
-        const { data: session } = await supabase.auth.getSession()
-        const token = session?.session?.access_token
-
-        if (!token) {
-          if (!cancelled) {
-            setUserId(null)
-            setLoading(false)
-          }
-          return
-        }
-
-        const response = await fetch("/api/auth/me", {
-          cache: "no-store",
-          headers: { Authorization: `Bearer ${token}` },
-        })
-
-        if (!response.ok) {
-          throw new Error("Impossible de récupérer l'utilisateur")
-        }
-
-        const payload = await response.json()
-        const user = payload?.user ?? null
-
-        if (!cancelled) {
-          setUserId(user?.id ?? null)
-        }
-      } catch (err: any) {
-        if (!cancelled) {
-          setError(err.message || "Erreur lors du chargement de l'utilisateur")
-          setLoading(false)
-        }
-      }
-    }
-
-    loadUser()
-
-    return () => {
-      cancelled = true
-    }
-  }, [])
+  
+  // Utiliser le hook centralisé useCurrentUser au lieu d'un fetch direct
+  const { data: currentUser, isLoading: userLoading } = useCurrentUser()
+  const userId = currentUser?.id ?? null
 
   // Charger les statistiques une fois l'utilisateur chargé
   useEffect(() => {
+    if (userLoading) return
     if (!userId) {
       setLoading(false)
       return
@@ -113,7 +70,7 @@ export function InterventionStatsCards({ period }: InterventionStatsCardsProps) 
     return () => {
       cancelled = true
     }
-  }, [userId, period?.startDate, period?.endDate])
+  }, [userId, userLoading, period?.startDate, period?.endDate])
 
   // Fonction helper pour chercher plusieurs variantes de labels
   const getStatusCount = (labels: string[]): number => {

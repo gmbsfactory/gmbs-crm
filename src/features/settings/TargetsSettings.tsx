@@ -1,14 +1,14 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { useToast } from "@/hooks/use-toast"
+import { useCurrentUser } from "@/hooks/useCurrentUser"
 import { usersApi } from "@/lib/api/v2"
 import type { User, GestionnaireTarget, TargetPeriodType, CreateGestionnaireTargetData } from "@/lib/api/v2"
-import { supabase } from "@/lib/supabase-client"
 import { Loader2, Target, Edit2, Check, X } from "lucide-react"
 
 export function TargetsSettings() {
@@ -16,7 +16,6 @@ export function TargetsSettings() {
   const [users, setUsers] = useState<User[]>([])
   const [targets, setTargets] = useState<GestionnaireTarget[]>([])
   const [loading, setLoading] = useState(true)
-  const [currentUser, setCurrentUser] = useState<{ id: string; roles: string[] } | null>(null)
   const [isEditMode, setIsEditMode] = useState(false)
   const [editableData, setEditableData] = useState<
     Record<
@@ -28,6 +27,13 @@ export function TargetsSettings() {
     >
   >({})
   const [creatorUsers, setCreatorUsers] = useState<Map<string, User>>(new Map()) // Map des créateurs par ID
+
+  // Utiliser le hook centralisé useCurrentUser au lieu d'un fetch direct
+  const { data: currentUserData } = useCurrentUser()
+  const currentUser = useMemo(() => {
+    if (!currentUserData) return null
+    return { id: currentUserData.id, roles: currentUserData.roles || [] }
+  }, [currentUserData])
 
   // Fonction helper pour obtenir la valeur par défaut de margin_target selon la période
   const getDefaultMarginTarget = (periodType: TargetPeriodType): number => {
@@ -42,27 +48,6 @@ export function TargetsSettings() {
         return 5000
     }
   }
-
-  // Charger l'utilisateur actuel et vérifier les permissions
-  useEffect(() => {
-    const loadCurrentUser = async () => {
-      try {
-        const { data: session } = await supabase.auth.getSession()
-        const token = session?.session?.access_token
-        const res = await fetch("/api/auth/me", {
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
-        })
-        const json = await res.json()
-        const user = json?.user || null
-        if (user) {
-          setCurrentUser({ id: user.id, roles: user.roles || [] })
-        }
-      } catch (error) {
-        console.error("Erreur lors du chargement de l'utilisateur:", error)
-      }
-    }
-    loadCurrentUser()
-  }, [])
 
   // Charger les utilisateurs et les objectifs
   useEffect(() => {

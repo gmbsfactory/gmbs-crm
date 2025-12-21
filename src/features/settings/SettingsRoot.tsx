@@ -33,7 +33,7 @@ import { useToast } from "@/hooks/use-toast"
 import { useInterface } from "@/contexts/interface-context"
 import { ACCENT_PRESETS, type ColorMode, type AccentOption, type AccentPresetName, applyTheme } from "@/lib/themes"
 import { useRouter } from "next/navigation"
-import { supabase } from "@/lib/supabase-client"
+import { useCurrentUser } from "@/hooks/useCurrentUser"
 import { TargetsSettings } from "./TargetsSettings"
 import { EnumManager } from "./EnumManager"
 import { ProfileSettings } from "./ProfileSettings"
@@ -80,33 +80,17 @@ export default function SettingsPage({ activeTab = "profile", embedHeader = true
   const [tempColorMode, setTempColorMode] = useState<ColorMode>(colorMode)
   const [tempAccent, setTempAccent] = useState<AccentOption>(accent)
   const [tempCustomAccent, setTempCustomAccent] = useState<string>(customAccent ?? "#6366f1")
-  const [currentUserRoles, setCurrentUserRoles] = useState<string[]>([])
-  const [rolesLoading, setRolesLoading] = useState(true)
+  
+  // Utiliser le hook centralisé useCurrentUser au lieu d'un fetch direct
+  const { data: currentUser, isLoading: rolesLoading } = useCurrentUser()
+  const currentUserRoles = currentUser?.roles || []
 
-  // Charger les rôles de l'utilisateur actuel
+  // Log les rôles quand l'utilisateur change
   useEffect(() => {
-    const loadUserRoles = async () => {
-      try {
-        setRolesLoading(true)
-        const { data: session } = await supabase.auth.getSession()
-        const token = session?.session?.access_token
-        const res = await fetch("/api/auth/me", {
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
-        })
-        const json = await res.json()
-        const user = json?.user || null
-        if (user) {
-          console.log("[SettingsRoot] Rôles de l'utilisateur:", user.roles)
-          setCurrentUserRoles(user.roles || [])
-        }
-      } catch (error) {
-        console.error("Erreur lors du chargement des rôles:", error)
-      } finally {
-        setRolesLoading(false)
-      }
+    if (currentUser) {
+      console.log("[SettingsRoot] Rôles de l'utilisateur:", currentUser.roles)
     }
-    loadUserRoles()
-  }, [])
+  }, [currentUser])
 
   // Vérifier si l'utilisateur est admin
   const isAdmin = !rolesLoading && currentUserRoles.some(
