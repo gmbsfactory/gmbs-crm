@@ -211,6 +211,7 @@ const buildUserDisplay = (user?: ReferenceData["users"][number] | null) => {
       fullName: null as string | null,
       code: null as string | null,
       color: null as string | null,
+      avatarUrl: null as string | null,
     };
   }
 
@@ -221,6 +222,7 @@ const buildUserDisplay = (user?: ReferenceData["users"][number] | null) => {
     fullName: fullName || user.username || null,
     code: user.code_gestionnaire ?? null,
     color: user.color ?? null,
+    avatarUrl: user.avatar_url ?? null,
   };
 };
 
@@ -228,9 +230,14 @@ const mapInterventionRecord = (
   item: any,
   refs: ReferenceCache
 ): Intervention => {
-  const userInfo = buildUserDisplay(
-    refs.usersById.get(item.assigned_user_id ?? "")
-  );
+  // Extraire les relations brutes pour la recherche (agencies, tenants et users)
+  const rawAgencies = item.agencies
+  const rawTenants = item.tenants
+  const rawUsers = item.users
+
+  // Utiliser les relations brutes si disponibles, sinon utiliser le cache
+  const finalUser = rawUsers || (item.assigned_user_id ? refs.usersById.get(item.assigned_user_id) : undefined)
+  const userInfo = buildUserDisplay(finalUser);
   const agency = item.agence_id
     ? refs.agenciesById.get(item.agence_id)
     : undefined;
@@ -270,10 +277,6 @@ const mapInterventionRecord = (
   const coutMaterielObj = interventionCosts.find(
     (cost: any) => cost.cost_type === 'material' || cost.label === 'Coût Matériel'
   );
-
-  // Extraire les relations brutes pour la recherche (agencies et tenants)
-  const rawAgencies = item.agencies
-  const rawTenants = item.tenants
 
   // Utiliser les relations brutes si disponibles, sinon utiliser le cache
   const finalAgency = rawAgencies || agency
@@ -338,6 +341,7 @@ const mapInterventionRecord = (
     assignedUserName: userInfo.fullName ?? undefined,
     assignedUserCode: userInfo.code,
     assignedUserColor: userInfo.color ?? null,
+    assignedUserAvatarUrl: userInfo.avatarUrl ?? null,
     status: normalizedStatus,
     statusLabel: normalizedStatus?.label ?? item.statusLabel ?? null,
     statut: statusCode,

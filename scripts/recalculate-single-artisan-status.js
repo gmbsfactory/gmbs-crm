@@ -2,19 +2,27 @@
 
 /**
  * Script pour recalculer le statut d'un seul artisan selon les règles définies
- * 
+ *
  * Ce script est appelé automatiquement quand une intervention est terminée
  * pour mettre à jour uniquement l'artisan concerné (plus efficace qu'un recalcul global).
- * 
+ *
  * Usage: node scripts/recalculate-single-artisan-status.js <artisan_id>
- * 
- * Règles appliquées :
- * - candidat -> novice : 1 intervention terminée
+ *
+ * Règles appliquées (progression automatique) :
+ * - potentiel/candidat/one_shot -> novice : 1 intervention terminée
  * - novice -> formation : 3 interventions terminées
  * - formation -> confirmé : 6 interventions terminées
  * - confirmé -> expert : 10+ interventions terminées
- * - potentiel -> novice : Première intervention
- * 
+ *
+ * Transitions manuelles possibles :
+ * - potentiel <-> candidat (bidirectionnel)
+ * - potentiel/candidat -> one_shot
+ * - one_shot -> potentiel/candidat (pour réintégrer dans le workflow auto)
+ * - tout statut -> archive
+ *
+ * Statut gelé (pas de progression auto) :
+ * - archive : reste archivé définitivement
+ *
  * Le statut de dossier est également recalculé selon les règles ARC-002.
  */
 
@@ -92,11 +100,12 @@ async function recalculateSingleArtisan(artisanId) {
       statusIdToCode.set(status.id, status.code.toUpperCase());
     });
 
-    // 4. Ne pas modifier les statuts ONE_SHOT et ARCHIVE automatiquement
+    // 4. Ne pas modifier le statut ARCHIVE automatiquement
+    // ONE_SHOT peut maintenant progresser automatiquement selon le nombre d'interventions
     const currentStatusId = artisan.statut_id;
     const currentCode = currentStatusId ? statusIdToCode.get(currentStatusId) : null;
 
-    if (currentCode === 'ONE_SHOT' || currentCode === 'ARCHIVE') {
+    if (currentCode === 'ARCHIVE') {
       // Mettre à jour uniquement le statut de dossier si nécessaire
       const { data: attachments } = await supabase
         .from('artisan_attachments')
@@ -154,7 +163,7 @@ async function recalculateSingleArtisan(artisanId) {
           .eq('id', artisanId);
       }
 
-      console.log(`✅ Statut de dossier mis à jour pour artisan ${artisanId} (statut ${currentCode} non modifié)`);
+      console.log(`✅ Statut de dossier mis à jour pour artisan ${artisanId} (statut ARCHIVE non modifié)`);
       return;
     }
 
@@ -189,16 +198,16 @@ async function recalculateSingleArtisan(artisanId) {
     } else if (completedCount >= 3) {
       newCode = 'FORMATION';
     } else if (completedCount >= 1) {
-      // Si CANDIDAT ou POTENTIEL → NOVICE après 1 intervention
-      if (currentCode === 'CANDIDAT' || currentCode === 'POTENTIEL' || currentCode === null) {
+      // Si CANDIDAT, POTENTIEL ou ONE_SHOT → NOVICE après 1 intervention
+      if (currentCode === 'CANDIDAT' || currentCode === 'POTENTIEL' || currentCode === 'ONE_SHOT' || currentCode === null) {
         newCode = 'NOVICE';
       } else {
         // Pour les autres statuts, garder le statut actuel jusqu'au seuil suivant
         newCode = currentCode;
       }
     } else {
-      // Moins de 1 intervention → reste CANDIDAT ou POTENTIEL
-      newCode = currentCode || 'CANDIDAT';
+      // Moins de 1 intervention → reste au statut actuel ou POTENTIEL par défaut
+      newCode = currentCode || 'POTENTIEL';
     }
 
     // Ne pas modifier si le statut n'a pas changé

@@ -2187,50 +2187,55 @@ export function InterventionEditForm({
                     <button type="button" className="flex items-center justify-center h-7 w-7 cursor-pointer group rounded-full">
                       {(() => {
                         const assignedUser = refData?.users.find(u => u.id === formData.assigned_user_id)
+                        const initials = ((assignedUser?.firstname?.[0] || '') + (assignedUser?.lastname?.[0] || '')).toUpperCase() || '?'
                         return (
-                          <GestionnaireBadge
-                            firstname={assignedUser?.firstname}
-                            lastname={assignedUser?.lastname}
-                            color={assignedUser?.color}
-                            avatarUrl={assignedUser?.avatar_url}
-                            size="sm"
-                            className="transition-transform group-hover:scale-110 h-7 w-7"
-                          />
+                          <div 
+                            className="h-7 w-7 rounded-full flex items-center justify-center text-xs font-semibold text-white transition-transform group-hover:scale-110 border-2"
+                            style={{ 
+                              backgroundColor: assignedUser?.color || '#6b7280',
+                              borderColor: assignedUser?.color || '#6b7280',
+                            }}
+                          >
+                            {initials}
+                          </div>
                         )
                       })()}
                     </button>
                   </PopoverTrigger>
-                  <PopoverContent className="w-56 p-2" align="start">
+                  <PopoverContent className="w-56 p-2 z-[100]" align="start">
                     <div className="space-y-1">
-                      <p className="text-xs font-medium text-muted-foreground mb-2">Attribuer à</p>
+                      <p className="text-xs font-medium text-muted-foreground mb-2">Attribuer à ({refData?.users?.length || 0} utilisateurs)</p>
                       <div className="space-y-1">
-                        {refData?.users.map((user) => {
-                          const displayName = [user.firstname, user.lastname].filter(Boolean).join(" ").trim() || user.username
-                          const isSelected = user.id === formData.assigned_user_id
-                          return (
-                            <button
-                              key={user.id}
-                              type="button"
-                              className={cn(
-                                "w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-left transition-colors",
-                                isSelected ? "bg-primary/10 text-primary" : "hover:bg-muted"
-                              )}
-                              onClick={() => handleInputChange("assigned_user_id", user.id)}
-                            >
-                              <GestionnaireBadge
-                                firstname={user.firstname}
-                                lastname={user.lastname}
-                                color={user.color}
-                                avatarUrl={user.avatar_url}
-                                size="sm"
-                                showBorder={false}
-                              />
-                              <span className="text-xs truncate flex-1">
-                                {user.code_gestionnaire ? `${user.code_gestionnaire} - ${displayName}` : displayName}
-                              </span>
-                            </button>
-                          )
-                        })}
+                        {refData?.users && refData.users.length > 0 ? (
+                          refData.users.map((user) => {
+                            const displayName = [user.firstname, user.lastname].filter(Boolean).join(" ").trim() || user.username
+                            const isSelected = user.id === formData.assigned_user_id
+                            const initials = ((user.firstname?.[0] || '') + (user.lastname?.[0] || '')).toUpperCase() || '?'
+                            return (
+                              <button
+                                key={user.id}
+                                type="button"
+                                className={cn(
+                                  "w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-left transition-colors",
+                                  isSelected ? "bg-primary/10 text-primary" : "hover:bg-muted"
+                                )}
+                                onClick={() => handleInputChange("assigned_user_id", user.id)}
+                              >
+                                <div 
+                                  className="h-7 w-7 rounded-full flex items-center justify-center text-xs font-semibold text-white flex-shrink-0"
+                                  style={{ backgroundColor: user.color || '#6b7280' }}
+                                >
+                                  {initials}
+                                </div>
+                                <span className="text-xs truncate flex-1">
+                                  {user.code_gestionnaire ? `${user.code_gestionnaire} - ${displayName}` : displayName}
+                                </span>
+                              </button>
+                            )
+                          })
+                        ) : (
+                          <p className="text-xs text-muted-foreground">Aucun utilisateur disponible</p>
+                        )}
                       </div>
                     </div>
                   </PopoverContent>

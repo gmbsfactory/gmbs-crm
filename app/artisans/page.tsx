@@ -49,6 +49,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
+import { GestionnaireBadge } from "@/components/ui/gestionnaire-badge"
 
 // Helper pour convertir hex en rgba
 function hexToRgba(hex: string, alpha: number): string | null {
@@ -74,28 +75,6 @@ function computeBadgeStyle(color?: string | null) {
     color,
     borderColor: color,
   }
-}
-
-// Composant badge rond avec initiales (comme dans le profil)
-function UserBadge({ initials, color, name }: { initials: string; color?: string | null; name?: string }) {
-  const bgColor = color || '#6b7280'
-  const borderColor = color ? hexToRgba(color, 0.3) || '#e5e7eb' : '#e5e7eb'
-  const textColor = '#ffffff'
-  const displayInitials = initials || '??'
-
-  return (
-    <div 
-      className="relative h-8 w-8 rounded-full grid place-items-center font-semibold text-[10px] uppercase select-none border"
-      style={{ 
-        background: bgColor, 
-        borderColor: borderColor,
-        color: textColor 
-      }}
-      title={name || 'Non assigné'}
-    >
-      <span className="leading-none">{displayInitials}</span>
-    </div>
-  )
 }
 
 type Contact = {
@@ -132,6 +111,9 @@ type Contact = {
   gestionnaireInitials?: string
   gestionnaireColor?: string | null
   gestionnaire_id?: string | null
+  gestionnaireAvatarUrl?: string | null
+  gestionnaireFirstname?: string | null
+  gestionnaireLastname?: string | null
 }
 
 type ReferenceUser = {
@@ -140,6 +122,7 @@ type ReferenceUser = {
   lastname: string | null
   code_gestionnaire: string | null
   color?: string | null
+  avatar_url?: string | null
 }
 
 const statusConfig = {
@@ -253,6 +236,9 @@ const mapArtisanToContact = (artisan: ApiArtisan, users: ReferenceUser[], artisa
     gestionnaireInitials,
     gestionnaireColor: user?.color || null,
     gestionnaire_id: artisan.gestionnaire_id ?? null,
+    gestionnaireAvatarUrl: user?.avatar_url || null,
+    gestionnaireFirstname: user?.firstname || null,
+    gestionnaireLastname: user?.lastname || null,
   }
 }
 
@@ -1306,10 +1292,12 @@ export default function ArtisansPage(): ReactElement {
                         </td>
                         <td className="px-2.5 py-1.5">
                           <div className="flex items-center justify-center">
-                            <UserBadge 
-                              initials={contact.gestionnaireInitials || '—'}
+                            <GestionnaireBadge 
+                              firstname={contact.gestionnaireFirstname}
+                              lastname={contact.gestionnaireLastname}
                               color={contact.gestionnaireColor}
-                              name={contact.attribueA}
+                              avatarUrl={contact.gestionnaireAvatarUrl}
+                              size="sm"
                             />
                           </div>
                         </td>

@@ -17,6 +17,13 @@ export type InterventionView = Intervention & {
   assignedUserName?: string
   assignedUserCode?: string | null
   assignedUserColor?: string | null
+  assignedUserAvatarUrl?: string | null
+  assignedUserAvatarMetadata?: {
+    hash: string | null
+    sizes: Record<string, string>
+    mime_preferred: string
+    baseUrl: string | null
+  } | null
   statut?: string | null
 
   // Contexte et consignes (snake_case → camelCase)

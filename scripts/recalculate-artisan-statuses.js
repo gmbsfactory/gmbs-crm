@@ -2,18 +2,26 @@
 
 /**
  * Script pour recalculer les statuts des artisans selon les règles définies
- * 
+ *
  * Ce script doit être exécuté après l'import des données pour écraser
  * les statuts importés depuis Google Sheets avec les statuts calculés
  * selon les règles métier.
- * 
- * Règles :
- * - candidat -> novice : 1 intervention terminée
+ *
+ * Règles appliquées (progression automatique) :
+ * - potentiel/candidat/one_shot -> novice : 1 intervention terminée
  * - novice -> formation : 3 interventions terminées
  * - formation -> confirmé : 6 interventions terminées
  * - confirmé -> expert : 10+ interventions terminées
- * - potentiel -> novice : Première intervention
- * 
+ *
+ * Transitions manuelles possibles :
+ * - potentiel <-> candidat (bidirectionnel)
+ * - potentiel/candidat -> one_shot
+ * - one_shot -> potentiel/candidat (pour réintégrer dans le workflow auto)
+ * - tout statut -> archive
+ *
+ * Statut gelé (pas de progression auto) :
+ * - archive : reste archivé définitivement
+ *
  * Le statut de dossier est également recalculé selon les règles ARC-002.
  */
 
@@ -138,28 +146,26 @@ async function main() {
         // Calculer le nouveau statut selon les règles
         let newCode = null;
 
-        if (completedCount >= 10) {
+        // Ne pas modifier ARCHIVE automatiquement
+        if (currentCode === 'ARCHIVE' || currentCode === 'ARCHIVER') {
+          newCode = currentCode;
+        } else if (completedCount >= 10) {
           newCode = 'EXPERT';
         } else if (completedCount >= 6) {
           newCode = 'CONFIRME';
         } else if (completedCount >= 3) {
           newCode = 'FORMATION';
         } else if (completedCount >= 1) {
-          // Si CANDIDAT ou POTENTIEL → NOVICE après 1 intervention
-          if (currentCode === 'CANDIDAT' || currentCode === 'POTENTIEL' || currentCode === null) {
+          // Si CANDIDAT, POTENTIEL ou ONE_SHOT → NOVICE après 1 intervention
+          if (currentCode === 'CANDIDAT' || currentCode === 'POTENTIEL' || currentCode === 'ONE_SHOT' || currentCode === null) {
             newCode = 'NOVICE';
           } else {
             // Pour les autres statuts, garder le statut actuel jusqu'au seuil suivant
             newCode = currentCode;
           }
         } else {
-          // Moins de 1 intervention → reste CANDIDAT ou POTENTIEL
-          newCode = currentCode || 'CANDIDAT';
-        }
-
-        // Ne pas modifier ARCHIVER
-        if (currentCode === 'ARCHIVER') {
-          newCode = 'ARCHIVER';
+          // Moins de 1 intervention → reste au statut actuel ou POTENTIEL par défaut
+          newCode = currentCode || 'POTENTIEL';
         }
 
         // Ne pas modifier si le statut n'a pas changé

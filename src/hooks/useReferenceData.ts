@@ -19,15 +19,26 @@ let cachedData: ReferenceData | null = null;
 let lastFetch = 0;
 const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
+// Fonction pour invalider le cache (utile pour debug)
+export function invalidateReferenceDataCache() {
+  cachedData = null;
+  lastFetch = 0;
+}
+
 export function useReferenceData(): UseReferenceDataReturn {
-  const [data, setData] = useState<ReferenceData | null>(cachedData);
-  const [loading, setLoading] = useState(false);
+  // Le cache est valide seulement s'il existe, n'est pas expiré, ET contient des données utilisateurs
+  const isCacheValid = cachedData 
+    && Date.now() - lastFetch < CACHE_DURATION 
+    && cachedData.users && cachedData.users.length > 0;
+  const [data, setData] = useState<ReferenceData | null>(isCacheValid ? cachedData : null);
+  const [loading, setLoading] = useState(!isCacheValid);
   const [error, setError] = useState<string | null>(null);
 
   const loadData = useCallback(async () => {
-    // Utiliser le cache si disponible et récent
-    if (cachedData && Date.now() - lastFetch < CACHE_DURATION) {
+    // Utiliser le cache si disponible, récent ET contient des utilisateurs
+    if (cachedData && Date.now() - lastFetch < CACHE_DURATION && cachedData.users && cachedData.users.length > 0) {
       setData(cachedData);
+      setLoading(false);
       return;
     }
 
@@ -36,6 +47,13 @@ export function useReferenceData(): UseReferenceDataReturn {
       setError(null);
 
       const result = await referenceApi.getAll();
+      
+      // Log pour debug
+      console.log('[useReferenceData] Données chargées:', {
+        users: result.users?.length || 0,
+        agencies: result.agencies?.length || 0,
+        statuses: result.interventionStatuses?.length || 0,
+      });
       
       // Mettre en cache
       cachedData = result;

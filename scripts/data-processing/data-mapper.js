@@ -2654,10 +2654,43 @@ class DataMapper {
       }
 
       if (!data || !data.id) {
-        console.error(
-          `❌ Statut canonique introuvable en base: ${canonicalCode} (depuis "${statusLabel}")`
+        // Le statut n'existe pas, le créer avec le code canonique et le label original
+        console.warn(
+          `⚠️ Statut canonique introuvable en base: ${canonicalCode} (depuis "${statusLabel}"). Tentative de création...`
         );
-        return null;
+        
+        try {
+          // Utiliser le label original normalisé comme label
+          const normalizedLabel = statusLabel.trim();
+          const result = await enumsApi.findOrCreateInterventionStatusByCode(
+            canonicalCode,
+            normalizedLabel
+          );
+
+          if (result.created) {
+            this.stats.interventionStatusesCreated =
+              (this.stats.interventionStatusesCreated || 0) + 1;
+            this.stats.newInterventionStatuses =
+              this.stats.newInterventionStatuses || [];
+            this.stats.newInterventionStatuses.push(`${canonicalCode} (${normalizedLabel})`);
+            console.log(
+              `🆕 Statut créé: "${normalizedLabel}" → ${canonicalCode} (ID: ${result.id})`
+            );
+          } else {
+            console.log(
+              `✅ Statut trouvé après création: "${normalizedLabel}" → ${canonicalCode} (ID: ${result.id})`
+            );
+          }
+
+          this.cache.interventionStatuses.set(canonicalCode, result.id);
+          return result.id;
+        } catch (createError) {
+          console.error(
+            `❌ Erreur lors de la création du statut "${statusLabel}" → ${canonicalCode}:`,
+            createError
+          );
+          return null;
+        }
       }
 
       this.cache.interventionStatuses.set(canonicalCode, data.id);

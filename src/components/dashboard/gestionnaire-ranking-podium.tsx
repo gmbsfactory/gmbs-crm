@@ -10,19 +10,33 @@ import { Trophy } from "lucide-react"
 import Loader from "@/components/ui/Loader"
 import { PodiumCard } from "@/components/dashboard/leaderboard/PodiumCard"
 import { BottomCard } from "@/components/dashboard/leaderboard/BottomCard"
+import { usePodiumPeriod } from "@/hooks/usePodiumPeriod"
 
 interface GestionnaireRankingPodiumProps {
   period?: {
     startDate?: string
     endDate?: string
   }
+  /**
+   * Si true, utilise automatiquement la période du podium qui se rafraîchit chaque vendredi à 16h
+   * Si false, utilise la période fournie dans `period` (comportement par défaut pour compatibilité)
+   */
+  useAutoPeriod?: boolean
 }
 
-export function GestionnaireRankingPodium({ period }: GestionnaireRankingPodiumProps) {
+export function GestionnaireRankingPodium({ period, useAutoPeriod = false }: GestionnaireRankingPodiumProps) {
   const [ranking, setRanking] = useState<MarginRankingResult | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [sortBy, setSortBy] = useState<'margin' | 'revenue'>('margin')
+
+  // Charger la période automatique du podium si activé
+  const {
+    periodStart: autoPeriodStart,
+    periodEnd: autoPeriodEnd,
+    isLoading: isPeriodLoading,
+    error: periodError
+  } = usePodiumPeriod()
 
   useEffect(() => {
     let cancelled = false
@@ -32,17 +46,39 @@ export function GestionnaireRankingPodium({ period }: GestionnaireRankingPodiumP
         setLoading(true)
         setError(null)
 
-        // Calculer les dates si non fournies (mois en cours par défaut)
-        let startDate = period?.startDate
-        let endDate = period?.endDate
+        // Déterminer quelle période utiliser
+        let startDate: string | undefined
+        let endDate: string | undefined
 
-        if (!startDate || !endDate) {
-          const now = new Date()
-          const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
-          const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59)
+        if (useAutoPeriod) {
+          // Mode auto: attendre que la période soit chargée
+          if (isPeriodLoading) {
+            return
+          }
 
-          startDate = startDate || startOfMonth.toISOString()
-          endDate = endDate || endOfMonth.toISOString()
+          if (periodError) {
+            throw new Error(`Erreur de période: ${periodError}`)
+          }
+
+          if (!autoPeriodStart || !autoPeriodEnd) {
+            throw new Error("Période automatique non disponible")
+          }
+
+          startDate = autoPeriodStart
+          endDate = autoPeriodEnd
+        } else {
+          // Mode manuel: utiliser la période fournie ou le mois en cours
+          startDate = period?.startDate
+          endDate = period?.endDate
+
+          if (!startDate || !endDate) {
+            const now = new Date()
+            const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
+            const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59)
+
+            startDate = startDate || startOfMonth.toISOString()
+            endDate = endDate || endOfMonth.toISOString()
+          }
         }
 
         const rankingData = await interventionsApi.getMarginRankingByPeriodV3(startDate, endDate)
@@ -64,7 +100,15 @@ export function GestionnaireRankingPodium({ period }: GestionnaireRankingPodiumP
     return () => {
       cancelled = true
     }
-  }, [period?.startDate, period?.endDate])
+  }, [
+    period?.startDate,
+    period?.endDate,
+    useAutoPeriod,
+    autoPeriodStart,
+    autoPeriodEnd,
+    isPeriodLoading,
+    periodError
+  ])
 
   // IMPORTANT: useMemo doit être appelé AVANT les early returns pour respecter les règles des Hooks
   const sortedRankings = useMemo(() => {

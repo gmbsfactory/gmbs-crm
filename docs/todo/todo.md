@@ -1,5 +1,8 @@
 ### Now 
 
+- Lancer prompt pour gestion mot de passe
+
+
 - Artisan
         - Mettre nouvel artisan en haut ???
         - Permuter Candidat et Potentiel dans la chaîne de logique des statuts artisans
@@ -7,17 +10,12 @@
                 Lors de l'édition également 
                         Transition  de Potentiel à Candidat et One Shot
 
-- Gestion des fermetures de session 
-
-- Ajout possibilité de mettre une photo de profil
+- Cohérence photo de profil
 
 - Gestion de l'authentification d'un gestionnaire. Définir un mot de passe initiale, 
         et laisser le gestionnaire changer son mot de passe. 
 
 - Tabulation trap quand l'alert dialog apparaît
-
-- Problème avec le refresh de la recherche la table lorsqu'un artisan est créé 
-        J'ai l'impression que ça prend un peu de temps pour afficher l'artisan
 
 - Bugs
         - Gestion des filtres et leur affichage en page interventions et artisans
@@ -29,8 +27,10 @@
 
 - Dashboard
         - Raffraîchissement du podium à une date / heure donnée dans la semaine 
+                à tester
 
 
+- pas de vulnérabilité induite par l'utilisation de supabaseAdmin dans api/auth/status
 
  ### Later
 

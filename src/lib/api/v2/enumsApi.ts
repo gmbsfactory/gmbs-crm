@@ -440,7 +440,75 @@ export const getInterventionStatusByCode = async (code: string) => {
     .eq('code', normalizedCode)
     .single();
 
-  return { data, error };
+  // Gérer le cas où aucun résultat n'est trouvé (PGRST116) comme un cas normal, pas une erreur
+  if (error) {
+    if ((error as any).code === 'PGRST116' || error.message?.includes('Results contain 0 rows') || error.message?.includes('The result contains 0 rows')) {
+      return { data: null, error: null };
+    }
+    return { data: null, error };
+  }
+
+  return { data, error: null };
+};
+
+/**
+ * Trouve ou crée un statut d'intervention avec un code et un label spécifiques.
+ */
+export const findOrCreateInterventionStatusByCode = async (
+  code: string,
+  label: string
+): Promise<FindOrCreateResult> => {
+  const normalizedCode = code?.trim();
+  const normalizedLabel = label?.trim();
+
+  if (!normalizedCode) {
+    throw new Error('Le code du statut ne peut pas être vide');
+  }
+
+  if (!normalizedLabel) {
+    throw new Error('Le label du statut ne peut pas être vide');
+  }
+
+  // Chercher d'abord par code
+  const { data: existingByCode } = await supabase
+    .from('intervention_statuses')
+    .select('id')
+    .eq('code', normalizedCode)
+    .single();
+
+  if (existingByCode) {
+    return { id: existingByCode.id, created: false };
+  }
+
+  // Si il n'existe pas, le créer avec le code et le label fournis
+  const { data: created, error: createError } = await supabase
+    .from('intervention_statuses')
+    .insert({
+      code: normalizedCode,
+      label: normalizedLabel,
+      color: '#808080',
+      sort_order: 999
+    })
+    .select('id')
+    .single();
+
+  if (createError) {
+    // Si erreur de duplicate key, refaire une recherche par code
+    if (createError.message.includes('duplicate key') || (createError as any).code === '23505') {
+      const { data: retry } = await supabase
+        .from('intervention_statuses')
+        .select('id')
+        .eq('code', normalizedCode)
+        .single();
+
+      if (retry) {
+        return { id: retry.id, created: false };
+      }
+    }
+    throw new Error(`Erreur lors de la création du statut intervention: ${createError.message}`);
+  }
+
+  return { id: created.id, created: true };
 };
 
 /**
@@ -469,6 +537,7 @@ export const enumsApi = {
   findOrCreateZone,
   findOrCreateArtisanStatus,
   findOrCreateInterventionStatus,
+  findOrCreateInterventionStatusByCode,
   getInterventionStatusByCode,
   getUserByUsername,
 };

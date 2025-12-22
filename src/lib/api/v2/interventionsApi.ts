@@ -752,7 +752,8 @@ export const interventionsApi = {
       throw new Error("interventionId is required");
     }
 
-    const artisanOrder = cost.artisan_order ?? (cost.cost_type === 'intervention' || cost.cost_type === 'marge' ? null : 1);
+    // Par défaut lors de l'import, tous les coûts sont reliés à l'artisan 1 (artisan principal)
+    const artisanOrder = cost.artisan_order ?? 1;
 
     // Chercher un coût existant avec le même type et ordre
     let query = supabase
@@ -913,6 +914,7 @@ export const interventionsApi = {
       amount: number;
       currency?: string;
       metadata?: any;
+      artisan_order?: 1 | 2 | null;
     }
   ): Promise<InterventionCost> {
     // Valider l'UUID de l'intervention
@@ -926,6 +928,13 @@ export const interventionsApi = {
       throw new Error(`Montant invalide: ${data.amount}`);
     }
 
+    // Déterminer artisan_order selon les règles :
+    // - Par défaut lors de l'import, tous les coûts sont reliés à l'artisan 1 (artisan principal)
+    // - Si artisan_order est explicitement fourni (y compris null), on l'utilise
+    const artisanOrder = data.artisan_order !== undefined 
+      ? data.artisan_order 
+      : 1;
+
     // Préparer les données d'insertion
     const insertData = {
       intervention_id: interventionId,
@@ -933,7 +942,8 @@ export const interventionsApi = {
       label: data.label || null,
       amount: data.amount,
       currency: data.currency || 'EUR',
-      metadata: data.metadata || null // Ne pas stringify, Supabase gère automatiquement les objets vers jsonb
+      metadata: data.metadata || null, // Ne pas stringify, Supabase gère automatiquement les objets vers jsonb
+      artisan_order: artisanOrder
     };
 
     try {
@@ -1143,6 +1153,7 @@ export const interventionsApi = {
   },
 
   // Insérer plusieurs coûts pour des interventions
+  // Utilise upsertCost pour éviter les doublons lors de l'import
   async insertInterventionCosts(
     costs: Array<{
       intervention_id: string;
@@ -1151,15 +1162,23 @@ export const interventionsApi = {
       amount: number;
       currency?: string;
       metadata?: any;
+      artisan_order?: 1 | 2 | null;
     }>
   ): Promise<BulkOperationResult> {
     const results = { success: 0, errors: 0, details: [] as any[] };
 
     for (const cost of costs) {
       try {
-        const result = await this.addCost(cost.intervention_id, cost);
+        // Utiliser upsertCost pour éviter les erreurs de doublons
+        // Si artisan_order n'est pas fourni, il sera défini à 1 par défaut dans upsertCost
+        await this.upsertCost(cost.intervention_id, {
+          cost_type: cost.cost_type,
+          amount: cost.amount,
+          artisan_order: cost.artisan_order,
+          label: cost.label || null,
+        });
         results.success++;
-        results.details.push({ item: cost, success: true, data: result });
+        results.details.push({ item: cost, success: true });
       } catch (error: any) {
         results.errors++;
         results.details.push({ item: cost, success: false, error: error.message });

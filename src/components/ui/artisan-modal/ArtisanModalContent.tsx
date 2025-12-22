@@ -63,6 +63,7 @@ import {
   InputOTPSeparator,
   InputOTPSlot,
 } from "@/components/ui/input-otp"
+import { UnsavedChangesDialog } from "@/components/interventions/UnsavedChangesDialog"
 
 // ===== HELPERS =====
 
@@ -181,6 +182,8 @@ type Props = {
   activeIndex?: number
   totalCount?: number
   defaultView?: "informations" | "statistics"
+  onUnsavedChangesStateChange?: (hasChanges: boolean, submitting: boolean) => void
+  onRegisterShowDialog?: (showDialog: () => void) => void
 }
 
 const formatDate = (value: string | null | undefined, withTime = false) => {
@@ -535,6 +538,9 @@ export function ArtisanModalContent({
         description: "Les informations de l'artisan ont été enregistrées.",
       })
       reset(values)
+      
+      // Fermer le modal après sauvegarde réussie
+      shouldCloseAfterSave.current = false
       onClose()
     } catch (mutationError) {
       const message = mutationError instanceof Error ? mutationError.message : "Une erreur est survenue."
@@ -756,6 +762,88 @@ export function ArtisanModalContent({
 
   const isSaving = updateArtisan.isPending
 
+  // State pour la protection des modifications non sauvegardées
+  const [showUnsavedDialog, setShowUnsavedDialog] = useState(false)
+  const pendingCloseAction = useRef<(() => void) | null>(null)
+  const shouldCloseAfterSave = useRef(false)
+
+  // Détection des modifications non sauvegardées - utiliser isDirty directement
+  const hasUnsavedChanges = isDirty && !isSaving
+
+  // Notifier le parent des changements d'état pour la gestion du clic sur backdrop
+  useEffect(() => {
+    onUnsavedChangesStateChange?.(hasUnsavedChanges, isSaving)
+  }, [hasUnsavedChanges, isSaving, onUnsavedChangesStateChange])
+
+  // Exposer la fonction pour afficher le dialog au parent
+  useEffect(() => {
+    const showDialog = () => {
+      pendingCloseAction.current = onClose
+      setShowUnsavedDialog(true)
+    }
+    onRegisterShowDialog?.(showDialog)
+  }, [onClose, onRegisterShowDialog])
+
+  // Fonction pour confirmer la fermeture après l'alerte
+  const handleConfirmClose = useCallback(() => {
+    setShowUnsavedDialog(false)
+    if (pendingCloseAction.current) {
+      pendingCloseAction.current()
+      pendingCloseAction.current = null
+    }
+  }, [])
+
+  // Fonction pour annuler la fermeture
+  const handleCancelClose = useCallback(() => {
+    setShowUnsavedDialog(false)
+    pendingCloseAction.current = null
+  }, [])
+
+  // Fonction pour enregistrer et fermer
+  const handleSaveAndClose = useCallback(() => {
+    setShowUnsavedDialog(false)
+    shouldCloseAfterSave.current = true
+    // Soumettre le formulaire
+    if (formRef.current) {
+      formRef.current.requestSubmit()
+    }
+    pendingCloseAction.current = null
+  }, [])
+
+  // Fonction pour gérer l'annulation avec vérification des modifications
+  const handleCancel = useCallback(() => {
+    // Si des modifications non sauvegardées existent et qu'on n'est pas en train de soumettre
+    if (hasUnsavedChanges && !isSaving) {
+      // Stocker l'action de fermeture pour l'exécuter après confirmation
+      pendingCloseAction.current = onClose
+      setShowUnsavedDialog(true)
+      return
+    }
+
+    // Pas de modifications ou soumission en cours : fermer directement
+    onClose()
+  }, [hasUnsavedChanges, isSaving, onClose])
+
+  // Intercepter la touche Échap pour appliquer la même logique que handleCancel
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        if (showUnsavedDialog) {
+          // Laisser UnsavedChangesDialog gérer Escape
+          return
+        }
+        event.preventDefault()
+        event.stopPropagation()
+        handleCancel()
+      }
+    }
+
+    document.addEventListener("keydown", handleKeyDown, true)
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown, true)
+    }
+  }, [handleCancel, showUnsavedDialog])
+
   // Raccourci clavier Cmd/Ctrl+Enter pour enregistrer
   const { shortcutHint } = useSubmitShortcut({ formRef, isSubmitting: isSaving })
 
@@ -874,7 +962,7 @@ export function ArtisanModalContent({
                   variant="ghost"
                   size="icon"
                   className="modal-config-columns-icon-button"
-                  onClick={onClose}
+                  onClick={handleCancel}
                   aria-label="Fermer"
                 >
                   <X className="h-4 w-4" />
@@ -1677,7 +1765,7 @@ export function ArtisanModalContent({
 
           {/* Footer */}
           <footer className="modal-config-columns-footer flex items-center justify-end gap-2 px-4 py-3 md:px-6 bg-[#8DA5CE] dark:bg-transparent">
-            <Button type="button" variant="outline" size="sm" onClick={onClose}>
+            <Button type="button" variant="outline" size="sm" onClick={handleCancel}>
               Annuler
             </Button>
             <Button type="submit" size="sm" disabled={isSaving || isLoading}>
@@ -1700,6 +1788,12 @@ export function ArtisanModalContent({
             void handleReasonConfirm(reason)
           }}
           isSubmitting={isSaving}
+        />
+        <UnsavedChangesDialog
+          open={showUnsavedDialog}
+          onCancel={handleCancelClose}
+          onConfirm={handleConfirmClose}
+          onSaveAndConfirm={handleSaveAndClose}
         />
       </div>
     </TooltipProvider>

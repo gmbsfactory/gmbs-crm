@@ -124,7 +124,9 @@ export async function POST(req: Request) {
     }
 
     // Exclude admin/manager from lateness tracking
-    const roles = userData.user_roles?.map((r: any) => r.role?.toLowerCase()) || []
+    const roles = (userData.user_roles || [])
+      .map((r: any) => r.roles?.name?.toLowerCase())
+      .filter((name): name is string => typeof name === 'string')
     const isAdminOrManager = roles.includes('admin') || roles.includes('manager')
 
     console.log('[first-activity] 👤 Roles:', roles)

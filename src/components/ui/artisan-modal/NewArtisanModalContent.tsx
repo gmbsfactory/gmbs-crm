@@ -71,6 +71,7 @@ import {
   InputOTPSeparator,
   InputOTPSlot,
 } from "@/components/ui/input-otp"
+import { UnsavedChangesDialog } from "@/components/interventions/UnsavedChangesDialog"
 
 // ===== HELPERS =====
 
@@ -233,7 +234,7 @@ type Props = {
   artisanId?: string // Si fourni, mode édition
 }
 
-export function NewArtisanModalContent({ mode, onClose, onCycleMode, artisanId }: Props) {
+export function NewArtisanModalContent({ mode, onClose, onCycleMode, artisanId, onUnsavedChangesStateChange, onRegisterShowDialog }: Props) {
   const isEditMode = Boolean(artisanId)
   const ModeIcon = ModeIcons[mode]
   const { data: referenceData, loading: referenceLoading } = useReferenceData()
@@ -310,10 +311,10 @@ export function NewArtisanModalContent({ mode, onClose, onCycleMode, artisanId }
     }
   }, [])
 
-  // Trouver le statut CANDIDAT par défaut
+  // Trouver le statut POTENTIEL par défaut (nouveau workflow)
   const defaultCandidatStatusId = useMemo(() => {
     return referenceData?.artisanStatuses?.find(
-      (status) => status.code?.toUpperCase() === 'CANDIDAT'
+      (status) => status.code?.toUpperCase() === 'POTENTIEL'
     )?.id || "";
   }, [referenceData]);
 
@@ -593,6 +594,9 @@ export function NewArtisanModalContent({ mode, onClose, onCycleMode, artisanId }
     })
     reset(buildDefaultFormValues())
     setPendingAbsences([])
+    
+    // Fermer le modal après sauvegarde réussie
+    shouldCloseAfterSave.current = false
     onClose()
     } catch (error: any) {
       // Vérifier si c'est une erreur de doublon avec artisan supprimé (code 409)
@@ -659,6 +663,9 @@ export function NewArtisanModalContent({ mode, onClose, onCycleMode, artisanId }
       setDeletedArtisanDialog({ isOpen: false, artisan: null, deletedAt: null, pendingFormValues: null })
       reset(buildDefaultFormValues())
       setPendingAbsences([])
+      
+      // Fermer le modal après sauvegarde réussie
+      shouldCloseAfterSave.current = false
       onClose()
     } catch (error) {
       const message = error instanceof Error ? error.message : "Impossible de restaurer l'artisan."
@@ -808,6 +815,9 @@ export function NewArtisanModalContent({ mode, onClose, onCycleMode, artisanId }
         }
 
         toast.success("Artisan mis à jour")
+        
+        // Fermer le modal après sauvegarde réussie
+        shouldCloseAfterSave.current = false
         onClose()
       } else {
         // Mode création - Vérifier d'abord si un artisan supprimé existe
@@ -852,6 +862,88 @@ export function NewArtisanModalContent({ mode, onClose, onCycleMode, artisanId }
 
   const isSubmitting = createArtisan.isPending || updateArtisan.isPending
   const isLoading = (referenceLoading && !referenceData) || (isEditMode && isLoadingArtisan)
+
+  // State pour la protection des modifications non sauvegardées
+  const [showUnsavedDialog, setShowUnsavedDialog] = useState(false)
+  const pendingCloseAction = useRef<(() => void) | null>(null)
+  const shouldCloseAfterSave = useRef(false)
+
+  // Détection des modifications non sauvegardées - utiliser isDirty directement
+  const hasUnsavedChanges = isDirty && !isSubmitting
+
+  // Notifier le parent des changements d'état pour la gestion du clic sur backdrop
+  useEffect(() => {
+    onUnsavedChangesStateChange?.(hasUnsavedChanges, isSubmitting)
+  }, [hasUnsavedChanges, isSubmitting, onUnsavedChangesStateChange])
+
+  // Exposer la fonction pour afficher le dialog au parent
+  useEffect(() => {
+    const showDialog = () => {
+      pendingCloseAction.current = onClose
+      setShowUnsavedDialog(true)
+    }
+    onRegisterShowDialog?.(showDialog)
+  }, [onClose, onRegisterShowDialog])
+
+  // Fonction pour confirmer la fermeture après l'alerte
+  const handleConfirmClose = useCallback(() => {
+    setShowUnsavedDialog(false)
+    if (pendingCloseAction.current) {
+      pendingCloseAction.current()
+      pendingCloseAction.current = null
+    }
+  }, [])
+
+  // Fonction pour annuler la fermeture
+  const handleCancelClose = useCallback(() => {
+    setShowUnsavedDialog(false)
+    pendingCloseAction.current = null
+  }, [])
+
+  // Fonction pour enregistrer et fermer
+  const handleSaveAndClose = useCallback(() => {
+    setShowUnsavedDialog(false)
+    shouldCloseAfterSave.current = true
+    // Soumettre le formulaire
+    if (formRef.current) {
+      formRef.current.requestSubmit()
+    }
+    pendingCloseAction.current = null
+  }, [])
+
+  // Fonction pour gérer l'annulation avec vérification des modifications
+  const handleCancel = useCallback(() => {
+    // Si des modifications non sauvegardées existent et qu'on n'est pas en train de soumettre
+    if (hasUnsavedChanges && !isSubmitting) {
+      // Stocker l'action de fermeture pour l'exécuter après confirmation
+      pendingCloseAction.current = onClose
+      setShowUnsavedDialog(true)
+      return
+    }
+
+    // Pas de modifications ou soumission en cours : fermer directement
+    onClose()
+  }, [hasUnsavedChanges, isSubmitting, onClose])
+
+  // Intercepter la touche Échap pour appliquer la même logique que handleCancel
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        if (showUnsavedDialog) {
+          // Laisser UnsavedChangesDialog gérer Escape
+          return
+        }
+        event.preventDefault()
+        event.stopPropagation()
+        handleCancel()
+      }
+    }
+
+    document.addEventListener("keydown", handleKeyDown, true)
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown, true)
+    }
+  }, [handleCancel, showUnsavedDialog])
 
   // Raccourci clavier Cmd/Ctrl+Enter pour enregistrer
   const { shortcutHint } = useSubmitShortcut({ formRef, isSubmitting })
@@ -1010,7 +1102,7 @@ export function NewArtisanModalContent({ mode, onClose, onCycleMode, artisanId }
                 variant="ghost"
                 size="icon"
                 className="modal-config-columns-icon-button"
-                onClick={onClose}
+                onClick={handleCancel}
                 aria-label="Fermer"
               >
                 <X className="h-4 w-4" />
@@ -1738,7 +1830,7 @@ export function NewArtisanModalContent({ mode, onClose, onCycleMode, artisanId }
 
           {/* Footer */}
           <footer className="modal-config-columns-footer flex items-center justify-end gap-2 px-4 py-3 md:px-6 bg-[#8DA5CE] dark:bg-transparent">
-            <Button type="button" variant="outline" size="sm" onClick={onClose} disabled={isSubmitting}>
+            <Button type="button" variant="outline" size="sm" onClick={handleCancel} disabled={isSubmitting}>
               Annuler
             </Button>
             <Button
@@ -1868,6 +1960,13 @@ export function NewArtisanModalContent({ mode, onClose, onCycleMode, artisanId }
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+
+        <UnsavedChangesDialog
+          open={showUnsavedDialog}
+          onCancel={handleCancelClose}
+          onConfirm={handleConfirmClose}
+          onSaveAndConfirm={handleSaveAndClose}
+        />
       </div>
     </TooltipProvider>
   )

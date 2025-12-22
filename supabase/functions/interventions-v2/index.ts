@@ -372,7 +372,7 @@ const DEFAULT_SELECT = DEFAULT_INTERVENTION_COLUMNS.join(',');
 const AVAILABLE_RELATIONS: Record<string, string> = {
   agencies: 'agencies(id,label,code)',
   tenants: 'tenants:tenant_id(id,firstname,lastname,plain_nom_client,email,telephone,telephone2)',
-  users: 'users!assigned_user_id(id,firstname,lastname,username,color,code_gestionnaire)',
+  users: 'users!assigned_user_id(id,firstname,lastname,username,color,code_gestionnaire,avatar_url)',
   statuses: 'intervention_statuses(id,code,label,color,sort_order)',
   metiers: 'metiers(id,label,code)',
   artisans: 'intervention_artisans(id,artisan_id,is_primary,role,artisans(id,nom,prenom,plain_nom,email,telephone,telephone2,numero_associe,siret,raison_sociale))',
@@ -417,9 +417,10 @@ const buildSelectClause = (extraSelect: string | null, include: string[], hasSea
   const base = new Set<string>(DEFAULT_INTERVENTION_COLUMNS);
   const selectFragments: string[] = [];
   
-  // ⚠️ TOUJOURS inclure les artisans, coûts et tenants (données client) par défaut
+  // ⚠️ TOUJOURS inclure les artisans, coûts, tenants et users par défaut
   // Les tenants sont nécessaires pour l'affichage des informations client dans ExpandedRowContent
-  const defaultRelations = ['artisans', 'costs', 'tenants'];
+  // Les users sont nécessaires pour l'affichage des badges des gestionnaires dans TableView
+  const defaultRelations = ['artisans', 'costs', 'tenants', 'users'];
   
   // Si recherche active, inclure aussi agencies pour le filtrage client
   const searchRelations = hasSearch ? ['agencies'] : [];

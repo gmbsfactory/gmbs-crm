@@ -150,11 +150,50 @@ export function MarginStatsCard({ period, userId: propUserId, compact = false }:
             <CardTitle className="text-sm text-muted-foreground">Marge moyenne</CardTitle>
           </CardHeader>
         )}
-        <CardContent className={compact ? "px-3 pb-0 pt-0" : undefined}>
-          <div className="text-2xl font-bold">-</div>
-          <p className="text-xs text-muted-foreground mt-1">
-            Aucune intervention avec coûts
-          </p>
+        <CardContent className={compact ? "px-3 py-3 flex flex-col gap-1" : undefined}>
+          <div className={compact ? "space-y-2" : "space-y-4"}>
+            {/* Cadran de vitesse */}
+            <div className="flex flex-col items-center py-2">
+              <Speedometer
+                value={0}
+                max={performanceTarget}
+                size={140}
+                strokeWidth={14}
+                label="0%"
+                showPercentage={showPercentage}
+                onContextMenu={async (e) => {
+                  e.preventDefault()
+                  const newValue = !showPercentage
+                  setShowPercentage(newValue)
+                  if (userId) {
+                    try {
+                      await usersApi.updateUserPreferences(userId, {
+                        speedometer_margin_average_show_percentage: newValue,
+                      })
+                    } catch (err) {
+                      console.error("Erreur lors de la mise à jour des préférences:", err)
+                      // Revert on error
+                      setShowPercentage(!newValue)
+                    }
+                  }
+                }}
+              />
+            </div>
+
+            {/* Informations */}
+            <div className={compact ? "space-y-1 mt-1" : "space-y-1 mt-2"}>
+              <div className="flex flex-col items-center gap-1">
+                <div className="flex items-center gap-2">
+                  <div className="text-lg font-bold text-muted-foreground">
+                    0%
+                  </div>
+                </div>
+                <div className="text-[10px] text-muted-foreground font-light tracking-wide">
+                  Aucune intervention avec coûts
+                </div>
+              </div>
+            </div>
+          </div>
         </CardContent>
       </Card>
     )

@@ -4,6 +4,12 @@ import { cookies } from 'next/headers'
 
 export const runtime = 'nodejs'
 
+// Sélection de base sans jointures pour éviter les erreurs
+const userSelectBasic = `
+  id, firstname, lastname, email, status, color, 
+  code_gestionnaire, username, last_seen_at, email_smtp, avatar_url
+`
+
 // Sélection optimisée avec jointures pour récupérer user + roles + permissions en une seule requête
 const userSelectWithRelations = `
   id, firstname, lastname, email, status, color, 
@@ -75,61 +81,169 @@ function buildUserResponse(record: UserRecord, roles: string[], pagePermissions:
 export async function GET(req: Request) {
   try {
     // Lire le token depuis le header Authorization OU depuis les cookies HTTP-only
-    // Les cookies sont la source de vérité car ils sont isolés par navigateur/fenêtre
-    // et ne peuvent pas être partagés entre différentes sessions comme localStorage
     let token = bearerFrom(req)
     
-    // Si pas de token dans le header, lire depuis les cookies HTTP-only
     if (!token) {
       const cookieStore = await cookies()
       token = cookieStore.get('sb-access-token')?.value || null
     }
     
-    if (!token) return NextResponse.json({ user: null })
+    if (!token) {
+      return NextResponse.json({ user: null })
+    }
+    
     const supabase = createServerSupabase(token)
 
     const { data: authUser, error: authError } = await supabase.auth.getUser()
-    if (authError) return NextResponse.json({ error: authError.message }, { status: 401 })
+    if (authError) {
+      return NextResponse.json({ error: authError.message }, { status: 401 })
+    }
+    
     const userId = authUser?.user?.id || null
     const userEmail = authUser?.user?.email || null
 
+    if (!userId && !userEmail) {
+      return NextResponse.json({ user: null })
+    }
+
     let record: UserRecord | null = null
     let needsMapping = false
+    let roles: string[] = []
+    let pagePermissions: Record<string, boolean> = {}
 
     // OPTIMISATION: Une seule requête avec jointure via auth_user_mapping -> users -> roles + permissions
     if (userId) {
-      const { data: mappingResult, error: mappingError } = await supabase
-        .from('auth_user_mapping')
-        .select(`
-          public_user_id,
-          users (${userSelectWithRelations})
-        `)
-        .eq('auth_user_id', userId)
-        .maybeSingle()
+      try {
+        const { data: mappingResult, error: mappingError } = await supabase
+          .from('auth_user_mapping')
+          .select(`
+            public_user_id,
+            users (${userSelectWithRelations})
+          `)
+          .eq('auth_user_id', userId)
+          .maybeSingle()
 
-      if (!mappingError && mappingResult?.users) {
-        // Cast nécessaire car Supabase retourne un objet unique, pas un array
-        record = mappingResult.users as unknown as UserRecord
+        if (mappingError) {
+          // Si la table n'existe pas (PGRST205), ignorer et continuer avec le fallback
+          if (mappingError.code === 'PGRST205') {
+            // Continuer avec le fallback par email
+          }
+          // Si erreur de jointure, essayer sans jointures
+          else if (mappingError.code === 'PGRST301' || mappingError.message?.includes('relation') || mappingError.message?.includes('column')) {
+            const { data: mappingResultBasic, error: mappingErrorBasic } = await supabase
+              .from('auth_user_mapping')
+              .select(`
+                public_user_id,
+                users (${userSelectBasic})
+              `)
+              .eq('auth_user_id', userId)
+              .maybeSingle()
+            
+            if (!mappingErrorBasic && mappingResultBasic?.users) {
+              record = mappingResultBasic.users as unknown as UserRecord
+            }
+          }
+        } else if (mappingResult?.users) {
+          record = mappingResult.users as unknown as UserRecord
+        }
+      } catch (e: any) {
+        // Ignorer les erreurs de mapping et continuer avec le fallback
       }
     }
 
-    // Fallback: chercher par email si pas de mapping (une seule requête avec jointures)
+    // Fallback: chercher par email si pas de mapping
     if (!record && userEmail) {
-      const { data: fallbackResult, error: fallbackError } = await supabase
-        .from('users')
-        .select(userSelectWithRelations)
-        .eq('email', userEmail)
-        .maybeSingle()
+      try {
+        // Essayer d'abord avec les jointures
+        const { data: fallbackResult, error: fallbackError } = await supabase
+          .from('users')
+          .select(userSelectWithRelations)
+          .eq('email', userEmail)
+          .maybeSingle()
 
-      if (!fallbackError && fallbackResult) {
-        record = fallbackResult as unknown as UserRecord
-        needsMapping = true
-      } else if (fallbackError && fallbackError.code !== 'PGRST116') {
-        return NextResponse.json({ error: fallbackError.message }, { status: 500 })
+        if (fallbackError) {
+          // Si erreur de jointure, essayer sans jointures
+          if (fallbackError.code === 'PGRST301' || fallbackError.message?.includes('relation') || fallbackError.message?.includes('column')) {
+            const { data: fallbackResultBasic, error: fallbackErrorBasic } = await supabase
+              .from('users')
+              .select(userSelectBasic)
+              .eq('email', userEmail)
+              .maybeSingle()
+            
+            if (!fallbackErrorBasic && fallbackResultBasic) {
+              record = fallbackResultBasic as unknown as UserRecord
+              needsMapping = true
+            } else if (fallbackErrorBasic && fallbackErrorBasic.code !== 'PGRST116') {
+              return NextResponse.json({ 
+                error: fallbackErrorBasic.message,
+                code: fallbackErrorBasic.code 
+              }, { status: 500 })
+            }
+          } else if (fallbackError.code !== 'PGRST116') {
+            return NextResponse.json({ 
+              error: fallbackError.message,
+              code: fallbackError.code 
+            }, { status: 500 })
+          }
+        } else if (fallbackResult) {
+          record = fallbackResult as unknown as UserRecord
+          needsMapping = true
+        }
+      } catch (e: any) {
+        return NextResponse.json({ 
+          error: e?.message || 'Unexpected error in fallback query' 
+        }, { status: 500 })
       }
     }
 
-    if (!record) return NextResponse.json({ user: null })
+    if (!record) {
+      console.log('[auth/me] User not found')
+      return NextResponse.json({ user: null })
+    }
+
+    // Si on a récupéré les données avec les jointures, extraire les rôles et permissions
+    if (record.user_roles || record.user_page_permissions) {
+      const extracted = extractRolesAndPermissions(record)
+      roles = extracted.roles
+      pagePermissions = extracted.pagePermissions
+    } else {
+      // Sinon, récupérer les rôles et permissions séparément
+      try {
+        if (record.id) {
+          // Récupérer les rôles
+          const { data: rolesData, error: rolesError } = await supabase
+            .from('user_roles')
+            .select('roles (name)')
+            .eq('user_id', record.id)
+          
+          if (!rolesError && rolesData) {
+            roles = rolesData
+              .map((entry: any) => entry?.roles?.name)
+              .filter((name: any): name is string => typeof name === 'string')
+          }
+
+          // Récupérer les permissions
+          const { data: permsData, error: permsError } = await supabase
+            .from('user_page_permissions')
+            .select('page_key, has_access')
+            .eq('user_id', record.id)
+          
+          if (permsError) {
+            console.error('[auth/me] Error fetching permissions:', permsError.message)
+          } else if (permsData) {
+            pagePermissions = permsData.reduce((acc: Record<string, boolean>, perm: any) => {
+              if (perm?.page_key) {
+                const key = String(perm.page_key).toLowerCase()
+                acc[key] = perm.has_access !== false
+              }
+              return acc
+            }, {})
+          }
+        }
+      } catch (e: any) {
+        // Continuer avec des rôles et permissions vides plutôt que d'échouer
+      }
+    }
 
     // Créer le mapping en arrière-plan si nécessaire (non-bloquant)
     if (needsMapping && userId) {
@@ -138,17 +252,19 @@ export async function GET(req: Request) {
           await supabase
             .from('auth_user_mapping')
             .insert({ auth_user_id: userId, public_user_id: record.id })
-        } catch {
-          // Ignore les erreurs silencieusement
+        } catch (e: any) {
+          console.error('[auth/me] Error creating mapping:', e?.message)
         }
       })()
     }
 
-    const { roles, pagePermissions } = extractRolesAndPermissions(record)
     const user = buildUserResponse(record, roles, pagePermissions)
     
     return NextResponse.json({ user })
   } catch (e: any) {
-    return NextResponse.json({ error: e?.message || 'Unexpected error' }, { status: 500 })
+    return NextResponse.json({ 
+      error: e?.message || 'Unexpected error',
+      details: process.env.NODE_ENV === 'development' ? e?.stack : undefined
+    }, { status: 500 })
   }
 }

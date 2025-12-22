@@ -90,6 +90,7 @@ import { getStatusDisplay } from "@/lib/interventions/status-display"
 import { getStatusDisplayLabel } from "@/lib/interventions/deposit-helpers"
 import type { InterventionPayment } from "@/lib/api/v2/common/types"
 import { Pagination } from "@/components/ui/pagination"
+import { GestionnaireBadge } from "@/components/ui/gestionnaire-badge"
 
 const numberFormatter = new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 2 })
 const dateFormatter = new Intl.DateTimeFormat("fr-FR", { dateStyle: "medium" })
@@ -318,79 +319,58 @@ const renderCell = (
     if (!assignedCode) return { content: "—" }
     const color = (intervention as any).assignedUserColor as string | undefined
     const assignedUserName = (intervention as any).assignedUserName as string | undefined
+    const avatarUrl = (intervention as any).assignedUserAvatarUrl as string | undefined
 
-    // Calculer les initiales à partir du nom complet ou du code
-    const getInitials = (): string => {
-      if (assignedUserName) {
-        const parts = assignedUserName.trim().split(/\s+/)
-        if (parts.length >= 2) {
-          return ((parts[0]?.[0] || '') + (parts[parts.length - 1]?.[0] || '')).toUpperCase() || 'U'
-        }
-        if (parts.length === 1 && parts[0]) {
-          return parts[0].substring(0, 2).toUpperCase() || 'U'
-        }
-      }
-      // Fallback sur le code gestionnaire (première lettre)
-      return assignedCode.substring(0, 2).toUpperCase() || 'U'
-    }
+    // Extraire prénom et nom pour GestionnaireBadge
+    const nameParts = assignedUserName?.trim().split(/\s+/) ?? []
+    const firstname = nameParts[0] ?? assignedCode
+    const lastname = nameParts.length > 1 ? nameParts[nameParts.length - 1] : undefined
 
-    const initials = getInitials()
     const appearance: TableColumnAppearance = style?.appearance ?? "solid"
 
     if (!color || appearance === "none") {
-      // Même sans couleur, afficher le badge circulaire
+      // Même sans couleur, afficher le badge avec avatar
       return {
         content: (
-          <div
-            className="relative inline-flex h-8 w-8 select-none items-center justify-center rounded-full border-2 text-xs font-semibold uppercase"
-            style={{
-              borderColor: color || '#e5e7eb',
-              background: color || undefined,
-              color: color ? '#ffffff' : '#1f2937',
-            }}
-            title={assignedUserName || assignedCode}
-          >
-            {initials}
-          </div>
+          <GestionnaireBadge
+            firstname={firstname}
+            lastname={lastname}
+            color={color}
+            avatarUrl={avatarUrl}
+            size="sm"
+            showBorder={!!color}
+          />
         ),
       }
     }
 
     if (appearance === "badge") {
-      // Mode badge : afficher le badge circulaire
+      // Mode badge : afficher le badge avec avatar
       return {
         content: (
-          <div
-            className="relative inline-flex h-8 w-8 select-none items-center justify-center rounded-full border-2 text-xs font-semibold uppercase"
-            style={{
-              borderColor: color,
-              background: color,
-              color: '#ffffff',
-            }}
-            title={assignedUserName || assignedCode}
-          >
-            {initials}
-          </div>
+          <GestionnaireBadge
+            firstname={firstname}
+            lastname={lastname}
+            color={color}
+            avatarUrl={avatarUrl}
+            size="sm"
+          />
         ),
         cellClassName: "font-medium",
       }
     }
 
-    // Mode solid : afficher le badge circulaire avec fond pastel
+    // Mode solid : afficher le badge avec fond pastel
     const pastel = toSoftColor(color, themeMode, themeMode === "dark" ? "#1f2937" : "#e2e8f0")
     return {
       content: (
-        <div
-          className="relative inline-flex h-8 w-8 select-none items-center justify-center rounded-full border-2 text-xs font-semibold uppercase"
-          style={{
-            borderColor: color,
-            background: color,
-            color: '#ffffff',
-          }}
-          title={assignedUserName || assignedCode}
-        >
-          {initials}
-        </div>
+        <GestionnaireBadge
+          firstname={firstname}
+          lastname={lastname}
+          color={color}
+          avatarUrl={avatarUrl}
+          size="sm"
+        />
       ),
       backgroundColor: pastel,
       defaultTextColor: themeMode === "dark" ? "#E5E7EB" : "#111827",
@@ -1492,7 +1472,14 @@ export function TableView({
                                                 className="top-1 left-1"
                                               />
                                             )}
-                                            <TruncatedCell content={content} searchQuery={searchQuery} />
+                                            {/* Afficher directement les badges visuels sans TruncatedCell */}
+                                            {property === "attribueA" || property === "statusValue" ? (
+                                              <div className="flex items-center justify-center">
+                                                {content}
+                                              </div>
+                                            ) : (
+                                              <TruncatedCell content={content} searchQuery={searchQuery} />
+                                            )}
                                           </td>
                                         )
                                       })}

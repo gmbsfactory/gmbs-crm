@@ -1,17 +1,22 @@
 /**
  * Règles de transition automatiques pour les statuts d'artisans
- * 
- * Règles principales :
- * - candidat → novice : 1 intervention terminée
+ *
+ * Règles de progression automatique (basées sur le nombre d'interventions terminées) :
+ * - potentiel/candidat/one_shot → novice : 1 intervention terminée
  * - novice → formation : 3 interventions terminées
  * - formation → confirmé : 6 interventions terminées
  * - confirmé → expert : 10+ interventions terminées
- * - potentiel → novice : Première intervention terminée
- * 
- * Statuts non-automatiques (attribution manuelle uniquement) :
- * - candidat → oneshot : Attribution manuelle
- * - candidat → potentiel : Évaluation positive (manuelle)
- * - Tous → archiver : Archivage avec raison requise
+ *
+ * Transitions manuelles autorisées :
+ * - potentiel ↔ candidat (bidirectionnel)
+ * - potentiel/candidat → one_shot (attribution manuelle)
+ * - one_shot → potentiel/candidat (pour réintégrer dans le workflow automatique)
+ * - tout statut → archive (archivage avec raison requise)
+ *
+ * Statut par défaut pour nouveaux artisans : POTENTIEL
+ *
+ * Statut gelé (pas de progression automatique) :
+ * - archive : reste archivé définitivement
  */
 
 export type ArtisanStatusCode = 
@@ -33,9 +38,9 @@ export const STATUS_THRESHOLDS: Record<ArtisanStatusCode, number> = {
   FORMATION: 3,
   CONFIRME: 6,
   EXPERT: 10,
-  POTENTIEL: 0, // Pas de seuil, transition manuelle
-  ONE_SHOT: 0, // Pas de seuil, attribution manuelle
-  ARCHIVE: -1, // Statut terminal, pas de seuil
+  POTENTIEL: 0, // Statut initial, progression à 1 intervention
+  ONE_SHOT: 0, // Peut progresser automatiquement (non gelé)
+  ARCHIVE: -1, // Statut terminal gelé, pas de seuil
 }
 
 /**
@@ -49,17 +54,16 @@ export const AUTO_ASSIGNABLE_STATUSES = new Set<ArtisanStatusCode>([
 ])
 
 /**
- * Statuts qui nécessitent une attribution manuelle
+ * Statuts qui nécessitent une attribution manuelle (ne peuvent pas être atteints automatiquement)
+ * Note: POTENTIEL et ONE_SHOT peuvent progresser automatiquement, mais ne sont pas des cibles automatiques
  */
 export const MANUAL_ONLY_STATUSES = new Set<ArtisanStatusCode>([
-  "POTENTIEL",
-  "ONE_SHOT",
-  "ARCHIVE",
+  "ARCHIVE", // Seul statut réellement gelé
 ])
 
 /**
  * Calcule le nouveau statut d'artisan basé sur le nombre d'interventions terminées
- * 
+ *
  * @param currentStatus - Statut actuel de l'artisan
  * @param completedInterventionsCount - Nombre d'interventions terminées
  * @returns Le nouveau statut ou null si pas de changement
@@ -69,12 +73,12 @@ export function calculateNewArtisanStatus(
   completedInterventionsCount: number
 ): ArtisanStatusCode | null {
   if (!currentStatus) {
-    // Si pas de statut, retourner CANDIDAT par défaut
-    return "CANDIDAT"
+    // Si pas de statut, retourner POTENTIEL par défaut (nouveau workflow)
+    return "POTENTIEL"
   }
 
-  // Si statut terminal ou manuel uniquement, pas de changement automatique
-  if (MANUAL_ONLY_STATUSES.has(currentStatus) || currentStatus === "ARCHIVE") {
+  // ARCHIVE est le seul statut gelé (pas de changement automatique)
+  if (currentStatus === "ARCHIVE") {
     return null
   }
 
@@ -88,10 +92,11 @@ export function calculateNewArtisanStatus(
   } else if (completedInterventionsCount >= STATUS_THRESHOLDS.FORMATION) {
     newStatus = "FORMATION"
   } else if (completedInterventionsCount >= STATUS_THRESHOLDS.NOVICE) {
+    // POTENTIEL, CANDIDAT et ONE_SHOT passent tous à NOVICE après 1 intervention
     newStatus = "NOVICE"
   } else {
-    // Moins de 1 intervention → reste CANDIDAT ou POTENTIEL
-    newStatus = currentStatus === "POTENTIEL" ? "POTENTIEL" : "CANDIDAT"
+    // Moins de 1 intervention → reste au statut actuel
+    newStatus = currentStatus
   }
 
   // Retourner le nouveau statut seulement s'il est différent de l'actuel
@@ -100,7 +105,7 @@ export function calculateNewArtisanStatus(
 
 /**
  * Vérifie si une transition de statut est autorisée
- * 
+ *
  * @param fromStatus - Statut actuel
  * @param toStatus - Statut cible
  * @returns true si la transition est autorisée
@@ -110,8 +115,8 @@ export function isTransitionAllowed(
   toStatus: ArtisanStatusCode
 ): boolean {
   if (!fromStatus) {
-    // À la création, seuls CANDIDAT et POTENTIEL sont autorisés
-    return toStatus === "CANDIDAT" || toStatus === "POTENTIEL"
+    // À la création, seul POTENTIEL est autorisé (nouveau statut par défaut)
+    return toStatus === "POTENTIEL"
   }
 
   // ARCHIVE peut être atteint depuis n'importe quel statut (avec raison)
@@ -119,14 +124,22 @@ export function isTransitionAllowed(
     return true
   }
 
-  // ONE_SHOT peut être atteint uniquement depuis CANDIDAT
-  if (toStatus === "ONE_SHOT") {
-    return fromStatus === "CANDIDAT"
+  // Transitions manuelles bidirectionnelles POTENTIEL ↔ CANDIDAT
+  if (toStatus === "POTENTIEL" && fromStatus === "CANDIDAT") {
+    return true
+  }
+  if (toStatus === "CANDIDAT" && fromStatus === "POTENTIEL") {
+    return true
   }
 
-  // POTENTIEL peut être atteint uniquement depuis CANDIDAT
-  if (toStatus === "POTENTIEL") {
-    return fromStatus === "CANDIDAT"
+  // ONE_SHOT peut être atteint depuis POTENTIEL ou CANDIDAT
+  if (toStatus === "ONE_SHOT") {
+    return fromStatus === "POTENTIEL" || fromStatus === "CANDIDAT"
+  }
+
+  // Retour de ONE_SHOT vers POTENTIEL ou CANDIDAT (pour réintégrer le workflow)
+  if (fromStatus === "ONE_SHOT" && (toStatus === "POTENTIEL" || toStatus === "CANDIDAT")) {
+    return true
   }
 
   // Les autres transitions sont gérées automatiquement par calculateNewArtisanStatus
@@ -142,6 +155,6 @@ export function isTransitionAllowed(
  * Obtient le statut par défaut pour un nouvel artisan
  */
 export function getDefaultArtisanStatus(): ArtisanStatusCode {
-  return "CANDIDAT"
+  return "POTENTIEL"
 }
 

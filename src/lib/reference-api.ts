@@ -8,7 +8,15 @@ export interface ReferenceData {
   artisanStatuses: Array<{ id: string; code: string; label: string; color: string }>;
   agencies: Array<{ id: string; code: string; label: string; color: string | null; requires_reference?: boolean }>;
   metiers: Array<{ id: string; code: string; label: string; color: string | null }>;
-  users: Array<{ id: string; username: string; firstname: string; lastname: string; code_gestionnaire: string; color: string | null; avatar_url: string | null }>;
+  users: Array<{
+    id: string;
+    username: string;
+    firstname: string;
+    lastname: string;
+    code_gestionnaire: string;
+    color: string | null;
+    avatar_url: string | null;
+  }>;
 }
 
 export const referenceApi = {
@@ -19,7 +27,7 @@ export const referenceApi = {
       supabase.from('artisan_statuses').select('id, code, label, color').eq('is_active', true).order('sort_order'),
       supabase.from('agencies').select('id, code, label, color, agency_config!left(requires_reference)').eq('is_active', true).order('label'),
       supabase.from('metiers').select('id, code, label, color').eq('is_active', true).order('label'),
-      supabase.from('users').select('id, username, firstname, lastname, code_gestionnaire, color, avatar_url').order('username')
+      supabase.from('users').select('id, username, firstname, lastname, code_gestionnaire, color, avatar_url').order('username', { ascending: true })
     ]);
 
     // Mapper les agences pour extraire requires_reference depuis agency_config
@@ -86,8 +94,8 @@ export const referenceApi = {
     const { data, error } = await supabase
       .from('users')
       .select('id, username, firstname, lastname, code_gestionnaire, color, avatar_url')
-      .order('username');
-    
+      .order('username', { ascending: true });
+
     if (error) throw error;
     return data || [];
   }

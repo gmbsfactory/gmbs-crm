@@ -37,49 +37,50 @@ export function GestionnaireBadge({
   showBorder = true,
   children,
 }: GestionnaireBadgeProps) {
-  const initials = React.useMemo(() => {
-    const first = firstname || prenom
-    const last = lastname || name
-    const firstInitial = first?.[0] || ""
-    const lastInitial = last?.[0] || ""
-    return (firstInitial + lastInitial).toUpperCase() || "?"
-  }, [firstname, lastname, prenom, name])
+  const first = firstname || prenom || ''
+  const last = lastname || name || ''
+  const firstInitial = first?.[0]?.toUpperCase() || ''
+  const lastInitial = last?.[0]?.toUpperCase() || ''
+  const initials = (firstInitial + lastInitial) || '?'
+  const displayName = `${first} ${last}`.trim() || 'User'
 
   // Couleur par défaut si aucune couleur assignée
   const defaultColor = "#6b7280" // gris neutre
-  const borderColor = color || defaultColor
-  const bgColor = color || defaultColor
-  const textColor = "#ffffff" // toujours blanc pour lisibilité
+  const userColor = color || defaultColor
   const sizeConfig = sizeMap[size]
 
+  // Structure identique à SettingsRoot.tsx qui fonctionne
   return (
     <div
       className={cn(
-        "rounded-full overflow-hidden select-none",
+        "rounded-full overflow-hidden flex-shrink-0 inline-flex items-center justify-center",
         sizeConfig.container,
         showBorder && sizeConfig.border,
         onClick && "cursor-pointer transition-transform hover:scale-110",
         className
       )}
-      style={{
-        borderColor: showBorder ? borderColor : undefined,
-        background: bgColor,
+      style={{ 
+        borderColor: showBorder ? userColor : undefined,
+        backgroundColor: userColor,
+        minWidth: size === 'sm' ? '32px' : size === 'md' ? '36px' : '48px',
+        minHeight: size === 'sm' ? '32px' : size === 'md' ? '36px' : '48px',
       }}
       onClick={onClick}
+      title={displayName}
     >
-      <Avatar className="h-full w-full" style={{ background: bgColor }}>
+      <Avatar className="h-full w-full" style={{ background: userColor }}>
         {avatarUrl && (
           <AvatarImage
             src={avatarUrl}
-            alt={`${firstname || prenom || ''} ${lastname || name || ''}`.trim() || 'User'}
+            alt={displayName}
             className="object-cover"
           />
         )}
-        <AvatarFallback
+        <AvatarFallback 
           className={cn(sizeConfig.text, "font-semibold uppercase")}
-          style={{
-            background: bgColor,
-            color: textColor,
+          style={{ 
+            background: userColor, 
+            color: '#ffffff',
           }}
         >
           {initials}

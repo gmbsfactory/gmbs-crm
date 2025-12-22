@@ -162,6 +162,7 @@ export const utilsApi = {
         fullName: null as string | null,
         code: null as string | null,
         color: null as string | null,
+        avatarUrl: null as string | null,
       };
     }
 
@@ -172,6 +173,7 @@ export const utilsApi = {
       fullName: fullName || user.username || null,
       code: user.code_gestionnaire ?? null,
       color: user.color ?? null,
+      avatarUrl: user.avatar_url ?? null,
     };
   },
 
@@ -210,6 +212,7 @@ export const utilsApi = {
       assignedUserName: userInfo.fullName ?? undefined,
       assignedUserCode: userInfo.code,
       assignedUserColor: userInfo.color ?? null,
+      assignedUserAvatarUrl: userInfo.avatarUrl ?? null,
       statut: status?.code ?? item.statut ?? null,
       statusValue: status?.code ?? item.statusValue ?? item.statut ?? null,
       statusColor: status?.color ?? null,

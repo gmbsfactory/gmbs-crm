@@ -92,23 +92,6 @@ export function Avatar({
   const hasPhoto = imageUrl && !imageError
   const gradient = useMemo(() => generateGradient(displayInitials), [displayInitials])
   
-  // Calculer la couleur du texte selon la luminosité du fond pour un meilleur contraste
-  // Pour les gradients, on utilise une couleur de texte qui contraste bien
-  const textColor = useMemo(() => {
-    // Pour les avatars avec photo, toujours blanc avec ombre prononcée
-    if (hasPhoto) {
-      return "#ffffff"
-    }
-    // Pour les avatars sans photo, utiliser une couleur qui contraste bien avec le gradient
-    // Comme nos gradients sont maintenant plus clairs (lightness 55-70%), on utilise une couleur sombre
-    return "#1f2937" // Gris très foncé pour bon contraste avec les fonds clairs
-  }, [hasPhoto])
-  
-  // Ombre de texte plus prononcée pour meilleure lisibilité
-  const textShadow = hasPhoto 
-    ? "0 2px 4px rgba(0, 0, 0, 0.8), 0 1px 2px rgba(0, 0, 0, 0.6)" // Double ombre pour photo
-    : "0 1px 2px rgba(255, 255, 255, 0.8), 0 0 1px rgba(0, 0, 0, 0.3)" // Ombre subtile pour gradient
-  
   return (
     <div
       className={`relative rounded-full overflow-hidden border-2 border-background select-none ${className}`}
@@ -141,17 +124,6 @@ export function Avatar({
             }}
             // Next.js Image optimisera automatiquement les URLs Supabase et générera le srcSet automatiquement
           />
-          {/* Overlay avec initiales pour visibilité */}
-          <div
-            className="absolute inset-0 flex items-center justify-center font-semibold text-xs uppercase z-10 pointer-events-none"
-            style={{
-              color: textColor,
-              textShadow: textShadow,
-              background: "linear-gradient(to bottom, transparent 0%, rgba(0, 0, 0, 0.3) 100%)",
-            }}
-          >
-            <span className="leading-none">{displayInitials}</span>
-          </div>
         </>
       ) : (
         <>
@@ -160,8 +132,8 @@ export function Avatar({
             className="absolute inset-0 flex items-center justify-center font-semibold text-xs uppercase"
             style={{
               background: gradient,
-              color: textColor,
-              textShadow: textShadow,
+              color: "#1f2937",
+              textShadow: "0 1px 2px rgba(255, 255, 255, 0.8), 0 0 1px rgba(0, 0, 0, 0.3)",
             }}
           >
             <span className="leading-none">{displayInitials}</span>

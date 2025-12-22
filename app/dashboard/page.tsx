@@ -819,7 +819,7 @@ export default function DashboardPage() {
 
                   {/* ═══ PODIUM ═══ */}
                   <div className="flex-1 overflow-hidden min-h-0">
-                    <GestionnaireRankingPodium period={period} />
+                    <GestionnaireRankingPodium period={period} useAutoPeriod={true} />
                   </div>
                   
                 </div>
