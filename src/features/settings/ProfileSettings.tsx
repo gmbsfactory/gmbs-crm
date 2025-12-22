@@ -325,7 +325,7 @@ export function ProfileSettings() {
             <div className="text-left">
               <h3 className="font-semibold">Configuration Email</h3>
               <p className="text-sm text-muted-foreground">
-                Configurez votre compte Gmail pour l'envoi d'emails
+                Configurez votre compte Gmail pour l&apos;envoi d&apos;emails
               </p>
             </div>
           </div>
@@ -364,14 +364,14 @@ export function ProfileSettings() {
                       className="w-full px-4 py-3 rounded-xl border bg-muted/30 focus:bg-background focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all outline-none disabled:opacity-50"
                     />
                     <p className="text-xs text-muted-foreground">
-                      Adresse Gmail utilisée pour l'envoi d'emails aux artisans
+                      Adresse Gmail utilisée pour l&apos;envoi d&apos;emails aux artisans
                     </p>
                   </div>
                   
                   <div className="space-y-2">
                     <label className="text-xs text-muted-foreground font-medium flex items-center gap-2">
                       <KeyRound className="h-3.5 w-3.5" />
-                      Mot de passe d'application Gmail
+                      Mot de passe d&apos;application Gmail
                     </label>
                     <input
                       type="password"
@@ -382,14 +382,14 @@ export function ProfileSettings() {
                       className="w-full px-4 py-3 rounded-xl border bg-muted/30 focus:bg-background focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all outline-none disabled:opacity-50"
                     />
                     <p className="text-xs text-muted-foreground">
-                      Mot de passe d'application Gmail (pas votre mot de passe principal)
+                      Mot de passe d&apos;application Gmail (pas votre mot de passe principal)
                       <a
                         href="https://support.google.com/accounts/answer/185833"
                         target="_blank"
                         rel="noopener noreferrer"
                         className="ml-1 text-primary hover:underline inline-flex items-center gap-1"
                       >
-                        Comment créer un mot de passe d'application
+                        Comment créer un mot de passe d&apos;application
                         <ExternalLink className="h-3 w-3" />
                       </a>
                     </p>

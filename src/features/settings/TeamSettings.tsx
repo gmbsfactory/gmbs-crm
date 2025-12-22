@@ -226,7 +226,7 @@ export function TeamSettings() {
                 <Users className="h-6 w-6 text-blue-600 dark:text-blue-400" />
               </div>
               <div>
-                <h2 className="text-xl font-bold">Membres de l'équipe</h2>
+                <h2 className="text-xl font-bold">Membres de l&apos;équipe</h2>
                 <p className="text-sm text-muted-foreground">
                   {team.length} membre{team.length > 1 ? 's' : ''} • 
                   {lastSync && ` Dernière sync ${lastSync.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}`}
@@ -263,14 +263,14 @@ export function TeamSettings() {
             <div className="flex items-center justify-center py-12">
               <div className="flex flex-col items-center gap-3">
                 <div className="h-8 w-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-                <p className="text-sm text-muted-foreground">Chargement de l'équipe...</p>
+                <p className="text-sm text-muted-foreground">Chargement de l&apos;équipe...</p>
               </div>
             </div>
           ) : filteredTeam.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 text-center">
               <Users className="h-12 w-12 text-muted-foreground/30 mb-3" />
               <p className="text-muted-foreground">
-                {searchQuery ? 'Aucun résultat pour cette recherche' : 'Aucun membre dans l\'équipe'}
+                {searchQuery ? 'Aucun résultat pour cette recherche' : 'Aucun membre dans l&apos;équipe'}
               </p>
             </div>
           ) : (
@@ -561,7 +561,7 @@ export function TeamSettings() {
                       <AlertTriangle className="h-5 w-5 text-red-500" />
                     </div>
                     <div>
-                      <h3 className="font-semibold">Supprimer l'utilisateur</h3>
+                      <h3 className="font-semibold">Supprimer l&apos;utilisateur</h3>
                       <p className="text-sm text-muted-foreground">Cette action est irréversible</p>
                     </div>
                   </div>
@@ -577,7 +577,7 @@ export function TeamSettings() {
                   
                   <div className="space-y-2">
                     <label className="text-sm text-muted-foreground">
-                      Tapez l'adresse email pour confirmer :
+                      Tapez l&apos;adresse email pour confirmer :
                     </label>
                     <input
                       type="email"

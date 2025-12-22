@@ -17,7 +17,7 @@ type EffectivePermissionRow = {
 type PermissionOverrideRow = {
   permission_id: string
   granted: boolean
-  permission: { key: string; description: string } | null
+  permission: { key: string; description: string } | { key: string; description: string }[] | null
 }
 
 type RolePermissionsByRole = Record<string, string[]>

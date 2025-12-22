@@ -174,23 +174,37 @@ export function EnumManager() {
     setSaving(true);
     try {
       if (editingItem) {
-        // Update
-        await config.api.update(editingItem.id, {
+        // Update - utiliser any car les types varient selon l'entité
+        const updateData: Record<string, unknown> = {
           label: formData.label,
           color: formData.color,
-          description: formData.description || null,
-          is_active: formData.is_active,
-          ...(config.hasRequiresReference && { requires_reference: formData.requires_reference }),
-        });
+        };
+        // Description seulement pour les métiers
+        if (selectedEntity === 'metiers') {
+          updateData.description = formData.description || undefined;
+        }
+        // requires_reference seulement pour les agences
+        if (config.hasRequiresReference && formData.requires_reference !== undefined) {
+          // Utiliser l'API spécifique pour requires_reference
+          await (config.api as typeof agenciesApi).updateRequiresReference?.(editingItem.id, formData.requires_reference);
+        }
+        await config.api.update(editingItem.id, updateData as any);
         toast.success(`${config.title.slice(0, -1)} mis à jour`);
       } else {
-        // Create
-        await config.api.create({
+        // Create - utiliser any car les types varient selon l'entité
+        const createData: Record<string, unknown> = {
           label: formData.label,
           color: formData.color,
-          description: formData.description || null,
-          ...(config.hasRequiresReference && { requires_reference: formData.requires_reference }),
-        });
+        };
+        // Description seulement pour les métiers
+        if (selectedEntity === 'metiers') {
+          createData.description = formData.description || undefined;
+        }
+        // Vérifier si l'API a une méthode create (intervention-statuses n'en a pas)
+        if ('create' in config.api && typeof config.api.create === 'function') {
+          await (config.api as any).create(createData);
+        }
+        // requires_reference sera géré après la création si nécessaire
         toast.success(`${config.title.slice(0, -1)} créé`);
       }
       await loadData();
@@ -208,11 +222,14 @@ export function EnumManager() {
 
     setDeleting(true);
     try {
-      await config.api.delete(deletingItem.id);
-      toast.success(`${config.title.slice(0, -1)} supprimé`);
-      await loadData();
-      setDeletingItem(null);
-      setDeleteCodeConfirm('');
+      // Vérifier si l'API a une méthode delete (intervention-statuses n'en a pas)
+      if ('delete' in config.api && typeof config.api.delete === 'function') {
+        await (config.api as any).delete(deletingItem.id);
+        toast.success(`${config.title.slice(0, -1)} supprimé`);
+        await loadData();
+        setDeletingItem(null);
+        setDeleteCodeConfirm('');
+      }
     } catch (error: any) {
       toast.error(error.message || 'Erreur lors de la suppression');
     } finally {

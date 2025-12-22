@@ -240,7 +240,7 @@ export function InterfaceSettings() {
             <div className="text-left">
               <h3 className="font-semibold">Thème et couleurs</h3>
               <p className="text-sm text-muted-foreground">
-                Mode d'affichage et couleur d'accent
+                Mode d&apos;affichage et couleur d&apos;accent
               </p>
             </div>
           </div>
@@ -264,7 +264,7 @@ export function InterfaceSettings() {
                 <div className="space-y-4">
                   <label className="text-sm font-semibold flex items-center gap-2">
                     <Sparkles className="h-4 w-4 text-primary" />
-                    Mode d'affichage
+                    Mode d&apos;affichage
                   </label>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     {colorModes.map((mode) => {
@@ -397,7 +397,7 @@ export function InterfaceSettings() {
                 <div className="space-y-4 pt-6 border-t">
                   <label className="text-sm font-semibold flex items-center gap-2">
                     <Palette className="h-4 w-4 text-muted-foreground" />
-                    Couleur d'accent
+                    Couleur d&apos;accent
                   </label>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     {ACCENT_ORDER.map((option) => {
@@ -508,7 +508,7 @@ export function InterfaceSettings() {
                     })}
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    Cette couleur s'applique aux boutons primaires, survols, focus et autres éléments interactifs.
+                    Cette couleur s&apos;applique aux boutons primaires, survols, focus et autres éléments interactifs.
                   </p>
                 </div>
               </div>
@@ -712,7 +712,7 @@ export function InterfaceSettings() {
             <div className="text-left">
               <h3 className="font-semibold">Préférences du tableau de bord</h3>
               <p className="text-sm text-muted-foreground">
-                Personnalisez l'affichage des speedometers
+                Personnalisez l&apos;affichage des speedometers
               </p>
             </div>
           </div>
@@ -843,7 +843,7 @@ export function InterfaceSettings() {
           ) : hasUnsavedChanges ? (
             <>
               <Save className="h-4 w-4" />
-              Sauvegarder l'interface
+              Sauvegarder l&apos;interface
             </>
           ) : (
             <>

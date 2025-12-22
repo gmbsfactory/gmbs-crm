@@ -159,7 +159,7 @@ export function SecuritySettings() {
                 <Smartphone className="h-5 w-5 text-violet-600 dark:text-violet-400" />
               </div>
               <div>
-                <p className="font-medium">Application d'authentification</p>
+                <p className="font-medium">Application d&apos;authentification</p>
                 <p className="text-sm text-muted-foreground">
                   Utilisez une application comme Google Authenticator
                 </p>

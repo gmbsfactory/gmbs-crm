@@ -697,7 +697,7 @@ export function UserPermissionsDialog({
               <div className="space-y-3">
                         <label className="text-sm font-semibold flex items-center gap-2">
                           <Sparkles className="h-4 w-4 text-primary" />
-                          Rôle de l'utilisateur
+                          Rôle de l&apos;utilisateur
                         </label>
                 <div className="grid grid-cols-3 gap-3">
                           {(["admin", "manager", "gestionnaire"] as Role[]).map((r) => {
