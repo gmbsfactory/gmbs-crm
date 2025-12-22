@@ -199,7 +199,7 @@ export const userExamples = {
           "delete_interventions",
           "read_artisans",
           "write_artisans",
-          "view_analytics"
+          "view_admin"
         ]
       });
 

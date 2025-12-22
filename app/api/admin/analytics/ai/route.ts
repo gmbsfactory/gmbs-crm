@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import OpenAI from "openai"
+import { requirePermission, isPermissionError } from "@/lib/api/permissions"
 
 // Lazy initialization to avoid build-time errors
 function getOpenAIClient() {
@@ -13,6 +14,9 @@ function getOpenAIClient() {
 
 export async function POST(request: Request) {
   try {
+    const permCheck = await requirePermission(request, "view_admin")
+    if (isPermissionError(permCheck)) return permCheck.error
+
     const { messages, analyticsData } = await request.json()
 
     if (!process.env.OPENAI_API_KEY) {
@@ -66,4 +70,3 @@ Réponds toujours en français, de manière claire et concise. Si tu n'as pas as
     )
   }
 }
-

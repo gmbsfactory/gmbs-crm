@@ -34,6 +34,7 @@ import { cn } from "@/lib/utils"
 import Loader from "@/components/ui/Loader"
 import { Pagination } from "@/components/ui/pagination"
 import { useCurrentUser } from "@/hooks/useCurrentUser"
+import { usePermissions } from "@/hooks/usePermissions"
 import { getHighlightSegments } from "@/components/search/highlight"
 import { useQueryClient } from "@tanstack/react-query"
 import { artisansApi } from "@/lib/api/v2"
@@ -301,12 +302,16 @@ function HighlightedText({ text, searchQuery }: { text: string; searchQuery: str
 }
 
 export default function ArtisansPage(): ReactElement {
+  const { can, isLoading } = usePermissions()
   const artisanModal = useArtisanModal()
   const { views, activeView, activeViewId, setActiveView, isReady } = useArtisanViews()
   const queryClient = useQueryClient()
   
   const { data: currentUser } = useCurrentUser()
   const currentUserId = currentUser?.id ?? undefined
+
+  const canWriteArtisans = can("write_artisans")
+  const canDeleteArtisans = can("delete_artisans")
   
   // État pour stocker les counts réels de chaque vue
   const [viewCounts, setViewCounts] = useState<Record<string, number>>({})
@@ -925,6 +930,18 @@ export default function ArtisansPage(): ReactElement {
     setSelectedMetiers([])
   }, [])
 
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <Loader />
+      </div>
+    )
+  }
+
+  if (!can("read_artisans")) {
+    return <AccessDenied permission="read_artisans" />
+  }
+
   if (error) {
     return (
       <div className="flex flex-col min-h-screen">
@@ -1323,12 +1340,16 @@ export default function ArtisansPage(): ReactElement {
                             <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleViewDetails(contact)}>
                               <Eye className="h-3.5 w-3.5" />
                             </Button>
-                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleEditContact(contact)}>
-                              <Edit className="h-3.5 w-3.5" />
-                            </Button>
-                            <Button variant="ghost" size="icon" className="h-7 w-7 text-red-600" onClick={() => handleDeleteContact(contact)}>
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </Button>
+                            {canWriteArtisans && (
+                              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleEditContact(contact)}>
+                                <Edit className="h-3.5 w-3.5" />
+                              </Button>
+                            )}
+                            {canDeleteArtisans && (
+                              <Button variant="ghost" size="icon" className="h-7 w-7 text-red-600" onClick={() => handleDeleteContact(contact)}>
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
+                            )}
                           </div>
                         </td>
                       </tr>
@@ -1383,6 +1404,20 @@ export default function ArtisansPage(): ReactElement {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+    </div>
+  )
+}
+
+function AccessDenied({ permission }: { permission: string }) {
+  return (
+    <div className="min-h-[60vh] flex items-center justify-center">
+      <div className="text-center space-y-2">
+        <h1 className="text-xl font-semibold text-foreground">Accès refusé</h1>
+        <p className="text-sm text-muted-foreground">
+          Vous n&apos;avez pas les permissions nécessaires pour accéder à cette page.
+        </p>
+        <p className="text-xs text-muted-foreground">Permission requise : {permission}</p>
+      </div>
     </div>
   )
 }

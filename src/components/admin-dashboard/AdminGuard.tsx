@@ -2,35 +2,43 @@
 
 import { useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { useUserRoles } from "@/hooks/useUserRoles"
+import { usePermissions, type PermissionKey } from "@/hooks/usePermissions"
 
 interface AdminGuardProps {
   children: React.ReactNode
   redirectTo?: string
   showMessage?: boolean
+  /**
+   * Permission required to access the guarded content
+   * Defaults to "view_admin" for admin pages
+   */
+  permission?: PermissionKey
 }
 
 /**
- * Composant de garde pour protéger les pages réservées aux administrateurs
- * Redirige automatiquement les utilisateurs non-admin ou affiche un message d'erreur
+ * Composant de garde pour protéger les pages basées sur les permissions
+ * Redirige automatiquement les utilisateurs sans permission ou affiche un message d'erreur
  */
 export function AdminGuard({ 
   children, 
   redirectTo = "/dashboard",
-  showMessage = true 
+  showMessage = true,
+  permission = "view_admin"
 }: AdminGuardProps) {
   const router = useRouter()
-  const { isAdmin, isLoading } = useUserRoles()
+  const { can, isLoading } = usePermissions()
+  
+  const hasAccess = can(permission)
 
   useEffect(() => {
     // Attendre que le chargement soit terminé
     if (isLoading) return
 
-    // Si l'utilisateur n'est pas admin, rediriger
-    if (!isAdmin) {
+    // Si l'utilisateur n'a pas la permission, rediriger
+    if (!hasAccess) {
       router.push(redirectTo)
     }
-  }, [isAdmin, isLoading, router, redirectTo])
+  }, [hasAccess, isLoading, router, redirectTo])
 
   // Afficher un loader pendant le chargement
   if (isLoading) {
@@ -41,8 +49,8 @@ export function AdminGuard({
     )
   }
 
-  // Afficher un message d'accès refusé si l'utilisateur n'est pas admin
-  if (!isAdmin && showMessage) {
+  // Afficher un message d'accès refusé si l'utilisateur n'a pas la permission
+  if (!hasAccess && showMessage) {
     return (
       <div className="min-h-screen bg-background">
         <div className="container mx-auto px-4 py-8">
@@ -54,7 +62,7 @@ export function AdminGuard({
               Vous n&apos;avez pas les permissions nécessaires pour accéder à cette page.
             </p>
             <p className="text-sm text-muted-foreground">
-              Cette page est réservée aux administrateurs.
+              Permission requise : {permission}
             </p>
           </div>
         </div>
@@ -62,8 +70,8 @@ export function AdminGuard({
     )
   }
 
-  // Si pas d'utilisateur, ne rien afficher (AuthGuard gérera la redirection)
-  if (!isAdmin) {
+  // Si pas de permission, ne rien afficher (AuthGuard gérera la redirection)
+  if (!hasAccess) {
     return null
   }
 

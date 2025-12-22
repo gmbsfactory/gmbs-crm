@@ -8,6 +8,7 @@ import {
 import { FileText, Pencil, Archive } from "lucide-react"
 import { useArtisanContextMenu } from "@/hooks/useArtisanContextMenu"
 import { StatusReasonModal } from "@/components/shared/StatusReasonModal"
+import { usePermissions } from "@/hooks/usePermissions"
 
 interface ArtisanContextMenuContentProps {
   artisanId: string
@@ -29,9 +30,11 @@ export function ArtisanContextMenuContent({
     archiveModal,
     isArchived: hookIsArchived,
   } = useArtisanContextMenu(artisanId)
+  const { can } = usePermissions()
   
   // Utiliser la prop isArchived si fournie, sinon utiliser la valeur du hook
   const shouldHideArchive = isArchived || hookIsArchived
+  const canWriteArtisans = can("write_artisans")
 
   const handleOpenClick = () => {
     handleOpen()
@@ -50,11 +53,13 @@ export function ArtisanContextMenuContent({
           <FileText className="mr-2 h-4 w-4" />
           Ouvrir fiche artisan
         </ContextMenuItem>
-        <ContextMenuItem onSelect={handleEditClick}>
-          <Pencil className="mr-2 h-4 w-4" />
-          Modifier fiche artisan
-        </ContextMenuItem>
-        {!shouldHideArchive && (
+        {canWriteArtisans && (
+          <ContextMenuItem onSelect={handleEditClick}>
+            <Pencil className="mr-2 h-4 w-4" />
+            Modifier fiche artisan
+          </ContextMenuItem>
+        )}
+        {canWriteArtisans && !shouldHideArchive && (
           <>
             <ContextMenuSeparator />
             <ContextMenuItem
@@ -78,4 +83,3 @@ export function ArtisanContextMenuContent({
     </>
   )
 }
-

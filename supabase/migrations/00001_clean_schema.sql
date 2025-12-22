@@ -626,15 +626,71 @@ FROM (VALUES
   ('read_interventions', 'Read interventions'),
   ('write_interventions', 'Create and edit interventions'),
   ('delete_interventions', 'Delete interventions'),
+  ('edit_closed_interventions', 'Edit closed interventions'),
   ('read_artisans', 'Read artisans'),
   ('write_artisans', 'Create and edit artisans'),
   ('delete_artisans', 'Delete artisans'),
+  ('export_artisans', 'Export artisans'),
   ('read_users', 'Read users'),
   ('write_users', 'Create and edit users'),
   ('delete_users', 'Delete users'),
-  ('manage_billing', 'Manage billing and subscriptions')
+  ('manage_roles', 'Manage user roles and page permissions'),
+  ('manage_settings', 'Manage enums, agencies, workflow'),
+  ('view_admin', 'Access admin dashboard and analytics'),
+  ('view_comptabilite', 'View accounting page')
 ) AS x(key, description)
 ON CONFLICT (key) DO NOTHING;
+
+INSERT INTO public.role_permissions (role_id, permission_id)
+SELECT r.id, p.id
+FROM public.roles r
+JOIN public.permissions p ON p.key IN (
+  'read_interventions',
+  'write_interventions',
+  'delete_interventions',
+  'edit_closed_interventions',
+  'read_artisans',
+  'write_artisans',
+  'delete_artisans',
+  'export_artisans',
+  'read_users',
+  'write_users',
+  'delete_users',
+  'manage_roles',
+  'manage_settings',
+  'view_admin',
+  'view_comptabilite'
+)
+WHERE r.name = 'admin'
+ON CONFLICT (role_id, permission_id) DO NOTHING;
+
+INSERT INTO public.role_permissions (role_id, permission_id)
+SELECT r.id, p.id
+FROM public.roles r
+JOIN public.permissions p ON p.key IN (
+  'read_interventions',
+  'write_interventions',
+  'read_artisans',
+  'write_artisans',
+  'read_users',
+  'export_artisans',
+  'view_comptabilite'
+)
+WHERE r.name = 'manager'
+ON CONFLICT (role_id, permission_id) DO NOTHING;
+
+INSERT INTO public.role_permissions (role_id, permission_id)
+SELECT r.id, p.id
+FROM public.roles r
+JOIN public.permissions p ON p.key IN (
+  'read_interventions',
+  'write_interventions',
+  'read_artisans',
+  'write_artisans',
+  'read_users'
+)
+WHERE r.name = 'gestionnaire'
+ON CONFLICT (role_id, permission_id) DO NOTHING;
 
 -- ========================================
 -- 📝 TABLE COMMENTS

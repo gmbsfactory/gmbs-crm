@@ -61,6 +61,7 @@ import { artisansApiV2, getArtisanTotalCount } from "@/lib/supabase-api-v2"
 import { artisansApi } from "@/lib/api/v2"
 import { commentsApi } from "@/lib/api/v2/commentsApi"
 import { useCurrentUser } from "@/hooks/useCurrentUser"
+import { usePermissions } from "@/hooks/usePermissions"
 import { cn } from "@/lib/utils"
 import type { ModalDisplayMode } from "@/types/modal-display"
 import { useSubmitShortcut } from "@/hooks/useSubmitShortcut"
@@ -240,6 +241,8 @@ export function NewArtisanModalContent({ mode, onClose, onCycleMode, artisanId }
   const queryClient = useQueryClient()
   const formRef = useRef<HTMLFormElement>(null)
   const suggestionBlurTimeoutRef = useRef<number | null>(null)
+  const { can } = usePermissions()
+  const canWriteArtisans = can("write_artisans")
 
   // États pour les sections collapsibles
   const [isAbsencesOpen, setIsAbsencesOpen] = useState(false)
@@ -1022,7 +1025,13 @@ export function NewArtisanModalContent({ mode, onClose, onCycleMode, artisanId }
 
         <form ref={formRef} onSubmit={handleSubmit(onSubmit)} className="flex flex-1 min-h-0 flex-col">
           <div className="modal-config-columns-body flex-1 min-h-0 bg-[#C6CEDC] dark:bg-transparent">
-            {isLoading ? (
+            {!canWriteArtisans ? (
+              <div className="px-4 py-3 md:px-6">
+                <div className="rounded border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
+                  Vous n&apos;avez pas la permission de créer ou modifier un artisan.
+                </div>
+              </div>
+            ) : isLoading ? (
               <div className="grid gap-4 md:grid-cols-2 px-4 py-3 md:px-6">
                 <div className="h-64 rounded-lg bg-muted animate-pulse" />
                 <div className="h-64 rounded-lg bg-muted animate-pulse" />
@@ -1745,7 +1754,7 @@ export function NewArtisanModalContent({ mode, onClose, onCycleMode, artisanId }
               type="button"
               size="sm"
               onClick={handleSubmitClick}
-              disabled={isSubmitting}
+              disabled={isSubmitting || !canWriteArtisans}
               className="bg-primary text-primary-foreground hover:bg-primary/90"
             >
               {isSubmitting ? (

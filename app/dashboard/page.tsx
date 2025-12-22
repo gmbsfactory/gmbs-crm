@@ -19,6 +19,7 @@ import { interventionsApi } from "@/lib/api/v2"
 import { useRevealTransition } from "@/hooks/useRevealTransition"
 import { useCurrentUser } from "@/hooks/useCurrentUser"
 import { useUserRoles } from "@/hooks/useUserRoles"
+import { usePermissions } from "@/hooks/usePermissions"
 import useModal from "@/hooks/useModal"
 import { useArtisanModal } from "@/hooks/useArtisanModal"
 import { AvatarGroup, AvatarGroupTooltip } from "@/components/ui/avatar-group"
@@ -65,6 +66,11 @@ export default function DashboardPage() {
   const { data: currentUser, isLoading: isLoadingUser } = useCurrentUser()
   const { data: gestionnaires = [], isLoading: isLoadingGestionnaires } = useGestionnaires()
   const { isAdmin } = useUserRoles()
+  const { can } = usePermissions()
+  const canReadInterventions = can("read_interventions")
+  const canWriteInterventions = can("write_interventions")
+  const canReadArtisans = can("read_artisans")
+  const canWriteArtisans = can("write_artisans")
   
   // Initialiser avec l'utilisateur courant par défaut
   useEffect(() => {
@@ -826,17 +832,21 @@ export default function DashboardPage() {
             </div>
           </div>
       </ContextMenuTrigger>
-      <ContextMenuContent>
-        <ContextMenuItem onClick={() => openModal("new", { content: "new-intervention" })} className="flex items-center gap-2">
-          <Plus className="h-4 w-4" />
-          Nouvelle intervention
-        </ContextMenuItem>
-        <ContextMenuItem onClick={() => artisanModal.openNew()} className="flex items-center gap-2">
-          <Plus className="h-4 w-4" />
-          Nouvel artisan
-        </ContextMenuItem>
-      </ContextMenuContent>
-    </ContextMenu>
+    <ContextMenuContent>
+        {canWriteInterventions && (
+          <ContextMenuItem onClick={() => openModal("new", { content: "new-intervention" })} className="flex items-center gap-2">
+            <Plus className="h-4 w-4" />
+            Nouvelle intervention
+          </ContextMenuItem>
+        )}
+        {canWriteArtisans && (
+          <ContextMenuItem onClick={() => artisanModal.openNew()} className="flex items-center gap-2">
+            <Plus className="h-4 w-4" />
+            Nouvel artisan
+          </ContextMenuItem>
+        )}
+    </ContextMenuContent>
+  </ContextMenu>
     </>
   )
 }

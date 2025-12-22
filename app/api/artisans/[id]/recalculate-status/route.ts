@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import path from 'path';
+import { requirePermission, isPermissionError } from "@/lib/api/permissions"
 
 const execAsync = promisify(exec);
 
@@ -22,6 +23,9 @@ export async function POST(
   request: NextRequest,
   { params }: Params
 ) {
+  const permCheck = await requirePermission(request, "manage_settings")
+  if (isPermissionError(permCheck)) return permCheck.error
+
   const { id: artisanId } = await params;
 
   if (!artisanId) {
@@ -57,4 +61,3 @@ export async function POST(
     );
   }
 }
-

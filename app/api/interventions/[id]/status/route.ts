@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { transitionStatus } from "@/lib/api/interventions"
 import type { InterventionStatusValue } from "@/types/interventions"
+import { requirePermission, isPermissionError } from "@/lib/api/permissions"
 
 type Params = {
   params: Promise<{
@@ -10,6 +11,9 @@ type Params = {
 
 export async function POST(request: Request, { params }: Params) {
   try {
+    const permCheck = await requirePermission(request, "write_interventions")
+    if (isPermissionError(permCheck)) return permCheck.error
+
     const { id } = await params
     const body = await request.json()
     const status = body.status as InterventionStatusValue | undefined

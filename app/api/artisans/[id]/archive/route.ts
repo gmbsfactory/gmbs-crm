@@ -3,6 +3,7 @@ import { artisansApi, commentsApi } from "@/lib/api/v2"
 import { createServerSupabase, bearerFrom } from "@/lib/supabase/server"
 import { referenceApi } from "@/lib/reference-api"
 import { cookies } from "next/headers"
+import { requirePermission, isPermissionError } from "@/lib/api/permissions"
 
 type Params = {
   params: Promise<{
@@ -16,6 +17,9 @@ type ArchiveBody = {
 
 export async function POST(request: Request, { params }: Params) {
   try {
+    const permCheck = await requirePermission(request, "write_artisans")
+    if (isPermissionError(permCheck)) return permCheck.error
+
     const { id } = await params
     const body: ArchiveBody = await request.json()
     
@@ -74,4 +78,3 @@ export async function POST(request: Request, { params }: Params) {
     return NextResponse.json({ error: message }, { status: 500 })
   }
 }
-

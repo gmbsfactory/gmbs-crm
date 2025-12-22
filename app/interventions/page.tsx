@@ -78,6 +78,7 @@ import { useUserMap } from "@/hooks/useUserMap"
 import { useCurrentUser } from "@/hooks/useCurrentUser"
 import { InterventionRealtimeProvider } from "@/components/interventions/InterventionRealtimeProvider"
 import { useInterventionViewCounts } from "@/hooks/useInterventionViewCounts"
+import { usePermissions } from "@/hooks/usePermissions"
 import { useInterventionStatuses } from "@/hooks/useInterventionStatuses"
 import { useInterface } from "@/contexts/interface-context"
 import { getAccentHexColor } from "@/lib/themes"
@@ -192,6 +193,20 @@ const filtersShallowEqual = (a: ViewFilter[], b: ViewFilter[]) => {
 
 
 export default function Page() {
+  const { can, isLoading } = usePermissions()
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <Loader />
+      </div>
+    )
+  }
+
+  if (!can("read_interventions")) {
+    return <AccessDenied permission="read_interventions" />
+  }
+
   return (
     <InterventionRealtimeProvider>
       <PageContent />
@@ -1763,6 +1778,20 @@ function PageContent() {
         }}
         onClose={() => setColumnConfigViewId(null)}
       />
+    </div>
+  )
+}
+
+function AccessDenied({ permission }: { permission: string }) {
+  return (
+    <div className="min-h-[60vh] flex items-center justify-center">
+      <div className="text-center space-y-2">
+        <h1 className="text-xl font-semibold text-foreground">Accès refusé</h1>
+        <p className="text-sm text-muted-foreground">
+          Vous n&apos;avez pas les permissions nécessaires pour accéder à cette page.
+        </p>
+        <p className="text-xs text-muted-foreground">Permission requise : {permission}</p>
+      </div>
     </div>
   )
 }

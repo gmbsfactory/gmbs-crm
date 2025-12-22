@@ -5,7 +5,7 @@ import { usePathname, useRouter } from "next/navigation"
 import { useEffect, useState, useRef } from "react"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { cn } from "@/lib/utils"
-import { useUserRoles } from "@/hooks/useUserRoles"
+import { usePermissions, PermissionKey } from "@/hooks/usePermissions"
 import {
   User,
   Palette,
@@ -15,13 +15,19 @@ import {
   Cog,
 } from "lucide-react"
 
+/**
+ * Tab configuration with permission-based access control
+ * requiresPermission: null = accessible to all
+ * requiresPermission: string = requires that specific permission
+ * requiresPermission: string[] = requires ANY of those permissions (OR logic)
+ */
 const ALL_TABS = [
-  { key: "profile", label: "Profile", icon: User, requiresRole: null },
-  { key: "interface", label: "Interface", icon: Palette, requiresRole: null },
-  { key: "team", label: "Team", icon: Users, requiresRole: "admin" },
-  { key: "enums", label: "Configuration Enums", icon: Cog, requiresRole: "admin" },
-  { key: "targets", label: "Perf", icon: Target, requiresRole: ["admin", "manager"] },
-  { key: "security", label: "Security", icon: Shield, requiresRole: null },
+  { key: "profile", label: "Profile", icon: User, requiresPermission: null },
+  { key: "interface", label: "Interface", icon: Palette, requiresPermission: null },
+  { key: "team", label: "Team", icon: Users, requiresPermission: "write_users" as PermissionKey },
+  { key: "enums", label: "Configuration Enums", icon: Cog, requiresPermission: "manage_settings" as PermissionKey },
+  { key: "targets", label: "Perf", icon: Target, requiresPermission: "view_comptabilite" as PermissionKey },
+  { key: "security", label: "Security", icon: Shield, requiresPermission: null },
 ]
 
 export default function SettingsNav() {
@@ -36,20 +42,20 @@ export default function SettingsNav() {
   const tickingRef = useRef(false)
   const scrollDirectionRef = useRef<'up' | 'down' | null>(null)
 
-  // Utiliser le hook centralisé pour les rôles
-  const { hasRole, hasAnyRole, isLoading: rolesLoading } = useUserRoles()
+  // Utiliser le hook centralisé pour les permissions
+  const { can, canAny, isLoading: permissionsLoading } = usePermissions()
 
   // Filtrer les onglets selon les permissions
   const visibleTabs = ALL_TABS.filter((tab) => {
-    if (!tab.requiresRole) return true // Onglets accessibles à tous
-    if (rolesLoading) return false // Masquer les onglets restreints pendant le chargement
+    if (!tab.requiresPermission) return true // Onglets accessibles à tous
+    if (permissionsLoading) return false // Masquer les onglets restreints pendant le chargement
     
-    if (Array.isArray(tab.requiresRole)) {
-      // Pour les onglets nécessitant plusieurs rôles (OR)
-      return hasAnyRole(tab.requiresRole)
+    if (Array.isArray(tab.requiresPermission)) {
+      // Pour les onglets nécessitant plusieurs permissions (OR)
+      return canAny(tab.requiresPermission)
     } else {
-      // Pour les onglets nécessitant un seul rôle
-      return hasRole(tab.requiresRole)
+      // Pour les onglets nécessitant une seule permission
+      return can(tab.requiresPermission)
     }
   })
 
@@ -59,8 +65,8 @@ export default function SettingsNav() {
       router.prefetch(url)
     })
     if (typeof window !== "undefined" && "requestIdleCallback" in window) {
-      const id = (window as any).requestIdleCallback(run)
-      return () => (window as any).cancelIdleCallback?.(id)
+      const id = (window as unknown as { requestIdleCallback: (cb: () => void) => number }).requestIdleCallback(run)
+      return () => (window as unknown as { cancelIdleCallback?: (id: number) => void }).cancelIdleCallback?.(id)
     }
     const id = setTimeout(run, 150)
     return () => clearTimeout(id)
