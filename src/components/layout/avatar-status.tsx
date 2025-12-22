@@ -2,6 +2,7 @@
 
 import * as React from "react"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar"
 import Link from "next/link"
 import { LogOut, Settings as SettingsIcon, User as UserIcon } from "lucide-react"
 import { supabase } from '@/lib/supabase-client'
@@ -97,6 +98,7 @@ export function AvatarStatus() {
   const borderColor = userColor || '#e5e7eb'
   const bgColor = userColor || undefined
   const textColor = userColor ? '#ffffff' : '#1f2937'
+  const avatarUrl = currentUser?.avatar_url || null
   const displayName = React.useMemo(() => {
     if (!me) return ''
     const first = me.firstname ?? me.prenom
@@ -130,12 +132,29 @@ export function AvatarStatus() {
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <button
-            className="relative h-9 w-9 rounded-full outline-none focus-visible:ring-1 focus-visible:ring-ring border-4 grid place-items-center font-semibold text-xs uppercase select-none"
-            style={{ borderColor: borderColor || '#e5e7eb', background: bgColor, color: textColor }}
+            className="relative h-9 w-9 rounded-full outline-none focus-visible:ring-1 focus-visible:ring-ring border-4 overflow-hidden select-none"
+            style={{ borderColor: borderColor || '#e5e7eb' }}
             aria-label={displayName || 'Profil'}
             title={displayName || ''}
           >
-            {initials}
+            <Avatar className="h-full w-full" style={{ background: bgColor }}>
+              {avatarUrl && (
+                <AvatarImage
+                  src={avatarUrl}
+                  alt={displayName || 'User'}
+                  className="object-cover"
+                />
+              )}
+              <AvatarFallback
+                className="font-semibold text-xs uppercase"
+                style={{
+                  background: bgColor,
+                  color: textColor,
+                }}
+              >
+                {initials}
+              </AvatarFallback>
+            </Avatar>
             <span
               aria-label={`Status ${label}`}
               className={`absolute -bottom-0 -right-0 h-2.5 w-2.5 rounded-full ring-2 ring-background ${statusColorClass}`}
@@ -146,10 +165,27 @@ export function AvatarStatus() {
           <DropdownMenuLabel>
             <div className="flex items-center gap-2">
               <div
-                className="relative h-9 w-9 rounded-full border-4 grid place-items-center font-semibold text-xs uppercase select-none"
-                style={{ borderColor: borderColor || '#e5e7eb', background: bgColor, color: textColor }}
-              >
-                {initials}
+                  className="relative h-9 w-9 rounded-full border-4 overflow-hidden"
+                  style={{ borderColor: borderColor || '#e5e7eb' }}
+                >
+                  <Avatar className="h-full w-full" style={{ background: bgColor }}>
+                    {avatarUrl && (
+                      <AvatarImage
+                        src={avatarUrl}
+                        alt={displayName || 'User'}
+                        className="object-cover"
+                      />
+                    )}
+                    <AvatarFallback
+                      className="font-semibold text-xs uppercase"
+                      style={{
+                        background: bgColor,
+                        color: textColor,
+                      }}
+                    >
+                      {initials}
+                    </AvatarFallback>
+                  </Avatar>
                 <span
                   aria-label={`Status ${label}`}
                   className={`absolute -bottom-0 -right-0 h-2.5 w-2.5 rounded-full ring-2 ring-background ${statusColorClass}`}

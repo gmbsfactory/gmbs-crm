@@ -13,6 +13,7 @@ interface CurrentUser {
   nom?: string | null
   surnom?: string | null
   color?: string | null
+  avatar_url?: string | null
   status?: string | null
   roles?: string[]
   page_permissions?: Record<string, boolean>

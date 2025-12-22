@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -920,9 +920,16 @@ export default function SettingsPage({ activeTab = "profile", embedHeader = true
                       <TableRow key={u.id}>
                         <TableCell>
                           <div className="flex items-center gap-3">
-                            <div className="h-9 w-9 rounded-full border-4 overflow-hidden" style={{ borderColor: u.color || '#e5e7eb', background: u.color || undefined }}>
+                            <div className="h-9 w-9 rounded-full border-4 overflow-hidden" style={{ borderColor: u.color || '#e5e7eb' }}>
                               <Avatar className="h-full w-full" style={{ background: u.color || undefined }}>
-                                <AvatarFallback style={{ background: u.color || undefined }}>
+                                {u.avatar_url && (
+                                  <AvatarImage
+                                    src={u.avatar_url}
+                                    alt={`${u.firstname || u.prenom || ''} ${u.lastname || u.name || ''}`.trim() || 'User'}
+                                    className="object-cover"
+                                  />
+                                )}
+                                <AvatarFallback style={{ background: u.color || undefined, color: u.color ? '#ffffff' : '#1f2937' }}>
                                   {(u.firstname?.[0] || u.prenom?.[0] || '').toUpperCase()}{(u.lastname?.[0] || u.name?.[0] || '').toUpperCase()}
                                 </AvatarFallback>
                               </Avatar>

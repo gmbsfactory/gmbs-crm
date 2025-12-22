@@ -1,5 +1,6 @@
 "use client"
 
+import { useRef } from "react"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -27,9 +28,28 @@ export function UnsavedChangesDialog({
   onConfirm,
   onSaveAndConfirm,
 }: UnsavedChangesDialogProps) {
+  const cancelRef = useRef<HTMLButtonElement>(null)
+
+  // Gestion du focus initial : retirer le focus du modal parent
+  const handleOpenAutoFocus = (e: Event) => {
+    e.preventDefault()
+    const activeElement = document.activeElement as HTMLElement
+    if (activeElement && activeElement !== document.body) {
+      activeElement.blur()
+    }
+    setTimeout(() => {
+      cancelRef.current?.focus()
+    }, 0)
+  }
+
   return (
     <AlertDialog open={open} onOpenChange={(isOpen) => !isOpen && onCancel()}>
-      <AlertDialogContent>
+      <AlertDialogContent 
+        onOpenAutoFocus={handleOpenAutoFocus}
+        onInteractOutside={(e) => {
+          e.preventDefault()
+        }}
+      >
         <AlertDialogHeader>
           <AlertDialogTitle>Modifications non enregistrées</AlertDialogTitle>
           <AlertDialogDescription>
@@ -37,7 +57,9 @@ export function UnsavedChangesDialog({
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter className="flex-col sm:flex-row gap-2">
-          <AlertDialogCancel onClick={onCancel}>Annuler</AlertDialogCancel>
+          <AlertDialogCancel ref={cancelRef} onClick={onCancel}>
+            Annuler
+          </AlertDialogCancel>
           <AlertDialogAction
             onClick={onSaveAndConfirm}
             className="bg-accent text-accent-foreground hover:bg-accent/90"

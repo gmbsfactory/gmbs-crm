@@ -119,6 +119,10 @@ export function InterventionModalContent({
   const [showUnsavedDialog, setShowUnsavedDialog] = useState(false)
   const pendingCloseAction = useRef<(() => void) | null>(null)
 
+  // Log pour suivre les changements de showUnsavedDialog
+  useEffect(() => {
+  }, [showUnsavedDialog])
+
   // Notifier le parent des changements d'état pour la gestion du clic sur backdrop
   useEffect(() => {
     onUnsavedChangesStateChange?.(hasUnsavedChanges, isSubmitting)
@@ -289,22 +293,32 @@ GMBS`
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
+        
+        if (showUnsavedDialog) {
+          // Laisser UnsavedChangesDialog gérer Escape
+          return
+        }
         event.preventDefault()
         event.stopPropagation()
         handleCancel()
       }
     }
 
-    document.addEventListener("keydown", handleKeyDown, true) // Utiliser capture phase
+    document.addEventListener("keydown", handleKeyDown, true)
     return () => {
       document.removeEventListener("keydown", handleKeyDown, true)
     }
-  }, [handleCancel])
+  }, [handleCancel, showUnsavedDialog])
 
   // Focus trap - empêcher le focus de sortir du modal lors de la navigation Tab
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key !== "Tab") return
+      // ✅ Vérifier l'état React AVANT d'agir
+      if (showUnsavedDialog) {
+        // Laisser UnsavedChangesDialog gérer Tab
+        return
+      }
 
       const modalElement = modalRef.current
       if (!modalElement) return
@@ -330,18 +344,8 @@ GMBS`
       const lastElement = focusableArray[focusableArray.length - 1]
       const activeElement = document.activeElement as HTMLElement
 
-      // Debug logs
-      console.log("🔍 Focus Trap Debug:")
-      console.log("  - Élément actif:", activeElement)
-      console.log("  - Premier élément:", firstElement)
-      console.log("  - Dernier élément:", lastElement)
-      console.log("  - Total éléments focusables:", focusableArray.length)
-      console.log("  - Shift?", event.shiftKey)
-
       if (event.shiftKey) {
-        // Shift + Tab : navigation arrière
         if (activeElement === firstElement) {
-          console.log("  ✅ TRAP: Premier élément -> Dernier")
           event.preventDefault()
           lastElement.focus()
         }
@@ -360,7 +364,7 @@ GMBS`
     return () => {
       document.removeEventListener("keydown", handleKeyDown, true)
     }
-  }, [])
+  }, [showUnsavedDialog]) 
 
   const handleSuccess = useCallback(
     async (data: any) => {

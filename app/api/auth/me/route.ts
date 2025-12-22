@@ -7,7 +7,7 @@ export const runtime = 'nodejs'
 // Sélection optimisée avec jointures pour récupérer user + roles + permissions en une seule requête
 const userSelectWithRelations = `
   id, firstname, lastname, email, status, color, 
-  code_gestionnaire, username, last_seen_at, email_smtp,
+  code_gestionnaire, username, last_seen_at, email_smtp, avatar_url,
   user_roles (
     roles (name)
   ),
@@ -27,6 +27,7 @@ interface UserRecord {
   username: string | null
   last_seen_at: string | null
   email_smtp: string | null
+  avatar_url: string | null
   user_roles?: Array<{ roles: { name: string } | null } | null>
   user_page_permissions?: Array<{ page_key: string; has_access: boolean }>
 }
@@ -65,6 +66,7 @@ function buildUserResponse(record: UserRecord, roles: string[], pagePermissions:
     username: record.username,
     last_seen_at: record.last_seen_at,
     email_smtp: record.email_smtp || null,
+    avatar_url: record.avatar_url || null,
     roles,
     page_permissions: pagePermissions,
   }

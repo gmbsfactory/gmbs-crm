@@ -38,6 +38,13 @@ export async function PATCH(req: Request) {
   if (typeof body.surnom === 'string') patch.code_gestionnaire = body.surnom.trim() || null
   else if (typeof body.code_gestionnaire === 'string') patch.code_gestionnaire = String(body.code_gestionnaire).trim() || null
 
+  // Handle avatar_url field
+  if (typeof body.avatar_url === 'string') {
+    patch.avatar_url = body.avatar_url.trim() || null
+  } else if (body.avatar_url === null) {
+    patch.avatar_url = null
+  }
+
   // Handle email_smtp field
   if (typeof body.email_smtp === 'string') {
     const email = body.email_smtp.trim()

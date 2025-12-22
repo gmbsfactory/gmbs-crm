@@ -1598,6 +1598,7 @@ export function NewInterventionForm({
                                 firstname={assignedUser?.firstname}
                                 lastname={assignedUser?.lastname}
                                 color={assignedUser?.color}
+                                avatarUrl={assignedUser?.avatar_url}
                                 size="sm"
                                 className="transition-transform group-hover:scale-110 h-7 w-7"
                               />
@@ -1626,6 +1627,7 @@ export function NewInterventionForm({
                                     firstname={user.firstname}
                                     lastname={user.lastname}
                                     color={user.color}
+                                    avatarUrl={user.avatar_url}
                                     size="sm"
                                     showBorder={false}
                                   />

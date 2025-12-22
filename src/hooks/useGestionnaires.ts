@@ -12,6 +12,7 @@ export interface Gestionnaire {
   color: string | null
   email: string | null
   username: string | null
+  avatar_url?: string | null
 }
 
 export function useGestionnaires() {
@@ -34,6 +35,7 @@ export function useGestionnaires() {
         color: u.color,
         email: u.email,
         username: u.username,
+        avatar_url: u.avatar_url || null,
       }))
       return users
     },

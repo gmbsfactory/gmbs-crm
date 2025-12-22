@@ -19,7 +19,7 @@ const ALL_TABS = [
   { key: "profile", label: "Profile", icon: User, requiresRole: null },
   { key: "interface", label: "Interface", icon: Palette, requiresRole: null },
   { key: "team", label: "Team", icon: Users, requiresRole: "admin" },
-  { key: "enums", label: "Configuration Enums", icon: Cog, requiresRole: "admin" },
+  { key: "enums", label: "Référentiels", icon: Cog, requiresRole: "admin" },
   { key: "targets", label: "Perf", icon: Target, requiresRole: ["admin", "manager"] },
   { key: "security", label: "Security", icon: Shield, requiresRole: null },
 ]

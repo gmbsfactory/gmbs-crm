@@ -8,7 +8,7 @@ export async function GET() {
   try {
     const { data, error } = await supabaseAdmin
       .from('users')
-      .select('id, firstname, lastname, email, color, status, code_gestionnaire, username, last_seen_at, user_roles ( roles ( name ) ), user_page_permissions ( page_key, has_access )')
+      .select('id, firstname, lastname, email, color, status, code_gestionnaire, username, last_seen_at, avatar_url, user_roles ( roles ( name ) ), user_page_permissions ( page_key, has_access )')
       .order('lastname', { ascending: true })
       .order('firstname', { ascending: true })
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
@@ -38,6 +38,7 @@ export async function GET() {
         role: roleName,
         username: u.username,
         last_seen_at: u.last_seen_at,
+        avatar_url: u.avatar_url,
         page_permissions: pagePermissions,
       }
     })

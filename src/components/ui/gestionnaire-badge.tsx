@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar"
 import { cn } from "@/lib/utils"
 
 export interface GestionnaireBadgeProps {
@@ -10,6 +10,7 @@ export interface GestionnaireBadgeProps {
   prenom?: string | null
   name?: string | null
   color?: string | null
+  avatarUrl?: string | null
   size?: "sm" | "md" | "lg"
   className?: string
   onClick?: () => void
@@ -29,6 +30,7 @@ export function GestionnaireBadge({
   prenom,
   name,
   color,
+  avatarUrl,
   size = "md",
   className,
   onClick,
@@ -66,6 +68,13 @@ export function GestionnaireBadge({
       onClick={onClick}
     >
       <Avatar className="h-full w-full" style={{ background: bgColor }}>
+        {avatarUrl && (
+          <AvatarImage
+            src={avatarUrl}
+            alt={`${firstname || prenom || ''} ${lastname || name || ''}`.trim() || 'User'}
+            className="object-cover"
+          />
+        )}
         <AvatarFallback
           className={cn(sizeConfig.text, "font-semibold uppercase")}
           style={{

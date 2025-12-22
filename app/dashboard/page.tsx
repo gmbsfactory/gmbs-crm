@@ -652,6 +652,7 @@ export default function DashboardPage() {
                               prenom={selectedGestionnaire.prenom}
                               name={selectedGestionnaire.name}
                               color={selectedGestionnaire.color}
+                              avatarUrl={selectedGestionnaire.avatar_url}
                               size="md"
                               className="ring-2 ring-primary ring-offset-2"
                             />
@@ -701,6 +702,7 @@ export default function DashboardPage() {
                                     prenom={gestionnaire.prenom}
                                     name={gestionnaire.name}
                                     color={gestionnaire.color}
+                                    avatarUrl={gestionnaire.avatar_url}
                                     size="md"
                                     className={cn(
                                       "transition-all",
