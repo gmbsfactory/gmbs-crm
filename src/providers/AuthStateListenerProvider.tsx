@@ -167,6 +167,165 @@ export function AuthStateListenerProvider({ children }: { children: ReactNode })
     checkFirstActivity()
   }, [currentUser?.id])
 
+  // Handle tab/window close with multi-tab support
+  // Only sets status to offline when the LAST tab is closed
+  useEffect(() => {
+    if (!currentUser?.id || typeof window === 'undefined') return
+
+    const TAB_COUNT_KEY = `crm_tab_count_${currentUser.id}`
+    const TAB_CHANNEL_NAME = `crm-tabs-${currentUser.id}`
+    
+    // Generate unique tab ID
+    const tabId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+    
+    // Initialize BroadcastChannel for tab communication
+    let tabChannel: BroadcastChannel | null = null
+    if (window.BroadcastChannel) {
+      tabChannel = new BroadcastChannel(TAB_CHANNEL_NAME)
+    }
+
+    // Get current tab count from localStorage
+    const getTabCount = (): number => {
+      try {
+        const count = localStorage.getItem(TAB_COUNT_KEY)
+        return count ? parseInt(count, 10) : 0
+      } catch {
+        return 0
+      }
+    }
+
+    // Set tab count in localStorage
+    const setTabCount = (count: number): void => {
+      try {
+        localStorage.setItem(TAB_COUNT_KEY, count.toString())
+      } catch (error) {
+        console.warn('[AuthStateListenerProvider] Failed to update tab count:', error)
+      }
+    }
+
+    // Increment tab count and announce this tab is open
+    const incrementTabCount = (): void => {
+      const currentCount = getTabCount()
+      const newCount = currentCount + 1
+      setTabCount(newCount)
+      console.log(`[AuthStateListenerProvider] Tab opened. Total tabs: ${newCount} (tabId: ${tabId})`)
+      
+      // Broadcast to other tabs
+      if (tabChannel) {
+        tabChannel.postMessage({ type: 'tab-opened', tabId, count: newCount })
+      }
+    }
+
+    // Decrement tab count
+    const decrementTabCount = (): number => {
+      const currentCount = getTabCount()
+      const newCount = Math.max(0, currentCount - 1)
+      setTabCount(newCount)
+      console.log(`[AuthStateListenerProvider] Tab closed. Remaining tabs: ${newCount} (tabId: ${tabId})`)
+      
+      // Broadcast to other tabs
+      if (tabChannel) {
+        tabChannel.postMessage({ type: 'tab-closed', tabId, count: newCount })
+      }
+      
+      return newCount
+    }
+
+    // Set offline status (only called when last tab closes)
+    const setOfflineStatus = async (): Promise<void> => {
+      try {
+        const response = await fetch('/api/auth/status', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          keepalive: true, // Critical: ensures request completes even if page closes
+          body: JSON.stringify({ status: 'offline' })
+        })
+
+        if (response.ok) {
+          console.log('[AuthStateListenerProvider] ✅ Status set to offline (last tab closed)')
+        } else {
+          console.warn('[AuthStateListenerProvider] Failed to set offline status:', response.status)
+        }
+      } catch (error) {
+        // Silently fail - we can't do anything if the page is closing anyway
+        console.warn('[AuthStateListenerProvider] Error setting offline status:', error)
+      }
+    }
+
+    // Listen to messages from other tabs
+    if (tabChannel) {
+      tabChannel.onmessage = (event: MessageEvent<{ type: string; tabId: string; count: number }>) => {
+        const { type, count } = event.data
+        
+        if (type === 'tab-opened' || type === 'tab-closed') {
+          // Sync tab count from other tabs
+          setTabCount(count)
+          console.log(`[AuthStateListenerProvider] Tab count synced from other tab: ${count}`)
+        }
+      }
+    }
+
+    // Listen to storage events (fallback for when BroadcastChannel is not available)
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === TAB_COUNT_KEY && e.newValue) {
+        const newCount = parseInt(e.newValue, 10)
+        console.log(`[AuthStateListenerProvider] Tab count updated via storage event: ${newCount}`)
+      }
+    }
+    window.addEventListener('storage', handleStorageChange)
+
+    // Initialize: increment tab count when this tab opens
+    incrementTabCount()
+
+    // Handle page unload
+    const handlePageHide = (event: PageTransitionEvent) => {
+      // Only process if page is being unloaded (not cached)
+      if (!event.persisted) {
+        const remainingTabs = decrementTabCount()
+        
+        // Only set offline if this was the last tab
+        if (remainingTabs === 0) {
+          console.log('[AuthStateListenerProvider] Last tab closing, setting status to offline')
+          setOfflineStatus()
+        } else {
+          console.log(`[AuthStateListenerProvider] Tab closing but ${remainingTabs} tab(s) still open, keeping status online`)
+        }
+      }
+    }
+
+    // Fallback for older browsers
+    const handleBeforeUnload = () => {
+      const remainingTabs = decrementTabCount()
+      if (remainingTabs === 0) {
+        setOfflineStatus()
+      }
+    }
+
+    // Add event listeners
+    window.addEventListener('pagehide', handlePageHide)
+    window.addEventListener('beforeunload', handleBeforeUnload)
+
+    // Cleanup: decrement on unmount (if component unmounts without page close)
+    return () => {
+      window.removeEventListener('pagehide', handlePageHide)
+      window.removeEventListener('beforeunload', handleBeforeUnload)
+      window.removeEventListener('storage', handleStorageChange)
+      
+      // Decrement tab count on cleanup
+      const remainingTabs = decrementTabCount()
+      if (remainingTabs === 0 && tabChannel) {
+        // If this was the last tab, set offline
+        setOfflineStatus()
+      }
+      
+      // Close BroadcastChannel
+      if (tabChannel) {
+        tabChannel.close()
+      }
+    }
+  }, [currentUser?.id])
+
   return <>{children}</>
 }
 
