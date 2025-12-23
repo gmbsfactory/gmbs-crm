@@ -269,6 +269,25 @@ export function TargetsSettings() {
       const allTargets = await usersApi.getAllTargets()
       setTargets(allTargets)
 
+      // Recharger les créateurs si nécessaire
+      const creatorIds = new Set<string>()
+      allTargets.forEach((target) => {
+        if (target.created_by) {
+          creatorIds.add(target.created_by)
+        }
+      })
+
+      const creatorsMap = new Map<string, User>()
+      for (const creatorId of creatorIds) {
+        try {
+          const creator = await usersApi.getById(creatorId)
+          creatorsMap.set(creatorId, creator)
+        } catch (error) {
+          console.error(`Erreur lors du chargement du créateur ${creatorId}:`, error)
+        }
+      }
+      setCreatorUsers(creatorsMap)
+
       if (errorCount === 0) {
         toast({
           title: "Succès",

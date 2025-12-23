@@ -582,20 +582,42 @@ export const usersApi = {
 
   /**
    * Récupère tous les objectifs (pour l'admin/president)
+   * Utilise une route API pour contourner les politiques RLS en production
    * @returns Liste de tous les objectifs
    */
   async getAllTargets(): Promise<GestionnaireTarget[]> {
-    const { data, error } = await supabase
-      .from("gestionnaire_targets")
-      .select("*")
-      .order("user_id", { ascending: true })
-      .order("period_type", { ascending: true });
+    try {
+      // Utiliser la route API qui utilise le service role key pour contourner les politiques RLS
+      const response = await fetch('/api/targets', {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include', // Inclure les cookies pour l'authentification
+      });
 
-    if (error) {
-      throw new Error(`Erreur lors de la récupération des objectifs: ${error.message}`);
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Erreur inconnue' }));
+        throw new Error(errorData.error || `Erreur HTTP ${response.status}`);
+      }
+
+      const result = await response.json();
+      return result.data || [];
+    } catch (error: any) {
+      // Fallback vers l'ancienne méthode si la route API échoue (pour compatibilité)
+      console.warn('[getAllTargets] Erreur avec la route API, fallback vers Supabase direct:', error);
+      const { data, error: supabaseError } = await supabase
+        .from("gestionnaire_targets")
+        .select("*")
+        .order("user_id", { ascending: true })
+        .order("period_type", { ascending: true });
+
+      if (supabaseError) {
+        throw new Error(`Erreur lors de la récupération des objectifs: ${supabaseError.message}`);
+      }
+
+      return data || [];
     }
-
-    return data || [];
   },
 
   // ===== GESTION DES PRÉFÉRENCES UTILISATEUR =====
