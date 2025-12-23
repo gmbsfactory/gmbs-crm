@@ -13,6 +13,7 @@ import { useModal } from "@/hooks/useModal"
 import type { ModalDisplayMode } from "@/types/modal-display"
 import { interventionKeys } from "@/lib/react-query/queryKeys"
 import { useSubmitShortcut } from "@/hooks/useSubmitShortcut"
+import { usePermissions } from "@/hooks/usePermissions"
 
 type Props = {
   mode: ModalDisplayMode
@@ -37,6 +38,8 @@ export function NewInterventionModalContent({ mode, onClose, onCycleMode }: Prop
   const [showUnsavedDialog, setShowUnsavedDialog] = useState(false)
   const pendingCloseAction = useRef<(() => void) | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const { can } = usePermissions()
+  const canWriteInterventions = can("write_interventions")
 
   // Fonction pour confirmer la fermeture après l'alerte
   const handleConfirmClose = useCallback(() => {
@@ -199,18 +202,24 @@ export function NewInterventionModalContent({ mode, onClose, onCycleMode }: Prop
         
         <div className="modal-config-columns-body overflow-y-auto">
           <div className={bodyPadding}>
-            <NewInterventionForm
-              mode={mode}
-              onSuccess={handleSuccess}
-              onCancel={handleCancel}
-              formRef={formRef}
-              onSubmittingChange={setIsSubmitting}
-              defaultValues={defaultValues}
-              onClientNameChange={setClientName}
-              onAgencyNameChange={setAgencyName}
-              onClientPhoneChange={setClientPhone}
-              onHasUnsavedChanges={setHasUnsavedChanges}
-            />
+            {canWriteInterventions ? (
+              <NewInterventionForm
+                mode={mode}
+                onSuccess={handleSuccess}
+                onCancel={handleCancel}
+                formRef={formRef}
+                onSubmittingChange={setIsSubmitting}
+                defaultValues={defaultValues}
+                onClientNameChange={setClientName}
+                onAgencyNameChange={setAgencyName}
+                onClientPhoneChange={setClientPhone}
+                onHasUnsavedChanges={setHasUnsavedChanges}
+              />
+            ) : (
+              <div className="rounded border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
+                Vous n&apos;avez pas la permission de créer une intervention.
+              </div>
+            )}
           </div>
         </div>
         
@@ -225,10 +234,10 @@ export function NewInterventionModalContent({ mode, onClose, onCycleMode }: Prop
             >
               {duplicateFromId ? "Retour" : "Annuler"}
             </Button>
-            <Button 
+            <Button
               type="button" 
               onClick={handleSubmit}
-              disabled={isSubmitting}
+              disabled={isSubmitting || !canWriteInterventions}
               className="legacy-form-button bg-accent text-accent-foreground hover:bg-accent/90"
             >
               {isSubmitting ? "Création..." : (

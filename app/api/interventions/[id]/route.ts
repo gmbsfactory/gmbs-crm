@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server"
 import { deleteIntervention, getIntervention, updateIntervention } from "@/lib/api/interventions"
-import { bearerFrom, createServerSupabase } from "@/lib/supabase/server"
+import { mapStatusFromDb } from "@/lib/interventions/mappers"
+import { isTerminalStatus } from "@/config/interventions"
+import { requirePermission, isPermissionError } from "@/lib/api/permissions"
+import { supabaseAdmin } from "@/lib/supabase-admin"
 
 type Params = {
   params: Promise<{
@@ -19,34 +22,35 @@ export async function GET(_request: Request, { params }: Params) {
 
 export async function PATCH(request: Request, { params }: Params) {
   try {
+    const permCheck = await requirePermission(request, "write_interventions")
+    if (isPermissionError(permCheck)) return permCheck.error
+    const { user } = permCheck
+
     const { id } = await params
-    const token = bearerFrom(request)
-    if (!token) {
-      return NextResponse.json({ message: "Authentification requise" }, { status: 401 })
+    if (!supabaseAdmin) {
+      return NextResponse.json({ message: "No DB" }, { status: 500 })
     }
 
-    const supabase = createServerSupabase(token)
-    const { data: auth } = await supabase.auth.getUser()
-    const userId = auth?.user?.id
-    if (!userId) {
-      return NextResponse.json({ message: "Utilisateur non authentifié" }, { status: 401 })
+    const { data: existing, error: existingError } = await supabaseAdmin
+      .from("interventions")
+      .select("statut")
+      .eq("id", id)
+      .maybeSingle()
+
+    if (existingError) {
+      return NextResponse.json({ message: existingError.message }, { status: 500 })
     }
 
-    const { data: roleRows, error: rolesError } = await supabase
-      .from("user_roles")
-      .select("roles(name)")
-      .eq("user_id", userId)
-
-    if (rolesError && rolesError.code !== "PGRST116") {
-      console.warn("[api/interventions/:id] Impossible de récupérer les rôles utilisateur", rolesError)
+    if (existing?.statut) {
+      const statusValue = mapStatusFromDb(existing.statut)
+      const isClosed = statusValue === "INTER_TERMINEE" || isTerminalStatus(statusValue)
+      if (isClosed) {
+        const closedCheck = await requirePermission(request, "edit_closed_interventions")
+        if (isPermissionError(closedCheck)) return closedCheck.error
+      }
     }
 
-    const roles =
-      roleRows
-        ?.map((entry: any) => entry?.roles?.name)
-        .filter((value: unknown): value is string => typeof value === "string") ?? []
-
-    const isAdmin = roles.some((role) => role.toLowerCase().includes("admin"))
+    const isAdmin = user.roles.some((role) => role.toLowerCase().includes("admin"))
 
     const payload = await request.json()
     const wantsContextUpdate =
@@ -69,6 +73,9 @@ export async function PATCH(request: Request, { params }: Params) {
 }
 
 export async function DELETE(_request: Request, { params }: Params) {
+  const permCheck = await requirePermission(_request, "delete_interventions")
+  if (isPermissionError(permCheck)) return permCheck.error
+
   const { id } = await params
   await deleteIntervention(id)
   return NextResponse.json({ ok: true })

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { supabaseAdmin } from "@/lib/supabase-admin"
+import { requirePermission, isPermissionError } from "@/lib/api/permissions"
 
 export const runtime = "nodejs"
 
@@ -35,6 +36,10 @@ export async function GET() {
  * Le code est généré automatiquement à partir du label
  */
 export async function POST(req: Request) {
+  // Check permission: manage_settings to create agencies
+  const permCheck = await requirePermission(req, "manage_settings")
+  if (isPermissionError(permCheck)) return permCheck.error
+
   if (!supabaseAdmin) {
     return NextResponse.json({ error: "No DB" }, { status: 500 })
   }

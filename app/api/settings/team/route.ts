@@ -1,9 +1,14 @@
 import { NextResponse } from "next/server"
 import { supabaseAdmin } from "@/lib/supabase-admin"
+import { requirePermission, isPermissionError } from "@/lib/api/permissions"
 
 export const runtime = "nodejs"
 
-export async function GET() {
+export async function GET(req: Request) {
+  // Check permission: read_users to list team members
+  const permCheck = await requirePermission(req, "read_users")
+  if (isPermissionError(permCheck)) return permCheck.error
+
   if (!supabaseAdmin) return NextResponse.json({ error: "No DB" }, { status: 500 })
   try {
     const { data, error } = await supabaseAdmin

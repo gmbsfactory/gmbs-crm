@@ -30,6 +30,7 @@ import { supabase } from "@/lib/supabase-client"
 import type { Intervention, UpdateInterventionData } from "@/lib/api/v2/common/types"
 import type { InterventionWithStatus } from "@/types/intervention"
 import { useCurrentUser } from "@/hooks/useCurrentUser"
+import { usePermissions } from "@/hooks/usePermissions"
 import { useInterventionsMutations } from "@/hooks/useInterventionsMutations"
 import { getReasonTypeForTransition, type StatusReasonType } from "@/lib/comments/statusReason"
 import { cn } from "@/lib/utils"
@@ -570,6 +571,7 @@ export function InterventionEditForm({
 
   // Utiliser le hook centralisé useCurrentUser au lieu d'un fetch direct
   const { data: currentUserData } = useCurrentUser()
+  const { can } = usePermissions()
   const currentUser = useMemo(() => {
     if (!currentUserData) return null
     const first = currentUserData.firstname ?? currentUserData.prenom ?? ""
@@ -1020,12 +1022,27 @@ export function InterventionEditForm({
     return roles.some((role) => typeof role === "string" && role.toLowerCase().includes("admin"))
   }, [currentUser])
 
+  const canWriteInterventions = can("write_interventions")
+  const canEditClosedInterventions = can("edit_closed_interventions")
+
   const selectedStatus = useMemo(() => {
     if (!formData.statut_id || !refData?.interventionStatuses) {
       return undefined
     }
     return refData.interventionStatuses.find((status) => status.id === formData.statut_id)
   }, [formData.statut_id, refData])
+
+  const isClosedStatus = useMemo(() => {
+    const code = (selectedStatus?.code ?? "").toUpperCase()
+    const label = (selectedStatus?.label ?? "").toLowerCase()
+    const normalizedLabel = label.normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    if (code === "INTER_TERMINEE" || code === "TERMINE" || code === "TERMINEE" || code === "CLOTURE" || code === "CLOTUREE") {
+      return true
+    }
+    return normalizedLabel.includes("termine") || normalizedLabel.includes("clotur")
+  }, [selectedStatus?.code, selectedStatus?.label])
+
+  const canEditIntervention = canWriteInterventions && (!isClosedStatus || canEditClosedInterventions)
 
   const getInterventionStatusCode = useCallback(
     (statusId?: string | null) => {
@@ -2158,10 +2175,20 @@ export function InterventionEditForm({
 
   return (
     <form ref={formRef} onSubmit={handleSubmit} className="flex-1 min-h-0 flex flex-col">
-      {/* LAYOUT DEUX COLONNES DISTINCTES - Chaque colonne a son propre scroll */}
-      <div className="flex gap-3 flex-1 min-h-0">
-        {/* COLONNE GAUCHE - Scroll indépendant avec scrollbar minimale à gauche */}
-        <div className="flex-1 min-w-0 overflow-y-auto min-h-0 scrollbar-minimal scrollbar-left">
+      {!canEditIntervention && (
+        <div className="mb-3 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+          Cette intervention est en lecture seule. Permission requise :{" "}
+          {isClosedStatus ? "edit_closed_interventions" : "write_interventions"}
+        </div>
+      )}
+      <fieldset
+        disabled={!canEditIntervention}
+        className={cn("flex-1 min-h-0", !canEditIntervention && "opacity-70")}
+      >
+        {/* LAYOUT DEUX COLONNES DISTINCTES - Chaque colonne a son propre scroll */}
+        <div className="flex gap-3 flex-1 min-h-0">
+          {/* COLONNE GAUCHE - Scroll indépendant avec scrollbar minimale à gauche */}
+          <div className="flex-1 min-w-0 overflow-y-auto min-h-0 scrollbar-minimal scrollbar-left">
           <div
             className="grid gap-3 pb-4"
             style={{
@@ -3343,6 +3370,7 @@ export function InterventionEditForm({
           />
         </>
       )}
+      </fieldset>
     </form>
   )
 }

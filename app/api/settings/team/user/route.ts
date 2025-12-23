@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { supabaseAdmin } from "@/lib/supabase-admin"
+import { requirePermission, isPermissionError } from "@/lib/api/permissions"
 
 export const runtime = "nodejs"
 
@@ -27,6 +28,10 @@ async function ensureRole(role: string) {
 }
 
 export async function POST(req: Request) {
+  // Check permission: write_users to create a user
+  const permCheck = await requirePermission(req, "write_users")
+  if (isPermissionError(permCheck)) return permCheck.error
+
   if (!supabaseAdmin) return NextResponse.json({ error: "No DB" }, { status: 500 })
   try {
     const body = await req.json().catch(() => ({} as Record<string, unknown>))
@@ -84,6 +89,10 @@ export async function POST(req: Request) {
 }
 
 export async function PATCH(req: Request) {
+  // Check permission: write_users to update a user
+  const permCheck = await requirePermission(req, "write_users")
+  if (isPermissionError(permCheck)) return permCheck.error
+
   if (!supabaseAdmin) return NextResponse.json({ error: "No DB" }, { status: 500 })
   try {
     const body = await req.json().catch(() => ({} as Record<string, unknown>))
@@ -112,6 +121,10 @@ export async function PATCH(req: Request) {
 }
 
 export async function DELETE(req: Request) {
+  // Check permission: delete_users to delete a user
+  const permCheck = await requirePermission(req, "delete_users")
+  if (isPermissionError(permCheck)) return permCheck.error
+
   if (!supabaseAdmin) return NextResponse.json({ error: "No DB" }, { status: 500 })
   try {
     const body = await req.json().catch(() => ({} as Record<string, unknown>))

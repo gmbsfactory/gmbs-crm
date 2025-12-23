@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { supabaseAdmin } from "@/lib/supabase-admin"
+import { requirePermission, isPermissionError } from "@/lib/api/permissions"
 
 export const runtime = "nodejs"
 
@@ -34,7 +35,11 @@ const normalizeEntries = (raw: any): Array<{ page_key: string; has_access: boole
   return []
 }
 
-export async function GET(_req: Request, context: RouteContext) {
+export async function GET(req: Request, context: RouteContext) {
+  // Check permission: manage_roles to view user page permissions
+  const permCheck = await requirePermission(req, "manage_roles")
+  if (isPermissionError(permCheck)) return permCheck.error
+
   if (!supabaseAdmin) return NextResponse.json({ error: "No DB" }, { status: 500 })
   const { userId } = await context.params
   if (!userId) return NextResponse.json({ error: "userId required" }, { status: 400 })
@@ -58,6 +63,10 @@ export async function GET(_req: Request, context: RouteContext) {
 }
 
 export async function POST(req: Request, context: RouteContext) {
+  // Check permission: manage_roles to modify user page permissions
+  const permCheck = await requirePermission(req, "manage_roles")
+  if (isPermissionError(permCheck)) return permCheck.error
+
   if (!supabaseAdmin) return NextResponse.json({ error: "No DB" }, { status: 500 })
   const { userId } = await context.params
   if (!userId) return NextResponse.json({ error: "userId required" }, { status: 400 })

@@ -1,8 +1,12 @@
 import { NextResponse } from "next/server"
 import { createIntervention, listInterventions } from "@/lib/api/interventions"
 import type { InterventionStatusValue } from "@/types/interventions"
+import { requirePermission, isPermissionError } from "@/lib/api/permissions"
 
 export async function GET(request: Request) {
+  const permCheck = await requirePermission(request, "read_interventions")
+  if (isPermissionError(permCheck)) return permCheck.error
+
   const { searchParams } = new URL(request.url)
   const statusParam = searchParams.get("status") as InterventionStatusValue | null
   const search = searchParams.get("search") ?? undefined
@@ -21,6 +25,9 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  const permCheck = await requirePermission(request, "write_interventions")
+  if (isPermissionError(permCheck)) return permCheck.error
+
   try {
     const payload = await request.json()
     const result = await createIntervention(payload)

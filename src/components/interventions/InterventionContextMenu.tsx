@@ -28,6 +28,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
+import { usePermissions } from "@/hooks/usePermissions"
 
 interface InterventionContextMenuContentProps {
   intervention: InterventionView
@@ -50,6 +51,7 @@ export function InterventionContextMenuContent({
     deleteIntervention,
     isLoading,
   } = useInterventionContextMenu(intervention.id, viewType, intervention.id_inter || undefined)
+  const { can } = usePermissions()
 
   const statusValue = intervention.statusValue || intervention.statut
   const idInter = intervention.id_inter
@@ -62,6 +64,8 @@ export function InterventionContextMenuContent({
     statusValue === "DEMANDE" && idInter && idInter.trim() !== ""
   const canTransitionToAccepte = statusValue === "DEVIS_ENVOYE"
   const showAssignToMe = viewType === "market"
+  const canWriteInterventions = can("write_interventions")
+  const canDeleteInterventions = can("delete_interventions")
 
   const handleOpen = () => {
     onOpen?.()
@@ -102,12 +106,12 @@ export function InterventionContextMenuContent({
         </ContextMenuItem>
 
         {/* Séparateur avant les actions conditionnelles */}
-        {(canTransitionToDevisEnvoye ||
+        {(canWriteInterventions && (canTransitionToDevisEnvoye ||
           canTransitionToAccepte ||
-          showAssignToMe) && <ContextMenuSeparator />}
+          showAssignToMe)) && <ContextMenuSeparator />}
 
         {/* Transition vers "Devis envoyé" */}
-        {canTransitionToDevisEnvoye && (
+        {canWriteInterventions && canTransitionToDevisEnvoye && (
           <ContextMenuItem
             onSelect={() => transitionToDevisEnvoye()}
             disabled={isLoading.transitionDevisEnvoye}
@@ -118,7 +122,7 @@ export function InterventionContextMenuContent({
         )}
 
         {/* Transition vers "Accepté" */}
-        {canTransitionToAccepte && (
+        {canWriteInterventions && canTransitionToAccepte && (
           <ContextMenuItem
             onSelect={() => transitionToAccepte()}
             disabled={isLoading.transitionAccepte}
@@ -129,7 +133,7 @@ export function InterventionContextMenuContent({
         )}
 
         {/* Assignation "Je gère" (uniquement pour vue Market) */}
-        {showAssignToMe && (
+        {canWriteInterventions && showAssignToMe && (
           <ContextMenuItem
             onSelect={() => assignToMe()}
             disabled={isLoading.assign}
@@ -140,57 +144,62 @@ export function InterventionContextMenuContent({
         )}
 
         {/* Séparateur avant la duplication */}
-        <ContextMenuSeparator />
+        {canWriteInterventions && <ContextMenuSeparator />}
 
         {/* Duplication "Devis supp" */}
-        <ContextMenuItem
-          onSelect={() => {
-            console.log("[InterventionContextMenu] Clic sur 'Devis supp' pour intervention:", intervention.id)
-            duplicateDevisSupp()
-          }}
-          disabled={isLoading.duplicate}
-        >
-          <Copy className="mr-2 h-4 w-4" />
-          Devis supp
-        </ContextMenuItem>
+        {canWriteInterventions && (
+          <ContextMenuItem
+            onSelect={() => {
+              console.log("[InterventionContextMenu] Clic sur 'Devis supp' pour intervention:", intervention.id)
+              duplicateDevisSupp()
+            }}
+            disabled={isLoading.duplicate}
+          >
+            <Copy className="mr-2 h-4 w-4" />
+            Devis supp
+          </ContextMenuItem>
+        )}
 
         {/* Séparateur avant la suppression */}
-        <ContextMenuSeparator />
+        {canDeleteInterventions && <ContextMenuSeparator />}
 
         {/* Suppression */}
-        <ContextMenuItem
-          onSelect={handleDelete}
-          disabled={isLoading.delete}
-          className="text-destructive focus:text-destructive"
-        >
-          <Trash2 className="mr-2 h-4 w-4" />
-          Supprimer
-        </ContextMenuItem>
+        {canDeleteInterventions && (
+          <ContextMenuItem
+            onSelect={handleDelete}
+            disabled={isLoading.delete}
+            className="text-destructive focus:text-destructive"
+          >
+            <Trash2 className="mr-2 h-4 w-4" />
+            Supprimer
+          </ContextMenuItem>
+        )}
       </ContextMenuContent>
 
       {/* Dialogue de confirmation de suppression */}
-      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
-        <AlertDialogContent onEscapeKeyDown={handleCancelDelete}>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Confirmer la suppression</AlertDialogTitle>
-            <AlertDialogDescription>
-              Cette action est destructive. Êtes-vous sûr de vouloir supprimer l&apos;intervention ?
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel onClick={handleCancelDelete}>Annuler</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleConfirmDelete}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              Supprimer
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {canDeleteInterventions && (
+        <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+          <AlertDialogContent onEscapeKeyDown={handleCancelDelete}>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Confirmer la suppression</AlertDialogTitle>
+              <AlertDialogDescription>
+                Cette action est destructive. Êtes-vous sûr de vouloir supprimer l&apos;intervention ?
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel onClick={handleCancelDelete}>Annuler</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={handleConfirmDelete}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                Supprimer
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
     </>
   )
 }
-
 
 

@@ -51,6 +51,7 @@ import { artisansApi } from "@/lib/api/v2"
 import type { Artisan } from "@/lib/api/v2/common/types"
 import { commentsApi } from "@/lib/api/v2/commentsApi"
 import { useCurrentUser } from "@/hooks/useCurrentUser"
+import { usePermissions } from "@/hooks/usePermissions"
 import { getReasonTypeForTransition, type StatusReasonType } from "@/lib/comments/statusReason"
 import { cn } from "@/lib/utils"
 import type { ModalDisplayMode } from "@/types/modal-display"
@@ -459,6 +460,8 @@ export function ArtisanModalContent({
       color: currentUserData.color ?? null,
     }
   }, [currentUserData])
+  const { can } = usePermissions()
+  const canWriteArtisans = can("write_artisans")
 
   useEffect(() => {
     setPendingReason(null)
@@ -1057,7 +1060,7 @@ export function ArtisanModalContent({
             </div>
           </div>
           <div className="flex items-center gap-2">
-            {artisan ? (
+            {artisan && canWriteArtisans ? (
               getArtisanStatusCode(artisan.statut_id ?? null) === "ARCHIVE" ? (
                 <Button
                   variant="outline"
@@ -1083,25 +1086,36 @@ export function ArtisanModalContent({
         </header>
 
         <form ref={formRef} onSubmit={handleSubmit(onSubmit)} className="flex flex-1 min-h-0 flex-col">
-          <div className="modal-config-columns-body flex-1 min-h-0 bg-[#C6CEDC] dark:bg-transparent">
-            {isLoading ? (
-              <div className="grid gap-4 md:grid-cols-2 px-4 py-3 md:px-6">
-                <div className="h-64 rounded-lg bg-muted animate-pulse" />
-                <div className="h-64 rounded-lg bg-muted animate-pulse" />
+          {!canWriteArtisans && (
+            <div className="px-4 py-3 md:px-6">
+              <div className="rounded border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+                Cet artisan est en lecture seule. Permission requise : write_artisans.
               </div>
-            ) : error ? (
-              <div className="px-4 py-3 md:px-6">
-                <div className="rounded border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
-                  {(error as Error).message}
+            </div>
+          )}
+          <fieldset
+            disabled={!canWriteArtisans}
+            className={cn("flex-1 min-h-0", !canWriteArtisans && "opacity-70")}
+          >
+            <div className="modal-config-columns-body flex-1 min-h-0 bg-[#C6CEDC] dark:bg-transparent">
+              {isLoading ? (
+                <div className="grid gap-4 md:grid-cols-2 px-4 py-3 md:px-6">
+                  <div className="h-64 rounded-lg bg-muted animate-pulse" />
+                  <div className="h-64 rounded-lg bg-muted animate-pulse" />
                 </div>
-              </div>
-            ) : !artisan ? (
-              <div className="px-4 py-3 md:px-6">
-                <div className="rounded border border-muted bg-muted/20 p-4 text-sm text-muted-foreground">
-                  Artisan introuvable ou inaccessible.
+              ) : error ? (
+                <div className="px-4 py-3 md:px-6">
+                  <div className="rounded border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
+                    {(error as Error).message}
+                  </div>
                 </div>
-              </div>
-            ) : showStats ? (
+              ) : !artisan ? (
+                <div className="px-4 py-3 md:px-6">
+                  <div className="rounded border border-muted bg-muted/20 p-4 text-sm text-muted-foreground">
+                    Artisan introuvable ou inaccessible.
+                  </div>
+                </div>
+              ) : showStats ? (
               /* ========== VUE STATISTIQUES ========== */
               <div 
                 className="h-full px-4 py-3 md:px-6"
@@ -1780,14 +1794,15 @@ export function ArtisanModalContent({
                 </div>
               </div>
             )}
-          </div>
+            </div>
+          </fieldset>
 
           {/* Footer */}
           <footer className="modal-config-columns-footer flex items-center justify-end gap-2 px-4 py-3 md:px-6 bg-[#8DA5CE] dark:bg-transparent">
             <Button type="button" variant="outline" size="sm" onClick={handleCancel}>
               Annuler
             </Button>
-            <Button type="submit" size="sm" disabled={isSaving || isLoading}>
+            <Button type="submit" size="sm" disabled={isSaving || isLoading || !canWriteArtisans}>
               {isSaving ? "Enregistrement..." : (
                 <>
                   Enregistrer

@@ -1,9 +1,14 @@
 import { NextResponse } from "next/server"
 import { supabaseAdmin } from "@/lib/supabase-admin"
+import { requirePermission, isPermissionError } from "@/lib/api/permissions"
 
 export const runtime = "nodejs"
 
 export async function POST(req: Request) {
+  // Check permission: manage_roles to change user roles
+  const permCheck = await requirePermission(req, "manage_roles")
+  if (isPermissionError(permCheck)) return permCheck.error
+
   if (!supabaseAdmin) return NextResponse.json({ error: "No DB" }, { status: 500 })
   try {
     const { userId, role } = await req.json()

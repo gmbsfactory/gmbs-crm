@@ -22,8 +22,9 @@ import { t } from "@/config/domain"
 import { AnimatePresence, motion } from "framer-motion"
 import Image from "next/image"
 import { setPathname } from "@/lib/navigation-tracker"
-import { useCurrentUser } from "@/hooks/useCurrentUser"
+import { usePermissions } from "@/hooks/usePermissions"
 import { usePlatformKey } from "@/hooks/usePlatformKey"
+import { useCurrentUser } from "@/hooks/useCurrentUser"
 
 type ReminderFilter = "all" | "my_reminders" | "mentions"
 
@@ -51,24 +52,27 @@ export default function Topbar() {
   const [logoHovered, setLogoHovered] = React.useState(false)
   const { data: currentUser } = useCurrentUser()
   const { modifierSymbol, isModifierPressed } = usePlatformKey()
+  const { can, canAccessPage } = usePermissions()
 
-  // Construire la navigation dynamiquement pour inclure Comptabilité si l'utilisateur a les permissions
-  const roles = currentUser?.roles || []
-  const hasRoleAccess = roles.some((role) => {
-    const normalized = (role || "").toLowerCase()
-    return normalized === "admin" || normalized === "manager"
-  })
-  const hasPagePermission = currentUser?.page_permissions?.comptabilite !== false
-  const canAccessComptabilite = hasRoleAccess && hasPagePermission
+  // Check permission + page_permissions override for comptabilité
+  const canAccessComptabilite = canAccessPage("view_comptabilite", "comptabilite")
+  const canReadInterventions = can("read_interventions")
+  const canReadArtisans = can("read_artisans")
+  const canWriteInterventions = can("write_interventions")
+  const canWriteArtisans = can("write_artisans")
 
   const navigation: NavItem[] = [
     { type: "link", name: t("dashboard"), href: "/dashboard", icon: Home },
     { type: "spacer" },
-    { type: "link", name: t("deals"), href: "/interventions", icon: Wrench },
+    ...(canReadInterventions
+      ? [{ type: "link", name: t("deals"), href: "/interventions", icon: Wrench }] as NavItem[]
+      : []),
     ...(canAccessComptabilite
       ? [{ type: "link", name: "Comptabilité", href: "/comptabilite", icon: Calculator }] as NavItem[]
       : []),
-    { type: "link", name: t("contacts"), href: "/artisans", icon: HardHat },
+    ...(canReadArtisans
+      ? [{ type: "link", name: t("contacts"), href: "/artisans", icon: HardHat }] as NavItem[]
+      : []),
     { type: "spacer" },
     { type: "link", name: "Paramètres", href: "/settings", icon: Settings },
   ]
@@ -254,11 +258,11 @@ export default function Topbar() {
 
   // Show New Intervention button on Interventions page
   const isInterventions = pathname?.startsWith("/interventions")
-  const showNewInterventionBtn = isInterventions
+  const showNewInterventionBtn = isInterventions && canWriteInterventions
   
   // Show New Artisan button on Artisans page
   const isArtisans = pathname?.startsWith("/artisans")
-  const showNewArtisanBtn = isArtisans
+  const showNewArtisanBtn = isArtisans && canWriteArtisans
 
   // Show dashboard navigation buttons on Dashboard page
   const isDashboard = pathname === "/dashboard"
@@ -525,32 +529,40 @@ export default function Topbar() {
           ) : null}
           {isDashboard ? (
             <>
-              <ContextMenu>
-                <ContextMenuTrigger asChild>
-                  <Button size="sm" asChild>
-                    <Link href="/interventions">Voir les {t("deals")}</Link>
-                  </Button>
-                </ContextMenuTrigger>
-                <ContextMenuContent>
-                  <ContextMenuItem onClick={() => openModal("new", { content: "new-intervention" })} className="flex items-center gap-2">
-                    <Plus className="h-4 w-4" />
-                    Nouvelle intervention
-                  </ContextMenuItem>
-                </ContextMenuContent>
-              </ContextMenu>
-              <ContextMenu>
-                <ContextMenuTrigger asChild>
-                  <Button size="sm" variant="outline" asChild>
-                    <Link href="/artisans">Voir les {t("contacts")}</Link>
-                  </Button>
-                </ContextMenuTrigger>
-                <ContextMenuContent>
-                  <ContextMenuItem onClick={() => artisanModal.openNew()} className="flex items-center gap-2">
-                    <Plus className="h-4 w-4" />
-                    Nouvel artisan
-                  </ContextMenuItem>
-                </ContextMenuContent>
-              </ContextMenu>
+              {canReadInterventions && (
+                <ContextMenu>
+                  <ContextMenuTrigger asChild>
+                    <Button size="sm" asChild>
+                      <Link href="/interventions">Voir les {t("deals")}</Link>
+                    </Button>
+                  </ContextMenuTrigger>
+                  <ContextMenuContent>
+                    {canWriteInterventions && (
+                      <ContextMenuItem onClick={() => openModal("new", { content: "new-intervention" })} className="flex items-center gap-2">
+                        <Plus className="h-4 w-4" />
+                        Nouvelle intervention
+                      </ContextMenuItem>
+                    )}
+                  </ContextMenuContent>
+                </ContextMenu>
+              )}
+              {canReadArtisans && (
+                <ContextMenu>
+                  <ContextMenuTrigger asChild>
+                    <Button size="sm" variant="outline" asChild>
+                      <Link href="/artisans">Voir les {t("contacts")}</Link>
+                    </Button>
+                  </ContextMenuTrigger>
+                  <ContextMenuContent>
+                    {canWriteArtisans && (
+                      <ContextMenuItem onClick={() => artisanModal.openNew()} className="flex items-center gap-2">
+                        <Plus className="h-4 w-4" />
+                        Nouvel artisan
+                      </ContextMenuItem>
+                    )}
+                  </ContextMenuContent>
+                </ContextMenu>
+              )}
             </>
           ) : null}
         </div>

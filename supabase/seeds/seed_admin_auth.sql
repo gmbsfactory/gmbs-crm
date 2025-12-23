@@ -292,16 +292,18 @@ FROM (VALUES
   ('read_interventions', 'Read interventions'),
   ('write_interventions', 'Create and edit interventions'),
   ('delete_interventions', 'Delete interventions'),
+  ('edit_closed_interventions', 'Edit closed interventions'),
   ('read_artisans', 'Read artisans'),
   ('write_artisans', 'Create and edit artisans'),
   ('delete_artisans', 'Delete artisans'),
+  ('export_artisans', 'Export artisans'),
   ('read_users', 'Read users'),
   ('write_users', 'Create and edit users'),
   ('delete_users', 'Delete users'),
-  ('manage_billing', 'Manage billing and subscriptions'),
-  ('manage_roles', 'Manage user roles and permissions'),
-  ('view_analytics', 'View analytics and reports'),
-  ('manage_settings', 'Manage system settings')
+  ('manage_roles', 'Manage user roles and page permissions'),
+  ('manage_settings', 'Manage enums, agencies, workflow'),
+  ('view_admin', 'Access admin dashboard and analytics'),
+  ('view_comptabilite', 'View accounting page')
 ) AS x(key, description)
 ON CONFLICT (key) DO NOTHING;
 
@@ -369,9 +371,9 @@ SELECT
 FROM public.roles r
 CROSS JOIN public.permissions p
 WHERE r.name = 'manager'
-  AND p.key IN ('read_interventions', 'write_interventions', 'delete_interventions',
-                'read_artisans', 'write_artisans', 'delete_artisans',
-                'read_users', 'write_users', 'view_analytics', 'manage_settings')
+  AND p.key IN ('read_interventions', 'write_interventions',
+                'read_artisans', 'write_artisans',
+                'read_users', 'export_artisans', 'view_comptabilite')
 ON CONFLICT (role_id, permission_id) DO NOTHING;
 
 -- Gestionnaire permissions (basic permissions)
@@ -383,8 +385,7 @@ FROM public.roles r
 CROSS JOIN public.permissions p
 WHERE r.name = 'gestionnaire'
   AND p.key IN ('read_interventions', 'write_interventions',
-                'read_artisans', 'write_artisans',
-                'read_users')
+                'read_artisans', 'write_artisans')
 ON CONFLICT (role_id, permission_id) DO NOTHING;
 
 -- ========================================

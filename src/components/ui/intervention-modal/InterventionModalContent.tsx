@@ -35,6 +35,7 @@ import { cn } from "@/lib/utils"
 import { toast } from "sonner"
 import { useInterventionContextMenu } from "@/hooks/useInterventionContextMenu"
 import { useSubmitShortcut } from "@/hooks/useSubmitShortcut"
+import { usePermissions } from "@/hooks/usePermissions"
 
 type NoteDialogContentProps = React.ComponentPropsWithoutRef<typeof AlertDialogPrimitive.Content>
 
@@ -110,6 +111,9 @@ export function InterventionModalContent({
   const modalRef = useRef<HTMLDivElement>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const queryClient = useQueryClient()
+  const { can } = usePermissions()
+  const canWriteInterventions = can("write_interventions")
+  const canDeleteInterventions = can("delete_interventions")
 
   // Raccourci clavier Cmd/Ctrl+Enter pour enregistrer
   const { shortcutHint } = useSubmitShortcut({ formRef, isSubmitting })
@@ -585,23 +589,25 @@ GMBS`
             ) : (
               <span className="modal-config-columns-icon-placeholder" />
             )}
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="modal-config-columns-icon-button hover:bg-red-500/10"
-                  onClick={handleDelete}
-                  disabled={contextMenuLoading.delete || !intervention}
-                  aria-label="Supprimer l'intervention"
-                >
-                  <Trash2 className="h-4 w-4 text-red-500" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent className="modal-config-columns-tooltip">
-                Supprimer l&apos;intervention
-              </TooltipContent>
-            </Tooltip>
+            {canDeleteInterventions && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="modal-config-columns-icon-button hover:bg-red-500/10"
+                    onClick={handleDelete}
+                    disabled={contextMenuLoading.delete || !intervention}
+                    aria-label="Supprimer l'intervention"
+                  >
+                    <Trash2 className="h-4 w-4 text-red-500" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent className="modal-config-columns-tooltip">
+                  Supprimer l&apos;intervention
+                </TooltipContent>
+              </Tooltip>
+            )}
           </div>
           <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none">
             <div className="modal-config-columns-title">
@@ -614,24 +620,26 @@ GMBS`
             </div>
           </div>
           <div className="flex items-center gap-3">
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="h-7 text-xs"
-                  onClick={() => duplicateDevisSupp()}
-                  disabled={!intervention || contextMenuLoading.duplicate}
-                >
-                  <Plus className="mr-1.5 h-3.5 w-3.5" />
-                  Devis supp
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent className="modal-config-columns-tooltip">
-                Créer un devis supplémentaire à partir de cette intervention
-              </TooltipContent>
-            </Tooltip>
+            {canWriteInterventions && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-7 text-xs"
+                    onClick={() => duplicateDevisSupp()}
+                    disabled={!intervention || contextMenuLoading.duplicate}
+                  >
+                    <Plus className="mr-1.5 h-3.5 w-3.5" />
+                    Devis supp
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent className="modal-config-columns-tooltip">
+                  Créer un devis supplémentaire à partir de cette intervention
+                </TooltipContent>
+              </Tooltip>
+            )}
             {intervention?.updated_at && (
               <span className="text-xs text-muted-foreground">
                 Mis à jour le {new Date(intervention.updated_at).toLocaleDateString('fr-FR', {

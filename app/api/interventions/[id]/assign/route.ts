@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { interventionsApi } from "@/lib/api/v2"
 import { createServerSupabase, bearerFrom } from "@/lib/supabase/server"
 import { cookies } from "next/headers"
+import { requirePermission, isPermissionError } from "@/lib/api/permissions"
 
 type Params = {
   params: Promise<{
@@ -11,6 +12,9 @@ type Params = {
 
 export async function POST(request: Request, { params }: Params) {
   try {
+    const permCheck = await requirePermission(request, "write_interventions")
+    if (isPermissionError(permCheck)) return permCheck.error
+
     const { id } = await params
     
     // Récupérer le token depuis les headers ou les cookies
@@ -43,4 +47,3 @@ export async function POST(request: Request, { params }: Params) {
     return NextResponse.json({ error: message }, { status: 500 })
   }
 }
-

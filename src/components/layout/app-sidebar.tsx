@@ -13,7 +13,7 @@ import {
   Wrench,
 } from "lucide-react"
 import { useInterface } from "@/contexts/interface-context"
-import { useCurrentUser } from "@/hooks/useCurrentUser"
+import { usePermissions } from "@/hooks/usePermissions"
 import { t } from "@/config/domain"
 
 type NavItem = { type: "link"; name: string; href: string; icon: React.ComponentType<{ className?: string }> } | { type: "spacer" }
@@ -22,24 +22,25 @@ export function AppSidebar() {
   const pathname = usePathname()
   // Source sidebar mode from Interface context to reflect Settings → Interface choices
   const { sidebarMode } = useInterface()
-  const { data: currentUser } = useCurrentUser()
+  const { can, canAccessPage } = usePermissions()
 
-  const roles = currentUser?.roles || []
-  const hasRoleAccess = roles.some((role) => {
-    const normalized = (role || "").toLowerCase()
-    return normalized === "admin" || normalized === "manager"
-  })
-  const hasPagePermission = currentUser?.page_permissions?.comptabilite !== false
-  const canAccessComptabilite = hasRoleAccess && hasPagePermission
+  // Check permission + page_permissions override for comptabilité
+  const canAccessComptabilite = canAccessPage("view_comptabilite", "comptabilite")
+  const canReadInterventions = can("read_interventions")
+  const canReadArtisans = can("read_artisans")
 
   const navigation: NavItem[] = [
     { type: "link", name: t("dashboard"), href: "/dashboard", icon: Home },
     { type: "spacer" },
-    { type: "link", name: t("deals"), href: "/interventions", icon: Wrench },
+    ...(canReadInterventions
+      ? [{ type: "link", name: t("deals"), href: "/interventions", icon: Wrench }] as NavItem[]
+      : []),
     ...(canAccessComptabilite
       ? [{ type: "link", name: "Comptabilité", href: "/comptabilite", icon: Calculator }] as NavItem[]
       : []),
-    { type: "link", name: t("contacts"), href: "/artisans", icon: HardHat },
+    ...(canReadArtisans
+      ? [{ type: "link", name: t("contacts"), href: "/artisans", icon: HardHat }] as NavItem[]
+      : []),
     { type: "spacer" },
     { type: "link", name: "Paramètres", href: "/settings", icon: Settings },
   ]
