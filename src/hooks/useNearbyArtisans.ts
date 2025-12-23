@@ -13,6 +13,7 @@ export type NearbyArtisan = {
   displayName: string
   distanceKm: number
   telephone: string | null
+  telephone2: string | null
   email: string | null
   adresse: string | null
   ville: string | null
@@ -21,6 +22,7 @@ export type NearbyArtisan = {
   lng: number
   prenom: string | null
   nom: string | null
+  raison_sociale: string | null
   statut_id: string | null
   photoProfilMetadata: AvatarMetadata | null
 }
@@ -157,6 +159,7 @@ export function useNearbyArtisans(
               "nom",
               "raison_sociale",
               "telephone",
+              "telephone2",
               "email",
               "adresse_intervention",
               "code_postal_intervention",
@@ -251,6 +254,7 @@ export function useNearbyArtisans(
               row.id,
             distanceKm,
             telephone: row.telephone ?? null,
+            telephone2: row.telephone2 ?? null,
             email: row.email ?? null,
             adresse: row.adresse_intervention ?? null,
             ville: row.ville_intervention ?? null,
@@ -259,6 +263,7 @@ export function useNearbyArtisans(
             lng,
             prenom: row.prenom ?? null,
             nom: row.nom ?? null,
+            raison_sociale: row.raison_sociale ?? null,
             statut_id: row.statut_id ?? null,
             photoProfilMetadata,
           } satisfies NearbyArtisan

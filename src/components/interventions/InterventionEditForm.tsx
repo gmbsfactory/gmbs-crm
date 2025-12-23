@@ -744,6 +744,8 @@ export function InterventionEditForm({
   const [showSecondArtisanSearch, setShowSecondArtisanSearch] = useState(false)
   const [artisanSearchPosition, setArtisanSearchPosition] = useState<{ x: number; y: number; width?: number; height?: number } | null>(null)
   const artisanSearchContainerRef = useRef<HTMLDivElement>(null)
+  const [artisanDisplayMode, setArtisanDisplayMode] = useState<"nom" | "rs" | "tel">("nom")
+  const [secondArtisanDisplayMode, setSecondArtisanDisplayMode] = useState<"nom" | "rs" | "tel">("nom")
   // État pour stocker l'artisan sélectionné via recherche (qui peut ne pas être dans nearbyArtisans)
   const [searchSelectedArtisan, setSearchSelectedArtisan] = useState<NearbyArtisan | null>(null)
   // État pour stocker le second artisan sélectionné via recherche (qui peut ne pas être dans nearbyArtisansSecondMetier)
@@ -841,6 +843,7 @@ export function InterventionEditForm({
       displayName,
       distanceKm: 0,
       telephone: primaryArtisan.telephone || null,
+      telephone2: primaryArtisan.telephone2 || null,
       email: primaryArtisan.email || null,
       adresse: null,
       ville: null,
@@ -849,6 +852,7 @@ export function InterventionEditForm({
       lng: 0,
       prenom: primaryArtisan.prenom || null,
       nom: primaryArtisan.nom || null,
+      raison_sociale: primaryArtisan.raison_sociale || null,
       statut_id: null,
       photoProfilMetadata: null,
     })
@@ -936,6 +940,21 @@ export function InterventionEditForm({
     if (coutInter2 <= 0) return 0
     return (marge2 / coutInter2) * 100
   }, [formData.coutIntervention, formData.coutSST, formData.coutMateriel, formData.coutSSTSecondArtisan, formData.coutMaterielSecondArtisan])
+
+  // Fonction helper pour obtenir le nom à afficher selon le mode
+  const getArtisanDisplayName = useCallback((artisan: NearbyArtisan, mode: "nom" | "rs" | "tel"): string => {
+    if (mode === "rs" && artisan.raison_sociale) {
+      return artisan.raison_sociale
+    }
+    if (mode === "tel") {
+      const phones = [artisan.telephone, artisan.telephone2].filter(Boolean)
+      if (phones.length > 0) {
+        return phones.join(" / ")
+      }
+      return "Pas de téléphone"
+    }
+    return `${artisan.prenom || ""} ${artisan.nom || ""}`.trim() || "Artisan sans nom"
+  }, [])
 
   // Référence pour tracker si l'utilisateur a modifié manuellement le champ id_inter
   const userEditedIdInterRef = useRef(false)
@@ -1694,6 +1713,7 @@ export function InterventionEditForm({
         displayName: displayName,
         distanceKm: 0, // Distance inconnue pour artisan hors proximité
         telephone: artisan.telephone || null,
+        telephone2: artisan.telephone2 || null,
         email: artisan.email || null,
         adresse: artisan.adresse_intervention || artisan.adresse_siege_social || null,
         ville: artisan.ville_intervention || artisan.ville_siege_social || null,
@@ -1702,6 +1722,7 @@ export function InterventionEditForm({
         lng: 0,
         prenom: artisan.prenom || null,
         nom: artisan.nom || null,
+        raison_sociale: artisan.raison_sociale || null,
         statut_id: artisan.statut_id || null,
         photoProfilMetadata: null,
       }
@@ -1736,6 +1757,7 @@ export function InterventionEditForm({
         displayName: displayName,
         distanceKm: 0, // Distance inconnue pour artisan hors proximité
         telephone: artisan.telephone || null,
+        telephone2: artisan.telephone2 || null,
         email: artisan.email || null,
         adresse: artisan.adresse_intervention || artisan.adresse_siege_social || null,
         ville: artisan.ville_intervention || artisan.ville_siege_social || null,
@@ -1744,6 +1766,7 @@ export function InterventionEditForm({
         lng: 0,
         prenom: artisan.prenom || null,
         nom: artisan.nom || null,
+        raison_sociale: artisan.raison_sociale || null,
         statut_id: artisan.statut_id || null,
         photoProfilMetadata: null,
       }
@@ -2552,10 +2575,41 @@ export function InterventionEditForm({
                 <CardContent className="p-3 flex flex-col h-full overflow-hidden">
                   {/* Header artisans */}
                   <div className="flex items-center justify-between gap-2 mb-3 flex-shrink-0">
-                    <h3 className="font-semibold text-sm flex items-center gap-2">
-                      <Building className="h-4 w-4" />
-                      Artisans
-                    </h3>
+                    <div className="flex items-center gap-2">
+                      <h3 className="font-semibold text-sm flex items-center gap-2">
+                        <Building className="h-4 w-4" />
+                        Artisans
+                      </h3>
+                      <div className="flex gap-0.5">
+                        <Button
+                          type="button"
+                          variant={artisanDisplayMode === "nom" ? "default" : "ghost"}
+                          size="sm"
+                          className="h-5 px-1.5 text-[10px]"
+                          onClick={() => setArtisanDisplayMode("nom")}
+                        >
+                          nom
+                        </Button>
+                        <Button
+                          type="button"
+                          variant={artisanDisplayMode === "rs" ? "default" : "ghost"}
+                          size="sm"
+                          className="h-5 px-1.5 text-[10px]"
+                          onClick={() => setArtisanDisplayMode("rs")}
+                        >
+                          RS
+                        </Button>
+                        <Button
+                          type="button"
+                          variant={artisanDisplayMode === "tel" ? "default" : "ghost"}
+                          size="sm"
+                          className="h-5 px-1.5 text-[10px]"
+                          onClick={() => setArtisanDisplayMode("tel")}
+                        >
+                          tel
+                        </Button>
+                      </div>
+                    </div>
                     <div className="flex gap-1">
                       <Button
                         type="button"
@@ -2582,8 +2636,8 @@ export function InterventionEditForm({
                   {/* Artisan sélectionné */}
                   {selectedArtisanId && selectedArtisanData && (() => {
                     const artisan = selectedArtisanData
-                    const artisanName = `${artisan.prenom || ""} ${artisan.nom || ""}`.trim() || "Artisan sans nom"
-                    const artisanInitials = artisanName.split(" ").map((p) => p.charAt(0)).join("").slice(0, 2).toUpperCase() || "??"
+                    const artisanDisplayName = getArtisanDisplayName(artisan, artisanDisplayMode)
+                    const artisanInitials = artisanDisplayName.split(" ").map((p) => p.charAt(0)).join("").slice(0, 2).toUpperCase() || "??"
                     const artisanStatus = refData?.artisanStatuses?.find((s) => s.id === artisan.statut_id)
                     const statutArtisan = artisanStatus?.label || ""
                     const statutArtisanColor = artisanStatus?.color || null
@@ -2600,27 +2654,23 @@ export function InterventionEditForm({
                           >
                             <X className="h-3 w-3" />
                           </Button>
-                          <div className="flex items-start gap-2">
-                            <Avatar photoProfilMetadata={artisan.photoProfilMetadata} initials={artisanInitials} name={artisan.displayName} size={40} />
-                            <div className="flex-1 min-w-0">
-                              <span className="font-semibold text-foreground block truncate">{artisan.displayName}</span>
-                              <div className="flex items-center gap-1 mt-1">
-                                {statutArtisan && (
-                                  <Badge variant="outline" className="text-[9px] px-1 py-0" style={statutArtisanColor ? { backgroundColor: hexToRgba(statutArtisanColor, 0.15) || undefined, color: statutArtisanColor, borderColor: statutArtisanColor } : undefined}>
-                                    {statutArtisan}
-                                  </Badge>
-                                )}
-                                {absentArtisanIds.has(artisan.id) && (
-                                  <Badge variant="outline" className="text-[9px] px-1 py-0 bg-orange-100 text-orange-800 border-orange-300">
-                                    Indisponible
-                                  </Badge>
-                                )}
-                                <Badge variant="default" className="text-[9px] px-1 py-0">{formatDistanceKm(artisan.distanceKm)}</Badge>
-                              </div>
-                              <div className="mt-1 text-[10px] text-muted-foreground truncate">
-                                {artisan.telephone && <span>📞 {artisan.telephone}</span>}
-                              </div>
-                            </div>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <Avatar photoProfilMetadata={artisan.photoProfilMetadata} initials={artisanInitials} name={artisan.displayName} size={40} className="hidden" />
+                            <span className="font-semibold text-foreground truncate text-xs">{artisanDisplayName}</span>
+                            {statutArtisan && (
+                              <Badge variant="outline" className="text-[9px] px-1 py-0 flex-shrink-0" style={statutArtisanColor ? { backgroundColor: hexToRgba(statutArtisanColor, 0.15) || undefined, color: statutArtisanColor, borderColor: statutArtisanColor } : undefined}>
+                                {statutArtisan}
+                              </Badge>
+                            )}
+                            {absentArtisanIds.has(artisan.id) && (
+                              <Badge variant="outline" className="text-[9px] px-1 py-0 bg-orange-100 text-orange-800 border-orange-300 flex-shrink-0">
+                                Indisponible
+                              </Badge>
+                            )}
+                            <Badge variant="default" className="text-[9px] px-1 py-0 flex-shrink-0">{formatDistanceKm(artisan.distanceKm)}</Badge>
+                            {artisan.telephone && (
+                              <span className="text-[10px] text-muted-foreground truncate flex-shrink-0">📞 {artisan.telephone}</span>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -2693,8 +2743,8 @@ export function InterventionEditForm({
                       <div className="rounded border border-border/50 bg-background px-2 py-2 text-[10px] text-muted-foreground">Aucun artisan dans un rayon de {perimeterKmValue} km.</div>
                     ) : (
                       nearbyArtisans.map((artisan) => {
-                        const artisanName = `${artisan.prenom || ""} ${artisan.nom || ""}`.trim() || "Artisan sans nom"
-                        const artisanInitials = artisanName.split(" ").map((p) => p.charAt(0)).join("").slice(0, 2).toUpperCase() || "??"
+                        const artisanDisplayName = getArtisanDisplayName(artisan, artisanDisplayMode)
+                        const artisanInitials = artisanDisplayName.split(" ").map((p) => p.charAt(0)).join("").slice(0, 2).toUpperCase() || "??"
                         const artisanStatus = refData?.artisanStatuses?.find((s) => s.id === artisan.statut_id)
                         const statutArtisan = artisanStatus?.label || ""
                         const statutArtisanColor = artisanStatus?.color || null
@@ -2711,26 +2761,26 @@ export function InterventionEditForm({
                             onClick={() => handleSelectNearbyArtisan(artisan)}
                             onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); handleSelectNearbyArtisan(artisan) } }}
                           >
-                            <div className="flex items-center gap-2">
-                              <Avatar photoProfilMetadata={artisan.photoProfilMetadata} initials={artisanInitials} name={artisan.displayName} size={40} />
-                              <div className="flex-1 min-w-0">
-                                <span className="font-medium text-foreground block truncate text-[11px]">{artisan.displayName}</span>
-                                <div className="flex items-center gap-1 flex-wrap">
-                                  {statutArtisan && (
-                                    <Badge variant="outline" className="text-[9px] px-1 py-0" style={statutArtisanColor ? { backgroundColor: hexToRgba(statutArtisanColor, 0.15) || undefined, color: statutArtisanColor, borderColor: statutArtisanColor } : undefined}>
-                                      {statutArtisan}
-                                    </Badge>
-                                  )}
-                                  {absentArtisanIds.has(artisan.id) && (
-                                    <Badge variant="outline" className="text-[9px] px-1 py-0 bg-orange-100 text-orange-800 border-orange-300">
-                                      Indisponible
-                                    </Badge>
-                                  )}
-                                  <Badge variant="secondary" className="text-[9px] px-1 py-0">{formatDistanceKm(artisan.distanceKm)}</Badge>
-                                  <Button type="button" variant="ghost" size="icon" className="h-5 w-5 text-muted-foreground hover:text-foreground" onClick={(e) => handleOpenArtisanModal(artisan.id, e)}>
-                                    <Eye className="h-3 w-3" />
-                                  </Button>
-                                </div>
+                            <div className="flex items-center justify-between gap-2 flex-wrap w-full">
+                              <Avatar photoProfilMetadata={artisan.photoProfilMetadata} initials={artisanInitials} name={artisan.displayName} size={40} className="hidden" />
+                              <div className="flex items-center gap-1 flex-wrap flex-shrink-0">
+                                <span className="font-medium text-foreground truncate text-[11px]">{artisanDisplayName}</span>
+                                {absentArtisanIds.has(artisan.id) && (
+                                  <Badge variant="outline" className="text-[9px] px-1 py-0 bg-orange-100 text-orange-800 border-orange-300 flex-shrink-0">
+                                    Indisponible
+                                  </Badge>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-1 flex-wrap flex-shrink-0">
+                                {statutArtisan && (
+                                  <Badge variant="outline" className="text-[9px] px-1 py-0 flex-shrink-0" style={statutArtisanColor ? { backgroundColor: hexToRgba(statutArtisanColor, 0.15) || undefined, color: statutArtisanColor, borderColor: statutArtisanColor } : undefined}>
+                                    {statutArtisan}
+                                  </Badge>
+                                )}
+                                <Badge variant="secondary" className="text-[9px] px-1 py-0 flex-shrink-0">{formatDistanceKm(artisan.distanceKm)}</Badge>
+                                <Button type="button" variant="ghost" size="icon" className="h-5 w-5 text-muted-foreground hover:text-foreground flex-shrink-0" onClick={(e) => handleOpenArtisanModal(artisan.id, e)}>
+                                  <Eye className="h-3 w-3" />
+                                </Button>
                               </div>
                             </div>
                           </div>
@@ -3033,19 +3083,50 @@ export function InterventionEditForm({
                   <div className="space-y-3">
                     {/* Header artisans - même style que colonne gauche */}
                     <div className="flex items-center justify-between gap-2 flex-shrink-0 pt-[13px]">
-                      <ColorBadgeSelectStacking
-                        label="Métier"
-                        value={formData.metierSecondArtisanId}
-                        onChange={(value) => handleInputChange("metierSecondArtisanId", value)}
-                        placeholder="Métier..."
-                        minWidth="100px"
-                        hideLabel
-                        options={(refData?.metiers || []).map(m => ({
-                          id: m.id,
-                          label: m.label,
-                          color: m.color,
-                        }))}
-                      />
+                      <div className="flex items-center gap-2">
+                        <ColorBadgeSelectStacking
+                          label="Métier"
+                          value={formData.metierSecondArtisanId}
+                          onChange={(value) => handleInputChange("metierSecondArtisanId", value)}
+                          placeholder="Métier..."
+                          minWidth="100px"
+                          hideLabel
+                          options={(refData?.metiers || []).map(m => ({
+                            id: m.id,
+                            label: m.label,
+                            color: m.color,
+                          }))}
+                        />
+                        <div className="flex gap-0.5">
+                          <Button
+                            type="button"
+                            variant={secondArtisanDisplayMode === "nom" ? "default" : "ghost"}
+                            size="sm"
+                            className="h-5 px-1.5 text-[10px]"
+                            onClick={() => setSecondArtisanDisplayMode("nom")}
+                          >
+                            nom
+                          </Button>
+                          <Button
+                            type="button"
+                            variant={secondArtisanDisplayMode === "rs" ? "default" : "ghost"}
+                            size="sm"
+                            className="h-5 px-1.5 text-[10px]"
+                            onClick={() => setSecondArtisanDisplayMode("rs")}
+                          >
+                            RS
+                          </Button>
+                          <Button
+                            type="button"
+                            variant={secondArtisanDisplayMode === "tel" ? "default" : "ghost"}
+                            size="sm"
+                            className="h-5 px-1.5 text-[10px]"
+                            onClick={() => setSecondArtisanDisplayMode("tel")}
+                          >
+                            tel
+                          </Button>
+                        </div>
+                      </div>
                       <Button
                         type="button"
                         variant="outline"
@@ -3070,8 +3151,8 @@ export function InterventionEditForm({
                     {/* Artisan secondaire sélectionné */}
                     {selectedSecondArtisanId && selectedSecondArtisanData && (() => {
                       const artisan = selectedSecondArtisanData
-                      const artisanName = `${artisan.prenom || ""} ${artisan.nom || ""}`.trim() || "Artisan sans nom"
-                      const artisanInitials = artisanName.split(" ").map((p) => p.charAt(0)).join("").slice(0, 2).toUpperCase() || "??"
+                      const artisanDisplayName = getArtisanDisplayName(artisan, secondArtisanDisplayMode)
+                      const artisanInitials = artisanDisplayName.split(" ").map((p) => p.charAt(0)).join("").slice(0, 2).toUpperCase() || "??"
                       const artisanStatus = refData?.artisanStatuses?.find((s) => s.id === artisan.statut_id)
                       const statutArtisan = artisanStatus?.label || ""
                       const statutArtisanColor = artisanStatus?.color || null
@@ -3087,27 +3168,23 @@ export function InterventionEditForm({
                           >
                             <X className="h-3 w-3" />
                           </Button>
-                          <div className="flex items-start gap-2">
-                            <Avatar photoProfilMetadata={artisan.photoProfilMetadata} initials={artisanInitials} name={artisan.displayName} size={40} />
-                            <div className="flex-1 min-w-0">
-                              <span className="font-semibold text-foreground block truncate">{artisan.displayName}</span>
-                              <div className="flex items-center gap-1 mt-1">
-                                {statutArtisan && (
-                                  <Badge variant="outline" className="text-[9px] px-1 py-0" style={statutArtisanColor ? { backgroundColor: hexToRgba(statutArtisanColor, 0.15) || undefined, color: statutArtisanColor, borderColor: statutArtisanColor } : undefined}>
-                                    {statutArtisan}
-                                  </Badge>
-                                )}
-                                {absentArtisanIds.has(artisan.id) && (
-                                  <Badge variant="outline" className="text-[9px] px-1 py-0 bg-orange-100 text-orange-800 border-orange-300">
-                                    Indisponible
-                                  </Badge>
-                                )}
-                                <Badge variant="default" className="text-[9px] px-1 py-0 bg-orange-500">{formatDistanceKm(artisan.distanceKm)}</Badge>
-                              </div>
-                              <div className="mt-1 text-[10px] text-muted-foreground truncate">
-                                {artisan.telephone && <span>📞 {artisan.telephone}</span>}
-                              </div>
-                            </div>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <Avatar photoProfilMetadata={artisan.photoProfilMetadata} initials={artisanInitials} name={artisan.displayName} size={40} className="hidden" />
+                            <span className="font-semibold text-foreground truncate text-xs">{artisanDisplayName}</span>
+                            {statutArtisan && (
+                              <Badge variant="outline" className="text-[9px] px-1 py-0 flex-shrink-0" style={statutArtisanColor ? { backgroundColor: hexToRgba(statutArtisanColor, 0.15) || undefined, color: statutArtisanColor, borderColor: statutArtisanColor } : undefined}>
+                                {statutArtisan}
+                              </Badge>
+                            )}
+                            {absentArtisanIds.has(artisan.id) && (
+                              <Badge variant="outline" className="text-[9px] px-1 py-0 bg-orange-100 text-orange-800 border-orange-300 flex-shrink-0">
+                                Indisponible
+                              </Badge>
+                            )}
+                            <Badge variant="default" className="text-[9px] px-1 py-0 bg-orange-500 flex-shrink-0">{formatDistanceKm(artisan.distanceKm)}</Badge>
+                            {artisan.telephone && (
+                              <span className="text-[10px] text-muted-foreground truncate flex-shrink-0">📞 {artisan.telephone}</span>
+                            )}
                           </div>
                         </div>
                       )
@@ -3174,8 +3251,8 @@ export function InterventionEditForm({
                           .filter(artisan => artisan.id !== selectedArtisanId) // Exclure l'artisan principal
                           .slice(0, 5)
                           .map((artisan) => {
-                            const artisanName = `${artisan.prenom || ""} ${artisan.nom || ""}`.trim() || "Artisan sans nom"
-                            const artisanInitials = artisanName.split(" ").map((p) => p.charAt(0)).join("").slice(0, 2).toUpperCase() || "??"
+                            const artisanDisplayName = getArtisanDisplayName(artisan, secondArtisanDisplayMode)
+                            const artisanInitials = artisanDisplayName.split(" ").map((p) => p.charAt(0)).join("").slice(0, 2).toUpperCase() || "??"
                             const artisanStatus = refData?.artisanStatuses?.find((s) => s.id === artisan.statut_id)
                             const statutArtisan = artisanStatus?.label || ""
                             const statutArtisanColor = artisanStatus?.color || null
@@ -3189,24 +3266,20 @@ export function InterventionEditForm({
                                 onClick={() => handleSelectSecondArtisan(artisan)}
                                 onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); handleSelectSecondArtisan(artisan) } }}
                               >
-                                <div className="flex items-center gap-2">
-                                  <Avatar photoProfilMetadata={artisan.photoProfilMetadata} initials={artisanInitials} name={artisan.displayName} size={40} />
-                                  <div className="flex-1 min-w-0">
-                                    <span className="font-medium text-foreground block truncate text-[11px]">{artisan.displayName}</span>
-                                    <div className="flex items-center gap-1 flex-wrap">
-                                      {statutArtisan && (
-                                        <Badge variant="outline" className="text-[9px] px-1 py-0" style={statutArtisanColor ? { backgroundColor: hexToRgba(statutArtisanColor, 0.15) || undefined, color: statutArtisanColor, borderColor: statutArtisanColor } : undefined}>
-                                          {statutArtisan}
-                                        </Badge>
-                                      )}
-                                      {absentArtisanIds.has(artisan.id) && (
-                                        <Badge variant="outline" className="text-[9px] px-1 py-0 bg-orange-100 text-orange-800 border-orange-300">
-                                          Indisponible
-                                        </Badge>
-                                      )}
-                                      <Badge variant="secondary" className="text-[9px] px-1 py-0">{formatDistanceKm(artisan.distanceKm)}</Badge>
-                                    </div>
-                                  </div>
+                                <div className="flex items-center gap-2 flex-wrap w-full">
+                                  <Avatar photoProfilMetadata={artisan.photoProfilMetadata} initials={artisanInitials} name={artisan.displayName} size={40} className="hidden" />
+                                  <span className="font-medium text-foreground truncate text-[11px] flex-shrink-0">{artisanDisplayName}</span>
+                                  {statutArtisan && (
+                                    <Badge variant="outline" className="text-[9px] px-1 py-0 flex-shrink-0" style={statutArtisanColor ? { backgroundColor: hexToRgba(statutArtisanColor, 0.15) || undefined, color: statutArtisanColor, borderColor: statutArtisanColor } : undefined}>
+                                      {statutArtisan}
+                                    </Badge>
+                                  )}
+                                  {absentArtisanIds.has(artisan.id) && (
+                                    <Badge variant="outline" className="text-[9px] px-1 py-0 bg-orange-100 text-orange-800 border-orange-300 flex-shrink-0">
+                                      Indisponible
+                                    </Badge>
+                                  )}
+                                  <Badge variant="secondary" className="text-[9px] px-1 py-0 flex-shrink-0">{formatDistanceKm(artisan.distanceKm)}</Badge>
                                 </div>
                               </div>
                             )
