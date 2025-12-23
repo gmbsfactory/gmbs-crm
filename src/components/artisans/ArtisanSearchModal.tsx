@@ -49,6 +49,7 @@ interface ArtisanSearchModalProps {
   onClose: () => void
   onSelect: (artisan: ArtisanSearchResult) => void
   position?: { x: number; y: number; width?: number; height?: number } | null
+  container?: HTMLElement | null
 }
 
 const sanitizePhone = (input: string): string => {
@@ -59,13 +60,14 @@ const escapeIlike = (input: string): string => {
   return input.replace(/[%_\\]/g, "\\$&")
 }
 
-export function ArtisanSearchModal({ open, onClose, onSelect, position }: ArtisanSearchModalProps) {
+export function ArtisanSearchModal({ open, onClose, onSelect, position, container }: ArtisanSearchModalProps) {
   const [query, setQuery] = useState("")
   const [results, setResults] = useState<ArtisanSearchResult[]>([])
   const [absentArtisanIds, setAbsentArtisanIds] = useState<Set<string>>(new Set())
   const [isSearching, setIsSearching] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const popoverRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
   const { data: refData } = useReferenceData()
   const archiveStatusFilterRef = useRef<string | null | undefined>(undefined)
 
@@ -319,7 +321,8 @@ export function ArtisanSearchModal({ open, onClose, onSelect, position }: Artisa
         position: "fixed",
         left: `${left}px`,
         top: `${position.y}px`,
-        zIndex: 10001,
+        zIndex: 99999,
+        pointerEvents: "auto",
       }
     })()
     : {
@@ -327,7 +330,8 @@ export function ArtisanSearchModal({ open, onClose, onSelect, position }: Artisa
       left: "50%",
       top: "50%",
       transform: "translate(-50%, -50%)",
-      zIndex: 10001,
+      zIndex: 99999,
+      pointerEvents: "auto",
     }
 
   const popoverContent = (
@@ -357,6 +361,7 @@ export function ArtisanSearchModal({ open, onClose, onSelect, position }: Artisa
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
+            ref={inputRef}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Rechercher par nom, prénom, email, téléphone..."
@@ -506,5 +511,7 @@ export function ArtisanSearchModal({ open, onClose, onSelect, position }: Artisa
     </div>
   )
 
-  return createPortal(popoverContent, document.body)
+  // Créer un conteneur pour le portal qui échappe au contexte disabled
+  // Utiliser un conteneur avec pointer-events: auto pour garantir l'interactivité
+  return createPortal(popoverContent, container ?? document.body)
 }

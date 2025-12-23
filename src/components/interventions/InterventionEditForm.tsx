@@ -547,6 +547,7 @@ interface InterventionEditFormProps {
   onClientPhoneChange?: (phone: string) => void
   onOpenSmsModal?: () => void
   onHasUnsavedChanges?: (hasChanges: boolean) => void
+  onArtisanSearchOpenChange?: (isOpen: boolean) => void
 }
 
 export function InterventionEditForm({
@@ -560,7 +561,8 @@ export function InterventionEditForm({
   onAgencyNameChange,
   onClientPhoneChange,
   onOpenSmsModal,
-  onHasUnsavedChanges
+  onHasUnsavedChanges,
+  onArtisanSearchOpenChange
 }: InterventionEditFormProps) {
   const { data: refData, loading: refDataLoading } = useReferenceData()
   const queryClient = useQueryClient()
@@ -741,11 +743,15 @@ export function InterventionEditForm({
   const [showArtisanSearch, setShowArtisanSearch] = useState(false)
   const [showSecondArtisanSearch, setShowSecondArtisanSearch] = useState(false)
   const [artisanSearchPosition, setArtisanSearchPosition] = useState<{ x: number; y: number; width?: number; height?: number } | null>(null)
+  const artisanSearchContainerRef = useRef<HTMLDivElement>(null)
   // État pour stocker l'artisan sélectionné via recherche (qui peut ne pas être dans nearbyArtisans)
   const [searchSelectedArtisan, setSearchSelectedArtisan] = useState<NearbyArtisan | null>(null)
   // État pour stocker le second artisan sélectionné via recherche (qui peut ne pas être dans nearbyArtisansSecondMetier)
   const [searchSelectedSecondArtisan, setSearchSelectedSecondArtisan] = useState<NearbyArtisan | null>(null)
   const [absentArtisanIds, setAbsentArtisanIds] = useState<Set<string>>(new Set())
+  useEffect(() => {
+    onArtisanSearchOpenChange?.(showArtisanSearch || showSecondArtisanSearch)
+  }, [showArtisanSearch, showSecondArtisanSearch, onArtisanSearchOpenChange])
   const DEFAULT_RIGHT_COLUMN_WIDTH = 320
   const rightColumnStorageKey = currentUser?.id
     ? `gmbs:intervention-form:right-column-width:${currentUser.id}`
@@ -2240,6 +2246,7 @@ export function InterventionEditForm({
     : null
 
   return (
+    <>
     <form ref={formRef} onSubmit={handleSubmit} className="flex-1 min-h-0 flex flex-col">
       {!canEditIntervention && (
         <div className="mb-3 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
@@ -3400,27 +3407,6 @@ export function InterventionEditForm({
         </div>
       </div>
 
-      {/* Modal de recherche d'artisan principal */}
-      <ArtisanSearchModal
-        open={showArtisanSearch}
-        onClose={() => {
-          setShowArtisanSearch(false)
-          setArtisanSearchPosition(null)
-        }}
-        onSelect={handleArtisanSearchSelect}
-        position={artisanSearchPosition}
-      />
-
-      {/* Modal de recherche d'artisan secondaire */}
-      <ArtisanSearchModal
-        open={showSecondArtisanSearch}
-        onClose={() => {
-          setShowSecondArtisanSearch(false)
-          setSecondArtisanSearchPosition(null)
-        }}
-        onSelect={handleSecondArtisanSearchSelect}
-        position={secondArtisanSearchPosition}
-      />
       <StatusReasonModal
         open={isStatusReasonModalOpen}
         type={pendingReasonType ?? "archive"}
@@ -3455,6 +3441,31 @@ export function InterventionEditForm({
         </>
       )}
       </fieldset>
+      <div ref={artisanSearchContainerRef} />
     </form>
+    {/* Modal de recherche d'artisan principal */}
+    <ArtisanSearchModal
+      open={showArtisanSearch}
+      onClose={() => {
+        setShowArtisanSearch(false)
+        setArtisanSearchPosition(null)
+      }}
+      onSelect={handleArtisanSearchSelect}
+      position={artisanSearchPosition}
+      container={artisanSearchContainerRef.current}
+    />
+
+    {/* Modal de recherche d'artisan secondaire */}
+    <ArtisanSearchModal
+      open={showSecondArtisanSearch}
+      onClose={() => {
+        setShowSecondArtisanSearch(false)
+        setSecondArtisanSearchPosition(null)
+      }}
+      onSelect={handleSecondArtisanSearchSelect}
+      position={secondArtisanSearchPosition}
+      container={artisanSearchContainerRef.current}
+    />
+    </>
   )
 }

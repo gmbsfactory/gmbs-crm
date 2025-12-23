@@ -38,6 +38,7 @@ type Props = {
   hasUnsavedChanges?: boolean
   isSubmitting?: boolean
   onShowUnsavedDialog?: () => void
+  pauseFocusTrap?: boolean
 }
 
 const backdropVariants = {
@@ -101,6 +102,7 @@ export function GenericModal({
   hasUnsavedChanges,
   isSubmitting,
   onShowUnsavedDialog,
+  pauseFocusTrap,
 }: Props) {
   // État pour indiquer si on est côté client (pour le portal)
   const [isMounted, setIsMounted] = useState(false)
@@ -141,6 +143,7 @@ export function GenericModal({
     <AnimatePresence mode="wait" onExitComplete={onExitComplete}>
       {isOpen ? (
         <FocusTrap
+          paused={pauseFocusTrap}
           focusTrapOptions={{
             initialFocus: false,
             escapeDeactivates: true,
