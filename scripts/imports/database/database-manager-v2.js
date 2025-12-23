@@ -32,6 +32,9 @@ class DatabaseManager {
 
     // Cache des artisans pour la recherche par email
     this.artisansCache = null;
+    
+    // Client Supabase authentifié (sera initialisé lors de l'authentification)
+    this.authenticatedClient = null;
   }
 
   log(message, level = "info") {
@@ -39,6 +42,66 @@ class DatabaseManager {
     const timestamp = new Date().toISOString();
     const prefix = level === "error" ? "❌" : level === "warning" ? "⚠️" : "✅";
     console.log(`${prefix} [DB-MANAGER] ${message}`);
+  }
+
+  /**
+   * Authentifie un utilisateur pour les opérations d'import
+   * @param {string} email - Email de l'utilisateur
+   * @param {string} password - Mot de passe de l'utilisateur
+   */
+  async authenticateUser(email, password) {
+    try {
+      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
+      const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY;
+      
+      if (!supabaseUrl || !anonKey) {
+        throw new Error('SUPABASE_URL et SUPABASE_ANON_KEY sont requis pour l\'authentification');
+      }
+      
+      // Créer un client avec la clé anon pour l'authentification
+      const authClient = createClient(supabaseUrl, anonKey, {
+        auth: { persistSession: false }
+      });
+      
+      // Authentifier l'utilisateur
+      const { data: authData, error: authError } = await authClient.auth.signInWithPassword({
+        email,
+        password
+      });
+      
+      if (authError) {
+        throw new Error(`Erreur d'authentification: ${authError.message}`);
+      }
+      
+      if (!authData.session) {
+        throw new Error('Aucune session créée après authentification');
+      }
+      
+      // Créer un nouveau client avec le token de session
+      this.authenticatedClient = createClient(supabaseUrl, anonKey, {
+        auth: {
+          persistSession: false,
+          autoRefreshToken: false
+        },
+        global: {
+          headers: {
+            Authorization: `Bearer ${authData.session.access_token}`
+          }
+        }
+      });
+      
+      // Définir la session manuellement
+      await this.authenticatedClient.auth.setSession({
+        access_token: authData.session.access_token,
+        refresh_token: authData.session.refresh_token
+      });
+      
+      this.log(`✅ Utilisateur authentifié: ${email}`, 'info');
+      return true;
+    } catch (error) {
+      this.log(`❌ Erreur lors de l'authentification: ${error.message}`, 'error');
+      throw error;
+    }
   }
 
   // ===== MÉTHODES DE RÉSOLUTION DES RELATIONS =====
@@ -288,14 +351,20 @@ class DatabaseManager {
           // Nettoyer les données temporaires avant l'upsert
           delete artisan.metiers;
 
-          // Utiliser l'API V2 avec upsertDirect pour éviter les doublons
-          const upsertedArtisan = await artisansApi.upsertDirect(artisan);
+          // Utiliser l'API V2 avec upsertDirect en passant le client authentifié
+          const upsertedArtisan = await artisansApi.upsertDirect(
+            artisan,
+            this.authenticatedClient || supabaseClient
+          );
 
           // Assigner les métiers après l'upsert
           if (metiersData.length > 0 && upsertedArtisan.id) {
             try {
               // Insérer directement dans la table artisan_metiers (évite les Edge Functions)
-              if (supabaseClient) {
+              // Utiliser le client authentifié si disponible
+              const clientToUse = this.authenticatedClient || supabaseClient;
+              
+              if (clientToUse) {
                 const metierInserts = metiersData.map(metier => ({
                   artisan_id: upsertedArtisan.id,
                   metier_id: metier.metier_id,
@@ -307,7 +376,7 @@ class DatabaseManager {
                 let duplicateCount = 0;
                 
                 for (const metierInsert of metierInserts) {
-                  const { error: metierError } = await supabaseClient
+                  const { error: metierError } = await clientToUse
                     .from('artisan_metiers')
                     .insert(metierInsert);
 

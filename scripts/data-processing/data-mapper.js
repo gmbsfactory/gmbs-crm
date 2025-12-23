@@ -103,6 +103,9 @@ class DataMapper {
       logFileName
     );
     this.initErrorLog();
+    
+    // Client Supabase authentifié (optionnel, pour les imports)
+    this.authenticatedClient = options.authenticatedClient || null;
   }
 
   /**
@@ -2335,8 +2338,8 @@ class DataMapper {
 
     try {
       // Utiliser l'API v2 pour trouver ou créer l'agence
-      // enumsApi est maintenant importé directement
-      const result = await enumsApi.findOrCreateAgency(name);
+      // Passer le client authentifié si disponible
+      const result = await enumsApi.findOrCreateAgency(name, this.authenticatedClient);
 
       this.cache.agencies.set(name, result.id);
       const action = result.created ? "🆕 créée" : "✅ trouvée";
@@ -2364,8 +2367,8 @@ class DataMapper {
 
     try {
       // Utiliser l'API v2 pour trouver ou créer l'utilisateur
-      // enumsApi est maintenant importé directement
-      const result = await enumsApi.findOrCreateUser(name);
+      // Passer le client authentifié si disponible
+      const result = await enumsApi.findOrCreateUser(name, this.authenticatedClient);
 
       this.cache.users.set(name, result.id);
       const action = result.created ? "🆕 créé" : "✅ trouvé";
@@ -2471,8 +2474,8 @@ class DataMapper {
 
     try {
       // Utiliser l'API v2 pour trouver ou créer le métier
-      // enumsApi est maintenant importé directement
-      const result = await enumsApi.findOrCreateMetier(name);
+      // Passer le client authentifié si disponible
+      const result = await enumsApi.findOrCreateMetier(name, this.authenticatedClient);
 
       // Stocker dans le cache avec le nom normalisé comme clé
       this.cache.metiers.set(normalized, result.id);
@@ -2508,8 +2511,8 @@ class DataMapper {
 
     try {
       // Utiliser l'API v2 pour trouver ou créer la zone
-      // enumsApi est maintenant importé directement
-      const result = await enumsApi.findOrCreateZone(name);
+      // Passer le client authentifié si disponible
+      const result = await enumsApi.findOrCreateZone(name, this.authenticatedClient);
 
       if (!this.cache.zones) this.cache.zones = new Map();
       // Stocker dans le cache avec le nom normalisé comme clé
@@ -2547,8 +2550,8 @@ class DataMapper {
 
     try {
       // Utiliser l'API v2 pour trouver ou créer le statut artisan
-      // enumsApi est maintenant importé directement
-      const result = await enumsApi.findOrCreateArtisanStatus(name);
+      // Passer le client authentifié si disponible
+      const result = await enumsApi.findOrCreateArtisanStatus(name, this.authenticatedClient);
 
       this.cache.artisanStatuses.set(name, result.id);
       if (result.created) {
@@ -2585,8 +2588,8 @@ class DataMapper {
 
     try {
       // Utiliser l'API v2 pour trouver ou créer le statut intervention
-      // enumsApi est maintenant importé directement
-      const result = await enumsApi.findOrCreateInterventionStatus(name);
+      // Passer le client authentifié si disponible
+      const result = await enumsApi.findOrCreateInterventionStatus(name, this.authenticatedClient);
 
       this.cache.interventionStatuses.set(name, result.id);
       if (result.created) {

@@ -15,16 +15,19 @@ export interface FindOrCreateResult {
 /**
  * Trouve ou crée une agence par son nom
  */
-export const findOrCreateAgency = async (name: string): Promise<FindOrCreateResult> => {
+export const findOrCreateAgency = async (name: string, customClient?: any): Promise<FindOrCreateResult> => {
   if (!name || name.trim() === '') {
     throw new Error('Le nom de l\'agence ne peut pas être vide');
   }
+
+  // Utiliser le client personnalisé si fourni, sinon utiliser le client par défaut
+  const client = customClient || supabase;
 
   const normalizedName = name.trim();
   const code = normalizedName.substring(0, 10).toUpperCase().replace(/[^A-Z0-9]/g, '');
 
   // Chercher d'abord par label
-  const { data: existingByLabel } = await supabase
+  const { data: existingByLabel } = await client
     .from('agencies')
     .select('id')
     .ilike('label', normalizedName)
@@ -35,7 +38,7 @@ export const findOrCreateAgency = async (name: string): Promise<FindOrCreateResu
   }
 
   // Chercher ensuite par code (pour gérer les variations d'accents)
-  const { data: existingByCode } = await supabase
+  const { data: existingByCode } = await client
     .from('agencies')
     .select('id')
     .eq('code', code)
@@ -46,7 +49,7 @@ export const findOrCreateAgency = async (name: string): Promise<FindOrCreateResu
   }
 
   // Si elle n'existe pas, la créer
-  const { data: created, error: createError } = await supabase
+  const { data: created, error: createError } = await client
     .from('agencies')
     .insert({ code, label: normalizedName })
     .select('id')
@@ -55,7 +58,7 @@ export const findOrCreateAgency = async (name: string): Promise<FindOrCreateResu
   if (createError) {
     // Si erreur de duplicate key, refaire une recherche par code
     if (createError.message.includes('duplicate key')) {
-      const { data: retry } = await supabase
+      const { data: retry } = await client
         .from('agencies')
         .select('id')
         .eq('code', code)
@@ -76,15 +79,18 @@ export const findOrCreateAgency = async (name: string): Promise<FindOrCreateResu
 /**
  * Trouve ou crée un utilisateur par son code gestionnaire ou nom
  */
-export const findOrCreateUser = async (name: string): Promise<FindOrCreateResult> => {
+export const findOrCreateUser = async (name: string, customClient?: any): Promise<FindOrCreateResult> => {
   if (!name || name.trim() === '') {
     throw new Error('Le nom de l\'utilisateur ne peut pas être vide');
   }
 
+  // Utiliser le client personnalisé si fourni, sinon utiliser le client par défaut
+  const client = customClient || supabase;
+
   const normalizedName = name.trim();
 
   // Chercher d'abord par username ou firstname/lastname
-  const { data: existingByName } = await supabase
+  const { data: existingByName } = await client
     .from('users')
     .select('id')
     .or(`username.ilike.${normalizedName},firstname.ilike.${normalizedName},lastname.ilike.${normalizedName}`)
@@ -103,7 +109,7 @@ export const findOrCreateUser = async (name: string): Promise<FindOrCreateResult
   let codeCounter = 1;
   
   // Vérifier si le code existe déjà
-  const { data: existingCode } = await supabase
+  const { data: existingCode } = await client
     .from('users')
     .select('id')
     .eq('code_gestionnaire', code)
@@ -113,7 +119,7 @@ export const findOrCreateUser = async (name: string): Promise<FindOrCreateResult
   if (existingCode) {
     while (true) {
       const testCode = `${code}${codeCounter}`;
-      const { data: testExisting } = await supabase
+      const { data: testExisting } = await client
         .from('users')
         .select('id')
         .eq('code_gestionnaire', testCode)
@@ -127,7 +133,7 @@ export const findOrCreateUser = async (name: string): Promise<FindOrCreateResult
     }
   }
   
-  const { data: created, error: createError } = await supabase
+  const { data: created, error: createError } = await client
     .from('users')
     .insert({ 
       username, 
@@ -141,7 +147,7 @@ export const findOrCreateUser = async (name: string): Promise<FindOrCreateResult
   if (createError) {
     // Si erreur de duplicate key, refaire une recherche par code_gestionnaire
     if (createError.message.includes('duplicate key')) {
-      const { data: retry } = await supabase
+      const { data: retry } = await client
         .from('users')
         .select('id')
         .eq('code_gestionnaire', code)
@@ -152,7 +158,7 @@ export const findOrCreateUser = async (name: string): Promise<FindOrCreateResult
       }
       
       // Si toujours pas trouvé, essayer de chercher par username
-      const { data: retryByUsername } = await supabase
+      const { data: retryByUsername } = await client
         .from('users')
         .select('id')
         .eq('username', username)
@@ -173,16 +179,19 @@ export const findOrCreateUser = async (name: string): Promise<FindOrCreateResult
 /**
  * Trouve ou crée un métier par son nom
  */
-export const findOrCreateMetier = async (name: string): Promise<FindOrCreateResult> => {
+export const findOrCreateMetier = async (name: string, customClient?: any): Promise<FindOrCreateResult> => {
   if (!name || name.trim() === '') {
     throw new Error('Le nom du métier ne peut pas être vide');
   }
+
+  // Utiliser le client personnalisé si fourni, sinon utiliser le client par défaut
+  const client = customClient || supabase;
 
   const normalizedName = name.trim();
   const code = normalizedName.substring(0, 10).toUpperCase().replace(/[^A-Z0-9]/g, '');
 
   // Chercher d'abord par label
-  const { data: existingByLabel } = await supabase
+  const { data: existingByLabel } = await client
     .from('metiers')
     .select('id')
     .ilike('label', normalizedName)
@@ -193,7 +202,7 @@ export const findOrCreateMetier = async (name: string): Promise<FindOrCreateResu
   }
 
   // Chercher ensuite par code (pour gérer les variations d'accents)
-  const { data: existingByCode } = await supabase
+  const { data: existingByCode } = await client
     .from('metiers')
     .select('id')
     .eq('code', code)
@@ -204,7 +213,7 @@ export const findOrCreateMetier = async (name: string): Promise<FindOrCreateResu
   }
 
   // Si il n'existe pas, le créer
-  const { data: created, error: createError } = await supabase
+  const { data: created, error: createError } = await client
     .from('metiers')
     .insert({ code, label: normalizedName })
     .select('id')
@@ -213,7 +222,7 @@ export const findOrCreateMetier = async (name: string): Promise<FindOrCreateResu
   if (createError) {
     // Si erreur de duplicate key, refaire une recherche par code
     if (createError.message.includes('duplicate key')) {
-      const { data: retry } = await supabase
+      const { data: retry } = await client
         .from('metiers')
         .select('id')
         .eq('code', code)
@@ -234,16 +243,19 @@ export const findOrCreateMetier = async (name: string): Promise<FindOrCreateResu
 /**
  * Trouve ou crée une zone par son nom
  */
-export const findOrCreateZone = async (name: string): Promise<FindOrCreateResult> => {
+export const findOrCreateZone = async (name: string, customClient?: any): Promise<FindOrCreateResult> => {
   if (!name || name.trim() === '') {
     throw new Error('Le nom de la zone ne peut pas être vide');
   }
+
+  // Utiliser le client personnalisé si fourni, sinon utiliser le client par défaut
+  const client = customClient || supabase;
 
   const normalizedName = name.trim();
   const code = normalizedName.substring(0, 10).toUpperCase().replace(/[^A-Z0-9]/g, '');
 
   // Chercher d'abord par label
-  const { data: existingByLabel } = await supabase
+  const { data: existingByLabel } = await client
     .from('zones')
     .select('id')
     .ilike('label', normalizedName)
@@ -254,7 +266,7 @@ export const findOrCreateZone = async (name: string): Promise<FindOrCreateResult
   }
 
   // Chercher ensuite par code (pour gérer les variations d'accents)
-  const { data: existingByCode } = await supabase
+  const { data: existingByCode } = await client
     .from('zones')
     .select('id')
     .eq('code', code)
@@ -265,8 +277,7 @@ export const findOrCreateZone = async (name: string): Promise<FindOrCreateResult
   }
 
   // Si elle n'existe pas, la créer
-  
-  const { data: created, error: createError } = await supabase
+  const { data: created, error: createError } = await client
     .from('zones')
     .insert({ code, label: normalizedName })
     .select('id')
@@ -275,7 +286,7 @@ export const findOrCreateZone = async (name: string): Promise<FindOrCreateResult
   if (createError) {
     // Si erreur de duplicate key, refaire une recherche par code
     if (createError.message.includes('duplicate key')) {
-      const { data: retry } = await supabase
+      const { data: retry } = await client
         .from('zones')
         .select('id')
         .eq('code', code)
@@ -296,16 +307,19 @@ export const findOrCreateZone = async (name: string): Promise<FindOrCreateResult
 /**
  * Trouve ou crée un statut artisan par son nom
  */
-export const findOrCreateArtisanStatus = async (name: string): Promise<FindOrCreateResult> => {
+export const findOrCreateArtisanStatus = async (name: string, customClient?: any): Promise<FindOrCreateResult> => {
   if (!name || name.trim() === '') {
     throw new Error('Le nom du statut artisan ne peut pas être vide');
   }
+
+  // Utiliser le client personnalisé si fourni, sinon utiliser le client par défaut
+  const client = customClient || supabase;
 
   const normalizedName = name.trim();
   const code = normalizedName.substring(0, 10).toUpperCase().replace(/[^A-Z0-9]/g, '');
 
   // Chercher d'abord par label
-  const { data: existingByLabel } = await supabase
+  const { data: existingByLabel } = await client
     .from('artisan_statuses')
     .select('id')
     .ilike('label', normalizedName)
@@ -316,7 +330,7 @@ export const findOrCreateArtisanStatus = async (name: string): Promise<FindOrCre
   }
 
   // Chercher ensuite par code (pour gérer les variations d'accents)
-  const { data: existingByCode } = await supabase
+  const { data: existingByCode } = await client
     .from('artisan_statuses')
     .select('id')
     .eq('code', code)
@@ -327,8 +341,7 @@ export const findOrCreateArtisanStatus = async (name: string): Promise<FindOrCre
   }
 
   // Si il n'existe pas, le créer
-  
-  const { data: created, error: createError } = await supabase
+  const { data: created, error: createError } = await client
     .from('artisan_statuses')
     .insert({ 
       code, 
@@ -342,7 +355,7 @@ export const findOrCreateArtisanStatus = async (name: string): Promise<FindOrCre
   if (createError) {
     // Si erreur de duplicate key, refaire une recherche par code
     if (createError.message.includes('duplicate key')) {
-      const { data: retry } = await supabase
+      const { data: retry } = await client
         .from('artisan_statuses')
         .select('id')
         .eq('code', code)
@@ -363,16 +376,19 @@ export const findOrCreateArtisanStatus = async (name: string): Promise<FindOrCre
 /**
  * Trouve ou crée un statut intervention par son nom
  */
-export const findOrCreateInterventionStatus = async (name: string): Promise<FindOrCreateResult> => {
+export const findOrCreateInterventionStatus = async (name: string, customClient?: any): Promise<FindOrCreateResult> => {
   if (!name || name.trim() === '') {
     throw new Error('Le nom du statut intervention ne peut pas être vide');
   }
+
+  // Utiliser le client personnalisé si fourni, sinon utiliser le client par défaut
+  const client = customClient || supabase;
 
   const normalizedName = name.trim();
   const code = normalizedName.substring(0, 10).toUpperCase().replace(/[^A-Z0-9]/g, '');
 
   // Chercher d'abord par label
-  const { data: existingByLabel } = await supabase
+  const { data: existingByLabel } = await client
     .from('intervention_statuses')
     .select('id')
     .ilike('label', normalizedName)
@@ -383,7 +399,7 @@ export const findOrCreateInterventionStatus = async (name: string): Promise<Find
   }
 
   // Chercher ensuite par code (pour gérer les variations d'accents)
-  const { data: existingByCode } = await supabase
+  const { data: existingByCode } = await client
     .from('intervention_statuses')
     .select('id')
     .eq('code', code)
@@ -394,8 +410,7 @@ export const findOrCreateInterventionStatus = async (name: string): Promise<Find
   }
 
   // Si il n'existe pas, le créer
-  
-  const { data: created, error: createError } = await supabase
+  const { data: created, error: createError } = await client
     .from('intervention_statuses')
     .insert({ 
       code, 
@@ -409,7 +424,7 @@ export const findOrCreateInterventionStatus = async (name: string): Promise<Find
   if (createError) {
     // Si erreur de duplicate key, refaire une recherche par code
     if (createError.message.includes('duplicate key')) {
-      const { data: retry } = await supabase
+      const { data: retry } = await client
         .from('intervention_statuses')
         .select('id')
         .eq('code', code)
