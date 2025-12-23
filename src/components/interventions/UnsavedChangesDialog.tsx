@@ -44,12 +44,7 @@ export function UnsavedChangesDialog({
 
   return (
     <AlertDialog open={open} onOpenChange={(isOpen) => !isOpen && onCancel()}>
-      <AlertDialogContent 
-        onOpenAutoFocus={handleOpenAutoFocus}
-        onInteractOutside={(e) => {
-          e.preventDefault()
-        }}
-      >
+      <AlertDialogContent onOpenAutoFocus={handleOpenAutoFocus}>
         <AlertDialogHeader>
           <AlertDialogTitle>Modifications non enregistrées</AlertDialogTitle>
           <AlertDialogDescription>
