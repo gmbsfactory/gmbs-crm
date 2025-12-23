@@ -87,6 +87,8 @@ class DataMapper {
     // Rate limiting simple pour les recherches SST
     this.lastSSTSearchTime = 0;
     this.sstSearchDelay = 50; // 50ms entre chaque recherche SST
+    this.sstSearchTimeout = 5000; // Timeout de 5 secondes pour la recherche d'artisan
+    this.sstMaxVariants = 5; // Limiter à 5 variantes maximum pour éviter les recherches trop longues
 
     // Déterminer le type d'import pour le nom du fichier de log
     const importType = options.importType || 'parsing'; // 'artisans', 'interventions', ou 'parsing' (par défaut)
@@ -239,11 +241,11 @@ class DataMapper {
 
     // Champs obligatoires 
     // Note: id_inter est obligatoire pour éviter les doublons (peut être réel ou synthétique SYNTH-xxx)
+    // Note: contexte_intervention est optionnel (peut être vide dans certains cas)
     const requiredFields = {
       id_inter: 'Champ id_inter invalide (requis pour éviter les doublons, généré automatiquement si absent)',
       date: 'Champ date invalide ',
       adresse: 'Champ adresse invalide',
-      contexte_intervention: 'Champ contexte_intervention invalide',
       metier_id: 'Champ metier_id invalide ',
       statut_id: 'Champ statut_id invalide ',
       agence_id: 'Champ agence_id invalide '
@@ -750,6 +752,21 @@ class DataMapper {
       return null;
     }
     
+    // Vérifier si la ligne a au moins un champ essentiel (adresse, contexte, id_inter, ou technicien)
+    // Sinon c'est probablement une ligne vide ou de séparation
+    const hasEssentialData = 
+      (csvRow["ID"] && String(csvRow["ID"]).trim() !== "") ||
+      (csvRow["Adresse d'intervention"] && String(csvRow["Adresse d'intervention"]).trim() !== "") ||
+      (csvRow["Contexte d'intervention"] && String(csvRow["Contexte d'intervention"]).trim() !== "") ||
+      (csvRow["Contexte d'intervention "] && String(csvRow["Contexte d'intervention "]).trim() !== "") ||
+      (csvRow["Technicien"] && String(csvRow["Technicien"]).trim() !== "") ||
+      (csvRow["Technicien "] && String(csvRow["Technicien "]).trim() !== "");
+    
+    if (!hasEssentialData) {
+      if (verbose) console.log("⚠️ Ligne sans données essentielles ignorée");
+      return null;
+    }
+    
     let idInter = this.extractInterventionId(csvRow["ID"]);
     // Filtrer les lignes avec valeurs aberrantes (dates dans mauvaises colonnes)
     if (!this.isValidRow(csvRow)) {      
@@ -775,7 +792,22 @@ class DataMapper {
     const rawDate = csvRow["Date "] || csvRow["Date"] || csvRow["FErn"] || csvRow["Date d'intervention"];
     const dateValue = this.parseDate(rawDate);
     const adresseValue = this.extractInterventionAddress(csvRow["Adresse d'intervention"]).adresse;
-    const contexteValue = this.cleanString(csvRow["Contexte d'intervention "]);
+    let contexteValue = this.cleanString(csvRow["Contexte d'intervention "]) || this.cleanString(csvRow["Contexte d'intervention"]);
+    
+    // Si le contexte est vide mais que "COUT SST" contient du texte (pas un nombre),
+    // utiliser "COUT SST" comme contexte_intervention
+    // Exemple: "cadre porte sdb gonfler / porte legerement gonflé sdb..."
+    if (!contexteValue || contexteValue.trim() === "") {
+      const coutSSTValue = csvRow["COUT SST"];
+      if (coutSSTValue && String(coutSSTValue).trim() !== "") {
+        // Vérifier si c'est un nombre valide
+        const testNumber = this.parseNumber(coutSSTValue);
+        if (testNumber === null || testNumber === 0) {
+          // Ce n'est pas un nombre valide, utiliser comme contexte
+          contexteValue = this.cleanString(coutSSTValue);
+        }
+      }
+    }
 
     // ===== GÉNÉRATION ID_INTER DÉTERMINISTE SI ABSENT =====
     // Si pas d'id_inter dans le CSV, générer un ID synthétique basé sur:
@@ -832,7 +864,8 @@ class DataMapper {
       due_date: null, // Pas dans le CSV
 
       // Contexte et instructions (tronqué à 10000 caractères) - contexteValue déjà extrait
-      contexte_intervention: this.truncateString(contexteValue, 10000),
+      // Si le contexte est vide, utiliser une valeur par défaut pour éviter les erreurs de validation
+      contexte_intervention: this.truncateString(contexteValue || "Intervention sans contexte détaillé", 10000),
       commentaire_agent: this.cleanString(csvRow["COMMENTAIRE"]),
 
       // Adresse d'intervention (réutiliser adresseExtracted)
@@ -849,7 +882,14 @@ class DataMapper {
       // Ces champs seront traités par DatabaseManager et supprimés avant l'insertion
       tenant: this.parseTenantInfo(csvRow, false),
       owner: this.parseOwnerInfo(csvRow, false),
-      artisanSST: await this.findArtisanSST(csvRow["Technicien"], idInter, csvRow, lineNumber),
+      artisanSST: await this.findArtisanSST(
+        // Chercher "Technicien" (gère automatiquement "Technicien " avec espace via getCSVValue)
+        // Si non trouvé, chercher "SST" (ancien nom pour compatibilité)
+        this.getCSVValue(csvRow, "Technicien") || this.getCSVValue(csvRow, "SST") || null,
+        idInter, 
+        csvRow, 
+        lineNumber
+      ),
     };
 
     // Extraire les coûts bruts pour la validation
@@ -973,10 +1013,15 @@ class DataMapper {
     const COUT_INTER_COLUMN = "COUT INTER";
 
     // Coût SST
-    let coutSST = 0;
+    let coutSST = null;
     const coutSSTValue = csvRow[COUT_SST_COLUMN];
-    if (coutSSTValue) {
-      coutSST = this.parseNumber(coutSSTValue);
+    if (coutSSTValue && String(coutSSTValue).trim() !== "") {
+      const parsed = this.parseNumber(coutSSTValue);
+      // Si parseNumber retourne null, c'est que ce n'est pas un nombre valide
+      // Dans ce cas, on laisse null (le texte sera utilisé comme contexte_intervention ailleurs)
+      if (parsed !== null) {
+        coutSST = parsed;
+      }
     }
 
     // Coût matériel
@@ -2240,14 +2285,33 @@ class DataMapper {
   }
 
   parseDate(dateValue) {
-    if (!dateValue || dateValue.trim() === "") return null;
-
-    // Si c'est un nombre (timestamp Excel), ignorer
-    if (!isNaN(dateValue) && typeof dateValue !== "string") {
-      return null;
-    }
+    if (!dateValue || String(dateValue).trim() === "") return null;
 
     const strValue = String(dateValue).trim();
+    
+    // Si c'est un nombre (timestamp Excel sérialisé), convertir en date
+    // Excel stocke les dates comme nombre de jours depuis le 1er janvier 1900
+    // Exemple: 45489 = environ le 29/08/2024
+    if (!isNaN(strValue) && !isNaN(parseFloat(strValue))) {
+      const excelSerial = parseFloat(strValue);
+      // Les dates Excel commencent le 1er janvier 1900 (mais Excel compte le 29/02/1900 comme valide)
+      // Pour convertir: date = new Date(1900, 0, excelSerial - 1)
+      // Mais attention: Excel compte le 1er janvier 1900 comme jour 1, pas jour 0
+      if (excelSerial > 0 && excelSerial < 100000) { // Plage raisonnable pour une date Excel
+        try {
+          // Excel epoch: 1er janvier 1900 = jour 1
+          const excelEpoch = new Date(1899, 11, 30); // 30 décembre 1899 (car Excel compte le 29/02/1900)
+          const date = new Date(excelEpoch.getTime() + (excelSerial - 1) * 24 * 60 * 60 * 1000);
+          
+          // Vérifier que la date est raisonnable (entre 1900 et 2100)
+          if (date.getFullYear() >= 1900 && date.getFullYear() <= 2100) {
+            return date.toISOString().split('T')[0];
+          }
+        } catch (e) {
+          // Si la conversion échoue, continuer avec le parsing normal
+        }
+      }
+    }
 
     // Formats de date courants
     const dateFormats = [
@@ -2390,11 +2454,14 @@ class DataMapper {
       return null;
     }
 
-    const normalizedKey = normalizeSheetKey(gestionnaireCode);
+    // Normaliser en supprimant les espaces avant et après
+    const trimmedCode = gestionnaireCode.trim();
+    const normalizedKey = normalizeSheetKey(trimmedCode);
     const username =
       GESTIONNAIRE_LOOKUP[normalizedKey] ||
-      GESTIONNAIRE_CODE_MAP[gestionnaireCode.trim()] ||
-      GESTIONNAIRE_CODE_MAP[gestionnaireCode.trim().toUpperCase()];
+      GESTIONNAIRE_CODE_MAP[trimmedCode] ||
+      GESTIONNAIRE_CODE_MAP[trimmedCode.toUpperCase()] ||
+      GESTIONNAIRE_CODE_MAP[trimmedCode.toLowerCase()];
 
     if (!username) {
       console.warn(
@@ -2825,8 +2892,8 @@ class DataMapper {
 
   /**
    * Trouve un artisan SST par son nom avec recherche intelligente
-   * Gère les variations : "Prenom Nom 77", "NOM Prenom", "Raison Sociale"
-   * @param {string} sstName - Nom de l'artisan SST (ex: "Mehdy Pedron 33")
+   * Gère les variations : "Prenom Nom 77", "NOM Prenom", "Raison Sociale", "#", virgules, etc.
+   * @param {string} sstName - Nom de l'artisan SST (ex: "Mehdy Pedron 33", "Dominic Jammet #9")
    * @param {string} idInter - ID de l'intervention (optionnel, pour logging)
    * @param {Object} csvRow - Ligne CSV originale (optionnel, pour logging)
    * @param {number} lineNumber - Numéro de ligne dans le fichier source (optionnel)
@@ -2850,68 +2917,235 @@ class DataMapper {
     this.lastSSTSearchTime = Date.now();
 
     // Nettoyage complet du nom (espaces, retours à la ligne, tabulations)
-    const cleanSstName = sstName.replace(/[\r\n\t]+/g, ' ').replace(/\s+/g, ' ').trim();
+    let cleanSstName = sstName.replace(/[\r\n\t]+/g, ' ').replace(/\s+/g, ' ').trim();
+
+    // Gérer les cas avec virgules (ex: "Dimitri PERRIER, Freddy BERQUIN" -> prendre le premier)
+    if (cleanSstName.includes(',')) {
+      cleanSstName = cleanSstName.split(',')[0].trim();
+    }
+
+    // Liste des variantes à essayer (dans l'ordre de priorité)
+    const searchVariants = [];
+
+    // 1. Nom original nettoyé
+    searchVariants.push(cleanSstName);
+
+    // 2. Enlever les caractères spéciaux (#, etc.) et numéros à la fin
+    let withoutSpecialChars = cleanSstName
+      .replace(/#\d+/g, '') // Enlever "#9", "#123", etc. (ex: "Dominic Jammet #9" -> "Dominic Jammet")
+      .replace(/\s*#\s*/g, ' ') // Enlever "#" seul
+      .replace(/\s+\d{2,3}(?:\s+\d{2,3})?$/, "") // Enlever "77" ou "83 13" à la fin (ex: "Mehdy Pedron 33" -> "Mehdy Pedron")
+      .replace(/\s*\([^)]*\)\s*/g, "") // Enlever "(page jaune)" ou autres parenthèses
+      .replace(/\s+/g, ' ') // Normaliser les espaces multiples
+      .trim();
+    
+    if (withoutSpecialChars && withoutSpecialChars !== cleanSstName && withoutSpecialChars.length > 0) {
+      searchVariants.push(withoutSpecialChars);
+    }
+    
+    // 3. Si le nom contient "part en vacance" ou autres annotations, les enlever
+    if (withoutSpecialChars.includes('part en vacance') || withoutSpecialChars.includes('part en vacances')) {
+      const withoutAnnotation = withoutSpecialChars
+        .replace(/part en vacance[s]?.*$/i, '')
+        .trim();
+      if (withoutAnnotation && withoutAnnotation.length > 0 && !searchVariants.includes(withoutAnnotation)) {
+        searchVariants.push(withoutAnnotation);
+      }
+    }
+
+    // 3. Enlever le numéro de département à la fin (ex: "Mehdy Pedron 33" -> "Mehdy Pedron")
+    const withoutDept = withoutSpecialChars.replace(/\s+\d{2,3}$/, "").trim();
+    if (withoutDept && withoutDept !== withoutSpecialChars && withoutDept.length > 0) {
+      searchVariants.push(withoutDept);
+    }
+
+    // 4. Normaliser la casse (première lettre en majuscule, reste en minuscule)
+    const normalizedCase = withoutDept
+      .split(' ')
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+      .join(' ');
+    
+    if (normalizedCase && normalizedCase !== withoutDept && normalizedCase.length > 0) {
+      searchVariants.push(normalizedCase);
+    }
+
+    // 5. Tout en minuscules
+    const lowerCase = withoutDept.toLowerCase();
+    if (lowerCase && lowerCase !== withoutDept && lowerCase.length > 0) {
+      searchVariants.push(lowerCase);
+    }
+
+    // 6. Tout en majuscules
+    const upperCase = withoutDept.toUpperCase();
+    if (upperCase && upperCase !== withoutDept && upperCase.length > 0) {
+      searchVariants.push(upperCase);
+    }
+    
+    // 7. Essayer aussi avec le nom original sans département (pour les cas où le nom est déjà normalisé)
+    if (cleanSstName !== withoutDept) {
+      const originalNormalized = cleanSstName
+        .split(' ')
+        .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+        .join(' ');
+      if (originalNormalized && originalNormalized.length > 0 && !searchVariants.includes(originalNormalized)) {
+        searchVariants.push(originalNormalized);
+      }
+    }
+
+    // Supprimer les doublons et les valeurs vides
+    const uniqueVariants = [...new Set(searchVariants.filter(v => v && v.length > 0))];
+    
+    // Limiter le nombre de variantes à essayer pour éviter les recherches trop longues
+    const limitedVariants = uniqueVariants.slice(0, this.sstMaxVariants);
+    
+    // Démarrer le chronomètre pour le timeout
+    const searchStartTime = Date.now();
 
     try {
-      // Première tentative avec le nom nettoyé
-      let results = await artisansApi.searchByPlainNom(cleanSstName, {
-        limit: 1,
-      });
-
-      if (results.data && results.data.length > 0) {
-        const found = results.data[0];
-        //console.log(
-        //  `✅ [ARTISAN-SST] Trouvé: ${found.prenom} ${found.nom} (ID: ${found.id})`
-        //);
-        return found.id;
-      }
-
-      // Nettoyage du nom pour deuxième tentative
-      let cleanName = cleanSstName
-        .replace(/\s+\d{2,3}(?:\s+\d{2,3})?$/, "") // Enlever "77" ou "83 13" à la fin
-        .replace(/\s*\([^)]*\)\s*/g, "") // Enlever "(page jaune)"
-        .trim();
-
-      if (!cleanName) {
-        return null;
-      }
-
-      // Petit délai avant la deuxième tentative
-      await new Promise(resolve => setTimeout(resolve, this.sstSearchDelay));
-
-      // Deuxième tentative avec le nom nettoyé
-      results = await artisansApi.searchByPlainNom(cleanName, { limit: 1 });
-
-      if (results.data && results.data.length > 0) {
-        const found = results.data[0];
-        console.log(
-          `✅ [ARTISAN-SST] Trouvé (après nettoyage): ${found.prenom} ${found.nom} (ID: ${found.id})`
-        );
-        return found.id;
-      }
-
-      // Troisième tentative : gérer les cas composites avec "/"
-      if (cleanSstName.includes('/')) {
-        // Prendre la première partie avant le "/"
-        const firstPart = cleanSstName.split('/')[0].trim();
+      // Essayer chaque variante avec searchByName (recherche flexible avec ilike)
+      for (let i = 0; i < limitedVariants.length; i++) {
+        // Vérifier le timeout avant chaque tentative
+        if (Date.now() - searchStartTime > this.sstSearchTimeout) {
+          console.log(`⏱️ [ARTISAN-SST] Timeout de recherche pour "${sstName}" (${this.sstSearchTimeout}ms)`);
+          break;
+        }
         
-        if (firstPart) {
-          // Nettoyer la première partie (enlever départements)
-          const cleanFirstPart = firstPart.replace(/\s+\d{2,3}(?:\s+\d{2,3})?$/, "").trim();
-          
-          // Petit délai avant la troisième tentative
+        const variant = limitedVariants[i];
+        
+        // Délai entre les tentatives (sauf la première)
+        if (i > 0) {
           await new Promise(resolve => setTimeout(resolve, this.sstSearchDelay));
+        }
+
+        // Utiliser searchByName qui fait une recherche flexible (ilike) au lieu de searchByPlainNom (exacte)
+        let results = await artisansApi.searchByName(variant, {
+          limit: 10, // Augmenter la limite pour avoir plus de résultats
+        });
+
+        if (results.data && results.data.length > 0) {
+          // Normaliser le nom recherché pour comparaison
+          const searchNormalized = variant.toLowerCase().replace(/\s+/g, ' ').trim();
           
-          results = await artisansApi.searchByPlainNom(cleanFirstPart, { limit: 1 });
+          // Trouver le meilleur match parmi les résultats
+          let found = null;
+          let bestScore = 0;
           
-          if (results.data && results.data.length > 0) {
-            const found = results.data[0];
-            console.log(
-              `✅ [ARTISAN-SST] Trouvé (composite): ${found.prenom} ${found.nom} (ID: ${found.id})`
-            );
+          for (const artisan of results.data) {
+            const artisanPlainNom = (artisan.plain_nom || `${artisan.prenom || ''} ${artisan.nom || ''}`).toLowerCase().replace(/\s+/g, ' ').trim();
+            const artisanFullName = `${(artisan.prenom || '').toLowerCase()} ${(artisan.nom || '').toLowerCase()}`.trim();
+            
+            // Score de correspondance
+            let score = 0;
+            
+            // Correspondance exacte = score maximal
+            if (artisanPlainNom === searchNormalized || artisanFullName === searchNormalized) {
+              score = 100;
+            }
+            // Correspondance partielle (le nom recherché est contenu dans le nom de l'artisan ou vice versa)
+            else if (artisanPlainNom.includes(searchNormalized) || searchNormalized.includes(artisanPlainNom)) {
+              score = 80;
+            }
+            // Correspondance avec les mots individuels
+            else {
+              const searchWords = searchNormalized.split(' ').filter(w => w.length > 2);
+              const artisanWords = artisanPlainNom.split(' ').filter(w => w.length > 2);
+              const matchingWords = searchWords.filter(word => artisanWords.some(aw => aw.includes(word) || word.includes(aw)));
+              if (matchingWords.length > 0) {
+                score = (matchingWords.length / Math.max(searchWords.length, artisanWords.length)) * 60;
+              }
+            }
+            
+            if (score > bestScore) {
+              bestScore = score;
+              found = artisan;
+            }
+          }
+
+          if (found && bestScore >= 60) {
+            if (i > 0 || bestScore < 100) {
+              console.log(
+                `✅ [ARTISAN-SST] Trouvé (variante "${variant}", score: ${bestScore.toFixed(0)}): ${found.prenom} ${found.nom} (ID: ${found.id})`
+              );
+            }
             return found.id;
           }
         }
+      }
+
+      // Si aucune variante n'a fonctionné avec searchByName, essayer aussi avec searchByPlainNom pour les cas exacts
+      // (au cas où plain_nom serait différent de prenom + nom)
+      // Vérifier le timeout avant de continuer
+      if (Date.now() - searchStartTime < this.sstSearchTimeout) {
+        for (const variant of limitedVariants.slice(0, 2)) { // Essayer seulement les 2 premières variantes
+          // Vérifier le timeout avant chaque tentative
+          if (Date.now() - searchStartTime > this.sstSearchTimeout) {
+            break;
+          }
+          await new Promise(resolve => setTimeout(resolve, this.sstSearchDelay));
+        
+        let results = await artisansApi.searchByPlainNom(variant, { limit: 1 });
+        
+        if (results.data && results.data.length > 0) {
+          const found = results.data[0];
+          console.log(
+            `✅ [ARTISAN-SST] Trouvé (plain_nom exact "${variant}"): ${found.prenom} ${found.nom} (ID: ${found.id})`
+          );
+          return found.id;
+        }
+      }
+      }
+      
+      // Dernière tentative : gérer les cas composites avec "/" ou " / "
+      // Vérifier le timeout avant de continuer
+      if (Date.now() - searchStartTime < this.sstSearchTimeout) {
+      // Ex: "Letailleur Bryan 59 / 76" -> essayer "Letailleur Bryan"
+      if (cleanSstName.includes('/') || cleanSstName.includes(' / ')) {
+        const separator = cleanSstName.includes(' / ') ? ' / ' : '/';
+        const parts = cleanSstName.split(separator);
+        
+        // Essayer chaque partie séparément
+        for (let partIndex = 0; partIndex < Math.min(parts.length, 2); partIndex++) {
+          // Vérifier le timeout avant chaque tentative
+          if (Date.now() - searchStartTime > this.sstSearchTimeout) {
+            break;
+          }
+          
+          const part = parts[partIndex].trim();
+          
+          if (part && part.length > 2) {
+            // Nettoyer la partie (enlever départements)
+            const cleanPart = part.replace(/\s+\d{2,3}(?:\s+\d{2,3})?$/, "").trim();
+            
+            if (cleanPart && cleanPart.length > 2) {
+              // Petit délai avant la tentative
+              await new Promise(resolve => setTimeout(resolve, this.sstSearchDelay));
+              
+              // Essayer avec searchByName (recherche flexible)
+              let results = await artisansApi.searchByName(cleanPart, { limit: 5 });
+              
+              if (results.data && results.data.length > 0) {
+                // Trouver le meilleur match
+                const searchNormalized = cleanPart.toLowerCase().replace(/\s+/g, ' ').trim();
+                let found = results.data[0];
+                
+                // Chercher une correspondance exacte ou partielle
+                for (const artisan of results.data) {
+                  const artisanName = (artisan.plain_nom || `${artisan.prenom || ''} ${artisan.nom || ''}`).toLowerCase().replace(/\s+/g, ' ').trim();
+                  if (artisanName === searchNormalized || artisanName.includes(searchNormalized) || searchNormalized.includes(artisanName)) {
+                    found = artisan;
+                    break;
+                  }
+                }
+                
+                console.log(
+                  `✅ [ARTISAN-SST] Trouvé (composite "${cleanPart}"): ${found.prenom} ${found.nom} (ID: ${found.id})`
+                );
+                return found.id;
+              }
+            }
+          }
+        }
+      }
       }
 
       // Pas trouvé - logger dans le fichier de log avec l'id_inter si disponible

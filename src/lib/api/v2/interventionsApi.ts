@@ -3,6 +3,38 @@
 
 import { referenceApi } from "@/lib/reference-api";
 import { supabase } from "@/lib/supabase-client";
+
+/**
+ * Crée un client Supabase admin pour Node.js avec les bonnes credentials
+ * Utilise la service role key pour contourner les RLS lors des imports
+ */
+function getSupabaseClientForNode() {
+  // Si on est dans le navigateur, utiliser le client standard
+  if (typeof window !== 'undefined') {
+    return supabase;
+  }
+  
+  // Dans Node.js, créer un nouveau client avec les credentials du service role
+  const { createClient } = require('@supabase/supabase-js');
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  
+  if (!supabaseUrl || !serviceRoleKey) {
+    console.warn('[interventionsApi] SUPABASE_URL ou SUPABASE_SERVICE_ROLE_KEY manquants, utilisation du client standard');
+    return supabase;
+  }
+  
+  return createClient(supabaseUrl, serviceRoleKey, {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
+      detectSessionInUrl: false,
+    }
+  });
+}
+
+// Utiliser le client admin dans Node.js, le client standard dans le navigateur
+const supabaseClient = typeof window !== 'undefined' ? supabase : getSupabaseClientForNode();
 import { RevenueProjectionService } from "@/lib/services/revenueProjection";
 import type {
   AdminDashboardStats,
@@ -1069,7 +1101,7 @@ export const interventionsApi = {
     let oldStatusId = null;
 
     if (data.id_inter) {
-      const { data: existing } = await supabase
+      const { data: existing } = await supabaseClient
         .from('interventions')
         .select('id, statut_id')
         .eq('id_inter', data.id_inter)
@@ -1080,7 +1112,7 @@ export const interventionsApi = {
     }
 
     // 2. Faire l'upsert
-    const { data: result, error } = await supabase
+    const { data: result, error } = await supabaseClient
       .from('interventions')
       .upsert(data, {
         onConflict: 'id_inter',
@@ -1100,14 +1132,14 @@ export const interventionsApi = {
         // On supprime ces transitions pour les remplacer par la chaîne complète
         if (!existingIntervention) {
           // Cas INSERT: supprimer toutes les transitions du trigger
-          await supabase
+          await supabaseClient
             .from('intervention_status_transitions')
             .delete()
             .eq('intervention_id', result.id)
             .eq('source', 'trigger');
         } else if (oldStatusId && oldStatusId !== result.statut_id) {
           // Cas UPDATE: supprimer la transition spécifique oldStatusId → newStatusId créée par le trigger
-          await supabase
+          await supabaseClient
             .from('intervention_status_transitions')
             .delete()
             .eq('intervention_id', result.id)
@@ -1116,7 +1148,7 @@ export const interventionsApi = {
             .eq('source', 'trigger');
         }
 
-        // Récupérer l'utilisateur actuel
+        // Récupérer l'utilisateur actuel (utiliser supabase standard pour l'auth)
         const { data: { user } } = await supabase.auth.getUser();
         const userId = user?.id;
 

@@ -10,7 +10,6 @@ import {
   Palette,
   Save,
   KeyRound,
-  Sparkles,
   Check
 } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
@@ -209,12 +208,6 @@ export function ProfileSettings() {
                 aria-hidden="true"
               >
                 {initials}
-              </div>
-              <div 
-                className="absolute -bottom-1 -right-1 h-8 w-8 rounded-full bg-background border-2 flex items-center justify-center"
-                style={{ borderColor: colorField || '#6366f1' }}
-              >
-                <Sparkles className="h-4 w-4" style={{ color: colorField || '#6366f1' }} />
               </div>
             </motion.div>
             
