@@ -746,6 +746,7 @@ export function InterventionEditForm({
   // État pour stocker le second artisan sélectionné via recherche (qui peut ne pas être dans nearbyArtisansSecondMetier)
   const [searchSelectedSecondArtisan, setSearchSelectedSecondArtisan] = useState<NearbyArtisan | null>(null)
   const [absentArtisanIds, setAbsentArtisanIds] = useState<Set<string>>(new Set())
+  const [rightColumnWidth, setRightColumnWidth] = useState(320) // Largeur initiale de 320px
   const { open: openArtisanModal } = useArtisanModal()
   const {
     artisans: nearbyArtisans,
@@ -1559,6 +1560,32 @@ export function InterventionEditForm({
     }
   }, [generateEmailTemplateData, formatPhoneForWhatsApp])
 
+  // Hook pour gérer le redimensionnement de la colonne droite
+  const handleResizeStart = useCallback((e: React.MouseEvent | React.TouchEvent) => {
+    e.preventDefault()
+    const startX = 'touches' in e ? e.touches[0].clientX : e.clientX
+    const startWidth = rightColumnWidth
+
+    const handleMouseMove = (moveEvent: MouseEvent | TouchEvent) => {
+      const currentX = 'touches' in moveEvent ? moveEvent.touches[0].clientX : moveEvent.clientX
+      const diff = startX - currentX // Inversé car on redimensionne depuis la gauche
+      const newWidth = Math.max(250, Math.min(600, startWidth + diff)) // Min 250px, Max 600px
+      setRightColumnWidth(newWidth)
+    }
+
+    const handleMouseUp = () => {
+      document.removeEventListener('mousemove', handleMouseMove)
+      document.removeEventListener('mouseup', handleMouseUp)
+      document.removeEventListener('touchmove', handleMouseMove)
+      document.removeEventListener('touchend', handleMouseUp)
+    }
+
+    document.addEventListener('mousemove', handleMouseMove)
+    document.addEventListener('mouseup', handleMouseUp)
+    document.addEventListener('touchmove', handleMouseMove, { passive: false })
+    document.addEventListener('touchend', handleMouseUp)
+  }, [rightColumnWidth])
+
   const handleSelectNearbyArtisan = useCallback(
     (artisan: NearbyArtisan) => {
       if (selectedArtisanId === artisan.id) {
@@ -2171,7 +2198,7 @@ export function InterventionEditForm({
 
   // Hauteur de la section carte+artisans basée sur la sélection d'artisan
   // Cette hauteur reste fixe une fois l'artisan sélectionné pour éviter les redimensionnements
-  const mapSectionHeight = selectedArtisanId ? "260px" : "450px"
+  const mapSectionHeight = selectedArtisanId ? "200px" : "300px"
 
   return (
     <form ref={formRef} onSubmit={handleSubmit} className="flex-1 min-h-0 flex flex-col">
@@ -2183,7 +2210,7 @@ export function InterventionEditForm({
       )}
       <fieldset
         disabled={!canEditIntervention}
-        className={cn("flex-1 min-h-0", !canEditIntervention && "opacity-70")}
+        className={cn("flex-1 min-h-0 flex flex-col", !canEditIntervention && "opacity-70")}
       >
         {/* LAYOUT DEUX COLONNES DISTINCTES - Chaque colonne a son propre scroll */}
         <div className="flex gap-3 flex-1 min-h-0">
@@ -2458,7 +2485,7 @@ export function InterventionEditForm({
             </ResizablePanel>
 
             {/* Handle de redimensionnement avec trois points */}
-            <ResizableHandle className="w-2 bg-muted/50 hover:bg-primary/20 transition-colors data-[resize-handle-active]:bg-primary/30 group">
+            <ResizableHandle className="w-2 bg-muted/50 hover:bg-primary/20 transition-colors data-[resize-handle-active]:bg-primary/30 group cursor-col-resize flex-shrink-0 relative flex items-center justify-center">
               <div className="flex h-full items-center justify-center">
                 <div className="flex flex-col gap-0.5 opacity-40 group-hover:opacity-70 transition-opacity">
                   <div className="h-1 w-1 rounded-full bg-muted-foreground" />
@@ -2741,8 +2768,27 @@ export function InterventionEditForm({
           </div>
         </div>
 
+        {/* HANDLE DE REDIMENSIONNEMENT */}
+        <div
+          onMouseDown={handleResizeStart}
+          onTouchStart={handleResizeStart}
+          className="w-2 bg-muted/50 hover:bg-primary/20 transition-colors cursor-col-resize flex-shrink-0 group relative flex items-center justify-center"
+          style={{ touchAction: 'none', userSelect: 'none' }}
+        >
+          <div className="flex h-full items-center justify-center">
+            <div className="flex flex-col gap-0.5 opacity-40 group-hover:opacity-70 transition-opacity">
+              <div className="h-1 w-1 rounded-full bg-muted-foreground" />
+              <div className="h-1 w-1 rounded-full bg-muted-foreground" />
+              <div className="h-1 w-1 rounded-full bg-muted-foreground" />
+            </div>
+          </div>
+        </div>
+
         {/* COLONNE DROITE - Collapsibles avec scroll indépendant et scrollbar minimale */}
-        <div className="w-[320px] flex-shrink-0 overflow-y-auto min-h-0 scrollbar-minimal">
+        <div 
+          className="flex-shrink-0 overflow-y-auto min-h-0 scrollbar-minimal"
+          style={{ width: `${rightColumnWidth}px` }}
+        >
           <div className="flex flex-col gap-2 pb-4">
           {/* Détails facturation */}
           <Collapsible open={isProprietaireOpen} onOpenChange={setIsProprietaireOpen}>
