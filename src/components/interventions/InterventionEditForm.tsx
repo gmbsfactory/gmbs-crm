@@ -3168,24 +3168,30 @@ export function InterventionEditForm({
                           >
                             <X className="h-3 w-3" />
                           </Button>
-                          <div className="flex items-center gap-2 flex-wrap">
+                          <div className="flex items-center justify-between gap-2 flex-wrap">
                             <Avatar photoProfilMetadata={artisan.photoProfilMetadata} initials={artisanInitials} name={artisan.displayName} size={40} className="hidden" />
-                            <span className="font-semibold text-foreground truncate text-xs">{artisanDisplayName}</span>
-                            {statutArtisan && (
-                              <Badge variant="outline" className="text-[9px] px-1 py-0 flex-shrink-0" style={statutArtisanColor ? { backgroundColor: hexToRgba(statutArtisanColor, 0.15) || undefined, color: statutArtisanColor, borderColor: statutArtisanColor } : undefined}>
-                                {statutArtisan}
-                              </Badge>
-                            )}
-                            {absentArtisanIds.has(artisan.id) && (
-                              <Badge variant="outline" className="text-[9px] px-1 py-0 bg-orange-100 text-orange-800 border-orange-300 flex-shrink-0">
-                                Indisponible
-                              </Badge>
-                            )}
-                            <Badge variant="default" className="text-[9px] px-1 py-0 bg-orange-500 flex-shrink-0">{formatDistanceKm(artisan.distanceKm)}</Badge>
-                            {artisan.telephone && (
-                              <span className="text-[10px] text-muted-foreground truncate flex-shrink-0">📞 {artisan.telephone}</span>
-                            )}
+                            <div className="flex items-center gap-1 flex-wrap flex-1 min-w-0">
+                              <span className="font-semibold text-foreground truncate text-xs">{artisanDisplayName}</span>
+                              {absentArtisanIds.has(artisan.id) && (
+                                <Badge variant="outline" className="text-[9px] px-1 py-0 bg-orange-100 text-orange-800 border-orange-300 flex-shrink-0">
+                                  Indisponible
+                                </Badge>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-1 flex-wrap flex-shrink-0 ml-auto">
+                              {statutArtisan && (
+                                <Badge variant="outline" className="text-[9px] px-1 py-0 flex-shrink-0" style={statutArtisanColor ? { backgroundColor: hexToRgba(statutArtisanColor, 0.15) || undefined, color: statutArtisanColor, borderColor: statutArtisanColor } : undefined}>
+                                  {statutArtisan}
+                                </Badge>
+                              )}
+                              <Badge variant="default" className="text-[9px] px-1 py-0 bg-orange-500 flex-shrink-0">{formatDistanceKm(artisan.distanceKm)}</Badge>
+                            </div>
                           </div>
+                          {artisan.telephone && (
+                            <div className="mt-1 text-[10px] text-muted-foreground truncate">
+                              📞 {artisan.telephone}
+                            </div>
+                          )}
                         </div>
                       )
                     })()}
@@ -3266,20 +3272,24 @@ export function InterventionEditForm({
                                 onClick={() => handleSelectSecondArtisan(artisan)}
                                 onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); handleSelectSecondArtisan(artisan) } }}
                               >
-                                <div className="flex items-center gap-2 flex-wrap w-full">
+                                <div className="flex items-center justify-between gap-2 flex-wrap w-full">
                                   <Avatar photoProfilMetadata={artisan.photoProfilMetadata} initials={artisanInitials} name={artisan.displayName} size={40} className="hidden" />
-                                  <span className="font-medium text-foreground truncate text-[11px] flex-shrink-0">{artisanDisplayName}</span>
-                                  {statutArtisan && (
-                                    <Badge variant="outline" className="text-[9px] px-1 py-0 flex-shrink-0" style={statutArtisanColor ? { backgroundColor: hexToRgba(statutArtisanColor, 0.15) || undefined, color: statutArtisanColor, borderColor: statutArtisanColor } : undefined}>
-                                      {statutArtisan}
-                                    </Badge>
-                                  )}
-                                  {absentArtisanIds.has(artisan.id) && (
-                                    <Badge variant="outline" className="text-[9px] px-1 py-0 bg-orange-100 text-orange-800 border-orange-300 flex-shrink-0">
-                                      Indisponible
-                                    </Badge>
-                                  )}
-                                  <Badge variant="secondary" className="text-[9px] px-1 py-0 flex-shrink-0">{formatDistanceKm(artisan.distanceKm)}</Badge>
+                                  <div className="flex items-center gap-1 flex-wrap flex-1 min-w-0">
+                                    <span className="font-medium text-foreground truncate text-[11px]">{artisanDisplayName}</span>
+                                    {absentArtisanIds.has(artisan.id) && (
+                                      <Badge variant="outline" className="text-[9px] px-1 py-0 bg-orange-100 text-orange-800 border-orange-300 flex-shrink-0">
+                                        Indisponible
+                                      </Badge>
+                                    )}
+                                  </div>
+                                  <div className="flex items-center gap-1 flex-wrap flex-shrink-0 ml-auto">
+                                    {statutArtisan && (
+                                      <Badge variant="outline" className="text-[9px] px-1 py-0 flex-shrink-0" style={statutArtisanColor ? { backgroundColor: hexToRgba(statutArtisanColor, 0.15) || undefined, color: statutArtisanColor, borderColor: statutArtisanColor } : undefined}>
+                                        {statutArtisan}
+                                      </Badge>
+                                    )}
+                                    <Badge variant="secondary" className="text-[9px] px-1 py-0 flex-shrink-0">{formatDistanceKm(artisan.distanceKm)}</Badge>
+                                  </div>
                                 </div>
                               </div>
                             )
