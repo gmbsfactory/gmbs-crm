@@ -232,6 +232,8 @@ type Props = {
   onClose: () => void
   onCycleMode?: () => void
   artisanId?: string // Si fourni, mode édition
+  onUnsavedChangesStateChange?: (hasChanges: boolean, submitting: boolean) => void
+  onRegisterShowDialog?: (showDialog: () => void) => void
 }
 
 export function NewArtisanModalContent({ mode, onClose, onCycleMode, artisanId, onUnsavedChangesStateChange, onRegisterShowDialog }: Props) {
@@ -262,6 +264,8 @@ export function NewArtisanModalContent({ mode, onClose, onCycleMode, artisanId, 
   const [pendingAbsences, setPendingAbsences] = useState<PendingAbsence[]>([])
   const [existingAbsences, setExistingAbsences] = useState<ExistingAbsence[]>([])
   const [newAbsence, setNewAbsence] = useState({ start_date: "", end_date: "", reason: "" })
+  // État pour suivre si les données ont été chargées et réinitialisées
+  const [isFormInitialized, setIsFormInitialized] = useState(false)
 
   // État pour le dialogue de confirmation d'artisan supprimé
   const [deletedArtisanDialog, setDeletedArtisanDialog] = useState<{
@@ -318,9 +322,21 @@ export function NewArtisanModalContent({ mode, onClose, onCycleMode, artisanId, 
     )?.id || "";
   }, [referenceData]);
 
-  const { control, register, handleSubmit, reset, setValue, watch, formState: { errors, isDirty } } = useForm<ArtisanFormValues>({
+  const { control, register, handleSubmit, reset, setValue, watch, formState: { errors, isDirty, dirtyFields } } = useForm<ArtisanFormValues>({
     defaultValues: buildDefaultFormValues(),
   })
+
+  // Réinitialiser le flag quand l'artisan change
+  useEffect(() => {
+    setIsFormInitialized(false)
+  }, [artisanId])
+
+  // En mode création, le formulaire est immédiatement initialisé
+  useEffect(() => {
+    if (!isEditMode) {
+      setIsFormInitialized(true)
+    }
+  }, [isEditMode])
 
   // Charger les données de l'artisan existant dans le formulaire
   useEffect(() => {
@@ -372,7 +388,7 @@ export function NewArtisanModalContent({ mode, onClose, onCycleMode, artisanId, 
         })))
       }
 
-      // Remplir le formulaire
+      // Remplir le formulaire et réinitialiser isDirty
       reset({
         prenom: artisanAny.prenom ?? "",
         nom: artisanAny.nom ?? "",
@@ -394,7 +410,11 @@ export function NewArtisanModalContent({ mode, onClose, onCycleMode, artisanId, 
         intervention_latitude: artisanAny.intervention_latitude ?? null,
         intervention_longitude: artisanAny.intervention_longitude ?? null,
         commentaire_initial: "",
-      })
+      }, { keepDefaultValues: false, keepDirtyValues: false })
+      // Marquer le formulaire comme initialisé après un court délai pour laisser reset() se terminer
+      setTimeout(() => {
+        setIsFormInitialized(true)
+      }, 100)
 
       // Mettre à jour l'adresse query pour le géocodage
       const fullAddress = [
@@ -868,8 +888,10 @@ export function NewArtisanModalContent({ mode, onClose, onCycleMode, artisanId, 
   const pendingCloseAction = useRef<(() => void) | null>(null)
   const shouldCloseAfterSave = useRef(false)
 
-  // Détection des modifications non sauvegardées - utiliser isDirty directement
-  const hasUnsavedChanges = isDirty && !isSubmitting
+  // Détection des modifications non sauvegardées - utiliser dirtyFields pour une détection plus précise
+  // dirtyFields contient uniquement les champs réellement modifiés par l'utilisateur
+  // Ne considérer comme modifié que si les données sont chargées, réinitialisées, et qu'il y a des champs modifiés
+  const hasUnsavedChanges = isFormInitialized && Object.keys(dirtyFields).length > 0 && !isSubmitting && !isLoading && (!isEditMode || existingArtisan !== undefined)
 
   // Notifier le parent des changements d'état pour la gestion du clic sur backdrop
   useEffect(() => {

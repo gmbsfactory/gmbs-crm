@@ -354,6 +354,8 @@ export function ArtisanModalContent({
   activeIndex,
   totalCount,
   defaultView,
+  onUnsavedChangesStateChange,
+  onRegisterShowDialog,
 }: Props) {
   const surfaceVariantClass = mode === "fullpage" ? "modal-config-surface-full" : undefined
   const surfaceModeClass = `modal-config--${mode}`
@@ -385,7 +387,7 @@ export function ArtisanModalContent({
     reset,
     getValues,
     watch,
-    formState: { isDirty, errors },
+    formState: { isDirty, dirtyFields, errors },
   } = useForm<ArtisanFormValues>({
     defaultValues: {
       raison_sociale: "",
@@ -463,14 +465,29 @@ export function ArtisanModalContent({
     setPendingArchive(false)
   }, [artisanId])
 
+  // État pour suivre si les données ont été chargées et réinitialisées
+  const [isFormInitialized, setIsFormInitialized] = useState(false)
+
   useEffect(() => {
     if (artisan) {
       console.log("[ArtisanModalContent] Artisan data received:", artisan)
       const formValues = mapArtisanToForm(artisan)
       console.log("[ArtisanModalContent] Mapped form values:", formValues)
-      reset(formValues)
+      // Réinitialiser le formulaire avec les nouvelles valeurs et réinitialiser isDirty
+      reset(formValues, { keepDefaultValues: false, keepDirtyValues: false })
+      // Marquer le formulaire comme initialisé après un court délai pour laisser reset() se terminer
+      setTimeout(() => {
+        setIsFormInitialized(true)
+      }, 100)
+    } else {
+      setIsFormInitialized(false)
     }
   }, [artisan, reset])
+
+  // Réinitialiser le flag quand l'artisan change
+  useEffect(() => {
+    setIsFormInitialized(false)
+  }, [artisanId])
 
   const getArtisanStatusCode = useCallback(
     (statusId?: string | null) => {
@@ -767,8 +784,10 @@ export function ArtisanModalContent({
   const pendingCloseAction = useRef<(() => void) | null>(null)
   const shouldCloseAfterSave = useRef(false)
 
-  // Détection des modifications non sauvegardées - utiliser isDirty directement
-  const hasUnsavedChanges = isDirty && !isSaving
+  // Détection des modifications non sauvegardées - utiliser dirtyFields pour une détection plus précise
+  // dirtyFields contient uniquement les champs réellement modifiés par l'utilisateur
+  // Ne considérer comme modifié que si les données sont chargées, réinitialisées, et qu'il y a des champs modifiés
+  const hasUnsavedChanges = isFormInitialized && Object.keys(dirtyFields).length > 0 && !isSaving && !isLoading && artisan !== undefined
 
   // Notifier le parent des changements d'état pour la gestion du clic sur backdrop
   useEffect(() => {
@@ -1225,14 +1244,14 @@ export function ArtisanModalContent({
                                       <PopoverTrigger asChild>
                                         <button 
                                           type="button" 
-                                          className="flex items-center justify-center h-8 w-8 cursor-pointer group rounded-full"
+                                          className="flex items-center justify-center h-7 w-7 cursor-pointer group rounded-full"
                                         >
                                           <GestionnaireBadge
                                             firstname={assignedUser?.firstname}
                                             lastname={assignedUser?.lastname}
                                             color={assignedUser?.color}
                                             size="sm"
-                                            className="transition-transform group-hover:scale-110 h-8 w-8"
+                                            className="transition-transform group-hover:scale-110 h-7 w-7"
                                           />
                                         </button>
                                       </PopoverTrigger>

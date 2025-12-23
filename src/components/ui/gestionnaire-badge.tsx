@@ -11,7 +11,7 @@ export interface GestionnaireBadgeProps {
   name?: string | null
   color?: string | null
   avatarUrl?: string | null
-  size?: "sm" | "md" | "lg"
+  size?: "xs" | "sm" | "md" | "lg"
   className?: string
   onClick?: () => void
   showBorder?: boolean
@@ -19,6 +19,7 @@ export interface GestionnaireBadgeProps {
 }
 
 const sizeMap = {
+  xs: { container: "h-6 w-6", border: "border", text: "text-[0.65rem]" },
   sm: { container: "h-8 w-8", border: "border-2", text: "text-xs" },
   md: { container: "h-9 w-9", border: "border-4", text: "text-sm" },
   lg: { container: "h-12 w-12", border: "border-4", text: "text-base" },
@@ -62,8 +63,8 @@ export function GestionnaireBadge({
       style={{ 
         borderColor: showBorder ? userColor : undefined,
         backgroundColor: userColor,
-        minWidth: size === 'sm' ? '32px' : size === 'md' ? '36px' : '48px',
-        minHeight: size === 'sm' ? '32px' : size === 'md' ? '36px' : '48px',
+        minWidth: size === 'xs' ? '24px' : size === 'sm' ? '32px' : size === 'md' ? '36px' : '48px',
+        minHeight: size === 'xs' ? '24px' : size === 'sm' ? '32px' : size === 'md' ? '36px' : '48px',
       }}
       onClick={onClick}
       title={displayName}
