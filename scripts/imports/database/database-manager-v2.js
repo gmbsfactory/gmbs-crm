@@ -597,9 +597,10 @@ class DatabaseManager {
             this.log(`  ⚠️ Date invalide, utilisation de la date du jour`, "verbose");
           }
 
-          // Créer l'intervention
+          // Créer l'intervention (utiliser le client avec service role key pour contourner les RLS)
           const upsertedIntervention = await interventionsApi.upsertDirect(
-            intervention
+            intervention,
+            supabaseClient // Passer le client personnalisé
           );
 
           // Assigner l'artisan SST (si trouvé)
@@ -608,7 +609,8 @@ class DatabaseManager {
               await interventionsApi.assignArtisan(
                 upsertedIntervention.id,
                 artisanSSTId,
-                "primary"
+                "primary",
+                supabaseClient // Passer le client personnalisé
               );
               this.log(`  → Artisan SST assigné`, "verbose");
             } catch (error) {

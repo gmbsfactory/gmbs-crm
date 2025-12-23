@@ -884,9 +884,13 @@ export const interventionsApi = {
   async assignArtisan(
     interventionId: string,
     artisanId: string,
-    role: "primary" | "secondary" = "primary"
+    role: "primary" | "secondary" = "primary",
+    customClient?: any
   ): Promise<any> {
-    const { data: result, error } = await supabase
+    // Utiliser le client personnalisé si fourni, sinon utiliser le client par défaut
+    const client = customClient || supabase;
+    
+    const { data: result, error } = await client
       .from('intervention_artisans')
       .insert({
         intervention_id: interventionId,
@@ -1063,13 +1067,16 @@ export const interventionsApi = {
   },
 
   // Upsert direct via Supabase (pour import en masse)
-  async upsertDirect(data: CreateInterventionData & { id_inter?: string }): Promise<Intervention> {
+  async upsertDirect(data: CreateInterventionData & { id_inter?: string }, customClient?: any): Promise<Intervention> {
+    // Utiliser le client personnalisé si fourni, sinon utiliser le client par défaut
+    const client = customClient || supabase;
+    
     // 1. Vérifier si l'intervention existe déjà
     let existingIntervention = null;
     let oldStatusId = null;
 
     if (data.id_inter) {
-      const { data: existing } = await supabase
+      const { data: existing } = await client
         .from('interventions')
         .select('id, statut_id')
         .eq('id_inter', data.id_inter)
@@ -1080,7 +1087,7 @@ export const interventionsApi = {
     }
 
     // 2. Faire l'upsert
-    const { data: result, error } = await supabase
+    const { data: result, error } = await client
       .from('interventions')
       .upsert(data, {
         onConflict: 'id_inter',
@@ -1100,14 +1107,14 @@ export const interventionsApi = {
         // On supprime ces transitions pour les remplacer par la chaîne complète
         if (!existingIntervention) {
           // Cas INSERT: supprimer toutes les transitions du trigger
-          await supabase
+          await client
             .from('intervention_status_transitions')
             .delete()
             .eq('intervention_id', result.id)
             .eq('source', 'trigger');
         } else if (oldStatusId && oldStatusId !== result.statut_id) {
           // Cas UPDATE: supprimer la transition spécifique oldStatusId → newStatusId créée par le trigger
-          await supabase
+          await client
             .from('intervention_status_transitions')
             .delete()
             .eq('intervention_id', result.id)
@@ -1116,7 +1123,7 @@ export const interventionsApi = {
             .eq('source', 'trigger');
         }
 
-        // Récupérer l'utilisateur actuel
+        // Récupérer l'utilisateur actuel (utiliser le client par défaut pour l'auth)
         const { data: { user } } = await supabase.auth.getUser();
         const userId = user?.id;
 

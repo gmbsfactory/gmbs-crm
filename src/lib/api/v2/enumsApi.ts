@@ -443,17 +443,20 @@ export const findOrCreateInterventionStatus = async (name: string, customClient?
 /**
  * Récupère un statut d'intervention via son code canonique.
  */
-export const getInterventionStatusByCode = async (code: string) => {
+export const getInterventionStatusByCode = async (code: string, customClient?: any) => {
   const normalizedCode = code?.trim();
   if (!normalizedCode) {
     return { data: null, error: new Error('Le code du statut ne peut pas être vide') };
   }
 
-  const { data, error } = await supabase
+  // Utiliser le client personnalisé si fourni, sinon utiliser le client par défaut
+  const client = customClient || supabase;
+
+  const { data, error } = await client
     .from('intervention_statuses')
     .select('id, code, label, color, sort_order')
     .eq('code', normalizedCode)
-    .single();
+    .maybeSingle(); // Utiliser maybeSingle() pour éviter l'erreur PGRST116 si aucun résultat
 
   return { data, error };
 };
@@ -461,17 +464,20 @@ export const getInterventionStatusByCode = async (code: string) => {
 /**
  * Récupère un utilisateur via son username canonique.
  */
-export const getUserByUsername = async (username: string) => {
+export const getUserByUsername = async (username: string, customClient?: any) => {
   const normalizedUsername = username?.trim();
   if (!normalizedUsername) {
     return { data: null, error: new Error('Le username ne peut pas être vide') };
   }
 
-  const { data, error } = await supabase
+  // Utiliser le client personnalisé si fourni, sinon utiliser le client par défaut
+  const client = customClient || supabase;
+
+  const { data, error } = await client
     .from('users')
     .select('id, username, email, code_gestionnaire')
     .eq('username', normalizedUsername)
-    .single();
+    .maybeSingle(); // Utiliser maybeSingle() pour éviter l'erreur PGRST116 si aucun résultat
 
   return { data, error };
 };

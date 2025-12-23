@@ -476,8 +476,11 @@ export const artisansApi = {
   },
 
   // Rechercher par plain_nom (pour la recherche SST)
-  async searchByPlainNom(searchTerm: string, params?: ArtisanQueryParams): Promise<PaginatedResponse<Artisan>> {
-    let query = supabase
+  async searchByPlainNom(searchTerm: string, params?: ArtisanQueryParams, customClient?: any): Promise<PaginatedResponse<Artisan>> {
+    // Utiliser le client personnalisé si fourni, sinon utiliser le client par défaut
+    const client = customClient || supabase;
+    
+    let query = client
       .from("artisans")
       .select("*", { count: "exact" })
       .eq("plain_nom", searchTerm) // Recherche exacte d'abord
