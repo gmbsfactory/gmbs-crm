@@ -487,6 +487,7 @@ export const usersApi = {
 
   /**
    * Crée ou met à jour un objectif pour un gestionnaire
+   * Utilise une route API pour contourner les politiques RLS en production
    * @param data - Données de l'objectif
    * @param createdBy - ID de l'utilisateur qui crée/modifie l'objectif
    * @returns L'objectif créé ou mis à jour
@@ -505,26 +506,53 @@ export const usersApi = {
       throw new Error("margin_target is required");
     }
 
-    const { data: result, error } = await supabase
-      .from("gestionnaire_targets")
-      .upsert(
-        {
-          ...data,
-          created_by: createdBy,
-          updated_at: new Date().toISOString(),
+    try {
+      // Utiliser la route API qui utilise le service role key pour contourner les politiques RLS
+      const response = await fetch('/api/targets', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
         },
-        {
-          onConflict: "user_id,period_type",
-        }
-      )
-      .select()
-      .single();
+        credentials: 'include', // Inclure les cookies pour l'authentification
+        body: JSON.stringify({
+          user_id: data.user_id,
+          period_type: data.period_type,
+          margin_target: data.margin_target,
+          performance_target: data.performance_target ?? 40,
+        }),
+      });
 
-    if (error) {
-      throw new Error(`Erreur lors de la création/mise à jour de l'objectif: ${error.message}`);
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Erreur inconnue' }));
+        throw new Error(errorData.error || `Erreur HTTP ${response.status}`);
+      }
+
+      const result = await response.json();
+      return result.data;
+    } catch (error: any) {
+      // Fallback vers l'ancienne méthode si la route API échoue (pour compatibilité)
+      console.warn('[upsertTarget] Erreur avec la route API, fallback vers Supabase direct:', error);
+      const { data: result, error: supabaseError } = await supabase
+        .from("gestionnaire_targets")
+        .upsert(
+          {
+            ...data,
+            created_by: createdBy,
+            updated_at: new Date().toISOString(),
+          },
+          {
+            onConflict: "user_id,period_type",
+          }
+        )
+        .select()
+        .single();
+
+      if (supabaseError) {
+        throw new Error(`Erreur lors de la création/mise à jour de l'objectif: ${supabaseError.message}`);
+      }
+
+      return result;
     }
-
-    return result;
   },
 
   /**
