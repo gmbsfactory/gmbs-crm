@@ -16,7 +16,7 @@ import {
   Lock,
   AlertCircle
 } from "lucide-react"
-import { useToast } from "@/hooks/use-toast"
+import { toast } from "sonner"
 import { useCurrentUser } from "@/hooks/useCurrentUser"
 import { usersApi } from "@/lib/api/v2"
 import type { User, GestionnaireTarget, TargetPeriodType, CreateGestionnaireTargetData } from "@/lib/api/v2"
@@ -53,7 +53,6 @@ const PERIOD_CONFIG = {
 }
 
 export function TargetsSettings() {
-  const { toast } = useToast()
   const [users, setUsers] = useState<User[]>([])
   const [targets, setTargets] = useState<GestionnaireTarget[]>([])
   const [loading, setLoading] = useState(true)
@@ -107,10 +106,8 @@ export function TargetsSettings() {
         }
         setCreatorUsers(creatorsMap)
       } catch (error: any) {
-        toast({
-          title: "Erreur",
+        toast.error("Erreur", {
           description: error.message || "Erreur lors du chargement des données",
-          variant: "destructive",
         })
       } finally {
         setLoading(false)
@@ -333,25 +330,21 @@ export function TargetsSettings() {
       // Afficher les toasts pour chaque mise à jour réussie
       const successfulUpdates = results.filter((r) => r.success).map((r) => r.update!)
       successfulUpdates.forEach((update) => {
-        toast({
-          title: "Objectif mis à jour",
+        toast.success("Objectif mis à jour", {
           description: `${update.userName} - ${update.periodLabel}: ${formatCurrency(update.marginTarget)}${update.performanceTarget ? ` (${update.performanceTarget}%)` : ""}`,
         })
       })
 
       // Afficher un toast d'erreur s'il y en a
       if (errors.length > 0) {
-        toast({
-          title: "Erreurs",
+        toast.error("Erreurs", {
           description: `${errors.length} erreur(s) lors de la sauvegarde`,
-          variant: "destructive",
         })
       }
 
       // Si aucune mise à jour n'a été effectuée
       if (successfulUpdates.length === 0 && errors.length === 0) {
-        toast({
-          title: "Aucune modification",
+        toast.info("Aucune modification", {
           description: "Aucun objectif à mettre à jour",
         })
       }
@@ -360,10 +353,8 @@ export function TargetsSettings() {
       setEditableData({})
     } catch (error: any) {
       console.error("Erreur lors de la sauvegarde:", error)
-      toast({
-        title: "Erreur",
+      toast.error("Erreur", {
         description: error.message || "Erreur lors de la sauvegarde",
-        variant: "destructive",
       })
     } finally {
       setSaving(false)
