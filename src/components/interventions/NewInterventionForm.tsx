@@ -1011,6 +1011,7 @@ export function NewInterventionForm({
         displayName: displayName,
         distanceKm: 0,
         telephone: artisan.telephone || null,
+        telephone2: artisan.telephone2 || null,
         email: artisan.email || null,
         adresse: artisan.adresse_intervention || artisan.adresse_siege_social || null,
         ville: artisan.ville_intervention || artisan.ville_siege_social || null,
@@ -1019,6 +1020,7 @@ export function NewInterventionForm({
         lng: 0,
         prenom: artisan.prenom || null,
         nom: artisan.nom || null,
+        raison_sociale: artisan.raison_sociale || null,
         statut_id: artisan.statut_id || null,
         photoProfilMetadata: null,
       }
@@ -1118,6 +1120,7 @@ export function NewInterventionForm({
         displayName: displayName,
         distanceKm: 0, // Distance inconnue pour artisan hors proximité
         telephone: artisan.telephone || null,
+        telephone2: artisan.telephone2 || null,
         email: artisan.email || null,
         adresse: artisan.adresse_intervention || artisan.adresse_siege_social || null,
         ville: artisan.ville_intervention || artisan.ville_siege_social || null,
@@ -1126,6 +1129,7 @@ export function NewInterventionForm({
         lng: 0,
         prenom: artisan.prenom || null,
         nom: artisan.nom || null,
+        raison_sociale: artisan.raison_sociale || null,
         statut_id: artisan.statut_id || null,
         photoProfilMetadata: null,
       }

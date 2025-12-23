@@ -2260,7 +2260,7 @@ export function InterventionEditForm({
 
   // Hauteur de la section carte+artisans basée sur la sélection d'artisan
   // Cette hauteur reste fixe une fois l'artisan sélectionné pour éviter les redimensionnements
-  const mapSectionHeight = selectedArtisanId ? "200px" : "300px"
+  const mapSectionHeight = selectedArtisanId ? "150px" : "220px"
 
   const DEFAULT_MAP_PANEL_SIZE = 70
   const DEFAULT_ARTISANS_PANEL_SIZE = 30
