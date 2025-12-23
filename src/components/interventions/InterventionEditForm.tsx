@@ -746,7 +746,11 @@ export function InterventionEditForm({
   // État pour stocker le second artisan sélectionné via recherche (qui peut ne pas être dans nearbyArtisansSecondMetier)
   const [searchSelectedSecondArtisan, setSearchSelectedSecondArtisan] = useState<NearbyArtisan | null>(null)
   const [absentArtisanIds, setAbsentArtisanIds] = useState<Set<string>>(new Set())
-  const [rightColumnWidth, setRightColumnWidth] = useState(320) // Largeur initiale de 320px
+  const DEFAULT_RIGHT_COLUMN_WIDTH = 320
+  const rightColumnStorageKey = currentUser?.id
+    ? `gmbs:intervention-form:right-column-width:${currentUser.id}`
+    : null
+  const [rightColumnWidth, setRightColumnWidth] = useState(DEFAULT_RIGHT_COLUMN_WIDTH)
   const { open: openArtisanModal } = useArtisanModal()
   const {
     artisans: nearbyArtisans,
@@ -758,6 +762,29 @@ export function InterventionEditForm({
     sampleSize: 400,
     metier_id: formData.metier_id || null,
   })
+
+  useEffect(() => {
+    if (typeof window === "undefined") return
+    if (!rightColumnStorageKey) {
+      setRightColumnWidth(DEFAULT_RIGHT_COLUMN_WIDTH)
+      return
+    }
+
+    try {
+      const saved = localStorage.getItem(rightColumnStorageKey)
+      if (saved) {
+        const parsed = Number.parseFloat(saved)
+        if (Number.isFinite(parsed) && parsed >= 250 && parsed <= 600) {
+          setRightColumnWidth(parsed)
+          return
+        }
+      }
+      setRightColumnWidth(DEFAULT_RIGHT_COLUMN_WIDTH)
+    } catch (error) {
+      console.warn("Erreur lors du chargement de la largeur de la colonne droite:", error)
+      setRightColumnWidth(DEFAULT_RIGHT_COLUMN_WIDTH)
+    }
+  }, [rightColumnStorageKey])
   
   // Hook séparé pour les artisans du second métier
   const {
@@ -1571,6 +1598,12 @@ export function InterventionEditForm({
       const diff = startX - currentX // Inversé car on redimensionne depuis la gauche
       const newWidth = Math.max(250, Math.min(600, startWidth + diff)) // Min 250px, Max 600px
       setRightColumnWidth(newWidth)
+      if (!rightColumnStorageKey || typeof window === "undefined") return
+      try {
+        localStorage.setItem(rightColumnStorageKey, String(newWidth))
+      } catch (error) {
+        console.warn("Erreur lors de la sauvegarde de la largeur de la colonne droite:", error)
+      }
     }
 
     const handleMouseUp = () => {
@@ -1584,7 +1617,7 @@ export function InterventionEditForm({
     document.addEventListener('mouseup', handleMouseUp)
     document.addEventListener('touchmove', handleMouseMove, { passive: false })
     document.addEventListener('touchend', handleMouseUp)
-  }, [rightColumnWidth])
+  }, [rightColumnWidth, rightColumnStorageKey])
 
   const handleSelectNearbyArtisan = useCallback(
     (artisan: NearbyArtisan) => {
@@ -2198,7 +2231,13 @@ export function InterventionEditForm({
 
   // Hauteur de la section carte+artisans basée sur la sélection d'artisan
   // Cette hauteur reste fixe une fois l'artisan sélectionné pour éviter les redimensionnements
-  const mapSectionHeight = selectedArtisanId ? "200px" : "300px"
+  const mapSectionHeight = selectedArtisanId ? "220px" : "400px"
+
+  const DEFAULT_MAP_PANEL_SIZE = 70
+  const DEFAULT_ARTISANS_PANEL_SIZE = 30
+  const panelStorageId = currentUser?.id
+    ? `gmbs:intervention-form:panel-size:${currentUser.id}`
+    : null
 
   return (
     <form ref={formRef} onSubmit={handleSubmit} className="flex-1 min-h-0 flex flex-col">
@@ -2466,37 +2505,42 @@ export function InterventionEditForm({
 
         {/* DIV7+8: CARTE + ARTISANS REDIMENSIONNABLES - Row 4, Cols 1-4 */}
         <div style={{ gridArea: "4 / 1 / 5 / 5", height: mapSectionHeight }}>
-          <ResizablePanelGroup direction="horizontal" className="h-full rounded-lg">
-            {/* Panel Carte */}
-            <ResizablePanel defaultSize={70} minSize={30} maxSize={85}>
-              <Card className="h-full overflow-hidden rounded-r-none border-r-0">
-                <CardContent className="p-0 h-full">
-                  <MapLibreMap
-                    lat={formData.latitude}
-                    lng={formData.longitude}
-                    height="100%"
-                    onLocationChange={handleLocationChange}
-                    markers={mapMarkers}
-                    circleRadiusKm={perimeterKmValue}
-                    selectedConnection={mapSelectedConnection ?? undefined}
-                  />
-                </CardContent>
-              </Card>
-            </ResizablePanel>
+          <ResizablePanelGroup 
+            key={`panel-group-${currentUser?.id ?? "anonymous"}`}
+            direction="horizontal" 
+            className="h-full rounded-lg"
+            autoSaveId={panelStorageId}
+          >
+              {/* Panel Carte */}
+              <ResizablePanel defaultSize={DEFAULT_MAP_PANEL_SIZE} minSize={30} maxSize={85}>
+                <Card className="h-full overflow-hidden rounded-r-none border-r-0">
+                  <CardContent className="p-0 h-full">
+                    <MapLibreMap
+                      lat={formData.latitude}
+                      lng={formData.longitude}
+                      height="100%"
+                      onLocationChange={handleLocationChange}
+                      markers={mapMarkers}
+                      circleRadiusKm={perimeterKmValue}
+                      selectedConnection={mapSelectedConnection ?? undefined}
+                    />
+                  </CardContent>
+                </Card>
+              </ResizablePanel>
 
-            {/* Handle de redimensionnement avec trois points */}
-            <ResizableHandle className="w-2 bg-muted/50 hover:bg-primary/20 transition-colors data-[resize-handle-active]:bg-primary/30 group cursor-col-resize flex-shrink-0 relative flex items-center justify-center">
-              <div className="flex h-full items-center justify-center">
-                <div className="flex flex-col gap-0.5 opacity-40 group-hover:opacity-70 transition-opacity">
-                  <div className="h-1 w-1 rounded-full bg-muted-foreground" />
-                  <div className="h-1 w-1 rounded-full bg-muted-foreground" />
-                  <div className="h-1 w-1 rounded-full bg-muted-foreground" />
+              {/* Handle de redimensionnement avec trois points */}
+              <ResizableHandle className="w-2 bg-muted/50 hover:bg-primary/20 transition-colors data-[resize-handle-active]:bg-primary/30 group cursor-col-resize flex-shrink-0 relative flex items-center justify-center">
+                <div className="flex h-full items-center justify-center">
+                  <div className="flex flex-col gap-0.5 opacity-40 group-hover:opacity-70 transition-opacity">
+                    <div className="h-1 w-1 rounded-full bg-muted-foreground" />
+                    <div className="h-1 w-1 rounded-full bg-muted-foreground" />
+                    <div className="h-1 w-1 rounded-full bg-muted-foreground" />
+                  </div>
                 </div>
-              </div>
             </ResizableHandle>
 
             {/* Panel Artisans */}
-            <ResizablePanel defaultSize={30} minSize={15} maxSize={70}>
+            <ResizablePanel defaultSize={DEFAULT_ARTISANS_PANEL_SIZE} minSize={15} maxSize={70}>
               <Card className="h-full flex flex-col overflow-hidden rounded-l-none border-l-0">
                 <CardContent className="p-3 flex flex-col h-full overflow-hidden">
                   {/* Header artisans */}
