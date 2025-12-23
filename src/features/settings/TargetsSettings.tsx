@@ -230,80 +230,136 @@ export function TargetsSettings() {
 
     setSaving(true)
     try {
-      let successCount = 0
-      let errorCount = 0
+      const updates: Array<{
+        userId: string
+        userName: string
+        periodType: TargetPeriodType
+        periodLabel: string
+        marginTarget: number
+        performanceTarget: number | null
+      }> = []
+      const errors: Array<{ userId: string; periodType: string; error: string }> = []
 
+      // Préparer toutes les mises à jour
       for (const [userId, periods] of Object.entries(editableData)) {
+        const user = users.find((u) => u.id === userId)
+        const userName = user ? getUserName(user) : userId
+
         for (const [periodType, data] of Object.entries(periods)) {
           const existingTarget = targets.find(
             (t) => t.user_id === userId && t.period_type === periodType
           )
 
           if (existingTarget && !canModifyTarget(existingTarget)) {
-            errorCount++
+            errors.push({
+              userId,
+              periodType,
+              error: "Objectif verrouillé (créé par admin)",
+            })
             continue
           }
 
           if (data.margin_target <= 0) {
-            errorCount++
+            errors.push({
+              userId,
+              periodType,
+              error: "Marge cible doit être supérieure à 0",
+            })
             continue
           }
 
-          try {
-            const targetData: CreateGestionnaireTargetData = {
-              user_id: userId,
-              period_type: periodType as TargetPeriodType,
-              margin_target: data.margin_target,
-              performance_target: data.performance_target ?? 40,
-            }
-
-            await usersApi.upsertTarget(targetData, currentUser.id)
-            successCount++
-          } catch (error) {
-            errorCount++
-            console.error(`Erreur lors de la sauvegarde pour ${userId} - ${periodType}:`, error)
-          }
+          updates.push({
+            userId,
+            userName,
+            periodType: periodType as TargetPeriodType,
+            periodLabel: PERIOD_CONFIG[periodType as TargetPeriodType].label,
+            marginTarget: data.margin_target,
+            performanceTarget: data.performance_target ?? null,
+          })
         }
       }
 
-      const allTargets = await usersApi.getAllTargets()
-      setTargets(allTargets)
+      // Exécuter toutes les sauvegardes en parallèle
+      const savePromises = updates.map(async (update) => {
+        try {
+          const targetData: CreateGestionnaireTargetData = {
+            user_id: update.userId,
+            period_type: update.periodType,
+            margin_target: update.marginTarget,
+            performance_target: update.performanceTarget ?? 40,
+          }
 
-      // Recharger les créateurs si nécessaire
-      const creatorIds = new Set<string>()
-      allTargets.forEach((target) => {
-        if (target.created_by) {
-          creatorIds.add(target.created_by)
+          await usersApi.upsertTarget(targetData, currentUser.id)
+          return { success: true, update }
+        } catch (error: any) {
+          errors.push({
+            userId: update.userId,
+            periodType: update.periodType,
+            error: error.message || "Erreur inconnue",
+          })
+          return { success: false, update }
         }
       })
 
-      const creatorsMap = new Map<string, User>()
-      for (const creatorId of creatorIds) {
-        try {
-          const creator = await usersApi.getById(creatorId)
-          creatorsMap.set(creatorId, creator)
-        } catch (error) {
-          console.error(`Erreur lors du chargement du créateur ${creatorId}:`, error)
-        }
-      }
-      setCreatorUsers(creatorsMap)
+      const results = await Promise.all(savePromises)
+      const successCount = results.filter((r) => r.success).length
 
-      if (errorCount === 0) {
-        toast({
-          title: "Succès",
-          description: `${successCount} objectif(s) mis à jour avec succès`,
+      // Recharger les targets (une seule fois)
+      const allTargets = await usersApi.getAllTargets()
+      setTargets(allTargets)
+
+      // Ne recharger les créateurs que si nécessaire (seulement les nouveaux créateurs)
+      const newCreatorIds = new Set<string>()
+      allTargets.forEach((target) => {
+        if (target.created_by && !creatorUsers.has(target.created_by)) {
+          newCreatorIds.add(target.created_by)
+        }
+      })
+
+      if (newCreatorIds.size > 0) {
+        const newCreatorsMap = new Map<string, User>()
+        const creatorPromises = Array.from(newCreatorIds).map(async (creatorId) => {
+          try {
+            const creator = await usersApi.getById(creatorId)
+            newCreatorsMap.set(creatorId, creator)
+          } catch (error) {
+            console.error(`Erreur lors du chargement du créateur ${creatorId}:`, error)
+          }
         })
-      } else {
+        await Promise.all(creatorPromises)
+        setCreatorUsers((prev) => new Map([...prev, ...newCreatorsMap]))
+      }
+
+      // Afficher les toasts pour chaque mise à jour réussie
+      const successfulUpdates = results.filter((r) => r.success).map((r) => r.update!)
+      successfulUpdates.forEach((update) => {
         toast({
-          title: "Avertissement",
-          description: `${successCount} objectif(s) mis à jour, ${errorCount} erreur(s)`,
+          title: "Objectif mis à jour",
+          description: `${update.userName} - ${update.periodLabel}: ${formatCurrency(update.marginTarget)}${update.performanceTarget ? ` (${update.performanceTarget}%)` : ""}`,
+        })
+      })
+
+      // Afficher un toast d'erreur s'il y en a
+      if (errors.length > 0) {
+        toast({
+          title: "Erreurs",
+          description: `${errors.length} erreur(s) lors de la sauvegarde`,
           variant: "destructive",
+        })
+      }
+
+      // Si aucune mise à jour n'a été effectuée
+      if (successfulUpdates.length === 0 && errors.length === 0) {
+        toast({
+          title: "Aucune modification",
+          description: "Aucun objectif à mettre à jour",
         })
       }
 
       setIsEditMode(false)
       setEditableData({})
     } catch (error: any) {
+      console.error("Erreur lors de la sauvegarde:", error)
       toast({
         title: "Erreur",
         description: error.message || "Erreur lors de la sauvegarde",
