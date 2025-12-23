@@ -227,7 +227,7 @@ export function TargetsSettings() {
 
     setSaving(true)
     try {
-      const updates: Array<{
+      const changedUpdates: Array<{
         userId: string
         userName: string
         periodType: TargetPeriodType
@@ -235,9 +235,8 @@ export function TargetsSettings() {
         marginTarget: number
         performanceTarget: number | null
       }> = []
-      const errors: Array<{ userId: string; periodType: string; error: string }> = []
 
-      // Préparer toutes les mises à jour
+      // Comparer avec les valeurs existantes pour ne garder que les modifications réelles
       for (const [userId, periods] of Object.entries(editableData)) {
         const user = users.find((u) => u.id === userId)
         const userName = user ? getUserName(user) : userId
@@ -247,25 +246,26 @@ export function TargetsSettings() {
             (t) => t.user_id === userId && t.period_type === periodType
           )
 
+          // Vérifier si les valeurs ont réellement changé
+          const existingMargin = existingTarget?.margin_target ?? PERIOD_CONFIG[periodType as TargetPeriodType].defaultMargin
+          const existingPerf = existingTarget?.performance_target ?? null
+          
+          const hasMarginChanged = data.margin_target !== existingMargin
+          const hasPerfChanged = data.performance_target !== existingPerf
+          
+          if (!hasMarginChanged && !hasPerfChanged) {
+            continue // Pas de changement, ignorer
+          }
+
           if (existingTarget && !canModifyTarget(existingTarget)) {
-            errors.push({
-              userId,
-              periodType,
-              error: "Objectif verrouillé (créé par admin)",
-            })
-            continue
+            continue // Verrouillé, ignorer
           }
 
           if (data.margin_target <= 0) {
-            errors.push({
-              userId,
-              periodType,
-              error: "Marge cible doit être supérieure à 0",
-            })
-            continue
+            continue // Invalide, ignorer
           }
 
-          updates.push({
+          changedUpdates.push({
             userId,
             userName,
             periodType: periodType as TargetPeriodType,
@@ -276,8 +276,19 @@ export function TargetsSettings() {
         }
       }
 
-      // Exécuter toutes les sauvegardes en parallèle
-      const savePromises = updates.map(async (update) => {
+      // Si aucune modification réelle
+      if (changedUpdates.length === 0) {
+        toast.info("Aucune modification détectée")
+        setIsEditMode(false)
+        setEditableData({})
+        return
+      }
+
+      // Sauvegarder uniquement les modifications
+      let successCount = 0
+      let errorCount = 0
+
+      for (const update of changedUpdates) {
         try {
           const targetData: CreateGestionnaireTargetData = {
             user_id: update.userId,
@@ -287,66 +298,27 @@ export function TargetsSettings() {
           }
 
           await usersApi.upsertTarget(targetData, currentUser.id)
-          return { success: true, update }
+          successCount++
         } catch (error: any) {
-          errors.push({
-            userId: update.userId,
-            periodType: update.periodType,
-            error: error.message || "Erreur inconnue",
-          })
-          return { success: false, update }
+          errorCount++
+          console.error(`Erreur sauvegarde ${update.userName} - ${update.periodLabel}:`, error)
         }
-      })
+      }
 
-      const results = await Promise.all(savePromises)
-      const successCount = results.filter((r) => r.success).length
-
-      // Recharger les targets (une seule fois)
+      // Recharger les targets
       const allTargets = await usersApi.getAllTargets()
       setTargets(allTargets)
 
-      // Ne recharger les créateurs que si nécessaire (seulement les nouveaux créateurs)
-      const newCreatorIds = new Set<string>()
-      allTargets.forEach((target) => {
-        if (target.created_by && !creatorUsers.has(target.created_by)) {
-          newCreatorIds.add(target.created_by)
-        }
-      })
-
-      if (newCreatorIds.size > 0) {
-        const newCreatorsMap = new Map<string, User>()
-        const creatorPromises = Array.from(newCreatorIds).map(async (creatorId) => {
-          try {
-            const creator = await usersApi.getById(creatorId)
-            newCreatorsMap.set(creatorId, creator)
-          } catch (error) {
-            console.error(`Erreur lors du chargement du créateur ${creatorId}:`, error)
-          }
+      // Toast récapitulatif unique
+      if (successCount > 0 && errorCount === 0) {
+        const names = [...new Set(changedUpdates.map(u => u.userName))].join(", ")
+        toast.success(`${successCount} objectif(s) mis à jour`, {
+          description: names,
         })
-        await Promise.all(creatorPromises)
-        setCreatorUsers((prev) => new Map([...prev, ...newCreatorsMap]))
-      }
-
-      // Afficher les toasts pour chaque mise à jour réussie
-      const successfulUpdates = results.filter((r) => r.success).map((r) => r.update!)
-      successfulUpdates.forEach((update) => {
-        toast.success("Objectif mis à jour", {
-          description: `${update.userName} - ${update.periodLabel}: ${formatCurrency(update.marginTarget)}${update.performanceTarget ? ` (${update.performanceTarget}%)` : ""}`,
-        })
-      })
-
-      // Afficher un toast d'erreur s'il y en a
-      if (errors.length > 0) {
-        toast.error("Erreurs", {
-          description: `${errors.length} erreur(s) lors de la sauvegarde`,
-        })
-      }
-
-      // Si aucune mise à jour n'a été effectuée
-      if (successfulUpdates.length === 0 && errors.length === 0) {
-        toast.info("Aucune modification", {
-          description: "Aucun objectif à mettre à jour",
-        })
+      } else if (successCount > 0 && errorCount > 0) {
+        toast.warning(`${successCount} mis à jour, ${errorCount} erreur(s)`)
+      } else {
+        toast.error("Erreur lors de la sauvegarde")
       }
 
       setIsEditMode(false)
