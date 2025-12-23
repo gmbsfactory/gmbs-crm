@@ -103,6 +103,27 @@ export function AuthStateListenerProvider({ children }: { children: ReactNode })
           setTimeout(() => {
             preloadCriticalDataAsync(queryClient)
           }, 200)
+          
+          // Remettre le statut à "connected" lors de la connexion ou du chargement de page
+          // Corrige le cas où le statut restait "offline" après avoir fermé puis rouvert le navigateur
+          fetch('/api/auth/status', {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({ status: 'connected' })
+          })
+            .then(response => {
+              if (response.ok) {
+                console.log('[AuthStateListenerProvider] ✅ Status set to connected')
+                // Invalider le cache currentUser pour forcer un refetch avec le nouveau statut
+                queryClient.invalidateQueries({ queryKey: ["currentUser"] })
+              } else {
+                console.warn('[AuthStateListenerProvider] Failed to set connected status:', response.status)
+              }
+            })
+            .catch(error => {
+              console.warn('[AuthStateListenerProvider] Error setting connected status:', error)
+            })
         }
       }
     })
