@@ -48,6 +48,8 @@ export function InterventionModal({
   const [isSubmitting, setIsSubmitting] = useState(false)
   const showUnsavedDialogRef = useRef<(() => void) | null>(null)
   const [isArtisanSearchOpen, setIsArtisanSearchOpen] = useState(false)
+  const [isSmsModalOpen, setIsSmsModalOpen] = useState(false)
+  const [isEmailModalOpen, setIsEmailModalOpen] = useState(false)
 
   // Callbacks pour recevoir les informations de InterventionModalContent
   const handleUnsavedChangesStateChange = useCallback((hasChanges: boolean, submitting: boolean) => {
@@ -103,6 +105,8 @@ export function InterventionModal({
   useEffect(() => {
     if (!isOpen) {
       setIsArtisanSearchOpen(false)
+      setIsSmsModalOpen(false)
+      setIsEmailModalOpen(false)
     }
   }, [isOpen])
 
@@ -145,6 +149,8 @@ export function InterventionModal({
         onUnsavedChangesStateChange={handleUnsavedChangesStateChange}
         onRegisterShowDialog={handleRegisterShowDialog}
         onArtisanSearchOpenChange={setIsArtisanSearchOpen}
+        onSmsModalOpenChange={setIsSmsModalOpen}
+        onEmailModalOpenChange={setIsEmailModalOpen}
       />
     )
   })()
@@ -163,7 +169,7 @@ export function InterventionModal({
       hasUnsavedChanges={hasUnsavedChanges}
       isSubmitting={isSubmitting}
       onShowUnsavedDialog={() => showUnsavedDialogRef.current?.()}
-      pauseFocusTrap={isArtisanSearchOpen}
+      pauseFocusTrap={isArtisanSearchOpen || isSmsModalOpen || isEmailModalOpen}
     >
       {renderedContent}
     </GenericModal>

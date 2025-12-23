@@ -548,6 +548,7 @@ interface InterventionEditFormProps {
   onOpenSmsModal?: () => void
   onHasUnsavedChanges?: (hasChanges: boolean) => void
   onArtisanSearchOpenChange?: (isOpen: boolean) => void
+  onEmailModalOpenChange?: (isOpen: boolean) => void
 }
 
 export function InterventionEditForm({
@@ -562,7 +563,8 @@ export function InterventionEditForm({
   onClientPhoneChange,
   onOpenSmsModal,
   onHasUnsavedChanges,
-  onArtisanSearchOpenChange
+  onArtisanSearchOpenChange,
+  onEmailModalOpenChange
 }: InterventionEditFormProps) {
   const { data: refData, loading: refDataLoading } = useReferenceData()
   const queryClient = useQueryClient()
@@ -593,6 +595,9 @@ export function InterventionEditForm({
   const [isDevisEmailModalOpen, setIsDevisEmailModalOpen] = useState(false)
   const [isInterventionEmailModalOpen, setIsInterventionEmailModalOpen] = useState(false)
   const [selectedArtisanForEmail, setSelectedArtisanForEmail] = useState<string | null>(null)
+  useEffect(() => {
+    onEmailModalOpenChange?.(isDevisEmailModalOpen || isInterventionEmailModalOpen)
+  }, [isDevisEmailModalOpen, isInterventionEmailModalOpen, onEmailModalOpenChange])
 
   // Extraire les coûts et paiements
   const costs = intervention.intervention_costs || []
