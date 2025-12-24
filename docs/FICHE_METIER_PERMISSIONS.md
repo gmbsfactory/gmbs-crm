@@ -409,3 +409,4 @@ DB RLS → protège accès direct supabase client, pas supabaseAdmin
 **Les permissions utilisateur sont le chef d'orchestre.** Les rôles ne servent qu'à donner un template de départ via `role_permissions`. Les overrides `user_permissions` prennent TOUJOURS la priorité et doivent être respectés partout, y compris dans `requirePermission()`.
 
 
+

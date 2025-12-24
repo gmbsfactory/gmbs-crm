@@ -85,6 +85,10 @@ type Props = {
   onUnsavedChangesStateChange?: (hasChanges: boolean, isSubmitting: boolean) => void
   // Callback pour exposer la fonction d'affichage du dialog au parent
   onRegisterShowDialog?: (showDialog: () => void) => void
+  // Callback pour signaler l'ouverture d'un artisan search modal
+  onArtisanSearchOpenChange?: (isOpen: boolean) => void
+  onSmsModalOpenChange?: (isOpen: boolean) => void
+  onEmailModalOpenChange?: (isOpen: boolean) => void
 }
 
 export function InterventionModalContent({
@@ -101,6 +105,9 @@ export function InterventionModalContent({
   totalCount,
   onUnsavedChangesStateChange,
   onRegisterShowDialog,
+  onArtisanSearchOpenChange,
+  onSmsModalOpenChange,
+  onEmailModalOpenChange,
 }: Props) {
   const bodyPadding = mode === "fullpage" ? "px-8 py-6 md:px-12" : "px-5 py-4 md:px-8"
   const surfaceVariantClass = mode === "fullpage" ? "modal-config-surface-full" : undefined
@@ -167,6 +174,9 @@ export function InterventionModalContent({
   const [agencyName, setAgencyName] = useState("")
   const [clientPhone, setClientPhone] = useState("")
   const [showHistoryPanel, setShowHistoryPanel] = useState(false)
+  useEffect(() => {
+    onSmsModalOpenChange?.(showSmsModal)
+  }, [showSmsModal, onSmsModalOpenChange])
 
   const generateSmsText = useCallback((cName: string, aName: string) => {
     return `Bonjour Madame / Monsieur ${cName},
@@ -683,6 +693,8 @@ GMBS`
                 onClientPhoneChange={setClientPhone}
                 onOpenSmsModal={handleOpenSmsModal}
                 onHasUnsavedChanges={setHasUnsavedChanges}
+                onArtisanSearchOpenChange={onArtisanSearchOpenChange}
+                onEmailModalOpenChange={onEmailModalOpenChange}
               />
             ) : (
               <div className="rounded border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">

@@ -657,7 +657,8 @@ class GoogleSheetsImportCleanV2 {
         
         // Filtrer par période si les options sont définies
         if (this.options.dateStart || this.options.dateEnd) {
-          const dateValue = interventionObj["Date "] || interventionObj["FErn"]   || interventionObj["Date d'intervention"];
+          // Chercher la date dans plusieurs colonnes possibles (FErn est le nom utilisé dans certains sheets)
+          const dateValue = interventionObj["FErn"] || interventionObj["Date "] || interventionObj["Date"] || interventionObj["Date d'intervention"];
           if (!this.isDateInRange(dateValue, this.options.dateStart, this.options.dateEnd)) {
             // Ignorer cette intervention (ne pas compter comme traitée)
             continue;

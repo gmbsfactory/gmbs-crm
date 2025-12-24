@@ -4,6 +4,38 @@
 
 import { supabase } from "@/lib/supabase-client";
 
+/**
+ * Crée un client Supabase admin pour Node.js avec les bonnes credentials
+ * Utilise la service role key pour contourner les RLS lors des imports
+ */
+function getSupabaseClientForNode() {
+  // Si on est dans le navigateur, utiliser le client standard
+  if (typeof window !== 'undefined') {
+    return supabase;
+  }
+  
+  // Dans Node.js, créer un nouveau client avec les credentials du service role
+  const { createClient } = require('@supabase/supabase-js');
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  
+  if (!supabaseUrl || !serviceRoleKey) {
+    console.warn('[enumsApi] SUPABASE_URL ou SUPABASE_SERVICE_ROLE_KEY manquants, utilisation du client standard');
+    return supabase;
+  }
+  
+  return createClient(supabaseUrl, serviceRoleKey, {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
+      detectSessionInUrl: false,
+    }
+  });
+}
+
+// Utiliser le client admin dans Node.js, le client standard dans le navigateur
+const supabaseClient = typeof window !== 'undefined' ? supabase : getSupabaseClientForNode();
+
 // Type de retour pour indiquer si l'élément a été créé ou trouvé
 export interface FindOrCreateResult {
   id: string;

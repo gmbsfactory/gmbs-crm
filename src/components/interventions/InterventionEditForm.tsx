@@ -547,6 +547,8 @@ interface InterventionEditFormProps {
   onClientPhoneChange?: (phone: string) => void
   onOpenSmsModal?: () => void
   onHasUnsavedChanges?: (hasChanges: boolean) => void
+  onArtisanSearchOpenChange?: (isOpen: boolean) => void
+  onEmailModalOpenChange?: (isOpen: boolean) => void
 }
 
 export function InterventionEditForm({
@@ -560,7 +562,9 @@ export function InterventionEditForm({
   onAgencyNameChange,
   onClientPhoneChange,
   onOpenSmsModal,
-  onHasUnsavedChanges
+  onHasUnsavedChanges,
+  onArtisanSearchOpenChange,
+  onEmailModalOpenChange
 }: InterventionEditFormProps) {
   const { data: refData, loading: refDataLoading } = useReferenceData()
   const queryClient = useQueryClient()
@@ -591,6 +595,9 @@ export function InterventionEditForm({
   const [isDevisEmailModalOpen, setIsDevisEmailModalOpen] = useState(false)
   const [isInterventionEmailModalOpen, setIsInterventionEmailModalOpen] = useState(false)
   const [selectedArtisanForEmail, setSelectedArtisanForEmail] = useState<string | null>(null)
+  useEffect(() => {
+    onEmailModalOpenChange?.(isDevisEmailModalOpen || isInterventionEmailModalOpen)
+  }, [isDevisEmailModalOpen, isInterventionEmailModalOpen, onEmailModalOpenChange])
 
   // Extraire les coûts et paiements
   const costs = intervention.intervention_costs || []
@@ -741,11 +748,22 @@ export function InterventionEditForm({
   const [showArtisanSearch, setShowArtisanSearch] = useState(false)
   const [showSecondArtisanSearch, setShowSecondArtisanSearch] = useState(false)
   const [artisanSearchPosition, setArtisanSearchPosition] = useState<{ x: number; y: number; width?: number; height?: number } | null>(null)
+  const artisanSearchContainerRef = useRef<HTMLDivElement>(null)
+  const [artisanDisplayMode, setArtisanDisplayMode] = useState<"nom" | "rs" | "tel">("nom")
+  const [secondArtisanDisplayMode, setSecondArtisanDisplayMode] = useState<"nom" | "rs" | "tel">("nom")
   // État pour stocker l'artisan sélectionné via recherche (qui peut ne pas être dans nearbyArtisans)
   const [searchSelectedArtisan, setSearchSelectedArtisan] = useState<NearbyArtisan | null>(null)
   // État pour stocker le second artisan sélectionné via recherche (qui peut ne pas être dans nearbyArtisansSecondMetier)
   const [searchSelectedSecondArtisan, setSearchSelectedSecondArtisan] = useState<NearbyArtisan | null>(null)
   const [absentArtisanIds, setAbsentArtisanIds] = useState<Set<string>>(new Set())
+  useEffect(() => {
+    onArtisanSearchOpenChange?.(showArtisanSearch || showSecondArtisanSearch)
+  }, [showArtisanSearch, showSecondArtisanSearch, onArtisanSearchOpenChange])
+  const DEFAULT_RIGHT_COLUMN_WIDTH = 320
+  const rightColumnStorageKey = currentUser?.id
+    ? `gmbs:intervention-form:right-column-width:${currentUser.id}`
+    : null
+  const [rightColumnWidth, setRightColumnWidth] = useState(DEFAULT_RIGHT_COLUMN_WIDTH)
   const { open: openArtisanModal } = useArtisanModal()
   const {
     artisans: nearbyArtisans,
@@ -757,6 +775,29 @@ export function InterventionEditForm({
     sampleSize: 400,
     metier_id: formData.metier_id || null,
   })
+
+  useEffect(() => {
+    if (typeof window === "undefined") return
+    if (!rightColumnStorageKey) {
+      setRightColumnWidth(DEFAULT_RIGHT_COLUMN_WIDTH)
+      return
+    }
+
+    try {
+      const saved = localStorage.getItem(rightColumnStorageKey)
+      if (saved) {
+        const parsed = Number.parseFloat(saved)
+        if (Number.isFinite(parsed) && parsed >= 250 && parsed <= 600) {
+          setRightColumnWidth(parsed)
+          return
+        }
+      }
+      setRightColumnWidth(DEFAULT_RIGHT_COLUMN_WIDTH)
+    } catch (error) {
+      console.warn("Erreur lors du chargement de la largeur de la colonne droite:", error)
+      setRightColumnWidth(DEFAULT_RIGHT_COLUMN_WIDTH)
+    }
+  }, [rightColumnStorageKey])
   
   // Hook séparé pour les artisans du second métier
   const {
@@ -807,6 +848,7 @@ export function InterventionEditForm({
       displayName,
       distanceKm: 0,
       telephone: primaryArtisan.telephone || null,
+      telephone2: primaryArtisan.telephone2 || null,
       email: primaryArtisan.email || null,
       adresse: null,
       ville: null,
@@ -815,6 +857,7 @@ export function InterventionEditForm({
       lng: 0,
       prenom: primaryArtisan.prenom || null,
       nom: primaryArtisan.nom || null,
+      raison_sociale: primaryArtisan.raison_sociale || null,
       statut_id: null,
       photoProfilMetadata: null,
     })
@@ -902,6 +945,21 @@ export function InterventionEditForm({
     if (coutInter2 <= 0) return 0
     return (marge2 / coutInter2) * 100
   }, [formData.coutIntervention, formData.coutSST, formData.coutMateriel, formData.coutSSTSecondArtisan, formData.coutMaterielSecondArtisan])
+
+  // Fonction helper pour obtenir le nom à afficher selon le mode
+  const getArtisanDisplayName = useCallback((artisan: NearbyArtisan, mode: "nom" | "rs" | "tel"): string => {
+    if (mode === "rs" && artisan.raison_sociale) {
+      return artisan.raison_sociale
+    }
+    if (mode === "tel") {
+      const phones = [artisan.telephone, artisan.telephone2].filter(Boolean)
+      if (phones.length > 0) {
+        return phones.join(" / ")
+      }
+      return "Pas de téléphone"
+    }
+    return `${artisan.prenom || ""} ${artisan.nom || ""}`.trim() || "Artisan sans nom"
+  }, [])
 
   // Référence pour tracker si l'utilisateur a modifié manuellement le champ id_inter
   const userEditedIdInterRef = useRef(false)
@@ -1559,6 +1617,38 @@ export function InterventionEditForm({
     }
   }, [generateEmailTemplateData, formatPhoneForWhatsApp])
 
+  // Hook pour gérer le redimensionnement de la colonne droite
+  const handleResizeStart = useCallback((e: React.MouseEvent | React.TouchEvent) => {
+    e.preventDefault()
+    const startX = 'touches' in e ? e.touches[0].clientX : e.clientX
+    const startWidth = rightColumnWidth
+
+    const handleMouseMove = (moveEvent: MouseEvent | TouchEvent) => {
+      const currentX = 'touches' in moveEvent ? moveEvent.touches[0].clientX : moveEvent.clientX
+      const diff = startX - currentX // Inversé car on redimensionne depuis la gauche
+      const newWidth = Math.max(250, Math.min(600, startWidth + diff)) // Min 250px, Max 600px
+      setRightColumnWidth(newWidth)
+      if (!rightColumnStorageKey || typeof window === "undefined") return
+      try {
+        localStorage.setItem(rightColumnStorageKey, String(newWidth))
+      } catch (error) {
+        console.warn("Erreur lors de la sauvegarde de la largeur de la colonne droite:", error)
+      }
+    }
+
+    const handleMouseUp = () => {
+      document.removeEventListener('mousemove', handleMouseMove)
+      document.removeEventListener('mouseup', handleMouseUp)
+      document.removeEventListener('touchmove', handleMouseMove)
+      document.removeEventListener('touchend', handleMouseUp)
+    }
+
+    document.addEventListener('mousemove', handleMouseMove)
+    document.addEventListener('mouseup', handleMouseUp)
+    document.addEventListener('touchmove', handleMouseMove, { passive: false })
+    document.addEventListener('touchend', handleMouseUp)
+  }, [rightColumnWidth, rightColumnStorageKey])
+
   const handleSelectNearbyArtisan = useCallback(
     (artisan: NearbyArtisan) => {
       if (selectedArtisanId === artisan.id) {
@@ -1628,6 +1718,7 @@ export function InterventionEditForm({
         displayName: displayName,
         distanceKm: 0, // Distance inconnue pour artisan hors proximité
         telephone: artisan.telephone || null,
+        telephone2: artisan.telephone2 || null,
         email: artisan.email || null,
         adresse: artisan.adresse_intervention || artisan.adresse_siege_social || null,
         ville: artisan.ville_intervention || artisan.ville_siege_social || null,
@@ -1636,6 +1727,7 @@ export function InterventionEditForm({
         lng: 0,
         prenom: artisan.prenom || null,
         nom: artisan.nom || null,
+        raison_sociale: artisan.raison_sociale || null,
         statut_id: artisan.statut_id || null,
         photoProfilMetadata: null,
       }
@@ -1670,6 +1762,7 @@ export function InterventionEditForm({
         displayName: displayName,
         distanceKm: 0, // Distance inconnue pour artisan hors proximité
         telephone: artisan.telephone || null,
+        telephone2: artisan.telephone2 || null,
         email: artisan.email || null,
         adresse: artisan.adresse_intervention || artisan.adresse_siege_social || null,
         ville: artisan.ville_intervention || artisan.ville_siege_social || null,
@@ -1678,6 +1771,7 @@ export function InterventionEditForm({
         lng: 0,
         prenom: artisan.prenom || null,
         nom: artisan.nom || null,
+        raison_sociale: artisan.raison_sociale || null,
         statut_id: artisan.statut_id || null,
         photoProfilMetadata: null,
       }
@@ -2171,9 +2265,16 @@ export function InterventionEditForm({
 
   // Hauteur de la section carte+artisans basée sur la sélection d'artisan
   // Cette hauteur reste fixe une fois l'artisan sélectionné pour éviter les redimensionnements
-  const mapSectionHeight = selectedArtisanId ? "260px" : "450px"
+  const mapSectionHeight = selectedArtisanId ? "150px" : "220px"
+
+  const DEFAULT_MAP_PANEL_SIZE = 70
+  const DEFAULT_ARTISANS_PANEL_SIZE = 30
+  const panelStorageId = currentUser?.id
+    ? `gmbs:intervention-form:panel-size:${currentUser.id}`
+    : null
 
   return (
+    <>
     <form ref={formRef} onSubmit={handleSubmit} className="flex-1 min-h-0 flex flex-col">
       {!canEditIntervention && (
         <div className="mb-3 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
@@ -2183,7 +2284,7 @@ export function InterventionEditForm({
       )}
       <fieldset
         disabled={!canEditIntervention}
-        className={cn("flex-1 min-h-0", !canEditIntervention && "opacity-70")}
+        className={cn("flex-1 min-h-0 flex flex-col", !canEditIntervention && "opacity-70")}
       >
         {/* LAYOUT DEUX COLONNES DISTINCTES - Chaque colonne a son propre scroll */}
         <div className="flex gap-3 flex-1 min-h-0">
@@ -2445,45 +2546,81 @@ export function InterventionEditForm({
 
         {/* DIV7+8: CARTE + ARTISANS REDIMENSIONNABLES - Row 4, Cols 1-4 */}
         <div style={{ gridArea: "4 / 1 / 5 / 5", height: mapSectionHeight }}>
-          <ResizablePanelGroup direction="horizontal" className="h-full rounded-lg">
-            {/* Panel Carte */}
-            <ResizablePanel defaultSize={70} minSize={30} maxSize={85}>
-              <Card className="h-full overflow-hidden rounded-r-none border-r-0">
-                <CardContent className="p-0 h-full">
-                  <MapLibreMap
-                    lat={formData.latitude}
-                    lng={formData.longitude}
-                    height="100%"
-                    onLocationChange={handleLocationChange}
-                    markers={mapMarkers}
-                    circleRadiusKm={perimeterKmValue}
-                    selectedConnection={mapSelectedConnection ?? undefined}
-                  />
-                </CardContent>
-              </Card>
-            </ResizablePanel>
+          <ResizablePanelGroup 
+            key={`panel-group-${currentUser?.id ?? "anonymous"}`}
+            direction="horizontal" 
+            className="h-full rounded-lg"
+            autoSaveId={panelStorageId}
+          >
+              {/* Panel Carte */}
+              <ResizablePanel defaultSize={DEFAULT_MAP_PANEL_SIZE} minSize={30} maxSize={85}>
+                <Card className="h-full overflow-hidden rounded-r-none border-r-0">
+                  <CardContent className="p-0 h-full">
+                    <MapLibreMap
+                      lat={formData.latitude}
+                      lng={formData.longitude}
+                      height="100%"
+                      onLocationChange={handleLocationChange}
+                      markers={mapMarkers}
+                      circleRadiusKm={perimeterKmValue}
+                      selectedConnection={mapSelectedConnection ?? undefined}
+                    />
+                  </CardContent>
+                </Card>
+              </ResizablePanel>
 
-            {/* Handle de redimensionnement avec trois points */}
-            <ResizableHandle className="w-2 bg-muted/50 hover:bg-primary/20 transition-colors data-[resize-handle-active]:bg-primary/30 group">
-              <div className="flex h-full items-center justify-center">
-                <div className="flex flex-col gap-0.5 opacity-40 group-hover:opacity-70 transition-opacity">
-                  <div className="h-1 w-1 rounded-full bg-muted-foreground" />
-                  <div className="h-1 w-1 rounded-full bg-muted-foreground" />
-                  <div className="h-1 w-1 rounded-full bg-muted-foreground" />
+              {/* Handle de redimensionnement avec trois points */}
+              <ResizableHandle className="w-2 bg-muted/50 hover:bg-primary/20 transition-colors data-[resize-handle-active]:bg-primary/30 group cursor-col-resize flex-shrink-0 relative flex items-center justify-center">
+                <div className="flex h-full items-center justify-center">
+                  <div className="flex flex-col gap-0.5 opacity-40 group-hover:opacity-70 transition-opacity">
+                    <div className="h-1 w-1 rounded-full bg-muted-foreground" />
+                    <div className="h-1 w-1 rounded-full bg-muted-foreground" />
+                    <div className="h-1 w-1 rounded-full bg-muted-foreground" />
+                  </div>
                 </div>
-              </div>
             </ResizableHandle>
 
             {/* Panel Artisans */}
-            <ResizablePanel defaultSize={30} minSize={15} maxSize={70}>
+            <ResizablePanel defaultSize={DEFAULT_ARTISANS_PANEL_SIZE} minSize={15} maxSize={70}>
               <Card className="h-full flex flex-col overflow-hidden rounded-l-none border-l-0">
                 <CardContent className="p-3 flex flex-col h-full overflow-hidden">
                   {/* Header artisans */}
                   <div className="flex items-center justify-between gap-2 mb-3 flex-shrink-0">
-                    <h3 className="font-semibold text-sm flex items-center gap-2">
-                      <Building className="h-4 w-4" />
-                      Artisans
-                    </h3>
+                    <div className="flex items-center gap-2">
+                      <h3 className="font-semibold text-sm flex items-center gap-2">
+                        <Building className="h-4 w-4" />
+                        Artisans
+                      </h3>
+                      <div className="flex gap-0.5">
+                        <Button
+                          type="button"
+                          variant={artisanDisplayMode === "nom" ? "default" : "ghost"}
+                          size="sm"
+                          className="h-5 px-1.5 text-[10px]"
+                          onClick={() => setArtisanDisplayMode("nom")}
+                        >
+                          nom
+                        </Button>
+                        <Button
+                          type="button"
+                          variant={artisanDisplayMode === "rs" ? "default" : "ghost"}
+                          size="sm"
+                          className="h-5 px-1.5 text-[10px]"
+                          onClick={() => setArtisanDisplayMode("rs")}
+                        >
+                          RS
+                        </Button>
+                        <Button
+                          type="button"
+                          variant={artisanDisplayMode === "tel" ? "default" : "ghost"}
+                          size="sm"
+                          className="h-5 px-1.5 text-[10px]"
+                          onClick={() => setArtisanDisplayMode("tel")}
+                        >
+                          tel
+                        </Button>
+                      </div>
+                    </div>
                     <div className="flex gap-1">
                       <Button
                         type="button"
@@ -2510,8 +2647,8 @@ export function InterventionEditForm({
                   {/* Artisan sélectionné */}
                   {selectedArtisanId && selectedArtisanData && (() => {
                     const artisan = selectedArtisanData
-                    const artisanName = `${artisan.prenom || ""} ${artisan.nom || ""}`.trim() || "Artisan sans nom"
-                    const artisanInitials = artisanName.split(" ").map((p) => p.charAt(0)).join("").slice(0, 2).toUpperCase() || "??"
+                    const artisanDisplayName = getArtisanDisplayName(artisan, artisanDisplayMode)
+                    const artisanInitials = artisanDisplayName.split(" ").map((p) => p.charAt(0)).join("").slice(0, 2).toUpperCase() || "??"
                     const artisanStatus = refData?.artisanStatuses?.find((s) => s.id === artisan.statut_id)
                     const statutArtisan = artisanStatus?.label || ""
                     const statutArtisanColor = artisanStatus?.color || null
@@ -2528,27 +2665,23 @@ export function InterventionEditForm({
                           >
                             <X className="h-3 w-3" />
                           </Button>
-                          <div className="flex items-start gap-2">
-                            <Avatar photoProfilMetadata={artisan.photoProfilMetadata} initials={artisanInitials} name={artisan.displayName} size={40} />
-                            <div className="flex-1 min-w-0">
-                              <span className="font-semibold text-foreground block truncate">{artisan.displayName}</span>
-                              <div className="flex items-center gap-1 mt-1">
-                                {statutArtisan && (
-                                  <Badge variant="outline" className="text-[9px] px-1 py-0" style={statutArtisanColor ? { backgroundColor: hexToRgba(statutArtisanColor, 0.15) || undefined, color: statutArtisanColor, borderColor: statutArtisanColor } : undefined}>
-                                    {statutArtisan}
-                                  </Badge>
-                                )}
-                                {absentArtisanIds.has(artisan.id) && (
-                                  <Badge variant="outline" className="text-[9px] px-1 py-0 bg-orange-100 text-orange-800 border-orange-300">
-                                    Indisponible
-                                  </Badge>
-                                )}
-                                <Badge variant="default" className="text-[9px] px-1 py-0">{formatDistanceKm(artisan.distanceKm)}</Badge>
-                              </div>
-                              <div className="mt-1 text-[10px] text-muted-foreground truncate">
-                                {artisan.telephone && <span>📞 {artisan.telephone}</span>}
-                              </div>
-                            </div>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <Avatar photoProfilMetadata={artisan.photoProfilMetadata} initials={artisanInitials} name={artisan.displayName} size={40} className="hidden" />
+                            <span className="font-semibold text-foreground truncate text-xs">{artisanDisplayName}</span>
+                            {statutArtisan && (
+                              <Badge variant="outline" className="text-[9px] px-1 py-0 flex-shrink-0" style={statutArtisanColor ? { backgroundColor: hexToRgba(statutArtisanColor, 0.15) || undefined, color: statutArtisanColor, borderColor: statutArtisanColor } : undefined}>
+                                {statutArtisan}
+                              </Badge>
+                            )}
+                            {absentArtisanIds.has(artisan.id) && (
+                              <Badge variant="outline" className="text-[9px] px-1 py-0 bg-orange-100 text-orange-800 border-orange-300 flex-shrink-0">
+                                Indisponible
+                              </Badge>
+                            )}
+                            <Badge variant="default" className="text-[9px] px-1 py-0 flex-shrink-0">{formatDistanceKm(artisan.distanceKm)}</Badge>
+                            {artisan.telephone && (
+                              <span className="text-[10px] text-muted-foreground truncate flex-shrink-0">📞 {artisan.telephone}</span>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -2621,8 +2754,8 @@ export function InterventionEditForm({
                       <div className="rounded border border-border/50 bg-background px-2 py-2 text-[10px] text-muted-foreground">Aucun artisan dans un rayon de {perimeterKmValue} km.</div>
                     ) : (
                       nearbyArtisans.map((artisan) => {
-                        const artisanName = `${artisan.prenom || ""} ${artisan.nom || ""}`.trim() || "Artisan sans nom"
-                        const artisanInitials = artisanName.split(" ").map((p) => p.charAt(0)).join("").slice(0, 2).toUpperCase() || "??"
+                        const artisanDisplayName = getArtisanDisplayName(artisan, artisanDisplayMode)
+                        const artisanInitials = artisanDisplayName.split(" ").map((p) => p.charAt(0)).join("").slice(0, 2).toUpperCase() || "??"
                         const artisanStatus = refData?.artisanStatuses?.find((s) => s.id === artisan.statut_id)
                         const statutArtisan = artisanStatus?.label || ""
                         const statutArtisanColor = artisanStatus?.color || null
@@ -2639,26 +2772,26 @@ export function InterventionEditForm({
                             onClick={() => handleSelectNearbyArtisan(artisan)}
                             onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); handleSelectNearbyArtisan(artisan) } }}
                           >
-                            <div className="flex items-center gap-2">
-                              <Avatar photoProfilMetadata={artisan.photoProfilMetadata} initials={artisanInitials} name={artisan.displayName} size={40} />
-                              <div className="flex-1 min-w-0">
-                                <span className="font-medium text-foreground block truncate text-[11px]">{artisan.displayName}</span>
-                                <div className="flex items-center gap-1 flex-wrap">
-                                  {statutArtisan && (
-                                    <Badge variant="outline" className="text-[9px] px-1 py-0" style={statutArtisanColor ? { backgroundColor: hexToRgba(statutArtisanColor, 0.15) || undefined, color: statutArtisanColor, borderColor: statutArtisanColor } : undefined}>
-                                      {statutArtisan}
-                                    </Badge>
-                                  )}
-                                  {absentArtisanIds.has(artisan.id) && (
-                                    <Badge variant="outline" className="text-[9px] px-1 py-0 bg-orange-100 text-orange-800 border-orange-300">
-                                      Indisponible
-                                    </Badge>
-                                  )}
-                                  <Badge variant="secondary" className="text-[9px] px-1 py-0">{formatDistanceKm(artisan.distanceKm)}</Badge>
-                                  <Button type="button" variant="ghost" size="icon" className="h-5 w-5 text-muted-foreground hover:text-foreground" onClick={(e) => handleOpenArtisanModal(artisan.id, e)}>
-                                    <Eye className="h-3 w-3" />
-                                  </Button>
-                                </div>
+                            <div className="flex items-center justify-between gap-2 flex-wrap w-full">
+                              <Avatar photoProfilMetadata={artisan.photoProfilMetadata} initials={artisanInitials} name={artisan.displayName} size={40} className="hidden" />
+                              <div className="flex items-center gap-1 flex-wrap flex-shrink-0">
+                                <span className="font-medium text-foreground truncate text-[11px]">{artisanDisplayName}</span>
+                                {absentArtisanIds.has(artisan.id) && (
+                                  <Badge variant="outline" className="text-[9px] px-1 py-0 bg-orange-100 text-orange-800 border-orange-300 flex-shrink-0">
+                                    Indisponible
+                                  </Badge>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-1 flex-wrap flex-shrink-0">
+                                {statutArtisan && (
+                                  <Badge variant="outline" className="text-[9px] px-1 py-0 flex-shrink-0" style={statutArtisanColor ? { backgroundColor: hexToRgba(statutArtisanColor, 0.15) || undefined, color: statutArtisanColor, borderColor: statutArtisanColor } : undefined}>
+                                    {statutArtisan}
+                                  </Badge>
+                                )}
+                                <Badge variant="secondary" className="text-[9px] px-1 py-0 flex-shrink-0">{formatDistanceKm(artisan.distanceKm)}</Badge>
+                                <Button type="button" variant="ghost" size="icon" className="h-5 w-5 text-muted-foreground hover:text-foreground flex-shrink-0" onClick={(e) => handleOpenArtisanModal(artisan.id, e)}>
+                                  <Eye className="h-3 w-3" />
+                                </Button>
                               </div>
                             </div>
                           </div>
@@ -2747,8 +2880,27 @@ export function InterventionEditForm({
           </div>
         </div>
 
+        {/* HANDLE DE REDIMENSIONNEMENT */}
+        <div
+          onMouseDown={handleResizeStart}
+          onTouchStart={handleResizeStart}
+          className="w-2 bg-muted/50 hover:bg-primary/20 transition-colors cursor-col-resize flex-shrink-0 group relative flex items-center justify-center"
+          style={{ touchAction: 'none', userSelect: 'none' }}
+        >
+          <div className="flex h-full items-center justify-center">
+            <div className="flex flex-col gap-0.5 opacity-40 group-hover:opacity-70 transition-opacity">
+              <div className="h-1 w-1 rounded-full bg-muted-foreground" />
+              <div className="h-1 w-1 rounded-full bg-muted-foreground" />
+              <div className="h-1 w-1 rounded-full bg-muted-foreground" />
+            </div>
+          </div>
+        </div>
+
         {/* COLONNE DROITE - Collapsibles avec scroll indépendant et scrollbar minimale */}
-        <div className="w-[320px] flex-shrink-0 overflow-y-auto min-h-0 scrollbar-minimal">
+        <div 
+          className="flex-shrink-0 overflow-y-auto min-h-0 scrollbar-minimal"
+          style={{ width: `${rightColumnWidth}px` }}
+        >
           <div className="flex flex-col gap-2 pb-4">
           {/* Détails facturation */}
           <Collapsible open={isProprietaireOpen} onOpenChange={setIsProprietaireOpen}>
@@ -2942,19 +3094,50 @@ export function InterventionEditForm({
                   <div className="space-y-3">
                     {/* Header artisans - même style que colonne gauche */}
                     <div className="flex items-center justify-between gap-2 flex-shrink-0 pt-[13px]">
-                      <ColorBadgeSelectStacking
-                        label="Métier"
-                        value={formData.metierSecondArtisanId}
-                        onChange={(value) => handleInputChange("metierSecondArtisanId", value)}
-                        placeholder="Métier..."
-                        minWidth="100px"
-                        hideLabel
-                        options={(refData?.metiers || []).map(m => ({
-                          id: m.id,
-                          label: m.label,
-                          color: m.color,
-                        }))}
-                      />
+                      <div className="flex items-center gap-2">
+                        <ColorBadgeSelectStacking
+                          label="Métier"
+                          value={formData.metierSecondArtisanId}
+                          onChange={(value) => handleInputChange("metierSecondArtisanId", value)}
+                          placeholder="Métier..."
+                          minWidth="100px"
+                          hideLabel
+                          options={(refData?.metiers || []).map(m => ({
+                            id: m.id,
+                            label: m.label,
+                            color: m.color,
+                          }))}
+                        />
+                        <div className="flex gap-0.5">
+                          <Button
+                            type="button"
+                            variant={secondArtisanDisplayMode === "nom" ? "default" : "ghost"}
+                            size="sm"
+                            className="h-5 px-1.5 text-[10px]"
+                            onClick={() => setSecondArtisanDisplayMode("nom")}
+                          >
+                            nom
+                          </Button>
+                          <Button
+                            type="button"
+                            variant={secondArtisanDisplayMode === "rs" ? "default" : "ghost"}
+                            size="sm"
+                            className="h-5 px-1.5 text-[10px]"
+                            onClick={() => setSecondArtisanDisplayMode("rs")}
+                          >
+                            RS
+                          </Button>
+                          <Button
+                            type="button"
+                            variant={secondArtisanDisplayMode === "tel" ? "default" : "ghost"}
+                            size="sm"
+                            className="h-5 px-1.5 text-[10px]"
+                            onClick={() => setSecondArtisanDisplayMode("tel")}
+                          >
+                            tel
+                          </Button>
+                        </div>
+                      </div>
                       <Button
                         type="button"
                         variant="outline"
@@ -2979,8 +3162,8 @@ export function InterventionEditForm({
                     {/* Artisan secondaire sélectionné */}
                     {selectedSecondArtisanId && selectedSecondArtisanData && (() => {
                       const artisan = selectedSecondArtisanData
-                      const artisanName = `${artisan.prenom || ""} ${artisan.nom || ""}`.trim() || "Artisan sans nom"
-                      const artisanInitials = artisanName.split(" ").map((p) => p.charAt(0)).join("").slice(0, 2).toUpperCase() || "??"
+                      const artisanDisplayName = getArtisanDisplayName(artisan, secondArtisanDisplayMode)
+                      const artisanInitials = artisanDisplayName.split(" ").map((p) => p.charAt(0)).join("").slice(0, 2).toUpperCase() || "??"
                       const artisanStatus = refData?.artisanStatuses?.find((s) => s.id === artisan.statut_id)
                       const statutArtisan = artisanStatus?.label || ""
                       const statutArtisanColor = artisanStatus?.color || null
@@ -2996,28 +3179,30 @@ export function InterventionEditForm({
                           >
                             <X className="h-3 w-3" />
                           </Button>
-                          <div className="flex items-start gap-2">
-                            <Avatar photoProfilMetadata={artisan.photoProfilMetadata} initials={artisanInitials} name={artisan.displayName} size={40} />
-                            <div className="flex-1 min-w-0">
-                              <span className="font-semibold text-foreground block truncate">{artisan.displayName}</span>
-                              <div className="flex items-center gap-1 mt-1">
-                                {statutArtisan && (
-                                  <Badge variant="outline" className="text-[9px] px-1 py-0" style={statutArtisanColor ? { backgroundColor: hexToRgba(statutArtisanColor, 0.15) || undefined, color: statutArtisanColor, borderColor: statutArtisanColor } : undefined}>
-                                    {statutArtisan}
-                                  </Badge>
-                                )}
-                                {absentArtisanIds.has(artisan.id) && (
-                                  <Badge variant="outline" className="text-[9px] px-1 py-0 bg-orange-100 text-orange-800 border-orange-300">
-                                    Indisponible
-                                  </Badge>
-                                )}
-                                <Badge variant="default" className="text-[9px] px-1 py-0 bg-orange-500">{formatDistanceKm(artisan.distanceKm)}</Badge>
-                              </div>
-                              <div className="mt-1 text-[10px] text-muted-foreground truncate">
-                                {artisan.telephone && <span>📞 {artisan.telephone}</span>}
-                              </div>
+                          <div className="flex items-center justify-between gap-2 flex-wrap">
+                            <Avatar photoProfilMetadata={artisan.photoProfilMetadata} initials={artisanInitials} name={artisan.displayName} size={40} className="hidden" />
+                            <div className="flex items-center gap-1 flex-wrap flex-1 min-w-0">
+                              <span className="font-semibold text-foreground truncate text-xs">{artisanDisplayName}</span>
+                              {absentArtisanIds.has(artisan.id) && (
+                                <Badge variant="outline" className="text-[9px] px-1 py-0 bg-orange-100 text-orange-800 border-orange-300 flex-shrink-0">
+                                  Indisponible
+                                </Badge>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-1 flex-wrap flex-shrink-0 ml-auto">
+                              {statutArtisan && (
+                                <Badge variant="outline" className="text-[9px] px-1 py-0 flex-shrink-0" style={statutArtisanColor ? { backgroundColor: hexToRgba(statutArtisanColor, 0.15) || undefined, color: statutArtisanColor, borderColor: statutArtisanColor } : undefined}>
+                                  {statutArtisan}
+                                </Badge>
+                              )}
+                              <Badge variant="default" className="text-[9px] px-1 py-0 bg-orange-500 flex-shrink-0">{formatDistanceKm(artisan.distanceKm)}</Badge>
                             </div>
                           </div>
+                          {artisan.telephone && (
+                            <div className="mt-1 text-[10px] text-muted-foreground truncate">
+                              📞 {artisan.telephone}
+                            </div>
+                          )}
                         </div>
                       )
                     })()}
@@ -3083,8 +3268,8 @@ export function InterventionEditForm({
                           .filter(artisan => artisan.id !== selectedArtisanId) // Exclure l'artisan principal
                           .slice(0, 5)
                           .map((artisan) => {
-                            const artisanName = `${artisan.prenom || ""} ${artisan.nom || ""}`.trim() || "Artisan sans nom"
-                            const artisanInitials = artisanName.split(" ").map((p) => p.charAt(0)).join("").slice(0, 2).toUpperCase() || "??"
+                            const artisanDisplayName = getArtisanDisplayName(artisan, secondArtisanDisplayMode)
+                            const artisanInitials = artisanDisplayName.split(" ").map((p) => p.charAt(0)).join("").slice(0, 2).toUpperCase() || "??"
                             const artisanStatus = refData?.artisanStatuses?.find((s) => s.id === artisan.statut_id)
                             const statutArtisan = artisanStatus?.label || ""
                             const statutArtisanColor = artisanStatus?.color || null
@@ -3098,23 +3283,23 @@ export function InterventionEditForm({
                                 onClick={() => handleSelectSecondArtisan(artisan)}
                                 onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); handleSelectSecondArtisan(artisan) } }}
                               >
-                                <div className="flex items-center gap-2">
-                                  <Avatar photoProfilMetadata={artisan.photoProfilMetadata} initials={artisanInitials} name={artisan.displayName} size={40} />
-                                  <div className="flex-1 min-w-0">
-                                    <span className="font-medium text-foreground block truncate text-[11px]">{artisan.displayName}</span>
-                                    <div className="flex items-center gap-1 flex-wrap">
-                                      {statutArtisan && (
-                                        <Badge variant="outline" className="text-[9px] px-1 py-0" style={statutArtisanColor ? { backgroundColor: hexToRgba(statutArtisanColor, 0.15) || undefined, color: statutArtisanColor, borderColor: statutArtisanColor } : undefined}>
-                                          {statutArtisan}
-                                        </Badge>
-                                      )}
-                                      {absentArtisanIds.has(artisan.id) && (
-                                        <Badge variant="outline" className="text-[9px] px-1 py-0 bg-orange-100 text-orange-800 border-orange-300">
-                                          Indisponible
-                                        </Badge>
-                                      )}
-                                      <Badge variant="secondary" className="text-[9px] px-1 py-0">{formatDistanceKm(artisan.distanceKm)}</Badge>
-                                    </div>
+                                <div className="flex items-center justify-between gap-2 flex-wrap w-full">
+                                  <Avatar photoProfilMetadata={artisan.photoProfilMetadata} initials={artisanInitials} name={artisan.displayName} size={40} className="hidden" />
+                                  <div className="flex items-center gap-1 flex-wrap flex-1 min-w-0">
+                                    <span className="font-medium text-foreground truncate text-[11px]">{artisanDisplayName}</span>
+                                    {absentArtisanIds.has(artisan.id) && (
+                                      <Badge variant="outline" className="text-[9px] px-1 py-0 bg-orange-100 text-orange-800 border-orange-300 flex-shrink-0">
+                                        Indisponible
+                                      </Badge>
+                                    )}
+                                  </div>
+                                  <div className="flex items-center gap-1 flex-wrap flex-shrink-0 ml-auto">
+                                    {statutArtisan && (
+                                      <Badge variant="outline" className="text-[9px] px-1 py-0 flex-shrink-0" style={statutArtisanColor ? { backgroundColor: hexToRgba(statutArtisanColor, 0.15) || undefined, color: statutArtisanColor, borderColor: statutArtisanColor } : undefined}>
+                                        {statutArtisan}
+                                      </Badge>
+                                    )}
+                                    <Badge variant="secondary" className="text-[9px] px-1 py-0 flex-shrink-0">{formatDistanceKm(artisan.distanceKm)}</Badge>
                                   </div>
                                 </div>
                               </div>
@@ -3316,27 +3501,6 @@ export function InterventionEditForm({
         </div>
       </div>
 
-      {/* Modal de recherche d'artisan principal */}
-      <ArtisanSearchModal
-        open={showArtisanSearch}
-        onClose={() => {
-          setShowArtisanSearch(false)
-          setArtisanSearchPosition(null)
-        }}
-        onSelect={handleArtisanSearchSelect}
-        position={artisanSearchPosition}
-      />
-
-      {/* Modal de recherche d'artisan secondaire */}
-      <ArtisanSearchModal
-        open={showSecondArtisanSearch}
-        onClose={() => {
-          setShowSecondArtisanSearch(false)
-          setSecondArtisanSearchPosition(null)
-        }}
-        onSelect={handleSecondArtisanSearchSelect}
-        position={secondArtisanSearchPosition}
-      />
       <StatusReasonModal
         open={isStatusReasonModalOpen}
         type={pendingReasonType ?? "archive"}
@@ -3371,6 +3535,31 @@ export function InterventionEditForm({
         </>
       )}
       </fieldset>
+      <div ref={artisanSearchContainerRef} />
     </form>
+    {/* Modal de recherche d'artisan principal */}
+    <ArtisanSearchModal
+      open={showArtisanSearch}
+      onClose={() => {
+        setShowArtisanSearch(false)
+        setArtisanSearchPosition(null)
+      }}
+      onSelect={handleArtisanSearchSelect}
+      position={artisanSearchPosition}
+      container={artisanSearchContainerRef.current}
+    />
+
+    {/* Modal de recherche d'artisan secondaire */}
+    <ArtisanSearchModal
+      open={showSecondArtisanSearch}
+      onClose={() => {
+        setShowSecondArtisanSearch(false)
+        setSecondArtisanSearchPosition(null)
+      }}
+      onSelect={handleSecondArtisanSearchSelect}
+      position={secondArtisanSearchPosition}
+      container={artisanSearchContainerRef.current}
+    />
+    </>
   )
 }

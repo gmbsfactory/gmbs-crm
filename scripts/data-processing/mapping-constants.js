@@ -48,10 +48,12 @@ const STATUS_LABEL_TO_CODE = {
 
   // === DEVIS ENVOYÉ ===
   "Devis Envoyé": "DEVIS_ENVOYE",
+  "Devis Envoyé ": "DEVIS_ENVOYE", // Avec espace à la fin
   "Devis envoyé": "DEVIS_ENVOYE",
   "devis envoyé": "DEVIS_ENVOYE",
   "Devis envoyé.": "DEVIS_ENVOYE",
   "DEVIS ENVOYÉ": "DEVIS_ENVOYE",
+  "DEVIS ENVOYÉ ": "DEVIS_ENVOYE", // Avec espace à la fin
   "DEVIS ENVOYE": "DEVIS_ENVOYE",
   "DEVIS_ENVOYE": "DEVIS_ENVOYE",
 
@@ -91,6 +93,7 @@ const STATUS_LABEL_TO_CODE = {
   "Stand By": "STAND_BY",
   "stand by": "STAND_BY",
   "STAND BY": "STAND_BY",
+  "STAND BY ": "STAND_BY", // Avec espace à la fin
   "STAND_BY": "STAND_BY",
   "StandBy": "STAND_BY",
 
@@ -107,9 +110,11 @@ const STATUS_LABEL_TO_CODE = {
   "TERMINEE": "INTER_TERMINEE",
   "Terminee": "INTER_TERMINEE",
   "Inter terminée": "INTER_TERMINEE",
+  "Inter terminée ": "INTER_TERMINEE", // Avec espace à la fin
   "Inter Terminée": "INTER_TERMINEE",
   "Intervention terminée": "INTER_TERMINEE",
   "INTER TERMINEE": "INTER_TERMINEE",
+  "INTER TERMINEE ": "INTER_TERMINEE", // Avec espace à la fin
   "INTERTERMINEE": "INTER_TERMINEE",
   "INTER TERMINEES": "INTER_TERMINEE",
   "TERMINEES": "INTER_TERMINEE",
@@ -131,7 +136,9 @@ const STATUS_LABEL_TO_CODE = {
 const GESTIONNAIRE_CODE_MAP = {
   // === ANDREA ===
   "A": "andrea",
+  "A ": "andrea", // Avec espace à la fin
   "a": "andrea",
+  "a ": "andrea", // Avec espace à la fin
   "ANDREA": "andrea",
   "Andrea": "andrea",
   "andrea": "andrea",
@@ -163,7 +170,9 @@ const GESTIONNAIRE_CODE_MAP = {
 
   // === DIMITRI ===
   "D": "dimitri",
+  "D ": "dimitri", // Avec espace à la fin
   "d": "dimitri",
+  "d ": "dimitri", // Avec espace à la fin
   "DIM": "dimitri",
   "Dim": "dimitri",
   "dim": "dimitri",
@@ -207,7 +216,9 @@ const GESTIONNAIRE_CODE_MAP = {
 
   // === OLIVIER ===
   "O": "olivier",
+  "O ": "olivier", // Avec espace à la fin
   "o": "olivier",
+  "o ": "olivier", // Avec espace à la fin
   "OLI": "olivier",
   "Oli": "olivier",
   "oli": "olivier",
