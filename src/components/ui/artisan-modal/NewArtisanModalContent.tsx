@@ -58,11 +58,12 @@ import { toast } from "sonner"
 import { useSiretVerification } from "@/hooks/useSiretVerification"
 import { validateSiret } from "@/lib/siret-validation"
 import { artisansApiV2, getArtisanTotalCount } from "@/lib/supabase-api-v2"
-import { artisansApi } from "@/lib/api/v2"
+import { artisansApi, interventionsApi } from "@/lib/api/v2"
 import { commentsApi } from "@/lib/api/v2/commentsApi"
 import { useCurrentUser } from "@/hooks/useCurrentUser"
 import { usePermissions } from "@/hooks/usePermissions"
 import { cn } from "@/lib/utils"
+import { calculateNewArtisanStatus, type ArtisanStatusCode } from "@/lib/artisans/statusRules"
 import type { ModalDisplayMode } from "@/types/modal-display"
 import { useSubmitShortcut } from "@/hooks/useSubmitShortcut"
 import { REGEXP_ONLY_DIGITS, REGEXP_ONLY_DIGITS_AND_CHARS } from "input-otp"
@@ -299,7 +300,11 @@ export function NewArtisanModalContent({ mode, onClose, onCycleMode, artisanId, 
     const last = currentUserData.lastname ?? currentUserData.nom ?? ""
     const displayNameCandidate = [first, last].filter(Boolean).join(" ").trim()
     const displayName = displayNameCandidate || currentUserData.username || currentUserData.email || "Vous"
-    return { id: currentUserData.id, displayName }
+    return { 
+      id: currentUserData.id, 
+      displayName,
+      avatarUrl: currentUserData.avatar_url ?? null,
+    }
   }, [currentUserData])
 
   // Charger l'artisan existant en mode édition
@@ -325,22 +330,8 @@ export function NewArtisanModalContent({ mode, onClose, onCycleMode, artisanId, 
     )?.id || "";
   }, [referenceData]);
 
-  // Filtrer les statuts disponibles pour la création/édition (POTENTIEL, CANDIDAT, ONE_SHOT)
-  const availableStatusesForCreation = useMemo(() => {
-    if (!referenceData?.artisanStatuses) return [];
-    const allowedCodes = ['POTENTIEL', 'CANDIDAT', 'ONE_SHOT'];
-    return referenceData.artisanStatuses
-      .filter((status) => allowedCodes.includes(status.code?.toUpperCase() || ''))
-      .sort((a, b) => {
-        // Trier dans l'ordre : POTENTIEL, CANDIDAT, ONE_SHOT
-        const order = ['POTENTIEL', 'CANDIDAT', 'ONE_SHOT'];
-        const aIndex = order.indexOf(a.code?.toUpperCase() || '');
-        const bIndex = order.indexOf(b.code?.toUpperCase() || '');
-        return (aIndex === -1 ? 999 : aIndex) - (bIndex === -1 ? 999 : bIndex);
-      });
-  }, [referenceData]);
 
-  const { control, register, handleSubmit, reset, setValue, watch, formState: { errors, isDirty, dirtyFields } } = useForm<ArtisanFormValues>({
+  const { control, register, handleSubmit, reset, setValue, watch, getValues, formState: { errors, isDirty, dirtyFields } } = useForm<ArtisanFormValues>({
     defaultValues: buildDefaultFormValues(),
   })
 
@@ -465,6 +456,84 @@ export function NewArtisanModalContent({ mode, onClose, onCycleMode, artisanId, 
       setValue("statut_id", defaultCandidatStatusId)
     }
   }, [defaultCandidatStatusId, setValue, isEditMode])
+
+  // Récupérer le nombre d'interventions terminées en mode édition
+  const { data: completedInterventionsCount = 0 } = useQuery({
+    queryKey: ["artisan-completed-interventions", artisanId],
+    enabled: isEditMode && Boolean(artisanId),
+    queryFn: () => interventionsApi.getCompletedInterventionsCountByArtisan(artisanId!),
+  })
+
+  // Observer le statut actuel pour le useMemo
+  const currentStatusId = watch("statut_id")
+
+  // Filtrer les statuts disponibles selon le statut actuel
+  const availableStatusesForModification = useMemo((): Array<{ id: string; code: string; label: string; color: string }> => {
+    if (!referenceData?.artisanStatuses) return []
+
+    const currentStatus = referenceData.artisanStatuses.find(
+      (s) => s.id === currentStatusId
+    )
+    const currentStatusCode = currentStatus?.code?.toUpperCase() || ''
+
+    // Mode création : depuis POTENTIEL par défaut, on peut aller vers CANDIDAT ou ONE_SHOT
+    if (!isEditMode) {
+      const allowedCodes = ['CANDIDAT', 'ONE_SHOT']
+      return referenceData.artisanStatuses
+        .filter((status) => allowedCodes.includes(status.code?.toUpperCase() || ''))
+        .sort((a, b) => {
+          const order = ['CANDIDAT', 'ONE_SHOT']
+          const aIndex = order.indexOf(a.code?.toUpperCase() || '')
+          const bIndex = order.indexOf(b.code?.toUpperCase() || '')
+          return (aIndex === -1 ? 999 : aIndex) - (bIndex === -1 ? 999 : bIndex)
+        })
+    }
+
+    // Mode édition : déterminer les statuts disponibles selon le statut actuel
+    let allowedCodes: string[] = []
+
+    if (currentStatusCode === 'POTENTIEL') {
+      // Depuis POTENTIEL → CANDIDAT ou ONE_SHOT
+      allowedCodes = ['CANDIDAT', 'ONE_SHOT']
+    } else if (currentStatusCode === 'CANDIDAT') {
+      // Depuis CANDIDAT → ONE_SHOT ou POTENTIEL
+      allowedCodes = ['ONE_SHOT', 'POTENTIEL']
+    } else if (currentStatusCode === 'ONE_SHOT') {
+      // Depuis ONE_SHOT → Calculer le statut selon les règles
+      const calculatedStatus = calculateNewArtisanStatus(null, completedInterventionsCount)
+      if (calculatedStatus) {
+        allowedCodes = [calculatedStatus]
+      } else {
+        // Fallback sur POTENTIEL si null
+        allowedCodes = ['POTENTIEL']
+      }
+    } else {
+      // Depuis n'importe quel autre statut (NOVICE, FORMATION, etc.) → ONE_SHOT uniquement
+      allowedCodes = ['ONE_SHOT']
+    }
+
+    return referenceData.artisanStatuses
+      .filter((status) => allowedCodes.includes(status.code?.toUpperCase() || ''))
+      .sort((a, b) => {
+        // Trier selon l'ordre : CANDIDAT, ONE_SHOT, POTENTIEL, puis les autres
+        const order = ['CANDIDAT', 'ONE_SHOT', 'POTENTIEL', 'NOVICE', 'FORMATION', 'CONFIRME', 'EXPERT']
+        const aIndex = order.indexOf(a.code?.toUpperCase() || '')
+        const bIndex = order.indexOf(b.code?.toUpperCase() || '')
+        return (aIndex === -1 ? 999 : aIndex) - (bIndex === -1 ? 999 : bIndex)
+      })
+  }, [referenceData, isEditMode, currentStatusId, completedInterventionsCount])
+
+  // Attribuer automatiquement l'artisan au gestionnaire qui le crée (création uniquement)
+  useEffect(() => {
+    if (!isEditMode && currentUser?.id && isFormInitialized) {
+      // Vérifier la valeur actuelle sans déclencher de re-render
+      const currentGestionnaireId = getValues("gestionnaire_id")
+      // Ne définir que si aucun gestionnaire n'est déjà assigné
+      if (!currentGestionnaireId) {
+        setValue("gestionnaire_id", currentUser.id, { shouldDirty: false })
+      }
+    }
+  }, [currentUser?.id, isEditMode, isFormInitialized, setValue, getValues])
 
   // Récupérer le nombre d'artisans pour générer le numéro associé (création uniquement)
   useEffect(() => {
@@ -1408,12 +1477,19 @@ export function NewArtisanModalContent({ mode, onClose, onCycleMode, artisanId, 
                           <div className="space-y-1">
                             <Label className={labelClass}>Statut</Label>
                             {(() => {
-                              // Mode lecture seule : affichage statique
-                              if (!canWriteArtisans) {
-                                const currentStatusId = watch("statut_id")
-                                const currentStatus = referenceData?.artisanStatuses?.find(
-                                  (s) => s.id === currentStatusId
-                                )
+                              const currentStatusId = watch("statut_id")
+                              const currentStatus = referenceData?.artisanStatuses?.find(
+                                (s) => s.id === currentStatusId
+                              )
+                              
+                              // Vérifier si le statut est modifiable
+                              // - En création : toujours modifiable (POTENTIEL par défaut)
+                              // - En édition : modifiable si des options sont disponibles
+                              const hasAvailableOptions = availableStatusesForModification.length > 0
+                              const isStatusModifiable = !isEditMode || (isEditMode && hasAvailableOptions)
+                              
+                              // Mode lecture seule OU statut non modifiable : affichage statique
+                              if (!canWriteArtisans || !isStatusModifiable) {
                                 return (
                                   <div className="flex items-center gap-2 rounded-md border bg-muted px-3 py-2 h-8 text-sm">
                                     {currentStatus ? (
@@ -1431,14 +1507,14 @@ export function NewArtisanModalContent({ mode, onClose, onCycleMode, artisanId, 
                                 );
                               }
 
-                              // Mode création ou édition : Select pour choisir le statut
+                              // Mode création ou édition avec statut modifiable : Select pour choisir le statut
                               return (
                                 <Controller
                                   name="statut_id"
                                   control={control}
                                   render={({ field }) => {
                                     const selectedStatusId = field.value || defaultCandidatStatusId;
-                                    const selectedStatus = availableStatusesForCreation.find(
+                                    const selectedStatus = availableStatusesForModification.find(
                                       (s) => s.id === selectedStatusId
                                     ) || referenceData?.artisanStatuses?.find(
                                       (s) => s.id === selectedStatusId
@@ -1453,7 +1529,7 @@ export function NewArtisanModalContent({ mode, onClose, onCycleMode, artisanId, 
                                           <SelectValue placeholder="Sélectionner un statut..." />
                                         </SelectTrigger>
                                         <SelectContent>
-                                          {availableStatusesForCreation.map((status) => (
+                                          {availableStatusesForModification.map((status) => (
                                             <SelectItem key={status.id} value={status.id}>
                                               <div className="flex items-center gap-2">
                                                 <span

@@ -28,6 +28,7 @@ export type InterventionStatusKey =
   | "INTER_TERMINEE"
   | "SAV"
   | "ATT_ACOMPTE"
+  | "POTENTIEL"
 
 export type InterventionStatusConfig = {
   value: InterventionStatusKey
@@ -39,6 +40,7 @@ export type InterventionStatusConfig = {
 }
 
 export const INTERVENTION_STATUS_ORDER: InterventionStatusKey[] = [
+  "POTENTIEL",
   "DEMANDE",
   "DEVIS_ENVOYE",
   "VISITE_TECHNIQUE",
@@ -141,11 +143,20 @@ export const INTERVENTION_STATUS: Record<InterventionStatusKey, InterventionStat
     hexColor: "#EA580C",
     icon: Clock,
   },
+  POTENTIEL: {
+    value: "POTENTIEL",
+    label: "Potentiel",
+    description: "Intervention potentielle",
+    color: "bg-yellow-500",
+    hexColor: "#FACC15",
+    icon: Clock,
+  },
 }
 
 export const isTerminalStatus = (status: InterventionStatusKey) => status === "REFUSE" || status === "ANNULE"
 
 const STATUS_KEYS: InterventionStatusKey[] = [
+  "POTENTIEL",
   "DEMANDE",
   "DEVIS_ENVOYE",
   "VISITE_TECHNIQUE",
@@ -160,6 +171,7 @@ const STATUS_KEYS: InterventionStatusKey[] = [
 ]
 
 const STATUS_POSITIONS: Record<InterventionStatusKey, { x: number; y: number }> = {
+  POTENTIEL: { x: 0, y: 1 },
   DEMANDE: { x: 1, y: 1 },
   DEVIS_ENVOYE: { x: 2, y: 1 },
   VISITE_TECHNIQUE: { x: 3, y: 1 },

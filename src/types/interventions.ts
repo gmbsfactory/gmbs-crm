@@ -12,6 +12,7 @@ export const InterventionStatusValues = [
   "INTER_TERMINEE",
   "SAV",
   "ATT_ACOMPTE",
+  "POTENTIEL",
 ] as const
 
 export type InterventionStatusValue = (typeof InterventionStatusValues)[number]
@@ -32,7 +33,7 @@ export const InterventionBaseSchema = z.object({
 })
 
 export const CreateInterventionSchema = InterventionBaseSchema.extend({
-  status: InterventionStatusEnum.default("DEMANDE"),
+  status: InterventionStatusEnum.default("POTENTIEL"),
 })
 
 export const UpdateInterventionSchema = InterventionBaseSchema.partial()

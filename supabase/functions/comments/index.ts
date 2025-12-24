@@ -112,7 +112,7 @@ serve(async (req: Request) => {
           reason_type,
           created_at,
           updated_at,
-          users!author_id(id,firstname,lastname,username,color)
+          users!author_id(id,firstname,lastname,username,color,avatar_url)
         `)
         .order('created_at', { ascending: false });
 
@@ -182,7 +182,7 @@ serve(async (req: Request) => {
           reason_type,
           created_at,
           updated_at,
-          users!author_id(id,firstname,lastname,username,color)
+          users!author_id(id,firstname,lastname,username,color,avatar_url)
         `)
         .eq('id', resourceId)
         .single();
@@ -253,7 +253,7 @@ serve(async (req: Request) => {
           reason_type,
           created_at,
           updated_at,
-          users!author_id(id,firstname,lastname,username,color)
+          users!author_id(id,firstname,lastname,username,color,avatar_url)
         `)
         .single();
 
@@ -322,7 +322,7 @@ serve(async (req: Request) => {
           reason_type,
           created_at,
           updated_at,
-          users!author_id(id,firstname,lastname,username,color)
+          users!author_id(id,firstname,lastname,username,color,avatar_url)
         `)
         .single();
 

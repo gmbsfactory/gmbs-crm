@@ -546,6 +546,7 @@ export function NewInterventionForm({
       displayName,
       code: currentUserData.code_gestionnaire ?? null,
       color: currentUserData.color ?? null,
+      avatarUrl: currentUserData.avatar_url ?? null,
       roles: Array.isArray(currentUserData.roles) ? currentUserData.roles : [],
     }
   }, [currentUserData])
@@ -802,16 +803,15 @@ export function NewInterventionForm({
     return (marge2 / coutInter2) * 100
   }, [formData.coutIntervention, formData.coutSST, formData.coutMateriel, formData.coutSSTSecondArtisan, formData.coutMaterielSecondArtisan])
 
-  // Initialiser le statut par défaut à "DEMANDE"
+  // Initialiser le statut par défaut à "Potentiel"
   useEffect(() => {
     if (!refData?.interventionStatuses || formData.statut_id) {
       return
     }
     const defaultStatus = refData.interventionStatuses.find(
       (status) =>
-        status.code === "DEMANDE" ||
-        status.label?.toLowerCase() === "demandé" ||
-        status.label?.toLowerCase() === "demande",
+        status.code?.toUpperCase() === "POTENTIEL" ||
+        status.label?.toLowerCase() === "potentiel",
     )
     if (defaultStatus?.id) {
       setFormData((prev) => ({ ...prev, statut_id: defaultStatus.id }))

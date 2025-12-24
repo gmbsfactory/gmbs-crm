@@ -587,6 +587,7 @@ export function InterventionEditForm({
       displayName,
       code: currentUserData.code_gestionnaire ?? null,
       color: currentUserData.color ?? null,
+      avatarUrl: currentUserData.avatar_url ?? null,
       roles: Array.isArray(currentUserData.roles) ? currentUserData.roles : [],
     }
   }, [currentUserData])

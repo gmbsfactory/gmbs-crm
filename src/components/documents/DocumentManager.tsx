@@ -45,6 +45,7 @@ interface CurrentUser {
   displayName: string;
   code?: string | null;
   color?: string | null;
+  avatarUrl?: string | null;
 }
 
 interface DocumentManagerProps {
@@ -69,6 +70,10 @@ interface AttachmentRecord {
   created_by_display?: string | null;
   created_by_code?: string | null;
   created_by_color?: string | null;
+  created_by_avatar_url?: string | null;
+  users?: {
+    avatar_url?: string | null;
+  } | null;
 }
 
 interface StagedFile {
@@ -92,6 +97,7 @@ interface DocumentRow {
   createdByDisplay?: string | null;
   createdByCode?: string | null;
   createdByColor?: string | null;
+  createdByAvatarUrl?: string | null;
   recordId?: string;
   stagedKind?: string;
   stagedId?: string;
@@ -231,11 +237,13 @@ function ManagerBadge({
   code,
   displayName,
   color,
+  avatarUrl,
   fallback,
 }: {
   code?: string | null;
   displayName?: string | null;
   color?: string | null;
+  avatarUrl?: string | null;
   fallback?: string;
 } = {}) {
   // Extraire prénom et nom du displayName
@@ -256,6 +264,7 @@ function ManagerBadge({
             firstname={firstname}
             lastname={lastname}
             color={color}
+            avatarUrl={avatarUrl}
             size="sm"
             showBorder={true}
             className="h-6 w-6"
@@ -503,6 +512,16 @@ export function DocumentManager({
         entity_id: entityId,
       });
       const nextData = (response.data as AttachmentRecord[]) ?? [];
+      
+      // Debug: vérifier la structure des données
+      if (nextData.length > 0 && process.env.NODE_ENV === 'development') {
+        console.log('[DocumentManager] Sample document data:', {
+          id: nextData[0].id,
+          created_by_avatar_url: nextData[0].created_by_avatar_url,
+          users: nextData[0].users,
+        });
+      }
+      
       setDocuments(nextData);
     } catch (error) {
       console.error("Erreur lors du chargement des documents:", error);
@@ -657,6 +676,7 @@ export function DocumentManager({
       createdByDisplay: document.created_by_display ?? null,
       createdByCode: document.created_by_code ?? null,
       createdByColor: document.created_by_color ?? null,
+      createdByAvatarUrl: document.created_by_avatar_url ?? null,
       recordId: document.id,
     }));
 
@@ -671,12 +691,13 @@ export function DocumentManager({
           createdAt: file.createdAt,
           url: file.previewUrl,
           fileSize: file.file.size,
-          createdByDisplay:
-            currentUser?.displayName ?? uploaderInfo?.displayName ?? null,
-          createdByCode: currentUser?.code ?? uploaderInfo?.code ?? null,
-          createdByColor: currentUser?.color ?? uploaderInfo?.color ?? null,
-          stagedKind: kind,
-          stagedId: file.id,
+      createdByDisplay:
+        currentUser?.displayName ?? uploaderInfo?.displayName ?? null,
+      createdByCode: currentUser?.code ?? uploaderInfo?.code ?? null,
+      createdByColor: currentUser?.color ?? uploaderInfo?.color ?? null,
+      createdByAvatarUrl: currentUser?.avatarUrl ?? null,
+      stagedKind: kind,
+      stagedId: file.id,
         })),
     );
 
@@ -1075,7 +1096,7 @@ export function DocumentManager({
               <TableHead className="min-w-[100px] text-[10px] py-1 px-2">Nom</TableHead>
               <TableHead className="min-w-[60px] text-[10px] py-1 px-2">Type</TableHead>
               <TableHead className="min-w-[70px] text-[10px] py-1 px-2">Date</TableHead>
-              <TableHead className="min-w-[40px] text-[10px] py-1 px-2">Gest.</TableHead>
+              <TableHead className="min-w-[50px] text-[10px] py-1 px-2">Gest.</TableHead>
               <TableHead className="min-w-[80px] text-[10px] py-1 px-2 text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
@@ -1185,6 +1206,7 @@ export function DocumentManager({
                         code={row.createdByCode}
                         displayName={row.createdByDisplay}
                         color={row.createdByColor}
+                        avatarUrl={row.createdByAvatarUrl}
                       />
                     </TableCell>
                     <TableCell className="py-1 px-2">
@@ -1405,6 +1427,7 @@ export function DocumentManager({
                     code={currentUser?.code ?? uploaderInfo?.code ?? null}
                     displayName={currentUser?.displayName ?? uploaderInfo?.displayName ?? null}
                     color={currentUser?.color ?? uploaderInfo?.color ?? null}
+                    avatarUrl={currentUser?.avatarUrl ?? null}
                   />
                 </TableCell>
                 <TableCell className="py-1 px-2 align-top">

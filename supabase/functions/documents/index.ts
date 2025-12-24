@@ -42,6 +42,38 @@ const SUPPORTED_DOCUMENT_TYPES = {
   ]
 };
 
+// Helper pour transformer les données et extraire avatar_url
+function transformDocumentData(data: any): any {
+  if (Array.isArray(data)) {
+    return data.map(transformDocumentData);
+  }
+  if (data && typeof data === 'object') {
+    const transformed = { ...data };
+    
+    // Extraire avatar_url de l'objet users et l'ajouter comme created_by_avatar_url
+    let avatarUrl = null;
+    
+    if (transformed.users) {
+      if (Array.isArray(transformed.users) && transformed.users.length > 0) {
+        // Cas où users est un tableau (relation one-to-many, ne devrait pas arriver ici)
+        avatarUrl = transformed.users[0]?.avatar_url || null;
+      } else if (typeof transformed.users === 'object' && transformed.users !== null) {
+        // Cas où users est un objet (relation one-to-one)
+        avatarUrl = transformed.users.avatar_url || null;
+      }
+    }
+    
+    // Utiliser l'avatar_url extrait ou celui déjà présent
+    transformed.created_by_avatar_url = avatarUrl || transformed.created_by_avatar_url || null;
+    
+    // Supprimer l'objet users pour éviter la duplication
+    delete transformed.users;
+    
+    return transformed;
+  }
+  return data;
+}
+
 function normalizeInterventionKind(kind: string): string {
   if (!kind) return kind;
 
@@ -209,7 +241,8 @@ serve(async (req: Request) => {
           created_by,
           created_by_display,
           created_by_code,
-          created_by_color
+          created_by_color,
+          users!created_by(id,avatar_url)
         `);
 
       // Si entity_type est spécifié, utiliser la table appropriée
@@ -231,7 +264,8 @@ serve(async (req: Request) => {
             created_by,
             created_by_display,
             created_by_code,
-            created_by_color
+            created_by_color,
+            users!created_by(id,avatar_url)
           `);
       }
 
@@ -258,6 +292,24 @@ serve(async (req: Request) => {
 
       const responseTime = Date.now() - startTime;
       
+      // Debug: vérifier la structure des données avant transformation
+      if (data && data.length > 0 && process.env.NODE_ENV === 'development') {
+        console.log(JSON.stringify({
+          level: 'debug',
+          requestId,
+          sampleData: {
+            id: data[0].id,
+            created_by: data[0].created_by,
+            users: data[0].users,
+            hasUsers: !!data[0].users,
+            usersType: typeof data[0].users,
+            isUsersArray: Array.isArray(data[0].users),
+          },
+          timestamp: new Date().toISOString(),
+          message: 'Sample document data before transformation'
+        }));
+      }
+      
       console.log(JSON.stringify({
         level: 'info',
         requestId,
@@ -267,14 +319,17 @@ serve(async (req: Request) => {
         message: 'Documents list retrieved successfully'
       }));
 
+      // Transformer les données pour extraire avatar_url
+      const transformedData = transformDocumentData(data);
+
       return new Response(
         JSON.stringify({
-          data: data || [],
+          data: transformedData || [],
           pagination: {
             limit,
             offset,
-            total: data?.length || 0,
-            hasMore: (data?.length || 0) === limit
+            total: transformedData?.length || 0,
+            hasMore: (transformedData?.length || 0) === limit
           }
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -301,7 +356,8 @@ serve(async (req: Request) => {
             created_by,
             created_by_display,
             created_by_code,
-            created_by_color
+            created_by_color,
+            users!created_by(avatar_url)
           `)
           .eq('id', resourceId)
           .single();
@@ -320,7 +376,8 @@ serve(async (req: Request) => {
             created_by,
             created_by_display,
             created_by_code,
-            created_by_color
+            created_by_color,
+            users!created_by(avatar_url)
           `)
           .eq('id', resourceId)
           .single();

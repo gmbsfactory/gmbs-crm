@@ -86,7 +86,7 @@ export function useInterventionForm({
     if (!defaultValues) return undefined
     return {
       ...defaultValues,
-      status: (defaultValues.status as InterventionStatusValue | undefined) ?? "DEMANDE",
+      status: (defaultValues.status as InterventionStatusValue | undefined) ?? "POTENTIEL",
       dueAt: toDateInputValue(defaultValues.dueAt),
     } as Partial<CreateInterventionInput & UpdateInterventionInput>
   }, [defaultValues])
@@ -94,7 +94,7 @@ export function useInterventionForm({
   const form = useForm<CreateInterventionInput | UpdateInterventionInput>({
     resolver,
     defaultValues: {
-      status: "DEMANDE",
+      status: "POTENTIEL",
       ...normalizedDefaults,
     },
   })

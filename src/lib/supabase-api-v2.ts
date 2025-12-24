@@ -662,6 +662,8 @@ export interface Comment {
     firstname: string | null;
     lastname: string | null;
     username: string;
+    color: string | null;
+    avatar_url: string | null;
   };
 }
 
@@ -1113,9 +1115,6 @@ export const interventionsApiV2 = {
     const rawLength = Array.isArray(raw?.data) ? raw.data.length : 0;
     const rawFirstId = rawLength > 0 ? raw.data[0]?.id ?? null : null;
     const rawLastId = rawLength > 0 ? raw.data[rawLength - 1]?.id ?? null : null;
-    console.log(
-      `[interventionsApiV2.getAll] Payload debug - offset=${params.offset ?? 0}, length=${rawLength}, firstId=${rawFirstId}, lastId=${rawLastId}`,
-    );
     const fetchDuration = Date.now() - fetchStart;
 
     const refs = await getReferenceCache();

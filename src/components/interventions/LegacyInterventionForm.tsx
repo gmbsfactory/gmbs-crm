@@ -64,6 +64,7 @@ interface CurrentUser {
   displayName: string
   code?: string | null
   color?: string | null
+  avatarUrl?: string | null
 }
 
 interface LegacyInterventionFormProps {
@@ -119,6 +120,7 @@ export function LegacyInterventionForm({ onSuccess, onCancel, mode = "centerpage
     displayName: [currentUserData.firstname, currentUserData.lastname].filter(Boolean).join(" ").trim() || currentUserData.username || currentUserData.email || "Vous",
     code: currentUserData.code_gestionnaire ?? null,
     color: currentUserData.color ?? null,
+    avatarUrl: currentUserData.avatar_url ?? null,
   } : null
   const [formData, setFormData] = useState({
     statut_id: "", // Sera initialisé à "DEMANDE" par le useEffect
@@ -187,15 +189,14 @@ export function LegacyInterventionForm({ onSuccess, onCancel, mode = "centerpage
   const [createdInterventionId, setCreatedInterventionId] = useState<string | null>(null)
 
   useEffect(() => {
-    // Toujours initialiser le statut à "DEMANDE" pour les nouvelles interventions
+    // Toujours initialiser le statut à "Potentiel" pour les nouvelles interventions
     if (!refData?.interventionStatuses || formData.statut_id) {
       return
     }
     const defaultStatus = refData.interventionStatuses.find(
       (status) =>
-        status.code === "DEMANDE" ||
-        status.label?.toLowerCase() === "demandé" ||
-        status.label?.toLowerCase() === "demande",
+        status.code?.toUpperCase() === "POTENTIEL" ||
+        status.label?.toLowerCase() === "potentiel",
     )
     if (defaultStatus?.id) {
       setFormData((prev) => ({ ...prev, statut_id: defaultStatus.id }))

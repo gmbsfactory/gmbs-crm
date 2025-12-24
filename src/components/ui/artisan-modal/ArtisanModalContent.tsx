@@ -464,6 +464,7 @@ export function ArtisanModalContent({
       displayName,
       code: currentUserData.code_gestionnaire ?? null,
       color: currentUserData.color ?? null,
+      avatarUrl: currentUserData.avatar_url ?? null,
     }
   }, [currentUserData])
   const { can } = usePermissions()

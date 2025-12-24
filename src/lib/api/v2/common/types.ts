@@ -213,6 +213,7 @@ export interface Comment {
     lastname: string | null;
     username: string;
     color: string | null;
+    avatar_url: string | null;
   };
 }
 

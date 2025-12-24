@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Badge } from "@/components/ui/badge"
 import { getHighlightSegments } from "@/components/search/highlight"
+import { GestionnaireBadge } from "@/components/ui/gestionnaire-badge"
 
 interface CommentSectionProps {
   entityType: "artisan" | "intervention"
@@ -507,10 +508,8 @@ export function CommentSection({
               ([authorDetails.firstname, authorDetails.lastname].filter(Boolean).join(" ").trim() ||
                 authorDetails.username)
             const displayAuthor = authorName || "Utilisateur"
-            const initials = getInitials(displayAuthor)
             const userColor = authorDetails?.color ?? null
             const normalizedBubbleColor = normalizeHexColor(userColor)
-            const avatarStyle = userColor ? { backgroundColor: userColor } : undefined
             const avatarTextClass = userColor ? getAvatarTextColorClass(userColor) : ""
             const isCurrentUserComment = Boolean(currentUserId && comment.author_id === currentUserId)
             const formattedDate = formatDateTime(comment.created_at)
@@ -605,16 +604,15 @@ export function CommentSection({
                     isCurrentUserComment ? "flex-row-reverse" : "flex-row"
                   )}
                 >
-                  <div
-                    className={cn(
-                      "flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full text-sm font-semibold",
-                      userColor ? avatarTextClass : "bg-primary text-primary-foreground"
-                    )}
-                    style={avatarStyle}
-                    aria-hidden="true"
-                  >
-                    {initials}
-                  </div>
+                  <GestionnaireBadge
+                    firstname={authorDetails?.firstname ?? null}
+                    lastname={authorDetails?.lastname ?? null}
+                    color={userColor}
+                    avatarUrl={authorDetails?.avatar_url ?? null}
+                    size="md"
+                    showBorder={true}
+                    className="h-10 w-10"
+                  />
                   <div
                     className={cn(
                       "flex min-w-0 flex-1 items-center gap-3 text-sm leading-relaxed",

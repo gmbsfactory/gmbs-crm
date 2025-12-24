@@ -46,6 +46,20 @@ export function AuthStateListenerProvider({ children }: { children: ReactNode })
               // pour éviter que l'utilisateur reste bloqué avec des cookies invalides
               if (response.status === 401 || response.status === 500) {
                 console.warn('[AuthStateListenerProvider] Session invalid, forcing logout')
+
+                // Set status to offline before forcing logout
+                try {
+                  await fetch('/api/auth/status', {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    keepalive: true,
+                    body: JSON.stringify({ status: 'offline' }),
+                  })
+                } catch (error) {
+                  console.warn('[AuthStateListenerProvider] Failed to set offline on forced logout:', error)
+                }
+
                 // Invalider le cache et nettoyer la session
                 queryClient.clear()
                 resetPreloadFlag()
@@ -205,6 +219,110 @@ export function AuthStateListenerProvider({ children }: { children: ReactNode })
       tabChannel = new BroadcastChannel(TAB_CHANNEL_NAME)
     }
 
+    // Initialize logout broadcast channel
+    let logoutChannel: BroadcastChannel | null = null
+    if (window.BroadcastChannel) {
+      logoutChannel = new BroadcastChannel(`crm-logout-${currentUser.id}`)
+    }
+
+    // Listen for logout broadcasts from other tabs
+    if (logoutChannel) {
+      logoutChannel.onmessage = (event: MessageEvent) => {
+        const { type, timestamp, reason, tabId } = event.data
+
+        if (type === 'logout-initiated') {
+          console.log(`[AuthStateListenerProvider] Logout broadcast received from tab ${tabId} (reason: ${reason})`)
+
+          // Import and execute logout immediately
+          import('@/lib/auth/logout-manager').then(({ getLogoutManager }) => {
+            const logoutManager = getLogoutManager()
+
+            logoutManager.executeLogout(
+              queryClient,
+              supabase,
+              currentUser.id,
+              {
+                skipStatusUpdate: true, // Only initiating tab sets status
+                broadcastToOtherTabs: false, // Don't re-broadcast
+                reason: 'remote_logout',
+              }
+            )
+          })
+        }
+      }
+    }
+
+    // Heartbeat system to detect crashed tabs
+    const HEARTBEAT_INTERVAL = 30000 // 30 seconds
+    const HEARTBEAT_TIMEOUT = 60000 // 60 seconds
+    const HEARTBEAT_STORAGE_KEY = `crm_heartbeats_${currentUser.id}`
+
+    interface TabHeartbeat {
+      tabId: string
+      lastSeen: number
+    }
+
+    // Update heartbeat in localStorage
+    const updateHeartbeatInStorage = () => {
+      try {
+        const stored = localStorage.getItem(HEARTBEAT_STORAGE_KEY)
+        const heartbeats: Record<string, TabHeartbeat> = stored ? JSON.parse(stored) : {}
+
+        heartbeats[tabId] = {
+          tabId,
+          lastSeen: Date.now(),
+        }
+
+        localStorage.setItem(HEARTBEAT_STORAGE_KEY, JSON.stringify(heartbeats))
+      } catch (error) {
+        console.warn('[AuthStateListenerProvider] Failed to update heartbeat:', error)
+      }
+    }
+
+    // Broadcast heartbeat
+    const broadcastHeartbeat = () => {
+      if (!tabChannel) return
+
+      tabChannel.postMessage({
+        type: 'heartbeat',
+        tabId,
+        timestamp: Date.now(),
+      })
+
+      // Also update localStorage for persistence
+      updateHeartbeatInStorage()
+    }
+
+    // Clean up dead tabs
+    const cleanupDeadTabs = () => {
+      try {
+        const stored = localStorage.getItem(HEARTBEAT_STORAGE_KEY)
+        if (!stored) return
+
+        const heartbeats: Record<string, TabHeartbeat> = JSON.parse(stored)
+        const now = Date.now()
+        let cleaned = false
+
+        for (const [id, heartbeat] of Object.entries(heartbeats)) {
+          if (now - heartbeat.lastSeen > HEARTBEAT_TIMEOUT) {
+            delete heartbeats[id]
+            cleaned = true
+            console.log(`[AuthStateListenerProvider] Cleaned up dead tab: ${id}`)
+          }
+        }
+
+        if (cleaned) {
+          localStorage.setItem(HEARTBEAT_STORAGE_KEY, JSON.stringify(heartbeats))
+
+          // Recalculate tab count based on alive tabs
+          const aliveCount = Object.keys(heartbeats).length
+          setTabCount(aliveCount)
+        }
+      } catch (error) {
+        console.warn('[AuthStateListenerProvider] Failed to cleanup dead tabs:', error)
+      }
+    }
+
     // Get current tab count from localStorage
     const getTabCount = (): number => {
       try {
@@ -276,13 +394,31 @@ export function AuthStateListenerProvider({ children }: { children: ReactNode })
 
     // Listen to messages from other tabs
     if (tabChannel) {
-      tabChannel.onmessage = (event: MessageEvent<{ type: string; tabId: string; count: number }>) => {
-        const { type, count } = event.data
-        
+      tabChannel.onmessage = (event: MessageEvent<{ type: string; tabId: string; count?: number; timestamp?: number }>) => {
+        const { type, count, timestamp } = event.data
+
         if (type === 'tab-opened' || type === 'tab-closed') {
           // Sync tab count from other tabs
-          setTabCount(count)
-          console.log(`[AuthStateListenerProvider] Tab count synced from other tab: ${count}`)
+          if (count !== undefined) {
+            setTabCount(count)
+            console.log(`[AuthStateListenerProvider] Tab count synced from other tab: ${count}`)
+          }
+        } else if (type === 'heartbeat') {
+          // Update heartbeat from other tabs
+          const { tabId: remoteTabId } = event.data
+          try {
+            const stored = localStorage.getItem(HEARTBEAT_STORAGE_KEY)
+            const heartbeats: Record<string, TabHeartbeat> = stored ? JSON.parse(stored) : {}
+
+            heartbeats[remoteTabId] = {
+              tabId: remoteTabId,
+              lastSeen: timestamp || Date.now(),
+            }
+
+            localStorage.setItem(HEARTBEAT_STORAGE_KEY, JSON.stringify(heartbeats))
+          } catch (error) {
+            console.warn('[AuthStateListenerProvider] Failed to process heartbeat:', error)
+          }
         }
       }
     }
@@ -298,6 +434,15 @@ export function AuthStateListenerProvider({ children }: { children: ReactNode })
 
     // Initialize: increment tab count when this tab opens
     incrementTabCount()
+
+    // Start heartbeat interval
+    const heartbeatInterval = setInterval(() => {
+      broadcastHeartbeat()
+      cleanupDeadTabs()
+    }, HEARTBEAT_INTERVAL)
+
+    // Initial heartbeat
+    broadcastHeartbeat()
 
     // Handle page unload
     const handlePageHide = (event: PageTransitionEvent) => {
@@ -332,17 +477,35 @@ export function AuthStateListenerProvider({ children }: { children: ReactNode })
       window.removeEventListener('pagehide', handlePageHide)
       window.removeEventListener('beforeunload', handleBeforeUnload)
       window.removeEventListener('storage', handleStorageChange)
-      
+
+      // Clear heartbeat interval
+      clearInterval(heartbeatInterval)
+
+      // Remove this tab's heartbeat from storage
+      try {
+        const stored = localStorage.getItem(HEARTBEAT_STORAGE_KEY)
+        if (stored) {
+          const heartbeats: Record<string, TabHeartbeat> = JSON.parse(stored)
+          delete heartbeats[tabId]
+          localStorage.setItem(HEARTBEAT_STORAGE_KEY, JSON.stringify(heartbeats))
+        }
+      } catch (error) {
+        console.warn('[AuthStateListenerProvider] Failed to remove heartbeat:', error)
+      }
+
       // Decrement tab count on cleanup
       const remainingTabs = decrementTabCount()
       if (remainingTabs === 0 && tabChannel) {
         // If this was the last tab, set offline
         setOfflineStatus()
       }
-      
-      // Close BroadcastChannel
+
+      // Close BroadcastChannels
       if (tabChannel) {
         tabChannel.close()
+      }
+      if (logoutChannel) {
+        logoutChannel.close()
       }
     }
   }, [currentUser?.id])

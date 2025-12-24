@@ -1,36 +1,37 @@
 ### Now 
 
-- Lancer prompt pour gestion mot de passe
-
 
 - Artisan
         - Mettre nouvel artisan en haut ???
+        -               Trier artisan par date de création 
         - Permuter Candidat et Potentiel dans la chaîne de logique des statuts artisans
                 Lors de la création on peut sélectionne soit Candidat soit One Shot 
                 Lors de l'édition également 
                         Transition  de Potentiel à Candidat et One Shot
 
-- Cohérence photo de profil
-
-- Gestion de l'authentification d'un gestionnaire. Définir un mot de passe initiale, 
-        et laisser le gestionnaire changer son mot de passe. 
-
 - Tabulation trap quand l'alert dialog apparaît
 
 - Bugs
-        - Gestion des filtres et leur affichage en page interventions et artisans
-                Les filtres ne refont pas une seule page mais sont éparpillés sur plusieurs pages
-                Vérifier pour les artisans le filtrage par métier
         - Première connexion au CRM obligé de recharger la page
-        - Tab va de interventions vers artisans est-ce normal 
-                Voir la navigation au clavier du CRM 
+
+- Photos
+        - Suppression de la photo revenir à l'état initial avec les lettres
+        - Photo sur commentaire et documents (interventions et artisans)
+        - Réduire épaisseur sur l'avatar
+
+- Focus trap 
+        - Artisan Archivé à régler comme intervention terminé
 
 - Dashboard
+        - Gestion des retards sans bugggg !! 
         - Raffraîchissement du podium à une date / heure donnée dans la semaine 
                 à tester
+        - Redirection vers les bonnes pages quand tu cliques 
+        -         
 
+- Recherche : 
+        - Améliorer la recherche pour inclure les montants attente accompte
 
-- pas de vulnérabilité induite par l'utilisation de supabaseAdmin dans api/auth/status
 
  ### Later
 

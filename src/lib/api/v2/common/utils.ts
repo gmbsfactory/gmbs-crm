@@ -403,3 +403,6 @@ export const COMMENT_TYPES = [
   "urgent",
   "suivi",
 ];
+
+// Export managedFetch for automatic request cancellation on logout
+export { managedFetch } from '@/lib/api/abort-controller-manager';

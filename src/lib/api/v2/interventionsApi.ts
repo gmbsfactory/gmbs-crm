@@ -1352,6 +1352,54 @@ export const interventionsApi = {
     };
   },
 
+  // Compter les interventions terminées d'un artisan (uniquement primaires)
+  async getCompletedInterventionsCountByArtisan(artisanId: string): Promise<number> {
+    // Récupérer les IDs des statuts terminés
+    const { data: terminatedStatuses } = await supabase
+      .from('intervention_statuses')
+      .select('id')
+      .in('code', ['TERMINE', 'INTER_TERMINEE'])
+
+    if (!terminatedStatuses || terminatedStatuses.length === 0) {
+      return 0
+    }
+
+    const terminatedStatusIds = terminatedStatuses.map(s => s.id)
+
+    // Récupérer les IDs des interventions primaires de l'artisan
+    const { data: interventionArtisans, error: linkError } = await supabase
+      .from('intervention_artisans')
+      .select('intervention_id')
+      .eq('artisan_id', artisanId)
+      .eq('is_primary', true)
+
+    if (linkError || !interventionArtisans || interventionArtisans.length === 0) {
+      return 0
+    }
+
+    const interventionIds = interventionArtisans
+      .map(ia => ia.intervention_id)
+      .filter(Boolean) as string[]
+
+    if (interventionIds.length === 0) {
+      return 0
+    }
+
+    // Compter les interventions terminées
+    const { count, error: countError } = await supabase
+      .from('interventions')
+      .select('id', { count: 'exact', head: true })
+      .in('id', interventionIds)
+      .in('statut_id', terminatedStatusIds)
+
+    if (countError) {
+      console.warn('[interventionsApi] Erreur lors du comptage des interventions terminées:', countError)
+      return 0
+    }
+
+    return count ?? 0
+  },
+
   // Récupérer les interventions par période
   async getByDateRange(
     startDate: string,

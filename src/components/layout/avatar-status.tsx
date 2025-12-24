@@ -8,6 +8,7 @@ import { LogOut, Settings as SettingsIcon, User as UserIcon } from "lucide-react
 import { supabase } from '@/lib/supabase-client'
 import { useQueryClient } from "@tanstack/react-query"
 import { useCurrentUser } from "@/hooks/useCurrentUser"
+import { getLogoutManager } from '@/lib/auth/logout-manager'
 
 type Me = {
   id: string
@@ -69,29 +70,17 @@ export function AvatarStatus() {
   }
 
   async function logout() {
-    try {
-      await setStatus('offline')
-    } catch (error) {
-      console.warn('[avatar-status] Failed to set offline status before logout', error)
-    }
-    
-    // Invalider et supprimer le cache React Query AVANT la déconnexion
-    queryClient.removeQueries({ queryKey: ["currentUser"] })
-    queryClient.invalidateQueries({ queryKey: ["currentUser"] })
-    
-    // Nettoyer sessionStorage pour l'animation
-    if (typeof window !== 'undefined') {
-      sessionStorage.removeItem('revealTransition')
-    }
-    
-    // Déconnexion Supabase
-    await supabase.auth.signOut()
-    
-    // Supprimer les cookies de session
-    await fetch('/api/auth/session', { method: 'DELETE' })
-    
-    // Redirection
-    window.location.href = '/login'
+    const logoutManager = getLogoutManager()
+
+    await logoutManager.executeLogout(
+      queryClient,
+      supabase,
+      me?.id || null,
+      {
+        reason: 'user_initiated',
+        broadcastToOtherTabs: true,
+      }
+    )
   }
 
   const userColor = me?.color || undefined
