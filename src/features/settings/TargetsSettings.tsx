@@ -16,7 +16,7 @@ import {
   Lock,
   AlertCircle
 } from "lucide-react"
-import { useToast } from "@/hooks/use-toast"
+import { toast } from "sonner"
 import { useCurrentUser } from "@/hooks/useCurrentUser"
 import { usersApi } from "@/lib/api/v2"
 import type { User, GestionnaireTarget, TargetPeriodType, CreateGestionnaireTargetData } from "@/lib/api/v2"
@@ -53,7 +53,6 @@ const PERIOD_CONFIG = {
 }
 
 export function TargetsSettings() {
-  const { toast } = useToast()
   const [users, setUsers] = useState<User[]>([])
   const [targets, setTargets] = useState<GestionnaireTarget[]>([])
   const [loading, setLoading] = useState(true)
@@ -107,10 +106,8 @@ export function TargetsSettings() {
         }
         setCreatorUsers(creatorsMap)
       } catch (error: any) {
-        toast({
-          title: "Erreur",
+        toast.error("Erreur", {
           description: error.message || "Erreur lors du chargement des données",
-          variant: "destructive",
         })
       } finally {
         setLoading(false)
@@ -230,65 +227,106 @@ export function TargetsSettings() {
 
     setSaving(true)
     try {
-      let successCount = 0
-      let errorCount = 0
+      const changedUpdates: Array<{
+        userId: string
+        userName: string
+        periodType: TargetPeriodType
+        periodLabel: string
+        marginTarget: number
+        performanceTarget: number | null
+      }> = []
 
+      // Comparer avec les valeurs existantes pour ne garder que les modifications réelles
       for (const [userId, periods] of Object.entries(editableData)) {
+        const user = users.find((u) => u.id === userId)
+        const userName = user ? getUserName(user) : userId
+
         for (const [periodType, data] of Object.entries(periods)) {
           const existingTarget = targets.find(
             (t) => t.user_id === userId && t.period_type === periodType
           )
 
+          // Vérifier si les valeurs ont réellement changé
+          const existingMargin = existingTarget?.margin_target ?? PERIOD_CONFIG[periodType as TargetPeriodType].defaultMargin
+          const existingPerf = existingTarget?.performance_target ?? null
+          
+          const hasMarginChanged = data.margin_target !== existingMargin
+          const hasPerfChanged = data.performance_target !== existingPerf
+          
+          if (!hasMarginChanged && !hasPerfChanged) {
+            continue // Pas de changement, ignorer
+          }
+
           if (existingTarget && !canModifyTarget(existingTarget)) {
-            errorCount++
-            continue
+            continue // Verrouillé, ignorer
           }
 
           if (data.margin_target <= 0) {
-            errorCount++
-            continue
+            continue // Invalide, ignorer
           }
 
-          try {
-            const targetData: CreateGestionnaireTargetData = {
-              user_id: userId,
-              period_type: periodType as TargetPeriodType,
-              margin_target: data.margin_target,
-              performance_target: data.performance_target ?? 40,
-            }
-
-            await usersApi.upsertTarget(targetData, currentUser.id)
-            successCount++
-          } catch (error) {
-            errorCount++
-            console.error(`Erreur lors de la sauvegarde pour ${userId} - ${periodType}:`, error)
-          }
+          changedUpdates.push({
+            userId,
+            userName,
+            periodType: periodType as TargetPeriodType,
+            periodLabel: PERIOD_CONFIG[periodType as TargetPeriodType].label,
+            marginTarget: data.margin_target,
+            performanceTarget: data.performance_target ?? null,
+          })
         }
       }
 
+      // Si aucune modification réelle
+      if (changedUpdates.length === 0) {
+        toast.info("Aucune modification détectée")
+        setIsEditMode(false)
+        setEditableData({})
+        return
+      }
+
+      // Sauvegarder uniquement les modifications
+      let successCount = 0
+      let errorCount = 0
+
+      for (const update of changedUpdates) {
+        try {
+          const targetData: CreateGestionnaireTargetData = {
+            user_id: update.userId,
+            period_type: update.periodType,
+            margin_target: update.marginTarget,
+            performance_target: update.performanceTarget ?? 40,
+          }
+
+          await usersApi.upsertTarget(targetData, currentUser.id)
+          successCount++
+        } catch (error: any) {
+          errorCount++
+          console.error(`Erreur sauvegarde ${update.userName} - ${update.periodLabel}:`, error)
+        }
+      }
+
+      // Recharger les targets
       const allTargets = await usersApi.getAllTargets()
       setTargets(allTargets)
 
-      if (errorCount === 0) {
-        toast({
-          title: "Succès",
-          description: `${successCount} objectif(s) mis à jour avec succès`,
+      // Toast récapitulatif unique
+      if (successCount > 0 && errorCount === 0) {
+        const names = [...new Set(changedUpdates.map(u => u.userName))].join(", ")
+        toast.success(`${successCount} objectif(s) mis à jour`, {
+          description: names,
         })
+      } else if (successCount > 0 && errorCount > 0) {
+        toast.warning(`${successCount} mis à jour, ${errorCount} erreur(s)`)
       } else {
-        toast({
-          title: "Avertissement",
-          description: `${successCount} objectif(s) mis à jour, ${errorCount} erreur(s)`,
-          variant: "destructive",
-        })
+        toast.error("Erreur lors de la sauvegarde")
       }
 
       setIsEditMode(false)
       setEditableData({})
     } catch (error: any) {
-      toast({
-        title: "Erreur",
+      console.error("Erreur lors de la sauvegarde:", error)
+      toast.error("Erreur", {
         description: error.message || "Erreur lors de la sauvegarde",
-        variant: "destructive",
       })
     } finally {
       setSaving(false)

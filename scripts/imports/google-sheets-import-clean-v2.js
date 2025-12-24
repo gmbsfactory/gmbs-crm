@@ -55,6 +55,13 @@ if (fs.existsSync(envFilePath) && !essentialVarsDefined) {
   console.warn(`   Assurez-vous que NEXT_PUBLIC_SUPABASE_URL et SUPABASE_SERVICE_ROLE_KEY sont définies`);
 }
 
+// ===== LOG DE DEBUG: Vérifier les variables d'environnement =====
+console.log('\n🔍 [DEBUG] Vérification des variables d\'environnement:');
+console.log('   NEXT_PUBLIC_SUPABASE_URL:', process.env.NEXT_PUBLIC_SUPABASE_URL || '❌ NON DEFINIE');
+console.log('   NEXT_PUBLIC_SUPABASE_ANON_KEY:', process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ? `✅ Chargée (${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY.substring(0, 20)}...)` : '❌ NON DEFINIE');
+console.log('   IMPORT_USER_EMAIL:', process.env.IMPORT_USER_EMAIL || '❌ NON DEFINIE (utilisera admin@gmbs.fr par défaut)');
+console.log('   IMPORT_USER_PASSWORD:', process.env.IMPORT_USER_PASSWORD ? '✅ Définie' : '❌ NON DEFINIE (utilisera "admin" par défaut)');
+
 // Maintenant on peut importer les modules qui dépendent de Supabase
 const { google } = require('googleapis');
 const { DatabaseManager } = require('./database/database-manager-v2');
@@ -352,6 +359,24 @@ class GoogleSheetsImportCleanV2 {
       
       console.log(`📊 ${dataRows.length} lignes d'artisans à traiter`);
       
+      // Authentifier un utilisateur AVANT le mapping (nécessaire pour les créations d'utilisateurs, statuts, etc.)
+      const importUserEmail = process.env.IMPORT_USER_EMAIL || 'admin@gmbs.fr';
+      const importUserPassword = process.env.IMPORT_USER_PASSWORD || 'admin';
+      
+      try {
+        await this.databaseManager.authenticateUser(importUserEmail, importUserPassword);
+        
+        // Passer le client authentifié au DataMapper pour les opérations de création
+        if (this.databaseManager.authenticatedClient) {
+          this.dataMapper.authenticatedClient = this.databaseManager.authenticatedClient;
+        }
+      } catch (error) {
+        console.error(`❌ Impossible d'authentifier l'utilisateur pour l'import: ${error.message}`);
+        console.error(`   Vérifiez que les variables IMPORT_USER_EMAIL et IMPORT_USER_PASSWORD sont définies dans .env.local`);
+        console.error(`   ou utilisez les credentials par défaut (admin@gmbs.fr / admin)`);
+        throw error;
+      }
+      
       // Conversion des données en objets
       const validArtisans = [];
       const invalidArtisans = [];
@@ -599,6 +624,27 @@ class GoogleSheetsImportCleanV2 {
           console.log(`   Date de fin: ${this.options.dateEnd}`);
         }
       }
+
+      // Authentifier un utilisateur AVANT le mapping (nécessaire pour les créations de métiers, agences, statuts, etc.)
+      const importUserEmail = process.env.IMPORT_USER_EMAIL || 'admin@gmbs.fr';
+      const importUserPassword = process.env.IMPORT_USER_PASSWORD || 'admin';
+      
+      try {
+        await this.databaseManager.authenticateUser(importUserEmail, importUserPassword);
+        
+        // Passer le client authentifié au DataMapper pour les opérations de création
+        if (this.databaseManager.authenticatedClient) {
+          this.dataMapper.authenticatedClient = this.databaseManager.authenticatedClient;
+        }
+      } catch (error) {
+        console.error(`❌ Impossible d'authentifier l'utilisateur pour l'import: ${error.message}`);
+        console.error(`   Vérifiez que les variables IMPORT_USER_EMAIL et IMPORT_USER_PASSWORD sont définies dans .env.local`);
+        console.error(`   ou utilisez les credentials par défaut (admin@gmbs.fr / admin)`);
+        throw error;
+      }
+
+      // Afficher le nombre d'interventions à traiter (debug)
+      console.log(`🔢 Nombre d'interventions à traiter : ${dataRows.length}`);
       
       for (let i = 0; i < dataRows.length; i++) {
         const row = dataRows[i];
@@ -611,7 +657,7 @@ class GoogleSheetsImportCleanV2 {
         
         // Filtrer par période si les options sont définies
         if (this.options.dateStart || this.options.dateEnd) {
-          const dateValue = interventionObj["Date "] || interventionObj["Date d'intervention"];
+          const dateValue = interventionObj["Date "] || interventionObj["FErn"]   || interventionObj["Date d'intervention"];
           if (!this.isDateInRange(dateValue, this.options.dateStart, this.options.dateEnd)) {
             // Ignorer cette intervention (ne pas compter comme traitée)
             continue;

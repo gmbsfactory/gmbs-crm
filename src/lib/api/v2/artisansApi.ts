@@ -242,14 +242,17 @@ export const artisansApi = {
   },
 
   // Upsert direct via Supabase (pour import en masse)
-  async upsertDirect(data: CreateArtisanData): Promise<Artisan> {
+  async upsertDirect(data: CreateArtisanData, customClient?: any): Promise<Artisan> {
+    // Utiliser le client personnalisé si fourni, sinon utiliser le client par défaut
+    const client = customClient || supabase;
+    
     // Déterminer la contrainte unique à utiliser
     let onConflict = 'email';
     if (!data.email && data.siret) {
       onConflict = 'siret';
     }
 
-    const { data: result, error } = await supabase
+    const { data: result, error } = await client
       .from('artisans')
       .upsert(data, {
         onConflict,
@@ -473,8 +476,11 @@ export const artisansApi = {
   },
 
   // Rechercher par plain_nom (pour la recherche SST)
-  async searchByPlainNom(searchTerm: string, params?: ArtisanQueryParams): Promise<PaginatedResponse<Artisan>> {
-    let query = supabase
+  async searchByPlainNom(searchTerm: string, params?: ArtisanQueryParams, customClient?: any): Promise<PaginatedResponse<Artisan>> {
+    // Utiliser le client personnalisé si fourni, sinon utiliser le client par défaut
+    const client = customClient || supabase;
+    
+    let query = client
       .from("artisans")
       .select("*", { count: "exact" })
       .eq("plain_nom", searchTerm) // Recherche exacte d'abord

@@ -103,6 +103,9 @@ class DataMapper {
       logFileName
     );
     this.initErrorLog();
+    
+    // Client Supabase authentifié (optionnel, pour les imports)
+    this.authenticatedClient = options.authenticatedClient || null;
   }
 
   /**
@@ -2335,8 +2338,8 @@ class DataMapper {
 
     try {
       // Utiliser l'API v2 pour trouver ou créer l'agence
-      // enumsApi est maintenant importé directement
-      const result = await enumsApi.findOrCreateAgency(name);
+      // Passer le client authentifié si disponible
+      const result = await enumsApi.findOrCreateAgency(name, this.authenticatedClient);
 
       this.cache.agencies.set(name, result.id);
       const action = result.created ? "🆕 créée" : "✅ trouvée";
@@ -2364,8 +2367,8 @@ class DataMapper {
 
     try {
       // Utiliser l'API v2 pour trouver ou créer l'utilisateur
-      // enumsApi est maintenant importé directement
-      const result = await enumsApi.findOrCreateUser(name);
+      // Passer le client authentifié si disponible
+      const result = await enumsApi.findOrCreateUser(name, this.authenticatedClient);
 
       this.cache.users.set(name, result.id);
       const action = result.created ? "🆕 créé" : "✅ trouvé";
@@ -2398,7 +2401,7 @@ class DataMapper {
 
     if (!username) {
       console.warn(
-        `⚠️ Gestionnaire non mappé: "${gestionnaireCode}". Utilisation du comportement legacy.`
+        `⚠️ Gestionnaire non mappé: "${gestionnaireCode}".`
       );
       return this.getUserId(gestionnaireCode);
     }
@@ -2415,9 +2418,17 @@ class DataMapper {
     }
 
     try {
-      const { data, error } = await enumsApi.getUserByUsername(username);
+      // Passer le client authentifié si disponible
+      const { data, error } = await enumsApi.getUserByUsername(username, this.authenticatedClient);
 
       if (error) {
+        // Ignorer l'erreur PGRST116 (aucun résultat) - c'est normal si l'utilisateur n'existe pas
+        if (error.code === 'PGRST116') {
+          console.log(
+            `ℹ️ Username "${username}" non trouvé en base (depuis "${gestionnaireCode}")`
+          );
+          return null;
+        }
         throw error;
       }
 
@@ -2471,8 +2482,8 @@ class DataMapper {
 
     try {
       // Utiliser l'API v2 pour trouver ou créer le métier
-      // enumsApi est maintenant importé directement
-      const result = await enumsApi.findOrCreateMetier(name);
+      // Passer le client authentifié si disponible
+      const result = await enumsApi.findOrCreateMetier(name, this.authenticatedClient);
 
       // Stocker dans le cache avec le nom normalisé comme clé
       this.cache.metiers.set(normalized, result.id);
@@ -2508,8 +2519,8 @@ class DataMapper {
 
     try {
       // Utiliser l'API v2 pour trouver ou créer la zone
-      // enumsApi est maintenant importé directement
-      const result = await enumsApi.findOrCreateZone(name);
+      // Passer le client authentifié si disponible
+      const result = await enumsApi.findOrCreateZone(name, this.authenticatedClient);
 
       if (!this.cache.zones) this.cache.zones = new Map();
       // Stocker dans le cache avec le nom normalisé comme clé
@@ -2547,8 +2558,8 @@ class DataMapper {
 
     try {
       // Utiliser l'API v2 pour trouver ou créer le statut artisan
-      // enumsApi est maintenant importé directement
-      const result = await enumsApi.findOrCreateArtisanStatus(name);
+      // Passer le client authentifié si disponible
+      const result = await enumsApi.findOrCreateArtisanStatus(name, this.authenticatedClient);
 
       this.cache.artisanStatuses.set(name, result.id);
       if (result.created) {
@@ -2585,8 +2596,8 @@ class DataMapper {
 
     try {
       // Utiliser l'API v2 pour trouver ou créer le statut intervention
-      // enumsApi est maintenant importé directement
-      const result = await enumsApi.findOrCreateInterventionStatus(name);
+      // Passer le client authentifié si disponible
+      const result = await enumsApi.findOrCreateInterventionStatus(name, this.authenticatedClient);
 
       this.cache.interventionStatuses.set(name, result.id);
       if (result.created) {
@@ -2645,11 +2656,20 @@ class DataMapper {
     }
 
     try {
+      // Passer le client authentifié si disponible
       const { data, error } = await enumsApi.getInterventionStatusByCode(
-        canonicalCode
+        canonicalCode,
+        this.authenticatedClient
       );
 
       if (error) {
+        // Ignorer l'erreur PGRST116 (aucun résultat) - c'est normal si le statut n'existe pas
+        if (error.code === 'PGRST116') {
+          console.log(
+            `ℹ️ Statut "${canonicalCode}" non trouvé en base (depuis "${statusLabel}")`
+          );
+          return null;
+        }
         throw error;
       }
 
@@ -2867,6 +2887,7 @@ class DataMapper {
    */
   async findArtisanSST(sstName, idInter = null, csvRow = null, lineNumber = null) {
     const { artisansApi } = require("../../src/lib/api/v2");
+    const { createClient } = require('@supabase/supabase-js');
 
     if (!sstName || !sstName.trim()) {
       return null;
@@ -2885,11 +2906,22 @@ class DataMapper {
     // Nettoyage complet du nom (espaces, retours à la ligne, tabulations)
     const cleanSstName = sstName.replace(/[\r\n\t]+/g, ' ').replace(/\s+/g, ' ').trim();
 
+    // Créer un client Supabase avec service role key pour contourner les RLS
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
+    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    let supabaseClient = null;
+    
+    if (supabaseUrl && supabaseServiceKey) {
+      supabaseClient = createClient(supabaseUrl, supabaseServiceKey, {
+        auth: { persistSession: false }
+      });
+    }
+
     try {
-      // Première tentative avec le nom nettoyé
+      // Première tentative avec le nom nettoyé (en utilisant le client avec service role key)
       let results = await artisansApi.searchByPlainNom(cleanSstName, {
         limit: 1,
-      });
+      }, supabaseClient); // Passer le client personnalisé
 
       if (results.data && results.data.length > 0) {
         const found = results.data[0];
@@ -2913,7 +2945,7 @@ class DataMapper {
       await new Promise(resolve => setTimeout(resolve, this.sstSearchDelay));
 
       // Deuxième tentative avec le nom nettoyé
-      results = await artisansApi.searchByPlainNom(cleanName, { limit: 1 });
+      results = await artisansApi.searchByPlainNom(cleanName, { limit: 1 }, supabaseClient);
 
       if (results.data && results.data.length > 0) {
         const found = results.data[0];
@@ -2935,7 +2967,7 @@ class DataMapper {
           // Petit délai avant la troisième tentative
           await new Promise(resolve => setTimeout(resolve, this.sstSearchDelay));
           
-          results = await artisansApi.searchByPlainNom(cleanFirstPart, { limit: 1 });
+          results = await artisansApi.searchByPlainNom(cleanFirstPart, { limit: 1 }, supabaseClient);
           
           if (results.data && results.data.length > 0) {
             const found = results.data[0];
@@ -2963,7 +2995,7 @@ class DataMapper {
         // Retry une seule fois après 1 seconde
         try {
           await new Promise(resolve => setTimeout(resolve, 1000));
-          const retryResults = await artisansApi.searchByPlainNom(cleanSstName, { limit: 1 });
+          const retryResults = await artisansApi.searchByPlainNom(cleanSstName, { limit: 1 }, supabaseClient);
           
           if (retryResults.data && retryResults.data.length > 0) {
             const found = retryResults.data[0];
