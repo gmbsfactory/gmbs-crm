@@ -440,7 +440,7 @@ export function NewArtisanModalContent({ mode, onClose, onCycleMode, artisanId, 
       // Marquer le formulaire comme initialisé après un court délai pour laisser reset() se terminer
       setTimeout(() => {
         setIsFormInitialized(true)
-      }, 100)
+      }, 150)
 
       // Mettre à jour l'adresse query pour le géocodage
       const fullAddress = [
@@ -914,10 +914,9 @@ export function NewArtisanModalContent({ mode, onClose, onCycleMode, artisanId, 
   const pendingCloseAction = useRef<(() => void) | null>(null)
   const shouldCloseAfterSave = useRef(false)
 
-  // Détection des modifications non sauvegardées - utiliser dirtyFields pour une détection plus précise
-  // dirtyFields contient uniquement les champs réellement modifiés par l'utilisateur
-  // Ne considérer comme modifié que si les données sont chargées, réinitialisées, et qu'il y a des champs modifiés
-  const hasUnsavedChanges = isFormInitialized && Object.keys(dirtyFields).length > 0 && !isSubmitting && !isLoading && (!isEditMode || existingArtisan !== undefined)
+  // Détection des modifications non sauvegardées - utiliser isDirty comme dans ArtisanModalContent
+  // avec la condition isFormInitialized pour éviter les faux positifs au chargement
+  const hasUnsavedChanges = isFormInitialized && isDirty && !isSubmitting && !isLoading && (!isEditMode || existingArtisan !== undefined)
 
   // Notifier le parent des changements d'état pour la gestion du clic sur backdrop
   useEffect(() => {
@@ -1168,7 +1167,7 @@ export function NewArtisanModalContent({ mode, onClose, onCycleMode, artisanId, 
                   Vous n&apos;avez pas la permission de créer ou modifier un artisan.
                 </div>
               </div>
-            ) : isLoading ? (
+            ) : (isLoading || (isEditMode && !isFormInitialized)) ? (
               <div className="grid gap-4 md:grid-cols-2 px-4 py-3 md:px-6">
                 <div className="h-64 rounded-lg bg-muted animate-pulse" />
                 <div className="h-64 rounded-lg bg-muted animate-pulse" />
@@ -1311,15 +1310,6 @@ export function NewArtisanModalContent({ mode, onClose, onCycleMode, artisanId, 
                               control={control}
                               render={({ field }) => {
                                 const assignedUser = referenceData?.users?.find(u => u.id === field.value)
-                                // Debug: vérifier si avatar_url est présent
-                                if (assignedUser && process.env.NODE_ENV === 'development') {
-                                  console.log('[NewArtisanModalContent] Assigned user:', {
-                                    id: assignedUser.id,
-                                    name: `${assignedUser.firstname} ${assignedUser.lastname}`,
-                                    hasAvatarUrl: !!assignedUser.avatar_url,
-                                    avatarUrl: assignedUser.avatar_url
-                                  })
-                                }
                                 return (
                                   <div className="flex items-center gap-2">
                                     <Popover>
@@ -1507,7 +1497,15 @@ export function NewArtisanModalContent({ mode, onClose, onCycleMode, artisanId, 
                               name="statut_juridique"
                               control={control}
                               render={({ field }) => (
-                                <Select value={field.value || ""} onValueChange={field.onChange}>
+                                <Select 
+                                  value={field.value || ""} 
+                                  onValueChange={(value) => {
+                                    // Ne déclencher onChange que si la valeur a vraiment changé
+                                    if (value !== field.value) {
+                                      field.onChange(value)
+                                    }
+                                  }}
+                                >
                                   <SelectTrigger className={inputClass}>
                                     <SelectValue placeholder="Sélectionner..." />
                                   </SelectTrigger>
@@ -1620,7 +1618,15 @@ export function NewArtisanModalContent({ mode, onClose, onCycleMode, artisanId, 
                               name="zone_intervention"
                               control={control}
                               render={({ field }) => (
-                                <Select value={field.value || ""} onValueChange={field.onChange}>
+                                <Select 
+                                  value={field.value || ""} 
+                                  onValueChange={(value) => {
+                                    // Ne déclencher onChange que si la valeur a vraiment changé
+                                    if (value !== field.value) {
+                                      field.onChange(value)
+                                    }
+                                  }}
+                                >
                                   <SelectTrigger className={inputClass}>
                                     <SelectValue placeholder="Sélectionner..." />
                                   </SelectTrigger>

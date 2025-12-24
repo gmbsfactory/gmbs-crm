@@ -1550,12 +1550,6 @@ export const interventionsApi = {
     // Debug pour interventions avec marge négative
     if (marge < 0) {
       const idStr = interventionId ? ` (ID: ${interventionId})` : '';
-      console.log(
-        `[MarginStats] Intervention avec perte${idStr} : ` +
-        `vente ${coutIntervention.toFixed(2)}€, ` +
-        `coûts ${totalCostForIntervention.toFixed(2)}€, ` +
-        `marge ${marge.toFixed(2)}€ (${marginPercentage.toFixed(2)}%)`
-      );
     }
 
     return {
@@ -1641,14 +1635,6 @@ export const interventionsApi = {
     if (totalRevenue > 0) {
       averageMarginPercentage = (totalMargin / totalRevenue) * 100;
     }
-
-    // Debug : vérifier la cohérence des calculs
-    console.log(`[MarginStats] Résumé du calcul pour user ${userId} :`);
-    console.log(`  - Nombre d'interventions : ${interventionsWithCosts}`);
-    console.log(`  - Revenu total : ${totalRevenue.toFixed(2)}€`);
-    console.log(`  - Coûts totaux : ${totalCosts.toFixed(2)}€`);
-    console.log(`  - Marge totale : ${totalMargin.toFixed(2)}€`);
-    console.log(`  - % marge global : ${averageMarginPercentage.toFixed(2)}%`);
 
     return {
       average_margin_percentage: Math.round(averageMarginPercentage * 100) / 100,

@@ -1215,9 +1215,6 @@ export const interventionsApiV2 = {
     const rawLength = Array.isArray(raw?.data) ? raw.data.length : 0;
     const rawFirstId = rawLength > 0 ? raw.data[0]?.id ?? null : null;
     const rawLastId = rawLength > 0 ? raw.data[rawLength - 1]?.id ?? null : null;
-    console.log(
-      `[interventionsApiV2.getAllLight] Payload debug - offset=${offset}, length=${rawLength}, firstId=${rawFirstId}, lastId=${rawLastId}`,
-    );
     const fetchDuration = Date.now() - fetchStart;
 
     // Pour la version light, on retourne les données brutes sans mapping complet
@@ -1260,7 +1257,6 @@ export const interventionsApiV2 = {
       : [];
 
     const mapDuration = Date.now() - fetchStart - fetchDuration;
-    console.log(`🚀 [interventionsApiV2.getAllLight] Fetch: ${fetchDuration}ms, Map: ${mapDuration}ms, Total: ${transformedData.length} items`);
 
     const total =
       typeof raw?.pagination?.total === "number"

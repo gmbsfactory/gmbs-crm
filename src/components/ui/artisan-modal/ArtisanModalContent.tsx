@@ -512,10 +512,6 @@ export function ArtisanModalContent({
   // Réinitialiser le flag quand l'artisan change
   useEffect(() => {
     if (artisanId !== initializedArtisanIdRef.current) {
-      console.log("[ArtisanModalContent] Artisan ID changed, resetting initialization:", { 
-        old: initializedArtisanIdRef.current, 
-        new: artisanId 
-      })
       setIsFormInitialized(false)
       initializedArtisanIdRef.current = null
     }
@@ -816,23 +812,9 @@ export function ArtisanModalContent({
   const pendingCloseAction = useRef<(() => void) | null>(null)
   const shouldCloseAfterSave = useRef(false)
 
-  // Détection des modifications non sauvegardées - utiliser dirtyFields pour une détection plus précise
-  // dirtyFields contient uniquement les champs réellement modifiés par l'utilisateur
-  // Ne considérer comme modifié que si les données sont chargées, réinitialisées, et qu'il y a des champs modifiés
-  const hasUnsavedChanges = isFormInitialized && Object.keys(dirtyFields).length > 0 && !isSaving && !isLoading && artisan !== undefined
-
-  // Debug: Logger les changements de dirtyFields avec les valeurs actuelles
-  useEffect(() => {
-    const dirtyKeys = Object.keys(dirtyFields)
-    if (dirtyKeys.length > 0 && isFormInitialized) {
-      const currentValues = getValues()
-      console.log("[ArtisanModalContent] ⚠️ CHAMPS DIRTY DÉTECTÉS:")
-      console.log("  - Champs modifiés:", dirtyKeys.join(", "))
-      dirtyKeys.forEach(key => {
-        console.log(`  - ${key}:`, currentValues[key as keyof ArtisanFormValues])
-      })
-    }
-  }, [dirtyFields, isFormInitialized, getValues])
+  // Détection des modifications non sauvegardées - utiliser isDirty comme dans NewArtisanModalContent
+  // avec la condition isFormInitialized pour éviter les faux positifs au chargement
+  const hasUnsavedChanges = isFormInitialized && isDirty && !isSaving && !isLoading && artisan !== undefined
 
   // Notifier le parent des changements d'état pour la gestion du clic sur backdrop
   useEffect(() => {
@@ -1140,7 +1122,7 @@ export function ArtisanModalContent({
             className={cn("flex-1 min-h-0", !canWriteArtisans && "opacity-70")}
           >
             <div className="modal-config-columns-body flex-1 min-h-0 bg-[#C6CEDC] dark:bg-transparent">
-              {isLoading ? (
+              {(isLoading || !isFormInitialized) ? (
                 <div className="grid gap-4 md:grid-cols-2 px-4 py-3 md:px-6">
                   <div className="h-64 rounded-lg bg-muted animate-pulse" />
                   <div className="h-64 rounded-lg bg-muted animate-pulse" />
@@ -1294,15 +1276,6 @@ export function ArtisanModalContent({
                               control={control}
                               render={({ field }) => {
                                 const assignedUser = referenceData?.users?.find(u => u.id === field.value)
-                                // Debug: vérifier si avatar_url est présent
-                                if (assignedUser && process.env.NODE_ENV === 'development') {
-                                  console.log('[ArtisanModalContent] Assigned user:', {
-                                    id: assignedUser.id,
-                                    name: `${assignedUser.firstname} ${assignedUser.lastname}`,
-                                    hasAvatarUrl: !!assignedUser.avatar_url,
-                                    avatarUrl: assignedUser.avatar_url
-                                  })
-                                }
                                 return (
                                   <div className="flex items-center gap-2">
                                     <Popover>
