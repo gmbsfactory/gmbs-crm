@@ -4,10 +4,7 @@
 - Artisan
         - Mettre nouvel artisan en haut ???
         -               Trier artisan par date de création 
-        - Permuter Candidat et Potentiel dans la chaîne de logique des statuts artisans
-                Lors de la création on peut sélectionne soit Candidat soit One Shot 
-                Lors de l'édition également 
-                        Transition  de Potentiel à Candidat et One Shot
+        - Permutation One Shot statut d'origine
 
 - Tabulation trap quand l'alert dialog apparaît
 
@@ -21,6 +18,7 @@
 
 - Focus trap 
         - Artisan Archivé à régler comme intervention terminé
+        - Trap sur l'alert dialog UnsavedCHanges
 
 - Dashboard
         - Gestion des retards sans bugggg !! 

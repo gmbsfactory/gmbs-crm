@@ -26,3 +26,4 @@ NOTIFY pgrst, 'reload schema';
 -- FIN DE LA MIGRATION
 -- ========================================
 
+

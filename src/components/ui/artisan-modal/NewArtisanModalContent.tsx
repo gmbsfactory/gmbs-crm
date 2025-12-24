@@ -512,7 +512,8 @@ export function NewArtisanModalContent({ mode, onClose, onCycleMode, artisanId, 
       allowedCodes = ['ONE_SHOT']
     }
 
-    return referenceData.artisanStatuses
+    // Filtrer les statuts disponibles
+    const availableStatuses = referenceData.artisanStatuses
       .filter((status) => allowedCodes.includes(status.code?.toUpperCase() || ''))
       .sort((a, b) => {
         // Trier selon l'ordre : CANDIDAT, ONE_SHOT, POTENTIEL, puis les autres
@@ -521,6 +522,14 @@ export function NewArtisanModalContent({ mode, onClose, onCycleMode, artisanId, 
         const bIndex = order.indexOf(b.code?.toUpperCase() || '')
         return (aIndex === -1 ? 999 : aIndex) - (bIndex === -1 ? 999 : bIndex)
       })
+
+    // IMPORTANT : Ajouter le statut actuel s'il n'est pas déjà dans la liste
+    // pour qu'il puisse être affiché dans le Select même s'il n'est pas modifiable
+    if (currentStatus && !availableStatuses.find(s => s.id === currentStatus.id)) {
+      return [currentStatus, ...availableStatuses]
+    }
+
+    return availableStatuses
   }, [referenceData, isEditMode, currentStatusId, completedInterventionsCount])
 
   // Attribuer automatiquement l'artisan au gestionnaire qui le crée (création uniquement)
@@ -1513,7 +1522,8 @@ export function NewArtisanModalContent({ mode, onClose, onCycleMode, artisanId, 
                                   name="statut_id"
                                   control={control}
                                   render={({ field }) => {
-                                    const selectedStatusId = field.value || defaultCandidatStatusId;
+                                    // Utiliser la valeur du champ directement, avec fallback en mode création
+                                    const selectedStatusId = field.value || (isEditMode ? "" : defaultCandidatStatusId);
                                     const selectedStatus = availableStatusesForModification.find(
                                       (s) => s.id === selectedStatusId
                                     ) || referenceData?.artisanStatuses?.find(
@@ -1526,7 +1536,17 @@ export function NewArtisanModalContent({ mode, onClose, onCycleMode, artisanId, 
                                         onValueChange={field.onChange}
                                       >
                                         <SelectTrigger className={inputClass}>
-                                          <SelectValue placeholder="Sélectionner un statut..." />
+                                          <SelectValue placeholder="Sélectionner un statut...">
+                                            {selectedStatus ? (
+                                              <div className="flex items-center gap-2">
+                                                <span
+                                                  className="inline-block h-2.5 w-2.5 rounded-full shrink-0"
+                                                  style={{ backgroundColor: selectedStatus.color ?? '#6B7280' }}
+                                                />
+                                                <span>{selectedStatus.label}</span>
+                                              </div>
+                                            ) : null}
+                                          </SelectValue>
                                         </SelectTrigger>
                                         <SelectContent>
                                           {availableStatusesForModification.map((status) => (

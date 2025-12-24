@@ -121,7 +121,7 @@ export function AvatarStatus() {
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <button
-            className="relative h-9 w-9 rounded-full outline-none focus-visible:ring-1 focus-visible:ring-ring border-4 overflow-hidden select-none"
+            className="relative h-9 w-9 rounded-full outline-none focus-visible:ring-1 focus-visible:ring-ring border-2 overflow-hidden select-none"
             style={{ borderColor: borderColor || '#e5e7eb' }}
             aria-label={displayName || 'Profil'}
             title={displayName || ''}
