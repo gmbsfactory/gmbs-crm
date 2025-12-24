@@ -1158,15 +1158,22 @@ export const interventionsApi = {
       amount: number;
       currency?: string;
       metadata?: any;
+      artisan_order?: 1 | 2 | null;
     }>
   ): Promise<BulkOperationResult> {
     const results = { success: 0, errors: 0, details: [] as any[] };
 
     for (const cost of costs) {
       try {
-        const result = await this.addCost(cost.intervention_id, cost);
+        // Utiliser upsertCost pour éviter les doublons (gère artisan_order correctement)
+        await this.upsertCost(cost.intervention_id, {
+          cost_type: cost.cost_type,
+          amount: cost.amount,
+          label: cost.label || null,
+          artisan_order: cost.artisan_order ?? (cost.cost_type === 'intervention' || cost.cost_type === 'marge' ? null : 1)
+        });
         results.success++;
-        results.details.push({ item: cost, success: true, data: result });
+        results.details.push({ item: cost, success: true });
       } catch (error: any) {
         results.errors++;
         results.details.push({ item: cost, success: false, error: error.message });
