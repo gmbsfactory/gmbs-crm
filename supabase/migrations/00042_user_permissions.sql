@@ -168,3 +168,4 @@ COMMENT ON FUNCTION public.user_has_permission(uuid, text) IS 'Checks if user ha
 
 
 
+
