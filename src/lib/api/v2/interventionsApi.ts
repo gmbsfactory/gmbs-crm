@@ -920,8 +920,8 @@ export const interventionsApi = {
     role: "primary" | "secondary" = "primary",
     customClient?: any
   ): Promise<any> {
-    // Utiliser le client personnalisé si fourni, sinon utiliser le client par défaut
-    const client = customClient || supabase;
+    // Utiliser le client personnalisé si fourni, sinon utiliser supabaseClient (qui utilise getSupabaseClientForNode() dans Node.js)
+    const client = customClient || supabaseClient;
     
     const { data: result, error } = await client
       .from('intervention_artisans')
@@ -1110,8 +1110,8 @@ export const interventionsApi = {
 
   // Upsert direct via Supabase (pour import en masse)
   async upsertDirect(data: CreateInterventionData & { id_inter?: string }, customClient?: any): Promise<Intervention> {
-    // Utiliser le client personnalisé si fourni, sinon utiliser le client par défaut
-    const client = customClient || supabase;
+    // Utiliser le client personnalisé si fourni, sinon utiliser supabaseClient (qui utilise getSupabaseClientForNode() dans Node.js)
+    const client = customClient || supabaseClient;
     
     // 1. Vérifier si l'intervention existe déjà
     let existingIntervention = null;
@@ -1208,7 +1208,13 @@ export const interventionsApi = {
 
     for (const cost of costs) {
       try {
-        const result = await this.addCost(cost.intervention_id, cost);
+        // Utiliser upsertCost pour éviter les doublons (gère artisan_order correctement)
+        await this.upsertCost(cost.intervention_id, {
+          cost_type: cost.cost_type,
+          amount: cost.amount,
+          label: cost.label || null,
+          artisan_order: cost.artisan_order ?? (cost.cost_type === 'intervention' || cost.cost_type === 'marge' ? null : 1)
+        });
         results.success++;
         results.details.push({ item: cost, success: true });
       } catch (error: any) {
@@ -1921,8 +1927,6 @@ export const interventionsApi = {
       monday = new Date(now.getFullYear(), now.getMonth(), diff);
       monday.setHours(0, 0, 0, 0);
 
-      console.log(`[WeeklyStats] Date actuelle: ${now.toISOString()}, Jour de la semaine: ${day}, Diff: ${diff}`);
-      console.log(`[WeeklyStats] Lundi calculé: ${monday.toISOString()}`);
     }
 
     const tuesday = new Date(monday);
@@ -1991,11 +1995,6 @@ export const interventionsApi = {
       throw new Error(`Erreur lors de la récupération des interventions: ${interventionsError.message}`);
     }
 
-    // Debug: vérifier si des interventions ont été trouvées
-    console.log(`[WeeklyStats] Période: ${mondayStr} à ${saturdayStr}`);
-    console.log(`[WeeklyStats] UserId: ${userId}`);
-    console.log(`[WeeklyStats] Interventions trouvées: ${interventions?.length || 0}`);
-
     // Vérifier toutes les interventions de l'utilisateur (sans filtre de date) pour debug
     const { data: allUserInterventions, count: totalCount } = await supabase
       .from("interventions")
@@ -2004,19 +2003,12 @@ export const interventionsApi = {
       .eq("is_active", true)
       .limit(10);
 
-    console.log(`[WeeklyStats] Total interventions pour cet utilisateur (sans filtre date): ${totalCount ?? 0}`);
     if (allUserInterventions && allUserInterventions.length > 0) {
-      console.log(`[WeeklyStats] Exemples de dates d'interventions:`,
-        allUserInterventions.map(i => ({ id: i.id, date: i.date }))
-      );
+        allUserInterventions.map(i => ({ id: i.id, date: i.date }));
     }
 
     if (interventions && interventions.length > 0) {
       const firstIntervention = interventions[0] as any;
-      console.log(`[WeeklyStats] Exemple d'intervention dans la période:`, {
-        date: firstIntervention.date,
-        statusCode: firstIntervention.status?.code,
-      });
     }
 
     // Compter les interventions par jour et par statut

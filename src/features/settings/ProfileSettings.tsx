@@ -3,7 +3,6 @@
 import { useState, useEffect, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { usersApi } from "@/lib/api/v2"
-import { Camera, X } from "lucide-react"
 import { motion, AnimatePresence } from "framer-motion"
 import { 
   Mail, 
@@ -13,7 +12,8 @@ import {
   Palette,
   Save,
   KeyRound,
-  Sparkles
+  Camera,
+  X
 } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { useCurrentUser } from "@/hooks/useCurrentUser"
@@ -398,12 +398,12 @@ export function ProfileSettings() {
                 </AvatarFallback>
               </Avatar>
 
-              <div className="absolute -bottom-2 -right-2 flex gap-1">
+              <div className="absolute -bottom-2 -right-2 flex gap-1 z-10">
                 <Button
                   type="button"
                   size="icon"
                   variant="secondary"
-                  className="h-8 w-8 rounded-full"
+                  className="h-8 w-8 rounded-full shadow-lg"
                   onClick={() => fileInputRef.current?.click()}
                   disabled={uploadingAvatar || loading}
                   title="Changer la photo"
@@ -415,7 +415,7 @@ export function ProfileSettings() {
                     type="button"
                     size="icon"
                     variant="destructive"
-                    className="h-8 w-8 rounded-full"
+                    className="h-8 w-8 rounded-full shadow-lg"
                     onClick={handleRemoveAvatar}
                     disabled={uploadingAvatar || loading}
                     title="Supprimer la photo"
@@ -435,10 +435,10 @@ export function ProfileSettings() {
               />
 
               <div 
-                className="absolute -bottom-1 -right-1 h-8 w-8 rounded-full bg-background border-2 flex items-center justify-center"
+                className="absolute -bottom-1 -right-1 h-8 w-8 rounded-full bg-background border-2 flex items-center justify-center z-0"
                 style={{ borderColor: colorField || '#6366f1' }}
               >
-                <Sparkles className="h-4 w-4" style={{ color: colorField || '#6366f1' }} />
+                <Camera className="h-4 w-4" style={{ color: colorField || '#6366f1' }} />
               </div>
             </motion.div>
             

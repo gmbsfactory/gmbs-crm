@@ -255,13 +255,17 @@ const mapArtisanToForm = (artisan: ArtisanWithRelations | any): ArtisanFormValue
   })()
 
   // Extraire la zone d'intervention - gérer plusieurs formats possibles
+  // IMPORTANT: Utiliser zones.code en priorité car les options du Select utilisent les codes ("20", "35", etc.)
+  // et non les UUIDs (zone_id)
   const zoneValue = (() => {
     // Format 1: artisan_zones avec relations
     if (Array.isArray(artisanAny.artisan_zones) && artisanAny.artisan_zones.length > 0) {
       const first = artisanAny.artisan_zones[0]
-      if (first.zone_id) return String(first.zone_id)
+      // Priorité au code de la zone car les options utilisent des codes, pas des UUIDs
       if (first.zones?.code) return String(first.zones.code)
       if (first.zones?.label) return String(first.zones.label)
+      // Fallback sur zone_id seulement si pas de code/label disponible
+      if (first.zone_id) return String(first.zone_id)
     }
 
     // Format 2: zones comme tableau de strings
@@ -292,7 +296,9 @@ const mapArtisanToForm = (artisan: ArtisanWithRelations | any): ArtisanFormValue
     ville_siege_social: artisanAny.ville_siege_social ?? "",
     statut_juridique: artisanAny.statut_juridique ?? "",
     siret: artisanAny.siret ?? "",
-    iban: artisanAny.iban ?? "",
+    // Normaliser l'IBAN en majuscules dès le mapping pour éviter que le toUpperCase() 
+    // dans le onChange du InputOTP ne marque le champ comme modifié
+    iban: (artisanAny.iban ?? "").toUpperCase(),
     metiers: metierIds,
     zone_intervention: zoneValue,
     gestionnaire_id: artisanAny.gestionnaire_id ?? "",
@@ -470,26 +476,49 @@ export function ArtisanModalContent({
 
   // État pour suivre si les données ont été chargées et réinitialisées
   const [isFormInitialized, setIsFormInitialized] = useState(false)
+  // Ref pour tracker l'ID de l'artisan qui a été initialisé (évite les re-renders inutiles)
+  const initializedArtisanIdRef = useRef<string | null>(null)
 
   useEffect(() => {
     if (artisan) {
-      console.log("[ArtisanModalContent] Artisan data received:", artisan)
+      // Ne pas re-reset si c'est le même artisan et que le formulaire est déjà initialisé
+      if (initializedArtisanIdRef.current === artisan.id) {
+        console.log("[ArtisanModalContent] Skipping reset - same artisan already initialized:", artisan.id)
+        return
+      }
+      
+      console.log("[ArtisanModalContent] Initializing form for artisan:", artisan.id)
       const formValues = mapArtisanToForm(artisan)
       console.log("[ArtisanModalContent] Mapped form values:", formValues)
+      
+      // Marquer immédiatement comme initialisé pour éviter les doubles resets
+      initializedArtisanIdRef.current = artisan.id
+      
       // Réinitialiser le formulaire avec les nouvelles valeurs et réinitialiser isDirty
       reset(formValues, { keepDefaultValues: false, keepDirtyValues: false })
+      
       // Marquer le formulaire comme initialisé après un court délai pour laisser reset() se terminer
       setTimeout(() => {
+        console.log("[ArtisanModalContent] Form initialized, dirtyFields should be empty now")
         setIsFormInitialized(true)
-      }, 100)
+      }, 150)
     } else {
       setIsFormInitialized(false)
+      initializedArtisanIdRef.current = null
     }
-  }, [artisan, reset])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [artisan])
 
   // Réinitialiser le flag quand l'artisan change
   useEffect(() => {
-    setIsFormInitialized(false)
+    if (artisanId !== initializedArtisanIdRef.current) {
+      console.log("[ArtisanModalContent] Artisan ID changed, resetting initialization:", { 
+        old: initializedArtisanIdRef.current, 
+        new: artisanId 
+      })
+      setIsFormInitialized(false)
+      initializedArtisanIdRef.current = null
+    }
   }, [artisanId])
 
   const getArtisanStatusCode = useCallback(
@@ -791,6 +820,19 @@ export function ArtisanModalContent({
   // dirtyFields contient uniquement les champs réellement modifiés par l'utilisateur
   // Ne considérer comme modifié que si les données sont chargées, réinitialisées, et qu'il y a des champs modifiés
   const hasUnsavedChanges = isFormInitialized && Object.keys(dirtyFields).length > 0 && !isSaving && !isLoading && artisan !== undefined
+
+  // Debug: Logger les changements de dirtyFields avec les valeurs actuelles
+  useEffect(() => {
+    const dirtyKeys = Object.keys(dirtyFields)
+    if (dirtyKeys.length > 0 && isFormInitialized) {
+      const currentValues = getValues()
+      console.log("[ArtisanModalContent] ⚠️ CHAMPS DIRTY DÉTECTÉS:")
+      console.log("  - Champs modifiés:", dirtyKeys.join(", "))
+      dirtyKeys.forEach(key => {
+        console.log(`  - ${key}:`, currentValues[key as keyof ArtisanFormValues])
+      })
+    }
+  }, [dirtyFields, isFormInitialized, getValues])
 
   // Notifier le parent des changements d'état pour la gestion du clic sur backdrop
   useEffect(() => {
@@ -1252,6 +1294,15 @@ export function ArtisanModalContent({
                               control={control}
                               render={({ field }) => {
                                 const assignedUser = referenceData?.users?.find(u => u.id === field.value)
+                                // Debug: vérifier si avatar_url est présent
+                                if (assignedUser && process.env.NODE_ENV === 'development') {
+                                  console.log('[ArtisanModalContent] Assigned user:', {
+                                    id: assignedUser.id,
+                                    name: `${assignedUser.firstname} ${assignedUser.lastname}`,
+                                    hasAvatarUrl: !!assignedUser.avatar_url,
+                                    avatarUrl: assignedUser.avatar_url
+                                  })
+                                }
                                 return (
                                   <div className="flex items-center gap-2">
                                     <Popover>
@@ -1264,6 +1315,7 @@ export function ArtisanModalContent({
                                             firstname={assignedUser?.firstname}
                                             lastname={assignedUser?.lastname}
                                             color={assignedUser?.color}
+                                            avatarUrl={assignedUser?.avatar_url}
                                             size="sm"
                                             className="transition-transform group-hover:scale-110 h-7 w-7"
                                           />
@@ -1308,6 +1360,7 @@ export function ArtisanModalContent({
                                                     firstname={user.firstname}
                                                     lastname={user.lastname}
                                                     color={user.color}
+                                                    avatarUrl={user.avatar_url}
                                                     size="sm"
                                                     showBorder={false}
                                                   />
@@ -1397,7 +1450,15 @@ export function ArtisanModalContent({
                               name="statut_juridique"
                               control={control}
                               render={({ field }) => (
-                                <Select value={field.value || ""} onValueChange={field.onChange}>
+                                <Select 
+                                  value={field.value || ""} 
+                                  onValueChange={(value) => {
+                                    // Ne déclencher onChange que si la valeur a vraiment changé
+                                    if (value !== field.value) {
+                                      field.onChange(value)
+                                    }
+                                  }}
+                                >
                                   <SelectTrigger className={inputClass}>
                                     <SelectValue placeholder="Sélectionner..." />
                                   </SelectTrigger>
@@ -1508,7 +1569,15 @@ export function ArtisanModalContent({
                               name="zone_intervention"
                               control={control}
                               render={({ field }) => (
-                                <Select value={field.value || ""} onValueChange={field.onChange}>
+                                <Select 
+                                  value={field.value || ""} 
+                                  onValueChange={(value) => {
+                                    // Ne déclencher onChange que si la valeur a vraiment changé
+                                    if (value !== field.value) {
+                                      field.onChange(value)
+                                    }
+                                  }}
+                                >
                                   <SelectTrigger className={inputClass}>
                                     <SelectValue placeholder="Sélectionner..." />
                                   </SelectTrigger>

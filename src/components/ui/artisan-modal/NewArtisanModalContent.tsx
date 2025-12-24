@@ -325,6 +325,21 @@ export function NewArtisanModalContent({ mode, onClose, onCycleMode, artisanId, 
     )?.id || "";
   }, [referenceData]);
 
+  // Filtrer les statuts disponibles pour la création/édition (POTENTIEL, CANDIDAT, ONE_SHOT)
+  const availableStatusesForCreation = useMemo(() => {
+    if (!referenceData?.artisanStatuses) return [];
+    const allowedCodes = ['POTENTIEL', 'CANDIDAT', 'ONE_SHOT'];
+    return referenceData.artisanStatuses
+      .filter((status) => allowedCodes.includes(status.code?.toUpperCase() || ''))
+      .sort((a, b) => {
+        // Trier dans l'ordre : POTENTIEL, CANDIDAT, ONE_SHOT
+        const order = ['POTENTIEL', 'CANDIDAT', 'ONE_SHOT'];
+        const aIndex = order.indexOf(a.code?.toUpperCase() || '');
+        const bIndex = order.indexOf(b.code?.toUpperCase() || '');
+        return (aIndex === -1 ? 999 : aIndex) - (bIndex === -1 ? 999 : bIndex);
+      });
+  }, [referenceData]);
+
   const { control, register, handleSubmit, reset, setValue, watch, formState: { errors, isDirty, dirtyFields } } = useForm<ArtisanFormValues>({
     defaultValues: buildDefaultFormValues(),
   })
@@ -359,10 +374,16 @@ export function NewArtisanModalContent({ mode, onClose, onCycleMode, artisanId, 
         return []
       })()
 
-      // Extraire la zone
+      // Extraire la zone - utiliser zones.code en priorité car les options du Select utilisent les codes
       const zoneValue = (() => {
         if (Array.isArray(artisanAny.artisan_zones) && artisanAny.artisan_zones.length > 0) {
-          return artisanAny.artisan_zones[0].zone_id || ""
+          const first = artisanAny.artisan_zones[0]
+          // Priorité au code de la zone car les options utilisent des codes ("20", "35", etc.), pas des UUIDs
+          if (first.zones?.code) return String(first.zones.code)
+          if (first.zones?.label) return String(first.zones.label)
+          // Fallback sur zone_id seulement si pas de code/label disponible
+          if (first.zone_id) return String(first.zone_id)
+          return ""
         }
         if (Array.isArray(artisanAny.zones) && artisanAny.zones.length > 0) {
           return artisanAny.zones[0]
@@ -404,7 +425,9 @@ export function NewArtisanModalContent({ mode, onClose, onCycleMode, artisanId, 
         ville_siege_social: artisanAny.ville_siege_social ?? "",
         statut_juridique: artisanAny.statut_juridique ?? "",
         siret: artisanAny.siret ?? "",
-        iban: artisanAny.iban ?? "",
+        // Normaliser l'IBAN en majuscules dès le mapping pour éviter que le toUpperCase() 
+        // dans le onChange du InputOTP ne marque le champ comme modifié
+        iban: (artisanAny.iban ?? "").toUpperCase(),
         metiers: metierIds,
         zone_intervention: zoneValue,
         gestionnaire_id: artisanAny.gestionnaire_id ?? "",
@@ -1288,6 +1311,15 @@ export function NewArtisanModalContent({ mode, onClose, onCycleMode, artisanId, 
                               control={control}
                               render={({ field }) => {
                                 const assignedUser = referenceData?.users?.find(u => u.id === field.value)
+                                // Debug: vérifier si avatar_url est présent
+                                if (assignedUser && process.env.NODE_ENV === 'development') {
+                                  console.log('[NewArtisanModalContent] Assigned user:', {
+                                    id: assignedUser.id,
+                                    name: `${assignedUser.firstname} ${assignedUser.lastname}`,
+                                    hasAvatarUrl: !!assignedUser.avatar_url,
+                                    avatarUrl: assignedUser.avatar_url
+                                  })
+                                }
                                 return (
                                   <div className="flex items-center gap-2">
                                     <Popover>
@@ -1300,6 +1332,7 @@ export function NewArtisanModalContent({ mode, onClose, onCycleMode, artisanId, 
                                             firstname={assignedUser?.firstname}
                                             lastname={assignedUser?.lastname}
                                             color={assignedUser?.color}
+                                            avatarUrl={assignedUser?.avatar_url}
                                             size="sm"
                                             className="transition-transform group-hover:scale-110 h-8 w-8"
                                           />
@@ -1344,6 +1377,7 @@ export function NewArtisanModalContent({ mode, onClose, onCycleMode, artisanId, 
                                                     firstname={user.firstname}
                                                     lastname={user.lastname}
                                                     color={user.color}
+                                                    avatarUrl={user.avatar_url}
                                                     size="sm"
                                                     showBorder={false}
                                                   />
@@ -1384,28 +1418,68 @@ export function NewArtisanModalContent({ mode, onClose, onCycleMode, artisanId, 
                           <div className="space-y-1">
                             <Label className={labelClass}>Statut</Label>
                             {(() => {
-                              const currentStatusId = watch("statut_id")
-                              const currentStatus = referenceData?.artisanStatuses?.find(
-                                (s) => s.id === currentStatusId
-                              )
+                              // Mode lecture seule : affichage statique
+                              if (!canWriteArtisans) {
+                                const currentStatusId = watch("statut_id")
+                                const currentStatus = referenceData?.artisanStatuses?.find(
+                                  (s) => s.id === currentStatusId
+                                )
+                                return (
+                                  <div className="flex items-center gap-2 rounded-md border bg-muted px-3 py-2 h-8 text-sm">
+                                    {currentStatus ? (
+                                      <>
+                                        <span
+                                          className="inline-block h-2.5 w-2.5 rounded-full shrink-0"
+                                          style={{ backgroundColor: currentStatus.color ?? '#6B7280' }}
+                                        />
+                                        <span className="truncate">{currentStatus.label}</span>
+                                      </>
+                                    ) : (
+                                      <span className="text-muted-foreground">Non défini</span>
+                                    )}
+                                  </div>
+                                );
+                              }
+
+                              // Mode création ou édition : Select pour choisir le statut
                               return (
-                                <div className="flex items-center gap-2 rounded-md border bg-muted px-3 py-2 h-8 text-sm">
-                                  {currentStatus ? (
-                                    <>
-                                      <span
-                                        className="inline-block h-2.5 w-2.5 rounded-full shrink-0"
-                                        style={{ backgroundColor: currentStatus.color ?? '#6B7280' }}
-                                      />
-                                      <span className="truncate">{currentStatus.label}</span>
-                                    </>
-                                  ) : (
-                                    <span className="text-muted-foreground">Non défini</span>
-                                  )}
-                                  <span className="ml-auto text-[10px] text-muted-foreground shrink-0">
-                                    (Auto)
-                                  </span>
-                                </div>
-                              )
+                                <Controller
+                                  name="statut_id"
+                                  control={control}
+                                  render={({ field }) => {
+                                    const selectedStatusId = field.value || defaultCandidatStatusId;
+                                    const selectedStatus = availableStatusesForCreation.find(
+                                      (s) => s.id === selectedStatusId
+                                    ) || referenceData?.artisanStatuses?.find(
+                                      (s) => s.id === selectedStatusId
+                                    );
+                                    
+                                    return (
+                                      <Select 
+                                        value={selectedStatusId || ""} 
+                                        onValueChange={field.onChange}
+                                      >
+                                        <SelectTrigger className={inputClass}>
+                                          <SelectValue placeholder="Sélectionner un statut..." />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                          {availableStatusesForCreation.map((status) => (
+                                            <SelectItem key={status.id} value={status.id}>
+                                              <div className="flex items-center gap-2">
+                                                <span
+                                                  className="inline-block h-2.5 w-2.5 rounded-full shrink-0"
+                                                  style={{ backgroundColor: status.color ?? '#6B7280' }}
+                                                />
+                                                <span>{status.label}</span>
+                                              </div>
+                                            </SelectItem>
+                                          ))}
+                                        </SelectContent>
+                                      </Select>
+                                    );
+                                  }}
+                                />
+                              );
                             })()}
                           </div>
                         </div>

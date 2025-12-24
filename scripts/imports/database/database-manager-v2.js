@@ -14,7 +14,11 @@ const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 let supabaseClient = null;
 if (supabaseUrl && supabaseServiceKey) {
-  supabaseClient = createClient(supabaseUrl, supabaseServiceKey);
+  supabaseClient = createClient(supabaseUrl, supabaseServiceKey, {
+    auth: { persistSession: false }
+  });
+} else {
+  console.warn('⚠️ [DB-MANAGER] SUPABASE_SERVICE_ROLE_KEY non définie - les opérations utiliseront la clé anon (peut échouer avec RLS)');
 }
 
 class DatabaseManager {

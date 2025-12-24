@@ -42,7 +42,36 @@ export function useCurrentUser(options?: { enabled?: boolean }) {
           // Pas authentifié, retourner null
           return null
         }
-        throw new Error("Impossible de récupérer l'utilisateur")
+        
+        // Essayer de récupérer les détails de l'erreur depuis la réponse
+        let errorMessage = "Impossible de récupérer l'utilisateur"
+        let errorDetails: any = null
+        
+        try {
+          const errorPayload = await response.json()
+          errorMessage = errorPayload?.error || errorPayload?.message || errorMessage
+          errorDetails = errorPayload?.details
+          
+          // Logger l'erreur avec tous les détails disponibles
+          console.error('[useCurrentUser] API Error:', {
+            status: response.status,
+            statusText: response.statusText,
+            error: errorMessage,
+            details: errorDetails,
+            fullPayload: errorPayload
+          })
+        } catch (parseError) {
+          // Si on ne peut pas parser le JSON, logger quand même
+          console.error('[useCurrentUser] API Error (could not parse response):', {
+            status: response.status,
+            statusText: response.statusText
+          })
+        }
+        
+        const error = new Error(errorMessage)
+        ;(error as any).details = errorDetails
+        ;(error as any).status = response.status
+        throw error
       }
 
       const payload = await response.json()

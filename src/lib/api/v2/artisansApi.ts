@@ -35,6 +35,7 @@ function getSupabaseClientForNode() {
 
 // Utiliser le client admin dans Node.js, le client standard dans le navigateur
 const supabaseClient = typeof window !== 'undefined' ? supabase : getSupabaseClientForNode();
+
 import type {
   Artisan,
   ArtisanQueryParams,
@@ -509,8 +510,8 @@ export const artisansApi = {
 
   // Rechercher par plain_nom (pour la recherche SST)
   async searchByPlainNom(searchTerm: string, params?: ArtisanQueryParams, customClient?: any): Promise<PaginatedResponse<Artisan>> {
-    // Utiliser le client personnalisé si fourni, sinon utiliser le client par défaut
-    const client = customClient || supabase;
+    // Utiliser le client personnalisé si fourni, sinon utiliser supabaseClient (qui utilise getSupabaseClientForNode() dans Node.js)
+    const client = customClient || supabaseClient;
     
     let query = client
       .from("artisans")
@@ -537,7 +538,7 @@ export const artisansApi = {
 
     const refs = await getReferenceCache();
 
-    const transformedData = (data || []).map((item) =>
+    const transformedData = (data || []).map((item: any) =>
       mapArtisanRecord(item, refs)
     );
 

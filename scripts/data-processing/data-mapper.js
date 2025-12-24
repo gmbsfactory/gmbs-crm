@@ -2986,98 +2986,65 @@ class DataMapper {
     try {
       // Première tentative avec le nom nettoyé
       let results = await artisansApi.searchByPlainNom(cleanSstName, {
-        limit: 1, 
-        supabaseClient
-      });
+        limit: 1
+      }, supabaseClient); // Passer le client comme troisième argument
 
-        if (results.data && results.data.length > 0) {
-          // Normaliser le nom recherché pour comparaison
-          const searchNormalized = variant.toLowerCase().replace(/\s+/g, ' ').trim();
-          
-          // Trouver le meilleur match parmi les résultats
-          let found = null;
-          let bestScore = 0;
-          
-          for (const artisan of results.data) {
-            const artisanPlainNom = (artisan.plain_nom || `${artisan.prenom || ''} ${artisan.nom || ''}`).toLowerCase().replace(/\s+/g, ' ').trim();
-            const artisanFullName = `${(artisan.prenom || '').toLowerCase()} ${(artisan.nom || '').toLowerCase()}`.trim();
-            
-            // Score de correspondance
-            let score = 0;
-            
-            // Correspondance exacte = score maximal
-            if (artisanPlainNom === searchNormalized || artisanFullName === searchNormalized) {
-              score = 100;
-            }
-            // Correspondance partielle (le nom recherché est contenu dans le nom de l'artisan ou vice versa)
-            else if (artisanPlainNom.includes(searchNormalized) || searchNormalized.includes(artisanPlainNom)) {
-              score = 80;
-            }
-            // Correspondance avec les mots individuels
-            else {
-              const searchWords = searchNormalized.split(' ').filter(w => w.length > 2);
-              const artisanWords = artisanPlainNom.split(' ').filter(w => w.length > 2);
-              const matchingWords = searchWords.filter(word => artisanWords.some(aw => aw.includes(word) || word.includes(aw)));
-              if (matchingWords.length > 0) {
-                score = (matchingWords.length / Math.max(searchWords.length, artisanWords.length)) * 60;
-              }
-            }
-            
-            if (score > bestScore) {
-              bestScore = score;
-              found = artisan;
+      if (results.data && results.data.length > 0) {
+        // Normaliser le nom recherché pour comparaison
+        const searchNormalized = cleanSstName.toLowerCase().replace(/\s+/g, ' ').trim();
+
+        // Trouver le meilleur match parmi les résultats
+        let found = null;
+        let bestScore = 0;
+
+        for (const artisan of results.data) {
+          const artisanPlainNom = (artisan.plain_nom || `${artisan.prenom || ''} ${artisan.nom || ''}`).toLowerCase().replace(/\s+/g, ' ').trim();
+          const artisanFullName = `${(artisan.prenom || '').toLowerCase()} ${(artisan.nom || '').toLowerCase()}`.trim();
+
+          // Score de correspondance
+          let score = 0;
+
+          // Correspondance exacte = score maximal
+          if (artisanPlainNom === searchNormalized || artisanFullName === searchNormalized) {
+            score = 100;
+          }
+          // Correspondance partielle (le nom recherché est contenu dans le nom de l'artisan ou vice versa)
+          else if (artisanPlainNom.includes(searchNormalized) || searchNormalized.includes(artisanPlainNom)) {
+            score = 80;
+          }
+          // Correspondance avec les mots individuels
+          else {
+            const searchWords = searchNormalized.split(' ').filter(w => w.length > 2);
+            const artisanWords = artisanPlainNom.split(' ').filter(w => w.length > 2);
+            const matchingWords = searchWords.filter(word => artisanWords.some(aw => aw.includes(word) || word.includes(aw)));
+            if (matchingWords.length > 0) {
+              score = (matchingWords.length / Math.max(searchWords.length, artisanWords.length)) * 60;
             }
           }
 
-          if (found && bestScore >= 60) {
-            if (i > 0 || bestScore < 100) {
-              console.log(
-                `✅ [ARTISAN-SST] Trouvé (variante "${variant}", score: ${bestScore.toFixed(0)}): ${found.prenom} ${found.nom} (ID: ${found.id})`
-              );
-            }
-            return found.id;
+          if (score > bestScore) {
+            bestScore = score;
+            found = artisan;
           }
         }
-      }
 
-      // Si aucune variante n'a fonctionné avec searchByName, essayer aussi avec searchByPlainNom pour les cas exacts
-      // (au cas où plain_nom serait différent de prenom + nom)
-      // Vérifier le timeout avant de continuer
-      if (Date.now() - searchStartTime < this.sstSearchTimeout) {
-        for (const variant of limitedVariants.slice(0, 2)) { // Essayer seulement les 2 premières variantes
-          // Vérifier le timeout avant chaque tentative
-          if (Date.now() - searchStartTime > this.sstSearchTimeout) {
-            break;
+        if (found && bestScore >= 60) {
+          if (bestScore < 100) {
+            console.log(
+              `✅ [ARTISAN-SST] Trouvé (score: ${bestScore.toFixed(0)}): ${found.prenom} ${found.nom} (ID: ${found.id})`
+            );
           }
-          await new Promise(resolve => setTimeout(resolve, this.sstSearchDelay));
-        
-        let results = await artisansApi.searchByPlainNom(variant, { limit: 1 }, supabaseClient);
-        
-        if (results.data && results.data.length > 0) {
-          const found = results.data[0];
-          console.log(
-            `✅ [ARTISAN-SST] Trouvé (plain_nom exact "${variant}"): ${found.prenom} ${found.nom} (ID: ${found.id})`
-          );
           return found.id;
         }
       }
-      }
-      
-      // Dernière tentative : gérer les cas composites avec "/" ou " / "
-      // Vérifier le timeout avant de continuer
-      if (Date.now() - searchStartTime < this.sstSearchTimeout) {
-      // Ex: "Letailleur Bryan 59 / 76" -> essayer "Letailleur Bryan"
+
+      // Si pas trouvé, essayer avec les cas composites (noms avec "/")
       if (cleanSstName.includes('/') || cleanSstName.includes(' / ')) {
         const separator = cleanSstName.includes(' / ') ? ' / ' : '/';
         const parts = cleanSstName.split(separator);
         
         // Essayer chaque partie séparément
         for (let partIndex = 0; partIndex < Math.min(parts.length, 2); partIndex++) {
-          // Vérifier le timeout avant chaque tentative
-          if (Date.now() - searchStartTime > this.sstSearchTimeout) {
-            break;
-          }
-          
           const part = parts[partIndex].trim();
           
           if (part && part.length > 2) {
@@ -3088,32 +3055,36 @@ class DataMapper {
               // Petit délai avant la tentative
               await new Promise(resolve => setTimeout(resolve, this.sstSearchDelay));
               
-              // Essayer avec searchByName (recherche flexible)
-              let results = await artisansApi.searchByName(cleanPart, { limit: 5 });
-              
-              if (results.data && results.data.length > 0) {
-                // Trouver le meilleur match
-                const searchNormalized = cleanPart.toLowerCase().replace(/\s+/g, ' ').trim();
-                let found = results.data[0];
+              try {
+                // Essayer avec searchByName (recherche flexible)
+                let results = await artisansApi.searchByName(cleanPart, { limit: 5 });
                 
-                // Chercher une correspondance exacte ou partielle
-                for (const artisan of results.data) {
-                  const artisanName = (artisan.plain_nom || `${artisan.prenom || ''} ${artisan.nom || ''}`).toLowerCase().replace(/\s+/g, ' ').trim();
-                  if (artisanName === searchNormalized || artisanName.includes(searchNormalized) || searchNormalized.includes(artisanName)) {
-                    found = artisan;
-                    break;
+                if (results.data && results.data.length > 0) {
+                  // Trouver le meilleur match
+                  const searchNormalized = cleanPart.toLowerCase().replace(/\s+/g, ' ').trim();
+                  let found = results.data[0];
+                  
+                  // Chercher une correspondance exacte ou partielle
+                  for (const artisan of results.data) {
+                    const artisanName = (artisan.plain_nom || `${artisan.prenom || ''} ${artisan.nom || ''}`).toLowerCase().replace(/\s+/g, ' ').trim();
+                    if (artisanName === searchNormalized || artisanName.includes(searchNormalized) || searchNormalized.includes(artisanName)) {
+                      found = artisan;
+                      break;
+                    }
                   }
+                  
+                  console.log(
+                    `✅ [ARTISAN-SST] Trouvé (composite "${cleanPart}"): ${found.prenom} ${found.nom} (ID: ${found.id})`
+                  );
+                  return found.id;
                 }
-                
-                console.log(
-                  `✅ [ARTISAN-SST] Trouvé (composite "${cleanPart}"): ${found.prenom} ${found.nom} (ID: ${found.id})`
-                );
-                return found.id;
+              } catch (searchError) {
+                // Ignorer les erreurs de recherche pour cette variante
+                continue;
               }
             }
           }
         }
-      }
       }
 
       // Pas trouvé - logger dans le fichier de log avec l'id_inter si disponible
@@ -3151,6 +3122,11 @@ class DataMapper {
           `💥 [ARTISAN-SST] Erreur recherche "${sstName}": ${error.message}`
         );
       }
+      
+      // Pas trouvé - logger dans le fichier de log avec l'id_inter si disponible
+      const logId = idInter || "N/A";
+      const reason = `Artisan SST non trouvé (erreur): "${sstName}"`;
+      this.logParsingError(logId, reason, csvRow, lineNumber);
       return null;
     }
   }

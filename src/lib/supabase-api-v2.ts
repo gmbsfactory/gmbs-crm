@@ -1207,9 +1207,6 @@ export const interventionsApiV2 = {
     const url = `${SUPABASE_FUNCTIONS_URL}/interventions-v2/interventions/light${queryString ? `?${queryString}` : ""
       }`;
 
-    console.log(`[interventionsApiV2.getAllLight] URL: ${url}`)
-    console.log(`[interventionsApiV2.getAllLight] Params: limit=${limit}, offset=${offset}`)
-
     const fetchStart = Date.now();
     const response = await fetch(url, {
       headers: await getHeaders(),

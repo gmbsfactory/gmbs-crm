@@ -49,10 +49,18 @@ export function useReferenceData(): UseReferenceDataReturn {
       const result = await referenceApi.getAll();
       
       // Log pour debug
+      const usersWithAvatar = result.users?.filter(u => u.avatar_url) || []
       console.log('[useReferenceData] Données chargées:', {
         users: result.users?.length || 0,
+        usersWithAvatar: usersWithAvatar.length,
         agencies: result.agencies?.length || 0,
         statuses: result.interventionStatuses?.length || 0,
+        sampleUser: result.users?.[0] ? {
+          id: result.users[0].id,
+          name: `${result.users[0].firstname} ${result.users[0].lastname}`,
+          hasAvatarUrl: !!result.users[0].avatar_url,
+          avatarUrl: result.users[0].avatar_url
+        } : null
       });
       
       // Mettre en cache

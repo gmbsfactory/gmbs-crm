@@ -4,6 +4,9 @@ import { cookies } from 'next/headers'
 
 export const runtime = 'nodejs'
 
+// This route handles authentication and user information retrieval.
+
+
 // Sélection de base sans jointures pour éviter les erreurs
 const userSelectBasic = `
   id, firstname, lastname, email, status, color, 
@@ -84,25 +87,57 @@ export async function GET(req: Request) {
     let token = bearerFrom(req)
     
     if (!token) {
-      const cookieStore = await cookies()
-      token = cookieStore.get('sb-access-token')?.value || null
+      try {
+        const cookieStore = await cookies()
+        token = cookieStore.get('sb-access-token')?.value || null
+      } catch (cookieError: any) {
+        console.error('[auth/me] Error reading cookies:', cookieError?.message || cookieError)
+        console.error('[auth/me] Cookie error stack:', cookieError?.stack)
+        return NextResponse.json({ 
+          error: 'Failed to read cookies',
+          message: cookieError?.message || 'Unknown cookie error',
+          details: process.env.NODE_ENV === 'development' ? {
+            message: cookieError?.message,
+            stack: cookieError?.stack,
+            name: cookieError?.name
+          } : undefined
+        }, { status: 500 })
+      }
     }
     
     if (!token) {
       return NextResponse.json({ user: null })
     }
     
+    // Vérifier que les variables d'environnement sont définies
+    if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+      console.error('[auth/me] Missing Supabase environment variables')
+      return NextResponse.json({ 
+        error: 'Server configuration error',
+        message: 'Missing Supabase environment variables',
+        details: process.env.NODE_ENV === 'development' ? {
+          hasUrl: !!process.env.NEXT_PUBLIC_SUPABASE_URL,
+          hasKey: !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+        } : undefined
+      }, { status: 500 })
+    }
+    
     const supabase = createServerSupabase(token)
 
     const { data: authUser, error: authError } = await supabase.auth.getUser()
     if (authError) {
-      return NextResponse.json({ error: authError.message }, { status: 401 })
+      console.error('[auth/me] Auth error:', authError.message, authError.status)
+      return NextResponse.json({ 
+        error: authError.message,
+        code: authError.status || 'AUTH_ERROR'
+      }, { status: 401 })
     }
     
     const userId = authUser?.user?.id || null
     const userEmail = authUser?.user?.email || null
 
     if (!userId && !userEmail) {
+      console.log('[auth/me] No userId and no userEmail, returning null')
       return NextResponse.json({ user: null })
     }
 
@@ -124,12 +159,15 @@ export async function GET(req: Request) {
           .maybeSingle()
 
         if (mappingError) {
+          console.log('[auth/me] Mapping error detected:', mappingError.code, mappingError.message)
           // Si la table n'existe pas (PGRST205), ignorer et continuer avec le fallback
           if (mappingError.code === 'PGRST205') {
+            console.log('[auth/me] Table does not exist, continuing with fallback')
             // Continuer avec le fallback par email
           }
           // Si erreur de jointure, essayer sans jointures
           else if (mappingError.code === 'PGRST301' || mappingError.message?.includes('relation') || mappingError.message?.includes('column')) {
+            console.log('[auth/me] Join error, trying without joins...')
             const { data: mappingResultBasic, error: mappingErrorBasic } = await supabase
               .from('auth_user_mapping')
               .select(`
@@ -147,6 +185,7 @@ export async function GET(req: Request) {
           record = mappingResult.users as unknown as UserRecord
         }
       } catch (e: any) {
+        console.error('[auth/me] Exception in mapping query:', e?.message, e?.stack)
         // Ignorer les erreurs de mapping et continuer avec le fallback
       }
     }
@@ -162,8 +201,10 @@ export async function GET(req: Request) {
           .maybeSingle()
 
         if (fallbackError) {
+          console.log('[auth/me] Fallback error detected:', fallbackError.code, fallbackError.message)
           // Si erreur de jointure, essayer sans jointures
           if (fallbackError.code === 'PGRST301' || fallbackError.message?.includes('relation') || fallbackError.message?.includes('column')) {
+            console.log('[auth/me] Join error in fallback, trying without joins...')
             const { data: fallbackResultBasic, error: fallbackErrorBasic } = await supabase
               .from('users')
               .select(userSelectBasic)
@@ -174,12 +215,14 @@ export async function GET(req: Request) {
               record = fallbackResultBasic as unknown as UserRecord
               needsMapping = true
             } else if (fallbackErrorBasic && fallbackErrorBasic.code !== 'PGRST116') {
+              console.error('[auth/me] Fallback basic query error:', fallbackErrorBasic.code, fallbackErrorBasic.message)
               return NextResponse.json({ 
                 error: fallbackErrorBasic.message,
                 code: fallbackErrorBasic.code 
               }, { status: 500 })
             }
           } else if (fallbackError.code !== 'PGRST116') {
+            console.error('[auth/me] Fallback query error (not PGRST116):', fallbackError.code, fallbackError.message)
             return NextResponse.json({ 
               error: fallbackError.message,
               code: fallbackError.code 
@@ -190,22 +233,33 @@ export async function GET(req: Request) {
           needsMapping = true
         }
       } catch (e: any) {
+        console.error('[auth/me] Exception in fallback query:', e?.message, e?.stack)
         return NextResponse.json({ 
-          error: e?.message || 'Unexpected error in fallback query' 
+          error: e?.message || 'Unexpected error in fallback query',
+          details: process.env.NODE_ENV === 'development' ? {
+            message: e?.message,
+            stack: e?.stack,
+            name: e?.name
+          } : undefined
         }, { status: 500 })
       }
     }
 
     if (!record) {
-      console.log('[auth/me] User not found')
+      console.log('[auth/me] User not found in database')
       return NextResponse.json({ user: null })
     }
 
     // Si on a récupéré les données avec les jointures, extraire les rôles et permissions
     if (record.user_roles || record.user_page_permissions) {
-      const extracted = extractRolesAndPermissions(record)
-      roles = extracted.roles
-      pagePermissions = extracted.pagePermissions
+      try {
+        const extracted = extractRolesAndPermissions(record)
+        roles = extracted.roles
+        pagePermissions = extracted.pagePermissions
+      } catch (extractError: any) {
+        console.error('[auth/me] Error extracting roles/permissions:', extractError?.message, extractError?.stack)
+        throw extractError
+      }
     } else {
       // Sinon, récupérer les rôles et permissions séparément
       try {
@@ -216,10 +270,13 @@ export async function GET(req: Request) {
             .select('roles (name)')
             .eq('user_id', record.id)
           
-          if (!rolesError && rolesData) {
+          if (rolesError) {
+            console.error('[auth/me] Error fetching roles:', rolesError.message, rolesError.code)
+          } else if (rolesData) {
             roles = rolesData
               .map((entry: any) => entry?.roles?.name)
               .filter((name: any): name is string => typeof name === 'string')
+            console.log('[auth/me] Fetched roles:', roles.length)
           }
 
           // Récupérer les permissions
@@ -246,7 +303,7 @@ export async function GET(req: Request) {
     }
 
     // Créer le mapping en arrière-plan si nécessaire (non-bloquant)
-    if (needsMapping && userId) {
+    if (needsMapping && userId && record?.id) {
       void (async () => {
         try {
           await supabase
@@ -257,14 +314,34 @@ export async function GET(req: Request) {
         }
       })()
     }
-
-    const user = buildUserResponse(record, roles, pagePermissions)
     
-    return NextResponse.json({ user })
+    try {
+      const user = buildUserResponse(record, roles, pagePermissions)
+      return NextResponse.json({ user })
+    } catch (buildError: any) {
+      console.error('[auth/me] Error building user response:', buildError)
+      throw buildError
+    }
   } catch (e: any) {
+    const errorDetails = {
+      message: e?.message || 'Unknown error',
+      stack: e?.stack,
+      name: e?.name,
+      code: e?.code,
+      cause: e?.cause
+    }
+    console.error('[auth/me] Unexpected error:', errorDetails)
+    console.error('[auth/me] Full error object:', e)
+    
+    // Toujours retourner les détails en développement, et un résumé en production
     return NextResponse.json({ 
       error: e?.message || 'Unexpected error',
-      details: process.env.NODE_ENV === 'development' ? e?.stack : undefined
+      ...(process.env.NODE_ENV === 'development' ? {
+        details: errorDetails,
+        fullError: String(e)
+      } : {
+        message: 'An unexpected error occurred. Check server logs for details.'
+      })
     }, { status: 500 })
   }
 }

@@ -158,3 +158,6 @@ SELECT cron.schedule(
 
 -- Pour supprimer un job si nécessaire:
 -- SELECT cron.unschedule('refresh-podium-period');
+
+-- Forcer PostgREST à recharger le schéma pour que la fonction soit visible
+NOTIFY pgrst, 'reload schema';

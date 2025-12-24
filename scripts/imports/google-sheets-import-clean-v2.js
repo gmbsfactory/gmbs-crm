@@ -58,6 +58,8 @@ if (fs.existsSync(envFilePath) && !essentialVarsDefined) {
 // ===== LOG DE DEBUG: Vérifier les variables d'environnement =====
 console.log('\n🔍 [DEBUG] Vérification des variables d\'environnement:');
 console.log('   NEXT_PUBLIC_SUPABASE_URL:', process.env.NEXT_PUBLIC_SUPABASE_URL || '❌ NON DEFINIE');
+console.log('   SUPABASE_URL:', process.env.SUPABASE_URL || '❌ NON DEFINIE');
+console.log('   SUPABASE_SERVICE_ROLE_KEY:', process.env.SUPABASE_SERVICE_ROLE_KEY ? `✅ Chargée (${process.env.SUPABASE_SERVICE_ROLE_KEY.substring(0, 20)}...)` : '❌ NON DEFINIE (CRITIQUE: les opérations RLS échoueront)');
 console.log('   NEXT_PUBLIC_SUPABASE_ANON_KEY:', process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ? `✅ Chargée (${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY.substring(0, 20)}...)` : '❌ NON DEFINIE');
 console.log('   IMPORT_USER_EMAIL:', process.env.IMPORT_USER_EMAIL || '❌ NON DEFINIE (utilisera admin@gmbs.fr par défaut)');
 console.log('   IMPORT_USER_PASSWORD:', process.env.IMPORT_USER_PASSWORD ? '✅ Définie' : '❌ NON DEFINIE (utilisera "admin" par défaut)');
