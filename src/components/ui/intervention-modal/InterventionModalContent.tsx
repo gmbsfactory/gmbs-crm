@@ -89,6 +89,7 @@ type Props = {
   onArtisanSearchOpenChange?: (isOpen: boolean) => void
   onSmsModalOpenChange?: (isOpen: boolean) => void
   onEmailModalOpenChange?: (isOpen: boolean) => void
+  onStatusReasonModalOpenChange?: (isOpen: boolean) => void
 }
 
 export function InterventionModalContent({
@@ -108,6 +109,7 @@ export function InterventionModalContent({
   onArtisanSearchOpenChange,
   onSmsModalOpenChange,
   onEmailModalOpenChange,
+  onStatusReasonModalOpenChange,
 }: Props) {
   const bodyPadding = mode === "fullpage" ? "px-8 py-6 md:px-12" : "px-5 py-4 md:px-8"
   const surfaceVariantClass = mode === "fullpage" ? "modal-config-surface-full" : undefined
@@ -695,6 +697,7 @@ GMBS`
                 onHasUnsavedChanges={setHasUnsavedChanges}
                 onArtisanSearchOpenChange={onArtisanSearchOpenChange}
                 onEmailModalOpenChange={onEmailModalOpenChange}
+                onStatusReasonModalOpenChange={onStatusReasonModalOpenChange}
               />
             ) : (
               <div className="rounded border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">

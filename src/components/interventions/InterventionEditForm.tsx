@@ -549,6 +549,7 @@ interface InterventionEditFormProps {
   onHasUnsavedChanges?: (hasChanges: boolean) => void
   onArtisanSearchOpenChange?: (isOpen: boolean) => void
   onEmailModalOpenChange?: (isOpen: boolean) => void
+  onStatusReasonModalOpenChange?: (isOpen: boolean) => void
 }
 
 export function InterventionEditForm({
@@ -564,7 +565,8 @@ export function InterventionEditForm({
   onOpenSmsModal,
   onHasUnsavedChanges,
   onArtisanSearchOpenChange,
-  onEmailModalOpenChange
+  onEmailModalOpenChange,
+  onStatusReasonModalOpenChange
 }: InterventionEditFormProps) {
   const { data: refData, loading: refDataLoading } = useReferenceData()
   const queryClient = useQueryClient()
@@ -738,6 +740,9 @@ export function InterventionEditForm({
   useEffect(() => {
     onHasUnsavedChanges?.(hasUnsavedChanges)
   }, [hasUnsavedChanges, onHasUnsavedChanges])
+  useEffect(() => {
+    onStatusReasonModalOpenChange?.(isStatusReasonModalOpen)
+  }, [isStatusReasonModalOpen, onStatusReasonModalOpenChange])
 
   const [isProprietaireOpen, setIsProprietaireOpen] = useState(false)
   const [isClientOpen, setIsClientOpen] = useState(false)
