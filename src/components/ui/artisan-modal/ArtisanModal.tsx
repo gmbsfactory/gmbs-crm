@@ -49,6 +49,7 @@ export function ArtisanModal({
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const showUnsavedDialogRef = useRef<(() => void) | null>(null)
+  const [isStatusReasonModalOpen, setIsStatusReasonModalOpen] = useState(false)
 
   // Callbacks pour recevoir les informations de ArtisanModalContent
   const handleUnsavedChangesStateChange = useCallback((hasChanges: boolean, submitting: boolean) => {
@@ -66,6 +67,12 @@ export function ArtisanModal({
       setOverrideMode(null)
     }
   }, [setOverrideMode, setSourceLayoutId])
+
+  useEffect(() => {
+    if (!isOpen) {
+      setIsStatusReasonModalOpen(false)
+    }
+  }, [isOpen])
 
   const cycleMode = useCallback(() => {
     const currentIndex = MODE_SEQUENCE.indexOf(effectiveMode)
@@ -129,6 +136,7 @@ export function ArtisanModal({
         defaultView={defaultView}
         onUnsavedChangesStateChange={handleUnsavedChangesStateChange}
         onRegisterShowDialog={handleRegisterShowDialog}
+        onStatusReasonModalOpenChange={setIsStatusReasonModalOpen}
       />
     )
   })()
@@ -146,6 +154,7 @@ export function ArtisanModal({
       hasUnsavedChanges={hasUnsavedChanges}
       isSubmitting={isSubmitting}
       onShowUnsavedDialog={() => showUnsavedDialogRef.current?.()}
+      pauseFocusTrap={isStatusReasonModalOpen}
     >
       {renderedContent}
     </GenericModal>

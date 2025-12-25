@@ -567,25 +567,16 @@ export default function ArtisansPage(): ReactElement {
     setArtisanStatuses(statuses)
     const metiersData = referenceData.metiers || []
     setMetiers(metiersData)
-    
+
     // Filtrer uniquement les artisans actifs (is_active === true)
     const activeArtisans = artisans.filter((artisan) => artisan.is_active !== false)
-    
-    // Trier d'abord les artisans par created_at (du plus récent au plus ancien)
-    const sortedArtisans = [...activeArtisans].sort((a, b) => {
-      const dateA = a.created_at ? new Date(a.created_at).getTime() : 0
-      const dateB = b.created_at ? new Date(b.created_at).getTime() : 0
-      // Si les dates sont invalides, retourner 0 pour garder l'ordre original
-      if (isNaN(dateA) && isNaN(dateB)) return 0
-      if (isNaN(dateA)) return 1 // Les dates invalides vont à la fin
-      if (isNaN(dateB)) return -1
-      return dateB - dateA // Ordre décroissant (plus récent en premier)
-    })
-    
-    const mapped = sortedArtisans.map((artisan) => 
+
+    // Les artisans sont déjà triés par created_at DESC côté serveur (dans artisansApi.getAll)
+    // On n'a pas besoin de re-trier ici, on garde l'ordre du serveur
+    const mapped = activeArtisans.map((artisan) =>
       mapArtisanToContact(
-        artisan, 
-        referenceData.users as ReferenceUser[], 
+        artisan,
+        referenceData.users as ReferenceUser[],
         statuses
       )
     )

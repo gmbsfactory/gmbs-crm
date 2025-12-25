@@ -22,7 +22,9 @@ import {
   UserCheck,
   Pencil,
   RefreshCw,
-  AlertTriangle
+  AlertTriangle,
+  BarChart3,
+  Info
 } from "lucide-react"
 import { useGeocodeSearch, type GeocodeSuggestion } from "@/hooks/useGeocodeSearch"
 import { Button } from "@/components/ui/button"
@@ -253,6 +255,9 @@ export function NewArtisanModalContent({ mode, onClose, onCycleMode, artisanId, 
   const [isAbsencesOpen, setIsAbsencesOpen] = useState(false)
   const [isDocumentsOpen, setIsDocumentsOpen] = useState(false)
   const [isCommentsOpen, setIsCommentsOpen] = useState(false)
+
+  // Toggle entre vue Informations et vue Statistiques
+  const [showStats, setShowStats] = useState(false)
 
   // Hook géocodage pour l'adresse du siège social
   const {
@@ -749,7 +754,17 @@ export function NewArtisanModalContent({ mode, onClose, onCycleMode, artisanId, 
       }
     }
 
-    queryClient.invalidateQueries({ queryKey: artisanKeys.invalidateLists() })
+    // Invalider et forcer le refetch immédiat de toutes les listes d'artisans
+    await queryClient.invalidateQueries({
+      queryKey: artisanKeys.invalidateLists(),
+      refetchType: 'active' // Force le refetch des queries actives
+    })
+
+    // Forcer un refetch immédiat pour contourner le staleTime
+    await queryClient.refetchQueries({
+      queryKey: artisanKeys.invalidateLists(),
+      type: 'active'
+    })
 
     if (typeof window !== "undefined") {
       window.dispatchEvent(
@@ -764,7 +779,11 @@ export function NewArtisanModalContent({ mode, onClose, onCycleMode, artisanId, 
     })
     reset(buildDefaultFormValues())
     setPendingAbsences([])
-    
+
+    // Attendre un court délai pour que le refetch se termine
+    // avant de fermer le modal
+    await new Promise(resolve => setTimeout(resolve, 300))
+
     // Fermer le modal après sauvegarde réussie
     shouldCloseAfterSave.current = false
     onClose()
@@ -816,7 +835,10 @@ export function NewArtisanModalContent({ mode, onClose, onCycleMode, artisanId, 
       // Restaurer uniquement (is_active = true) sans modifier les autres données
       const restored = await artisansApi.restore(deletedArtisanDialog.artisan.id)
 
-      queryClient.invalidateQueries({ queryKey: artisanKeys.invalidateLists() })
+      await queryClient.invalidateQueries({
+        queryKey: artisanKeys.invalidateLists(),
+        refetchType: 'all'
+      })
 
       if (typeof window !== "undefined") {
         window.dispatchEvent(
@@ -890,7 +912,16 @@ export function NewArtisanModalContent({ mode, onClose, onCycleMode, artisanId, 
         }
       }
 
-      queryClient.invalidateQueries({ queryKey: artisanKeys.invalidateLists() })
+      await queryClient.invalidateQueries({
+        queryKey: artisanKeys.invalidateLists(),
+        refetchType: 'active'
+      })
+
+      // Forcer un refetch immédiat pour contourner le staleTime
+      await queryClient.refetchQueries({
+        queryKey: artisanKeys.invalidateLists(),
+        type: 'active'
+      })
 
       if (typeof window !== "undefined") {
         window.dispatchEvent(
@@ -974,7 +1005,16 @@ export function NewArtisanModalContent({ mode, onClose, onCycleMode, artisanId, 
         }
 
         queryClient.invalidateQueries({ queryKey: ["artisan", artisanId] })
-        queryClient.invalidateQueries({ queryKey: artisanKeys.invalidateLists() })
+        await queryClient.invalidateQueries({
+          queryKey: artisanKeys.invalidateLists(),
+          refetchType: 'active'
+        })
+
+        // Forcer un refetch immédiat pour contourner le staleTime
+        await queryClient.refetchQueries({
+          queryKey: artisanKeys.invalidateLists(),
+          type: 'active'
+        })
 
         if (typeof window !== "undefined") {
           window.dispatchEvent(
@@ -1234,8 +1274,23 @@ export function NewArtisanModalContent({ mode, onClose, onCycleMode, artisanId, 
     <TooltipProvider>
       <div className={cn("modal-config-surface", surfaceVariantClass, surfaceModeClass)}>
         {/* Header */}
-        <header className="modal-config-columns-header bg-[#8DA5CE] dark:bg-transparent">
+        <header className="modal-config-columns-header relative bg-[#8DA5CE] dark:bg-transparent">
           <div className="flex items-center gap-3">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="modal-config-columns-icon-button"
+                  onClick={handleCancel}
+                  aria-label="Fermer"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent className="modal-config-columns-tooltip">Fermer (Esc)</TooltipContent>
+            </Tooltip>
+
             {onCycleMode ? (
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -1256,31 +1311,47 @@ export function NewArtisanModalContent({ mode, onClose, onCycleMode, artisanId, 
             ) : (
               <span className="modal-config-columns-icon-placeholder" />
             )}
+
+            {/* Bouton toggle Statistiques / Informations */}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className={cn(
+                    "modal-config-columns-icon-button",
+                    showStats && "bg-primary/20 text-primary"
+                  )}
+                  onClick={() => setShowStats(!showStats)}
+                  aria-label={showStats ? "Afficher les informations" : "Afficher les statistiques"}
+                  disabled={!isEditMode}
+                >
+                  {showStats ? <Info className="h-4 w-4" /> : <BarChart3 className="h-4 w-4" />}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent className="modal-config-columns-tooltip">
+                {showStats ? "Informations" : "Statistiques"}
+              </TooltipContent>
+            </Tooltip>
           </div>
-          <div className="modal-config-columns-title flex items-center gap-2">
-            {isEditMode ? (
-              <>
-                <Pencil className="h-4 w-4" />
-                Modifier l&apos;artisan
-              </>
-            ) : (
-              "Créer un artisan"
-            )}
+
+          <div className="pointer-events-none absolute left-1/2 top-1/2 flex -translate-x-1/2 -translate-y-1/2 items-center gap-3">
+            <div className="flex flex-col items-center">
+              <div className="modal-config-columns-title flex items-center gap-2">
+                {isEditMode ? (
+                  <>
+                    <Pencil className="h-4 w-4" />
+                    Modifier l&apos;artisan
+                  </>
+                ) : (
+                  "Créer un artisan"
+                )}
+              </div>
+            </div>
           </div>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="modal-config-columns-icon-button"
-                onClick={handleCancel}
-                aria-label="Fermer"
-              >
-                <X className="h-4 w-4" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent className="modal-config-columns-tooltip">Fermer (Esc)</TooltipContent>
-          </Tooltip>
+          <div className="flex items-center gap-2">
+            {/* Pas de bouton Archiver pour la création/modification */}
+          </div>
         </header>
 
         <form ref={formRef} onSubmit={handleSubmit(onSubmit)} className="flex flex-1 min-h-0 flex-col">

@@ -186,6 +186,7 @@ type Props = {
   defaultView?: "informations" | "statistics"
   onUnsavedChangesStateChange?: (hasChanges: boolean, submitting: boolean) => void
   onRegisterShowDialog?: (showDialog: () => void) => void
+  onStatusReasonModalOpenChange?: (isOpen: boolean) => void
 }
 
 const formatDate = (value: string | null | undefined, withTime = false) => {
@@ -364,6 +365,7 @@ export function ArtisanModalContent({
   defaultView,
   onUnsavedChangesStateChange,
   onRegisterShowDialog,
+  onStatusReasonModalOpenChange,
 }: Props) {
   const surfaceVariantClass = mode === "fullpage" ? "modal-config-surface-full" : undefined
   const surfaceModeClass = `modal-config--${mode}`
@@ -475,6 +477,10 @@ export function ArtisanModalContent({
     setPendingReason(null)
     setPendingArchive(false)
   }, [artisanId])
+
+  useEffect(() => {
+    onStatusReasonModalOpenChange?.(isStatusReasonModalOpen)
+  }, [isStatusReasonModalOpen, onStatusReasonModalOpenChange])
 
   // État pour suivre si les données ont été chargées et réinitialisées
   const [isFormInitialized, setIsFormInitialized] = useState(false)

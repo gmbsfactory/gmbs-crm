@@ -16,11 +16,6 @@
 - Bugs
         - Première connexion au CRM obligé de recharger la page
 
-- Photos
-        - Suppression de la photo revenir à l'état initial avec les lettres
-        - Photo sur commentaire et documents (interventions et artisans)
-        - Réduire épaisseur sur l'avatar
-
 - Focus trap 
         - Artisan Archivé à régler comme intervention terminé
         - Trap sur l'alert dialog UnsavedCHanges

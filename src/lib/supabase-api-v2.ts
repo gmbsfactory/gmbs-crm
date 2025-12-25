@@ -1792,9 +1792,8 @@ export const artisansApiV2 = {
           mime_preferred
         )
       `, { count: "exact" })
-      // ⚠️ Ordre ASC pour afficher d'abord les artisans avec des données
-      // Les artisans récents ont été importés avec des colonnes NULL
-      .order("created_at", { ascending: true })
+      // ✅ Ordre DESC pour afficher les artisans les plus récents en premier
+      .order("created_at", { ascending: false })
       .eq("is_active", true);
 
     // Appliquer les filtres si nécessaire
