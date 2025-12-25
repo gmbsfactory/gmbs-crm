@@ -374,19 +374,20 @@ export function ProfileSettings() {
               transition={{ type: "spring", stiffness: 300 }}
             >
               <Avatar
+                key={avatarUrl || 'no-avatar'}
                 className="h-24 w-24 border-[6px] shadow-lg"
                 style={{
                   borderColor: colorField || '#6366f1',
-                  background: colorField || '#6366f1',
                 }}
               >
-                {avatarUrl && (
+                {avatarUrl ? (
                   <AvatarImage
+                    key={avatarUrl}
                     src={avatarUrl}
                     alt={`${firstNameField} ${lastNameField}`.trim() || 'User'}
                     className="object-cover"
                   />
-                )}
+                ) : null}
                 <AvatarFallback
                   className="text-3xl font-semibold uppercase tracking-wide text-white"
                   style={{
