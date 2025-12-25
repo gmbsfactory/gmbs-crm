@@ -50,6 +50,7 @@ import { toast } from "sonner"
 import { artisansApi } from "@/lib/api/v2"
 import type { Artisan } from "@/lib/api/v2/common/types"
 import { commentsApi } from "@/lib/api/v2/commentsApi"
+import { artisanKeys } from "@/lib/react-query/queryKeys"
 import { useCurrentUser } from "@/hooks/useCurrentUser"
 import { usePermissions } from "@/hooks/usePermissions"
 import { getReasonTypeForTransition, type StatusReasonType } from "@/lib/comments/statusReason"
@@ -537,7 +538,7 @@ export function ArtisanModalContent({
     mutationFn: (payload: ReturnType<typeof buildUpdatePayload>) => artisansApi.update(artisanId, payload),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["artisan", artisanId] })
-      void queryClient.invalidateQueries({ queryKey: ["artisans"] })
+      void queryClient.invalidateQueries({ queryKey: artisanKeys.invalidateLists() })
     },
   })
 

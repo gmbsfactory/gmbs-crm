@@ -60,6 +60,7 @@ import { validateSiret } from "@/lib/siret-validation"
 import { artisansApiV2, getArtisanTotalCount } from "@/lib/supabase-api-v2"
 import { artisansApi, interventionsApi } from "@/lib/api/v2"
 import { commentsApi } from "@/lib/api/v2/commentsApi"
+import { artisanKeys } from "@/lib/react-query/queryKeys"
 import { useCurrentUser } from "@/hooks/useCurrentUser"
 import { usePermissions } from "@/hooks/usePermissions"
 import { cn } from "@/lib/utils"
@@ -314,6 +315,9 @@ export function NewArtisanModalContent({ mode, onClose, onCycleMode, artisanId, 
     queryFn: () => artisansApi.getById(artisanId!),
   })
 
+  // Mémoriser le statut initial de l'artisan (pour ONE_SHOT notamment)
+  const [initialArtisanStatusId, setInitialArtisanStatusId] = useState<string | null>(null)
+
   // Cleanup du timeout
   useEffect(() => {
     return () => {
@@ -338,6 +342,7 @@ export function NewArtisanModalContent({ mode, onClose, onCycleMode, artisanId, 
   // Réinitialiser le flag quand l'artisan change
   useEffect(() => {
     setIsFormInitialized(false)
+    setInitialArtisanStatusId(null)
   }, [artisanId])
 
   // En mode création, le formulaire est immédiatement initialisé
@@ -391,6 +396,11 @@ export function NewArtisanModalContent({ mode, onClose, onCycleMode, artisanId, 
         zones: artisanAny.zones,
         zoneValue,
       })
+
+      // Sauvegarder le statut initial pour pouvoir y revenir depuis ONE_SHOT
+      if (artisanAny.statut_id && !initialArtisanStatusId) {
+        setInitialArtisanStatusId(artisanAny.statut_id)
+      }
 
       // Charger les absences existantes
       if (Array.isArray(artisanAny.artisan_absences)) {
@@ -467,6 +477,29 @@ export function NewArtisanModalContent({ mode, onClose, onCycleMode, artisanId, 
   // Observer le statut actuel pour le useMemo
   const currentStatusId = watch("statut_id")
 
+  // Récupérer le statut précédent depuis l'historique (pour ONE_SHOT notamment)
+  const { data: previousStatusData } = useQuery({
+    queryKey: ["artisan-previous-status", artisanId, currentStatusId],
+    enabled: isEditMode && Boolean(artisanId) && Boolean(currentStatusId),
+    queryFn: async () => {
+      if (!artisanId) return null
+
+      // Récupérer le statut actuel pour vérifier si c'est ONE_SHOT
+      const currentStatus = referenceData?.artisanStatuses?.find(
+        (s) => s.id === currentStatusId
+      )
+
+      // Si le statut actuel est ONE_SHOT, on cherche le statut juste avant de passer à ONE_SHOT
+      if (currentStatus?.code?.toUpperCase() === 'ONE_SHOT') {
+        return artisansApi.getPreviousStatus(artisanId, 'ONE_SHOT')
+      }
+
+      // Sinon, récupérer simplement le dernier statut précédent
+      return artisansApi.getPreviousStatus(artisanId)
+    },
+    staleTime: 5 * 60 * 1000, // Cache 5 minutes
+  })
+
   // Filtrer les statuts disponibles selon le statut actuel
   const availableStatusesForModification = useMemo((): Array<{ id: string; code: string; label: string; color: string }> => {
     if (!referenceData?.artisanStatuses) return []
@@ -499,13 +532,26 @@ export function NewArtisanModalContent({ mode, onClose, onCycleMode, artisanId, 
       // Depuis CANDIDAT → ONE_SHOT ou POTENTIEL
       allowedCodes = ['ONE_SHOT', 'POTENTIEL']
     } else if (currentStatusCode === 'ONE_SHOT') {
-      // Depuis ONE_SHOT → Calculer le statut selon les règles
-      const calculatedStatus = calculateNewArtisanStatus(null, completedInterventionsCount)
-      if (calculatedStatus) {
-        allowedCodes = [calculatedStatus]
-      } else {
-        // Fallback sur POTENTIEL si null
-        allowedCodes = ['POTENTIEL']
+      // Depuis ONE_SHOT → Proposer de revenir au statut précédent
+
+      // Option 1: Utiliser le statut initial chargé (avant modification en ONE_SHOT)
+      const initialStatus = referenceData.artisanStatuses.find(s => s.id === initialArtisanStatusId)
+      if (initialStatus?.code && initialStatus.code.toUpperCase() !== 'ONE_SHOT') {
+        allowedCodes = [initialStatus.code.toUpperCase()]
+      }
+      // Option 2: Statut précédent depuis l'historique (si l'artisan était déjà ONE_SHOT au chargement)
+      else if (previousStatusData?.statusCode) {
+        allowedCodes = [previousStatusData.statusCode]
+      }
+      // Option 3: Fallback - Calculer selon le nombre d'interventions
+      else {
+        const calculatedStatus = calculateNewArtisanStatus(null, completedInterventionsCount)
+        if (calculatedStatus) {
+          allowedCodes = [calculatedStatus]
+        } else {
+          // Option 4: Dernier fallback - POTENTIEL
+          allowedCodes = ['POTENTIEL']
+        }
       }
     } else {
       // Depuis n'importe quel autre statut (NOVICE, FORMATION, etc.) → ONE_SHOT uniquement
@@ -530,7 +576,7 @@ export function NewArtisanModalContent({ mode, onClose, onCycleMode, artisanId, 
     }
 
     return availableStatuses
-  }, [referenceData, isEditMode, currentStatusId, completedInterventionsCount])
+  }, [referenceData, isEditMode, currentStatusId, completedInterventionsCount, previousStatusData, initialArtisanStatusId])
 
   // Attribuer automatiquement l'artisan au gestionnaire qui le crée (création uniquement)
   useEffect(() => {
@@ -703,7 +749,7 @@ export function NewArtisanModalContent({ mode, onClose, onCycleMode, artisanId, 
       }
     }
 
-    queryClient.invalidateQueries({ queryKey: ["artisans"] })
+    queryClient.invalidateQueries({ queryKey: artisanKeys.invalidateLists() })
 
     if (typeof window !== "undefined") {
       window.dispatchEvent(
@@ -770,7 +816,7 @@ export function NewArtisanModalContent({ mode, onClose, onCycleMode, artisanId, 
       // Restaurer uniquement (is_active = true) sans modifier les autres données
       const restored = await artisansApi.restore(deletedArtisanDialog.artisan.id)
 
-      queryClient.invalidateQueries({ queryKey: ["artisans"] })
+      queryClient.invalidateQueries({ queryKey: artisanKeys.invalidateLists() })
 
       if (typeof window !== "undefined") {
         window.dispatchEvent(
@@ -844,7 +890,7 @@ export function NewArtisanModalContent({ mode, onClose, onCycleMode, artisanId, 
         }
       }
 
-      queryClient.invalidateQueries({ queryKey: ["artisans"] })
+      queryClient.invalidateQueries({ queryKey: artisanKeys.invalidateLists() })
 
       if (typeof window !== "undefined") {
         window.dispatchEvent(
@@ -928,7 +974,7 @@ export function NewArtisanModalContent({ mode, onClose, onCycleMode, artisanId, 
         }
 
         queryClient.invalidateQueries({ queryKey: ["artisan", artisanId] })
-        queryClient.invalidateQueries({ queryKey: ["artisans"] })
+        queryClient.invalidateQueries({ queryKey: artisanKeys.invalidateLists() })
 
         if (typeof window !== "undefined") {
           window.dispatchEvent(
