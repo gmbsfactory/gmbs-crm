@@ -92,6 +92,7 @@ export function ArtisanModal({
           onCycleMode={cycleMode}
           onUnsavedChangesStateChange={handleUnsavedChangesStateChange}
           onRegisterShowDialog={handleRegisterShowDialog}
+          onStatusReasonModalOpenChange={setIsStatusReasonModalOpen}
         />
       )
     }
@@ -108,6 +109,7 @@ export function ArtisanModal({
           artisanId={artisanId}
           onUnsavedChangesStateChange={handleUnsavedChangesStateChange}
           onRegisterShowDialog={handleRegisterShowDialog}
+          onStatusReasonModalOpenChange={setIsStatusReasonModalOpen}
         />
       )
     }

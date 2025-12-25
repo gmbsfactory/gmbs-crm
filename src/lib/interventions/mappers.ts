@@ -33,6 +33,7 @@ const STATUS_FROM_DB_NORMALIZED: Record<string, InterventionStatusValue> = {
   SAV: "SAV",
   ATT_ACOMPTE: "ATT_ACOMPTE",
   ATTENTE_ACOMPTE: "ATT_ACOMPTE",
+  POTENTIEL: "POTENTIEL",
 }
 
 export const STATUS_TO_DB: Record<InterventionStatusValue, string> = {
@@ -47,6 +48,7 @@ export const STATUS_TO_DB: Record<InterventionStatusValue, string> = {
   INTER_TERMINEE: "INTER_TERMINEE",
   SAV: "SAV",
   ATT_ACOMPTE: "ATT_ACOMPTE",
+  POTENTIEL: "POTENTIEL",
 }
 
 export const DEFAULT_STATUS: InterventionStatusValue = "DEMANDE"

@@ -66,6 +66,11 @@ export const WORKFLOW_RULES: Record<InterventionStatusValue, WorkflowRule> = {
     requirements: { devisId: true },
     autoActions: [],
   },
+  POTENTIEL: {
+    isInitial: true,
+    requirements: {},
+    autoActions: [],
+  },
 }
 
 export type AuthorizedTransition = {

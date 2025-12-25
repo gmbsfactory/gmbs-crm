@@ -1,15 +1,6 @@
 ### Now 
 
-
-- Artisan
-        - Mettre nouvel artisan en haut ???
-        -               Trier artisan par date de création 
-        
-        - Permutation One Shot statut d'origine
-                Migration SQL - créer la table artisan_status_history
-                Trigger SQL (optionnel mais recommandé) - pour enregistrer automatiquement les changements
-                Méthode dans artisansApi.ts - getPreviousStatus() avec une simple query
-                Utiliser cette méthode dans le front
+- Gestion des retards
 
 - Tabulation trap quand l'alert dialog apparaît
 

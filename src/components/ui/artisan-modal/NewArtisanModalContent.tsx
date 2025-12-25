@@ -77,6 +77,8 @@ import {
   InputOTPSlot,
 } from "@/components/ui/input-otp"
 import { UnsavedChangesDialog } from "@/components/interventions/UnsavedChangesDialog"
+import { StatusReasonModal } from "@/components/shared/StatusReasonModal"
+import { getReasonTypeForTransition, type StatusReasonType } from "@/lib/comments/statusReason"
 
 // ===== HELPERS =====
 
@@ -239,9 +241,10 @@ type Props = {
   artisanId?: string // Si fourni, mode édition
   onUnsavedChangesStateChange?: (hasChanges: boolean, submitting: boolean) => void
   onRegisterShowDialog?: (showDialog: () => void) => void
+  onStatusReasonModalOpenChange?: (isOpen: boolean) => void
 }
 
-export function NewArtisanModalContent({ mode, onClose, onCycleMode, artisanId, onUnsavedChangesStateChange, onRegisterShowDialog }: Props) {
+export function NewArtisanModalContent({ mode, onClose, onCycleMode, artisanId, onUnsavedChangesStateChange, onRegisterShowDialog, onStatusReasonModalOpenChange }: Props) {
   const isEditMode = Boolean(artisanId)
   const ModeIcon = ModeIcons[mode]
   const { data: referenceData, loading: referenceLoading } = useReferenceData()
@@ -258,6 +261,10 @@ export function NewArtisanModalContent({ mode, onClose, onCycleMode, artisanId, 
 
   // Toggle entre vue Informations et vue Statistiques
   const [showStats, setShowStats] = useState(false)
+
+  // États pour l'archivage
+  const [pendingArchive, setPendingArchive] = useState<boolean>(false)
+  const isStatusReasonModalOpen = pendingArchive
 
   // Hook géocodage pour l'adresse du siège social
   const {
@@ -348,7 +355,12 @@ export function NewArtisanModalContent({ mode, onClose, onCycleMode, artisanId, 
   useEffect(() => {
     setIsFormInitialized(false)
     setInitialArtisanStatusId(null)
+    setPendingArchive(false)
   }, [artisanId])
+
+  useEffect(() => {
+    onStatusReasonModalOpenChange?.(isStatusReasonModalOpen)
+  }, [isStatusReasonModalOpen, onStatusReasonModalOpenChange])
 
   // En mode création, le formulaire est immédiatement initialisé
   useEffect(() => {
@@ -623,6 +635,17 @@ export function NewArtisanModalContent({ mode, onClose, onCycleMode, artisanId, 
     mutationFn: (payload: { id: string; data: ReturnType<typeof buildCreatePayload> }) => 
       artisansApiV2.update(payload.id, payload.data),
   })
+
+  // Fonction pour obtenir le code de statut d'un artisan
+  const getArtisanStatusCode = useCallback(
+    (statusId?: string | null) => {
+      if (!statusId || !referenceData?.artisanStatuses) {
+        return null
+      }
+      return referenceData.artisanStatuses.find((status) => status.id === statusId)?.code ?? null
+    },
+    [referenceData?.artisanStatuses],
+  )
 
   const metierOptions = useMemo(
     () => (referenceData?.metiers ?? []).map((metier) => ({
@@ -1070,6 +1093,102 @@ export function NewArtisanModalContent({ mode, onClose, onCycleMode, artisanId, 
     }
   }
 
+  // Fonction pour soumettre l'archivage avec commentaire
+  const submitArtisanArchive = async (comment: string) => {
+    if (!artisanId || !isEditMode) return
+
+    const archiveStatusId = referenceData?.artisanStatuses?.find((status) => status.code === "ARCHIVE")?.id
+    if (!archiveStatusId) {
+      toast.error("Erreur", {
+        description: "Impossible de trouver le statut ARCHIVE",
+      })
+      setPendingArchive(false)
+      return
+    }
+
+    const formValues = getValues()
+    const payload = buildCreatePayload({
+      ...formValues,
+      statut_id: archiveStatusId,
+    })
+
+    try {
+      const updated = await updateArtisan.mutateAsync({ id: artisanId, data: payload })
+
+      // Ajouter le commentaire obligatoire
+      try {
+        await commentsApi.create({
+          entity_id: artisanId,
+          entity_type: "artisan",
+          content: comment,
+          comment_type: "internal",
+          is_internal: true,
+          author_id: currentUser?.id ?? undefined,
+          reason_type: "archive",
+        })
+        await queryClient.invalidateQueries({ queryKey: ["comments", "artisan", artisanId] })
+      } catch (commentError) {
+        console.error("[NewArtisanModalContent] Impossible d'ajouter le commentaire obligatoire", commentError)
+        throw new Error("Le commentaire obligatoire n'a pas pu être enregistré. Merci de réessayer.")
+      }
+
+      await queryClient.invalidateQueries({ queryKey: ["artisan", artisanId] })
+      await queryClient.invalidateQueries({
+        queryKey: artisanKeys.invalidateLists(),
+        refetchType: 'active'
+      })
+
+      await queryClient.refetchQueries({
+        queryKey: artisanKeys.invalidateLists(),
+        type: 'active'
+      })
+
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(
+          new CustomEvent("artisan-updated", {
+            detail: {
+              id: artisanId,
+              data: updated,
+              optimistic: false,
+              type: "update",
+            },
+          }),
+        )
+      }
+
+      toast.success("Artisan archivé", {
+        description: "L'artisan a été archivé avec succès.",
+      })
+      
+      setPendingArchive(false)
+      onClose()
+    } catch (mutationError) {
+      const message = mutationError instanceof Error ? mutationError.message : "Une erreur est survenue."
+      toast.error("Échec de l'archivage", {
+        description: message,
+      })
+      setPendingArchive(false)
+    }
+  }
+
+  const handleArchiveClick = () => {
+    if (!existingArtisan || !isEditMode) return
+    const currentStatusCode = getArtisanStatusCode(existingArtisan.statut_id ?? null)
+    if (currentStatusCode === "ARCHIVE") {
+      // Déjà archivé, ne rien faire
+      return
+    }
+    setPendingArchive(true)
+  }
+
+  const handleArchiveCancel = () => {
+    setPendingArchive(false)
+  }
+
+  const handleArchiveConfirm = async (comment: string) => {
+    await submitArtisanArchive(comment)
+  }
+
   const isSubmitting = createArtisan.isPending || updateArtisan.isPending
   const isLoading = (referenceLoading && !referenceData) || (isEditMode && isLoadingArtisan)
 
@@ -1350,7 +1469,28 @@ export function NewArtisanModalContent({ mode, onClose, onCycleMode, artisanId, 
             </div>
           </div>
           <div className="flex items-center gap-2">
-            {/* Pas de bouton Archiver pour la création/modification */}
+            {existingArtisan && isEditMode && canWriteArtisans ? (
+              getArtisanStatusCode(existingArtisan.statut_id ?? null) === "ARCHIVE" ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="bg-orange-100 text-orange-700 border-orange-300 hover:bg-orange-200 hover:text-orange-800"
+                  disabled
+                >
+                  Archivé
+                </Button>
+              ) : (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="bg-orange-100 text-orange-700 border-orange-300 hover:bg-orange-200 hover:text-orange-800"
+                  onClick={handleArchiveClick}
+                  disabled={isSubmitting || isLoading}
+                >
+                  Archiver
+                </Button>
+              )
+            ) : null}
           </div>
         </header>
 
@@ -2290,6 +2430,15 @@ export function NewArtisanModalContent({ mode, onClose, onCycleMode, artisanId, 
           onCancel={handleCancelClose}
           onConfirm={handleConfirmClose}
           onSaveAndConfirm={handleSaveAndClose}
+        />
+        <StatusReasonModal
+          open={isStatusReasonModalOpen}
+          type="archive"
+          onCancel={handleArchiveCancel}
+          onConfirm={(reason) => {
+            void handleArchiveConfirm(reason)
+          }}
+          isSubmitting={isSubmitting}
         />
       </div>
     </TooltipProvider>
