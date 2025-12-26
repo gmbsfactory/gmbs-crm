@@ -242,9 +242,10 @@ type Props = {
   onUnsavedChangesStateChange?: (hasChanges: boolean, submitting: boolean) => void
   onRegisterShowDialog?: (showDialog: () => void) => void
   onStatusReasonModalOpenChange?: (isOpen: boolean) => void
+  onUnsavedDialogOpenChange?: (isOpen: boolean) => void
 }
 
-export function NewArtisanModalContent({ mode, onClose, onCycleMode, artisanId, onUnsavedChangesStateChange, onRegisterShowDialog, onStatusReasonModalOpenChange }: Props) {
+export function NewArtisanModalContent({ mode, onClose, onCycleMode, artisanId, onUnsavedChangesStateChange, onRegisterShowDialog, onStatusReasonModalOpenChange, onUnsavedDialogOpenChange }: Props) {
   const isEditMode = Boolean(artisanId)
   const ModeIcon = ModeIcons[mode]
   const { data: referenceData, loading: referenceLoading } = useReferenceData()
@@ -1214,6 +1215,11 @@ export function NewArtisanModalContent({ mode, onClose, onCycleMode, artisanId, 
     }
     onRegisterShowDialog?.(showDialog)
   }, [onClose, onRegisterShowDialog])
+
+  // Notifier le parent de l'ouverture du dialog
+  useEffect(() => {
+    onUnsavedDialogOpenChange?.(showUnsavedDialog)
+  }, [showUnsavedDialog, onUnsavedDialogOpenChange])
 
   // Fonction pour confirmer la fermeture après l'alerte
   const handleConfirmClose = useCallback(() => {

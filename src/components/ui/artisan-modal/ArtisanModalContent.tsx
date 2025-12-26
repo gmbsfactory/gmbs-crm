@@ -187,6 +187,7 @@ type Props = {
   onUnsavedChangesStateChange?: (hasChanges: boolean, submitting: boolean) => void
   onRegisterShowDialog?: (showDialog: () => void) => void
   onStatusReasonModalOpenChange?: (isOpen: boolean) => void
+  onUnsavedDialogOpenChange?: (isOpen: boolean) => void
 }
 
 const formatDate = (value: string | null | undefined, withTime = false) => {
@@ -366,6 +367,7 @@ export function ArtisanModalContent({
   onUnsavedChangesStateChange,
   onRegisterShowDialog,
   onStatusReasonModalOpenChange,
+  onUnsavedDialogOpenChange,
 }: Props) {
   const surfaceVariantClass = mode === "fullpage" ? "modal-config-surface-full" : undefined
   const surfaceModeClass = `modal-config--${mode}`
@@ -837,6 +839,11 @@ export function ArtisanModalContent({
     }
     onRegisterShowDialog?.(showDialog)
   }, [onClose, onRegisterShowDialog])
+
+  // Notifier le parent de l'ouverture du dialog
+  useEffect(() => {
+    onUnsavedDialogOpenChange?.(showUnsavedDialog)
+  }, [showUnsavedDialog, onUnsavedDialogOpenChange])
 
   // Fonction pour confirmer la fermeture après l'alerte
   const handleConfirmClose = useCallback(() => {

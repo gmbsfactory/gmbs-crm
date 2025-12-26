@@ -121,12 +121,12 @@ export function AvatarStatus() {
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <button
-            className="relative h-9 w-9 rounded-full outline-none focus-visible:ring-1 focus-visible:ring-ring border-2 overflow-hidden select-none"
+            className="relative h-9 w-9 rounded-full outline-none focus-visible:ring-1 focus-visible:ring-ring border-2 select-none"
             style={{ borderColor: borderColor || '#e5e7eb' }}
             aria-label={displayName || 'Profil'}
             title={displayName || ''}
           >
-            <Avatar className="h-full w-full" style={{ background: bgColor }}>
+            <Avatar className="h-full w-full overflow-hidden" style={{ background: bgColor }}>
               {avatarUrl && (
                 <AvatarImage
                   src={avatarUrl}
@@ -146,7 +146,7 @@ export function AvatarStatus() {
             </Avatar>
             <span
               aria-label={`Status ${label}`}
-              className={`absolute -bottom-0 -right-0 h-2.5 w-2.5 rounded-full ring-2 ring-background ${statusColorClass}`}
+              className={`absolute -bottom-0 -right-0 h-2.5 w-2.5 rounded-full ring-2 ring-background z-50 ${statusColorClass}`}
             />
           </button>
         </DropdownMenuTrigger>
@@ -177,7 +177,7 @@ export function AvatarStatus() {
                   </Avatar>
                 <span
                   aria-label={`Status ${label}`}
-                  className={`absolute -bottom-0 -right-0 h-2.5 w-2.5 rounded-full ring-2 ring-background ${statusColorClass}`}
+                  className={`absolute -bottom-0 -right-0 h-2.5 w-2.5 rounded-full ring-2 ring-foreground z-50 ${statusColorClass}`}
                 />
               </div>
               <div className="text-xs">

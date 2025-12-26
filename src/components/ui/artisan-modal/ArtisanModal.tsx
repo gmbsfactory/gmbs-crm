@@ -50,6 +50,7 @@ export function ArtisanModal({
   const [isSubmitting, setIsSubmitting] = useState(false)
   const showUnsavedDialogRef = useRef<(() => void) | null>(null)
   const [isStatusReasonModalOpen, setIsStatusReasonModalOpen] = useState(false)
+  const [isUnsavedDialogOpen, setIsUnsavedDialogOpen] = useState(false)
 
   // Callbacks pour recevoir les informations de ArtisanModalContent
   const handleUnsavedChangesStateChange = useCallback((hasChanges: boolean, submitting: boolean) => {
@@ -71,6 +72,7 @@ export function ArtisanModal({
   useEffect(() => {
     if (!isOpen) {
       setIsStatusReasonModalOpen(false)
+      setIsUnsavedDialogOpen(false)
     }
   }, [isOpen])
 
@@ -93,6 +95,7 @@ export function ArtisanModal({
           onUnsavedChangesStateChange={handleUnsavedChangesStateChange}
           onRegisterShowDialog={handleRegisterShowDialog}
           onStatusReasonModalOpenChange={setIsStatusReasonModalOpen}
+          onUnsavedDialogOpenChange={setIsUnsavedDialogOpen}
         />
       )
     }
@@ -110,6 +113,7 @@ export function ArtisanModal({
           onUnsavedChangesStateChange={handleUnsavedChangesStateChange}
           onRegisterShowDialog={handleRegisterShowDialog}
           onStatusReasonModalOpenChange={setIsStatusReasonModalOpen}
+          onUnsavedDialogOpenChange={setIsUnsavedDialogOpen}
         />
       )
     }
@@ -139,6 +143,7 @@ export function ArtisanModal({
         onUnsavedChangesStateChange={handleUnsavedChangesStateChange}
         onRegisterShowDialog={handleRegisterShowDialog}
         onStatusReasonModalOpenChange={setIsStatusReasonModalOpen}
+        onUnsavedDialogOpenChange={setIsUnsavedDialogOpen}
       />
     )
   })()
@@ -156,7 +161,7 @@ export function ArtisanModal({
       hasUnsavedChanges={hasUnsavedChanges}
       isSubmitting={isSubmitting}
       onShowUnsavedDialog={() => showUnsavedDialogRef.current?.()}
-      pauseFocusTrap={isStatusReasonModalOpen}
+      pauseFocusTrap={isStatusReasonModalOpen || isUnsavedDialogOpen}
     >
       {renderedContent}
     </GenericModal>

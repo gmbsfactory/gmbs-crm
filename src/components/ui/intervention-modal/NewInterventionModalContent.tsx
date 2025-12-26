@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useCallback, useRef, useState } from "react"
+import React, { useCallback, useEffect, useRef, useState } from "react"
 import { useQueryClient } from "@tanstack/react-query"
 import { X } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -19,9 +19,10 @@ type Props = {
   mode: ModalDisplayMode
   onClose: () => void
   onCycleMode?: () => void
+  onUnsavedDialogOpenChange?: (isOpen: boolean) => void
 }
 
-export function NewInterventionModalContent({ mode, onClose, onCycleMode }: Props) {
+export function NewInterventionModalContent({ mode, onClose, onCycleMode, onUnsavedDialogOpenChange }: Props) {
   const queryClient = useQueryClient()
   const modal = useModal()
   const context = useModalState((state) => state.context)
@@ -40,6 +41,11 @@ export function NewInterventionModalContent({ mode, onClose, onCycleMode }: Prop
   const [isSubmitting, setIsSubmitting] = useState(false)
   const { can } = usePermissions()
   const canWriteInterventions = can("write_interventions")
+
+  // Notifier le parent de l'ouverture du dialog
+  useEffect(() => {
+    onUnsavedDialogOpenChange?.(showUnsavedDialog)
+  }, [showUnsavedDialog, onUnsavedDialogOpenChange])
 
   // Fonction pour confirmer la fermeture après l'alerte
   const handleConfirmClose = useCallback(() => {

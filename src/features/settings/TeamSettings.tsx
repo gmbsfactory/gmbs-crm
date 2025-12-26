@@ -20,6 +20,7 @@ import {
 import { useToast } from "@/hooks/use-toast"
 import { UserPermissionsDialog } from "./UserPermissionsDialog"
 import { cn } from "@/lib/utils"
+import { GestionnaireBadge } from "@/components/ui/gestionnaire-badge"
 
 type TeamUser = {
   id: string
@@ -35,6 +36,7 @@ type TeamUser = {
   color: string | null
   username?: string | null
   last_seen_at?: string | null
+  avatar_url?: string | null
   page_permissions?: Record<string, boolean>
 }
 
@@ -278,7 +280,6 @@ export function TeamSettings() {
               const roleConfig = getRoleConfig(user.role)
               const statusConfig = getStatusConfig(user.status)
               const RoleIcon = roleConfig.icon
-              const initials = `${(user.firstname?.[0] || user.prenom?.[0] || '').toUpperCase()}${(user.lastname?.[0] || user.name?.[0] || '').toUpperCase()}`
               
               return (
                 <motion.div
@@ -292,16 +293,21 @@ export function TeamSettings() {
                     <div className="flex items-center gap-4">
                       {/* Avatar avec indicateur de statut */}
                       <div className="relative">
-                        <div
-                          className="h-12 w-12 rounded-full flex items-center justify-center text-sm font-bold text-white shadow-md"
-                          style={{ backgroundColor: user.color || '#6366f1' }}
+                        <GestionnaireBadge
+                          firstname={user.firstname}
+                          lastname={user.lastname}
+                          prenom={user.prenom}
+                          name={user.name}
+                          color={user.color}
+                          avatarUrl={user.avatar_url}
+                          size="lg"
+                          showBorder={true}
                         >
-                          {initials}
-                        </div>
-                        <div className={cn(
-                          "absolute -bottom-0.5 -right-0.5 h-4 w-4 rounded-full border-2 border-background",
-                          statusConfig.color
-                        )} />
+                          <div className={cn(
+                            "absolute -bottom-0.5 -right-0.5 h-4 w-4 rounded-full border-2 border-background",
+                            statusConfig.color
+                          )} />
+                        </GestionnaireBadge>
                       </div>
                       
                       {/* Infos utilisateur */}

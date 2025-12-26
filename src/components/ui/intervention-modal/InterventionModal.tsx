@@ -51,6 +51,7 @@ export function InterventionModal({
   const [isSmsModalOpen, setIsSmsModalOpen] = useState(false)
   const [isEmailModalOpen, setIsEmailModalOpen] = useState(false)
   const [isStatusReasonModalOpen, setIsStatusReasonModalOpen] = useState(false)
+  const [isUnsavedDialogOpen, setIsUnsavedDialogOpen] = useState(false)
 
   // Callbacks pour recevoir les informations de InterventionModalContent
   const handleUnsavedChangesStateChange = useCallback((hasChanges: boolean, submitting: boolean) => {
@@ -109,6 +110,7 @@ export function InterventionModal({
       setIsSmsModalOpen(false)
       setIsEmailModalOpen(false)
       setIsStatusReasonModalOpen(false)
+      setIsUnsavedDialogOpen(false)
     }
   }, [isOpen])
 
@@ -123,7 +125,14 @@ export function InterventionModal({
 
   const renderedContent = (() => {
     if (currentContent === "new-intervention") {
-      return <NewInterventionModalContent mode={effectiveMode} onClose={onClose} onCycleMode={cycleMode} />
+      return (
+        <NewInterventionModalContent
+          mode={effectiveMode}
+          onClose={onClose}
+          onCycleMode={cycleMode}
+          onUnsavedDialogOpenChange={setIsUnsavedDialogOpen}
+        />
+      )
     }
 
     if (currentContent !== "intervention") {
@@ -154,6 +163,7 @@ export function InterventionModal({
         onSmsModalOpenChange={setIsSmsModalOpen}
         onEmailModalOpenChange={setIsEmailModalOpen}
         onStatusReasonModalOpenChange={setIsStatusReasonModalOpen}
+        onUnsavedDialogOpenChange={setIsUnsavedDialogOpen}
       />
     )
   })()
@@ -172,7 +182,13 @@ export function InterventionModal({
       hasUnsavedChanges={hasUnsavedChanges}
       isSubmitting={isSubmitting}
       onShowUnsavedDialog={() => showUnsavedDialogRef.current?.()}
-      pauseFocusTrap={isArtisanSearchOpen || isSmsModalOpen || isEmailModalOpen || isStatusReasonModalOpen}
+      pauseFocusTrap={
+        isArtisanSearchOpen ||
+        isSmsModalOpen ||
+        isEmailModalOpen ||
+        isStatusReasonModalOpen ||
+        isUnsavedDialogOpen
+      }
     >
       {renderedContent}
     </GenericModal>

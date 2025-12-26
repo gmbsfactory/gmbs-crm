@@ -90,6 +90,7 @@ type Props = {
   onSmsModalOpenChange?: (isOpen: boolean) => void
   onEmailModalOpenChange?: (isOpen: boolean) => void
   onStatusReasonModalOpenChange?: (isOpen: boolean) => void
+  onUnsavedDialogOpenChange?: (isOpen: boolean) => void
 }
 
 export function InterventionModalContent({
@@ -110,6 +111,7 @@ export function InterventionModalContent({
   onSmsModalOpenChange,
   onEmailModalOpenChange,
   onStatusReasonModalOpenChange,
+  onUnsavedDialogOpenChange,
 }: Props) {
   const bodyPadding = mode === "fullpage" ? "px-8 py-6 md:px-12" : "px-5 py-4 md:px-8"
   const surfaceVariantClass = mode === "fullpage" ? "modal-config-surface-full" : undefined
@@ -135,6 +137,11 @@ export function InterventionModalContent({
   // Log pour suivre les changements de showUnsavedDialog
   useEffect(() => {
   }, [showUnsavedDialog])
+
+  // Notifier le parent de l'ouverture du dialog
+  useEffect(() => {
+    onUnsavedDialogOpenChange?.(showUnsavedDialog)
+  }, [showUnsavedDialog, onUnsavedDialogOpenChange])
 
   // Notifier le parent des changements d'état pour la gestion du clic sur backdrop
   useEffect(() => {

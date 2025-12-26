@@ -7,10 +7,6 @@
 - Bugs
         - Première connexion au CRM obligé de recharger la page
 
-- Focus trap 
-        - Artisan Archivé à régler comme intervention terminé
-        - Trap sur l'alert dialog UnsavedCHanges
-
 - Dashboard
         - Gestion des retards sans bugggg !! 
         - Raffraîchissement du podium à une date / heure donnée dans la semaine 
@@ -20,6 +16,11 @@
 
 - Recherche : 
         - Améliorer la recherche pour inclure les montants attente accompte
+
+- Documentation : 
+        - Faire document avec les formules que l'on a pris en compte pour le calcul des dashboards
+
+- 
 
 
  ### Later

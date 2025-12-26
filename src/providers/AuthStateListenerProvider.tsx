@@ -202,6 +202,44 @@ export function AuthStateListenerProvider({ children }: { children: ReactNode })
     checkFirstActivity()
   }, [currentUser?.id])
 
+  // Server-side heartbeat system (like Teams/Skype)
+  // Sends a ping every 30s to update last_seen_at on the server
+  // A server-side worker will automatically set status to offline if no heartbeat for 90s
+  useEffect(() => {
+    if (!currentUser?.id || typeof window === 'undefined') return
+
+    const HEARTBEAT_INTERVAL = 30000 // 30 seconds
+
+    const sendHeartbeat = async () => {
+      try {
+        const response = await fetch('/api/auth/heartbeat', {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+        })
+
+        if (response.ok) {
+          const data = await response.json()
+          console.log('[AuthStateListenerProvider] ❤️ Heartbeat sent:', data.last_seen_at)
+        } else {
+          console.warn('[AuthStateListenerProvider] Heartbeat failed:', response.status)
+        }
+      } catch (error) {
+        console.warn('[AuthStateListenerProvider] Heartbeat error:', error)
+      }
+    }
+
+    // Send initial heartbeat immediately
+    sendHeartbeat()
+
+    // Then send heartbeat every 30 seconds
+    const heartbeatInterval = setInterval(sendHeartbeat, HEARTBEAT_INTERVAL)
+
+    return () => {
+      clearInterval(heartbeatInterval)
+    }
+  }, [currentUser?.id])
+
   // Handle tab/window close with multi-tab support
   // Only sets status to offline when the LAST tab is closed
   useEffect(() => {
