@@ -441,6 +441,9 @@ function PageContent() {
   }
 
   // Utiliser TanStack Query pour toutes les vues (migration progressive complétée)
+  // Pour la vue "Mes Interventions à check", augmenter la limite car le filtre isCheck est côté client
+  const queryLimit = activeViewId === "mes-interventions-a-check" ? 500 : 100
+
   const {
     interventions: fetchedInterventions,
     loading: remoteLoading,
@@ -454,7 +457,7 @@ function PageContent() {
     viewId: activeViewId ?? undefined,
     fields: viewFields,
     serverFilters,
-    limit: 100,
+    limit: queryLimit,
     page,
   })
   const [stableTotalCount, setStableTotalCount] = useState(0)
@@ -514,10 +517,11 @@ function PageContent() {
 
   const normalizedInterventions = useMemo(() => {
     console.log(`[page.tsx] normalizedInterventions recalculé - fetchedInterventions.length: ${fetchedInterventions.length}, page: ${page}, currentPage: ${currentPage}`)
-    return fetchedInterventions.map((item) => {
+    const normalized = fetchedInterventions.map((item) => {
       const statusCode = item.status?.code ?? item.statusValue ?? (item as any).statut
       const normalizedStatus = mapStatusFromDb(statusCode)
       const datePrevue = (item as any).date_prevue || (item as any).datePrevue || null
+      const isCheck = isCheckStatus(statusCode, datePrevue)
       return {
         ...item,
         statusValue: normalizedStatus,
@@ -525,9 +529,12 @@ function PageContent() {
         statusColor: item.status?.color ?? (item as any).statusColor ?? null,
         assignedUserColor: (item as any).assignedUserColor ?? null,
         datePrevue: datePrevue,
-        isCheck: isCheckStatus(statusCode, datePrevue),
+        isCheck,
       } as InterventionEntity & { datePrevue: string | null; isCheck: boolean }
     })
+    const checkCount = normalized.filter(i => i.isCheck).length
+    console.log(`[page.tsx] interventions avec isCheck=true: ${checkCount}/${normalized.length}`)
+    return normalized
   }, [fetchedInterventions, page, currentPage])
 
   // Afficher le loading si on charge OU si on change de vue (même avec des données existantes)

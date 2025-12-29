@@ -2357,7 +2357,7 @@ export function InterventionEditForm({
                                   lastname={user.lastname}
                                   color={user.color}
                                   avatarUrl={user.avatar_url}
-                                  size="xs"
+                                  size="sm"
                                   showBorder={false}
                                 />
                                 <span className="text-xs truncate flex-1">

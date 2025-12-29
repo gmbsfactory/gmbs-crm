@@ -1,8 +1,9 @@
 import { useMemo } from "react"
 import { useQueries, useQueryClient } from "@tanstack/react-query"
 import { getInterventionTotalCount, type GetAllParams } from "@/lib/supabase-api-v2"
-import { interventionKeys } from "@/lib/react-query/queryKeys"
+import { interventionKeys, dashboardKeys } from "@/lib/react-query/queryKeys"
 import type { InterventionViewDefinition } from "@/types/intervention-views"
+import { interventionsApi } from "@/lib/api/v2"
 
 // Vues qui nécessitent un utilisateur connecté pour fonctionner correctement
 const USER_SCOPED_VIEW_IDS = new Set([
@@ -10,6 +11,8 @@ const USER_SCOPED_VIEW_IDS = new Set([
   "ma-liste-en-cours",
   "mes-visites-technique",
   "ma-liste-accepte",
+  "ma-liste-att-acompte",
+  "mes-interventions-a-check",
 ])
 
 export interface UseInterventionViewCountsOptions {
@@ -40,12 +43,38 @@ export function useInterventionViewCounts({
   // Créer les queries pour chaque vue
   const queries = useQueries({
     queries: views.map((view) => {
+      // Cas spécial pour "mes-interventions-a-check" : utiliser les stats du dashboard
+      if (view.id === "mes-interventions-a-check") {
+        const viewEnabled = enabled && Boolean(currentUserId)
+        return {
+          queryKey: dashboardKeys.statsByUser({ userId: currentUserId || "", startDate: undefined, endDate: undefined }),
+          queryFn: async () => {
+            try {
+              if (!currentUserId) {
+                console.warn(`[useInterventionViewCounts] Vue check ignorée car currentUserId n'est pas disponible`)
+                return { viewId: view.id, count: 0 }
+              }
+
+              const stats = await interventionsApi.getStatsByUser(currentUserId, undefined, undefined)
+              return { viewId: view.id, count: stats.interventions_a_checker || 0 }
+            } catch (error) {
+              console.error(`[useInterventionViewCounts] Erreur lors du comptage check pour la vue ${view.id}:`, error)
+              return { viewId: view.id, count: 0 }
+            }
+          },
+          enabled: viewEnabled,
+          staleTime: 30000, // 30 secondes
+          gcTime: 5 * 60 * 1000, // 5 minutes
+        }
+      }
+
+      // Logique normale pour les autres vues
       const apiParams = convertFiltersToApiParams(view.filters)
-      
+
       // Désactiver les vues utilisateur si currentUserId n'est pas disponible
       const isUserScopedView = USER_SCOPED_VIEW_IDS.has(view.id)
       const viewEnabled = enabled && Boolean(view.id) && (!isUserScopedView || Boolean(currentUserId))
-      
+
       return {
         queryKey: interventionKeys.summary(apiParams as GetAllParams),
         queryFn: async () => {
@@ -55,23 +84,23 @@ export function useInterventionViewCounts({
               console.warn(`[useInterventionViewCounts] Paramètres invalides pour la vue ${view.id}:`, apiParams)
               return { viewId: view.id, count: 0 }
             }
-            
+
             // Pour les vues utilisateur, vérifier que currentUserId est disponible dans les paramètres
             if (isUserScopedView && !currentUserId) {
               console.warn(`[useInterventionViewCounts] Vue utilisateur ${view.id} ignorée car currentUserId n'est pas disponible`)
               return { viewId: view.id, count: 0 }
             }
-            
+
             const count = await getInterventionTotalCount(apiParams)
             return { viewId: view.id, count }
           } catch (error) {
             // Améliorer le logging des erreurs pour mieux diagnostiquer
-            const errorMessage = error instanceof Error 
-              ? error.message 
+            const errorMessage = error instanceof Error
+              ? error.message
               : typeof error === 'object' && error !== null
               ? JSON.stringify(error, Object.getOwnPropertyNames(error))
               : String(error)
-            
+
             const errorDetails = error instanceof Error
               ? {
                   message: error.message,
@@ -79,7 +108,7 @@ export function useInterventionViewCounts({
                   stack: error.stack,
                 }
               : error
-            
+
             console.error(
               `[useInterventionViewCounts] Erreur lors du comptage pour la vue ${view.id}:`,
               {
