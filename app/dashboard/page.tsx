@@ -61,7 +61,7 @@ export default function DashboardPage() {
   const { open: openModal } = useModal()
   const artisanModal = useArtisanModal()
   const router = useRouter()
-  
+
   // Utiliser le hook React Query pour charger l'utilisateur (cache partagé)
   const { data: currentUser, isLoading: isLoadingUser } = useCurrentUser()
   const { data: gestionnaires = [], isLoading: isLoadingGestionnaires } = useGestionnaires()
@@ -71,14 +71,14 @@ export default function DashboardPage() {
   const canWriteInterventions = can("write_interventions")
   const canReadArtisans = can("read_artisans")
   const canWriteArtisans = can("write_artisans")
-  
+
   // Initialiser avec l'utilisateur courant par défaut
   useEffect(() => {
     if (currentUser?.id && !selectedGestionnaireId) {
       setSelectedGestionnaireId(currentUser.id)
     }
   }, [currentUser?.id, selectedGestionnaireId])
-  
+
   // Fonction pour obtenir le nom d'affichage
   const getDisplayName = (gestionnaire: Gestionnaire) => {
     const parts = [
@@ -89,7 +89,7 @@ export default function DashboardPage() {
       ? parts.join(" ")
       : gestionnaire.code_gestionnaire || gestionnaire.username || "Gestionnaire"
   }
-  
+
   // Filtrer les données selon le gestionnaire sélectionné
   const effectiveUserId = selectedGestionnaireId || currentUser?.id || null
 
@@ -111,7 +111,7 @@ export default function DashboardPage() {
   // Références pour l'animation
   const dashboardContentRef = useRef<HTMLDivElement>(null)
   const loginIframeRef = useRef<HTMLIFrameElement>(null)
-  
+
   // Hook pour l'animation de transition
   const {
     isAnimating,
@@ -138,12 +138,12 @@ export default function DashboardPage() {
     if (!isMounted) return
 
     const transitionData = sessionStorage.getItem('revealTransition')
-    
+
     if (transitionData) {
       try {
         const data = JSON.parse(transitionData)
         const isRecent = Date.now() - data.timestamp < 5000
-        
+
         if (data.from === 'login' && isRecent) {
           setShowTransition(true)
           setTimeout(() => {
@@ -202,13 +202,13 @@ export default function DashboardPage() {
     let rafId: number | null = null
     const unsubscribe = circleSizeMotion.on('change', (size: number) => {
       if (rafId !== null) return // Ignorer si une frame est déjà planifiée
-      
+
       rafId = requestAnimationFrame(() => {
         if (dashboardContentRef.current) {
           const clipPath = `circle(${size}px at ${buttonPosition.x}px ${buttonPosition.y}px)`
           const element = dashboardContentRef.current
           element.style.clipPath = clipPath
-          ;(element.style as any).webkitClipPath = clipPath
+            ; (element.style as any).webkitClipPath = clipPath
         }
         rafId = null
       })
@@ -230,7 +230,7 @@ export default function DashboardPage() {
     let rafId: number | null = null
     const unsubscribe = circleSizeMotion.on('change', (size: number) => {
       if (rafId !== null) return // Ignorer si une frame est déjà planifiée
-      
+
       rafId = requestAnimationFrame(() => {
         if (loginIframeRef.current) {
           const mask = size === 0
@@ -238,7 +238,7 @@ export default function DashboardPage() {
             : `radial-gradient(circle ${size}px at ${buttonPosition.x}px ${buttonPosition.y}px, transparent ${size}px, black ${size + 0.1}px)`
           const element = loginIframeRef.current
           element.style.mask = mask
-          ;(element.style as any).webkitMask = mask
+            ; (element.style as any).webkitMask = mask
         }
         rafId = null
       })
@@ -259,7 +259,7 @@ export default function DashboardPage() {
     const timer = setTimeout(() => {
       if (dashboardContentRef.current) {
         dashboardContentRef.current.style.clipPath = 'none'
-        ;(dashboardContentRef.current.style as any).webkitClipPath = 'none'
+          ; (dashboardContentRef.current.style as any).webkitClipPath = 'none'
       }
       if (loginIframeRef.current) {
         loginIframeRef.current.style.display = 'none'
@@ -342,7 +342,7 @@ export default function DashboardPage() {
   // Obtenir la valeur actuelle pour le Select
   const getCurrentSelectValue = () => {
     if (selectedPeriod) return selectedPeriod
-    
+
     // Par défaut, utiliser la période courante
     const now = new Date()
     if (periodType === "month") {
@@ -432,7 +432,7 @@ export default function DashboardPage() {
       const monday = new Date(now.getFullYear(), now.getMonth(), diff)
       const friday = new Date(monday)
       friday.setDate(monday.getDate() + 4)
-      
+
       return `Semaine du ${monday.toLocaleDateString("fr-FR", { day: "numeric", month: "short" })} au ${friday.toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}`
     } else if (periodType === "month") {
       return format(now, "MMM yyyy", { locale: fr })
@@ -441,9 +441,9 @@ export default function DashboardPage() {
     }
   }, [periodType, selectedPeriod, periodOptions])
 
-  // Charger le nombre total d'interventions pour la période
+  // Charger le nombre total d'interventions (sans filtre de période)
   useEffect(() => {
-    if (!effectiveUserId || isLoadingUser || !period.startDate || !period.endDate) {
+    if (!effectiveUserId || isLoadingUser) {
       setTotalInterventions(null)
       return
     }
@@ -452,7 +452,8 @@ export default function DashboardPage() {
 
     const loadTotalInterventions = async () => {
       try {
-        const statsData = await interventionsApi.getStatsByUser(effectiveUserId, period.startDate, period.endDate)
+        // Ne pas passer de dates pour récupérer toutes les interventions
+        const statsData = await interventionsApi.getStatsByUser(effectiveUserId, undefined, undefined)
         if (!cancelled) {
           setTotalInterventions(statsData.total)
         }
@@ -469,7 +470,7 @@ export default function DashboardPage() {
     return () => {
       cancelled = true
     }
-  }, [effectiveUserId, isLoadingUser, period.startDate, period.endDate])
+  }, [effectiveUserId, isLoadingUser])
 
   return (
     <>
@@ -498,7 +499,7 @@ export default function DashboardPage() {
               {/* ═══════════════════════════════════════════════════════════════
                   FILTERBAR - Hauteur fixe en haut
                   ═══════════════════════════════════════════════════════════════ */}
-              <div 
+              <div
                 className="flex-shrink-0 relative grid items-center p-3 bg-muted/50 rounded-lg overflow-x-auto overflow-y-hidden"
                 style={{
                   height: '60px',
@@ -507,252 +508,252 @@ export default function DashboardPage() {
                   gap: 'clamp(0.5rem, 1.5vw, 2rem)',
                 }}
               >
-                  {/* Partie gauche : Sélecteur de période */}
-                  <div className="flex items-center gap-2 min-w-fit flex-shrink-0">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-medium whitespace-nowrap">Période :</span>
-                      {isMounted ? (
-                        <Select value={periodType} onValueChange={(value) => setPeriodType(value as PeriodType)}>
-                          <SelectTrigger className="w-fit min-w-[110px]">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="week">Semaine</SelectItem>
-                            <SelectItem value="month">Mois</SelectItem>
-                            <SelectItem value="year">Année</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      ) : (
-                        <div className="w-[110px] h-10 rounded-md border bg-background flex items-center px-3">
-                          <span className="text-sm text-muted-foreground">Chargement...</span>
-                        </div>
-                      )}
-                    </div>
-                    
-                    {/* Deuxième filtre adaptatif */}
-                    <div className="flex items-center gap-2">
-                      {isMounted ? (
-                        <Select
-                          value={getCurrentSelectValue()}
-                          onValueChange={handlePeriodSelect}
-                        >
-                          <SelectTrigger className={cn(
-                            "w-auto min-w-[120px]",
-                            periodType === "week" && "min-w-[180px]",
-                            periodType === "month" && "min-w-[140px]",
-                            periodType === "year" && "min-w-[100px]"
-                          )}>
-                            <SelectValue>
-                              {periodOptions.find((opt) => opt.value === getCurrentSelectValue())?.label || "Sélectionner"}
-                            </SelectValue>
-                          </SelectTrigger>
-                          <SelectContent className="max-h-[300px]">
-                            {(() => {
-                              const currentYear = getYear(new Date())
-                              const years = [currentYear - 1, currentYear, currentYear + 1]
-                              
-                              if (periodType === "month") {
-                                return years.map((year) => {
-                                  const yearMonths = periodOptions.filter((opt) => opt.year === year)
-                                  if (yearMonths.length === 0) return null
-                                  return (
-                                    <div key={year}>
-                                      <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground sticky top-0 bg-popover">
-                                        {year}
-                                      </div>
-                                      {yearMonths.map((month) => (
-                                        <SelectItem key={month.value} value={month.value}>
-                                          {month.label}
-                                        </SelectItem>
-                                      ))}
-                                    </div>
-                                  )
-                                })
-                              }
-                              
-                              if (periodType === "week") {
-                                return years.map((year) => {
-                                  const yearWeeks = periodOptions.filter((opt) => opt.year === year)
-                                  if (yearWeeks.length === 0) return null
-                                  return (
-                                    <div key={year}>
-                                      <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground sticky top-0 bg-popover">
-                                        {year}
-                                      </div>
-                                      {yearWeeks.map((week) => (
-                                        <SelectItem key={week.value} value={week.value}>
-                                          {week.label}
-                                        </SelectItem>
-                                      ))}
-                                    </div>
-                                  )
-                                })
-                              }
-                              
-                              // Pour year
-                              return periodOptions.map((year) => (
-                                <SelectItem key={year.value} value={year.value}>
-                                  {year.label}
-                                </SelectItem>
-                              ))
-                            })()}
-                          </SelectContent>
-                        </Select>
-                      ) : (
-                        <div className="w-[180px] h-10 rounded-md border bg-background flex items-center px-3">
-                          <span className="text-sm text-muted-foreground">Chargement...</span>
-                        </div>
-                      )}
-                    </div>
-                    
-                    {/* Dates et interventions à droite des boutons de sélection */}
-                    <div className="flex items-center gap-2 text-sm">
-                      <span className="text-foreground font-medium hidden xl:inline whitespace-nowrap">
-                        {new Date(period.startDate).toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" })} - {new Date(period.endDate).toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" })}
-                      </span>
-                      {totalInterventions !== null && (
-                        <Badge variant="secondary" className="text-foreground font-medium whitespace-nowrap">
-                          {totalInterventions} intervention{totalInterventions > 1 ? "s" : ""}
-                        </Badge>
-                      )}
-                    </div>
-                  </div>
-                  
-                  {/* Partie centrale : Bienvenue centré absolument */}
-                  <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center justify-center pointer-events-none z-10">
-                    {/* Effet "Bienvenue" centré */}
-                    {showBienvenue && currentUser?.id && selectedGestionnaireId === currentUser.id && (
-                      <motion.div
-                        initial={{ opacity: 0, scale: 0.8 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        transition={{ duration: 0.5 }}
-                        className="flex items-center"
-                      >
-                        <AppleBienvenueEffect speed={0.2} className="text-primary h-6 lg:h-8" />
-                      </motion.div>
-                    )}
-                  </div>
-                  
-                  {/* Partie droite : Badge gestionnaire sélectionné + Nom + AvatarGroup */}
-                  <div className="flex items-center gap-2 justify-end flex-shrink-0 min-w-fit">
-                    {/* Badge du gestionnaire sélectionné */}
-                    {selectedGestionnaireId && (() => {
-                      const selectedGestionnaire = gestionnaires.find(g => g.id === selectedGestionnaireId)
-                      if (!selectedGestionnaire) return null
-                      const displayName = getDisplayName(selectedGestionnaire)
-                      
-                      return (
-                        <>
-                          <motion.div
-                            key={selectedGestionnaireId}
-                            layoutId={`gestionnaire-badge-${selectedGestionnaireId}`}
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            exit={{ opacity: 0 }}
-                            style={{ width: "2.25rem", height: "2.25rem" }}
-                            transition={{ type: "spring", stiffness: 300, damping: 25 }}
-                          >
-                            <GestionnaireBadge
-                              firstname={selectedGestionnaire.firstname}
-                              lastname={selectedGestionnaire.lastname}
-                              prenom={selectedGestionnaire.prenom}
-                              name={selectedGestionnaire.name}
-                              color={selectedGestionnaire.color}
-                              avatarUrl={selectedGestionnaire.avatar_url}
-                              size="sm"
-                              className="ring-2 ring-primary ring-offset-2"
-                            />
-                          </motion.div>
-                          <motion.span 
-                            className="text-sm font-medium text-foreground whitespace-nowrap"
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            transition={{ delay: 0.1 }}
-                          >
-                            {displayName}
-                          </motion.span>
-                        </>
-                      )
-                    })()}
-                    
-                    {/* AvatarGroup des gestionnaires */}
-                    {isLoadingGestionnaires ? (
-                      <div className="h-9 w-9 rounded-full bg-muted animate-pulse flex-shrink-0" />
-                    ) : gestionnaires.length === 0 ? (
-                      <div className="text-sm text-muted-foreground whitespace-nowrap">Aucun gestionnaire</div>
+                {/* Partie gauche : Sélecteur de période */}
+                <div className="flex items-center gap-2 min-w-fit flex-shrink-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium whitespace-nowrap">Période :</span>
+                    {isMounted ? (
+                      <Select value={periodType} onValueChange={(value) => setPeriodType(value as PeriodType)}>
+                        <SelectTrigger className="w-fit min-w-[110px]">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="week">Semaine</SelectItem>
+                          <SelectItem value="month">Mois</SelectItem>
+                          <SelectItem value="year">Année</SelectItem>
+                        </SelectContent>
+                      </Select>
                     ) : (
-                      <motion.div
-                        layout
-                        transition={{ type: "spring", stiffness: 300, damping: 25 }}
-                        className="flex-shrink-0"
-                      >
-                        <AvatarGroup variant="motion" className="h-9 -space-x-2">
-                          {gestionnaires
-                            .filter((gestionnaire) => gestionnaire.id !== selectedGestionnaireId)
-                            .map((gestionnaire) => {
-                              const isCurrentUser = currentUser?.id === gestionnaire.id
-                              const displayName = getDisplayName(gestionnaire)
-                              
-                              return (
-                                <motion.div
-                                  key={gestionnaire.id}
-                                  layoutId={`gestionnaire-badge-${gestionnaire.id}`}
-                                  layout
-                                  initial={false}
-                                  style={{ width: "2.25rem", height: "2.25rem" }}
-                                  transition={{ type: "spring", stiffness: 300, damping: 25 }}
-                                >
-                                  <GestionnaireBadge
-                                    firstname={gestionnaire.firstname}
-                                    lastname={gestionnaire.lastname}
-                                    prenom={gestionnaire.prenom}
-                                    name={gestionnaire.name}
-                                    color={gestionnaire.color}
-                                    avatarUrl={gestionnaire.avatar_url}
-                                    size="sm"
-                                    className={cn(
-                                      "transition-all",
-                                      isCurrentUser && "ring-2 ring-green-500/50"
-                                    )}
-                                    onClick={() => setSelectedGestionnaireId(gestionnaire.id)}
-                                  >
-                                    <AvatarGroupTooltip>
-                                      <div className="flex flex-col gap-1">
-                                        <p className="font-semibold">{displayName}</p>
-                                        {isCurrentUser && (
-                                          <Badge variant="secondary" className="w-fit text-xs">
-                                            Vous
-                                          </Badge>
-                                        )}
-                                        {gestionnaire.code_gestionnaire && (
-                                          <p className="text-xs text-muted-foreground">
-                                            {gestionnaire.code_gestionnaire}
-                                          </p>
-                                        )}
-                                      </div>
-                                    </AvatarGroupTooltip>
-                                  </GestionnaireBadge>
-                                </motion.div>
-                              )
-                            })}
-                        </AvatarGroup>
-                      </motion.div>
-                    )}
-                    
-                    {/* Bouton Mode Admin (visible uniquement pour les admins) */}
-                    {isAdmin && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => router.push("/admin/dashboard")}
-                        className="flex items-center gap-2 whitespace-nowrap flex-shrink-0"
-                      >
-                        <Shield className="h-4 w-4" />
-                        <span className="hidden lg:inline">Mode Admin</span>
-                        <span className="lg:hidden">Admin</span>
-                      </Button>
+                      <div className="w-[110px] h-10 rounded-md border bg-background flex items-center px-3">
+                        <span className="text-sm text-muted-foreground">Chargement...</span>
+                      </div>
                     )}
                   </div>
+
+                  {/* Deuxième filtre adaptatif */}
+                  <div className="flex items-center gap-2">
+                    {isMounted ? (
+                      <Select
+                        value={getCurrentSelectValue()}
+                        onValueChange={handlePeriodSelect}
+                      >
+                        <SelectTrigger className={cn(
+                          "w-auto min-w-[120px]",
+                          periodType === "week" && "min-w-[180px]",
+                          periodType === "month" && "min-w-[140px]",
+                          periodType === "year" && "min-w-[100px]"
+                        )}>
+                          <SelectValue>
+                            {periodOptions.find((opt) => opt.value === getCurrentSelectValue())?.label || "Sélectionner"}
+                          </SelectValue>
+                        </SelectTrigger>
+                        <SelectContent className="max-h-[300px]">
+                          {(() => {
+                            const currentYear = getYear(new Date())
+                            const years = [currentYear - 1, currentYear, currentYear + 1]
+
+                            if (periodType === "month") {
+                              return years.map((year) => {
+                                const yearMonths = periodOptions.filter((opt) => opt.year === year)
+                                if (yearMonths.length === 0) return null
+                                return (
+                                  <div key={year}>
+                                    <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground sticky top-0 bg-popover">
+                                      {year}
+                                    </div>
+                                    {yearMonths.map((month) => (
+                                      <SelectItem key={month.value} value={month.value}>
+                                        {month.label}
+                                      </SelectItem>
+                                    ))}
+                                  </div>
+                                )
+                              })
+                            }
+
+                            if (periodType === "week") {
+                              return years.map((year) => {
+                                const yearWeeks = periodOptions.filter((opt) => opt.year === year)
+                                if (yearWeeks.length === 0) return null
+                                return (
+                                  <div key={year}>
+                                    <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground sticky top-0 bg-popover">
+                                      {year}
+                                    </div>
+                                    {yearWeeks.map((week) => (
+                                      <SelectItem key={week.value} value={week.value}>
+                                        {week.label}
+                                      </SelectItem>
+                                    ))}
+                                  </div>
+                                )
+                              })
+                            }
+
+                            // Pour year
+                            return periodOptions.map((year) => (
+                              <SelectItem key={year.value} value={year.value}>
+                                {year.label}
+                              </SelectItem>
+                            ))
+                          })()}
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <div className="w-[180px] h-10 rounded-md border bg-background flex items-center px-3">
+                        <span className="text-sm text-muted-foreground">Chargement...</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Dates et interventions à droite des boutons de sélection */}
+                  <div className="flex items-center gap-2 text-sm">
+                    <span className="text-foreground font-medium hidden xl:inline whitespace-nowrap">
+                      {new Date(period.startDate).toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" })} - {new Date(period.endDate).toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" })}
+                    </span>
+                    {totalInterventions !== null && (
+                      <Badge variant="secondary" className="text-foreground font-medium whitespace-nowrap">
+                        {totalInterventions} intervention{totalInterventions > 1 ? "s" : ""}
+                      </Badge>
+                    )}
+                  </div>
+                </div>
+
+                {/* Partie centrale : Bienvenue centré absolument */}
+                <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center justify-center pointer-events-none z-10">
+                  {/* Effet "Bienvenue" centré */}
+                  {showBienvenue && currentUser?.id && selectedGestionnaireId === currentUser.id && (
+                    <motion.div
+                      initial={{ opacity: 0, scale: 0.8 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      transition={{ duration: 0.5 }}
+                      className="flex items-center"
+                    >
+                      <AppleBienvenueEffect speed={0.2} className="text-primary h-6 lg:h-8" />
+                    </motion.div>
+                  )}
+                </div>
+
+                {/* Partie droite : Badge gestionnaire sélectionné + Nom + AvatarGroup */}
+                <div className="flex items-center gap-2 justify-end flex-shrink-0 min-w-fit">
+                  {/* Badge du gestionnaire sélectionné */}
+                  {selectedGestionnaireId && (() => {
+                    const selectedGestionnaire = gestionnaires.find(g => g.id === selectedGestionnaireId)
+                    if (!selectedGestionnaire) return null
+                    const displayName = getDisplayName(selectedGestionnaire)
+
+                    return (
+                      <>
+                        <motion.div
+                          key={selectedGestionnaireId}
+                          layoutId={`gestionnaire-badge-${selectedGestionnaireId}`}
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                          exit={{ opacity: 0 }}
+                          style={{ width: "2.25rem", height: "2.25rem" }}
+                          transition={{ type: "spring", stiffness: 300, damping: 25 }}
+                        >
+                          <GestionnaireBadge
+                            firstname={selectedGestionnaire.firstname}
+                            lastname={selectedGestionnaire.lastname}
+                            prenom={selectedGestionnaire.prenom}
+                            name={selectedGestionnaire.name}
+                            color={selectedGestionnaire.color}
+                            avatarUrl={selectedGestionnaire.avatar_url}
+                            size="sm"
+                            className="ring-2 ring-primary ring-offset-2"
+                          />
+                        </motion.div>
+                        <motion.span
+                          className="text-sm font-medium text-foreground whitespace-nowrap"
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                          transition={{ delay: 0.1 }}
+                        >
+                          {displayName}
+                        </motion.span>
+                      </>
+                    )
+                  })()}
+
+                  {/* AvatarGroup des gestionnaires */}
+                  {isLoadingGestionnaires ? (
+                    <div className="h-9 w-9 rounded-full bg-muted animate-pulse flex-shrink-0" />
+                  ) : gestionnaires.length === 0 ? (
+                    <div className="text-sm text-muted-foreground whitespace-nowrap">Aucun gestionnaire</div>
+                  ) : (
+                    <motion.div
+                      layout
+                      transition={{ type: "spring", stiffness: 300, damping: 25 }}
+                      className="flex-shrink-0"
+                    >
+                      <AvatarGroup variant="motion" className="h-9 -space-x-2">
+                        {gestionnaires
+                          .filter((gestionnaire) => gestionnaire.id !== selectedGestionnaireId)
+                          .map((gestionnaire) => {
+                            const isCurrentUser = currentUser?.id === gestionnaire.id
+                            const displayName = getDisplayName(gestionnaire)
+
+                            return (
+                              <motion.div
+                                key={gestionnaire.id}
+                                layoutId={`gestionnaire-badge-${gestionnaire.id}`}
+                                layout
+                                initial={false}
+                                style={{ width: "2.25rem", height: "2.25rem" }}
+                                transition={{ type: "spring", stiffness: 300, damping: 25 }}
+                              >
+                                <GestionnaireBadge
+                                  firstname={gestionnaire.firstname}
+                                  lastname={gestionnaire.lastname}
+                                  prenom={gestionnaire.prenom}
+                                  name={gestionnaire.name}
+                                  color={gestionnaire.color}
+                                  avatarUrl={gestionnaire.avatar_url}
+                                  size="sm"
+                                  className={cn(
+                                    "transition-all",
+                                    isCurrentUser && "ring-2 ring-green-500/50"
+                                  )}
+                                  onClick={() => setSelectedGestionnaireId(gestionnaire.id)}
+                                >
+                                  <AvatarGroupTooltip>
+                                    <div className="flex flex-col gap-1">
+                                      <p className="font-semibold">{displayName}</p>
+                                      {isCurrentUser && (
+                                        <Badge variant="secondary" className="w-fit text-xs">
+                                          Vous
+                                        </Badge>
+                                      )}
+                                      {gestionnaire.code_gestionnaire && (
+                                        <p className="text-xs text-muted-foreground">
+                                          {gestionnaire.code_gestionnaire}
+                                        </p>
+                                      )}
+                                    </div>
+                                  </AvatarGroupTooltip>
+                                </GestionnaireBadge>
+                              </motion.div>
+                            )
+                          })}
+                      </AvatarGroup>
+                    </motion.div>
+                  )}
+
+                  {/* Bouton Mode Admin (visible uniquement pour les admins) */}
+                  {isAdmin && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => router.push("/admin/dashboard")}
+                      className="flex items-center gap-2 whitespace-nowrap flex-shrink-0"
+                    >
+                      <Shield className="h-4 w-4" />
+                      <span className="hidden lg:inline">Mode Admin</span>
+                      <span className="lg:hidden">Admin</span>
+                    </Button>
+                  )}
+                </div>
               </div>
 
               {/* ═══════════════════════════════════════════════════════════════
@@ -770,7 +771,7 @@ export default function DashboardPage() {
                   {/* Interventions + Artisans côte à côte */}
                   <div className="flex gap-3 min-h-[400px]">
                     <div className="flex-1">
-                      <InterventionStatsBarChart period={period} userId={effectiveUserId} />
+                      <InterventionStatsBarChart hoverPeriod={period} userId={effectiveUserId} />
                     </div>
                     <div className="flex-1">
                       <ArtisanStatsList period={period} userId={effectiveUserId} />
@@ -792,7 +793,7 @@ export default function DashboardPage() {
 
                   {/* ═══ BLOC RETARD + SPEEDOMÈTRES ═══ */}
                   <div className="flex flex-col flex-shrink-0 p-2 bg-muted/30 rounded-lg" style={{ height: '30%', minHeight: '180px' }}>
-                    
+
                     {/* Indicateur de retards */}
                     <div
                       className="mb-2 flex-shrink-0 rounded-md px-2 py-1 text-center font-semibold text-base transition-colors duration-300"
@@ -802,16 +803,14 @@ export default function DashboardPage() {
                         border: `2px solid ${getLatenessColor(latenessCount)}`,
                       }}
                     >
-                      ⏰ Retard dans l&apos;année : {latenessCount}
+                      {isAdmin ? (
+                        <>👑 Le boss n&apos;est jamais en retard</>
+                      ) : (
+                        <>⏰ Retard dans l&apos;année : {latenessCount}</>
+                      )}
                     </div>
-                    
-                    {/* Titres des speedomètres */}
-                    <div className="grid grid-cols-2 gap-4 mb-1 flex-shrink-0">
-                      <h3 className="text-sm text-muted-foreground font-medium">Marge moyenne</h3>
-                      <h3 className="text-sm text-muted-foreground font-medium">Marge totale</h3>
-                    </div>
-                    
-                    {/* Speedomètres côte à côte - prennent l'espace restant */}
+
+                    {/* KPIs de marge côte à côte - prennent l'espace restant */}
                     <div className="flex-1 grid grid-cols-2 gap-2 min-h-0 overflow-hidden">
                       <div className="h-full overflow-hidden">
                         <MarginStatsCard period={period} userId={effectiveUserId} compact />
@@ -827,28 +826,28 @@ export default function DashboardPage() {
                   <div className="flex-1 overflow-hidden min-h-0">
                     <GestionnaireRankingPodium period={period} useAutoPeriod={true} />
                   </div>
-                  
+
                 </div>
-                
+
               </div>
             </div>
           </div>
-      </ContextMenuTrigger>
-    <ContextMenuContent>
-        {canWriteInterventions && (
-          <ContextMenuItem onClick={() => openModal("new", { content: "new-intervention" })} className="flex items-center gap-2">
-            <Plus className="h-4 w-4" />
-            Nouvelle intervention
-          </ContextMenuItem>
-        )}
-        {canWriteArtisans && (
-          <ContextMenuItem onClick={() => artisanModal.openNew()} className="flex items-center gap-2">
-            <Plus className="h-4 w-4" />
-            Nouvel artisan
-          </ContextMenuItem>
-        )}
-    </ContextMenuContent>
-  </ContextMenu>
+        </ContextMenuTrigger>
+        <ContextMenuContent>
+          {canWriteInterventions && (
+            <ContextMenuItem onClick={() => openModal("new", { content: "new-intervention" })} className="flex items-center gap-2">
+              <Plus className="h-4 w-4" />
+              Nouvelle intervention
+            </ContextMenuItem>
+          )}
+          {canWriteArtisans && (
+            <ContextMenuItem onClick={() => artisanModal.openNew()} className="flex items-center gap-2">
+              <Plus className="h-4 w-4" />
+              Nouvel artisan
+            </ContextMenuItem>
+          )}
+        </ContextMenuContent>
+      </ContextMenu>
     </>
   )
 }

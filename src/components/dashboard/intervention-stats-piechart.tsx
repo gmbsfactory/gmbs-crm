@@ -19,6 +19,7 @@ import { getInterventionStatusColor } from "@/config/status-colors"
 import { INTERVENTION_STATUS } from "@/config/interventions"
 import { useInterventionStatuses } from "@/hooks/useInterventionStatuses"
 import { getMetierColor } from "@/config/metier-colors"
+import { InterventionStatusContent } from "./intervention-status-content"
 
 interface InterventionStatsPieChartProps {
   period?: {
@@ -39,24 +40,6 @@ export function InterventionStatsPieChart({ period }: InterventionStatsPieChartP
   const triggerPositionRef = useRef<{ x: number; y: number } | null>(null)
   const fixedTriggerPositionRef = useRef<{ x: number; y: number } | null>(null)
   const closeTimeoutRef = useRef<NodeJS.Timeout | null>(null)
-  
-  // Cache optimisé avec timestamp pour expiration
-  const interventionsCacheRef = useRef<Map<string, {
-    data: Array<{
-      id: string;
-      id_inter: string | null;
-      due_date: string | null;
-      status_label: string | null;
-      status_color: string | null;
-      agence_label: string | null;
-      metier_label: string | null;
-      metier_code: string | null;
-      marge: number;
-    }>;
-    timestamp: number;
-  }>>(new Map())
-  
-  const CACHE_DURATION = 2 * 60 * 1000 // 2 minutes de cache
   
   const router = useRouter()
 
@@ -388,161 +371,6 @@ export function InterventionStatsPieChart({ period }: InterventionStatsPieChartP
     return new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(amount)
   }
 
-  // Composant pour afficher les interventions dans le tooltip
-  const InterventionStatusContent = ({ 
-    statusLabel,
-    onOpenIntervention,
-    period
-  }: { 
-    statusLabel: string
-    onOpenIntervention: (id: string) => void
-    period?: { startDate?: string; endDate?: string }
-  }) => {
-    const cacheKey = useMemo(() => 
-      `${statusLabel}-${period?.startDate || ''}-${period?.endDate || ''}`,
-      [statusLabel, period?.startDate, period?.endDate]
-    )
-
-    const getCachedData = () => {
-      const cachedEntry = interventionsCacheRef.current.get(cacheKey)
-      const isValid = cachedEntry && (Date.now() - cachedEntry.timestamp < CACHE_DURATION)
-      return isValid ? cachedEntry.data : null
-    }
-    
-    const [interventionsData, setInterventionsData] = useState<Array<{
-      id: string;
-      id_inter: string | null;
-      due_date: string | null;
-      status_label: string | null;
-      status_color: string | null;
-      agence_label: string | null;
-      metier_label: string | null;
-      metier_code: string | null;
-      marge: number;
-    }> | null>(getCachedData())
-    
-    const [loading, setLoading] = useState(() => getCachedData() === null)
-    const [error, setError] = useState<string | null>(null)
-
-    useEffect(() => {
-      if (!userId || !statusLabel) return
-
-      const cachedEntry = interventionsCacheRef.current.get(cacheKey)
-      const isCacheValid = cachedEntry && (Date.now() - cachedEntry.timestamp < CACHE_DURATION)
-      
-      if (isCacheValid) {
-        setInterventionsData(cachedEntry.data)
-        setLoading(false)
-        return
-      }
-
-      let cancelled = false
-
-      const loadData = async () => {
-        try {
-          setLoading(true)
-          setError(null)
-          const data = await interventionsApi.getRecentInterventionsByStatusAndUser(
-            userId, 
-            statusLabel,
-            5,
-            period?.startDate,
-            period?.endDate
-          )
-          if (!cancelled) {
-            interventionsCacheRef.current.set(cacheKey, {
-              data,
-              timestamp: Date.now()
-            })
-            setInterventionsData(data)
-            setLoading(false)
-          }
-        } catch (err: any) {
-          if (!cancelled) {
-            setError(err.message || "Erreur lors du chargement")
-            setLoading(false)
-          }
-        }
-      }
-
-      loadData()
-
-      return () => {
-        cancelled = true
-      }
-    }, [statusLabel, cacheKey, period])
-
-    // 🚀 OPTIMISATION: Supprimé le setInterval de cleanup cache (redondant)
-    // Le cache expire naturellement via la vérification isCacheValid lors du chargement
-
-    if (loading) {
-      return (
-        <div className="flex items-center justify-center p-4">
-          <div style={{ transform: 'scale(0.75)' }}>
-            <Loader />
-          </div>
-        </div>
-      )
-    }
-
-    if (error) {
-      return (
-        <div className="text-sm text-destructive p-2">
-          Erreur de chargement
-        </div>
-      )
-    }
-
-    if (!interventionsData || interventionsData.length === 0) {
-      return (
-        <div className="text-sm text-muted-foreground p-2">
-          Aucune intervention pour ce statut
-        </div>
-      )
-    }
-
-    const isDemandeStatus = statusLabel === "Demandé"
-
-    return (
-      <div className="space-y-3">
-        <h4 className="font-semibold text-sm mb-2">{statusLabel}</h4>
-        <div className="space-y-3 max-h-[400px] overflow-y-auto">
-          {interventionsData.map((intervention) => (
-            <div
-              key={intervention.id}
-              className="flex items-center gap-2 text-sm cursor-pointer hover:bg-muted/50 p-1.5 rounded transition-colors"
-              onClick={(e) => {
-                e.stopPropagation()
-                onOpenIntervention(intervention.id)
-              }}
-            >
-              <div 
-                className="h-2 w-2 rounded-full flex-shrink-0"
-                style={{ backgroundColor: intervention.status_color || "#6366F1" }}
-              />
-              <div className="flex-1 min-w-0">
-                <div className="font-semibold truncate">
-                  {intervention.id_inter || "N/A"}
-                </div>
-                <div className="text-xs text-muted-foreground">
-                  {isDemandeStatus ? (
-                    <>
-                      Métier : <span style={{ color: getMetierColor(intervention.metier_code, intervention.metier_label) }}>{intervention.metier_label || "N/A"}</span> | Agence : {intervention.agence_label || "N/A"} | Due date : {intervention.due_date ? formatDate(intervention.due_date) : "N/A"}
-                    </>
-                  ) : (
-                    <>
-                      Métier : <span style={{ color: getMetierColor(intervention.metier_code, intervention.metier_label) }}>{intervention.metier_label || "N/A"}</span> | Marge : {formatCurrency(intervention.marge)} | Due date : {intervention.due_date ? formatDate(intervention.due_date) : "N/A"}
-                    </>
-                  )}
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    )
-  }
-
   // Fonction pour assombrir une couleur hex
   const adjustColor = (color: string, amount: number) => {
     const hex = color.replace('#', '')
@@ -616,6 +444,7 @@ export function InterventionStatsPieChart({ period }: InterventionStatsPieChartP
                       const clickedSegment = chartData[index]
                       if (clickedSegment?.isCheck) {
                         sessionStorage.setItem('pending-intervention-filter', JSON.stringify({
+                          viewId: "liste-generale",
                           property: "isCheck",
                           operator: "eq",
                           value: true
@@ -699,6 +528,7 @@ export function InterventionStatsPieChart({ period }: InterventionStatsPieChartP
                   }}
                 >
                   <InterventionStatusContent 
+                    userId={userId}
                     statusLabel={hoveredStatus}
                     onOpenIntervention={(id: string) => openInterventionModal(id)}
                     period={period}
@@ -714,6 +544,7 @@ export function InterventionStatsPieChart({ period }: InterventionStatsPieChartP
                   onClick={(e) => {
                     e.stopPropagation()
                     sessionStorage.setItem('pending-intervention-filter', JSON.stringify({
+                      viewId: "liste-generale",
                       property: "isCheck",
                       operator: "eq",
                       value: true

@@ -192,7 +192,26 @@ export async function POST(req: Request) {
       .select('lateness_count, last_activity_date')
       .single()
 
+    // Handle race condition: if update affected 0 rows, another request already processed it
     if (updateError) {
+      // PGRST116 means "0 rows" - this is a race condition, not a real error
+      if (updateError.code === 'PGRST116' || updateError.message?.includes('0 rows')) {
+        console.log('[first-activity] ⚠️ Race condition detected: another request already processed first activity')
+        // Fetch the current state to return accurate data
+        const { data: currentData } = await supabase
+          .from('users')
+          .select('lateness_count')
+          .eq('id', profile.id)
+          .single()
+        
+        return NextResponse.json({
+          ok: true,
+          wasFirstActivity: false, // Another request already handled it
+          latenessCount: currentData?.lateness_count || userData.lateness_count || 0
+        })
+      }
+      
+      // Real error, log and return
       console.error('[first-activity] ❌ Error updating user:', updateError)
       return NextResponse.json({ error: updateError.message }, { status: 500 })
     }

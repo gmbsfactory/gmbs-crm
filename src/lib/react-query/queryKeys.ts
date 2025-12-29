@@ -263,8 +263,8 @@ export const artisanKeys = {
  */
 export type DashboardStatsParams = {
   userId: string
-  startDate: string
-  endDate: string
+  startDate?: string
+  endDate?: string
 }
 
 export type DashboardMarginParams = {
@@ -354,6 +354,27 @@ export const dashboardKeys = {
    * const key = dashboardKeys.periodStatsByUser({ userId: "123", period: "week", startDate: "2024-01-01" })
    */
   periodStatsByUser: (params: DashboardPeriodStatsParams) => [...dashboardKeys.period(), params] as const,
+
+  /**
+   * Préfixe pour les interventions récentes par statut (pour les tooltips/hover)
+   * 
+   * @returns ["dashboard", "recent-interventions"]
+   */
+  recentInterventions: () => [...dashboardKeys.all, "recent-interventions"] as const,
+
+  /**
+   * Clé pour les interventions récentes par statut pour un utilisateur
+   * 
+   * @param params - Paramètres (userId, statusLabel, limit, startDate, endDate)
+   * @returns ["dashboard", "recent-interventions", params]
+   */
+  recentInterventionsByStatus: (params: { 
+    userId: string; 
+    statusLabel: string; 
+    limit?: number; 
+    startDate?: string; 
+    endDate?: string 
+  }) => [...dashboardKeys.recentInterventions(), params] as const,
   
   /**
    * Clé pour invalider toutes les queries du dashboard

@@ -28,8 +28,8 @@
 const fs = require('fs');
 const path = require('path');
 
-const envFile = process.env.NODE_ENV === 'production' 
-  ? '.env.production' 
+const envFile = process.env.NODE_ENV === 'production'
+  ? '.env.production'
   : '.env.local';
 
 // Utiliser un chemin absolu depuis la racine du projet
@@ -91,16 +91,16 @@ class GoogleSheetsImportCleanV2 {
       dateEnd: options.dateEnd || null,     // Format: "DD/MM/YYYY" ou "YYYY-MM-DD"
       ...options
     };
-    
+
     this.sheets = null;
     this.auth = null;
-    
+
     // Déterminer le type d'import pour le DataMapper
-    const importType = this.options.artisansOnly ? 'artisans' 
-                    : this.options.interventionsOnly ? 'interventions'
-                    : 'parsing';
+    const importType = this.options.artisansOnly ? 'artisans'
+      : this.options.interventionsOnly ? 'interventions'
+        : 'parsing';
     this.dataMapper = new DataMapper({ importType });
-    
+
     // Utiliser le nouveau DatabaseManager V2 avec l'API modulaire
     this.databaseManager = new DatabaseManager({
       dryRun: this.options.dryRun,
@@ -109,12 +109,12 @@ class GoogleSheetsImportCleanV2 {
       upsert: this.options.upsert,
       dataMapper: this.dataMapper // Passer la référence au DataMapper
     });
-    
+
     this.reportGenerator = new ReportGenerator({
       dryRun: this.options.dryRun,
       verbose: this.options.verbose
     });
-    
+
     this.results = {
       artisans: { processed: 0, valid: 0, invalid: 0, inserted: 0, errors: 0, withoutName: [] },
       interventions: { processed: 0, valid: 0, invalid: 0, inserted: 0, errors: 0 },
@@ -130,7 +130,7 @@ class GoogleSheetsImportCleanV2 {
    */
   showEnvironmentVariables() {
     console.log('🔧 Variables d\'environnement détectées:\n');
-    
+
     // Variables spécifiques au projet
     const projectVars = [
       'GOOGLE_CREDENTIALS_PATH',
@@ -138,14 +138,14 @@ class GoogleSheetsImportCleanV2 {
       'GOOGLE_SHEETS_ARTISANS_RANGE',
       'GOOGLE_SHEETS_INTERVENTIONS_RANGE'
     ];
-    
+
     // Variables génériques
     const genericVars = [
       'GOOGLE_SHEETS_CLIENT_EMAIL',
       'GOOGLE_SHEETS_PRIVATE_KEY',
       'GOOGLE_SHEETS_SPREADSHEET_ID'
     ];
-    
+
     console.log('📋 Variables spécifiques au projet:');
     projectVars.forEach(varName => {
       const value = process.env[varName];
@@ -155,7 +155,7 @@ class GoogleSheetsImportCleanV2 {
         console.log(`  ❌ ${varName}: Non définie`);
       }
     });
-    
+
     console.log('\n📋 Variables génériques:');
     genericVars.forEach(varName => {
       const value = process.env[varName];
@@ -169,7 +169,7 @@ class GoogleSheetsImportCleanV2 {
         console.log(`  ❌ ${varName}: Non définie`);
       }
     });
-    
+
     // Afficher la configuration centralisée
     console.log('\n🔧 Configuration centralisée:');
     googleSheetsConfig.displayConfig();
@@ -183,27 +183,27 @@ class GoogleSheetsImportCleanV2 {
   async initializeAuth() {
     try {
       console.log('🔐 Initialisation de l\'authentification Google Sheets...');
-      
+
       // Utiliser la configuration centralisée
       const credentials = googleSheetsConfig.getCredentials();
-      
+
       if (!credentials || !credentials.client_email || !credentials.private_key) {
         throw new Error('Configuration Google Sheets incomplète. Vérifiez les variables d\'environnement.');
       }
-      
+
       // Créer l'authentification JWT avec la syntaxe correcte
       this.auth = new google.auth.JWT({
         email: credentials.client_email,
         key: credentials.private_key,
         scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly']
       });
-      
+
       // Initialiser l'API Sheets
       this.sheets = google.sheets({ version: 'v4', auth: this.auth });
-      
+
       console.log('✅ Authentification Google Sheets initialisée');
       return true;
-      
+
     } catch (error) {
       console.error('❌ Erreur lors de l\'initialisation de l\'authentification:', error.message);
       return false;
@@ -216,22 +216,22 @@ class GoogleSheetsImportCleanV2 {
   async testConnectionToSheets() {
     try {
       console.log('🔌 Test de connexion à Google Sheets...');
-      
+
       const spreadsheetId = googleSheetsConfig.getSpreadsheetId();
-      
+
       if (!spreadsheetId) {
         throw new Error('ID du spreadsheet non défini');
       }
-      
+
       // Test simple de lecture
       const response = await this.sheets.spreadsheets.get({
         spreadsheetId: spreadsheetId,
         fields: 'properties.title'
       });
-      
+
       console.log(`✅ Connexion réussie - Spreadsheet: "${response.data.properties.title}"`);
       return true;
-      
+
     } catch (error) {
       console.error('❌ Erreur de connexion:', error.message);
       return false;
@@ -249,16 +249,16 @@ class GoogleSheetsImportCleanV2 {
       console.log('⚠️ Mode --interventions-only activé: import des artisans ignoré');
       return { success: 0, errors: 0, invalid: [] };
     }
-    
+
     try {
       console.log('👷 Import des artisans...');
-      
+
       const spreadsheetId = googleSheetsConfig.getSpreadsheetId();
       const range = process.env.GOOGLE_SHEETS_ARTISANS_RANGE || 'Artisans!A:Z';
-      
+
       // Extraire le nom de la feuille
       const sheetName = range.split('!')[0];
-      
+
       // Étape 1: Toujours lire A1 pour avoir les vrais headers
       const headerRange = `${sheetName}!A1:Z1`;
       const headerResponse = await this.sheets.spreadsheets.values.get({
@@ -266,32 +266,32 @@ class GoogleSheetsImportCleanV2 {
         range: headerRange
       });
       const headersFromA1 = headerResponse.data.values?.[0] || [];
-      
+
       // Étape 2: Lire les données selon le range spécifié
       const dataResponse = await this.sheets.spreadsheets.values.get({
         spreadsheetId: spreadsheetId,
         range: range
       });
       const rows = dataResponse.data.values || [];
-      
+
       if (!rows || rows.length === 0) {
         console.log('⚠️ Aucune donnée d\'artisan trouvée');
         return { success: 0, errors: 0 };
       }
-      
+
       // Étape 3: Double vérification - déterminer où sont vraiment les headers
       let headers;
       let dataRows;
-      
+
       // Vérifier si le range commence à A2
       const rangeStartsAtA2 = range.includes('!A2:') || range.includes('!A2:Z');
-      
+
       if (rangeStartsAtA2) {
         // Range commence à A2, utiliser les headers depuis A1
         console.log('📋 Range commence à A2, utilisation des headers depuis A1');
         headers = headersFromA1;
         dataRows = rows; // Les données commencent déjà à A2
-        
+
         // Vérifier si la première ligne ressemble aux headers (doublon)
         if (dataRows.length > 0 && headers.length > 0) {
           const firstRow = dataRows[0];
@@ -305,7 +305,7 @@ class GoogleSheetsImportCleanV2 {
         // Range commence à A1, vérifier si la première ligne est vraiment les headers
         const firstRow = rows[0];
         const similarityToA1Headers = this.compareRowToHeaders(firstRow, headersFromA1);
-        
+
         // Si la première ligne ressemble beaucoup aux headers A1, alors A1 contient les vrais headers
         if (similarityToA1Headers > 0.8) {
           console.log('📋 Headers détectés à A1 (première ligne du range)');
@@ -326,24 +326,24 @@ class GoogleSheetsImportCleanV2 {
           }
         }
       }
-      
+
       // Validation finale des headers
       if (!headers || headers.length === 0) {
         console.error('❌ Impossible de déterminer les headers');
         return { success: 0, errors: 1 };
       }
-      
+
       // Afficher les headers et les premières lignes en mode verbose
       if (this.options.verbose) {
         console.log('\n📋 Headers détectés:');
         console.log(`   ${headers.slice(0, 10).join(' | ')}${headers.length > 10 ? ' ...' : ''}`);
         console.log(`   Total: ${headers.length} colonnes`);
-        
+
         if (dataRows.length > 0) {
           console.log('\n📋 Première ligne de données brute:');
           const firstRow = dataRows[0];
           console.log(`   ${firstRow.slice(0, 10).map((val, idx) => `[${headers[idx]}]=${val || '(vide)'}`).join(' | ')}${firstRow.length > 10 ? ' ...' : ''}`);
-          
+
           // Afficher aussi la deuxième ligne si disponible
           if (dataRows.length > 1) {
             console.log('\n📋 Deuxième ligne de données brute:');
@@ -352,22 +352,22 @@ class GoogleSheetsImportCleanV2 {
           }
         }
       }
-      
+
       // Appliquer la limite si spécifiée (pour debug)
       if (this.options.limit && this.options.limit > 0) {
         console.log(`⚠️  MODE DEBUG: Limitation à ${this.options.limit} artisans`);
         dataRows = dataRows.slice(0, this.options.limit);
       }
-      
+
       console.log(`📊 ${dataRows.length} lignes d'artisans à traiter`);
-      
+
       // Authentifier un utilisateur AVANT le mapping (nécessaire pour les créations d'utilisateurs, statuts, etc.)
       const importUserEmail = process.env.IMPORT_USER_EMAIL || 'admin@gmbs.fr';
       const importUserPassword = process.env.IMPORT_USER_PASSWORD || 'admin';
-      
+
       try {
         await this.databaseManager.authenticateUser(importUserEmail, importUserPassword);
-        
+
         // Passer le client authentifié au DataMapper pour les opérations de création
         if (this.databaseManager.authenticatedClient) {
           this.dataMapper.authenticatedClient = this.databaseManager.authenticatedClient;
@@ -378,20 +378,20 @@ class GoogleSheetsImportCleanV2 {
         console.error(`   ou utilisez les credentials par défaut (admin@gmbs.fr / admin)`);
         throw error;
       }
-      
+
       // Conversion des données en objets
       const validArtisans = [];
       const invalidArtisans = [];
-      
+
       for (let i = 0; i < dataRows.length; i++) {
         const row = dataRows[i];
-        
+
         // Créer un objet à partir des headers et de la row
         const artisanObj = {};
         headers.forEach((header, index) => {
           artisanObj[header] = row[index] || '';
         });
-        
+
         try {
           // Afficher les données brutes pour les premières lignes en mode verbose
           if (this.options.verbose && i < 3) {
@@ -402,10 +402,10 @@ class GoogleSheetsImportCleanV2 {
               console.log(`   ${key}: ${value !== undefined && value !== null ? `"${value}"` : '(undefined/null)'}`);
             });
           }
-          
+
           // Mapper les données avec le DataMapper
           const mappedArtisan = await this.dataMapper.mapArtisanFromCSV(artisanObj, i);
-          
+
           if (mappedArtisan) {
             // Afficher le résultat du mapping pour les premières lignes
             if (this.options.verbose && validArtisans.length < 3) {
@@ -435,19 +435,19 @@ class GoogleSheetsImportCleanV2 {
             console.log(`❌ Erreur mapping ligne ${i + 2}: ${error.message}`);
           }
         }
-        
+
         this.results.artisans.processed++;
-        
+
         // Afficher la progression tous les 100 artisans
         if ((i + 1) % 100 === 0) {
           console.log(`  📊 Progression: ${i + 1}/${dataRows.length} lignes traitées (${validArtisans.length} valides, ${invalidArtisans.length} invalides)`);
         }
       }
-      
+
       console.log(`\n📊 Résumé du mapping:`);
       console.log(`   ✅ Artisans valides mappés: ${validArtisans.length}`);
       console.log(`   ❌ Artisans invalides: ${invalidArtisans.length}`);
-      
+
       // Insertion en base de données
       if (validArtisans.length > 0) {
         console.log(`\n💾 Insertion de ${validArtisans.length} artisans en base de données...`);
@@ -461,7 +461,7 @@ class GoogleSheetsImportCleanV2 {
           // mais doivent aussi être retirés des valid car ils n'ont pas été insérés
           this.results.artisans.valid -= insertResults.withoutName.length;
         }
-        
+
         // Afficher les détails des erreurs si présentes
         if (insertResults.errors > 0 && insertResults.details) {
           const errorDetails = insertResults.details.filter(d => d.error);
@@ -486,15 +486,15 @@ class GoogleSheetsImportCleanV2 {
           });
         }
       }
-      
+
       console.log(`\n✅ Artisans importés: ${this.results.artisans.inserted} succès, ${this.results.artisans.errors} erreurs`);
-      
+
       return {
         success: this.results.artisans.inserted,
         errors: this.results.artisans.errors,
         invalid: invalidArtisans
       };
-      
+
     } catch (error) {
       console.error('❌ Erreur lors de l\'import des artisans:', error.message);
       return { success: 0, errors: 1 };
@@ -507,35 +507,35 @@ class GoogleSheetsImportCleanV2 {
   async importInterventions() {
     try {
       console.log('🔧 Import des interventions...');
-      
+
       const spreadsheetId = googleSheetsConfig.getSpreadsheetId();
       const range = process.env.GOOGLE_SHEETS_INTERVENTIONS_RANGE || 'Interventions!A:Z';
-      
+
       // Détecter si le range commence à A2 (sans headers) ou A1 (avec headers)
       const rangeStartsAtA2 = range.includes('!A2:') || range.includes('!A2:Z');
-      
+
       let headers;
       let dataRows;
-      
+
       if (rangeStartsAtA2) {
         // Le range commence à A2, il faut lire les headers séparément depuis A1
         console.log('📋 Range commence à A2, lecture des headers depuis A1...');
         const sheetName = range.split('!')[0];
         const headerRange = `${sheetName}!A1:Z1`;
-        
+
         const headerResponse = await this.sheets.spreadsheets.values.get({
           spreadsheetId: spreadsheetId,
           range: headerRange
         });
-        
+
         headers = headerResponse.data.values?.[0] || [];
-        
+
         // Maintenant lire les données depuis A2
         const dataResponse = await this.sheets.spreadsheets.values.get({
           spreadsheetId: spreadsheetId,
           range: range
         });
-        
+
         dataRows = dataResponse.data.values || [];
       } else {
         // Le range commence à A1, les headers sont dans la première ligne
@@ -543,27 +543,27 @@ class GoogleSheetsImportCleanV2 {
           spreadsheetId: spreadsheetId,
           range: range
         });
-        
+
         const rows = response.data.values;
         if (!rows || rows.length <= 1) {
           console.log('⚠️ Aucune donnée d\'intervention trouvée');
           return { success: 0, errors: 0 };
         }
-        
+
         headers = rows[0];
         dataRows = rows.slice(1);
       }
-      
+
       if (!headers || headers.length === 0) {
         console.log('⚠️ Aucun header trouvé');
         return { success: 0, errors: 0 };
       }
-      
+
       if (!dataRows || dataRows.length === 0) {
         console.log('⚠️ Aucune donnée d\'intervention trouvée');
         return { success: 0, errors: 0 };
       }
-      
+
       // Vérifier si la première ligne de données correspond aux headers (doublon)
       // Cela peut arriver si les headers sont dupliqués dans Google Sheets
       if (dataRows.length > 0) {
@@ -573,13 +573,13 @@ class GoogleSheetsImportCleanV2 {
           const headerValue = String(header || '').trim();
           return firstRowValue === headerValue || firstRowValue === '';
         });
-        
+
         if (isHeaderRow && firstRow.some(cell => cell && String(cell).trim() !== '')) {
           console.log('⚠️ Première ligne détectée comme doublon des headers, elle sera ignorée');
           dataRows = dataRows.slice(1);
         }
       }
-      
+
       // DEBUG: Afficher les headers pour voir le nom exact de la colonne Statut
       if (this.options.verbose) {
         console.log(`\n📋 Headers bruts depuis Google Sheets (${headers.length} colonnes):`);
@@ -588,7 +588,7 @@ class GoogleSheetsImportCleanV2 {
           const marker = hasStatut ? ' 👈 STATUT' : '';
           console.log(`   [${index}] "${header}"${marker}`);
         });
-        
+
         // Chercher spécifiquement la colonne Statut
         const statutHeaderIndex = headers.findIndex(h => h && h.toLowerCase().includes('statut'));
         if (statutHeaderIndex >= 0) {
@@ -603,19 +603,19 @@ class GoogleSheetsImportCleanV2 {
           console.log(`\n❌ Aucune colonne contenant "statut" trouvée dans les headers !`);
         }
       }
-      
+
       // Appliquer la limite si spécifiée (pour debug)
       if (this.options.limit && this.options.limit > 0) {
         console.log(`⚠️  MODE DEBUG: Limitation à ${this.options.limit} interventions`);
         dataRows = dataRows.slice(0, this.options.limit);
       }
-      
+
       console.log(`📊 ${dataRows.length} lignes d'interventions à traiter`);
-      
+
       // Conversion des données en objets
       const validInterventions = [];
       const invalidInterventions = [];
-      
+
       // Afficher le filtre de date si activé
       if (this.options.dateStart || this.options.dateEnd) {
         console.log(`📅 Filtre par période activé:`);
@@ -630,10 +630,10 @@ class GoogleSheetsImportCleanV2 {
       // Authentifier un utilisateur AVANT le mapping (nécessaire pour les créations de métiers, agences, statuts, etc.)
       const importUserEmail = process.env.IMPORT_USER_EMAIL || 'admin@gmbs.fr';
       const importUserPassword = process.env.IMPORT_USER_PASSWORD || 'admin';
-      
+
       try {
         await this.databaseManager.authenticateUser(importUserEmail, importUserPassword);
-        
+
         // Passer le client authentifié au DataMapper pour les opérations de création
         if (this.databaseManager.authenticatedClient) {
           this.dataMapper.authenticatedClient = this.databaseManager.authenticatedClient;
@@ -647,30 +647,30 @@ class GoogleSheetsImportCleanV2 {
 
       // Afficher le nombre d'interventions à traiter (debug)
       console.log(`🔢 Nombre d'interventions à traiter : ${dataRows.length}`);
-      
+
       for (let i = 0; i < dataRows.length; i++) {
         const row = dataRows[i];
-        
+
         // Créer un objet à partir des headers et de la row
         const interventionObj = {};
         headers.forEach((header, index) => {
           interventionObj[header] = row[index] || '';
         });
-        
+
         // Filtrer par période si les options sont définies
         if (this.options.dateStart || this.options.dateEnd) {
           // Chercher la date dans plusieurs colonnes possibles (FErn est le nom utilisé dans certains sheets)
-          const dateValue = interventionObj["FErn"] || interventionObj["Date "] || interventionObj["Date"] || interventionObj["Date d'intervention"];
+          const dateValue = interventionObj["745"] || interventionObj["FErn"] || interventionObj["Date "] || interventionObj["Date"] || interventionObj["Date d'intervention"];
           if (!this.isDateInRange(dateValue, this.options.dateStart, this.options.dateEnd)) {
             // Ignorer cette intervention (ne pas compter comme traitée)
             continue;
           }
         }
-        
+
         try {
           // Mapper les données avec le DataMapper
           const mappedIntervention = await this.dataMapper.mapInterventionFromCSV(interventionObj, this.options.verbose, i);
-          
+
           if (mappedIntervention) {
             // Stocker la ligne CSV originale pour l'extraction des coûts après insertion
             mappedIntervention._originalCSVRow = interventionObj;
@@ -684,25 +684,25 @@ class GoogleSheetsImportCleanV2 {
           invalidInterventions.push({ row: i + 2, error: error.message });
           this.results.interventions.invalid++;
         }
-        
+
         this.results.interventions.processed++;
       }
-      
+
       // Insertion en base de données
       if (validInterventions.length > 0) {
         const insertResults = await this.databaseManager.insertInterventions(validInterventions);
         this.results.interventions.inserted += insertResults.success;
         this.results.interventions.errors += insertResults.errors;
       }
-      
+
       console.log(`✅ Interventions importées: ${this.results.interventions.inserted} succès, ${this.results.interventions.errors} erreurs`);
-      
+
       return {
         success: this.results.interventions.inserted,
         errors: this.results.interventions.errors,
         invalid: invalidInterventions
       };
-      
+
     } catch (error) {
       console.error('❌ Erreur lors de l\'import des interventions:', error.message);
       return { success: 0, errors: 1 };
@@ -717,12 +717,12 @@ class GoogleSheetsImportCleanV2 {
   async importAll() {
     try {
       console.log('🚀 Démarrage de l\'import Google Sheets V2...');
-      
+
       // Test de connexion (l'auth est déjà initialisée)
       if (!await this.testConnectionToSheets()) {
         throw new Error('Échec du test de connexion');
       }
-      
+
       // Import selon les options
       if (this.options.artisansOnly) {
         await this.importArtisans();
@@ -733,12 +733,12 @@ class GoogleSheetsImportCleanV2 {
         await this.importArtisans();
         await this.importInterventions();
       }
-      
+
       // Génération du rapport
       await this.generateReport();
-      
+
       console.log('✅ Import terminé avec succès!');
-      
+
     } catch (error) {
       console.error('❌ Erreur lors de l\'import:', error.message);
       throw error;
@@ -752,28 +752,28 @@ class GoogleSheetsImportCleanV2 {
     try {
       console.log('\n📊 Rapport d\'import:');
       console.log('='.repeat(50));
-      
+
       console.log('👷 Artisans:');
       console.log(`  - Traités: ${this.results.artisans.processed}`);
       console.log(`  - Valides: ${this.results.artisans.valid}`);
       console.log(`  - Invalides: ${this.results.artisans.invalid}`);
       console.log(`  - Insérés: ${this.results.artisans.inserted}`);
       console.log(`  - Erreurs: ${this.results.artisans.errors}`);
-      
+
       console.log('\n🔧 Interventions:');
       console.log(`  - Traitées: ${this.results.interventions.processed}`);
       console.log(`  - Valides: ${this.results.interventions.valid}`);
       console.log(`  - Invalides: ${this.results.interventions.invalid}`);
       console.log(`  - Insérées: ${this.results.interventions.inserted}`);
       console.log(`  - Erreurs: ${this.results.interventions.errors}`);
-      
+
       console.log('\n👥 Clients:');
       console.log(`  - Traités: ${this.results.clients.processed}`);
       console.log(`  - Valides: ${this.results.clients.valid}`);
       console.log(`  - Invalides: ${this.results.clients.invalid}`);
       console.log(`  - Insérés: ${this.results.clients.inserted}`);
       console.log(`  - Erreurs: ${this.results.clients.errors}`);
-      
+
       // Afficher les artisans sans nom si disponibles
       if (this.results.artisans.withoutName && this.results.artisans.withoutName.length > 0) {
         console.log('\n⚠️ Artisans rejetés (sans nom):');
@@ -788,7 +788,7 @@ class GoogleSheetsImportCleanV2 {
           }
         }
       }
-      
+
       // Générer le rapport détaillé si demandé
       if (this.options.test || this.options.verbose) {
         try {
@@ -802,7 +802,7 @@ class GoogleSheetsImportCleanV2 {
           console.log('⚠️ Impossible de générer le rapport détaillé:', reportError.message);
         }
       }
-      
+
     } catch (error) {
       console.error('❌ Erreur lors de la génération du rapport:', error.message);
     }
@@ -832,12 +832,12 @@ class GoogleSheetsImportCleanV2 {
 
   async testConnection() {
     console.log('🔌 Test de connexion à la base de données...');
-    
+
     try {
       // Test simple avec la nouvelle API
       const { usersApi } = require('../../src/lib/api/v2');
       const users = await usersApi.getAll({ limit: 1 });
-      
+
       console.log('✅ Connexion à la base de données réussie');
       return true;
     } catch (error) {
@@ -856,24 +856,24 @@ class GoogleSheetsImportCleanV2 {
     if (!row || !headers || row.length === 0 || headers.length === 0) {
       return 0;
     }
-    
+
     let matches = 0;
     const minLength = Math.min(row.length, headers.length);
-    
+
     for (let i = 0; i < minLength; i++) {
       const rowVal = String(row[i] || '').trim().toLowerCase();
       const headerVal = String(headers[i] || '').trim().toLowerCase();
-      
+
       if (rowVal === headerVal) {
         matches++;
       } else if (rowVal && headerVal && (rowVal.includes(headerVal) || headerVal.includes(rowVal))) {
         matches += 0.5; // Correspondance partielle
       }
     }
-    
+
     return matches / minLength;
   }
-  
+
   /**
    * Détermine si une ligne ressemble à des données plutôt qu'à des headers
    * Les headers ont généralement des noms de colonnes courts et descriptifs
@@ -881,29 +881,29 @@ class GoogleSheetsImportCleanV2 {
    */
   looksLikeDataRow(row) {
     if (!row || row.length === 0) return false;
-    
+
     // Compter les indices de "données"
     let dataIndicators = 0;
-    
+
     row.forEach(cell => {
       const value = String(cell || '').trim();
-      
+
       // Email = données
       if (value.includes('@')) dataIndicators++;
-      
+
       // Numéro de téléphone = données
       if (/[\d\s\+\-\(\)]{8,}/.test(value)) dataIndicators++;
-      
+
       // SIRET = données
       if (/^\d{14}$/.test(value)) dataIndicators++;
-      
+
       // Code postal = données
       if (/^\d{5}$/.test(value)) dataIndicators++;
-      
+
       // Valeur très longue (> 30 caractères) = probablement des données
       if (value.length > 30) dataIndicators++;
     });
-    
+
     // Si plus de 30% des cellules ressemblent à des données, c'est probablement une ligne de données
     return dataIndicators / row.length > 0.3;
   }
@@ -919,25 +919,25 @@ class GoogleSheetsImportCleanV2 {
    */
   isDateInRange(dateValue, dateStart, dateEnd) {
     if (!dateValue) return false; // Si pas de date, exclure par défaut
-    
+
     // Parser la date du CSV (format DD/MM/YYYY)
     const parsedDate = this.parseDateFromCSV(dateValue);
     if (!parsedDate) return false;
-    
+
     const date = new Date(parsedDate);
-    
+
     // Parser les dates de filtrage
     const startDate = dateStart ? this.parseDateFilter(dateStart) : null;
     const endDate = dateEnd ? this.parseDateFilter(dateEnd) : null;
-    
+
     // Si date de fin, inclure le jour complet (fin de journée)
     if (endDate) {
       endDate.setHours(23, 59, 59, 999);
     }
-    
+
     if (startDate && date < startDate) return false;
     if (endDate && date > endDate) return false;
-    
+
     return true;
   }
 
@@ -948,9 +948,9 @@ class GoogleSheetsImportCleanV2 {
    */
   parseDateFromCSV(dateValue) {
     if (!dateValue || String(dateValue).trim() === "") return null;
-    
+
     const strValue = String(dateValue).trim();
-    
+
     // Format DD/MM/YYYY
     if (/^\d{2}\/\d{2}\/\d{4}/.test(strValue)) {
       const parts = strValue.split("/");
@@ -961,12 +961,12 @@ class GoogleSheetsImportCleanV2 {
         return `${year}-${month}-${day}T00:00:00Z`;
       }
     }
-    
+
     // Format YYYY-MM-DD
     if (/^\d{4}-\d{2}-\d{2}/.test(strValue)) {
       return `${strValue}T00:00:00Z`;
     }
-    
+
     return null;
   }
 
@@ -977,9 +977,9 @@ class GoogleSheetsImportCleanV2 {
    */
   parseDateFilter(dateStr) {
     if (!dateStr) return null;
-    
+
     const str = String(dateStr).trim();
-    
+
     // Format DD/MM/YYYY
     if (/^\d{2}\/\d{2}\/\d{4}/.test(str)) {
       const parts = str.split("/");
@@ -987,36 +987,36 @@ class GoogleSheetsImportCleanV2 {
         return new Date(`${parts[2]}-${parts[1]}-${parts[0]}T00:00:00Z`);
       }
     }
-    
+
     // Format YYYY-MM-DD
     if (/^\d{4}-\d{2}-\d{2}/.test(str)) {
       return new Date(`${str}T00:00:00Z`);
     }
-    
+
     return null;
   }
 
   async validateConfiguration() {
     console.log('⚙️ Validation de la configuration...');
-    
+
     const issues = [];
-    
+
     // Vérifier la configuration Google Sheets
     const config = googleSheetsConfig.getConfig();
     if (!config.clientEmail || !config.privateKey) {
       issues.push('Configuration Google Sheets manquante');
     }
-    
+
     // Vérifier la configuration de la base de données
     if (!process.env.SUPABASE_URL || !process.env.SUPABASE_ANON_KEY) {
       issues.push('Configuration base de données manquante');
     }
-    
+
     if (issues.length > 0) {
       console.log(`⚠️ Problèmes de configuration détectés: ${issues.join(', ')}`);
       return false;
     }
-    
+
     console.log('✅ Configuration validée');
     return true;
   }
@@ -1056,7 +1056,7 @@ if (require.main === module) {
   async function main() {
     try {
       const args = process.argv.slice(2);
-      
+
       // Afficher l'aide si demandé
       if (args.includes('--help') || args.includes('-h')) {
         console.log(`
@@ -1109,7 +1109,7 @@ Exemples:
         `);
         return;
       }
-      
+
       const options = {};
 
       // Parsing des arguments
@@ -1119,36 +1119,36 @@ Exemples:
       if (args.includes('--artisans-only')) options.artisansOnly = true;
       if (args.includes('--interventions-only')) options.interventionsOnly = true;
       if (args.includes('--upsert')) options.upsert = true;
-      
+
       // Limite pour debug
       const limitArg = args.find(arg => arg.startsWith('--limit='));
       if (limitArg) {
         options.limit = parseInt(limitArg.split('=')[1]) || null;
       }
-      
+
       // Filtre par date
       const dateStartArg = args.find(arg => arg.startsWith('--date-start='));
       if (dateStartArg) {
         options.dateStart = dateStartArg.split('=')[1];
       }
-      
+
       const dateEndArg = args.find(arg => arg.startsWith('--date-end='));
       if (dateEndArg) {
         options.dateEnd = dateEndArg.split('=')[1];
       }
-      
+
       // Taille des lots
       const batchSizeArg = args.find(arg => arg.startsWith('--batch-size='));
       if (batchSizeArg) {
         options.batchSize = parseInt(batchSizeArg.split('=')[1]) || 50;
       }
-      
+
       // Credentials
       const credentialsArg = args.find(arg => arg.startsWith('--credentials='));
       if (credentialsArg) {
         options.credentialsPath = credentialsArg.split('=')[1];
       }
-      
+
       // Spreadsheet ID
       const spreadsheetArg = args.find(arg => arg.startsWith('--spreadsheet-id='));
       if (spreadsheetArg) {
@@ -1169,12 +1169,12 @@ Exemples:
 
       // Déterminer le type d'import
       const instance = new GoogleSheetsImportCleanV2(options);
-      
+
       // Initialiser l'authentification pour tous les types d'import
       if (!await instance.initializeAuth()) {
         throw new Error('Échec de l\'initialisation de l\'authentification');
       }
-      
+
       if (args.includes('--artisans-only')) {
         await instance.importArtisans();
       } else if (args.includes('--interventions-only')) {
@@ -1183,27 +1183,27 @@ Exemples:
         // Import complet
         await instance.importAll();
       }
-      
+
       // Afficher les rapports si les méthodes existent
       if (typeof instance.databaseManager.displayInvalidInterventionsReport === 'function') {
         instance.databaseManager.displayInvalidInterventionsReport();
       }
-      
+
       if (typeof instance.databaseManager.displayUnmappedArtisansReport === 'function') {
         instance.databaseManager.displayUnmappedArtisansReport();
       }
-      
+
       if (typeof instance.databaseManager.displayCostsDebugReport === 'function') {
         instance.databaseManager.displayCostsDebugReport();
       }
-      
+
       // Sauvegarder les rapports si les méthodes existent
       if (typeof instance.databaseManager.saveInvalidInterventionsReport === 'function') {
         const timestamp = new Date().toISOString().replace(/:/g, '-').split('.')[0];
         const invalidInterventionsPath = `./data/imports/reports/invalid-interventions-${timestamp}.json`;
         await instance.databaseManager.saveInvalidInterventionsReport(invalidInterventionsPath);
       }
-      
+
       if (typeof instance.databaseManager.saveUnmappedArtisansReport === 'function') {
         const timestamp = new Date().toISOString().replace(/:/g, '-').split('.')[0];
         const unmappedArtisansPath = `./data/imports/reports/unmapped-artisans-${timestamp}.json`;
@@ -1216,10 +1216,10 @@ Exemples:
         const { createClient } = require('@supabase/supabase-js');
         const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'http://localhost:54321';
         const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
-        
+
         if (supabaseKey) {
           const supabase = createClient(supabaseUrl, supabaseKey);
-          
+
           const { data: agencies, error: fetchError } = await supabase
             .from('agencies')
             .select('id, label')

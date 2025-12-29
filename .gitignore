@@ -20,6 +20,31 @@ yarn-error.log*
 # env files
 .env*
 
+# === CREDENTIAL FILES - NEVER COMMIT ===
+user-credentials*.json
+**/user-credentials*.json
+auth-users*.json
+credentials.json
+**/credentials.json
+service-account*.json
+
+# Private keys
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Backup files with sensitive data
+*.backup
+*.bak
+*.sql
+*.dump
+
+# Environment files (reinforcement)
+.env
+.env.*
+!.env.example
+
 # vercel
 .vercel
 

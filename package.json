@@ -32,7 +32,8 @@
     "test:csv-interventions": "node scripts/test-interventions-folders-csv.js",
     "test:automatic-transitions:api-v2": "npx tsx scripts/test-api/test-automatic-transitions-api-v2.ts",
     "test:check-status": "npx tsx scripts/test-api/check-status.ts",
-    "export:to-excel": "node scripts/exports/export-to-sheets.js"
+    "export:to-excel": "node scripts/exports/export-to-sheets.js",
+    "types:generate": "supabase gen types typescript --local > src/lib/database.types.ts"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

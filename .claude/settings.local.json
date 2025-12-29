@@ -9,7 +9,8 @@
       "Bash(xargs basename:*)",
       "Bash(find:*)",
       "Bash(npm run dev:*)",
-      "Bash(dir:*)"
+      "Bash(dir:*)",
+      "Bash(findstr:*)"
     ],
     "deny": [],
     "ask": []

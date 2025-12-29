@@ -178,26 +178,26 @@ export function ArtisanStatsList({ period, userId: propUserId }: ArtisanStatsLis
   // Préparer les données pour la liste (statuts avec nombre > 0)
   const listItems = stats?.by_status_label
     ? Object.entries(stats.by_status_label)
-        .map(([label, count]) => ({
-          label,
-          count,
-        }))
-        .filter((item) => {
-          // Exclure les statuts archivés
-          const normalizedLabel = item.label.toLowerCase()
-          return item.count > 0 && 
-                 normalizedLabel !== "archivé" && 
-                 normalizedLabel !== "archiver" && 
-                 normalizedLabel !== "archive"
-        })
-        .sort((a, b) => b.count - a.count) // Trier par nombre décroissant
+      .map(([label, count]) => ({
+        label,
+        count,
+      }))
+      .filter((item) => {
+        // Exclure les statuts archivés
+        const normalizedLabel = item.label.toLowerCase()
+        return item.count > 0 &&
+          normalizedLabel !== "archivé" &&
+          normalizedLabel !== "archiver" &&
+          normalizedLabel !== "archive"
+      })
+      .sort((a, b) => b.count - a.count) // Trier par nombre décroissant
     : []
 
   if (loading) {
     return (
       <Card className="bg-background border-border/5 shadow-sm/30 hover:shadow-lg hover:border-border/50 transition-all duration-300">
         <CardHeader>
-          <CardTitle 
+          <CardTitle
             className="cursor-pointer hover:text-primary transition-colors"
             onClick={(e) => {
               e.stopPropagation()
@@ -225,7 +225,7 @@ export function ArtisanStatsList({ period, userId: propUserId }: ArtisanStatsLis
     return (
       <Card className="bg-background border-border/5 shadow-sm/30 hover:shadow-lg hover:border-border/50 transition-all duration-300">
         <CardHeader>
-          <CardTitle 
+          <CardTitle
             className="cursor-pointer hover:text-primary transition-colors"
             onClick={(e) => {
               e.stopPropagation()
@@ -266,7 +266,7 @@ export function ArtisanStatsList({ period, userId: propUserId }: ArtisanStatsLis
     return (
       <Card className="bg-background border-border/5 shadow-sm/30 hover:shadow-lg hover:border-border/50 transition-all duration-300">
         <CardHeader>
-          <CardTitle 
+          <CardTitle
             className="cursor-pointer hover:text-primary transition-colors"
             onClick={(e) => {
               e.stopPropagation()
@@ -306,12 +306,12 @@ export function ArtisanStatsList({ period, userId: propUserId }: ArtisanStatsLis
   }
 
   // Composant pour afficher les artisans dans le HoverCard avec style Status Indicators
-  const ArtisanStatusContent = ({ 
+  const ArtisanStatusContent = ({
     statusLabel,
     artisansData,
     onOpenArtisan,
-    onOpenIntervention 
-  }: { 
+    onOpenIntervention
+  }: {
     statusLabel: string
     artisansData: ArtisanHoverData | null
     onOpenArtisan: (id: string) => void
@@ -355,7 +355,7 @@ export function ArtisanStatsList({ period, userId: propUserId }: ArtisanStatsLis
         <div className="space-y-3 max-h-[400px] overflow-y-auto">
           {artisansData.map((artisan) => (
             <div key={artisan.artisan_id} className="space-y-1.5">
-              <div 
+              <div
                 className="font-medium text-sm cursor-pointer hover:text-primary hover:underline transition-colors"
                 onClick={(e) => {
                   e.stopPropagation()
@@ -381,8 +381,8 @@ export function ArtisanStatsList({ period, userId: propUserId }: ArtisanStatsLis
                           {intervention.id_inter || "N/A"}
                         </div>
                         <div className="text-xs text-muted-foreground">
-                          Métier : <span style={{ color: getMetierColor(null, intervention.metier_label) }} className="font-medium">{intervention.metier_label || "N/A"}</span> | 
-                          Marge : <span className="font-medium">{formatCurrency(intervention.marge)}</span> | 
+                          Métier : <span style={{ color: getMetierColor(null, intervention.metier_label) }} className="font-medium">{intervention.metier_label || "N/A"}</span> |
+                          Marge : <span className="font-medium">{formatCurrency(intervention.marge)}</span> |
                           Date : <span className="font-medium">{formatDate(intervention.due_date)}</span>
                         </div>
                       </div>
@@ -402,12 +402,12 @@ export function ArtisanStatsList({ period, userId: propUserId }: ArtisanStatsLis
   }
 
   // Composant pour afficher les artisans avec dossiers à compléter dans le HoverCard
-  const DossiersACompleterContent = ({ 
+  const DossiersACompleterContent = ({
     artisansData,
-    onOpenArtisan 
-  }: { 
+    onOpenArtisan
+  }: {
     artisansData: DossiersACompleterData | null
-    onOpenArtisan: (id: string) => void 
+    onOpenArtisan: (id: string) => void
   }) => {
     if (loadingHoverData) {
       return (
@@ -456,11 +456,11 @@ export function ArtisanStatsList({ period, userId: propUserId }: ArtisanStatsLis
   return (
     <ContextMenu>
       <ContextMenuTrigger asChild>
-        <Card 
+        <Card
           className="bg-background border-border/5 shadow-sm/30 hover:shadow-lg hover:border-border/50 transition-all duration-300"
         >
           <CardHeader>
-            <CardTitle 
+            <CardTitle
               className="cursor-pointer hover:text-primary transition-colors"
               onClick={(e) => {
                 e.stopPropagation()
@@ -480,35 +480,22 @@ export function ArtisanStatsList({ period, userId: propUserId }: ArtisanStatsLis
               {/* Liste des statuts */}
               {listItems.map((item) => {
                 const statusStyles = getArtisanStatusStyles(item.label)
-                
+
                 return (
-                  <HoverCard key={item.label} openDelay={200} closeDelay={100}>
-                    <HoverCardTrigger asChild>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          handleStatusClick(item.label)
-                        }}
-                        className={`w-full flex items-center justify-between p-3 rounded-lg border ${statusStyles.bg} ${statusStyles.border} ${statusStyles.hover} transition-colors cursor-pointer border-l-4`}
-                      >
-                        <span className={`text-sm font-semibold ${statusStyles.text}`}>{item.label}</span>
-                        <span className={`text-sm font-bold ${statusStyles.text}`}>{item.count}</span>
-                      </button>
-                    </HoverCardTrigger>
-                    <HoverCardContent 
-                      className="w-96 z-50 max-h-[500px] overflow-y-auto" 
-                      side="right"
-                      align="start"
-                      sideOffset={8}
-                    >
-                      <ArtisanStatusContent 
-                        statusLabel={item.label}
-                        artisansData={hoverCardData.get(item.label) || null}
-                        onOpenArtisan={openArtisanModal}
-                        onOpenIntervention={openInterventionModal}
-                      />
-                    </HoverCardContent>
-                  </HoverCard>
+                  <button
+                    key={item.label}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      handleStatusClick(item.label)
+                    }}
+                    onContextMenu={(e) => {
+                      e.stopPropagation()
+                    }}
+                    className={`w-full flex items-center justify-between p-3 rounded-lg border ${statusStyles.bg} ${statusStyles.border} ${statusStyles.hover} transition-colors cursor-pointer border-l-4`}
+                  >
+                    <span className={`text-sm font-semibold ${statusStyles.text}`}>{item.label}</span>
+                    <span className={`text-sm font-bold ${statusStyles.text}`}>{item.count}</span>
+                  </button>
                 )
               })}
 
@@ -521,11 +508,14 @@ export function ArtisanStatsList({ period, userId: propUserId }: ArtisanStatsLis
                         e.stopPropagation()
                         // Stocker l'intention de filtre dans sessionStorage
                         sessionStorage.setItem('pending-artisan-filter', JSON.stringify({
-                          viewId: "ma-liste-artisans", // Activer la vue "Ma liste artisans"
-                          statusFilter: "Candidat" // Activer le filtre de statut "Candidat"
+                          viewId: "mes-artisans-a-completer", // Activer la vue "Mes Artisans à compléter"
+                          statusFilter: "Dossier à compléter" // Activer le filtre de statut virtuel "Dossier à compléter"
                         }))
                         // Naviguer vers la page artisans
                         router.push("/artisans")
+                      }}
+                      onContextMenu={(e) => {
+                        e.stopPropagation()
                       }}
                       className="w-full flex items-center justify-between p-3 rounded-lg border bg-amber-50 border-amber-200 hover:bg-amber-100 transition-colors cursor-pointer"
                     >
@@ -536,15 +526,15 @@ export function ArtisanStatsList({ period, userId: propUserId }: ArtisanStatsLis
                       <span className="text-sm font-semibold text-amber-700">{stats.dossiers_a_completer}</span>
                     </button>
                   </HoverCardTrigger>
-                  <HoverCardContent 
-                    className="w-96 z-50 max-h-[500px] overflow-y-auto" 
+                  <HoverCardContent
+                    className="w-96 z-50 max-h-[500px] overflow-y-auto"
                     side="right"
                     align="start"
                     sideOffset={8}
                   >
-                    <DossiersACompleterContent 
+                    <DossiersACompleterContent
                       artisansData={dossiersData}
-                      onOpenArtisan={openArtisanModal} 
+                      onOpenArtisan={openArtisanModal}
                     />
                   </HoverCardContent>
                 </HoverCard>

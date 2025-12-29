@@ -68,7 +68,7 @@ export async function GET(req: Request) {
     // Fetch lateness data
     const { data: userData, error: userError } = await supabase
       .from('users')
-      .select('lateness_count, last_lateness_date, lateness_notification_shown_at')
+      .select('lateness_count, last_lateness_date, lateness_notification_shown_at, user_roles(roles(name))')
       .eq('id', profile.id)
       .single()
 
@@ -101,6 +101,12 @@ export async function GET(req: Request) {
     // Show notification if late today and not yet shown
     const showNotification = wasLateToday && !notificationShownToday
 
+    // Check if user is admin
+    const roles = (userData.user_roles || [])
+      .map((r: any) => r.roles?.name?.toLowerCase())
+      .filter((name): name is string => typeof name === 'string')
+    const isAdmin = roles.includes('admin')
+
     // Automatically mark notification as shown if we're going to show it
     // This eliminates the need for a separate /acknowledge endpoint
     if (showNotification) {
@@ -118,7 +124,8 @@ export async function GET(req: Request) {
     return NextResponse.json({
       showNotification,
       latenessCount: userData.lateness_count || 0,
-      lastLatenessDate: userData.last_lateness_date
+      lastLatenessDate: userData.last_lateness_date,
+      isAdmin
     })
   } catch (error) {
     console.error('[lateness/check] Unexpected error:', error)

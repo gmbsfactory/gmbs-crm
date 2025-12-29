@@ -1,6 +1,25 @@
 // ===== TYPES COMMUNS POUR L'API V2 =====
 // Types partagés entre toutes les APIs
 
+/**
+ * ⚠️ MIGRATION EN COURS: Les types Intervention sont maintenant dans @/types/intervention-generated
+ * Ce fichier ré-exporte les types consolidés pour maintenir la compatibilité
+ * 
+ * TODO: Migrer progressivement tous les imports vers @/types/intervention-generated
+ */
+
+// Ré-export des types consolidés depuis la source unique de vérité
+export type {
+  Intervention,
+  InterventionCost,
+  InterventionPayment,
+  InterventionAttachment,
+  InterventionWithStatus,
+  InterventionStatus,
+  CreateInterventionData,
+  UpdateInterventionData,
+} from "@/types/intervention-generated";
+
 export interface PaginatedResponse<T> {
   data: T[];
   pagination: {
@@ -58,67 +77,6 @@ export interface Artisan {
   updated_at: string | null;
   metiers?: string[];
   zones?: string[];
-}
-
-export interface Intervention {
-  id: string;
-  id_inter: string | null;
-  agence_id: string | null;
-  reference_agence: string | null;
-  tenant_id: string | null;
-  owner_id: string | null;
-  client_id?: string | null;
-  artisan_id?: string | null;
-  assigned_user_id: string | null;
-  updated_by: string | null; // Utilisateur qui a effectué la dernière modification
-  statut_id: string | null;
-  metier_id: string | null;
-  date: string;
-  date_termine: string | null;
-  date_prevue: string | null;
-  due_date: string | null;
-  contexte_intervention: string | null;
-  consigne_intervention: string | null;
-  consigne_second_artisan: string | null;
-  commentaire_agent: string | null;
-  adresse: string | null;
-  code_postal: string | null;
-  ville: string | null;
-  latitude: number | null;
-  longitude: number | null;
-  numero_sst: string | null;
-  pourcentage_sst: number | null;
-  is_vacant: boolean | null;
-  key_code: string | null;
-  floor: string | null;
-  apartment_number: string | null;
-  vacant_housing_instructions: string | null;
-  is_active: boolean | null;
-  created_at: string | null;
-  updated_at: string | null;
-  // Sous-statut personnalisé
-  sous_statut_text: string | null;
-  sous_statut_text_color: string | null;
-  sous_statut_bg_color: string | null;
-  // Deuxième artisan - métier
-  metier_second_artisan_id: string | null;
-  artisans?: string[];
-  costs?: InterventionCost[];
-  payments?: InterventionPayment[];
-  attachments?: InterventionAttachment[];
-}
-
-export interface InterventionCost {
-  id: string;
-  intervention_id: string;
-  cost_type: "sst" | "materiel" | "intervention" | "marge";
-  label: string | null;
-  amount: number;
-  currency: string | null;
-  artisan_order: 1 | 2 | null; // 1=principal, 2=secondaire, null=global
-  metadata: any;
-  created_at: string | null;
-  updated_at: string | null;
 }
 
 export interface UpsertInterventionCostData {

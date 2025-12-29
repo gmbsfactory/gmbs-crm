@@ -90,6 +90,7 @@ const VIEW_TO_STATUS_CODE: Record<string, string> = {
   "mes-visites-technique": "VISITE_TECHNIQUE",
   "ma-liste-accepte": "ACCEPTE",
   "ma-liste-att-acompte": "ATT_ACOMPTE",
+  // Vue CHECK : pas de statut spécifique, couleur définie plus bas
 }
 
 type GalleryViewConfig = Parameters<typeof GalleryView>[0]["view"]
@@ -237,13 +238,13 @@ function PageContent() {
 
   // Précharger les vues par défaut en arrière-plan
   usePreloadDefaultViews()
-  
+
   // Récupérer les statuts pour les couleurs dynamiques des vues
   const { getStatusByCode } = useInterventionStatuses()
-  
+
   // Récupérer la couleur d'accentuation actuelle
   const { accent, customAccent } = useInterface()
-  
+
   // Calculer les couleurs de toutes les vues (pour les onglets et le header)
   const viewStatusColors = useMemo(() => {
     const colors: Record<string, string | null> = {}
@@ -253,9 +254,11 @@ function PageContent() {
     })
     // Market : couleur rouge fixe (pas liée à un statut)
     colors["market"] = "#EF4444"
+    // Mes Interventions à check : couleur rouge pour indiquer l'urgence
+    colors["mes-interventions-a-check"] = "#EF4444"
     return colors
   }, [getStatusByCode])
-  
+
   // Couleur de la vue active (pour le header de la table)
   const activeViewColor = useMemo(() => {
     if (!activeViewId) return null
@@ -279,13 +282,13 @@ function PageContent() {
   const [isReorderMode, setIsReorderMode] = useState(false)
   const [workflowConfig, setWorkflowConfig] = useState<WorkflowConfig>(DEFAULT_WORKFLOW_CONFIG)
   const [page, setPage] = useState(1)
-  
+
   // Hooks pour mapper CODE/USERNAME → UUID
   const { codeToId: statusCodeToId, statusMap, loading: statusMapLoading } = useInterventionStatusMap()
   const { nameToId: userCodeToId, userMap, loading: userMapLoading } = useUserMap()
   const { data: currentUser } = useCurrentUser()
   const currentUserId = currentUser?.id ?? undefined
-  
+
   // Signature des mappers pour détecter quand ils sont réellement prêts
   // Vérifier que les maps ont des données (pas juste que les fonctions existent)
   const mappersReady = useMemo(() => {
@@ -295,10 +298,10 @@ function PageContent() {
       currentUserIdReady: currentUserId !== undefined,
     }
   }, [statusMapLoading, statusMap, userMapLoading, userMap, currentUserId])
-  
+
   // Tous les mappers doivent être prêts avant de charger les comptages
   const allMappersReady = mappersReady.statusMapReady && mappersReady.userMapReady && mappersReady.currentUserIdReady
-  
+
   // Réutiliser convertViewFiltersToServerFilters pour éviter la duplication de logique
   // Cette fonction convertit les filtres de vue en paramètres API pour le comptage
   const convertFiltersToApiParams = useCallback(
@@ -312,7 +315,7 @@ function PageContent() {
     },
     [statusCodeToId, userCodeToId, currentUserId]
   )
-  
+
   // Utiliser TanStack Query pour charger les compteurs de toutes les vues
   // Cela permet l'invalidation automatique lors des mises à jour temps réel
   const { counts: viewCounts, isLoading: countsLoading } = useInterventionViewCounts({
@@ -321,9 +324,9 @@ function PageContent() {
     enabled: isReady && allMappersReady && views.length > 0,
     currentUserId,
   })
-  
+
   // currentUserId est maintenant récupéré via useCurrentUser() ci-dessus
-  
+
   const showStatusFilter = useMemo(() => {
     if (activeView?.layout !== "table") return false
     const tableOptions = activeView.layoutOptions as TableLayoutOptions
@@ -348,16 +351,16 @@ function PageContent() {
   const { serverFilters, clientFilters } = useMemo(() => {
     const baseFilters = activeView && activeView.filters.length > 0
       ? convertViewFiltersToServerFilters(activeView.filters, {
-          statusCodeToId: (code) => {
-            const result = statusCodeToId(code)
-            return result
-          },
-          userCodeToId: (code) => {
-            const result = userCodeToId(code)
-            return result
-          },
-          currentUserId: currentUserId,
-        })
+        statusCodeToId: (code) => {
+          const result = statusCodeToId(code)
+          return result
+        },
+        userCodeToId: (code) => {
+          const result = userCodeToId(code)
+          return result
+        },
+        currentUserId: currentUserId,
+      })
       : { serverFilters: undefined, clientFilters: [] }
 
     const combinedServerFilters: Partial<GetAllParams> = {
@@ -398,12 +401,12 @@ function PageContent() {
         return await fn()
       } catch (error: any) {
         lastError = error as Error
-        
+
         // Extraire le code d'erreur depuis différents formats Supabase
         // Supabase peut retourner: error.status, error.code, error.statusCode
         // ou dans error.message pour les erreurs HTTP
         let status: number | null = null
-        
+
         if (error?.status) {
           status = error.status
         } else if (error?.code) {
@@ -421,10 +424,10 @@ function PageContent() {
             status = 429
           }
         }
-        
+
         // Ne retry que pour les erreurs 503/500/429 (rate limit/service unavailable)
         const shouldRetry = attempt < maxRetries && (status === 503 || status === 500 || status === 429)
-        
+
         if (shouldRetry) {
           const delay = baseDelay * Math.pow(2, attempt)
           console.log(`[retryWithBackoff] Tentative ${attempt + 1}/${maxRetries + 1} après ${delay}ms pour erreur ${status}`)
@@ -493,7 +496,7 @@ function PageContent() {
   // Détecter le changement de vue pour afficher le loading même avec des données existantes
   const previousViewIdRef = useRef<string | undefined>(undefined)
   const [isViewChanging, setIsViewChanging] = useState(false)
-  
+
   useEffect(() => {
     const wasChanging = previousViewIdRef.current !== undefined && previousViewIdRef.current !== activeViewId
     if (wasChanging) {
@@ -501,7 +504,7 @@ function PageContent() {
     }
     previousViewIdRef.current = activeViewId
   }, [activeViewId])
-  
+
   // Réinitialiser isViewChanging une fois que les nouvelles données sont chargées
   useEffect(() => {
     if (isViewChanging && !remoteLoading && fetchedInterventions.length > 0) {
@@ -526,7 +529,7 @@ function PageContent() {
       } as InterventionEntity & { datePrevue: string | null; isCheck: boolean }
     })
   }, [fetchedInterventions, page, currentPage])
-  
+
   // Afficher le loading si on charge OU si on change de vue (même avec des données existantes)
   const loading = remoteLoading || (isViewChanging && normalizedInterventions.length > 0)
   const error = remoteError ?? statusError
@@ -684,56 +687,67 @@ function PageContent() {
     [activeView, updateFilters],
   )
 
-  // Appliquer le filtre CHECK depuis sessionStorage (pour les liens du dashboard)
+  // Appliquer les filtres depuis sessionStorage (pour les liens du dashboard)
   useEffect(() => {
     if (!isReady || !activeView) return
-    
-    const pendingFilterStr = sessionStorage.getItem('pending-intervention-filter')
+
+    const pendingFilterStr = sessionStorage.getItem("pending-intervention-filter")
     if (pendingFilterStr) {
       try {
         const pendingFilter = JSON.parse(pendingFilterStr)
-        
+
+        // Activer la vue spécifiée (ex: "mes-demandes")
+        if (pendingFilter.viewId && views.some((v) => v.id === pendingFilter.viewId)) {
+          setActiveView(pendingFilter.viewId)
+        }
+
+        // Gérer le filtre par statut (statusFilter pour cohérence avec artisans, ou property="statusValue")
+        const statusValue =
+          pendingFilter.statusFilter || (pendingFilter.property === "statusValue" ? pendingFilter.value : null)
+
+        if (statusValue) {
+          const values = Array.isArray(statusValue) ? statusValue : [statusValue]
+          const statusFilter = {
+            property: "statusValue",
+            operator: "in" as const,
+            value: values,
+          }
+          updateFilterForProperty("statusValue", statusFilter)
+        }
+
         // Gérer le filtre isCheck
         if (pendingFilter.property === "isCheck" && pendingFilter.operator === "eq" && pendingFilter.value === true) {
           const checkFilter = { property: "isCheck", operator: "eq" as const, value: true }
-          const hasCheckFilter = activeView.filters.some(
-            (f) => f.property === "isCheck" && f.operator === "eq" && f.value === true
-          )
-          
-          if (!hasCheckFilter) {
-            updateFilterForProperty("isCheck", checkFilter)
-          }
+          updateFilterForProperty("isCheck", checkFilter)
         }
-        
+
         // Gérer le filtre par utilisateur assigné (attribueA)
-        if (pendingFilter.property === "attribueA" && pendingFilter.operator === "eq" && typeof pendingFilter.value === "string") {
-          const userFilter = { 
-            property: "attribueA", 
-            operator: "eq" as const, 
-            value: pendingFilter.value 
+        if (
+          pendingFilter.property === "attribueA" &&
+          pendingFilter.operator === "eq" &&
+          typeof pendingFilter.value === "string"
+        ) {
+          const userFilter = {
+            property: "attribueA",
+            operator: "eq" as const,
+            value: pendingFilter.value,
           }
-          const hasUserFilter = activeView.filters.some(
-            (f) => f.property === "attribueA" && f.operator === "eq" && f.value === pendingFilter.value
-          )
-          
-          if (!hasUserFilter) {
-            updateFilterForProperty("attribueA", userFilter)
-          }
+          updateFilterForProperty("attribueA", userFilter)
         }
-        
+
         // Nettoyer sessionStorage après avoir appliqué le filtre
-        sessionStorage.removeItem('pending-intervention-filter')
+        sessionStorage.removeItem("pending-intervention-filter")
       } catch (error) {
         console.error("Erreur lors de l'application du filtre depuis sessionStorage:", error)
-        sessionStorage.removeItem('pending-intervention-filter')
+        sessionStorage.removeItem("pending-intervention-filter")
       }
     }
-  }, [isReady, activeView, updateFilterForProperty])
+  }, [isReady, views, setActiveView, activeView, updateFilterForProperty])
 
   useEffect(() => {
     if (!activeView) return
     const statusFilter = activeView.filters.find((filter) => filter.property === managedFilterKeys.status)
-    
+
     let statusValues: InterventionStatusValue[] = []
     if (statusFilter) {
       if (statusFilter.operator === "in" && Array.isArray(statusFilter.value)) {
@@ -744,7 +758,7 @@ function PageContent() {
         statusValues = [statusFilter.value as InterventionStatusValue]
       }
     }
-    
+
     setSelectedStatuses(statusValues)
 
     const userFilter = activeView.filters.find((filter) => filter.property === managedFilterKeys.user)
@@ -799,7 +813,7 @@ function PageContent() {
 
   // Les interventions arrivent déjà triées par pertinence du serveur
   const viewInterventions = filteredInterventions
-  
+
   // Log pour debug
   useEffect(() => {
     console.log(`[page.tsx] viewInterventions mis à jour - length: ${viewInterventions.length}, fetchedInterventions.length: ${fetchedInterventions.length}, page: ${page}, currentPage: ${currentPage}, totalPages: ${totalPages}`)
@@ -897,14 +911,14 @@ function PageContent() {
         updateFilterForProperty("isCheck", null)
         return
       }
-      
+
       // Toggle du statut : ajouter s'il n'est pas présent, retirer s'il est présent
       setSelectedStatuses((prev) => {
         const isSelected = prev.includes(status)
-        const next = isSelected 
+        const next = isSelected
           ? prev.filter((s) => s !== status)
           : [...prev, status]
-        
+
         // Mettre à jour le filtre avec l'opérateur "in" pour plusieurs valeurs
         updateFilterForProperty(
           managedFilterKeys.status,
@@ -912,7 +926,7 @@ function PageContent() {
             ? { property: managedFilterKeys.status, operator: "in", value: next }
             : null,
         )
-        
+
         return next
       })
     },
@@ -940,13 +954,13 @@ function PageContent() {
         managedFilterKeys.date,
         hasBounds
           ? {
-              property: managedFilterKeys.date,
-              operator: "between",
-              value: {
-                from: toISODate(range.from),
-                to: toISODate(range.to),
-              },
-            }
+            property: managedFilterKeys.date,
+            operator: "between",
+            value: {
+              from: toISODate(range.from),
+              to: toISODate(range.to),
+            },
+          }
           : null,
       )
     },
@@ -982,7 +996,7 @@ function PageContent() {
             (currentIntervention as any).proprietaireId ??
             ((currentIntervention as any).nomProprietaire || (currentIntervention as any).prenomProprietaire
               ? `${(currentIntervention as any).prenomProprietaire ?? ""} ${(currentIntervention as any).nomProprietaire ?? ""}`
-                  .trim() || null
+                .trim() || null
               : null),
           commentaire:
             (currentIntervention as any).commentaireAgent ?? (currentIntervention as any).commentaire ?? null,
@@ -1246,422 +1260,422 @@ function PageContent() {
               />
             </div>
             {!isReorderMode && (
-            <div className="flex items-center gap-3">
-              {/* Barre de recherche style topbar avec raccourci Cmd+F */}
-              <PageSearchBar
-                value={search}
-                onChange={setSearch}
-                placeholder="Rechercher interventions..."
-                enableShortcut
-                shortcutId="interventions"
-              />
+              <div className="flex items-center gap-3">
+                {/* Barre de recherche style topbar avec raccourci Cmd+F */}
+                <PageSearchBar
+                  value={search}
+                  onChange={setSearch}
+                  placeholder="Rechercher interventions..."
+                  enableShortcut
+                  shortcutId="interventions"
+                />
 
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="outline" size="sm" className="shrink-0">
-                    <MoreHorizontal className="h-4 w-4 mr-2" /> Plus
-                  </Button>
-                </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-80 max-h-[80vh] overflow-y-auto">
-                <div className="px-2 py-1.5">
-                  <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                    Actions globales
-                  </div>
-                </div>
-
-                <DropdownMenuSub>
-                  <DropdownMenuSubTrigger>
-                    <div className="flex items-center gap-2">
-                      <Plus className="h-4 w-4" />
-                      <span>Nouvelle vue</span>
-                    </div>
-                  </DropdownMenuSubTrigger>
-                  <DropdownMenuSubContent className="w-64">
-                    {NEW_VIEW_MENU_CHOICES.map(({ layout, label, Icon }) => (
-                      <DropdownMenuItem
-                        key={layout}
-                        onSelect={(event) => {
-                          event.preventDefault()
-                          handleCreateView(layout)
-                        }}
-                      >
-                        <Icon className="mr-2 h-4 w-4" />
-                        {label}
-                      </DropdownMenuItem>
-                    ))}
-                  </DropdownMenuSubContent>
-                </DropdownMenuSub>
-
-                {activeView && (
-                  <DropdownMenuItem
-                    onSelect={(event) => {
-                      event.preventDefault()
-                      updateViewConfig(activeView.id, { showBadge: !activeView.showBadge })
-                    }}
-                  >
-                    <Hash className="mr-2 h-4 w-4" />
-                    {activeView.showBadge ? "Masquer la pastille" : "Afficher la pastille"}
-                  </DropdownMenuItem>
-                )}
-
-                <DropdownMenuSeparator />
-
-                <div className="px-2 py-1.5">
-                  <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                    Filtres
-                  </div>
-                </div>
-
-                <DropdownMenuSub>
-                  <DropdownMenuSubTrigger>
-                    <div className="flex items-center gap-2">
-                      <Filter className="h-4 w-4" />
-                      <span>Afficher les filtres</span>
-                    </div>
-                  </DropdownMenuSubTrigger>
-                  <DropdownMenuSubContent className="w-64">
-                    <DropdownMenuCheckboxItem
-                      checked={showStatusFilter}
-                      disabled={activeView?.layout !== "table"}
-                      onCheckedChange={(checked) => {
-                        if (!activeView || activeView.layout !== "table") return
-                        updateLayoutOptions(activeView.id, { showStatusFilter: checked === true })
-                      }}
-                    >
-                      Statut
-                    </DropdownMenuCheckboxItem>
-                  </DropdownMenuSubContent>
-                </DropdownMenuSub>
-
-                {activeView?.layout === "table" && (
-                  <>
-                    <DropdownMenuSeparator />
-
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" size="sm" className="shrink-0">
+                      <MoreHorizontal className="h-4 w-4 mr-2" /> Plus
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-80 max-h-[80vh] overflow-y-auto">
                     <div className="px-2 py-1.5">
                       <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                        Vue Tableau
+                        Actions globales
                       </div>
                     </div>
-
-                    <DropdownMenuItem
-                      onSelect={(event) => {
-                        event.preventDefault()
-                        if (!activeView) return
-                        setColumnConfigViewId(activeView.id)
-                      }}
-                    >
-                      <Settings className="mr-2 h-4 w-4" />
-                      Configurer les colonnes…
-                    </DropdownMenuItem>
 
                     <DropdownMenuSub>
                       <DropdownMenuSubTrigger>
                         <div className="flex items-center gap-2">
-                          <Palette className="h-4 w-4" />
-                          <span>Style</span>
+                          <Plus className="h-4 w-4" />
+                          <span>Nouvelle vue</span>
                         </div>
                       </DropdownMenuSubTrigger>
-                      <DropdownMenuSubContent className="w-72">
-                        <DropdownMenuLabel className="text-xs text-muted-foreground">
-                          Bordure & Ombrage
-                        </DropdownMenuLabel>
-
-                        <DropdownMenuCheckboxItem
-                          checked={activeTableLayoutOptions?.showStatusBorder ?? false}
-                          onCheckedChange={(checked) => {
-                            handleLayoutOptionsPatch({ showStatusBorder: checked === true })
-                          }}
-                        >
-                          <div className="flex items-center gap-2">
-                            <div className="w-3 h-3 border-2 border-primary rounded-sm" />
-                            Bordure colorée par statut
-                          </div>
-                        </DropdownMenuCheckboxItem>
-
-                        {(activeTableLayoutOptions?.showStatusBorder ?? false) && (
-                          <div className="px-2 py-2 ml-6">
-                            <div className="text-xs text-muted-foreground mb-1.5">Largeur</div>
-                            <div className="flex gap-1">
-                              {(["s", "m", "l"] as const).map((size) => (
-                                <button
-                                  key={size}
-                                  type="button"
-                                  onClick={() => handleLayoutOptionsPatch({ statusBorderSize: size })}
-                                  className={cn(
-                                    "flex-1 px-2 py-1.5 text-xs rounded border transition-colors",
-                                    (activeTableLayoutOptions?.statusBorderSize ?? "m") === size
-                                      ? "bg-primary text-primary-foreground border-primary"
-                                      : "bg-background hover:bg-muted border-border",
-                                  )}
-                                >
-                                  {size.toUpperCase()}
-                                </button>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-
-                        <DropdownMenuSeparator className="my-1" />
-
-                        <DropdownMenuCheckboxItem
-                          checked={activeTableLayoutOptions?.coloredShadow ?? false}
-                          onCheckedChange={(checked) => {
-                            handleLayoutOptionsPatch({ coloredShadow: checked === true })
-                          }}
-                        >
-                          <div className="flex items-center gap-2">
-                            <div className="w-3 h-3 bg-gradient-to-br from-primary/50 to-transparent rounded-sm" />
-                            Ombrage coloré par statut
-                          </div>
-                        </DropdownMenuCheckboxItem>
-
-                        {(activeTableLayoutOptions?.coloredShadow ?? false) && (
-                          <div className="px-2 py-2 ml-6">
-                            <div className="text-xs text-muted-foreground mb-1.5">Intensité</div>
-                            <div className="flex gap-1">
-                              {(["subtle", "normal", "strong"] as const).map((intensity) => (
-                                <button
-                                  key={intensity}
-                                  type="button"
-                                  onClick={() => handleLayoutOptionsPatch({ shadowIntensity: intensity })}
-                                  className={cn(
-                                    "flex-1 px-2 py-1.5 text-xs rounded border transition-colors",
-                                    (activeTableLayoutOptions?.shadowIntensity ?? "normal") === intensity
-                                      ? "bg-primary text-primary-foreground border-primary"
-                                      : "bg-background hover:bg-muted border-border",
-                                  )}
-                                >
-                                  {intensity === "subtle" ? "Subtil" : intensity === "normal" ? "Normal" : "Fort"}
-                                </button>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-
-                        <DropdownMenuSeparator />
-
-                        <DropdownMenuLabel className="text-xs text-muted-foreground">
-                          Apparence des lignes
-                        </DropdownMenuLabel>
-
-                        <DropdownMenuItem
-                          onSelect={(event) => {
-                            event.preventDefault()
-                            handleLayoutOptionsPatch({ rowDisplayMode: "stripes" })
-                          }}
-                          className="flex items-start gap-2"
-                        >
-                          <div className="flex items-center gap-2 flex-1">
-                            {(activeTableLayoutOptions?.rowDisplayMode ?? "stripes") === "stripes" ? (
-                              <div className="w-4 h-4 rounded-full border-2 border-primary flex items-center justify-center">
-                                <div className="w-2 h-2 rounded-full bg-primary" />
-                              </div>
-                            ) : (
-                              <div className="w-4 h-4 rounded-full border-2 border-border" />
-                            )}
-                            <span>Stripes alternées</span>
-                          </div>
-                        </DropdownMenuItem>
-
-                        {((activeTableLayoutOptions?.rowDisplayMode ?? "stripes") === "stripes") && (
-                          <div className="px-2 py-1 ml-8">
-                            <button
-                              type="button"
-                              onClick={() =>
-                                handleLayoutOptionsPatch({
-                                  useAccentColor: !(activeTableLayoutOptions?.useAccentColor ?? false),
-                                })
-                              }
-                              className="flex items-center gap-2 text-xs hover:text-foreground transition-colors"
-                            >
-                              <div
-                                className={cn(
-                                  "w-3.5 h-3.5 rounded border flex items-center justify-center",
-                                  activeTableLayoutOptions?.useAccentColor
-                                    ? "bg-primary border-primary"
-                                    : "border-border",
-                                )}
-                              >
-                                {activeTableLayoutOptions?.useAccentColor && (
-                                  <Check className="h-2.5 w-2.5 text-primary-foreground" />
-                                )}
-                              </div>
-                              <span className="text-muted-foreground">Avec couleur d&apos;accentuation</span>
-                            </button>
-                          </div>
-                        )}
-
-                        <DropdownMenuItem
-                          onSelect={(event) => {
-                            event.preventDefault()
-                            handleLayoutOptionsPatch({ rowDisplayMode: "gradient" })
-                          }}
-                          className="flex items-start gap-2"
-                        >
-                          <div className="flex items-center gap-2 flex-1">
-                            {activeTableLayoutOptions?.rowDisplayMode === "gradient" ? (
-                              <div className="w-4 h-4 rounded-full border-2 border-primary flex items-center justify-center">
-                                <div className="w-2 h-2 rounded-full bg-primary" />
-                              </div>
-                            ) : (
-                              <div className="w-4 h-4 rounded-full border-2 border-border" />
-                            )}
-                            <span>Dégradé par colonne</span>
-                          </div>
-                        </DropdownMenuItem>
-
-                        {activeTableLayoutOptions?.rowDisplayMode === "gradient" && (
-                          <div className="px-2 py-1 ml-8">
-                            <button
-                              type="button"
-                              onClick={() =>
-                                handleLayoutOptionsPatch({
-                                  useAccentColor: !(activeTableLayoutOptions?.useAccentColor ?? false),
-                                })
-                              }
-                              className="flex items-center gap-2 text-xs hover:text-foreground transition-colors"
-                            >
-                              <div
-                                className={cn(
-                                  "w-3.5 h-3.5 rounded border flex items-center justify-center",
-                                  activeTableLayoutOptions?.useAccentColor
-                                    ? "bg-primary border-primary"
-                                    : "border-border",
-                                )}
-                              >
-                                {activeTableLayoutOptions?.useAccentColor && (
-                                  <Check className="h-2.5 w-2.5 text-primary-foreground" />
-                                )}
-                              </div>
-                              <span className="text-muted-foreground">Avec couleur d&apos;accentuation</span>
-                            </button>
-                          </div>
-                        )}
-
-                        <DropdownMenuSeparator className="my-1" />
-
-                        <DropdownMenuLabel className="text-xs text-muted-foreground">
-                          Densité des lignes
-                        </DropdownMenuLabel>
-                        <div className="px-2 py-2">
-                          <div className="flex flex-col gap-1">
-                            {ROW_DENSITY_OPTIONS.map(({ value, label }) => (
-                              <button
-                                key={value}
-                                type="button"
-                                onClick={() =>
-                                  handleLayoutOptionsPatch({
-                                    rowDensity: value,
-                                    dense: value === "dense" || value === "ultra-dense",
-                                  })
-                                }
-                                className={cn(
-                                  "w-full px-2 py-1.5 text-xs rounded border text-left transition-colors",
-                                  activeRowDensity === value
-                                    ? "bg-primary text-primary-foreground border-primary"
-                                    : "bg-background hover:bg-muted border-border",
-                                )}
-                              >
-                                {label}
-                              </button>
-                            ))}
-                          </div>
-                        </div>
+                      <DropdownMenuSubContent className="w-64">
+                        {NEW_VIEW_MENU_CHOICES.map(({ layout, label, Icon }) => (
+                          <DropdownMenuItem
+                            key={layout}
+                            onSelect={(event) => {
+                              event.preventDefault()
+                              handleCreateView(layout)
+                            }}
+                          >
+                            <Icon className="mr-2 h-4 w-4" />
+                            {label}
+                          </DropdownMenuItem>
+                        ))}
                       </DropdownMenuSubContent>
                     </DropdownMenuSub>
-                  </>
-                )}
 
-                <DropdownMenuSeparator />
+                    {activeView && (
+                      <DropdownMenuItem
+                        onSelect={(event) => {
+                          event.preventDefault()
+                          updateViewConfig(activeView.id, { showBadge: !activeView.showBadge })
+                        }}
+                      >
+                        <Hash className="mr-2 h-4 w-4" />
+                        {activeView.showBadge ? "Masquer la pastille" : "Afficher la pastille"}
+                      </DropdownMenuItem>
+                    )}
 
-                <div className="px-2 py-1.5">
-                  <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                    Paramètres globaux
-                  </div>
-                </div>
+                    <DropdownMenuSeparator />
 
-                <DropdownMenuSub>
-                  <DropdownMenuSubTrigger>
-                    <div className="flex items-center gap-2">
-                      <CurrentModeIcon className="h-4 w-4" />
-                      <span>Mode d&apos;affichage</span>
+                    <div className="px-2 py-1.5">
+                      <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                        Filtres
+                      </div>
                     </div>
-                  </DropdownMenuSubTrigger>
-                  <DropdownMenuSubContent className="w-64">
-                    {MODE_OPTIONS.map((option) => {
-                      const OptionIcon = ModeIcons[option.mode]
-                      const isActiveMode = preferredMode === option.mode
-                      return (
+
+                    <DropdownMenuSub>
+                      <DropdownMenuSubTrigger>
+                        <div className="flex items-center gap-2">
+                          <Filter className="h-4 w-4" />
+                          <span>Afficher les filtres</span>
+                        </div>
+                      </DropdownMenuSubTrigger>
+                      <DropdownMenuSubContent className="w-64">
+                        <DropdownMenuCheckboxItem
+                          checked={showStatusFilter}
+                          disabled={activeView?.layout !== "table"}
+                          onCheckedChange={(checked) => {
+                            if (!activeView || activeView.layout !== "table") return
+                            updateLayoutOptions(activeView.id, { showStatusFilter: checked === true })
+                          }}
+                        >
+                          Statut
+                        </DropdownMenuCheckboxItem>
+                      </DropdownMenuSubContent>
+                    </DropdownMenuSub>
+
+                    {activeView?.layout === "table" && (
+                      <>
+                        <DropdownMenuSeparator />
+
+                        <div className="px-2 py-1.5">
+                          <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                            Vue Tableau
+                          </div>
+                        </div>
+
                         <DropdownMenuItem
-                          key={option.mode}
                           onSelect={(event) => {
                             event.preventDefault()
-                            setPreferredMode(option.mode)
+                            if (!activeView) return
+                            setColumnConfigViewId(activeView.id)
                           }}
-                          className={isActiveMode ? "bg-muted" : undefined}
                         >
-                          <div className="flex items-start gap-3">
-                            <OptionIcon />
-                            <div className="flex-1 text-left">
-                              <p className="text-sm font-medium leading-none">{option.label}</p>
-                              <p className="mt-1 text-xs text-muted-foreground">{option.description}</p>
-                            </div>
-                          </div>
+                          <Settings className="mr-2 h-4 w-4" />
+                          Configurer les colonnes…
                         </DropdownMenuItem>
-                      )
-                    })}
+
+                        <DropdownMenuSub>
+                          <DropdownMenuSubTrigger>
+                            <div className="flex items-center gap-2">
+                              <Palette className="h-4 w-4" />
+                              <span>Style</span>
+                            </div>
+                          </DropdownMenuSubTrigger>
+                          <DropdownMenuSubContent className="w-72">
+                            <DropdownMenuLabel className="text-xs text-muted-foreground">
+                              Bordure & Ombrage
+                            </DropdownMenuLabel>
+
+                            <DropdownMenuCheckboxItem
+                              checked={activeTableLayoutOptions?.showStatusBorder ?? false}
+                              onCheckedChange={(checked) => {
+                                handleLayoutOptionsPatch({ showStatusBorder: checked === true })
+                              }}
+                            >
+                              <div className="flex items-center gap-2">
+                                <div className="w-3 h-3 border-2 border-primary rounded-sm" />
+                                Bordure colorée par statut
+                              </div>
+                            </DropdownMenuCheckboxItem>
+
+                            {(activeTableLayoutOptions?.showStatusBorder ?? false) && (
+                              <div className="px-2 py-2 ml-6">
+                                <div className="text-xs text-muted-foreground mb-1.5">Largeur</div>
+                                <div className="flex gap-1">
+                                  {(["s", "m", "l"] as const).map((size) => (
+                                    <button
+                                      key={size}
+                                      type="button"
+                                      onClick={() => handleLayoutOptionsPatch({ statusBorderSize: size })}
+                                      className={cn(
+                                        "flex-1 px-2 py-1.5 text-xs rounded border transition-colors",
+                                        (activeTableLayoutOptions?.statusBorderSize ?? "m") === size
+                                          ? "bg-primary text-primary-foreground border-primary"
+                                          : "bg-background hover:bg-muted border-border",
+                                      )}
+                                    >
+                                      {size.toUpperCase()}
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+
+                            <DropdownMenuSeparator className="my-1" />
+
+                            <DropdownMenuCheckboxItem
+                              checked={activeTableLayoutOptions?.coloredShadow ?? false}
+                              onCheckedChange={(checked) => {
+                                handleLayoutOptionsPatch({ coloredShadow: checked === true })
+                              }}
+                            >
+                              <div className="flex items-center gap-2">
+                                <div className="w-3 h-3 bg-gradient-to-br from-primary/50 to-transparent rounded-sm" />
+                                Ombrage coloré par statut
+                              </div>
+                            </DropdownMenuCheckboxItem>
+
+                            {(activeTableLayoutOptions?.coloredShadow ?? false) && (
+                              <div className="px-2 py-2 ml-6">
+                                <div className="text-xs text-muted-foreground mb-1.5">Intensité</div>
+                                <div className="flex gap-1">
+                                  {(["subtle", "normal", "strong"] as const).map((intensity) => (
+                                    <button
+                                      key={intensity}
+                                      type="button"
+                                      onClick={() => handleLayoutOptionsPatch({ shadowIntensity: intensity })}
+                                      className={cn(
+                                        "flex-1 px-2 py-1.5 text-xs rounded border transition-colors",
+                                        (activeTableLayoutOptions?.shadowIntensity ?? "normal") === intensity
+                                          ? "bg-primary text-primary-foreground border-primary"
+                                          : "bg-background hover:bg-muted border-border",
+                                      )}
+                                    >
+                                      {intensity === "subtle" ? "Subtil" : intensity === "normal" ? "Normal" : "Fort"}
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+
+                            <DropdownMenuSeparator />
+
+                            <DropdownMenuLabel className="text-xs text-muted-foreground">
+                              Apparence des lignes
+                            </DropdownMenuLabel>
+
+                            <DropdownMenuItem
+                              onSelect={(event) => {
+                                event.preventDefault()
+                                handleLayoutOptionsPatch({ rowDisplayMode: "stripes" })
+                              }}
+                              className="flex items-start gap-2"
+                            >
+                              <div className="flex items-center gap-2 flex-1">
+                                {(activeTableLayoutOptions?.rowDisplayMode ?? "stripes") === "stripes" ? (
+                                  <div className="w-4 h-4 rounded-full border-2 border-primary flex items-center justify-center">
+                                    <div className="w-2 h-2 rounded-full bg-primary" />
+                                  </div>
+                                ) : (
+                                  <div className="w-4 h-4 rounded-full border-2 border-border" />
+                                )}
+                                <span>Stripes alternées</span>
+                              </div>
+                            </DropdownMenuItem>
+
+                            {((activeTableLayoutOptions?.rowDisplayMode ?? "stripes") === "stripes") && (
+                              <div className="px-2 py-1 ml-8">
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    handleLayoutOptionsPatch({
+                                      useAccentColor: !(activeTableLayoutOptions?.useAccentColor ?? false),
+                                    })
+                                  }
+                                  className="flex items-center gap-2 text-xs hover:text-foreground transition-colors"
+                                >
+                                  <div
+                                    className={cn(
+                                      "w-3.5 h-3.5 rounded border flex items-center justify-center",
+                                      activeTableLayoutOptions?.useAccentColor
+                                        ? "bg-primary border-primary"
+                                        : "border-border",
+                                    )}
+                                  >
+                                    {activeTableLayoutOptions?.useAccentColor && (
+                                      <Check className="h-2.5 w-2.5 text-primary-foreground" />
+                                    )}
+                                  </div>
+                                  <span className="text-muted-foreground">Avec couleur d&apos;accentuation</span>
+                                </button>
+                              </div>
+                            )}
+
+                            <DropdownMenuItem
+                              onSelect={(event) => {
+                                event.preventDefault()
+                                handleLayoutOptionsPatch({ rowDisplayMode: "gradient" })
+                              }}
+                              className="flex items-start gap-2"
+                            >
+                              <div className="flex items-center gap-2 flex-1">
+                                {activeTableLayoutOptions?.rowDisplayMode === "gradient" ? (
+                                  <div className="w-4 h-4 rounded-full border-2 border-primary flex items-center justify-center">
+                                    <div className="w-2 h-2 rounded-full bg-primary" />
+                                  </div>
+                                ) : (
+                                  <div className="w-4 h-4 rounded-full border-2 border-border" />
+                                )}
+                                <span>Dégradé par colonne</span>
+                              </div>
+                            </DropdownMenuItem>
+
+                            {activeTableLayoutOptions?.rowDisplayMode === "gradient" && (
+                              <div className="px-2 py-1 ml-8">
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    handleLayoutOptionsPatch({
+                                      useAccentColor: !(activeTableLayoutOptions?.useAccentColor ?? false),
+                                    })
+                                  }
+                                  className="flex items-center gap-2 text-xs hover:text-foreground transition-colors"
+                                >
+                                  <div
+                                    className={cn(
+                                      "w-3.5 h-3.5 rounded border flex items-center justify-center",
+                                      activeTableLayoutOptions?.useAccentColor
+                                        ? "bg-primary border-primary"
+                                        : "border-border",
+                                    )}
+                                  >
+                                    {activeTableLayoutOptions?.useAccentColor && (
+                                      <Check className="h-2.5 w-2.5 text-primary-foreground" />
+                                    )}
+                                  </div>
+                                  <span className="text-muted-foreground">Avec couleur d&apos;accentuation</span>
+                                </button>
+                              </div>
+                            )}
+
+                            <DropdownMenuSeparator className="my-1" />
+
+                            <DropdownMenuLabel className="text-xs text-muted-foreground">
+                              Densité des lignes
+                            </DropdownMenuLabel>
+                            <div className="px-2 py-2">
+                              <div className="flex flex-col gap-1">
+                                {ROW_DENSITY_OPTIONS.map(({ value, label }) => (
+                                  <button
+                                    key={value}
+                                    type="button"
+                                    onClick={() =>
+                                      handleLayoutOptionsPatch({
+                                        rowDensity: value,
+                                        dense: value === "dense" || value === "ultra-dense",
+                                      })
+                                    }
+                                    className={cn(
+                                      "w-full px-2 py-1.5 text-xs rounded border text-left transition-colors",
+                                      activeRowDensity === value
+                                        ? "bg-primary text-primary-foreground border-primary"
+                                        : "bg-background hover:bg-muted border-border",
+                                    )}
+                                  >
+                                    {label}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          </DropdownMenuSubContent>
+                        </DropdownMenuSub>
+                      </>
+                    )}
+
                     <DropdownMenuSeparator />
-                    <DropdownMenuItem
-                      onSelect={(event) => {
-                        event.preventDefault()
-                        router.push("/settings/interface")
-                      }}
-                    >
-                      <Settings className="mr-2 h-4 w-4" />
-                      Modifier la vue par défaut
-                    </DropdownMenuItem>
-                  </DropdownMenuSubContent>
-                </DropdownMenuSub>
 
-                <DropdownMenuSeparator />
-                {/* DESIGN v1.4 - Anciens filtres avancés masqués temporairement */}
-                {false && (
-                  <div className="px-2 py-2 space-y-2">
-                    {/* Ancien contenu du menu Plus de FiltersBar */}
-                  </div>
-                )}
-              </DropdownMenuContent>
-            </DropdownMenu>
-            </div>
-          )}
+                    <div className="px-2 py-1.5">
+                      <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                        Paramètres globaux
+                      </div>
+                    </div>
+
+                    <DropdownMenuSub>
+                      <DropdownMenuSubTrigger>
+                        <div className="flex items-center gap-2">
+                          <CurrentModeIcon className="h-4 w-4" />
+                          <span>Mode d&apos;affichage</span>
+                        </div>
+                      </DropdownMenuSubTrigger>
+                      <DropdownMenuSubContent className="w-64">
+                        {MODE_OPTIONS.map((option) => {
+                          const OptionIcon = ModeIcons[option.mode]
+                          const isActiveMode = preferredMode === option.mode
+                          return (
+                            <DropdownMenuItem
+                              key={option.mode}
+                              onSelect={(event) => {
+                                event.preventDefault()
+                                setPreferredMode(option.mode)
+                              }}
+                              className={isActiveMode ? "bg-muted" : undefined}
+                            >
+                              <div className="flex items-start gap-3">
+                                <OptionIcon />
+                                <div className="flex-1 text-left">
+                                  <p className="text-sm font-medium leading-none">{option.label}</p>
+                                  <p className="mt-1 text-xs text-muted-foreground">{option.description}</p>
+                                </div>
+                              </div>
+                            </DropdownMenuItem>
+                          )
+                        })}
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          onSelect={(event) => {
+                            event.preventDefault()
+                            router.push("/settings/interface")
+                          }}
+                        >
+                          <Settings className="mr-2 h-4 w-4" />
+                          Modifier la vue par défaut
+                        </DropdownMenuItem>
+                      </DropdownMenuSubContent>
+                    </DropdownMenuSub>
+
+                    <DropdownMenuSeparator />
+                    {/* DESIGN v1.4 - Anciens filtres avancés masqués temporairement */}
+                    {false && (
+                      <div className="px-2 py-2 space-y-2">
+                        {/* Ancien contenu du menu Plus de FiltersBar */}
+                      </div>
+                    )}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+            )}
+          </div>
         </div>
-      </div>
 
-      {/* DESIGN v1.4 - FiltersBar masquée, accessible via bouton "Plus" */}
-      {false && (
-        <FiltersBar
-          search={search}
-          onSearch={setSearch}
-          users={usersForFilter}
-          user={selectedUser}
-          onUser={handleSelectUser}
-          dateRange={dateRange}
-          onDateRange={handleDateRangeChange}
-          sortField={sortField}
-          onSortField={setSortField}
-          sortDir={sortDir}
-          onSortDir={setSortDir}
-          displayedStatuses={displayedStatuses}
-          selectedStatus={selectedStatuses}
-          onSelectStatus={handleSelectStatus}
-          pinnedStatuses={workflowPinnedStatuses}
-          onPinStatus={handlePinStatus}
-          onUnpinStatus={handleUnpinStatus}
-          additionalStatuses={additionalStatuses}
-          getCountByStatus={getCountByStatus}
-          workflow={workflowConfig}
-        />
-      )}
+        {/* DESIGN v1.4 - FiltersBar masquée, accessible via bouton "Plus" */}
+        {false && (
+          <FiltersBar
+            search={search}
+            onSearch={setSearch}
+            users={usersForFilter}
+            user={selectedUser}
+            onUser={handleSelectUser}
+            dateRange={dateRange}
+            onDateRange={handleDateRangeChange}
+            sortField={sortField}
+            onSortField={setSortField}
+            sortDir={sortDir}
+            onSortDir={setSortDir}
+            displayedStatuses={displayedStatuses}
+            selectedStatus={selectedStatuses}
+            onSelectStatus={handleSelectStatus}
+            pinnedStatuses={workflowPinnedStatuses}
+            onPinStatus={handlePinStatus}
+            onUnpinStatus={handleUnpinStatus}
+            additionalStatuses={additionalStatuses}
+            getCountByStatus={getCountByStatus}
+            workflow={workflowConfig}
+          />
+        )}
 
         {/* DESIGN v1.4 - FiltersBar Status affichée conditionnellement */}
         {showStatusFilter && (
@@ -1680,20 +1694,19 @@ function PageContent() {
               const statusColor = workflowConfig.statuses.find((s) => s.key === status)?.color ?? INTERVENTION_STATUS[status]?.color ?? "#666"
               const statusDisplay = getStatusDisplay(status, { workflow: workflowConfig })
               const finalColor = statusDisplay.color
-              
+
               return (
                 <button
                   key={status}
                   onClick={() => handleSelectStatus(status)}
-                  className={`status-chip transition-[opacity,transform,shadow] duration-150 ease-out inline-flex items-center gap-1.5 ${
-                    isSelected
+                  className={`status-chip transition-[opacity,transform,shadow] duration-150 ease-out inline-flex items-center gap-1.5 ${isSelected
                       ? "ring-2 ring-foreground/20"
                       : "hover:shadow-card border border-border bg-transparent"
-                  }`}
-                  style={isSelected ? { 
-                    backgroundColor: `${finalColor}15`, 
+                    }`}
+                  style={isSelected ? {
+                    backgroundColor: `${finalColor}15`,
                     borderColor: finalColor,
-                    color: finalColor 
+                    color: finalColor
                   } : {}}
                   title={label}
                 >
@@ -1716,15 +1729,14 @@ function PageContent() {
                   updateFilterForProperty("isCheck", { property: "isCheck", operator: "eq", value: true })
                 }
               }}
-              className={`status-chip transition-[opacity,transform,shadow] duration-150 ease-out inline-flex items-center gap-1.5 ${
-                isCheckFilterActive
+              className={`status-chip transition-[opacity,transform,shadow] duration-150 ease-out inline-flex items-center gap-1.5 ${isCheckFilterActive
                   ? "ring-2 ring-foreground/20"
                   : "hover:shadow-card border border-border bg-transparent"
-              }`}
-              style={isCheckFilterActive ? { 
-                backgroundColor: "#EF444415", 
+                }`}
+              style={isCheckFilterActive ? {
+                backgroundColor: "#EF444415",
                 borderColor: "#EF4444",
-                color: "#EF4444" 
+                color: "#EF4444"
               } : {}}
               title="Interventions avec date d'échéance dépassée (peut être combiné avec d'autres statuts)"
             >

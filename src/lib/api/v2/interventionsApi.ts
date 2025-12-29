@@ -13,17 +13,17 @@ function getSupabaseClientForNode() {
   if (typeof window !== 'undefined') {
     return supabase;
   }
-  
+
   // Dans Node.js, créer un nouveau client avec les credentials du service role
   const { createClient } = require('@supabase/supabase-js');
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  
+
   if (!supabaseUrl || !serviceRoleKey) {
     console.warn('[interventionsApi] SUPABASE_URL ou SUPABASE_SERVICE_ROLE_KEY manquants, utilisation du client standard');
     return supabase;
   }
-  
+
   return createClient(supabaseUrl, serviceRoleKey, {
     auth: {
       autoRefreshToken: false,
@@ -810,10 +810,10 @@ export const interventionsApi = {
       // Mettre à jour le coût existant
       const { error: updateError } = await supabase
         .from('intervention_costs')
-        .update({ 
-          amount: cost.amount, 
+        .update({
+          amount: cost.amount,
           label: cost.label ?? null,
-          updated_at: new Date().toISOString() 
+          updated_at: new Date().toISOString()
         })
         .eq('id', existing.id);
 
@@ -922,7 +922,7 @@ export const interventionsApi = {
   ): Promise<any> {
     // Utiliser le client personnalisé si fourni, sinon utiliser supabaseClient (qui utilise getSupabaseClientForNode() dans Node.js)
     const client = customClient || supabaseClient;
-    
+
     const { data: result, error } = await client
       .from('intervention_artisans')
       .insert({
@@ -967,8 +967,8 @@ export const interventionsApi = {
     // Déterminer artisan_order selon les règles :
     // - Par défaut lors de l'import, tous les coûts sont reliés à l'artisan 1 (artisan principal)
     // - Si artisan_order est explicitement fourni (y compris null), on l'utilise
-    const artisanOrder = data.artisan_order !== undefined 
-      ? data.artisan_order 
+    const artisanOrder = data.artisan_order !== undefined
+      ? data.artisan_order
       : 1;
 
     // Préparer les données d'insertion
@@ -993,7 +993,7 @@ export const interventionsApi = {
         console.error('[addCost] Erreur Supabase:', { code: error.code, message: error.message, details: error.details, hint: error.hint });
         throw new Error(`Erreur lors de l'ajout du coût: ${error.message || error.code || 'Erreur inconnue'}`);
       }
-      
+
       return result;
     } catch (err: any) {
       // Capturer les erreurs réseau ou autres erreurs non-Supabase
@@ -1112,7 +1112,7 @@ export const interventionsApi = {
   async upsertDirect(data: CreateInterventionData & { id_inter?: string }, customClient?: any): Promise<Intervention> {
     // Utiliser le client personnalisé si fourni, sinon utiliser supabaseClient (qui utilise getSupabaseClientForNode() dans Node.js)
     const client = customClient || supabaseClient;
-    
+
     // 1. Vérifier si l'intervention existe déjà
     let existingIntervention = null;
     let oldStatusId = null;
@@ -1350,54 +1350,6 @@ export const interventionsApi = {
         hasMore: offset + limit < (count || 0),
       },
     };
-  },
-
-  // Compter les interventions terminées d'un artisan (uniquement primaires)
-  async getCompletedInterventionsCountByArtisan(artisanId: string): Promise<number> {
-    // Récupérer les IDs des statuts terminés
-    const { data: terminatedStatuses } = await supabase
-      .from('intervention_statuses')
-      .select('id')
-      .in('code', ['TERMINE', 'INTER_TERMINEE'])
-
-    if (!terminatedStatuses || terminatedStatuses.length === 0) {
-      return 0
-    }
-
-    const terminatedStatusIds = terminatedStatuses.map(s => s.id)
-
-    // Récupérer les IDs des interventions primaires de l'artisan
-    const { data: interventionArtisans, error: linkError } = await supabase
-      .from('intervention_artisans')
-      .select('intervention_id')
-      .eq('artisan_id', artisanId)
-      .eq('is_primary', true)
-
-    if (linkError || !interventionArtisans || interventionArtisans.length === 0) {
-      return 0
-    }
-
-    const interventionIds = interventionArtisans
-      .map(ia => ia.intervention_id)
-      .filter(Boolean) as string[]
-
-    if (interventionIds.length === 0) {
-      return 0
-    }
-
-    // Compter les interventions terminées
-    const { count, error: countError } = await supabase
-      .from('interventions')
-      .select('id', { count: 'exact', head: true })
-      .in('id', interventionIds)
-      .in('statut_id', terminatedStatusIds)
-
-    if (countError) {
-      console.warn('[interventionsApi] Erreur lors du comptage des interventions terminées:', countError)
-      return 0
-    }
-
-    return count ?? 0
   },
 
   // Récupérer les interventions par période
@@ -2038,7 +1990,7 @@ export const interventionsApi = {
       .limit(10);
 
     if (allUserInterventions && allUserInterventions.length > 0) {
-        allUserInterventions.map(i => ({ id: i.id, date: i.date }));
+      allUserInterventions.map(i => ({ id: i.id, date: i.date }));
     }
 
     if (interventions && interventions.length > 0) {

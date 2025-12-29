@@ -83,7 +83,7 @@ class DataMapper {
       documentsCreated: 0,
       newDocuments: [],
     };
-    
+
     // Rate limiting simple pour les recherches SST
     this.lastSSTSearchTime = 0;
     this.sstSearchDelay = 50; // 50ms entre chaque recherche SST
@@ -92,11 +92,11 @@ class DataMapper {
 
     // Déterminer le type d'import pour le nom du fichier de log
     const importType = options.importType || 'parsing'; // 'artisans', 'interventions', ou 'parsing' (par défaut)
-    const logFileName = importType === 'artisans' 
+    const logFileName = importType === 'artisans'
       ? `erreurs-artisans-${new Date().toISOString().split("T")[0]}.log`
       : importType === 'interventions'
-      ? `erreurs-interventions-${new Date().toISOString().split("T")[0]}.log`
-      : `erreurs-parsing-${new Date().toISOString().split("T")[0]}.log`;
+        ? `erreurs-interventions-${new Date().toISOString().split("T")[0]}.log`
+        : `erreurs-parsing-${new Date().toISOString().split("T")[0]}.log`;
 
     // Initialiser le fichier de log des erreurs
     this.errorLogPath = path.join(
@@ -105,7 +105,7 @@ class DataMapper {
       logFileName
     );
     this.initErrorLog();
-    
+
     // Client Supabase authentifié (optionnel, pour les imports)
     this.authenticatedClient = options.authenticatedClient || null;
   }
@@ -143,12 +143,12 @@ class DataMapper {
       // Si on a un ID normal qui est un nombre simple, l'utiliser
       // Sinon, utiliser "N/A"
       let logId = "N/A";
-      
+
       if (idInter && /^\d+$/.test(idInter)) {
         // ID normal est un nombre simple, l'utiliser
         logId = idInter;
       }
-      
+
       // Formater le rawData avec JSON.stringify pour un affichage correct
       let rawDataStr = "null";
       if (rawData !== null && rawData !== undefined) {
@@ -158,10 +158,10 @@ class DataMapper {
           rawDataStr = String(rawData);
         }
       }
-      
+
       // Ajouter le numéro de ligne si disponible
       const lineInfo = lineNumber !== null ? `Ligne ${lineNumber}: ` : "";
-      
+
       const logEntry = `${lineInfo}${logId}, \tNot inserted reason \t{${reason}} \n rawData: \t${rawDataStr} \n  \n`;
       fs.appendFileSync(this.errorLogPath, logEntry, "utf8");
     } catch (error) {
@@ -185,10 +185,10 @@ class DataMapper {
   validateArtisan(mappedArtisan) {
     const errors = [];
     // Identifier pour le log : nom, prénom, raison sociale ou plain_nom
-    const identifier = mappedArtisan.plain_nom || 
-                      `${mappedArtisan.prenom || ''} ${mappedArtisan.nom || ''}`.trim() ||
-                      mappedArtisan.raison_sociale ||
-                      "N/A";
+    const identifier = mappedArtisan.plain_nom ||
+      `${mappedArtisan.prenom || ''} ${mappedArtisan.nom || ''}`.trim() ||
+      mappedArtisan.raison_sociale ||
+      "N/A";
 
     // Validation : le nom est obligatoire (comme dans database-manager-v2.js)
     // Le database manager rejette les artisans sans nom, donc on doit les rejeter ici aussi
@@ -215,8 +215,8 @@ class DataMapper {
       if (mappedArtisan.siret.length !== 14) {
         errors.push({
           field: 'siret',
-            reason: 'SIRET invalide (doit contenir 14 chiffres)'
-          });
+          reason: 'SIRET invalide (doit contenir 14 chiffres)'
+        });
       }
       else {
         errors.push({
@@ -282,7 +282,7 @@ class DataMapper {
 
       // Note: Les coûts manquants (null) ne sont plus bloquants
       // L'intervention sera insérée même sans coûts
-      
+
       // Vérification des limites de coûts (uniquement si les coûts sont présents)
       const MAX_COST = 100000;
       const costLimitErrors = this._validateCostsLimits(coutIntervention, coutSST, MAX_COST, idInter);
@@ -292,7 +292,7 @@ class DataMapper {
       if (margeCalculee !== null && coutIntervention !== null && coutIntervention > 0) {
         // La marge a déjà été calculée dans extractCostsData, on valide juste les limites
         const margePourcentage = (margeCalculee / coutIntervention) * 100;
-        
+
         // Vérifier les limites de marge (-200% à 200%)
         if (margePourcentage < -200 || margePourcentage > 200) {
           marginErrors.push({
@@ -318,10 +318,10 @@ class DataMapper {
         );
         marginErrors = calculatedMarginErrors;
       }
-      
+
       // Séparer les erreurs critiques (hors limites) des warnings (marge négative)
       const criticalMarginErrors = marginErrors.filter(e => e.reason.includes('hors limites'));
-      
+
       // Ajouter les erreurs critiques (bloquent l'insertion)
       errors.push(...criticalMarginErrors);
 
@@ -340,7 +340,7 @@ class DataMapper {
     // Calculer isValid en excluant les warnings (marge négative dans les limites)
     // Les warnings sont loggés mais ne bloquent pas l'insertion
     const criticalErrors = errors.filter(e => !e.reason.includes('Marge négative'));
-    
+
     return {
       isValid: criticalErrors.length === 0,
       errors,
@@ -440,7 +440,7 @@ class DataMapper {
 
     // Validation de l'artisan mappé
     const validation = this.validateArtisan(mapped);
-    
+
     if (!validation.isValid) {
       // Logger chaque erreur individuellement avec le format standardisé
       validation.errors.forEach(({ field, reason }) => {
@@ -451,7 +451,7 @@ class DataMapper {
           lineNumber
         );
       });
-      
+
       return null;
     }
 
@@ -641,7 +641,7 @@ class DataMapper {
       // Nettoyer la clé : trim + suppression des sauts de ligne
       const cleanKey = key.replace(/\n/g, ' ').trim();
       cleaned[cleanKey] = csvRow[key];
-      
+
       // Garder aussi la clé originale pour compatibilité
       if (cleanKey !== key) {
         cleaned[key] = csvRow[key];
@@ -660,7 +660,7 @@ class DataMapper {
     // DEBUG: Afficher toutes les clés disponibles pour debug
     if (process.env.VERBOSE || process.argv.includes('--verbose')) {
       const allKeys = Object.keys(csvRow);
-      const statutRelatedKeys = allKeys.filter(k => 
+      const statutRelatedKeys = allKeys.filter(k =>
         k.toLowerCase().includes('statut')
       );
       console.log(`🔍 [STATUT DEBUG] Toutes les clés: ${allKeys.slice(0, 10).join(", ")}...`);
@@ -671,7 +671,7 @@ class DataMapper {
         });
       }
     }
-    
+
     // Essayer plusieurs variantes possibles (avec et sans espaces)
     const possibleKeys = [
       "Statut",
@@ -681,7 +681,7 @@ class DataMapper {
       "STATUT",
       "STATUT "
     ];
-    
+
     for (const key of possibleKeys) {
       if (csvRow[key] && String(csvRow[key]).trim() !== "") {
         if (process.env.VERBOSE || process.argv.includes('--verbose')) {
@@ -690,13 +690,13 @@ class DataMapper {
         return String(csvRow[key]).trim();
       }
     }
-    
+
     // Si aucune variante ne fonctionne, chercher toutes les clés qui contiennent "statut"
-    const statutKeys = Object.keys(csvRow).filter(k => 
-      k.toLowerCase().trim() === 'statut' || 
+    const statutKeys = Object.keys(csvRow).filter(k =>
+      k.toLowerCase().trim() === 'statut' ||
       k.toLowerCase().trim().includes('statut')
     );
-    
+
     for (const key of statutKeys) {
       if (csvRow[key] && String(csvRow[key]).trim() !== "") {
         if (process.env.VERBOSE || process.argv.includes('--verbose')) {
@@ -705,13 +705,13 @@ class DataMapper {
         return String(csvRow[key]).trim();
       }
     }
-    
+
     if (process.env.VERBOSE || process.argv.includes('--verbose')) {
       console.log(`❌ [STATUT] Aucune colonne statut trouvée dans csvRow`);
     }
     return null;
   }
-  
+
   /**
    * Filtre les valeurs aberrantes (dates dans mauvaises colonnes)
    * Retourne null si la ligne contient des valeurs aberrantes critiques
@@ -724,7 +724,7 @@ class DataMapper {
       ' Gest.',
       'Métier'
     ];
-    
+
     for (const col of criticalColumns) {
       const value = csvRow[col];
       if (value && typeof value === 'string' && value.match(/^\d{4}-\d{2}-\d{2}/)) {
@@ -732,7 +732,7 @@ class DataMapper {
         return false;
       }
     }
-    
+
     return true;
   }
 
@@ -754,25 +754,25 @@ class DataMapper {
       if (verbose) console.log("⚠️ Ligne vide ignorée");
       return null;
     }
-    
+
     // Vérifier si la ligne a au moins un champ essentiel (adresse, contexte, id_inter, ou technicien)
     // Sinon c'est probablement une ligne vide ou de séparation
-    const hasEssentialData = 
+    const hasEssentialData =
       (csvRow["ID"] && String(csvRow["ID"]).trim() !== "") ||
       (csvRow["Adresse d'intervention"] && String(csvRow["Adresse d'intervention"]).trim() !== "") ||
       (csvRow["Contexte d'intervention"] && String(csvRow["Contexte d'intervention"]).trim() !== "") ||
       (csvRow["Contexte d'intervention "] && String(csvRow["Contexte d'intervention "]).trim() !== "") ||
       (csvRow["Technicien"] && String(csvRow["Technicien"]).trim() !== "") ||
       (csvRow["Technicien "] && String(csvRow["Technicien "]).trim() !== "");
-    
+
     if (!hasEssentialData) {
       if (verbose) console.log("⚠️ Ligne sans données essentielles ignorée");
       return null;
     }
-    
+
     let idInter = this.extractInterventionId(csvRow["ID"]);
     // Filtrer les lignes avec valeurs aberrantes (dates dans mauvaises colonnes)
-    if (!this.isValidRow(csvRow)) {      
+    if (!this.isValidRow(csvRow)) {
       this.logParsingError(
         idInter || "N/A",
         "Ligne avec mauvais formatage",
@@ -792,11 +792,11 @@ class DataMapper {
     // ===== RÉCUPÉRER LES DONNÉES NÉCESSAIRES POUR ID SYNTHÉTIQUE =====
     const agenceId = await this.getAgencyId(csvRow["Agence"]);
     // Chercher la date dans plusieurs colonnes possibles (FErn est un nom alternatif utilisé dans certains sheets)
-    const rawDate = csvRow["Date "] || csvRow["Date"] || csvRow["FErn"] || csvRow["Date d'intervention"];
+    const rawDate = csvRow["Date "] || csvRow["Date"] || csvRow["FErn"] || csvRow["745"] || csvRow["Date d'intervention"];
     const dateValue = this.parseDate(rawDate);
     const adresseValue = this.extractInterventionAddress(csvRow["Adresse d'intervention"]).adresse;
     let contexteValue = this.cleanString(csvRow["Contexte d'intervention "]) || this.cleanString(csvRow["Contexte d'intervention"]);
-    
+
     // Si le contexte est vide mais que "COUT SST" contient du texte (pas un nombre),
     // utiliser "COUT SST" comme contexte_intervention
     // Exemple: "cadre porte sdb gonfler / porte legerement gonflé sdb..."
@@ -822,7 +822,7 @@ class DataMapper {
         adresseValue,
         contexteValue
       );
-      
+
       if (syntheticId) {
         idInter = syntheticId;
         if (verbose) {
@@ -889,19 +889,19 @@ class DataMapper {
         // Chercher "Technicien" (gère automatiquement "Technicien " avec espace via getCSVValue)
         // Si non trouvé, chercher "SST" (ancien nom pour compatibilité)
         this.getCSVValue(csvRow, "Technicien") || this.getCSVValue(csvRow, "SST") || null,
-        idInter, 
-        csvRow, 
+        idInter,
+        csvRow,
         lineNumber
       ),
     };
 
     // Extraire les coûts bruts pour la validation
     const extractedCosts = this.extractCostsData(csvRow);
-    
+
     // Validation de l'intervention mappée (utilise les coûts bruts)
     const mappedForValidation = { ...mapped, costs: extractedCosts };
     const validation = this.validateIntervention(mappedForValidation);
-    
+
     if (!validation.isValid) {
       // Logger chaque erreur individuellement avec le format standardisé
       validation.errors.forEach(({ field, reason }) => {
@@ -912,14 +912,14 @@ class DataMapper {
           lineNumber
         );
       });
-      
+
       console.log(`❌ Intervention ${validation.idInter} invalide:`);
       validation.errors.forEach(({ field, reason }) => {
         console.log(
           `   - ${field}: ${reason}\n\t\t${JSON.stringify(csvRow, null, 2)}`
         );
       });
-            
+
       return null;
     }
 
@@ -979,8 +979,7 @@ class DataMapper {
           .filter(Boolean)
           .join(" ") || "N/A";
       console.log(
-        `Tenant: ${name} (Email: ${mapped.tenant.email || "N/A"}, Tel: ${
-          mapped.tenant.telephone || "N/A"
+        `Tenant: ${name} (Email: ${mapped.tenant.email || "N/A"}, Tel: ${mapped.tenant.telephone || "N/A"
         })`
       );
     } else {
@@ -1088,7 +1087,7 @@ class DataMapper {
     let marge = null;
     let margePourcentage = null;
     const errors = [];
-    
+
     if (coutIntervention !== null && coutIntervention > 0) {
       marge = coutIntervention;
       if (coutSST !== null) marge -= coutSST;
@@ -1113,7 +1112,7 @@ class DataMapper {
         });
       }
     }
-    
+
     return { marge, margePourcentage, errors };
   }
 
@@ -1244,18 +1243,15 @@ class DataMapper {
       console.log(`ID Intervention: ${idInter || "N/A"}`);
       console.log(`Coût SST: ${coutSST !== null ? coutSST + " EUR" : "N/A"}`);
       console.log(
-        `Coût Matériel: ${
-          coutMaterielData !== null ? coutMaterielData + " EUR" : "N/A"
+        `Coût Matériel: ${coutMaterielData !== null ? coutMaterielData + " EUR" : "N/A"
         }`
       );
       console.log(
-        `Coût Intervention: ${
-          coutIntervention !== null ? coutIntervention + " EUR" : "N/A"
+        `Coût Intervention: ${coutIntervention !== null ? coutIntervention + " EUR" : "N/A"
         }`
       );
       console.log(
-        `Marge (calculée): ${
-          marge !== null ? marge + " EUR" : "N/A"
+        `Marge (calculée): ${marge !== null ? marge + " EUR" : "N/A"
         }`
       );
       console.log(`Nombre de coûts formatés: ${costs.length}`);
@@ -1370,7 +1366,7 @@ class DataMapper {
   extractNomPrenomStrict(nomPrenom) {
     // plain_nom est toujours la valeur brute de la colonne
     const plain_nom = nomPrenom ? nomPrenom.trim() : '';
-    
+
     if (!plain_nom) {
       return { prenom: undefined, nom: undefined };
     }
@@ -1382,12 +1378,12 @@ class DataMapper {
     // Traitement des particules (Monsieur, Mr, M, Madame, Mme, Mlle)
     const particles = ['monsieur', 'mr', 'm', 'madame', 'mme', 'mlle'];
     const firstPartLower = parts[0] ? parts[0].toLowerCase() : '';
-    
+
     // Si particule détectée et 2 espaces ou plus, l'enlever et réappliquer les règles
     if (spaceCount >= 2 && particles.includes(firstPartLower)) {
       parts = parts.slice(1); // Enlever la particule
       const newSpaceCount = parts.length - 1;
-      
+
       // Réappliquer les règles avec les parties restantes
       if (newSpaceCount === 0) {
         // 0 espace après suppression: PRENOM = undefined, NOM = plain_nom
@@ -1779,7 +1775,7 @@ class DataMapper {
    */
   generateDeterministicHash(str) {
     if (!str) return '00000000';
-    
+
     // Normaliser la chaîne (minuscules, sans accents, sans espaces multiples)
     const normalized = String(str)
       .toLowerCase()
@@ -1787,7 +1783,7 @@ class DataMapper {
       .replace(/[\u0300-\u036f]/g, '') // Supprimer les accents
       .replace(/[^a-z0-9]/g, '')       // Garder seulement alphanumérique
       .trim();
-    
+
     // Algorithme de hash simple mais déterministe (djb2)
     let hash = 5381;
     for (let i = 0; i < normalized.length; i++) {
@@ -1795,7 +1791,7 @@ class DataMapper {
       hash = ((hash << 5) + hash) + char; // hash * 33 + char
       hash = hash & hash; // Convertir en 32bit integer
     }
-    
+
     // Retourner en hexadécimal (8 caractères)
     return Math.abs(hash).toString(16).padStart(8, '0').substring(0, 8);
   }
@@ -1818,11 +1814,11 @@ class DataMapper {
     if (!agenceId || !adresse) {
       return null;
     }
-    
+
     // Créer une chaîne unique combinant toutes les données
     // Format: agence|date|adresse|contexte
     let combinedData = agenceId + '|';
-    
+
     // Ajouter la date si disponible
     if (dateValue) {
       try {
@@ -1835,18 +1831,18 @@ class DataMapper {
       }
     }
     combinedData += '|' + adresse;
-    
+
     // Ajouter le contexte si disponible
     if (contexte) {
       combinedData += '|' + contexte;
     }
-    
+
     // Générer un hash unique de 12 caractères
     const fullHash = this.generateDeterministicHash(combinedData);
     // Étendre le hash à 12 caractères en combinant avec un second hash
     const secondHash = this.generateDeterministicHash(combinedData + fullHash);
     const hash12chars = (fullHash + secondHash).substring(0, 12);
-    
+
     // Format: AUTO-{12 caractères}
     return `AUTO-${hash12chars}`;
   }
@@ -2291,7 +2287,7 @@ class DataMapper {
     if (!dateValue || String(dateValue).trim() === "") return null;
 
     const strValue = String(dateValue).trim();
-    
+
     // Si c'est un nombre (timestamp Excel sérialisé), convertir en date
     // Excel stocke les dates comme nombre de jours depuis le 1er janvier 1900
     // Exemple: 45489 = environ le 29/08/2024
@@ -2305,7 +2301,7 @@ class DataMapper {
           // Excel epoch: 1er janvier 1900 = jour 1
           const excelEpoch = new Date(1899, 11, 30); // 30 décembre 1899 (car Excel compte le 29/02/1900)
           const date = new Date(excelEpoch.getTime() + (excelSerial - 1) * 24 * 60 * 60 * 1000);
-          
+
           // Vérifier que la date est raisonnable (entre 1900 et 2100)
           if (date.getFullYear() >= 1900 && date.getFullYear() <= 2100) {
             return date.toISOString().split('T')[0];
@@ -2379,17 +2375,17 @@ class DataMapper {
     if (!agenceName || agenceName.trim() === "") return null;
 
     let name = agenceName.trim();
-    
+
     // Normaliser le nom de l'agence (gérer les variations de casse)
     if (AGENCE_NORMALIZATION_MAP.hasOwnProperty(name)) {
       const normalizedName = AGENCE_NORMALIZATION_MAP[name];
-      
+
       // Si la valeur normalisée est null, ignorer cette agence
       if (normalizedName === null) {
         console.log(`⚠️ Agence aberrante ignorée: "${name}"`);
         return null;
       }
-      
+
       const originalName = name;
       name = normalizedName;
       console.log(`🔄 Agence normalisée: "${originalName}" → "${name}"`);
@@ -2524,22 +2520,22 @@ class DataMapper {
     if (!metierName || metierName.trim() === "") return null;
 
     let name = metierName.trim();
-    
+
     // Normaliser le nom du métier (gérer les variations de casse et accents)
     if (METIER_NORMALIZATION_MAP.hasOwnProperty(name)) {
       const normalizedName = METIER_NORMALIZATION_MAP[name];
-      
+
       // Si la valeur normalisée est null, ignorer ce métier
       if (normalizedName === null) {
         console.log(`⚠️ Métier aberrant ignoré: "${name}"`);
         return null;
       }
-      
+
       const originalName = name;
       name = normalizedName;
       console.log(`🔄 Métier normalisé: "${originalName}" → "${name}"`);
     }
-    
+
     const normalized = this.normalizeMetierName(name);
 
     // Vérifier le cache avec le nom normalisé
@@ -2745,7 +2741,7 @@ class DataMapper {
         console.warn(
           `⚠️ Statut canonique introuvable en base: ${canonicalCode} (depuis "${statusLabel}"). Tentative de création...`
         );
-        
+
         try {
           // Utiliser le label original normalisé comme label
           const normalizedLabel = statusLabel.trim();
@@ -2977,7 +2973,7 @@ class DataMapper {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
     const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
     let supabaseClient = null;
-    
+
     if (supabaseUrl && supabaseServiceKey) {
       supabaseClient = createClient(supabaseUrl, supabaseServiceKey, {
         auth: { persistSession: false }
@@ -3042,28 +3038,28 @@ class DataMapper {
       if (cleanSstName.includes('/') || cleanSstName.includes(' / ')) {
         const separator = cleanSstName.includes(' / ') ? ' / ' : '/';
         const parts = cleanSstName.split(separator);
-        
+
         // Essayer chaque partie séparément
         for (let partIndex = 0; partIndex < Math.min(parts.length, 2); partIndex++) {
           const part = parts[partIndex].trim();
-          
+
           if (part && part.length > 2) {
             // Nettoyer la partie (enlever départements)
             const cleanPart = part.replace(/\s+\d{2,3}(?:\s+\d{2,3})?$/, "").trim();
-            
+
             if (cleanPart && cleanPart.length > 2) {
               // Petit délai avant la tentative
               await new Promise(resolve => setTimeout(resolve, this.sstSearchDelay));
-              
+
               try {
                 // Essayer avec searchByName (recherche flexible)
                 let results = await artisansApi.searchByName(cleanPart, { limit: 5 });
-                
+
                 if (results.data && results.data.length > 0) {
                   // Trouver le meilleur match
                   const searchNormalized = cleanPart.toLowerCase().replace(/\s+/g, ' ').trim();
                   let found = results.data[0];
-                  
+
                   // Chercher une correspondance exacte ou partielle
                   for (const artisan of results.data) {
                     const artisanName = (artisan.plain_nom || `${artisan.prenom || ''} ${artisan.nom || ''}`).toLowerCase().replace(/\s+/g, ' ').trim();
@@ -3072,7 +3068,7 @@ class DataMapper {
                       break;
                     }
                   }
-                  
+
                   console.log(
                     `✅ [ARTISAN-SST] Trouvé (composite "${cleanPart}"): ${found.prenom} ${found.nom} (ID: ${found.id})`
                   );
@@ -3099,12 +3095,12 @@ class DataMapper {
         console.warn(
           `⚠️ [ARTISAN-SST] Erreur réseau pour "${sstName}", retry dans 1s...`
         );
-        
+
         // Retry une seule fois après 1 seconde
         try {
           await new Promise(resolve => setTimeout(resolve, 1000));
           const retryResults = await artisansApi.searchByPlainNom(cleanSstName, { limit: 1 }, supabaseClient);
-          
+
           if (retryResults.data && retryResults.data.length > 0) {
             const found = retryResults.data[0];
             console.log(
@@ -3122,7 +3118,7 @@ class DataMapper {
           `💥 [ARTISAN-SST] Erreur recherche "${sstName}": ${error.message}`
         );
       }
-      
+
       // Pas trouvé - logger dans le fichier de log avec l'id_inter si disponible
       const logId = idInter || "N/A";
       const reason = `Artisan SST non trouvé (erreur): "${sstName}"`;
@@ -3248,9 +3244,8 @@ class DataMapper {
 
       // Si pas de nom extrait, utiliser le nom de l'artisan avec un suffixe descriptif
       if (!documentName) {
-        const artisanName = `${artisan.prenom || ""} ${
-          artisan.nom || ""
-        }`.trim();
+        const artisanName = `${artisan.prenom || ""} ${artisan.nom || ""
+          }`.trim();
         const timestamp = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
         documentName = artisanName
           ? `Document_${artisanName}_${timestamp}`

@@ -112,17 +112,17 @@ export function useDashboardPeriodStatsQuery(
  * @param userId - ID utilisateur optionnel (utilise currentUser par défaut)
  */
 export function useDashboardStats(
-  period: { startDate: string; endDate: string } | null,
+  period: { startDate?: string; endDate?: string } | null | undefined,
   userId?: string | null
 ) {
   const { data: currentUser } = useCurrentUser()
   const effectiveUserId = userId ?? currentUser?.id ?? null
   
-  const params: DashboardStatsParams | null = period && effectiveUserId
+  const params: DashboardStatsParams | null = effectiveUserId
     ? {
         userId: effectiveUserId,
-        startDate: period.startDate,
-        endDate: period.endDate,
+        startDate: period?.startDate,
+        endDate: period?.endDate,
       }
     : null
 
@@ -136,17 +136,17 @@ export function useDashboardStats(
  * @param userId - ID utilisateur optionnel (utilise currentUser par défaut)
  */
 export function useDashboardMargin(
-  period: { startDate: string; endDate: string } | null,
+  period: { startDate: string; endDate: string } | null | undefined,
   userId?: string | null
 ) {
   const { data: currentUser } = useCurrentUser()
   const effectiveUserId = userId ?? currentUser?.id ?? null
   
-  const params: DashboardMarginParams | null = period && effectiveUserId
+  const params: DashboardMarginParams | null = effectiveUserId
     ? {
         userId: effectiveUserId,
-        startDate: period.startDate,
-        endDate: period.endDate,
+        startDate: period?.startDate,
+        endDate: period?.endDate,
       }
     : null
 
@@ -160,21 +160,66 @@ export function useDashboardMargin(
  * @param userId - ID utilisateur optionnel (utilise currentUser par défaut)
  */
 export function useDashboardPeriodStats(
-  period: { period: StatsPeriod; startDate?: string } | null,
+  period: { period: StatsPeriod; startDate?: string } | null | undefined,
   userId?: string | null
 ) {
   const { data: currentUser } = useCurrentUser()
   const effectiveUserId = userId ?? currentUser?.id ?? null
   
-  const params: DashboardPeriodStatsParams | null = period && effectiveUserId
+  // Si period est undefined, utiliser "week" par défaut
+  const effectivePeriod = period?.period ?? "week"
+  
+  const params: DashboardPeriodStatsParams | null = effectiveUserId
     ? {
         userId: effectiveUserId,
-        period: period.period,
-        startDate: period.startDate,
+        period: effectivePeriod,
+        startDate: period?.startDate,
       }
     : null
 
   return useDashboardPeriodStatsQuery(params)
+}
+
+/**
+ * Hook pour récupérer les interventions récentes par statut pour un utilisateur (pour les tooltips)
+ * 
+ * @param params - Paramètres (userId, statusLabel, limit, startDate, endDate)
+ * @param options - Options supplémentaires
+ */
+export function useRecentInterventionsByStatus(
+  params: { 
+    userId: string | null; 
+    statusLabel: string | null; 
+    limit?: number; 
+    startDate?: string; 
+    endDate?: string 
+  } | null,
+  options?: { enabled?: boolean }
+) {
+  return useQuery({
+    queryKey: params && params.userId && params.statusLabel 
+      ? dashboardKeys.recentInterventionsByStatus({
+          userId: params.userId,
+          statusLabel: params.statusLabel,
+          limit: params.limit,
+          startDate: params.startDate,
+          endDate: params.endDate
+        }) 
+      : ["dashboard", "recent-interventions", "disabled"],
+    queryFn: async () => {
+      if (!params || !params.userId || !params.statusLabel) throw new Error("Params are required")
+      return await interventionsApi.getRecentInterventionsByStatusAndUser(
+        params.userId,
+        params.statusLabel,
+        params.limit,
+        params.startDate,
+        params.endDate
+      )
+    },
+    enabled: params !== null && params.userId !== null && params.statusLabel !== null && (options?.enabled !== false),
+    staleTime: 2 * 60 * 1000, // 2 minutes en cache comme dans l'implémentation originale
+    gcTime: 5 * 60 * 1000, // 5 minutes
+  })
 }
 
 

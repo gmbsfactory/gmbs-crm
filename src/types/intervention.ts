@@ -1,13 +1,9 @@
-import type { Intervention } from "@/lib/api/v2/common/types";
+/**
+ * @deprecated Utiliser les types depuis @/types/intervention-generated
+ * Ce fichier est conservé pour compatibilité temporaire
+ */
+import type { Intervention, InterventionStatus } from "@/types/intervention-generated";
 
-export interface InterventionStatus {
-  id: string;
-  code: string;
-  label: string;
-  color: string;
-  sort_order: number | null;
-}
-
-export interface InterventionWithStatus extends Intervention {
-  status?: InterventionStatus | null;
-}
+// Ré-export pour compatibilité
+export type { Intervention, InterventionStatus } from "@/types/intervention-generated";
+export type { InterventionWithStatus } from "@/types/intervention-generated";

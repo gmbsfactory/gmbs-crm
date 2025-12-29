@@ -1,13 +1,13 @@
-import type { Intervention } from "@/lib/supabase-api-v2"
-import type { InterventionStatus } from "@/types/intervention"
-import type { InterventionStatusValue } from "@/types/interventions"
-import type { InterventionPayment } from "@/lib/api/v2/common/types"
-
 /**
- * Type pour les interventions enrichies avec les champs mappés
- * La fonction mapInterventionRecord ajoute automatiquement ces champs
+ * @deprecated Utiliser InterventionView depuis @/types/intervention-generated
+ * Ce fichier est conservé pour compatibilité temporaire
  */
-export type InterventionView = Intervention & {
+import type { InterventionView as GeneratedInterventionView } from "@/types/intervention-generated"
+import type { InterventionStatusValue } from "@/types/interventions"
+
+// Ré-export du type généré avec les extensions existantes
+export type InterventionView = GeneratedInterventionView & {
+  // Extensions spécifiques à ce fichier (si nécessaire)
   // Champs mappés par mapInterventionRecord
   statusValue: InterventionStatusValue
   status?: InterventionStatus | null

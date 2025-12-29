@@ -26,6 +26,7 @@ const USER_SCOPED_VIEW_IDS = new Set([
   "mes-visites-technique",
   "ma-liste-accepte",
   "ma-liste-att-acompte",
+  "mes-interventions-a-check",
 ])
 
 const VISIBLE_VIEW_LAYOUTS: ViewLayout[] = ["table", "cards", "calendar"]
@@ -511,6 +512,43 @@ const DEFAULT_VIEW_PRESETS: DefaultViewPreset[] = [
     description: "Interventions en attente d'acompte assignées à l'utilisateur connecté",
     filters: [
       { property: "statusValue", operator: "eq", value: "ATT_ACOMPTE" },
+      { property: "attribueA", operator: "eq", value: CURRENT_USER_PLACEHOLDER },
+    ],
+    showBadge: true,
+    layoutOptions: {
+      columnWidths: {
+        dateIntervention: 85,
+        agence: 85,
+        attribueA: 50,
+        id_inter: 85,
+        metier: 85,
+        codePostal: 70,
+        ville: 100,
+        artisan: 110,
+        coutIntervention: 80,
+        datePrevue: 85,
+        statusValue: 100,
+        understatement: 50,
+      },
+      columnStyles: {
+        attribueA: { appearance: "none" },
+        agence: { appearance: "badge", bold: true },
+        metier: { appearance: "badge" },
+        statusValue: { appearance: "badge" },
+        understatement: { appearance: "badge" },
+      },
+      columnAlignment: {
+        statusValue: "right",
+        understatement: "left",
+      },
+    },
+  },
+  {
+    id: "mes-interventions-a-check",
+    title: "Mes Interventions à check",
+    description: "Interventions assignées à l'utilisateur connecté avec date d'échéance dépassée",
+    filters: [
+      { property: "isCheck", operator: "eq", value: true },
       { property: "attribueA", operator: "eq", value: CURRENT_USER_PLACEHOLDER },
     ],
     showBadge: true,
