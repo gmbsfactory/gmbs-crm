@@ -659,7 +659,7 @@ export default function DashboardPage() {
                               name={selectedGestionnaire.name}
                               color={selectedGestionnaire.color}
                               avatarUrl={selectedGestionnaire.avatar_url}
-                              size="md"
+                              size="sm"
                               className="ring-2 ring-primary ring-offset-2"
                             />
                           </motion.div>
@@ -709,7 +709,7 @@ export default function DashboardPage() {
                                     name={gestionnaire.name}
                                     color={gestionnaire.color}
                                     avatarUrl={gestionnaire.avatar_url}
-                                    size="md"
+                                    size="sm"
                                     className={cn(
                                       "transition-all",
                                       isCurrentUser && "ring-2 ring-green-500/50"

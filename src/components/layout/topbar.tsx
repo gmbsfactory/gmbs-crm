@@ -4,7 +4,7 @@ import * as React from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
-import { Search, Bell, Calendar, FileText, Plus, X, Home, HardHat, Settings, Wrench, Calculator } from "lucide-react"
+import { Search, Bell, Calendar, FileText, Plus, X } from "lucide-react"
 import { AvatarStatus } from "@/components/layout/avatar-status"
 import { usePathname } from "next/navigation"
 import Link from "next/link"
@@ -25,6 +25,7 @@ import { setPathname } from "@/lib/navigation-tracker"
 import { usePermissions } from "@/hooks/usePermissions"
 import { usePlatformKey } from "@/hooks/usePlatformKey"
 import { useCurrentUser } from "@/hooks/useCurrentUser"
+import { buildNavigation, type NavItem } from "@/config/navigation"
 
 type ReminderFilter = "all" | "my_reminders" | "mentions"
 
@@ -42,8 +43,6 @@ type DisplayReminder = {
   legacyMentions: string[]
 }
 
-type NavItem = { type: "link"; name: string; href: string; icon: React.ComponentType<{ className?: string }> } | { type: "spacer" }
-
 export default function Topbar() {
   const pathname = usePathname()
   const { open: openModal } = useModal()
@@ -54,28 +53,12 @@ export default function Topbar() {
   const { modifierSymbol, isModifierPressed } = usePlatformKey()
   const { can, canAccessPage } = usePermissions()
 
-  // Check permission + page_permissions override for comptabilité
-  const canAccessComptabilite = canAccessPage("view_comptabilite", "comptabilite")
   const canReadInterventions = can("read_interventions")
   const canReadArtisans = can("read_artisans")
   const canWriteInterventions = can("write_interventions")
   const canWriteArtisans = can("write_artisans")
 
-  const navigation: NavItem[] = [
-    { type: "link", name: t("dashboard"), href: "/dashboard", icon: Home },
-    { type: "spacer" },
-    ...(canReadInterventions
-      ? [{ type: "link", name: t("deals"), href: "/interventions", icon: Wrench }] as NavItem[]
-      : []),
-    ...(canAccessComptabilite
-      ? [{ type: "link", name: "Comptabilité", href: "/comptabilite", icon: Calculator }] as NavItem[]
-      : []),
-    ...(canReadArtisans
-      ? [{ type: "link", name: t("contacts"), href: "/artisans", icon: HardHat }] as NavItem[]
-      : []),
-    { type: "spacer" },
-    { type: "link", name: "Paramètres", href: "/settings", icon: Settings },
-  ]
+  const navigation = buildNavigation(can, canAccessPage)
   const {
     reminders,
     reminderRecords,

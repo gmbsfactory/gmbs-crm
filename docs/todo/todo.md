@@ -2,11 +2,6 @@
 
 - Gestion des retards
 
-- Tabulation trap quand l'alert dialog apparaît
-
-- Bugs
-        - Première connexion au CRM obligé de recharger la page
-
 - Dashboard
         - Gestion des retards sans bugggg !! 
         - Raffraîchissement du podium à une date / heure donnée dans la semaine 

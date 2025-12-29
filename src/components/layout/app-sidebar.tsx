@@ -5,18 +5,9 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
-import {
-  Home,
-  HardHat,
-  Settings,
-  Calculator,
-  Wrench,
-} from "lucide-react"
 import { useInterface } from "@/contexts/interface-context"
 import { usePermissions } from "@/hooks/usePermissions"
-import { t } from "@/config/domain"
-
-type NavItem = { type: "link"; name: string; href: string; icon: React.ComponentType<{ className?: string }> } | { type: "spacer" }
+import { buildNavigation, type NavItem } from "@/config/navigation"
 
 export function AppSidebar() {
   const pathname = usePathname()
@@ -24,26 +15,7 @@ export function AppSidebar() {
   const { sidebarMode } = useInterface()
   const { can, canAccessPage } = usePermissions()
 
-  // Check permission + page_permissions override for comptabilité
-  const canAccessComptabilite = canAccessPage("view_comptabilite", "comptabilite")
-  const canReadInterventions = can("read_interventions")
-  const canReadArtisans = can("read_artisans")
-
-  const navigation: NavItem[] = [
-    { type: "link", name: t("dashboard"), href: "/dashboard", icon: Home },
-    { type: "spacer" },
-    ...(canReadInterventions
-      ? [{ type: "link", name: t("deals"), href: "/interventions", icon: Wrench }] as NavItem[]
-      : []),
-    ...(canAccessComptabilite
-      ? [{ type: "link", name: "Comptabilité", href: "/comptabilite", icon: Calculator }] as NavItem[]
-      : []),
-    ...(canReadArtisans
-      ? [{ type: "link", name: t("contacts"), href: "/artisans", icon: HardHat }] as NavItem[]
-      : []),
-    { type: "spacer" },
-    { type: "link", name: "Paramètres", href: "/settings", icon: Settings },
-  ]
+  const navigation = buildNavigation(can, canAccessPage)
 
   const collapses = sidebarMode === "collapsed" || sidebarMode === "hybrid"
   const expandOnHover = sidebarMode === "hybrid"
