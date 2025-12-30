@@ -960,6 +960,7 @@ export type GetAllParams = {
   endDate?: string;
   search?: string;
   fields?: string[];
+  isCheck?: boolean; // Filtre pour les interventions en retard (date_prevue <= today et statut VISITE_TECHNIQUE ou INTER_EN_COURS)
 };
 
 export type GetDistinctParams = Omit<GetAllParams, "limit" | "fields"> & {
@@ -1096,6 +1097,9 @@ export const interventionsApiV2 = {
     if (params.search) {
       searchParams.set("search", params.search);
     }
+    if (params.isCheck !== undefined) {
+      searchParams.set("isCheck", params.isCheck.toString());
+    }
 
     if (process.env.NODE_ENV === "production") {
       searchParams.set("_ts", Date.now().toString());
@@ -1134,6 +1138,46 @@ export const interventionsApiV2 = {
         : transformedData.length;
 
     return { data: transformedData, total };
+  },
+
+  /**
+   * Récupère plusieurs interventions par leurs IDs
+   * @param ids - Tableau des IDs d'interventions à récupérer
+   * @returns Tableau des interventions trouvées
+   */
+  async getByIds(ids: string[]): Promise<InterventionWithStatus[]> {
+    if (ids.length === 0) {
+      return [];
+    }
+
+    const searchParams = new URLSearchParams();
+    // Passer les IDs comme paramètre de recherche
+    ids.forEach(id => searchParams.append("id", id));
+    searchParams.set("limit", ids.length.toString());
+    searchParams.set("offset", "0");
+
+    const queryString = searchParams.toString();
+    const url = `${SUPABASE_FUNCTIONS_URL}/interventions-v2/interventions${queryString ? `?${queryString}` : ""}`;
+
+    console.log(`[interventionsApiV2.getByIds] Fetching ${ids.length} interventions`);
+
+    try {
+      const response = await fetch(url, {
+        headers: await getHeaders(),
+      });
+      const raw = await handleResponse(response);
+      const refs = await getReferenceCache();
+
+      const transformedData = Array.isArray(raw?.data)
+        ? mapInterventionRecordsBatch(raw.data, refs)
+        : [];
+
+      console.log(`[interventionsApiV2.getByIds] ✅ Fetched ${transformedData.length}/${ids.length} interventions`);
+      return transformedData;
+    } catch (error) {
+      console.error("[interventionsApiV2.getByIds] Error fetching interventions:", error);
+      return [];
+    }
   },
 
   /**

@@ -9,7 +9,6 @@ import { AlertCircle } from "lucide-react"
 import Loader from "@/components/ui/Loader"
 import { Pie, PieChart, Cell, LabelList } from "recharts"
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart"
-import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from "@/components/ui/context-menu"
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card"
 import { Plus } from "lucide-react"
 import { useRouter } from "next/navigation"
@@ -384,11 +383,9 @@ export function InterventionStatsPieChart({ period }: InterventionStatsPieChartP
   }
 
   return (
-    <ContextMenu>
-      <ContextMenuTrigger asChild>
-        <Card 
-          className="bg-background border-border/5 shadow-sm/30 hover:shadow-lg hover:border-border/50 transition-all duration-300"
-        >
+    <Card
+      className="bg-background border-border/5 shadow-sm/30 hover:shadow-lg hover:border-border/50 transition-all duration-300"
+    >
           <CardHeader>
             <CardTitle>Mes interventions</CardTitle>
           </CardHeader>
@@ -444,7 +441,7 @@ export function InterventionStatsPieChart({ period }: InterventionStatsPieChartP
                       const clickedSegment = chartData[index]
                       if (clickedSegment?.isCheck) {
                         sessionStorage.setItem('pending-intervention-filter', JSON.stringify({
-                          viewId: "liste-generale",
+                          viewId: "mes-interventions-a-check",
                           property: "isCheck",
                           operator: "eq",
                           value: true
@@ -544,7 +541,7 @@ export function InterventionStatsPieChart({ period }: InterventionStatsPieChartP
                   onClick={(e) => {
                     e.stopPropagation()
                     sessionStorage.setItem('pending-intervention-filter', JSON.stringify({
-                      viewId: "liste-generale",
+                      viewId: "mes-interventions-a-check",
                       property: "isCheck",
                       operator: "eq",
                       value: true
@@ -563,14 +560,6 @@ export function InterventionStatsPieChart({ period }: InterventionStatsPieChartP
             )}
           </CardContent>
         </Card>
-      </ContextMenuTrigger>
-      <ContextMenuContent>
-        <ContextMenuItem onClick={() => openModal("new", { content: "new-intervention" })} className="flex items-center gap-2">
-          <Plus className="h-4 w-4" />
-          Nouvelle intervention
-        </ContextMenuItem>
-      </ContextMenuContent>
-    </ContextMenu>
   )
 }
 

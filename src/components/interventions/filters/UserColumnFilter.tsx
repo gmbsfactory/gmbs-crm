@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useState } from "react"
-import { Filter, X, Search, ChevronDown, User } from "lucide-react"
+import { Filter, X, Search, ChevronDown } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -13,11 +13,10 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { cn } from "@/lib/utils"
-import { getPropertyValue } from "@/lib/query-engine"
 import type { ColumnFilterProps, FilterOption } from "./types"
 import type { ViewFilter } from "@/types/intervention-views"
-import type { InterventionView as InterventionEntity } from "@/types/intervention-view"
-import { formatFilterSummary } from "./filter-utils"
+import { GestionnaireBadge } from "@/components/ui/gestionnaire-badge"
+import { useReferenceData } from "@/hooks/useReferenceData"
 
 const makeValueKey = (value: unknown): string => {
   if (value === null || value === undefined) return "null"
@@ -37,81 +36,6 @@ const makeValueKey = (value: unknown): string => {
   return `${typeof value}:${String(value)}`
 }
 
-const getInitials = (value: string | null | undefined): string => {
-  if (!value) return "?"
-  return value
-    .split(" ")
-    .filter(Boolean)
-    .map((part) => part[0])
-    .join("")
-    .toUpperCase()
-    .slice(0, 2) || "?"
-}
-
-const formatUserLabel = (value: unknown, intervention?: InterventionEntity): string => {
-  if (value === null || value === undefined || value === "") {
-    return "Non assigné"
-  }
-
-  // Essayer d'obtenir le nom d'utilisateur depuis l'intervention
-  if (intervention) {
-    const userName = (intervention as any).assignedUserName
-    if (userName) return String(userName)
-    const userCode = (intervention as any).assignedUserCode
-    if (userCode) return String(userCode)
-  }
-
-  return String(value)
-}
-
-const buildUserOptions = (
-  items: InterventionEntity[],
-  property: string,
-  activeFilter?: ViewFilter,
-): FilterOption[] => {
-  const seen = new Map<string, FilterOption>()
-
-  const addCandidate = (raw: unknown, intervention?: InterventionEntity) => {
-    const key = makeValueKey(raw)
-    if (seen.has(key)) return
-    seen.set(key, {
-      key,
-      value: raw,
-      label: formatUserLabel(raw, intervention),
-    })
-  }
-
-  // Ajouter "Non assigné" comme option
-  addCandidate(null)
-
-  // Ajouter les valeurs des interventions
-  items.forEach((item) => {
-    const value = getPropertyValue(item, property)
-    if (value !== null && value !== undefined && value !== "") {
-      addCandidate(value, item)
-    } else {
-      addCandidate(null, item)
-    }
-  })
-
-  // Ajouter les valeurs du filtre actif si elles ne sont pas déjà présentes
-  if (activeFilter) {
-    if (activeFilter.operator === "eq" && activeFilter.value !== undefined) {
-      addCandidate(activeFilter.value)
-    }
-    if (activeFilter.operator === "in" && Array.isArray(activeFilter.value)) {
-      activeFilter.value.forEach((value) => addCandidate(value))
-    }
-  }
-
-  return Array.from(seen.values()).sort((a, b) => {
-    // "Non assigné" en premier
-    if (a.value === null || a.value === undefined) return -1
-    if (b.value === null || b.value === undefined) return 1
-    return a.label.localeCompare(b.label, "fr", { sensitivity: "base" })
-  })
-}
-
 const deriveSelectedKeys = (filter?: ViewFilter): Set<string> => {
   if (!filter) return new Set()
   if (filter.operator === "eq" && filter.value !== undefined) {
@@ -121,11 +45,6 @@ const deriveSelectedKeys = (filter?: ViewFilter): Set<string> => {
     return new Set(filter.value.map((value) => makeValueKey(value)))
   }
   return new Set()
-}
-
-const getUserColor = (intervention: InterventionEntity | undefined, value: unknown): string | undefined => {
-  if (!intervention) return undefined
-  return (intervention as any).assignedUserColor ?? undefined
 }
 
 export function UserColumnFilter({
@@ -141,6 +60,9 @@ export function UserColumnFilter({
   const [remoteOptions, setRemoteOptions] = useState<FilterOption[] | null>(null)
   const [isLoadingOptions, setIsLoadingOptions] = useState(false)
   const [hasFetchedOptions, setHasFetchedOptions] = useState(false)
+
+  // Récupérer les données de référence pour avoir accès aux utilisateurs avec leurs avatars
+  const { data: referenceData } = useReferenceData()
 
   // Charger les valeurs distinctes depuis l'API si disponible
   useEffect(() => {
@@ -179,30 +101,36 @@ export function UserColumnFilter({
     }
   }, [open, loadDistinctValues, property, hasFetchedOptions])
 
-  // Construire les options locales
-  const baseOptions = useMemo(
-    () => buildUserOptions(interventions, property, activeFilter),
-    [interventions, property, activeFilter],
-  )
-
-  // Combiner les options locales et distantes
+  // Construire les options à partir de referenceData.users (comme InterventionEditForm)
   const allOptions = useMemo(() => {
-    if (!remoteOptions) {
-      return baseOptions
-    }
-    const unique = new Map<string, FilterOption>()
-    remoteOptions.forEach((option) => unique.set(option.key, option))
-    baseOptions.forEach((option) => {
-      if (!unique.has(option.key)) {
-        unique.set(option.key, option)
-      }
+    const options: FilterOption[] = []
+
+    // Toujours ajouter "Non assigné"
+    options.push({
+      key: makeValueKey(null),
+      value: null,
+      label: "Non assigné",
     })
-    return Array.from(unique.values()).sort((a, b) => {
+
+    // Ajouter tous les utilisateurs de referenceData
+    if (referenceData?.users) {
+      referenceData.users.forEach((user) => {
+        const userCode = user.code_gestionnaire || user.username
+        const displayName = [user.firstname, user.lastname].filter(Boolean).join(" ").trim() || user.username
+        options.push({
+          key: makeValueKey(userCode),
+          value: userCode,
+          label: user.code_gestionnaire ? `${user.code_gestionnaire} - ${displayName}` : displayName,
+        })
+      })
+    }
+
+    return options.sort((a, b) => {
       if (a.value === null || a.value === undefined) return -1
       if (b.value === null || b.value === undefined) return 1
       return a.label.localeCompare(b.label, "fr", { sensitivity: "base" })
     })
-  }, [baseOptions, remoteOptions])
+  }, [referenceData?.users])
 
   // Filtrer les options selon la recherche
   const filteredOptions = useMemo(() => {
@@ -218,19 +146,6 @@ export function UserColumnFilter({
     () => allOptions.filter((option) => selectedKeys.has(option.key)),
     [allOptions, selectedKeys],
   )
-
-  // Créer une map pour trouver les interventions correspondantes
-  const valueToInterventionMap = useMemo(() => {
-    const map = new Map<string, InterventionEntity>()
-    interventions.forEach((item) => {
-      const value = getPropertyValue(item, property)
-      const key = makeValueKey(value)
-      if (!map.has(key)) {
-        map.set(key, item)
-      }
-    })
-    return map
-  }, [interventions, property])
 
   const handleToggleKey = useCallback(
     (key: string, checked: boolean) => {
@@ -324,10 +239,19 @@ export function UserColumnFilter({
                   <div className="px-2 py-1 text-xs text-muted-foreground">Aucun résultat</div>
                 ) : (
                   filteredOptions.map((option) => {
-                    const intervention = valueToInterventionMap.get(option.key)
-                    const userColor = getUserColor(intervention, option.value)
-                    const initials = getInitials(option.label)
                     const isSelected = selectedKeys.has(option.key)
+
+                    // Trouver l'utilisateur dans referenceData (comme InterventionEditForm)
+                    const user = option.value === null || option.value === undefined
+                      ? null
+                      : referenceData?.users?.find(
+                          u => u.code_gestionnaire === option.value || u.username === option.value
+                        )
+
+                    const firstname = user?.firstname || (option.value === null || option.value === undefined ? "?" : String(option.value))
+                    const lastname = user?.lastname
+                    const color = user?.color || (option.value === null || option.value === undefined ? "#9ca3af" : undefined)
+                    const avatarUrl = user?.avatar_url
 
                     return (
                       <label
@@ -338,19 +262,14 @@ export function UserColumnFilter({
                           checked={isSelected}
                           onCheckedChange={(checked) => handleToggleKey(option.key, Boolean(checked))}
                         />
-                        <div
-                          className={cn(
-                            "flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-semibold uppercase",
-                            userColor ? "text-white" : "bg-muted text-muted-foreground",
-                          )}
-                          style={userColor ? { backgroundColor: userColor } : undefined}
-                        >
-                          {option.value === null || option.value === undefined ? (
-                            <User className="h-3.5 w-3.5" />
-                          ) : (
-                            initials
-                          )}
-                        </div>
+                        <GestionnaireBadge
+                          firstname={firstname}
+                          lastname={lastname}
+                          color={color}
+                          avatarUrl={avatarUrl}
+                          size="sm"
+                          showBorder={false}
+                        />
                         <span className="truncate flex-1">{option.label}</span>
                       </label>
                     )
@@ -362,26 +281,29 @@ export function UserColumnFilter({
             {selectedOptions.length > 0 && (
               <div className="flex flex-wrap items-center gap-1 pt-2 border-t">
                 {selectedOptions.map((option) => {
-                  const intervention = valueToInterventionMap.get(option.key)
-                  const userColor = getUserColor(intervention, option.value)
-                  const initials = getInitials(option.label)
+                  // Trouver l'utilisateur dans referenceData (comme InterventionEditForm)
+                  const user = option.value === null || option.value === undefined
+                    ? null
+                    : referenceData?.users?.find(
+                        u => u.code_gestionnaire === option.value || u.username === option.value
+                      )
+
+                  const firstname = user?.firstname || (option.value === null || option.value === undefined ? "?" : String(option.value))
+                  const lastname = user?.lastname
+                  const color = user?.color || (option.value === null || option.value === undefined ? "#9ca3af" : undefined)
+                  const avatarUrl = user?.avatar_url
 
                   return (
-                    <Badge key={option.key} variant="secondary" className="flex items-center gap-1">
-                      <div
-                        className={cn(
-                          "flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-[10px] font-semibold uppercase",
-                          userColor ? "text-white" : "bg-muted text-muted-foreground",
-                        )}
-                        style={userColor ? { backgroundColor: userColor } : undefined}
-                      >
-                        {option.value === null || option.value === undefined ? (
-                          <User className="h-2.5 w-2.5" />
-                        ) : (
-                          initials
-                        )}
-                      </div>
-                      <span className="truncate max-w-[120px]">{option.label}</span>
+                    <Badge key={option.key} variant="secondary" className="flex items-center gap-1 pl-1 pr-1.5">
+                      <GestionnaireBadge
+                        firstname={firstname}
+                        lastname={lastname}
+                        color={color}
+                        avatarUrl={avatarUrl}
+                        size="xs"
+                        showBorder={false}
+                      />
+                      <span className="truncate max-w-[120px] text-xs">{option.label}</span>
                       <button
                         type="button"
                         className="rounded-full p-0.5 hover:bg-secondary-foreground/10"

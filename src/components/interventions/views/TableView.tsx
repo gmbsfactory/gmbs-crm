@@ -91,6 +91,11 @@ import { getStatusDisplayLabel } from "@/lib/interventions/deposit-helpers"
 import type { InterventionPayment } from "@/lib/api/v2/common/types"
 import { Pagination } from "@/components/ui/pagination"
 import { GestionnaireBadge } from "@/components/ui/gestionnaire-badge"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { useReferenceData } from "@/hooks/useReferenceData"
+import { useMutation, useQueryClient } from "@tanstack/react-query"
+import { interventionsApi } from "@/lib/api/v2"
+import { toast } from "sonner"
 
 const numberFormatter = new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 2 })
 const dateFormatter = new Intl.DateTimeFormat("fr-FR", { dateStyle: "medium" })
@@ -550,6 +555,131 @@ const buildTypographyClasses = (style: TableColumnStyle | undefined) => {
     classes.push("italic")
   }
   return classes.join(" ")
+}
+
+/**
+ * Composant pour sélectionner un gestionnaire avec un Popover éditable
+ * Structure identique au menu dans InterventionEditForm
+ */
+function GestionnaireSelector({
+  interventionId,
+  currentUserId,
+  currentUserFirstname,
+  currentUserLastname,
+  currentUserColor,
+  currentUserAvatarUrl,
+  onUpdate,
+}: {
+  interventionId: string
+  currentUserId: string | null
+  currentUserFirstname: string
+  currentUserLastname?: string
+  currentUserColor?: string
+  currentUserAvatarUrl?: string
+  onUpdate?: (userId: string) => void
+}) {
+  const { data: referenceData } = useReferenceData()
+  const queryClient = useQueryClient()
+  const [open, setOpen] = useState(false)
+
+  const updateMutation = useMutation({
+    mutationFn: async (newUserId: string) => {
+      const updateData = { assigned_user_id: newUserId || null }
+      return interventionsApi.update(interventionId, updateData)
+    },
+    onSuccess: (data, newUserId) => {
+      // Invalider le cache pour rafraîchir les données
+      queryClient.invalidateQueries({ queryKey: ['interventions'] })
+
+      const user = referenceData?.users?.find(u => u.id === newUserId)
+      const userName = user
+        ? [user.firstname, user.lastname].filter(Boolean).join(" ").trim() || user.username
+        : "Non assigné"
+
+      toast.success(`Intervention assignée à ${userName}`)
+      setOpen(false)
+      onUpdate?.(newUserId)
+    },
+    onError: (error) => {
+      console.error("Erreur lors de la mise à jour de l'assignation:", error)
+      toast.error("Erreur lors de la mise à jour de l'assignation")
+    },
+  })
+
+  const handleSelect = (userId: string) => {
+    updateMutation.mutate(userId)
+  }
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          className="flex items-center justify-center h-7 w-7 cursor-pointer group rounded-full"
+          onClick={(e) => {
+            e.stopPropagation()
+          }}
+        >
+          <GestionnaireBadge
+            firstname={currentUserFirstname}
+            lastname={currentUserLastname}
+            color={currentUserColor}
+            avatarUrl={currentUserAvatarUrl}
+            size="sm"
+            className="transition-transform group-hover:scale-110 h-7 w-7"
+          />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent
+        className="w-56 p-2 z-[100]"
+        align="start"
+        onClick={(e) => e.stopPropagation()}
+        onPointerDown={(e) => e.stopPropagation()}
+      >
+        <div className="space-y-1">
+          <p className="text-xs font-medium text-muted-foreground mb-2">
+            Attribuer à ({referenceData?.users?.length || 0} utilisateurs)
+          </p>
+          <div className="space-y-1">
+            {referenceData?.users && referenceData.users.length > 0 ? (
+              referenceData.users.map((user) => {
+                const displayName = [user.firstname, user.lastname].filter(Boolean).join(" ").trim() || user.username
+                const isSelected = user.id === currentUserId
+                return (
+                  <button
+                    key={user.id}
+                    type="button"
+                    className={cn(
+                      "w-full flex items-center gap-1.5 px-2 py-1 rounded-md text-left transition-colors",
+                      isSelected ? "bg-primary/10 text-primary" : "hover:bg-muted"
+                    )}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      handleSelect(user.id)
+                    }}
+                  >
+                    <GestionnaireBadge
+                      firstname={user.firstname}
+                      lastname={user.lastname}
+                      color={user.color}
+                      avatarUrl={user.avatar_url}
+                      size="sm"
+                      showBorder={false}
+                    />
+                    <span className="text-xs truncate flex-1">
+                      {user.code_gestionnaire ? `${user.code_gestionnaire} - ${displayName}` : displayName}
+                    </span>
+                  </button>
+                )
+              })
+            ) : (
+              <p className="text-xs text-muted-foreground">Aucun utilisateur disponible</p>
+            )}
+          </div>
+        </div>
+      </PopoverContent>
+    </Popover>
+  )
 }
 
 export function TableView({
@@ -1473,7 +1603,50 @@ export function TableView({
                                               />
                                             )}
                                             {/* Afficher directement les badges visuels sans TruncatedCell */}
-                                            {property === "attribueA" || property === "statusValue" ? (
+                                            {property === "attribueA" ? (
+                                              <div
+                                                className="flex items-center justify-center"
+                                                onClick={(e) => e.stopPropagation()}
+                                              >
+                                                {(() => {
+                                                  const assignedUserId = (intervention as any).assignedUserId ?? null
+                                                  const assignedUserName = (intervention as any).assignedUserName as string | undefined
+                                                  const assignedUserColor = (intervention as any).assignedUserColor as string | undefined
+                                                  const assignedUserAvatarUrl = (intervention as any).assignedUserAvatarUrl as string | undefined
+                                                  const assignedUserCode = (intervention as any).assignedUserCode as string | undefined
+
+                                                  if (!assignedUserId && !assignedUserCode) {
+                                                    // Pas d'utilisateur assigné, utiliser le sélecteur avec "?"
+                                                    return (
+                                                      <GestionnaireSelector
+                                                        interventionId={intervention.id}
+                                                        currentUserId={null}
+                                                        currentUserFirstname="?"
+                                                        currentUserLastname=""
+                                                        currentUserColor="#9ca3af"
+                                                        currentUserAvatarUrl={undefined}
+                                                      />
+                                                    )
+                                                  }
+
+                                                  // Extraire prénom et nom pour GestionnaireBadge
+                                                  const nameParts = assignedUserName?.trim().split(/\s+/) ?? []
+                                                  const firstname = nameParts[0] ?? assignedUserCode ?? "?"
+                                                  const lastname = nameParts.length > 1 ? nameParts[nameParts.length - 1] : undefined
+
+                                                  return (
+                                                    <GestionnaireSelector
+                                                      interventionId={intervention.id}
+                                                      currentUserId={assignedUserId}
+                                                      currentUserFirstname={firstname}
+                                                      currentUserLastname={lastname}
+                                                      currentUserColor={assignedUserColor}
+                                                      currentUserAvatarUrl={assignedUserAvatarUrl}
+                                                    />
+                                                  )
+                                                })()}
+                                              </div>
+                                            ) : property === "statusValue" ? (
                                               <div className="flex items-center justify-center">
                                                 {content}
                                               </div>

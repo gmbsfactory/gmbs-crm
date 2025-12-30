@@ -6,7 +6,6 @@ import { artisansApi } from "@/lib/api/v2"
 import type { ArtisanStatsByStatus } from "@/lib/api/v2"
 import { useCurrentUser } from "@/hooks/useCurrentUser"
 import { FileText, Plus } from "lucide-react"
-import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from "@/components/ui/context-menu"
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
@@ -454,11 +453,9 @@ export function ArtisanStatsList({ period, userId: propUserId }: ArtisanStatsLis
   }
 
   return (
-    <ContextMenu>
-      <ContextMenuTrigger asChild>
-        <Card
-          className="bg-background border-border/5 shadow-sm/30 hover:shadow-lg hover:border-border/50 transition-all duration-300"
-        >
+    <Card
+      className="bg-background border-border/5 shadow-sm/30 hover:shadow-lg hover:border-border/50 transition-all duration-300"
+    >
           <CardHeader>
             <CardTitle
               className="cursor-pointer hover:text-primary transition-colors"
@@ -542,14 +539,6 @@ export function ArtisanStatsList({ period, userId: propUserId }: ArtisanStatsLis
             </div>
           </CardContent>
         </Card>
-      </ContextMenuTrigger>
-      <ContextMenuContent>
-        <ContextMenuItem onClick={() => artisanModal.openNew()} className="flex items-center gap-2">
-          <Plus className="h-4 w-4" />
-          Nouveau Artisan
-        </ContextMenuItem>
-      </ContextMenuContent>
-    </ContextMenu>
   )
 }
 

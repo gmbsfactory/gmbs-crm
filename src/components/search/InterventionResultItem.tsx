@@ -55,8 +55,13 @@ export function InterventionResultItem({ result, query, matchLabel, onClick, isA
   const { data, score } = result
   const interventionId = resolveIdLabel(data)
   const title = data.contexte_intervention ?? "Intervention"
-  const contact = data.tenant ?? data.clients ?? null
-  const clientName = [contact?.firstname, contact?.lastname].filter(Boolean).join(" ")
+  const contact = data.tenant ?? data.owner ?? null
+  const clientName = contact
+    ? [
+        (contact as any).firstname ?? (contact as any).owner_firstname,
+        (contact as any).lastname ?? (contact as any).owner_lastname
+      ].filter(Boolean).join(" ")
+    : ""
   const clientDisplay = clientName || "Client inconnu"
   const addressParts = [data.adresse, data.code_postal, data.ville].filter(Boolean)
   const addressDisplay = addressParts.join(", ") || "Adresse non renseignée"

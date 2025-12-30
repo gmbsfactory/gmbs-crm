@@ -329,6 +329,7 @@ interface FilterParams {
   startDate?: string | null;
   endDate?: string | null;
   search?: string | null;
+  isCheck?: boolean; // Filtre pour les interventions en retard (date_prevue <= today et statut VISITE_TECHNIQUE ou INTER_EN_COURS)
 }
 
 const COUNT_CACHE_TTL_MS = 120 * 1000;
@@ -1052,12 +1053,19 @@ serve(async (req: Request) => {
       const searchRaw = url.searchParams.get('search')?.trim() ?? null;
       const startDateRaw = url.searchParams.get('startDate')?.trim() ?? null;
       const endDateRaw = url.searchParams.get('endDate')?.trim() ?? null;
+      const isCheckRaw = url.searchParams.get('isCheck')?.trim() ?? null;
 
       const filters: FilterParams = {
         search: searchRaw && searchRaw.length > 0 ? searchRaw : null,
         startDate: startDateRaw && startDateRaw.length > 0 ? startDateRaw : null,
         endDate: endDateRaw && endDateRaw.length > 0 ? endDateRaw : null,
       };
+
+      if (isCheckRaw === 'true') {
+        filters.isCheck = true;
+      } else if (isCheckRaw === 'false') {
+        filters.isCheck = false;
+      }
 
       if (statutFilters.length > 0) {
         filters.statut = statutFilters;
@@ -1142,12 +1150,19 @@ serve(async (req: Request) => {
       const searchRaw = url.searchParams.get('search')?.trim() ?? null;
       const startDateRaw = url.searchParams.get('startDate')?.trim() ?? null;
       const endDateRaw = url.searchParams.get('endDate')?.trim() ?? null;
+      const isCheckRaw = url.searchParams.get('isCheck')?.trim() ?? null;
 
       const filters: FilterParams = {
         search: searchRaw && searchRaw.length > 0 ? searchRaw : null,
         startDate: startDateRaw && startDateRaw.length > 0 ? startDateRaw : null,
         endDate: endDateRaw && endDateRaw.length > 0 ? endDateRaw : null,
       };
+
+      if (isCheckRaw === 'true') {
+        filters.isCheck = true;
+      } else if (isCheckRaw === 'false') {
+        filters.isCheck = false;
+      }
 
       if (statutFilters.length > 0) {
         filters.statut = statutFilters;
@@ -1254,12 +1269,19 @@ serve(async (req: Request) => {
       const searchRaw = url.searchParams.get('search')?.trim() ?? null;
       const startDateRaw = url.searchParams.get('startDate')?.trim() ?? null;
       const endDateRaw = url.searchParams.get('endDate')?.trim() ?? null;
+      const isCheckRaw = url.searchParams.get('isCheck')?.trim() ?? null;
 
       const filters: FilterParams = {
         search: searchRaw && searchRaw.length > 0 ? searchRaw : null,
         startDate: startDateRaw && startDateRaw.length > 0 ? startDateRaw : null,
         endDate: endDateRaw && endDateRaw.length > 0 ? endDateRaw : null,
       };
+
+      if (isCheckRaw === 'true') {
+        filters.isCheck = true;
+      } else if (isCheckRaw === 'false') {
+        filters.isCheck = false;
+      }
 
       if (statutFilters.length > 0) {
         filters.statut = statutFilters;
@@ -1347,6 +1369,28 @@ serve(async (req: Request) => {
             detailedQuery = detailedQuery.in('assigned_user_id', userIds);
           } else if (userIsNull) {
             detailedQuery = detailedQuery.is('assigned_user_id', null);
+          }
+
+          // Filtre isCheck dans la recherche optimisée
+          if (filters.isCheck !== undefined && interventionIds.length > 0) {
+            const userId = userIds.length === 1 ? userIds[0] : null;
+            const { data: isCheckIds, error: rpcError } = await supabase
+              .rpc('filter_interventions_ischeck', {
+                p_user_id: userId,
+                p_include_check: filters.isCheck
+              });
+
+            if (!rpcError && isCheckIds && Array.isArray(isCheckIds)) {
+              const isCheckSet = new Set(isCheckIds.map((row: any) => row.intervention_id));
+              // Filtrer les IDs de recherche pour ne garder que ceux qui sont aussi dans isCheck
+              const filteredIds = interventionIds.filter((id: string) => isCheckSet.has(id));
+              if (filteredIds.length === 0) {
+                // Aucune intervention ne correspond aux deux critères (search ET isCheck)
+                filteredData = [];
+              } else {
+                detailedQuery = detailedQuery.in('id', filteredIds);
+              }
+            }
           }
 
           const { data: detailedData, error: detailedError } = await detailedQuery;
@@ -1438,6 +1482,43 @@ serve(async (req: Request) => {
         .order('id', { ascending: false });
 
       query = applyFilters(query, filters);
+
+      // Filtre isCheck : utiliser la fonction RPC pour obtenir les IDs des interventions concernées
+      if (filters.isCheck !== undefined) {
+        const userId = filters.user && Array.isArray(filters.user) && filters.user.length === 1
+          ? filters.user[0]
+          : null;
+
+        console.log(`[Edge Function] Applying isCheck filter via RPC - isCheck: ${filters.isCheck}, userId: ${userId}`);
+
+        const { data: isCheckIds, error: rpcError } = await supabase
+          .rpc('filter_interventions_ischeck', {
+            p_user_id: userId,
+            p_include_check: filters.isCheck
+          });
+
+        if (rpcError) {
+          console.error(
+            JSON.stringify({
+              level: 'error',
+              requestId,
+              error: rpcError.message,
+              message: 'Failed to apply isCheck filter via RPC',
+            }),
+          );
+        } else if (isCheckIds && Array.isArray(isCheckIds)) {
+          const interventionIds = isCheckIds.map((row: any) => row.intervention_id);
+          console.log(`[Edge Function] isCheck RPC returned ${interventionIds.length} intervention IDs`);
+
+          if (interventionIds.length > 0) {
+            query = query.in('id', interventionIds);
+          } else {
+            // Aucune intervention ne correspond au filtre isCheck
+            // Utiliser un filtre impossible pour retourner 0 résultat
+            query = query.eq('id', '00000000-0000-0000-0000-000000000000');
+          }
+        }
+      }
 
       // Appliquer la pagination
       query = query.range(clampedOffset, clampedOffset + clampedLimit - 1);

@@ -7,7 +7,7 @@ import { getPreloadConfig } from "@/lib/device-capabilities"
 
 type ServerFilters = Pick<
   GetAllParams,
-  "statut" | "agence" | "artisan" | "metier" | "user" | "startDate" | "endDate" | "search"
+  "statut" | "agence" | "artisan" | "metier" | "user" | "startDate" | "endDate" | "search" | "isCheck"
 >
 
 export interface UseInterventionsQueryOptions {

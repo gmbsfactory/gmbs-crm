@@ -1,9 +1,11 @@
 /**
  * EXEMPLE DE MIGRATION - Gestion d'Erreurs
- * 
+ *
  * Ce fichier montre comment migrer du pattern problématique
  * vers le nouveau système de gestion d'erreurs
  */
+
+// @ts-nocheck - Fichier d'exemple pour documentation
 
 // ===== AVANT (Pattern Problématique) =====
 

@@ -11,7 +11,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { t } from "@/config/domain"
-import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from "@/components/ui/context-menu"
 import { Plus, Shield } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
@@ -29,6 +28,7 @@ import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
 import { motion } from "framer-motion"
 import { AppleBienvenueEffect } from "@/components/ui/shadcn-io/apple-hello-effect"
+import { useDashboardStats } from "@/hooks/useDashboardStats"
 import {
   addDays,
   eachMonthOfInterval,
@@ -53,7 +53,6 @@ export default function DashboardPage() {
   const [periodType, setPeriodType] = useState<PeriodType>("month")
   const [selectedPeriod, setSelectedPeriod] = useState<string>("") // Format: "yyyy-MM" pour month, "yyyy-MM-dd" pour week, "yyyy" pour year
   const [isMounted, setIsMounted] = useState(false)
-  const [totalInterventions, setTotalInterventions] = useState<number | null>(null)
   const [showTransition, setShowTransition] = useState(false)
   const [showBienvenue, setShowBienvenue] = useState(false)
   const [selectedGestionnaireId, setSelectedGestionnaireId] = useState<string | null>(null)
@@ -92,6 +91,14 @@ export default function DashboardPage() {
 
   // Filtrer les données selon le gestionnaire sélectionné
   const effectiveUserId = selectedGestionnaireId || currentUser?.id || null
+
+  // Charger le nombre total d'interventions (sans filtre de période) via React Query
+  // Cela permet de partager le cache avec le reste de l'app et d'éviter les problèmes de navigation
+  const { data: totalInterventionsData } = useDashboardStats(
+    { startDate: undefined, endDate: undefined },
+    effectiveUserId
+  )
+  const totalInterventions = totalInterventionsData?.total ?? null
 
   // Fonction pour calculer la couleur selon le nombre de retards (0 = vert, 10+ = rouge)
   const getLatenessColor = (count: number): string => {
@@ -441,36 +448,8 @@ export default function DashboardPage() {
     }
   }, [periodType, selectedPeriod, periodOptions])
 
-  // Charger le nombre total d'interventions (sans filtre de période)
-  useEffect(() => {
-    if (!effectiveUserId || isLoadingUser) {
-      setTotalInterventions(null)
-      return
-    }
-
-    let cancelled = false
-
-    const loadTotalInterventions = async () => {
-      try {
-        // Ne pas passer de dates pour récupérer toutes les interventions
-        const statsData = await interventionsApi.getStatsByUser(effectiveUserId, undefined, undefined)
-        if (!cancelled) {
-          setTotalInterventions(statsData.total)
-        }
-      } catch (err: any) {
-        if (!cancelled) {
-          console.error("Erreur lors du chargement du total d'interventions:", err)
-          setTotalInterventions(null)
-        }
-      }
-    }
-
-    loadTotalInterventions()
-
-    return () => {
-      cancelled = true
-    }
-  }, [effectiveUserId, isLoadingUser])
+  // Note: Le nombre total d'interventions est maintenant chargé via useDashboardStats
+  // (voir ligne 98-102) qui utilise React Query pour gérer le cache automatiquement
 
   return (
     <>
@@ -488,13 +467,11 @@ export default function DashboardPage() {
         />
       )}
 
-      <ContextMenu>
-        <ContextMenuTrigger asChild>
-          <div
-            ref={dashboardContentRef}
-            className="flex flex-col min-h-screen relative z-10"
-            style={{ willChange: isAnimating ? 'clip-path' : 'auto' } as React.CSSProperties}
-          >
+      <div
+        ref={dashboardContentRef}
+        className="flex flex-col min-h-screen relative z-10"
+        style={{ willChange: isAnimating ? 'clip-path' : 'auto' } as React.CSSProperties}
+      >
             <div className="flex flex-col p-6 gap-3">
               {/* ═══════════════════════════════════════════════════════════════
                   FILTERBAR - Hauteur fixe en haut
@@ -832,22 +809,6 @@ export default function DashboardPage() {
               </div>
             </div>
           </div>
-        </ContextMenuTrigger>
-        <ContextMenuContent>
-          {canWriteInterventions && (
-            <ContextMenuItem onClick={() => openModal("new", { content: "new-intervention" })} className="flex items-center gap-2">
-              <Plus className="h-4 w-4" />
-              Nouvelle intervention
-            </ContextMenuItem>
-          )}
-          {canWriteArtisans && (
-            <ContextMenuItem onClick={() => artisanModal.openNew()} className="flex items-center gap-2">
-              <Plus className="h-4 w-4" />
-              Nouvel artisan
-            </ContextMenuItem>
-          )}
-        </ContextMenuContent>
-      </ContextMenu>
     </>
   )
 }

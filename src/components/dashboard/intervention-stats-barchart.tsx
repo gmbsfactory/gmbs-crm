@@ -10,7 +10,6 @@ import { AlertCircle } from "lucide-react"
 import Loader from "@/components/ui/Loader"
 import { Bar, BarChart, CartesianGrid, LabelList, XAxis, YAxis, Cell } from "recharts"
 import { ChartContainer, ChartTooltip, type ChartConfig } from "@/components/ui/chart"
-import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from "@/components/ui/context-menu"
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card"
 import { Plus } from "lucide-react"
 import { useRouter } from "next/navigation"
@@ -211,6 +210,7 @@ export function InterventionStatsBarChart({ hoverPeriod, userId: propUserId }: I
     // Gérer le clic sur la barre "Check"
     if (clickedBar?.isCheck) {
       sessionStorage.setItem('pending-intervention-filter', JSON.stringify({
+        viewId: "mes-interventions-a-check",
         property: "isCheck",
         operator: "eq",
         value: true
@@ -239,6 +239,7 @@ export function InterventionStatsBarChart({ hoverPeriod, userId: propUserId }: I
         "Refusé": "REFUSE",
         "Annulé": "ANNULE",
         "Att. acompte": "ATT_ACOMPTE",
+        "Check": "ATT_ACOMPTE",
       }
 
       const statusCode = labelToCodeMap[clickedBar.name]
@@ -371,136 +372,127 @@ export function InterventionStatsBarChart({ hoverPeriod, userId: propUserId }: I
 
 
   return (
-    <ContextMenu>
-      <ContextMenuTrigger asChild>
-        <Card
-          className="bg-background border-border/5 shadow-sm/30 hover:shadow-lg hover:border-border/50 transition-all duration-300"
+    <Card
+      className="bg-background border-border/5 shadow-sm/30 hover:shadow-lg hover:border-border/50 transition-all duration-300"
+    >
+      <CardHeader>
+        <CardTitle
+          className="cursor-pointer hover:text-primary transition-colors"
+          onClick={(e) => {
+            e.stopPropagation()
+            if (userId) {
+              // Stocker l'intention de filtre dans sessionStorage
+              sessionStorage.setItem('pending-intervention-filter', JSON.stringify({
+                property: "attribueA",
+                operator: "eq",
+                value: userId
+              }))
+              // Naviguer vers la page interventions
+              router.push("/interventions")
+            }
+          }}
         >
-          <CardHeader>
-            <CardTitle
-              className="cursor-pointer hover:text-primary transition-colors"
-              onClick={(e) => {
-                e.stopPropagation()
-                if (userId) {
-                  // Stocker l'intention de filtre dans sessionStorage
-                  sessionStorage.setItem('pending-intervention-filter', JSON.stringify({
-                    property: "attribueA",
-                    operator: "eq",
-                    value: userId
-                  }))
-                  // Naviguer vers la page interventions
-                  router.push("/interventions")
-                }
-              }}
+          Mes interventions
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="px-2 pt-2">
+        <div className="w-full overflow-x-auto">
+          <ChartContainer config={chartConfig} className="h-[350px] w-full">
+            <BarChart
+              data={chartData}
+              layout="vertical"
+              margin={{ top: 5, right: 50, left: 120, bottom: 25 }}
             >
-              Mes interventions
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="px-2 pt-2">
-            <div className="w-full overflow-x-auto">
-              <ChartContainer config={chartConfig} className="h-[350px] w-full">
-                <BarChart
-                  data={chartData}
-                  layout="vertical"
-                  margin={{ top: 5, right: 50, left: 120, bottom: 25 }}
-                >
-                  <CartesianGrid horizontal={false} strokeDasharray="3 3" opacity={0.3} />
-                  <XAxis
-                    type="number"
-                    hide={false}
-                    axisLine={false}
-                    tickLine={false}
-                    tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }}
-                    domain={[0, 'dataMax + 10']}
-                  />
-                  <YAxis
-                    type="category"
-                    dataKey="name"
-                    hide={false}
-                    width={110}
-                    axisLine={false}
-                    tickLine={false}
-                    tick={{ fontSize: 12, fontWeight: 500, fill: "hsl(var(--foreground))" }}
-                  />
-                  <ChartTooltip
-                    cursor={false}
-                    content={() => null}
-                  />
-                  <Bar
-                    dataKey="value"
-                    radius={[0, 4, 4, 0]}
-                    onClick={handleBarClick}
-                    isAnimationActive={false} // Disable Recharts animation to avoid StrictMode setState loop
-                    barSize={32}
-                  >
-                    <LabelList
-                      dataKey="value"
-                      position="right"
-                      offset={10}
-                      style={{
-                        fontSize: 13,
-                        fontWeight: 700,
-                        fill: "hsl(var(--foreground))",
-                        pointerEvents: 'none'
-                      }}
-                    />
-                    {chartCells}
-                  </Bar>
-                </BarChart>
-              </ChartContainer>
-            </div>
+              <CartesianGrid horizontal={false} strokeDasharray="3 3" opacity={0.3} />
+              <XAxis
+                type="number"
+                hide={false}
+                axisLine={false}
+                tickLine={false}
+                tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }}
+                domain={[0, 'dataMax + 10']}
+              />
+              <YAxis
+                type="category"
+                dataKey="name"
+                hide={false}
+                width={110}
+                axisLine={false}
+                tickLine={false}
+                tick={{ fontSize: 12, fontWeight: 500, fill: "hsl(var(--foreground))" }}
+              />
+              <ChartTooltip
+                cursor={false}
+                content={() => null}
+              />
+              <Bar
+                dataKey="value"
+                radius={[0, 4, 4, 0]}
+                onClick={handleBarClick}
+                isAnimationActive={false} // Disable Recharts animation to avoid StrictMode setState loop
+                barSize={32}
+              >
+                <LabelList
+                  dataKey="value"
+                  position="right"
+                  offset={10}
+                  style={{
+                    fontSize: 13,
+                    fontWeight: 700,
+                    fill: "hsl(var(--foreground))",
+                    pointerEvents: 'none'
+                  }}
+                />
+                {chartCells}
+              </Bar>
+            </BarChart>
+          </ChartContainer>
+        </div>
 
-            {/* Ligne pour les interventions à checker */}
-            {stats && (stats.interventions_a_checker ?? 0) > 0 && (
-              <div className="mt-4 pt-4 border-t">
-                <HoverCard openDelay={200} closeDelay={100}>
-                  <HoverCardTrigger asChild>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        // Stocker l'intention de filtre dans sessionStorage
-                        sessionStorage.setItem('pending-intervention-filter', JSON.stringify({
-                          property: "isCheck",
-                          operator: "eq",
-                          value: true
-                        }))
-                        // Naviguer vers la page interventions
-                        router.push("/interventions")
-                      }}
-                      className="w-full flex items-center justify-between p-3 rounded-lg border bg-red-50 border-red-200 hover:bg-red-100 transition-colors cursor-pointer"
-                    >
-                      <div className="flex items-center gap-2">
-                        <AlertCircle className="h-4 w-4 text-red-600" />
-                        <span className="text-sm font-medium text-red-900">Interventions à checker</span>
-                      </div>
-                      <span className="text-sm font-semibold text-red-700">{stats.interventions_a_checker}</span>
-                    </button>
-                  </HoverCardTrigger>
-                  <HoverCardContent
-                    className="w-96 z-50 max-h-[500px] overflow-y-auto"
-                    side="right"
-                    align="start"
-                    sideOffset={8}
-                  >
-                    <InterventionStatusContent
-                      userId={userId}
-                      statusLabel="Check"
-                      onOpenIntervention={(id: string) => openInterventionModal(id)}
-                      period={hoverPeriod}
-                    />
-                  </HoverCardContent>
-                </HoverCard>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </ContextMenuTrigger>
-      <ContextMenuContent>
-        <ContextMenuItem onClick={() => openModal("new", { content: "new-intervention" })} className="flex items-center gap-2">
-          <Plus className="h-4 w-4" />
-          Nouvelle intervention
-        </ContextMenuItem>
-      </ContextMenuContent>
-    </ContextMenu>
+        {/* Ligne pour les interventions à checker */}
+        {stats && (stats.interventions_a_checker ?? 0) > 0 && (
+          <div className="mt-4 pt-4 border-t">
+            <HoverCard openDelay={200} closeDelay={100}>
+              <HoverCardTrigger asChild>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    // Stocker l'intention de filtre dans sessionStorage
+                    sessionStorage.setItem('pending-intervention-filter', JSON.stringify({
+                      viewId: "mes-interventions-a-check",
+                      property: "isCheck",
+                      operator: "eq",
+                      value: true
+                    }))
+                    // Naviguer vers la page interventions
+                    router.push("/interventions")
+                  }}
+                  className="w-full flex items-center justify-between p-3 rounded-lg border bg-red-50 border-red-200 hover:bg-red-100 transition-colors cursor-pointer"
+                >
+                  <div className="flex items-center gap-2">
+                    <AlertCircle className="h-4 w-4 text-red-600" />
+                    <span className="text-sm font-medium text-red-900">Interventions à checker</span>
+                  </div>
+                  <span className="text-sm font-semibold text-red-700">{stats.interventions_a_checker}</span>
+                </button>
+              </HoverCardTrigger>
+              <HoverCardContent
+                className="w-96 z-50 max-h-[500px] overflow-y-auto"
+                side="right"
+                align="start"
+                sideOffset={8}
+              >
+                <InterventionStatusContent
+                  userId={userId}
+                  statusLabel="Check"
+                  onOpenIntervention={(id: string) => openInterventionModal(id)}
+                  period={hoverPeriod}
+                />
+              </HoverCardContent>
+            </HoverCard>
+          </div>
+        )}
+      </CardContent>
+    </Card>
   )
 }

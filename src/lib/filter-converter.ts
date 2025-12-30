@@ -141,8 +141,19 @@ export function convertViewFiltersToServerFilters(
       continue
     }
 
+    // Filtre sur isCheck → isCheck (serveur)
+    // isCheck = interventions en retard (statut VISITE_TECHNIQUE ou INTER_EN_COURS avec date_prevue <= aujourd'hui)
+    if (filter.property === "isCheck") {
+      if (filter.operator === "eq" && typeof filter.value === "boolean") {
+        serverFilters.isCheck = filter.value
+      } else {
+        clientFilters.push(filter)
+      }
+      continue
+    }
+
     // Filtres non supportés côté serveur → côté client
-    // Exemples : isCheck, artisan, marge, etc.
+    // Exemples : artisan, marge, etc.
     clientFilters.push(filter)
   }
 

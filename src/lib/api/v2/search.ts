@@ -648,6 +648,17 @@ const searchInterventions = async (
           code_postal,
           ville
         ),
+        owner:owner (
+          id,
+          owner_firstname,
+          owner_lastname,
+          telephone,
+          telephone2,
+          email,
+          adresse,
+          code_postal,
+          ville
+        ),
         status:intervention_statuses (
           id,
           code,
@@ -665,7 +676,8 @@ const searchInterventions = async (
           lastname,
           username,
           code_gestionnaire,
-          color
+          color,
+          avatar_url
         ),
         intervention_artisans (
           is_primary,
@@ -842,13 +854,31 @@ const fetchInterventionsByIds = async (ids: string[]): Promise<InterventionSearc
           code_postal,
           ville
         ),
+        owner:owner (
+          id,
+          owner_firstname,
+          owner_lastname,
+          telephone,
+          telephone2,
+          email,
+          adresse,
+          code_postal,
+          ville
+        ),
+        status:intervention_statuses (
+          id,
+          code,
+          label,
+          color
+        ),
         assigned_user:users!assigned_user_id (
           id,
           firstname,
           lastname,
           username,
           code_gestionnaire,
-          color
+          color,
+          avatar_url
         ),
         metier:metiers (
           id,

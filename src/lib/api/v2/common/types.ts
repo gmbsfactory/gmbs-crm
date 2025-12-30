@@ -224,6 +224,7 @@ export interface InterventionQueryParams extends BaseQueryParams {
   startDate?: string;
   endDate?: string;
   include?: string[];
+  isCheck?: boolean; // Filtre pour les interventions en retard (date_prevue <= today et statut VISITE_TECHNIQUE ou INTER_EN_COURS)
 }
 
 export interface ArtisanQueryParams extends BaseQueryParams {

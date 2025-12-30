@@ -68,10 +68,10 @@ export interface InterventionSearchRecord {
   due_date: string | null
   numero_sst: string | null
   pourcentage_sst: number | null
-  clients?: {
+  owner?: {
     id: string
-    firstname: string | null
-    lastname: string | null
+    owner_firstname: string | null
+    owner_lastname: string | null
     telephone: string | null
     telephone2: string | null
     email: string | null
@@ -103,6 +103,7 @@ export interface InterventionSearchRecord {
     username: string | null
     code_gestionnaire: string | null
     color: string | null
+    avatar_url: string | null
   } | null
   metier: {
     id: string

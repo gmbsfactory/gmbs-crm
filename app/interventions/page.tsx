@@ -90,7 +90,7 @@ const VIEW_TO_STATUS_CODE: Record<string, string> = {
   "mes-visites-technique": "VISITE_TECHNIQUE",
   "ma-liste-accepte": "ACCEPTE",
   "ma-liste-att-acompte": "ATT_ACOMPTE",
-  // Vue CHECK : pas de statut spécifique, couleur définie plus bas
+  "ma-liste-a-check": "A_CHECK",
 }
 
 type GalleryViewConfig = Parameters<typeof GalleryView>[0]["view"]
@@ -1707,8 +1707,8 @@ function PageContent() {
                   key={status}
                   onClick={() => handleSelectStatus(status)}
                   className={`status-chip transition-[opacity,transform,shadow] duration-150 ease-out inline-flex items-center gap-1.5 ${isSelected
-                      ? "ring-2 ring-foreground/20"
-                      : "hover:shadow-card border border-border bg-transparent"
+                    ? "ring-2 ring-foreground/20"
+                    : "hover:shadow-card border border-border bg-transparent"
                     }`}
                   style={isSelected ? {
                     backgroundColor: `${finalColor}15`,
@@ -1737,8 +1737,8 @@ function PageContent() {
                 }
               }}
               className={`status-chip transition-[opacity,transform,shadow] duration-150 ease-out inline-flex items-center gap-1.5 ${isCheckFilterActive
-                  ? "ring-2 ring-foreground/20"
-                  : "hover:shadow-card border border-border bg-transparent"
+                ? "ring-2 ring-foreground/20"
+                : "hover:shadow-card border border-border bg-transparent"
                 }`}
               style={isCheckFilterActive ? {
                 backgroundColor: "#EF444415",

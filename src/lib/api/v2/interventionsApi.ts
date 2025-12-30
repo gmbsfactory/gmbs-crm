@@ -211,6 +211,52 @@ export const interventionsApi = {
       query = query.lte("date", params.endDate);
     }
 
+    // Filtre isCheck côté serveur
+    // isCheck = interventions avec statut VISITE_TECHNIQUE ou INTER_EN_COURS ET date_prevue <= aujourd'hui
+    if (params?.isCheck === true) {
+      const refs = await getReferenceCache();
+      const statusCodes = ["VISITE_TECHNIQUE", "INTER_EN_COURS"];
+      const statusIds = Array.from(refs.interventionStatusesById.values())
+        .filter((status: any) => statusCodes.includes(status.code))
+        .map((status: any) => status.id);
+
+      console.log(`[interventionsApi.getAll] isCheck filter - statusCodes: ${statusCodes.join(', ')}, statusIds found: ${statusIds.join(', ')}`);
+
+      if (statusIds.length > 0) {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const todayISO = today.toISOString().split('T')[0]; // Format YYYY-MM-DD
+
+        console.log(`[interventionsApi.getAll] isCheck filter - today: ${todayISO}, filtering with statut_id IN (${statusIds.join(', ')}) AND date_prevue <= ${todayISO}`);
+
+        query = query
+          .in("statut_id", statusIds)
+          .lte("date_prevue", todayISO);
+      } else {
+        console.warn(`[interventionsApi.getAll] isCheck filter - No status IDs found for codes: ${statusCodes.join(', ')}`);
+      }
+    } else if (params?.isCheck === false) {
+      // Exclure les interventions isCheck
+      const refs = await getReferenceCache();
+      const statusCodes = ["VISITE_TECHNIQUE", "INTER_EN_COURS"];
+      const statusIds = Array.from(refs.interventionStatusesById.values())
+        .filter((status: any) => statusCodes.includes(status.code))
+        .map((status: any) => status.id);
+
+      if (statusIds.length > 0) {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const todayISO = today.toISOString().split('T')[0]; // Format YYYY-MM-DD
+
+        console.log(`[interventionsApi.getAll] isCheck=false filter - Excluding interventions with statut_id IN (${statusIds.join(', ')}) AND date_prevue <= ${todayISO}`);
+
+        // Exclure les interventions qui sont dans les statuts concernés ET ont une date dépassée
+        // Solution PostgreSQL: NOT (statut_id IN (...) AND date_prevue <= today)
+        // En Supabase: utiliser .or() avec .not()
+        query = query.or(`statut_id.not.in.(${statusIds.join(',')}),date_prevue.gt.${todayISO},date_prevue.is.null`);
+      }
+    }
+
     // Pagination
     const limit = params?.limit || 500;
     const offset = params?.offset || 0;
