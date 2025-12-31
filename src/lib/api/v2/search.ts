@@ -174,7 +174,7 @@ export function scoreIntervention(intervention: InterventionSearchRecord, query:
   const digitsQuery = sanitizePhone(query)
   const matchedFields = new Set<string>()
   let score = 0
-  const contact = intervention.tenant ?? intervention.clients ?? null
+  const contact = intervention.tenant ?? intervention.owner ?? null
 
   if (!normalizedQuery && !digitsQuery) {
     return { score: 0, matchedFields: [] }
@@ -258,7 +258,10 @@ export function scoreIntervention(intervention: InterventionSearchRecord, query:
     }
   }
 
-  const clientNameParts = [contact?.firstname, contact?.lastname].filter(
+  const clientNameParts = [
+    (contact as any)?.firstname ?? (contact as any)?.owner_firstname,
+    (contact as any)?.lastname ?? (contact as any)?.owner_lastname
+  ].filter(
     (part) => Boolean(part),
   ) as string[]
   if (clientNameParts.length > 0) {
@@ -575,7 +578,7 @@ const searchInterventions = async (
   }
 
   const pattern = escapeIlike(trimmed)
-  
+
   // Validate pattern is not empty after escaping
   if (!pattern || pattern.length === 0) {
     console.warn("[searchInterventions] Pattern is empty after escaping, query:", trimmed)
@@ -605,7 +608,7 @@ const searchInterventions = async (
   // Build the filter string - PostgREST requires comma-separated filters
   // If this causes 400 errors, it's likely due to NULL handling in PostgREST
   const orFilterString = orFilters.join(",")
-  
+
   // Validate filter string is not empty
   if (!orFilterString || orFilterString.length === 0) {
     console.warn("[searchInterventions] Filter string is empty, pattern:", pattern)
@@ -812,9 +815,9 @@ const fetchArtisansByIds = async (ids: string[]): Promise<ArtisanSearchRecord[]>
     ...record,
     metiers: Array.isArray(record.metiers)
       ? record.metiers.map((m: any) => ({
-          is_primary: m.is_primary,
-          metier: Array.isArray(m.metier) ? m.metier[0] : m.metier,
-        }))
+        is_primary: m.is_primary,
+        metier: Array.isArray(m.metier) ? m.metier[0] : m.metier,
+      }))
       : [],
     status: Array.isArray(record.status) ? record.status[0] : record.status,
   })) as ArtisanSearchRecord[]

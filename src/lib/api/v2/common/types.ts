@@ -16,8 +16,8 @@ export type {
   InterventionAttachment,
   InterventionWithStatus,
   InterventionStatus,
-  CreateInterventionData,
-  UpdateInterventionData,
+  // CreateInterventionData et UpdateInterventionData sont définis localement ci-dessous
+  // avec des champs supplémentaires (reference_agence, is_vacant, etc.)
 } from "@/types/intervention-generated";
 
 export interface PaginatedResponse<T> {
@@ -86,29 +86,8 @@ export interface UpsertInterventionCostData {
   label?: string | null;
 }
 
-export interface InterventionPayment {
-  id: string;
-  intervention_id: string;
-  payment_type: string;
-  amount: number;
-  currency: string | null;
-  is_received: boolean | null;
-  payment_date: string | null;
-  reference: string | null;
-  created_at: string | null;
-  updated_at: string | null;
-}
-
-export interface InterventionAttachment {
-  id: string;
-  intervention_id: string;
-  kind: string;
-  url: string;
-  filename: string | null;
-  mime_type: string | null;
-  file_size: number | null;
-  created_at: string | null;
-}
+// InterventionPayment et InterventionAttachment sont ré-exportés depuis @/types/intervention-generated
+// Les définitions locales ont été supprimées pour éviter les conflits
 
 export interface InterventionReminder {
   id: string;

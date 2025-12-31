@@ -316,7 +316,7 @@ export default function Interventions({
                     onSendEmail={() => console.log("TODO: send email", intervention.id)}
                     onCall={() => console.log("TODO: call", intervention.id)}
                     onAddDocument={() => console.log("TODO: add document", intervention.id)}
-                    onStatusChange={(it, status) => handleStatusChange(it, status)}
+                    onStatusChange={(it, status) => handleStatusChange(it as unknown as SupabaseIntervention, status)}
                     expanded={expandedId === intervention.id}
                     onToggle={() => setExpandedId((prev) => (prev === intervention.id ? null : intervention.id))}
                     hideBorder={keyboardSelectedIndex === index}

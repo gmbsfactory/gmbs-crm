@@ -98,11 +98,12 @@ export function matchesFilters(
   
   // Filtre par artisan
   if (filters.artisan !== undefined && filters.artisan !== null) {
+    const interventionArtisans = intervention.artisans || []
     if (Array.isArray(filters.artisan)) {
-      if (!filters.artisan.includes(intervention.artisan_id ?? '')) {
+      if (!filters.artisan.some(artisanId => interventionArtisans.includes(artisanId))) {
         return false
       }
-    } else if (intervention.artisan_id !== filters.artisan) {
+    } else if (!interventionArtisans.includes(filters.artisan)) {
       return false
     }
   }

@@ -627,7 +627,7 @@ export function InterventionEditForm({
     statut_id: intervention.statut_id || "",
     id_inter: intervention.id_inter || "",
     agence_id: intervention.agence_id || "",
-    reference_agence: intervention.reference_agence || "",
+    reference_agence: (intervention as any).reference_agence || "",
     assigned_user_id: intervention.assigned_user_id || "",
     metier_id: intervention.metier_id || "",
     contexte_intervention: intervention.contexte_intervention || "",
@@ -668,11 +668,11 @@ export function InterventionEditForm({
     emailClient: intervention.tenants?.email || "",
 
     // Logement vacant
-    is_vacant: intervention.is_vacant || false,
-    key_code: intervention.key_code || "",
-    floor: intervention.floor || "",
-    apartment_number: intervention.apartment_number || "",
-    vacant_housing_instructions: intervention.vacant_housing_instructions || "",
+    is_vacant: (intervention as any).is_vacant || false,
+    key_code: (intervention as any).key_code || "",
+    floor: (intervention as any).floor || "",
+    apartment_number: (intervention as any).apartment_number || "",
+    vacant_housing_instructions: (intervention as any).vacant_housing_instructions || "",
 
     // Artisan
     artisan: primaryArtisan ? `${primaryArtisan.prenom || ''} ${primaryArtisan.nom || ''}`.trim() : "",
@@ -2164,7 +2164,7 @@ export function InterventionEditForm({
           id_inter: payload.id_inter || prev.id_inter || "",
           statut_id: payload.statut_id || prev.statut_id || "",
           agence_id: payload.agence_id || prev.agence_id || "",
-          reference_agence: payload.reference_agence || prev.reference_agence || "",
+          reference_agence: (payload as any).reference_agence || prev.reference_agence || "",
         }))
       }
 

@@ -486,10 +486,11 @@ export function NewArtisanModalContent({ mode, onClose, onCycleMode, artisanId, 
   }, [defaultCandidatStatusId, setValue, isEditMode])
 
   // Récupérer le nombre d'interventions terminées en mode édition
+  // TODO: Implémenter getCompletedInterventionsCountByArtisan dans interventionsApi
   const { data: completedInterventionsCount = 0 } = useQuery({
     queryKey: ["artisan-completed-interventions", artisanId],
-    enabled: isEditMode && Boolean(artisanId),
-    queryFn: () => interventionsApi.getCompletedInterventionsCountByArtisan(artisanId!),
+    enabled: false, // Désactivé temporairement jusqu'à l'implémentation de la méthode
+    queryFn: () => Promise.resolve(0), // Retourne 0 temporairement
   })
 
   // Observer le statut actuel pour le useMemo

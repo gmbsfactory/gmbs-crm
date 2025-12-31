@@ -15,6 +15,7 @@ import { env } from "./env";
 import { referenceApi, type ReferenceData } from "./reference-api";
 import { supabase } from "./supabase-client";
 import type { InterventionView } from "@/types/intervention-view";
+import type { InterventionWithStatus } from "@/types/intervention-generated";
 import { getHeaders } from "@/lib/api/v2/common/utils";
 
 const resolveFunctionsUrl = () => {
@@ -1041,7 +1042,7 @@ function mapInterventionRecordsBatch(
   if (items.length === 0) return [];
 
   // Mapping synchrone direct - plus rapide que les chunks async
-  return items.map((item) => mapInterventionRecord(item, refs) as InterventionView);
+  return items.map((item) => mapInterventionRecord(item, refs) as unknown as InterventionView);
 }
 
 export const interventionsApiV2 = {
@@ -1397,7 +1398,7 @@ export const interventionsApiV2 = {
     const raw = await handleResponse(response);
     const refs = await getReferenceCache();
     const record = raw?.data ?? raw;
-    return mapInterventionRecord(record, refs) as InterventionView;
+    return mapInterventionRecord(record, refs) as unknown as InterventionView;
   },
 
   // Créer une intervention

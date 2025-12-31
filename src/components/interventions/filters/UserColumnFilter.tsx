@@ -64,6 +64,24 @@ export function UserColumnFilter({
   // Récupérer les données de référence pour avoir accès aux utilisateurs avec leurs avatars
   const { data: referenceData } = useReferenceData()
 
+  // Fonction pour formater le label d'un utilisateur à partir d'une valeur brute
+  const formatUserLabel = useCallback((raw: unknown): string => {
+    if (raw === null || raw === undefined) return "Non assigné"
+    
+    const rawString = String(raw)
+    const user = referenceData?.users?.find(
+      (u) => u.code_gestionnaire === rawString || u.username === rawString
+    )
+    
+    if (user) {
+      const displayName = [user.firstname, user.lastname].filter(Boolean).join(" ").trim() || user.username
+      return user.code_gestionnaire ? `${user.code_gestionnaire} - ${displayName}` : displayName
+    }
+    
+    // Si l'utilisateur n'est pas trouvé, retourner la valeur brute
+    return rawString
+  }, [referenceData?.users])
+
   // Charger les valeurs distinctes depuis l'API si disponible
   useEffect(() => {
     if (!open || !loadDistinctValues || hasFetchedOptions) return
@@ -99,7 +117,7 @@ export function UserColumnFilter({
     return () => {
       cancelled = true
     }
-  }, [open, loadDistinctValues, property, hasFetchedOptions])
+  }, [open, loadDistinctValues, property, hasFetchedOptions, formatUserLabel])
 
   // Construire les options à partir de referenceData.users (comme InterventionEditForm)
   const allOptions = useMemo(() => {

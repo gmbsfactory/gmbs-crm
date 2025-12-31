@@ -224,7 +224,7 @@ export function getChangedFields(
   const fieldsToCheck: (keyof Intervention)[] = [
     'statut_id',
     'assigned_user_id',
-    'artisan_id',
+    'artisans',
     'agence_id',
     'metier_id',
     'date',

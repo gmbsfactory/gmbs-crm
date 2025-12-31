@@ -4,6 +4,7 @@
  */
 import type { InterventionView as GeneratedInterventionView } from "@/types/intervention-generated"
 import type { InterventionStatusValue } from "@/types/interventions"
+import type { InterventionStatus, InterventionPayment } from "@/types/intervention-generated"
 
 // Ré-export du type généré avec les extensions existantes
 export type InterventionView = GeneratedInterventionView & {

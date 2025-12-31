@@ -145,7 +145,7 @@ export function shouldRefreshCounts(
     return (
       oldRecord.statut_id !== newRecord.statut_id ||
       oldRecord.assigned_user_id !== newRecord.assigned_user_id ||
-      oldRecord.artisan_id !== newRecord.artisan_id ||
+      JSON.stringify(oldRecord.artisans || []) !== JSON.stringify(newRecord.artisans || []) ||
       oldRecord.agence_id !== newRecord.agence_id ||
       oldRecord.metier_id !== newRecord.metier_id ||
       oldRecord.is_active !== newRecord.is_active
@@ -192,7 +192,7 @@ export async function syncCacheWithRealtimeEvent(
     currentUserId,
     hasNewRecord: !!newIntervention,
     hasOldRecord: !!oldIntervention,
-    newRecordUpdatedBy: newIntervention?.updated_by,
+    newRecordUpdatedBy: (newIntervention as any)?.updated_by,
     newRecordAssignedUserId: newIntervention?.assigned_user_id,
     fullNewRecord: newIntervention,
   })
@@ -204,9 +204,9 @@ export async function syncCacheWithRealtimeEvent(
     enrichedNewRecord = await enrichRealtimeRecord(newIntervention)
     console.log(`[cache-sync] Record enrichi pour intervention ${enrichedNewRecord.id}`, {
       statut_id: enrichedNewRecord.statut_id,
-      updated_by: enrichedNewRecord.updated_by,
+      updated_by: (enrichedNewRecord as any).updated_by,
       assigned_user_id: enrichedNewRecord.assigned_user_id,
-      hasUpdatedBy: !!enrichedNewRecord.updated_by,
+      hasUpdatedBy: !!(enrichedNewRecord as any).updated_by,
     })
   }
 
@@ -355,7 +355,7 @@ export async function syncCacheWithRealtimeEvent(
           // Conflit détecté : la modification distante est plus récente
           // Afficher une notification pour informer l'utilisateur que sa modification a été écrasée
           const changedFields = getChangedFields(oldIntervention as Intervention, enrichedNewRecord)
-          const remoteUserId = enrichedNewRecord.updated_by || null
+          const remoteUserId = (enrichedNewRecord as any).updated_by || null
           
           // Récupérer le nom de l'utilisateur distant
           let remoteUserName: string | null = null
@@ -385,11 +385,11 @@ export async function syncCacheWithRealtimeEvent(
       // Créer un indicateur de modification distante
       const changedFields = getChangedFields(oldIntervention as Intervention | null, enrichedNewRecord)
       // Utiliser updated_by pour identifier l'utilisateur qui a effectué la modification
-      const userId = enrichedNewRecord.updated_by || null
+      const userId = (enrichedNewRecord as any).updated_by || null
       
       console.log(`[cache-sync] 🎨 Récupération couleur pour utilisateur ${userId}`, {
-        updated_by: enrichedNewRecord.updated_by,
-        hasUpdatedBy: !!enrichedNewRecord.updated_by,
+      updated_by: (enrichedNewRecord as any).updated_by,
+      hasUpdatedBy: !!(enrichedNewRecord as any).updated_by,
         interventionId: enrichedNewRecord.id,
       })
       
@@ -841,7 +841,7 @@ function showConflictNotification(
     const fieldMap: Record<string, keyof Intervention> = {
       'statut_id': 'statut_id',
       'assigned_user_id': 'assigned_user_id',
-      'artisan_id': 'artisan_id',
+      'artisans': 'artisans',
       'date': 'date',
       'date_prevue': 'date_prevue',
     }
@@ -969,7 +969,7 @@ function handleSoftDelete(
 
   // T087: Afficher une notification toast "Intervention supprimée"
   toast.info('Intervention supprimée', {
-    description: `L'intervention a été supprimée par ${deletedRecord.updated_by ? 'un autre utilisateur' : 'le système'}.`,
+    description: `L'intervention a été supprimée par ${(deletedRecord as any).updated_by ? 'un autre utilisateur' : 'le système'}.`,
     duration: 5000,
   })
 

@@ -232,7 +232,7 @@ const renderCell = (
     const payments = (intervention as any).payments as Array<{ payment_type?: string; is_received?: boolean; payment_date?: string | null }> | undefined
     const sstPayment = payments?.find(p => p.payment_type === 'acompte_sst') as InterventionPayment | undefined
     const clientPayment = payments?.find(p => p.payment_type === 'acompte_client') as InterventionPayment | undefined
-    
+
     // Utiliser getStatusDisplayLabel pour obtenir le label avec "$" si l'accompte est validé
     const baseLabel = statusDisplay.label
     const statusLabelWithDeposit = getStatusDisplayLabel(
@@ -394,10 +394,10 @@ const renderCell = (
   if (property === "understatement") {
     const sousStatutText = value as string | null
     if (!sousStatutText) return { content: "—" }
-    
+
     const textColor = (intervention as any).sousStatutTextColor ?? '#000000'
     const bgColor = (intervention as any).sousStatutBgColor ?? 'transparent'
-    
+
     return {
       content: (
         <span
@@ -418,7 +418,7 @@ const renderCell = (
   if (property === "agence") {
     const agenceLabel = (intervention as any).agenceLabel ?? value
     if (!agenceLabel) return { content: "—" }
-    
+
     const agenceColor = (intervention as any).agenceColor as string | undefined
     const appearance: TableColumnAppearance = style?.appearance ?? "badge"
 
@@ -465,7 +465,7 @@ const renderCell = (
   if (property === "metier") {
     const metierLabel = (intervention as any).metierLabel ?? value
     if (!metierLabel) return { content: "—" }
-    
+
     const metierColor = (intervention as any).metierColor as string | undefined
     const appearance: TableColumnAppearance = style?.appearance ?? "badge"
 
@@ -584,7 +584,7 @@ function GestionnaireSelector({
 
   const updateMutation = useMutation({
     mutationFn: async (newUserId: string) => {
-      const updateData = { assigned_user_id: newUserId || null }
+      const updateData = { assigned_user_id: newUserId || undefined }
       return interventionsApi.update(interventionId, updateData)
     },
     onSuccess: (data, newUserId) => {
@@ -737,11 +737,11 @@ export function TableView({
   const [noteDialogCoords, setNoteDialogCoords] = useState<{ top: number; left: number }>({ top: 0, left: 0 })
   const noteDialogContentRef = useRef<HTMLDivElement | null>(null)
   const isReminderSaveDisabled = noteValue.trim().length === 0 && !dueDateValue
-  
+
   // Utiliser le hook centralisé useCurrentUser au lieu d'un fetch direct
   const { data: currentUserData } = useCurrentUser()
   const currentUserId = currentUserData?.id ?? null
-  
+
   const uuidPattern = useMemo(() => /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i, [])
 
   const columnWidths = view.layoutOptions.columnWidths ?? {}
@@ -876,7 +876,7 @@ export function TableView({
     if (rafIdRef.current !== null) {
       return // Déjà une frame en attente
     }
-    
+
     rafIdRef.current = requestAnimationFrame(() => {
       rafIdRef.current = null
       const scroller = tableContainerRef.current
@@ -1339,12 +1339,12 @@ export function TableView({
     <>
       {/* data-view-type="table" permet de désactiver les animations skeleton/glass-float en CSS */}
       <div className="flex flex-col flex-1 min-h-0" data-view-type="table">
-        <Card 
+        <Card
           className={cn(
             "border-2 shadow-sm flex flex-col flex-1 min-h-0 rounded-tl-none",
             !headerColor && "border-t-primary/40"
           )}
-          style={headerColor ? { 
+          style={headerColor ? {
             borderTopColor: `${headerColor}40`,
           } : undefined}
         >
@@ -1376,7 +1376,7 @@ export function TableView({
                       {(() => {
                         // Calculer la couleur du texte en fonction de la luminosité du header
                         const headerTextColor = headerColor ? getReadableTextColor(headerColor) : undefined
-                        
+
                         return (
                           <>
                             {view.visibleProperties.map((property) => {
@@ -1433,9 +1433,9 @@ export function TableView({
                               )
                             })}
                             <th
-                              style={{ 
-                                width: 100, 
-                                minWidth: 100, 
+                              style={{
+                                width: 100,
+                                minWidth: 100,
                                 maxWidth: 100,
                                 ...(headerColor ? {
                                   backgroundColor: `${headerColor}25`, // Version pastel (15% opacité)

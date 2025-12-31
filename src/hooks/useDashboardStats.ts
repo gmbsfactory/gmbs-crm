@@ -142,11 +142,11 @@ export function useDashboardMargin(
   const { data: currentUser } = useCurrentUser()
   const effectiveUserId = userId ?? currentUser?.id ?? null
   
-  const params: DashboardMarginParams | null = effectiveUserId
+  const params: DashboardMarginParams | null = effectiveUserId && period?.startDate && period?.endDate
     ? {
         userId: effectiveUserId,
-        startDate: period?.startDate,
-        endDate: period?.endDate,
+        startDate: period.startDate,
+        endDate: period.endDate,
       }
     : null
 
