@@ -823,113 +823,46 @@ const fetchArtisansByIds = async (ids: string[]): Promise<ArtisanSearchRecord[]>
   })) as ArtisanSearchRecord[]
 }
 
-// Helper function to fetch full intervention data by IDs
+// Helper function to fetch full intervention data by IDs using the API
 const fetchInterventionsByIds = async (ids: string[]): Promise<InterventionSearchRecord[]> => {
   if (ids.length === 0) return []
 
-  const { data, error } = await supabase
-    .from("interventions")
-    .select(
-      `
-        id,
-        id_inter,
-        agence_id,
-        statut_id,
-        metier_id,
-        assigned_user_id,
-        contexte_intervention,
-        consigne_intervention,
-        commentaire_agent,
-        adresse,
-        code_postal,
-        ville,
-        date,
-        date_prevue,
-        due_date,
-        tenant:tenants (
-          id,
-          firstname,
-          lastname,
-          telephone,
-          telephone2,
-          email,
-          adresse,
-          code_postal,
-          ville
-        ),
-        owner:owner (
-          id,
-          owner_firstname,
-          owner_lastname,
-          telephone,
-          telephone2,
-          email,
-          adresse,
-          code_postal,
-          ville
-        ),
-        status:intervention_statuses (
-          id,
-          code,
-          label,
-          color
-        ),
-        assigned_user:users!assigned_user_id (
-          id,
-          firstname,
-          lastname,
-          username,
-          code_gestionnaire,
-          color,
-          avatar_url
-        ),
-        metier:metiers (
-          id,
-          code,
-          label
-        ),
-        intervention_artisans (
-          is_primary,
-          role,
-          artisan:artisans (
-            id,
-            prenom,
-            nom,
-            numero_associe,
-            telephone,
-            telephone2
-          )
-        ),
-        payments:intervention_payments(*)
-      `,
-    )
-    .in("id", ids)
+  console.log(`[fetchInterventionsByIds] Fetching ${ids.length} interventions via API`)
 
-  if (error) {
-    console.error("[fetchInterventionsByIds] Error:", {
-      message: error.message,
-      details: error.details,
-      hint: error.hint,
-      code: error.code,
-      error,
-      idsCount: ids.length,
-      idsSample: ids.slice(0, 3),
-    })
-    return []
-  }
+  const results: InterventionSearchRecord[] = []
+  const errors: Array<{ id: string; error: any }> = []
 
-  if (!data || data.length === 0) {
-    console.warn("[fetchInterventionsByIds] No data returned for IDs:", ids.slice(0, 5))
-    return []
-  }
+  // Import the utility function and API
+  const { convertInterventionToSearchRecord } = await import("@/lib/api/v2/search-utils")
+  const { interventionsApi } = await import("@/lib/api/v2/interventionsApi")
 
-  return (data ?? []).map((record: any) => {
-    const typedRecord: InterventionSearchRecord = {
-      ...(record as unknown as InterventionSearchRecord),
+  // Fetch interventions in parallel
+  const promises = ids.map(async (id) => {
+    try {
+      const intervention = await interventionsApi.getById(id)
+      return convertInterventionToSearchRecord(intervention)
+    } catch (err) {
+      console.error(`[fetchInterventionsByIds] Error fetching intervention ${id}:`, err)
+      errors.push({ id, error: err })
+      return null
     }
-    typedRecord.primaryArtisan = getPrimaryArtisanFromIntervention(typedRecord)
-    return typedRecord
   })
+
+  const fetchedResults = await Promise.all(promises)
+
+  // Filter out null results (errors)
+  for (const result of fetchedResults) {
+    if (result !== null) {
+      results.push(result)
+    }
+  }
+
+  if (errors.length > 0) {
+    console.error(`[fetchInterventionsByIds] Failed to fetch ${errors.length}/${ids.length} interventions:`, errors)
+  }
+
+  console.log(`[fetchInterventionsByIds] ✅ Successfully fetched ${results.length}/${ids.length} interventions`)
+  return results
 }
 
 export async function universalSearch(
