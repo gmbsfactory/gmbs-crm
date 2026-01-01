@@ -95,6 +95,17 @@ function getReadableTextColor(bgColor: string | null | undefined): string {
   return luminance > 0.5 ? "#1f2937" : "#ffffff"
 }
 
+const formatDate = (value: string | null | undefined, withTime = false) => {
+  if (!value) return "—"
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return "—"
+  try {
+    return new Intl.DateTimeFormat("fr-FR", withTime ? { dateStyle: "medium", timeStyle: "short" } : { dateStyle: "medium" }).format(date)
+  } catch {
+    return value
+  }
+}
+
 // ===== CONSTANTES =====
 
 const STATUT_JURIDIQUE_OPTIONS = [
@@ -1476,6 +1487,11 @@ export function NewArtisanModalContent({ mode, onClose, onCycleMode, artisanId, 
             </div>
           </div>
           <div className="flex items-center gap-2">
+            {existingArtisan?.created_at && isEditMode && (
+              <span className="text-xs text-muted-foreground">
+                Créé le {formatDate(existingArtisan.created_at)}
+              </span>
+            )}
             {existingArtisan && isEditMode && canWriteArtisans ? (
               getArtisanStatusCode(existingArtisan.statut_id ?? null) === "ARCHIVE" ? (
                 <Button

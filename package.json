@@ -33,6 +33,7 @@
     "test:automatic-transitions:api-v2": "npx tsx scripts/test-api/test-automatic-transitions-api-v2.ts",
     "test:check-status": "npx tsx scripts/test-api/check-status.ts",
     "export:to-excel": "node scripts/exports/export-to-sheets.js",
+    "export:interventions-csv": "node scripts/exports/export-interventions-csv.js",
     "types:generate": "supabase gen types typescript --local > src/lib/database.types.ts"
   },
   "dependencies": {

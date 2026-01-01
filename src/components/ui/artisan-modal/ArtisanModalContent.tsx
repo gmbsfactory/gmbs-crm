@@ -1099,6 +1099,11 @@ export function ArtisanModalContent({
             </div>
           </div>
           <div className="flex items-center gap-2">
+            {artisan?.created_at && (
+              <span className="text-xs text-muted-foreground">
+                Créé le {formatDate(artisan.created_at)}
+              </span>
+            )}
             {artisan && canWriteArtisans ? (
               getArtisanStatusCode(artisan.statut_id ?? null) === "ARCHIVE" ? (
                 <Button

@@ -1,16 +1,22 @@
 ### Now
 
 - Dashboard
+        - Faire tests pour le calcul des sommes
 
 - Recherche :
-        - Recherche globale ne marchait pas sur les interventions
         - Améliorer la recherche pour inclure les montants attente accompte
-        - Meilleure gestion de la partie asynchrone
+        - Meilleure gestion de la partie asynchrone. Un système cyclique sur le temps a été mis en place. Il faudrait un système évènementiel dans l'absolue
 
-- Documentation :
-        - Faire document avec les formules que l'on a pris en compte pour le calcul des dashboards
+- Artisans
+        - Mettre une pastille ou un élément visuel marquant qui permet de voir
+                que le dossier artisan est à compléter
+                Mettre les éléments quelque part qui sont à compléter
+                Quand le dosier est complété, voir si il passe plus en dossier incomplet
 
--
+- Export
+        - Export interventions
+        - Export artisans
+        - Mise en place dans l'UI
 
 ### Later
 
