@@ -169,7 +169,7 @@ export function MarginTotalCard({ period, userId: propUserId, compact = false }:
 
                 <div className="flex items-center justify-between text-[10px] text-muted-foreground border-t border-border/5 pt-2 mt-2">
                     {prevStats && stats?.total_interventions !== 0 && (
-                        <span className="ml-auto">{prevVal >= 0 ? "📈" : "📉"} vs préc: {formatCurrency(prevVal)}</span>
+                        <span className="ml-auto">{currentVal - prevVal >= 0 ? "📈" : "📉"} vs préc: {formatCurrency(prevVal)}</span>
                     )}
                 </div>
             </CardContent>

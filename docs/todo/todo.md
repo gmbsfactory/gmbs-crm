@@ -1,7 +1,7 @@
 ### Now
 
 - Dashboard
-        - Faire tests pour le calcul des sommes
+        - Faire tests pour les calculs. Page dashboard et admin dashboard.
 
 - Recherche :
         - Améliorer la recherche pour inclure les montants attente accompte
@@ -12,11 +12,6 @@
                 que le dossier artisan est à compléter
                 Mettre les éléments quelque part qui sont à compléter
                 Quand le dosier est complété, voir si il passe plus en dossier incomplet
-
-- Export
-        - Export interventions
-        - Export artisans
-        - Mise en place dans l'UI
 
 ### Later
 

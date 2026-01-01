@@ -19,6 +19,7 @@ import { getInterventionStatusColor } from "@/config/status-colors"
 import { INTERVENTION_STATUS } from "@/config/interventions"
 import { useInterventionStatuses } from "@/hooks/useInterventionStatuses"
 import { InterventionStatusContent } from "./intervention-status-content"
+import { navigateWithModifier } from "@/lib/utils/navigation"
 
 interface InterventionStatsBarChartProps {
   /** Période pour filtrer les interventions dans le HoverCard uniquement (le count reste global) */
@@ -204,18 +205,23 @@ export function InterventionStatsBarChart({ hoverPeriod, userId: propUserId }: I
     })
   }, [chartData, getStatusColor])
 
-  const handleBarClick = useCallback((data: any, index: number) => {
+  const handleBarClick = useCallback((data: any, index: number, event: any) => {
     const clickedBar = chartData[index]
 
     // Gérer le clic sur la barre "Check"
     if (clickedBar?.isCheck) {
-      sessionStorage.setItem('pending-intervention-filter', JSON.stringify({
-        viewId: "mes-interventions-a-check",
-        property: "isCheck",
-        operator: "eq",
-        value: true
-      }))
-      router.push("/interventions")
+      navigateWithModifier({
+        router,
+        path: "/interventions",
+        event,
+        sessionStorageKey: 'pending-intervention-filter',
+        sessionStorageValue: {
+          viewId: "mes-interventions-a-check",
+          property: "isCheck",
+          operator: "eq",
+          value: true
+        }
+      })
       return
     }
 
@@ -253,11 +259,16 @@ export function InterventionStatsBarChart({ hoverPeriod, userId: propUserId }: I
           "ATT_ACOMPTE": "ma-liste-att-acompte",
         }
 
-        sessionStorage.setItem('pending-intervention-filter', JSON.stringify({
-          viewId: statusToViewId[statusCode] || "liste-generale",
-          statusFilter: statusCode
-        }))
-        router.push("/interventions")
+        navigateWithModifier({
+          router,
+          path: "/interventions",
+          event,
+          sessionStorageKey: 'pending-intervention-filter',
+          sessionStorageValue: {
+            viewId: statusToViewId[statusCode] || "liste-generale",
+            statusFilter: statusCode
+          }
+        })
       }
     }
   }, [chartData, router])
@@ -381,14 +392,17 @@ export function InterventionStatsBarChart({ hoverPeriod, userId: propUserId }: I
           onClick={(e) => {
             e.stopPropagation()
             if (userId) {
-              // Stocker l'intention de filtre dans sessionStorage
-              sessionStorage.setItem('pending-intervention-filter', JSON.stringify({
-                property: "attribueA",
-                operator: "eq",
-                value: userId
-              }))
-              // Naviguer vers la page interventions
-              router.push("/interventions")
+              navigateWithModifier({
+                router,
+                path: "/interventions",
+                event: e,
+                sessionStorageKey: 'pending-intervention-filter',
+                sessionStorageValue: {
+                  property: "attribueA",
+                  operator: "eq",
+                  value: userId
+                }
+              })
             }
           }}
         >
@@ -457,15 +471,18 @@ export function InterventionStatsBarChart({ hoverPeriod, userId: propUserId }: I
                 <button
                   onClick={(e) => {
                     e.stopPropagation()
-                    // Stocker l'intention de filtre dans sessionStorage
-                    sessionStorage.setItem('pending-intervention-filter', JSON.stringify({
-                      viewId: "mes-interventions-a-check",
-                      property: "isCheck",
-                      operator: "eq",
-                      value: true
-                    }))
-                    // Naviguer vers la page interventions
-                    router.push("/interventions")
+                    navigateWithModifier({
+                      router,
+                      path: "/interventions",
+                      event: e,
+                      sessionStorageKey: 'pending-intervention-filter',
+                      sessionStorageValue: {
+                        viewId: "mes-interventions-a-check",
+                        property: "isCheck",
+                        operator: "eq",
+                        value: true
+                      }
+                    })
                   }}
                   className="w-full flex items-center justify-between p-3 rounded-lg border bg-red-50 border-red-200 hover:bg-red-100 transition-colors cursor-pointer"
                 >

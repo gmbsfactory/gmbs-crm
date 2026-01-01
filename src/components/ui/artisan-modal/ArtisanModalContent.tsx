@@ -714,7 +714,26 @@ export function ArtisanModalContent({
     if (!dossierStatus) {
       return <Badge variant="outline">Non renseigné</Badge>
     }
+
+    // Si le statut est "À compléter", utiliser un style rouge
+    const statusLower = dossierStatus.toLowerCase()
+    if (statusLower === "à compléter" || statusLower === "a compléter") {
+      return (
+        <Badge className={cn("border border-red-500/30 bg-red-500/15 text-red-700")}>
+          {dossierStatus}
+        </Badge>
+      )
+    }
+
+    // Pour les autres statuts, utiliser les thèmes par défaut
     const slug = dossierStatus.toLowerCase().replace(/\s+/g, "_")
+    const dossierStatusTheme: Record<string, string> = {
+      complet: "bg-emerald-100 text-emerald-700 border-emerald-300",
+      en_attente: "bg-amber-100 text-amber-700 border-amber-300",
+      incomplet: "bg-red-100 text-red-700 border-red-300",
+      a_verifier: "bg-blue-100 text-blue-700 border-blue-300",
+      bloque: "bg-gray-200 text-gray-700 border-gray-300",
+    }
     const theme = dossierStatusTheme[slug] ?? "bg-slate-100 text-slate-700 border-slate-200"
     return (
       <Badge className={cn("border", theme)}>
@@ -1503,9 +1522,16 @@ export function ArtisanModalContent({
                                         maxLength={14}
                                         pattern={REGEXP_ONLY_DIGITS}
                                         value={field.value}
-                                        onChange={(value) => field.onChange(value)}
+                                        onChange={(value) => field.onChange(value.replace(/\s/g, ""))}
+                                        onPaste={(e) => {
+                                          e.preventDefault()
+                                          const pastedText = e.clipboardData.getData('text/plain')
+                                          const cleaned = pastedText.replace(/\s/g, "").slice(0, 14)
+                                          field.onChange(cleaned)
+                                        }}
                                         containerClassName="flex flex-nowrap items-center w-full"
                                         className="gap-0 w-full"
+                                        pushPasswordManagerStrategy="none"
                                       >
                                         <InputOTPGroup className="gap-0 flex-1 min-w-0">
                                           <InputOTPSlot index={0} className="!w-[calc(100%/3)] !max-w-[22px] h-6 text-[10px] bg-background border border-[#C6CEDC] text-foreground font-mono p-0" />
@@ -1626,9 +1652,16 @@ export function ArtisanModalContent({
                                       pattern={REGEXP_ONLY_DIGITS_AND_CHARS}
                                       inputMode="text"
                                       value={field.value}
-                                      onChange={(value) => field.onChange(value.toUpperCase())}
+                                      onChange={(value) => field.onChange(value.replace(/\s/g, "").toUpperCase())}
+                                      onPaste={(e) => {
+                                        e.preventDefault()
+                                        const pastedText = e.clipboardData.getData('text/plain')
+                                        const cleaned = pastedText.replace(/\s/g, "").toUpperCase().slice(0, IBAN_LENGTH)
+                                        field.onChange(cleaned)
+                                      }}
                                       containerClassName="flex flex-nowrap items-center w-full"
                                       className="gap-0 w-full"
+                                      pushPasswordManagerStrategy="none"
                                     >
                                       {IBAN_GROUPS.map((size, groupIndex) => {
                                         const startIndex = IBAN_GROUPS.slice(0, groupIndex).reduce(

@@ -1935,9 +1935,16 @@ export function NewArtisanModalContent({ mode, onClose, onCycleMode, artisanId, 
                                         maxLength={14}
                                         pattern={REGEXP_ONLY_DIGITS}
                                         value={field.value}
-                                        onChange={(value) => field.onChange(value)}
+                                        onChange={(value) => field.onChange(value.replace(/\s/g, ""))}
+                                        onPaste={(e) => {
+                                          e.preventDefault()
+                                          const pastedText = e.clipboardData.getData('text/plain')
+                                          const cleaned = pastedText.replace(/\s/g, "").slice(0, 14)
+                                          field.onChange(cleaned)
+                                        }}
                                         containerClassName="flex flex-nowrap items-center w-full"
                                         className="gap-0 w-full"
+                                        pushPasswordManagerStrategy="none"
                                       >
                                         <InputOTPGroup className="gap-0 flex-1 min-w-0">
                                           <InputOTPSlot index={0} className="!w-[calc(100%/3)] !max-w-[22px] h-6 text-[10px] bg-background border border-[#C6CEDC] text-foreground font-mono p-0" />
@@ -2057,9 +2064,16 @@ export function NewArtisanModalContent({ mode, onClose, onCycleMode, artisanId, 
                                       pattern={REGEXP_ONLY_DIGITS_AND_CHARS}
                                       inputMode="text"
                                       value={field.value}
-                                      onChange={(value) => field.onChange(value.toUpperCase())}
+                                      onChange={(value) => field.onChange(value.replace(/\s/g, "").toUpperCase())}
+                                      onPaste={(e) => {
+                                        e.preventDefault()
+                                        const pastedText = e.clipboardData.getData('text/plain')
+                                        const cleaned = pastedText.replace(/\s/g, "").toUpperCase().slice(0, IBAN_LENGTH)
+                                        field.onChange(cleaned)
+                                      }}
                                       containerClassName="flex flex-nowrap items-center w-full"
                                       className="gap-0 w-full"
+                                      pushPasswordManagerStrategy="none"
                                     >
                                       {IBAN_GROUPS.map((size, groupIndex) => {
                                         const startIndex = IBAN_GROUPS.slice(0, groupIndex).reduce(

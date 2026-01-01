@@ -19,6 +19,7 @@ import { INTERVENTION_STATUS } from "@/config/interventions"
 import { useInterventionStatuses } from "@/hooks/useInterventionStatuses"
 import { getMetierColor } from "@/config/metier-colors"
 import { InterventionStatusContent } from "./intervention-status-content"
+import { navigateWithModifier } from "@/lib/utils/navigation"
 
 interface InterventionStatsPieChartProps {
   period?: {
@@ -437,16 +438,21 @@ export function InterventionStatsPieChart({ period }: InterventionStatsPieChartP
                         closeTimeoutRef.current = null
                       }, 500)
                     }}
-                    onClick={(data: any, index: number) => {
+                    onClick={(data: any, index: number, event: any) => {
                       const clickedSegment = chartData[index]
                       if (clickedSegment?.isCheck) {
-                        sessionStorage.setItem('pending-intervention-filter', JSON.stringify({
-                          viewId: "mes-interventions-a-check",
-                          property: "isCheck",
-                          operator: "eq",
-                          value: true
-                        }))
-                        router.push("/interventions")
+                        navigateWithModifier({
+                          router,
+                          path: "/interventions",
+                          event,
+                          sessionStorageKey: 'pending-intervention-filter',
+                          sessionStorageValue: {
+                            viewId: "mes-interventions-a-check",
+                            property: "isCheck",
+                            operator: "eq",
+                            value: true
+                          }
+                        })
                       }
                     }}
                   >
@@ -540,13 +546,18 @@ export function InterventionStatsPieChart({ period }: InterventionStatsPieChartP
                 <button
                   onClick={(e) => {
                     e.stopPropagation()
-                    sessionStorage.setItem('pending-intervention-filter', JSON.stringify({
-                      viewId: "mes-interventions-a-check",
-                      property: "isCheck",
-                      operator: "eq",
-                      value: true
-                    }))
-                    router.push("/interventions")
+                    navigateWithModifier({
+                      router,
+                      path: "/interventions",
+                      event: e,
+                      sessionStorageKey: 'pending-intervention-filter',
+                      sessionStorageValue: {
+                        viewId: "mes-interventions-a-check",
+                        property: "isCheck",
+                        operator: "eq",
+                        value: true
+                      }
+                    })
                   }}
                   className="w-full flex items-center justify-between p-3 rounded-lg border bg-red-50 border-red-200 hover:bg-red-100 transition-colors cursor-pointer"
                 >

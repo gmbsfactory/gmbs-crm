@@ -14,6 +14,7 @@ import { useInterventionModal } from "@/hooks/useInterventionModal"
 import { getArtisanStatusStyles } from "@/config/status-colors"
 import { getMetierColor } from "@/config/metier-colors"
 import Loader from "@/components/ui/Loader"
+import { navigateWithModifier } from "@/lib/utils/navigation"
 
 interface ArtisanStatsListProps {
   period?: {
@@ -294,14 +295,17 @@ export function ArtisanStatsList({ period, userId: propUserId }: ArtisanStatsLis
   }
 
   // Fonction helper pour naviguer vers la page artisans avec les filtres appropriés
-  const handleStatusClick = (statusLabel: string) => {
-    // Stocker l'intention de filtre dans sessionStorage
-    sessionStorage.setItem('pending-artisan-filter', JSON.stringify({
-      viewId: "ma-liste-artisans", // Activer la vue "Ma liste artisans"
-      statusFilter: statusLabel // Activer le filtre de statut correspondant
-    }))
-    // Naviguer vers la page artisans
-    router.push("/artisans")
+  const handleStatusClick = (statusLabel: string, event?: React.MouseEvent) => {
+    navigateWithModifier({
+      router,
+      path: "/artisans",
+      event,
+      sessionStorageKey: 'pending-artisan-filter',
+      sessionStorageValue: {
+        viewId: "ma-liste-artisans", // Activer la vue "Ma liste artisans"
+        statusFilter: statusLabel // Activer le filtre de statut correspondant
+      }
+    })
   }
 
   // Composant pour afficher les artisans dans le HoverCard avec style Status Indicators
@@ -461,12 +465,15 @@ export function ArtisanStatsList({ period, userId: propUserId }: ArtisanStatsLis
               className="cursor-pointer hover:text-primary transition-colors"
               onClick={(e) => {
                 e.stopPropagation()
-                // Stocker l'intention de filtre dans sessionStorage
-                sessionStorage.setItem('pending-artisan-filter', JSON.stringify({
-                  viewId: "ma-liste-artisans" // Activer la vue "Ma liste artisans"
-                }))
-                // Naviguer vers la page artisans
-                router.push("/artisans")
+                navigateWithModifier({
+                  router,
+                  path: "/artisans",
+                  event: e,
+                  sessionStorageKey: 'pending-artisan-filter',
+                  sessionStorageValue: {
+                    viewId: "ma-liste-artisans" // Activer la vue "Ma liste artisans"
+                  }
+                })
               }}
             >
               Mes Artisans
@@ -483,7 +490,7 @@ export function ArtisanStatsList({ period, userId: propUserId }: ArtisanStatsLis
                     key={item.label}
                     onClick={(e) => {
                       e.stopPropagation()
-                      handleStatusClick(item.label)
+                      handleStatusClick(item.label, e)
                     }}
                     onContextMenu={(e) => {
                       e.stopPropagation()
@@ -503,13 +510,16 @@ export function ArtisanStatsList({ period, userId: propUserId }: ArtisanStatsLis
                     <button
                       onClick={(e) => {
                         e.stopPropagation()
-                        // Stocker l'intention de filtre dans sessionStorage
-                        sessionStorage.setItem('pending-artisan-filter', JSON.stringify({
-                          viewId: "mes-artisans-a-completer", // Activer la vue "Mes Artisans à compléter"
-                          statusFilter: "Dossier à compléter" // Activer le filtre de statut virtuel "Dossier à compléter"
-                        }))
-                        // Naviguer vers la page artisans
-                        router.push("/artisans")
+                        navigateWithModifier({
+                          router,
+                          path: "/artisans",
+                          event: e,
+                          sessionStorageKey: 'pending-artisan-filter',
+                          sessionStorageValue: {
+                            viewId: "mes-artisans-a-completer", // Activer la vue "Mes Artisans à compléter"
+                            statusFilter: "Dossier à compléter" // Activer le filtre de statut virtuel "Dossier à compléter"
+                          }
+                        })
                       }}
                       onContextMenu={(e) => {
                         e.stopPropagation()

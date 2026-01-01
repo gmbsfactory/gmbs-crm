@@ -25,38 +25,38 @@ const DEFAULT_VIEW_PRESETS: Array<{
   description: string
   filters: ArtisanViewFilter[]
 }> = [
-  {
-    id: "liste-generale",
-    title: "Liste générale",
-    description: "Liste complète de tous les artisans sans filtres",
-    filters: [],
-  },
-  {
-    id: "ma-liste-artisans",
-    title: "Ma liste artisans",
-    description: "Artisans assignés au gestionnaire connecté au CRM",
-    filters: [
-      { property: "gestionnaire_id", operator: "eq", value: CURRENT_USER_PLACEHOLDER },
-    ],
-  },
-  {
-    id: "mes-artisans-a-completer",
-    title: "Mes Artisans à compléter",
-    description: "Artisans assignés au gestionnaire connecté avec le statut Dossier à compléter",
-    filters: [
-      { property: "gestionnaire_id", operator: "eq", value: CURRENT_USER_PLACEHOLDER },
-      { property: "statut_dossier", operator: "eq", value: "À compléter" },
-    ],
-  },
-  {
-    id: "artisans-a-completer",
-    title: "Liste Artisans à compléter",
-    description: "Tous les artisans avec le statut Dossier à compléter",
-    filters: [
-      { property: "statut_dossier", operator: "eq", value: "À compléter" },
-    ],
-  },
-]
+    {
+      id: "liste-generale",
+      title: "Liste générale",
+      description: "Liste complète de tous les artisans sans filtres",
+      filters: [],
+    },
+    {
+      id: "ma-liste-artisans",
+      title: "Ma liste artisans",
+      description: "Artisans assignés au gestionnaire connecté au CRM",
+      filters: [
+        { property: "gestionnaire_id", operator: "eq", value: CURRENT_USER_PLACEHOLDER },
+      ],
+    },
+    {
+      id: "artisans-a-completer",
+      title: "Liste Artisans à compléter",
+      description: "Tous les artisans avec le statut Dossier à compléter",
+      filters: [
+        { property: "statut_dossier", operator: "eq", value: "À compléter" },
+      ],
+    },
+    {
+      id: "mes-artisans-a-completer",
+      title: "Mes Artisans à compléter",
+      description: "Artisans assignés au gestionnaire connecté avec le statut Dossier à compléter",
+      filters: [
+        { property: "gestionnaire_id", operator: "eq", value: CURRENT_USER_PLACEHOLDER },
+        { property: "statut_dossier", operator: "eq", value: "À compléter" },
+      ],
+    },
+  ]
 
 const DEFAULT_VIEWS: ArtisanViewDefinition[] = DEFAULT_VIEW_PRESETS.map((preset) => ({
   ...preset,
@@ -67,7 +67,7 @@ const STORAGE_KEY = "crm:artisans:views"
 
 function applyUserScopedFilters(view: ArtisanViewDefinition, userId: string | null): ArtisanViewDefinition {
   if (!userId) return view
-  
+
   return {
     ...view,
     filters: view.filters.map((filter) => {
@@ -86,7 +86,7 @@ export function useArtisanViews() {
     return defaultView.id
   })
   const [isReady, setIsReady] = useState(false)
-  
+
   // Utiliser le hook centralisé useCurrentUser au lieu d'un fetch direct
   const { data: currentUser } = useCurrentUser()
   const currentUserId = currentUser?.id ?? null
@@ -103,13 +103,13 @@ export function useArtisanViews() {
           // S'assurer que toutes les vues par défaut sont présentes et à jour
           const mergedViews: ArtisanViewDefinition[] = []
           const seenIds = new Set<string>()
-          
+
           // D'abord, ajouter toutes les vues par défaut (toujours prioritaires)
           DEFAULT_VIEWS.forEach((defaultView) => {
             mergedViews.push(defaultView)
             seenIds.add(defaultView.id)
           })
-          
+
           // Ensuite, ajouter les vues personnalisées (non par défaut) depuis le localStorage
           // Ignorer les vues par défaut du localStorage car elles peuvent être obsolètes
           parsed.views.forEach((storedView) => {
@@ -118,7 +118,7 @@ export function useArtisanViews() {
               seenIds.add(storedView.id)
             }
           })
-          
+
           setViews(mergedViews)
           if (parsed.activeViewId && mergedViews.some(v => v.id === parsed.activeViewId)) {
             setActiveViewId(parsed.activeViewId)

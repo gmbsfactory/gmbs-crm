@@ -1214,26 +1214,48 @@ export default function ArtisansPage(): ReactElement {
                                       <span className="text-[10px] text-muted-foreground">Zone {contact.zoneIntervention ?? "—"}</span>
                                     </div>
                                     <div className="flex items-center flex-shrink-0">
-                                      {contact.statutArtisan && contact.statutArtisanColor && (
+                                      {(() => {
+                                        // Debug: afficher la valeur exacte pour Jean Dupont
+                                        if (contact.name === "Jean Dupont") {
+                                          console.log("Jean Dupont:" + contact.name + "- statutDossier:", contact.statutDossier, "| Type:", typeof contact.statutDossier)
+                                        }
+                                        return (contact.statutDossier === "À compléter" || contact.statutDossier === "à compléter" || contact.statutDossier === "A compléter" || contact.statutDossier === "a compléter")
+                                      })() ? (
                                         <Badge
                                           variant="outline"
                                           className="border px-1.5 py-0 text-[9px] font-semibold uppercase tracking-wide"
                                           style={{
-                                            backgroundColor: hexToRgba(contact.statutArtisanColor, 0.15) || contact.statutArtisanColor + '20',
-                                            color: contact.statutArtisanColor,
-                                            borderColor: contact.statutArtisanColor,
+                                            backgroundColor: hexToRgba('#EF4444', 0.15) || '#EF444420',
+                                            color: '#EF4444',
+                                            borderColor: '#EF4444',
                                           }}
                                         >
-                                          {contact.statutArtisan}
+                                          Dossier Incomplet
                                         </Badge>
-                                      )}
-                                      {contact.statutArtisan && !contact.statutArtisanColor && (
-                                        <Badge
-                                          variant="outline"
-                                          className="border px-1.5 py-0 text-[9px] font-semibold uppercase tracking-wide bg-gray-100 text-gray-700 border-gray-300"
-                                        >
-                                          {contact.statutArtisan}
-                                        </Badge>
+                                      ) : (
+                                        <>
+                                          {contact.statutArtisan && contact.statutArtisanColor && (
+                                            <Badge
+                                              variant="outline"
+                                              className="border px-1.5 py-0 text-[9px] font-semibold uppercase tracking-wide"
+                                              style={{
+                                                backgroundColor: hexToRgba(contact.statutArtisanColor, 0.15) || contact.statutArtisanColor + '20',
+                                                color: contact.statutArtisanColor,
+                                                borderColor: contact.statutArtisanColor,
+                                              }}
+                                            >
+                                              {contact.statutArtisan}
+                                            </Badge>
+                                          )}
+                                          {contact.statutArtisan && !contact.statutArtisanColor && (
+                                            <Badge
+                                              variant="outline"
+                                              className="border px-1.5 py-0 text-[9px] font-semibold uppercase tracking-wide bg-gray-100 text-gray-700 border-gray-300"
+                                            >
+                                              {contact.statutArtisan}
+                                            </Badge>
+                                          )}
+                                        </>
                                       )}
                                     </div>
                                   </div>
