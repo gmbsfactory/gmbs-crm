@@ -1304,6 +1304,40 @@ export function NewArtisanModalContent({ mode, onClose, onCycleMode, artisanId, 
   // Toutes les absences combinées pour affichage
   const allAbsences = [...existingAbsences.map(a => ({ ...a, isPending: false })), ...pendingAbsences.map(a => ({ ...a, isPending: true, is_confirmed: false }))]
 
+  // Statut dossier (uniquement en mode édition)
+  const dossierStatus = isEditMode ? (existingArtisan as any)?.statutDossier ?? null : null
+  const dossierBadge = (() => {
+    if (!dossierStatus) {
+      return <Badge variant="outline">Non renseigné</Badge>
+    }
+
+    // Si le statut est "À compléter", utiliser un style rouge
+    const statusLower = dossierStatus.toLowerCase()
+    if (statusLower === "à compléter" || statusLower === "a compléter") {
+      return (
+        <Badge className={cn("border border-red-500/30 bg-red-500/15 text-red-700")}>
+          {dossierStatus}
+        </Badge>
+      )
+    }
+
+    // Pour les autres statuts, utiliser les thèmes par défaut
+    const slug = dossierStatus.toLowerCase().replace(/\s+/g, "_")
+    const dossierStatusTheme: Record<string, string> = {
+      complet: "bg-emerald-100 text-emerald-700 border-emerald-300",
+      en_attente: "bg-amber-100 text-amber-700 border-amber-300",
+      incomplet: "bg-red-100 text-red-700 border-red-300",
+      a_verifier: "bg-blue-100 text-blue-700 border-blue-300",
+      bloque: "bg-gray-200 text-gray-700 border-gray-300",
+    }
+    const theme = dossierStatusTheme[slug] ?? "bg-slate-100 text-slate-700 border-slate-200"
+    return (
+      <Badge className={cn("border", theme)}>
+        {dossierStatus}
+      </Badge>
+    )
+  })()
+
   // Rendu du contrôle métiers
   const renderMetiersControl = () => (
     <Controller
@@ -1538,10 +1572,23 @@ export function NewArtisanModalContent({ mode, onClose, onCycleMode, artisanId, 
                     {/* Informations de l'artisan */}
                     <Card>
                       <CardHeader className="py-3 px-4">
-                        <CardTitle className="flex items-center gap-2 text-sm">
-                          <User className="h-4 w-4" />
-                          Informations de l&apos;artisan
-                        </CardTitle>
+                        <div className="flex items-center justify-between">
+                          <CardTitle className="flex items-center gap-2 text-sm">
+                            <User className="h-4 w-4" />
+                            Informations de l&apos;artisan
+                          </CardTitle>
+                          {isEditMode && (
+                            <div className="flex items-center gap-2">
+                              <span className="text-[10px] uppercase text-muted-foreground">Dossier</span>
+                              {dossierBadge}
+                              {isDirty && (
+                                <Badge variant="outline" className="border-amber-300 bg-amber-100 text-amber-700 text-[10px]">
+                                  Non enregistré
+                                </Badge>
+                              )}
+                            </div>
+                          )}
+                        </div>
                       </CardHeader>
                       <CardContent className="px-4 pb-4 pt-0 space-y-3">
                         <div className="grid grid-cols-2 gap-2">

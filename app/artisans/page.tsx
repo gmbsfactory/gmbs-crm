@@ -231,7 +231,7 @@ const mapArtisanToContact = (artisan: ApiArtisan, users: ReferenceUser[], artisa
     adresse: `${artisan.adresse_siege_social || ""}, ${artisan.code_postal_siege_social || ""} ${artisan.ville_siege_social || ""}`.trim(),
     adresseIntervention: `${artisan.adresse_intervention || ""}, ${artisan.code_postal_intervention || ""} ${artisan.ville_intervention || ""}`.trim(),
     metiers: Array.isArray(raw.metiers) ? raw.metiers : raw.metiers ? [raw.metiers] : [],
-    statutDossier: raw.statut_dossier || raw.statut_artisan || "",
+    statutDossier: artisan.statutDossier || "",
     statutInactif: Boolean(raw.statut_inactif),
     attribueA: user ? `${user.firstname || ""} ${user.lastname || ""}`.trim() || user.code_gestionnaire || "Non assigné" : "Non assigné",
     gestionnaireInitials,
@@ -1214,13 +1214,7 @@ export default function ArtisansPage(): ReactElement {
                                       <span className="text-[10px] text-muted-foreground">Zone {contact.zoneIntervention ?? "—"}</span>
                                     </div>
                                     <div className="flex items-center flex-shrink-0">
-                                      {(() => {
-                                        // Debug: afficher la valeur exacte pour Jean Dupont
-                                        if (contact.name === "Jean Dupont") {
-                                          console.log("Jean Dupont:" + contact.name + "- statutDossier:", contact.statutDossier, "| Type:", typeof contact.statutDossier)
-                                        }
-                                        return (contact.statutDossier === "À compléter" || contact.statutDossier === "à compléter" || contact.statutDossier === "A compléter" || contact.statutDossier === "a compléter")
-                                      })() ? (
+                                      {(contact.statutDossier === "À compléter" || contact.statutDossier === "à compléter" || contact.statutDossier === "A compléter" || contact.statutDossier === "a compléter") ? (
                                         <Badge
                                           variant="outline"
                                           className="border px-1.5 py-0 text-[9px] font-semibold uppercase tracking-wide"
