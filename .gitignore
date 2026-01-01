@@ -102,3 +102,5 @@ docs/GUIDE_REPARATION_MIGRATIONS.md
 logs/
 
 docs/todo/*
+
+exports/*.csv

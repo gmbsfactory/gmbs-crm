@@ -257,7 +257,7 @@ async function fetchInterventions(startDate, endDate, verbose = false) {
 }
 
 /**
- * Enrichit les données d'interventions avec les artisans et coûts
+ * Enrichit les données d'interventions avec les artisans, coûts et commentaires
  */
 async function enrichInterventionsData(interventions, verbose = false) {
   const enriched = [];
@@ -283,10 +283,25 @@ async function enrichInterventionsData(interventions, verbose = false) {
       .select('cost_type, amount')
       .eq('intervention_id', intervention.id);
 
+    // Récupérer les commentaires (uniquement internal, triés par date décroissante)
+    const { data: commentsData } = await supabaseAdmin
+      .from('comments')
+      .select('content, created_at')
+      .eq('entity_type', 'intervention')
+      .eq('entity_id', intervention.id)
+      .eq('is_internal', true)
+      .order('created_at', { ascending: false });
+
+    // Concaténer tous les commentaires avec leur date
+    const commentaires = commentsData?.map(c =>
+      `[${formatDate(c.created_at)}] ${c.content}`
+    ).join(' || ') || '';
+
     enriched.push({
       ...intervention,
       technicien,
-      costs: costsData || []
+      costs: costsData || [],
+      commentaires
     });
 
     processedCount++;
@@ -343,7 +358,7 @@ function convertToCSV(interventions) {
       intervention.tenants?.telephone || '',                          // TEL LOC
       locataire,                                                      // Locataire
       intervention.tenants?.email || '',                              // Em@il Locataire
-      intervention.commentaire_agent || ''                            // COMMENTAIRE
+      intervention.commentaires || ''                                 // COMMENTAIRE
     ];
 
     rows.push(row.map(escapeCSV).join(','));
