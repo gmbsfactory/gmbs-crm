@@ -1045,13 +1045,69 @@ function mapInterventionRecordsBatch(
   return items.map((item) => mapInterventionRecord(item, refs) as unknown as InterventionView);
 }
 
+// Fonction de conversion de GetAllParams vers InterventionQueryParams
+function convertToInterventionQueryParams(params: GetAllParams): import("@/lib/api/v2/common/types").InterventionQueryParams {
+  const converted: import("@/lib/api/v2/common/types").InterventionQueryParams = {
+    limit: params.limit,
+    offset: params.offset,
+    startDate: params.startDate,
+    endDate: params.endDate,
+    isCheck: params.isCheck,
+  };
+
+  // Convertir statut (peut être un tableau ou une string)
+  if (params.statut) {
+    if (Array.isArray(params.statut)) {
+      const validStatuts = params.statut.filter((s): s is string => typeof s === "string");
+      if (validStatuts.length > 0) {
+        converted.statuts = validStatuts;
+      }
+    } else if (typeof params.statut === "string") {
+      converted.statut = params.statut;
+    }
+  }
+
+  // Convertir agence
+  if (params.agence) {
+    if (typeof params.agence === "string") {
+      converted.agence = params.agence;
+    }
+  }
+
+  // Convertir artisan
+  if (params.artisan) {
+    if (typeof params.artisan === "string") {
+      converted.artisan = params.artisan;
+    }
+  }
+
+  // Convertir metier
+  if (params.metier) {
+    if (Array.isArray(params.metier)) {
+      converted.metiers = params.metier.filter((m): m is string => typeof m === "string");
+    } else if (typeof params.metier === "string") {
+      converted.metier = params.metier;
+    }
+  }
+
+  // Convertir user
+  if (params.user) {
+    if (typeof params.user === "string") {
+      converted.user = params.user;
+    }
+  }
+
+  return converted;
+}
+
 export const interventionsApiV2 = {
   // Récupérer toutes les interventions (DELEGUE à interventionsApi.getAll)
   async getAll(params: GetAllParams = {}): Promise<{ data: InterventionView[]; total: number }> {
     // Importer dynamiquement pour éviter les dépendances circulaires
     const { interventionsApi } = await import("@/lib/api/v2");
 
-    const result = await interventionsApi.getAll(params);
+    const convertedParams = convertToInterventionQueryParams(params);
+    const result = await interventionsApi.getAll(convertedParams);
 
     return {
       data: result.data as unknown as InterventionView[],

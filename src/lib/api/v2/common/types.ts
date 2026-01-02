@@ -197,6 +197,7 @@ export interface UserQueryParams extends BaseQueryParams {
 
 export interface InterventionQueryParams extends BaseQueryParams {
   statut?: string;
+  statuts?: string[];
   agence?: string;
   artisan?: string;
   metier?: string;
@@ -216,6 +217,7 @@ export interface ArtisanQueryParams extends BaseQueryParams {
   zone?: string;
   gestionnaire?: string;
   statut_dossier?: string;
+  search?: string;
 }
 
 export interface DocumentQueryParams extends BaseQueryParams {

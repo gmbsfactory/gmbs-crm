@@ -204,7 +204,12 @@ export const interventionsApi = {
       }
     };
 
-    appendFilterParam("statut", params?.statut);
+    // Gérer statut et statuts (comme metier et metiers)
+    if (params?.statuts && params.statuts.length > 0) {
+      appendFilterParam("statut", params.statuts);
+    } else {
+      appendFilterParam("statut", params?.statut);
+    }
     appendFilterParam("agence", params?.agence);
     appendFilterParam("artisan", params?.artisan);
     appendFilterParam("metier", metierParam);

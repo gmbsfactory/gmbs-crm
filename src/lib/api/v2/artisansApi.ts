@@ -219,10 +219,10 @@ export const artisansApi = {
           // Filtrer par métiers AVANT de paginer (côté BD via artisan_metiers)
           if (params?.metiers && params.metiers.length > 0) {
             const filteredIds = await filterArtisansByMetiers(artisanIds, params.metiers);
-            artisanIds = artisanIds.filter(id => filteredIds.has(id));
+            artisanIds = artisanIds.filter((id: string) => filteredIds.has(id));
           } else if (params?.metier) {
             const filteredIds = await filterArtisansByMetier(artisanIds, params.metier);
-            artisanIds = artisanIds.filter(id => filteredIds.has(id));
+            artisanIds = artisanIds.filter((id: string) => filteredIds.has(id));
           }
 
           // Calculer le count total APRÈS filtrage métiers
