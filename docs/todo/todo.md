@@ -13,6 +13,17 @@
                 Mettre les éléments quelque part qui sont à compléter
                 Quand le dosier est complété, voir si il passe plus en dossier incomplet
 
+        - Gestion des compteurs avec les filtres statuts métiers
+
+        - Modal vue impossible de scroller dans l'ajout des documents ou même sur la partie gauche entièrement. (Je suppose sur la partie droite également)  [Supprimer le modal oeuil ? ]   --> demander à André
+        
+- Interventions
+        - TableView dans le sélecteur de filtres mettre un compteur comme dans la table artisans
+        - Refaire un check
+
+- Refacto
+        - refacto supabase-api-v2 appelé les différents endpoint api plutôt que de dupliquer du code. Unique point de responsabilité.
+
 ### Later
 
 - Donner à Antigravity la gestion des vulnérabilités supabase

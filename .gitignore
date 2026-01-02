@@ -37,7 +37,7 @@ service-account*.json
 # Backup files with sensitive data
 *.backup
 *.bak
-*.sql
+# *.sql
 *.dump
 
 # Environment files (reinforcement)

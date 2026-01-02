@@ -141,144 +141,129 @@ async function getReferenceCache(): Promise<ReferenceCache> {
 }
 
 export const interventionsApi = {
-  // Récupérer toutes les interventions (ULTRA-OPTIMISÉ)
+  // Récupérer toutes les interventions (via Edge Function)
   async getAll(params?: InterventionQueryParams): Promise<PaginatedResponse<InterventionWithStatus>> {
-    const includeCosts = params?.include?.includes("costs")
-    const includeArtisans = params?.include?.includes("artisans")
+    type FilterValue = string | string[] | null | undefined;
 
-    const selectColumns = [
-      "*",
-      "status:intervention_statuses(id,code,label,color,sort_order)",
-      "payments:intervention_payments(*)",
-      "costs_cache:intervention_costs_cache(total_ca,total_sst,total_materiel,total_marge)",
-    ]
+    const limit = Math.max(1, params?.limit ?? 100);
 
-    if (includeCosts) {
-      selectColumns.push(
-        `
-        intervention_costs (
-          id,
-          cost_type,
-          label,
-          amount,
-          currency,
-          metadata
-        )
-        `.trim(),
-      )
-    }
+    // Convertir les codes métier en IDs si nécessaire
+    let metierParam = params?.metier;
+    let metiersParam = params?.metiers;
 
-    if (includeArtisans) {
-      selectColumns.push(
-        `
-        intervention_artisans (
-          artisan_id,
-          role,
-          is_primary,
-          artisans (
-            id,
-            prenom,
-            nom
-          )
-        )
-        `.trim(),
-      )
+    if (params?.metier || params?.metiers) {
+      const refs = await getReferenceCache();
+
+      // Convertir un seul métier (code → ID)
+      if (params?.metier) {
+        const metierObj = Array.from(refs.metiersById.values()).find(
+          (m: any) => m.code === params.metier || m.id === params.metier
+        );
+        metierParam = metierObj?.id || params.metier;
+      }
+
+      // Convertir plusieurs métiers (codes → IDs)
+      if (params?.metiers && params.metiers.length > 0) {
+        metiersParam = params.metiers.map((metierCodeOrId) => {
+          const metierObj = Array.from(refs.metiersById.values()).find(
+            (m: any) => m.code === metierCodeOrId || m.id === metierCodeOrId
+          );
+          return metierObj?.id || metierCodeOrId;
+        });
+      }
     }
 
-    // Version ultra-rapide : requête simple avec cache des coûts
-    let query = supabase
-      .from("interventions")
-      .select(selectColumns.join(",\n"), { count: "exact" })
-      .order("created_at", { ascending: false });
+    const searchParams = new URLSearchParams();
+    searchParams.set("limit", limit.toString());
+    if (params?.offset !== undefined) {
+      searchParams.set("offset", params.offset.toString());
+    }
 
-    // Appliquer les filtres si nécessaire
-    if (params?.statut) {
-      query = query.eq("statut_id", params.statut);
-    }
-    if (params?.agence) {
-      query = query.eq("agence_id", params.agence);
-    }
-    if (params?.user) {
-      query = query.eq("assigned_user_id", params.user);
-    }
-    if (params?.artisan) {
-      query = query.eq("artisan_id", params.artisan);
-    }
+    const appendFilterParam = (key: string, value?: FilterValue) => {
+      // Cas spécial pour user === null (vue Market) : envoyer "null" comme chaîne
+      if (key === "user" && value === null) {
+        searchParams.append(key, "null");
+        return;
+      }
+
+      if (value === undefined || value === null) {
+        // Ne pas envoyer le paramètre si la valeur est undefined ou null
+        return;
+      }
+      if (Array.isArray(value)) {
+        value.forEach((entry) => {
+          // Ignorer les valeurs null dans les tableaux
+          if (entry !== null && typeof entry === "string" && entry.length > 0) {
+            searchParams.append(key, entry);
+          }
+        });
+        return;
+      }
+      if (typeof value === "string" && value.length > 0) {
+        searchParams.append(key, value);
+      }
+    };
+
+    appendFilterParam("statut", params?.statut);
+    appendFilterParam("agence", params?.agence);
+    appendFilterParam("artisan", params?.artisan);
+    appendFilterParam("metier", metierParam);
+    appendFilterParam("user", params?.user);
+
     if (params?.startDate) {
-      query = query.gte("date", params.startDate);
+      searchParams.set("startDate", params.startDate);
     }
     if (params?.endDate) {
-      query = query.lte("date", params.endDate);
+      searchParams.set("endDate", params.endDate);
+    }
+    if (params?.isCheck !== undefined) {
+      searchParams.set("isCheck", params.isCheck.toString());
     }
 
-    // Filtre isCheck côté serveur
-    // isCheck = interventions avec statut VISITE_TECHNIQUE ou INTER_EN_COURS ET date_prevue <= aujourd'hui
-    if (params?.isCheck === true) {
-      const refs = await getReferenceCache();
-      const statusCodes = ["VISITE_TECHNIQUE", "INTER_EN_COURS"];
-      const statusIds = Array.from(refs.interventionStatusesById.values())
-        .filter((status: any) => statusCodes.includes(status.code))
-        .map((status: any) => status.id);
-
-      console.log(`[interventionsApi.getAll] isCheck filter - statusCodes: ${statusCodes.join(', ')}, statusIds found: ${statusIds.join(', ')}`);
-
-      if (statusIds.length > 0) {
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        const todayISO = today.toISOString().split('T')[0]; // Format YYYY-MM-DD
-
-        console.log(`[interventionsApi.getAll] isCheck filter - today: ${todayISO}, filtering with statut_id IN (${statusIds.join(', ')}) AND date_prevue <= ${todayISO}`);
-
-        query = query
-          .in("statut_id", statusIds)
-          .lte("date_prevue", todayISO);
-      } else {
-        console.warn(`[interventionsApi.getAll] isCheck filter - No status IDs found for codes: ${statusCodes.join(', ')}`);
-      }
-    } else if (params?.isCheck === false) {
-      // Exclure les interventions isCheck
-      const refs = await getReferenceCache();
-      const statusCodes = ["VISITE_TECHNIQUE", "INTER_EN_COURS"];
-      const statusIds = Array.from(refs.interventionStatusesById.values())
-        .filter((status: any) => statusCodes.includes(status.code))
-        .map((status: any) => status.id);
-
-      if (statusIds.length > 0) {
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        const todayISO = today.toISOString().split('T')[0]; // Format YYYY-MM-DD
-
-        console.log(`[interventionsApi.getAll] isCheck=false filter - Excluding interventions with statut_id IN (${statusIds.join(', ')}) AND date_prevue <= ${todayISO}`);
-
-        // Exclure les interventions qui sont dans les statuts concernés ET ont une date dépassée
-        // Solution PostgreSQL: NOT (statut_id IN (...) AND date_prevue <= today)
-        // En Supabase: utiliser .or() avec .not()
-        query = query.or(`statut_id.not.in.(${statusIds.join(',')}),date_prevue.gt.${todayISO},date_prevue.is.null`);
-      }
+    if (process.env.NODE_ENV === "production") {
+      searchParams.set("_ts", Date.now().toString());
     }
 
-    // Pagination
-    const limit = params?.limit || 500;
-    const offset = params?.offset || 0;
-    query = query.range(offset, offset + limit - 1);
+    const queryString = searchParams.toString();
+    const functionsUrl = getSupabaseFunctionsUrl();
+    const url = `${functionsUrl}/interventions-v2/interventions${queryString ? `?${queryString}` : ""}`;
 
-    const { data, error, count } = await query;
+    console.log(`[interventionsApi.getAll] URL: ${url}`)
+    console.log(`[interventionsApi.getAll] Params: limit=${limit}, offset=${params?.offset ?? 0}`)
 
-    if (error) throw error;
+    const fetchStart = Date.now();
+    const response = await fetch(url, {
+      headers: await getHeaders(),
+    });
+    const raw = await handleResponse(response);
+    const rawLength = Array.isArray(raw?.data) ? raw.data.length : 0;
+    const fetchDuration = Date.now() - fetchStart;
 
     const refs = await getReferenceCache();
 
-    const transformedData = (data || []).map((item) =>
-      mapInterventionRecord(item, refs) as InterventionWithStatus
-    );
+    const mapStart = Date.now();
+    // Mapping direct batch (synchrone = plus rapide)
+    const transformedData = Array.isArray(raw?.data)
+      ? raw.data.map((item: any) => mapInterventionRecord(item, refs) as InterventionWithStatus)
+      : [];
+    const mapDuration = Date.now() - mapStart;
+
+    console.log(`🚀 [interventionsApi.getAll] Fetch: ${fetchDuration}ms, Map: ${mapDuration}ms, Total: ${transformedData.length} items`);
+
+    const total =
+      typeof raw?.pagination?.total === "number"
+        ? raw.pagination.total
+        : transformedData.length;
+
+    const offset = params?.offset ?? 0;
 
     return {
       data: transformedData,
       pagination: {
-        total: count || 0,
+        total,
         limit,
         offset,
-        hasMore: offset + limit < (count || 0),
+        hasMore: offset + limit < total,
       },
     };
   },

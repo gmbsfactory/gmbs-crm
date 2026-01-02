@@ -13,17 +13,17 @@ function getSupabaseClientForNode() {
   if (typeof window !== 'undefined') {
     return supabase;
   }
-  
+
   // Dans Node.js, créer un nouveau client avec les credentials du service role
   const { createClient } = require('@supabase/supabase-js');
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  
+
   if (!supabaseUrl || !serviceRoleKey) {
     console.warn('[artisansApi] SUPABASE_URL ou SUPABASE_SERVICE_ROLE_KEY manquants, utilisation du client standard');
     return supabase;
   }
-  
+
   return createClient(supabaseUrl, serviceRoleKey, {
     auth: {
       autoRefreshToken: false,
@@ -93,18 +93,465 @@ async function getReferenceCache(): Promise<ReferenceCache> {
   }
 }
 
+// Taille maximale des lots pour les requêtes .in() pour éviter les erreurs de longueur d'URL
+const MAX_BATCH_SIZE = 100;
+
+/**
+ * Divise un tableau en lots de taille maximale
+ */
+function chunkArray<T>(array: T[], chunkSize: number): T[][] {
+  const chunks: T[][] = [];
+  for (let i = 0; i < array.length; i += chunkSize) {
+    chunks.push(array.slice(i, i + chunkSize));
+  }
+  return chunks;
+}
+
+/**
+ * Filtre les artisans par métiers en divisant les requêtes en lots pour éviter les erreurs de longueur d'URL
+ */
+async function filterArtisansByMetiers(
+  artisanIds: string[],
+  metierIds: string[]
+): Promise<Set<string>> {
+  if (artisanIds.length === 0 || metierIds.length === 0) {
+    return new Set();
+  }
+
+  const filteredIds = new Set<string>();
+
+  // Diviser les artisanIds en lots
+  const artisanIdChunks = chunkArray(artisanIds, MAX_BATCH_SIZE);
+
+  // Pour chaque lot d'artisanIds, faire une requête
+  for (const artisanIdChunk of artisanIdChunks) {
+    const { data: artisansWithMetiers, error: metierError } = await supabase
+      .from("artisan_metiers")
+      .select("artisan_id")
+      .in("metier_id", metierIds)
+      .in("artisan_id", artisanIdChunk);
+
+    if (metierError) {
+      console.error("Erreur lors du filtrage par métiers:", metierError);
+      throw metierError;
+    }
+
+    if (artisansWithMetiers) {
+      artisansWithMetiers.forEach((am: any) => {
+        if (am.artisan_id) {
+          filteredIds.add(am.artisan_id);
+        }
+      });
+    }
+  }
+
+  return filteredIds;
+}
+
+/**
+ * Filtre les artisans par un seul métier en divisant les requêtes en lots
+ */
+async function filterArtisansByMetier(
+  artisanIds: string[],
+  metierId: string
+): Promise<Set<string>> {
+  if (artisanIds.length === 0) {
+    return new Set();
+  }
+
+  const filteredIds = new Set<string>();
+
+  // Diviser les artisanIds en lots
+  const artisanIdChunks = chunkArray(artisanIds, MAX_BATCH_SIZE);
+
+  // Pour chaque lot d'artisanIds, faire une requête
+  for (const artisanIdChunk of artisanIdChunks) {
+    const { data: artisansWithMetier, error: metierError } = await supabase
+      .from("artisan_metiers")
+      .select("artisan_id")
+      .eq("metier_id", metierId)
+      .in("artisan_id", artisanIdChunk);
+
+    if (metierError) {
+      console.error("Erreur lors du filtrage par métier:", metierError);
+      throw metierError;
+    }
+
+    if (artisansWithMetier) {
+      artisansWithMetier.forEach((am: any) => {
+        if (am.artisan_id) {
+          filteredIds.add(am.artisan_id);
+        }
+      });
+    }
+  }
+
+  return filteredIds;
+}
+
 export const artisansApi = {
-  // Récupérer tous les artisans (ULTRA-OPTIMISÉ)
+  // Récupérer tous les artisans (ULTRA-OPTIMISÉ avec recherche et filtres)
   async getAll(params?: ArtisanQueryParams): Promise<PaginatedResponse<Artisan>> {
-    // Version ultra-rapide : requête simple sans joins complexes
+    const limit = params?.limit || 100;
+    const offset = params?.offset || 0;
+    const hasSearch = Boolean(params?.search && params.search.trim().length >= 2);
+    const searchQuery = params?.search?.trim() || "";
+
+    // ========================================
+    // RECHERCHE OPTIMISÉE VIA VUE MATÉRIALISÉE
+    // ========================================
+    if (hasSearch) {
+      try {
+        // Appeler la fonction RPC search_artisans
+        const { data: searchResults, error: searchError } = await supabase.rpc("search_artisans", {
+          p_query: searchQuery,
+          p_limit: 10000, // Récupérer tous les résultats pour gérer la pagination correctement
+          p_offset: 0,
+        });
+
+        if (searchError) {
+          console.error("[artisansApi.getAll] Error in search_artisans RPC:", searchError);
+          // Fallback vers l'ancienne méthode si RPC échoue
+        } else if (searchResults && searchResults.length > 0) {
+          // Extraire les IDs triés par pertinence
+          let artisanIds = searchResults.map((r: any) => r.id).filter(Boolean);
+
+          // Filtrer par métiers AVANT de paginer (côté BD via artisan_metiers)
+          if (params?.metiers && params.metiers.length > 0) {
+            const filteredIds = await filterArtisansByMetiers(artisanIds, params.metiers);
+            artisanIds = artisanIds.filter(id => filteredIds.has(id));
+          } else if (params?.metier) {
+            const filteredIds = await filterArtisansByMetier(artisanIds, params.metier);
+            artisanIds = artisanIds.filter(id => filteredIds.has(id));
+          }
+
+          // Calculer le count total APRÈS filtrage métiers
+          const totalCount = artisanIds.length;
+
+          // Appliquer la pagination sur les IDs filtrés
+          const paginatedIds = artisanIds.slice(offset, offset + limit);
+
+          if (paginatedIds.length === 0) {
+            return {
+              data: [],
+              pagination: {
+                total: totalCount,
+                limit,
+                offset,
+                hasMore: false,
+              },
+            };
+          }
+
+          // Récupérer les données complètes avec relations pour les IDs paginés
+          let detailedQuery = supabase
+            .from("artisans")
+            .select(`
+              *,
+              artisan_metiers (
+                metier_id,
+                metiers (
+                  id,
+                  code,
+                  label
+                )
+              ),
+              artisan_zones (
+                zone_id,
+                zones (
+                  id,
+                  code,
+                  label
+                )
+              ),
+              artisan_attachments (
+                id,
+                kind,
+                url,
+                filename,
+                mime_type,
+                content_hash,
+                derived_sizes,
+                mime_preferred
+              )
+            `)
+            .in("id", paginatedIds)
+            .eq("is_active", true);
+
+          // Appliquer les filtres supplémentaires
+          if (params?.statuts && params.statuts.length > 0) {
+            detailedQuery = detailedQuery.in("statut_id", params.statuts);
+          } else if (params?.statut) {
+            detailedQuery = detailedQuery.eq("statut_id", params.statut);
+          }
+          if (params?.gestionnaire) {
+            detailedQuery = detailedQuery.eq("gestionnaire_id", params.gestionnaire);
+          }
+          if (params?.statut_dossier) {
+            detailedQuery = detailedQuery.eq("statut_dossier", params.statut_dossier);
+          }
+
+          const { data: detailedData, error: detailedError } = await detailedQuery;
+
+          if (detailedError) {
+            throw new Error(`Failed to fetch detailed data: ${detailedError.message}`);
+          }
+
+          // Réordonner selon l'ordre de pertinence de la recherche
+          const idToData = new Map((detailedData ?? []).map((item: any) => [item.id, item]));
+          const orderedData = paginatedIds
+            .map((id: string) => idToData.get(id))
+            .filter((item: any) => item !== undefined);
+
+          const refs = await getReferenceCache();
+          const transformedData = orderedData.map((item: any) => mapArtisanRecord(item, refs));
+
+          return {
+            data: transformedData,
+            pagination: {
+              total: totalCount,
+              limit,
+              offset,
+              hasMore: offset + limit < totalCount,
+            },
+          };
+        }
+      } catch (rpcError) {
+        console.error("[artisansApi.getAll] Error using search_artisans RPC, falling back to standard query:", rpcError);
+        // Continue avec l'ancienne méthode en cas d'erreur
+      }
+    }
+
+    // ========================================
+    // MÉTHODE STANDARD (sans recherche ou fallback)
+    // ========================================
+    // Stratégie : Si filtrage par métiers, on récupère d'abord les IDs filtrés puis on pagine
+    if (params?.metiers && params.metiers.length > 0) {
+      // 1. Récupérer tous les IDs d'artisans correspondant aux filtres de base
+      let idsQuery = supabase
+        .from("artisans")
+        .select("id")
+        .eq("is_active", true);
+
+      if (params?.statuts && params.statuts.length > 0) {
+        idsQuery = idsQuery.in("statut_id", params.statuts);
+      } else if (params?.statut) {
+        idsQuery = idsQuery.eq("statut_id", params.statut);
+      }
+      if (params?.gestionnaire) {
+        idsQuery = idsQuery.eq("gestionnaire_id", params.gestionnaire);
+      }
+      if (params?.statut_dossier) {
+        idsQuery = idsQuery.eq("statut_dossier", params.statut_dossier);
+      }
+
+      const { data: artisansData, error: idsError } = await idsQuery;
+      if (idsError) throw idsError;
+
+      const allArtisanIds = (artisansData || []).map((a: any) => a.id);
+
+      // 2. Filtrer par métiers
+      const filteredIds = await filterArtisansByMetiers(allArtisanIds, params.metiers);
+      const filteredIdsArray = Array.from(filteredIds);
+
+      const totalCount = filteredIdsArray.length;
+
+      // 3. Paginer les IDs filtrés
+      const paginatedIds = filteredIdsArray.slice(offset, offset + limit);
+
+      if (paginatedIds.length === 0) {
+        return {
+          data: [],
+          pagination: {
+            total: totalCount,
+            limit,
+            offset,
+            hasMore: false,
+          },
+        };
+      }
+
+      // 4. Récupérer les données complètes pour les IDs paginés
+      const { data: detailedData, error: detailedError } = await supabase
+        .from("artisans")
+        .select(`
+          *,
+          artisan_metiers (
+            metier_id,
+            metiers (
+              id,
+              code,
+              label
+            )
+          ),
+          artisan_zones (
+            zone_id,
+            zones (
+              id,
+              code,
+              label
+            )
+          ),
+          artisan_attachments (
+            id,
+            kind,
+            url,
+            filename,
+            mime_type,
+            content_hash,
+            derived_sizes,
+            mime_preferred
+          )
+        `)
+        .in("id", paginatedIds)
+        .order("created_at", { ascending: false });
+
+      if (detailedError) throw detailedError;
+
+      const refs = await getReferenceCache();
+      const transformedData = (detailedData || []).map((item: any) => mapArtisanRecord(item, refs));
+
+      return {
+        data: transformedData,
+        pagination: {
+          total: totalCount,
+          limit,
+          offset,
+          hasMore: offset + limit < totalCount,
+        },
+      };
+    } else if (params?.metier) {
+      // Même logique pour un seul métier
+      let idsQuery = supabase
+        .from("artisans")
+        .select("id")
+        .eq("is_active", true);
+
+      if (params?.statuts && params.statuts.length > 0) {
+        idsQuery = idsQuery.in("statut_id", params.statuts);
+      } else if (params?.statut) {
+        idsQuery = idsQuery.eq("statut_id", params.statut);
+      }
+      if (params?.gestionnaire) {
+        idsQuery = idsQuery.eq("gestionnaire_id", params.gestionnaire);
+      }
+      if (params?.statut_dossier) {
+        idsQuery = idsQuery.eq("statut_dossier", params.statut_dossier);
+      }
+
+      const { data: artisansData, error: idsError } = await idsQuery;
+      if (idsError) throw idsError;
+
+      const allArtisanIds = (artisansData || []).map((a: any) => a.id);
+
+      const filteredIds = await filterArtisansByMetier(allArtisanIds, params.metier);
+      const filteredIdsArray = Array.from(filteredIds);
+
+      const totalCount = filteredIdsArray.length;
+
+      const paginatedIds = filteredIdsArray.slice(offset, offset + limit);
+
+      if (paginatedIds.length === 0) {
+        return {
+          data: [],
+          pagination: {
+            total: totalCount,
+            limit,
+            offset,
+            hasMore: false,
+          },
+        };
+      }
+
+      const { data: detailedData, error: detailedError } = await supabase
+        .from("artisans")
+        .select(`
+          *,
+          artisan_metiers (
+            metier_id,
+            metiers (
+              id,
+              code,
+              label
+            )
+          ),
+          artisan_zones (
+            zone_id,
+            zones (
+              id,
+              code,
+              label
+            )
+          ),
+          artisan_attachments (
+            id,
+            kind,
+            url,
+            filename,
+            mime_type,
+            content_hash,
+            derived_sizes,
+            mime_preferred
+          )
+        `)
+        .in("id", paginatedIds)
+        .order("created_at", { ascending: false });
+
+      if (detailedError) throw detailedError;
+
+      const refs = await getReferenceCache();
+      const transformedData = (detailedData || []).map((item: any) => mapArtisanRecord(item, refs));
+
+      return {
+        data: transformedData,
+        pagination: {
+          total: totalCount,
+          limit,
+          offset,
+          hasMore: offset + limit < totalCount,
+        },
+      };
+    }
+
+    // Cas standard : pas de filtrage métier
     let query = supabase
       .from("artisans")
-      .select("*", { count: "exact" })
-      .eq("is_active", true) // Filtrer uniquement les artisans actifs
+      .select(`
+        *,
+        artisan_metiers (
+          metier_id,
+          metiers (
+            id,
+            code,
+            label
+          )
+        ),
+        artisan_zones (
+          zone_id,
+          zones (
+            id,
+            code,
+            label
+          )
+        ),
+        artisan_attachments (
+          id,
+          kind,
+          url,
+          filename,
+          mime_type,
+          content_hash,
+          derived_sizes,
+          mime_preferred
+        )
+      `, { count: "exact" })
+      .eq("is_active", true)
       .order("created_at", { ascending: false });
 
     // Appliquer les filtres si nécessaire
-    if (params?.statut) {
+    if (params?.statuts && params.statuts.length > 0) {
+      query = query.in("statut_id", params.statuts);
+    } else if (params?.statut) {
       query = query.eq("statut_id", params.statut);
     }
     if (params?.gestionnaire) {
@@ -115,8 +562,6 @@ export const artisansApi = {
     }
 
     // Pagination
-    const limit = params?.limit || 100;
-    const offset = params?.offset || 0;
     query = query.range(offset, offset + limit - 1);
 
     const { data, error, count } = await query;
@@ -230,7 +675,7 @@ export const artisansApi = {
 
     const refs = await getReferenceCache();
     const mapped = mapArtisanRecord(data, refs);
-    
+
     // Préserver les relations brutes pour le formulaire
     return {
       ...mapped,
@@ -278,7 +723,7 @@ export const artisansApi = {
   async upsertDirect(data: CreateArtisanData, customClient?: any): Promise<Artisan> {
     // Utiliser le client personnalisé si fourni, sinon utiliser le client par défaut
     const client = customClient || supabase;
-    
+
     // Déterminer la contrainte unique à utiliser
     let onConflict = 'email';
     if (!data.email && data.siret) {
@@ -512,7 +957,7 @@ export const artisansApi = {
   async searchByPlainNom(searchTerm: string, params?: ArtisanQueryParams, customClient?: any): Promise<PaginatedResponse<Artisan>> {
     // Utiliser le client personnalisé si fourni, sinon utiliser supabaseClient (qui utilise getSupabaseClientForNode() dans Node.js)
     const client = customClient || supabaseClient;
-    
+
     let query = client
       .from("artisans")
       .select("*", { count: "exact" })

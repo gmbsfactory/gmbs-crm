@@ -327,10 +327,35 @@ export const mapInterventionRecord = (item: any, refs: any): any => {
 export const mapArtisanRecord = (item: any, refs: any): any => {
   const userInfo = buildUserDisplay(refs.usersById?.get(item.gestionnaire_id ?? ""));
 
+  // Extraire les métiers depuis artisan_metiers (relation Supabase) ou item.metiers (legacy)
+  let metiers: any[] = [];
+  if (Array.isArray(item.artisan_metiers)) {
+    // Nouvelle structure : artisan_metiers est un tableau d'objets avec metiers.code
+    // On extrait le code (ex: "BRI", "JAR") car le frontend utilise metierColorMap[code]
+    metiers = item.artisan_metiers
+      .map((am: any) => am.metiers?.code || am.metiers?.label)
+      .filter(Boolean);
+  } else if (Array.isArray(item.metiers)) {
+    // Ancienne structure : metiers est déjà un tableau de codes/labels
+    metiers = item.metiers;
+  }
+
+  // Extraire les zones depuis artisan_zones (relation Supabase) ou item.zones (legacy)
+  let zones: any[] = [];
+  if (Array.isArray(item.artisan_zones)) {
+    // Nouvelle structure : artisan_zones est un tableau d'objets avec zone_id ou zones.id
+    zones = item.artisan_zones
+      .map((az: any) => az.zones?.id || az.zone_id)
+      .filter(Boolean);
+  } else if (Array.isArray(item.zones)) {
+    // Ancienne structure : zones est déjà un tableau d'IDs
+    zones = item.zones;
+  }
+
   return {
     ...item,
-    metiers: Array.isArray(item.metiers) ? item.metiers : [],
-    zones: Array.isArray(item.zones) ? item.zones : [],
+    metiers,
+    zones,
     attribueA: userInfo.code ?? userInfo.username ?? undefined,
     gestionnaireUsername: userInfo.username ?? undefined,
     gestionnaireName: userInfo.fullName ?? undefined,
@@ -338,7 +363,7 @@ export const mapArtisanRecord = (item: any, refs: any): any => {
     statutInactif: item.is_active === false,
     commentaire: item.suivi_relances_docs ?? item.commentaire ?? null,
     statutDossier: item.statut_dossier ?? item.statutDossier ?? null,
-    zoneIntervention: Array.isArray(item.zones) && item.zones.length ? Number(item.zones[0]) : item.zoneIntervention ?? null,
+    zoneIntervention: zones.length ? Number(zones[0]) : item.zoneIntervention ?? null,
     date: item.date_ajout ?? item.date ?? null,
   };
 };

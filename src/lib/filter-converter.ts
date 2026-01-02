@@ -152,6 +152,23 @@ export function convertViewFiltersToServerFilters(
       continue
     }
 
+    // Filtre sur metier → metier (serveur)
+    if (filter.property === "metier" || filter.property === "metierCode") {
+      if (filter.operator === "eq" && typeof filter.value === "string") {
+        serverFilters.metier = filter.value
+      } else if (filter.operator === "in" && Array.isArray(filter.value)) {
+        const stringValues = filter.value.filter((v): v is string => typeof v === "string")
+        if (stringValues.length > 0) {
+          serverFilters.metier = stringValues
+        } else {
+          clientFilters.push(filter)
+        }
+      } else {
+        clientFilters.push(filter)
+      }
+      continue
+    }
+
     // Filtres non supportés côté serveur → côté client
     // Exemples : artisan, marge, etc.
     clientFilters.push(filter)

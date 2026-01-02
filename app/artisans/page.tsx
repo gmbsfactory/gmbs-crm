@@ -391,11 +391,13 @@ export default function ArtisansPage(): ReactElement {
     (filters: Array<{ property: string; operator: string; value?: string | null }>): {
       gestionnaire?: string
       statut?: string
+      statuts?: string[]
       statut_dossier?: string
     } => {
       const params: {
         gestionnaire?: string
         statut?: string
+        statuts?: string[]
         statut_dossier?: string
       } = {}
 
@@ -415,6 +417,20 @@ export default function ArtisansPage(): ReactElement {
         } else if (filter.property === "statut_dossier" && filter.operator === "eq") {
           if (typeof filter.value === "string") {
             params.statut_dossier = filter.value
+          }
+        } else if (filter.property === "statut_id") {
+          if (filter.operator === "eq" && typeof filter.value === "string") {
+            params.statut = filter.value
+          } else if (filter.operator === "in" && typeof filter.value === "string") {
+            // Pour l'opérateur "in", la valeur pourrait être un tableau sérialisé
+            try {
+              const parsed = JSON.parse(filter.value)
+              if (Array.isArray(parsed)) {
+                params.statuts = parsed
+              }
+            } catch {
+              // Si ce n'est pas du JSON valide, ignorer
+            }
           }
         }
       }

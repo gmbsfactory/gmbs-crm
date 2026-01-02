@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { createServerSupabase, bearerFrom} from '@/lib/supabase/server'
+import { createServerSupabase, bearerFrom } from '@/lib/supabase/server'
 import { cookies } from 'next/headers'
 import { isLateLogin } from '@/lib/utils/business-days'
 import { getLocalDateString } from '@/lib/date-utils'
@@ -99,7 +99,7 @@ export async function POST(req: Request) {
     const lastActivityDate = userData.last_activity_date
 
     console.log('[first-activity] 📅 Last activity date:', lastActivityDate)
-    console.log('[first-activity] 📅 Today:', today)
+    console.log('[first-activity] 📅 Today:', today, 'at', now.toLocaleTimeString())
 
     // Check if this is the first activity of the day
     const isFirstActivityOfDay = !lastActivityDate || lastActivityDate !== today
@@ -152,9 +152,10 @@ export async function POST(req: Request) {
 
         // Only count if not already marked late today (extra safety check)
         if (!lastLatenessDate || lastLatenessDate !== today) {
-          const currentCount = patch.lateness_count_year === currentYear || userData.lateness_count_year === currentYear
-            ? (userData.lateness_count || 0)
-            : 0
+          // Use patch.lateness_count if already set by year reset, otherwise use userData.lateness_count
+          const currentCount = patch.lateness_count !== undefined
+            ? patch.lateness_count
+            : (userData.lateness_count_year === currentYear ? (userData.lateness_count || 0) : 0)
 
           const newLatenessCount = currentCount + 1
           patch.lateness_count = newLatenessCount
@@ -203,14 +204,14 @@ export async function POST(req: Request) {
           .select('lateness_count')
           .eq('id', profile.id)
           .single()
-        
+
         return NextResponse.json({
           ok: true,
           wasFirstActivity: false, // Another request already handled it
           latenessCount: currentData?.lateness_count || userData.lateness_count || 0
         })
       }
-      
+
       // Real error, log and return
       console.error('[first-activity] ❌ Error updating user:', updateError)
       return NextResponse.json({ error: updateError.message }, { status: 500 })
@@ -226,7 +227,7 @@ export async function POST(req: Request) {
         .select('lateness_count')
         .eq('id', profile.id)
         .single()
-      
+
       return NextResponse.json({
         ok: true,
         wasFirstActivity: false, // Another request already handled it
