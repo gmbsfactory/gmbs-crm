@@ -3,7 +3,35 @@
 
 import { supabase } from "@/lib/supabase-client";
 
-const DEFAULT_FUNCTIONS_URL = "http://localhost:54321/functions/v1";
+// Ré-exporter le cache centralisé
+export {
+  getReferenceCache,
+  invalidateReferenceCache,
+  referenceCacheManager,
+  type ReferenceCache,
+  type ReferenceData,
+} from "./cache";
+
+// Ré-exporter les constantes centralisées
+export {
+  INTERVENTION_STATUS,
+  INTERVENTION_METIERS,
+  DOCUMENT_TYPES,
+  COMMENT_TYPES,
+  COST_TYPES,
+  ENTITY_TYPES,
+  USER_STATUS,
+  MAX_BATCH_SIZE,
+  DEFAULT_FUNCTIONS_URL,
+  type InterventionStatusCode,
+  type InterventionMetierCode,
+  type InterventionDocumentType,
+  type ArtisanDocumentType,
+  type CommentType,
+  type CostType,
+  type EntityType,
+  type UserStatus,
+} from "./constants";
 
 /**
  * Construit l'URL des Edge Functions en prenant en compte les variations possibles
@@ -13,23 +41,24 @@ const DEFAULT_FUNCTIONS_URL = "http://localhost:54321/functions/v1";
  */
 export const getSupabaseFunctionsUrl = (): string => {
   // Vérifier d'abord une URL explicite pour les Edge Functions
-  const explicitUrl = process.env.NEXT_PUBLIC_SUPABASE_FUNCTIONS_URL || 
-                      process.env.SUPABASE_FUNCTIONS_URL;
+  const explicitUrl =
+    process.env.NEXT_PUBLIC_SUPABASE_FUNCTIONS_URL ||
+    process.env.SUPABASE_FUNCTIONS_URL;
   if (explicitUrl) {
     return explicitUrl.replace(/\/$/, "").replace(/127\.0\.0\.1/g, "localhost");
   }
 
   // Sinon, construire depuis l'URL de base Supabase
-  const rawUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 
-                 process.env.SUPABASE_URL;
-  
+  const rawUrl =
+    process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
+
   if (!rawUrl) {
-    return DEFAULT_FUNCTIONS_URL;
+    return "http://localhost:54321/functions/v1";
   }
 
   // Normaliser 127.0.0.1 en localhost pour éviter les problèmes CORS
   let sanitized = rawUrl.replace(/\/$/, "").replace(/127\.0\.0\.1/g, "localhost");
-  
+
   if (sanitized.endsWith("/rest/v1")) {
     return sanitized.replace(/\/rest\/v1$/, "/functions/v1");
   }
@@ -41,20 +70,20 @@ export const SUPABASE_FUNCTIONS_URL = getSupabaseFunctionsUrl();
 
 // Headers communs pour toutes les requêtes
 export const getHeaders = async () => {
-  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
-  
+  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
+
   // Détecter si on est dans Node.js (pas de window)
-  const isNodeJs = typeof window === 'undefined';
-  
+  const isNodeJs = typeof window === "undefined";
+
   // Pour l'apikey, toujours utiliser l'anon key (disponible côté client et serveur)
   const apiKey = anonKey;
-  
+
   // Pour le token Authorization
   let token = anonKey; // Par défaut, utiliser l'anon key (valide pour les Edge Functions)
-  
+
   if (isNodeJs) {
     // Côté serveur (Node.js), on peut utiliser serviceRoleKey si disponible
-    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
+    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
     if (serviceRoleKey) {
       token = serviceRoleKey;
     }
@@ -69,14 +98,14 @@ export const getHeaders = async () => {
       // Sinon, token reste l'anon key (valide pour les Edge Functions)
     } catch (error) {
       // En cas d'erreur, continuer avec l'anon key (qui est valide pour les Edge Functions)
-      console.warn('[getHeaders] Failed to get session, using anon key:', error);
+      console.warn("[getHeaders] Failed to get session, using anon key:", error);
     }
   }
-  
+
   return {
-    'apikey': apiKey,
-    'Authorization': `Bearer ${token}`,
-    'Content-Type': 'application/json',
+    apikey: apiKey,
+    Authorization: `Bearer ${token}`,
+    "Content-Type": "application/json",
   };
 };
 
@@ -135,7 +164,8 @@ export const isValidMimeType = (mimeType: string): boolean => {
 
 // Fonction pour générer un mot de passe sécurisé
 export const generateSecurePassword = (length: number = 12): string => {
-  const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*";
+  const charset =
+    "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*";
   let password = "";
   for (let i = 0; i < length; i++) {
     password += charset.charAt(Math.floor(Math.random() * charset.length));
@@ -156,7 +186,10 @@ export const isValidUsername = (username: string): boolean => {
 };
 
 // Fonction pour générer un code gestionnaire unique
-export const generateUniqueCodeGestionnaire = async (firstname: string, lastname: string): Promise<string> => {
+export const generateUniqueCodeGestionnaire = async (
+  firstname: string,
+  lastname: string
+): Promise<string> => {
   const baseCode = `${firstname.charAt(0).toUpperCase()}${lastname.charAt(0).toUpperCase()}`;
   let code = baseCode;
   let counter = 1;
@@ -168,7 +201,7 @@ export const generateUniqueCodeGestionnaire = async (firstname: string, lastname
       .eq("code_gestionnaire", code)
       .single();
 
-    if (error && error.code === 'PGRST116') {
+    if (error && error.code === "PGRST116") {
       // Code n'existe pas, on peut l'utiliser
       break;
     } else if (error) {
@@ -208,12 +241,18 @@ export const buildUserDisplay = (user?: any) => {
 
 // Fonction pour mapper un enregistrement d'intervention
 export const mapInterventionRecord = (item: any, refs: any): any => {
-  const userInfo = buildUserDisplay(refs.usersById?.get(item.assigned_user_id ?? ""));
-  const agency = item.agence_id ? refs.agenciesById?.get(item.agence_id) : undefined;
+  const userInfo = buildUserDisplay(
+    refs.usersById?.get(item.assigned_user_id ?? "")
+  );
+  const agency = item.agence_id
+    ? refs.agenciesById?.get(item.agence_id)
+    : undefined;
   const statusRelationship = item.status ?? item.intervention_statuses ?? null;
   const status =
     statusRelationship ??
-    (item.statut_id ? refs.interventionStatusesById?.get(item.statut_id) : undefined);
+    (item.statut_id
+      ? refs.interventionStatusesById?.get(item.statut_id)
+      : undefined);
   const normalizedStatus = status
     ? {
         id: status.id,
@@ -223,20 +262,29 @@ export const mapInterventionRecord = (item: any, refs: any): any => {
         sort_order: status.sort_order ?? null,
       }
     : undefined;
-  const statusCode = normalizedStatus?.code ?? item.statut ?? item.statusValue ?? null;
-  const metier = item.metier_id ? refs.metiersById?.get(item.metier_id) : undefined;
+  const statusCode =
+    normalizedStatus?.code ?? item.statut ?? item.statusValue ?? null;
+  const metier = item.metier_id
+    ? refs.metiersById?.get(item.metier_id)
+    : undefined;
   const tenantId = item.tenant_id ?? item.client_id ?? null;
   const ownerId = item.owner_id ?? null;
 
   // Extraction des artisans depuis intervention_artisans
-  const interventionArtisans = Array.isArray(item.intervention_artisans) ? item.intervention_artisans : []
-  const artisanIds = interventionArtisans.map((ia: any) => ia.artisan_id).filter(Boolean)
+  const interventionArtisans = Array.isArray(item.intervention_artisans)
+    ? item.intervention_artisans
+    : [];
+  const artisanIds = interventionArtisans
+    .map((ia: any) => ia.artisan_id)
+    .filter(Boolean);
 
   // Extraction des coûts depuis intervention_costs
-  const interventionCosts = Array.isArray(item.intervention_costs) ? item.intervention_costs : []
+  const interventionCosts = Array.isArray(item.intervention_costs)
+    ? item.intervention_costs
+    : [];
 
   // Extraction des coûts depuis le cache (intervention_costs_cache)
-  const costsCache = item.costs_cache ?? null
+  const costsCache = item.costs_cache ?? null;
 
   return {
     ...item,
@@ -250,28 +298,53 @@ export const mapInterventionRecord = (item: any, refs: any): any => {
     payments: Array.isArray(item.payments) ? item.payments : [],
     attachments: Array.isArray(item.attachments) ? item.attachments : [],
     // Utiliser le cache des coûts si disponible, sinon fallback sur les champs directs
-    coutIntervention: costsCache?.total_ca ?? item.cout_intervention ?? item.coutIntervention ?? null,
+    coutIntervention:
+      costsCache?.total_ca ??
+      item.cout_intervention ??
+      item.coutIntervention ??
+      null,
     coutSST: costsCache?.total_sst ?? item.cout_sst ?? item.coutSST ?? null,
-    coutMateriel: costsCache?.total_materiel ?? item.cout_materiel ?? item.coutMateriel ?? null,
+    coutMateriel:
+      costsCache?.total_materiel ??
+      item.cout_materiel ??
+      item.coutMateriel ??
+      null,
     marge: costsCache?.total_marge ?? item.marge ?? null,
     agence: agency?.label ?? item.agence ?? item.agence_id ?? null,
     agenceLabel: agency?.label ?? null,
     agenceCode: agency?.code ?? null,
     agenceColor: agency?.color ?? null,
     reference_agence: item.reference_agence ?? item.referenceAgence ?? null,
-    contexteIntervention: item.contexte_intervention ?? item.contexteIntervention ?? null,
-    consigneIntervention: item.consigne_intervention ?? item.consigneIntervention ?? null,
-    consigneDeuxiemeArtisanIntervention: item.consigne_second_artisan ?? item.consigneDeuxiemeArtisanIntervention ?? null,
+    contexteIntervention:
+      item.contexte_intervention ?? item.contexteIntervention ?? null,
+    consigneIntervention:
+      item.consigne_intervention ?? item.consigneIntervention ?? null,
+    consigneDeuxiemeArtisanIntervention:
+      item.consigne_second_artisan ??
+      item.consigneDeuxiemeArtisanIntervention ??
+      null,
     commentaireAgent: item.commentaire_agent ?? item.commentaireAgent ?? null,
-    latitudeAdresse: typeof item.latitude === "number" ? item.latitude.toString() : item.latitudeAdresse ?? null,
-    longitudeAdresse: typeof item.longitude === "number" ? item.longitude.toString() : item.longitudeAdresse ?? null,
+    latitudeAdresse:
+      typeof item.latitude === "number"
+        ? item.latitude.toString()
+        : item.latitudeAdresse ?? null,
+    longitudeAdresse:
+      typeof item.longitude === "number"
+        ? item.longitude.toString()
+        : item.longitudeAdresse ?? null,
     codePostal: item.code_postal ?? item.codePostal ?? null,
-    dateIntervention: item.date_intervention ?? item.dateIntervention ?? item.date ?? null,
+    dateIntervention:
+      item.date_intervention ?? item.dateIntervention ?? item.date ?? null,
     prenomClient: item.prenom_client ?? item.prenomClient ?? null,
     nomClient: item.nom_client ?? item.nomClient ?? null,
-    nomPrenomClient: item.plain_nom_client ?? item.nomPrenomClient ?? 
-      ((item.nom_client || item.nomClient || item.prenom_client || item.prenomClient) 
-        ? `${item.nom_client ?? item.nomClient ?? ''} ${item.prenom_client ?? item.prenomClient ?? ''}`.trim() 
+    nomPrenomClient:
+      item.plain_nom_client ??
+      item.nomPrenomClient ??
+      (item.nom_client ||
+      item.nomClient ||
+      item.prenom_client ||
+      item.prenomClient
+        ? `${item.nom_client ?? item.nomClient ?? ""} ${item.prenom_client ?? item.prenomClient ?? ""}`.trim()
         : null),
     attribueA: userInfo.code ?? userInfo.username ?? undefined,
     assignedUserName: userInfo.fullName ?? undefined,
@@ -284,48 +357,70 @@ export const mapInterventionRecord = (item: any, refs: any): any => {
     numeroSST: item.numero_sst ?? item.numeroSST ?? null,
     pourcentageSST: item.pourcentage_sst ?? item.pourcentageSST ?? null,
     commentaire: item.commentaire ?? item.commentaire_agent ?? null,
-    demandeIntervention: item.demande_intervention ?? item.demandeIntervention ?? null,
+    demandeIntervention:
+      item.demande_intervention ?? item.demandeIntervention ?? null,
     demandeDevis: item.demande_devis ?? item.demandeDevis ?? null,
-    demandeTrustPilot: item.demande_trust_pilot ?? item.demandeTrustPilot ?? null,
+    demandeTrustPilot:
+      item.demande_trust_pilot ?? item.demandeTrustPilot ?? null,
     metier: metier?.code ?? item.metier ?? item.metier_id ?? null,
     metierLabel: metier?.label ?? null,
     metierCode: metier?.code ?? null,
     metierColor: metier?.color ?? null,
     type: item.type ?? null,
-    typeDeuxiemeArtisan: item.type_deuxieme_artisan ?? item.typeDeuxiemeArtisan ?? null,
+    typeDeuxiemeArtisan:
+      item.type_deuxieme_artisan ?? item.typeDeuxiemeArtisan ?? null,
     datePrevue: item.date_prevue ?? item.datePrevue ?? null,
-    datePrevueDeuxiemeArtisan: item.date_prevue_deuxieme_artisan ?? item.datePrevueDeuxiemeArtisan ?? null,
+    datePrevueDeuxiemeArtisan:
+      item.date_prevue_deuxieme_artisan ??
+      item.datePrevueDeuxiemeArtisan ??
+      null,
     telLoc: item.tel_loc ?? item.telLoc ?? null,
     locataire: item.locataire ?? null,
     emailLocataire: item.email_locataire ?? item.emailLocataire ?? null,
     telephoneClient: item.telephone_client ?? item.telephoneClient ?? null,
     telephone2Client: item.telephone2_client ?? item.telephone2Client ?? null,
     emailClient: item.email_client ?? item.emailClient ?? null,
-    prenomProprietaire: item.prenom_proprietaire ?? item.prenomProprietaire ?? null,
+    prenomProprietaire:
+      item.prenom_proprietaire ?? item.prenomProprietaire ?? null,
     nomProprietaire: item.nom_proprietaire ?? item.nomProprietaire ?? null,
-    nomPrenomFacturation: item.plain_nom_facturation ?? item.nomPrenomFacturation ?? 
-      ((item.nom_proprietaire || item.nomProprietaire || item.prenom_proprietaire || item.prenomProprietaire) 
-        ? `${item.nom_proprietaire ?? item.nomProprietaire ?? ''} ${item.prenom_proprietaire ?? item.prenomProprietaire ?? ''}`.trim() 
+    nomPrenomFacturation:
+      item.plain_nom_facturation ??
+      item.nomPrenomFacturation ??
+      (item.nom_proprietaire ||
+      item.nomProprietaire ||
+      item.prenom_proprietaire ||
+      item.prenomProprietaire
+        ? `${item.nom_proprietaire ?? item.nomProprietaire ?? ""} ${item.prenom_proprietaire ?? item.prenomProprietaire ?? ""}`.trim()
         : null),
-    telephoneProprietaire: item.telephone_proprietaire ?? item.telephoneProprietaire ?? null,
-    emailProprietaire: item.email_proprietaire ?? item.emailProprietaire ?? null,
-    pieceJointeIntervention: item.piece_jointe_intervention ?? item.pieceJointeIntervention ?? [],
+    telephoneProprietaire:
+      item.telephone_proprietaire ?? item.telephoneProprietaire ?? null,
+    emailProprietaire:
+      item.email_proprietaire ?? item.emailProprietaire ?? null,
+    pieceJointeIntervention:
+      item.piece_jointe_intervention ?? item.pieceJointeIntervention ?? [],
     pieceJointeCout: item.piece_jointe_cout ?? item.pieceJointeCout ?? [],
     pieceJointeDevis: item.piece_jointe_devis ?? item.pieceJointeDevis ?? [],
     pieceJointePhotos: item.piece_jointe_photos ?? item.pieceJointePhotos ?? [],
-    pieceJointeFactureGMBS: item.piece_jointe_facture_gmbs ?? item.pieceJointeFactureGMBS ?? [],
-    pieceJointeFactureArtisan: item.piece_jointe_facture_artisan ?? item.pieceJointeFactureArtisan ?? [],
-    pieceJointeFactureMateriel: item.piece_jointe_facture_materiel ?? item.pieceJointeFactureMateriel ?? [],
+    pieceJointeFactureGMBS:
+      item.piece_jointe_facture_gmbs ?? item.pieceJointeFactureGMBS ?? [],
+    pieceJointeFactureArtisan:
+      item.piece_jointe_facture_artisan ?? item.pieceJointeFactureArtisan ?? [],
+    pieceJointeFactureMateriel:
+      item.piece_jointe_facture_materiel ??
+      item.pieceJointeFactureMateriel ??
+      [],
     // Sous-statut personnalisé
     understatement: item.sous_statut_text ?? item.understatement ?? null,
-    sousStatutTextColor: item.sous_statut_text_color ?? '#000000',
-    sousStatutBgColor: item.sous_statut_bg_color ?? 'transparent',
+    sousStatutTextColor: item.sous_statut_text_color ?? "#000000",
+    sousStatutBgColor: item.sous_statut_bg_color ?? "transparent",
   };
 };
 
 // Fonction pour mapper un enregistrement d'artisan
 export const mapArtisanRecord = (item: any, refs: any): any => {
-  const userInfo = buildUserDisplay(refs.usersById?.get(item.gestionnaire_id ?? ""));
+  const userInfo = buildUserDisplay(
+    refs.usersById?.get(item.gestionnaire_id ?? "")
+  );
 
   // Extraire les métiers depuis artisan_metiers (relation Supabase) ou item.metiers (legacy)
   let metiers: any[] = [];
@@ -363,71 +458,24 @@ export const mapArtisanRecord = (item: any, refs: any): any => {
     statutInactif: item.is_active === false,
     commentaire: item.suivi_relances_docs ?? item.commentaire ?? null,
     statutDossier: item.statut_dossier ?? item.statutDossier ?? null,
-    zoneIntervention: zones.length ? Number(zones[0]) : item.zoneIntervention ?? null,
+    zoneIntervention: zones.length
+      ? Number(zones[0])
+      : item.zoneIntervention ?? null,
     date: item.date_ajout ?? item.date ?? null,
   };
 };
 
-// Constantes exportées
-export const INTERVENTION_STATUS = [
-  "Demandé",
-  "Devis_Envoyé",
-  "Accepté",
-  "En_cours",
-  "Visite_Technique",
-  "Terminé",
-  "Annulé",
-  "Refusé",
-  "STAND_BY",
-  "SAV",
-];
-
-export const INTERVENTION_METIERS = [
-  "Vitrerie",
-  "Bricolage",
-  "Plomberie",
-  "Électricité",
-  "Couvreur",
-  "Menuiserie",
-  "Chauffage",
-  "Dépannage",
-];
-
-export const DOCUMENT_TYPES = {
-  intervention: [
-    "devis",
-    "photos",
-    "facturesGMBS",
-    "facturesArtisans",
-    "facturesMateriel",
-    "rapport_intervention",
-    "plan",
-    "schema",
-    "autre",
-    "a_classe",
-  ],
-  artisan: [
-    "certificat",
-    "assurance",
-    "siret",
-    "kbis",
-    "photo_profil",
-    "portfolio",
-    "autre",
-    "a_classe",
-  ],
-};
-
-export const COMMENT_TYPES = [
-  "general",
-  "technique",
-  "commercial",
-  "interne",
-  "client",
-  "artisan",
-  "urgent",
-  "suivi",
-];
+/**
+ * Divise un tableau en lots de taille maximale
+ * Utile pour éviter les erreurs de longueur d'URL avec les requêtes .in()
+ */
+export function chunkArray<T>(array: T[], chunkSize: number): T[][] {
+  const chunks: T[][] = [];
+  for (let i = 0; i < array.length; i += chunkSize) {
+    chunks.push(array.slice(i, i + chunkSize));
+  }
+  return chunks;
+}
 
 // Export managedFetch for automatic request cancellation on logout
-export { managedFetch } from '@/lib/api/abort-controller-manager';
+export { managedFetch } from "@/lib/api/abort-controller-manager";

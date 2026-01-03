@@ -16,7 +16,7 @@ import {
     commentsApi,
     documentsApi,
     interventionsApiV2
-} from '@/lib/supabase-api-v2';
+} from '@/lib/api/v2';
 
 // ✅ Import des hooks personnalisés
 import { useArtisans } from '@/hooks/useArtisans';

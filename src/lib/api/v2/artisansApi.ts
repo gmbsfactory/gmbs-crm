@@ -1,8 +1,25 @@
 // ===== API ARTISANS V2 =====
 // Gestion complète des artisans
 
-import { referenceApi } from "@/lib/reference-api";
 import { supabase } from "@/lib/supabase-client";
+import type {
+  Artisan,
+  ArtisanQueryParams,
+  ArtisanStatsByStatus,
+  BulkOperationResult,
+  CreateArtisanData,
+  PaginatedResponse,
+  UpdateArtisanData,
+} from "./common/types";
+import {
+  SUPABASE_FUNCTIONS_URL,
+  getHeaders,
+  handleResponse,
+  mapArtisanRecord,
+  getReferenceCache,
+  chunkArray,
+  MAX_BATCH_SIZE,
+} from "./common/utils";
 
 /**
  * Crée un client Supabase admin pour Node.js avec les bonnes credentials
@@ -35,77 +52,6 @@ function getSupabaseClientForNode() {
 
 // Utiliser le client admin dans Node.js, le client standard dans le navigateur
 const supabaseClient = typeof window !== 'undefined' ? supabase : getSupabaseClientForNode();
-
-import type {
-  Artisan,
-  ArtisanQueryParams,
-  ArtisanStatsByStatus,
-  BulkOperationResult,
-  CreateArtisanData,
-  PaginatedResponse,
-  UpdateArtisanData,
-} from "./common/types";
-import {
-  SUPABASE_FUNCTIONS_URL,
-  getHeaders,
-  handleResponse,
-  mapArtisanRecord,
-} from "./common/utils";
-
-// Cache pour les données de référence
-type ReferenceCache = {
-  data: any;
-  fetchedAt: number;
-  usersById: Map<string, any>;
-};
-
-const REFERENCE_CACHE_DURATION = 5 * 60 * 1000;
-let referenceCache: ReferenceCache | null = null;
-let referenceCachePromise: Promise<ReferenceCache> | null = null;
-
-async function getReferenceCache(): Promise<ReferenceCache> {
-  const now = Date.now();
-  if (referenceCache && now - referenceCache.fetchedAt < REFERENCE_CACHE_DURATION) {
-    return referenceCache;
-  }
-
-  if (referenceCachePromise) {
-    return referenceCachePromise;
-  }
-
-  referenceCachePromise = (async () => {
-    const data = await referenceApi.getAll();
-    const cache: ReferenceCache = {
-      data,
-      fetchedAt: Date.now(),
-      usersById: new Map(data.users.map((user: any) => [user.id, user])),
-    };
-    referenceCache = cache;
-    referenceCachePromise = null;
-    return cache;
-  })();
-
-  try {
-    return await referenceCachePromise;
-  } catch (error) {
-    referenceCachePromise = null;
-    throw error;
-  }
-}
-
-// Taille maximale des lots pour les requêtes .in() pour éviter les erreurs de longueur d'URL
-const MAX_BATCH_SIZE = 100;
-
-/**
- * Divise un tableau en lots de taille maximale
- */
-function chunkArray<T>(array: T[], chunkSize: number): T[][] {
-  const chunks: T[][] = [];
-  for (let i = 0; i < array.length; i += chunkSize) {
-    chunks.push(array.slice(i, i + chunkSize));
-  }
-  return chunks;
-}
 
 /**
  * Filtre les artisans par métiers en divisant les requêtes en lots pour éviter les erreurs de longueur d'URL
@@ -1769,5 +1715,190 @@ export const artisansApi = {
       statusLabel: statusInfo?.label || null,
       changedAt: data.changed_at,
     };
+  },
+
+  // ===== FONCTIONS DE COMPTAGE =====
+
+  /**
+   * Obtient le nombre total d'artisans correspondant aux filtres basiques
+   * Remplace l'ancienne fonction getArtisanTotalCount de supabase-api-v2.ts
+   * 
+   * @param params - Paramètres de filtrage (gestionnaire, statut)
+   * @returns Le nombre total d'artisans correspondant aux filtres
+   */
+  async getTotalCount(
+    params?: {
+      gestionnaire?: string;
+      statut?: string;
+    }
+  ): Promise<number> {
+    let query = supabase
+      .from("artisans")
+      .select("id", { count: "exact", head: true })
+      .eq("is_active", true);
+
+    if (params?.gestionnaire) {
+      query = query.eq("gestionnaire_id", params.gestionnaire);
+    }
+    if (params?.statut) {
+      query = query.eq("statut_id", params.statut);
+    }
+
+    const { count, error } = await query;
+    if (error) throw error;
+
+    return count ?? 0;
+  },
+
+  /**
+   * Obtient le nombre total d'artisans avec tous les filtres appliqués
+   * Remplace l'ancienne fonction getArtisanCountWithFilters de supabase-api-v2.ts
+   * 
+   * @param params - Paramètres de filtrage complets (gestionnaire, statut(s), métier(s), search, statut_dossier)
+   * @returns Le nombre total d'artisans correspondant aux filtres
+   */
+  async getCountWithFilters(
+    params?: {
+      gestionnaire?: string;
+      statut?: string;
+      statuts?: string[];
+      metier?: string;
+      metiers?: string[];
+      search?: string;
+      statut_dossier?: string;
+    }
+  ): Promise<number> {
+    let query = supabase
+      .from("artisans")
+      .select("id", { count: "exact", head: true })
+      .eq("is_active", true);
+
+    if (params?.gestionnaire) {
+      query = query.eq("gestionnaire_id", params.gestionnaire);
+    }
+
+    if (params?.statuts && params.statuts.length > 0) {
+      query = query.in("statut_id", params.statuts);
+    } else if (params?.statut) {
+      query = query.eq("statut_id", params.statut);
+    }
+
+    if (params?.statut_dossier) {
+      query = query.eq("statut_dossier", params.statut_dossier);
+    }
+
+    if (params?.search && params.search.trim()) {
+      const term = params.search.trim();
+      query = query.or(
+        [
+          `prenom.ilike.%${term}%`,
+          `nom.ilike.%${term}%`,
+          `raison_sociale.ilike.%${term}%`,
+          `email.ilike.%${term}%`,
+          `telephone.ilike.%${term}%`,
+          `telephone2.ilike.%${term}%`,
+        ].join(",")
+      );
+    }
+
+    const { count, error } = await query;
+    if (error) throw error;
+
+    // Filtrage par métiers (relation many-to-many)
+    if (params?.metiers && params.metiers.length > 0) {
+      let idsQuery = supabase
+        .from("artisans")
+        .select("id")
+        .eq("is_active", true);
+
+      if (params?.gestionnaire) {
+        idsQuery = idsQuery.eq("gestionnaire_id", params.gestionnaire);
+      }
+
+      if (params?.statuts && params.statuts.length > 0) {
+        idsQuery = idsQuery.in("statut_id", params.statuts);
+      } else if (params?.statut) {
+        idsQuery = idsQuery.eq("statut_id", params.statut);
+      }
+
+      if (params?.statut_dossier) {
+        idsQuery = idsQuery.eq("statut_dossier", params.statut_dossier);
+      }
+
+      if (params?.search && params.search.trim()) {
+        const term = params.search.trim();
+        idsQuery = idsQuery.or(
+          [
+            `prenom.ilike.%${term}%`,
+            `nom.ilike.%${term}%`,
+            `raison_sociale.ilike.%${term}%`,
+            `email.ilike.%${term}%`,
+            `telephone.ilike.%${term}%`,
+            `telephone2.ilike.%${term}%`,
+          ].join(",")
+        );
+      }
+
+      const { data: filteredArtisans, error: idsError } = await idsQuery;
+      if (idsError) throw idsError;
+
+      if (!filteredArtisans || filteredArtisans.length === 0) {
+        return 0;
+      }
+
+      const artisanIds = filteredArtisans.map((a: any) => a.id).filter(Boolean);
+      if (artisanIds.length === 0) {
+        return 0;
+      }
+
+      const filteredIds = await filterArtisansByMetiers(artisanIds, params.metiers);
+      return filteredIds.size;
+    } else if (params?.metier) {
+      let idsQuery = supabase
+        .from("artisans")
+        .select("id")
+        .eq("is_active", true);
+
+      if (params?.gestionnaire) {
+        idsQuery = idsQuery.eq("gestionnaire_id", params.gestionnaire);
+      }
+
+      if (params?.statuts && params.statuts.length > 0) {
+        idsQuery = idsQuery.in("statut_id", params.statuts);
+      } else if (params?.statut) {
+        idsQuery = idsQuery.eq("statut_id", params.statut);
+      }
+
+      if (params?.search && params.search.trim()) {
+        const term = params.search.trim();
+        idsQuery = idsQuery.or(
+          [
+            `prenom.ilike.%${term}%`,
+            `nom.ilike.%${term}%`,
+            `raison_sociale.ilike.%${term}%`,
+            `email.ilike.%${term}%`,
+            `telephone.ilike.%${term}%`,
+            `telephone2.ilike.%${term}%`,
+          ].join(",")
+        );
+      }
+
+      const { data: filteredArtisans, error: idsError } = await idsQuery;
+      if (idsError) throw idsError;
+
+      if (!filteredArtisans || filteredArtisans.length === 0) {
+        return 0;
+      }
+
+      const artisanIds = filteredArtisans.map((a: any) => a.id).filter(Boolean);
+      if (artisanIds.length === 0) {
+        return 0;
+      }
+
+      const filteredIds = await filterArtisansByMetier(artisanIds, params.metier);
+      return filteredIds.size;
+    }
+
+    return count ?? 0;
   },
 };

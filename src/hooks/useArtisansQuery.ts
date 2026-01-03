@@ -1,6 +1,6 @@
 import { useCallback, useMemo } from "react"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
-import { artisansApiV2, type Artisan } from "@/lib/supabase-api-v2"
+import { artisansApiV2, type Artisan } from "@/lib/api/v2"
 import { artisanKeys, type ArtisanGetAllParams } from "@/lib/react-query/queryKeys"
 
 export interface UseArtisansQueryOptions {

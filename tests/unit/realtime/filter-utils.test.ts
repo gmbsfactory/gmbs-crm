@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest"
 import { matchesFilters } from "@/lib/realtime/filter-utils"
-import type { Intervention } from "@/lib/api/v2/common/types"
-import type { GetAllParams } from "@/lib/supabase-api-v2"
+import type { Intervention, InterventionQueryParams } from "@/lib/api/v2"
+
+// Alias pour compatibilité
+type GetAllParams = InterventionQueryParams
 
 const baseIntervention: Intervention = {
   id: "int-1",

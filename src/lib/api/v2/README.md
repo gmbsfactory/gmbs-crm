@@ -135,15 +135,33 @@ import api from '@/lib/api/v2';
 
 ## 🔄 Migration depuis l'ancienne API
 
-### Avant (monolithique)
+### Avant (déprécié)
 ```typescript
+// ❌ Ancien chemin (déprécié mais fonctionne encore)
 import { usersApiV2, interventionsApiV2 } from '@/lib/supabase-api-v2';
+import { getInterventionTotalCount } from '@/lib/supabase-api-v2';
 ```
 
-### Après (modulaire)
+### Après (recommandé)
 ```typescript
+// ✅ Nouveau chemin modulaire
 import { usersApi, interventionsApi } from '@/lib/api/v2';
+
+// ✅ Nouvelles méthodes de comptage
+const count = await interventionsApi.getTotalCountWithFilters({ statut: 'DEMANDE' });
+const statusCounts = await interventionsApi.getCountsByStatus({ user: 'user-uuid' });
+const values = await interventionsApi.getDistinctValues('ville');
 ```
+
+### Correspondance des fonctions
+
+| Ancienne fonction | Nouvelle méthode |
+|-------------------|-----------------|
+| `getInterventionTotalCount(params)` | `interventionsApi.getTotalCountWithFilters(params)` |
+| `getInterventionCounts(params)` | `interventionsApi.getCountsByStatus(params)` |
+| `getDistinctInterventionValues(col, params)` | `interventionsApi.getDistinctValues(col, params)` |
+| `getArtisanTotalCount(params)` | `artisansApi.getTotalCount(params)` |
+| `getArtisanCountWithFilters(params)` | `artisansApi.getCountWithFilters(params)` |
 
 ## ✅ Avantages de la nouvelle architecture
 

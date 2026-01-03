@@ -238,15 +238,17 @@ export function LegacyInterventionForm({ onSuccess, onCancel, mode = "centerpage
     clearSuggestions()
     setShowLocationSuggestions(false)
 
-    // Mettre à jour tous les champs
+    // Mettre à jour les champs de géocodage uniquement
     setFormData((prev) => ({
       ...prev,
       latitude: suggestion.lat,
       longitude: suggestion.lng,
       adresseComplete: suggestion.label,
-      adresse: addressParts.street || suggestion.label,
-      code_postal: addressParts.postalCode || "",
-      ville: addressParts.city || "",
+      // Ne pas écraser le champ adresse s'il a été saisi manuellement
+      adresse: prev.adresse,
+      // Ne modifier code_postal et ville que s'ils sont vides
+      code_postal: prev.code_postal || addressParts.postalCode || "",
+      ville: prev.ville || addressParts.city || "",
     }))
 
     // Mettre à jour la query pour refléter la sélection
@@ -326,9 +328,11 @@ export function LegacyInterventionForm({ onSuccess, onCancel, mode = "centerpage
         latitude: result.lat,
         longitude: result.lng,
         adresseComplete: result.label,
-        adresse: addressParts.street || result.label,
-        code_postal: addressParts.postalCode || "",
-        ville: addressParts.city || "",
+        // Ne pas écraser le champ adresse s'il a été saisi manuellement
+        adresse: prev.adresse,
+        // Ne modifier code_postal et ville que s'ils sont vides
+        code_postal: prev.code_postal || addressParts.postalCode || "",
+        ville: prev.ville || addressParts.city || "",
       }))
       setLocationQuery(result.label)
     } catch (error) {

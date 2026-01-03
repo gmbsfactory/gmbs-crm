@@ -2,8 +2,11 @@
 
 import { useEffect, useMemo, useRef } from "react"
 import { useQueryClient } from "@tanstack/react-query"
-import { interventionsApiV2, type GetAllParams } from "@/lib/supabase-api-v2"
+import { interventionsApiV2, type InterventionQueryParams } from "@/lib/api/v2"
 import { interventionKeys } from "@/lib/react-query/queryKeys"
+
+// Alias pour compatibilité
+type GetAllParams = InterventionQueryParams
 import type { InterventionViewDefinition } from "@/types/intervention-views"
 import { convertViewFiltersToServerFilters } from "@/lib/filter-converter"
 import { getPreloadConfig, runInIdle } from "@/lib/device-capabilities"

@@ -19,6 +19,8 @@ import type { ColumnFilterProps, FilterOption } from "./types"
 import type { ViewFilter } from "@/types/intervention-views"
 import type { InterventionView as InterventionEntity } from "@/types/intervention-view"
 import { formatFilterSummary } from "./filter-utils"
+import { useFilterCounts } from "@/hooks/useFilterCounts"
+import { agenciesApi } from "@/lib/api/v2/agenciesApi"
 
 const makeValueKey = (value: unknown): string => {
   if (value === null || value === undefined) return "null"
@@ -112,6 +114,25 @@ const deriveSelectedKeys = (filter?: ViewFilter): Set<string> => {
   return new Set()
 }
 
+/**
+ * Détermine le type de propriété pour le comptage API
+ */
+const getFilterPropertyType = (property: string): 'metier' | 'agence' | 'statut' | 'user' | null => {
+  // Mapping des propriétés de la vue vers les types API
+  const propertyMap: Record<string, 'metier' | 'agence' | 'statut' | 'user'> = {
+    'metier': 'metier',
+    'metierLabel': 'metier',
+    'agence': 'agence',
+    'agenceLabel': 'agence',
+    'statusValue': 'statut',
+    'statut': 'statut',
+    'attribueA': 'user',
+    'assignedUserCode': 'user',
+  }
+
+  return propertyMap[property] || null
+}
+
 export function SelectColumnFilter({
   property,
   schema,
@@ -119,12 +140,75 @@ export function SelectColumnFilter({
   interventions,
   loadDistinctValues,
   onFilterChange,
+  baseFilters,
 }: ColumnFilterProps) {
   const [open, setOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
   const [remoteOptions, setRemoteOptions] = useState<FilterOption[] | null>(null)
   const [isLoadingOptions, setIsLoadingOptions] = useState(false)
   const [hasFetchedOptions, setHasFetchedOptions] = useState(false)
+  const [allAgencies, setAllAgencies] = useState<Array<{ id: string; label: string }>>([])
+
+  // Déterminer le type de propriété pour le comptage API
+  const filterPropertyType = useMemo(() => getFilterPropertyType(property), [property])
+
+  // Charger toutes les agences depuis l'API si nécessaire
+  useEffect(() => {
+    if (filterPropertyType === 'agence' && allAgencies.length === 0) {
+      agenciesApi.getAll().then(agencies => {
+        setAllAgencies(agencies.map(a => ({ id: a.id, label: a.label })))
+      }).catch(err => {
+        console.error('[SelectColumnFilter] Erreur chargement agences:', err)
+      })
+    }
+  }, [filterPropertyType, allAgencies.length])
+
+  // Récupérer les valeurs possibles pour le comptage API
+  const possibleValues = useMemo(() => {
+    if (!filterPropertyType) return []
+
+    // Pour les agences, utiliser la liste complète depuis l'API
+    if (filterPropertyType === 'agence') {
+      return allAgencies
+    }
+
+    // Pour les autres types, extraire depuis les interventions chargées
+    const uniqueValues = new Map<string, { id: string; label: string }>()
+
+    interventions.forEach((intervention) => {
+      let id: string | null = null
+      let label: string | null = null
+
+      switch (filterPropertyType) {
+        case 'metier':
+          id = (intervention as any).metier_id
+          label = (intervention as any).metierLabel || (intervention as any).metier
+          break
+        case 'statut':
+          id = (intervention as any).statut_id
+          label = (intervention as any).statusLabel || (intervention as any).statut
+          break
+        case 'user':
+          id = (intervention as any).assigned_user_id || 'null'
+          label = (intervention as any).assignedUserName || (intervention as any).attribueA || 'Non assigné'
+          break
+      }
+
+      if (id && label && !uniqueValues.has(id)) {
+        uniqueValues.set(id, { id, label })
+      }
+    })
+
+    return Array.from(uniqueValues.values())
+  }, [filterPropertyType, interventions, allAgencies])
+
+  // Hook pour charger les compteurs depuis l'API
+  const { counts: apiCounts, isLoading: isLoadingCounts } = useFilterCounts(
+    filterPropertyType!,
+    possibleValues,
+    baseFilters,
+    open && !!filterPropertyType
+  )
 
   // Charger les valeurs distinctes depuis l'API si disponible
   useEffect(() => {
@@ -172,20 +256,48 @@ export function SelectColumnFilter({
 
   // Combiner les options locales et distantes
   const allOptions = useMemo(() => {
+    let options: FilterOption[]
     if (!remoteOptions) {
-      return baseOptions
+      options = baseOptions
+    } else {
+      const unique = new Map<string, FilterOption>()
+      remoteOptions.forEach((option) => unique.set(option.key, option))
+      baseOptions.forEach((option) => {
+        if (!unique.has(option.key)) {
+          unique.set(option.key, option)
+        }
+      })
+      options = Array.from(unique.values()).sort((a, b) =>
+        a.label.localeCompare(b.label, "fr", { sensitivity: "base" }),
+      )
     }
-    const unique = new Map<string, FilterOption>()
-    remoteOptions.forEach((option) => unique.set(option.key, option))
-    baseOptions.forEach((option) => {
-      if (!unique.has(option.key)) {
-        unique.set(option.key, option)
-      }
-    })
-    return Array.from(unique.values()).sort((a, b) =>
-      a.label.localeCompare(b.label, "fr", { sensitivity: "base" }),
-    )
-  }, [baseOptions, remoteOptions])
+
+    // Ajouter les counts depuis l'API si disponibles
+    // Pour les agences, on mappe les labels vers les IDs via allAgencies
+    // Pour les autres, on assume que option.value contient déjà l'ID ou le label
+    if (filterPropertyType && apiCounts) {
+      options.forEach((option) => {
+        let itemId: string | null = null
+
+        if (filterPropertyType === 'agence') {
+          // Chercher l'ID de l'agence par label ou par ID
+          const agence = allAgencies.find(a =>
+            a.id === option.value || a.label === option.value
+          )
+          itemId = agence?.id || null
+        } else {
+          // Pour les autres types, utiliser directement la valeur de l'option
+          itemId = String(option.value)
+        }
+
+        if (itemId && apiCounts[itemId] !== undefined) {
+          option.count = apiCounts[itemId]
+        }
+      })
+    }
+
+    return options
+  }, [baseOptions, remoteOptions, filterPropertyType, apiCounts, allAgencies])
 
   // Filtrer les options selon la recherche
   const filteredOptions = useMemo(() => {
@@ -303,6 +415,16 @@ export function SelectColumnFilter({
                         onCheckedChange={(checked) => handleToggleKey(option.key, Boolean(checked))}
                       />
                       <span className="truncate flex-1">{option.label}</span>
+                      {option.count !== undefined && !isLoadingCounts && (
+                        <span className="text-xs text-muted-foreground ml-auto">
+                          ({option.count})
+                        </span>
+                      )}
+                      {isLoadingCounts && filterPropertyType && (
+                        <span className="text-xs text-muted-foreground ml-auto animate-pulse">
+                          ...
+                        </span>
+                      )}
                     </label>
                   ))
                 )}

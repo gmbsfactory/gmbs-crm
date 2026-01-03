@@ -4,7 +4,7 @@
 // Permet d'uploader des documents et de les référencer dans la base
 
 import { useState, useCallback } from 'react';
-import { documentsApi } from '@/lib/supabase-api-v2';
+import { documentsApi } from '@/lib/api/v2';
 
 export interface DocumentUploaderInfo {
   id: string;

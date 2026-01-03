@@ -1,6 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
-import { getInterventionTotalCount } from "@/lib/supabase-api-v2"
+import { interventionsApi } from "@/lib/api/v2"
+
+// Wrapper pour compatibilité avec les tests existants
+const getInterventionTotalCount = interventionsApi.getTotalCountWithFilters.bind(interventionsApi)
 import { supabase } from "@/lib/supabase-client"
 
 vi.mock("@/lib/supabase-client", () => ({

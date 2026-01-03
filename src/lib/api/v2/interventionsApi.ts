@@ -1,40 +1,7 @@
 // ===== API INTERVENTIONS V2 =====
 // Gestion complète des interventions
 
-import { referenceApi } from "@/lib/reference-api";
 import { supabase } from "@/lib/supabase-client";
-
-/**
- * Crée un client Supabase admin pour Node.js avec les bonnes credentials
- * Utilise la service role key pour contourner les RLS lors des imports
- */
-function getSupabaseClientForNode() {
-  // Si on est dans le navigateur, utiliser le client standard
-  if (typeof window !== 'undefined') {
-    return supabase;
-  }
-
-  // Dans Node.js, créer un nouveau client avec les credentials du service role
-  const { createClient } = require('@supabase/supabase-js');
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-  if (!supabaseUrl || !serviceRoleKey) {
-    console.warn('[interventionsApi] SUPABASE_URL ou SUPABASE_SERVICE_ROLE_KEY manquants, utilisation du client standard');
-    return supabase;
-  }
-
-  return createClient(supabaseUrl, serviceRoleKey, {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false,
-      detectSessionInUrl: false,
-    }
-  });
-}
-
-// Utiliser le client admin dans Node.js, le client standard dans le navigateur
-const supabaseClient = typeof window !== 'undefined' ? supabase : getSupabaseClientForNode();
 import { RevenueProjectionService } from "@/lib/services/revenueProjection";
 import type {
   AdminDashboardStats,
@@ -79,66 +46,48 @@ import {
   getHeaders,
   handleResponse,
   mapInterventionRecord,
+  getReferenceCache,
+  invalidateReferenceCache as invalidateCentralCache,
 } from "./common/utils";
 import type { InterventionWithStatus, InterventionStatus } from "@/types/intervention";
 import { isCheckStatus } from "@/lib/interventions/checkStatus";
 import { automaticTransitionService } from "@/lib/interventions/automatic-transition-service";
 import type { InterventionStatusKey } from "@/config/interventions";
 
-// Cache pour les données de référence
-type ReferenceCache = {
-  data: any;
-  fetchedAt: number;
-  usersById: Map<string, any>;
-  agenciesById: Map<string, any>;
-  interventionStatusesById: Map<string, any>;
-  artisanStatusesById: Map<string, any>;
-  metiersById: Map<string, any>;
-};
-
-const REFERENCE_CACHE_DURATION = 5 * 60 * 1000;
-let referenceCache: ReferenceCache | null = null;
-let referenceCachePromise: Promise<ReferenceCache> | null = null;
-
-
-export const invalidateReferenceCache = () => {
-  referenceCache = null;
-  referenceCachePromise = null;
-};
-
-async function getReferenceCache(): Promise<ReferenceCache> {
-  const now = Date.now();
-  if (referenceCache && now - referenceCache.fetchedAt < REFERENCE_CACHE_DURATION) {
-    return referenceCache;
+/**
+ * Crée un client Supabase admin pour Node.js avec les bonnes credentials
+ * Utilise la service role key pour contourner les RLS lors des imports
+ */
+function getSupabaseClientForNode() {
+  // Si on est dans le navigateur, utiliser le client standard
+  if (typeof window !== 'undefined') {
+    return supabase;
   }
 
-  if (referenceCachePromise) {
-    return referenceCachePromise;
+  // Dans Node.js, créer un nouveau client avec les credentials du service role
+  const { createClient } = require('@supabase/supabase-js');
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  if (!supabaseUrl || !serviceRoleKey) {
+    console.warn('[interventionsApi] SUPABASE_URL ou SUPABASE_SERVICE_ROLE_KEY manquants, utilisation du client standard');
+    return supabase;
   }
 
-  referenceCachePromise = (async () => {
-    const data = await referenceApi.getAll();
-    const cache: ReferenceCache = {
-      data,
-      fetchedAt: Date.now(),
-      usersById: new Map(data.users.map((user: any) => [user.id, user])),
-      agenciesById: new Map(data.agencies.map((agency: any) => [agency.id, agency])),
-      interventionStatusesById: new Map(data.interventionStatuses.map((status: any) => [status.id, status])),
-      artisanStatusesById: new Map(data.artisanStatuses.map((status: any) => [status.id, status])),
-      metiersById: new Map(data.metiers.map((metier: any) => [metier.id, metier])),
-    };
-    referenceCache = cache;
-    referenceCachePromise = null;
-    return cache;
-  })();
-
-  try {
-    return await referenceCachePromise;
-  } catch (error) {
-    referenceCachePromise = null;
-    throw error;
-  }
+  return createClient(supabaseUrl, serviceRoleKey, {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
+      detectSessionInUrl: false,
+    }
+  });
 }
+
+// Utiliser le client admin dans Node.js, le client standard dans le navigateur
+const supabaseClient = typeof window !== 'undefined' ? supabase : getSupabaseClientForNode();
+
+// Ré-exporter la fonction d'invalidation du cache centralisé pour compatibilité
+export const invalidateReferenceCache = invalidateCentralCache;
 
 export const interventionsApi = {
   // Récupérer toutes les interventions (via Edge Function)
@@ -155,7 +104,7 @@ export const interventionsApi = {
       const refs = await getReferenceCache();
 
       // Convertir un seul métier (code → ID) - insensible à la casse
-      if (params?.metier) {
+      if (params?.metier && typeof params.metier === 'string') {
         const metierObj = Array.from(refs.metiersById.values()).find(
           (m: any) =>
             m.code?.toUpperCase() === params.metier?.toUpperCase() ||
@@ -3815,5 +3764,331 @@ export const interventionsApi = {
       start: start.toISOString().split('T')[0],
       end: end.toISOString().split('T')[0],
     };
+  },
+
+  // ===== FONCTIONS DE COMPTAGE AVEC FILTRES =====
+
+  /**
+   * Obtient le nombre total d'interventions correspondant aux filtres
+   * Remplace l'ancienne fonction getInterventionTotalCount de supabase-api-v2.ts
+   * 
+   * @param params - Paramètres de filtrage (statut, agence, metier, user, dates, search)
+   * @returns Le nombre total d'interventions correspondant aux filtres
+   */
+  async getTotalCountWithFilters(
+    params?: Omit<InterventionQueryParams, "limit" | "offset" | "include">
+  ): Promise<number> {
+    try {
+      let query = supabase
+        .from("interventions")
+        .select("id", { count: "exact", head: true })
+        .eq("is_active", true);
+
+      // Appliquer les filtres
+      if (params?.statut) {
+        query = query.eq("statut_id", params.statut);
+      }
+      if (params?.statuts && params.statuts.length > 0) {
+        query = query.in("statut_id", params.statuts);
+      }
+      if (params?.agence) {
+        query = query.eq("agence_id", params.agence);
+      }
+      if (params?.metier && typeof params.metier === 'string') {
+        // Convertir le code métier en ID si nécessaire
+        const refs = await getReferenceCache();
+        const metierObj = Array.from(refs.metiersById.values()).find(
+          (m: any) =>
+            m.code?.toUpperCase() === params.metier?.toUpperCase() ||
+            m.id === params.metier
+        );
+        const metierId = metierObj?.id || params.metier;
+        query = query.eq("metier_id", metierId);
+      }
+      if (params?.metiers && params.metiers.length > 0) {
+        const refs = await getReferenceCache();
+        const metierIds = params.metiers.map((metierCodeOrId) => {
+          const metierObj = Array.from(refs.metiersById.values()).find(
+            (m: any) =>
+              m.code?.toUpperCase() === metierCodeOrId?.toUpperCase() ||
+              m.id === metierCodeOrId
+          );
+          return metierObj?.id || metierCodeOrId;
+        });
+        query = query.in("metier_id", metierIds);
+      }
+      if (params?.user !== undefined) {
+        if (params.user === null) {
+          query = query.is("assigned_user_id", null);
+        } else {
+          query = query.eq("assigned_user_id", params.user);
+        }
+      }
+      if (params?.startDate) {
+        query = query.gte("date", params.startDate);
+      }
+      if (params?.endDate) {
+        query = query.lte("date", params.endDate);
+      }
+
+      // Filtre isCheck pour les interventions en retard
+      if (params?.isCheck) {
+        const today = new Date().toISOString().split("T")[0];
+        query = query.lte("date_prevue", today);
+        // Filtrer sur les statuts CHECK (VISITE_TECHNIQUE ou INTER_EN_COURS)
+        const refs = await getReferenceCache();
+        const checkStatusIds = Array.from(refs.interventionStatusesById.values())
+          .filter((s: any) => isCheckStatus(s.code as InterventionStatusKey))
+          .map((s: any) => s.id);
+        if (checkStatusIds.length > 0) {
+          query = query.in("statut_id", checkStatusIds);
+        }
+      }
+
+      const { count, error } = await query;
+
+      if (error) {
+        const errorMessage = error.message || JSON.stringify(error, Object.getOwnPropertyNames(error));
+        console.error(`[interventionsApi.getTotalCountWithFilters] Erreur Supabase:`, {
+          error,
+          errorMessage,
+          params,
+        });
+        throw new Error(`Erreur lors du comptage des interventions: ${errorMessage}`);
+      }
+
+      return count ?? 0;
+    } catch (error) {
+      if (error instanceof Error) {
+        throw error;
+      }
+      throw new Error(`Erreur inattendue lors du comptage: ${JSON.stringify(error, Object.getOwnPropertyNames(error))}`);
+    }
+  },
+
+  /**
+   * Obtient le nombre d'interventions par statut
+   * Remplace l'ancienne fonction getInterventionCounts de supabase-api-v2.ts
+   * 
+   * @param params - Paramètres de filtrage (sans le statut, qui est la clé de regroupement)
+   * @returns Un objet avec les statut_id comme clés et les comptages comme valeurs
+   */
+  async getCountsByStatus(
+    params?: Omit<InterventionQueryParams, "limit" | "offset" | "include" | "statut" | "statuts">
+  ): Promise<Record<string, number>> {
+    let query = supabase
+      .from("interventions")
+      .select("statut_id", { count: "exact", head: false })
+      .eq("is_active", true);
+
+    // Appliquer les filtres (sauf statut qui est la clé de regroupement)
+    if (params?.agence) {
+      query = query.eq("agence_id", params.agence);
+    }
+    if (params?.metier && typeof params.metier === 'string') {
+      const refs = await getReferenceCache();
+      const metierObj = Array.from(refs.metiersById.values()).find(
+        (m: any) =>
+          m.code?.toUpperCase() === params.metier?.toUpperCase() ||
+          m.id === params.metier
+      );
+      const metierId = metierObj?.id || params.metier;
+      query = query.eq("metier_id", metierId);
+    }
+    if (params?.metiers && params.metiers.length > 0) {
+      const refs = await getReferenceCache();
+      const metierIds = params.metiers.map((metierCodeOrId) => {
+        const metierObj = Array.from(refs.metiersById.values()).find(
+          (m: any) =>
+            m.code?.toUpperCase() === metierCodeOrId?.toUpperCase() ||
+            m.id === metierCodeOrId
+        );
+        return metierObj?.id || metierCodeOrId;
+      });
+      query = query.in("metier_id", metierIds);
+    }
+    if (params?.user !== undefined) {
+      if (params.user === null) {
+        query = query.is("assigned_user_id", null);
+      } else {
+        query = query.eq("assigned_user_id", params.user);
+      }
+    }
+    if (params?.startDate) {
+      query = query.gte("date", params.startDate);
+    }
+    if (params?.endDate) {
+      query = query.lte("date", params.endDate);
+    }
+
+    const { data, error } = await query;
+    if (error) throw error;
+    if (!data) return {};
+
+    // Compter les occurrences par statut_id
+    const counts: Record<string, number> = {};
+    for (const row of data) {
+      const statusId = row.statut_id;
+      if (statusId) {
+        counts[statusId] = (counts[statusId] || 0) + 1;
+      }
+    }
+
+    return counts;
+  },
+
+  /**
+   * Compte le nombre d'interventions pour une valeur spécifique d'une propriété
+   * Utile pour les compteurs dans les dropdowns de filtres
+   *
+   * @param property - Propriété à compter (ex: 'metier', 'agence', 'statut', 'user')
+   * @param value - Valeur spécifique de la propriété (ex: ID du métier)
+   * @param baseFilters - Filtres de base à appliquer (filtres de la vue + autres filtres actifs)
+   * @returns Le nombre d'interventions correspondantes
+   */
+  async getCountByPropertyValue(
+    property: 'metier' | 'agence' | 'statut' | 'user',
+    value: string | null,
+    baseFilters?: Omit<InterventionQueryParams, 'limit' | 'offset' | 'include'>
+  ): Promise<number> {
+    try {
+      // Construire les paramètres en ajoutant la propriété spécifique
+      const params: InterventionQueryParams = {
+        ...baseFilters,
+      }
+
+      // Mapper la propriété vers le bon paramètre de requête
+      switch (property) {
+        case 'metier':
+          params.metier = value || undefined
+          break
+        case 'agence':
+          params.agence = value || undefined
+          break
+        case 'statut':
+          params.statut = value || undefined
+          break
+        case 'user':
+          params.user = value === null ? null : value
+          break
+      }
+
+      // Utiliser la fonction getTotalCountWithFilters existante
+      return await this.getTotalCountWithFilters(params)
+    } catch (error) {
+      console.error(`[getCountByPropertyValue] Erreur pour ${property}=${value}:`, error)
+      return 0
+    }
+  },
+
+  /**
+   * Obtient les valeurs distinctes d'une colonne d'intervention
+   * Remplace l'ancienne fonction getDistinctInterventionValues de supabase-api-v2.ts
+   * 
+   * @param column - Nom de la colonne (statusValue, attribueA, agence, metier, codePostal, ville)
+   * @param params - Paramètres de filtrage
+   * @returns Liste des valeurs distinctes
+   */
+  async getDistinctValues(
+    column: string,
+    params?: Omit<InterventionQueryParams, "limit" | "offset" | "include">
+  ): Promise<string[]> {
+    const refs = await getReferenceCache();
+
+    // Pour certaines propriétés, utiliser le cache de référence
+    const normalizedColumn = column.trim().toLowerCase();
+
+    switch (normalizedColumn) {
+      case "statusvalue":
+      case "statut":
+      case "statut_id":
+        return refs.data.interventionStatuses.map((s) => s.code || s.label);
+      case "attribuea":
+      case "assigned_user_id":
+        return refs.data.users.map((u) => {
+          const fullName = `${u.firstname ?? ""} ${u.lastname ?? ""}`.trim();
+          return fullName || u.username;
+        });
+      case "agence":
+      case "agence_id":
+        return refs.data.agencies.map((a) => a.label || a.code);
+      case "metier":
+      case "metier_id":
+        return refs.data.metiers.map((m) => m.code || m.label);
+    }
+
+    // Pour les autres colonnes, faire une requête directe
+    const columnMap: Record<string, string> = {
+      codepostal: "code_postal",
+      code_postal: "code_postal",
+      ville: "ville",
+    };
+
+    const dbColumn = columnMap[normalizedColumn] || column;
+    const limit = 250;
+
+    let query = supabase
+      .from("interventions")
+      .select(dbColumn, { head: false })
+      .eq("is_active", true)
+      .order(dbColumn, { ascending: true, nullsFirst: false })
+      .not(dbColumn, "is", null)
+      .limit(limit);
+
+    // Appliquer les filtres
+    if (params?.statut) {
+      query = query.eq("statut_id", params.statut);
+    }
+    if (params?.statuts && params.statuts.length > 0) {
+      query = query.in("statut_id", params.statuts);
+    }
+    if (params?.agence) {
+      query = query.eq("agence_id", params.agence);
+    }
+    if (params?.metier && typeof params.metier === 'string') {
+      const metierObj = Array.from(refs.metiersById.values()).find(
+        (m: any) =>
+          m.code?.toUpperCase() === params.metier?.toUpperCase() ||
+          m.id === params.metier
+      );
+      const metierId = metierObj?.id || params.metier;
+      query = query.eq("metier_id", metierId);
+    }
+    if (params?.user !== undefined) {
+      if (params.user === null) {
+        query = query.is("assigned_user_id", null);
+      } else {
+        query = query.eq("assigned_user_id", params.user);
+      }
+    }
+    if (params?.startDate) {
+      query = query.gte("date", params.startDate);
+    }
+    if (params?.endDate) {
+      query = query.lte("date", params.endDate);
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+      console.error(`Error fetching distinct values for column "${dbColumn}":`, error);
+      throw error;
+    }
+    if (!data) return [];
+
+    // Dédupliquer les valeurs
+    const seen = new Set<string>();
+    const values: string[] = [];
+
+    for (const row of data) {
+      const raw = row[dbColumn as keyof typeof row];
+      if (raw == null || raw === "") continue;
+      const value = String(raw);
+      if (seen.has(value)) continue;
+      seen.add(value);
+      values.push(value);
+    }
+
+    return values;
   },
 };

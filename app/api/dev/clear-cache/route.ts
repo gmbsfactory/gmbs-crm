@@ -1,4 +1,4 @@
-import { invalidateReferenceCache } from '@/lib/supabase-api-v2';
+import { invalidateReferenceCache } from '@/lib/api/v2';
 import { NextResponse } from 'next/server';
 
 /**

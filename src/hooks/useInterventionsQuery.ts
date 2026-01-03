@@ -1,13 +1,16 @@
 import { useCallback, useEffect, useMemo } from "react"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
-import { interventionsApiV2, type GetAllParams } from "@/lib/supabase-api-v2"
+import { interventionsApiV2, type InterventionQueryParams } from "@/lib/api/v2"
 import type { InterventionView } from "@/types/intervention-view"
 import { interventionKeys } from "@/lib/react-query/queryKeys"
 import { getPreloadConfig } from "@/lib/device-capabilities"
 
+// Alias pour compatibilité
+type GetAllParams = InterventionQueryParams
+
 type ServerFilters = Pick<
   GetAllParams,
-  "statut" | "agence" | "artisan" | "metier" | "user" | "startDate" | "endDate" | "search" | "isCheck"
+  "statut" | "agence" | "artisan" | "metier" | "user" | "startDate" | "endDate" | "isCheck"
 >
 
 export interface UseInterventionsQueryOptions {

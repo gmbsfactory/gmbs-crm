@@ -13,8 +13,7 @@ import { useReferenceData } from "@/hooks/useReferenceData"
 import { useArtisanModal } from "@/hooks/useArtisanModal"
 import { useArtisanViews } from "@/hooks/useArtisanViews"
 import { ArtisanViewTabs } from "@/components/artisans/ArtisanViewTabs"
-import type { Artisan as ApiArtisan } from "@/lib/supabase-api-v2"
-import { getArtisanTotalCount, getArtisanCountWithFilters } from "@/lib/supabase-api-v2"
+import { artisansApi, type Artisan as ApiArtisan } from "@/lib/api/v2"
 import { convertArtisanFiltersToServerFilters } from "@/lib/filter-converter"
 import { Search, Eye, Edit, Trash2, Mail, Phone, X, Filter, ChevronDown, FileText } from "lucide-react"
 import { PageSearchBar } from "@/components/ui/page-search-bar"
@@ -37,7 +36,6 @@ import { useCurrentUser } from "@/hooks/useCurrentUser"
 import { usePermissions } from "@/hooks/usePermissions"
 import { getHighlightSegments } from "@/components/search/highlight"
 import { useQueryClient } from "@tanstack/react-query"
-import { artisansApi } from "@/lib/api/v2"
 import { artisanKeys } from "@/lib/react-query/queryKeys"
 import { toast } from "sonner"
 import {
@@ -476,8 +474,8 @@ export default function ArtisansPage(): ReactElement {
           // Convertir les filtres de la vue en paramètres API
           const apiParams = convertFiltersToApiParams(view.filters)
 
-          // Utiliser getArtisanCountWithFilters qui supporte tous les filtres (gestionnaire, statut_dossier, etc.)
-          const count = await getArtisanCountWithFilters(apiParams)
+          // Utiliser artisansApi.getCountWithFilters qui supporte tous les filtres (gestionnaire, statut_dossier, etc.)
+          const count = await artisansApi.getCountWithFilters(apiParams)
 
           if (!cancelled) {
             counts[view.id] = count
@@ -730,7 +728,7 @@ export default function ArtisansPage(): ReactElement {
               ...metierFilter,
               statuts: [status.id],
             }
-            const count = await getArtisanCountWithFilters(countParams)
+            const count = await artisansApi.getCountWithFilters(countParams)
             return { statusLabel: status.label, count }
           })
 
@@ -747,7 +745,7 @@ export default function ArtisansPage(): ReactElement {
           ...metierFilter,
           statut_dossier: "À compléter",
         }
-        const dossierCount = await getArtisanCountWithFilters(dossierCountParams)
+        const dossierCount = await artisansApi.getCountWithFilters(dossierCountParams)
         statusCountsMap[VIRTUAL_STATUS_DOSSIER_A_COMPLETER] = dossierCount
 
         if (!cancelled) {
@@ -772,7 +770,7 @@ export default function ArtisansPage(): ReactElement {
             ...statusFilter,
             metiers: [metier.id],
           }
-          const count = await getArtisanCountWithFilters(countParams)
+          const count = await artisansApi.getCountWithFilters(countParams)
           return { metierLabel: metier.label, count }
         })
 

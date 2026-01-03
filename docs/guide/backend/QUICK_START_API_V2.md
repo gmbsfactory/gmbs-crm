@@ -3,20 +3,22 @@
 ## 📥 Imports Standard
 
 ```typescript
-// ✅ APIs principales
+// ✅ APIs principales (NOUVEAU chemin recommandé)
 import { 
-  interventionsApiV2, 
-  artisansApiV2, 
+  interventionsApi,
+  artisansApi,
   documentsApi, 
-  commentsApi 
-} from '@/lib/supabase-api-v2';
+  commentsApi,
+  type Intervention,
+  type Artisan
+} from '@/lib/api/v2';
 
 // ✅ Hooks personnalisés
 import { useInterventionsQuery } from '@/hooks/useInterventionsQuery';
 import { useArtisans } from '@/hooks/useArtisans';
 
-// ✅ Types
-import type { Intervention, Artisan } from '@/lib/supabase-api-v2';
+// ✅ Alias V2 (compatibilité)
+import { interventionsApiV2, artisansApiV2 } from '@/lib/api/v2';
 ```
 
 ## 🔧 Utilisation Basique
@@ -133,8 +135,8 @@ try {
 
 ### 1. Mettre à jour les types
 ```typescript
-// Dans src/lib/supabase-api-v2.ts
-export interface Intervention {
+// Dans src/lib/api/v2/common/types.ts
+export interface CreateInterventionData {
   // ... champs existants
   nouveau_champ?: string;
 }
@@ -175,9 +177,13 @@ npm run dev
 
 ## 📚 Documentation Complète
 
-Voir `docs/GUIDELINES_API_V2.md` pour la documentation complète avec :
+Voir `docs/api/README.md` et `docs/guide/backend/GUIDELINES_API_V2.md` pour la documentation complète avec :
 - Architecture détaillée
 - Exemples avancés
 - Bonnes pratiques
 - Extension de l'API
 - Patterns de développement
+
+## ⚠️ Migration
+
+Le chemin `@/lib/supabase-api-v2` est déprécié. Utilisez `@/lib/api/v2` pour tous les nouveaux développements.

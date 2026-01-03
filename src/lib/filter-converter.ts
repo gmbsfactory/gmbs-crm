@@ -1,6 +1,9 @@
 import type { ViewFilter } from "@/types/intervention-views"
-import type { GetAllParams } from "@/lib/supabase-api-v2"
+import type { InterventionQueryParams } from "@/lib/api/v2"
 import type { ArtisanGetAllParams } from "@/lib/react-query/queryKeys"
+
+// Alias pour compatibilité
+type GetAllParams = InterventionQueryParams
 import type { ArtisanViewFilter } from "@/hooks/useArtisanViews"
 
 interface FilterConversionContext {
@@ -39,7 +42,7 @@ export function convertViewFiltersToServerFilters(
         if (stringValues.length > 0) {
           const statusIds = context.statusCodeToId(stringValues)
           if (statusIds && Array.isArray(statusIds) && statusIds.length > 0) {
-            serverFilters.statut = statusIds
+            serverFilters.statuts = statusIds
           } else {
             clientFilters.push(filter)
           }
@@ -159,7 +162,7 @@ export function convertViewFiltersToServerFilters(
       } else if (filter.operator === "in" && Array.isArray(filter.value)) {
         const stringValues = filter.value.filter((v): v is string => typeof v === "string")
         if (stringValues.length > 0) {
-          serverFilters.metier = stringValues
+          serverFilters.metiers = stringValues
         } else {
           clientFilters.push(filter)
         }

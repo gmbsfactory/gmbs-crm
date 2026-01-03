@@ -15,25 +15,35 @@
 
 ### Structure de l'API v2
 ```
-src/lib/supabase-api-v2.ts
-├── interventionsApiV2    # CRUD interventions
-├── artisansApiV2         # CRUD artisans  
-├── documentsApi          # Gestion documents
-├── commentsApi           # Système commentaires
-└── Types & Interfaces    # Types TypeScript
+src/lib/api/v2/
+├── common/
+│   ├── types.ts          # Types TypeScript communs
+│   ├── constants.ts      # Constantes partagées
+│   ├── utils.ts          # Utilitaires partagés
+│   └── cache.ts          # Cache centralisé (Singleton)
+├── interventionsApi.ts   # CRUD interventions
+├── artisansApi.ts        # CRUD artisans
+├── documentsApi.ts       # Gestion documents
+├── commentsApi.ts        # Système commentaires
+├── usersApi.ts           # Gestion utilisateurs
+├── rolesApi.ts           # Rôles et permissions
+└── index.ts              # Point d'entrée central
 ```
 
-### Import Standard
+### Import Standard (Recommandé)
 ```typescript
-// ✅ CORRECT - Import des APIs spécifiques
+// ✅ CORRECT - Import depuis @/lib/api/v2 (nouveau chemin)
 import { 
-  interventionsApiV2, 
-  artisansApiV2, 
+  interventionsApi,
+  artisansApi,
   documentsApi, 
   commentsApi,
   type Intervention,
   type Artisan 
-} from '@/lib/supabase-api-v2';
+} from '@/lib/api/v2';
+
+// ✅ CORRECT - Alias V2 pour compatibilité
+import { interventionsApiV2, artisansApiV2 } from '@/lib/api/v2';
 
 // ✅ CORRECT - Import des hooks personnalisés
 import { useInterventionsQuery } from '@/hooks/useInterventionsQuery';
@@ -42,8 +52,11 @@ import { useArtisans } from '@/hooks/useArtisans';
 
 ### ❌ Éviter
 ```typescript
+// ❌ DÉPRÉCIÉ - Ancien chemin (fonctionne mais à éviter)
+import { interventionsApi } from '@/lib/api/v2';
+
 // ❌ INCORRECT - Import de tout l'API
-import * as api from '@/lib/supabase-api-v2';
+import * as api from '@/lib/api/v2';
 
 // ❌ INCORRECT - Import direct du client Supabase
 import { supabase } from '@/lib/supabase-client';
@@ -57,11 +70,11 @@ import { supabase } from '@/lib/supabase-client';
 
 #### Créer une intervention
 ```typescript
-import { interventionsApiV2 } from '@/lib/supabase-api-v2';
+import { interventionsApi } from '@/lib/api/v2';
 
 const createIntervention = async () => {
   try {
-    const intervention = await interventionsApiV2.create({
+    const intervention = await interventionsApi.create({
       date: new Date().toISOString(),
       contexte_intervention: 'Réparation urgente de plomberie',
       adresse: '123 Rue de la Paix',
@@ -128,7 +141,7 @@ const updateIntervention = async (id: string, updates: Partial<Intervention>) =>
 
 #### Créer un artisan
 ```typescript
-import { artisansApiV2 } from '@/lib/supabase-api-v2';
+import { artisansApi } from '@/lib/api/v2';
 
 const createArtisan = async () => {
   const artisan = await artisansApiV2.create({
@@ -160,7 +173,7 @@ const assignMetiers = async (artisanId: string, metierIds: string[]) => {
 
 #### Uploader un document
 ```typescript
-import { documentsApi } from '@/lib/supabase-api-v2';
+import { documentsApi } from '@/lib/api/v2';
 
 const uploadDocument = async (file: File, interventionId: string) => {
   const formData = new FormData();
@@ -179,7 +192,7 @@ const uploadDocument = async (file: File, interventionId: string) => {
 
 #### Ajouter un commentaire
 ```typescript
-import { commentsApi } from '@/lib/supabase-api-v2';
+import { commentsApi } from '@/lib/api/v2';
 
 const addComment = async (interventionId: string, content: string) => {
   const comment = await commentsApi.create({
@@ -577,7 +590,7 @@ export const nouvelleApi = {
 ```typescript
 // src/hooks/useNouvelleEntite.ts
 import { useState, useEffect, useCallback } from 'react';
-import { nouvelleApi, type NouvelleEntite } from '@/lib/supabase-api-v2';
+import { nouvelleApi, type NouvelleEntite } from '@/lib/api/v2';
 
 interface UseNouvelleEntiteOptions {
   limit?: number;
@@ -843,7 +856,7 @@ function InterventionsPage() {
 
 ### 2. Formulaire de Création
 ```typescript
-import { interventionsApiV2 } from '@/lib/supabase-api-v2';
+import { interventionsApi } from '@/lib/api/v2';
 import { useInterventionsQuery } from '@/hooks/useInterventionsQuery';
 
 function CreateInterventionForm() {

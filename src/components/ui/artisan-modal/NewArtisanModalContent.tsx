@@ -59,8 +59,7 @@ import { useReferenceData } from "@/hooks/useReferenceData"
 import { toast } from "sonner"
 import { useSiretVerification } from "@/hooks/useSiretVerification"
 import { validateSiret } from "@/lib/siret-validation"
-import { artisansApiV2, getArtisanTotalCount } from "@/lib/supabase-api-v2"
-import { artisansApi, interventionsApi } from "@/lib/api/v2"
+import { artisansApi, artisansApiV2, interventionsApi } from "@/lib/api/v2"
 import { commentsApi } from "@/lib/api/v2/commentsApi"
 import { artisanKeys } from "@/lib/react-query/queryKeys"
 import { useCurrentUser } from "@/hooks/useCurrentUser"
@@ -626,7 +625,7 @@ export function NewArtisanModalContent({ mode, onClose, onCycleMode, artisanId, 
     
     const fetchArtisanCount = async () => {
       try {
-        const count = await getArtisanTotalCount()
+        const count = await artisansApi.getTotalCount()
         const nextNumber = String(count + 1)
         setGeneratedNumeroAssocie(nextNumber)
         setValue("numero_associe", nextNumber)

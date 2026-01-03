@@ -2,7 +2,7 @@
 // Centralise la logique de chargement des artisans
 // Utilise l'API v2 optimisée
 
-import { artisansApiV2, type Artisan } from '@/lib/supabase-api-v2';
+import { artisansApiV2, type Artisan } from '@/lib/api/v2';
 import * as React from 'react';
 import { useCallback, useEffect, useState, useMemo } from 'react';
 

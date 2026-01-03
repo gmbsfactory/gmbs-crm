@@ -7,7 +7,7 @@ import { Card } from "@/components/ui/card"
 import { useGestionnaires } from "@/hooks/useGestionnaires"
 import { useQuery } from "@tanstack/react-query"
 import { referenceApi } from "@/lib/reference-api"
-import { enumsApi } from "@/lib/supabase-api-v2"
+import { enumsApi } from "@/lib/api/v2"
 import { DateRangePicker } from "@/components/interventions/DateRangePicker"
 import {
   format,

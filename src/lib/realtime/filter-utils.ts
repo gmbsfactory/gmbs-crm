@@ -3,8 +3,10 @@
  * Permet de déterminer si une intervention correspond aux filtres d'une vue
  */
 
-import type { Intervention } from '@/lib/api/v2/common/types'
-import type { GetAllParams } from '@/lib/supabase-api-v2'
+import type { Intervention, InterventionQueryParams } from '@/lib/api/v2'
+
+// Alias pour compatibilité
+type GetAllParams = InterventionQueryParams
 
 // T093: Logs de debug pour le développement (à désactiver en production)
 const DEBUG_FILTERS = process.env.NODE_ENV === 'development'

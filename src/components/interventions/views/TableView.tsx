@@ -706,6 +706,30 @@ export function TableView({
     console.log(`[TableView] Props pagination - currentPage: ${currentPage}, totalPages: ${totalPages}, totalCount: ${totalCount}, onPageChange: ${typeof onPageChange}`)
   }, [currentPage, totalPages, totalCount, onPageChange])
 
+  // Convertir les filtres de la vue en baseFilters pour les compteurs
+  const baseFilters = useMemo(() => {
+    const params: Record<string, any> = {}
+
+    view.filters.forEach(filter => {
+      // Ignorer les filtres temporaires ou système
+      if (!filter.property) return
+
+      if (filter.operator === 'eq') {
+        params[filter.property] = filter.value as string
+      } else if (filter.operator === 'in' && Array.isArray(filter.value)) {
+        // Pour les multi-select, utiliser le pluriel (ex: metiers, statuts)
+        const pluralKey = filter.property.endsWith('s') ? filter.property : `${filter.property}s`
+        params[pluralKey] = filter.value as string[]
+      } else if (filter.operator === 'gte' && filter.property === 'date') {
+        params.startDate = filter.value as string
+      } else if (filter.operator === 'lte' && filter.property === 'date') {
+        params.endDate = filter.value as string
+      }
+    })
+
+    return params
+  }, [view.filters])
+
   const dataset = useMemo(() => {
     // ⚠️ NE PAS réappliquer les filtres/sorts de la vue !
     // Ils sont déjà appliqués côté serveur + residualFilters dans page.tsx
@@ -1415,6 +1439,7 @@ export function TableView({
                                         interventions={allInterventions ?? interventions}
                                         loadDistinctValues={loadDistinctValues}
                                         onFilterChange={onPropertyFilterChange}
+                                        baseFilters={baseFilters}
                                       />
                                     ) : (
                                       <span>{getPropertyLabel(property)}</span>

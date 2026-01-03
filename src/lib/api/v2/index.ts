@@ -1,23 +1,77 @@
-// ===== API V2 - EXPORT CENTRAL =====
+// ===== API V2 - ORCHESTRATEUR CENTRAL =====
 // Point d'entrée unique pour toutes les APIs modulaires
+// 
+// Ce fichier sert de façade pour l'ensemble de l'API V2.
+// Il centralise les exports et permet une importation simplifiée.
+//
+// Usage recommandé:
+//   import { interventionsApi, artisansApi } from '@/lib/api/v2';
+//   import type { Intervention, Artisan } from '@/lib/api/v2';
 
-// Types communs
+// ===== TYPES COMMUNS =====
 export * from "./common/types";
 
-// Types pour enumsApi
+// Types spécifiques pour enumsApi
 export type { FindOrCreateResult } from "./enumsApi";
 
-// Utilitaires communs
-export * from "./common/utils";
+// ===== CACHE CENTRALISÉ =====
+export {
+  getReferenceCache,
+  invalidateReferenceCache,
+  referenceCacheManager,
+  type ReferenceCache,
+  type ReferenceData,
+} from "./common/cache";
 
-// Imports des APIs spécialisées
+// ===== CONSTANTES =====
+export {
+  INTERVENTION_STATUS,
+  INTERVENTION_METIERS,
+  DOCUMENT_TYPES,
+  COMMENT_TYPES,
+  COST_TYPES,
+  ENTITY_TYPES,
+  USER_STATUS,
+  MAX_BATCH_SIZE,
+  DEFAULT_FUNCTIONS_URL,
+  type InterventionStatusCode,
+  type InterventionMetierCode,
+  type InterventionDocumentType,
+  type ArtisanDocumentType,
+  type CommentType,
+  type CostType,
+  type EntityType,
+  type UserStatus,
+} from "./common/constants";
+
+// ===== UTILITAIRES =====
+export {
+  getSupabaseFunctionsUrl,
+  SUPABASE_FUNCTIONS_URL,
+  getHeaders,
+  handleResponse,
+  fileToBase64,
+  formatFileSize,
+  isValidMimeType,
+  generateSecurePassword,
+  isValidEmail,
+  isValidUsername,
+  generateUniqueCodeGestionnaire,
+  buildUserDisplay,
+  mapInterventionRecord,
+  mapArtisanRecord,
+  chunkArray,
+  managedFetch,
+} from "./common/utils";
+
+// ===== IMPORTS DES APIs SPÉCIALISÉES =====
 import { agenciesApi } from "./agenciesApi";
 import { artisansApi } from "./artisansApi";
 import { clientsApi } from "./clientsApi";
 import { commentsApi } from "./commentsApi";
 import { documentsApi } from "./documentsApi";
 import { enumsApi } from "./enumsApi";
-import { interventionsApi, invalidateReferenceCache } from "./interventionsApi";
+import { interventionsApi } from "./interventionsApi";
 import { ownersApi } from "./ownersApi";
 import { remindersApi } from "./reminders";
 import { permissionsApi, rolesApi } from "./rolesApi";
@@ -25,10 +79,26 @@ import { tenantsApi } from "./tenantsApi";
 import { usersApi } from "./usersApi";
 import { utilsApi } from "./utilsApi";
 
-// Exports des APIs spécialisées
-export { agenciesApi, artisansApi, clientsApi, commentsApi, documentsApi, enumsApi, interventionsApi, invalidateReferenceCache, ownersApi, permissionsApi, remindersApi, rolesApi, tenantsApi, usersApi, utilsApi };
+// ===== EXPORTS DES APIs =====
+export {
+  agenciesApi,
+  artisansApi,
+  clientsApi,
+  commentsApi,
+  documentsApi,
+  enumsApi,
+  interventionsApi,
+  ownersApi,
+  permissionsApi,
+  remindersApi,
+  rolesApi,
+  tenantsApi,
+  usersApi,
+  utilsApi,
+};
 
-// Exports avec alias pour compatibilité
+// ===== ALIAS POUR COMPATIBILITÉ =====
+// Ces alias permettent une migration progressive depuis l'ancien code
 export const agenciesApiV2 = agenciesApi;
 export const usersApiV2 = usersApi;
 export const interventionsApiV2 = interventionsApi;
@@ -44,8 +114,10 @@ export const enumsApiV2 = enumsApi;
 export const remindersApiV2 = remindersApi;
 export const utilsApiV2 = utilsApi;
 
-// Export par défaut avec toutes les APIs
+// ===== EXPORT PAR DÉFAUT =====
+// Permet d'accéder à toutes les APIs via un objet unique
 const apiV2 = {
+  // APIs principales (nouveau nommage)
   agencies: agenciesApi,
   users: usersApi,
   interventions: interventionsApi,
@@ -60,22 +132,6 @@ const apiV2 = {
   reminders: remindersApi,
   enums: enumsApi,
   utils: utilsApi,
-
-  // Alias pour compatibilité
-  agenciesApiV2,
-  usersApiV2,
-  interventionsApiV2,
-  artisansApiV2,
-  clientsApiV2,
-  documentsApiV2,
-  commentsApiV2,
-  rolesApiV2,
-  permissionsApiV2,
-  tenantsApiV2,
-  ownersApiV2,
-  remindersApiV2,
-  enumsApiV2,
-  utilsApiV2,
-}
+};
 
 export default apiV2;

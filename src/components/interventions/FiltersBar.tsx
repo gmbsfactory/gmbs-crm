@@ -15,7 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { DateRangePicker, type DateRange } from "@/components/interventions/DateRangePicker"
 import { persistInterventionStatusColor } from "@/lib/interventions/status-updates"
-import { invalidateReferenceCache } from "@/lib/supabase-api-v2"
+import { invalidateReferenceCache } from "@/lib/api/v2"
 import type { InterventionStatusValue } from "@/types/interventions"
 import type { WorkflowConfig } from "@/types/intervention-workflow"
 import { INTERVENTION_STATUS } from "@/config/interventions"

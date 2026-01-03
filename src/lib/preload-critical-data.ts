@@ -2,9 +2,10 @@
 
 import { QueryClient } from "@tanstack/react-query"
 import { interventionKeys, artisanKeys, dashboardKeys, type ArtisanGetAllParams } from "@/lib/react-query/queryKeys"
-import { interventionsApiV2, artisansApiV2 } from "@/lib/supabase-api-v2"
-import { interventionsApi } from "@/lib/api/v2"
-import type { GetAllParams } from "@/lib/supabase-api-v2"
+import { interventionsApiV2, artisansApiV2, interventionsApi, type InterventionQueryParams } from "@/lib/api/v2"
+
+// Alias pour compatibilité
+type GetAllParams = InterventionQueryParams
 import { referenceApi } from "@/lib/reference-api"
 import { convertViewFiltersToServerFilters, convertArtisanFiltersToServerFilters } from "@/lib/filter-converter"
 import type { InterventionViewDefinition } from "@/types/intervention-views"

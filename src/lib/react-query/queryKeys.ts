@@ -1,4 +1,7 @@
-import type { GetAllParams } from "@/lib/supabase-api-v2"
+import type { InterventionQueryParams } from "@/lib/api/v2"
+
+// Alias pour compatibilité avec le code existant
+type GetAllParams = InterventionQueryParams
 
 /**
  * Factory pour générer les clés de requête TanStack Query

@@ -10,9 +10,11 @@ import type { PaginatedResponse } from '@/lib/api/v2/common/types'
 import { interventionKeys } from '@/lib/react-query/queryKeys'
 import { matchesFilters, extractFiltersFromQueryKey } from './filter-utils'
 import { debounce } from '@/utils/debounce'
-import { getInterventionTotalCount, getInterventionCounts } from '@/lib/supabase-api-v2'
-import type { GetAllParams } from '@/lib/supabase-api-v2'
+import { interventionsApi, type InterventionQueryParams } from '@/lib/api/v2'
 import { createBroadcastSync } from './broadcast-sync'
+
+// Alias pour compatibilité avec le code existant
+type GetAllParams = InterventionQueryParams
 import {
   getRemoteEditIndicatorManager,
   getUserColor,

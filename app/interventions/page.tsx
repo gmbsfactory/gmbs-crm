@@ -61,8 +61,11 @@ import type { WorkflowConfig } from "@/types/intervention-workflow"
 import { mapStatusFromDb, mapStatusToDb } from "@/lib/interventions/mappers"
 import { isCheckStatus } from "@/lib/interventions/checkStatus"
 import type { InterventionStatusValue } from "@/types/interventions"
-import { getDistinctInterventionValues, getInterventionTotalCount, type GetAllParams } from "@/lib/supabase-api-v2"
+import { interventionsApi, type InterventionQueryParams } from "@/lib/api/v2"
 import type { InterventionView as InterventionEntity } from "@/types/intervention-view"
+
+// Alias pour compatibilité
+type GetAllParams = InterventionQueryParams
 import type {
   InterventionViewDefinition,
   LayoutOptions,
@@ -562,7 +565,7 @@ function PageContent() {
 
   const loadDistinctValues = useCallback(async (property: string) => {
     try {
-      const values = await getDistinctInterventionValues(property)
+      const values = await interventionsApi.getDistinctValues(property)
       return values
     } catch (error) {
       console.error("Failed to fetch distinct values", error)

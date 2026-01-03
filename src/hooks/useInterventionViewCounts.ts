@@ -1,9 +1,11 @@
 import { useMemo } from "react"
 import { useQueries, useQueryClient } from "@tanstack/react-query"
-import { getInterventionTotalCount, type GetAllParams } from "@/lib/supabase-api-v2"
 import { interventionKeys, dashboardKeys } from "@/lib/react-query/queryKeys"
 import type { InterventionViewDefinition } from "@/types/intervention-views"
-import { interventionsApi } from "@/lib/api/v2"
+import { interventionsApi, type InterventionQueryParams } from "@/lib/api/v2"
+
+// Alias pour compatibilité
+type GetAllParams = InterventionQueryParams
 
 // Vues qui nécessitent un utilisateur connecté pour fonctionner correctement
 const USER_SCOPED_VIEW_IDS = new Set([
@@ -91,7 +93,7 @@ export function useInterventionViewCounts({
               return { viewId: view.id, count: 0 }
             }
 
-            const count = await getInterventionTotalCount(apiParams)
+            const count = await interventionsApi.getTotalCountWithFilters(apiParams)
             return { viewId: view.id, count }
           } catch (error) {
             // Améliorer le logging des erreurs pour mieux diagnostiquer

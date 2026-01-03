@@ -3,7 +3,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Eye, Loader2, Plus, Trash2, FilePlus, Pencil, Link, ExternalLink, Check } from "lucide-react";
 import { toast } from "sonner";
-import { documentsApi } from "@/lib/supabase-api-v2";
+import { documentsApi } from "@/lib/api/v2";
 import { DocumentPreview } from "@/components/documents/DocumentPreview";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
