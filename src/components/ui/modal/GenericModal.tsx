@@ -13,7 +13,7 @@ const PORTAL_CONTAINER_ID = "modal-portal-root"
 // Fonction pour obtenir ou créer le conteneur portal statique
 function getPortalContainer(): HTMLElement | null {
   if (typeof window === "undefined") return null
-  
+
   let container = document.getElementById(PORTAL_CONTAINER_ID)
   if (!container) {
     container = document.createElement("div")
@@ -127,6 +127,37 @@ export function GenericModal({
 
   const modalStyle = getModalStyle(mode)
 
+  // Gestion de l'Échap avec vérification des modifications non sauvegardées
+  useEffect(() => {
+    if (!isOpen) return
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return
+
+      // Si un modal enfant est ouvert, ne pas gérer l'Échap ici
+      if (pauseFocusTrap) return
+
+      // Si des modifications non sauvegardées existent et qu'on n'est pas en train de soumettre
+      if (hasUnsavedChanges && !isSubmitting && onShowUnsavedDialog) {
+        event.preventDefault()
+        event.stopPropagation()
+        onShowUnsavedDialog()
+        return
+      }
+
+      // Pas de modifications ou soumission en cours : fermer directement
+      event.preventDefault()
+      event.stopPropagation()
+      onClose()
+    }
+
+    // Utiliser capture phase pour intercepter avant FocusTrap
+    document.addEventListener("keydown", handleEscape, true)
+    return () => {
+      document.removeEventListener("keydown", handleEscape, true)
+    }
+  }, [isOpen, hasUnsavedChanges, isSubmitting, onShowUnsavedDialog, pauseFocusTrap, onClose])
+
   // Gestion du clic sur le backdrop avec vérification des modifications non sauvegardées
   const handleBackdropClick = () => {
     // Si des modifications non sauvegardées existent et qu'on n'est pas en train de soumettre
@@ -146,7 +177,7 @@ export function GenericModal({
           paused={pauseFocusTrap}
           focusTrapOptions={{
             initialFocus: false,
-            escapeDeactivates: true,
+            escapeDeactivates: false, // Désactivé car on gère l'Échap manuellement
             clickOutsideDeactivates: false,
             returnFocusOnDeactivate: true,
             allowOutsideClick: true,

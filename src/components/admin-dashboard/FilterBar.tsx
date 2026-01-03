@@ -72,7 +72,7 @@ export function FilterBar({
   // Charger les métiers
   const { data: metiers, isLoading: isLoadingMetiers } = useQuery({
     queryKey: ["metiers"],
-    queryFn: async () => enumsApi.getMetiers(),
+    queryFn: async () => referenceApi.getMetiers(),
     staleTime: 5 * 60 * 1000,
   })
 

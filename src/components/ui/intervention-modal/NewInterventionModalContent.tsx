@@ -20,9 +20,18 @@ type Props = {
   onClose: () => void
   onCycleMode?: () => void
   onUnsavedDialogOpenChange?: (isOpen: boolean) => void
+  onUnsavedChangesStateChange?: (hasChanges: boolean, isSubmitting: boolean) => void
+  onRegisterShowDialog?: (showDialog: () => void) => void
 }
 
-export function NewInterventionModalContent({ mode, onClose, onCycleMode, onUnsavedDialogOpenChange }: Props) {
+export function NewInterventionModalContent({ 
+  mode, 
+  onClose, 
+  onCycleMode, 
+  onUnsavedDialogOpenChange,
+  onUnsavedChangesStateChange,
+  onRegisterShowDialog,
+}: Props) {
   const queryClient = useQueryClient()
   const modal = useModal()
   const context = useModalState((state) => state.context)
@@ -39,6 +48,7 @@ export function NewInterventionModalContent({ mode, onClose, onCycleMode, onUnsa
   const [showUnsavedDialog, setShowUnsavedDialog] = useState(false)
   const pendingCloseAction = useRef<(() => void) | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const shouldCloseAfterSaveRef = useRef(false)
   const { can } = usePermissions()
   const canWriteInterventions = can("write_interventions")
 
@@ -46,6 +56,26 @@ export function NewInterventionModalContent({ mode, onClose, onCycleMode, onUnsa
   useEffect(() => {
     onUnsavedDialogOpenChange?.(showUnsavedDialog)
   }, [showUnsavedDialog, onUnsavedDialogOpenChange])
+
+  // Notifier le parent des changements d'état pour la gestion du clic sur backdrop et Échap
+  useEffect(() => {
+    onUnsavedChangesStateChange?.(hasUnsavedChanges, isSubmitting)
+  }, [hasUnsavedChanges, isSubmitting, onUnsavedChangesStateChange])
+
+  // Exposer la fonction pour afficher le dialog au parent
+  useEffect(() => {
+    const showDialog = () => {
+      pendingCloseAction.current = () => {
+        if (duplicateFromId) {
+          modal.open(duplicateFromId, { content: "intervention" })
+        } else {
+          onClose()
+        }
+      }
+      setShowUnsavedDialog(true)
+    }
+    onRegisterShowDialog?.(showDialog)
+  }, [onClose, onRegisterShowDialog, duplicateFromId, modal])
 
   // Fonction pour confirmer la fermeture après l'alerte
   const handleConfirmClose = useCallback(() => {
@@ -64,12 +94,28 @@ export function NewInterventionModalContent({ mode, onClose, onCycleMode, onUnsa
 
   // Fonction pour enregistrer et fermer
   const handleSaveAndConfirm = useCallback(() => {
-    setShowUnsavedDialog(false)
+    shouldCloseAfterSaveRef.current = true
+    
     // Soumettre le formulaire
     if (formRef.current) {
-      formRef.current.requestSubmit()
+      // Vérifier la validation avant de soumettre
+      const form = formRef.current
+      if (!form.checkValidity()) {
+        // Si la validation échoue, fermer le dialog après un court délai
+        // pour éviter les effets visuels indésirables (zoom, popups)
+        // Le délai permet au formulaire de se stabiliser avant la fermeture
+        setTimeout(() => {
+          setShowUnsavedDialog(false)
+        }, 150)
+        form.reportValidity()
+        shouldCloseAfterSaveRef.current = false
+        return
+      }
+      
+      // Si la validation passe, fermer le dialog immédiatement et soumettre
+      setShowUnsavedDialog(false)
+      form.requestSubmit()
     }
-    // La fermeture sera gérée automatiquement par handleSuccess après la sauvegarde
     pendingCloseAction.current = null
   }, [])
 
@@ -104,6 +150,12 @@ export function NewInterventionModalContent({ mode, onClose, onCycleMode, onUnsa
       // Invalider toutes les listes d'interventions pour recharger avec la nouvelle intervention
       await queryClient.invalidateQueries({ queryKey: interventionKeys.invalidateLists() })
       await queryClient.invalidateQueries({ queryKey: interventionKeys.invalidateLightLists() })
+      
+      // Si on devait fermer après sauvegarde, s'assurer que le dialog est fermé
+      if (shouldCloseAfterSaveRef.current) {
+        setShowUnsavedDialog(false)
+        shouldCloseAfterSaveRef.current = false
+      }
       
       // Fermer le modal (pas de retour à l'intervention initiale lors de la création réussie)
       onClose()

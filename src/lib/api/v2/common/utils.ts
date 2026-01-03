@@ -447,6 +447,24 @@ export const mapArtisanRecord = (item: any, refs: any): any => {
     zones = item.zones;
   }
 
+  // Extraire les métadonnées de la photo de profil depuis artisan_attachments
+  const attachments = Array.isArray(item.artisan_attachments) 
+    ? item.artisan_attachments 
+    : [];
+  
+  const photoProfilAttachment = attachments.find(
+    (att: any) => att?.kind === "photo_profil" && att?.url && att.url.trim() !== ""
+  );
+
+  const photoProfilMetadata = photoProfilAttachment ? {
+    hash: photoProfilAttachment.content_hash || null,
+    sizes: photoProfilAttachment.derived_sizes || {},
+    mime_preferred: photoProfilAttachment.mime_preferred || photoProfilAttachment.mime_type || 'image/jpeg',
+    baseUrl: photoProfilAttachment.url || null
+  } : null;
+
+  const photoProfilBaseUrl = photoProfilMetadata?.baseUrl || null;
+
   return {
     ...item,
     metiers,
@@ -462,6 +480,8 @@ export const mapArtisanRecord = (item: any, refs: any): any => {
       ? Number(zones[0])
       : item.zoneIntervention ?? null,
     date: item.date_ajout ?? item.date ?? null,
+    photoProfilBaseUrl,
+    photoProfilMetadata,
   };
 };
 

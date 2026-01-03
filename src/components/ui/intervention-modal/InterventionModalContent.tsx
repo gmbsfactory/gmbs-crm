@@ -133,6 +133,7 @@ export function InterventionModalContent({
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
   const [showUnsavedDialog, setShowUnsavedDialog] = useState(false)
   const pendingCloseAction = useRef<(() => void) | null>(null)
+  const shouldCloseAfterSaveRef = useRef(false)
 
   // Log pour suivre les changements de showUnsavedDialog
   useEffect(() => {
@@ -288,12 +289,28 @@ GMBS`
 
   // Fonction pour enregistrer et fermer
   const handleSaveAndClose = useCallback(() => {
-    setShowUnsavedDialog(false)
+    shouldCloseAfterSaveRef.current = true
+    
     // Soumettre le formulaire
     if (formRef.current) {
-      formRef.current.requestSubmit()
+      // Vérifier la validation avant de soumettre
+      const form = formRef.current
+      if (!form.checkValidity()) {
+        // Si la validation échoue, fermer le dialog après un court délai
+        // pour éviter les effets visuels indésirables (zoom, popups)
+        // Le délai permet au formulaire de se stabiliser avant la fermeture
+        setTimeout(() => {
+          setShowUnsavedDialog(false)
+        }, 150)
+        form.reportValidity()
+        shouldCloseAfterSaveRef.current = false
+        return
+      }
+      
+      // Si la validation passe, fermer le dialog immédiatement et soumettre
+      setShowUnsavedDialog(false)
+      form.requestSubmit()
     }
-    // La fermeture sera gérée automatiquement par handleSuccess après la sauvegarde
     pendingCloseAction.current = null
   }, [])
 
@@ -391,6 +408,12 @@ GMBS`
 
   const handleSuccess = useCallback(
     async (data: any) => {
+      // Si on devait fermer après sauvegarde, s'assurer que le dialog est fermé
+      if (shouldCloseAfterSaveRef.current) {
+        setShowUnsavedDialog(false)
+        shouldCloseAfterSaveRef.current = false
+      }
+      
       // 1. Mise à jour optimiste immédiate dans React Query pour le détail
       queryClient.setQueryData(interventionKeys.detail(interventionId), data)
 

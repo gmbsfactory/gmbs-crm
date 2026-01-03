@@ -191,7 +191,7 @@ export function useUltraInterventions() {
         const result = await interventionsApiV2.getAll({ limit: 100 });
         return {
           data: result.data,
-          total: result.total,
+          total: result.pagination.total,
           hasMore: false
         };
       });

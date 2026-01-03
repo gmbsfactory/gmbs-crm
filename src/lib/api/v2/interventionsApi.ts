@@ -239,6 +239,99 @@ export const interventionsApi = {
   },
 
   /**
+   * Récupère toutes les interventions en version légère (via Edge Function)
+   * Version optimisée pour le warm-up avec moins de données
+   */
+  async getAllLight(params?: InterventionQueryParams): Promise<PaginatedResponse<InterventionWithStatus>> {
+    type FilterValue = string | string[] | null | undefined;
+
+    const limit = Math.max(1, params?.limit ?? 100);
+
+    const searchParams = new URLSearchParams();
+    searchParams.set("limit", limit.toString());
+    if (params?.offset !== undefined) {
+      searchParams.set("offset", params.offset.toString());
+    }
+
+    const appendFilterParam = (key: string, value?: FilterValue) => {
+      if (key === "user" && value === null) {
+        searchParams.append(key, "null");
+        return;
+      }
+
+      if (value === undefined || value === null) {
+        return;
+      }
+      if (Array.isArray(value)) {
+        value.forEach((entry) => {
+          if (entry !== null && typeof entry === "string" && entry.length > 0) {
+            searchParams.append(key, entry);
+          }
+        });
+        return;
+      }
+      if (typeof value === "string" && value.length > 0) {
+        searchParams.append(key, value);
+      }
+    };
+
+    if (params?.statuts && params.statuts.length > 0) {
+      appendFilterParam("statut", params.statuts);
+    } else {
+      appendFilterParam("statut", params?.statut);
+    }
+    appendFilterParam("agence", params?.agence);
+    appendFilterParam("artisan", params?.artisan);
+    appendFilterParam("metier", params?.metier);
+    appendFilterParam("user", params?.user);
+
+    if (params?.startDate) {
+      searchParams.set("startDate", params.startDate);
+    }
+    if (params?.endDate) {
+      searchParams.set("endDate", params.endDate);
+    }
+    if (params?.isCheck !== undefined) {
+      searchParams.set("isCheck", params.isCheck.toString());
+    }
+    if (params?.search) {
+      searchParams.set("search", params.search);
+    }
+
+    const queryString = searchParams.toString();
+    const functionsUrl = getSupabaseFunctionsUrl();
+    const url = `${functionsUrl}/interventions-v2/interventions/light${queryString ? `?${queryString}` : ""}`;
+
+    const response = await fetch(url, {
+      headers: await getHeaders(),
+    });
+    const raw = await handleResponse(response);
+
+    const refs = await getReferenceCache();
+
+    const transformedData = Array.isArray(raw?.data)
+      ? raw.data.map((item: any) => mapInterventionRecord(item, refs) as InterventionWithStatus)
+      : [];
+
+    const total =
+      typeof raw?.pagination?.total === "number"
+        ? raw.pagination.total
+        : transformedData.length;
+
+    const offset = params?.offset ?? 0;
+
+    return {
+      data: transformedData,
+      pagination: {
+        total,
+        limit,
+        offset,
+        hasMore: offset + limit < total,
+      },
+    };
+  },
+
+  /**
    * Obtient le nombre total d'interventions (sans les charger)
    */
   async getTotalCount(): Promise<number> {
@@ -3838,7 +3931,7 @@ export const interventionsApi = {
         // Filtrer sur les statuts CHECK (VISITE_TECHNIQUE ou INTER_EN_COURS)
         const refs = await getReferenceCache();
         const checkStatusIds = Array.from(refs.interventionStatusesById.values())
-          .filter((s: any) => isCheckStatus(s.code as InterventionStatusKey))
+          .filter((s: any) => isCheckStatus(s.code as InterventionStatusKey, null))
           .map((s: any) => s.id);
         if (checkStatusIds.length > 0) {
           query = query.in("statut_id", checkStatusIds);

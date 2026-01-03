@@ -98,7 +98,7 @@ export function useSimpleInterventions() {
       const result = await interventionsApiV2.getAll({ limit: 100 });
 
       const newData = result.data;
-      const newTotal = result.total;
+      const newTotal = result.pagination.total;
 
       setInterventions(newData);
       setTotalCount(newTotal);

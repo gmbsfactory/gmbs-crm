@@ -196,7 +196,7 @@ export function useInterventionsQuery(
   const interventions = useMemo(() => {
     const result = data?.data ?? []
     // Créer un nouveau tableau pour forcer la détection de changement
-    const newArray = [...result]
+    const newArray = [...result] as InterventionView[]
     const firstId = newArray[0]?.id ?? 'none'
     const lastId = newArray[newArray.length - 1]?.id ?? 'none'
     if (process.env.NODE_ENV !== 'production') {
@@ -204,7 +204,7 @@ export function useInterventionsQuery(
     }
     return newArray
   }, [data?.data, page, offset])
-  const totalCount = useMemo(() => data?.total ?? 0, [data?.total])
+  const totalCount = useMemo(() => data?.pagination?.total ?? 0, [data?.pagination?.total])
 
   // Calculer le nombre total de pages
   const totalPages = useMemo(() => {

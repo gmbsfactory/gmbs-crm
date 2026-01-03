@@ -131,6 +131,8 @@ export function InterventionModal({
           onClose={onClose}
           onCycleMode={cycleMode}
           onUnsavedDialogOpenChange={setIsUnsavedDialogOpen}
+          onUnsavedChangesStateChange={handleUnsavedChangesStateChange}
+          onRegisterShowDialog={handleRegisterShowDialog}
         />
       )
     }

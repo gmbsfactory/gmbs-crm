@@ -77,6 +77,23 @@ export interface Artisan {
   updated_at: string | null;
   metiers?: string[];
   zones?: string[];
+  photoProfilBaseUrl?: string | null;
+  photoProfilMetadata?: {
+    hash: string | null;
+    sizes: Record<string, string>;
+    mime_preferred: string;
+    baseUrl: string | null;
+  } | null;
+  // Properties added by mapArtisanRecord
+  attribueA?: string;
+  gestionnaireUsername?: string;
+  gestionnaireName?: string;
+  statutArtisan?: string | null;
+  statutInactif?: boolean;
+  commentaire?: string | null;
+  statutDossier?: string | null;
+  zoneIntervention?: number | null;
+  date?: string | null;
 }
 
 export interface UpsertInterventionCostData {
@@ -202,11 +219,13 @@ export interface InterventionQueryParams extends BaseQueryParams {
   artisan?: string;
   metier?: string;
   metiers?: string[];
-  user?: string;
+  user?: string | null;
   startDate?: string;
   endDate?: string;
   include?: string[];
   isCheck?: boolean; // Filtre pour les interventions en retard (date_prevue <= today et statut VISITE_TECHNIQUE ou INTER_EN_COURS)
+  search?: string;
+  fields?: string[];
 }
 
 export interface ArtisanQueryParams extends BaseQueryParams {

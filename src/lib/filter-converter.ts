@@ -107,7 +107,8 @@ export function convertViewFiltersToServerFilters(
             })
             .filter((id): id is string => Boolean(id))
           if (userIds.length > 0) {
-            serverFilters.user = userIds
+            // Prendre le premier ID si plusieurs, ou null si aucun
+            serverFilters.user = userIds[0] || null
           } else {
             clientFilters.push(filter)
           }
