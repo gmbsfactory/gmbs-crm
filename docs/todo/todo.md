@@ -8,11 +8,6 @@
         - Meilleure gestion de la partie asynchrone. Un système cyclique sur le temps a été mis en place. Il faudrait un système évènementiel dans l'absolue
 
 - Artisans
-        - Mettre une pastille ou un élément visuel marquant qui permet de voir
-                que le dossier artisan est à compléter
-                Mettre les éléments quelque part qui sont à compléter
-                Quand le dosier est complété, voir si il passe plus en dossier incomplet
-
         - Gestion des compteurs avec les filtres statuts métiers
 
         - Modal vue impossible de scroller dans l'ajout des documents ou même sur la partie gauche entièrement. (Je suppose sur la partie droite également)  [Supprimer le modal oeuil ? ]   --> demander à André
@@ -23,6 +18,9 @@
 
 - Refacto
         - refacto supabase-api-v2 appelé les différents endpoint api plutôt que de dupliquer du code. Unique point de responsabilité.
+
+- Gestion
+        - vérifier supabase db reset passe avec nouvelles migrations
 
 ### Later
 

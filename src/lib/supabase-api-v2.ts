@@ -968,7 +968,7 @@ export type GetDistinctParams = Omit<GetAllParams, "limit" | "fields"> & {
   limit?: number;
 };
 
-const applyInterventionFilters = <T>(query: T, params?: GetAllParams): T => {
+const applyInterventionFilters = async <T>(query: T, params?: GetAllParams): Promise<T> => {
   if (!params) {
     return query;
   }
@@ -1000,11 +1000,33 @@ const applyInterventionFilters = <T>(query: T, params?: GetAllParams): T => {
     }
   }
 
+  // Convertir les codes métier en IDs avant de les utiliser - insensible à la casse
   if (params.metier) {
+    const refs = await getReferenceCache();
+
     if (Array.isArray(params.metier) && params.metier.length > 0) {
-      builder = builder.in("metier_id", params.metier);
+      const metierIds = params.metier.map((metierCodeOrId) => {
+        const metierObj = Array.from(refs.metiersById.values()).find(
+          (m: any) =>
+            m.code?.toUpperCase() === metierCodeOrId?.toUpperCase() ||
+            m.id === metierCodeOrId
+        );
+        return metierObj?.id || metierCodeOrId;
+      });
+      console.log(`[applyInterventionFilters] Métiers array conversion:`, {
+        input: params.metier,
+        output: metierIds
+      });
+      builder = builder.in("metier_id", metierIds);
     } else if (typeof params.metier === "string") {
-      builder = builder.eq("metier_id", params.metier);
+      const metierObj = Array.from(refs.metiersById.values()).find(
+        (m: any) =>
+          m.code?.toUpperCase() === params.metier?.toUpperCase() ||
+          m.id === params.metier
+      );
+      const metierId = metierObj?.id || params.metier;
+      console.log(`[applyInterventionFilters] Métier string conversion: "${params.metier}" → "${metierId}"`, { metierObj });
+      builder = builder.eq("metier_id", metierId);
     }
   }
 
@@ -3461,7 +3483,7 @@ export async function getInterventionTotalCount(
       .from("interventions")
       .select("id", { count: "exact", head: true });
 
-    query = applyInterventionFilters(query, params);
+    query = await applyInterventionFilters(query, params);
 
     const { count, error } = await query;
 
@@ -3691,7 +3713,7 @@ export async function getInterventionCounts(
     ...params,
     statut: undefined,
   };
-  query = applyInterventionFilters(query, filterParams);
+  query = await applyInterventionFilters(query, filterParams);
 
   const { data, error } = await query;
   if (error) throw error;

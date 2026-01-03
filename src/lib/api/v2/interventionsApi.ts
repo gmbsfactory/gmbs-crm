@@ -154,21 +154,30 @@ export const interventionsApi = {
     if (params?.metier || params?.metiers) {
       const refs = await getReferenceCache();
 
-      // Convertir un seul métier (code → ID)
+      // Convertir un seul métier (code → ID) - insensible à la casse
       if (params?.metier) {
         const metierObj = Array.from(refs.metiersById.values()).find(
-          (m: any) => m.code === params.metier || m.id === params.metier
+          (m: any) =>
+            m.code?.toUpperCase() === params.metier?.toUpperCase() ||
+            m.id === params.metier
         );
         metierParam = metierObj?.id || params.metier;
+        console.log(`[interventionsApi.getAll] Métier conversion: "${params.metier}" → "${metierParam}"`, { metierObj });
       }
 
-      // Convertir plusieurs métiers (codes → IDs)
+      // Convertir plusieurs métiers (codes → IDs) - insensible à la casse
       if (params?.metiers && params.metiers.length > 0) {
         metiersParam = params.metiers.map((metierCodeOrId) => {
           const metierObj = Array.from(refs.metiersById.values()).find(
-            (m: any) => m.code === metierCodeOrId || m.id === metierCodeOrId
+            (m: any) =>
+              m.code?.toUpperCase() === metierCodeOrId?.toUpperCase() ||
+              m.id === metierCodeOrId
           );
           return metierObj?.id || metierCodeOrId;
+        });
+        console.log(`[interventionsApi.getAll] Métiers conversion:`, {
+          input: params.metiers,
+          output: metiersParam
         });
       }
     }
@@ -212,7 +221,14 @@ export const interventionsApi = {
     }
     appendFilterParam("agence", params?.agence);
     appendFilterParam("artisan", params?.artisan);
-    appendFilterParam("metier", metierParam);
+
+    // Gérer metier et metiers
+    if (metiersParam && Array.isArray(metiersParam) && metiersParam.length > 0) {
+      appendFilterParam("metier", metiersParam);
+    } else if (metierParam) {
+      appendFilterParam("metier", metierParam);
+    }
+
     appendFilterParam("user", params?.user);
 
     if (params?.startDate) {
