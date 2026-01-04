@@ -486,7 +486,7 @@ export function NewArtisanModalContent({ mode, onClose, onCycleMode, artisanId, 
         setGeneratedNumeroAssocie(artisanAny.numero_associe)
       }
     }
-  }, [existingArtisan, isEditMode, reset, setAddressQuery])
+  }, [existingArtisan, isEditMode, reset, setAddressQuery, initialArtisanStatusId])
 
   // Mettre à jour le statut par défaut en mode création
   useEffect(() => {

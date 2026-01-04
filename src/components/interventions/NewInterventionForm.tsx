@@ -569,7 +569,7 @@ export function NewInterventionForm({
     longitude: defaultValues?.longitude || 2.3522,
     adresseComplete: defaultValues?.adresse && defaultValues?.ville
       ? `${defaultValues.adresse}, ${defaultValues.ville}`
-      : "Paris, France",
+      : "",
 
     // Dates
     date: new Date().toISOString().split('T')[0],
@@ -670,6 +670,13 @@ export function NewInterventionForm({
   useEffect(() => {
     onHasUnsavedChanges?.(hasUnsavedChanges)
   }, [hasUnsavedChanges, onHasUnsavedChanges])
+
+  // Synchroniser locationQuery avec l'adresse complète initiale
+  useEffect(() => {
+    if (formData.adresseComplete && !locationQuery) {
+      setLocationQuery(formData.adresseComplete)
+    }
+  }, [formData.adresseComplete]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const [isProprietaireOpen, setIsProprietaireOpen] = useState(false)
   const [isClientOpen, setIsClientOpen] = useState(false)

@@ -546,7 +546,7 @@ export function AuthStateListenerProvider({ children }: { children: ReactNode })
         logoutChannel.close()
       }
     }
-  }, [currentUser?.id])
+  }, [currentUser?.id, queryClient])
 
   return <>{children}</>
 }

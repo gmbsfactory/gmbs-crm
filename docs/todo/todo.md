@@ -12,6 +12,7 @@
 
 - Interventions
         - Compteur adaptatif en fonction des filtres en place
+        - Fusionner INterventionEditForm et NewIntentionForm ou du moins communaliser le code pour éviter la duplication
 
 - Refacto
         - refacto supabase-api-v2 appelé les différents endpoint api plutôt que de dupliquer du code. Unique point de responsabilité.

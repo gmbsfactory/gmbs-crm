@@ -97,6 +97,58 @@ function enrichAddressWithFrance(query: string): string {
   return query.trim()
 }
 
+/**
+ * Normalise la requête pour améliorer le matching fuzzy.
+ * Gère les articles et prépositions courants dans les adresses françaises.
+ * Ex: "rue rivoli" → recherche aussi "rue de rivoli", "rue du rivoli", etc.
+ */
+function normalizeQueryForSearch(query: string): string[] {
+  const trimmed = query.trim()
+  if (!trimmed) return []
+
+  const queries = [trimmed]
+  const lower = trimmed.toLowerCase()
+
+  // Patterns de prépositions courantes dans les adresses françaises
+  const streetPatterns = [
+    { prefix: /^(rue|avenue|boulevard|place|allée|impasse|chemin|passage|square|cours)\s+/i, prepositions: ["de ", "du ", "de la ", "des ", ""] },
+    { prefix: /^(quai|port)\s+/i, prepositions: ["de ", "du ", "des ", ""] },
+  ]
+
+  for (const pattern of streetPatterns) {
+    const match = lower.match(pattern.prefix)
+    if (match) {
+      const streetType = match[1]
+      const rest = trimmed.slice(match[0].length)
+
+      // Vérifier si une préposition est déjà présente
+      const hasPreposition = /^(de |du |de la |des |d'|l')/i.test(rest)
+
+      if (!hasPreposition) {
+        // Ajouter des variantes avec prépositions
+        for (const prep of pattern.prepositions) {
+          if (prep) {
+            const variant = `${streetType} ${prep}${rest}`
+            if (!queries.includes(variant)) {
+              queries.push(variant)
+            }
+          }
+        }
+      } else {
+        // Ajouter une variante sans préposition
+        const withoutPrep = rest.replace(/^(de |du |de la |des |d'|l')/i, "")
+        const variant = `${streetType} ${withoutPrep}`
+        if (!queries.includes(variant)) {
+          queries.push(variant)
+        }
+      }
+    }
+  }
+
+  // Limiter à 3 variantes pour éviter trop d'appels
+  return queries.slice(0, 3)
+}
+
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
@@ -203,37 +255,55 @@ function getClientIdentifier(request: NextRequest) {
 }
 
 async function geocodeAcrossProviders(query: string, limit: number, signal: AbortSignal): Promise<InternalGeocodeResult[]> {
-  const results: InternalGeocodeResult[] = []
   const seen = new Set<string>()
   const preferFrance = shouldPreferFrance(query)
 
-  const pushUnique = (entries: InternalGeocodeResult[]) => {
-    for (const entry of entries) {
-      const key = `${entry.label.toLowerCase()}|${entry.lat.toFixed(6)}|${entry.lng.toFixed(6)}`
-      if (seen.has(key)) continue
-      seen.add(key)
-      results.push(entry)
-      if (results.length >= limit) break
+  // Générer les variantes de la requête pour le fuzzy matching
+  const queryVariants = normalizeQueryForSearch(query)
+
+  // Construire toutes les promesses à exécuter en parallèle
+  const promises: Promise<InternalGeocodeResult[]>[] = []
+
+  // Pour chaque variante de requête, ajouter les appels aux providers
+  for (const variant of queryVariants) {
+    if (preferFrance) {
+      promises.push(geocodeWithOpenCage(variant, limit, signal, DEFAULT_COUNTRY_CODE))
+      promises.push(geocodeWithNominatim(variant, limit, signal, DEFAULT_COUNTRY_CODE))
+    }
+    promises.push(geocodeWithOpenCage(variant, limit, signal))
+    promises.push(geocodeWithNominatim(variant, limit, signal))
+  }
+
+  // Exécuter tous les appels en parallèle
+  const settledResults = await Promise.allSettled(promises)
+
+  // Collecter et dédupliquer les résultats
+  const allResults: InternalGeocodeResult[] = []
+
+  for (const result of settledResults) {
+    if (result.status === "fulfilled") {
+      for (const entry of result.value) {
+        const key = `${entry.label.toLowerCase()}|${entry.lat.toFixed(6)}|${entry.lng.toFixed(6)}`
+        if (seen.has(key)) continue
+        seen.add(key)
+        allResults.push(entry)
+      }
     }
   }
 
-  const fetchQueue: Array<() => Promise<InternalGeocodeResult[]>> = []
+  // Trier par provider (OpenCage en premier car généralement plus précis) puis par confiance
+  allResults.sort((a, b) => {
+    // Priorité aux résultats OpenCage
+    if (a.provider !== b.provider) {
+      return a.provider === "opencage" ? -1 : 1
+    }
+    // Puis par précision/confiance décroissante
+    const precisionA = a.precision ? Number.parseFloat(a.precision) : 0
+    const precisionB = b.precision ? Number.parseFloat(b.precision) : 0
+    return precisionB - precisionA
+  })
 
-  if (preferFrance) {
-    fetchQueue.push(() => geocodeWithOpenCage(query, limit, signal, DEFAULT_COUNTRY_CODE))
-    fetchQueue.push(() => geocodeWithNominatim(query, limit, signal, DEFAULT_COUNTRY_CODE))
-  }
-
-  fetchQueue.push(() => geocodeWithOpenCage(query, limit, signal))
-  fetchQueue.push(() => geocodeWithNominatim(query, limit, signal))
-
-  for (const fetcher of fetchQueue) {
-    const entries = await fetcher()
-    pushUnique(entries)
-    if (results.length >= limit) break
-  }
-
-  return results.slice(0, limit)
+  return allResults.slice(0, limit)
 }
 
 async function geocodeWithOpenCage(

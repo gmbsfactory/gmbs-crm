@@ -115,7 +115,7 @@ export function TargetsSettings() {
     }
 
     loadData()
-  }, [currentUser, toast])
+  }, [currentUser])
 
   const isAdmin = currentUser?.roles?.some((role) => role.toLowerCase() === "admin") || false
   const isManager = currentUser?.roles?.some((role) => role.toLowerCase() === "manager") || false

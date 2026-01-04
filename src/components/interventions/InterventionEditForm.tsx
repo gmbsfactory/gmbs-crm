@@ -641,7 +641,7 @@ export function InterventionEditForm({
     longitude: intervention.longitude || 2.3522,
     adresseComplete: [intervention.adresse, intervention.code_postal, intervention.ville]
       .filter(Boolean)
-      .join(", ") || "Paris, France",
+      .join(", ") || "",
 
     // Dates
     date: intervention.date?.split('T')[0] || "",
@@ -721,6 +721,10 @@ export function InterventionEditForm({
   const secondaryArtisanIdRef = useRef<string | null>(secondaryArtisan?.id ?? null)
   const [secondArtisanSearchPosition, setSecondArtisanSearchPosition] = useState<{ x: number; y: number; width?: number; height?: number } | null>(null)
 
+  const initialLocationQuery = [intervention.adresse, intervention.code_postal, intervention.ville]
+    .filter(Boolean)
+    .join(", ") || ""
+
   const {
     query: locationQuery,
     setQuery: setLocationQuery,
@@ -728,7 +732,7 @@ export function InterventionEditForm({
     isSuggesting,
     clearSuggestions,
     geocode: geocodeQuery,
-  } = useGeocodeSearch({ initialQuery: "" }) // Ne pas initialiser avec l'adresse
+  } = useGeocodeSearch({ initialQuery: initialLocationQuery })
   const suggestionBlurTimeoutRef = useRef<number | null>(null)
   const [showLocationSuggestions, setShowLocationSuggestions] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -1018,6 +1022,11 @@ export function InterventionEditForm({
           .filter(Boolean)
           .join(", ") || prev.adresseComplete || ""
 
+        // Synchroniser aussi le champ de recherche d'adresse
+        if (newAdresseComplete) {
+          setLocationQuery(newAdresseComplete)
+        }
+
         return {
           ...prev,
           adresse: intervention.adresse || prev.adresse || "",
@@ -1030,7 +1039,7 @@ export function InterventionEditForm({
       }
       return prev
     })
-  }, [intervention.id, intervention.adresse, intervention.code_postal, intervention.ville, intervention.latitude, intervention.longitude])
+  }, [intervention.id, intervention.adresse, intervention.code_postal, intervention.ville, intervention.latitude, intervention.longitude, setLocationQuery])
 
   const mapMarkers = useMemo(() => {
     if (!refData?.artisanStatuses) {
@@ -2208,7 +2217,7 @@ export function InterventionEditForm({
           longitude: payload.longitude ?? prev.longitude ?? 2.3522,
           adresseComplete: [payload.adresse, payload.code_postal, payload.ville]
             .filter(Boolean)
-            .join(", ") || prev.adresseComplete || "Paris, France",
+            .join(", ") || prev.adresseComplete || "",
         }))
       }
 
