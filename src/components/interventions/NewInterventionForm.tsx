@@ -1351,6 +1351,7 @@ export function NewInterventionForm({
         adresse: formData.adresse || undefined,
         code_postal: formData.code_postal || undefined,
         ville: formData.ville || undefined,
+        adresse_complete: formData.adresseComplete || null,
         latitude: formData.latitude,
         longitude: formData.longitude,
         id_inter: idInterValue,
@@ -1869,18 +1870,18 @@ export function NewInterventionForm({
                   <Card className="h-full flex flex-col overflow-hidden rounded-l-none border-l-0">
                     <CardContent className="p-3 flex flex-col h-full overflow-hidden">
                       {/* Header artisans */}
-                      <div className="flex items-center justify-between gap-2 mb-3 flex-shrink-0">
-                        <h3 className="font-semibold text-sm flex items-center gap-2">
+                      <div className="flex items-center justify-between gap-2 mb-3 flex-shrink-0 flex-wrap min-w-0">
+                        <h3 className="font-semibold text-sm flex items-center gap-2 flex-shrink-0">
                           <Building className="h-4 w-4" />
                           Artisans
                         </h3>
-                        <div className="flex gap-1">
+                        <div className="flex gap-1 min-w-0 flex-shrink-0">
                           <Input
                             id="artisan"
                             value={formData.artisan}
                             onChange={(event) => handleInputChange("artisan", event.target.value)}
                             placeholder="Artisan"
-                            className="h-7 text-xs w-24"
+                            className="h-7 text-xs w-24 min-w-0"
                           />
                           <Button
                             type="button"
@@ -2026,7 +2027,7 @@ export function NewInterventionForm({
                                 onClick={() => handleSelectNearbyArtisan(artisan)}
                                 onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); handleSelectNearbyArtisan(artisan) } }}
                               >
-                                <div className="flex items-center gap-2">
+                                <div className="flex items-center gap-2 min-w-0">
                                   <Avatar photoProfilMetadata={artisan.photoProfilMetadata} initials={artisanInitials} name={artisan.displayName} size={40} />
                                   <div className="flex-1 min-w-0">
                                     <span className="font-medium text-foreground block truncate text-[11px]">{artisan.displayName}</span>

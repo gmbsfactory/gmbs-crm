@@ -423,6 +423,7 @@ export function LegacyInterventionForm({ onSuccess, onCancel, mode = "centerpage
         adresse: formData.adresse || undefined,
         code_postal: formData.code_postal || undefined,
         ville: formData.ville || undefined,
+        adresse_complete: formData.adresseComplete || null,
         latitude: formData.latitude,
         longitude: formData.longitude,
         id_inter: idInterValue,

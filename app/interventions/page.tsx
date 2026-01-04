@@ -80,6 +80,7 @@ import { useInterventionStatusMap } from "@/hooks/useInterventionStatusMap"
 import { useUserMap } from "@/hooks/useUserMap"
 import { useCurrentUser } from "@/hooks/useCurrentUser"
 import { InterventionRealtimeProvider } from "@/components/interventions/InterventionRealtimeProvider"
+import { FilterMappersProvider } from "@/contexts/FilterMappersContext"
 import { useInterventionViewCounts } from "@/hooks/useInterventionViewCounts"
 import { usePermissions } from "@/hooks/usePermissions"
 import { useInterventionStatuses } from "@/hooks/useInterventionStatuses"
@@ -1233,7 +1234,8 @@ function PageContent() {
   }, [isReorderMode])
 
   return (
-    <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
+    <FilterMappersProvider>
+      <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
       <div className="flex-1 space-y-0 px-6 pt-4 pb-2 overflow-hidden flex flex-col min-h-0">
         {/* Zone des vues et filtres */}
         <div className="space-y-1.5 flex-shrink-0">
@@ -1800,7 +1802,8 @@ function PageContent() {
         }}
         onClose={() => setColumnConfigViewId(null)}
       />
-    </div>
+      </div>
+    </FilterMappersProvider>
   )
 }
 

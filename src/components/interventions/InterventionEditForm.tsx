@@ -639,7 +639,8 @@ export function InterventionEditForm({
     ville: intervention.ville || "",
     latitude: intervention.latitude || 48.8566,
     longitude: intervention.longitude || 2.3522,
-    adresseComplete: [intervention.adresse, intervention.code_postal, intervention.ville]
+    // Charger adresse_complete depuis la BDD ou construire à partir des champs si non disponible
+    adresseComplete: (intervention as any).adresse_complete || [intervention.adresse, intervention.code_postal, intervention.ville]
       .filter(Boolean)
       .join(", ") || "",
 
@@ -721,9 +722,8 @@ export function InterventionEditForm({
   const secondaryArtisanIdRef = useRef<string | null>(secondaryArtisan?.id ?? null)
   const [secondArtisanSearchPosition, setSecondArtisanSearchPosition] = useState<{ x: number; y: number; width?: number; height?: number } | null>(null)
 
-  const initialLocationQuery = [intervention.adresse, intervention.code_postal, intervention.ville]
-    .filter(Boolean)
-    .join(", ") || ""
+  // Utiliser adresse_complete si disponible, sinon vide
+  const initialLocationQuery = (intervention as any).adresse_complete || ""
 
   const {
     query: locationQuery,
@@ -1018,14 +1018,11 @@ export function InterventionEditForm({
         intervention.longitude !== prev.longitude
 
       if (hasAddressChanged) {
-        const newAdresseComplete = [intervention.adresse, intervention.code_postal, intervention.ville]
-          .filter(Boolean)
-          .join(", ") || prev.adresseComplete || ""
+        // Charger adresse_complete depuis la BDD (ne pas reconstruire automatiquement)
+        const newAdresseComplete = (intervention as any).adresse_complete || ""
 
-        // Synchroniser aussi le champ de recherche d'adresse
-        if (newAdresseComplete) {
-          setLocationQuery(newAdresseComplete)
-        }
+        // Synchroniser le champ de recherche d'adresse avec adresse_complete
+        setLocationQuery(newAdresseComplete)
 
         return {
           ...prev,
@@ -2012,6 +2009,7 @@ export function InterventionEditForm({
         adresse: formData.adresse || undefined,
         code_postal: formData.code_postal || undefined,
         ville: formData.ville || undefined,
+        adresse_complete: formData.adresseComplete || null,
         latitude: formData.latitude,
         longitude: formData.longitude,
         numero_sst: formData.numero_sst || undefined,
@@ -2065,6 +2063,7 @@ export function InterventionEditForm({
           adresse: updateData.adresse,
           code_postal: updateData.code_postal,
           ville: updateData.ville,
+          adresse_complete: updateData.adresse_complete ?? null,
           latitude: updateData.latitude,
           longitude: updateData.longitude,
           numero_sst: updateData.numero_sst,
@@ -2215,9 +2214,8 @@ export function InterventionEditForm({
           ville: payload.ville || prev.ville || "",
           latitude: payload.latitude ?? prev.latitude ?? 48.8566,
           longitude: payload.longitude ?? prev.longitude ?? 2.3522,
-          adresseComplete: [payload.adresse, payload.code_postal, payload.ville]
-            .filter(Boolean)
-            .join(", ") || prev.adresseComplete || "",
+          // Préserver adresseComplete indépendamment des autres champs d'adresse
+          adresseComplete: prev.adresseComplete || "",
         }))
       }
 
@@ -2644,13 +2642,13 @@ export function InterventionEditForm({
                       <Card className="h-full flex flex-col overflow-hidden rounded-l-none border-l-0">
                         <CardContent className="p-3 flex flex-col h-full overflow-hidden">
                           {/* Header artisans */}
-                          <div className="flex items-center justify-between gap-2 mb-3 flex-shrink-0">
-                            <div className="flex items-center gap-2">
-                              <h3 className="font-semibold text-sm flex items-center gap-2">
+                          <div className="flex items-center justify-between gap-2 mb-3 flex-shrink-0 flex-wrap min-w-0">
+                            <div className="flex items-center gap-2 min-w-0 overflow-hidden">
+                              <h3 className="font-semibold text-sm flex items-center gap-2 flex-shrink-0">
                                 <Building className="h-4 w-4" />
                                 Artisans
                               </h3>
-                              <div className="flex gap-0.5">
+                              <div className="flex gap-0.5 flex-shrink-0">
                                 <Button
                                   type="button"
                                   variant={artisanDisplayMode === "nom" ? "default" : "ghost"}
@@ -2724,9 +2722,9 @@ export function InterventionEditForm({
                                   >
                                     <X className="h-3 w-3" />
                                   </Button>
-                                  <div className="flex items-center gap-2 flex-wrap">
+                                  <div className="flex items-center gap-2 flex-wrap min-w-0">
                                     <Avatar photoProfilMetadata={artisan.photoProfilMetadata} initials={artisanInitials} name={artisan.displayName} size={40} className="hidden" />
-                                    <span className="font-semibold text-foreground truncate text-xs">{artisanDisplayName}</span>
+                                    <span className="font-semibold text-foreground truncate text-xs min-w-0 flex-1">{artisanDisplayName}</span>
                                     {statutArtisan && (
                                       <Badge variant="outline" className="text-[9px] px-1 py-0 flex-shrink-0" style={statutArtisanColor ? { backgroundColor: hexToRgba(statutArtisanColor, 0.15) || undefined, color: statutArtisanColor, borderColor: statutArtisanColor } : undefined}>
                                         {statutArtisan}
@@ -2831,10 +2829,10 @@ export function InterventionEditForm({
                                     onClick={() => handleSelectNearbyArtisan(artisan)}
                                     onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); handleSelectNearbyArtisan(artisan) } }}
                                   >
-                                    <div className="flex items-center justify-between gap-2 flex-wrap w-full">
+                                    <div className="flex items-center justify-between gap-2 flex-wrap w-full min-w-0">
                                       <Avatar photoProfilMetadata={artisan.photoProfilMetadata} initials={artisanInitials} name={artisan.displayName} size={40} className="hidden" />
-                                      <div className="flex items-center gap-1 flex-wrap flex-shrink-0">
-                                        <span className="font-medium text-foreground truncate text-[11px]">{artisanDisplayName}</span>
+                                      <div className="flex items-center gap-1 flex-wrap min-w-0 flex-1">
+                                        <span className="font-medium text-foreground truncate text-[11px] min-w-0">{artisanDisplayName}</span>
                                         {absentArtisanIds.has(artisan.id) && (
                                           <Badge variant="outline" className="text-[9px] px-1 py-0 bg-orange-100 text-orange-800 border-orange-300 flex-shrink-0">
                                             Indisponible
@@ -3152,8 +3150,8 @@ export function InterventionEditForm({
                       <CardContent className="pt-0 px-3 pb-3">
                         <div className="space-y-3">
                           {/* Header artisans - même style que colonne gauche */}
-                          <div className="flex items-center justify-between gap-2 flex-shrink-0 pt-[13px]">
-                            <div className="flex items-center gap-2">
+                          <div className="flex items-center justify-between gap-2 flex-shrink-0 pt-[13px] flex-wrap min-w-0">
+                            <div className="flex items-center gap-2 min-w-0 overflow-hidden">
                               <ColorBadgeSelectStacking
                                 label="Métier"
                                 value={formData.metierSecondArtisanId}
@@ -3167,7 +3165,7 @@ export function InterventionEditForm({
                                   color: m.color,
                                 }))}
                               />
-                              <div className="flex gap-0.5">
+                              <div className="flex gap-0.5 flex-shrink-0">
                                 <Button
                                   type="button"
                                   variant={secondArtisanDisplayMode === "nom" ? "default" : "ghost"}
@@ -3238,10 +3236,10 @@ export function InterventionEditForm({
                                 >
                                   <X className="h-3 w-3" />
                                 </Button>
-                                <div className="flex items-center justify-between gap-2 flex-wrap">
+                                <div className="flex items-center justify-between gap-2 flex-wrap min-w-0">
                                   <Avatar photoProfilMetadata={artisan.photoProfilMetadata} initials={artisanInitials} name={artisan.displayName} size={40} className="hidden" />
                                   <div className="flex items-center gap-1 flex-wrap flex-1 min-w-0">
-                                    <span className="font-semibold text-foreground truncate text-xs">{artisanDisplayName}</span>
+                                    <span className="font-semibold text-foreground truncate text-xs min-w-0">{artisanDisplayName}</span>
                                     {absentArtisanIds.has(artisan.id) && (
                                       <Badge variant="outline" className="text-[9px] px-1 py-0 bg-orange-100 text-orange-800 border-orange-300 flex-shrink-0">
                                         Indisponible
@@ -3342,10 +3340,10 @@ export function InterventionEditForm({
                                       onClick={() => handleSelectSecondArtisan(artisan)}
                                       onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); handleSelectSecondArtisan(artisan) } }}
                                     >
-                                      <div className="flex items-center justify-between gap-2 flex-wrap w-full">
+                                      <div className="flex items-center justify-between gap-2 flex-wrap w-full min-w-0">
                                         <Avatar photoProfilMetadata={artisan.photoProfilMetadata} initials={artisanInitials} name={artisan.displayName} size={40} className="hidden" />
                                         <div className="flex items-center gap-1 flex-wrap flex-1 min-w-0">
-                                          <span className="font-medium text-foreground truncate text-[11px]">{artisanDisplayName}</span>
+                                          <span className="font-medium text-foreground truncate text-[11px] min-w-0">{artisanDisplayName}</span>
                                           {absentArtisanIds.has(artisan.id) && (
                                             <Badge variant="outline" className="text-[9px] px-1 py-0 bg-orange-100 text-orange-800 border-orange-300 flex-shrink-0">
                                               Indisponible

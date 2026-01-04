@@ -96,6 +96,8 @@ import { useReferenceData } from "@/hooks/useReferenceData"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { interventionsApi } from "@/lib/api/v2"
 import { toast } from "sonner"
+import { useFilterMappers } from "@/contexts/FilterMappersContext"
+import { convertViewFiltersToServerFilters } from "@/lib/filter-converter"
 
 const numberFormatter = new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 2 })
 const dateFormatter = new Intl.DateTimeFormat("fr-FR", { dateStyle: "medium" })
@@ -706,29 +708,22 @@ export function TableView({
     console.log(`[TableView] Props pagination - currentPage: ${currentPage}, totalPages: ${totalPages}, totalCount: ${totalCount}, onPageChange: ${typeof onPageChange}`)
   }, [currentPage, totalPages, totalCount, onPageChange])
 
+  // Récupérer les fonctions de mapping depuis le Context
+  const { statusCodeToId, userCodeToId, currentUserId } = useFilterMappers()
+
   // Convertir les filtres de la vue en baseFilters pour les compteurs
+  // Utilise la fonction centralisée pour garantir la cohérence avec le reste de l'application
   const baseFilters = useMemo(() => {
-    const params: Record<string, any> = {}
+    if (!view.filters || view.filters.length === 0) return {}
 
-    view.filters.forEach(filter => {
-      // Ignorer les filtres temporaires ou système
-      if (!filter.property) return
-
-      if (filter.operator === 'eq') {
-        params[filter.property] = filter.value as string
-      } else if (filter.operator === 'in' && Array.isArray(filter.value)) {
-        // Pour les multi-select, utiliser le pluriel (ex: metiers, statuts)
-        const pluralKey = filter.property.endsWith('s') ? filter.property : `${filter.property}s`
-        params[pluralKey] = filter.value as string[]
-      } else if (filter.operator === 'gte' && filter.property === 'date') {
-        params.startDate = filter.value as string
-      } else if (filter.operator === 'lte' && filter.property === 'date') {
-        params.endDate = filter.value as string
-      }
+    const { serverFilters } = convertViewFiltersToServerFilters(view.filters, {
+      statusCodeToId,
+      userCodeToId,
+      currentUserId,
     })
 
-    return params
-  }, [view.filters])
+    return serverFilters
+  }, [view.filters, statusCodeToId, userCodeToId, currentUserId])
 
   const dataset = useMemo(() => {
     // ⚠️ NE PAS réappliquer les filtres/sorts de la vue !
@@ -764,7 +759,7 @@ export function TableView({
 
   // Utiliser le hook centralisé useCurrentUser au lieu d'un fetch direct
   const { data: currentUserData } = useCurrentUser()
-  const currentUserId = currentUserData?.id ?? null
+  const localCurrentUserId = currentUserData?.id ?? null
 
   const uuidPattern = useMemo(() => /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i, [])
 
@@ -1757,7 +1752,7 @@ export function TableView({
                                         statusColor={statusColor}
                                         showStatusBorder={statusBorderEnabled}
                                         statusBorderWidth={statusBorderWidthPx}
-                                        currentUserId={currentUserId}
+                                        currentUserId={localCurrentUserId}
                                         searchQuery={searchQuery}
                                       />
                                     </td>
