@@ -118,6 +118,7 @@ export function useInterventionsMutations() {
         adresse?: string
         code_postal?: string
         ville?: string
+        adresse_complete?: string | null
         latitude?: number
         longitude?: number
         numero_sst?: string

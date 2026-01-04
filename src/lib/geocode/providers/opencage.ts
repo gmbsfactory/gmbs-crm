@@ -13,8 +13,8 @@
  * - Nécessite une clé API
  */
 
-import type { GeocodeProvider, GeocodeOptions, GeocodeResult, OpenCageApiResponse } from "../types"
-import { enrichAddressWithFrance, isInFrance } from "../utils/france-bounds"
+import type { GeocodeProvider, GeocodeOptions, GeocodeResult, OpenCageApiResponse } from "@/lib/geocode/types"
+import { enrichAddressWithFrance, isInFrance } from "@/lib/geocode/utils/france-bounds"
 
 const API_BASE_URL = "https://api.opencagedata.com/geocode/v1/json"
 

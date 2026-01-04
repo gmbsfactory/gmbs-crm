@@ -10,8 +10,8 @@
  * - Données officielles de la Base Adresse Nationale
  */
 
-import type { GeocodeProvider, GeocodeOptions, GeocodeResult, FrenchAddressApiResponse } from "../types"
-import { shouldPreferFrance } from "../utils/france-bounds"
+import type { GeocodeProvider, GeocodeOptions, GeocodeResult, FrenchAddressApiResponse } from "@/lib/geocode/types"
+import { shouldPreferFrance } from "@/lib/geocode/utils/france-bounds"
 
 const API_BASE_URL = "https://api-adresse.data.gouv.fr/search/"
 

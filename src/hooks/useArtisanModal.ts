@@ -42,7 +42,7 @@ export function useArtisanModal() {
     const sourceLayoutId = modal.sourceLayoutId
     const origin = typeof metadata?.origin === "string" ? metadata.origin : null
     const isFromIntervention = origin?.startsWith("intervention:") || Boolean(sourceLayoutId)
-    const interventionId = isFromIntervention 
+    const interventionId = isFromIntervention
       ? (origin?.replace("intervention:", "") ?? sourceLayoutId)
       : null
 
@@ -50,7 +50,6 @@ export function useArtisanModal() {
     modal.close()
 
     // Si le modal venait d'une intervention, rouvrir le modal d'intervention
-    // Utiliser directement modal.open() pour éviter la dépendance circulaire
     if (isFromIntervention && interventionId) {
       // Petit délai pour laisser le modal d'artisan se fermer proprement
       setTimeout(() => {

@@ -13,8 +13,8 @@
  * - Moins précis que les solutions payantes
  */
 
-import type { GeocodeProvider, GeocodeOptions, GeocodeResult, NominatimApiResponse } from "../types"
-import { enrichAddressWithFrance, isInFrance } from "../utils/france-bounds"
+import type { GeocodeProvider, GeocodeOptions, GeocodeResult, NominatimApiResponse } from "@/lib/geocode/types"
+import { enrichAddressWithFrance, isInFrance } from "@/lib/geocode/utils/france-bounds"
 
 const API_BASE_URL = "https://nominatim.openstreetmap.org/search"
 

@@ -47,6 +47,7 @@ import {
   hasAnyDepositReceived,
   getStatusDisplayLabel
 } from "@/lib/interventions/deposit-helpers"
+import { normalizeArtisanData, getDisplayName } from "@/lib/artisans"
 
 const INTERVENTION_DOCUMENT_KINDS = [
   { kind: "devis", label: "Devis" },
@@ -649,8 +650,8 @@ export function InterventionEditForm({
     date_prevue: intervention.date_prevue?.split('T')[0] || "",
 
     // SST
-    numero_sst: intervention.numero_sst || "",
-    pourcentage_sst: intervention.pourcentage_sst?.toString() || "",
+    numero_sst: (intervention as any).numero_sst || "",
+    pourcentage_sst: (intervention as any).pourcentage_sst?.toString() || "",
 
     // Commentaires
     consigne_second_artisan: intervention.consigne_second_artisan || "",
@@ -957,19 +958,14 @@ export function InterventionEditForm({
   }, [formData.coutIntervention, formData.coutSST, formData.coutMateriel, formData.coutSSTSecondArtisan, formData.coutMaterielSecondArtisan])
 
   // Fonction helper pour obtenir le nom à afficher selon le mode
+  // Uses centralized artisan display utilities
   const getArtisanDisplayName = useCallback((artisan: NearbyArtisan, mode: "nom" | "rs" | "tel"): string => {
-    if (mode === "rs" && artisan.raison_sociale) {
-      return artisan.raison_sociale
-    }
-    if (mode === "tel") {
-      const phones = [artisan.telephone, artisan.telephone2].filter(Boolean)
-      if (phones.length > 0) {
-        return phones.join(" / ")
-      }
-      return "Pas de téléphone"
-    }
-    return `${artisan.prenom || ""} ${artisan.nom || ""}`.trim() || "Artisan sans nom"
-  }, [])
+    const displayData = normalizeArtisanData(artisan, {
+      refData: { statuts: refData?.artisanStatuses },
+      addressPriority: 'intervention'
+    })
+    return getDisplayName(displayData, mode)
+  }, [refData?.artisanStatuses])
 
   // Référence pour tracker si l'utilisateur a modifié manuellement le champ id_inter
   const userEditedIdInterRef = useRef(false)
@@ -1036,7 +1032,7 @@ export function InterventionEditForm({
       }
       return prev
     })
-  }, [intervention.id, intervention.adresse, intervention.code_postal, intervention.ville, intervention.latitude, intervention.longitude, setLocationQuery])
+  }, [intervention, setLocationQuery])
 
   const mapMarkers = useMemo(() => {
     if (!refData?.artisanStatuses) {

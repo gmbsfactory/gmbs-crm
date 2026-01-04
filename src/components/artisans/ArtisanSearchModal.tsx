@@ -11,6 +11,15 @@ import { createPortal } from "react-dom"
 import { useReferenceData } from "@/hooks/useReferenceData"
 import { artisansApi } from "@/lib/api/v2"
 import type { NearbyArtisan } from "@/lib/api/v2/common/types"
+import {
+  normalizeArtisanData,
+  getDisplayName as getArtisanDisplayName,
+  getAddressSegments as getArtisanAddressSegments,
+  getPrimaryMetier as getArtisanPrimaryMetier,
+  getNumeroAssocie as getArtisanNumeroAssocie,
+  getStatusInfo as getArtisanStatusInfo,
+  type ArtisanDisplaySource,
+} from "@/lib/artisans"
 
 export interface ArtisanSearchResult {
   id: string
@@ -319,75 +328,45 @@ export function ArtisanSearchModal({
     onClose()
   }
 
+  // Wrapper functions using centralized artisan display utilities
   const getDisplayName = (artisan: ArtisanSearchResult | NearbyArtisan): string => {
-    if ('displayName' in artisan && artisan.displayName) {
-      return artisan.displayName
-    }
-    if ('raison_sociale' in artisan && artisan.raison_sociale) {
-      return artisan.raison_sociale
-    }
-    if ('plain_nom' in artisan && artisan.plain_nom) {
-      return artisan.plain_nom
-    }
-    const prenom = 'prenom' in artisan ? artisan.prenom : null
-    const nom = 'nom' in artisan ? artisan.nom : null
-    const parts = [prenom, nom].filter(Boolean)
-    return parts.join(" ") || "Artisan sans nom"
+    const displayData = normalizeArtisanData(artisan as ArtisanDisplaySource, {
+      refData: { statuts: refData?.artisanStatuses },
+      addressPriority: 'intervention'
+    })
+    return getArtisanDisplayName(displayData, "nom")
   }
 
   const getPrimaryMetier = (artisan: ArtisanSearchResult | NearbyArtisan) => {
-    if ('metiers' in artisan && artisan.metiers) {
-      const primary = artisan.metiers.find((m) => m.is_primary)
-      return primary?.metier || artisan.metiers[0]?.metier || null
-    }
-    return null
+    const displayData = normalizeArtisanData(artisan as ArtisanDisplaySource, {
+      refData: { statuts: refData?.artisanStatuses },
+      addressPriority: 'intervention'
+    })
+    return getArtisanPrimaryMetier(displayData)
   }
 
   const getAddressSegments = (artisan: ArtisanSearchResult | NearbyArtisan) => {
-    let street: string | null = null
-    let postalCode: string | null = null
-    let city: string | null = null
-
-    if ('adresse' in artisan) {
-      // NearbyArtisan
-      street = artisan.adresse
-      postalCode = artisan.codePostal
-      city = artisan.ville
-    } else {
-      // ArtisanSearchResult
-      street = artisan.adresse_intervention ?? artisan.adresse_siege_social ?? null
-      postalCode = artisan.code_postal_intervention ?? artisan.code_postal_siege_social ?? null
-      city = artisan.ville_intervention ?? artisan.ville_siege_social ?? null
-    }
-
-    return { street, postalCode, city }
+    const displayData = normalizeArtisanData(artisan as ArtisanDisplaySource, {
+      refData: { statuts: refData?.artisanStatuses },
+      addressPriority: 'intervention'
+    })
+    return getArtisanAddressSegments(displayData)
   }
 
   const getNumeroAssocie = (artisan: ArtisanSearchResult | NearbyArtisan) => {
-    if ('numero_associe' in artisan && artisan.numero_associe) {
-      return artisan.numero_associe
-    }
-    return null
+    const displayData = normalizeArtisanData(artisan as ArtisanDisplaySource, {
+      refData: { statuts: refData?.artisanStatuses },
+      addressPriority: 'intervention'
+    })
+    return getArtisanNumeroAssocie(displayData)
   }
 
   const getStatusInfo = (artisan: ArtisanSearchResult | NearbyArtisan) => {
-    if ('status' in artisan && artisan.status) {
-      return {
-        label: artisan.status.label,
-        color: artisan.status.color || "#6b7280"
-      }
-    }
-    // For NearbyArtisan, lookup from refData
-    if ('statut_id' in artisan && artisan.statut_id && refData?.artisanStatuses) {
-      const status = refData.artisanStatuses.find(s => s.id === artisan.statut_id)
-      if (status) {
-        return {
-          label: status.label,
-          color: status.color || "#6b7280"
-        }
-      }
-    }
-    return null
+    const displayData = normalizeArtisanData(artisan as ArtisanDisplaySource, {
+      refData: { statuts: refData?.artisanStatuses },
+      addressPriority: 'intervention'
+    })
+    return getArtisanStatusInfo(displayData)
   }
 
   if (!open || typeof window === "undefined") return null
@@ -509,6 +488,7 @@ export function ArtisanSearchModal({
           <div className="space-y-0">
             {results.map((artisan) => {
               const displayName = getDisplayName(artisan)
+              const plainNom = 'plain_nom' in artisan ? artisan.plain_nom : null
               const metier = getPrimaryMetier(artisan)
               const addressSegments = getAddressSegments(artisan)
               const distance = 'distanceKm' in artisan ? artisan.distanceKm : undefined
@@ -555,6 +535,12 @@ export function ArtisanSearchModal({
                             </Badge>
                           )}
                         </div>
+                        {/* Plain nom sur une nouvelle ligne */}
+                        {plainNom && (
+                          <div className="text-xs text-muted-foreground mt-1">
+                            {plainNom}
+                          </div>
+                        )}
                       </div>
                       {distance !== undefined && (
                         <div className="text-[10px] font-mono text-muted-foreground">

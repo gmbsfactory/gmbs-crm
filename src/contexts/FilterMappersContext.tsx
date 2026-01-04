@@ -55,8 +55,8 @@ const FilterMappersContext = createContext<FilterMappersContextType | null>(null
  */
 export function FilterMappersProvider({ children }: { children: ReactNode }) {
   const { data: currentUserData, isLoading: isLoadingUser } = useCurrentUser()
-  const { statusCodeToId, isLoading: isLoadingStatuses } = useInterventionStatusMap()
-  const { userCodeToId, isLoading: isLoadingUsers } = useUserMap()
+  const { codeToId: statusCodeToId, loading: isLoadingStatuses } = useInterventionStatusMap()
+  const { nameToId: userCodeToId, loading: isLoadingUsers } = useUserMap()
 
   // Le Context est considéré comme chargé quand tous les mappers sont prêts
   const isLoading = isLoadingUser || isLoadingStatuses || isLoadingUsers
