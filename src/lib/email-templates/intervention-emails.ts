@@ -18,6 +18,23 @@ export interface EmailTemplateData {
 }
 
 /**
+ * Formats a date string from ISO format (YYYY-MM-DD) to French format (DD/MM/YYYY)
+ * If the date is already in text format or not in ISO format, returns it as-is
+ */
+function formatDateToFrench(dateStr: string | undefined): string {
+  if (!dateStr) return 'À définir';
+
+  // If the date is already in text format (ex: "15 janvier 2024"), return it as-is
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+    return dateStr;
+  }
+
+  // Convert YYYY-MM-DD to DD/MM/YYYY
+  const [year, month, day] = dateStr.split('-');
+  return `${day}/${month}/${year}`;
+}
+
+/**
  * Applies default values for optional fields
  */
 function applyDefaults(data: EmailTemplateData): Required<Omit<EmailTemplateData, 'nomClient' | 'telephoneClient' | 'adresseComplete'>> & Pick<EmailTemplateData, 'nomClient' | 'telephoneClient' | 'adresseComplete'> {
@@ -26,7 +43,7 @@ function applyDefaults(data: EmailTemplateData): Required<Omit<EmailTemplateData
     telephoneClient: data.telephoneClient || '',
     telephoneClient2: data.telephoneClient2 || '',
     adresseComplete: data.adresseComplete || '',
-    datePrevue: data.datePrevue || 'À définir',
+    datePrevue: data.datePrevue ? formatDateToFrench(data.datePrevue) : 'À définir',
     consigneArtisan: data.consigneArtisan || 'Aucune description fournie',
     coutSST: data.coutSST || 'Non spécifié',
     commentaire: data.commentaire || '',

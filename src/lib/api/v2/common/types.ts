@@ -1090,3 +1090,56 @@ export interface MarginHistoryResponse {
   projection?: MarginHistoryData;
   currentPeriod: MarginHistoryData;
 }
+
+/**
+ * Avatar metadata for artisan profile picture
+ */
+export interface AvatarMetadata {
+  hash: string | null;
+  sizes: Record<string, string>;
+  mime_preferred: string;
+  baseUrl: string | null;
+}
+
+/**
+ * Artisan with distance information
+ */
+export interface NearbyArtisan {
+  id: string;
+  displayName: string;
+  distanceKm: number;
+  telephone: string | null;
+  telephone2: string | null;
+  email: string | null;
+  adresse: string | null;
+  ville: string | null;
+  codePostal: string | null;
+  lat: number;
+  lng: number;
+  prenom: string | null;
+  nom: string | null;
+  raison_sociale: string | null;
+  statut_id: string | null;
+  photoProfilMetadata: AvatarMetadata | null;
+}
+
+/**
+ * Parameters for querying nearby artisans
+ */
+export interface NearbyArtisansParams {
+  latitude: number;
+  longitude: number;
+  offset?: number;
+  limit?: number;
+  maxDistanceKm?: number;
+  metier_id?: string | null;
+}
+
+/**
+ * Response for nearby artisans query with pagination
+ */
+export interface NearbyArtisansResponse {
+  artisans: NearbyArtisan[];
+  hasMore: boolean;
+  total: number;
+}

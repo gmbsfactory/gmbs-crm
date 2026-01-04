@@ -135,4 +135,18 @@ export const REFERENCE_CACHE_DURATION = 5 * 60 * 1000;
  */
 export const DEFAULT_FUNCTIONS_URL = "http://localhost:54321/functions/v1";
 
+/**
+ * Maximum number of nearby artisans to load per page in infinite scroll
+ */
+export const NEARBY_ARTISANS_PAGE_SIZE = 30;
+
+/**
+ * Maximum distance in kilometers for nearby artisan search
+ */
+export const NEARBY_ARTISANS_MAX_DISTANCE_KM = 100;
+
+/**
+ * Maximum number of artisan search results to display
+ */
+export const ARTISAN_SEARCH_LIMIT = 50;
 

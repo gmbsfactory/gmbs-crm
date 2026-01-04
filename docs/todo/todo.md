@@ -20,8 +20,6 @@
         - vérifier supabase db reset passe avec nouvelles migrations
 
 - Réparations logs
-        - Ne pas modifier le champ adresse de l'intervention lorsque l'on remplit l'adresse entrée sur Google
-        - Quand pas d'adresse saisi sur Google = pas d'affichage artisans
         - Dans la partie recherche d'artisan mettre une proposition filtré par métier et agence dans la loupe. En faire un menu scrollable dans lequel on peut aussi faire des recherches.
         -
         image.png

@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useRef, useState } from "react"
-import { Search, X, User, Phone, Mail, MapPin, Briefcase } from "lucide-react"
+import { Search, X, Phone, Mail, MapPin, Briefcase } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
@@ -9,6 +9,8 @@ import { cn } from "@/lib/utils"
 import { supabase } from "@/lib/supabase-client"
 import { createPortal } from "react-dom"
 import { useReferenceData } from "@/hooks/useReferenceData"
+import { artisansApi } from "@/lib/api/v2"
+import type { NearbyArtisan } from "@/lib/api/v2/common/types"
 
 export interface ArtisanSearchResult {
   id: string
@@ -42,6 +44,7 @@ export interface ArtisanSearchResult {
       label: string
     }
   }> | null
+  distanceKm?: number // Added for nearby artisans
 }
 
 interface ArtisanSearchModalProps {
@@ -50,161 +53,151 @@ interface ArtisanSearchModalProps {
   onSelect: (artisan: ArtisanSearchResult) => void
   position?: { x: number; y: number; width?: number; height?: number } | null
   container?: HTMLElement | null
+  latitude?: number | null
+  longitude?: number | null
+  metier_id?: string | null
 }
 
-const sanitizePhone = (input: string): string => {
-  return input.replace(/\D/g, "")
-}
-
-const escapeIlike = (input: string): string => {
-  return input.replace(/[%_\\]/g, "\\$&")
-}
-
-export function ArtisanSearchModal({ open, onClose, onSelect, position, container }: ArtisanSearchModalProps) {
+export function ArtisanSearchModal({
+  open,
+  onClose,
+  onSelect,
+  position,
+  container,
+  latitude,
+  longitude,
+  metier_id,
+}: ArtisanSearchModalProps) {
   const [query, setQuery] = useState("")
-  const [results, setResults] = useState<ArtisanSearchResult[]>([])
+  const [mode, setMode] = useState<"nearby" | "search">("nearby")
+
+  // Search mode states
+  const [searchResults, setSearchResults] = useState<ArtisanSearchResult[]>([])
+
+  // Nearby mode states
+  const [nearbyArtisans, setNearbyArtisans] = useState<NearbyArtisan[]>([])
+  const [nearbyOffset, setNearbyOffset] = useState(0)
+  const [hasMoreNearby, setHasMoreNearby] = useState(true)
+
+  // Common states
   const [absentArtisanIds, setAbsentArtisanIds] = useState<Set<string>>(new Set())
-  const [isSearching, setIsSearching] = useState(false)
+  const [isLoading, setIsLoading] = useState(false)
+  const [isLoadingMore, setIsLoadingMore] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
   const popoverRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+  const scrollContainerRef = useRef<HTMLDivElement>(null)
   const { data: refData } = useReferenceData()
-  const archiveStatusFilterRef = useRef<string | null | undefined>(undefined)
 
-  const buildArchiveStatusFilter = useCallback(async () => {
-    if (archiveStatusFilterRef.current !== undefined) {
-      return archiveStatusFilterRef.current
-    }
+  // Load nearby artisans
+  const loadNearbyArtisans = useCallback(
+    async (offset: number = 0, append: boolean = false) => {
+      if (!latitude || !longitude) {
+        console.log('[ArtisanSearchModal] No coordinates:', { latitude, longitude })
+        return
+      }
 
-    const archiveStatusIds =
-      refData?.artisanStatuses
-        ?.filter((status) => status.code === "ARCHIVE" || status.code === "ARCHIVER")
-        .map((status) => status.id) ?? []
+      console.log('[ArtisanSearchModal] Loading nearby artisans:', { latitude, longitude, offset, append })
 
-    if (archiveStatusIds.length > 0) {
-      const filter = `(${archiveStatusIds.map((id) => `"${id}"`).join(",")})`
-      archiveStatusFilterRef.current = filter
-      return filter
-    }
+      if (append) {
+        setIsLoadingMore(true)
+      } else {
+        setIsLoading(true)
+      }
+      setError(null)
 
-    const { data, error } = await supabase
-      .from("artisan_statuses")
-      .select("id")
-      .in("code", ["ARCHIVE", "ARCHIVER"])
+      try {
+        const response = await artisansApi.getNearbyArtisans({
+          latitude,
+          longitude,
+          offset,
+          limit: 30,
+          metier_id,
+        })
 
-    if (error) {
-      console.warn("[ArtisanSearchModal] Impossible de charger les statuts archivés:", error)
-      return null
-    }
+        console.log('[ArtisanSearchModal] Response:', {
+          artisansCount: response.artisans.length,
+          hasMore: response.hasMore,
+          total: response.total
+        })
 
-    const ids = data?.map((status) => status.id).filter(Boolean) || []
-    const filter = ids.length > 0 ? `(${ids.map((id) => `"${id}"`).join(",")})` : null
-    archiveStatusFilterRef.current = filter
-    return filter
-  }, [refData?.artisanStatuses])
+        if (append) {
+          setNearbyArtisans((prev) => [...prev, ...response.artisans])
+        } else {
+          setNearbyArtisans(response.artisans)
+        }
+        setHasMoreNearby(response.hasMore)
+        setNearbyOffset(offset + response.artisans.length)
 
+        // Load absence data for the artisans
+        if (response.artisans.length > 0) {
+          const nowIso = new Date().toISOString()
+          const artisanIds = response.artisans.map((a) => a.id)
+          const { data: absences, error: absencesError } = await supabase
+            .from("artisan_absences")
+            .select("artisan_id")
+            .in("artisan_id", artisanIds)
+            .lte("start_date", nowIso)
+            .gte("end_date", nowIso)
+
+          if (absencesError) {
+            console.warn("[ArtisanSearchModal] Erreur lors du chargement des absences:", absencesError)
+          } else {
+            setAbsentArtisanIds((prev) => {
+              const newSet = new Set(prev)
+              absences?.forEach((absence) => {
+                if (absence.artisan_id) {
+                  newSet.add(absence.artisan_id)
+                }
+              })
+              return newSet
+            })
+          }
+        }
+      } catch (err) {
+        console.error("Erreur lors du chargement des artisans proches:", err)
+        setError("Erreur lors du chargement des artisans")
+      } finally {
+        setIsLoading(false)
+        setIsLoadingMore(false)
+      }
+    },
+    [latitude, longitude, metier_id]
+  )
+
+  // Search artisans by text using API V2
   const searchArtisans = useCallback(async (searchQuery: string) => {
     const trimmed = searchQuery.trim()
     if (!trimmed) {
-      setResults([])
+      setSearchResults([])
       setAbsentArtisanIds(new Set())
       return
     }
 
-    setIsSearching(true)
+    setIsLoading(true)
     setError(null)
 
     try {
-      const pattern = escapeIlike(trimmed)
-      const normalizedDigits = sanitizePhone(trimmed)
+      // ✅ Utiliser artisansApi.searchArtisans() au lieu d'une requête hardcodée
+      const response = await artisansApi.searchArtisans({
+        searchQuery: trimmed,
+        latitude,
+        longitude,
+        metier_id,
+        limit: 50,
+      })
 
-      const orFilters = [
-        `numero_associe.ilike.*${pattern}*`,
-        `plain_nom.ilike.*${pattern}*`,
-        `raison_sociale.ilike.*${pattern}*`,
-        `prenom.ilike.*${pattern}*`,
-        `nom.ilike.*${pattern}*`,
-        `email.ilike.*${pattern}*`,
-      ]
-
-      if (normalizedDigits) {
-        orFilters.push(`telephone.ilike.*${normalizedDigits}*`)
-        orFilters.push(`telephone2.ilike.*${normalizedDigits}*`)
-      } else {
-        orFilters.push(`telephone.ilike.*${pattern}*`)
-        orFilters.push(`telephone2.ilike.*${pattern}*`)
-      }
-
-      const archiveStatusFilter = await buildArchiveStatusFilter()
-
-      let queryBuilder = supabase
-        .from("artisans")
-        .select(
-          `
-            id,
-            prenom,
-            nom,
-            plain_nom,
-            raison_sociale,
-            email,
-            telephone,
-            telephone2,
-            numero_associe,
-            adresse_intervention,
-            ville_intervention,
-            code_postal_intervention,
-            adresse_siege_social,
-            ville_siege_social,
-            code_postal_siege_social,
-            statut_id,
-            is_active,
-            status:artisan_statuses (
-              id,
-              code,
-              label,
-              color
-            ),
-            metiers:artisan_metiers (
-              is_primary,
-              metier:metiers (
-                id,
-                code,
-                label
-              )
-            )
-          `
-        )
-        .or(orFilters.join(","))
-        .order("numero_associe", { ascending: true })
-        .limit(50)
-
-      if (archiveStatusFilter) {
-        queryBuilder = queryBuilder.not("statut_id", "in", archiveStatusFilter)
-      }
-
-      const { data, error: searchError } = await queryBuilder
-
-      if (searchError) {
-        throw searchError
-      }
-
-      // Transformer les données pour convertir status de tableau à objet unique
-      const transformedData = (data || []).map((artisan: any) => ({
-        ...artisan,
-        status: Array.isArray(artisan.status)
-          ? (artisan.status.length > 0 ? artisan.status[0] : null)
-          : artisan.status
-      }))
-
-      setResults(transformedData)
+      setSearchResults(response.artisans)
       setAbsentArtisanIds(new Set())
 
-      if (transformedData.length === 0) {
+      if (response.artisans.length === 0) {
         return
       }
 
+      // Charger les absences pour les artisans trouvés
       const nowIso = new Date().toISOString()
-      const artisanIds = transformedData.map((artisan) => artisan.id)
+      const artisanIds = response.artisans.map((artisan) => artisan.id)
       const { data: absences, error: absencesError } = await supabase
         .from("artisan_absences")
         .select("artisan_id")
@@ -223,22 +216,66 @@ export function ArtisanSearchModal({ open, onClose, onSelect, position, containe
     } catch (err) {
       console.error("Erreur lors de la recherche d'artisans:", err)
       setError("Erreur lors de la recherche")
-      setResults([])
+      setSearchResults([])
       setAbsentArtisanIds(new Set())
     } finally {
-      setIsSearching(false)
+      setIsLoading(false)
     }
-  }, [buildArchiveStatusFilter])
+  }, [latitude, longitude, metier_id])
 
+  // Handle query changes
   useEffect(() => {
+    const trimmed = query.trim()
+
+    if (!trimmed) {
+      // Empty query: switch to nearby mode
+      setMode("nearby")
+      setSearchResults([])
+      if (latitude && longitude && open && nearbyArtisans.length === 0) {
+        loadNearbyArtisans(0, false)
+      }
+      return
+    }
+
+    // Non-empty query: switch to search mode
+    setMode("search")
     const timeoutId = setTimeout(() => {
-      searchArtisans(query)
+      searchArtisans(trimmed)
     }, 300)
 
     return () => clearTimeout(timeoutId)
-  }, [query, searchArtisans])
+  }, [query, searchArtisans, latitude, longitude, open, nearbyArtisans.length, loadNearbyArtisans])
 
-  // Fermer avec Escape et clic à l'extérieur
+  // Load nearby artisans on open
+  useEffect(() => {
+    if (open && !query && latitude && longitude && nearbyArtisans.length === 0) {
+      loadNearbyArtisans(0, false)
+    }
+  }, [open, query, latitude, longitude, nearbyArtisans.length, loadNearbyArtisans])
+
+  // Handle scroll for infinite loading
+  const handleScroll = useCallback(() => {
+    if (!scrollContainerRef.current || mode !== "nearby" || !hasMoreNearby || isLoadingMore) {
+      return
+    }
+
+    const { scrollTop, scrollHeight, clientHeight } = scrollContainerRef.current
+    const distanceFromBottom = scrollHeight - scrollTop - clientHeight
+
+    if (distanceFromBottom < 100) {
+      loadNearbyArtisans(nearbyOffset, true)
+    }
+  }, [mode, hasMoreNearby, isLoadingMore, nearbyOffset, loadNearbyArtisans])
+
+  useEffect(() => {
+    const scrollContainer = scrollContainerRef.current
+    if (!scrollContainer) return
+
+    scrollContainer.addEventListener("scroll", handleScroll)
+    return () => scrollContainer.removeEventListener("scroll", handleScroll)
+  }, [handleScroll])
+
+  // Close handlers
   useEffect(() => {
     if (!open) return
 
@@ -263,35 +300,94 @@ export function ArtisanSearchModal({ open, onClose, onSelect, position, containe
     }
   }, [open, onClose])
 
-  const handleSelect = (artisan: ArtisanSearchResult) => {
-    onSelect(artisan)
-    setQuery("")
-    setResults([])
+  // Reset state on close
+  useEffect(() => {
+    if (!open) {
+      setQuery("")
+      setMode("nearby")
+      setSearchResults([])
+      setNearbyArtisans([])
+      setNearbyOffset(0)
+      setHasMoreNearby(true)
+      setAbsentArtisanIds(new Set())
+      setError(null)
+    }
+  }, [open])
+
+  const handleSelect = (artisan: ArtisanSearchResult | NearbyArtisan) => {
+    onSelect(artisan as ArtisanSearchResult)
     onClose()
   }
 
-  const getDisplayName = (artisan: ArtisanSearchResult): string => {
-    if (artisan.raison_sociale) {
+  const getDisplayName = (artisan: ArtisanSearchResult | NearbyArtisan): string => {
+    if ('displayName' in artisan && artisan.displayName) {
+      return artisan.displayName
+    }
+    if ('raison_sociale' in artisan && artisan.raison_sociale) {
       return artisan.raison_sociale
     }
-    if (artisan.plain_nom) {
+    if ('plain_nom' in artisan && artisan.plain_nom) {
       return artisan.plain_nom
     }
-    const parts = [artisan.prenom, artisan.nom].filter(Boolean)
+    const prenom = 'prenom' in artisan ? artisan.prenom : null
+    const nom = 'nom' in artisan ? artisan.nom : null
+    const parts = [prenom, nom].filter(Boolean)
     return parts.join(" ") || "Artisan sans nom"
   }
 
-  const getPrimaryMetier = (artisan: ArtisanSearchResult) => {
-    const primary = artisan.metiers?.find((m) => m.is_primary)
-    return primary?.metier || artisan.metiers?.[0]?.metier
+  const getPrimaryMetier = (artisan: ArtisanSearchResult | NearbyArtisan) => {
+    if ('metiers' in artisan && artisan.metiers) {
+      const primary = artisan.metiers.find((m) => m.is_primary)
+      return primary?.metier || artisan.metiers[0]?.metier || null
+    }
+    return null
   }
 
-  const getAddressSegments = (artisan: ArtisanSearchResult) => {
-    const street = artisan.adresse_intervention ?? artisan.adresse_siege_social ?? null
-    const postalCode = artisan.code_postal_intervention ?? artisan.code_postal_siege_social ?? null
-    const city = artisan.ville_intervention ?? artisan.ville_siege_social ?? null
+  const getAddressSegments = (artisan: ArtisanSearchResult | NearbyArtisan) => {
+    let street: string | null = null
+    let postalCode: string | null = null
+    let city: string | null = null
+
+    if ('adresse' in artisan) {
+      // NearbyArtisan
+      street = artisan.adresse
+      postalCode = artisan.codePostal
+      city = artisan.ville
+    } else {
+      // ArtisanSearchResult
+      street = artisan.adresse_intervention ?? artisan.adresse_siege_social ?? null
+      postalCode = artisan.code_postal_intervention ?? artisan.code_postal_siege_social ?? null
+      city = artisan.ville_intervention ?? artisan.ville_siege_social ?? null
+    }
 
     return { street, postalCode, city }
+  }
+
+  const getNumeroAssocie = (artisan: ArtisanSearchResult | NearbyArtisan) => {
+    if ('numero_associe' in artisan && artisan.numero_associe) {
+      return artisan.numero_associe
+    }
+    return null
+  }
+
+  const getStatusInfo = (artisan: ArtisanSearchResult | NearbyArtisan) => {
+    if ('status' in artisan && artisan.status) {
+      return {
+        label: artisan.status.label,
+        color: artisan.status.color || "#6b7280"
+      }
+    }
+    // For NearbyArtisan, lookup from refData
+    if ('statut_id' in artisan && artisan.statut_id && refData?.artisanStatuses) {
+      const status = refData.artisanStatuses.find(s => s.id === artisan.statut_id)
+      if (status) {
+        return {
+          label: status.label,
+          color: status.color || "#6b7280"
+        }
+      }
+    }
+    return null
   }
 
   if (!open || typeof window === "undefined") return null
@@ -300,18 +396,14 @@ export function ArtisanSearchModal({ open, onClose, onSelect, position, containe
   const GAP = 12
   const MIN_MARGIN = 16
 
-  // Calculer la position du popover
   const popoverStyle: React.CSSProperties = position
     ? (() => {
-      // Calculer la position à gauche du bouton
       let left = position.x - MODAL_WIDTH - GAP
 
-      // Si le modal dépasse le bord gauche, l'ouvrir à droite
       if (left < MIN_MARGIN) {
         left = position.x + (position.width || 0) + GAP
       }
 
-      // Vérifier que le modal ne dépasse pas le bord droit
       const maxRight = typeof window !== "undefined" ? window.innerWidth - MIN_MARGIN : left + MODAL_WIDTH
       if (left + MODAL_WIDTH > maxRight) {
         left = maxRight - MODAL_WIDTH
@@ -334,6 +426,8 @@ export function ArtisanSearchModal({ open, onClose, onSelect, position, containe
       pointerEvents: "auto",
     }
 
+  const results = mode === "search" ? searchResults : nearbyArtisans
+
   const popoverContent = (
     <div
       ref={popoverRef}
@@ -344,7 +438,9 @@ export function ArtisanSearchModal({ open, onClose, onSelect, position, containe
       <div className="flex items-center justify-between px-4 py-3 border-b bg-muted/30">
         <div className="flex items-center gap-2">
           <Search className="h-4 w-4 text-muted-foreground" />
-          <span className="text-sm font-semibold">Rechercher un artisan</span>
+          <span className="text-sm font-semibold">
+            {mode === "nearby" ? "Artisans à proximité" : "Rechercher un artisan"}
+          </span>
         </div>
         <Button
           variant="ghost"
@@ -382,118 +478,117 @@ export function ArtisanSearchModal({ open, onClose, onSelect, position, containe
       </div>
 
       {/* Results */}
-      <div className="flex-1 overflow-y-auto px-4 py-3">
+      <div ref={scrollContainerRef} className="flex-1 overflow-y-auto px-4 py-3">
         {error && (
           <div className="rounded-lg border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive">
             {error}
           </div>
         )}
 
-        {isSearching && (
+        {isLoading && !isLoadingMore && (
           <div className="flex items-center justify-center py-12 text-sm text-muted-foreground">
-            Recherche en cours...
+            Chargement...
           </div>
         )}
 
-        {!isSearching && !error && query && results.length === 0 && (
+        {!isLoading && mode === "search" && query && results.length === 0 && (
           <div className="flex items-center justify-center py-12 text-sm text-muted-foreground">
             Aucun artisan trouvé
           </div>
         )}
 
-        {!isSearching && !query && (
+        {!isLoading && mode === "nearby" && !query && results.length === 0 && (
           <div className="flex items-center justify-center py-12 text-sm text-muted-foreground">
-            Saisissez un nom, email ou téléphone pour rechercher
+            {latitude && longitude
+              ? "Aucun artisan à proximité"
+              : "Saisissez une adresse pour voir les artisans à proximité"}
           </div>
         )}
 
-        {!isSearching && results.length > 0 && (
-          <div className="space-y-2">
+        {results.length > 0 && (
+          <div className="space-y-0">
             {results.map((artisan) => {
               const displayName = getDisplayName(artisan)
               const metier = getPrimaryMetier(artisan)
-              const statusColor = artisan.status?.color || "#6b7280"
               const addressSegments = getAddressSegments(artisan)
+              const distance = 'distanceKm' in artisan ? artisan.distanceKm : undefined
+              const numeroAssocie = getNumeroAssocie(artisan)
+              const statusInfo = getStatusInfo(artisan)
 
               return (
-                <button
+                <div
                   key={artisan.id}
                   onClick={() => handleSelect(artisan)}
                   className={cn(
-                    "w-full text-left rounded-lg border border-border bg-card p-4 transition-all hover:border-primary/50 hover:shadow-md",
-                    "focus:outline-none focus:ring-2 focus:ring-primary/50"
+                    "flex items-start gap-3 p-3 transition-colors border-b last:border-b-0 cursor-pointer hover:bg-accent/50"
                   )}
                 >
-                  <div className="space-y-2">
-                    {/* Header avec nom et statut */}
+                  <div className="flex-1 space-y-2">
+                    {/* Header avec numéro et nom */}
                     <div className="flex items-start justify-between gap-3">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <User className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                          <span className="font-semibold text-foreground truncate">
-                            {displayName}
-                          </span>
-                        </div>
-                        {artisan.numero_associe && (
-                          <p className="text-xs text-muted-foreground mt-1">
-                            N° {artisan.numero_associe}
-                          </p>
-                        )}
-                      </div>
-                      {(artisan.status || absentArtisanIds.has(artisan.id)) && (
-                        <div className="flex items-center gap-2 flex-shrink-0">
-                          {artisan.status && (
+                      <div className="flex flex-col">
+                        <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+                          {numeroAssocie && (
+                            <span className="rounded border px-2 py-0.5 font-mono text-xs uppercase tracking-wide">
+                              {numeroAssocie}
+                            </span>
+                          )}
+                          <span>{displayName}</span>
+                          {statusInfo && (
                             <Badge
                               variant="outline"
-                              className="flex-shrink-0"
+                              className="flex-shrink-0 text-xs"
                               style={{
-                                borderColor: statusColor,
-                                color: statusColor,
+                                borderColor: statusInfo.color,
+                                color: statusInfo.color,
                               }}
                             >
-                              {artisan.status.label}
+                              {statusInfo.label}
                             </Badge>
                           )}
                           {absentArtisanIds.has(artisan.id) && (
                             <Badge
                               variant="outline"
-                              className="flex-shrink-0 bg-orange-100 text-orange-800 border-orange-300"
+                              className="flex-shrink-0 bg-orange-100 text-orange-800 border-orange-300 text-xs"
                             >
                               Indisponible
                             </Badge>
                           )}
                         </div>
+                      </div>
+                      {distance !== undefined && (
+                        <div className="text-[10px] font-mono text-muted-foreground">
+                          {distance < 1 ? `${Math.round(distance * 1000)}m` : `${distance.toFixed(1)}km`}
+                        </div>
                       )}
                     </div>
 
-                    {/* Métier */}
-                    {metier && (
-                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                        <Briefcase className="h-3.5 w-3.5" />
-                        <span>{metier.label}</span>
-                      </div>
-                    )}
-
-                    {/* Contact */}
-                    <div className="space-y-1">
+                    {/* Métier et contact */}
+                    <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
                       {artisan.telephone && (
-                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                        <div className="flex items-center gap-1">
                           <Phone className="h-3.5 w-3.5" />
                           <span>{artisan.telephone}</span>
                         </div>
                       )}
                       {artisan.email && (
-                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                        <div className="flex items-center gap-1">
                           <Mail className="h-3.5 w-3.5" />
                           <span className="truncate">{artisan.email}</span>
+                        </div>
+                      )}
+                      {metier && (
+                        <div className="flex items-center gap-1">
+                          <Briefcase className="h-3.5 w-3.5" />
+                          <span>{metier.label}</span>
                         </div>
                       )}
                     </div>
 
                     {/* Adresse */}
                     {(addressSegments.street || addressSegments.postalCode || addressSegments.city) && (
-                      <div className="flex items-start gap-2 text-xs text-muted-foreground">
-                        <MapPin className="h-3.5 w-3.5 mt-0.5 flex-shrink-0" />
+                      <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
+                        <MapPin className="h-3.5 w-3.5" />
                         <span className="line-clamp-1">
                           {[addressSegments.street, addressSegments.postalCode, addressSegments.city]
                             .filter(Boolean)
@@ -502,16 +597,28 @@ export function ArtisanSearchModal({ open, onClose, onSelect, position, containe
                       </div>
                     )}
                   </div>
-                </button>
+                </div>
               )
             })}
+
+            {/* Loading more indicator */}
+            {isLoadingMore && (
+              <div className="flex items-center justify-center py-4 text-sm text-muted-foreground">
+                Chargement...
+              </div>
+            )}
+
+            {/* End of list indicator */}
+            {mode === "nearby" && !hasMoreNearby && results.length > 0 && (
+              <div className="flex items-center justify-center py-4 text-xs text-muted-foreground">
+                Tous les artisans ont été chargés
+              </div>
+            )}
           </div>
         )}
       </div>
     </div>
   )
 
-  // Créer un conteneur pour le portal qui échappe au contexte disabled
-  // Utiliser un conteneur avec pointer-events: auto pour garantir l'interactivité
   return createPortal(popoverContent, container ?? document.body)
 }

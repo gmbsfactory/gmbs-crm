@@ -1001,6 +1001,37 @@ export function InterventionEditForm({
     }
   }, [intervention.id_inter])
 
+  // Synchroniser les champs d'adresse avec intervention quand l'intervention change
+  // (par exemple quand on rouvre le modal avec de nouvelles données)
+  useEffect(() => {
+    setFormData((prev) => {
+      // Ne mettre à jour que si les valeurs ont réellement changé pour éviter les re-renders inutiles
+      const hasAddressChanged =
+        intervention.adresse !== prev.adresse ||
+        intervention.code_postal !== prev.code_postal ||
+        intervention.ville !== prev.ville ||
+        intervention.latitude !== prev.latitude ||
+        intervention.longitude !== prev.longitude
+
+      if (hasAddressChanged) {
+        const newAdresseComplete = [intervention.adresse, intervention.code_postal, intervention.ville]
+          .filter(Boolean)
+          .join(", ") || prev.adresseComplete || ""
+
+        return {
+          ...prev,
+          adresse: intervention.adresse || prev.adresse || "",
+          code_postal: intervention.code_postal || prev.code_postal || "",
+          ville: intervention.ville || prev.ville || "",
+          latitude: intervention.latitude ?? prev.latitude ?? 48.8566,
+          longitude: intervention.longitude ?? prev.longitude ?? 2.3522,
+          adresseComplete: newAdresseComplete,
+        }
+      }
+      return prev
+    })
+  }, [intervention.id, intervention.adresse, intervention.code_postal, intervention.ville, intervention.latitude, intervention.longitude])
+
   const mapMarkers = useMemo(() => {
     if (!refData?.artisanStatuses) {
       // Fallback si pas de refData
@@ -1818,8 +1849,8 @@ export function InterventionEditForm({
       latitude: suggestion.lat,
       longitude: suggestion.lng,
       adresseComplete: suggestion.label,
-      // Ne pas écraser le champ adresse s'il a été saisi manuellement
-      adresse: prev.adresse,
+      // Mettre à jour adresse si elle est vide, sinon garder la valeur existante
+      adresse: prev.adresse || addressParts.street || "",
       // Ne modifier code_postal et ville que s'ils sont vides
       code_postal: prev.code_postal || addressParts.postalCode || "",
       ville: prev.ville || addressParts.city || "",
@@ -1902,8 +1933,8 @@ export function InterventionEditForm({
         latitude: result.lat,
         longitude: result.lng,
         adresseComplete: result.label,
-        // Ne pas écraser le champ adresse s'il a été saisi manuellement
-        adresse: prev.adresse,
+        // Mettre à jour adresse si elle est vide, sinon garder la valeur existante
+        adresse: prev.adresse || addressParts.street || "",
         // Ne modifier code_postal et ville que s'ils sont vides
         code_postal: prev.code_postal || addressParts.postalCode || "",
         ville: prev.ville || addressParts.city || "",
@@ -2169,6 +2200,15 @@ export function InterventionEditForm({
           statut_id: payload.statut_id || prev.statut_id || "",
           agence_id: payload.agence_id || prev.agence_id || "",
           reference_agence: (payload as any).reference_agence || prev.reference_agence || "",
+          // Synchroniser les champs d'adresse avec les données sauvegardées
+          adresse: payload.adresse || prev.adresse || "",
+          code_postal: payload.code_postal || prev.code_postal || "",
+          ville: payload.ville || prev.ville || "",
+          latitude: payload.latitude ?? prev.latitude ?? 48.8566,
+          longitude: payload.longitude ?? prev.longitude ?? 2.3522,
+          adresseComplete: [payload.adresse, payload.code_postal, payload.ville]
+            .filter(Boolean)
+            .join(", ") || prev.adresseComplete || "Paris, France",
         }))
       }
 
@@ -3557,6 +3597,9 @@ export function InterventionEditForm({
         onSelect={handleArtisanSearchSelect}
         position={artisanSearchPosition}
         container={artisanSearchContainerRef.current}
+        latitude={formData.latitude}
+        longitude={formData.longitude}
+        metier_id={formData.metier_id}
       />
 
       {/* Modal de recherche d'artisan secondaire */}
@@ -3569,6 +3612,9 @@ export function InterventionEditForm({
         onSelect={handleSecondArtisanSearchSelect}
         position={secondArtisanSearchPosition}
         container={artisanSearchContainerRef.current}
+        latitude={formData.latitude}
+        longitude={formData.longitude}
+        metier_id={formData.metier_id}
       />
     </>
   )

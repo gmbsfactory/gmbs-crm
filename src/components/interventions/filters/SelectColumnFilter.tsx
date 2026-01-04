@@ -121,13 +121,17 @@ const getFilterPropertyType = (property: string): 'metier' | 'agence' | 'statut'
   // Mapping des propriétés de la vue vers les types API
   const propertyMap: Record<string, 'metier' | 'agence' | 'statut' | 'user'> = {
     'metier': 'metier',
+    'metier_id': 'metier',
     'metierLabel': 'metier',
     'agence': 'agence',
+    'agence_id': 'agence',
     'agenceLabel': 'agence',
     'statusValue': 'statut',
     'statut': 'statut',
+    'statut_id': 'statut',
     'attribueA': 'user',
     'assignedUserCode': 'user',
+    'assigned_user_id': 'user',
   }
 
   return propertyMap[property] || null

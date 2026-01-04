@@ -1235,8 +1235,8 @@ export function NewInterventionForm({
         latitude: result.lat,
         longitude: result.lng,
         adresseComplete: result.label,
-        // Ne pas écraser le champ adresse s'il a été saisi manuellement
-        adresse: prev.adresse,
+        // Mettre à jour adresse si elle est vide, sinon garder la valeur existante
+        adresse: prev.adresse || addressParts.street || "",
         // Ne modifier code_postal et ville que s'ils sont vides
         code_postal: prev.code_postal || addressParts.postalCode || "",
         ville: prev.ville || addressParts.city || "",
@@ -2736,6 +2736,9 @@ export function NewInterventionForm({
         }}
         onSelect={handleArtisanSearchSelect}
         position={artisanSearchPosition}
+        latitude={formData.latitude}
+        longitude={formData.longitude}
+        metier_id={formData.metier_id}
       />
 
       {/* Modal de recherche du 2ème artisan */}
@@ -2747,6 +2750,9 @@ export function NewInterventionForm({
         }}
         onSelect={handleSecondArtisanSearchSelect}
         position={secondArtisanSearchPosition}
+        latitude={formData.latitude}
+        longitude={formData.longitude}
+        metier_id={formData.metier_id}
       />
 
       {/* Modal Email Devis */}
