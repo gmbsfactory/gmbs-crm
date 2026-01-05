@@ -503,6 +503,18 @@ export function CommentSection({
         >
           {orderedComments.map((comment) => {
             const authorDetails = comment.users as CommentAuthorDetails | undefined
+            // DEBUG: Log pour diagnostiquer le problème d'avatar_url
+            if (process.env.NODE_ENV === 'development' || typeof window !== 'undefined') {
+              console.log('[CommentSection] Comment author:', {
+                commentId: comment.id,
+                authorId: comment.author_id,
+                hasUsers: !!authorDetails,
+                firstname: authorDetails?.firstname,
+                lastname: authorDetails?.lastname,
+                avatar_url: authorDetails?.avatar_url,
+                color: authorDetails?.color,
+              })
+            }
             const authorName =
               authorDetails &&
               ([authorDetails.firstname, authorDetails.lastname].filter(Boolean).join(" ").trim() ||

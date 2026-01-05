@@ -308,7 +308,24 @@ export const mapInterventionRecord = (item: any, refs: any): any => {
     ? item.intervention_costs
     : [];
 
-  // Extraction des coûts depuis le cache (intervention_costs_cache)
+  // Calcul des totaux de coûts depuis intervention_costs
+  // cost_type: "sst" | "materiel" | "intervention" (CA) | "marge"
+  const calculatedCosts = {
+    total_ca: interventionCosts
+      .filter((c: any) => c.cost_type === "intervention" || c.cost_type === "ca")
+      .reduce((sum: number, c: any) => sum + (Number(c.amount) || 0), 0) || null,
+    total_sst: interventionCosts
+      .filter((c: any) => c.cost_type === "sst")
+      .reduce((sum: number, c: any) => sum + (Number(c.amount) || 0), 0) || null,
+    total_materiel: interventionCosts
+      .filter((c: any) => c.cost_type === "materiel")
+      .reduce((sum: number, c: any) => sum + (Number(c.amount) || 0), 0) || null,
+    total_marge: interventionCosts
+      .filter((c: any) => c.cost_type === "marge")
+      .reduce((sum: number, c: any) => sum + (Number(c.amount) || 0), 0) || null,
+  };
+
+  // Extraction des coûts depuis le cache (intervention_costs_cache) - priorité sur le cache si disponible
   const costsCache = item.costs_cache ?? null;
 
   return {
@@ -324,19 +341,30 @@ export const mapInterventionRecord = (item: any, refs: any): any => {
     costs: interventionCosts, // Liste des coûts avec leurs labels
     payments: Array.isArray(item.payments) ? item.payments : [],
     attachments: Array.isArray(item.attachments) ? item.attachments : [],
-    // Utiliser le cache des coûts si disponible, sinon fallback sur les champs directs
+    // Utiliser le cache des coûts si disponible, sinon calculer depuis intervention_costs, sinon fallback sur les champs directs
     coutIntervention:
       costsCache?.total_ca ??
+      calculatedCosts.total_ca ??
       item.cout_intervention ??
       item.coutIntervention ??
       null,
-    coutSST: costsCache?.total_sst ?? item.cout_sst ?? item.coutSST ?? null,
+    coutSST:
+      costsCache?.total_sst ??
+      calculatedCosts.total_sst ??
+      item.cout_sst ??
+      item.coutSST ??
+      null,
     coutMateriel:
       costsCache?.total_materiel ??
+      calculatedCosts.total_materiel ??
       item.cout_materiel ??
       item.coutMateriel ??
       null,
-    marge: costsCache?.total_marge ?? item.marge ?? null,
+    marge:
+      costsCache?.total_marge ??
+      calculatedCosts.total_marge ??
+      item.marge ??
+      null,
     agence: agency?.label ?? item.agence ?? item.agence_id ?? null,
     agenceLabel: agency?.label ?? null,
     agenceCode: agency?.code ?? null,
