@@ -4184,4 +4184,18 @@ export const interventionsApi = {
 
     return values;
   },
+
+  /**
+   * Alias pour getTotalCountWithFilters - cohérent avec l'API artisans
+   * Obtient le nombre total d'interventions correspondant aux filtres
+   * Utilisé notamment pour alimenter les compteurs dans les menus de sélection des filtres de la TableView
+   *
+   * @param params - Paramètres de filtrage (statut, agence, metier, user, dates, search)
+   * @returns Le nombre total d'interventions correspondant aux filtres
+   */
+  async getCountWithFilters(
+    params?: Omit<InterventionQueryParams, "limit" | "offset" | "include">
+  ): Promise<number> {
+    return this.getTotalCountWithFilters(params);
+  },
 };

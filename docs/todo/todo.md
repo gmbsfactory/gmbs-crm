@@ -16,19 +16,15 @@
         - A partir de ce qui a été fait avec FilterMapperContext.tsx voir si on peut étendre le design avec les autres données du contexte d'intervention
         -
 
-- Refacto
-        - refacto supabase-api-v2 appelé les différents endpoint api plutôt que de dupliquer du code. Unique point de responsabilité.
-
-- Gestion
-        - vérifier supabase db reset passe avec nouvelles migrations
-
 - Réparations logs
         - Dans la partie recherche d'artisan mettre une proposition filtré par métier et agence dans la loupe. En faire un menu scrollable dans lequel on peut aussi faire des recherches.
+
         -
         image.png
         dimension du composant de filtrage par kilomètrage;
 
-        - La date dans les mail n'est pas dans l'ordre il faut 01/12/2025 pas 2025-12-29
+        - Mettre un artisan indisponible et chercher un artisan dans la zone pour voir si le 
+        badge s'affiche bien 
 
 ### Later
 

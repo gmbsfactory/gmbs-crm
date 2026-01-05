@@ -21,6 +21,8 @@ import type { InterventionView as InterventionEntity } from "@/types/interventio
 import { formatFilterSummary } from "./filter-utils"
 import { useFilterCounts } from "@/hooks/useFilterCounts"
 import { agenciesApi } from "@/lib/api/v2/agenciesApi"
+import { metiersApi } from "@/lib/api/v2/metiersApi"
+import { interventionsApi } from "@/lib/api/v2/interventionsApi"
 
 const makeValueKey = (value: unknown): string => {
   if (value === null || value === undefined) return "null"
@@ -151,10 +153,16 @@ export function SelectColumnFilter({
   const [remoteOptions, setRemoteOptions] = useState<FilterOption[] | null>(null)
   const [isLoadingOptions, setIsLoadingOptions] = useState(false)
   const [hasFetchedOptions, setHasFetchedOptions] = useState(false)
-  const [allAgencies, setAllAgencies] = useState<Array<{ id: string; label: string }>>([])
+  const [allAgencies, setAllAgencies] = useState<Array<{ id: string; label: string; code?: string }>>([])
+  const [allMetiers, setAllMetiers] = useState<Array<{ id: string; label: string; code?: string }>>([])
+  const [allStatuts, setAllStatuts] = useState<Array<{ id: string; label: string; code?: string }>>([])
 
   // Déterminer le type de propriété pour le comptage API
-  const filterPropertyType = useMemo(() => getFilterPropertyType(property), [property])
+  const filterPropertyType = useMemo(() => {
+    const type = getFilterPropertyType(property)
+    console.log('[SelectColumnFilter] filterPropertyType pour property', property, '=', type)
+    return type
+  }, [property])
 
   // Charger toutes les agences depuis l'API si nécessaire
   useEffect(() => {
@@ -167,16 +175,60 @@ export function SelectColumnFilter({
     }
   }, [filterPropertyType, allAgencies.length])
 
+  // Charger tous les métiers depuis l'API si nécessaire
+  useEffect(() => {
+    if (filterPropertyType === 'metier' && allMetiers.length === 0) {
+      console.log('[SelectColumnFilter] Chargement des métiers...')
+      metiersApi.getAll().then(metiers => {
+        const mappedMetiers = metiers.map(m => ({
+          id: m.id,
+          label: m.label || m.code || m.id,
+          code: m.code // Garder le code pour le mapping
+        }))
+        console.log('[SelectColumnFilter] Métiers chargés:', mappedMetiers.length, 'métiers', mappedMetiers)
+        setAllMetiers(mappedMetiers)
+      }).catch(err => {
+        console.error('[SelectColumnFilter] Erreur chargement métiers:', err)
+      })
+    }
+  }, [filterPropertyType, allMetiers.length])
+
+  // Charger tous les statuts depuis l'API si nécessaire
+  useEffect(() => {
+    if (filterPropertyType === 'statut' && allStatuts.length === 0) {
+      console.log('[SelectColumnFilter] Chargement des statuts...')
+      interventionsApi.getAllStatuses().then(statuses => {
+        const mappedStatuses = statuses.map(s => ({
+          id: s.id,
+          label: s.label || s.code || s.id,
+          code: s.code // Garder le code pour le mapping
+        }))
+        console.log('[SelectColumnFilter] Statuts chargés:', mappedStatuses.length, 'statuts', mappedStatuses)
+        setAllStatuts(mappedStatuses)
+      }).catch(err => {
+        console.error('[SelectColumnFilter] Erreur chargement statuts:', err)
+      })
+    }
+  }, [filterPropertyType, allStatuts.length])
+
   // Récupérer les valeurs possibles pour le comptage API
   const possibleValues = useMemo(() => {
     if (!filterPropertyType) return []
 
-    // Pour les agences, utiliser la liste complète depuis l'API
+    // Pour les agences, métiers et statuts : utiliser la liste complète depuis l'API
     if (filterPropertyType === 'agence') {
       return allAgencies
     }
 
-    // Pour les autres types, extraire depuis les interventions chargées
+    if (filterPropertyType === 'metier') {
+      return allMetiers
+    }
+
+    if (filterPropertyType === 'statut') {
+      return allStatuts
+    }
+
+    // Pour les autres types (user), extraire depuis les interventions chargées
     const uniqueValues = new Map<string, { id: string; label: string }>()
 
     interventions.forEach((intervention) => {
@@ -184,14 +236,6 @@ export function SelectColumnFilter({
       let label: string | null = null
 
       switch (filterPropertyType) {
-        case 'metier':
-          id = (intervention as any).metier_id
-          label = (intervention as any).metierLabel || (intervention as any).metier
-          break
-        case 'statut':
-          id = (intervention as any).statut_id
-          label = (intervention as any).statusLabel || (intervention as any).statut
-          break
         case 'user':
           id = (intervention as any).assigned_user_id || 'null'
           label = (intervention as any).assignedUserName || (intervention as any).attribueA || 'Non assigné'
@@ -204,14 +248,20 @@ export function SelectColumnFilter({
     })
 
     return Array.from(uniqueValues.values())
-  }, [filterPropertyType, interventions, allAgencies])
+  }, [filterPropertyType, interventions, allAgencies, allMetiers, allStatuts])
+
+  // Log des possibleValues pour debug
+  useEffect(() => {
+    console.log('[SelectColumnFilter] possibleValues pour', filterPropertyType, ':', possibleValues)
+  }, [filterPropertyType, possibleValues])
 
   // Hook pour charger les compteurs depuis l'API
+  // Charger les compteurs dès que possibleValues est disponible (pas besoin d'attendre que le menu soit ouvert)
   const { counts: apiCounts, isLoading: isLoadingCounts } = useFilterCounts(
     filterPropertyType!,
     possibleValues,
     baseFilters,
-    open && !!filterPropertyType
+    !!filterPropertyType && possibleValues.length > 0
   )
 
   // Charger les valeurs distinctes depuis l'API si disponible
@@ -277,31 +327,65 @@ export function SelectColumnFilter({
     }
 
     // Ajouter les counts depuis l'API si disponibles
-    // Pour les agences, on mappe les labels vers les IDs via allAgencies
-    // Pour les autres, on assume que option.value contient déjà l'ID ou le label
-    if (filterPropertyType && apiCounts) {
+    // Pour les agences, métiers et statuts, on mappe les labels/codes vers les IDs
+    if (filterPropertyType && apiCounts && Object.keys(apiCounts).length > 0) {
+      console.log('[SelectColumnFilter] Ajout des counts pour', filterPropertyType, 'apiCounts:', apiCounts)
       options.forEach((option) => {
         let itemId: string | null = null
+        const optionValue = String(option.value)
+        const optionValueLower = optionValue.toLowerCase()
 
         if (filterPropertyType === 'agence') {
-          // Chercher l'ID de l'agence par label ou par ID
+          // Chercher l'ID de l'agence par ID, label ou code (insensible à la casse)
           const agence = allAgencies.find(a =>
-            a.id === option.value || a.label === option.value
+            a.id === optionValue ||
+            a.label === optionValue ||
+            a.label.toLowerCase() === optionValueLower ||
+            a.id.toLowerCase() === optionValueLower ||
+            a.code === optionValue ||
+            a.code?.toLowerCase() === optionValueLower
           )
           itemId = agence?.id || null
+        } else if (filterPropertyType === 'metier') {
+          // Chercher l'ID du métier par ID, label ou code (insensible à la casse)
+          // Les options peuvent contenir des codes en majuscules (ex: "BRICOLAGE")
+          // alors que les métiers ont des labels en casse normale (ex: "Bricolage")
+          const metier = allMetiers.find(m =>
+            m.id === optionValue ||
+            m.label === optionValue ||
+            m.label.toLowerCase() === optionValueLower ||
+            m.id.toLowerCase() === optionValueLower ||
+            m.code === optionValue ||
+            m.code?.toLowerCase() === optionValueLower
+          )
+          itemId = metier?.id || null
+        } else if (filterPropertyType === 'statut') {
+          // Chercher l'ID du statut par ID, label ou code (insensible à la casse)
+          const statut = allStatuts.find(s =>
+            s.id === optionValue ||
+            s.label === optionValue ||
+            s.label.toLowerCase() === optionValueLower ||
+            s.id.toLowerCase() === optionValueLower ||
+            s.code === optionValue ||
+            s.code?.toLowerCase() === optionValueLower
+          )
+          itemId = statut?.id || null
         } else {
-          // Pour les autres types, utiliser directement la valeur de l'option
-          itemId = String(option.value)
+          // Pour les autres types (user), utiliser directement la valeur de l'option
+          itemId = optionValue
         }
 
         if (itemId && apiCounts[itemId] !== undefined) {
           option.count = apiCounts[itemId]
+          console.log('[SelectColumnFilter] Mapped:', optionValue, '→', itemId, '=', apiCounts[itemId])
+        } else {
+          console.log('[SelectColumnFilter] No match for:', optionValue, '→ itemId:', itemId)
         }
       })
     }
 
     return options
-  }, [baseOptions, remoteOptions, filterPropertyType, apiCounts, allAgencies])
+  }, [baseOptions, remoteOptions, filterPropertyType, apiCounts, allAgencies, allMetiers, allStatuts])
 
   // Filtrer les options selon la recherche
   const filteredOptions = useMemo(() => {
