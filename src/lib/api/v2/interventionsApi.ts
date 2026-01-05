@@ -387,6 +387,7 @@ export const interventionsApi = {
             prenom,
             nom,
             plain_nom,
+            raison_sociale,
             telephone,
             email
           )

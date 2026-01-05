@@ -278,6 +278,31 @@ export const mapInterventionRecord = (item: any, refs: any): any => {
     .map((ia: any) => ia.artisan_id)
     .filter(Boolean);
 
+  // Extraction de l'artisan principal pour l'affichage
+  const primaryArtisanEntry = interventionArtisans.find((ia: any) => ia.is_primary) ?? interventionArtisans[0];
+  const primaryArtisanData = primaryArtisanEntry?.artisans ?? primaryArtisanEntry?.artisan ?? null;
+
+  // Construction du nom d'affichage de l'artisan avec fallback :
+  // 1. raison_sociale (si non null/vide)
+  // 2. plain_nom (si non null/vide)
+  // 3. prenom nom (concaténation si non null/vide)
+  // 4. null (affichera "—")
+  let artisanDisplayName: string | null = null;
+  if (primaryArtisanData) {
+    const raisonSociale = primaryArtisanData.raison_sociale?.trim();
+    const plainNom = primaryArtisanData.plain_nom?.trim();
+    const prenom = primaryArtisanData.prenom?.trim();
+    const nom = primaryArtisanData.nom?.trim();
+
+    if (raisonSociale && raisonSociale.length > 0) {
+      artisanDisplayName = raisonSociale;
+    } else if (plainNom && plainNom.length > 0) {
+      artisanDisplayName = plainNom;
+    } else if (prenom || nom) {
+      artisanDisplayName = `${prenom ?? ""} ${nom ?? ""}`.trim() || null;
+    }
+  }
+
   // Extraction des coûts depuis intervention_costs
   const interventionCosts = Array.isArray(item.intervention_costs)
     ? item.intervention_costs
@@ -294,6 +319,8 @@ export const mapInterventionRecord = (item: any, refs: any): any => {
     status: normalizedStatus,
     statusLabel: normalizedStatus?.label ?? item.statusLabel ?? null,
     artisans: artisanIds, // Liste des IDs d'artisans
+    artisan: artisanDisplayName, // Nom d'affichage de l'artisan principal (raison_sociale > plain_nom > prenom nom)
+    primaryArtisan: primaryArtisanData, // Données complètes de l'artisan principal
     costs: interventionCosts, // Liste des coûts avec leurs labels
     payments: Array.isArray(item.payments) ? item.payments : [],
     attachments: Array.isArray(item.attachments) ? item.attachments : [],

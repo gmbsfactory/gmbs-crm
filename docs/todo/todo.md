@@ -17,8 +17,6 @@
         -
 
 - Réparations logs
-        - Dans la partie recherche d'artisan mettre une proposition filtré par métier et agence dans la loupe. En faire un menu scrollable dans lequel on peut aussi faire des recherches.
-
         -
         image.png
         dimension du composant de filtrage par kilomètrage;

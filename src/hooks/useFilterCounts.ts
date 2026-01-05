@@ -27,15 +27,8 @@ export function useFilterCounts(
   )
 
   useEffect(() => {
-    console.log('[useFilterCounts] Effect triggered:', {
-      property,
-      enabled,
-      possibleValuesLength: possibleValues.length,
-      possibleValuesKey: possibleValuesKey.substring(0, 50) + '...'
-    })
 
     if (!enabled || possibleValues.length === 0) {
-      console.log('[useFilterCounts] Skipped: enabled=', enabled, 'possibleValues.length=', possibleValues.length)
       return
     }
 
@@ -46,13 +39,10 @@ export function useFilterCounts(
     const loadCounts = async () => {
       // Double-check au début de la fonction async
       if (cancelledRef.current) {
-        console.log('[useFilterCounts] Already cancelled before starting')
         return
       }
 
       try {
-        console.log('[useFilterCounts] Loading counts for', property, 'with', possibleValues.length, 'values')
-
         // Charger tous les compteurs en parallèle
         const countPromises = possibleValues.map(async (item) => {
           if (cancelledRef.current) return { id: item.id, label: item.label, count: 0 }
@@ -62,7 +52,6 @@ export function useFilterCounts(
             item.id,
             baseFilters
           )
-          console.log(`[useFilterCounts] Count for ${property} ${item.id} (${item.label}):`, count)
           return { id: item.id, label: item.label, count }
         })
 
@@ -73,7 +62,7 @@ export function useFilterCounts(
           results.forEach(({ id, count }) => {
             newCounts[id] = count
           })
-          console.log('[useFilterCounts] Final counts for', property, ':', newCounts)
+
           setCounts(newCounts)
         }
       } catch (error) {
@@ -92,7 +81,6 @@ export function useFilterCounts(
     loadCounts()
 
     return () => {
-      console.log('[useFilterCounts] Cleanup called for', property)
       cancelledRef.current = true
     }
   }, [property, possibleValuesKey, baseFiltersKey, enabled, possibleValues, baseFilters])

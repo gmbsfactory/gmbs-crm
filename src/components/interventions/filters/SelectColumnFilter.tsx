@@ -160,7 +160,6 @@ export function SelectColumnFilter({
   // Déterminer le type de propriété pour le comptage API
   const filterPropertyType = useMemo(() => {
     const type = getFilterPropertyType(property)
-    console.log('[SelectColumnFilter] filterPropertyType pour property', property, '=', type)
     return type
   }, [property])
 
@@ -178,14 +177,12 @@ export function SelectColumnFilter({
   // Charger tous les métiers depuis l'API si nécessaire
   useEffect(() => {
     if (filterPropertyType === 'metier' && allMetiers.length === 0) {
-      console.log('[SelectColumnFilter] Chargement des métiers...')
       metiersApi.getAll().then(metiers => {
         const mappedMetiers = metiers.map(m => ({
           id: m.id,
           label: m.label || m.code || m.id,
           code: m.code // Garder le code pour le mapping
         }))
-        console.log('[SelectColumnFilter] Métiers chargés:', mappedMetiers.length, 'métiers', mappedMetiers)
         setAllMetiers(mappedMetiers)
       }).catch(err => {
         console.error('[SelectColumnFilter] Erreur chargement métiers:', err)
@@ -196,14 +193,12 @@ export function SelectColumnFilter({
   // Charger tous les statuts depuis l'API si nécessaire
   useEffect(() => {
     if (filterPropertyType === 'statut' && allStatuts.length === 0) {
-      console.log('[SelectColumnFilter] Chargement des statuts...')
       interventionsApi.getAllStatuses().then(statuses => {
         const mappedStatuses = statuses.map(s => ({
           id: s.id,
           label: s.label || s.code || s.id,
           code: s.code // Garder le code pour le mapping
         }))
-        console.log('[SelectColumnFilter] Statuts chargés:', mappedStatuses.length, 'statuts', mappedStatuses)
         setAllStatuts(mappedStatuses)
       }).catch(err => {
         console.error('[SelectColumnFilter] Erreur chargement statuts:', err)
@@ -249,11 +244,6 @@ export function SelectColumnFilter({
 
     return Array.from(uniqueValues.values())
   }, [filterPropertyType, interventions, allAgencies, allMetiers, allStatuts])
-
-  // Log des possibleValues pour debug
-  useEffect(() => {
-    console.log('[SelectColumnFilter] possibleValues pour', filterPropertyType, ':', possibleValues)
-  }, [filterPropertyType, possibleValues])
 
   // Hook pour charger les compteurs depuis l'API
   // Charger les compteurs dès que possibleValues est disponible (pas besoin d'attendre que le menu soit ouvert)
@@ -329,7 +319,6 @@ export function SelectColumnFilter({
     // Ajouter les counts depuis l'API si disponibles
     // Pour les agences, métiers et statuts, on mappe les labels/codes vers les IDs
     if (filterPropertyType && apiCounts && Object.keys(apiCounts).length > 0) {
-      console.log('[SelectColumnFilter] Ajout des counts pour', filterPropertyType, 'apiCounts:', apiCounts)
       options.forEach((option) => {
         let itemId: string | null = null
         const optionValue = String(option.value)
@@ -377,9 +366,6 @@ export function SelectColumnFilter({
 
         if (itemId && apiCounts[itemId] !== undefined) {
           option.count = apiCounts[itemId]
-          console.log('[SelectColumnFilter] Mapped:', optionValue, '→', itemId, '=', apiCounts[itemId])
-        } else {
-          console.log('[SelectColumnFilter] No match for:', optionValue, '→ itemId:', itemId)
         }
       })
     }

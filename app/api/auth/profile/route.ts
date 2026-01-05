@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { createServerSupabase, bearerFrom } from '@/lib/supabase/server'
+import { createServerSupabase, createServerSupabaseAdmin, bearerFrom } from '@/lib/supabase/server'
 import { encryptPassword } from '@/lib/utils/encryption'
 import { validateGmailEmail } from '@/lib/services/email-service'
 
@@ -15,10 +15,14 @@ export async function PATCH(req: Request) {
   }
   console.log('[profile] Token received, length:', token.length)
   
-  const supabase = createServerSupabase(token)
+  // Client avec token utilisateur pour vérifier l'authentification
+  const supabaseAuth = createServerSupabase(token)
   
-  // Vérifier l'utilisateur authentifié
-  const { data: authData, error: authError } = await supabase.auth.getUser()
+  // Client admin pour les opérations de mise à jour (contourne les RLS)
+  const supabase = createServerSupabaseAdmin()
+  
+  // Vérifier l'utilisateur authentifié avec le token
+  const { data: authData, error: authError } = await supabaseAuth.auth.getUser()
   console.log('[profile] Auth user:', authData?.user?.id, 'error:', authError?.message)
   
   const body = await req.json().catch(() => ({} as Record<string, unknown>))
