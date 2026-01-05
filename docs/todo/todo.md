@@ -7,17 +7,19 @@
         - Faire tests pour les calculs. Page dashboard et admin dashboard.
 
 - Recherche :
-        - Améliorer la recherche pour inclure les montants attente accompte
+        - Améliorer la recherche pour inclure les montants attente accompt
         - Meilleure gestion de la partie asynchrone. Un système cyclique sur le temps a été mis en place. Il faudrait un système évènementiel dans l'idéale
 
 - Artisans
         - Modal vue impossible de scroller dans l'ajout des documents ou même sur la partie gauche entièrement. (Je suppose sur la partie droite également)  [Supprimer le modal oeuil ? ]   --> demander à André
 
 - Interventions
-        - Compteur adaptatif en fonction des filtres en place
-        - Refacto / Fusionner INterventionEditForm et NewIntentionForm ou du moins communaliser le code pour éviter la duplication
-        - A partir de ce qui a été fait avec FilterMapperContext.tsx voir si on peut étendre le design avec les autres données du contexte d'intervention
+        - Refacto / Fusionner INterventionEditForm et NewIntentionForm ou du moins communaliser le code pour éviter la duplication de code
         -
+        - A partir de ce qui a été fait avec FilterMapperContext.tsx voir si on peut étendre le design avec les autres données du contexte d'intervention
+        - Mes Interventions à check
+
+Dans le
 
 - Réparations logs
         -

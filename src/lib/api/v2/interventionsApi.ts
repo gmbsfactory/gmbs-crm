@@ -189,6 +189,9 @@ export const interventionsApi = {
     if (params?.isCheck !== undefined) {
       searchParams.set("isCheck", params.isCheck.toString());
     }
+    if (params?.search) {
+      searchParams.set("search", params.search);
+    }
 
     if (process.env.NODE_ENV === "production") {
       searchParams.set("_ts", Date.now().toString());

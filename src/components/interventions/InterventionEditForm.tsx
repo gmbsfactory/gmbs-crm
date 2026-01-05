@@ -2582,7 +2582,7 @@ export function InterventionEditForm({
                           setPerimeterKmInput(String(clamped))
                         }}
                         placeholder="km"
-                        className="h-7 w-14 text-xs"
+                        className="h-7 w-18 text-xs"
                       />
                       <span className="text-[10px] text-muted-foreground">km</span>
                       <Button type="button" variant="secondary" size="sm" className="h-7 text-xs px-2" onClick={handleGeocodeAddress} disabled={isGeocoding}>

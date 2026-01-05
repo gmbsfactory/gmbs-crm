@@ -255,12 +255,12 @@ export const mapInterventionRecord = (item: any, refs: any): any => {
       : undefined);
   const normalizedStatus = status
     ? {
-        id: status.id,
-        code: status.code,
-        label: status.label,
-        color: status.color,
-        sort_order: status.sort_order ?? null,
-      }
+      id: status.id,
+      code: status.code,
+      label: status.label,
+      color: status.color,
+      sort_order: status.sort_order ?? null,
+    }
     : undefined;
   const statusCode =
     normalizedStatus?.code ?? item.statut ?? item.statusValue ?? null;
@@ -294,13 +294,38 @@ export const mapInterventionRecord = (item: any, refs: any): any => {
     const prenom = primaryArtisanData.prenom?.trim();
     const nom = primaryArtisanData.nom?.trim();
 
+    // Log détaillé pour chaque intervention
+    const interventionId = item.id_inter || 'unknown';
+    console.log(`[mapInterventionRecord] 📋 Intervention ${interventionId}`);
+    console.log('  └─ Artisan brut:', {
+      id: primaryArtisanData.id,
+      raison_sociale: primaryArtisanData.raison_sociale,
+      plain_nom: primaryArtisanData.plain_nom,
+      prenom: primaryArtisanData.prenom,
+      nom: primaryArtisanData.nom,
+    });
+    console.log('  └─ Après trim:', {
+      raison_sociale: raisonSociale || null,
+      plain_nom: plainNom || null,
+      prenom: prenom || null,
+      nom: nom || null,
+    });
+
     if (raisonSociale && raisonSociale.length > 0) {
       artisanDisplayName = raisonSociale;
+      console.log(`  ✅ Fallback 1 utilisé (raison_sociale): "${artisanDisplayName}"`);
     } else if (plainNom && plainNom.length > 0) {
       artisanDisplayName = plainNom;
+      console.log(`  ✅ Fallback 2 utilisé (plain_nom): "${artisanDisplayName}"`);
     } else if (prenom || nom) {
       artisanDisplayName = `${prenom ?? ""} ${nom ?? ""}`.trim() || null;
+      console.log(`  ✅ Fallback 3 utilisé (prenom + nom): "${artisanDisplayName}"`);
+    } else {
+      console.log('  ❌ Fallback 4 utilisé (null) → affichera "—"');
     }
+    console.log(`  └─ 🎯 Valeur finale affichée: "${artisanDisplayName || '—'}"\n`);
+  } else {
+    console.log(`[mapInterventionRecord] ⚠️  Intervention ${item.id_inter || 'unknown'} - Aucun artisan trouvé\n`);
   }
 
   // Extraction des coûts depuis intervention_costs
@@ -396,9 +421,9 @@ export const mapInterventionRecord = (item: any, refs: any): any => {
       item.plain_nom_client ??
       item.nomPrenomClient ??
       (item.nom_client ||
-      item.nomClient ||
-      item.prenom_client ||
-      item.prenomClient
+        item.nomClient ||
+        item.prenom_client ||
+        item.prenomClient
         ? `${item.nom_client ?? item.nomClient ?? ""} ${item.prenom_client ?? item.prenomClient ?? ""}`.trim()
         : null),
     attribueA: userInfo.code ?? userInfo.username ?? undefined,
@@ -442,9 +467,9 @@ export const mapInterventionRecord = (item: any, refs: any): any => {
       item.plain_nom_facturation ??
       item.nomPrenomFacturation ??
       (item.nom_proprietaire ||
-      item.nomProprietaire ||
-      item.prenom_proprietaire ||
-      item.prenomProprietaire
+        item.nomProprietaire ||
+        item.prenom_proprietaire ||
+        item.prenomProprietaire
         ? `${item.nom_proprietaire ?? item.nomProprietaire ?? ""} ${item.prenom_proprietaire ?? item.prenomProprietaire ?? ""}`.trim()
         : null),
     telephoneProprietaire:
@@ -503,10 +528,10 @@ export const mapArtisanRecord = (item: any, refs: any): any => {
   }
 
   // Extraire les métadonnées de la photo de profil depuis artisan_attachments
-  const attachments = Array.isArray(item.artisan_attachments) 
-    ? item.artisan_attachments 
+  const attachments = Array.isArray(item.artisan_attachments)
+    ? item.artisan_attachments
     : [];
-  
+
   const photoProfilAttachment = attachments.find(
     (att: any) => att?.kind === "photo_profil" && att?.url && att.url.trim() !== ""
   );

@@ -49,28 +49,40 @@ export function getDisplayName(
     nom: () => {
       // Stratégie 1 : Prénom + Nom
       const fullName = [data.prenom, data.nom].filter(Boolean).join(' ')
-      if (fullName) return fullName
+      if (fullName) {
+        return fullName
+      }
 
       // Stratégie 2 : plain_nom
-      if (data.plain_nom) return data.plain_nom
+      if (data.plain_nom) {
+        return data.plain_nom
+      }
 
       // Stratégie 3 : raison_sociale
-      if (data.raison_sociale) return data.raison_sociale
+      if (data.raison_sociale) {
+        return data.raison_sociale
+      }
 
-      // Fallback final
+      // Fallback final 
       return 'Artisan sans nom'
     },
 
     rs: () => {
       // Stratégie 1 : raison_sociale
-      if (data.raison_sociale) return data.raison_sociale
+      if (data.raison_sociale) {
+        return data.raison_sociale
+      }
 
       // Stratégie 2 : Prénom + Nom
       const fullName = [data.prenom, data.nom].filter(Boolean).join(' ')
-      if (fullName) return fullName
+      if (fullName) {
+        return fullName
+      }
 
       // Stratégie 3 : plain_nom
-      if (data.plain_nom) return data.plain_nom
+      if (data.plain_nom) {
+        return data.plain_nom
+      }
 
       // Fallback final
       return 'Raison sociale inconnue'
@@ -78,17 +90,26 @@ export function getDisplayName(
 
     tel: () => {
       // Stratégie 1 : telephone
-      if (data.telephone) return data.telephone
+      if (data.telephone) {
+        console.log('[getDisplayName] Mode "tel" - Retour telephone:', data.telephone)
+        return data.telephone
+      }
 
       // Stratégie 2 : telephone2
-      if (data.telephone2) return data.telephone2
+      if (data.telephone2) {
+        console.log('[getDisplayName] Mode "tel" - Retour telephone2:', data.telephone2)
+        return data.telephone2
+      }
 
       // Fallback final
+      console.log('[getDisplayName] Mode "tel" - Fallback: Aucun téléphone')
       return 'Aucun téléphone'
     },
   }
 
-  return strategies[mode]()
+  const result = strategies[mode]()
+  console.log('[getDisplayName] Résultat final:', result)
+  return result
 }
 
 /**

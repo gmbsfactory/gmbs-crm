@@ -184,7 +184,7 @@ export function normalizeArtisanData(
     photoProfilMetadata = artisan.photoProfilMetadata ?? null
   }
 
-  return {
+  const result: ArtisanDisplayData = {
     ...baseData,
     plain_nom,
     address,
@@ -193,4 +193,30 @@ export function normalizeArtisanData(
     numero_associe,
     photoProfilMetadata,
   }
+
+  // Log des champs ArtisanDisplayData pour debug
+  console.log('[ArtisanDisplayData] Données normalisées:', {
+    // Identité
+    prenom: result.prenom,
+    nom: result.nom,
+    plain_nom: result.plain_nom,
+    raison_sociale: result.raison_sociale,
+    // Contact
+    telephone: result.telephone,
+    telephone2: result.telephone2,
+    email: result.email,
+    // Adresse
+    address: result.address,
+    // Métier
+    primaryMetier: result.primaryMetier,
+    // Statut
+    statut_id: result.statut_id,
+    statusInfo: result.statusInfo,
+    // Autres
+    numero_associe: result.numero_associe,
+    distanceKm: result.distanceKm,
+    photoProfilMetadata: result.photoProfilMetadata,
+  })
+
+  return result
 }

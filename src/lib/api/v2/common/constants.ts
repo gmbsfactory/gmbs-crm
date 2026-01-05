@@ -151,3 +151,4 @@ export const NEARBY_ARTISANS_MAX_DISTANCE_KM = 100;
 export const ARTISAN_SEARCH_LIMIT = 50;
 
 
+
