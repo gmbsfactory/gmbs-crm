@@ -51,12 +51,13 @@ export function useArtisanModal() {
 
     // Si le modal venait d'une intervention, rouvrir le modal d'intervention
     if (isFromIntervention && interventionId) {
-      // Petit délai pour laisser le modal d'artisan se fermer proprement
+      // Délai pour laisser le modal d'artisan se fermer proprement avant de rouvrir l'intervention
+      // Utiliser un délai suffisant pour éviter les animations non désirées
       setTimeout(() => {
         modal.open(interventionId, {
           content: "intervention",
         })
-      }, 100)
+      }, 150)
     }
   }, [metadata, modal])
 

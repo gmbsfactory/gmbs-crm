@@ -39,8 +39,8 @@ export function useInterventionModal() {
 
     // Vérifier si c'est un modal new-intervention qui vient d'une duplication (devis supp)
     // AVANT de fermer car modal.close() va réinitialiser le state
-    const duplicateFromId = modal.content === "new-intervention" && typeof context?.duplicateFrom === "string" 
-      ? context.duplicateFrom 
+    const duplicateFromId = modal.content === "new-intervention" && typeof context?.duplicateFrom === "string"
+      ? context.duplicateFrom
       : null
 
     // Vérifier si le modal d'intervention vient d'un modal d'artisan AVANT de fermer
@@ -51,7 +51,11 @@ export function useInterventionModal() {
 
     // Si c'est un devis supp, retourner à l'intervention initiale
     if (duplicateFromId) {
-      modal.open(duplicateFromId, { content: "intervention" })
+      // Fermer d'abord le modal actuel, puis rouvrir l'intervention initiale après un court délai
+      modal.close()
+      setTimeout(() => {
+        modal.open(duplicateFromId, { content: "intervention" })
+      }, 100)
       return
     }
 
@@ -129,7 +133,7 @@ export function useInterventionModal() {
 
   useEffect(() => {
     if (!modal.isOpen) return
-    
+
     // Don't handle events if not an intervention-related modal
     if (modal.content !== "intervention" && modal.content !== "new-intervention") return
 
