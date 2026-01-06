@@ -27,12 +27,27 @@ async function ensureRole(role: string) {
   return created.data.id as string
 }
 
+/**
+ * Check if Supabase Auth Admin API is available
+ */
+function hasAuthAdmin(): boolean {
+  try {
+    return !!(supabaseAdmin?.auth?.admin?.createUser)
+  } catch {
+    return false
+  }
+}
+
 export async function POST(req: Request) {
   // Check permission: write_users to create a user
   const permCheck = await requirePermission(req, "write_users")
   if (isPermissionError(permCheck)) return permCheck.error
 
-  if (!supabaseAdmin) return NextResponse.json({ error: "No DB" }, { status: 500 })
+  if (!supabaseAdmin) {
+    console.error('[create-user] supabaseAdmin is null - check SUPABASE_SERVICE_ROLE_KEY')
+    return NextResponse.json({ error: "Database client not configured" }, { status: 500 })
+  }
+  
   try {
     const body = await req.json().catch(() => ({} as Record<string, unknown>))
     const firstname = normalizeString(body.firstname) ?? normalizeString(body.prenom)
@@ -46,14 +61,35 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'missing_fields' }, { status: 400 })
     }
 
+    // Check if email already exists in public.users
     const existing = await supabaseAdmin
       .from('users')
-      .select('id')
+      .select('id, status, firstname, lastname')
       .eq('email', email)
       .maybeSingle()
-    if (existing.error) return NextResponse.json({ error: existing.error.message }, { status: 500 })
+    if (existing.error) {
+      console.error('[create-user] Error checking existing user:', existing.error.message)
+      return NextResponse.json({ error: existing.error.message }, { status: 500 })
+    }
+    
+    // If user exists and is archived, return special response for restoration prompt
+    if (existing.data && existing.data.status === 'archived') {
+      return NextResponse.json({ 
+        error: 'user_archived',
+        archivedUser: {
+          id: existing.data.id,
+          email,
+          firstname: existing.data.firstname,
+          lastname: existing.data.lastname,
+        },
+        message: `Le gestionnaire avec l'email "${email}" existe déjà mais a été archivé. Voulez-vous restaurer ce compte ?`
+      }, { status: 409 })
+    }
+    
+    // If user exists and is active, it's a duplicate
     if (existing.data) return NextResponse.json({ error: 'email_taken' }, { status: 409 })
 
+    // Generate username
     const baseParts = [firstname, lastname].map((part) =>
       part.toLowerCase().replace(/\s+/g, '.').replace(/[^a-z0-9._-]/g, '')
     )
@@ -61,30 +97,152 @@ export async function POST(req: Request) {
     const suffix = Math.random().toString(36).slice(2, 6)
     const username = [base || 'user', suffix].join('.')
 
+    let userId: string
+    let inviteLink = ''
+
+    // Check if Auth Admin API is available
+    const authAdminAvailable = hasAuthAdmin()
+    console.log('[create-user] Auth Admin available:', authAdminAvailable)
+
+    if (authAdminAvailable) {
+      // ===== WITH AUTH: Create user in auth.users first =====
+      try {
+        console.log('[create-user] Creating auth user for:', email)
+        
+        const { data: authUser, error: authError } = await supabaseAdmin.auth.admin.createUser({
+          email,
+          email_confirm: true,
+          user_metadata: {
+            firstname,
+            lastname,
+            username,
+          },
+        })
+
+        if (authError) {
+          console.error('[create-user] Auth user creation failed:', authError.message, authError)
+          // Fallback: create only in public.users
+          console.log('[create-user] Falling back to public.users only')
+        } else if (!authUser?.user) {
+          console.error('[create-user] Auth user creation returned no user')
+        } else {
+          userId = authUser.user.id
+          console.log('[create-user] Auth user created with ID:', userId)
+
+          // Generate password recovery link
+          const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
+          try {
+            const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
+              type: 'recovery',
+              email,
+              options: {
+                redirectTo: `${siteUrl}/set-password`,
+              },
+            })
+
+            if (linkError) {
+              console.error('[create-user] Link generation failed:', linkError.message)
+              // Continue without invite link - user can use "forgot password" later
+            } else {
+              inviteLink = linkData?.properties?.action_link || ''
+              console.log('[create-user] Invite link generated:', inviteLink ? 'yes' : 'no')
+            }
+          } catch (linkGenError: any) {
+            console.error('[create-user] Link generation exception:', linkGenError?.message)
+          }
+        }
+      } catch (authException: any) {
+        console.error('[create-user] Auth exception:', authException?.message)
+        // Continue to create in public.users only
+      }
+    }
+
+    // If we don't have a userId from auth, generate a new UUID
+    // @ts-ignore - userId may be undefined
+    if (!userId) {
+      userId = crypto.randomUUID()
+      console.log('[create-user] Generated new UUID for public.users only:', userId)
+    }
+
+    // ===== Create profile in public.users =====
     const insertPayload: Record<string, unknown> = {
+      id: userId,
       firstname,
       lastname,
       username,
       email,
       code_gestionnaire: surnom ?? null,
+      status: 'offline',
+      token_version: 0,
     }
     if (color) insertPayload.color = color
 
+    console.log('[create-user] Inserting into public.users...')
     const ins = await supabaseAdmin
       .from('users')
       .insert(insertPayload)
       .select('id')
       .single()
-    if (ins.error) return NextResponse.json({ error: ins.error.message }, { status: 500 })
-    const userId = ins.data.id as string
 
-    const roleId = await ensureRole(role)
-    const link = await supabaseAdmin.from('user_roles').insert({ user_id: userId, role_id: roleId })
-    if (link.error) return NextResponse.json({ error: link.error.message }, { status: 500 })
+    if (ins.error) {
+      console.error('[create-user] Profile creation failed:', ins.error.message, ins.error)
+      // If we created an auth user, try to clean it up
+      if (authAdminAvailable && inviteLink) {
+        try {
+          await supabaseAdmin.auth.admin.deleteUser(userId)
+          console.log('[create-user] Rolled back auth user')
+        } catch (rollbackError: any) {
+          console.error('[create-user] Rollback failed:', rollbackError?.message)
+        }
+      }
+      return NextResponse.json({ error: ins.error.message }, { status: 500 })
+    }
 
-    return NextResponse.json({ ok: true, id: userId })
+    console.log('[create-user] User created in public.users')
+
+    // ===== Assign role =====
+    try {
+      const roleId = await ensureRole(role)
+      const roleLink = await supabaseAdmin.from('user_roles').insert({ user_id: userId, role_id: roleId })
+      if (roleLink.error) {
+        console.error('[create-user] Role assignment failed:', roleLink.error.message)
+      }
+    } catch (roleError: any) {
+      console.error('[create-user] Role assignment exception:', roleError?.message)
+    }
+
+    // ===== Create auth_user_mapping if we have an auth user =====
+    if (authAdminAvailable && inviteLink) {
+      try {
+        const mappingResult = await supabaseAdmin
+          .from('auth_user_mapping')
+          .insert({ auth_user_id: userId, public_user_id: userId })
+        if (mappingResult.error) {
+          console.warn('[create-user] auth_user_mapping creation failed:', mappingResult.error.message)
+        }
+      } catch (mappingError: any) {
+        console.warn('[create-user] auth_user_mapping exception:', mappingError?.message)
+      }
+    }
+
+    const response: Record<string, unknown> = { 
+      ok: true, 
+      id: userId,
+      email,
+      firstname,
+      lastname,
+    }
+
+    // Only include inviteLink if we actually generated one
+    if (inviteLink) {
+      response.inviteLink = inviteLink
+    }
+
+    console.log('[create-user] Success, returning response')
+    return NextResponse.json(response)
   } catch (e: any) {
-    return NextResponse.json({ error: e?.message || 'Bad payload' }, { status: 400 })
+    console.error('[create-user] Unexpected error:', e?.message, e?.stack)
+    return NextResponse.json({ error: e?.message || 'Unexpected error' }, { status: 500 })
   }
 }
 
@@ -145,13 +303,49 @@ export async function DELETE(req: Request) {
       return NextResponse.json({ error: 'email_mismatch' }, { status: 400 })
     }
 
-    const { error: rolesError } = await supabaseAdmin.from('user_roles').delete().eq('user_id', userId)
-    if (rolesError) return NextResponse.json({ error: rolesError.message }, { status: 500 })
+    // ===== SOFT DELETE: Archive the user instead of deleting =====
+    
+    // 1. Delete from auth.users (removes access to the application)
+    if (hasAuthAdmin()) {
+      try {
+        const { error: authDeleteError } = await supabaseAdmin.auth.admin.deleteUser(userId)
+        if (authDeleteError) {
+          console.warn('[delete-user] Auth user deletion failed (may not exist):', authDeleteError.message)
+        } else {
+          console.log('[delete-user] Auth user deleted successfully')
+        }
+      } catch (authDeleteException: any) {
+        console.warn('[delete-user] Auth user deletion exception:', authDeleteException?.message)
+      }
+    }
 
-    const { error: deleteError } = await supabaseAdmin.from('users').delete().eq('id', userId)
-    if (deleteError) return NextResponse.json({ error: deleteError.message }, { status: 500 })
+    // 2. Delete auth_user_mapping (no longer linked to auth)
+    try {
+      await supabaseAdmin
+        .from('auth_user_mapping')
+        .delete()
+        .eq('auth_user_id', userId)
+    } catch (e: any) {
+      console.warn('[delete-user] auth_user_mapping deletion failed:', e?.message)
+    }
 
-    return NextResponse.json({ ok: true })
+    // 3. SOFT DELETE: Update status to 'archived' instead of deleting
+    // This preserves the user's history (interventions, etc.)
+    const { error: archiveError } = await supabaseAdmin
+      .from('users')
+      .update({ 
+        status: 'archived',
+        archived_at: new Date().toISOString(),
+      })
+      .eq('id', userId)
+    
+    if (archiveError) {
+      console.error('[delete-user] Archive failed:', archiveError.message)
+      return NextResponse.json({ error: archiveError.message }, { status: 500 })
+    }
+
+    console.log('[delete-user] User archived successfully:', userId)
+    return NextResponse.json({ ok: true, archived: true })
   } catch (e: any) {
     return NextResponse.json({ error: e?.message || 'Bad payload' }, { status: 400 })
   }

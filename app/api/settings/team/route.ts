@@ -11,9 +11,11 @@ export async function GET(req: Request) {
 
   if (!supabaseAdmin) return NextResponse.json({ error: "No DB" }, { status: 500 })
   try {
+    // Exclude archived users from the list - they are soft-deleted
     const { data, error } = await supabaseAdmin
       .from('users')
       .select('id, firstname, lastname, email, color, status, code_gestionnaire, username, last_seen_at, avatar_url, user_roles ( roles ( name ) ), user_page_permissions ( page_key, has_access )')
+      .neq('status', 'archived')
       .order('lastname', { ascending: true })
       .order('firstname', { ascending: true })
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })

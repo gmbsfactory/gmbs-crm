@@ -11,7 +11,6 @@ import { Switch } from "@/components/ui/switch"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import {
     User,
-    Shield,
     Users,
     Palette,
     Target,
@@ -24,9 +23,8 @@ import { EnumManager } from "./EnumManager"
 import { ProfileSettings } from "./ProfileSettings"
 import { InterfaceSettings } from "./InterfaceSettings"
 import { TeamSettings } from "./TeamSettings"
-import { SecuritySettings } from "./SecuritySettings"
 
-export type SettingsTab = "profile" | "interface" | "team" | "enums" | "security" | "targets"
+export type SettingsTab = "profile" | "interface" | "team" | "enums" | "targets"
 
 export default function SettingsPage({ activeTab = "profile", embedHeader = true }: { activeTab?: SettingsTab; embedHeader?: boolean }) {
   const router = useRouter()
@@ -62,10 +60,10 @@ export default function SettingsPage({ activeTab = "profile", embedHeader = true
               <p className="text-muted-foreground">Gérez vos paramètres et préférences</p>
             </div>
             <TabsList className={`grid w-full ${
-                canAccessTeam && canManageTargets && canManageEnums ? "grid-cols-6" :
-                canAccessTeam && canManageTargets ? "grid-cols-5" : 
-                canAccessTeam || canManageTargets ? "grid-cols-4" : 
-                "grid-cols-3"
+                canAccessTeam && canManageTargets && canManageEnums ? "grid-cols-5" :
+                canAccessTeam && canManageTargets ? "grid-cols-4" : 
+                canAccessTeam || canManageTargets ? "grid-cols-3" : 
+                "grid-cols-2"
               }`}>
               <TabsTrigger value="profile" className="flex items-center gap-2">
                 <User className="h-4 w-4" />
@@ -93,10 +91,6 @@ export default function SettingsPage({ activeTab = "profile", embedHeader = true
                   Objectifs
                 </TabsTrigger>
               )}
-              <TabsTrigger value="security" className="flex items-center gap-2">
-                <Shield className="h-4 w-4" />
-                Sécurité
-              </TabsTrigger>
             </TabsList>
           </>
         )}
@@ -126,10 +120,6 @@ export default function SettingsPage({ activeTab = "profile", embedHeader = true
               <TargetsSettings />
             </TabsContent>
           )}
-
-          <TabsContent value="security" className="space-y-6">
-            <SecuritySettings />
-          </TabsContent>
         </Tabs>
       </div>
     )

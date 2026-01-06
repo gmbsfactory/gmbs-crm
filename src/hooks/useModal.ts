@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation"
 import { useModalState } from "./useModalState"
 import type { ModalContent, ModalOpenOptions } from "@/types/modal"
 
-const VALID_CONTENT: ModalContent[] = ["intervention", "chat", "artisan", "new-intervention", "new-artisan", "edit-artisan"]
+const VALID_CONTENT: ModalContent[] = ["intervention", "chat", "artisan", "new-intervention", "new-artisan"]
 
 const MODAL_PARAM = "i"
 const CONTENT_PARAM = "mc"

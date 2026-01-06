@@ -20,11 +20,17 @@ import {
   Briefcase,
   UserCog,
   Palette,
-  Hash
+  Hash,
+  KeyRound,
+  Send,
+  Copy,
+  Loader2,
+  Mail
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { updateUserPermissions } from "@/hooks/usePermissions"
 import { toast } from "sonner"
+import { useCurrentUser } from "@/hooks/useCurrentUser"
 
 // Types
 type TeamUser = {
@@ -434,6 +440,23 @@ export function UserPermissionsDialog({
   const [permissionOverrides, setPermissionOverrides] = React.useState<Record<string, boolean | null>>({})
   const [saving, setSaving] = React.useState(false)
   const [expandedCategories, setExpandedCategories] = React.useState<Set<string>>(new Set())
+  
+  // Password reset states
+  const [resetPasswordLoading, setResetPasswordLoading] = React.useState(false)
+  const [resetPasswordLink, setResetPasswordLink] = React.useState<string | null>(null)
+  const [resetLinkCopied, setResetLinkCopied] = React.useState(false)
+  const [sendingResetEmail, setSendingResetEmail] = React.useState(false)
+  
+  // Current user (admin) data to check SMTP credentials and role
+  const { data: currentUser } = useCurrentUser()
+  const adminHasSmtp = !!(currentUser as any)?.email_smtp
+  
+  // Check if current user is an admin (can reset passwords)
+  // Note: currentUser.roles is an array of role names from the API
+  const currentUserRoles = (currentUser as any)?.roles || []
+  const isCurrentUserAdmin = Array.isArray(currentUserRoles) 
+    ? currentUserRoles.some((r: string) => r?.toLowerCase()?.includes('admin'))
+    : false
 
   // Fetch existing permissions from DB
   const { data: permissionsData, isLoading: loadingPermissions } = useQuery({
@@ -452,6 +475,11 @@ export function UserPermissionsDialog({
       setPagePermissions(user.page_permissions || {})
       setActiveSection("profile")
       setExpandedCategories(new Set())
+      // Reset password reset states
+      setResetPasswordLink(null)
+      setResetLinkCopied(false)
+      setResetPasswordLoading(false)
+      setSendingResetEmail(false)
     }
   }, [user])
 
@@ -581,6 +609,85 @@ export function UserPermissionsDialog({
       await savePermissionsMutation.mutateAsync()
     } finally {
       setSaving(false)
+    }
+  }
+
+  // Generate password reset link
+  const handleGenerateResetLink = async () => {
+    if (!user) return
+    
+    setResetPasswordLoading(true)
+    setResetPasswordLink(null)
+    
+    try {
+      const resp = await fetch('/api/settings/team/user/reset-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: user.id, sendEmail: false }),
+      })
+      
+      const data = await resp.json()
+      
+      if (!resp.ok) {
+        toast.error(data?.error || 'Erreur lors de la génération du lien')
+        return
+      }
+      
+      setResetPasswordLink(data.resetLink)
+      toast.success('Lien de réinitialisation généré')
+    } catch (error: any) {
+      toast.error(error?.message || 'Erreur inattendue')
+    } finally {
+      setResetPasswordLoading(false)
+    }
+  }
+
+  // Copy reset link to clipboard
+  const handleCopyResetLink = async () => {
+    if (!resetPasswordLink) return
+    
+    try {
+      await navigator.clipboard.writeText(resetPasswordLink)
+      setResetLinkCopied(true)
+      toast.success('Lien copié dans le presse-papiers')
+      setTimeout(() => setResetLinkCopied(false), 2000)
+    } catch {
+      toast.error('Impossible de copier le lien')
+    }
+  }
+
+  // Send reset email directly
+  const handleSendResetEmail = async () => {
+    if (!user) return
+    
+    setSendingResetEmail(true)
+    
+    try {
+      const resp = await fetch('/api/settings/team/user/reset-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: user.id, sendEmail: true }),
+      })
+      
+      const data = await resp.json()
+      
+      if (!resp.ok) {
+        toast.error(data?.error || 'Erreur lors de l\'envoi')
+        return
+      }
+      
+      if (data.emailSent) {
+        toast.success(`Email envoyé à ${user.email}`)
+        setResetPasswordLink(data.resetLink)
+      } else {
+        // Email not sent but link generated
+        setResetPasswordLink(data.resetLink)
+        toast.info(data.message || 'Lien généré, mais email non envoyé')
+      }
+    } catch (error: any) {
+      toast.error(error?.message || 'Erreur inattendue')
+    } finally {
+      setSendingResetEmail(false)
     }
   }
 
@@ -818,6 +925,127 @@ export function UserPermissionsDialog({
                             </button>
                           </div>
                         </div>
+                        
+                        {/* Password Reset Section - Only visible to admins */}
+                        {isCurrentUserAdmin && (
+                          <div className="p-4 rounded-xl border bg-muted/20 space-y-4">
+                            <div className="flex items-center gap-3">
+                              <div className="h-10 w-10 rounded-xl bg-blue-500/10 flex items-center justify-center">
+                                <KeyRound className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                              </div>
+                              <div>
+                                <p className="font-medium">Réinitialisation mot de passe</p>
+                                <p className="text-xs text-muted-foreground">
+                                  Envoyer un lien pour définir un nouveau mot de passe
+                                </p>
+                              </div>
+                            </div>
+                            
+                            {/* Actions */}
+                            <div className="flex flex-col gap-3">
+                              {/* Send by email button (only if admin has SMTP) */}
+                              {adminHasSmtp ? (
+                                <motion.button
+                                  type="button"
+                                  onClick={handleSendResetEmail}
+                                  disabled={sendingResetEmail || resetPasswordLoading}
+                                  className="w-full px-4 py-3 rounded-xl font-medium bg-blue-500 text-white hover:bg-blue-600 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                                  whileHover={{ scale: 1.01 }}
+                                  whileTap={{ scale: 0.99 }}
+                                >
+                                  {sendingResetEmail ? (
+                                    <>
+                                      <Loader2 className="h-4 w-4 animate-spin" />
+                                      Envoi en cours...
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Send className="h-4 w-4" />
+                                      Envoyer lien par email
+                                    </>
+                                  )}
+                                </motion.button>
+                              ) : (
+                                <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20">
+                                  <p className="text-sm text-amber-700 dark:text-amber-400 flex items-center gap-2">
+                                    <Mail className="h-4 w-4 flex-shrink-0" />
+                                    <span>
+                                      Pour envoyer par email, configurez vos identifiants SMTP dans{' '}
+                                      <span className="font-medium">Paramètres &gt; Profil</span>.
+                                    </span>
+                                  </p>
+                                </div>
+                              )}
+                              
+                              {/* Generate link button */}
+                              <motion.button
+                                type="button"
+                                onClick={handleGenerateResetLink}
+                                disabled={resetPasswordLoading || sendingResetEmail}
+                                className="w-full px-4 py-2.5 rounded-xl font-medium bg-muted hover:bg-muted/80 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                                whileHover={{ scale: 1.01 }}
+                                whileTap={{ scale: 0.99 }}
+                              >
+                                {resetPasswordLoading ? (
+                                  <>
+                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                    Génération...
+                                  </>
+                                ) : (
+                                  <>
+                                    <KeyRound className="h-4 w-4" />
+                                    Générer un lien (copier manuellement)
+                                  </>
+                                )}
+                              </motion.button>
+                            </div>
+                            
+                            {/* Generated link display */}
+                            {resetPasswordLink && (
+                              <motion.div
+                                initial={{ opacity: 0, height: 0 }}
+                                animate={{ opacity: 1, height: "auto" }}
+                                className="space-y-2 pt-2 border-t"
+                              >
+                                <label className="text-xs text-muted-foreground font-medium">
+                                  Lien de réinitialisation (expire dans 24h)
+                                </label>
+                                <div className="flex gap-2">
+                                  <input
+                                    type="text"
+                                    value={resetPasswordLink}
+                                    readOnly
+                                    className="flex-1 px-3 py-2 rounded-lg border bg-muted/50 text-xs text-muted-foreground truncate"
+                                  />
+                                  <motion.button
+                                    type="button"
+                                    onClick={handleCopyResetLink}
+                                    className={cn(
+                                      "px-3 py-2 rounded-lg font-medium text-sm transition-colors flex items-center gap-1.5",
+                                      resetLinkCopied 
+                                        ? "bg-emerald-500 text-white"
+                                        : "bg-muted hover:bg-muted/80"
+                                    )}
+                                    whileHover={{ scale: 1.02 }}
+                                    whileTap={{ scale: 0.98 }}
+                                  >
+                                    {resetLinkCopied ? (
+                                      <>
+                                        <Check className="h-3.5 w-3.5" />
+                                        Copié
+                                      </>
+                                    ) : (
+                                      <>
+                                        <Copy className="h-3.5 w-3.5" />
+                                        Copier
+                                      </>
+                                    )}
+                                  </motion.button>
+                                </div>
+                              </motion.div>
+                            )}
+                          </div>
+                        )}
                       </div>
                     </motion.div>
                   ) : (

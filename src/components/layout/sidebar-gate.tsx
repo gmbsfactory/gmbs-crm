@@ -4,12 +4,15 @@ import { usePathname } from "next/navigation"
 import { AppSidebar } from "@/components/layout/app-sidebar"
 import { useInterface } from "@/contexts/interface-context"
 
+// Pages where sidebar should be hidden (auth pages, etc.)
+const HIDE_SIDEBAR_PATHS = ["/login", "/set-password", "/auth/callback"]
+
 export default function SidebarGate({ isAuthed }: { isAuthed: boolean }) {
   const pathname = usePathname()
   const { sidebarEnabled } = useInterface()
-  // Hide sidebar on the login page
-  const hideOnLogin = pathname === "/login"
-  // Requirement: sidebar should be hidden ONLY on /login
-  const show = !hideOnLogin && sidebarEnabled
+  // Hide sidebar on auth-related pages
+  const hideOnAuthPage = HIDE_SIDEBAR_PATHS.some(path => pathname?.startsWith(path))
+  // Requirement: sidebar should be hidden on auth pages
+  const show = !hideOnAuthPage && sidebarEnabled
   return show ? <AppSidebar /> : null
 }

@@ -63,9 +63,11 @@ export function useUsers(): UseUsersResult {
       setLoading(true);
       setError(null);
 
+      // Exclude archived users - they are soft-deleted and should not be selectable
       const { data, error: queryError } = await supabase
         .from("users")
         .select("id, firstname, lastname, username, email, code_gestionnaire")
+        .neq("status", "archived")
         .order("firstname", { ascending: true, nullsFirst: true });
 
       if (queryError) throw queryError;

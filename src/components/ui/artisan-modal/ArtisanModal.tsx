@@ -100,24 +100,6 @@ export function ArtisanModal({
       )
     }
 
-    if (currentContent === "edit-artisan") {
-      if (!artisanId) {
-        return null
-      }
-      return (
-        <NewArtisanModalContent
-          mode={effectiveMode}
-          onClose={onClose}
-          onCycleMode={cycleMode}
-          artisanId={artisanId}
-          onUnsavedChangesStateChange={handleUnsavedChangesStateChange}
-          onRegisterShowDialog={handleRegisterShowDialog}
-          onStatusReasonModalOpenChange={setIsStatusReasonModalOpen}
-          onUnsavedDialogOpenChange={setIsUnsavedDialogOpen}
-        />
-      )
-    }
-
     if (currentContent !== "artisan") {
       return null
     }

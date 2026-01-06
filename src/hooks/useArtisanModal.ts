@@ -35,7 +35,7 @@ export function useArtisanModal() {
 
   const close = useCallback(() => {
     // Guard: only close if actually open and is an artisan-related modal
-    if (!modal.isOpen || (modal.content !== "artisan" && modal.content !== "new-artisan" && modal.content !== "edit-artisan")) return
+    if (!modal.isOpen || (modal.content !== "artisan" && modal.content !== "new-artisan")) return
 
     // Vérifier si le modal d'artisan vient d'un modal d'intervention AVANT de fermer
     // car modal.close() va réinitialiser le state
@@ -85,20 +85,6 @@ export function useArtisanModal() {
     })
   }, [modal])
 
-  const openEdit = useCallback(
-    (id: string, options?: ArtisanModalOpenOptions) => {
-      modal.open(id, {
-        layoutId: options?.layoutId,
-        modeOverride: options?.modeOverride,
-        orderedIds: options?.orderedIds,
-        index: options?.index,
-        origin: options?.origin,
-        content: "edit-artisan",
-      })
-    },
-    [modal],
-  )
-
   const goToNext = useCallback(() => {
     if (modal.content !== "artisan") return false
     if (modal.activeIndex === -1 || !modal.orderedIds.length || modal.activeIndex >= modal.orderedIds.length - 1) return false
@@ -146,7 +132,7 @@ export function useArtisanModal() {
 
   useEffect(() => {
     if (!modal.isOpen) return
-    if (modal.content !== "artisan" && modal.content !== "new-artisan" && modal.content !== "edit-artisan") return
+    if (modal.content !== "artisan" && modal.content !== "new-artisan") return
 
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
@@ -193,7 +179,6 @@ export function useArtisanModal() {
     content: modal.content,
     open,
     openNew,
-    openEdit,
     close,
     openAtIndex,
     goToNext,

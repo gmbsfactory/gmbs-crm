@@ -1,6 +1,6 @@
 import type { ModalDisplayMode } from "./modal-display"
 
-export type ModalContent = "intervention" | "chat" | "artisan" | "new-intervention" | "new-artisan" | "edit-artisan"
+export type ModalContent = "intervention" | "chat" | "artisan" | "new-intervention" | "new-artisan"
 
 export type ModalContextData = Record<string, unknown>
 

@@ -18,7 +18,8 @@ import type {
 
 export const usersApi = {
   // Récupérer tous les utilisateurs avec leurs rôles
-  async getAll(params?: UserQueryParams): Promise<PaginatedResponse<User>> {
+  // Par défaut, exclut les utilisateurs archivés (soft-deleted)
+  async getAll(params?: UserQueryParams & { includeArchived?: boolean }): Promise<PaginatedResponse<User>> {
     let query = supabase
       .from("users")
       .select(`
@@ -37,6 +38,9 @@ export const usersApi = {
     // Appliquer les filtres si nécessaire
     if (params?.status) {
       query = query.eq("status", params.status);
+    } else if (!params?.includeArchived) {
+      // Par défaut, exclure les utilisateurs archivés
+      query = query.neq("status", "archived");
     }
 
     // Pagination

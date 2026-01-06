@@ -13,7 +13,7 @@ export async function middleware(req: NextRequest) {
   }
 
   // Pages publiques - pas de vérification nécessaire
-  const publicPaths = ['/login', '/landingpage']
+  const publicPaths = ['/login', '/landingpage', '/set-password', '/auth/callback']
   if (publicPaths.some(path => pathname.startsWith(path))) {
     return NextResponse.next()
   }

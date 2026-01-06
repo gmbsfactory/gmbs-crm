@@ -15,12 +15,18 @@ import {
   Hash,
   X,
   Check,
-  AlertTriangle
+  AlertTriangle,
+  Copy,
+  CheckCircle2,
+  Link2,
+  Send,
+  Loader2
 } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { UserPermissionsDialog } from "./UserPermissionsDialog"
 import { cn } from "@/lib/utils"
 import { GestionnaireBadge } from "@/components/ui/gestionnaire-badge"
+import { useCurrentUser } from "@/hooks/useCurrentUser"
 
 type TeamUser = {
   id: string
@@ -38,6 +44,21 @@ type TeamUser = {
   last_seen_at?: string | null
   avatar_url?: string | null
   page_permissions?: Record<string, boolean>
+}
+
+type CreatedUserData = {
+  id: string
+  inviteLink: string
+  email: string
+  firstname: string
+  lastname: string
+}
+
+type ArchivedUserData = {
+  id: string
+  email: string
+  firstname: string | null
+  lastname: string | null
 }
 
 const ROLE_CONFIG = {
@@ -65,6 +86,10 @@ function getStatusConfig(status: string | null) {
 export function TeamSettings() {
   const { toast } = useToast()
   
+  // Current user (admin) data to check SMTP credentials
+  const { data: currentUser } = useCurrentUser()
+  const adminHasSmtp = !!(currentUser as any)?.email_smtp
+  
   // Team data
   const [team, setTeam] = useState<TeamUser[]>([])
   const [teamLoading, setTeamLoading] = useState(true)
@@ -80,6 +105,11 @@ export function TeamSettings() {
   const [newRole, setNewRole] = useState<'admin' | 'manager' | 'gestionnaire'>('gestionnaire')
   const [creating, setCreating] = useState(false)
   
+  // Created user success modal
+  const [createdUser, setCreatedUser] = useState<CreatedUserData | null>(null)
+  const [linkCopied, setLinkCopied] = useState(false)
+  const [sendingInvite, setSendingInvite] = useState(false)
+  
   // Edit user
   const [editUser, setEditUser] = useState<TeamUser | null>(null)
   
@@ -87,6 +117,10 @@ export function TeamSettings() {
   const [deletingUser, setDeletingUser] = useState<TeamUser | null>(null)
   const [deleteEmailConfirm, setDeleteEmailConfirm] = useState('')
   const [deleting, setDeleting] = useState(false)
+  
+  // Restore archived user
+  const [archivedUserToRestore, setArchivedUserToRestore] = useState<ArchivedUserData | null>(null)
+  const [restoring, setRestoring] = useState(false)
 
   // Load team data
   useEffect(() => {
@@ -107,8 +141,11 @@ export function TeamSettings() {
     }
   }
 
-  // Filtered team
+  // Filtered team (exclude archived users)
   const filteredTeam = team.filter(u => {
+    // Exclude archived users from the list
+    if (u.status === 'archived') return false
+    
     if (!searchQuery) return true
     const query = searchQuery.toLowerCase()
     const fullName = `${u.firstname || u.prenom || ''} ${u.lastname || u.name || ''}`.toLowerCase()
@@ -136,6 +173,11 @@ export function TeamSettings() {
       const j = await resp.json().catch(() => ({}))
       
       if (!resp.ok) {
+        if (j?.error === 'user_archived' && j?.archivedUser) {
+          // User exists but is archived - show restore prompt
+          setArchivedUserToRestore(j.archivedUser)
+          return
+        }
         if (j?.error === 'email_taken') {
           toast({ title: 'Utilisateur existant', description: 'Cette adresse email est déjà utilisée.', variant: 'destructive' as any })
         } else {
@@ -147,7 +189,23 @@ export function TeamSettings() {
       await loadTeam()
       setShowAddModal(false)
       resetNewUser()
-      toast({ title: 'Utilisateur créé avec succès' })
+      
+      // If inviteLink was returned, show success modal
+      // Otherwise just show a simple toast
+      if (j.inviteLink) {
+        setCreatedUser({
+          id: j.id,
+          inviteLink: j.inviteLink,
+          email: j.email,
+          firstname: j.firstname,
+          lastname: j.lastname,
+        })
+      } else {
+        toast({ 
+          title: 'Utilisateur créé', 
+          description: `${j.firstname} ${j.lastname} a été ajouté. Contactez l\'administrateur pour configurer l\'authentification.` 
+        })
+      }
     } finally {
       setCreating(false)
     }
@@ -159,6 +217,119 @@ export function TeamSettings() {
     setNewEmail('')
     setNewSurnom('')
     setNewRole('gestionnaire')
+  }
+
+  // Copy invite link to clipboard
+  async function handleCopyLink() {
+    if (!createdUser?.inviteLink) return
+    
+    try {
+      await navigator.clipboard.writeText(createdUser.inviteLink)
+      setLinkCopied(true)
+      toast({ title: 'Lien copié', description: 'Le lien d\'invitation a été copié dans le presse-papiers.' })
+      setTimeout(() => setLinkCopied(false), 2000)
+    } catch (e) {
+      toast({ title: 'Erreur', description: 'Impossible de copier le lien', variant: 'destructive' as any })
+    }
+  }
+
+  // Send invite by email
+  async function handleSendInviteEmail() {
+    if (!createdUser) return
+    
+    setSendingInvite(true)
+    try {
+      const resp = await fetch('/api/settings/team/user/send-invite', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          recipientEmail: createdUser.email,
+          recipientFirstname: createdUser.firstname,
+          recipientLastname: createdUser.lastname,
+          inviteLink: createdUser.inviteLink,
+        }),
+      })
+      
+      const j = await resp.json().catch(() => ({}))
+      
+      if (!resp.ok) {
+        toast({ 
+          title: 'Erreur d\'envoi', 
+          description: j?.error || 'Impossible d\'envoyer l\'email d\'invitation', 
+          variant: 'destructive' as any 
+        })
+        return
+      }
+      
+      toast({ 
+        title: 'Email envoyé', 
+        description: `L'invitation a été envoyée à ${createdUser.email}` 
+      })
+    } finally {
+      setSendingInvite(false)
+    }
+  }
+
+  // Close success modal
+  function handleCloseSuccessModal() {
+    setCreatedUser(null)
+    setLinkCopied(false)
+  }
+
+  // Restore archived user
+  async function handleRestoreUser() {
+    if (!archivedUserToRestore) return
+    
+    setRestoring(true)
+    try {
+      const resp = await fetch('/api/settings/team/user/restore', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: archivedUserToRestore.id }),
+      })
+      const j = await resp.json().catch(() => ({}))
+      
+      if (!resp.ok) {
+        toast({ 
+          title: 'Erreur de restauration', 
+          description: j?.error || 'Impossible de restaurer l\'utilisateur', 
+          variant: 'destructive' as any 
+        })
+        return
+      }
+      
+      await loadTeam()
+      setArchivedUserToRestore(null)
+      setShowAddModal(false)
+      resetNewUser()
+      
+      // Show success modal with invite link if available
+      if (j.inviteLink) {
+        setCreatedUser({
+          id: j.id,
+          inviteLink: j.inviteLink,
+          email: j.email,
+          firstname: j.firstname,
+          lastname: j.lastname,
+        })
+        toast({ 
+          title: 'Compte restauré', 
+          description: `Le compte de ${j.firstname} ${j.lastname} a été restauré avec succès.` 
+        })
+      } else {
+        toast({ 
+          title: 'Compte restauré', 
+          description: `Le compte a été restauré. Contactez l'administrateur pour configurer l'authentification.` 
+        })
+      }
+    } finally {
+      setRestoring(false)
+    }
+  }
+
+  // Cancel restore and close modal
+  function handleCancelRestore() {
+    setArchivedUserToRestore(null)
   }
 
   // Delete user
@@ -537,6 +708,153 @@ export function TeamSettings() {
         )}
       </AnimatePresence>
 
+      {/* User Created Success Modal */}
+      <AnimatePresence>
+        {createdUser && (
+          <>
+            <motion.div
+              className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={handleCloseSuccessModal}
+            />
+            <motion.div
+              className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+            >
+              <motion.div
+                className="pointer-events-auto relative w-full max-w-lg bg-background rounded-2xl shadow-2xl border overflow-hidden"
+                initial={{ scale: 0.95, y: 20 }}
+                animate={{ scale: 1, y: 0 }}
+                exit={{ scale: 0.95, y: 20 }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="px-6 py-5 border-b bg-gradient-to-br from-emerald-500/10 via-background to-background">
+                  <button
+                    onClick={handleCloseSuccessModal}
+                    className="absolute right-4 top-4 p-2 rounded-lg hover:bg-muted transition-colors"
+                  >
+                    <X className="h-5 w-5 text-muted-foreground" />
+                  </button>
+                  <div className="flex items-center gap-3">
+                    <div className="h-10 w-10 rounded-xl bg-emerald-500/20 flex items-center justify-center">
+                      <CheckCircle2 className="h-5 w-5 text-emerald-500" />
+                    </div>
+                    <div>
+                      <h3 className="font-semibold">Utilisateur créé avec succès</h3>
+                      <p className="text-sm text-muted-foreground">
+                        {createdUser.firstname} {createdUser.lastname}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="p-6 space-y-5">
+                  <div className="p-4 rounded-xl bg-muted/30 border">
+                    <p className="text-sm text-muted-foreground mb-2">
+                      Un lien d&apos;invitation a été généré pour permettre à l&apos;utilisateur de définir son mot de passe.
+                    </p>
+                    <p className="text-xs text-amber-600 dark:text-amber-400 font-medium">
+                      Ce lien expire dans 24 heures.
+                    </p>
+                  </div>
+                  
+                  {/* Invite link */}
+                  <div className="space-y-2">
+                    <label className="text-xs text-muted-foreground font-medium flex items-center gap-1">
+                      <Link2 className="h-3.5 w-3.5" />
+                      Lien d&apos;invitation
+                    </label>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={createdUser.inviteLink}
+                        readOnly
+                        className="flex-1 px-4 py-2.5 rounded-xl border bg-muted/50 text-sm text-muted-foreground truncate"
+                      />
+                      <motion.button
+                        onClick={handleCopyLink}
+                        className={cn(
+                          "px-4 py-2.5 rounded-xl font-medium transition-colors flex items-center gap-2",
+                          linkCopied 
+                            ? "bg-emerald-500 text-white"
+                            : "bg-muted hover:bg-muted/80"
+                        )}
+                        whileHover={{ scale: 1.02 }}
+                        whileTap={{ scale: 0.98 }}
+                      >
+                        {linkCopied ? (
+                          <>
+                            <Check className="h-4 w-4" />
+                            Copié
+                          </>
+                        ) : (
+                          <>
+                            <Copy className="h-4 w-4" />
+                            Copier
+                          </>
+                        )}
+                      </motion.button>
+                    </div>
+                  </div>
+                  
+                  {/* Send by email section */}
+                  <div className="pt-4 border-t">
+                    <p className="text-sm text-muted-foreground mb-3">
+                      Vous pouvez également envoyer ce lien par email directement à l&apos;utilisateur.
+                    </p>
+                    
+                    {adminHasSmtp ? (
+                      <motion.button
+                        onClick={handleSendInviteEmail}
+                        disabled={sendingInvite}
+                        className="w-full px-4 py-3 rounded-xl font-medium bg-blue-500 text-white hover:bg-blue-600 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                        whileHover={{ scale: 1.01 }}
+                        whileTap={{ scale: 0.99 }}
+                      >
+                        {sendingInvite ? (
+                          <>
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                            Envoi en cours...
+                          </>
+                        ) : (
+                          <>
+                            <Send className="h-4 w-4" />
+                            Envoyer par email à {createdUser.email}
+                          </>
+                        )}
+                      </motion.button>
+                    ) : (
+                      <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20">
+                        <p className="text-sm text-amber-700 dark:text-amber-400">
+                          <Mail className="h-4 w-4 inline mr-2" />
+                          Pour envoyer des emails, configurez vos identifiants SMTP Gmail dans{' '}
+                          <span className="font-medium">Paramètres &gt; Profil</span>.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+                
+                <div className="px-6 py-4 border-t bg-muted/20 flex items-center justify-end">
+                  <motion.button
+                    onClick={handleCloseSuccessModal}
+                    className="px-6 py-2.5 rounded-xl font-semibold bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                  >
+                    Fermer
+                  </motion.button>
+                </div>
+              </motion.div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
       {/* Delete Confirmation Modal */}
       <AnimatePresence>
         {deletingUser && (
@@ -567,8 +885,8 @@ export function TeamSettings() {
                       <AlertTriangle className="h-5 w-5 text-red-500" />
                     </div>
                     <div>
-                      <h3 className="font-semibold">Supprimer l&apos;utilisateur</h3>
-                      <p className="text-sm text-muted-foreground">Cette action est irréversible</p>
+                      <h3 className="font-semibold">Archiver l&apos;utilisateur</h3>
+                      <p className="text-sm text-muted-foreground">L&apos;utilisateur perdra son accès au CRM</p>
                     </div>
                   </div>
                 </div>
@@ -579,6 +897,13 @@ export function TeamSettings() {
                       {deletingUser.firstname || deletingUser.prenom} {deletingUser.lastname || deletingUser.name}
                     </p>
                     <p className="text-sm text-muted-foreground">{deletingUser.email}</p>
+                  </div>
+                  
+                  <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20">
+                    <p className="text-sm text-amber-700 dark:text-amber-400">
+                      <strong>Note :</strong> L&apos;historique de l&apos;utilisateur (interventions, etc.) sera conservé. 
+                      Le compte pourra être restauré ultérieurement si nécessaire.
+                    </p>
                   </div>
                   
                   <div className="space-y-2">
@@ -613,12 +938,112 @@ export function TeamSettings() {
                     {deleting ? (
                       <>
                         <div className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                        Suppression...
+                        Archivage...
                       </>
                     ) : (
                       <>
                         <Trash2 className="h-4 w-4" />
-                        Supprimer
+                        Archiver
+                      </>
+                    )}
+                  </motion.button>
+                </div>
+              </motion.div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* Restore Archived User Modal */}
+      <AnimatePresence>
+        {archivedUserToRestore && (
+          <>
+            <motion.div
+              className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={handleCancelRestore}
+            />
+            <motion.div
+              className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+            >
+              <motion.div
+                className="pointer-events-auto relative w-full max-w-md bg-background rounded-2xl shadow-2xl border overflow-hidden"
+                initial={{ scale: 0.95, y: 20 }}
+                animate={{ scale: 1, y: 0 }}
+                exit={{ scale: 0.95, y: 20 }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="px-6 py-5 border-b bg-gradient-to-br from-amber-500/10 via-background to-background">
+                  <button
+                    onClick={handleCancelRestore}
+                    className="absolute right-4 top-4 p-2 rounded-lg hover:bg-muted transition-colors"
+                  >
+                    <X className="h-5 w-5 text-muted-foreground" />
+                  </button>
+                  <div className="flex items-center gap-3">
+                    <div className="h-10 w-10 rounded-xl bg-amber-500/20 flex items-center justify-center">
+                      <AlertTriangle className="h-5 w-5 text-amber-500" />
+                    </div>
+                    <div>
+                      <h3 className="font-semibold">Compte archivé détecté</h3>
+                      <p className="text-sm text-muted-foreground">Restaurer ce compte ?</p>
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="p-6 space-y-4">
+                  <div className="p-4 rounded-xl bg-muted/30 border">
+                    <p className="font-medium">
+                      {archivedUserToRestore.firstname} {archivedUserToRestore.lastname}
+                    </p>
+                    <p className="text-sm text-muted-foreground">{archivedUserToRestore.email}</p>
+                  </div>
+                  
+                  <p className="text-sm text-muted-foreground">
+                    Un gestionnaire avec l&apos;email <strong>{archivedUserToRestore.email}</strong> existe déjà mais a été archivé. 
+                    Son historique (interventions, etc.) a été conservé.
+                  </p>
+                  
+                  <div className="p-3 rounded-xl bg-blue-500/10 border border-blue-500/20">
+                    <p className="text-sm text-blue-700 dark:text-blue-400">
+                      <strong>Si vous restaurez ce compte :</strong>
+                      <br />
+                      • Un nouveau lien de création de mot de passe sera généré
+                      <br />
+                      • L&apos;utilisateur retrouvera son historique
+                    </p>
+                  </div>
+                </div>
+                
+                <div className="px-6 py-4 border-t bg-muted/20 flex items-center justify-end gap-3">
+                  <button
+                    onClick={handleCancelRestore}
+                    disabled={restoring}
+                    className="px-5 py-2.5 rounded-xl font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors disabled:opacity-50"
+                  >
+                    Abandonner
+                  </button>
+                  <motion.button
+                    onClick={handleRestoreUser}
+                    disabled={restoring}
+                    className="px-6 py-2.5 rounded-xl font-semibold bg-emerald-500 text-white hover:bg-emerald-600 transition-colors disabled:opacity-50 flex items-center gap-2"
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                  >
+                    {restoring ? (
+                      <>
+                        <div className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        Restauration...
+                      </>
+                    ) : (
+                      <>
+                        <Check className="h-4 w-4" />
+                        Oui, restaurer le compte
                       </>
                     )}
                   </motion.button>
@@ -639,4 +1064,3 @@ export function TeamSettings() {
     </div>
   )
 }
-

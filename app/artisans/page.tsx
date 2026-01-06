@@ -15,7 +15,7 @@ import { useArtisanViews } from "@/hooks/useArtisanViews"
 import { ArtisanViewTabs } from "@/components/artisans/ArtisanViewTabs"
 import { artisansApi, type Artisan as ApiArtisan } from "@/lib/api/v2"
 import { convertArtisanFiltersToServerFilters } from "@/lib/filter-converter"
-import { Search, Eye, Edit, Trash2, Mail, Phone, X, Filter, ChevronDown, FileText } from "lucide-react"
+import { Search, Eye, Trash2, Mail, Phone, X, Filter, ChevronDown, FileText } from "lucide-react"
 import { PageSearchBar } from "@/components/ui/page-search-bar"
 import { Checkbox } from "@/components/ui/checkbox"
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
@@ -625,10 +625,6 @@ export default function ArtisansPage(): ReactElement {
   }, [contacts, activeView, isReady, clientFilters])
 
   // Utiliser viewCounts (counts réels depuis BDD) au lieu de calculer localement
-
-  const handleEditContact = useCallback((contact: Contact) => {
-    artisanModal.openEdit(contact.id)
-  }, [artisanModal])
 
   const handleViewDetails = useCallback((contact: Contact) => {
     artisanModal.open(contact.id)
@@ -1350,11 +1346,6 @@ export default function ArtisansPage(): ReactElement {
                                 <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleViewDetails(contact)}>
                                   <Eye className="h-3.5 w-3.5" />
                                 </Button>
-                                {canWriteArtisans && (
-                                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleEditContact(contact)}>
-                                    <Edit className="h-3.5 w-3.5" />
-                                  </Button>
-                                )}
                                 {canDeleteArtisans && (
                                   <Button variant="ghost" size="icon" className="h-7 w-7 text-red-600" onClick={() => handleDeleteContact(contact)}>
                                     <Trash2 className="h-3.5 w-3.5" />

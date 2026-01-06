@@ -20,6 +20,8 @@ import {
   AlertCircle,
   BarChart3,
   Info,
+  MapPin,
+  Loader2,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -45,6 +47,7 @@ import { GestionnaireBadge } from "@/components/ui/gestionnaire-badge"
 import { ArtisanFinancesSection } from "./ArtisanFinancesSection"
 import { ArtisanInterventionsTable } from "./ArtisanInterventionsTable"
 import { useReferenceData } from "@/hooks/useReferenceData"
+import { useGeocodeSearch, type GeocodeSuggestion } from "@/hooks/useGeocodeSearch"
 import { interventionsApi } from "@/lib/api/v2"
 import { toast } from "sonner"
 import { artisansApi } from "@/lib/api/v2"
@@ -170,6 +173,8 @@ type ArtisanFormValues = {
   gestionnaire_id: string
   statut_id: string
   numero_associe: string
+  intervention_latitude: number | null
+  intervention_longitude: number | null
 }
 
 type Props = {
@@ -307,6 +312,8 @@ const mapArtisanToForm = (artisan: ArtisanWithRelations | any): ArtisanFormValue
     gestionnaire_id: artisanAny.gestionnaire_id ?? "",
     statut_id: artisanAny.statut_id ?? "",
     numero_associe: artisanAny.numero_associe ?? "",
+    intervention_latitude: artisanAny.intervention_latitude ?? null,
+    intervention_longitude: artisanAny.intervention_longitude ?? null,
   }
 }
 
@@ -349,6 +356,8 @@ const buildUpdatePayload = (values: ArtisanFormValues) => {
     gestionnaire_id: values.gestionnaire_id || undefined,
     statut_id: values.statut_id || undefined,
     numero_associe: values.numero_associe || undefined,
+    intervention_latitude: values.intervention_latitude ?? undefined,
+    intervention_longitude: values.intervention_longitude ?? undefined,
   }
 }
 
@@ -399,6 +408,7 @@ export function ArtisanModalContent({
     reset,
     getValues,
     watch,
+    setValue,
     formState: { isDirty, dirtyFields, errors },
   } = useForm<ArtisanFormValues>({
     defaultValues: {
@@ -422,8 +432,67 @@ export function ArtisanModalContent({
       gestionnaire_id: "",
       statut_id: "",
       numero_associe: "",
+      intervention_latitude: null,
+      intervention_longitude: null,
     },
   })
+
+  // Hook géocodage pour l'adresse du siège social
+  const {
+    query: addressQuery,
+    setQuery: setAddressQuery,
+    suggestions: addressSuggestions,
+    isSuggesting,
+    clearSuggestions,
+  } = useGeocodeSearch({ minQueryLength: 3, debounceMs: 300 })
+  const [showSuggestions, setShowSuggestions] = useState(false)
+  const suggestionBlurTimeoutRef = useRef<number | null>(null)
+
+  // Cleanup du timeout
+  useEffect(() => {
+    return () => {
+      if (suggestionBlurTimeoutRef.current) {
+        window.clearTimeout(suggestionBlurTimeoutRef.current)
+      }
+    }
+  }, [])
+
+  // Gestionnaire de sélection d'une suggestion d'adresse (siège social)
+  const handleSuggestionSelect = useCallback((suggestion: GeocodeSuggestion) => {
+    if (suggestionBlurTimeoutRef.current) {
+      window.clearTimeout(suggestionBlurTimeoutRef.current)
+    }
+    
+    const parts = suggestion.label.split(',').map(p => p.trim())
+    const postalMatch = suggestion.label.match(/\b(\d{5})\b/)
+    
+    let street = parts[0] || suggestion.label
+    let postalCode = postalMatch?.[1] || ""
+    let city = ""
+    
+    for (const part of parts) {
+      if (postalMatch && part.includes(postalMatch[1])) {
+        const cityMatch = part.replace(postalMatch[1], '').trim()
+        if (cityMatch) city = cityMatch
+      } else if (!part.toLowerCase().includes("france") && !postalMatch?.[1]?.includes(part) && part !== street && part.length > 1) {
+        if (!city) city = part
+      }
+    }
+
+    setValue("adresse_siege_social", street)
+    setValue("code_postal_siege_social", postalCode)
+    setValue("ville_siege_social", city)
+    setValue("intervention_latitude", suggestion.lat)
+    setValue("intervention_longitude", suggestion.lng)
+    
+    setAddressQuery(suggestion.label)
+    clearSuggestions()
+    setShowSuggestions(false)
+  }, [setValue, clearSuggestions, setAddressQuery])
+
+  // Watch les coordonnées GPS
+  const watchedLat = watch("intervention_latitude")
+  const watchedLng = watch("intervention_longitude")
 
   const {
     data: artisan,
@@ -506,6 +575,17 @@ export function ArtisanModalContent({
       
       // Réinitialiser le formulaire avec les nouvelles valeurs et réinitialiser isDirty
       reset(formValues, { keepDefaultValues: false, keepDirtyValues: false })
+      
+      // Mettre à jour l'adresse query pour le géocodage
+      const artisanAny = artisan as any
+      const fullAddress = [
+        artisanAny.adresse_siege_social,
+        artisanAny.code_postal_siege_social,
+        artisanAny.ville_siege_social
+      ].filter(Boolean).join(", ")
+      if (fullAddress) {
+        setAddressQuery(fullAddress)
+      }
       
       // Marquer le formulaire comme initialisé après un court délai pour laisser reset() se terminer
       setTimeout(() => {
@@ -1149,19 +1229,18 @@ export function ArtisanModalContent({
         </header>
 
         <form ref={formRef} onSubmit={handleSubmit(onSubmit)} className="flex flex-1 min-h-0 flex-col">
-          {!canWriteArtisans && (
-            <div className="px-4 py-3 md:px-6">
-              <div className="rounded border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
-                Cet artisan est en lecture seule. Permission requise : write_artisans.
-              </div>
-            </div>
-          )}
           <fieldset
             disabled={!canWriteArtisans}
-            className={cn("flex-1 min-h-0", !canWriteArtisans && "opacity-70")}
+            className={cn("flex flex-col flex-1 min-h-0", !canWriteArtisans && "opacity-70")}
           >
-            <div className="modal-config-columns-body flex-1 min-h-0 bg-[#C6CEDC] dark:bg-transparent">
-              {(isLoading || !isFormInitialized) ? (
+            <div className="modal-config-columns-body flex-1 min-h-0 h-full overflow-hidden bg-[#C6CEDC] dark:bg-transparent">
+              {!canWriteArtisans ? (
+                <div className="px-4 py-3 md:px-6">
+                  <div className="rounded border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+                    Cet artisan est en lecture seule. Permission requise : write_artisans.
+                  </div>
+                </div>
+              ) : (isLoading || !isFormInitialized) ? (
                 <div className="grid gap-4 md:grid-cols-2 px-4 py-3 md:px-6">
                   <div className="h-64 rounded-lg bg-muted animate-pulse" />
                   <div className="h-64 rounded-lg bg-muted animate-pulse" />
@@ -1270,15 +1349,53 @@ export function ArtisanModalContent({
                           <Input id="email" type="email" placeholder="contact@email.com" className={inputClass} {...register("email")} />
                         </div>
 
-                        {/* Adresse du siège social */}
+                        {/* Adresse du siège social avec géocodage */}
                         <div className="space-y-1">
                           <Label className={labelClass}>Adresse du siège social</Label>
-                          <Input
-                            id="adresse_siege_social"
-                            placeholder="Adresse"
-                            className={inputClass}
-                            {...register("adresse_siege_social")}
-                          />
+                          <div className="relative">
+                            <Input
+                              placeholder="Rechercher une adresse..."
+                              value={addressQuery}
+                              className={inputClass}
+                              onChange={(e) => {
+                                setAddressQuery(e.target.value)
+                                setValue("adresse_siege_social", e.target.value)
+                                setValue("intervention_latitude", null)
+                                setValue("intervention_longitude", null)
+                                setShowSuggestions(true)
+                              }}
+                              onFocus={() => setShowSuggestions(true)}
+                              onBlur={() => {
+                                suggestionBlurTimeoutRef.current = window.setTimeout(() => {
+                                  setShowSuggestions(false)
+                                }, 150)
+                              }}
+                            />
+                            {isSuggesting && (
+                              <Loader2 className="absolute right-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 animate-spin text-muted-foreground" />
+                            )}
+                            {showSuggestions && addressSuggestions.length > 0 && (
+                              <div className="absolute z-20 mt-1 max-h-40 w-full overflow-auto rounded-lg border border-border bg-popover shadow-xl">
+                                <ul className="divide-y divide-border/50 text-xs">
+                                  {addressSuggestions.map((suggestion) => (
+                                    <li key={`${suggestion.label}-${suggestion.lat}-${suggestion.lng}`}>
+                                      <button
+                                        type="button"
+                                        className="w-full px-3 py-2 text-left hover:bg-accent/50 transition-colors text-foreground"
+                                        onMouseDown={(e) => e.preventDefault()}
+                                        onClick={() => handleSuggestionSelect(suggestion)}
+                                      >
+                                        <span className="flex items-center gap-2">
+                                          <MapPin className="h-3.5 w-3.5 text-primary shrink-0" />
+                                          <span className="truncate">{suggestion.label}</span>
+                                        </span>
+                                      </button>
+                                    </li>
+                                  ))}
+                                </ul>
+                              </div>
+                            )}
+                          </div>
                           <div className="grid grid-cols-2 gap-1.5 mt-1.5">
                             <Input
                               id="code_postal_siege_social"
@@ -1293,6 +1410,15 @@ export function ArtisanModalContent({
                               {...register("ville_siege_social")}
                             />
                           </div>
+                          {watchedLat && watchedLng && (
+                            <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 mt-1.5">
+                              <CheckCircle2 className="h-3 w-3 text-green-600 dark:text-green-400 shrink-0" />
+                              <span className="text-xs text-green-700 dark:text-green-300 font-medium">GPS:</span>
+                              <span className="text-xs text-green-600 dark:text-green-400 font-mono">
+                                {watchedLat.toFixed(5)}, {watchedLng.toFixed(5)}
+                              </span>
+                            </div>
+                          )}
                         </div>
                       </CardContent>
                     </Card>

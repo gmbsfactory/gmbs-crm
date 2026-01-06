@@ -13,7 +13,12 @@ import {
   Save,
   KeyRound,
   Camera,
-  X
+  X,
+  Lock,
+  Eye,
+  EyeOff,
+  CheckCircle2,
+  Loader2
 } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { useCurrentUser } from "@/hooks/useCurrentUser"
@@ -101,6 +106,17 @@ export function ProfileSettings() {
   const [preferencesLoading, setPreferencesLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [showEmailConfig, setShowEmailConfig] = useState(false)
+  
+  // États pour le changement de mot de passe
+  const [showPasswordSection, setShowPasswordSection] = useState(false)
+  const [currentPassword, setCurrentPassword] = useState('')
+  const [newPassword, setNewPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false)
+  const [showNewPassword, setShowNewPassword] = useState(false)
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
+  const [passwordChanging, setPasswordChanging] = useState(false)
+  const [passwordError, setPasswordError] = useState<string | null>(null)
   
   const loading = userLoading
 
@@ -295,6 +311,67 @@ export function ProfileSettings() {
         description: e?.message || 'Impossible de supprimer la photo', 
         variant: 'destructive' as any 
       })
+    }
+  }
+
+  // Fonction pour changer le mot de passe
+  async function handleChangePassword() {
+    // Validation
+    if (!currentPassword) {
+      setPasswordError('Le mot de passe actuel est requis')
+      return
+    }
+    if (newPassword.length < 8) {
+      setPasswordError('Le nouveau mot de passe doit faire au moins 8 caractères')
+      return
+    }
+    if (newPassword !== confirmPassword) {
+      setPasswordError('Les mots de passe ne correspondent pas')
+      return
+    }
+    
+    setPasswordError(null)
+    setPasswordChanging(true)
+    
+    try {
+      // Vérifier le mot de passe actuel en tentant de se réauthentifier
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: me?.email || '',
+        password: currentPassword,
+      })
+      
+      if (signInError) {
+        setPasswordError('Mot de passe actuel incorrect')
+        setPasswordChanging(false)
+        return
+      }
+      
+      // Mettre à jour le mot de passe
+      const { error: updateError } = await supabase.auth.updateUser({
+        password: newPassword,
+      })
+      
+      if (updateError) {
+        throw updateError
+      }
+      
+      // Déconnecter l'utilisateur pour qu'il se reconnecte avec le nouveau mot de passe
+      await supabase.auth.signOut()
+      
+      toast({ 
+        title: 'Mot de passe modifié', 
+        description: 'Vous allez être redirigé vers la page de connexion...' 
+      })
+      
+      // Rediriger vers login après 2 secondes
+      setTimeout(() => {
+        window.location.href = '/login'
+      }, 2000)
+    } catch (e: any) {
+      console.error('Erreur lors du changement de mot de passe:', e)
+      setPasswordError(e?.message || 'Erreur lors du changement de mot de passe')
+    } finally {
+      setPasswordChanging(false)
     }
   }
 
@@ -620,6 +697,186 @@ export function ProfileSettings() {
                     </p>
                   </div>
                 </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+      
+      {/* Section Modification Mot de Passe */}
+      <div className="rounded-2xl border bg-card/50 overflow-hidden">
+        <button
+          type="button"
+          onClick={() => setShowPasswordSection(!showPasswordSection)}
+          className="w-full px-8 py-5 flex items-center justify-between hover:bg-muted/30 transition-colors"
+        >
+          <div className="flex items-center gap-4">
+            <div className="h-12 w-12 rounded-xl bg-violet-500/10 flex items-center justify-center">
+              <Lock className="h-6 w-6 text-violet-600 dark:text-violet-400" />
+            </div>
+            <div className="text-left">
+              <h3 className="font-semibold">Modifier le mot de passe</h3>
+              <p className="text-sm text-muted-foreground">
+                Changez votre mot de passe de connexion
+              </p>
+            </div>
+          </div>
+          <motion.div
+            animate={{ rotate: showPasswordSection ? 180 : 0 }}
+            transition={{ duration: 0.2 }}
+          >
+            <svg className="h-5 w-5 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
+          </motion.div>
+        </button>
+        
+        <AnimatePresence>
+          {showPasswordSection && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: "auto", opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className="overflow-hidden"
+            >
+              <div className="px-8 pb-8 pt-2 space-y-6 border-t">
+                {/* Mot de passe actuel */}
+                <div className="space-y-2">
+                  <label className="text-xs text-muted-foreground font-medium flex items-center gap-2">
+                    <KeyRound className="h-3.5 w-3.5" />
+                    Mot de passe actuel
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showCurrentPassword ? "text" : "password"}
+                      value={currentPassword}
+                      onChange={(e) => setCurrentPassword(e.target.value)}
+                      placeholder="••••••••"
+                      disabled={passwordChanging}
+                      className="w-full px-4 py-3 pr-10 rounded-xl border bg-muted/30 focus:bg-background focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all outline-none disabled:opacity-50"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowCurrentPassword(!showCurrentPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 p-1 rounded hover:bg-muted transition-colors"
+                    >
+                      {showCurrentPassword ? (
+                        <EyeOff className="h-4 w-4 text-muted-foreground" />
+                      ) : (
+                        <Eye className="h-4 w-4 text-muted-foreground" />
+                      )}
+                    </button>
+                  </div>
+                </div>
+                
+                {/* Nouveau mot de passe */}
+                <div className="space-y-2">
+                  <label className="text-xs text-muted-foreground font-medium flex items-center gap-2">
+                    <Lock className="h-3.5 w-3.5" />
+                    Nouveau mot de passe
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showNewPassword ? "text" : "password"}
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      placeholder="••••••••"
+                      disabled={passwordChanging}
+                      className="w-full px-4 py-3 pr-10 rounded-xl border bg-muted/30 focus:bg-background focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all outline-none disabled:opacity-50"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowNewPassword(!showNewPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 p-1 rounded hover:bg-muted transition-colors"
+                    >
+                      {showNewPassword ? (
+                        <EyeOff className="h-4 w-4 text-muted-foreground" />
+                      ) : (
+                        <Eye className="h-4 w-4 text-muted-foreground" />
+                      )}
+                    </button>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Minimum 8 caractères
+                  </p>
+                </div>
+                
+                {/* Confirmation mot de passe */}
+                <div className="space-y-2">
+                  <label className="text-xs text-muted-foreground font-medium flex items-center gap-2">
+                    <CheckCircle2 className="h-3.5 w-3.5" />
+                    Confirmer le nouveau mot de passe
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showConfirmPassword ? "text" : "password"}
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      placeholder="••••••••"
+                      disabled={passwordChanging}
+                      className={cn(
+                        "w-full px-4 py-3 pr-10 rounded-xl border bg-muted/30 focus:bg-background focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all outline-none disabled:opacity-50",
+                        confirmPassword && newPassword !== confirmPassword && "border-red-500 focus:border-red-500"
+                      )}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 p-1 rounded hover:bg-muted transition-colors"
+                    >
+                      {showConfirmPassword ? (
+                        <EyeOff className="h-4 w-4 text-muted-foreground" />
+                      ) : (
+                        <Eye className="h-4 w-4 text-muted-foreground" />
+                      )}
+                    </button>
+                  </div>
+                  {confirmPassword && newPassword === confirmPassword && (
+                    <p className="text-xs text-emerald-500 flex items-center gap-1">
+                      <CheckCircle2 className="h-3 w-3" />
+                      Les mots de passe correspondent
+                    </p>
+                  )}
+                  {confirmPassword && newPassword !== confirmPassword && (
+                    <p className="text-xs text-red-500">
+                      Les mots de passe ne correspondent pas
+                    </p>
+                  )}
+                </div>
+                
+                {/* Message d'erreur */}
+                {passwordError && (
+                  <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/20">
+                    <p className="text-sm text-red-600">{passwordError}</p>
+                  </div>
+                )}
+                
+                {/* Bouton de validation */}
+                <motion.button
+                  type="button"
+                  onClick={handleChangePassword}
+                  disabled={passwordChanging || !currentPassword || !newPassword || !confirmPassword || newPassword !== confirmPassword}
+                  className="px-5 py-2.5 rounded-xl font-medium bg-violet-600 text-white hover:bg-violet-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                >
+                  {passwordChanging ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Modification en cours...
+                    </>
+                  ) : (
+                    <>
+                      <Lock className="h-4 w-4" />
+                      Modifier le mot de passe
+                    </>
+                  )}
+                </motion.button>
+                
+                <p className="text-xs text-muted-foreground">
+                  Après modification, vous serez automatiquement déconnecté et devrez vous reconnecter avec votre nouveau mot de passe.
+                </p>
               </div>
             </motion.div>
           )}

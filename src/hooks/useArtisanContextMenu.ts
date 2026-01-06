@@ -73,10 +73,6 @@ export function useArtisanContextMenu(artisanId: string) {
     openArtisanModal(artisanId)
   }
 
-  const handleEdit = () => {
-    openArtisanModal(artisanId)
-  }
-
   const handleArchive = () => {
     setIsArchiveModalOpen(true)
   }
@@ -91,7 +87,6 @@ export function useArtisanContextMenu(artisanId: string) {
 
   return {
     onOpen: handleOpen,
-    onEdit: handleEdit,
     onArchive: handleArchive,
     isArchived,
     archiveModal: {

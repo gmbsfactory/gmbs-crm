@@ -27,7 +27,7 @@ export const referenceApi = {
       supabase.from('artisan_statuses').select('id, code, label, color').eq('is_active', true).order('sort_order'),
       supabase.from('agencies').select('id, code, label, color, agency_config!left(requires_reference)').eq('is_active', true).order('label'),
       supabase.from('metiers').select('id, code, label, color').eq('is_active', true).order('label'),
-      supabase.from('users').select('id, username, firstname, lastname, code_gestionnaire, color, avatar_url').order('username', { ascending: true })
+      supabase.from('users').select('id, username, firstname, lastname, code_gestionnaire, color, avatar_url').neq('status', 'archived').order('username', { ascending: true })
     ]);
 
     // Mapper les agences pour extraire requires_reference depuis agency_config
@@ -89,11 +89,12 @@ export const referenceApi = {
     return data || [];
   },
 
-  // Récupérer les utilisateurs
+  // Récupérer les utilisateurs (exclut les archivés)
   async getUsers() {
     const { data, error } = await supabase
       .from('users')
       .select('id, username, firstname, lastname, code_gestionnaire, color, avatar_url')
+      .neq('status', 'archived')
       .order('username', { ascending: true });
 
     if (error) throw error;

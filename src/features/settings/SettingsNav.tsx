@@ -11,7 +11,6 @@ import {
   Palette,
   Users,
   Target,
-  Shield,
   Cog,
 } from "lucide-react"
 
@@ -27,7 +26,6 @@ const ALL_TABS = [
   { key: "team", label: "Team", icon: Users, requiresPermission: "write_users" as PermissionKey },
   { key: "enums", label: "Référentiels", icon: Cog, requiresPermission: "manage_settings" as PermissionKey },
   { key: "targets", label: "Perf", icon: Target, requiresPermission: "view_comptabilite" as PermissionKey },
-  { key: "security", label: "Security", icon: Shield, requiresPermission: null },
 ]
 
 export default function SettingsNav() {
