@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo } from "react"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
-import { interventionsApiV2, type InterventionQueryParams } from "@/lib/api/v2"
+import { interventionsApi, type InterventionQueryParams } from "@/lib/api/v2"
 import type { InterventionView } from "@/types/intervention-view"
 import { interventionKeys } from "@/lib/react-query/queryKeys"
 import { getPreloadConfig } from "@/lib/device-capabilities"
@@ -128,9 +128,9 @@ export function useInterventionsQuery(
   // Utiliser l'endpoint approprié (light ou complet)
   const queryFn = useCallback(async () => {
     if (useLight) {
-      return await interventionsApiV2.getAllLight(requestParams)
+      return await interventionsApi.getAllLight(requestParams)
     }
-    return await interventionsApiV2.getAll(requestParams)
+    return await interventionsApi.getAll(requestParams)
   }, [requestParams, useLight])
 
   // Clé de requête avec viewId pour permettre l'invalidation par vue
@@ -266,9 +266,9 @@ export function useInterventionsQuery(
           queryKey: fullNextPageQueryKey,
           queryFn: async () => {
             if (useLight) {
-              return await interventionsApiV2.getAllLight(nextPageParams)
+              return await interventionsApi.getAllLight(nextPageParams)
             }
-            return await interventionsApiV2.getAll(nextPageParams)
+            return await interventionsApi.getAll(nextPageParams)
           },
           staleTime: prefetchStaleTime,
         }).catch(() => {

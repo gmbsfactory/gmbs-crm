@@ -94,8 +94,8 @@ export function useSimpleInterventions() {
       }
 
       // Import dynamique
-      const { interventionsApiV2 } = await import('@/lib/supabase-api-v2');
-      const result = await interventionsApiV2.getAll({ limit: 100 });
+      const { interventionsApi } = await import('@/lib/api/v2');
+      const result = await interventionsApi.getAll({ limit: 100 });
 
       const newData = result.data;
       const newTotal = result.pagination.total;
@@ -161,8 +161,8 @@ export function useSimpleArtisans() {
       }
 
       // Import dynamique
-      const { artisansApiV2 } = await import('@/lib/supabase-api-v2');
-      const result = await artisansApiV2.getAll({ 
+      const { artisansApi } = await import('@/lib/api/v2');
+      const result = await artisansApi.getAll({ 
         limit: 30, // Limité pour PC faibles
         offset: reset ? 0 : artisans.length 
       });

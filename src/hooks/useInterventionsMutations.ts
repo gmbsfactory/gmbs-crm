@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
-import { interventionsApiV2, type Intervention, type InterventionCost, type InterventionPayment } from "@/lib/api/v2"
+import { interventionsApi, type Intervention, type InterventionCost, type InterventionPayment } from "@/lib/api/v2"
 import { useInterventionModal } from "@/hooks/useInterventionModal"
 import { interventionKeys } from "@/lib/react-query/queryKeys"
 import { getRemoteEditIndicatorManager } from "@/lib/realtime/remote-edit-indicator"
@@ -59,7 +59,7 @@ export function useInterventionsMutations() {
       numero_sst?: string
       pourcentage_sst?: number
     }) => {
-      return await interventionsApiV2.create(data)
+      return await interventionsApi.create(data)
     },
     onSuccess: (data) => {
       toast.success(`Intervention (${data.id_inter || data.id}) créée avec succès`, {
@@ -138,7 +138,7 @@ export function useInterventionsMutations() {
         // Note: Les coûts du 2ème artisan sont gérés via intervention_costs avec artisan_order = 2
       }
     }) => {
-      return await interventionsApiV2.update(id, data)
+      return await interventionsApi.update(id, data)
     },
     // Mise à jour optimiste du cache pour un affichage instantané
     onMutate: async (variables) => {
@@ -240,7 +240,7 @@ export function useInterventionsMutations() {
   // Mutation pour supprimer une intervention (soft delete)
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      return await interventionsApiV2.delete(id)
+      return await interventionsApi.delete(id)
     },
     onSuccess: (data, id) => {
       // Enregistrer la modification locale pour éviter d'afficher un badge
@@ -276,7 +276,7 @@ export function useInterventionsMutations() {
       artisanId: string
       role?: "primary" | "secondary"
     }) => {
-      return await interventionsApiV2.assignArtisan(interventionId, artisanId, role)
+      return await interventionsApi.assignArtisan(interventionId, artisanId, role)
     },
     onSuccess: (data, variables) => {
       // Invalider les listes et le détail de l'intervention
@@ -300,7 +300,7 @@ export function useInterventionsMutations() {
         metadata?: any
       }
     }) => {
-      return await interventionsApiV2.addCost(interventionId, data)
+      return await interventionsApi.addCost(interventionId, data)
     },
     onSuccess: (data, variables) => {
       // Invalider le détail de l'intervention (les coûts sont dans le détail)
@@ -324,7 +324,7 @@ export function useInterventionsMutations() {
         reference?: string
       }
     }) => {
-      return await interventionsApiV2.addPayment(interventionId, data)
+      return await interventionsApi.addPayment(interventionId, data)
     },
     onSuccess: (data, variables) => {
       // Invalider le détail de l'intervention (les paiements sont dans le détail)

@@ -2,7 +2,7 @@
 
 import { QueryClient } from "@tanstack/react-query"
 import { interventionKeys, artisanKeys, dashboardKeys, type ArtisanGetAllParams } from "@/lib/react-query/queryKeys"
-import { interventionsApiV2, artisansApiV2, interventionsApi, type InterventionQueryParams } from "@/lib/api/v2"
+import { interventionsApi, artisansApi, type InterventionQueryParams } from "@/lib/api/v2"
 
 // Alias pour compatibilité
 type GetAllParams = InterventionQueryParams
@@ -280,7 +280,7 @@ export async function preloadCriticalData(queryClient: QueryClient) {
     queryClient.prefetchQuery({
       queryKey: interventionKeys.lightList(generalListParams),
       queryFn: async () => {
-        return await interventionsApiV2.getAllLight(generalListParams)
+        return await interventionsApi.getAllLight(generalListParams)
       },
       staleTime: 30 * 1000, // 30 secondes
     })
@@ -315,7 +315,7 @@ export async function preloadCriticalData(queryClient: QueryClient) {
         await queryClient.prefetchQuery({
           queryKey: fullQueryKey,
           queryFn: async () => {
-            return await interventionsApiV2.getAllLight(params)
+            return await interventionsApi.getAllLight(params)
           },
           staleTime: 30 * 1000,
         })
@@ -520,7 +520,7 @@ async function preloadArtisanViews(queryClient: QueryClient, currentUserId?: str
         queryClient.prefetchQuery({
           queryKey: fullQueryKey,
           queryFn: async () => {
-            return await artisansApiV2.getAll(params)
+            return await artisansApi.getAll(params)
           },
           staleTime: 30 * 1000, // 30 secondes
         })
@@ -576,7 +576,7 @@ async function preloadRemainingViews(
           await queryClient.prefetchQuery({
             queryKey: fullQueryKey,
             queryFn: async () => {
-              return await interventionsApiV2.getAllLight(params)
+              return await interventionsApi.getAllLight(params)
             },
             staleTime: 30 * 1000,
           })

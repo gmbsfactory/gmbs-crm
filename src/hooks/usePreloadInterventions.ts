@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef } from "react"
 import { useQueryClient } from "@tanstack/react-query"
-import { interventionsApiV2, type InterventionQueryParams } from "@/lib/api/v2"
+import { interventionsApi, type InterventionQueryParams } from "@/lib/api/v2"
 import { interventionKeys } from "@/lib/react-query/queryKeys"
 
 // Alias pour compatibilité
@@ -92,9 +92,9 @@ export function usePreloadView(
           queryKey: fullQueryKey,
           queryFn: async () => {
             if (useLight) {
-              return await interventionsApiV2.getAllLight(params)
+              return await interventionsApi.getAllLight(params)
             }
-            return await interventionsApiV2.getAll(params)
+            return await interventionsApi.getAll(params)
           },
           staleTime,
         })
@@ -139,9 +139,9 @@ export function usePreloadGeneralList(options: PreloadOptions = {}) {
         queryKey,
         queryFn: async () => {
           if (useLight) {
-            return await interventionsApiV2.getAllLight(params)
+            return await interventionsApi.getAllLight(params)
           }
-          return await interventionsApiV2.getAll(params)
+          return await interventionsApi.getAll(params)
         },
         staleTime,
       })
@@ -230,9 +230,9 @@ export function usePreloadViews(
           queryKey: fullQueryKey,
           queryFn: async () => {
             if (useLight) {
-              return await interventionsApiV2.getAllLight(params)
+              return await interventionsApi.getAllLight(params)
             }
-            return await interventionsApiV2.getAll(params)
+            return await interventionsApi.getAll(params)
           },
           staleTime,
         })

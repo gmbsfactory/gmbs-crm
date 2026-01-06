@@ -2,7 +2,7 @@
 // Centralise la logique de chargement des artisans
 // Utilise l'API v2 optimisée
 
-import { artisansApiV2, type Artisan } from '@/lib/api/v2';
+import { artisansApi, type Artisan } from '@/lib/api/v2';
 import * as React from 'react';
 import { useCallback, useEffect, useState, useMemo } from 'react';
 
@@ -74,7 +74,7 @@ export function useArtisans(options: UseArtisansOptions = {}): UseArtisansReturn
         ...(serverFilters || currentFilters)
       };
 
-      const result = await artisansApiV2.getAll(params);
+      const result = await artisansApi.getAll(params);
       
       // Remplacer au lieu d'accumuler
       setArtisans(result.data);

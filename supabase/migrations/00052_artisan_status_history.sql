@@ -9,7 +9,7 @@
 
 -- Table pour l'historique des changements de statut
 CREATE TABLE IF NOT EXISTS artisan_status_history (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   artisan_id UUID NOT NULL REFERENCES artisans(id) ON DELETE CASCADE,
   old_status_id UUID REFERENCES artisan_statuses(id),
   new_status_id UUID NOT NULL REFERENCES artisan_statuses(id),

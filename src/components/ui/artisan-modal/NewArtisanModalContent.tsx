@@ -59,7 +59,7 @@ import { useReferenceData } from "@/hooks/useReferenceData"
 import { toast } from "sonner"
 import { useSiretVerification } from "@/hooks/useSiretVerification"
 import { validateSiret } from "@/lib/siret-validation"
-import { artisansApi, artisansApiV2, interventionsApi } from "@/lib/api/v2"
+import { artisansApi, interventionsApi } from "@/lib/api/v2"
 import { commentsApi } from "@/lib/api/v2/commentsApi"
 import { artisanKeys } from "@/lib/react-query/queryKeys"
 import { useCurrentUser } from "@/hooks/useCurrentUser"
@@ -640,12 +640,12 @@ export function NewArtisanModalContent({ mode, onClose, onCycleMode, artisanId, 
   const { verifySiret, isLoading: isVerifyingSiret, isUnavailable } = useSiretVerification()
 
   const createArtisan = useMutation({
-    mutationFn: (payload: ReturnType<typeof buildCreatePayload>) => artisansApiV2.create(payload),
+    mutationFn: (payload: ReturnType<typeof buildCreatePayload>) => artisansApi.create(payload),
   })
 
   const updateArtisan = useMutation({
     mutationFn: (payload: { id: string; data: ReturnType<typeof buildCreatePayload> }) => 
-      artisansApiV2.update(payload.id, payload.data),
+      artisansApi.update(payload.id, payload.data),
   })
 
   // Fonction pour obtenir le code de statut d'un artisan

@@ -1,6 +1,6 @@
 import { useCallback, useMemo } from "react"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
-import { artisansApiV2, type Artisan } from "@/lib/api/v2"
+import { artisansApi, type Artisan } from "@/lib/api/v2"
 import { artisanKeys, type ArtisanGetAllParams } from "@/lib/react-query/queryKeys"
 
 export interface UseArtisansQueryOptions {
@@ -110,7 +110,7 @@ export function useArtisansQuery(
 
   // Fonction de requête
   const queryFn = useCallback(async () => {
-    return await artisansApiV2.getAll(requestParams)
+    return await artisansApi.getAll(requestParams)
   }, [requestParams])
 
   // Clé de requête avec viewId pour permettre l'invalidation par vue

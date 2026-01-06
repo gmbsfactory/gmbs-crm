@@ -187,8 +187,8 @@ export function useUltraInterventions() {
       
       await interventionsManager.loadPage(page, async () => {
         // Import dynamique pour éviter les bundles lourds
-        const { interventionsApiV2 } = await import('@/lib/supabase-api-v2');
-        const result = await interventionsApiV2.getAll({ limit: 100 });
+        const { interventionsApi } = await import('@/lib/api/v2');
+        const result = await interventionsApi.getAll({ limit: 100 });
         return {
           data: result.data,
           total: result.pagination.total,
@@ -226,8 +226,8 @@ export function useUltraArtisans() {
       setError(null);
       
       await artisansManager.loadPage(page, async (offset, limit) => {
-        const { artisansApiV2 } = await import('@/lib/supabase-api-v2');
-        const result = await artisansApiV2.getAll({ limit, offset });
+        const { artisansApi } = await import('@/lib/api/v2');
+        const result = await artisansApi.getAll({ limit, offset });
         return {
           data: result.data,
           total: result.pagination.total,
