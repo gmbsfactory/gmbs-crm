@@ -98,7 +98,10 @@ additional_redirect_urls = [
   "http://127.0.0.1:3000/set-password",
   "http://localhost:3000/set-password",
   "http://127.0.0.1:3000/auth/callback",
-  "http://localhost:3000/auth/callback"
+  "http://localhost:3000/auth/callback",
+  # Production URLs (must also be configured in Supabase Dashboard)
+  "https://gmbs-crm-nine.vercel.app/set-password",
+  "https://gmbs-crm-nine.vercel.app/auth/callback"
 ]
 # How long tokens are valid for, in seconds. Defaults to 3600 (1 hour), maximum 604,800 (1 week).
 jwt_expiry = 3600
