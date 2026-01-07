@@ -310,12 +310,26 @@ export async function DELETE(req: Request) {
 
     // ===== SOFT DELETE: Archive the user instead of deleting =====
     
-    // 1. Delete from auth.users (removes access to the application)
-    if (hasAuthAdmin()) {
+    // 1. Find the auth_user_id from the mapping (public.users.id != auth.users.id)
+    let authUserId: string | null = null
+    try {
+      const { data: mapping } = await supabaseAdmin
+        .from('auth_user_mapping')
+        .select('auth_user_id')
+        .eq('public_user_id', userId)
+        .maybeSingle()
+      authUserId = mapping?.auth_user_id || null
+      console.log('[delete-user] Found auth_user_id:', authUserId)
+    } catch (e: any) {
+      console.warn('[delete-user] Mapping lookup failed:', e?.message)
+    }
+
+    // 2. Delete from auth.users (removes access to the application)
+    if (hasAuthAdmin() && authUserId) {
       try {
-        const { error: authDeleteError } = await supabaseAdmin.auth.admin.deleteUser(userId)
+        const { error: authDeleteError } = await supabaseAdmin.auth.admin.deleteUser(authUserId)
         if (authDeleteError) {
-          console.warn('[delete-user] Auth user deletion failed (may not exist):', authDeleteError.message)
+          console.warn('[delete-user] Auth user deletion failed:', authDeleteError.message)
         } else {
           console.log('[delete-user] Auth user deleted successfully')
         }
@@ -324,17 +338,18 @@ export async function DELETE(req: Request) {
       }
     }
 
-    // 2. Delete auth_user_mapping (no longer linked to auth)
+    // 3. Delete auth_user_mapping (no longer linked to auth)
     try {
       await supabaseAdmin
         .from('auth_user_mapping')
         .delete()
-        .eq('auth_user_id', userId)
+        .eq('public_user_id', userId)
+      console.log('[delete-user] Mapping deleted')
     } catch (e: any) {
       console.warn('[delete-user] auth_user_mapping deletion failed:', e?.message)
     }
 
-    // 3. SOFT DELETE: Update status to 'archived' instead of deleting
+    // 4. SOFT DELETE: Update status to 'archived' instead of deleting
     // This preserves the user's history (interventions, etc.)
     const { error: archiveError } = await supabaseAdmin
       .from('users')
