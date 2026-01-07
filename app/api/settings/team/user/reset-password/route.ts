@@ -52,9 +52,11 @@ export async function POST(request: Request) {
     }
 
     // Generate password recovery link
-    // Use VERCEL_URL if available (includes preview deployments), otherwise fallback
-    const siteUrl = process.env.VERCEL_URL 
-      ? `https://${process.env.VERCEL_URL}` 
+    // Use request host header for accurate URL (works for all environments including preview)
+    const host = request.headers.get('host') || request.headers.get('x-forwarded-host');
+    const protocol = host?.includes('localhost') ? 'http' : 'https';
+    const siteUrl = host 
+      ? `${protocol}://${host}` 
       : (process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000');
     
     let resetLink = '';

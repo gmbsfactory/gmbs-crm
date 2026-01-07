@@ -130,9 +130,11 @@ export async function POST(req: Request) {
           console.log('[create-user] Auth user created with ID:', userId)
 
           // Generate password recovery link
-          // Use VERCEL_URL if available (includes preview deployments), otherwise fallback
-          const siteUrl = process.env.VERCEL_URL 
-            ? `https://${process.env.VERCEL_URL}` 
+          // Use request host header for accurate URL (works for all environments including preview)
+          const host = req.headers.get('host') || req.headers.get('x-forwarded-host')
+          const protocol = host?.includes('localhost') ? 'http' : 'https'
+          const siteUrl = host 
+            ? `${protocol}://${host}` 
             : (process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000')
           try {
             const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
