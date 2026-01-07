@@ -136,11 +136,8 @@ export function useArtisanModal() {
     if (modal.content !== "artisan" && modal.content !== "new-artisan") return
 
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        event.preventDefault()
-        close()
-        return
-      }
+      // GenericModal et ArtisanModalContent gèrent déjà Escape avec capture phase
+      // On ne gère que les raccourcis de navigation ici
 
       if (modal.content === "artisan") {
         if (event.ctrlKey && event.shiftKey && event.key.toLowerCase() === "k") {

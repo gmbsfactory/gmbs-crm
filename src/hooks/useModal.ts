@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation"
 import { useModalState } from "./useModalState"
 import type { ModalContent, ModalOpenOptions } from "@/types/modal"
 
-const VALID_CONTENT: ModalContent[] = ["intervention", "chat", "artisan", "new-intervention", "new-artisan"]
+const VALID_CONTENT: ModalContent[] = ["intervention", "chat", "artisan", "new-intervention", "new-artisan", "edit-artisan"]
 
 const MODAL_PARAM = "i"
 const CONTENT_PARAM = "mc"
@@ -176,14 +176,9 @@ export function useModal() {
 
     const nextContent: ModalContent = isValidContent(rawContent) ? rawContent : "intervention"
 
-    // Vérifier si on essaie de rouvrir le modal qu'on vient de fermer
-    // Dans ce cas, on doit autoriser la réouverture (pour navigation inter-modals)
-    const isReopeningJustClosedModal = closingGuardId && closingGuardId === modalId
-
     // Vérifier si le modal est déjà ouvert avec le bon ID et le bon contenu
     // Si c'est le cas, ne rien faire pour éviter la fermeture/réouverture
-    // SAUF si on est en train de rouvrir le modal qu'on vient de fermer
-    const isAlreadyOpen = isOpen && activeId === modalId && content === nextContent && !isReopeningJustClosedModal
+    const isAlreadyOpen = isOpen && activeId === modalId && content === nextContent
 
     // Si le modal est déjà ouvert correctement, ne rien faire
     // Même si pendingModalId est défini, on évite la fermeture/réouverture
@@ -199,14 +194,11 @@ export function useModal() {
       return
     }
 
-    // Si on rouvre le modal qu'on vient de fermer, réinitialiser closingGuardId
-    // pour permettre la réouverture
-    if (isReopeningJustClosedModal) {
-      closingGuardId = null
+    if (closingGuardId && closingGuardId === modalId) {
+      return
     }
 
-    // Pour tout autre modal différent, réinitialiser closingGuardId
-    if (closingGuardId && !isReopeningJustClosedModal) {
+    if (closingGuardId) {
       closingGuardId = null
     }
 

@@ -138,11 +138,8 @@ export function useInterventionModal() {
     if (modal.content !== "intervention" && modal.content !== "new-intervention") return
 
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        event.preventDefault()
-        close()
-        return
-      }
+      // GenericModal et InterventionModalContent gèrent déjà Escape avec capture phase
+      // On ne gère que les raccourcis de navigation ici
 
       // Only handle navigation shortcuts for regular intervention modals (not new-intervention)
       if (modal.content === "intervention") {
