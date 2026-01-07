@@ -52,7 +52,12 @@ export async function POST(request: Request) {
     }
 
     // Generate password recovery link
-    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
+    // Use request host header for accurate URL (works for all environments including preview)
+    const host = request.headers.get('host') || request.headers.get('x-forwarded-host');
+    const protocol = host?.includes('localhost') ? 'http' : 'https';
+    const siteUrl = host 
+      ? `${protocol}://${host}` 
+      : (process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000');
     
     let resetLink = '';
     
