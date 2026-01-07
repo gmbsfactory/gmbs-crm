@@ -52,7 +52,10 @@ export async function POST(request: Request) {
     }
 
     // Generate password recovery link
-    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
+    // Use VERCEL_URL if available (includes preview deployments), otherwise fallback
+    const siteUrl = process.env.VERCEL_URL 
+      ? `https://${process.env.VERCEL_URL}` 
+      : (process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000');
     
     let resetLink = '';
     
