@@ -2174,8 +2174,10 @@ export function InterventionEditForm({
         secondaryArtisanIdRef.current = nextSecondaryId
       }
 
-      // Recharger les données pour avoir les coûts et artisans à jour
-      payload = await interventionsApi.getById(intervention.id)
+      // Note: On ne recharge plus les données ici car c'est bloquant et cause un délai
+      // perceptible avant la fermeture du modal. Le cache React Query sera invalidé
+      // dans handleSuccess, ce qui rechargera les données de façon asynchrone.
+      // L'objet `updated` retourné par la mutation contient déjà les données principales.
 
       if (options?.reason && options.reasonType) {
         try {
