@@ -5,22 +5,23 @@ import { useEffect, useState, useRef } from "react"
  * Compare avec les valeurs initiales pour déterminer si des changements ont été faits
  * @param formData - Les données actuelles du formulaire
  * @param isSubmitting - Indique si le formulaire est en cours de soumission
+ * @param isReady - Indique si le formulaire est complètement initialisé (par défaut true)
  * @returns hasUnsavedChanges - true si le formulaire a des modifications non sauvegardées
  */
 export function useFormDataChanges<T extends Record<string, any>>(
   formData: T,
-  isSubmitting: boolean = false
+  isSubmitting: boolean = false,
+  isReady: boolean = true
 ) {
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
   const initialValuesRef = useRef<T | null>(null)
 
-  // Capturer les valeurs initiales au premier rendu
+  // Capturer les valeurs initiales uniquement quand le formulaire est prêt
   useEffect(() => {
-    if (!initialValuesRef.current) {
+    if (isReady && !initialValuesRef.current) {
       initialValuesRef.current = { ...formData }
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [isReady, formData])
 
   // Détecter les changements par rapport aux valeurs initiales
   useEffect(() => {
