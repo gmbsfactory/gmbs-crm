@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useMemo } from "react"
+import { useCallback, useMemo, useRef } from "react"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
 import { useInterventionModal } from "@/hooks/useInterventionModal"
@@ -12,7 +12,18 @@ import { interventionsApi } from "@/lib/api/v2/interventionsApi"
 import type { InterventionStatusValue } from "@/types/interventions"
 import type { ContextMenuViewType } from "@/types/context-menu"
 
-export function useInterventionContextMenu(interventionId: string, viewType?: ContextMenuViewType, idInter?: string) {
+// Type pour le callback d'animation
+export type AssignToMeAnimationCallback = (
+  interventionId: string,
+  onAnimationComplete: () => void
+) => void
+
+export function useInterventionContextMenu(
+  interventionId: string,
+  viewType?: ContextMenuViewType,
+  idInter?: string,
+  onAssignToMeWithAnimation?: AssignToMeAnimationCallback
+) {
   const queryClient = useQueryClient()
   
   // Utiliser le hook centralisé useCurrentUser au lieu d'un fetch direct
@@ -179,6 +190,9 @@ export function useInterventionContextMenu(interventionId: string, viewType?: Co
     }
   }, [interventionId, queryClient, modal])
 
+  // Ref pour stocker les données de la liste avant suppression (pour rollback)
+  const previousListsDataRef = useRef<Map<string, any>>(new Map())
+
   // Mutation pour assigner l'intervention à l'utilisateur connecté ("Je gère")
   const assignToMeMutation = useMutation({
     mutationFn: async () => {
@@ -199,48 +213,100 @@ export function useInterventionContextMenu(interventionId: string, viewType?: Co
       // Snapshot de la valeur précédente pour rollback en cas d'erreur
       const previousIntervention = queryClient.getQueryData(interventionKeys.detail(interventionId))
 
-      // Mise à jour optimiste immédiate dans toutes les listes (complètes et légères)
+      // Sauvegarder les données des listes avant modification pour rollback
+      previousListsDataRef.current.clear()
+      const listsQueries = queryClient.getQueriesData({ queryKey: interventionKeys.lists() })
+      listsQueries.forEach(([key, data]) => {
+        previousListsDataRef.current.set(JSON.stringify(key), data)
+      })
+      const lightListsQueries = queryClient.getQueriesData({ queryKey: interventionKeys.lightLists() })
+      lightListsQueries.forEach(([key, data]) => {
+        previousListsDataRef.current.set(JSON.stringify(key), data)
+      })
+
+      // Mise à jour optimiste : RETIRER l'intervention de la vue Market
+      // et METTRE À JOUR ses propriétés dans les autres vues
       if (currentUserInfo) {
+        // Pour les listes complètes
         queryClient.setQueriesData(
           { queryKey: interventionKeys.lists() },
           (oldData: any) => {
             if (!oldData?.data || !Array.isArray(oldData.data)) {
               return oldData
             }
-            const updatedData = oldData.data.map((intervention: any) =>
-              intervention.id === interventionId
-                ? {
-                  ...intervention,
-                  assigned_user_id: currentUserInfo!.id,
-                  assignedUserCode: currentUserInfo!.code,
-                  assignedUserName: currentUserInfo!.name,
-                  assignedUserColor: currentUserInfo!.color,
-                  attribueA: currentUserInfo!.code, // Pour compatibilité
-                }
-                : intervention
+            
+            // Vérifier si c'est une vue Market (filtre user === null)
+            // On détecte ça par la présence d'interventions sans assigned_user_id
+            const isMarketView = oldData.data.some((i: any) => 
+              i.id === interventionId && !i.assigned_user_id
             )
-            return { ...oldData, data: updatedData }
+            
+            if (isMarketView) {
+              // Vue Market : RETIRER l'intervention car elle a maintenant un propriétaire
+              const filteredData = oldData.data.filter(
+                (intervention: any) => intervention.id !== interventionId
+              )
+              return { 
+                ...oldData, 
+                data: filteredData,
+                // Mettre à jour le count si présent
+                count: typeof oldData.count === 'number' ? Math.max(0, oldData.count - 1) : oldData.count
+              }
+            } else {
+              // Autres vues : METTRE À JOUR les propriétés de l'intervention
+              const updatedData = oldData.data.map((intervention: any) =>
+                intervention.id === interventionId
+                  ? {
+                    ...intervention,
+                    assigned_user_id: currentUserInfo!.id,
+                    assignedUserCode: currentUserInfo!.code,
+                    assignedUserName: currentUserInfo!.name,
+                    assignedUserColor: currentUserInfo!.color,
+                    attribueA: currentUserInfo!.code,
+                  }
+                  : intervention
+              )
+              return { ...oldData, data: updatedData }
+            }
           }
         )
+
+        // Pour les listes légères
         queryClient.setQueriesData(
           { queryKey: interventionKeys.lightLists() },
           (oldData: any) => {
             if (!oldData?.data || !Array.isArray(oldData.data)) {
               return oldData
             }
-            const updatedData = oldData.data.map((intervention: any) =>
-              intervention.id === interventionId
-                ? {
-                  ...intervention,
-                  assigned_user_id: currentUserInfo!.id,
-                  assignedUserCode: currentUserInfo!.code,
-                  assignedUserName: currentUserInfo!.name,
-                  assignedUserColor: currentUserInfo!.color,
-                  attribueA: currentUserInfo!.code, // Pour compatibilité
-                }
-                : intervention
+            
+            const isMarketView = oldData.data.some((i: any) => 
+              i.id === interventionId && !i.assigned_user_id
             )
-            return { ...oldData, data: updatedData }
+            
+            if (isMarketView) {
+              const filteredData = oldData.data.filter(
+                (intervention: any) => intervention.id !== interventionId
+              )
+              return { 
+                ...oldData, 
+                data: filteredData,
+                count: typeof oldData.count === 'number' ? Math.max(0, oldData.count - 1) : oldData.count
+              }
+            } else {
+              const updatedData = oldData.data.map((intervention: any) =>
+                intervention.id === interventionId
+                  ? {
+                    ...intervention,
+                    assigned_user_id: currentUserInfo!.id,
+                    assignedUserCode: currentUserInfo!.code,
+                    assignedUserName: currentUserInfo!.name,
+                    assignedUserColor: currentUserInfo!.color,
+                    attribueA: currentUserInfo!.code,
+                  }
+                  : intervention
+              )
+              return { ...oldData, data: updatedData }
+            }
           }
         )
       }
@@ -248,10 +314,17 @@ export function useInterventionContextMenu(interventionId: string, viewType?: Co
       return { previousIntervention, currentUserInfo }
     },
     onError: (error: Error, _variables, context) => {
-      // Rollback en cas d'erreur
+      // Rollback en cas d'erreur - restaurer les données des listes
       if (context?.previousIntervention) {
         queryClient.setQueryData(interventionKeys.detail(interventionId), context.previousIntervention)
       }
+      
+      // Restaurer les données des listes depuis la sauvegarde
+      previousListsDataRef.current.forEach((data, keyStr) => {
+        const key = JSON.parse(keyStr)
+        queryClient.setQueryData(key, data)
+      })
+      
       invalidateLists()
       queryClient.invalidateQueries({ queryKey: interventionKeys.detail(interventionId) })
 
@@ -264,6 +337,8 @@ export function useInterventionContextMenu(interventionId: string, viewType?: Co
       // La mise à jour optimiste dans onMutate assure une mise à jour immédiate de l'UI
       invalidateLists()
       queryClient.invalidateQueries({ queryKey: interventionKeys.detail(interventionId) })
+      // Les summaries seront invalidés après l'animation (si animation active)
+      // Sinon on les invalide maintenant
       queryClient.invalidateQueries({ queryKey: interventionKeys.summaries() })
 
       toast.success(`Intervention (${idInter || (data as any).id_inter || interventionId}) assignée à moi avec succès`, {
@@ -275,6 +350,19 @@ export function useInterventionContextMenu(interventionId: string, viewType?: Co
       })
     },
   })
+
+  // Fonction wrapper pour déclencher l'animation avant la mutation
+  const assignToMeWithAnimation = useCallback(() => {
+    if (onAssignToMeWithAnimation) {
+      // Déclencher l'animation, puis exécuter la mutation quand elle est terminée
+      onAssignToMeWithAnimation(interventionId, () => {
+        assignToMeMutation.mutate()
+      })
+    } else {
+      // Pas d'animation, exécuter directement
+      assignToMeMutation.mutate()
+    }
+  }, [interventionId, onAssignToMeWithAnimation, assignToMeMutation])
 
   // Mutation pour transition vers "Devis envoyé"
   const transitionToDevisEnvoyeMutation = useMutation({
@@ -506,7 +594,8 @@ export function useInterventionContextMenu(interventionId: string, viewType?: Co
 
   return {
     duplicateDevisSupp,
-    assignToMe: assignToMeMutation.mutate,
+    assignToMe: assignToMeWithAnimation, // Utilise l'animation si disponible
+    assignToMeDirect: assignToMeMutation.mutate, // Version sans animation
     transitionToDevisEnvoye: transitionToDevisEnvoyeMutation.mutate,
     transitionToAccepte: transitionToAccepteMutation.mutate,
     deleteIntervention: deleteInterventionMutation.mutate,
@@ -518,5 +607,6 @@ export function useInterventionContextMenu(interventionId: string, viewType?: Co
       delete: deleteInterventionMutation.isPending,
     },
     viewType,
+    interventionId, // Exposé pour l'animation
   }
 }

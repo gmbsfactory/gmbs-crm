@@ -59,9 +59,57 @@ import {
 import { ModeIcons } from "@/components/ui/mode-selector/ModeIcons"
 import { MODE_OPTIONS } from "@/components/ui/mode-selector/ModeSelector"
 import { useModalDisplay } from "@/contexts/ModalDisplayContext"
+import { useGenieEffectContext } from "@/contexts/GenieEffectContext"
 import { useRouter } from "next/navigation"
 import { cn } from "@/lib/utils"
 import type { InterventionViewDefinition, ViewLayout } from "@/types/intervention-views"
+
+// Styles CSS pour l'animation de rebond de la pastille
+const badgeBounceKeyframes = `
+@keyframes badge-bounce-in {
+  0% {
+    transform: scale(1);
+  }
+  20% {
+    transform: scale(1.4);
+  }
+  40% {
+    transform: scale(0.85);
+  }
+  60% {
+    transform: scale(1.2);
+  }
+  80% {
+    transform: scale(0.95);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes badge-glow-pulse {
+  0% {
+    box-shadow: 0 0 0 0 currentColor;
+  }
+  50% {
+    box-shadow: 0 0 12px 4px currentColor;
+  }
+  100% {
+    box-shadow: 0 0 0 0 currentColor;
+  }
+}
+`
+
+// Injecter les styles si ce n'est pas déjà fait
+if (typeof document !== "undefined") {
+  const styleId = "genie-badge-bounce-styles"
+  if (!document.getElementById(styleId)) {
+    const style = document.createElement("style")
+    style.id = styleId
+    style.textContent = badgeBounceKeyframes
+    document.head.appendChild(style)
+  }
+}
 
 const LABELS: Record<ViewLayout, string> = {
   table: "Tableau",
@@ -96,9 +144,12 @@ type SortableTabProps = {
   isReorderMode?: boolean
   onEnterReorderMode?: () => void
   interventionCount?: number
+  frozenCount?: number  // Compteur gelé pendant l'animation
+  isBouncing?: boolean  // Animation de rebond active
   statusColor?: string | null  // Couleur du statut correspondant (dynamique depuis la DB)
   tabRef?: React.RefObject<HTMLButtonElement | null>
   tabIndex?: number
+  onBadgeRef?: (element: HTMLElement | null) => void  // Callback pour enregistrer la ref de la pastille
 }
 
 function SortableTab({
@@ -114,9 +165,12 @@ function SortableTab({
   isReorderMode = false,
   onEnterReorderMode,
   interventionCount = 0,
+  frozenCount,
+  isBouncing = false,
   statusColor,
   tabRef,
   tabIndex,
+  onBadgeRef,
 }: SortableTabProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: view.id,
@@ -126,6 +180,24 @@ function SortableTab({
     transform: CSS.Transform.toString(transform),
     transition,
   }
+  
+  // Référence pour la pastille
+  const badgeRef = useRef<HTMLSpanElement>(null)
+  
+  // Enregistrer la référence de la pastille auprès du contexte parent
+  useEffect(() => {
+    if (onBadgeRef && badgeRef.current) {
+      onBadgeRef(badgeRef.current)
+    }
+    return () => {
+      if (onBadgeRef) {
+        onBadgeRef(null)
+      }
+    }
+  }, [onBadgeRef])
+  
+  // Utiliser le compteur gelé si disponible, sinon le compteur normal
+  const displayCount = frozenCount !== undefined ? frozenCount : interventionCount
 
   const Icon = layoutIconMap[view.layout]
   const router = useRouter()
@@ -206,8 +278,9 @@ function SortableTab({
               >
                 <Icon className="h-4 w-4" />
                 <span className="whitespace-nowrap">{view.title}</span>
-                {view.showBadge && interventionCount > 0 && (
+                {view.showBadge && displayCount > 0 && (
                   <span 
+                    ref={badgeRef}
                     className={cn(
                       "absolute -top-2.5 -right-2.5 flex h-5 min-w-[20px] items-center justify-center rounded-full px-1.5 text-[10px] font-bold shadow-md border-2",
                       // Vue ACTIVE : pastille style PASTEL avec fond visible
@@ -215,23 +288,29 @@ function SortableTab({
                       // Vue INACTIVE : pastille style PLEIN
                       !isActive && !hasStatusColor && "bg-primary text-primary-foreground border-primary"
                     )}
-                    style={hasStatusColor && statusColor ? (
-                      isActive 
-                        ? {
-                            // Vue active : style pastel avec fond blanc pour contraste
-                            borderColor: statusColor,
-                            backgroundColor: "hsl(var(--background))",
-                            color: statusColor,
-                          }
-                        : {
-                            // Vue inactive : style plein
-                            backgroundColor: statusColor,
-                            color: "#FFFFFF",
-                            borderColor: statusColor,
-                          }
-                    ) : undefined}
+                    style={{
+                      ...(hasStatusColor && statusColor ? (
+                        isActive 
+                          ? {
+                              // Vue active : style pastel avec fond blanc pour contraste
+                              borderColor: statusColor,
+                              backgroundColor: "hsl(var(--background))",
+                              color: statusColor,
+                            }
+                          : {
+                              // Vue inactive : style plein
+                              backgroundColor: statusColor,
+                              color: "#FFFFFF",
+                              borderColor: statusColor,
+                            }
+                      ) : {}),
+                      // Animation de rebond
+                      ...(isBouncing ? {
+                        animation: "badge-bounce-in 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55), badge-glow-pulse 0.5s ease-out",
+                      } : {}),
+                    }}
                   >
-                    {interventionCount}
+                    {displayCount}
                   </span>
                 )}
               </button>
@@ -435,6 +514,27 @@ export function ViewTabs({
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   )
   
+  // Contexte pour l'animation Genie Effect
+  const { registerBadgeRef, bouncingViewId, frozenCountViewIds } = useGenieEffectContext()
+  
+  // État local pour les compteurs gelés (snapshot au moment où l'animation démarre)
+  const [frozenCounts, setFrozenCounts] = useState<Record<string, number>>({})
+  
+  // Mettre à jour les compteurs gelés quand frozenCountViewIds change
+  useEffect(() => {
+    if (frozenCountViewIds.size > 0) {
+      // Prendre un snapshot des compteurs actuels pour les vues gelées
+      const newFrozenCounts: Record<string, number> = {}
+      frozenCountViewIds.forEach((viewId) => {
+        newFrozenCounts[viewId] = interventionCounts[viewId] ?? 0
+      })
+      setFrozenCounts(newFrozenCounts)
+    } else {
+      // Réinitialiser les compteurs gelés
+      setFrozenCounts({})
+    }
+  }, [frozenCountViewIds, interventionCounts])
+  
   const visibleViews = useMemo(
     () => views.filter((view) => VISIBLE_VIEW_LAYOUTS.includes(view.layout)),
     [views]
@@ -580,6 +680,13 @@ export function ViewTabs({
                 tabRefs.current[view.id] = React.createRef<HTMLButtonElement>()
               }
               
+              // Vérifier si cette vue est en cours de rebond
+              const isViewBouncing = bouncingViewId === view.id
+              
+              // Utiliser le compteur gelé si la vue est dans frozenCountViewIds
+              const isFrozen = frozenCountViewIds.has(view.id)
+              const frozenCount = isFrozen ? frozenCounts[view.id] : undefined
+              
               return (
                 <SortableTab
                   key={view.id}
@@ -595,9 +702,12 @@ export function ViewTabs({
                   isReorderMode={isReorderMode}
                   onEnterReorderMode={onEnterReorderMode}
                   interventionCount={interventionCounts[view.id] || 0}
+                  frozenCount={frozenCount}
+                  isBouncing={isViewBouncing}
                   statusColor={viewStatusColors[view.id]}
                   tabRef={tabRefs.current[view.id]}
                   tabIndex={0}
+                  onBadgeRef={(element) => registerBadgeRef(view.id, element)}
                 />
               )
             })}
