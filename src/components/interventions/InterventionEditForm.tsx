@@ -737,9 +737,16 @@ export function InterventionEditForm({
   const suggestionBlurTimeoutRef = useRef<number | null>(null)
   const [showLocationSuggestions, setShowLocationSuggestions] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [isFormReady, setIsFormReady] = useState(false)
+
+  // Marquer le formulaire comme prêt après l'initialisation complète
+  useEffect(() => {
+    // Attendre que tous les useEffect d'initialisation soient terminés
+    setIsFormReady(true)
+  }, [])
 
   // Détection des modifications non sauvegardées
-  const hasUnsavedChanges = useFormDataChanges(formData, isSubmitting)
+  const hasUnsavedChanges = useFormDataChanges(formData, isSubmitting, isFormReady)
 
   // Notifier le parent des modifications non sauvegardées
   useEffect(() => {

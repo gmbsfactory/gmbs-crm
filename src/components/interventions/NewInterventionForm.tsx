@@ -662,14 +662,7 @@ export function NewInterventionForm({
   const suggestionBlurTimeoutRef = useRef<number | null>(null)
   const [showLocationSuggestions, setShowLocationSuggestions] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
-
-  // Détection des modifications non sauvegardées
-  const hasUnsavedChanges = useFormDataChanges(formData, isSubmitting)
-
-  // Notifier le parent des modifications non sauvegardées
-  useEffect(() => {
-    onHasUnsavedChanges?.(hasUnsavedChanges)
-  }, [hasUnsavedChanges, onHasUnsavedChanges])
+  const [isFormReady, setIsFormReady] = useState(false)
 
   // Synchroniser locationQuery avec l'adresse complète initiale
   useEffect(() => {
@@ -677,6 +670,20 @@ export function NewInterventionForm({
       setLocationQuery(formData.adresseComplete)
     }
   }, [formData.adresseComplete]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Marquer le formulaire comme prêt après l'initialisation complète
+  useEffect(() => {
+    // Attendre que tous les useEffect d'initialisation soient terminés
+    setIsFormReady(true)
+  }, [])
+
+  // Détection des modifications non sauvegardées
+  const hasUnsavedChanges = useFormDataChanges(formData, isSubmitting, isFormReady)
+
+  // Notifier le parent des modifications non sauvegardées
+  useEffect(() => {
+    onHasUnsavedChanges?.(hasUnsavedChanges)
+  }, [hasUnsavedChanges, onHasUnsavedChanges])
 
   const [isProprietaireOpen, setIsProprietaireOpen] = useState(false)
   const [isClientOpen, setIsClientOpen] = useState(false)

@@ -209,3 +209,5 @@ La page interventions combine :
 Les pastilles s'adaptent automatiquement à la couleur du statut associé à la vue, et les filtres permettent une recherche granulaire directement depuis les en-têtes de colonnes.
 
 
+
+

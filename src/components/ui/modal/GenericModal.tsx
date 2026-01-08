@@ -162,6 +162,8 @@ export function GenericModal({
   }, [isOpen, hasUnsavedChanges, isSubmitting, onShowUnsavedDialog, pauseFocusTrap, onClose])
 
   // Gestion du clic sur le backdrop avec vérification des modifications non sauvegardées
+  // Note: La gestion de Escape est faite par les composants Content (InterventionModalContent, ArtisanModalContent)
+  // qui ont la logique complète pour les modifications non sauvegardées
   const handleBackdropClick = () => {
     // Si des modifications non sauvegardées existent et qu'on n'est pas en train de soumettre
     if (hasUnsavedChanges && !isSubmitting && onShowUnsavedDialog) {
