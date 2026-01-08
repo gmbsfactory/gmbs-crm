@@ -128,6 +128,7 @@ export function GenericModal({
   const modalStyle = getModalStyle(mode)
 
   // Gestion de l'Échap avec vérification des modifications non sauvegardées
+  // Ce gestionnaire est le point central pour la fermeture du modal via Escape
   useEffect(() => {
     if (!isOpen) return
 
@@ -137,21 +138,23 @@ export function GenericModal({
       // Si un modal enfant est ouvert, ne pas gérer l'Échap ici
       if (pauseFocusTrap) return
 
+      // IMPORTANT: Utiliser stopImmediatePropagation pour empêcher les autres
+      // event listeners (dans useInterventionModal, InterventionModalContent, etc.)
+      // de traiter cet événement et de causer des doubles fermetures/réouvertures
+      event.preventDefault()
+      event.stopImmediatePropagation()
+
       // Si des modifications non sauvegardées existent et qu'on n'est pas en train de soumettre
       if (hasUnsavedChanges && !isSubmitting && onShowUnsavedDialog) {
-        event.preventDefault()
-        event.stopPropagation()
         onShowUnsavedDialog()
         return
       }
 
       // Pas de modifications ou soumission en cours : fermer directement
-      event.preventDefault()
-      event.stopPropagation()
       onClose()
     }
 
-    // Utiliser capture phase pour intercepter avant FocusTrap
+    // Utiliser capture phase pour intercepter AVANT tous les autres gestionnaires
     document.addEventListener("keydown", handleEscape, true)
     return () => {
       document.removeEventListener("keydown", handleEscape, true)

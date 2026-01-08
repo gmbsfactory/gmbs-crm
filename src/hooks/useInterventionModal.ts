@@ -137,13 +137,9 @@ export function useInterventionModal() {
     // Don't handle events if not an intervention-related modal
     if (modal.content !== "intervention" && modal.content !== "new-intervention") return
 
+    // NOTE: La gestion de la touche Échap est désormais centralisée dans GenericModal.tsx
+    // pour éviter les doubles fermetures/réouvertures (effet "flash")
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        event.preventDefault()
-        close()
-        return
-      }
-
       // Only handle navigation shortcuts for regular intervention modals (not new-intervention)
       if (modal.content === "intervention") {
         if (event.ctrlKey && event.shiftKey && event.key.toLowerCase() === "k") {

@@ -329,26 +329,9 @@ GMBS`
   }, [hasUnsavedChanges, isSubmitting, onClose])
 
 
-  // Intercepter la touche Échap pour appliquer la même logique que handleCancel
-  useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        
-        if (showUnsavedDialog) {
-          // Laisser UnsavedChangesDialog gérer Escape
-          return
-        }
-        event.preventDefault()
-        event.stopPropagation()
-        handleCancel()
-      }
-    }
-
-    document.addEventListener("keydown", handleKeyDown, true)
-    return () => {
-      document.removeEventListener("keydown", handleKeyDown, true)
-    }
-  }, [handleCancel, showUnsavedDialog])
+  // NOTE: La gestion de la touche Échap est désormais centralisée dans GenericModal.tsx
+  // pour éviter les doubles fermetures/réouvertures (effet "flash")
+  // GenericModal appelle onClose() qui déclenche handleCancel via la prop onClose
 
   // Focus trap - empêcher le focus de sortir du modal lors de la navigation Tab
   useEffect(() => {
