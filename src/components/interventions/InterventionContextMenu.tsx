@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useCallback } from "react"
 import {
   ContextMenuContent,
   ContextMenuItem,
@@ -15,7 +15,7 @@ import {
   UserCheck,
   Trash2,
 } from "lucide-react"
-import { useInterventionContextMenu } from "@/hooks/useInterventionContextMenu"
+import { useInterventionContextMenu, type AssignToMeAnimationCallback } from "@/hooks/useInterventionContextMenu"
 import type { InterventionView } from "@/types/intervention-view"
 import type { ContextMenuViewType } from "@/types/context-menu"
 import {
@@ -29,12 +29,15 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { usePermissions } from "@/hooks/usePermissions"
+import { useGenieEffectContext } from "@/contexts/GenieEffectContext"
 
 interface InterventionContextMenuContentProps {
   intervention: InterventionView
   viewType?: ContextMenuViewType
   onOpen?: () => void
   onOpenInNewTab?: () => void
+  /** Référence vers l'élément de la ligne (pour l'animation genie) */
+  rowElement?: HTMLElement | null
 }
 
 export function InterventionContextMenuContent({
@@ -42,7 +45,36 @@ export function InterventionContextMenuContent({
   viewType = "default",
   onOpen,
   onOpenInNewTab,
+  rowElement,
 }: InterventionContextMenuContentProps) {
+  const { triggerAnimation } = useGenieEffectContext()
+  
+  // Fonction pour trouver l'élément de la ligne dans le DOM
+  const findRowElement = useCallback(() => {
+    // Essayer d'abord avec la prop rowElement
+    if (rowElement) return rowElement
+    
+    // Sinon, chercher dans le DOM via data-intervention-id
+    const selector = `tr[data-intervention-id="${intervention.id}"]`
+    const element = document.querySelector(selector)
+    return element as HTMLElement | null
+  }, [intervention.id, rowElement])
+  
+  // Callback pour déclencher l'animation avant l'assignation
+  const handleAssignWithAnimation = useCallback<AssignToMeAnimationCallback>(
+    (interventionId, onAnimationComplete) => {
+      const element = findRowElement()
+      if (element && viewType === "market") {
+        // Déclencher l'animation vers "mes-demandes"
+        triggerAnimation(interventionId, element, "mes-demandes", onAnimationComplete)
+      } else {
+        // Pas de ligne disponible, exécuter directement
+        onAnimationComplete()
+      }
+    },
+    [findRowElement, viewType, triggerAnimation]
+  )
+  
   const {
     duplicateDevisSupp,
     assignToMe,
@@ -50,7 +82,12 @@ export function InterventionContextMenuContent({
     transitionToAccepte,
     deleteIntervention,
     isLoading,
-  } = useInterventionContextMenu(intervention.id, viewType, intervention.id_inter || undefined)
+  } = useInterventionContextMenu(
+    intervention.id,
+    viewType,
+    intervention.id_inter || undefined,
+    viewType === "market" ? handleAssignWithAnimation : undefined
+  )
   const { can } = usePermissions()
 
   const statusValue = intervention.statusValue || intervention.statut

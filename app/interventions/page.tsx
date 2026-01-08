@@ -81,6 +81,7 @@ import { useUserMap } from "@/hooks/useUserMap"
 import { useCurrentUser } from "@/hooks/useCurrentUser"
 import { InterventionRealtimeProvider } from "@/components/interventions/InterventionRealtimeProvider"
 import { FilterMappersProvider } from "@/contexts/FilterMappersContext"
+import { GenieEffectProvider } from "@/contexts/GenieEffectContext"
 import { useInterventionViewCounts } from "@/hooks/useInterventionViewCounts"
 import { usePermissions } from "@/hooks/usePermissions"
 import { useInterventionStatuses } from "@/hooks/useInterventionStatuses"
@@ -214,7 +215,9 @@ export default function Page() {
 
   return (
     <InterventionRealtimeProvider>
-      <PageContent />
+      <GenieEffectProvider>
+        <PageContent />
+      </GenieEffectProvider>
     </InterventionRealtimeProvider>
   )
 }
