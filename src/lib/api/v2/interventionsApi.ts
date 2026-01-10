@@ -470,6 +470,76 @@ export const interventionsApi = {
     return mapInterventionRecord(result, refs);
   },
 
+  // Vérifier si une intervention avec la même adresse et agence existe
+  async checkDuplicate(address: string, agencyId: string): Promise<boolean> {
+    const { data, error } = await supabase
+      .from("interventions")
+      .select("id")
+      .eq("adresse", address)
+      .eq("agence_id", agencyId)
+      .limit(1);
+
+    if (error) {
+      console.error("Erreur lors de la vérification des doublons:", error);
+      return false;
+    }
+
+    return data && data.length > 0;
+  },
+
+  // Récupérer les détails des interventions dupliquées
+  async getDuplicateDetails(address: string, agencyId: string): Promise<Array<{
+    id: string;
+    name: string;
+    address: string;
+    agencyId: string | null;
+    agencyLabel: string | null;
+    managerName: string | null;
+    createdAt: string | null;
+  }>> {
+    const { data, error } = await supabase
+      .from("interventions")
+      .select(`
+        id,
+        contexte_intervention,
+        adresse,
+        agence_id,
+        commentaire_agent,
+        created_at,
+        agences:agence_id(label),
+        users:assigned_user_id(firstname, lastname)
+      `)
+      .eq("adresse", address)
+      .eq("agence_id", agencyId)
+      .limit(5);
+
+    if (error) {
+      console.error("Erreur lors de la récupération des détails des doublons:", error);
+      return [];
+    }
+
+    if (!data || data.length === 0) {
+      return [];
+    }
+
+    return data.map((match: any) => {
+      const agencyData = match.agences as any;
+      const userData = match.users as any;
+
+      return {
+        id: match.id,
+        name: match.contexte_intervention || match.commentaire_agent || "Intervention sans nom",
+        address: match.adresse || "",
+        agencyId: match.agence_id,
+        agencyLabel: agencyData?.label || null,
+        managerName: userData
+          ? `${userData.firstname || ""} ${userData.lastname || ""}`.trim() || null
+          : null,
+        createdAt: match.created_at || null,
+      };
+    });
+  },
+
   // Modifier une intervention
   async update(id: string, data: UpdateInterventionData): Promise<InterventionWithStatus> {
     let payload: UpdateInterventionData = { ...data }

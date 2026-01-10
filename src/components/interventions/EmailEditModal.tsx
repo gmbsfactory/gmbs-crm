@@ -50,12 +50,10 @@ export function EmailEditModal({
   const [isSending, setIsSending] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
-  
-  // Editable template data fields
+
+  // Editable template data fields (only commentaire and coutSST)
   const [editableData, setEditableData] = useState<Partial<EmailTemplateData>>({
-    consigneArtisan: templateData.consigneArtisan || '',
     commentaire: templateData.commentaire || '',
-    datePrevue: templateData.datePrevue || '',
     coutSST: templateData.coutSST || '',
   });
 
@@ -72,9 +70,7 @@ export function EmailEditModal({
   useEffect(() => {
     if (isOpen) {
       setEditableData({
-        consigneArtisan: templateData.consigneArtisan || '',
         commentaire: templateData.commentaire || '',
-        datePrevue: templateData.datePrevue || '',
         coutSST: templateData.coutSST || '',
       });
       setSubject(getDefaultSubject());
@@ -89,14 +85,14 @@ export function EmailEditModal({
         nomClient: templateData.nomClient,
         telephoneClient: templateData.telephoneClient,
         telephoneClient2: templateData.telephoneClient2,
-        adresseComplete: templateData.adresseComplete,
+        adresse: templateData.adresse,
         idIntervention: templateData.idIntervention,
-        consigneArtisan: editableData.consigneArtisan || templateData.consigneArtisan,
-        commentaire: editableData.commentaire || templateData.commentaire,
-        datePrevue: editableData.datePrevue || templateData.datePrevue,
-        coutSST: editableData.coutSST || templateData.coutSST,
+        consigneArtisan: templateData.consigneArtisan,
+        commentaire: editableData.commentaire,
+        datePrevue: templateData.datePrevue,
+        coutSST: editableData.coutSST,
       };
-      
+
       try {
         const newHtmlContent = emailType === 'devis'
           ? generateDevisEmailTemplate(updatedTemplateData)
@@ -106,20 +102,20 @@ export function EmailEditModal({
         console.error('[EmailEditModal] Failed to regenerate template:', error);
       }
     }
-  }, [editableData.consigneArtisan, editableData.commentaire, editableData.datePrevue, editableData.coutSST, isOpen, artisanId, emailType, templateData]);
+  }, [editableData.commentaire, editableData.coutSST, isOpen, artisanId, emailType, templateData]);
 
   // Initialize template data when modal opens
   useEffect(() => {
     if (isOpen && artisanId) {
       // Set default subject
       setSubject(getDefaultSubject());
-      
+
       // Generate HTML content from template with editable data
       const initialTemplateData: EmailTemplateData = {
         ...templateData,
         ...editableData,
       };
-      
+
       try {
         const htmlContent = emailType === 'devis'
           ? generateDevisEmailTemplate(initialTemplateData)
@@ -130,7 +126,7 @@ export function EmailEditModal({
         toast.error('Erreur lors de la génération du template');
         setHtmlContent('');
       }
-      
+
       // Reset attachments
       setAttachments([]);
     }
@@ -208,7 +204,7 @@ export function EmailEditModal({
     // Replace cid:logoGM with the actual logo path
     // Try PNG first, then SVG as fallback
     const logoPath = '/logoGM.png';
-    
+
     // Replace cid:logoGM with actual image URL
     return html.replace(/cid:logoGM/g, logoPath);
   }, []);
@@ -246,11 +242,11 @@ export function EmailEditModal({
         nomClient: templateData.nomClient,
         telephoneClient: templateData.telephoneClient,
         telephoneClient2: templateData.telephoneClient2,
-        adresseComplete: templateData.adresseComplete,
+        adresse: templateData.adresse,
         idIntervention: templateData.idIntervention,
-        consigneArtisan: editableData.consigneArtisan || templateData.consigneArtisan,
+        consigneArtisan: templateData.consigneArtisan,
         commentaire: editableData.commentaire || templateData.commentaire,
-        datePrevue: editableData.datePrevue || templateData.datePrevue,
+        datePrevue: templateData.datePrevue,
         coutSST: editableData.coutSST || templateData.coutSST,
       };
 
@@ -299,7 +295,7 @@ export function EmailEditModal({
       // Get authentication token
       const { data: session } = await supabase.auth.getSession();
       const token = session?.session?.access_token;
-      
+
       if (!token) {
         toast.dismiss(sendingToast);
         toast.error('Session expirée. Veuillez vous reconnecter.');
@@ -366,15 +362,15 @@ export function EmailEditModal({
   };
 
   return (
-      <Dialog open={isOpen} onOpenChange={handleClose}>
-      <DialogContent 
-        className="w-[80vw] max-w-[80vw] max-h-[90vh] overflow-y-auto z-[80]" 
+    <Dialog open={isOpen} onOpenChange={handleClose}>
+      <DialogContent
+        className="w-[80vw] max-w-[80vw] max-h-[90vh] overflow-y-auto z-[80]"
         overlayClassName="z-[75]"
       >
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Mail className="h-5 w-5" />
-            {emailType === 'devis' ? 'Email demande de devis' : 'Email demande d&apos;intervention'}
+            {emailType === 'devis' ? 'Email demande de devis' : 'Email demande d\'intervention'}
           </DialogTitle>
           <DialogDescription>
             Destinataire : {artisanEmail}
@@ -391,7 +387,7 @@ export function EmailEditModal({
               <div className="border-b bg-muted/50 px-4 py-2 flex-shrink-0">
                 <span className="text-xs font-medium text-muted-foreground">Ce que le client recevra</span>
               </div>
-              <div 
+              <div
                 className="p-4 overflow-y-auto bg-white flex-1"
                 style={{
                   fontFamily: 'system-ui, -apple-system, sans-serif',
@@ -413,38 +409,6 @@ export function EmailEditModal({
                 placeholder="Sujet de l'email"
                 disabled={isSending}
               />
-            </div>
-
-            {/* Date prévue */}
-            <div className="space-y-2">
-              <Label htmlFor="date-prevue">Date prévue</Label>
-              <Input
-                id="date-prevue"
-                type="text"
-                value={editableData.datePrevue || ''}
-                onChange={(e) => setEditableData(prev => ({ ...prev, datePrevue: e.target.value }))}
-                placeholder="Ex: 15 janvier 2024 ou À définir"
-                disabled={isSending}
-              />
-              <p className="text-xs text-muted-foreground">
-                Date prévue pour l&apos;intervention ou la visite
-              </p>
-            </div>
-
-            {/* Consigne artisan */}
-            <div className="space-y-2">
-              <Label htmlFor="consigne-artisan">Consigne pour l&apos;artisan</Label>
-              <Textarea
-                id="consigne-artisan"
-                value={editableData.consigneArtisan || ''}
-                onChange={(e) => setEditableData(prev => ({ ...prev, consigneArtisan: e.target.value }))}
-                placeholder="Instructions spécifiques pour l&apos;artisan..."
-                rows={4}
-                disabled={isSending}
-              />
-              <p className="text-xs text-muted-foreground">
-                Instructions et consignes à suivre par l&apos;artisan
-              </p>
             </div>
 
             {/* Coût SST (only for intervention type) */}

@@ -91,24 +91,20 @@ export function getDisplayName(
     tel: () => {
       // Stratégie 1 : telephone
       if (data.telephone) {
-        console.log('[getDisplayName] Mode "tel" - Retour telephone:', data.telephone)
         return data.telephone
       }
 
       // Stratégie 2 : telephone2
       if (data.telephone2) {
-        console.log('[getDisplayName] Mode "tel" - Retour telephone2:', data.telephone2)
         return data.telephone2
       }
 
       // Fallback final
-      console.log('[getDisplayName] Mode "tel" - Fallback: Aucun téléphone')
       return 'Aucun téléphone'
     },
   }
 
   const result = strategies[mode]()
-  console.log('[getDisplayName] Résultat final:', result)
   return result
 }
 

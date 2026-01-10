@@ -14,20 +14,18 @@
         - Modal vue impossible de scroller dans l'ajout des documents ou même sur la partie gauche entièrement. (Je suppose sur la partie droite également)  [Supprimer le modal oeuil ? ]   --> demander à André
 
 - Interventions
+        - Disposition NewModalINtervention même format que INterventionEditForm
         - Refacto / Fusionner INterventionEditForm et NewIntentionForm ou du moins communaliser le code pour éviter la duplication de code
-        -
-        - A partir de ce qui a été fait avec FilterMapperContext.tsx voir si on peut étendre le design avec les autres données du contexte d'intervention
-        - Mes Interventions à check
 
-Dans le
+- Enlever le warning de build
+        - ./src/components/ui/searchable-badge-select.tsx
+105:13  Warning: Elements with the ARIA role "combobox" must have the following attributes defined: aria-controls,aria-expanded  jsx-a11y/role-has-required-aria-props
 
-- Réparations logs
-        -
-        image.png
-        dimension du composant de filtrage par kilomètrage;
-
-        - Mettre un artisan indisponible et chercher un artisan dans la zone pour voir si le 
-        badge s'affiche bien 
+- A demander à DD
+        - Calcul de marge /inter pourquoi ?
+                Marge sur le prix de vente ou marge brute sans divisé par le coût de l'inter.
+                Pour moi sur le modal, on doit afficher la marge brute mais dans le calcul de marge générale on doit calculer la marge sur le prix de vente
+        - Quelles sont les différences entre le composant NewINterventionForm.tsx et InterventionEditForm.tsx ?? 
 
 ### Later
 

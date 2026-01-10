@@ -22,15 +22,17 @@ type Props = {
   onUnsavedDialogOpenChange?: (isOpen: boolean) => void
   onUnsavedChangesStateChange?: (hasChanges: boolean, isSubmitting: boolean) => void
   onRegisterShowDialog?: (showDialog: () => void) => void
+  onPopoverOpenChange?: (isOpen: boolean) => void
 }
 
-export function NewInterventionModalContent({ 
-  mode, 
-  onClose, 
-  onCycleMode, 
+export function NewInterventionModalContent({
+  mode,
+  onClose,
+  onCycleMode,
   onUnsavedDialogOpenChange,
   onUnsavedChangesStateChange,
   onRegisterShowDialog,
+  onPopoverOpenChange,
 }: Props) {
   const queryClient = useQueryClient()
   const modal = useModal()
@@ -95,7 +97,7 @@ export function NewInterventionModalContent({
   // Fonction pour enregistrer et fermer
   const handleSaveAndConfirm = useCallback(() => {
     shouldCloseAfterSaveRef.current = true
-    
+
     // Soumettre le formulaire
     if (formRef.current) {
       // Vérifier la validation avant de soumettre
@@ -111,7 +113,7 @@ export function NewInterventionModalContent({
         shouldCloseAfterSaveRef.current = false
         return
       }
-      
+
       // Si la validation passe, fermer le dialog immédiatement et soumettre
       setShowUnsavedDialog(false)
       form.requestSubmit()
@@ -146,17 +148,17 @@ export function NewInterventionModalContent({
   const handleSuccess = useCallback(
     async (data: { id: string }) => {
       if (!data?.id) return
-      
+
       // Invalider toutes les listes d'interventions pour recharger avec la nouvelle intervention
       await queryClient.invalidateQueries({ queryKey: interventionKeys.invalidateLists() })
       await queryClient.invalidateQueries({ queryKey: interventionKeys.invalidateLightLists() })
-      
+
       // Si on devait fermer après sauvegarde, s'assurer que le dialog est fermé
       if (shouldCloseAfterSaveRef.current) {
         setShowUnsavedDialog(false)
         shouldCloseAfterSaveRef.current = false
       }
-      
+
       // Fermer le modal (pas de retour à l'intervention initiale lors de la création réussie)
       onClose()
     },
@@ -178,7 +180,7 @@ export function NewInterventionModalContent({
       formRef.current.requestSubmit()
     }
   }
-  
+
   // Construire le titre dynamique
   const buildTitle = () => {
     const parts: string[] = []
@@ -195,7 +197,7 @@ export function NewInterventionModalContent({
     }
     return parts.join(" ")
   }
-  
+
   // Construire le sous-titre avec le téléphone
   const buildSubtitle = () => {
     if (clientPhone) {
@@ -257,7 +259,7 @@ export function NewInterventionModalContent({
             </TooltipContent>
           </Tooltip>
         </header>
-        
+
         <div className="modal-config-columns-body overflow-y-auto">
           <div className={bodyPadding}>
             {canWriteInterventions ? (
@@ -272,6 +274,7 @@ export function NewInterventionModalContent({
                 onAgencyNameChange={setAgencyName}
                 onClientPhoneChange={setClientPhone}
                 onHasUnsavedChanges={setHasUnsavedChanges}
+                onPopoverOpenChange={onPopoverOpenChange}
               />
             ) : (
               <div className="rounded border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
@@ -280,20 +283,20 @@ export function NewInterventionModalContent({
             )}
           </div>
         </div>
-        
+
         <footer className="modal-config-columns-footer flex items-center justify-end">
           <div className="flex items-center gap-2">
-            <Button 
-              type="button" 
-              variant="outline" 
-              onClick={handleCancel} 
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleCancel}
               disabled={isSubmitting}
               className="legacy-form-button"
             >
               {duplicateFromId ? "Retour" : "Annuler"}
             </Button>
             <Button
-              type="button" 
+              type="button"
               onClick={handleSubmit}
               disabled={isSubmitting || !canWriteInterventions}
               className="legacy-form-button bg-accent text-accent-foreground hover:bg-accent/90"

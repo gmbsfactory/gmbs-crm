@@ -52,6 +52,7 @@ export function InterventionModal({
   const [isEmailModalOpen, setIsEmailModalOpen] = useState(false)
   const [isStatusReasonModalOpen, setIsStatusReasonModalOpen] = useState(false)
   const [isUnsavedDialogOpen, setIsUnsavedDialogOpen] = useState(false)
+  const [isPopoverOpen, setIsPopoverOpen] = useState(false)
 
   // Callbacks pour recevoir les informations de InterventionModalContent
   const handleUnsavedChangesStateChange = useCallback((hasChanges: boolean, submitting: boolean) => {
@@ -133,6 +134,7 @@ export function InterventionModal({
           onUnsavedDialogOpenChange={setIsUnsavedDialogOpen}
           onUnsavedChangesStateChange={handleUnsavedChangesStateChange}
           onRegisterShowDialog={handleRegisterShowDialog}
+          onPopoverOpenChange={setIsPopoverOpen}
         />
       )
     }
@@ -165,6 +167,7 @@ export function InterventionModal({
         onSmsModalOpenChange={setIsSmsModalOpen}
         onEmailModalOpenChange={setIsEmailModalOpen}
         onStatusReasonModalOpenChange={setIsStatusReasonModalOpen}
+        onPopoverOpenChange={setIsPopoverOpen}
         onUnsavedDialogOpenChange={setIsUnsavedDialogOpen}
       />
     )
@@ -185,11 +188,11 @@ export function InterventionModal({
       isSubmitting={isSubmitting}
       onShowUnsavedDialog={() => showUnsavedDialogRef.current?.()}
       pauseFocusTrap={
-        isArtisanSearchOpen ||
         isSmsModalOpen ||
         isEmailModalOpen ||
         isStatusReasonModalOpen ||
-        isUnsavedDialogOpen
+        isUnsavedDialogOpen ||
+        isPopoverOpen
       }
     >
       {renderedContent}
