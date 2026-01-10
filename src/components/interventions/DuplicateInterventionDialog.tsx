@@ -19,6 +19,7 @@ type DuplicateIntervention = {
   agencyId?: string | null
   agencyLabel?: string | null
   managerName?: string | null
+  createdAt?: string | null
 }
 
 type Props = {
@@ -44,6 +45,15 @@ export function DuplicateInterventionDialog({ duplicates, onConfirm, onCancel }:
   const agency = duplicate.agencyLabel || "cette agence"
   const manager = duplicate.managerName || "un gestionnaire inconnu"
 
+  // Formater la date de création en français
+  const createdDate = duplicate.createdAt
+    ? new Date(duplicate.createdAt).toLocaleDateString("fr-FR", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+      })
+    : null
+
   const handleConfirm = () => {
     hasConfirmedRef.current = true
     onConfirm()
@@ -67,7 +77,13 @@ export function DuplicateInterventionDialog({ duplicates, onConfirm, onCancel }:
             <p>
               Une intervention à l&apos;adresse <strong>{address}</strong> avec l&apos;agence{" "}
               <strong>{agency}</strong> existe déjà et est gérée par{" "}
-              <strong>{manager}</strong>.
+              <strong>{manager}</strong>
+              {createdDate && (
+                <>
+                  {" "}(créée le <strong>{createdDate}</strong>)
+                </>
+              )}
+              .
             </p>
             <p>Voulez-vous quand même créer cette intervention ?</p>
           </AlertDialogDescription>

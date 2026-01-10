@@ -25,6 +25,7 @@
         - Calcul de marge /inter pourquoi ?
                 Marge sur le prix de vente ou marge brute sans divisé par le coût de l'inter.
                 Pour moi sur le modal, on doit afficher la marge brute mais dans le calcul de marge générale on doit calculer la marge sur le prix de vente
+        - Quelles sont les différences entre le composant NewINterventionForm.tsx et InterventionEditForm.tsx ?? 
 
 ### Later
 

@@ -315,6 +315,8 @@ export function NewInterventionForm({
   const [showArtisanSearch, setShowArtisanSearch] = useState(false)
   const [showSecondArtisanSearch, setShowSecondArtisanSearch] = useState(false)
   const [artisanSearchPosition, setArtisanSearchPosition] = useState<{ x: number; y: number; width?: number; height?: number } | null>(null)
+  const artisanSearchContainerRef = useRef<HTMLDivElement>(null)
+  const [artisanDisplayMode, setArtisanDisplayMode] = useState<"nom" | "rs" | "tel">("nom")
   const [secondArtisanSearchPosition, setSecondArtisanSearchPosition] = useState<{ x: number; y: number; width?: number; height?: number } | null>(null)
   // État pour stocker l'artisan sélectionné via recherche (qui peut ne pas être dans nearbyArtisans)
   const [searchSelectedArtisan, setSearchSelectedArtisan] = useState<NearbyArtisan | null>(null)
@@ -1019,39 +1021,13 @@ export function NewInterventionForm({
 
       // Vérifier les doublons sauf si l'utilisateur a déjà confirmé
       if (!skipDuplicateCheckRef.current && createData.adresse && createData.agence_id) {
-        const { data: duplicates } = await supabase
-          .from("interventions")
-          .select(`
-            id,
-            contexte_intervention,
-            adresse,
-            agence_id,
-            commentaire_agent,
-            agences:agence_id(label),
-            users:assigned_user_id(firstname, lastname)
-          `)
-          .eq("adresse", createData.adresse)
-          .eq("agence_id", createData.agence_id)
-          .limit(5)
+        const duplicates = await interventionsApi.getDuplicateDetails(
+          createData.adresse,
+          createData.agence_id
+        )
 
         if (duplicates && duplicates.length > 0) {
-          setConfirmableDuplicates(
-            duplicates.map((match: any) => {
-              const agencyData = match.agences as any
-              const userData = match.users as any
-
-              return {
-                id: match.id,
-                name: match.contexte_intervention || match.commentaire_agent || "Intervention sans nom",
-                address: match.adresse || "",
-                agencyId: match.agence_id,
-                agencyLabel: agencyData?.label || null,
-                managerName: userData
-                  ? `${userData.firstname || ""} ${userData.lastname || ""}`.trim() || null
-                  : null,
-              }
-            })
-          )
+          setConfirmableDuplicates(duplicates)
           setIsSubmitting(false)
           onSubmittingChange?.(false)
           return
@@ -1217,7 +1193,13 @@ export function NewInterventionForm({
   }
 
   // Hauteur de la section carte+artisans basée sur la sélection d'artisan
-  const mapSectionHeight = selectedArtisanId ? "260px" : "450px"
+  const mapSectionHeight = selectedArtisanId ? "150px" : "220px"
+
+  const DEFAULT_MAP_PANEL_SIZE = 70
+  const DEFAULT_ARTISANS_PANEL_SIZE = 30
+  const panelStorageId = currentUser?.id
+    ? `gmbs:intervention-form:panel-size:${currentUser.id}`
+    : null
 
   return (
     <form ref={formRef} onSubmit={handleSubmit} className="flex-1 min-h-0 flex flex-col">
@@ -1483,9 +1465,14 @@ export function NewInterventionForm({
 
             {/* DIV7+8: CARTE + ARTISANS REDIMENSIONNABLES - Row 4, Cols 1-4 */}
             <div style={{ gridArea: "4 / 1 / 5 / 5", height: mapSectionHeight }}>
-              <ResizablePanelGroup direction="horizontal" className="h-full rounded-lg">
+              <ResizablePanelGroup
+                key={`panel-group-${currentUser?.id ?? "anonymous"}`}
+                direction="horizontal"
+                className="h-full rounded-lg"
+                autoSaveId={panelStorageId}
+              >
                 {/* Panel Carte */}
-                <ResizablePanel defaultSize={70} minSize={30} maxSize={85}>
+                <ResizablePanel defaultSize={DEFAULT_MAP_PANEL_SIZE} minSize={30} maxSize={85}>
                   <Card className="h-full overflow-hidden rounded-r-none border-r-0">
                     <CardContent className="p-0 h-full">
                       <MapLibreMap
@@ -1502,7 +1489,7 @@ export function NewInterventionForm({
                 </ResizablePanel>
 
                 {/* Handle de redimensionnement avec trois points */}
-                <ResizableHandle className="w-2 bg-muted/50 hover:bg-primary/20 transition-colors data-[resize-handle-active]:bg-primary/30 group">
+                <ResizableHandle className="w-2 bg-muted/50 hover:bg-primary/20 transition-colors data-[resize-handle-active]:bg-primary/30 group cursor-col-resize flex-shrink-0 relative flex items-center justify-center">
                   <div className="flex h-full items-center justify-center">
                     <div className="flex flex-col gap-0.5 opacity-40 group-hover:opacity-70 transition-opacity">
                       <div className="h-1 w-1 rounded-full bg-muted-foreground" />
@@ -1518,18 +1505,42 @@ export function NewInterventionForm({
                     <CardContent className="p-3 flex flex-col h-full overflow-hidden">
                       {/* Header artisans */}
                       <div className="flex items-center justify-between gap-2 mb-3 flex-shrink-0 flex-wrap min-w-0">
-                        <h3 className="font-semibold text-sm flex items-center gap-2 flex-shrink-0">
-                          <Building className="h-4 w-4" />
-                          Artisans
-                        </h3>
-                        <div className="flex gap-1 min-w-0 flex-shrink-0">
-                          <Input
-                            id="artisan"
-                            value={formData.artisan}
-                            onChange={(event) => handleInputChange("artisan", event.target.value)}
-                            placeholder="Artisan"
-                            className="h-7 text-xs w-24 min-w-0"
-                          />
+                        <div className="flex items-center gap-2 min-w-0 overflow-hidden">
+                          <h3 className="font-semibold text-sm flex items-center gap-2 flex-shrink-0">
+                            <Building className="h-4 w-4" />
+                            Artisans
+                          </h3>
+                          <div className="flex gap-0.5 flex-shrink-0">
+                            <Button
+                              type="button"
+                              variant={artisanDisplayMode === "nom" ? "default" : "ghost"}
+                              size="sm"
+                              className="h-5 px-1.5 text-[10px]"
+                              onClick={() => setArtisanDisplayMode("nom")}
+                            >
+                              nom
+                            </Button>
+                            <Button
+                              type="button"
+                              variant={artisanDisplayMode === "rs" ? "default" : "ghost"}
+                              size="sm"
+                              className="h-5 px-1.5 text-[10px]"
+                              onClick={() => setArtisanDisplayMode("rs")}
+                            >
+                              RS
+                            </Button>
+                            <Button
+                              type="button"
+                              variant={artisanDisplayMode === "tel" ? "default" : "ghost"}
+                              size="sm"
+                              className="h-5 px-1.5 text-[10px]"
+                              onClick={() => setArtisanDisplayMode("tel")}
+                            >
+                              tel
+                            </Button>
+                          </div>
+                        </div>
+                        <div className="flex gap-1">
                           <Button
                             type="button"
                             variant="outline"
