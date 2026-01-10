@@ -2,7 +2,6 @@
 
 import * as React from "react"
 import { Check, Search } from "lucide-react"
-import { cn } from "@/lib/utils"
 import { Label } from "@/components/ui/label"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 
@@ -35,6 +34,7 @@ export interface SearchableBadgeSelectProps {
   hideLabel?: boolean
   searchPlaceholder?: string
   emptyText?: string
+  onOpenChange?: (open: boolean) => void
 }
 
 export function SearchableBadgeSelect({
@@ -48,8 +48,15 @@ export function SearchableBadgeSelect({
   hideLabel = false,
   searchPlaceholder = "Rechercher...",
   emptyText = "Aucun résultat",
+  onOpenChange,
 }: SearchableBadgeSelectProps) {
   const [open, setOpen] = React.useState(false)
+
+  // Notifier le parent du changement d'état d'ouverture pour gérer le focus trap
+  React.useEffect(() => {
+    onOpenChange?.(open)
+  }, [open, onOpenChange])
+
   const [search, setSearch] = React.useState("")
   const inputRef = React.useRef<HTMLInputElement>(null)
 

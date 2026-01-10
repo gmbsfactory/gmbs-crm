@@ -103,6 +103,7 @@ interface InterventionEditFormProps {
   onArtisanSearchOpenChange?: (isOpen: boolean) => void
   onEmailModalOpenChange?: (isOpen: boolean) => void
   onStatusReasonModalOpenChange?: (isOpen: boolean) => void
+  onPopoverOpenChange?: (isOpen: boolean) => void
 }
 
 export function InterventionEditForm({
@@ -119,7 +120,8 @@ export function InterventionEditForm({
   onHasUnsavedChanges,
   onArtisanSearchOpenChange,
   onEmailModalOpenChange,
-  onStatusReasonModalOpenChange
+  onStatusReasonModalOpenChange,
+  onPopoverOpenChange
 }: InterventionEditFormProps) {
   const { data: refData, loading: refDataLoading } = useReferenceData()
   const queryClient = useQueryClient()
@@ -1990,6 +1992,7 @@ export function InterventionEditForm({
                         onChange={(value) => handleInputChange("statut_id", value)}
                         placeholder="Statut"
                         searchPlaceholder="Rechercher un statut..."
+                        onOpenChange={onPopoverOpenChange}
                         options={(refData?.interventionStatuses || []).map(s => ({
                           id: s.id,
                           label: getStatusDisplayLabel(s.code, s.label, sstPayment, clientPayment),
@@ -2000,12 +2003,14 @@ export function InterventionEditForm({
                       {/* Agence - Badge coloré */}
                       <SearchableBadgeSelect
                         label="Agence"
+                        hideLabel
                         value={formData.agence_id}
                         options={refData.agencies}
                         onChange={(value) => handleInputChange("agence_id", value)}
                         placeholder="Agence"
                         minWidth="70px"
                         searchPlaceholder="Rechercher une agence..."
+                        onOpenChange={onPopoverOpenChange}
                         emptyText="Aucune agence trouvée"
                       />
 
@@ -2031,6 +2036,7 @@ export function InterventionEditForm({
                         value={formData.metier_id}
                         onChange={(value) => handleInputChange("metier_id", value)}
                         placeholder="Métier"
+                        onOpenChange={onPopoverOpenChange}
                         searchPlaceholder="Rechercher un métier..."
                         minWidth="100px"
                         options={(refData?.metiers || []).map(m => ({
@@ -2719,6 +2725,7 @@ export function InterventionEditForm({
                                 placeholder="Métier..."
                                 minWidth="100px"
                                 hideLabel
+                                onOpenChange={onPopoverOpenChange}
                                 searchPlaceholder="Rechercher un métier..."
                                 emptyText="Aucun métier trouvé"
                               />

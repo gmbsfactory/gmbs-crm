@@ -54,13 +54,13 @@ NoteDialogContent.displayName = "NoteDialogContent"
 const SmsDialogContent = React.forwardRef<HTMLDivElement, NoteDialogContentProps>(
   ({ className, ...props }, ref) => (
     <AlertDialogPortal>
-      <AlertDialogPrimitive.Content 
-        ref={ref} 
+      <AlertDialogPrimitive.Content
+        ref={ref}
         className={cn(
           "fixed left-[50%] top-[50%] z-[201] grid w-full max-w-md translate-x-[-50%] translate-y-[-50%] gap-4 border bg-background p-6 shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 sm:rounded-lg",
           className
-        )} 
-        {...props} 
+        )}
+        {...props}
       />
     </AlertDialogPortal>
   ),
@@ -90,6 +90,7 @@ type Props = {
   onSmsModalOpenChange?: (isOpen: boolean) => void
   onEmailModalOpenChange?: (isOpen: boolean) => void
   onStatusReasonModalOpenChange?: (isOpen: boolean) => void
+  onPopoverOpenChange?: (isOpen: boolean) => void
   onUnsavedDialogOpenChange?: (isOpen: boolean) => void
 }
 
@@ -111,6 +112,7 @@ export function InterventionModalContent({
   onSmsModalOpenChange,
   onEmailModalOpenChange,
   onStatusReasonModalOpenChange,
+  onPopoverOpenChange,
   onUnsavedDialogOpenChange,
 }: Props) {
   const bodyPadding = mode === "fullpage" ? "px-8 py-6 md:px-12" : "px-5 py-4 md:px-8"
@@ -230,7 +232,7 @@ GMBS`
 
     // Détecter si on est sur mobile
     const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent)
-    
+
     // Ouvrir WhatsApp avec le numéro et le message
     if (isMobile) {
       // Sur mobile : utiliser le protocole whatsapp:// pour ouvrir directement l'app
@@ -246,8 +248,8 @@ GMBS`
       const left = Math.round((window.screen.width - popupWidth) / 2)
       const top = Math.round((window.screen.height - popupHeight) / 2)
       window.open(
-        whatsappUrl, 
-        '_blank', 
+        whatsappUrl,
+        '_blank',
         `width=${popupWidth},height=${popupHeight},left=${left},top=${top},resizable=yes,scrollbars=yes`
       )
     }
@@ -290,7 +292,7 @@ GMBS`
   // Fonction pour enregistrer et fermer
   const handleSaveAndClose = useCallback(() => {
     shouldCloseAfterSaveRef.current = true
-    
+
     // Soumettre le formulaire
     if (formRef.current) {
       // Vérifier la validation avant de soumettre
@@ -306,7 +308,7 @@ GMBS`
         shouldCloseAfterSaveRef.current = false
         return
       }
-      
+
       // Si la validation passe, fermer le dialog immédiatement et soumettre
       setShowUnsavedDialog(false)
       form.requestSubmit()
@@ -333,7 +335,7 @@ GMBS`
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
-        
+
         if (showUnsavedDialog) {
           // Laisser UnsavedChangesDialog gérer Escape
           return
@@ -404,7 +406,7 @@ GMBS`
     return () => {
       document.removeEventListener("keydown", handleKeyDown, true)
     }
-  }, [showUnsavedDialog]) 
+  }, [showUnsavedDialog])
 
   const handleSuccess = useCallback(
     async (data: any) => {
@@ -413,7 +415,7 @@ GMBS`
         setShowUnsavedDialog(false)
         shouldCloseAfterSaveRef.current = false
       }
-      
+
       // 1. Mise à jour optimiste immédiate dans React Query pour le détail
       queryClient.setQueryData(interventionKeys.detail(interventionId), data)
 
@@ -434,15 +436,15 @@ GMBS`
       // 3. Invalider IMMÉDIATEMENT les queries actives pour forcer le refetch et le re-render (sans toucher aux inactives)
       // Utiliser refetchType: 'active' pour ne refetch que les queries actuellement montées
       // Cela garantit que l'UI se met à jour instantanément sans attendre waitForExit()
-      queryClient.invalidateQueries({ 
+      queryClient.invalidateQueries({
         queryKey: interventionKeys.detail(interventionId),
         refetchType: 'active' // Forcer le refetch immédiat des queries actives
       })
-      queryClient.invalidateQueries({ 
+      queryClient.invalidateQueries({
         queryKey: interventionKeys.invalidateLists(),
         refetchType: 'active' // Forcer le refetch immédiat des queries actives
       })
-      queryClient.invalidateQueries({ 
+      queryClient.invalidateQueries({
         queryKey: interventionKeys.invalidateLightLists(),
         refetchType: 'active' // Forcer le refetch immédiat des queries actives
       })
@@ -728,6 +730,7 @@ GMBS`
                 onArtisanSearchOpenChange={onArtisanSearchOpenChange}
                 onEmailModalOpenChange={onEmailModalOpenChange}
                 onStatusReasonModalOpenChange={onStatusReasonModalOpenChange}
+                onPopoverOpenChange={onPopoverOpenChange}
               />
             ) : (
               <div className="rounded border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
