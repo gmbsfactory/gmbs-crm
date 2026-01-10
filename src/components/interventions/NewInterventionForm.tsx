@@ -1297,10 +1297,9 @@ export function NewInterventionForm({
         form.reportValidity()
         return
       }
-    } else if (!idInterValue) {
-      idInterValue = generateAutoInterventionId()
-      setFormData((prev) => ({ ...prev, id_inter: idInterValue }))
     }
+    // Si id_inter n'est pas fourni et n'est pas requis, laisser vide (null)
+    // Cela s'affichera comme "--" dans la TableView
 
     const datePrevueValue = formData.date_prevue?.trim() ?? ""
     if (requiresDatePrevue && datePrevueValue.length === 0) {
@@ -1361,7 +1360,7 @@ export function NewInterventionForm({
         adresse_complete: formData.adresseComplete || null,
         latitude: formData.latitude,
         longitude: formData.longitude,
-        id_inter: idInterValue,
+        id_inter: idInterValue.length > 0 ? idInterValue : null,
         is_vacant: formData.is_vacant,
         key_code: formData.is_vacant ? (formData.key_code?.trim() || null) : null,
         floor: formData.is_vacant ? (formData.floor?.trim() || null) : null,

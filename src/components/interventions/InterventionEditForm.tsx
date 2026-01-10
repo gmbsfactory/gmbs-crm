@@ -14,6 +14,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Badge } from "@/components/ui/badge"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { GestionnaireBadge } from "@/components/ui/gestionnaire-badge"
+import { SearchableBadgeSelect } from "@/components/ui/searchable-badge-select"
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable"
 import { MapLibreMap } from "@/components/maps/MapLibreMap"
 import { DocumentManager } from "@/components/documents/DocumentManager"
@@ -77,455 +78,6 @@ const formatDistanceKm = (value: number) => {
   return `${Math.round(value)} km`
 }
 
-// Fonction pour calculer la couleur de texte lisible (blanc ou noir)
-function getReadableTextColor(bgColor: string | null | undefined): string {
-  if (!bgColor) return "#1f2937"
-  const hex = bgColor.replace("#", "")
-  if (hex.length !== 6) return "#1f2937"
-  const r = parseInt(hex.slice(0, 2), 16)
-  const g = parseInt(hex.slice(2, 4), 16)
-  const b = parseInt(hex.slice(4, 6), 16)
-  // Formule de luminance relative
-  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255
-  return luminance > 0.5 ? "#1f2937" : "#ffffff"
-}
-
-// Composant ColorBadgeSelect - Sélecteur visuel avec badges colorés
-interface ColorBadgeOption {
-  id: string
-  label: string
-  color?: string | null
-}
-
-interface ColorBadgeSelectProps {
-  label: string
-  value: string
-  options: ColorBadgeOption[]
-  onChange: (value: string) => void
-  placeholder?: string
-  required?: boolean
-  minWidth?: string
-  hideLabel?: boolean
-}
-
-function ColorBadgeSelect({ label, value, options, onChange, placeholder = "Sélectionner", required, minWidth = "70px", hideLabel = false }: ColorBadgeSelectProps) {
-  const [open, setOpen] = useState(false)
-  const listRef = useRef<HTMLDivElement>(null)
-  const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const searchBufferRef = useRef<string>("")
-
-  // Trier les options par ordre alphabétique
-  const sortedOptions = useMemo(() =>
-    [...options].sort((a, b) => a.label.localeCompare(b.label, 'fr', { sensitivity: 'base' })),
-    [options]
-  )
-
-  const selectedOption = options.find(o => o.id === value)
-  const selectedColor = selectedOption?.color || "#6b7280"
-  const selectedLabel = selectedOption?.label || placeholder
-
-  // Gestion de la recherche rapide au clavier et navigation
-  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
-    if (e.key === "Escape") {
-      setOpen(false)
-      return
-    }
-
-    // Navigation avec les flèches
-    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
-      e.preventDefault()
-
-      if (!listRef.current) return
-
-      const items = Array.from(listRef.current.querySelectorAll("[data-option-id]")) as HTMLElement[]
-      if (items.length === 0) return
-
-      const currentIndex = items.findIndex(item => item === document.activeElement)
-      let nextIndex: number
-
-      if (e.key === "ArrowDown") {
-        nextIndex = currentIndex === -1 ? 0 : Math.min(currentIndex + 1, items.length - 1)
-      } else {
-        nextIndex = currentIndex === -1 ? items.length - 1 : Math.max(currentIndex - 1, 0)
-      }
-
-      const nextItem = items[nextIndex]
-      if (nextItem) {
-        nextItem.scrollIntoView({ block: "nearest", behavior: "smooth" })
-        nextItem.focus()
-      }
-      return
-    }
-
-    // Si c'est une lettre ou un chiffre, on fait une recherche rapide
-    if (e.key.length === 1 && /[a-zA-Z0-9]/.test(e.key)) {
-      e.preventDefault()
-
-      // Ajouter la lettre au buffer de recherche
-      searchBufferRef.current += e.key.toLowerCase()
-
-      // Trouver l'option qui commence par le buffer (dans la liste triée)
-      const matchIndex = sortedOptions.findIndex(o =>
-        o.label.toLowerCase().startsWith(searchBufferRef.current)
-      )
-
-      if (matchIndex !== -1 && listRef.current) {
-        const items = listRef.current.querySelectorAll("[data-option-id]")
-        const targetItem = items[matchIndex] as HTMLElement
-        if (targetItem) {
-          targetItem.scrollIntoView({ block: "nearest", behavior: "smooth" })
-          targetItem.focus()
-        }
-      }
-
-      // Reset le buffer après un délai
-      if (searchTimeoutRef.current) {
-        clearTimeout(searchTimeoutRef.current)
-      }
-      searchTimeoutRef.current = setTimeout(() => {
-        searchBufferRef.current = ""
-      }, 800)
-    }
-  }, [sortedOptions])
-
-  // Cleanup du timeout
-  useEffect(() => {
-    return () => {
-      if (searchTimeoutRef.current) {
-        clearTimeout(searchTimeoutRef.current)
-      }
-    }
-  }, [])
-
-  return (
-    <div className="flex flex-col gap-0.5">
-      {!hideLabel && <Label className="text-[10px] text-muted-foreground leading-none">{label}{required && " *"}</Label>}
-      <Popover open={open} onOpenChange={setOpen}>
-        <PopoverTrigger asChild>
-          <button
-            type="button"
-            className="inline-flex items-center justify-center rounded-full h-7 px-3 text-xs font-semibold transition-all hover:scale-105 hover:shadow-md cursor-pointer"
-            style={{
-              backgroundColor: selectedColor,
-              color: getReadableTextColor(selectedColor),
-              minWidth: minWidth,
-            }}
-          >
-            {selectedLabel}
-          </button>
-        </PopoverTrigger>
-        <PopoverContent
-          className="p-0 border-none bg-transparent shadow-none"
-          align="start"
-          style={{ width: 'var(--radix-popover-trigger-width)' }}
-          onKeyDown={handleKeyDown}
-          onOpenAutoFocus={(e) => {
-            e.preventDefault()
-            // Focus le premier élément ou l'élément sélectionné
-            setTimeout(() => {
-              if (listRef.current) {
-                const selected = listRef.current.querySelector("[data-selected='true']") as HTMLElement
-                const firstItem = listRef.current.querySelector("[data-option-id]") as HTMLElement
-                  ; (selected || firstItem)?.focus()
-              }
-            }, 0)
-          }}
-        >
-          <div
-            ref={listRef}
-            className="flex flex-col gap-1 py-1"
-          >
-            {sortedOptions.map((option) => {
-              const isSelected = option.id === value
-              const optionColor = option.color || "#6b7280"
-              return (
-                <button
-                  key={option.id}
-                  type="button"
-                  data-option-id={option.id}
-                  data-selected={isSelected}
-                  className={cn(
-                    "inline-flex items-center justify-center rounded-full h-7 px-3 text-xs font-semibold transition-all outline-none shadow-md hover:shadow-lg hover:scale-105",
-                    "focus:ring-2 focus:ring-primary focus:ring-offset-1",
-                    isSelected && "ring-2 ring-primary ring-offset-1"
-                  )}
-                  style={{
-                    backgroundColor: optionColor,
-                    color: getReadableTextColor(optionColor),
-                  }}
-                  onClick={() => {
-                    onChange(option.id)
-                    setOpen(false)
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" || e.key === " ") {
-                      e.preventDefault()
-                      onChange(option.id)
-                      setOpen(false)
-                    }
-                  }}
-                >
-                  {option.label}
-                </button>
-              )
-            })}
-          </div>
-        </PopoverContent>
-      </Popover>
-    </div>
-  )
-}
-
-// Composant ColorBadgeSelectStacking - Sélecteur avec effet Stacking Cards (style Skiper16)
-interface ColorBadgeSelectStackingProps {
-  label: string
-  value: string
-  options: ColorBadgeOption[]
-  onChange: (value: string) => void
-  placeholder?: string
-  required?: boolean
-  minWidth?: string
-  hideLabel?: boolean
-}
-
-// Hauteur d'une carte
-const CARD_HEIGHT = 36
-
-function StackingCard({
-  option,
-  index,
-  isSelected,
-  scrollProgress,
-  totalItems,
-  onSelect,
-}: {
-  option: ColorBadgeOption
-  index: number
-  isSelected: boolean
-  scrollProgress: MotionValue<number>
-  totalItems: number
-  onSelect: () => void
-}) {
-  const total = Math.max(totalItems, 1)
-  const segment = 1 / total
-  const rangeStart = Math.max(0, index * segment)
-  // Transition plus rapide : la carte atteint son scale final à 60% de son segment
-  const rangeEnd = Math.min(1, rangeStart + segment * 0.6)
-
-  // Scale de 1 à 0.92 (légèrement plus prononcé)
-  const scale = useTransform(scrollProgress, [rangeStart, rangeEnd], [1, 0.92])
-
-  const optionColor = option.color || "#6b7280"
-
-  return (
-    <div
-      className="sticky flex items-center justify-center"
-      style={{
-        top: 0,
-        zIndex: index + 1,
-        height: `${CARD_HEIGHT}px`,
-      }}
-    >
-      <motion.button
-        type="button"
-        data-option-id={option.id}
-        data-selected={isSelected}
-        style={{
-          scale,
-          backgroundColor: optionColor,
-          color: getReadableTextColor(optionColor),
-        }}
-        className={cn(
-          "w-full flex items-center justify-center rounded-full px-3 h-8 text-xs font-semibold origin-top",
-          "border border-white/30",
-          "cursor-pointer",
-          "hover:border-white/50",
-          "focus:outline-none focus:ring-2 focus:ring-white/60 focus:ring-offset-1",
-          isSelected && "ring-2 ring-white"
-        )}
-        initial={false}
-        whileHover={{ scale: 1.02 }}
-        whileTap={{ scale: 0.98 }}
-        onClick={onSelect}
-      >
-        {option.label}
-      </motion.button>
-    </div>
-  )
-}
-
-// Composant interne pour la liste avec scroll - rendu uniquement quand le Popover est ouvert
-function StackingCardsList({
-  sortedOptions,
-  value,
-  onChange,
-  onClose,
-}: {
-  sortedOptions: ColorBadgeOption[]
-  value: string
-  onChange: (value: string) => void
-  onClose: () => void
-}) {
-  const scrollContainerRef = useRef<HTMLDivElement>(null)
-  const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const searchBufferRef = useRef<string>("")
-
-  // Progress du scroll pour les animations (comme dans Skiper16)
-  const { scrollYProgress } = useScroll({
-    container: scrollContainerRef,
-    offset: ["start start", "end end"],
-  })
-
-  // Spring pour des animations fluides
-  const smoothProgress = useSpring(scrollYProgress, {
-    stiffness: 150,
-    damping: 25,
-    restDelta: 0.001
-  })
-
-  // Gestion de la recherche rapide au clavier
-  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
-    if (e.key === "Escape") {
-      onClose()
-      return
-    }
-
-    if (e.key.length === 1 && /[a-zA-Z0-9]/.test(e.key)) {
-      e.preventDefault()
-
-      searchBufferRef.current += e.key.toLowerCase()
-
-      const matchIndex = sortedOptions.findIndex(o =>
-        o.label.toLowerCase().startsWith(searchBufferRef.current)
-      )
-
-      if (matchIndex !== -1 && scrollContainerRef.current) {
-        const items = scrollContainerRef.current.querySelectorAll("[data-option-id]")
-        const targetItem = items[matchIndex] as HTMLElement
-        if (targetItem) {
-          targetItem.scrollIntoView({ block: "center", behavior: "smooth" })
-        }
-      }
-
-      if (searchTimeoutRef.current) {
-        clearTimeout(searchTimeoutRef.current)
-      }
-      searchTimeoutRef.current = setTimeout(() => {
-        searchBufferRef.current = ""
-      }, 800)
-    }
-  }, [sortedOptions, onClose])
-
-  useEffect(() => {
-    return () => {
-      if (searchTimeoutRef.current) {
-        clearTimeout(searchTimeoutRef.current)
-      }
-    }
-  }, [])
-
-  const totalCards = sortedOptions.length
-  // Hauteur visible du conteneur (montre quelques cartes)
-  const containerHeight = Math.min(280, Math.max(180, totalCards * CARD_HEIGHT * 0.6))
-  // Padding réduit : 75% du scroll suffit pour empiler toutes les cartes
-  const scrollPadding = totalCards * CARD_HEIGHT * 0.75
-
-  return (
-    <div onKeyDown={handleKeyDown}>
-      <div
-        ref={scrollContainerRef}
-        className="relative overflow-y-auto overflow-x-hidden scrollbar-minimal bg-transparent"
-        style={{
-          height: `${containerHeight}px`,
-        }}
-      >
-        <div
-          className="relative px-1 pt-1"
-          style={{
-            // Le padding permet de scroller suffisamment pour empiler toutes les cartes
-            paddingBottom: `${scrollPadding}px`,
-          }}
-        >
-          {sortedOptions.map((option, i) => {
-            const isSelected = option.id === value
-
-            return (
-              <StackingCard
-                key={option.id}
-                option={option}
-                index={i}
-                isSelected={isSelected}
-                scrollProgress={smoothProgress}
-                totalItems={totalCards}
-                onSelect={() => {
-                  onChange(option.id)
-                  onClose()
-                }}
-              />
-            )
-          })}
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function ColorBadgeSelectStacking({
-  label,
-  value,
-  options,
-  onChange,
-  placeholder = "Sélectionner",
-  required,
-  minWidth = "70px",
-  hideLabel = false
-}: ColorBadgeSelectStackingProps) {
-  const [open, setOpen] = useState(false)
-
-  // Trier les options par ordre alphabétique
-  const sortedOptions = useMemo(() =>
-    [...options].sort((a, b) => a.label.localeCompare(b.label, 'fr', { sensitivity: 'base' })),
-    [options]
-  )
-
-  const selectedOption = options.find(o => o.id === value)
-  const selectedColor = selectedOption?.color || "#6b7280"
-  const selectedLabel = selectedOption?.label || placeholder
-
-  return (
-    <div className="flex flex-col gap-0.5">
-      {!hideLabel && <Label className="text-[10px] text-muted-foreground leading-none">{label}{required && " *"}</Label>}
-      <Popover open={open} onOpenChange={setOpen}>
-        <PopoverTrigger asChild>
-          <button
-            type="button"
-            className="inline-flex items-center justify-center rounded-full h-7 px-3 text-xs font-semibold transition-all hover:scale-105 hover:shadow-md cursor-pointer"
-            style={{
-              backgroundColor: selectedColor,
-              color: getReadableTextColor(selectedColor),
-              minWidth: minWidth,
-            }}
-          >
-            {selectedLabel}
-          </button>
-        </PopoverTrigger>
-        <PopoverContent
-          className="p-0 border-none bg-transparent shadow-none"
-          align="start"
-          style={{ width: '160px' }}
-          sideOffset={6}
-        >
-          <StackingCardsList
-            sortedOptions={sortedOptions}
-            value={value}
-            onChange={onChange}
-            onClose={() => setOpen(false)}
-          />
-        </PopoverContent>
-      </Popover>
-    </div>
-  )
-}
 
 function hexToRgba(hex: string, alpha: number): string | null {
   const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex)
@@ -2430,13 +1982,14 @@ export function InterventionEditForm({
                       </div>
 
                       {/* Statut - Badge coloré */}
-                      <ColorBadgeSelect
+                      <SearchableBadgeSelect
                         label="Statut"
                         required
                         hideLabel
                         value={formData.statut_id}
                         onChange={(value) => handleInputChange("statut_id", value)}
                         placeholder="Statut"
+                        searchPlaceholder="Rechercher un statut..."
                         options={(refData?.interventionStatuses || []).map(s => ({
                           id: s.id,
                           label: getStatusDisplayLabel(s.code, s.label, sstPayment, clientPayment),
@@ -2445,17 +1998,15 @@ export function InterventionEditForm({
                       />
 
                       {/* Agence - Badge coloré */}
-                      <ColorBadgeSelect
+                      <SearchableBadgeSelect
                         label="Agence"
-                        hideLabel
                         value={formData.agence_id}
+                        options={refData.agencies}
                         onChange={(value) => handleInputChange("agence_id", value)}
                         placeholder="Agence"
-                        options={(refData?.agencies || []).map(a => ({
-                          id: a.id,
-                          label: a.label,
-                          color: a.color,
-                        }))}
+                        minWidth="70px"
+                        searchPlaceholder="Rechercher une agence..."
+                        emptyText="Aucune agence trouvée"
                       />
 
                       {/* Réf. agence - Input conditionnel */}
@@ -2474,12 +2025,13 @@ export function InterventionEditForm({
                       )}
 
                       {/* Métier - Badge coloré */}
-                      <ColorBadgeSelect
+                      <SearchableBadgeSelect
                         label="Métier"
                         hideLabel
                         value={formData.metier_id}
                         onChange={(value) => handleInputChange("metier_id", value)}
                         placeholder="Métier"
+                        searchPlaceholder="Rechercher un métier..."
                         minWidth="100px"
                         options={(refData?.metiers || []).map(m => ({
                           id: m.id,
@@ -2537,7 +2089,7 @@ export function InterventionEditForm({
                           onFocus={() => {
                             setShowLocationSuggestions(true)
                             if (suggestionBlurTimeoutRef.current) {
-                              window.clearTimeout(suggestionBlurTimeoutRef.current)
+                              window.clearTimeout(suggestionBlurBlurTimeoutRef.current)
                               suggestionBlurTimeoutRef.current = null
                             }
                           }}
@@ -3155,18 +2707,20 @@ export function InterventionEditForm({
                           {/* Header artisans - même style que colonne gauche */}
                           <div className="flex items-center justify-between gap-2 flex-shrink-0 pt-[13px] flex-wrap min-w-0">
                             <div className="flex items-center gap-2 min-w-0 overflow-hidden">
-                              <ColorBadgeSelectStacking
+                              <SearchableBadgeSelect
                                 label="Métier"
                                 value={formData.metierSecondArtisanId}
-                                onChange={(value) => handleInputChange("metierSecondArtisanId", value)}
-                                placeholder="Métier..."
-                                minWidth="100px"
-                                hideLabel
                                 options={(refData?.metiers || []).map(m => ({
                                   id: m.id,
                                   label: m.label,
                                   color: m.color,
                                 }))}
+                                onChange={(value) => handleInputChange("metierSecondArtisanId", value)}
+                                placeholder="Métier..."
+                                minWidth="100px"
+                                hideLabel
+                                searchPlaceholder="Rechercher un métier..."
+                                emptyText="Aucun métier trouvé"
                               />
                               <div className="flex gap-0.5 flex-shrink-0">
                                 <Button
