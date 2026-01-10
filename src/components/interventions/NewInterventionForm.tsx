@@ -1,7 +1,6 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { motion, useScroll, useTransform, useSpring, type MotionValue } from "framer-motion"
 import { useQueryClient } from "@tanstack/react-query"
 import { Building, ChevronDown, ChevronRight, FileText, MessageSquare, Upload, X, Search, Eye, Mail, MessageCircle, Users, Palette } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -29,6 +28,7 @@ import type { CreateInterventionData } from "@/lib/api/v2/common/types"
 import { supabase } from "@/lib/supabase-client"
 import { useCurrentUser } from "@/hooks/useCurrentUser"
 import { cn } from "@/lib/utils"
+import { calculatePrimaryArtisanMargin, calculateSecondaryArtisanMargin, formatMarginPercentage, getMarginColorClass } from "@/lib/utils/margin-calculator"
 import { ArtisanSearchModal, type ArtisanSearchResult } from "@/components/artisans/ArtisanSearchModal"
 import { Avatar } from "@/components/artisans/Avatar"
 import { useArtisanModal } from "@/hooks/useArtisanModal"
@@ -37,6 +37,7 @@ import { findOrCreateOwner, findOrCreateTenant } from "@/lib/interventions/owner
 import { EmailEditModal } from "@/components/interventions/EmailEditModal"
 import { generateDevisEmailTemplate, generateInterventionEmailTemplate, generateDevisWhatsAppText, generateInterventionWhatsAppText, type EmailTemplateData } from "@/lib/email-templates/intervention-emails"
 import { DuplicateInterventionDialog } from "@/components/interventions/DuplicateInterventionDialog"
+import { SearchableBadgeSelect } from "@/components/ui/searchable-badge-select"
 
 const INTERVENTION_DOCUMENT_KINDS = [
   { kind: "devis", label: "Devis" },
@@ -82,6 +83,7 @@ const formatDistanceKm = (value: number) => {
   return `${Math.round(value)} km`
 }
 
+// hexToRgba is used for badges elsewhere in the file
 function hexToRgba(hex: string, alpha: number): string | null {
   const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex)
   if (!result) return null
@@ -89,390 +91,6 @@ function hexToRgba(hex: string, alpha: number): string | null {
   const g = parseInt(result[2], 16)
   const b = parseInt(result[3], 16)
   return `rgba(${r}, ${g}, ${b}, ${alpha})`
-}
-
-// Fonction pour calculer la couleur de texte lisible (blanc ou noir)
-function getReadableTextColor(bgColor: string | null | undefined): string {
-  if (!bgColor) return "#1f2937"
-  const hex = bgColor.replace("#", "")
-  if (hex.length !== 6) return "#1f2937"
-  const r = parseInt(hex.slice(0, 2), 16)
-  const g = parseInt(hex.slice(2, 4), 16)
-  const b = parseInt(hex.slice(4, 6), 16)
-  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255
-  return luminance > 0.5 ? "#1f2937" : "#ffffff"
-}
-
-// Composant ColorBadgeSelect - Sélecteur visuel avec badges colorés
-interface ColorBadgeOption {
-  id: string
-  label: string
-  color?: string | null
-}
-
-interface ColorBadgeSelectProps {
-  label: string
-  value: string
-  options: ColorBadgeOption[]
-  onChange: (value: string) => void
-  placeholder?: string
-  required?: boolean
-  minWidth?: string
-  hideLabel?: boolean
-}
-
-function ColorBadgeSelect({ label, value, options, onChange, placeholder = "Sélectionner", required, minWidth = "70px", hideLabel = false }: ColorBadgeSelectProps) {
-  const [open, setOpen] = useState(false)
-  const listRef = useRef<HTMLDivElement>(null)
-  const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const searchBufferRef = useRef<string>("")
-
-  const sortedOptions = useMemo(() =>
-    [...options].sort((a, b) => a.label.localeCompare(b.label, 'fr', { sensitivity: 'base' })),
-    [options]
-  )
-
-  const selectedOption = options.find(o => o.id === value)
-  const selectedColor = selectedOption?.color || "#6b7280"
-  const selectedLabel = selectedOption?.label || placeholder
-
-  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
-    if (e.key === "Escape") {
-      setOpen(false)
-      return
-    }
-
-    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
-      e.preventDefault()
-      if (!listRef.current) return
-      const items = Array.from(listRef.current.querySelectorAll("[data-option-id]")) as HTMLElement[]
-      if (items.length === 0) return
-      const currentIndex = items.findIndex(item => item === document.activeElement)
-      let nextIndex: number
-      if (e.key === "ArrowDown") {
-        nextIndex = currentIndex === -1 ? 0 : Math.min(currentIndex + 1, items.length - 1)
-      } else {
-        nextIndex = currentIndex === -1 ? items.length - 1 : Math.max(currentIndex - 1, 0)
-      }
-      const nextItem = items[nextIndex]
-      if (nextItem) {
-        nextItem.scrollIntoView({ block: "nearest", behavior: "smooth" })
-        nextItem.focus()
-      }
-      return
-    }
-
-    if (e.key.length === 1 && /[a-zA-Z0-9]/.test(e.key)) {
-      e.preventDefault()
-      searchBufferRef.current += e.key.toLowerCase()
-      const matchIndex = sortedOptions.findIndex(o =>
-        o.label.toLowerCase().startsWith(searchBufferRef.current)
-      )
-      if (matchIndex !== -1 && listRef.current) {
-        const items = listRef.current.querySelectorAll("[data-option-id]")
-        const targetItem = items[matchIndex] as HTMLElement
-        if (targetItem) {
-          targetItem.scrollIntoView({ block: "nearest", behavior: "smooth" })
-          targetItem.focus()
-        }
-      }
-      if (searchTimeoutRef.current) {
-        clearTimeout(searchTimeoutRef.current)
-      }
-      searchTimeoutRef.current = setTimeout(() => {
-        searchBufferRef.current = ""
-      }, 800)
-    }
-  }, [sortedOptions])
-
-  useEffect(() => {
-    return () => {
-      if (searchTimeoutRef.current) {
-        clearTimeout(searchTimeoutRef.current)
-      }
-    }
-  }, [])
-
-  return (
-    <div className="flex flex-col gap-0.5">
-      {!hideLabel && <Label className="text-[10px] text-muted-foreground leading-none">{label}{required && " *"}</Label>}
-      <Popover open={open} onOpenChange={setOpen}>
-        <PopoverTrigger asChild>
-          <button
-            type="button"
-            className="inline-flex items-center justify-center rounded-full h-7 px-3 text-xs font-semibold transition-all hover:scale-105 hover:shadow-md cursor-pointer"
-            style={{
-              backgroundColor: selectedColor,
-              color: getReadableTextColor(selectedColor),
-              minWidth: minWidth,
-            }}
-          >
-            {selectedLabel}
-          </button>
-        </PopoverTrigger>
-        <PopoverContent
-          className="p-0 border-none bg-transparent shadow-none"
-          align="start"
-          style={{ width: 'var(--radix-popover-trigger-width)' }}
-          onKeyDown={handleKeyDown}
-          onOpenAutoFocus={(e) => {
-            e.preventDefault()
-            setTimeout(() => {
-              if (listRef.current) {
-                const selected = listRef.current.querySelector("[data-selected='true']") as HTMLElement
-                const firstItem = listRef.current.querySelector("[data-option-id]") as HTMLElement
-                  ; (selected || firstItem)?.focus()
-              }
-            }, 0)
-          }}
-        >
-          <div ref={listRef} className="flex flex-col gap-1 py-1">
-            {sortedOptions.map((option) => {
-              const isSelected = option.id === value
-              const optionColor = option.color || "#6b7280"
-              return (
-                <button
-                  key={option.id}
-                  type="button"
-                  data-option-id={option.id}
-                  data-selected={isSelected}
-                  className={cn(
-                    "inline-flex items-center justify-center rounded-full h-7 px-3 text-xs font-semibold transition-all outline-none shadow-md hover:shadow-lg hover:scale-105",
-                    "focus:ring-2 focus:ring-primary focus:ring-offset-1",
-                    isSelected && "ring-2 ring-primary ring-offset-1"
-                  )}
-                  style={{
-                    backgroundColor: optionColor,
-                    color: getReadableTextColor(optionColor),
-                  }}
-                  onClick={() => {
-                    onChange(option.id)
-                    setOpen(false)
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" || e.key === " ") {
-                      e.preventDefault()
-                      onChange(option.id)
-                      setOpen(false)
-                    }
-                  }}
-                >
-                  {option.label}
-                </button>
-              )
-            })}
-          </div>
-        </PopoverContent>
-      </Popover>
-    </div>
-  )
-}
-
-// Composant ColorBadgeSelectStacking - Sélecteur avec effet Stacking Cards
-interface ColorBadgeSelectStackingProps {
-  label: string
-  value: string
-  options: ColorBadgeOption[]
-  onChange: (value: string) => void
-  placeholder?: string
-  required?: boolean
-  minWidth?: string
-  hideLabel?: boolean
-}
-
-const CARD_HEIGHT = 36
-
-function StackingCard({
-  option,
-  index,
-  isSelected,
-  scrollProgress,
-  totalItems,
-  onSelect,
-}: {
-  option: ColorBadgeOption
-  index: number
-  isSelected: boolean
-  scrollProgress: MotionValue<number>
-  totalItems: number
-  onSelect: () => void
-}) {
-  const total = Math.max(totalItems, 1)
-  const segment = 1 / total
-  const rangeStart = Math.max(0, index * segment)
-  const rangeEnd = Math.min(1, rangeStart + segment * 0.6)
-  const scale = useTransform(scrollProgress, [rangeStart, rangeEnd], [1, 0.92])
-  const optionColor = option.color || "#6b7280"
-
-  return (
-    <div
-      className="sticky flex items-center justify-center"
-      style={{ top: 0, zIndex: index + 1, height: `${CARD_HEIGHT}px` }}
-    >
-      <motion.button
-        type="button"
-        data-option-id={option.id}
-        data-selected={isSelected}
-        style={{
-          scale,
-          backgroundColor: optionColor,
-          color: getReadableTextColor(optionColor),
-        }}
-        className={cn(
-          "w-full flex items-center justify-center rounded-full px-3 h-8 text-xs font-semibold origin-top",
-          "border border-white/30 cursor-pointer hover:border-white/50",
-          "focus:outline-none focus:ring-2 focus:ring-white/60 focus:ring-offset-1",
-          isSelected && "ring-2 ring-white"
-        )}
-        initial={false}
-        whileHover={{ scale: 1.02 }}
-        whileTap={{ scale: 0.98 }}
-        onClick={onSelect}
-      >
-        {option.label}
-      </motion.button>
-    </div>
-  )
-}
-
-function StackingCardsList({
-  sortedOptions,
-  value,
-  onChange,
-  onClose,
-}: {
-  sortedOptions: ColorBadgeOption[]
-  value: string
-  onChange: (value: string) => void
-  onClose: () => void
-}) {
-  const scrollContainerRef = useRef<HTMLDivElement>(null)
-  const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const searchBufferRef = useRef<string>("")
-
-  const { scrollYProgress } = useScroll({
-    container: scrollContainerRef,
-    offset: ["start start", "end end"],
-  })
-
-  const smoothProgress = useSpring(scrollYProgress, {
-    stiffness: 150,
-    damping: 25,
-    restDelta: 0.001
-  })
-
-  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
-    if (e.key === "Escape") {
-      onClose()
-      return
-    }
-    if (e.key.length === 1 && /[a-zA-Z0-9]/.test(e.key)) {
-      e.preventDefault()
-      searchBufferRef.current += e.key.toLowerCase()
-      const matchIndex = sortedOptions.findIndex(o =>
-        o.label.toLowerCase().startsWith(searchBufferRef.current)
-      )
-      if (matchIndex !== -1 && scrollContainerRef.current) {
-        const items = scrollContainerRef.current.querySelectorAll("[data-option-id]")
-        const targetItem = items[matchIndex] as HTMLElement
-        if (targetItem) {
-          targetItem.scrollIntoView({ block: "center", behavior: "smooth" })
-        }
-      }
-      if (searchTimeoutRef.current) {
-        clearTimeout(searchTimeoutRef.current)
-      }
-      searchTimeoutRef.current = setTimeout(() => {
-        searchBufferRef.current = ""
-      }, 800)
-    }
-  }, [sortedOptions, onClose])
-
-  useEffect(() => {
-    return () => {
-      if (searchTimeoutRef.current) {
-        clearTimeout(searchTimeoutRef.current)
-      }
-    }
-  }, [])
-
-  const totalCards = sortedOptions.length
-  const containerHeight = Math.min(280, Math.max(180, totalCards * CARD_HEIGHT * 0.6))
-  const scrollPadding = totalCards * CARD_HEIGHT * 0.75
-
-  return (
-    <div onKeyDown={handleKeyDown}>
-      <div
-        ref={scrollContainerRef}
-        className="relative overflow-y-auto overflow-x-hidden scrollbar-minimal bg-transparent"
-        style={{ height: `${containerHeight}px` }}
-      >
-        <div className="relative px-1 pt-1" style={{ paddingBottom: `${scrollPadding}px` }}>
-          {sortedOptions.map((option, i) => (
-            <StackingCard
-              key={option.id}
-              option={option}
-              index={i}
-              isSelected={option.id === value}
-              scrollProgress={smoothProgress}
-              totalItems={totalCards}
-              onSelect={() => {
-                onChange(option.id)
-                onClose()
-              }}
-            />
-          ))}
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function ColorBadgeSelectStacking({
-  label, value, options, onChange, placeholder = "Sélectionner", required, minWidth = "70px", hideLabel = false
-}: ColorBadgeSelectStackingProps) {
-  const [open, setOpen] = useState(false)
-  const sortedOptions = useMemo(() =>
-    [...options].sort((a, b) => a.label.localeCompare(b.label, 'fr', { sensitivity: 'base' })),
-    [options]
-  )
-  const selectedOption = options.find(o => o.id === value)
-  const selectedColor = selectedOption?.color || "#6b7280"
-  const selectedLabel = selectedOption?.label || placeholder
-
-  return (
-    <div className="flex flex-col gap-0.5">
-      {!hideLabel && <Label className="text-[10px] text-muted-foreground leading-none">{label}{required && " *"}</Label>}
-      <Popover open={open} onOpenChange={setOpen}>
-        <PopoverTrigger asChild>
-          <button
-            type="button"
-            className="inline-flex items-center justify-center rounded-full h-7 px-3 text-xs font-semibold transition-all hover:scale-105 hover:shadow-md cursor-pointer"
-            style={{
-              backgroundColor: selectedColor,
-              color: getReadableTextColor(selectedColor),
-              minWidth: minWidth,
-            }}
-          >
-            {selectedLabel}
-          </button>
-        </PopoverTrigger>
-        <PopoverContent
-          className="p-0 border-none bg-transparent shadow-none"
-          align="start"
-          style={{ width: '160px' }}
-          sideOffset={6}
-        >
-          <StackingCardsList
-            sortedOptions={sortedOptions}
-            value={value}
-            onChange={onChange}
-            onClose={() => setOpen(false)}
-          />
-        </PopoverContent>
-      </Popover>
-    </div>
-  )
 }
 
 interface NewInterventionFormProps {
@@ -513,6 +131,7 @@ interface NewInterventionFormProps {
     commentairesIntervention: string
     consigneSecondArtisan: string
   }>
+  onPopoverOpenChange?: (isOpen: boolean) => void
 }
 
 export function NewInterventionForm({
@@ -526,7 +145,8 @@ export function NewInterventionForm({
   onClientPhoneChange,
   onOpenSmsModal,
   onHasUnsavedChanges,
-  defaultValues
+  defaultValues,
+  onPopoverOpenChange
 }: NewInterventionFormProps) {
   const { data: refData, loading: refDataLoading } = useReferenceData()
   const queryClient = useQueryClient()
@@ -713,23 +333,31 @@ export function NewInterventionForm({
     artisans: nearbyArtisans,
     loading: isLoadingNearbyArtisans,
     error: nearbyArtisansError,
-  } = useNearbyArtisans(formData.latitude, formData.longitude, {
-    limit: 100,
-    maxDistanceKm: perimeterKmValue,
-    sampleSize: 400,
-    metier_id: formData.metier_id || null,
-  })
+  } = useNearbyArtisans(
+    formData.adresseComplete ? formData.latitude : null,
+    formData.adresseComplete ? formData.longitude : null,
+    {
+      limit: 100,
+      maxDistanceKm: perimeterKmValue,
+      sampleSize: 400,
+      metier_id: formData.metier_id || null,
+    }
+  )
 
   // Hook séparé pour les artisans du second métier
   const {
     artisans: nearbyArtisansSecondMetier,
     loading: isLoadingNearbyArtisansSecondMetier,
-  } = useNearbyArtisans(formData.latitude, formData.longitude, {
-    limit: 100,
-    maxDistanceKm: perimeterKmValue,
-    sampleSize: 400,
-    metier_id: formData.metierSecondArtisanId || null,
-  })
+  } = useNearbyArtisans(
+    formData.adresseComplete ? formData.latitude : null,
+    formData.adresseComplete ? formData.longitude : null,
+    {
+      limit: 100,
+      maxDistanceKm: perimeterKmValue,
+      sampleSize: 400,
+      metier_id: formData.metierSecondArtisanId || null,
+    }
+  )
 
   const selectedArtisanData = useMemo(
     () => {
@@ -803,17 +431,24 @@ export function NewInterventionForm({
     searchSelectedSecondArtisan?.id,
   ])
 
-  // Calcul de la marge du 2ème artisan en pourcentage
-  const margeSecondArtisanPct = useMemo(() => {
-    const coutInter = parseFloat(formData.coutIntervention) || 0
-    const coutSST1 = parseFloat(formData.coutSST) || 0
-    const coutMat1 = parseFloat(formData.coutMateriel) || 0
-    const coutSST2 = parseFloat(formData.coutSSTSecondArtisan) || 0
-    const coutMat2 = parseFloat(formData.coutMaterielSecondArtisan) || 0
-    const coutInter2 = coutInter - (coutSST1 + coutMat1)
-    const marge2 = coutInter2 - (coutSST2 + coutMat2)
-    if (coutInter2 <= 0) return 0
-    return (marge2 / coutInter2) * 100
+  // Calcul de la marge du 1er artisan
+  const margePrimaryArtisan = useMemo(() => {
+    return calculatePrimaryArtisanMargin(
+      formData.coutIntervention,
+      formData.coutSST,
+      formData.coutMateriel
+    )
+  }, [formData.coutIntervention, formData.coutSST, formData.coutMateriel])
+
+  // Calcul de la marge du 2ème artisan
+  const margeSecondArtisan = useMemo(() => {
+    return calculateSecondaryArtisanMargin(
+      formData.coutIntervention,
+      formData.coutSST,
+      formData.coutMateriel,
+      formData.coutSSTSecondArtisan,
+      formData.coutMaterielSecondArtisan
+    )
   }, [formData.coutIntervention, formData.coutSST, formData.coutMateriel, formData.coutSSTSecondArtisan, formData.coutMaterielSecondArtisan])
 
   // Initialiser le statut par défaut à "DEMANDE"
@@ -1064,20 +699,20 @@ export function NewInterventionForm({
   const generateEmailTemplateData = useCallback((artisanId: string): EmailTemplateData => {
     const nomClient = formData.nomPrenomClient || ''
     const telephoneClient = formData.telephoneClient || ''
-    const adresseComplete = formData.adresse && (formData.code_postal || formData.ville)
+    const adresse = formData.adresse
       ? `${formData.adresse}, ${formData.code_postal || ''} ${formData.ville || ''}`.trim()
       : ''
     const isPrimary = artisanId === selectedArtisanId
     const consigneArtisan = isPrimary
       ? (formData.consigne_intervention || '')
       : (formData.consigne_second_artisan || '')
-    const coutSST = formData.coutSST ? `${formData.coutSST} EUR` : 'Non spécifié'
+    const coutSST = formData.coutSST || ''
 
     return {
       nomClient,
       telephoneClient,
       telephoneClient2: '',
-      adresseComplete,
+      adresse,
       datePrevue: formData.date_prevue || undefined,
       consigneArtisan: consigneArtisan || undefined,
       coutSST,
@@ -1291,7 +926,7 @@ export function NewInterventionForm({
       return
     }
 
-    let idInterValue = formData.id_inter?.trim() ?? ""
+    let idInterValue: string = formData.id_inter?.trim() ?? ""
     if (requiresDefinitiveId) {
       if (idInterValue.length === 0 || idInterValue.toLowerCase().includes("auto")) {
         form.reportValidity()
@@ -1360,9 +995,9 @@ export function NewInterventionForm({
         adresse_complete: formData.adresseComplete || null,
         latitude: formData.latitude,
         longitude: formData.longitude,
-        id_inter: idInterValue.length > 0 ? idInterValue : null,
+        ...(idInterValue.length > 0 && { id_inter: idInterValue }),
         is_vacant: formData.is_vacant,
-        key_code: formData.is_vacant ? (formData.key_code?.trim() || null) : null,
+        key_code: formData.is_vacant ? (formData.key_code?.trim() || undefined) : undefined,
         floor: formData.is_vacant ? (formData.floor?.trim() || null) : null,
         apartment_number: formData.is_vacant ? (formData.apartment_number?.trim() || null) : null,
         vacant_housing_instructions: formData.is_vacant ? (formData.vacant_housing_instructions?.trim() || null) : null,
@@ -1666,13 +1301,15 @@ export function NewInterventionForm({
                   </div>
 
                   {/* Statut - Badge coloré */}
-                  <ColorBadgeSelect
+                  <SearchableBadgeSelect
                     label="Statut"
                     required
                     hideLabel
                     value={formData.statut_id}
                     onChange={(value) => handleInputChange("statut_id", value)}
                     placeholder="Statut"
+                    onOpenChange={onPopoverOpenChange}
+                    searchPlaceholder="Rechercher un statut..."
                     options={(refData?.interventionStatuses || []).map(s => ({
                       id: s.id,
                       label: s.label,
@@ -1681,12 +1318,14 @@ export function NewInterventionForm({
                   />
 
                   {/* Agence - Badge coloré */}
-                  <ColorBadgeSelect
+                  <SearchableBadgeSelect
                     label="Agence"
                     hideLabel
                     value={formData.agence_id}
                     onChange={(value) => handleInputChange("agence_id", value)}
                     placeholder="Agence"
+                    onOpenChange={onPopoverOpenChange}
+                    searchPlaceholder="Rechercher une agence..."
                     options={(refData?.agencies || []).map(a => ({
                       id: a.id,
                       label: a.label,
@@ -1710,13 +1349,15 @@ export function NewInterventionForm({
                   )}
 
                   {/* Métier - Badge coloré */}
-                  <ColorBadgeSelect
+                  <SearchableBadgeSelect
                     label="Métier"
                     hideLabel
                     value={formData.metier_id}
                     onChange={(value) => handleInputChange("metier_id", value)}
                     placeholder="Métier"
                     minWidth="100px"
+                    onOpenChange={onPopoverOpenChange}
+                    searchPlaceholder="Rechercher un métier..."
                     options={(refData?.metiers || []).map(m => ({
                       id: m.id,
                       label: m.label,
@@ -2006,7 +1647,7 @@ export function NewInterventionForm({
                       )}
 
                       {/* Liste des artisans - max 8 visibles avec scroll */}
-                      <div className="flex-1 overflow-y-auto space-y-1 min-h-0">
+                      <div className="flex-1 overflow-y-auto space-y-1 min-h-0 scrollbar-minimal">
                         {isLoadingNearbyArtisans ? (
                           <div className="flex items-center justify-center h-full text-xs text-muted-foreground">Recherche...</div>
                         ) : nearbyArtisansError ? (
@@ -2116,16 +1757,13 @@ export function NewInterventionForm({
                   <div>
                     <Label className="text-xs">Marge</Label>
                     <div className="flex h-8 w-full rounded-md border border-input bg-muted px-3 py-1 text-sm shadow-sm items-center mt-1">
-                      {(() => {
-                        const inter = parseFloat(formData.coutIntervention) || 0
-                        const sst = parseFloat(formData.coutSST) || 0
-                        const mat = parseFloat(formData.coutMateriel) || 0
-                        if (inter > 0) {
-                          const marge = ((inter - (sst + mat)) / inter) * 100
-                          return <span className={cn("font-medium", marge < 0 ? "text-destructive" : "text-green-600")}>{marge.toFixed(1)} %</span>
-                        }
-                        return <span className="text-muted-foreground">-- %</span>
-                      })()}
+                      {margePrimaryArtisan.isValid ? (
+                        <span className={cn("font-medium", getMarginColorClass(margePrimaryArtisan.marginPercentage))}>
+                          {formatMarginPercentage(margePrimaryArtisan.marginPercentage)}
+                        </span>
+                      ) : (
+                        <span className="text-muted-foreground">-- %</span>
+                      )}
                     </div>
                   </div>
                   <div>
@@ -2371,20 +2009,22 @@ export function NewInterventionForm({
                 <CollapsibleContent>
                   <CardContent className="pt-0 px-3 pb-3 space-y-3">
                     {/* Métier du 2ème artisan */}
-                    <div>
-                      <Label className="text-[10px]">Métier</Label>
-                      <Select value={formData.metierSecondArtisanId} onValueChange={(value) => handleInputChange("metierSecondArtisanId", value)}>
-                        <SelectTrigger className="h-7 text-xs mt-1">
-                          <SelectValue placeholder="Sélectionner un métier" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {refData?.metiers.map((metier) => (
-                            <SelectItem key={metier.id} value={metier.id}>
-                              {metier.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                    <div className="space-y-1">
+                      <Label className="text-[10px] text-muted-foreground leading-none">Métier</Label>
+                      <SearchableBadgeSelect
+                        label="Métier"
+                        hideLabel
+                        value={formData.metierSecondArtisanId}
+                        onChange={(value) => handleInputChange("metierSecondArtisanId", value)}
+                        placeholder="Métier"
+                        onOpenChange={onPopoverOpenChange}
+                        searchPlaceholder="Rechercher un métier..."
+                        options={(refData?.metiers || []).map(m => ({
+                          id: m.id,
+                          label: m.label,
+                          color: m.color,
+                        }))}
+                      />
                     </div>
 
                     {/* Recherche artisan */}
@@ -2586,8 +2226,8 @@ export function NewInterventionForm({
                       <div>
                         <Label className="text-[10px]">Marge</Label>
                         <div className="flex h-7 w-full rounded-md border border-input bg-muted px-2 py-1 text-xs shadow-sm items-center mt-1">
-                          <span className={cn("font-medium", margeSecondArtisanPct < 0 ? "text-destructive" : "text-green-600")}>
-                            {margeSecondArtisanPct.toFixed(1)} %
+                          <span className={cn("font-medium", getMarginColorClass(margeSecondArtisan.marginPercentage))}>
+                            {formatMarginPercentage(margeSecondArtisan.marginPercentage)}
                           </span>
                         </div>
                       </div>

@@ -35,6 +35,7 @@ import { usePermissions } from "@/hooks/usePermissions"
 import { useInterventionsMutations } from "@/hooks/useInterventionsMutations"
 import { getReasonTypeForTransition, type StatusReasonType } from "@/lib/comments/statusReason"
 import { cn } from "@/lib/utils"
+import { calculatePrimaryArtisanMargin, calculateSecondaryArtisanMargin, formatMarginPercentage, getMarginColorClass } from "@/lib/utils/margin-calculator"
 import { ArtisanSearchModal, type ArtisanSearchResult } from "@/components/artisans/ArtisanSearchModal"
 import { Avatar } from "@/components/artisans/Avatar"
 import { useArtisanModal } from "@/hooks/useArtisanModal"
@@ -341,12 +342,16 @@ export function InterventionEditForm({
     artisans: nearbyArtisans,
     loading: isLoadingNearbyArtisans,
     error: nearbyArtisansError,
-  } = useNearbyArtisans(formData.latitude, formData.longitude, {
-    limit: 100,
-    maxDistanceKm: perimeterKmValue,
-    sampleSize: 400,
-    metier_id: formData.metier_id || null,
-  })
+  } = useNearbyArtisans(
+    formData.adresseComplete ? formData.latitude : null,
+    formData.adresseComplete ? formData.longitude : null,
+    {
+      limit: 100,
+      maxDistanceKm: perimeterKmValue,
+      sampleSize: 400,
+      metier_id: formData.metier_id || null,
+    }
+  )
 
   useEffect(() => {
     if (typeof window === "undefined") return
@@ -375,12 +380,16 @@ export function InterventionEditForm({
   const {
     artisans: nearbyArtisansSecondMetier,
     loading: isLoadingNearbyArtisansSecondMetier,
-  } = useNearbyArtisans(formData.latitude, formData.longitude, {
-    limit: 100,
-    maxDistanceKm: perimeterKmValue,
-    sampleSize: 400,
-    metier_id: formData.metierSecondArtisanId || null,
-  })
+  } = useNearbyArtisans(
+    formData.adresseComplete ? formData.latitude : null,
+    formData.adresseComplete ? formData.longitude : null,
+    {
+      limit: 100,
+      maxDistanceKm: perimeterKmValue,
+      sampleSize: 400,
+      metier_id: formData.metierSecondArtisanId || null,
+    }
+  )
 
   const selectedArtisanData = useMemo(
     () => {
@@ -496,26 +505,24 @@ export function InterventionEditForm({
     searchSelectedSecondArtisan?.id,
   ])
 
-  // Calcul de la marge du 2ème artisan en pourcentage
-  // Formule: coutInter2 = coutIntervention - (coutSST1 + coutMat1)
-  //          marge2 = coutInter2 - (coutSST2 + coutMat2)
-  //          marge2Pct = (marge2 / coutInter2) * 100
-  const margeSecondArtisanPct = useMemo(() => {
-    const coutInter = parseFloat(formData.coutIntervention) || 0
-    const coutSST1 = parseFloat(formData.coutSST) || 0
-    const coutMat1 = parseFloat(formData.coutMateriel) || 0
-    const coutSST2 = parseFloat(formData.coutSSTSecondArtisan) || 0
-    const coutMat2 = parseFloat(formData.coutMaterielSecondArtisan) || 0
+  // Calcul de la marge du 1er artisan
+  const margePrimaryArtisan = useMemo(() => {
+    return calculatePrimaryArtisanMargin(
+      formData.coutIntervention,
+      formData.coutSST,
+      formData.coutMateriel
+    )
+  }, [formData.coutIntervention, formData.coutSST, formData.coutMateriel])
 
-    // coutInter2 = coutIntervention - (coutSST1 + coutMat1)
-    const coutInter2 = coutInter - (coutSST1 + coutMat1)
-
-    // marge2 = coutInter2 - (coutSST2 + coutMat2)
-    const marge2 = coutInter2 - (coutSST2 + coutMat2)
-
-    // Calcul du pourcentage (éviter division par zéro)
-    if (coutInter2 <= 0) return 0
-    return (marge2 / coutInter2) * 100
+  // Calcul de la marge du 2ème artisan
+  const margeSecondArtisan = useMemo(() => {
+    return calculateSecondaryArtisanMargin(
+      formData.coutIntervention,
+      formData.coutSST,
+      formData.coutMateriel,
+      formData.coutSSTSecondArtisan,
+      formData.coutMaterielSecondArtisan
+    )
   }, [formData.coutIntervention, formData.coutSST, formData.coutMateriel, formData.coutSSTSecondArtisan, formData.coutMaterielSecondArtisan])
 
   // Fonction helper pour obtenir le nom à afficher selon le mode
@@ -1032,16 +1039,15 @@ export function InterventionEditForm({
     const isFromIntervention = !!selectedArtisan
     const isPrimary = selectedArtisan?.is_primary || false
 
-    // Get tenant data
+    // Get tenant data - prioritize formData over database values
     const tenant = intervention.tenants
-    const nomClient = tenant
-      ? `${tenant.firstname || ''} ${tenant.lastname || ''}`.trim() || ''
-      : ''
-    const telephoneClient = tenant?.telephone || ''
+    const nomClient = formData.nomPrenomClient ||
+      (tenant?.plain_nom_client || `${tenant?.lastname || ''} ${tenant?.firstname || ''}`.trim() || '')
+    const telephoneClient = formData.telephoneClient || tenant?.telephone || ''
     const telephoneClient2 = tenant?.telephone2 || ''
-    const adresseComplete = (formData.adresse || intervention.adresse) && (formData.code_postal || intervention.code_postal || formData.ville || intervention.ville)
+    const adresse = (formData.adresse || intervention.adresse) /*&& (formData.code_postal || intervention.code_postal || formData.ville || intervention.ville)*/
       ? `${formData.adresse || intervention.adresse}, ${formData.code_postal || intervention.code_postal || ''} ${formData.ville || intervention.ville || ''}`.trim()
-      : ''
+      : ''      // TO COMPLICATES
 
     // Get consigne based on artisan type
     // If artisan is not yet saved, use consigne_intervention as default
@@ -1052,15 +1058,13 @@ export function InterventionEditForm({
       : (formData.consigne_intervention || intervention.consigne_intervention || '')
 
     // Calculate coutSST
-    const coutSST = sstCost
-      ? `${sstCost.amount || 0} ${sstCost.currency || 'EUR'}`
-      : 'Non spécifié'
+    const coutSST = formData.coutSST || ''
 
     return {
       nomClient,
       telephoneClient,
       telephoneClient2,
-      adresseComplete,
+      adresse,
       datePrevue: formData.date_prevue || intervention.date_prevue || undefined,
       consigneArtisan: consigneArtisan || undefined,
       coutSST,
@@ -2005,7 +2009,7 @@ export function InterventionEditForm({
                         label="Agence"
                         hideLabel
                         value={formData.agence_id}
-                        options={refData.agencies}
+                        options={refData?.agencies || []}
                         onChange={(value) => handleInputChange("agence_id", value)}
                         placeholder="Agence"
                         minWidth="70px"
@@ -2095,7 +2099,7 @@ export function InterventionEditForm({
                           onFocus={() => {
                             setShowLocationSuggestions(true)
                             if (suggestionBlurTimeoutRef.current) {
-                              window.clearTimeout(suggestionBlurBlurTimeoutRef.current)
+                              window.clearTimeout(suggestionBlurTimeoutRef.current)
                               suggestionBlurTimeoutRef.current = null
                             }
                           }}
@@ -2476,16 +2480,13 @@ export function InterventionEditForm({
                       <div>
                         <Label className="text-xs">Marge</Label>
                         <div className="flex h-8 w-full rounded-md border border-input bg-muted px-3 py-1 text-sm shadow-sm items-center mt-1">
-                          {(() => {
-                            const inter = parseFloat(formData.coutIntervention) || 0
-                            const sst = parseFloat(formData.coutSST) || 0
-                            const mat = parseFloat(formData.coutMateriel) || 0
-                            if (inter > 0) {
-                              const marge = ((inter - (sst + mat)) / inter) * 100
-                              return <span className={cn("font-medium", marge < 0 ? "text-destructive" : "text-green-600")}>{marge.toFixed(1)} %</span>
-                            }
-                            return <span className="text-muted-foreground">-- %</span>
-                          })()}
+                          {margePrimaryArtisan.isValid ? (
+                            <span className={cn("font-medium", getMarginColorClass(margePrimaryArtisan.marginPercentage))}>
+                              {formatMarginPercentage(margePrimaryArtisan.marginPercentage)}
+                            </span>
+                          ) : (
+                            <span className="text-muted-foreground">-- %</span>
+                          )}
                         </div>
                       </div>
                       <div>
@@ -2972,8 +2973,8 @@ export function InterventionEditForm({
                             <div>
                               <Label className="text-[10px]">Marge 2</Label>
                               <div className="flex h-7 w-full rounded-md border border-input bg-muted px-2 py-1 text-xs shadow-sm items-center mt-1">
-                                <span className={cn("font-medium", margeSecondArtisanPct < 0 ? "text-destructive" : "text-green-600")}>
-                                  {margeSecondArtisanPct.toFixed(1)} %
+                                <span className={cn("font-medium", getMarginColorClass(margeSecondArtisan.marginPercentage))}>
+                                  {formatMarginPercentage(margeSecondArtisan.marginPercentage)}
                                 </span>
                               </div>
                             </div>

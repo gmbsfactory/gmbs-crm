@@ -9,7 +9,7 @@ export interface EmailTemplateData {
   nomClient: string;
   telephoneClient: string;
   telephoneClient2?: string;
-  adresseComplete: string;
+  adresse: string;
   datePrevue?: string;
   consigneArtisan?: string;
   coutSST?: string;
@@ -37,12 +37,12 @@ function formatDateToFrench(dateStr: string | undefined): string {
 /**
  * Applies default values for optional fields
  */
-function applyDefaults(data: EmailTemplateData): Required<Omit<EmailTemplateData, 'nomClient' | 'telephoneClient' | 'adresseComplete'>> & Pick<EmailTemplateData, 'nomClient' | 'telephoneClient' | 'adresseComplete'> {
+function applyDefaults(data: EmailTemplateData): Required<Omit<EmailTemplateData, 'nomClient' | 'telephoneClient' | 'adresse'>> & Pick<EmailTemplateData, 'nomClient' | 'telephoneClient' | 'adresse'> {
   return {
     nomClient: data.nomClient || '',
     telephoneClient: data.telephoneClient || '',
     telephoneClient2: data.telephoneClient2 || '',
-    adresseComplete: data.adresseComplete || '',
+    adresse: data.adresse || '',
     datePrevue: data.datePrevue ? formatDateToFrench(data.datePrevue) : 'À définir',
     consigneArtisan: data.consigneArtisan || 'Aucune description fournie',
     coutSST: data.coutSST || 'Non spécifié',
@@ -95,7 +95,7 @@ export function generateDevisEmailTemplate(data: EmailTemplateData): string {
                 ${d.telephoneClient2 ? `<br /><strong>Téléphone 2 :</strong> ${escapeHtml(d.telephoneClient2)}` : ''}
               </p>
               <p style="margin: 8px 0 30px 0; color: #333333; font-size: 14px; line-height: 1.6;">
-                <strong>Adresse :</strong> ${escapeHtml(d.adresseComplete)}
+                <strong>Adresse :</strong> ${escapeHtml(d.adresse)}
               </p>
               
               <!-- Consignes de visite technique -->
@@ -214,7 +214,7 @@ export function generateInterventionEmailTemplate(data: EmailTemplateData): stri
                 ${d.telephoneClient2 ? `<br /><strong>Téléphone 2 :</strong> ${escapeHtml(d.telephoneClient2)}` : ''}
               </p>
               <p style="margin: 8px 0 30px 0; color: #333333; font-size: 14px; line-height: 1.6;">
-                <strong>Adresse :</strong> ${escapeHtml(d.adresseComplete)}
+                <strong>Adresse :</strong> ${escapeHtml(d.adresse)}
               </p>
               
               <!-- Consignes d'intervention -->
@@ -225,7 +225,7 @@ export function generateInterventionEmailTemplate(data: EmailTemplateData): stri
                 Intervention à réaliser : ${escapeHtml(d.consigneArtisan)}
               </p>
               <p style="margin: 5px 0; color: #333333; font-size: 14px; line-height: 1.6;">
-                Budget maximum autorisé : <strong>${escapeHtml(d.coutSST)}</strong>
+                Budget maximum autorisé : <strong>${escapeHtml(d.coutSST)} € (HT)</strong>
               </p>
               <p style="margin: 5px 0; color: #333333; font-size: 14px; line-height: 1.6;">
                 Se présenter en tant que technicien GMBS, mandaté par l'agence du client
@@ -334,8 +334,8 @@ export function validateRequiredFields(data: EmailTemplateData): { valid: boolea
     missing.push('telephoneClient');
   }
 
-  if (!data.adresseComplete || data.adresseComplete.trim().length === 0) {
-    missing.push('adresseComplete');
+  if (!data.adresse || data.adresse.trim().length === 0) {
+    missing.push('adresse');
   }
 
   return {
@@ -359,7 +359,7 @@ export function generateDevisWhatsAppText(data: EmailTemplateData): string {
   if (d.telephoneClient2) {
     message += `\n*Téléphone 2 :* ${d.telephoneClient2}`;
   }
-  message += `\n*Adresse :* ${d.adresseComplete}\n\n`;
+  message += `\n*Adresse :* ${d.adresse}\n\n`;
 
   // Consignes de visite technique
   message += `🛠 *CONSIGNES DE VISITE TECHNIQUE :*\n`;
@@ -406,7 +406,7 @@ export function generateInterventionWhatsAppText(data: EmailTemplateData): strin
   if (d.telephoneClient2) {
     message += `\n*Téléphone 2 :* ${d.telephoneClient2}`;
   }
-  message += `\n*Adresse :* ${d.adresseComplete}\n\n`;
+  message += `\n*Adresse :* ${d.adresse}\n\n`;
 
   // Consignes d'intervention
   message += `🛠 *CONSIGNES D'INTERVENTION :*\n`;

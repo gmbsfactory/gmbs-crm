@@ -134,6 +134,7 @@ export function InterventionModal({
           onUnsavedDialogOpenChange={setIsUnsavedDialogOpen}
           onUnsavedChangesStateChange={handleUnsavedChangesStateChange}
           onRegisterShowDialog={handleRegisterShowDialog}
+          onPopoverOpenChange={setIsPopoverOpen}
         />
       )
     }
