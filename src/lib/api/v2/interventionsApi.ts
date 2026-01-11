@@ -1596,7 +1596,7 @@ export const interventionsApi = {
       throw new Error("userId is required");
     }
 
-    // Construire la requête de base
+    // Construire la requête de base - inclure date_prevue pour détecter le statut "Check"
     let query = supabase
       .from("interventions")
       .select(
@@ -1609,14 +1609,6 @@ export const interventionsApi = {
       )
       .eq("assigned_user_id", userId)
       .eq("is_active", true); // Seulement les interventions actives
-
-    // Appliquer les filtres de date si fournis
-    if (startDate) {
-      query = query.gte("date", startDate);
-    }
-    if (endDate) {
-      query = query.lte("date", endDate);
-    }
 
     const { data, error, count } = await query;
 
@@ -1635,11 +1627,16 @@ export const interventionsApi = {
       const statusCode = status?.code || null;
       const datePrevue = item.date_prevue || null;
 
-      // Vérifier si c'est une intervention CHECK
-      if (isCheckStatus(statusCode, datePrevue)) {
+      // Vérifier si c'est une intervention CHECK (statut virtuel)
+      const isCheck = isCheckStatus(statusCode, datePrevue);
+      if (isCheck) {
         interventionsAChecker++;
+        // Ajouter au comptage du statut virtuel CHECK
+        byStatus["CHECK"] = (byStatus["CHECK"] || 0) + 1;
+        byStatusLabel["Check"] = (byStatusLabel["Check"] || 0) + 1;
       }
 
+      // Compter aussi le statut réel (en plus du statut virtuel CHECK si applicable)
       if (status) {
         const code = status.code || "SANS_STATUT";
         const label = status.label || "Sans statut";
@@ -2241,7 +2238,7 @@ export const interventionsApi = {
       }
     });
 
-    // Récupérer les artisans POTENTIEL avec interventions (artisans missionnés)
+    // Récupérer les artisans créés sur la période avec au moins une intervention active (artisans missionnés)
     const artisansMissionnes: WeekDayStats = {
       lundi: 0,
       mardi: 0,
@@ -2251,8 +2248,7 @@ export const interventionsApi = {
       total: 0,
     };
 
-    // Optimisation : Récupérer les artisans POTENTIEL avec au moins une intervention active
-    // en une seule requête avec un inner join au lieu d'une boucle N+1
+    // On récupère les artisans créés pendant la semaine qui ont au moins une intervention active
     const { data: artisansMissionnesData, error: artisansMissionnesError } = await supabase
       .from("artisans")
       .select(`
@@ -2260,14 +2256,12 @@ export const interventionsApi = {
         date_ajout,
         created_at,
         gestionnaire_id,
-        artisan_statuses!inner(code),
         intervention_artisans!inner(
           interventions!inner(id, is_active)
         )
       `)
       .eq("gestionnaire_id", userId)
       .eq("is_active", true)
-      .eq("artisan_statuses.code", "POTENTIEL")
       .eq("intervention_artisans.interventions.is_active", true)
       .gte("date_ajout", mondayStr)
       .lt("date_ajout", saturdayStr);
@@ -2475,11 +2469,10 @@ export const interventionsApi = {
         }
       });
 
-      // Récupérer les artisans POTENTIEL avec interventions (artisans missionnés)
+      // Récupérer les artisans créés sur la période avec au moins une intervention (artisans missionnés)
       const artisansMissionnes = initWeekStats();
 
-      // Optimisation : Récupérer les artisans POTENTIEL avec au moins une intervention active
-      // en une seule requête avec un inner join au lieu d'une boucle N+1
+      // On récupère les artisans créés pendant le mois qui ont au moins une intervention active
       const { data: artisansMissionnesData, error: artisansMissionnesError } = await supabase
         .from("artisans")
         .select(`
@@ -2487,13 +2480,13 @@ export const interventionsApi = {
           date_ajout,
           created_at,
           gestionnaire_id,
-          artisan_statuses!inner(code),
-          interventions!inner(id, is_active)
+          intervention_artisans!inner(
+            interventions!inner(id, is_active)
+          )
         `)
         .eq("gestionnaire_id", userId)
         .eq("is_active", true)
-        .eq("artisan_statuses.code", "POTENTIEL")
-        .eq("interventions.is_active", true)
+        .eq("intervention_artisans.interventions.is_active", true)
         .gte("date_ajout", monthStartStr)
         .lte("date_ajout", monthEndStr);
 
@@ -2654,11 +2647,10 @@ export const interventionsApi = {
         }
       });
 
-      // Récupérer les artisans POTENTIEL avec interventions (artisans missionnés)
+      // Récupérer les artisans créés sur l'année avec au moins une intervention (artisans missionnés)
       const artisansMissionnes = initMonthStats();
 
-      // Optimisation : Récupérer les artisans POTENTIEL avec au moins une intervention active
-      // en une seule requête avec un inner join au lieu d'une boucle N+1
+      // On récupère les artisans créés pendant l'année qui ont au moins une intervention active
       const { data: artisansMissionnesData, error: artisansMissionnesError } = await supabase
         .from("artisans")
         .select(`
@@ -2666,13 +2658,13 @@ export const interventionsApi = {
           date_ajout,
           created_at,
           gestionnaire_id,
-          artisan_statuses!inner(code),
-          interventions!inner(id, is_active)
+          intervention_artisans!inner(
+            interventions!inner(id, is_active)
+          )
         `)
         .eq("gestionnaire_id", userId)
         .eq("is_active", true)
-        .eq("artisan_statuses.code", "POTENTIEL")
-        .eq("interventions.is_active", true)
+        .eq("intervention_artisans.interventions.is_active", true)
         .gte("date_ajout", yearStartStr)
         .lte("date_ajout", yearEndStr);
 

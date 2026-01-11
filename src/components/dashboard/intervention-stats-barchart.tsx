@@ -1,9 +1,7 @@
 "use client"
 
-import { useEffect, useState, useRef, useMemo, useCallback } from "react"
+import { useEffect, useMemo, useCallback } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { interventionsApi } from "@/lib/api/v2"
-import type { InterventionStatsByStatus } from "@/lib/api/v2"
 import { useCurrentUser } from "@/hooks/useCurrentUser"
 import { useDashboardStats } from "@/hooks/useDashboardStats"
 import { AlertCircle } from "lucide-react"
@@ -11,9 +9,7 @@ import Loader from "@/components/ui/Loader"
 import { Bar, BarChart, CartesianGrid, LabelList, XAxis, YAxis, Cell } from "recharts"
 import { ChartContainer, ChartTooltip, type ChartConfig } from "@/components/ui/chart"
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card"
-import { Plus } from "lucide-react"
 import { useRouter } from "next/navigation"
-import useModal from "@/hooks/useModal"
 import { useInterventionModal } from "@/hooks/useInterventionModal"
 import { getInterventionStatusColor } from "@/config/status-colors"
 import { INTERVENTION_STATUS } from "@/config/interventions"
@@ -34,7 +30,6 @@ interface InterventionStatsBarChartProps {
 
 
 export function InterventionStatsBarChart({ hoverPeriod, userId: propUserId }: InterventionStatsBarChartProps) {
-  const { open: openModal } = useModal()
   const { open: openInterventionModal } = useInterventionModal()
   const router = useRouter()
 
@@ -172,20 +167,7 @@ export function InterventionStatsBarChart({ hoverPeriod, userId: propUserId }: I
         if (indexB === -1) return -1
         return indexA - indexB
       })
-      .concat(
-        // Ajouter la barre "Check" si elle existe
-        stats.interventions_a_checker && stats.interventions_a_checker > 0
-          ? [
-            {
-              name: "Check",
-              value: stats.interventions_a_checker,
-              isCheck: true,
-              color: "#EF4444", // Rouge pour Check
-            },
-          ]
-          : []
-      )
-  }, [stats?.by_status_label, stats?.interventions_a_checker, fundamentalStatuses, getStatusColor])
+  }, [stats?.by_status_label, fundamentalStatuses, getStatusColor])
 
   // Mémoriser les cellules avec leurs couleurs pour éviter les recalculs
   const chartCells = useMemo(() => {
@@ -208,24 +190,7 @@ export function InterventionStatsBarChart({ hoverPeriod, userId: propUserId }: I
   const handleBarClick = useCallback((data: any, index: number, event: any) => {
     const clickedBar = chartData[index]
 
-    // Gérer le clic sur la barre "Check"
-    if (clickedBar?.isCheck) {
-      navigateWithModifier({
-        router,
-        path: "/interventions",
-        event,
-        sessionStorageKey: 'pending-intervention-filter',
-        sessionStorageValue: {
-          viewId: "mes-interventions-a-check",
-          property: "isCheck",
-          operator: "eq",
-          value: true
-        }
-      })
-      return
-    }
-
-    // Gérer le clic sur les autres barres de statut
+    // Gérer le clic sur les barres de statut
     if (clickedBar?.name) {
       // Mapper le label vers le code de statut
       const labelToCodeMap: Record<string, string> = {
@@ -245,7 +210,6 @@ export function InterventionStatsBarChart({ hoverPeriod, userId: propUserId }: I
         "Refusé": "REFUSE",
         "Annulé": "ANNULE",
         "Att. acompte": "ATT_ACOMPTE",
-        "Check": "ATT_ACOMPTE",
       }
 
       const statusCode = labelToCodeMap[clickedBar.name]
@@ -462,53 +426,6 @@ export function InterventionStatsBarChart({ hoverPeriod, userId: propUserId }: I
             </BarChart>
           </ChartContainer>
         </div>
-
-        {/* Ligne pour les interventions à checker */}
-        {stats && (stats.interventions_a_checker ?? 0) > 0 && (
-          <div className="mt-4 pt-4 border-t">
-            <HoverCard openDelay={200} closeDelay={100}>
-              <HoverCardTrigger asChild>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    navigateWithModifier({
-                      router,
-                      path: "/interventions",
-                      event: e,
-                      sessionStorageKey: 'pending-intervention-filter',
-                      sessionStorageValue: {
-                        viewId: "mes-interventions-a-check",
-                        property: "isCheck",
-                        operator: "eq",
-                        value: true
-                      }
-                    })
-                  }}
-                  className="w-full flex items-center justify-between p-3 rounded-lg border bg-red-50 border-red-200 hover:bg-red-100 transition-colors cursor-pointer"
-                >
-                  <div className="flex items-center gap-2">
-                    <AlertCircle className="h-4 w-4 text-red-600" />
-                    <span className="text-sm font-medium text-red-900">Interventions à checker</span>
-                  </div>
-                  <span className="text-sm font-semibold text-red-700">{stats.interventions_a_checker}</span>
-                </button>
-              </HoverCardTrigger>
-              <HoverCardContent
-                className="w-96 z-50 max-h-[500px] overflow-y-auto"
-                side="right"
-                align="start"
-                sideOffset={8}
-              >
-                <InterventionStatusContent
-                  userId={userId}
-                  statusLabel="Check"
-                  onOpenIntervention={(id: string) => openInterventionModal(id)}
-                  period={hoverPeriod}
-                />
-              </HoverCardContent>
-            </HoverCard>
-          </div>
-        )}
       </CardContent>
     </Card>
   )

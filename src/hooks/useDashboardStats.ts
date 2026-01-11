@@ -28,9 +28,7 @@ export function useDashboardStatsQuery(
     queryFn: async () => {
       if (!params) throw new Error("Params are required")
       return await interventionsApi.getStatsByUser(
-        params.userId,
-        params.startDate,
-        params.endDate
+        params.userId
       )
     },
     enabled: params !== null && (options?.enabled !== false),
