@@ -583,6 +583,7 @@ export interface GestionnaireMarginRanking {
   user_firstname: string | null;
   user_code: string | null;
   user_color: string | null;
+  user_avatar_url: string | null;
   total_margin: number;
   total_revenue: number; // CA (chiffre d'affaires)
   total_interventions: number;

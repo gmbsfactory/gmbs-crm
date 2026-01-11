@@ -6,6 +6,7 @@ import { useQueryClient } from "@tanstack/react-query"
 import { Building, ChevronDown, ChevronRight, FileText, MessageSquare, Upload, X, Search, Eye, Mail, MessageCircle, Users, Palette } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { getInterventionStatusColor } from "@/config/status-colors"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
@@ -1072,7 +1073,7 @@ export function InterventionEditForm({
       commentaire: formData.commentaire_agent || intervention.commentaire_agent || undefined,
       idIntervention: formData.id_inter || intervention.id_inter || undefined,
     }
-  }, [intervention, artisans, sstCost, formData])
+  }, [intervention, artisans, formData])
 
   // Get the effective selected artisan ID (from Select or from form selection)
   const effectiveSelectedArtisanId = useMemo(() => {
@@ -1999,7 +2000,7 @@ export function InterventionEditForm({
                           options={(refData?.interventionStatuses || []).map(s => ({
                             id: s.id,
                             label: getStatusDisplayLabel(s.code, s.label, sstPayment, clientPayment),
-                            color: s.color,
+                            color: getInterventionStatusColor(s.label, s.code) || s.color,
                           }))}
                         />
 

@@ -28,6 +28,7 @@ import type { CreateInterventionData } from "@/lib/api/v2/common/types"
 import { supabase } from "@/lib/supabase-client"
 import { useCurrentUser } from "@/hooks/useCurrentUser"
 import { cn } from "@/lib/utils"
+import { getInterventionStatusColor } from "@/config/status-colors"
 import { calculatePrimaryArtisanMargin, calculateSecondaryArtisanMargin, formatMarginPercentage, getMarginColorClass } from "@/lib/utils/margin-calculator"
 import { ArtisanSearchModal, type ArtisanSearchResult } from "@/components/artisans/ArtisanSearchModal"
 import { Avatar } from "@/components/artisans/Avatar"
@@ -1294,7 +1295,7 @@ export function NewInterventionForm({
                     options={(refData?.interventionStatuses || []).map(s => ({
                       id: s.id,
                       label: s.label,
-                      color: s.color,
+                      color: getInterventionStatusColor(s.label, s.code) || s.color,
                     }))}
                   />
 

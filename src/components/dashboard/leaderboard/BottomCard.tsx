@@ -1,4 +1,4 @@
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { GestionnaireBadge } from "@/components/ui/gestionnaire-badge"
 import { Card } from "@/components/ui/card"
 import { cn } from "@/lib/utils"
 import { TrendingDown } from "lucide-react"
@@ -9,6 +9,7 @@ interface GestionnaireRankingItem {
   user_firstname: string | null
   user_code: string | null
   user_color: string | null
+  user_avatar_url: string | null
   total_margin: number
   total_revenue?: number
   total_interventions: number
@@ -49,13 +50,13 @@ const formatCurrency = (amount: number) => {
 export const BottomCard = ({ entry, position, totalRankings, displayMetric = 'margin' }: BottomCardProps) => {
   const isLast = position === totalRankings
   // Utiliser firstname depuis la DB, sinon extraire depuis user_name (si différent du code), sinon user_code, sinon user_name complet
-  const firstNameFromName = entry.user_name && entry.user_name !== entry.user_code 
-    ? getFirstName(entry.user_name) 
+  const firstNameFromName = entry.user_name && entry.user_name !== entry.user_code
+    ? getFirstName(entry.user_name)
     : null
   const displayName = entry.user_firstname || firstNameFromName || entry.user_code || entry.user_name
-  
+
   // Afficher soit la marge soit le CA selon displayMetric
-  const displayValue = displayMetric === 'revenue' 
+  const displayValue = displayMetric === 'revenue'
     ? (entry.total_revenue || 0)
     : entry.total_margin
 
@@ -78,16 +79,15 @@ export const BottomCard = ({ entry, position, totalRankings, displayMetric = 'ma
         {position}
       </div>
 
-      <Avatar
-        className="w-10 h-10 border-2 border-border"
-        style={{
-          backgroundColor: entry.user_color || undefined,
-        }}
-      >
-        <AvatarFallback className="text-xs">
-          {getInitials(entry.user_name)}
-        </AvatarFallback>
-      </Avatar>
+      <GestionnaireBadge
+        firstname={entry.user_firstname}
+        lastname={entry.user_name?.split(' ').slice(1).join(' ')}
+        color={entry.user_color}
+        avatarUrl={entry.user_avatar_url}
+        size="md"
+        className="border-2 border-border"
+        showBorder={true}
+      />
 
       <div className="text-center space-y-1">
         <p className="font-semibold text-xs text-foreground flex items-center justify-center gap-1">

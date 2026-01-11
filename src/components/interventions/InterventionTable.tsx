@@ -17,6 +17,7 @@ import {
   ContextMenuTrigger,
 } from "@/components/ui/context-menu"
 import { INTERVENTION_STATUS } from "@/config/interventions"
+import { getInterventionStatusColor } from "@/config/status-colors"
 import { mapStatusFromDb } from "@/lib/interventions/mappers"
 import type { InterventionWithDocuments } from "@/types/interventions"
 import { InterventionContextMenuContent } from "@/components/interventions/InterventionContextMenu"
@@ -131,9 +132,13 @@ export default function InterventionTable({ interventions, onRowClick, onRowDoub
         header: "Statut",
         accessorKey: "status",
         cell: ({ row }) => {
-          const statusKey = mapStatusFromDb(row.original.status)
+          const statusValue = row.original.status
+          const statusKey = mapStatusFromDb(statusValue)
           const status = INTERVENTION_STATUS[statusKey]
-          const hex = status?.hexColor ?? FALLBACK_STATUS_COLOR
+
+          // Utiliser la fonction centralisée pour obtenir la couleur
+          const hex = getInterventionStatusColor(status?.label, statusKey) || FALLBACK_STATUS_COLOR
+
           const pillStyles = buildSolidPillStyles(hex)
           return (
             <span className="inline-flex items-center gap-2">

@@ -85,6 +85,55 @@ function getReadableTextColor(bgColor: string | null | undefined): string {
   return luminance > 0.5 ? "#1f2937" : "#ffffff"
 }
 
+// Helpers pour les badges de statut
+const FALLBACK_STATUS_COLOR = "#4B5563"
+
+function normalizeHex(hex?: string | null): string {
+  if (!hex) return FALLBACK_STATUS_COLOR
+  let value = hex.trim()
+  if (!value.startsWith("#")) {
+    value = `#${value}`
+  }
+  if (value.length === 4) {
+    const r = value[1]
+    const g = value[2]
+    const b = value[3]
+    value = `#${r}${r}${g}${g}${b}${b}`
+  }
+  if (value.length !== 7) {
+    return FALLBACK_STATUS_COLOR
+  }
+  return value.toUpperCase()
+}
+
+function hexToRgb(hex: string) {
+  const normalized = normalizeHex(hex)
+  const match = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(normalized)
+  if (!match) return null
+  return {
+    r: parseInt(match[1], 16),
+    g: parseInt(match[2], 16),
+    b: parseInt(match[3], 16),
+  }
+}
+
+function hexToRgba(hex: string, alpha: number) {
+  const rgb = hexToRgb(hex)
+  if (!rgb) {
+    return `rgba(75, 85, 99, ${alpha})`
+  }
+  return `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${alpha})`
+}
+
+function computeBadgeStyle(hex: string) {
+  const normalized = normalizeHex(hex)
+  return {
+    backgroundColor: hexToRgba(normalized, 0.15),
+    border: `1px solid ${hexToRgba(normalized, 0.35)}`,
+    color: normalized,
+  }
+}
+
 // ===== CONSTANTES =====
 
 const STATUT_JURIDIQUE_OPTIONS = [
@@ -1197,35 +1246,29 @@ export function ArtisanModalContent({
               ) : null}
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            {artisan?.created_at && (
-              <span className="text-xs text-muted-foreground">
-                Créé le {formatDate(artisan.created_at)}
-              </span>
-            )}
-            {artisan && canWriteArtisans ? (
-              getArtisanStatusCode(artisan.statut_id ?? null) === "ARCHIVE" ? (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="bg-orange-100 text-orange-700 border-orange-300 hover:bg-orange-200 hover:text-orange-800"
-                  disabled
-                >
-                  Archivé
-                </Button>
-              ) : (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="bg-orange-100 text-orange-700 border-orange-300 hover:bg-orange-200 hover:text-orange-800"
-                  onClick={handleArchiveClick}
-                  disabled={isSaving || isLoading}
-                >
-                  Archiver
-                </Button>
-              )
-            ) : null}
-          </div>
+          {artisan && (
+            <div className="flex items-center gap-2">
+              {artisan.created_at && (
+                <span className="text-xs text-muted-foreground mr-2">
+                  Créé le {formatDate(artisan.created_at)}
+                </span>
+              )}
+              {(() => {
+                const status = referenceData?.artisanStatuses?.find((s) => s.id === artisan.statut_id)
+                if (!status) return null
+                const pillStyles = status.color ? computeBadgeStyle(status.color) : undefined
+
+                return (
+                  <Badge
+                    className="text-xs font-semibold px-2.5 py-0.5 whitespace-nowrap"
+                    style={pillStyles}
+                  >
+                    {status.label}
+                  </Badge>
+                )
+              })()}
+            </div>
+          )}
         </header>
 
         <form ref={formRef} onSubmit={handleSubmit(onSubmit)} className="flex flex-1 min-h-0 flex-col">
@@ -2019,20 +2062,48 @@ export function ArtisanModalContent({
           </fieldset>
 
           {/* Footer */}
-          <footer className="modal-config-columns-footer flex items-center justify-end gap-2 px-4 py-3 md:px-6 bg-[#8DA5CE] dark:bg-transparent">
-            <Button type="button" variant="outline" size="sm" onClick={handleCancel}>
-              Annuler
-            </Button>
-            <Button type="submit" size="sm" disabled={isSaving || isLoading || !canWriteArtisans}>
-              {isSaving ? "Enregistrement..." : (
-                <>
-                  Enregistrer
-                  <kbd className="ml-2 pointer-events-none hidden md:inline-flex h-5 select-none items-center gap-0.5 rounded border border-primary-foreground/30 bg-primary-foreground/10 px-1.5 font-mono text-[10px] font-medium text-primary-foreground/70">
-                    {shortcutHint}
-                  </kbd>
-                </>
+          <footer className="modal-config-columns-footer flex items-center justify-between gap-2 px-4 py-3 md:px-6 bg-[#8DA5CE] dark:bg-transparent">
+            <div>
+              {artisan && canWriteArtisans && (
+                getArtisanStatusCode(artisan.statut_id ?? null) === "ARCHIVE" ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="bg-orange-100 text-orange-700 border-orange-300 hover:bg-orange-200 hover:text-orange-800"
+                    disabled
+                  >
+                    Archivé
+                  </Button>
+                ) : (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="bg-orange-100 text-orange-700 border-orange-300 hover:bg-orange-200 hover:text-orange-800"
+                    onClick={handleArchiveClick}
+                    disabled={isSaving || isLoading}
+                  >
+                    Archiver
+                  </Button>
+                )
               )}
-            </Button>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button type="button" variant="outline" size="sm" onClick={handleCancel}>
+                Annuler
+              </Button>
+              <Button type="submit" size="sm" disabled={isSaving || isLoading || !canWriteArtisans}>
+                {isSaving ? "Enregistrement..." : (
+                  <>
+                    Enregistrer
+                    <kbd className="ml-2 pointer-events-none hidden md:inline-flex h-5 select-none items-center gap-0.5 rounded border border-primary-foreground/30 bg-primary-foreground/10 px-1.5 font-mono text-[10px] font-medium text-primary-foreground/70">
+                      {shortcutHint}
+                    </kbd>
+                  </>
+                )}
+              </Button>
+            </div>
           </footer>
         </form>
         <StatusReasonModal
@@ -2050,8 +2121,8 @@ export function ArtisanModalContent({
           onConfirm={handleConfirmClose}
           onSaveAndConfirm={handleSaveAndClose}
         />
-      </div>
-    </TooltipProvider>
+      </div >
+    </TooltipProvider >
   )
 }
 

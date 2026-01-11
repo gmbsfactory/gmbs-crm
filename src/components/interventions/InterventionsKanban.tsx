@@ -17,6 +17,7 @@ import type { InterventionStatusValue } from "@/types/interventions"
 import type { InterventionView } from "@/types/intervention-view"
 import { mapStatusToDb } from "@/lib/interventions/mappers"
 import { INTERVENTION_STATUS } from "@/config/interventions"
+import { getInterventionStatusColor } from "@/config/status-colors"
 import type { InterventionModalOpenOptions } from "@/hooks/useInterventionModal"
 
 const DEFAULT_STATUS_COLOR = "#6B7280"
@@ -79,7 +80,7 @@ export default function InterventionsKanban({
       statuses.map((status) => ({
         id: status,
         name: INTERVENTION_STATUS[status]?.label ?? mapStatusToDb(status),
-        color: INTERVENTION_STATUS[status]?.hexColor ?? DEFAULT_STATUS_COLOR,
+        color: getInterventionStatusColor(INTERVENTION_STATUS[status]?.label, status) || DEFAULT_STATUS_COLOR,
       })),
     [statuses],
   )
