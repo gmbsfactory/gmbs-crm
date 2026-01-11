@@ -1,4 +1,4 @@
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { GestionnaireBadge } from "@/components/ui/gestionnaire-badge"
 import { Card } from "@/components/ui/card"
 import { Crown } from "lucide-react"
 import { cn } from "@/lib/utils"
@@ -9,6 +9,7 @@ interface GestionnaireRankingItem {
   user_firstname: string | null
   user_code: string | null
   user_color: string | null
+  user_avatar_url: string | null
   total_margin: number
   total_revenue?: number
   total_interventions: number
@@ -98,13 +99,13 @@ export const PodiumCard = ({ entry, position, displayMetric = 'margin' }: Podium
   const config = positionConfig[position]
   const Icon = config.icon
   // Utiliser firstname depuis la DB, sinon extraire depuis user_name (si différent du code), sinon user_code, sinon user_name complet
-  const firstNameFromName = entry.user_name && entry.user_name !== entry.user_code 
-    ? getFirstName(entry.user_name) 
+  const firstNameFromName = entry.user_name && entry.user_name !== entry.user_code
+    ? getFirstName(entry.user_name)
     : null
   const displayName = entry.user_firstname || firstNameFromName || entry.user_code || entry.user_name
-  
+
   // Afficher soit la marge soit le CA selon displayMetric
-  const displayValue = displayMetric === 'revenue' 
+  const displayValue = displayMetric === 'revenue'
     ? (entry.total_revenue || 0)
     : entry.total_margin
 
@@ -126,7 +127,7 @@ export const PodiumCard = ({ entry, position, displayMetric = 'margin' }: Podium
               {position === 1 ? (
                 <>
                   {/* Effet de brillance animé en arrière-plan */}
-                  <div 
+                  <div
                     className="absolute inset-0 w-8 h-8 -translate-x-0.5 -translate-y-0.5 opacity-70 blur-md"
                     style={{
                       background: "radial-gradient(circle, rgba(255,215,0,1) 0%, rgba(255,165,0,0.8) 40%, transparent 70%)",
@@ -134,14 +135,14 @@ export const PodiumCard = ({ entry, position, displayMetric = 'margin' }: Podium
                     }}
                   />
                   {/* Reflet brillant diamanté */}
-                  <div 
+                  <div
                     className="absolute inset-0 w-8 h-8 -translate-x-0.5 -translate-y-0.5 opacity-50"
                     style={{
                       background: "linear-gradient(135deg, rgba(255,255,255,0.9) 0%, rgba(255,215,0,0.6) 30%, transparent 60%)",
                     }}
                   />
                   {/* Couronne avec gradient or diamanté */}
-                  <Icon 
+                  <Icon
                     className="w-8 h-8 relative z-10"
                     style={{
                       filter: "drop-shadow(0 0 6px rgba(255, 215, 0, 1)) drop-shadow(0 0 12px rgba(255, 215, 0, 0.8)) drop-shadow(0 0 18px rgba(255, 165, 0, 0.6))",
@@ -161,16 +162,15 @@ export const PodiumCard = ({ entry, position, displayMetric = 'margin' }: Podium
           ) : (
             <span className="text-3xl">{config.emoji}</span>
           )}
-          <Avatar
-            className={cn("w-12 h-12 border-[3px] shadow-lg", config.avatarBorder)}
-            style={{
-              backgroundColor: entry.user_color || undefined,
-            }}
-          >
-            <AvatarFallback className="text-sm font-bold">
-              {getInitials(entry.user_name)}
-            </AvatarFallback>
-          </Avatar>
+          <GestionnaireBadge
+            firstname={entry.user_firstname}
+            lastname={entry.user_name?.split(' ').slice(1).join(' ')} // Extracting last name if possible
+            color={entry.user_color}
+            avatarUrl={entry.user_avatar_url}
+            size="lg"
+            className={cn("border-[3px] shadow-lg", config.avatarBorder)}
+            showBorder={true}
+          />
         </div>
 
         <div className={cn("flex flex-col items-center gap-1", config.marginTop)}>

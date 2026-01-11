@@ -1892,7 +1892,7 @@ export const interventionsApi = {
     const userIds = rpcResult.rankings.map((r: any) => r.user_id);
     const { data: users, error: usersError } = await supabase
       .from("users")
-      .select("id, firstname, lastname, code_gestionnaire, color")
+      .select("id, firstname, lastname, code_gestionnaire, color, avatar_url")
       .in("id", userIds);
 
     if (usersError) {
@@ -1917,6 +1917,7 @@ export const interventionsApi = {
         user_firstname: user?.lastname || null, // Utiliser lastname car c'est le prénom dans votre système
         user_code: user?.code_gestionnaire || null,
         user_color: user?.color || null,
+        user_avatar_url: user?.avatar_url || null,
         total_margin: item.total_margin || 0,
         total_revenue: item.total_revenue || 0,
         total_interventions: item.total_interventions || 0,
@@ -1972,15 +1973,12 @@ export const interventionsApi = {
       };
     }
 
-    // Appeler la fonction RPC SQL get_dashboard_performance_gestionnaires_v3
+    // Appeler la fonction RPC SQL spécialisée pour le podium (basée sur la date de complétion)
     const { data: rpcResult, error: rpcError } = await supabase.rpc(
-      'get_dashboard_performance_gestionnaires_v3',
+      'get_podium_ranking_by_period',
       {
         p_period_start: periodStart,
         p_period_end: periodEnd,
-        p_agence_ids: null,
-        p_metier_ids: null,
-        p_limit: 100, // Limite élevée pour avoir tous les gestionnaires
       }
     );
 
@@ -1988,7 +1986,7 @@ export const interventionsApi = {
       throw new Error(`Erreur lors de la récupération du classement: ${rpcError.message}`);
     }
 
-    if (!rpcResult || !Array.isArray(rpcResult) || rpcResult.length === 0) {
+    if (!rpcResult || !rpcResult.rankings || !Array.isArray(rpcResult.rankings) || rpcResult.rankings.length === 0) {
       return {
         rankings: [],
         period: {
@@ -1999,14 +1997,14 @@ export const interventionsApi = {
     }
 
     // Récupérer les informations des utilisateurs pour enrichir les résultats
-    const userIds = rpcResult.map((r: any) => r.gestionnaire_id);
+    const userIds = rpcResult.rankings.map((r: any) => r.user_id);
     const { data: users, error: usersError } = await supabase
       .from("users")
-      .select("id, firstname, lastname, code_gestionnaire, color")
+      .select("id, firstname, lastname, code_gestionnaire, color, avatar_url")
       .in("id", userIds);
 
     if (usersError) {
-      throw new Error(`Erreur lors de la récupération des utilisateurs: ${usersError.message}`);
+      throw new Error(`Erreur lors de la récupération des informations utilisateurs: ${usersError.message}`);
     }
 
     // Créer un map pour accéder rapidement aux infos utilisateur
@@ -2015,36 +2013,25 @@ export const interventionsApi = {
     );
 
     // Mapper les résultats SQL avec les informations utilisateur
-    // Trier par marge décroissante (la fonction SQL trie par CA, on veut trier par marge)
-    const sortedResults = [...rpcResult].sort((a: any, b: any) => {
-      const margeA = Number(a.marge_total || 0);
-      const margeB = Number(b.marge_total || 0);
-      return margeB - margeA;
-    });
+    // Note: get_podium_ranking_by_period renvoie déjà les résultats triés par marge décroissante
+    const rankings: GestionnaireMarginRanking[] = rpcResult.rankings.map((item: any, index: number) => {
+      const user = usersMap.get(item.user_id);
 
-    const rankings: GestionnaireMarginRanking[] = sortedResults.map((item: any, index: number) => {
-      const user = usersMap.get(item.gestionnaire_id);
-      // Utiliser gestionnaire_firstname depuis la fonction SQL en priorité
-      // Debug: vérifier que le champ est bien présent
-      if (index === 0) {
-        console.log('🔍 Debug getMarginRankingByPeriodV3 - Premier item:', {
-          gestionnaire_id: item.gestionnaire_id,
-          gestionnaire_firstname: item.gestionnaire_firstname,
-          gestionnaire_lastname: item.gestionnaire_lastname,
-          gestionnaire_nom: item.gestionnaire_nom,
-          user_firstname: user?.firstname,
-        });
-      }
+      const firstname = user?.firstname || "";
+      const lastname = user?.lastname || "";
+      const fullName = [firstname, lastname].filter(Boolean).join(" ") || "Utilisateur inconnu";
+
       return {
-        user_id: item.gestionnaire_id,
-        user_name: item.gestionnaire_nom,
-        user_firstname: item.gestionnaire_lastname,
+        user_id: item.user_id,
+        user_name: fullName,
+        user_firstname: firstname || null,
         user_code: user?.code_gestionnaire || null,
         user_color: user?.color || null,
-        total_margin: Number(item.marge_total || 0),
-        total_revenue: Number(item.ca_total || 0),
-        total_interventions: Number(item.nb_interventions_terminees || 0),
-        average_margin_percentage: Number(item.taux_marge || 0),
+        user_avatar_url: user?.avatar_url || null,
+        total_margin: Number(item.total_margin || 0),
+        total_revenue: Number(item.total_revenue || 0),
+        total_interventions: Number(item.total_interventions || 0),
+        average_margin_percentage: Number(item.average_margin_percentage || 0),
         rank: index + 1,
       };
     });
@@ -2052,8 +2039,8 @@ export const interventionsApi = {
     return {
       rankings,
       period: {
-        start_date: startDate || null,
-        end_date: endDate || null,
+        start_date: rpcResult.period?.start_date || startDate || null,
+        end_date: rpcResult.period?.end_date || endDate || null,
       },
     };
   },
@@ -2081,8 +2068,9 @@ export const interventionsApi = {
       // Trouver le lundi de la semaine en cours
       const now = new Date();
       const day = now.getDay(); // 0 = dimanche, 1 = lundi, ..., 6 = samedi
-      const diff = now.getDate() - day + (day === 0 ? -6 : 1); // Ajuster pour que lundi = 1
-      monday = new Date(now.getFullYear(), now.getMonth(), diff);
+      // Si dimanche (0), reculer de 6 jours. Sinon, reculer de (day - 1) jours
+      const daysToSubtract = day === 0 ? 6 : day - 1;
+      monday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - daysToSubtract);
       monday.setHours(0, 0, 0, 0);
 
     }
@@ -2102,8 +2090,13 @@ export const interventionsApi = {
     const nextMonday = new Date(monday);
     nextMonday.setDate(monday.getDate() + 7);
 
-    // Formater les dates pour les requêtes (YYYY-MM-DD)
-    const formatDate = (date: Date) => date.toISOString().split('T')[0];
+    // Formater les dates pour les requêtes (YYYY-MM-DD) en utilisant le temps local
+    const formatDate = (date: Date) => {
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    };
     const mondayStr = formatDate(monday);
     const tuesdayStr = formatDate(tuesday);
     const wednesdayStr = formatDate(wednesday);
@@ -2111,7 +2104,9 @@ export const interventionsApi = {
     const fridayStr = formatDate(friday);
     const saturdayStr = formatDate(saturday);
     const sundayStr = formatDate(sunday);
-    const nextMondayStr = formatDate(nextMonday); // Pour inclure samedi et dimanche
+
+    // Pour la fin de période, on utilise le début du lundi suivant
+    const nextMondayStr = formatDate(nextMonday);
 
     // Récupérer les statuts d'intervention nécessaires
     const { data: statuses, error: statusError } = await supabase

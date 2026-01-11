@@ -26,6 +26,7 @@ export const INTERVENTION_STATUS_COLORS: Record<string, string> = {
   "Inter en cours": "#F59E0B",     // orange/ambre
   "Inter terminée": "#10B981",     // vert (INTER_TERMINEE)
   "Inter Terminée": "#10B981",     // vert (variante)
+  "En cours": "#F59E0B",           // orange
   "Terminé": "#10B981",            // vert
   "Check": "#EF4444",              // rouge
   "Annulé": "#EF4444",             // rouge
@@ -34,6 +35,7 @@ export const INTERVENTION_STATUS_COLORS: Record<string, string> = {
   "Stand by": "#6B7280",           // gris (variante)
   "SAV": "#EC4899",                // rose
   "Att Acompte": "#F97316",        // orange (ATT_ACOMPTE)
+  "Att. acompte": "#F97316",       // variante
 }
 
 /**

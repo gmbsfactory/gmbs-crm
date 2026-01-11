@@ -86,58 +86,6 @@ export function InterventionStatsBarChart({ hoverPeriod, userId: propUserId }: I
   // Statuts fondamentaux à afficher
   const fundamentalStatuses = useMemo(() => ["Demandé", "Inter en cours", "Visite technique", "Accepté"], [])
 
-  // Fonction helper pour obtenir la couleur d'un statut
-  // Priorité : 1) DB (source de vérité), 2) INTERVENTION_STATUS, 3) Fallback
-  // Mémorisée pour éviter les recalculs constants
-  const getStatusColor = useCallback((statusLabel: string): string => {
-    // Cas spécial pour "Check" qui n'est pas dans INTERVENTION_STATUS
-    if (statusLabel === "Check") {
-      return "#EF4444" // Rouge pour Check
-    }
-
-    // 1. PRIORITÉ : Chercher dans la DB par label (insensible à la casse)
-    // Le hook useInterventionStatuses stocke les labels en minuscule dans statusesByLabel
-    const dbStatusByLabel = statusesByLabel.get(statusLabel.toLowerCase())
-    if (dbStatusByLabel?.color) {
-      return dbStatusByLabel.color
-    }
-
-    // 2. Chercher dans la DB par code (via mapping label → code)
-    // Mapping basé sur les labels exacts de la DB
-    const labelToCodeMap: Record<string, string> = {
-      "Inter en cours": "INTER_EN_COURS",
-      "Inter terminée": "INTER_TERMINEE",
-      "Inter Terminée": "INTER_TERMINEE",
-      "En cours": "INTER_EN_COURS", // Alias legacy
-      "Terminé": "INTER_TERMINEE", // Alias legacy
-      "Visite technique": "VISITE_TECHNIQUE", // Variante minuscule
-      "Visite Technique": "VISITE_TECHNIQUE", // Label exact de la DB
-      "Devis envoyé": "DEVIS_ENVOYE", // Variante minuscule
-      "Devis Envoyé": "DEVIS_ENVOYE", // Label exact de la DB
-    }
-
-    const mappedCode = labelToCodeMap[statusLabel]
-    if (mappedCode) {
-      const dbStatusByCode = statusesByCode.get(mappedCode)
-      if (dbStatusByCode?.color) {
-        return dbStatusByCode.color
-      }
-    }
-
-    // 3. Chercher dans INTERVENTION_STATUS (fallback)
-    const normalizedLabel = statusLabel === "Inter en cours" ? "En cours" : statusLabel
-    const statusConfig = Object.values(INTERVENTION_STATUS).find(
-      s => s.label === normalizedLabel || s.label.toLowerCase() === normalizedLabel.toLowerCase()
-    )
-
-    if (statusConfig?.hexColor) {
-      return statusConfig.hexColor
-    }
-
-    // 4. Dernier fallback
-    return getInterventionStatusColor(statusLabel) || "#6366F1"
-  }, [statusesByLabel, statusesByCode])
-
   // Créer le chartConfig avec les couleurs pour chaque statut possible
   // Mémorisé pour éviter les recalculs constants
   const chartConfig: ChartConfig = useMemo(() => {
@@ -152,16 +100,16 @@ export function InterventionStatsBarChart({ hoverPeriod, userId: propUserId }: I
     fundamentalStatuses.forEach((status) => {
       config[status] = {
         label: status,
-        color: getStatusColor(status),
+        color: getInterventionStatusColor(status),
       }
     })
     config["Check"] = {
       label: "Check",
-      color: getStatusColor("Check"),
+      color: getInterventionStatusColor("Check"),
     }
 
     return config
-  }, [fundamentalStatuses, getStatusColor])
+  }, [fundamentalStatuses])
 
   // Préparer les données pour le graphique (uniquement les statuts fondamentaux)
   // Mémorisé pour éviter les recalculs constants qui causent la boucle infinie
@@ -170,7 +118,7 @@ export function InterventionStatsBarChart({ hoverPeriod, userId: propUserId }: I
 
     return Object.entries(stats.by_status_label)
       .map(([label, count]) => {
-        const color = getStatusColor(label)
+        const color = getInterventionStatusColor(label)
         return {
           name: label,
           value: count,
@@ -187,13 +135,13 @@ export function InterventionStatsBarChart({ hoverPeriod, userId: propUserId }: I
         if (indexB === -1) return -1
         return indexA - indexB
       })
-  }, [stats?.by_status_label, fundamentalStatuses, getStatusColor])
+  }, [stats?.by_status_label, fundamentalStatuses])
 
   // Mémoriser les cellules avec leurs couleurs pour éviter les recalculs
   const chartCells = useMemo(() => {
     if (chartData.length === 0) return []
     return chartData.map((entry, index) => {
-      const statusColor = entry.color || getStatusColor(entry.name)
+      const statusColor = entry.color || getInterventionStatusColor(entry.name)
 
       return (
         <Cell
@@ -205,7 +153,7 @@ export function InterventionStatsBarChart({ hoverPeriod, userId: propUserId }: I
         />
       )
     })
-  }, [chartData, getStatusColor])
+  }, [chartData])
 
   const handleBarClick = useCallback((data: any, index: number, event: any) => {
     const clickedBar = chartData[index]
@@ -259,7 +207,7 @@ export function InterventionStatsBarChart({ hoverPeriod, userId: propUserId }: I
         })
       }
     }
-  }, [chartData, router])
+  }, [chartData, router, statsFilterPeriod, viewMode])
 
   if (loading) {
     return (

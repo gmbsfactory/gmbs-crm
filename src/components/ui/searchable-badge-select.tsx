@@ -104,6 +104,7 @@ export function SearchableBadgeSelect({
             type="button"
             role="combobox"
             aria-expanded={open}
+            aria-controls="badge-select-listbox"
             className="inline-flex items-center justify-center rounded-full h-7 px-3 text-xs font-semibold transition-all hover:scale-105 hover:shadow-md cursor-pointer truncate"
             style={{
               backgroundColor: selectedColor,
@@ -143,7 +144,7 @@ export function SearchableBadgeSelect({
           </div>
 
           {/* Liste des options */}
-          <div className="max-h-[300px] overflow-y-auto p-2">
+          <div id="badge-select-listbox" role="listbox" className="max-h-[300px] overflow-y-auto p-2">
             {filteredOptions.length === 0 ? (
               <div className="py-6 text-center text-sm text-muted-foreground">
                 {emptyText}
