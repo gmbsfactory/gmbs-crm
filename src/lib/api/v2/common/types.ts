@@ -634,6 +634,8 @@ export interface WeekDayStats {
   mercredi: number;
   jeudi: number;
   vendredi: number;
+  samedi: number;
+  dimanche: number;
   total: number;
 }
 

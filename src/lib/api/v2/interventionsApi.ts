@@ -1610,6 +1610,13 @@ export const interventionsApi = {
       .eq("assigned_user_id", userId)
       .eq("is_active", true); // Seulement les interventions actives
 
+    if (startDate) {
+      query = query.gte("created_at", startDate);
+    }
+    if (endDate) {
+      query = query.lte("created_at", endDate);
+    }
+
     const { data, error, count } = await query;
 
     if (error) {
@@ -2090,6 +2097,10 @@ export const interventionsApi = {
     friday.setDate(monday.getDate() + 4);
     const saturday = new Date(monday);
     saturday.setDate(monday.getDate() + 5);
+    const sunday = new Date(monday);
+    sunday.setDate(monday.getDate() + 6);
+    const nextMonday = new Date(monday);
+    nextMonday.setDate(monday.getDate() + 7);
 
     // Formater les dates pour les requêtes (YYYY-MM-DD)
     const formatDate = (date: Date) => date.toISOString().split('T')[0];
@@ -2098,7 +2109,9 @@ export const interventionsApi = {
     const wednesdayStr = formatDate(wednesday);
     const thursdayStr = formatDate(thursday);
     const fridayStr = formatDate(friday);
-    const saturdayStr = formatDate(saturday); // Pour la fin de vendredi
+    const saturdayStr = formatDate(saturday);
+    const sundayStr = formatDate(sunday);
+    const nextMondayStr = formatDate(nextMonday); // Pour inclure samedi et dimanche
 
     // Récupérer les statuts d'intervention nécessaires
     const { data: statuses, error: statusError } = await supabase
@@ -2119,6 +2132,8 @@ export const interventionsApi = {
       mercredi: 0,
       jeudi: 0,
       vendredi: 0,
+      samedi: 0,
+      dimanche: 0,
       total: 0,
     });
 
@@ -2140,7 +2155,7 @@ export const interventionsApi = {
       .eq("assigned_user_id", userId)
       .eq("is_active", true)
       .gte("date", mondayStr)
-      .lt("date", saturdayStr); // Jusqu'à la fin de vendredi
+      .lt("date", nextMondayStr); // Jusqu'au lundi suivant (inclut we)
 
     if (interventionsError) {
       throw new Error(`Erreur lors de la récupération des interventions: ${interventionsError.message}`);
@@ -2179,21 +2194,18 @@ export const interventionsApi = {
       else if (dateStr === wednesdayStr) dayKey = "mercredi";
       else if (dateStr === thursdayStr) dayKey = "jeudi";
       else if (dateStr === fridayStr) dayKey = "vendredi";
+      else if (dateStr === saturdayStr) dayKey = "samedi";
+      else if (dateStr === sundayStr) dayKey = "dimanche";
 
-      if (!dayKey) {
-        console.log(`[WeeklyStats] Date hors période: ${dateStr} (attendu: ${mondayStr}-${fridayStr})`);
-        return;
-      }
-
-      // Compter selon le statut
+      // Compter selon le statut (pour le total)
       if (statusCode === "DEVIS_ENVOYE") {
-        devisEnvoye[dayKey]++;
+        if (dayKey) devisEnvoye[dayKey]++;
         devisEnvoye.total++;
       } else if (statusCode === "INTER_EN_COURS") {
-        interEnCours[dayKey]++;
+        if (dayKey) interEnCours[dayKey]++;
         interEnCours.total++;
       } else if (statusCode === "INTER_TERMINEE") {
-        interFactures[dayKey]++;
+        if (dayKey) interFactures[dayKey]++;
         interFactures.total++;
       } else {
         console.log(`[WeeklyStats] Statut non compté: ${statusCode} pour intervention ${intervention.id}`);
@@ -2203,11 +2215,11 @@ export const interventionsApi = {
     // Récupérer les artisans créés par l'utilisateur pour la semaine
     const { data: artisans, error: artisansError } = await supabase
       .from("artisans")
-      .select("id, date_ajout, created_at, gestionnaire_id")
+      .select("id, created_at, gestionnaire_id")
       .eq("gestionnaire_id", userId)
       .eq("is_active", true)
-      .gte("date_ajout", mondayStr)
-      .lt("date_ajout", saturdayStr);
+      .gte("created_at", mondayStr)
+      .lt("created_at", nextMondayStr);
 
     if (artisansError) {
       throw new Error(`Erreur lors de la récupération des artisans: ${artisansError.message}`);
@@ -2215,12 +2227,8 @@ export const interventionsApi = {
 
     // Compter les artisans par jour
     (artisans || []).forEach((artisan: any) => {
-      // Utiliser date_ajout en priorité, sinon created_at
-      const artisanDate = artisan.date_ajout
-        ? new Date(artisan.date_ajout)
-        : artisan.created_at
-          ? new Date(artisan.created_at)
-          : null;
+      // Utiliser uniquement created_at
+      const artisanDate = artisan.created_at ? new Date(artisan.created_at) : null;
 
       if (!artisanDate) return;
 
@@ -2231,11 +2239,14 @@ export const interventionsApi = {
       else if (dateStr === wednesdayStr) dayKey = "mercredi";
       else if (dateStr === thursdayStr) dayKey = "jeudi";
       else if (dateStr === fridayStr) dayKey = "vendredi";
+      else if (dateStr === saturdayStr) dayKey = "samedi";
+      else if (dateStr === sundayStr) dayKey = "dimanche";
 
       if (dayKey) {
         nouveauxArtisans[dayKey]++;
-        nouveauxArtisans.total++;
       }
+
+      nouveauxArtisans.total++;
     });
 
     // Récupérer les artisans créés sur la période avec au moins une intervention active (artisans missionnés)
@@ -2245,6 +2256,8 @@ export const interventionsApi = {
       mercredi: 0,
       jeudi: 0,
       vendredi: 0,
+      samedi: 0,
+      dimanche: 0,
       total: 0,
     };
 
@@ -2253,7 +2266,6 @@ export const interventionsApi = {
       .from("artisans")
       .select(`
         id,
-        date_ajout,
         created_at,
         gestionnaire_id,
         intervention_artisans!inner(
@@ -2263,8 +2275,8 @@ export const interventionsApi = {
       .eq("gestionnaire_id", userId)
       .eq("is_active", true)
       .eq("intervention_artisans.interventions.is_active", true)
-      .gte("date_ajout", mondayStr)
-      .lt("date_ajout", saturdayStr);
+      .gte("created_at", mondayStr)
+      .lt("created_at", nextMondayStr);
 
     if (artisansMissionnesError) {
       console.error("Erreur lors de la récupération des artisans missionnés:", artisansMissionnesError);
@@ -2279,11 +2291,7 @@ export const interventionsApi = {
 
       // Compter les artisans missionnés par jour
       uniqueArtisans.forEach((artisan) => {
-        const artisanDate = artisan.date_ajout
-          ? new Date(artisan.date_ajout)
-          : artisan.created_at
-            ? new Date(artisan.created_at)
-            : null;
+        const artisanDate = artisan.created_at ? new Date(artisan.created_at) : null;
 
         if (!artisanDate) return;
 
@@ -2294,11 +2302,14 @@ export const interventionsApi = {
         else if (dateStr === wednesdayStr) dayKey = "mercredi";
         else if (dateStr === thursdayStr) dayKey = "jeudi";
         else if (dateStr === fridayStr) dayKey = "vendredi";
+        else if (dateStr === saturdayStr) dayKey = "samedi";
+        else if (dateStr === sundayStr) dayKey = "dimanche";
 
         if (dayKey) {
           artisansMissionnes[dayKey]++;
-          artisansMissionnes.total++;
         }
+
+        artisansMissionnes.total++;
       });
     }
 
@@ -2309,7 +2320,7 @@ export const interventionsApi = {
       nouveaux_artisans: nouveauxArtisans,
       artisans_missionnes: artisansMissionnes,
       week_start: monday.toISOString(),
-      week_end: friday.toISOString(),
+      week_end: sunday.toISOString(),
     };
   },
 
@@ -2329,7 +2340,12 @@ export const interventionsApi = {
       throw new Error("userId is required");
     }
 
-    const formatDate = (date: Date) => date.toISOString().split('T')[0];
+    const formatDate = (date: Date) => {
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    };
 
     if (period === "week") {
       return this.getWeeklyStatsByUser(userId, startDate);
@@ -2349,8 +2365,10 @@ export const interventionsApi = {
       }
 
       const monthEnd = new Date(monthStart.getFullYear(), monthStart.getMonth() + 1, 0, 23, 59, 59);
+      const nextMonthStart = new Date(monthStart.getFullYear(), monthStart.getMonth() + 1, 1);
       const monthStartStr = formatDate(monthStart);
       const monthEndStr = formatDate(monthEnd);
+      const nextMonthStartStr = formatDate(nextMonthStart);
 
       // Calculer les semaines du mois
       const weeks: { start: Date; end: Date }[] = [];
@@ -2363,7 +2381,8 @@ export const interventionsApi = {
 
       while (currentWeekStart <= monthEnd) {
         const weekEnd = new Date(currentWeekStart);
-        weekEnd.setDate(currentWeekStart.getDate() + 4); // Vendredi
+        weekEnd.setDate(currentWeekStart.getDate() + 6);
+        weekEnd.setHours(23, 59, 59, 999); // S'assurer que dimanche est inclus
 
         if (currentWeekStart <= monthEnd) {
           weeks.push({
@@ -2438,11 +2457,11 @@ export const interventionsApi = {
       // Récupérer les artisans du mois
       const { data: artisans, error: artisansError } = await supabase
         .from("artisans")
-        .select("id, date_ajout, created_at, gestionnaire_id")
+        .select("id, created_at, gestionnaire_id")
         .eq("gestionnaire_id", userId)
         .eq("is_active", true)
-        .gte("date_ajout", monthStartStr)
-        .lte("date_ajout", monthEndStr);
+        .gte("created_at", monthStartStr)
+        .lt("created_at", nextMonthStartStr); // Utiliser lt pour tout le mois
 
       if (artisansError) {
         throw new Error(`Erreur lors de la récupération des artisans: ${artisansError.message}`);
@@ -2450,23 +2469,23 @@ export const interventionsApi = {
 
       // Compter les artisans par semaine
       (artisans || []).forEach((artisan: any) => {
-        const artisanDate = artisan.date_ajout
-          ? new Date(artisan.date_ajout)
-          : artisan.created_at
-            ? new Date(artisan.created_at)
-            : null;
+        const artisanDate = artisan.created_at ? new Date(artisan.created_at) : null;
 
         if (!artisanDate) return;
 
+        let matched = false;
         for (let i = 0; i < weeks.length && i < 5; i++) {
           const week = weeks[i];
           if (artisanDate >= week.start && artisanDate <= week.end) {
             const weekKey = `semaine${i + 1}` as keyof MonthWeekStats;
             nouveauxArtisans[weekKey]++;
-            nouveauxArtisans.total++;
+            matched = true;
             break;
           }
         }
+
+        // Toujours incrémenter le total pour le mois (même si WE ou hors buckets semaine)
+        nouveauxArtisans.total++;
       });
 
       // Récupérer les artisans créés sur la période avec au moins une intervention (artisans missionnés)
@@ -2477,7 +2496,6 @@ export const interventionsApi = {
         .from("artisans")
         .select(`
           id,
-          date_ajout,
           created_at,
           gestionnaire_id,
           intervention_artisans!inner(
@@ -2487,8 +2505,8 @@ export const interventionsApi = {
         .eq("gestionnaire_id", userId)
         .eq("is_active", true)
         .eq("intervention_artisans.interventions.is_active", true)
-        .gte("date_ajout", monthStartStr)
-        .lte("date_ajout", monthEndStr);
+        .gte("created_at", monthStartStr)
+        .lt("created_at", nextMonthStartStr);
 
       if (!artisansMissionnesError && artisansMissionnesData) {
         // Dédupliquer les artisans (car le JOIN peut créer plusieurs lignes par artisan)
@@ -2501,23 +2519,22 @@ export const interventionsApi = {
 
         // Compter les artisans missionnés par semaine
         uniqueArtisans.forEach((artisan) => {
-          const artisanDate = artisan.date_ajout
-            ? new Date(artisan.date_ajout)
-            : artisan.created_at
-              ? new Date(artisan.created_at)
-              : null;
+          const artisanDate = artisan.created_at ? new Date(artisan.created_at) : null;
 
           if (!artisanDate) return;
 
+          let matched = false;
           for (let i = 0; i < weeks.length && i < 5; i++) {
             const week = weeks[i];
             if (artisanDate >= week.start && artisanDate <= week.end) {
               const weekKey = `semaine${i + 1}` as keyof MonthWeekStats;
               artisansMissionnes[weekKey]++;
-              artisansMissionnes.total++;
+              matched = true;
               break;
             }
           }
+
+          artisansMissionnes.total++;
         });
       }
 
@@ -2548,8 +2565,10 @@ export const interventionsApi = {
       }
 
       const yearEnd = new Date(yearStart.getFullYear(), 11, 31, 23, 59, 59);
+      const nextYearStart = new Date(yearStart.getFullYear() + 1, 0, 1);
       const yearStartStr = formatDate(yearStart);
       const yearEndStr = formatDate(yearEnd);
+      const nextYearStartStr = formatDate(nextYearStart);
 
       // Initialiser les stats par mois
       const initMonthStats = (): YearMonthStats => ({
@@ -2619,11 +2638,11 @@ export const interventionsApi = {
       // Récupérer les artisans de l'année
       const { data: artisans, error: artisansError } = await supabase
         .from("artisans")
-        .select("id, date_ajout, created_at, gestionnaire_id")
+        .select("id, created_at, gestionnaire_id")
         .eq("gestionnaire_id", userId)
         .eq("is_active", true)
-        .gte("date_ajout", yearStartStr)
-        .lte("date_ajout", yearEndStr);
+        .gte("created_at", yearStartStr)
+        .lt("created_at", nextYearStartStr);
 
       if (artisansError) {
         throw new Error(`Erreur lors de la récupération des artisans: ${artisansError.message}`);
@@ -2631,11 +2650,7 @@ export const interventionsApi = {
 
       // Compter les artisans par mois
       (artisans || []).forEach((artisan: any) => {
-        const artisanDate = artisan.date_ajout
-          ? new Date(artisan.date_ajout)
-          : artisan.created_at
-            ? new Date(artisan.created_at)
-            : null;
+        const artisanDate = artisan.created_at ? new Date(artisan.created_at) : null;
 
         if (!artisanDate) return;
 
@@ -2655,7 +2670,6 @@ export const interventionsApi = {
         .from("artisans")
         .select(`
           id,
-          date_ajout,
           created_at,
           gestionnaire_id,
           intervention_artisans!inner(
@@ -2665,8 +2679,8 @@ export const interventionsApi = {
         .eq("gestionnaire_id", userId)
         .eq("is_active", true)
         .eq("intervention_artisans.interventions.is_active", true)
-        .gte("date_ajout", yearStartStr)
-        .lte("date_ajout", yearEndStr);
+        .gte("created_at", yearStartStr)
+        .lt("created_at", nextYearStartStr);
 
       if (!artisansMissionnesError && artisansMissionnesData) {
         // Dédupliquer les artisans (car le JOIN peut créer plusieurs lignes par artisan)
@@ -2679,11 +2693,7 @@ export const interventionsApi = {
 
         // Compter les artisans missionnés par mois
         uniqueArtisans.forEach((artisan) => {
-          const artisanDate = artisan.date_ajout
-            ? new Date(artisan.date_ajout)
-            : artisan.created_at
-              ? new Date(artisan.created_at)
-              : null;
+          const artisanDate = artisan.created_at ? new Date(artisan.created_at) : null;
 
           if (!artisanDate) return;
 

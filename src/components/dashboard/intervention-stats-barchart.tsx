@@ -1,10 +1,10 @@
 "use client"
 
-import { useEffect, useMemo, useCallback } from "react"
+import { useEffect, useMemo, useCallback, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { useCurrentUser } from "@/hooks/useCurrentUser"
 import { useDashboardStats } from "@/hooks/useDashboardStats"
-import { AlertCircle } from "lucide-react"
+import { AlertCircle, Calendar } from "lucide-react"
 import Loader from "@/components/ui/Loader"
 import { Bar, BarChart, CartesianGrid, LabelList, XAxis, YAxis, Cell } from "recharts"
 import { ChartContainer, ChartTooltip, type ChartConfig } from "@/components/ui/chart"
@@ -16,6 +16,9 @@ import { INTERVENTION_STATUS } from "@/config/interventions"
 import { useInterventionStatuses } from "@/hooks/useInterventionStatuses"
 import { InterventionStatusContent } from "./intervention-status-content"
 import { navigateWithModifier } from "@/lib/utils/navigation"
+import { startOfYear, endOfYear, getYear } from "date-fns"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { cn } from "@/lib/utils"
 
 interface InterventionStatsBarChartProps {
   /** Période pour filtrer les interventions dans le HoverCard uniquement (le count reste global) */
@@ -33,14 +36,31 @@ export function InterventionStatsBarChart({ hoverPeriod, userId: propUserId }: I
   const { open: openInterventionModal } = useInterventionModal()
   const router = useRouter()
 
+  // Filtre temporel local : "all" (complet) ou "year" (année en cours)
+  const [viewMode, setViewMode] = useState<"all" | "year">("year")
+  const currentYear = useMemo(() => getYear(new Date()), [])
+
   // Utiliser le hook React Query pour charger l'utilisateur (cache partagé)
   const { data: currentUser, isLoading: isLoadingUser } = useCurrentUser()
   // Utiliser le prop userId s'il est fourni, sinon utiliser currentUser
   const userId = propUserId ?? currentUser?.id ?? null
 
+  // Déterminer la période de filtrage selon le viewMode
+  const statsFilterPeriod = useMemo(() => {
+    if (viewMode === "year") {
+      const now = new Date()
+      return {
+        startDate: startOfYear(now).toISOString(),
+        endDate: endOfYear(now).toISOString()
+      }
+    }
+    // "all" : pas de filtre temporel pour les stats globales de l'utilisateur
+    return undefined
+  }, [viewMode])
+
   // Utiliser TanStack Query pour charger les stats (cache partagé et déduplication automatique)
-  // NE PAS passer de période pour obtenir le count global de toutes les interventions
-  const { data: stats, isLoading: loading, error: queryError } = useDashboardStats(undefined, userId)
+  // Utiliser statsFilterPeriod s'il est défini
+  const { data: stats, isLoading: loading, error: queryError } = useDashboardStats(statsFilterPeriod, userId)
   const error = queryError ? (queryError instanceof Error ? queryError.message : String(queryError)) : null
 
   // Charger les statuts depuis la DB pour avoir les couleurs exactes
@@ -64,7 +84,7 @@ export function InterventionStatsBarChart({ hoverPeriod, userId: propUserId }: I
 
 
   // Statuts fondamentaux à afficher
-  const fundamentalStatuses = useMemo(() => ["Demandé", "Inter en cours", "Visite technique", "Accepté", "Check"], [])
+  const fundamentalStatuses = useMemo(() => ["Demandé", "Inter en cours", "Visite technique", "Accepté"], [])
 
   // Fonction helper pour obtenir la couleur d'un statut
   // Priorité : 1) DB (source de vérité), 2) INTERVENTION_STATUS, 3) Fallback
@@ -230,7 +250,11 @@ export function InterventionStatsBarChart({ hoverPeriod, userId: propUserId }: I
           sessionStorageKey: 'pending-intervention-filter',
           sessionStorageValue: {
             viewId: statusToViewId[statusCode] || "liste-generale",
-            statusFilter: statusCode
+            statusFilter: statusCode,
+            ...(viewMode === "year" && statsFilterPeriod ? {
+              startDate: statsFilterPeriod.startDate,
+              endDate: statsFilterPeriod.endDate
+            } : {})
           }
         })
       }
@@ -350,7 +374,7 @@ export function InterventionStatsBarChart({ hoverPeriod, userId: propUserId }: I
     <Card
       className="bg-background border-border/5 shadow-sm/30 hover:shadow-lg hover:border-border/50 transition-all duration-300"
     >
-      <CardHeader>
+      <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
         <CardTitle
           className="cursor-pointer hover:text-primary transition-colors"
           onClick={(e) => {
@@ -372,6 +396,22 @@ export function InterventionStatsBarChart({ hoverPeriod, userId: propUserId }: I
         >
           Mes interventions
         </CardTitle>
+
+        <Tabs
+          value={viewMode}
+          onValueChange={(v) => setViewMode(v as "all" | "year")}
+          className="h-8"
+        >
+          <TabsList className="h-8 p-1 bg-muted/50">
+            <TabsTrigger value="all" className="h-6 text-[11px] px-3 font-medium">
+              Tout
+            </TabsTrigger>
+            <TabsTrigger value="year" className="h-6 text-[11px] px-3 font-medium flex items-center gap-1.5">
+              <Calendar className="h-3 w-3" />
+              {currentYear}
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
       </CardHeader>
       <CardContent className="px-2 pt-2">
         <div className="w-full overflow-x-auto">
@@ -426,6 +466,40 @@ export function InterventionStatsBarChart({ hoverPeriod, userId: propUserId }: I
             </BarChart>
           </ChartContainer>
         </div>
+
+        {/* Bloc spécial "Interventions à checker" */}
+        {stats && (stats.interventions_a_checker ?? 0) > 0 && (
+          <div className="mt-4 pt-4 border-t">
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                navigateWithModifier({
+                  router,
+                  path: "/interventions",
+                  event: e,
+                  sessionStorageKey: 'pending-intervention-filter',
+                  sessionStorageValue: {
+                    viewId: "mes-interventions-a-check", // Redirige vers la vue spécifique
+                    property: "isCheck",
+                    operator: "eq",
+                    value: true,
+                    ...(viewMode === "year" && statsFilterPeriod ? {
+                      startDate: statsFilterPeriod.startDate,
+                      endDate: statsFilterPeriod.endDate
+                    } : {})
+                  }
+                })
+              }}
+              className="w-full flex items-center justify-between p-3 rounded-lg border bg-red-50 border-red-200 hover:bg-red-100 transition-colors cursor-pointer"
+            >
+              <div className="flex items-center gap-2">
+                <AlertCircle className="h-4 w-4 text-red-600" />
+                <span className="text-sm font-medium text-red-900">Interventions à checker</span>
+              </div>
+              <span className="text-sm font-semibold text-red-700">{stats.interventions_a_checker}</span>
+            </button>
+          </div>
+        )}
       </CardContent>
     </Card>
   )

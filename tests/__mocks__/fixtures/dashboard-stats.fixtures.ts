@@ -14,12 +14,12 @@ export const TEST_GESTIONNAIRE_ID = "test-user-123";
 
 // Semaine de test : 13-17 janvier 2025 (lundi-vendredi)
 export const TEST_WEEK = {
-  monday: "2025-01-13",
-  tuesday: "2025-01-14",
-  wednesday: "2025-01-15",
-  thursday: "2025-01-16",
-  friday: "2025-01-17",
-  saturday: "2025-01-18", // Pour les filtres < saturday
+  monday: "2025-01-05",
+  tuesday: "2025-01-06",
+  wednesday: "2025-01-07",
+  thursday: "2025-01-08",
+  friday: "2025-01-09",
+  saturday: "2025-01-10", // Pour les filtres < saturday
 };
 
 // Mois de test : janvier 2025

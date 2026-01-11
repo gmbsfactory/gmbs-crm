@@ -8,6 +8,28 @@ import type { WeeklyStats, MonthlyStats, YearlyStats, StatsPeriod } from "@/lib/
 import Loader from "@/components/ui/Loader"
 import { useCurrentUser } from "@/hooks/useCurrentUser"
 import { useDashboardPeriodStats } from "@/hooks/useDashboardStats"
+import { INTERVENTION_STATUS } from "@/config/interventions"
+
+// Configuration des couleurs par type de ligne du tableau
+// Utilise les couleurs hex de INTERVENTION_STATUS pour les statuts correspondants
+const ROW_COLORS_CONFIG = {
+  "Devis envoyé": INTERVENTION_STATUS.DEVIS_ENVOYE.hexColor,      // #6366F1 (indigo)
+  "Inter en cours": INTERVENTION_STATUS.INTER_EN_COURS.hexColor,  // #A855F7 (purple)
+  "Inter Facturés": INTERVENTION_STATUS.INTER_TERMINEE.hexColor,  // #0EA5E9 (sky)
+  "Nouveaux Artisans": "#22C55E",                                  // vert flash (pas de statut correspondant)
+  "Artisans Missionnés": "#F59E0B",                               // amber (pas de statut correspondant)
+} as const
+
+// Helper pour convertir une couleur hex en styles CSS inline avec opacité
+function getRowStyles(hexColor: string) {
+  return {
+    bg: hexColor,
+    bgLight: `${hexColor}15`,      // 15 = ~8% opacité pour le fond clair
+    bgHover: `${hexColor}25`,      // 25 = ~15% opacité pour le hover
+    border: hexColor,
+    text: hexColor,
+  }
+}
 
 interface WeeklyStatsTableProps {
   weekStartDate?: string
@@ -133,62 +155,38 @@ export function WeeklyStatsTable({ weekStartDate, period: externalPeriod, userId
                 <TableHead className="text-center font-bold text-foreground min-w-[80px]">Mercredi</TableHead>
                 <TableHead className="text-center font-bold text-foreground min-w-[80px]">Jeudi</TableHead>
                 <TableHead className="text-center font-bold text-foreground min-w-[80px]">Vendredi</TableHead>
+                <TableHead className="text-center font-bold text-foreground min-w-[80px]">Samedi</TableHead>
+                <TableHead className="text-center font-bold text-foreground min-w-[80px]">Dimanche</TableHead>
                 <TableHead className="text-center font-bold bg-primary/10 dark:bg-primary/20 text-primary min-w-[80px]">Total</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {rows.map((row, index) => {
-                // Palette de couleurs pour chaque type de ligne
-                const rowColors = {
-                  "Devis envoyé": {
-                    bg: "bg-blue-50/60 dark:bg-blue-950/30",
-                    hover: "hover:bg-blue-100/80 dark:hover:bg-blue-900/50",
-                    label: "text-blue-700 dark:text-blue-300",
-                    border: "border-blue-400 dark:border-blue-600"
-                  },
-                  "Inter en cours": {
-                    bg: "bg-amber-50/60 dark:bg-amber-950/30",
-                    hover: "hover:bg-amber-100/80 dark:hover:bg-amber-900/50",
-                    label: "text-amber-700 dark:text-amber-300",
-                    border: "border-amber-400 dark:border-amber-600"
-                  },
-                  "Inter Facturés": {
-                    bg: "bg-green-50/60 dark:bg-green-950/30",
-                    hover: "hover:bg-green-100/80 dark:hover:bg-green-900/50",
-                    label: "text-green-700 dark:text-green-300",
-                    border: "border-green-400 dark:border-green-600"
-                  },
-                  "Nouveaux Artisans": {
-                    bg: "bg-purple-50/60 dark:bg-purple-950/30",
-                    hover: "hover:bg-purple-100/80 dark:hover:bg-purple-900/50",
-                    label: "text-purple-700 dark:text-purple-300",
-                    border: "border-purple-400 dark:border-purple-600"
-                  },
-                  "Artisans Missionnés": {
-                    bg: "bg-yellow-50/60 dark:bg-yellow-950/30",
-                    hover: "hover:bg-yellow-100/80 dark:hover:bg-yellow-900/50",
-                    label: "text-yellow-700 dark:text-yellow-300",
-                    border: "border-yellow-400 dark:border-yellow-600"
-                  }
-                }
-                const colors = rowColors[row.label as keyof typeof rowColors] || {
-                  bg: index % 2 === 0 ? "bg-muted/30" : "bg-background",
-                  hover: "hover:bg-muted/50",
-                  label: "text-foreground",
-                  border: "border-border/20"
-                }
+                const hexColor = ROW_COLORS_CONFIG[row.label as keyof typeof ROW_COLORS_CONFIG]
+                const styles = hexColor ? getRowStyles(hexColor) : null
 
                 return (
                   <TableRow
                     key={row.label}
-                    className={`border-b-0 ${colors.bg} ${colors.hover} border-l-4 ${colors.border} transition-colors duration-200 h-14`}
+                    className="border-b-0 border-l-4 transition-colors duration-200 h-14 hover:brightness-95"
+                    style={{
+                      backgroundColor: styles?.bgLight ?? (index % 2 === 0 ? 'var(--muted)' : 'transparent'),
+                      borderLeftColor: styles?.border ?? 'var(--border)',
+                    }}
                   >
-                    <TableCell className={`font-semibold py-4 text-base ${colors.label}`}>{row.label}</TableCell>
+                    <TableCell
+                      className="font-semibold py-4 text-base"
+                      style={{ color: styles?.text ?? 'var(--foreground)' }}
+                    >
+                      {row.label}
+                    </TableCell>
                     <TableCell className="text-center py-4 text-lg font-medium">{row.data.lundi}</TableCell>
                     <TableCell className="text-center py-4 text-lg font-medium">{row.data.mardi}</TableCell>
                     <TableCell className="text-center py-4 text-lg font-medium">{row.data.mercredi}</TableCell>
                     <TableCell className="text-center py-4 text-lg font-medium">{row.data.jeudi}</TableCell>
                     <TableCell className="text-center py-4 text-lg font-medium">{row.data.vendredi}</TableCell>
+                    <TableCell className="text-center py-4 text-lg font-medium">{row.data.samedi}</TableCell>
+                    <TableCell className="text-center py-4 text-lg font-medium">{row.data.dimanche}</TableCell>
                     <TableCell className="text-center font-bold bg-muted/40 dark:bg-muted/60 py-4 text-lg">{row.data.total}</TableCell>
                   </TableRow>
                 )
@@ -228,52 +226,24 @@ export function WeeklyStatsTable({ weekStartDate, period: externalPeriod, userId
             </TableHeader>
             <TableBody>
               {rows.map((row, index) => {
-                // Palette de couleurs pour chaque type de ligne
-                const rowColors = {
-                  "Devis envoyé": {
-                    bg: "bg-blue-50/60 dark:bg-blue-950/30",
-                    hover: "hover:bg-blue-100/80 dark:hover:bg-blue-900/50",
-                    label: "text-blue-700 dark:text-blue-300",
-                    border: "border-blue-400 dark:border-blue-600"
-                  },
-                  "Inter en cours": {
-                    bg: "bg-amber-50/60 dark:bg-amber-950/30",
-                    hover: "hover:bg-amber-100/80 dark:hover:bg-amber-900/50",
-                    label: "text-amber-700 dark:text-amber-300",
-                    border: "border-amber-400 dark:border-amber-600"
-                  },
-                  "Inter Facturés": {
-                    bg: "bg-green-50/60 dark:bg-green-950/30",
-                    hover: "hover:bg-green-100/80 dark:hover:bg-green-900/50",
-                    label: "text-green-700 dark:text-green-300",
-                    border: "border-green-400 dark:border-green-600"
-                  },
-                  "Nouveaux Artisans": {
-                    bg: "bg-purple-50/60 dark:bg-purple-950/30",
-                    hover: "hover:bg-purple-100/80 dark:hover:bg-purple-900/50",
-                    label: "text-purple-700 dark:text-purple-300",
-                    border: "border-purple-400 dark:border-purple-600"
-                  },
-                  "Artisans Missionnés": {
-                    bg: "bg-yellow-50/60 dark:bg-yellow-950/30",
-                    hover: "hover:bg-yellow-100/80 dark:hover:bg-yellow-900/50",
-                    label: "text-yellow-700 dark:text-yellow-300",
-                    border: "border-yellow-400 dark:border-yellow-600"
-                  }
-                }
-                const colors = rowColors[row.label as keyof typeof rowColors] || {
-                  bg: index % 2 === 0 ? "bg-muted/30" : "bg-background",
-                  hover: "hover:bg-muted/50",
-                  label: "text-foreground",
-                  border: "border-border/20"
-                }
+                const hexColor = ROW_COLORS_CONFIG[row.label as keyof typeof ROW_COLORS_CONFIG]
+                const styles = hexColor ? getRowStyles(hexColor) : null
 
                 return (
                   <TableRow
                     key={row.label}
-                    className={`border-b-0 ${colors.bg} ${colors.hover} border-l-4 ${colors.border} transition-colors duration-200 h-14`}
+                    className="border-b-0 border-l-4 transition-colors duration-200 h-14 hover:brightness-95"
+                    style={{
+                      backgroundColor: styles?.bgLight ?? (index % 2 === 0 ? 'var(--muted)' : 'transparent'),
+                      borderLeftColor: styles?.border ?? 'var(--border)',
+                    }}
                   >
-                    <TableCell className={`font-semibold py-4 text-base ${colors.label}`}>{row.label}</TableCell>
+                    <TableCell
+                      className="font-semibold py-4 text-base"
+                      style={{ color: styles?.text ?? 'var(--foreground)' }}
+                    >
+                      {row.label}
+                    </TableCell>
                     <TableCell className="text-center py-4 text-base font-medium">{row.data.semaine1}</TableCell>
                     <TableCell className="text-center py-4 text-base font-medium">{row.data.semaine2}</TableCell>
                     <TableCell className="text-center py-4 text-base font-medium">{row.data.semaine3}</TableCell>
@@ -323,52 +293,24 @@ export function WeeklyStatsTable({ weekStartDate, period: externalPeriod, userId
             </TableHeader>
             <TableBody>
               {rows.map((row, index) => {
-                // Palette de couleurs pour chaque type de ligne
-                const rowColors = {
-                  "Devis envoyé": {
-                    bg: "bg-blue-50/60 dark:bg-blue-950/30",
-                    hover: "hover:bg-blue-100/80 dark:hover:bg-blue-900/50",
-                    label: "text-blue-700 dark:text-blue-300",
-                    border: "border-blue-400 dark:border-blue-600"
-                  },
-                  "Inter en cours": {
-                    bg: "bg-amber-50/60 dark:bg-amber-950/30",
-                    hover: "hover:bg-amber-100/80 dark:hover:bg-amber-900/50",
-                    label: "text-amber-700 dark:text-amber-300",
-                    border: "border-amber-400 dark:border-amber-600"
-                  },
-                  "Inter Facturés": {
-                    bg: "bg-green-50/60 dark:bg-green-950/30",
-                    hover: "hover:bg-green-100/80 dark:hover:bg-green-900/50",
-                    label: "text-green-700 dark:text-green-300",
-                    border: "border-green-400 dark:border-green-600"
-                  },
-                  "Nouveaux Artisans": {
-                    bg: "bg-purple-50/60 dark:bg-purple-950/30",
-                    hover: "hover:bg-purple-100/80 dark:hover:bg-purple-900/50",
-                    label: "text-purple-700 dark:text-purple-300",
-                    border: "border-purple-400 dark:border-purple-600"
-                  },
-                  "Artisans Missionnés": {
-                    bg: "bg-yellow-50/60 dark:bg-yellow-950/30",
-                    hover: "hover:bg-yellow-100/80 dark:hover:bg-yellow-900/50",
-                    label: "text-yellow-700 dark:text-yellow-300",
-                    border: "border-yellow-400 dark:border-yellow-600"
-                  }
-                }
-                const colors = rowColors[row.label as keyof typeof rowColors] || {
-                  bg: index % 2 === 0 ? "bg-muted/30" : "bg-background",
-                  hover: "hover:bg-muted/50",
-                  label: "text-foreground",
-                  border: "border-border/20"
-                }
+                const hexColor = ROW_COLORS_CONFIG[row.label as keyof typeof ROW_COLORS_CONFIG]
+                const styles = hexColor ? getRowStyles(hexColor) : null
 
                 return (
                   <TableRow
                     key={row.label}
-                    className={`border-b-0 ${colors.bg} ${colors.hover} border-l-4 ${colors.border} transition-colors duration-200 h-14`}
+                    className="border-b-0 border-l-4 transition-colors duration-200 h-14 hover:brightness-95"
+                    style={{
+                      backgroundColor: styles?.bgLight ?? (index % 2 === 0 ? 'var(--muted)' : 'transparent'),
+                      borderLeftColor: styles?.border ?? 'var(--border)',
+                    }}
                   >
-                    <TableCell className={`font-semibold py-4 text-sm ${colors.label}`}>{row.label}</TableCell>
+                    <TableCell
+                      className="font-semibold py-4 text-sm"
+                      style={{ color: styles?.text ?? 'var(--foreground)' }}
+                    >
+                      {row.label}
+                    </TableCell>
                     <TableCell className="text-center py-4 text-base font-medium">{row.data.janvier}</TableCell>
                     <TableCell className="text-center py-4 text-base font-medium">{row.data.fevrier}</TableCell>
                     <TableCell className="text-center py-4 text-base font-medium">{row.data.mars}</TableCell>

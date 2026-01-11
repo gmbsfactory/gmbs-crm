@@ -28,7 +28,9 @@ export function useDashboardStatsQuery(
     queryFn: async () => {
       if (!params) throw new Error("Params are required")
       return await interventionsApi.getStatsByUser(
-        params.userId
+        params.userId,
+        params.startDate,
+        params.endDate
       )
     },
     enabled: params !== null && (options?.enabled !== false),
@@ -115,13 +117,13 @@ export function useDashboardStats(
 ) {
   const { data: currentUser } = useCurrentUser()
   const effectiveUserId = userId ?? currentUser?.id ?? null
-  
+
   const params: DashboardStatsParams | null = effectiveUserId
     ? {
-        userId: effectiveUserId,
-        startDate: period?.startDate,
-        endDate: period?.endDate,
-      }
+      userId: effectiveUserId,
+      startDate: period?.startDate,
+      endDate: period?.endDate,
+    }
     : null
 
   return useDashboardStatsQuery(params)
@@ -139,13 +141,13 @@ export function useDashboardMargin(
 ) {
   const { data: currentUser } = useCurrentUser()
   const effectiveUserId = userId ?? currentUser?.id ?? null
-  
+
   const params: DashboardMarginParams | null = effectiveUserId && period?.startDate && period?.endDate
     ? {
-        userId: effectiveUserId,
-        startDate: period.startDate,
-        endDate: period.endDate,
-      }
+      userId: effectiveUserId,
+      startDate: period.startDate,
+      endDate: period.endDate,
+    }
     : null
 
   return useDashboardMarginQuery(params)
@@ -163,16 +165,16 @@ export function useDashboardPeriodStats(
 ) {
   const { data: currentUser } = useCurrentUser()
   const effectiveUserId = userId ?? currentUser?.id ?? null
-  
+
   // Si period est undefined, utiliser "week" par défaut
   const effectivePeriod = period?.period ?? "week"
-  
+
   const params: DashboardPeriodStatsParams | null = effectiveUserId
     ? {
-        userId: effectiveUserId,
-        period: effectivePeriod,
-        startDate: period?.startDate,
-      }
+      userId: effectiveUserId,
+      period: effectivePeriod,
+      startDate: period?.startDate,
+    }
     : null
 
   return useDashboardPeriodStatsQuery(params)
@@ -185,24 +187,24 @@ export function useDashboardPeriodStats(
  * @param options - Options supplémentaires
  */
 export function useRecentInterventionsByStatus(
-  params: { 
-    userId: string | null; 
-    statusLabel: string | null; 
-    limit?: number; 
-    startDate?: string; 
-    endDate?: string 
+  params: {
+    userId: string | null;
+    statusLabel: string | null;
+    limit?: number;
+    startDate?: string;
+    endDate?: string
   } | null,
   options?: { enabled?: boolean }
 ) {
   return useQuery({
-    queryKey: params && params.userId && params.statusLabel 
+    queryKey: params && params.userId && params.statusLabel
       ? dashboardKeys.recentInterventionsByStatus({
-          userId: params.userId,
-          statusLabel: params.statusLabel,
-          limit: params.limit,
-          startDate: params.startDate,
-          endDate: params.endDate
-        }) 
+        userId: params.userId,
+        statusLabel: params.statusLabel,
+        limit: params.limit,
+        startDate: params.startDate,
+        endDate: params.endDate
+      })
       : ["dashboard", "recent-interventions", "disabled"],
     queryFn: async () => {
       if (!params || !params.userId || !params.statusLabel) throw new Error("Params are required")
