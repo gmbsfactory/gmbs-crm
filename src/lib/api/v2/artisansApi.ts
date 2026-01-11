@@ -1006,8 +1006,6 @@ export const artisansApi = {
     }
 
     // Construire la requête avec join sur artisan_statuses
-    // NOTE: On ne filtre PAS par période pour le total des artisans
-    // La période sera utilisée uniquement pour filtrer les interventions dans le hover
     let query = supabase
       .from("artisans")
       .select(
@@ -1015,14 +1013,13 @@ export const artisansApi = {
         statut_id,
         date_ajout,
         statut_dossier,
-        status:artisan_statuses(id, code, label)
+        status:artisan_statuses!inner(id, code, label)
         `,
         { count: "exact" }
       )
       .eq("gestionnaire_id", gestionnaireId)
-      .eq("is_active", true); // Seulement les artisans actifs
-
-    // Les filtres de date sont supprimés pour que le total soit toujours le total complet
+      .eq("is_active", true)
+      .neq("status.code", "ARCHIVE");
 
     const { data, error, count } = await query;
 
@@ -2109,14 +2106,14 @@ export const artisansApi = {
         // Build photo profile metadata
         const photoProfilMetadata = photoProfilAttachment
           ? {
-              hash: photoProfilAttachment.content_hash || null,
-              sizes: photoProfilAttachment.derived_sizes || {},
-              mime_preferred:
-                photoProfilAttachment.mime_preferred ||
-                photoProfilAttachment.mime_type ||
-                "image/jpeg",
-              baseUrl: photoProfilAttachment.url || null,
-            }
+            hash: photoProfilAttachment.content_hash || null,
+            sizes: photoProfilAttachment.derived_sizes || {},
+            mime_preferred:
+              photoProfilAttachment.mime_preferred ||
+              photoProfilAttachment.mime_type ||
+              "image/jpeg",
+            baseUrl: photoProfilAttachment.url || null,
+          }
           : null;
 
         // Vérifier si l'artisan a le métier ciblé

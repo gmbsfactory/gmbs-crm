@@ -1200,6 +1200,7 @@ export default function ArtisansPage(): ReactElement {
                       <th className="px-2.5 py-1.5 text-left text-xs font-semibold uppercase tracking-wider text-primary">Contact</th>
                       <th className="px-2.5 py-1.5 text-center text-xs font-semibold uppercase tracking-wider text-primary">Gest.</th>
                       <th className="px-2.5 py-1.5 text-left text-xs font-semibold uppercase tracking-wider text-primary">Adresse siège</th>
+                      <th className="px-2.5 py-1.5 text-center text-xs font-semibold uppercase tracking-wider text-primary w-[100px]">Dossier</th>
                       <th className="px-2.5 py-1.5 text-center text-xs font-semibold uppercase tracking-wider text-primary w-[100px]">Actions</th>
                     </tr>
                   </thead>
@@ -1224,42 +1225,26 @@ export default function ArtisansPage(): ReactElement {
                                       <span className="text-[10px] text-muted-foreground">Zone {contact.zoneIntervention ?? "—"}</span>
                                     </div>
                                     <div className="flex items-center flex-shrink-0">
-                                      {(contact.statutDossier === "À compléter" || contact.statutDossier === "à compléter" || contact.statutDossier === "A compléter" || contact.statutDossier === "a compléter") ? (
+                                      {contact.statutArtisan && contact.statutArtisanColor && (
                                         <Badge
                                           variant="outline"
                                           className="border px-1.5 py-0 text-[9px] font-semibold uppercase tracking-wide"
                                           style={{
-                                            backgroundColor: hexToRgba('#EF4444', 0.15) || '#EF444420',
-                                            color: '#EF4444',
-                                            borderColor: '#EF4444',
+                                            backgroundColor: hexToRgba(contact.statutArtisanColor, 0.15) || contact.statutArtisanColor + '20',
+                                            color: contact.statutArtisanColor,
+                                            borderColor: contact.statutArtisanColor,
                                           }}
                                         >
-                                          Dossier Incomplet
+                                          {contact.statutArtisan}
                                         </Badge>
-                                      ) : (
-                                        <>
-                                          {contact.statutArtisan && contact.statutArtisanColor && (
-                                            <Badge
-                                              variant="outline"
-                                              className="border px-1.5 py-0 text-[9px] font-semibold uppercase tracking-wide"
-                                              style={{
-                                                backgroundColor: hexToRgba(contact.statutArtisanColor, 0.15) || contact.statutArtisanColor + '20',
-                                                color: contact.statutArtisanColor,
-                                                borderColor: contact.statutArtisanColor,
-                                              }}
-                                            >
-                                              {contact.statutArtisan}
-                                            </Badge>
-                                          )}
-                                          {contact.statutArtisan && !contact.statutArtisanColor && (
-                                            <Badge
-                                              variant="outline"
-                                              className="border px-1.5 py-0 text-[9px] font-semibold uppercase tracking-wide bg-gray-100 text-gray-700 border-gray-300"
-                                            >
-                                              {contact.statutArtisan}
-                                            </Badge>
-                                          )}
-                                        </>
+                                      )}
+                                      {contact.statutArtisan && !contact.statutArtisanColor && (
+                                        <Badge
+                                          variant="outline"
+                                          className="border px-1.5 py-0 text-[9px] font-semibold uppercase tracking-wide bg-gray-100 text-gray-700 border-gray-300"
+                                        >
+                                          {contact.statutArtisan}
+                                        </Badge>
                                       )}
                                     </div>
                                   </div>
@@ -1340,6 +1325,37 @@ export default function ArtisansPage(): ReactElement {
                               <span className="line-clamp-2" title={contact.adresse || "—"}>
                                 <HighlightedText text={contact.adresse || "—"} searchQuery={searchTerm} />
                               </span>
+                            </td>
+                            <td className="px-2.5 py-1.5">
+                              <div className="flex items-center justify-center">
+                                {(() => {
+                                  if (!contact.statutDossier) return <span className="text-muted-foreground">—</span>
+                                  const s = contact.statutDossier.toLowerCase()
+
+                                  let color = "#10B981" // Vert par défaut (COMPLET)
+                                  let label = contact.statutDossier
+
+                                  if (s === "incomplet") {
+                                    color = "#F59E0B" // Orange
+                                  } else if (s === "à compléter" || s === "a compléter") {
+                                    color = "#EF4444" // Rouge
+                                  }
+
+                                  return (
+                                    <Badge
+                                      variant="outline"
+                                      className="border px-1.5 py-0 text-[9px] font-semibold uppercase tracking-wide whitespace-nowrap"
+                                      style={{
+                                        backgroundColor: hexToRgba(color, 0.15) || color + '20',
+                                        color: color,
+                                        borderColor: color,
+                                      }}
+                                    >
+                                      {label}
+                                    </Badge>
+                                  )
+                                })()}
+                              </div>
                             </td>
                             <td className="px-2.5 py-1.5">
                               <div className="flex items-center gap-0.5">
