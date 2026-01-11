@@ -186,6 +186,11 @@ export function InterventionModalContent({
   const [agencyName, setAgencyName] = useState("")
   const [clientPhone, setClientPhone] = useState("")
   const [showHistoryPanel, setShowHistoryPanel] = useState(false)
+  const [isEmailModalOpen, setIsEmailModalOpen] = useState(false)
+  const [isArtisanSearchOpen, setIsArtisanSearchOpen] = useState(false)
+  const [isStatusReasonModalOpen, setIsStatusReasonModalOpen] = useState(false)
+  const [isPopoverOpen, setIsPopoverOpen] = useState(false)
+
   useEffect(() => {
     onSmsModalOpenChange?.(showSmsModal)
   }, [showSmsModal, onSmsModalOpenChange])
@@ -335,9 +340,18 @@ GMBS`
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
-
-        if (showUnsavedDialog) {
-          // Laisser UnsavedChangesDialog gérer Escape
+        // Ne pas fermer si un sous-modal ou dialog est ouvert
+        if (
+          showUnsavedDialog ||
+          showNoteDialog ||
+          showSmsModal ||
+          showDeleteDialog ||
+          showHistoryPanel ||
+          isEmailModalOpen ||
+          isArtisanSearchOpen ||
+          isStatusReasonModalOpen ||
+          isPopoverOpen
+        ) {
           return
         }
         event.preventDefault()
@@ -350,7 +364,18 @@ GMBS`
     return () => {
       document.removeEventListener("keydown", handleKeyDown, true)
     }
-  }, [handleCancel, showUnsavedDialog])
+  }, [
+    handleCancel,
+    showUnsavedDialog,
+    showNoteDialog,
+    showSmsModal,
+    showDeleteDialog,
+    showHistoryPanel,
+    isEmailModalOpen,
+    isArtisanSearchOpen,
+    isStatusReasonModalOpen,
+    isPopoverOpen
+  ])
 
   // Focus trap - empêcher le focus de sortir du modal lors de la navigation Tab
   useEffect(() => {
@@ -727,10 +752,22 @@ GMBS`
                 onClientPhoneChange={setClientPhone}
                 onOpenSmsModal={handleOpenSmsModal}
                 onHasUnsavedChanges={setHasUnsavedChanges}
-                onArtisanSearchOpenChange={onArtisanSearchOpenChange}
-                onEmailModalOpenChange={onEmailModalOpenChange}
-                onStatusReasonModalOpenChange={onStatusReasonModalOpenChange}
-                onPopoverOpenChange={onPopoverOpenChange}
+                onArtisanSearchOpenChange={(isOpen) => {
+                  setIsArtisanSearchOpen(isOpen)
+                  onArtisanSearchOpenChange?.(isOpen)
+                }}
+                onEmailModalOpenChange={(isOpen) => {
+                  setIsEmailModalOpen(isOpen)
+                  onEmailModalOpenChange?.(isOpen)
+                }}
+                onStatusReasonModalOpenChange={(isOpen) => {
+                  setIsStatusReasonModalOpen(isOpen)
+                  onStatusReasonModalOpenChange?.(isOpen)
+                }}
+                onPopoverOpenChange={(isOpen) => {
+                  setIsPopoverOpen(isOpen)
+                  onPopoverOpenChange?.(isOpen)
+                }}
               />
             ) : (
               <div className="rounded border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">

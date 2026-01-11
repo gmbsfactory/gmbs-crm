@@ -41,6 +41,7 @@ import { Avatar } from "@/components/artisans/Avatar"
 import { useArtisanModal } from "@/hooks/useArtisanModal"
 import { toast } from "sonner"
 import { EmailEditModal } from "@/components/interventions/EmailEditModal"
+import { SectionLock } from "@/components/ui/SectionLock"
 import { generateDevisEmailTemplate, generateInterventionEmailTemplate, generateDevisWhatsAppText, generateInterventionWhatsAppText, type EmailTemplateData } from "@/lib/email-templates/intervention-emails"
 import { findOrCreateOwner, findOrCreateTenant } from "@/lib/interventions/owner-tenant-helpers"
 import {
@@ -1900,603 +1901,602 @@ export function InterventionEditForm({
             {isClosedStatus ? "edit_closed_interventions" : "write_interventions"}
           </div>
         )}
-        <fieldset
-          disabled={!canEditIntervention}
-          className={cn("flex-1 min-h-0 flex flex-col", !canEditIntervention && "opacity-70")}
-        >
+        <fieldset className="flex-1 min-h-0 flex flex-col">
           {/* LAYOUT DEUX COLONNES DISTINCTES - Chaque colonne a son propre scroll */}
           <div className="flex gap-3 flex-1 min-h-0">
             {/* COLONNE GAUCHE - Scroll indépendant avec scrollbar minimale à gauche */}
             <div className="flex-1 min-w-0 overflow-y-auto min-h-0 scrollbar-minimal scrollbar-left">
-              <div
-                className="grid gap-3 pb-4"
-                style={{
-                  gridTemplateColumns: "repeat(4, 1fr)",
-                  gridTemplateRows: `auto auto auto ${mapSectionHeight} auto auto`,
-                }}
-              >
-                {/* DIV1: HEADER PRINCIPAL - Row 1, Cols 1-4 */}
-                <Card className="legacy-form-card" style={{ gridArea: "1 / 1 / 2 / 5" }}>
-                  <CardContent className="py-0.5 px-3">
-                    <div
-                      className="grid gap-2 items-end"
-                      style={{
-                        gridTemplateColumns: showReferenceField
-                          ? "auto 1fr 1fr 1fr 1fr 1fr"
-                          : "auto 1fr 1fr 1fr 1fr"
-                      }}
-                    >
-                      {/* Badge utilisateur assigné - Largeur fixe à gauche */}
-                      <div className="flex items-center">
-                        <Popover>
-                          <PopoverTrigger asChild>
-                            <button type="button" className="flex items-center justify-center h-7 w-7 cursor-pointer group rounded-full">
-                              {(() => {
-                                const assignedUser = refData?.users.find(u => u.id === formData.assigned_user_id)
-                                return (
-                                  <GestionnaireBadge
-                                    firstname={assignedUser?.firstname}
-                                    lastname={assignedUser?.lastname}
-                                    color={assignedUser?.color}
-                                    avatarUrl={assignedUser?.avatar_url}
-                                    size="sm"
-                                    className="transition-transform group-hover:scale-110 h-7 w-7"
-                                  />
-                                )
-                              })()}
-                            </button>
-                          </PopoverTrigger>
-                          <PopoverContent className="w-56 p-2 z-[100]" align="start">
-                            <div className="space-y-1">
-                              <p className="text-xs font-medium text-muted-foreground mb-2">Attribuer à ({refData?.users?.length || 0} utilisateurs)</p>
+              <SectionLock isLocked={!canEditIntervention}>
+                <div
+                  className="grid gap-3 pb-4"
+                  style={{
+                    gridTemplateColumns: "repeat(4, 1fr)",
+                    gridTemplateRows: `auto auto auto ${mapSectionHeight} auto auto`,
+                  }}
+                >
+                  {/* DIV1: HEADER PRINCIPAL - Row 1, Cols 1-4 */}
+                  <Card className="legacy-form-card" style={{ gridArea: "1 / 1 / 2 / 5" }}>
+                    <CardContent className="py-0.5 px-3">
+                      <div
+                        className="grid gap-2 items-end"
+                        style={{
+                          gridTemplateColumns: showReferenceField
+                            ? "auto 1fr 1fr 1fr 1fr 1fr"
+                            : "auto 1fr 1fr 1fr 1fr"
+                        }}
+                      >
+                        {/* Badge utilisateur assigné - Largeur fixe à gauche */}
+                        <div className="flex items-center">
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              <button type="button" className="flex items-center justify-center h-7 w-7 cursor-pointer group rounded-full">
+                                {(() => {
+                                  const assignedUser = refData?.users.find(u => u.id === formData.assigned_user_id)
+                                  return (
+                                    <GestionnaireBadge
+                                      firstname={assignedUser?.firstname}
+                                      lastname={assignedUser?.lastname}
+                                      color={assignedUser?.color}
+                                      avatarUrl={assignedUser?.avatar_url}
+                                      size="sm"
+                                      className="transition-transform group-hover:scale-110 h-7 w-7"
+                                    />
+                                  )
+                                })()}
+                              </button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-56 p-2 z-[100]" align="start">
                               <div className="space-y-1">
-                                {refData?.users && refData.users.length > 0 ? (
-                                  refData.users.map((user) => {
-                                    const displayName = [user.firstname, user.lastname].filter(Boolean).join(" ").trim() || user.username
-                                    const isSelected = user.id === formData.assigned_user_id
-                                    return (
-                                      <button
-                                        key={user.id}
-                                        type="button"
-                                        className={cn(
-                                          "w-full flex items-center gap-1.5 px-2 py-1 rounded-md text-left transition-colors",
-                                          isSelected ? "bg-primary/10 text-primary" : "hover:bg-muted"
-                                        )}
-                                        onClick={() => handleInputChange("assigned_user_id", user.id)}
-                                      >
-                                        <GestionnaireBadge
-                                          firstname={user.firstname}
-                                          lastname={user.lastname}
-                                          color={user.color}
-                                          avatarUrl={user.avatar_url}
-                                          size="sm"
-                                          showBorder={false}
-                                        />
-                                        <span className="text-xs truncate flex-1">
-                                          {user.code_gestionnaire ? `${user.code_gestionnaire} - ${displayName}` : displayName}
-                                        </span>
-                                      </button>
-                                    )
-                                  })
-                                ) : (
-                                  <p className="text-xs text-muted-foreground">Aucun utilisateur disponible</p>
-                                )}
+                                <p className="text-xs font-medium text-muted-foreground mb-2">Attribuer à ({refData?.users?.length || 0} utilisateurs)</p>
+                                <div className="space-y-1">
+                                  {refData?.users && refData.users.length > 0 ? (
+                                    refData.users.map((user) => {
+                                      const displayName = [user.firstname, user.lastname].filter(Boolean).join(" ").trim() || user.username
+                                      const isSelected = user.id === formData.assigned_user_id
+                                      return (
+                                        <button
+                                          key={user.id}
+                                          type="button"
+                                          className={cn(
+                                            "w-full flex items-center gap-1.5 px-2 py-1 rounded-md text-left transition-colors",
+                                            isSelected ? "bg-primary/10 text-primary" : "hover:bg-muted"
+                                          )}
+                                          onClick={() => handleInputChange("assigned_user_id", user.id)}
+                                        >
+                                          <GestionnaireBadge
+                                            firstname={user.firstname}
+                                            lastname={user.lastname}
+                                            color={user.color}
+                                            avatarUrl={user.avatar_url}
+                                            size="sm"
+                                            showBorder={false}
+                                          />
+                                          <span className="text-xs truncate flex-1">
+                                            {user.code_gestionnaire ? `${user.code_gestionnaire} - ${displayName}` : displayName}
+                                          </span>
+                                        </button>
+                                      )
+                                    })
+                                  ) : (
+                                    <p className="text-xs text-muted-foreground">Aucun utilisateur disponible</p>
+                                  )}
+                                </div>
                               </div>
-                            </div>
-                          </PopoverContent>
-                        </Popover>
-                      </div>
+                            </PopoverContent>
+                          </Popover>
+                        </div>
 
-                      {/* Statut - Badge coloré */}
-                      <SearchableBadgeSelect
-                        label="Statut"
-                        required
-                        hideLabel
-                        value={formData.statut_id}
-                        onChange={(value) => handleInputChange("statut_id", value)}
-                        placeholder="Statut"
-                        searchPlaceholder="Rechercher un statut..."
-                        onOpenChange={onPopoverOpenChange}
-                        options={(refData?.interventionStatuses || []).map(s => ({
-                          id: s.id,
-                          label: getStatusDisplayLabel(s.code, s.label, sstPayment, clientPayment),
-                          color: s.color,
-                        }))}
-                      />
+                        {/* Statut - Badge coloré */}
+                        <SearchableBadgeSelect
+                          label="Statut"
+                          required
+                          hideLabel
+                          value={formData.statut_id}
+                          onChange={(value) => handleInputChange("statut_id", value)}
+                          placeholder="Statut"
+                          searchPlaceholder="Rechercher un statut..."
+                          onOpenChange={onPopoverOpenChange}
+                          options={(refData?.interventionStatuses || []).map(s => ({
+                            id: s.id,
+                            label: getStatusDisplayLabel(s.code, s.label, sstPayment, clientPayment),
+                            color: s.color,
+                          }))}
+                        />
 
-                      {/* Agence - Badge coloré */}
-                      <SearchableBadgeSelect
-                        label="Agence"
-                        hideLabel
-                        value={formData.agence_id}
-                        options={refData?.agencies || []}
-                        onChange={(value) => handleInputChange("agence_id", value)}
-                        placeholder="Agence"
-                        minWidth="70px"
-                        searchPlaceholder="Rechercher une agence..."
-                        onOpenChange={onPopoverOpenChange}
-                        emptyText="Aucune agence trouvée"
-                      />
+                        {/* Agence - Badge coloré */}
+                        <SearchableBadgeSelect
+                          label="Agence"
+                          hideLabel
+                          value={formData.agence_id}
+                          options={refData?.agencies || []}
+                          onChange={(value) => handleInputChange("agence_id", value)}
+                          placeholder="Agence"
+                          minWidth="70px"
+                          searchPlaceholder="Rechercher une agence..."
+                          onOpenChange={onPopoverOpenChange}
+                          emptyText="Aucune agence trouvée"
+                        />
 
-                      {/* Réf. agence - Input conditionnel */}
-                      {showReferenceField && (
+                        {/* Réf. agence - Input conditionnel */}
+                        {showReferenceField && (
+                          <div className="flex items-center">
+                            <Input
+                              id="reference_agence"
+                              name="reference_agence"
+                              value={formData.reference_agence}
+                              onChange={(event) => handleInputChange("reference_agence", event.target.value)}
+                              placeholder="Réf. agence"
+                              className="h-7 text-xs rounded-full px-3"
+                              autoComplete="off"
+                            />
+                          </div>
+                        )}
+
+                        {/* Métier - Badge coloré */}
+                        <SearchableBadgeSelect
+                          label="Métier"
+                          hideLabel
+                          value={formData.metier_id}
+                          onChange={(value) => handleInputChange("metier_id", value)}
+                          placeholder="Métier"
+                          onOpenChange={onPopoverOpenChange}
+                          searchPlaceholder="Rechercher un métier..."
+                          minWidth="100px"
+                          options={(refData?.metiers || []).map(m => ({
+                            id: m.id,
+                            label: m.label,
+                            color: m.color,
+                          }))}
+                        />
+
+                        {/* ID Intervention - Input */}
                         <div className="flex items-center">
                           <Input
-                            id="reference_agence"
-                            name="reference_agence"
-                            value={formData.reference_agence}
-                            onChange={(event) => handleInputChange("reference_agence", event.target.value)}
-                            placeholder="Réf. agence"
+                            id="idIntervention"
+                            value={formData.id_inter}
+                            onChange={(event) => handleInputChange("id_inter", event.target.value)}
+                            placeholder="ID Inter."
                             className="h-7 text-xs rounded-full px-3"
+                            required={requiresDefinitiveId}
+                            pattern={requiresDefinitiveId ? "^(?!.*(?:[Aa][Uu][Tt][Oo])).+$" : undefined}
+                            title={requiresDefinitiveId ? "ID définitif requis" : undefined}
                             autoComplete="off"
                           />
                         </div>
-                      )}
+                      </div>
+                    </CardContent>
+                  </Card>
 
-                      {/* Métier - Badge coloré */}
-                      <SearchableBadgeSelect
-                        label="Métier"
-                        hideLabel
-                        value={formData.metier_id}
-                        onChange={(value) => handleInputChange("metier_id", value)}
-                        placeholder="Métier"
-                        onOpenChange={onPopoverOpenChange}
-                        searchPlaceholder="Rechercher un métier..."
-                        minWidth="100px"
-                        options={(refData?.metiers || []).map(m => ({
-                          id: m.id,
-                          label: m.label,
-                          color: m.color,
-                        }))}
-                      />
-
-                      {/* ID Intervention - Input */}
-                      <div className="flex items-center">
+                  {/* DIV2: ADRESSE - Row 2, Cols 1-4 */}
+                  <Card style={{ gridArea: "2 / 1 / 3 / 5" }}>
+                    <CardContent className="py-2 px-3">
+                      <div className="flex items-center gap-2">
+                        <Label htmlFor="adresse" className="text-[10px] text-muted-foreground whitespace-nowrap">Adresse *</Label>
                         <Input
-                          id="idIntervention"
-                          value={formData.id_inter}
-                          onChange={(event) => handleInputChange("id_inter", event.target.value)}
-                          placeholder="ID Inter."
-                          className="h-7 text-xs rounded-full px-3"
-                          required={requiresDefinitiveId}
-                          pattern={requiresDefinitiveId ? "^(?!.*(?:[Aa][Uu][Tt][Oo])).+$" : undefined}
-                          title={requiresDefinitiveId ? "ID définitif requis" : undefined}
-                          autoComplete="off"
+                          id="adresse"
+                          value={formData.adresse}
+                          onChange={(event) => handleInputChange("adresse", event.target.value)}
+                          placeholder="Adresse complète de l'intervention..."
+                          className="h-7 text-xs flex-1"
+                          required
                         />
                       </div>
-                    </div>
-                  </CardContent>
-                </Card>
+                    </CardContent>
+                  </Card>
 
-                {/* DIV2: ADRESSE - Row 2, Cols 1-4 */}
-                <Card style={{ gridArea: "2 / 1 / 3 / 5" }}>
-                  <CardContent className="py-2 px-3">
-                    <div className="flex items-center gap-2">
-                      <Label htmlFor="adresse" className="text-[10px] text-muted-foreground whitespace-nowrap">Adresse *</Label>
-                      <Input
-                        id="adresse"
-                        value={formData.adresse}
-                        onChange={(event) => handleInputChange("adresse", event.target.value)}
-                        placeholder="Adresse complète de l'intervention..."
-                        className="h-7 text-xs flex-1"
-                        required
-                      />
-                    </div>
-                  </CardContent>
-                </Card>
-
-                {/* DIV3: LOCALISATION + RAYON + BOUTON - Row 3, Cols 1-4 */}
-                <Card style={{ gridArea: "3 / 1 / 4 / 5" }}>
-                  <CardContent className="py-2 px-3">
-                    <div className="flex items-center gap-2">
-                      <div className="relative flex-1">
-                        <Input
-                          value={locationQuery}
-                          onChange={(event) => {
-                            setLocationQuery(event.target.value)
-                            setGeocodeError(null)
-                          }}
-                          onFocus={() => {
-                            setShowLocationSuggestions(true)
-                            if (suggestionBlurTimeoutRef.current) {
-                              window.clearTimeout(suggestionBlurTimeoutRef.current)
-                              suggestionBlurTimeoutRef.current = null
-                            }
-                          }}
-                          onBlur={() => {
-                            suggestionBlurTimeoutRef.current = window.setTimeout(() => {
-                              clearSuggestions()
-                              setShowLocationSuggestions(false)
-                            }, 150)
-                          }}
-                          placeholder="Rechercher une adresse pour localiser..."
-                          className="h-7 text-xs"
-                        />
-                        {showLocationSuggestions && locationSuggestions.length > 0 && (
-                          <div className="absolute z-20 mt-1 max-h-56 w-full overflow-auto rounded-md border border-muted bg-background shadow-lg">
-                            <ul className="divide-y divide-border text-left text-xs">
-                              {locationSuggestions.map((suggestion) => (
-                                <li key={`${suggestion.label}-${suggestion.lat}-${suggestion.lng}`}>
-                                  <button
-                                    type="button"
-                                    className="flex w-full flex-col gap-0.5 px-2 py-1.5 text-left transition hover:bg-muted/80 focus:bg-muted/80"
-                                    onMouseDown={(event) => event.preventDefault()}
-                                    onClick={() => handleSuggestionSelect(suggestion)}
-                                  >
-                                    <span className="truncate font-medium">{suggestion.label}</span>
-                                    <span className="text-[10px] text-muted-foreground">
-                                      {suggestion.lat.toFixed(4)} • {suggestion.lng.toFixed(4)}
-                                    </span>
-                                  </button>
-                                </li>
-                              ))}
-                            </ul>
-                          </div>
-                        )}
-                      </div>
-                      <Input
-                        id="perimeterKm"
-                        type="number"
-                        min={1}
-                        max={MAX_RADIUS_KM}
-                        value={perimeterKmInput}
-                        onChange={(event) => setPerimeterKmInput(event.target.value)}
-                        onBlur={(event) => {
-                          const raw = Number.parseFloat(event.target.value)
-                          if (!Number.isFinite(raw) || raw <= 0) {
-                            setPerimeterKmInput("50")
-                            return
-                          }
-                          const clamped = Math.min(raw, MAX_RADIUS_KM)
-                          setPerimeterKmInput(String(clamped))
-                        }}
-                        placeholder="km"
-                        className="h-7 w-18 text-xs"
-                      />
-                      <span className="text-[10px] text-muted-foreground">km</span>
-                      <Button type="button" variant="secondary" size="sm" className="h-7 text-xs px-2" onClick={handleGeocodeAddress} disabled={isGeocoding}>
-                        {isGeocoding ? "..." : "Localiser"}
-                      </Button>
-                    </div>
-                    {geocodeError && (
-                      <div className="rounded border border-destructive/40 bg-destructive/10 px-2 py-1 text-[10px] text-destructive mt-1">
-                        {geocodeError}
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-
-                {/* DIV7+8: CARTE + ARTISANS REDIMENSIONNABLES - Row 4, Cols 1-4 */}
-                <div style={{ gridArea: "4 / 1 / 5 / 5", height: mapSectionHeight }}>
-                  <ResizablePanelGroup
-                    key={`panel-group-${currentUser?.id ?? "anonymous"}`}
-                    direction="horizontal"
-                    className="h-full rounded-lg"
-                    autoSaveId={panelStorageId}
-                  >
-                    {/* Panel Carte */}
-                    <ResizablePanel defaultSize={DEFAULT_MAP_PANEL_SIZE} minSize={30} maxSize={85}>
-                      <Card className="h-full overflow-hidden rounded-r-none border-r-0">
-                        <CardContent className="p-0 h-full">
-                          <MapLibreMap
-                            lat={formData.latitude}
-                            lng={formData.longitude}
-                            height="100%"
-                            onLocationChange={handleLocationChange}
-                            markers={mapMarkers}
-                            circleRadiusKm={perimeterKmValue}
-                            selectedConnection={mapSelectedConnection ?? undefined}
+                  {/* DIV3: LOCALISATION + RAYON + BOUTON - Row 3, Cols 1-4 */}
+                  <Card style={{ gridArea: "3 / 1 / 4 / 5" }}>
+                    <CardContent className="py-2 px-3">
+                      <div className="flex items-center gap-2">
+                        <div className="relative flex-1">
+                          <Input
+                            value={locationQuery}
+                            onChange={(event) => {
+                              setLocationQuery(event.target.value)
+                              setGeocodeError(null)
+                            }}
+                            onFocus={() => {
+                              setShowLocationSuggestions(true)
+                              if (suggestionBlurTimeoutRef.current) {
+                                window.clearTimeout(suggestionBlurTimeoutRef.current)
+                                suggestionBlurTimeoutRef.current = null
+                              }
+                            }}
+                            onBlur={() => {
+                              suggestionBlurTimeoutRef.current = window.setTimeout(() => {
+                                clearSuggestions()
+                                setShowLocationSuggestions(false)
+                              }, 150)
+                            }}
+                            placeholder="Rechercher une adresse pour localiser..."
+                            className="h-7 text-xs"
                           />
-                        </CardContent>
-                      </Card>
-                    </ResizablePanel>
-
-                    {/* Handle de redimensionnement avec trois points */}
-                    <ResizableHandle className="w-2 bg-muted/50 hover:bg-primary/20 transition-colors data-[resize-handle-active]:bg-primary/30 group cursor-col-resize flex-shrink-0 relative flex items-center justify-center">
-                      <div className="flex h-full items-center justify-center">
-                        <div className="flex flex-col gap-0.5 opacity-40 group-hover:opacity-70 transition-opacity">
-                          <div className="h-1 w-1 rounded-full bg-muted-foreground" />
-                          <div className="h-1 w-1 rounded-full bg-muted-foreground" />
-                          <div className="h-1 w-1 rounded-full bg-muted-foreground" />
+                          {showLocationSuggestions && locationSuggestions.length > 0 && (
+                            <div className="absolute z-20 mt-1 max-h-56 w-full overflow-auto rounded-md border border-muted bg-background shadow-lg">
+                              <ul className="divide-y divide-border text-left text-xs">
+                                {locationSuggestions.map((suggestion) => (
+                                  <li key={`${suggestion.label}-${suggestion.lat}-${suggestion.lng}`}>
+                                    <button
+                                      type="button"
+                                      className="flex w-full flex-col gap-0.5 px-2 py-1.5 text-left transition hover:bg-muted/80 focus:bg-muted/80"
+                                      onMouseDown={(event) => event.preventDefault()}
+                                      onClick={() => handleSuggestionSelect(suggestion)}
+                                    >
+                                      <span className="truncate font-medium">{suggestion.label}</span>
+                                      <span className="text-[10px] text-muted-foreground">
+                                        {suggestion.lat.toFixed(4)} • {suggestion.lng.toFixed(4)}
+                                      </span>
+                                    </button>
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
                         </div>
+                        <Input
+                          id="perimeterKm"
+                          type="number"
+                          min={1}
+                          max={MAX_RADIUS_KM}
+                          value={perimeterKmInput}
+                          onChange={(event) => setPerimeterKmInput(event.target.value)}
+                          onBlur={(event) => {
+                            const raw = Number.parseFloat(event.target.value)
+                            if (!Number.isFinite(raw) || raw <= 0) {
+                              setPerimeterKmInput("50")
+                              return
+                            }
+                            const clamped = Math.min(raw, MAX_RADIUS_KM)
+                            setPerimeterKmInput(String(clamped))
+                          }}
+                          placeholder="km"
+                          className="h-7 w-18 text-xs"
+                        />
+                        <span className="text-[10px] text-muted-foreground">km</span>
+                        <Button type="button" variant="secondary" size="sm" className="h-7 text-xs px-2" onClick={handleGeocodeAddress} disabled={isGeocoding}>
+                          {isGeocoding ? "..." : "Localiser"}
+                        </Button>
                       </div>
-                    </ResizableHandle>
+                      {geocodeError && (
+                        <div className="rounded border border-destructive/40 bg-destructive/10 px-2 py-1 text-[10px] text-destructive mt-1">
+                          {geocodeError}
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
 
-                    {/* Panel Artisans */}
-                    <ResizablePanel defaultSize={DEFAULT_ARTISANS_PANEL_SIZE} minSize={15} maxSize={70}>
-                      <Card className="h-full flex flex-col overflow-hidden rounded-l-none border-l-0">
-                        <CardContent className="p-3 flex flex-col h-full overflow-hidden">
-                          {/* Header artisans */}
-                          <div className="flex items-center justify-between gap-2 mb-3 flex-shrink-0 flex-wrap min-w-0">
-                            <div className="flex items-center gap-2 min-w-0 overflow-hidden">
-                              <h3 className="font-semibold text-sm flex items-center gap-2 flex-shrink-0">
-                                <Building className="h-4 w-4" />
-                                Artisans
-                              </h3>
-                              <div className="flex gap-0.5 flex-shrink-0">
-                                <Button
-                                  type="button"
-                                  variant={artisanDisplayMode === "nom" ? "default" : "ghost"}
-                                  size="sm"
-                                  className="h-5 px-1.5 text-[10px]"
-                                  onClick={() => setArtisanDisplayMode("nom")}
-                                >
-                                  nom
-                                </Button>
-                                <Button
-                                  type="button"
-                                  variant={artisanDisplayMode === "rs" ? "default" : "ghost"}
-                                  size="sm"
-                                  className="h-5 px-1.5 text-[10px]"
-                                  onClick={() => setArtisanDisplayMode("rs")}
-                                >
-                                  RS
-                                </Button>
-                                <Button
-                                  type="button"
-                                  variant={artisanDisplayMode === "tel" ? "default" : "ghost"}
-                                  size="sm"
-                                  className="h-5 px-1.5 text-[10px]"
-                                  onClick={() => setArtisanDisplayMode("tel")}
-                                >
-                                  tel
-                                </Button>
-                              </div>
-                            </div>
-                            <div className="flex gap-1">
-                              <Button
-                                type="button"
-                                variant="outline"
-                                size="icon"
-                                className="h-7 w-7 flex-shrink-0"
-                                onClick={(e) => {
-                                  const rect = e.currentTarget.getBoundingClientRect()
-                                  setArtisanSearchPosition({
-                                    x: rect.left,
-                                    y: rect.top,
-                                    width: rect.width,
-                                    height: rect.height
-                                  })
-                                  setShowArtisanSearch(true)
-                                }}
-                                title="Rechercher un artisan"
-                              >
-                                <Search className="h-3.5 w-3.5" />
-                              </Button>
-                            </div>
+                  {/* DIV7+8: CARTE + ARTISANS REDIMENSIONNABLES - Row 4, Cols 1-4 */}
+                  <div style={{ gridArea: "4 / 1 / 5 / 5", height: mapSectionHeight }}>
+                    <ResizablePanelGroup
+                      key={`panel-group-${currentUser?.id ?? "anonymous"}`}
+                      direction="horizontal"
+                      className="h-full rounded-lg"
+                      autoSaveId={panelStorageId}
+                    >
+                      {/* Panel Carte */}
+                      <ResizablePanel defaultSize={DEFAULT_MAP_PANEL_SIZE} minSize={30} maxSize={85}>
+                        <Card className="h-full overflow-hidden rounded-r-none border-r-0">
+                          <CardContent className="p-0 h-full">
+                            <MapLibreMap
+                              lat={formData.latitude}
+                              lng={formData.longitude}
+                              height="100%"
+                              onLocationChange={handleLocationChange}
+                              markers={mapMarkers}
+                              circleRadiusKm={perimeterKmValue}
+                              selectedConnection={mapSelectedConnection ?? undefined}
+                            />
+                          </CardContent>
+                        </Card>
+                      </ResizablePanel>
+
+                      {/* Handle de redimensionnement avec trois points */}
+                      <ResizableHandle className="w-2 bg-muted/50 hover:bg-primary/20 transition-colors data-[resize-handle-active]:bg-primary/30 group cursor-col-resize flex-shrink-0 relative flex items-center justify-center">
+                        <div className="flex h-full items-center justify-center">
+                          <div className="flex flex-col gap-0.5 opacity-40 group-hover:opacity-70 transition-opacity">
+                            <div className="h-1 w-1 rounded-full bg-muted-foreground" />
+                            <div className="h-1 w-1 rounded-full bg-muted-foreground" />
+                            <div className="h-1 w-1 rounded-full bg-muted-foreground" />
                           </div>
+                        </div>
+                      </ResizableHandle>
 
-                          {/* Artisan sélectionné */}
-                          {selectedArtisanId && selectedArtisanData && (() => {
-                            const artisan = selectedArtisanData
-                            const artisanDisplayName = getArtisanDisplayName(artisan, artisanDisplayMode)
-                            const artisanInitials = artisanDisplayName.split(" ").map((p) => p.charAt(0)).join("").slice(0, 2).toUpperCase() || "??"
-                            const artisanStatus = refData?.artisanStatuses?.find((s) => s.id === artisan.statut_id)
-                            const statutArtisan = artisanStatus?.label || ""
-                            const statutArtisanColor = artisanStatus?.color || null
-
-                            return (
-                              <div className="mb-2 flex-shrink-0">
-                                <div className="relative rounded-lg border border-primary/70 ring-2 ring-primary/50 bg-background/80 p-2 text-xs shadow-sm">
+                      {/* Panel Artisans */}
+                      <ResizablePanel defaultSize={DEFAULT_ARTISANS_PANEL_SIZE} minSize={15} maxSize={70}>
+                        <Card className="h-full flex flex-col overflow-hidden rounded-l-none border-l-0">
+                          <CardContent className="p-3 flex flex-col h-full overflow-hidden">
+                            {/* Header artisans */}
+                            <div className="flex items-center justify-between gap-2 mb-3 flex-shrink-0 flex-wrap min-w-0">
+                              <div className="flex items-center gap-2 min-w-0 overflow-hidden">
+                                <h3 className="font-semibold text-sm flex items-center gap-2 flex-shrink-0">
+                                  <Building className="h-4 w-4" />
+                                  Artisans
+                                </h3>
+                                <div className="flex gap-0.5 flex-shrink-0">
                                   <Button
                                     type="button"
-                                    variant="ghost"
-                                    size="icon"
-                                    className="absolute right-1 top-1 h-5 w-5 rounded-full bg-background/80 text-muted-foreground shadow-sm hover:text-destructive z-20"
-                                    onClick={() => handleRemoveSelectedArtisan()}
+                                    variant={artisanDisplayMode === "nom" ? "default" : "ghost"}
+                                    size="sm"
+                                    className="h-5 px-1.5 text-[10px]"
+                                    onClick={() => setArtisanDisplayMode("nom")}
                                   >
-                                    <X className="h-3 w-3" />
+                                    nom
                                   </Button>
-                                  <div className="flex items-center gap-2 flex-wrap min-w-0">
-                                    <Avatar photoProfilMetadata={artisan.photoProfilMetadata} initials={artisanInitials} name={artisan.displayName} size={40} className="hidden" />
-                                    <span className="font-semibold text-foreground truncate text-xs min-w-0 flex-1">{artisanDisplayName}</span>
-                                    {statutArtisan && (
-                                      <Badge variant="outline" className="text-[9px] px-1 py-0 flex-shrink-0" style={statutArtisanColor ? { backgroundColor: hexToRgba(statutArtisanColor, 0.15) || undefined, color: statutArtisanColor, borderColor: statutArtisanColor } : undefined}>
-                                        {statutArtisan}
-                                      </Badge>
-                                    )}
-                                    {absentArtisanIds.has(artisan.id) && (
-                                      <Badge variant="outline" className="text-[9px] px-1 py-0 bg-orange-100 text-orange-800 border-orange-300 flex-shrink-0">
-                                        Indisponible
-                                      </Badge>
-                                    )}
-                                    <Badge variant="default" className="text-[9px] px-1 py-0 flex-shrink-0">{formatDistanceKm(artisan.distanceKm)}</Badge>
-                                    {artisan.telephone && (
-                                      <span className="text-[10px] text-muted-foreground truncate flex-shrink-0">📞 {artisan.telephone}</span>
-                                    )}
-                                  </div>
+                                  <Button
+                                    type="button"
+                                    variant={artisanDisplayMode === "rs" ? "default" : "ghost"}
+                                    size="sm"
+                                    className="h-5 px-1.5 text-[10px]"
+                                    onClick={() => setArtisanDisplayMode("rs")}
+                                  >
+                                    RS
+                                  </Button>
+                                  <Button
+                                    type="button"
+                                    variant={artisanDisplayMode === "tel" ? "default" : "ghost"}
+                                    size="sm"
+                                    className="h-5 px-1.5 text-[10px]"
+                                    onClick={() => setArtisanDisplayMode("tel")}
+                                  >
+                                    tel
+                                  </Button>
                                 </div>
                               </div>
-                            )
-                          })()}
-
-                          {/* Email sending section */}
-                          {selectedArtisanId && selectedArtisanData && (
-                            <div className="flex flex-col gap-1 p-2 bg-primary/5 dark:bg-primary/10 rounded-lg border border-primary/20 dark:border-primary/30 mb-2 flex-shrink-0">
-                              {/* Boutons Email */}
                               <div className="flex gap-1">
                                 <Button
                                   type="button"
                                   variant="outline"
-                                  size="sm"
-                                  onClick={() => handleOpenDevisEmailModal()}
-                                  disabled={!selectedArtisanId}
-                                  className="flex-1 text-[10px] h-7 px-2 border-primary/30 hover:bg-primary/10 dark:border-primary/40 dark:hover:bg-primary/20"
+                                  size="icon"
+                                  className="h-7 w-7 flex-shrink-0"
+                                  onClick={(e) => {
+                                    const rect = e.currentTarget.getBoundingClientRect()
+                                    setArtisanSearchPosition({
+                                      x: rect.left,
+                                      y: rect.top,
+                                      width: rect.width,
+                                      height: rect.height
+                                    })
+                                    setShowArtisanSearch(true)
+                                  }}
+                                  title="Rechercher un artisan"
                                 >
-                                  <Mail className="h-3 w-3 mr-1" />
-                                  Devis
-                                </Button>
-                                <Button
-                                  type="button"
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() => handleOpenInterventionEmailModal()}
-                                  disabled={!selectedArtisanId}
-                                  className="flex-1 text-[10px] h-7 px-2 border-primary/30 hover:bg-primary/10 dark:border-primary/40 dark:hover:bg-primary/20"
-                                >
-                                  <Mail className="h-3 w-3 mr-1" />
-                                  Inter.
+                                  <Search className="h-3.5 w-3.5" />
                                 </Button>
                               </div>
-                              {/* Boutons WhatsApp */}
-                              {selectedArtisanData.telephone && (
+                            </div>
+
+                            {/* Artisan sélectionné */}
+                            {selectedArtisanId && selectedArtisanData && (() => {
+                              const artisan = selectedArtisanData
+                              const artisanDisplayName = getArtisanDisplayName(artisan, artisanDisplayMode)
+                              const artisanInitials = artisanDisplayName.split(" ").map((p) => p.charAt(0)).join("").slice(0, 2).toUpperCase() || "??"
+                              const artisanStatus = refData?.artisanStatuses?.find((s) => s.id === artisan.statut_id)
+                              const statutArtisan = artisanStatus?.label || ""
+                              const statutArtisanColor = artisanStatus?.color || null
+
+                              return (
+                                <div className="mb-2 flex-shrink-0">
+                                  <div className="relative rounded-lg border border-primary/70 ring-2 ring-primary/50 bg-background/80 p-2 text-xs shadow-sm">
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="icon"
+                                      className="absolute right-1 top-1 h-5 w-5 rounded-full bg-background/80 text-muted-foreground shadow-sm hover:text-destructive z-20"
+                                      onClick={() => handleRemoveSelectedArtisan()}
+                                    >
+                                      <X className="h-3 w-3" />
+                                    </Button>
+                                    <div className="flex items-center gap-2 flex-wrap min-w-0">
+                                      <Avatar photoProfilMetadata={artisan.photoProfilMetadata} initials={artisanInitials} name={artisan.displayName} size={40} className="hidden" />
+                                      <span className="font-semibold text-foreground truncate text-xs min-w-0 flex-1">{artisanDisplayName}</span>
+                                      {statutArtisan && (
+                                        <Badge variant="outline" className="text-[9px] px-1 py-0 flex-shrink-0" style={statutArtisanColor ? { backgroundColor: hexToRgba(statutArtisanColor, 0.15) || undefined, color: statutArtisanColor, borderColor: statutArtisanColor } : undefined}>
+                                          {statutArtisan}
+                                        </Badge>
+                                      )}
+                                      {absentArtisanIds.has(artisan.id) && (
+                                        <Badge variant="outline" className="text-[9px] px-1 py-0 bg-orange-100 text-orange-800 border-orange-300 flex-shrink-0">
+                                          Indisponible
+                                        </Badge>
+                                      )}
+                                      <Badge variant="default" className="text-[9px] px-1 py-0 flex-shrink-0">{formatDistanceKm(artisan.distanceKm)}</Badge>
+                                      {artisan.telephone && (
+                                        <span className="text-[10px] text-muted-foreground truncate flex-shrink-0">📞 {artisan.telephone}</span>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+                              )
+                            })()}
+
+                            {/* Email sending section */}
+                            {selectedArtisanId && selectedArtisanData && (
+                              <div className="flex flex-col gap-1 p-2 bg-primary/5 dark:bg-primary/10 rounded-lg border border-primary/20 dark:border-primary/30 mb-2 flex-shrink-0">
+                                {/* Boutons Email */}
                                 <div className="flex gap-1">
                                   <Button
                                     type="button"
                                     variant="outline"
                                     size="sm"
-                                    onClick={() => handleOpenWhatsApp('devis', selectedArtisanId, selectedArtisanData.telephone || '')}
-                                    className="flex-1 text-[10px] h-7 px-2 bg-[#25D366]/10 hover:bg-[#25D366]/20 border-[#25D366]/30 text-[#25D366]"
+                                    onClick={() => handleOpenDevisEmailModal()}
+                                    disabled={!selectedArtisanId}
+                                    className="flex-1 text-[10px] h-7 px-2 border-primary/30 hover:bg-primary/10 dark:border-primary/40 dark:hover:bg-primary/20"
                                   >
-                                    <MessageCircle className="h-3 w-3 mr-1" />
-                                    WA Devis
+                                    <Mail className="h-3 w-3 mr-1" />
+                                    Devis
                                   </Button>
                                   <Button
                                     type="button"
                                     variant="outline"
                                     size="sm"
-                                    onClick={() => handleOpenWhatsApp('intervention', selectedArtisanId, selectedArtisanData.telephone || '')}
-                                    className="flex-1 text-[10px] h-7 px-2 bg-[#25D366]/10 hover:bg-[#25D366]/20 border-[#25D366]/30 text-[#25D366]"
+                                    onClick={() => handleOpenInterventionEmailModal()}
+                                    disabled={!selectedArtisanId}
+                                    className="flex-1 text-[10px] h-7 px-2 border-primary/30 hover:bg-primary/10 dark:border-primary/40 dark:hover:bg-primary/20"
                                   >
-                                    <MessageCircle className="h-3 w-3 mr-1" />
-                                    WA Inter.
+                                    <Mail className="h-3 w-3 mr-1" />
+                                    Inter.
                                   </Button>
                                 </div>
-                              )}
-                            </div>
-                          )}
+                                {/* Boutons WhatsApp */}
+                                {selectedArtisanData.telephone && (
+                                  <div className="flex gap-1">
+                                    <Button
+                                      type="button"
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() => handleOpenWhatsApp('devis', selectedArtisanId, selectedArtisanData.telephone || '')}
+                                      className="flex-1 text-[10px] h-7 px-2 bg-[#25D366]/10 hover:bg-[#25D366]/20 border-[#25D366]/30 text-[#25D366]"
+                                    >
+                                      <MessageCircle className="h-3 w-3 mr-1" />
+                                      WA Devis
+                                    </Button>
+                                    <Button
+                                      type="button"
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() => handleOpenWhatsApp('intervention', selectedArtisanId, selectedArtisanData.telephone || '')}
+                                      className="flex-1 text-[10px] h-7 px-2 bg-[#25D366]/10 hover:bg-[#25D366]/20 border-[#25D366]/30 text-[#25D366]"
+                                    >
+                                      <MessageCircle className="h-3 w-3 mr-1" />
+                                      WA Inter.
+                                    </Button>
+                                  </div>
+                                )}
+                              </div>
+                            )}
 
-                          {/* Liste des artisans - max 8 visibles avec scroll */}
-                          <div className="flex-1 overflow-y-auto space-y-1 min-h-0 scrollbar-minimal">
-                            {isLoadingNearbyArtisans ? (
-                              <div className="flex items-center justify-center h-full text-xs text-muted-foreground">Recherche...</div>
-                            ) : nearbyArtisansError ? (
-                              <div className="rounded border border-destructive/40 bg-destructive/10 px-2 py-1 text-[10px] text-destructive">{nearbyArtisansError}</div>
-                            ) : nearbyArtisans.length === 0 ? (
-                              <div className="rounded border border-border/50 bg-background px-2 py-2 text-[10px] text-muted-foreground">Aucun artisan dans un rayon de {perimeterKmValue} km.</div>
-                            ) : (
-                              nearbyArtisans.map((artisan) => {
-                                const artisanDisplayName = getArtisanDisplayName(artisan, artisanDisplayMode)
-                                const artisanInitials = artisanDisplayName.split(" ").map((p) => p.charAt(0)).join("").slice(0, 2).toUpperCase() || "??"
-                                const artisanStatus = refData?.artisanStatuses?.find((s) => s.id === artisan.statut_id)
-                                const statutArtisan = artisanStatus?.label || ""
-                                const statutArtisanColor = artisanStatus?.color || null
+                            {/* Liste des artisans - max 8 visibles avec scroll */}
+                            <div className="flex-1 overflow-y-auto space-y-1 min-h-0 scrollbar-minimal">
+                              {isLoadingNearbyArtisans ? (
+                                <div className="flex items-center justify-center h-full text-xs text-muted-foreground">Recherche...</div>
+                              ) : nearbyArtisansError ? (
+                                <div className="rounded border border-destructive/40 bg-destructive/10 px-2 py-1 text-[10px] text-destructive">{nearbyArtisansError}</div>
+                              ) : nearbyArtisans.length === 0 ? (
+                                <div className="rounded border border-border/50 bg-background px-2 py-2 text-[10px] text-muted-foreground">Aucun artisan dans un rayon de {perimeterKmValue} km.</div>
+                              ) : (
+                                nearbyArtisans.map((artisan) => {
+                                  const artisanDisplayName = getArtisanDisplayName(artisan, artisanDisplayMode)
+                                  const artisanInitials = artisanDisplayName.split(" ").map((p) => p.charAt(0)).join("").slice(0, 2).toUpperCase() || "??"
+                                  const artisanStatus = refData?.artisanStatuses?.find((s) => s.id === artisan.statut_id)
+                                  const statutArtisan = artisanStatus?.label || ""
+                                  const statutArtisanColor = artisanStatus?.color || null
 
-                                return (
-                                  <div
-                                    key={artisan.id}
-                                    role="button"
-                                    tabIndex={0}
-                                    className={cn(
-                                      "rounded-lg border border-border/60 bg-background/80 p-2 text-xs shadow-sm transition-all cursor-pointer",
-                                      selectedArtisanId ? "opacity-0 scale-95 max-h-0 overflow-hidden pointer-events-none m-0 p-0 border-0" : "hover:border-primary/40"
-                                    )}
-                                    onClick={() => handleSelectNearbyArtisan(artisan)}
-                                    onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); handleSelectNearbyArtisan(artisan) } }}
-                                  >
-                                    <div className="flex items-center justify-between gap-2 flex-wrap w-full min-w-0">
-                                      <Avatar photoProfilMetadata={artisan.photoProfilMetadata} initials={artisanInitials} name={artisan.displayName} size={40} className="hidden" />
-                                      <div className="flex items-center gap-1 flex-wrap min-w-0 flex-1">
-                                        <span className="font-medium text-foreground truncate text-[11px] min-w-0">{artisanDisplayName}</span>
-                                        {absentArtisanIds.has(artisan.id) && (
-                                          <Badge variant="outline" className="text-[9px] px-1 py-0 bg-orange-100 text-orange-800 border-orange-300 flex-shrink-0">
-                                            Indisponible
-                                          </Badge>
-                                        )}
-                                      </div>
-                                      <div className="flex items-center gap-1 flex-wrap flex-shrink-0">
-                                        {statutArtisan && (
-                                          <Badge variant="outline" className="text-[9px] px-1 py-0 flex-shrink-0" style={statutArtisanColor ? { backgroundColor: hexToRgba(statutArtisanColor, 0.15) || undefined, color: statutArtisanColor, borderColor: statutArtisanColor } : undefined}>
-                                            {statutArtisan}
-                                          </Badge>
-                                        )}
-                                        <Badge variant="secondary" className="text-[9px] px-1 py-0 flex-shrink-0">{formatDistanceKm(artisan.distanceKm)}</Badge>
-                                        <Button type="button" variant="ghost" size="icon" className="h-5 w-5 text-muted-foreground hover:text-foreground flex-shrink-0" onClick={(e) => handleOpenArtisanModal(artisan.id, e)}>
-                                          <Eye className="h-3 w-3" />
-                                        </Button>
+                                  return (
+                                    <div
+                                      key={artisan.id}
+                                      role="button"
+                                      tabIndex={0}
+                                      className={cn(
+                                        "rounded-lg border border-border/60 bg-background/80 p-2 text-xs shadow-sm transition-all cursor-pointer",
+                                        selectedArtisanId ? "opacity-0 scale-95 max-h-0 overflow-hidden pointer-events-none m-0 p-0 border-0" : "hover:border-primary/40"
+                                      )}
+                                      onClick={() => handleSelectNearbyArtisan(artisan)}
+                                      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); handleSelectNearbyArtisan(artisan) } }}
+                                    >
+                                      <div className="flex items-center justify-between gap-2 flex-wrap w-full min-w-0">
+                                        <Avatar photoProfilMetadata={artisan.photoProfilMetadata} initials={artisanInitials} name={artisan.displayName} size={40} className="hidden" />
+                                        <div className="flex items-center gap-1 flex-wrap min-w-0 flex-1">
+                                          <span className="font-medium text-foreground truncate text-[11px] min-w-0">{artisanDisplayName}</span>
+                                          {absentArtisanIds.has(artisan.id) && (
+                                            <Badge variant="outline" className="text-[9px] px-1 py-0 bg-orange-100 text-orange-800 border-orange-300 flex-shrink-0">
+                                              Indisponible
+                                            </Badge>
+                                          )}
+                                        </div>
+                                        <div className="flex items-center gap-1 flex-wrap flex-shrink-0">
+                                          {statutArtisan && (
+                                            <Badge variant="outline" className="text-[9px] px-1 py-0 flex-shrink-0" style={statutArtisanColor ? { backgroundColor: hexToRgba(statutArtisanColor, 0.15) || undefined, color: statutArtisanColor, borderColor: statutArtisanColor } : undefined}>
+                                              {statutArtisan}
+                                            </Badge>
+                                          )}
+                                          <Badge variant="secondary" className="text-[9px] px-1 py-0 flex-shrink-0">{formatDistanceKm(artisan.distanceKm)}</Badge>
+                                          <Button type="button" variant="ghost" size="icon" className="h-5 w-5 text-muted-foreground hover:text-foreground flex-shrink-0" onClick={(e) => handleOpenArtisanModal(artisan.id, e)}>
+                                            <Eye className="h-3 w-3" />
+                                          </Button>
+                                        </div>
                                       </div>
                                     </div>
-                                  </div>
-                                )
-                              })
+                                  )
+                                })
+                              )}
+                            </div>
+                          </CardContent>
+                        </Card>
+                      </ResizablePanel>
+                    </ResizablePanelGroup>
+                  </div>
+
+                  {/* DIV5: CONTEXTE INTERVENTION - Row 5, Cols 1-2 */}
+                  <Card style={{ gridArea: "5 / 1 / 6 / 3" }}>
+                    <CardContent className="p-4">
+                      <Label htmlFor="contexteIntervention" className="text-xs font-medium mb-2 block">Contexte intervention *</Label>
+                      <Textarea
+                        id="contexteIntervention"
+                        value={formData.contexte_intervention}
+                        onChange={canEditContext ? (event) => handleInputChange("contexte_intervention", event.target.value) : undefined}
+                        placeholder="Décrivez le contexte..."
+                        rows={4}
+                        className={cn("text-sm resize-none", !canEditContext && "cursor-not-allowed bg-muted/50 text-muted-foreground")}
+                        readOnly={!canEditContext}
+                        aria-readonly={!canEditContext}
+                        required
+                      />
+                      {!canEditContext && <p className="mt-1 text-[10px] text-muted-foreground">Admin uniquement</p>}
+                    </CardContent>
+                  </Card>
+
+                  {/* DIV6: CONSIGNE INTERVENTION - Row 5, Cols 3-4 */}
+                  <Card style={{ gridArea: "5 / 3 / 6 / 5" }}>
+                    <CardContent className="p-4">
+                      <Label htmlFor="consigneIntervention" className="text-xs font-medium mb-2 block">Consigne pour l&apos;artisan</Label>
+                      <Textarea
+                        id="consigneIntervention"
+                        value={formData.consigne_intervention}
+                        onChange={(event) => handleInputChange("consigne_intervention", event.target.value)}
+                        placeholder="Consignes spécifiques..."
+                        rows={4}
+                        className="text-sm resize-none"
+                      />
+                    </CardContent>
+                  </Card>
+
+                  {/* DIV4: FINANCES & PLANIFICATION - Row 6, Cols 1-4 */}
+                  <Card style={{ gridArea: "6 / 1 / 7 / 5" }}>
+                    <CardContent className="p-4">
+                      <div className="grid grid-cols-5 gap-3 items-end">
+                        <div>
+                          <Label htmlFor="coutIntervention" className="text-xs">Coût inter.</Label>
+                          <Input id="coutIntervention" type="number" step="0.01" min="0" value={formData.coutIntervention} onChange={(e) => handleInputChange("coutIntervention", e.target.value)} placeholder="0.00 €" className="h-8 text-sm mt-1" />
+                        </div>
+                        <div>
+                          <Label htmlFor="coutSST" className="text-xs">Coût SST</Label>
+                          <Input id="coutSST" type="number" step="0.01" min="0" value={formData.coutSST} onChange={(e) => handleInputChange("coutSST", e.target.value)} placeholder="0.00 €" className="h-8 text-sm mt-1" />
+                        </div>
+                        <div>
+                          <Label htmlFor="coutMateriel" className="text-xs">Coût mat.</Label>
+                          <Input id="coutMateriel" type="number" step="0.01" min="0" value={formData.coutMateriel} onChange={(e) => handleInputChange("coutMateriel", e.target.value)} placeholder="0.00 €" className="h-8 text-sm mt-1" />
+                        </div>
+                        <div>
+                          <Label className="text-xs">Marge</Label>
+                          <div className="flex h-8 w-full rounded-md border border-input bg-muted px-3 py-1 text-sm shadow-sm items-center mt-1">
+                            {margePrimaryArtisan.isValid ? (
+                              <span className={cn("font-medium", getMarginColorClass(margePrimaryArtisan.marginPercentage))}>
+                                {formatMarginPercentage(margePrimaryArtisan.marginPercentage)}
+                              </span>
+                            ) : (
+                              <span className="text-muted-foreground">-- %</span>
                             )}
                           </div>
-                        </CardContent>
-                      </Card>
-                    </ResizablePanel>
-                  </ResizablePanelGroup>
-                </div>
-
-                {/* DIV5: CONTEXTE INTERVENTION - Row 5, Cols 1-2 */}
-                <Card style={{ gridArea: "5 / 1 / 6 / 3" }}>
-                  <CardContent className="p-4">
-                    <Label htmlFor="contexteIntervention" className="text-xs font-medium mb-2 block">Contexte intervention *</Label>
-                    <Textarea
-                      id="contexteIntervention"
-                      value={formData.contexte_intervention}
-                      onChange={canEditContext ? (event) => handleInputChange("contexte_intervention", event.target.value) : undefined}
-                      placeholder="Décrivez le contexte..."
-                      rows={4}
-                      className={cn("text-sm resize-none", !canEditContext && "cursor-not-allowed bg-muted/50 text-muted-foreground")}
-                      readOnly={!canEditContext}
-                      aria-readonly={!canEditContext}
-                      required
-                    />
-                    {!canEditContext && <p className="mt-1 text-[10px] text-muted-foreground">Admin uniquement</p>}
-                  </CardContent>
-                </Card>
-
-                {/* DIV6: CONSIGNE INTERVENTION - Row 5, Cols 3-4 */}
-                <Card style={{ gridArea: "5 / 3 / 6 / 5" }}>
-                  <CardContent className="p-4">
-                    <Label htmlFor="consigneIntervention" className="text-xs font-medium mb-2 block">Consigne pour l&apos;artisan</Label>
-                    <Textarea
-                      id="consigneIntervention"
-                      value={formData.consigne_intervention}
-                      onChange={(event) => handleInputChange("consigne_intervention", event.target.value)}
-                      placeholder="Consignes spécifiques..."
-                      rows={4}
-                      className="text-sm resize-none"
-                    />
-                  </CardContent>
-                </Card>
-
-                {/* DIV4: FINANCES & PLANIFICATION - Row 6, Cols 1-4 */}
-                <Card style={{ gridArea: "6 / 1 / 7 / 5" }}>
-                  <CardContent className="p-4">
-                    <div className="grid grid-cols-5 gap-3 items-end">
-                      <div>
-                        <Label htmlFor="coutIntervention" className="text-xs">Coût inter.</Label>
-                        <Input id="coutIntervention" type="number" step="0.01" min="0" value={formData.coutIntervention} onChange={(e) => handleInputChange("coutIntervention", e.target.value)} placeholder="0.00 €" className="h-8 text-sm mt-1" />
-                      </div>
-                      <div>
-                        <Label htmlFor="coutSST" className="text-xs">Coût SST</Label>
-                        <Input id="coutSST" type="number" step="0.01" min="0" value={formData.coutSST} onChange={(e) => handleInputChange("coutSST", e.target.value)} placeholder="0.00 €" className="h-8 text-sm mt-1" />
-                      </div>
-                      <div>
-                        <Label htmlFor="coutMateriel" className="text-xs">Coût mat.</Label>
-                        <Input id="coutMateriel" type="number" step="0.01" min="0" value={formData.coutMateriel} onChange={(e) => handleInputChange("coutMateriel", e.target.value)} placeholder="0.00 €" className="h-8 text-sm mt-1" />
-                      </div>
-                      <div>
-                        <Label className="text-xs">Marge</Label>
-                        <div className="flex h-8 w-full rounded-md border border-input bg-muted px-3 py-1 text-sm shadow-sm items-center mt-1">
-                          {margePrimaryArtisan.isValid ? (
-                            <span className={cn("font-medium", getMarginColorClass(margePrimaryArtisan.marginPercentage))}>
-                              {formatMarginPercentage(margePrimaryArtisan.marginPercentage)}
-                            </span>
-                          ) : (
-                            <span className="text-muted-foreground">-- %</span>
-                          )}
+                        </div>
+                        <div>
+                          <Label htmlFor="datePrevue" className="text-xs">Date prévue {requiresDatePrevue && "*"}</Label>
+                          <Input id="datePrevue" type="date" value={formData.date_prevue} onChange={(e) => handleInputChange("date_prevue", e.target.value)} className="h-8 text-sm mt-1" required={requiresDatePrevue} />
                         </div>
                       </div>
-                      <div>
-                        <Label htmlFor="datePrevue" className="text-xs">Date prévue {requiresDatePrevue && "*"}</Label>
-                        <Input id="datePrevue" type="date" value={formData.date_prevue} onChange={(e) => handleInputChange("date_prevue", e.target.value)} className="h-8 text-sm mt-1" required={requiresDatePrevue} />
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
+                    </CardContent>
+                  </Card>
+                </div>
+              </SectionLock>
             </div>
 
             {/* HANDLE DE REDIMENSIONNEMENT */}
@@ -2522,159 +2522,165 @@ export function InterventionEditForm({
             >
               <div className="flex flex-col gap-2 pb-4">
                 {/* Détails facturation */}
-                <Collapsible open={isProprietaireOpen} onOpenChange={setIsProprietaireOpen}>
-                  <Card>
-                    <CollapsibleTrigger asChild>
-                      <CardHeader className="cursor-pointer py-2 px-3 hover:bg-muted/50">
-                        <CardTitle className="flex items-center gap-2 text-xs">
-                          Détails facturation
-                          {isProprietaireOpen ? <ChevronDown className="ml-auto h-3 w-3" /> : <ChevronRight className="ml-auto h-3 w-3" />}
-                        </CardTitle>
-                      </CardHeader>
-                    </CollapsibleTrigger>
-                    <CollapsibleContent>
-                      <CardContent className="pt-0 px-3 pb-3">
-                        <div className="space-y-2">
-                          <div>
-                            <Label htmlFor="nomPrenomFacturation" className="text-[10px]">Nom Prénom</Label>
-                            <Input id="nomPrenomFacturation" value={formData.nomPrenomFacturation} onChange={(e) => handleInputChange("nomPrenomFacturation", e.target.value)} placeholder="Nom Prénom" className="h-7 text-xs mt-1" />
-                          </div>
-                          <div className="grid grid-cols-2 gap-2">
-                            <div>
-                              <Label htmlFor="telephoneProprietaire" className="text-[10px]">Téléphone</Label>
-                              <Input id="telephoneProprietaire" value={formData.telephoneProprietaire} onChange={(e) => handleInputChange("telephoneProprietaire", e.target.value)} placeholder="06..." className="h-7 text-xs mt-1" />
-                            </div>
-                            <div>
-                              <Label htmlFor="emailProprietaire" className="text-[10px]">Email</Label>
-                              <Input id="emailProprietaire" type="email" value={formData.emailProprietaire} onChange={(e) => handleInputChange("emailProprietaire", e.target.value)} placeholder="email@..." className="h-7 text-xs mt-1" />
-                            </div>
-                          </div>
-                        </div>
-                      </CardContent>
-                    </CollapsibleContent>
-                  </Card>
-                </Collapsible>
-
-                {/* Détails client */}
-                <Collapsible open={isClientOpen} onOpenChange={setIsClientOpen}>
-                  <Card>
-                    <CollapsibleTrigger asChild>
-                      <CardHeader className="cursor-pointer py-2 px-3 hover:bg-muted/50">
-                        <CardTitle className="flex items-center gap-2 text-xs">
-                          Détails client
-                          {isClientOpen ? <ChevronDown className="ml-auto h-3 w-3" /> : <ChevronRight className="ml-auto h-3 w-3" />}
-                        </CardTitle>
-                      </CardHeader>
-                    </CollapsibleTrigger>
-                    <CollapsibleContent>
-                      <CardContent className="pt-0 px-3 pb-3">
-                        <div className="flex items-center justify-between mb-2">
-                          <div className="flex items-center space-x-2">
-                            <input type="checkbox" id="is_vacant" className="h-3 w-3 rounded border-gray-300" checked={formData.is_vacant} onChange={(e) => handleInputChange("is_vacant", e.target.checked)} />
-                            <Label htmlFor="is_vacant" className="text-[10px] font-normal cursor-pointer">logement vacant</Label>
-                          </div>
-                          {!formData.is_vacant && onOpenSmsModal && (
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              className="h-6 px-2 text-[10px] flex items-center gap-1"
-                              onClick={onOpenSmsModal}
-                              disabled={!formData.nomPrenomClient || !formData.telephoneClient}
-                            >
-                              <MessageSquare className="h-3 w-3" />
-                              SMS
-                            </Button>
-                          )}
-                        </div>
-                        {formData.is_vacant ? (
-                          <div className="space-y-2">
-                            <div className="grid grid-cols-3 gap-2">
-                              <div>
-                                <Label htmlFor="key_code" className="text-[10px]">CODE CLÉ</Label>
-                                <Input id="key_code" value={formData.key_code} onChange={(e) => handleInputChange("key_code", e.target.value)} className="h-7 text-xs mt-1" />
-                              </div>
-                              <div>
-                                <Label htmlFor="floor" className="text-[10px]">Étage</Label>
-                                <Input id="floor" value={formData.floor} onChange={(e) => handleInputChange("floor", e.target.value)} className="h-7 text-xs mt-1" />
-                              </div>
-                              <div>
-                                <Label htmlFor="apartment_number" className="text-[10px]">N° appart.</Label>
-                                <Input id="apartment_number" value={formData.apartment_number} onChange={(e) => handleInputChange("apartment_number", e.target.value)} className="h-7 text-xs mt-1" />
-                              </div>
-                            </div>
-                            <div>
-                              <Label htmlFor="vacant_housing_instructions" className="text-[10px]">Consigne</Label>
-                              <Textarea id="vacant_housing_instructions" value={formData.vacant_housing_instructions} onChange={(e) => handleInputChange("vacant_housing_instructions", e.target.value)} placeholder="Consignes..." className="min-h-[60px] text-xs mt-1 resize-none" />
-                            </div>
-                          </div>
-                        ) : (
+                <SectionLock isLocked={!canEditIntervention}>
+                  <Collapsible open={isProprietaireOpen} onOpenChange={setIsProprietaireOpen}>
+                    <Card>
+                      <CollapsibleTrigger asChild>
+                        <CardHeader className="cursor-pointer py-2 px-3 hover:bg-muted/50">
+                          <CardTitle className="flex items-center gap-2 text-xs">
+                            Détails facturation
+                            {isProprietaireOpen ? <ChevronDown className="ml-auto h-3 w-3" /> : <ChevronRight className="ml-auto h-3 w-3" />}
+                          </CardTitle>
+                        </CardHeader>
+                      </CollapsibleTrigger>
+                      <CollapsibleContent>
+                        <CardContent className="pt-0 px-3 pb-3">
                           <div className="space-y-2">
                             <div>
-                              <Label htmlFor="nomPrenomClient" className="text-[10px]">Nom Prénom</Label>
-                              <Input id="nomPrenomClient" value={formData.nomPrenomClient} onChange={(e) => handleInputChange("nomPrenomClient", e.target.value)} placeholder="Nom Prénom" className="h-7 text-xs mt-1" />
+                              <Label htmlFor="nomPrenomFacturation" className="text-[10px]">Nom Prénom</Label>
+                              <Input id="nomPrenomFacturation" value={formData.nomPrenomFacturation} onChange={(e) => handleInputChange("nomPrenomFacturation", e.target.value)} placeholder="Nom Prénom" className="h-7 text-xs mt-1" />
                             </div>
                             <div className="grid grid-cols-2 gap-2">
                               <div>
-                                <Label htmlFor="telephoneClient" className="text-[10px]">Téléphone</Label>
-                                <Input id="telephoneClient" value={formData.telephoneClient} onChange={(e) => handleInputChange("telephoneClient", e.target.value)} placeholder="06..." className="h-7 text-xs mt-1" />
+                                <Label htmlFor="telephoneProprietaire" className="text-[10px]">Téléphone</Label>
+                                <Input id="telephoneProprietaire" value={formData.telephoneProprietaire} onChange={(e) => handleInputChange("telephoneProprietaire", e.target.value)} placeholder="06..." className="h-7 text-xs mt-1" />
                               </div>
                               <div>
-                                <Label htmlFor="emailClient" className="text-[10px]">Email</Label>
-                                <Input id="emailClient" type="email" value={formData.emailClient} onChange={(e) => handleInputChange("emailClient", e.target.value)} placeholder="email@..." className="h-7 text-xs mt-1" />
+                                <Label htmlFor="emailProprietaire" className="text-[10px]">Email</Label>
+                                <Input id="emailProprietaire" type="email" value={formData.emailProprietaire} onChange={(e) => handleInputChange("emailProprietaire", e.target.value)} placeholder="email@..." className="h-7 text-xs mt-1" />
                               </div>
                             </div>
                           </div>
-                        )}
-                      </CardContent>
-                    </CollapsibleContent>
-                  </Card>
-                </Collapsible>
+                        </CardContent>
+                      </CollapsibleContent>
+                    </Card>
+                  </Collapsible>
+                </SectionLock>
+
+                {/* Détails client */}
+                <SectionLock isLocked={!canEditIntervention}>
+                  <Collapsible open={isClientOpen} onOpenChange={setIsClientOpen}>
+                    <Card>
+                      <CollapsibleTrigger asChild>
+                        <CardHeader className="cursor-pointer py-2 px-3 hover:bg-muted/50">
+                          <CardTitle className="flex items-center gap-2 text-xs">
+                            Détails client
+                            {isClientOpen ? <ChevronDown className="ml-auto h-3 w-3" /> : <ChevronRight className="ml-auto h-3 w-3" />}
+                          </CardTitle>
+                        </CardHeader>
+                      </CollapsibleTrigger>
+                      <CollapsibleContent>
+                        <CardContent className="pt-0 px-3 pb-3">
+                          <div className="flex items-center justify-between mb-2">
+                            <div className="flex items-center space-x-2">
+                              <input type="checkbox" id="is_vacant" className="h-3 w-3 rounded border-gray-300" checked={formData.is_vacant} onChange={(e) => handleInputChange("is_vacant", e.target.checked)} />
+                              <Label htmlFor="is_vacant" className="text-[10px] font-normal cursor-pointer">logement vacant</Label>
+                            </div>
+                            {!formData.is_vacant && onOpenSmsModal && (
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                className="h-6 px-2 text-[10px] flex items-center gap-1"
+                                onClick={onOpenSmsModal}
+                                disabled={!formData.nomPrenomClient || !formData.telephoneClient}
+                              >
+                                <MessageSquare className="h-3 w-3" />
+                                SMS
+                              </Button>
+                            )}
+                          </div>
+                          {formData.is_vacant ? (
+                            <div className="space-y-2">
+                              <div className="grid grid-cols-3 gap-2">
+                                <div>
+                                  <Label htmlFor="key_code" className="text-[10px]">CODE CLÉ</Label>
+                                  <Input id="key_code" value={formData.key_code} onChange={(e) => handleInputChange("key_code", e.target.value)} className="h-7 text-xs mt-1" />
+                                </div>
+                                <div>
+                                  <Label htmlFor="floor" className="text-[10px]">Étage</Label>
+                                  <Input id="floor" value={formData.floor} onChange={(e) => handleInputChange("floor", e.target.value)} className="h-7 text-xs mt-1" />
+                                </div>
+                                <div>
+                                  <Label htmlFor="apartment_number" className="text-[10px]">N° appart.</Label>
+                                  <Input id="apartment_number" value={formData.apartment_number} onChange={(e) => handleInputChange("apartment_number", e.target.value)} className="h-7 text-xs mt-1" />
+                                </div>
+                              </div>
+                              <div>
+                                <Label htmlFor="vacant_housing_instructions" className="text-[10px]">Consigne</Label>
+                                <Textarea id="vacant_housing_instructions" value={formData.vacant_housing_instructions} onChange={(e) => handleInputChange("vacant_housing_instructions", e.target.value)} placeholder="Consignes..." className="min-h-[60px] text-xs mt-1 resize-none" />
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="space-y-2">
+                              <div>
+                                <Label htmlFor="nomPrenomClient" className="text-[10px]">Nom Prénom</Label>
+                                <Input id="nomPrenomClient" value={formData.nomPrenomClient} onChange={(e) => handleInputChange("nomPrenomClient", e.target.value)} placeholder="Nom Prénom" className="h-7 text-xs mt-1" />
+                              </div>
+                              <div className="grid grid-cols-2 gap-2">
+                                <div>
+                                  <Label htmlFor="telephoneClient" className="text-[10px]">Téléphone</Label>
+                                  <Input id="telephoneClient" value={formData.telephoneClient} onChange={(e) => handleInputChange("telephoneClient", e.target.value)} placeholder="06..." className="h-7 text-xs mt-1" />
+                                </div>
+                                <div>
+                                  <Label htmlFor="emailClient" className="text-[10px]">Email</Label>
+                                  <Input id="emailClient" type="email" value={formData.emailClient} onChange={(e) => handleInputChange("emailClient", e.target.value)} placeholder="email@..." className="h-7 text-xs mt-1" />
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                        </CardContent>
+                      </CollapsibleContent>
+                    </Card>
+                  </Collapsible>
+                </SectionLock>
 
                 {/* Gestion des acomptes */}
-                <Collapsible open={isAccompteOpen} onOpenChange={setIsAccompteOpen}>
-                  <Card>
-                    <CollapsibleTrigger asChild>
-                      <CardHeader className="cursor-pointer py-2 px-3 hover:bg-muted/50">
-                        <CardTitle className="flex items-center gap-2 text-xs">
-                          Gestion des acomptes
-                          {isAccompteOpen ? <ChevronDown className="ml-auto h-3 w-3" /> : <ChevronRight className="ml-auto h-3 w-3" />}
-                        </CardTitle>
-                      </CardHeader>
-                    </CollapsibleTrigger>
-                    <CollapsibleContent>
-                      <CardContent className="pt-0 px-3 pb-3 space-y-2">
-                        <div className="grid grid-cols-2 gap-2">
-                          <div>
-                            <Label htmlFor="accompteSST" className="text-[10px]">Acompte SST</Label>
-                            <Input id="accompteSST" value={formData.accompteSST} onChange={(e) => handleAccompteSSTChange(e.target.value)} onBlur={handleAccompteSSTBlur} placeholder="Montant" className="h-7 text-xs" disabled={!canEditAccomptes} type="number" step="0.01" min="0" />
-                          </div>
-                          <div>
-                            <Label className="text-[10px]">Reçu</Label>
-                            <div className="flex items-center gap-1">
-                              <input type="checkbox" checked={formData.accompteSSTRecu} onChange={(e) => handleAccompteSSTRecuChange(e.target.checked)} className="h-3 w-3" />
-                              <Input type="date" value={formData.dateAccompteSSTRecu} onChange={(e) => handleDateAccompteSSTRecuChange(e.target.value)} className="h-7 text-xs flex-1" />
+                <SectionLock isLocked={!canEditIntervention}>
+                  <Collapsible open={isAccompteOpen} onOpenChange={setIsAccompteOpen}>
+                    <Card>
+                      <CollapsibleTrigger asChild>
+                        <CardHeader className="cursor-pointer py-2 px-3 hover:bg-muted/50">
+                          <CardTitle className="flex items-center gap-2 text-xs">
+                            Gestion des acomptes
+                            {isAccompteOpen ? <ChevronDown className="ml-auto h-3 w-3" /> : <ChevronRight className="ml-auto h-3 w-3" />}
+                          </CardTitle>
+                        </CardHeader>
+                      </CollapsibleTrigger>
+                      <CollapsibleContent>
+                        <CardContent className="pt-0 px-3 pb-3 space-y-2">
+                          <div className="grid grid-cols-2 gap-2">
+                            <div>
+                              <Label htmlFor="accompteSST" className="text-[10px]">Acompte SST</Label>
+                              <Input id="accompteSST" value={formData.accompteSST} onChange={(e) => handleAccompteSSTChange(e.target.value)} onBlur={handleAccompteSSTBlur} placeholder="Montant" className="h-7 text-xs" disabled={!canEditAccomptes} type="number" step="0.01" min="0" />
+                            </div>
+                            <div>
+                              <Label className="text-[10px]">Reçu</Label>
+                              <div className="flex items-center gap-1">
+                                <input type="checkbox" checked={formData.accompteSSTRecu} onChange={(e) => handleAccompteSSTRecuChange(e.target.checked)} className="h-3 w-3" />
+                                <Input type="date" value={formData.dateAccompteSSTRecu} onChange={(e) => handleDateAccompteSSTRecuChange(e.target.value)} className="h-7 text-xs flex-1" />
+                              </div>
                             </div>
                           </div>
-                        </div>
-                        <div className="grid grid-cols-2 gap-2">
-                          <div>
-                            <Label htmlFor="accompteClient" className="text-[10px]">Acompte client</Label>
-                            <Input id="accompteClient" value={formData.accompteClient} onChange={(e) => handleAccompteClientChange(e.target.value)} onBlur={handleAccompteClientBlur} placeholder="Montant" className="h-7 text-xs" disabled={!canEditAccomptes} type="number" step="0.01" min="0" />
-                          </div>
-                          <div>
-                            <Label className="text-[10px]">Reçu</Label>
-                            <div className="flex items-center gap-1">
-                              <input type="checkbox" checked={formData.accompteClientRecu} onChange={(e) => handleAccompteClientRecuChange(e.target.checked)} className="h-3 w-3" />
-                              <Input type="date" value={formData.dateAccompteClientRecu} onChange={(e) => handleDateAccompteClientRecuChange(e.target.value)} className="h-7 text-xs flex-1" />
+                          <div className="grid grid-cols-2 gap-2">
+                            <div>
+                              <Label htmlFor="accompteClient" className="text-[10px]">Acompte client</Label>
+                              <Input id="accompteClient" value={formData.accompteClient} onChange={(e) => handleAccompteClientChange(e.target.value)} onBlur={handleAccompteClientBlur} placeholder="Montant" className="h-7 text-xs" disabled={!canEditAccomptes} type="number" step="0.01" min="0" />
+                            </div>
+                            <div>
+                              <Label className="text-[10px]">Reçu</Label>
+                              <div className="flex items-center gap-1">
+                                <input type="checkbox" checked={formData.accompteClientRecu} onChange={(e) => handleAccompteClientRecuChange(e.target.checked)} className="h-3 w-3" />
+                                <Input type="date" value={formData.dateAccompteClientRecu} onChange={(e) => handleDateAccompteClientRecuChange(e.target.value)} className="h-7 text-xs flex-1" />
+                              </div>
                             </div>
                           </div>
-                        </div>
-                        <p className="text-[9px] text-muted-foreground">Éditable si statut = Accepté ou Attente acompte</p>
-                      </CardContent>
-                    </CollapsibleContent>
-                  </Card>
-                </Collapsible>
+                          <p className="text-[9px] text-muted-foreground">Éditable si statut = Accepté ou Attente acompte</p>
+                        </CardContent>
+                      </CollapsibleContent>
+                    </Card>
+                  </Collapsible>
+                </SectionLock>
 
                 {/* Documents */}
                 <Collapsible open={isDocumentsOpen} onOpenChange={setIsDocumentsOpen}>
@@ -2697,293 +2703,295 @@ export function InterventionEditForm({
                 </Collapsible>
 
                 {/* Deuxième artisan */}
-                <Collapsible open={isSecondArtisanOpen} onOpenChange={setIsSecondArtisanOpen}>
-                  <Card>
-                    <CollapsibleTrigger asChild>
-                      <CardHeader className="cursor-pointer py-2 px-3 hover:bg-muted/50">
-                        <CardTitle className="flex items-center gap-2 text-xs">
-                          <Users className="h-3 w-3" />
-                          Deuxième artisan
-                          {isSecondArtisanOpen ? <ChevronDown className="ml-auto h-3 w-3" /> : <ChevronRight className="ml-auto h-3 w-3" />}
-                        </CardTitle>
-                      </CardHeader>
-                    </CollapsibleTrigger>
-                    <CollapsibleContent>
-                      <CardContent className="pt-0 px-3 pb-3">
-                        <div className="space-y-3">
-                          {/* Header artisans - même style que colonne gauche */}
-                          <div className="flex items-center justify-between gap-2 flex-shrink-0 pt-[13px] flex-wrap min-w-0">
-                            <div className="flex items-center gap-2 min-w-0 overflow-hidden">
-                              <SearchableBadgeSelect
-                                label="Métier"
-                                value={formData.metierSecondArtisanId}
-                                options={(refData?.metiers || []).map(m => ({
-                                  id: m.id,
-                                  label: m.label,
-                                  color: m.color,
-                                }))}
-                                onChange={(value) => handleInputChange("metierSecondArtisanId", value)}
-                                placeholder="Métier..."
-                                minWidth="100px"
-                                hideLabel
-                                onOpenChange={onPopoverOpenChange}
-                                searchPlaceholder="Rechercher un métier..."
-                                emptyText="Aucun métier trouvé"
-                              />
-                              <div className="flex gap-0.5 flex-shrink-0">
-                                <Button
-                                  type="button"
-                                  variant={secondArtisanDisplayMode === "nom" ? "default" : "ghost"}
-                                  size="sm"
-                                  className="h-5 px-1.5 text-[10px]"
-                                  onClick={() => setSecondArtisanDisplayMode("nom")}
-                                >
-                                  nom
-                                </Button>
-                                <Button
-                                  type="button"
-                                  variant={secondArtisanDisplayMode === "rs" ? "default" : "ghost"}
-                                  size="sm"
-                                  className="h-5 px-1.5 text-[10px]"
-                                  onClick={() => setSecondArtisanDisplayMode("rs")}
-                                >
-                                  RS
-                                </Button>
-                                <Button
-                                  type="button"
-                                  variant={secondArtisanDisplayMode === "tel" ? "default" : "ghost"}
-                                  size="sm"
-                                  className="h-5 px-1.5 text-[10px]"
-                                  onClick={() => setSecondArtisanDisplayMode("tel")}
-                                >
-                                  tel
-                                </Button>
-                              </div>
-                            </div>
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="icon"
-                              className="h-7 w-7 flex-shrink-0"
-                              onClick={(e) => {
-                                const rect = e.currentTarget.getBoundingClientRect()
-                                setSecondArtisanSearchPosition({
-                                  x: rect.left,
-                                  y: rect.top,
-                                  width: rect.width,
-                                  height: rect.height
-                                })
-                                setShowSecondArtisanSearch(true)
-                              }}
-                              title="Rechercher un artisan"
-                            >
-                              <Search className="h-3.5 w-3.5" />
-                            </Button>
-                          </div>
-
-                          {/* Artisan secondaire sélectionné */}
-                          {selectedSecondArtisanId && selectedSecondArtisanData && (() => {
-                            const artisan = selectedSecondArtisanData
-                            const artisanDisplayName = getArtisanDisplayName(artisan, secondArtisanDisplayMode)
-                            const artisanInitials = artisanDisplayName.split(" ").map((p) => p.charAt(0)).join("").slice(0, 2).toUpperCase() || "??"
-                            const artisanStatus = refData?.artisanStatuses?.find((s) => s.id === artisan.statut_id)
-                            const statutArtisan = artisanStatus?.label || ""
-                            const statutArtisanColor = artisanStatus?.color || null
-
-                            return (
-                              <div className="relative rounded-lg border border-orange-500/70 ring-2 ring-orange-500/50 bg-background/80 p-2 text-xs shadow-sm">
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="icon"
-                                  className="absolute right-1 top-1 h-5 w-5 rounded-full bg-background/80 text-muted-foreground shadow-sm hover:text-destructive z-20"
-                                  onClick={() => handleRemoveSecondArtisan()}
-                                >
-                                  <X className="h-3 w-3" />
-                                </Button>
-                                <div className="flex items-center justify-between gap-2 flex-wrap min-w-0">
-                                  <Avatar photoProfilMetadata={artisan.photoProfilMetadata} initials={artisanInitials} name={artisan.displayName} size={40} className="hidden" />
-                                  <div className="flex items-center gap-1 flex-wrap flex-1 min-w-0">
-                                    <span className="font-semibold text-foreground truncate text-xs min-w-0">{artisanDisplayName}</span>
-                                    {absentArtisanIds.has(artisan.id) && (
-                                      <Badge variant="outline" className="text-[9px] px-1 py-0 bg-orange-100 text-orange-800 border-orange-300 flex-shrink-0">
-                                        Indisponible
-                                      </Badge>
-                                    )}
-                                  </div>
-                                  <div className="flex items-center gap-1 flex-wrap flex-shrink-0 ml-auto">
-                                    {statutArtisan && (
-                                      <Badge variant="outline" className="text-[9px] px-1 py-0 flex-shrink-0" style={statutArtisanColor ? { backgroundColor: hexToRgba(statutArtisanColor, 0.15) || undefined, color: statutArtisanColor, borderColor: statutArtisanColor } : undefined}>
-                                        {statutArtisan}
-                                      </Badge>
-                                    )}
-                                    <Badge variant="default" className="text-[9px] px-1 py-0 bg-orange-500 flex-shrink-0">{formatDistanceKm(artisan.distanceKm)}</Badge>
-                                  </div>
+                <SectionLock isLocked={!canEditIntervention}>
+                  <Collapsible open={isSecondArtisanOpen} onOpenChange={setIsSecondArtisanOpen}>
+                    <Card>
+                      <CollapsibleTrigger asChild>
+                        <CardHeader className="cursor-pointer py-2 px-3 hover:bg-muted/50">
+                          <CardTitle className="flex items-center gap-2 text-xs">
+                            <Users className="h-3 w-3" />
+                            Deuxième artisan
+                            {isSecondArtisanOpen ? <ChevronDown className="ml-auto h-3 w-3" /> : <ChevronRight className="ml-auto h-3 w-3" />}
+                          </CardTitle>
+                        </CardHeader>
+                      </CollapsibleTrigger>
+                      <CollapsibleContent>
+                        <CardContent className="pt-0 px-3 pb-3">
+                          <div className="space-y-3">
+                            {/* Header artisans - même style que colonne gauche */}
+                            <div className="flex items-center justify-between gap-2 flex-shrink-0 pt-[13px] flex-wrap min-w-0">
+                              <div className="flex items-center gap-2 min-w-0 overflow-hidden">
+                                <SearchableBadgeSelect
+                                  label="Métier"
+                                  value={formData.metierSecondArtisanId}
+                                  options={(refData?.metiers || []).map(m => ({
+                                    id: m.id,
+                                    label: m.label,
+                                    color: m.color,
+                                  }))}
+                                  onChange={(value) => handleInputChange("metierSecondArtisanId", value)}
+                                  placeholder="Métier..."
+                                  minWidth="100px"
+                                  hideLabel
+                                  onOpenChange={onPopoverOpenChange}
+                                  searchPlaceholder="Rechercher un métier..."
+                                  emptyText="Aucun métier trouvé"
+                                />
+                                <div className="flex gap-0.5 flex-shrink-0">
+                                  <Button
+                                    type="button"
+                                    variant={secondArtisanDisplayMode === "nom" ? "default" : "ghost"}
+                                    size="sm"
+                                    className="h-5 px-1.5 text-[10px]"
+                                    onClick={() => setSecondArtisanDisplayMode("nom")}
+                                  >
+                                    nom
+                                  </Button>
+                                  <Button
+                                    type="button"
+                                    variant={secondArtisanDisplayMode === "rs" ? "default" : "ghost"}
+                                    size="sm"
+                                    className="h-5 px-1.5 text-[10px]"
+                                    onClick={() => setSecondArtisanDisplayMode("rs")}
+                                  >
+                                    RS
+                                  </Button>
+                                  <Button
+                                    type="button"
+                                    variant={secondArtisanDisplayMode === "tel" ? "default" : "ghost"}
+                                    size="sm"
+                                    className="h-5 px-1.5 text-[10px]"
+                                    onClick={() => setSecondArtisanDisplayMode("tel")}
+                                  >
+                                    tel
+                                  </Button>
                                 </div>
-                                {artisan.telephone && (
-                                  <div className="mt-1 text-[10px] text-muted-foreground truncate">
-                                    📞 {artisan.telephone}
-                                  </div>
-                                )}
                               </div>
-                            )
-                          })()}
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="icon"
+                                className="h-7 w-7 flex-shrink-0"
+                                onClick={(e) => {
+                                  const rect = e.currentTarget.getBoundingClientRect()
+                                  setSecondArtisanSearchPosition({
+                                    x: rect.left,
+                                    y: rect.top,
+                                    width: rect.width,
+                                    height: rect.height
+                                  })
+                                  setShowSecondArtisanSearch(true)
+                                }}
+                                title="Rechercher un artisan"
+                              >
+                                <Search className="h-3.5 w-3.5" />
+                              </Button>
+                            </div>
 
-                          {/* Email sending section for second artisan */}
-                          {selectedSecondArtisanId && selectedSecondArtisanData && (
-                            <div className="flex flex-col gap-1 p-2 bg-orange-50 dark:bg-orange-950/20 rounded-lg border border-orange-200 dark:border-orange-800/50">
-                              {/* Boutons Email */}
-                              <div className="flex gap-1">
-                                <Button
-                                  type="button"
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() => handleOpenDevisEmailModal(selectedSecondArtisanId)}
-                                  className="flex-1 text-[10px] h-7 px-2 border-orange-300 hover:bg-orange-100 dark:border-orange-700 dark:hover:bg-orange-900/30"
-                                >
-                                  <Mail className="h-3 w-3 mr-1" />
-                                  Devis
-                                </Button>
-                                <Button
-                                  type="button"
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() => handleOpenInterventionEmailModal(selectedSecondArtisanId)}
-                                  className="flex-1 text-[10px] h-7 px-2 border-orange-300 hover:bg-orange-100 dark:border-orange-700 dark:hover:bg-orange-900/30"
-                                >
-                                  <Mail className="h-3 w-3 mr-1" />
-                                  Inter.
-                                </Button>
-                              </div>
-                              {/* Boutons WhatsApp */}
-                              {selectedSecondArtisanData.telephone && (
+                            {/* Artisan secondaire sélectionné */}
+                            {selectedSecondArtisanId && selectedSecondArtisanData && (() => {
+                              const artisan = selectedSecondArtisanData
+                              const artisanDisplayName = getArtisanDisplayName(artisan, secondArtisanDisplayMode)
+                              const artisanInitials = artisanDisplayName.split(" ").map((p) => p.charAt(0)).join("").slice(0, 2).toUpperCase() || "??"
+                              const artisanStatus = refData?.artisanStatuses?.find((s) => s.id === artisan.statut_id)
+                              const statutArtisan = artisanStatus?.label || ""
+                              const statutArtisanColor = artisanStatus?.color || null
+
+                              return (
+                                <div className="relative rounded-lg border border-orange-500/70 ring-2 ring-orange-500/50 bg-background/80 p-2 text-xs shadow-sm">
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="icon"
+                                    className="absolute right-1 top-1 h-5 w-5 rounded-full bg-background/80 text-muted-foreground shadow-sm hover:text-destructive z-20"
+                                    onClick={() => handleRemoveSecondArtisan()}
+                                  >
+                                    <X className="h-3 w-3" />
+                                  </Button>
+                                  <div className="flex items-center justify-between gap-2 flex-wrap min-w-0">
+                                    <Avatar photoProfilMetadata={artisan.photoProfilMetadata} initials={artisanInitials} name={artisan.displayName} size={40} className="hidden" />
+                                    <div className="flex items-center gap-1 flex-wrap flex-1 min-w-0">
+                                      <span className="font-semibold text-foreground truncate text-xs min-w-0">{artisanDisplayName}</span>
+                                      {absentArtisanIds.has(artisan.id) && (
+                                        <Badge variant="outline" className="text-[9px] px-1 py-0 bg-orange-100 text-orange-800 border-orange-300 flex-shrink-0">
+                                          Indisponible
+                                        </Badge>
+                                      )}
+                                    </div>
+                                    <div className="flex items-center gap-1 flex-wrap flex-shrink-0 ml-auto">
+                                      {statutArtisan && (
+                                        <Badge variant="outline" className="text-[9px] px-1 py-0 flex-shrink-0" style={statutArtisanColor ? { backgroundColor: hexToRgba(statutArtisanColor, 0.15) || undefined, color: statutArtisanColor, borderColor: statutArtisanColor } : undefined}>
+                                          {statutArtisan}
+                                        </Badge>
+                                      )}
+                                      <Badge variant="default" className="text-[9px] px-1 py-0 bg-orange-500 flex-shrink-0">{formatDistanceKm(artisan.distanceKm)}</Badge>
+                                    </div>
+                                  </div>
+                                  {artisan.telephone && (
+                                    <div className="mt-1 text-[10px] text-muted-foreground truncate">
+                                      📞 {artisan.telephone}
+                                    </div>
+                                  )}
+                                </div>
+                              )
+                            })()}
+
+                            {/* Email sending section for second artisan */}
+                            {selectedSecondArtisanId && selectedSecondArtisanData && (
+                              <div className="flex flex-col gap-1 p-2 bg-orange-50 dark:bg-orange-950/20 rounded-lg border border-orange-200 dark:border-orange-800/50">
+                                {/* Boutons Email */}
                                 <div className="flex gap-1">
                                   <Button
                                     type="button"
                                     variant="outline"
                                     size="sm"
-                                    onClick={() => handleOpenWhatsApp('devis', selectedSecondArtisanId, selectedSecondArtisanData.telephone || '')}
-                                    className="flex-1 text-[10px] h-7 px-2 bg-[#25D366]/10 hover:bg-[#25D366]/20 border-[#25D366]/30 text-[#25D366]"
+                                    onClick={() => handleOpenDevisEmailModal(selectedSecondArtisanId)}
+                                    className="flex-1 text-[10px] h-7 px-2 border-orange-300 hover:bg-orange-100 dark:border-orange-700 dark:hover:bg-orange-900/30"
                                   >
-                                    <MessageCircle className="h-3 w-3 mr-1" />
-                                    WA Devis
+                                    <Mail className="h-3 w-3 mr-1" />
+                                    Devis
                                   </Button>
                                   <Button
                                     type="button"
                                     variant="outline"
                                     size="sm"
-                                    onClick={() => handleOpenWhatsApp('intervention', selectedSecondArtisanId, selectedSecondArtisanData.telephone || '')}
-                                    className="flex-1 text-[10px] h-7 px-2 bg-[#25D366]/10 hover:bg-[#25D366]/20 border-[#25D366]/30 text-[#25D366]"
+                                    onClick={() => handleOpenInterventionEmailModal(selectedSecondArtisanId)}
+                                    className="flex-1 text-[10px] h-7 px-2 border-orange-300 hover:bg-orange-100 dark:border-orange-700 dark:hover:bg-orange-900/30"
                                   >
-                                    <MessageCircle className="h-3 w-3 mr-1" />
-                                    WA Inter.
+                                    <Mail className="h-3 w-3 mr-1" />
+                                    Inter.
                                   </Button>
                                 </div>
-                              )}
-                            </div>
-                          )}
-
-                          {/* Liste des artisans pour sélection (affichée uniquement si pas d'artisan sélectionné) */}
-                          {!selectedSecondArtisanId && (
-                            <div className="max-h-[150px] overflow-y-auto space-y-1 scrollbar-minimal">
-                              {nearbyArtisansSecondMetier
-                                .filter(artisan => artisan.id !== selectedArtisanId) // Exclure l'artisan principal
-                                .slice(0, 5)
-                                .map((artisan) => {
-                                  const artisanDisplayName = getArtisanDisplayName(artisan, secondArtisanDisplayMode)
-                                  const artisanInitials = artisanDisplayName.split(" ").map((p) => p.charAt(0)).join("").slice(0, 2).toUpperCase() || "??"
-                                  const artisanStatus = refData?.artisanStatuses?.find((s) => s.id === artisan.statut_id)
-                                  const statutArtisan = artisanStatus?.label || ""
-                                  const statutArtisanColor = artisanStatus?.color || null
-
-                                  return (
-                                    <div
-                                      key={artisan.id}
-                                      role="button"
-                                      tabIndex={0}
-                                      className="rounded-lg border border-border/60 bg-background/80 p-2 text-xs shadow-sm transition-all cursor-pointer hover:border-orange-500/40"
-                                      onClick={() => handleSelectSecondArtisan(artisan)}
-                                      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); handleSelectSecondArtisan(artisan) } }}
+                                {/* Boutons WhatsApp */}
+                                {selectedSecondArtisanData.telephone && (
+                                  <div className="flex gap-1">
+                                    <Button
+                                      type="button"
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() => handleOpenWhatsApp('devis', selectedSecondArtisanId, selectedSecondArtisanData.telephone || '')}
+                                      className="flex-1 text-[10px] h-7 px-2 bg-[#25D366]/10 hover:bg-[#25D366]/20 border-[#25D366]/30 text-[#25D366]"
                                     >
-                                      <div className="flex items-center justify-between gap-2 flex-wrap w-full min-w-0">
-                                        <Avatar photoProfilMetadata={artisan.photoProfilMetadata} initials={artisanInitials} name={artisan.displayName} size={40} className="hidden" />
-                                        <div className="flex items-center gap-1 flex-wrap flex-1 min-w-0">
-                                          <span className="font-medium text-foreground truncate text-[11px] min-w-0">{artisanDisplayName}</span>
-                                          {absentArtisanIds.has(artisan.id) && (
-                                            <Badge variant="outline" className="text-[9px] px-1 py-0 bg-orange-100 text-orange-800 border-orange-300 flex-shrink-0">
-                                              Indisponible
-                                            </Badge>
-                                          )}
-                                        </div>
-                                        <div className="flex items-center gap-1 flex-wrap flex-shrink-0 ml-auto">
-                                          {statutArtisan && (
-                                            <Badge variant="outline" className="text-[9px] px-1 py-0 flex-shrink-0" style={statutArtisanColor ? { backgroundColor: hexToRgba(statutArtisanColor, 0.15) || undefined, color: statutArtisanColor, borderColor: statutArtisanColor } : undefined}>
-                                              {statutArtisan}
-                                            </Badge>
-                                          )}
-                                          <Badge variant="secondary" className="text-[9px] px-1 py-0 flex-shrink-0">{formatDistanceKm(artisan.distanceKm)}</Badge>
+                                      <MessageCircle className="h-3 w-3 mr-1" />
+                                      WA Devis
+                                    </Button>
+                                    <Button
+                                      type="button"
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() => handleOpenWhatsApp('intervention', selectedSecondArtisanId, selectedSecondArtisanData.telephone || '')}
+                                      className="flex-1 text-[10px] h-7 px-2 bg-[#25D366]/10 hover:bg-[#25D366]/20 border-[#25D366]/30 text-[#25D366]"
+                                    >
+                                      <MessageCircle className="h-3 w-3 mr-1" />
+                                      WA Inter.
+                                    </Button>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+
+                            {/* Liste des artisans pour sélection (affichée uniquement si pas d'artisan sélectionné) */}
+                            {!selectedSecondArtisanId && (
+                              <div className="max-h-[150px] overflow-y-auto space-y-1 scrollbar-minimal">
+                                {nearbyArtisansSecondMetier
+                                  .filter(artisan => artisan.id !== selectedArtisanId) // Exclure l'artisan principal
+                                  .slice(0, 5)
+                                  .map((artisan) => {
+                                    const artisanDisplayName = getArtisanDisplayName(artisan, secondArtisanDisplayMode)
+                                    const artisanInitials = artisanDisplayName.split(" ").map((p) => p.charAt(0)).join("").slice(0, 2).toUpperCase() || "??"
+                                    const artisanStatus = refData?.artisanStatuses?.find((s) => s.id === artisan.statut_id)
+                                    const statutArtisan = artisanStatus?.label || ""
+                                    const statutArtisanColor = artisanStatus?.color || null
+
+                                    return (
+                                      <div
+                                        key={artisan.id}
+                                        role="button"
+                                        tabIndex={0}
+                                        className="rounded-lg border border-border/60 bg-background/80 p-2 text-xs shadow-sm transition-all cursor-pointer hover:border-orange-500/40"
+                                        onClick={() => handleSelectSecondArtisan(artisan)}
+                                        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); handleSelectSecondArtisan(artisan) } }}
+                                      >
+                                        <div className="flex items-center justify-between gap-2 flex-wrap w-full min-w-0">
+                                          <Avatar photoProfilMetadata={artisan.photoProfilMetadata} initials={artisanInitials} name={artisan.displayName} size={40} className="hidden" />
+                                          <div className="flex items-center gap-1 flex-wrap flex-1 min-w-0">
+                                            <span className="font-medium text-foreground truncate text-[11px] min-w-0">{artisanDisplayName}</span>
+                                            {absentArtisanIds.has(artisan.id) && (
+                                              <Badge variant="outline" className="text-[9px] px-1 py-0 bg-orange-100 text-orange-800 border-orange-300 flex-shrink-0">
+                                                Indisponible
+                                              </Badge>
+                                            )}
+                                          </div>
+                                          <div className="flex items-center gap-1 flex-wrap flex-shrink-0 ml-auto">
+                                            {statutArtisan && (
+                                              <Badge variant="outline" className="text-[9px] px-1 py-0 flex-shrink-0" style={statutArtisanColor ? { backgroundColor: hexToRgba(statutArtisanColor, 0.15) || undefined, color: statutArtisanColor, borderColor: statutArtisanColor } : undefined}>
+                                                {statutArtisan}
+                                              </Badge>
+                                            )}
+                                            <Badge variant="secondary" className="text-[9px] px-1 py-0 flex-shrink-0">{formatDistanceKm(artisan.distanceKm)}</Badge>
+                                          </div>
                                         </div>
                                       </div>
-                                    </div>
-                                  )
-                                })}
-                            </div>
-                          )}
+                                    )
+                                  })}
+                              </div>
+                            )}
 
-                          {/* Consigne pour le deuxième artisan */}
-                          <div>
-                            <Label htmlFor="consigne_second_artisan" className="text-[10px]">Consigne 2ème artisan</Label>
-                            <Textarea
-                              id="consigne_second_artisan"
-                              value={formData.consigne_second_artisan}
-                              onChange={(e) => handleInputChange("consigne_second_artisan", e.target.value)}
-                              placeholder="Consignes spécifiques..."
-                              className="min-h-[50px] text-xs mt-1 resize-none"
-                            />
-                          </div>
-
-                          {/* Coûts du 2ème artisan */}
-                          <div className="grid grid-cols-3 gap-2">
+                            {/* Consigne pour le deuxième artisan */}
                             <div>
-                              <Label htmlFor="coutSSTSecondArtisan" className="text-[10px]">Coût SST</Label>
-                              <Input
-                                id="coutSSTSecondArtisan"
-                                type="number"
-                                step="0.01"
-                                min="0"
-                                value={formData.coutSSTSecondArtisan}
-                                onChange={(e) => handleInputChange("coutSSTSecondArtisan", e.target.value)}
-                                placeholder="0.00 €"
-                                className="h-7 text-xs mt-1"
+                              <Label htmlFor="consigne_second_artisan" className="text-[10px]">Consigne 2ème artisan</Label>
+                              <Textarea
+                                id="consigne_second_artisan"
+                                value={formData.consigne_second_artisan}
+                                onChange={(e) => handleInputChange("consigne_second_artisan", e.target.value)}
+                                placeholder="Consignes spécifiques..."
+                                className="min-h-[50px] text-xs mt-1 resize-none"
                               />
                             </div>
-                            <div>
-                              <Label htmlFor="coutMaterielSecondArtisan" className="text-[10px]">Coût mat.</Label>
-                              <Input
-                                id="coutMaterielSecondArtisan"
-                                type="number"
-                                step="0.01"
-                                min="0"
-                                value={formData.coutMaterielSecondArtisan}
-                                onChange={(e) => handleInputChange("coutMaterielSecondArtisan", e.target.value)}
-                                placeholder="0.00 €"
-                                className="h-7 text-xs mt-1"
-                              />
-                            </div>
-                            <div>
-                              <Label className="text-[10px]">Marge 2</Label>
-                              <div className="flex h-7 w-full rounded-md border border-input bg-muted px-2 py-1 text-xs shadow-sm items-center mt-1">
-                                <span className={cn("font-medium", getMarginColorClass(margeSecondArtisan.marginPercentage))}>
-                                  {formatMarginPercentage(margeSecondArtisan.marginPercentage)}
-                                </span>
+
+                            {/* Coûts du 2ème artisan */}
+                            <div className="grid grid-cols-3 gap-2">
+                              <div>
+                                <Label htmlFor="coutSSTSecondArtisan" className="text-[10px]">Coût SST</Label>
+                                <Input
+                                  id="coutSSTSecondArtisan"
+                                  type="number"
+                                  step="0.01"
+                                  min="0"
+                                  value={formData.coutSSTSecondArtisan}
+                                  onChange={(e) => handleInputChange("coutSSTSecondArtisan", e.target.value)}
+                                  placeholder="0.00 €"
+                                  className="h-7 text-xs mt-1"
+                                />
+                              </div>
+                              <div>
+                                <Label htmlFor="coutMaterielSecondArtisan" className="text-[10px]">Coût mat.</Label>
+                                <Input
+                                  id="coutMaterielSecondArtisan"
+                                  type="number"
+                                  step="0.01"
+                                  min="0"
+                                  value={formData.coutMaterielSecondArtisan}
+                                  onChange={(e) => handleInputChange("coutMaterielSecondArtisan", e.target.value)}
+                                  placeholder="0.00 €"
+                                  className="h-7 text-xs mt-1"
+                                />
+                              </div>
+                              <div>
+                                <Label className="text-[10px]">Marge 2</Label>
+                                <div className="flex h-7 w-full rounded-md border border-input bg-muted px-2 py-1 text-xs shadow-sm items-center mt-1">
+                                  <span className={cn("font-medium", getMarginColorClass(margeSecondArtisan.marginPercentage))}>
+                                    {formatMarginPercentage(margeSecondArtisan.marginPercentage)}
+                                  </span>
+                                </div>
                               </div>
                             </div>
                           </div>
-                        </div>
-                      </CardContent>
-                    </CollapsibleContent>
-                  </Card>
-                </Collapsible>
+                        </CardContent>
+                      </CollapsibleContent>
+                    </Card>
+                  </Collapsible>
+                </SectionLock>
 
                 {/* Commentaires - ouvert par défaut */}
                 <Collapsible open={isCommentsOpen} onOpenChange={setIsCommentsOpen}>
@@ -3006,89 +3014,17 @@ export function InterventionEditForm({
                 </Collapsible>
 
                 {/* Sous-statut personnalisé */}
-                <Collapsible open={isSousStatutOpen} onOpenChange={setIsSousStatutOpen}>
-                  <Card>
-                    <CollapsibleTrigger asChild>
-                      <CardHeader className="cursor-pointer py-2 px-3 hover:bg-muted/50">
-                        <CardTitle className="flex items-center gap-2 text-xs">
-                          <Palette className="h-3 w-3" />
-                          Sous-statut
-                          {formData.sousStatutText && (
-                            <span
-                              className="ml-2 text-[10px] font-medium px-1.5 py-0.5 rounded"
-                              style={{
-                                color: formData.sousStatutTextColor,
-                                backgroundColor: formData.sousStatutBgColor !== 'transparent' ? formData.sousStatutBgColor : undefined
-                              }}
-                            >
-                              {formData.sousStatutText}
-                            </span>
-                          )}
-                          {isSousStatutOpen ? <ChevronDown className="ml-auto h-3 w-3" /> : <ChevronRight className="ml-auto h-3 w-3" />}
-                        </CardTitle>
-                      </CardHeader>
-                    </CollapsibleTrigger>
-                    <CollapsibleContent>
-                      <CardContent className="pt-0 px-3 pb-3">
-                        <div className="space-y-3">
-                          <p className="text-[10px] text-muted-foreground">
-                            Ajoutez un sous-statut personnalisé pour cette intervention (max 25 caractères).
-                          </p>
-                          <div>
-                            <Label htmlFor="sousStatutText" className="text-[10px]">Texte du sous-statut</Label>
-                            <Input
-                              id="sousStatutText"
-                              value={formData.sousStatutText}
-                              onChange={(e) => handleInputChange("sousStatutText", e.target.value)}
-                              placeholder="Ex: Devis supp, Urgent..."
-                              maxLength={25}
-                              className="h-7 text-xs mt-1"
-                            />
-                          </div>
-                          <div className="flex items-center gap-3">
-                            <div className="flex-1">
-                              <Label htmlFor="sousStatutTextColor" className="text-[10px]">Couleur du texte</Label>
-                              <div className="flex items-center gap-2 mt-1">
-                                <input
-                                  type="color"
-                                  id="sousStatutTextColor"
-                                  value={formData.sousStatutTextColor}
-                                  onChange={(e) => handleInputChange("sousStatutTextColor", e.target.value)}
-                                  className="h-7 w-12 rounded border border-input cursor-pointer p-0.5"
-                                  title="Couleur du texte"
-                                />
-                                <span className="text-[10px] text-muted-foreground">{formData.sousStatutTextColor}</span>
-                              </div>
-                            </div>
-                            <div className="flex-1">
-                              <Label htmlFor="sousStatutBgColor" className="text-[10px]">Surlignage</Label>
-                              <div className="flex items-center gap-2 mt-1">
-                                <input
-                                  type="color"
-                                  id="sousStatutBgColor"
-                                  value={formData.sousStatutBgColor === 'transparent' ? '#ffffff' : formData.sousStatutBgColor}
-                                  onChange={(e) => handleInputChange("sousStatutBgColor", e.target.value)}
-                                  className="h-7 w-12 rounded border border-input cursor-pointer p-0.5"
-                                  title="Couleur de surlignage"
-                                />
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="sm"
-                                  className="h-6 px-1.5 text-[9px]"
-                                  onClick={() => handleInputChange("sousStatutBgColor", "transparent")}
-                                  title="Supprimer le surlignage"
-                                >
-                                  <X className="h-3 w-3" />
-                                </Button>
-                              </div>
-                            </div>
-                          </div>
-                          {formData.sousStatutText && (
-                            <div className="p-2 bg-muted/50 rounded-lg border border-border/50">
-                              <p className="text-[10px] text-muted-foreground mb-1">Aperçu :</p>
+                <SectionLock isLocked={!canEditIntervention}>
+                  <Collapsible open={isSousStatutOpen} onOpenChange={setIsSousStatutOpen}>
+                    <Card>
+                      <CollapsibleTrigger asChild>
+                        <CardHeader className="cursor-pointer py-2 px-3 hover:bg-muted/50">
+                          <CardTitle className="flex items-center gap-2 text-xs">
+                            <Palette className="h-3 w-3" />
+                            Sous-statut
+                            {formData.sousStatutText && (
                               <span
-                                className="text-sm font-medium px-1.5 py-0.5 rounded"
+                                className="ml-2 text-[10px] font-medium px-1.5 py-0.5 rounded"
                                 style={{
                                   color: formData.sousStatutTextColor,
                                   backgroundColor: formData.sousStatutBgColor !== 'transparent' ? formData.sousStatutBgColor : undefined
@@ -3096,29 +3032,103 @@ export function InterventionEditForm({
                               >
                                 {formData.sousStatutText}
                               </span>
+                            )}
+                            {isSousStatutOpen ? <ChevronDown className="ml-auto h-3 w-3" /> : <ChevronRight className="ml-auto h-3 w-3" />}
+                          </CardTitle>
+                        </CardHeader>
+                      </CollapsibleTrigger>
+                      <CollapsibleContent>
+                        <CardContent className="pt-0 px-3 pb-3">
+                          <div className="space-y-3">
+                            <p className="text-[10px] text-muted-foreground">
+                              Ajoutez un sous-statut personnalisé pour cette intervention (max 25 caractères).
+                            </p>
+                            <div>
+                              <Label htmlFor="sousStatutText" className="text-[10px]">Texte du sous-statut</Label>
+                              <Input
+                                id="sousStatutText"
+                                value={formData.sousStatutText}
+                                onChange={(e) => handleInputChange("sousStatutText", e.target.value)}
+                                placeholder="Ex: Devis supp, Urgent..."
+                                maxLength={25}
+                                className="h-7 text-xs mt-1"
+                              />
                             </div>
-                          )}
-                          {formData.sousStatutText && (
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              className="h-6 text-[10px] text-destructive hover:text-destructive"
-                              onClick={() => {
-                                handleInputChange("sousStatutText", "")
-                                handleInputChange("sousStatutTextColor", "#000000")
-                                handleInputChange("sousStatutBgColor", "transparent")
-                              }}
-                            >
-                              <X className="h-3 w-3 mr-1" />
-                              Effacer le sous-statut
-                            </Button>
-                          )}
-                        </div>
-                      </CardContent>
-                    </CollapsibleContent>
-                  </Card>
-                </Collapsible>
+                            <div className="flex items-center gap-3">
+                              <div className="flex-1">
+                                <Label htmlFor="sousStatutTextColor" className="text-[10px]">Couleur du texte</Label>
+                                <div className="flex items-center gap-2 mt-1">
+                                  <input
+                                    type="color"
+                                    id="sousStatutTextColor"
+                                    value={formData.sousStatutTextColor}
+                                    onChange={(e) => handleInputChange("sousStatutTextColor", e.target.value)}
+                                    className="h-7 w-12 rounded border border-input cursor-pointer p-0.5"
+                                    title="Couleur du texte"
+                                  />
+                                  <span className="text-[10px] text-muted-foreground">{formData.sousStatutTextColor}</span>
+                                </div>
+                              </div>
+                              <div className="flex-1">
+                                <Label htmlFor="sousStatutBgColor" className="text-[10px]">Surlignage</Label>
+                                <div className="flex items-center gap-2 mt-1">
+                                  <input
+                                    type="color"
+                                    id="sousStatutBgColor"
+                                    value={formData.sousStatutBgColor === 'transparent' ? '#ffffff' : formData.sousStatutBgColor}
+                                    onChange={(e) => handleInputChange("sousStatutBgColor", e.target.value)}
+                                    className="h-7 w-12 rounded border border-input cursor-pointer p-0.5"
+                                    title="Couleur de surlignage"
+                                  />
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-6 px-1.5 text-[9px]"
+                                    onClick={() => handleInputChange("sousStatutBgColor", "transparent")}
+                                    title="Supprimer le surlignage"
+                                  >
+                                    <X className="h-3 w-3" />
+                                  </Button>
+                                </div>
+                              </div>
+                            </div>
+                            {formData.sousStatutText && (
+                              <div className="p-2 bg-muted/50 rounded-lg border border-border/50">
+                                <p className="text-[10px] text-muted-foreground mb-1">Aperçu :</p>
+                                <span
+                                  className="text-sm font-medium px-1.5 py-0.5 rounded"
+                                  style={{
+                                    color: formData.sousStatutTextColor,
+                                    backgroundColor: formData.sousStatutBgColor !== 'transparent' ? formData.sousStatutBgColor : undefined
+                                  }}
+                                >
+                                  {formData.sousStatutText}
+                                </span>
+                              </div>
+                            )}
+                            {formData.sousStatutText && (
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                className="h-6 text-[10px] text-destructive hover:text-destructive"
+                                onClick={() => {
+                                  handleInputChange("sousStatutText", "")
+                                  handleInputChange("sousStatutTextColor", "#000000")
+                                  handleInputChange("sousStatutBgColor", "transparent")
+                                }}
+                              >
+                                <X className="h-3 w-3 mr-1" />
+                                Effacer le sous-statut
+                              </Button>
+                            )}
+                          </div>
+                        </CardContent>
+                      </CollapsibleContent>
+                    </Card>
+                  </Collapsible>
+                </SectionLock>
               </div>
             </div>
           </div>
@@ -3133,7 +3143,6 @@ export function InterventionEditForm({
             isSubmitting={isSubmitting}
           />
 
-          {/* Email Edit Modals */}
           {effectiveSelectedArtisanId && (
             <>
               <EmailEditModal
@@ -3159,7 +3168,6 @@ export function InterventionEditForm({
         </fieldset>
         <div ref={artisanSearchContainerRef} />
       </form>
-      {/* Modal de recherche d'artisan principal */}
       <ArtisanSearchModal
         open={showArtisanSearch}
         onClose={() => {
@@ -3174,7 +3182,6 @@ export function InterventionEditForm({
         metier_id={formData.metier_id}
       />
 
-      {/* Modal de recherche d'artisan secondaire */}
       <ArtisanSearchModal
         open={showSecondArtisanSearch}
         onClose={() => {

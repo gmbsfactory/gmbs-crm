@@ -1154,11 +1154,10 @@ export function NewInterventionForm({
       toast.success("Intervention créée")
       onSuccess?.(created)
 
-      if (onCancel) {
-        setTimeout(() => {
-          onCancel()
-        }, 150)
-      }
+      // onCancel() is redundant here and triggers the UnsavedChangesDialog
+      // because hasUnsavedChanges is still true and isSubmitting is set back to false soon after.
+      // onSuccess already handles the modal closure in the parent component.
+
     } catch (error) {
       console.error("Erreur lors de la création:", error)
       toast.error("Erreur lors de la création de l'intervention")
