@@ -462,14 +462,14 @@ export function ArtisanModalContent({
     if (suggestionBlurTimeoutRef.current) {
       window.clearTimeout(suggestionBlurTimeoutRef.current)
     }
-    
+
     const parts = suggestion.label.split(',').map(p => p.trim())
     const postalMatch = suggestion.label.match(/\b(\d{5})\b/)
-    
+
     let street = parts[0] || suggestion.label
     let postalCode = postalMatch?.[1] || ""
     let city = ""
-    
+
     for (const part of parts) {
       if (postalMatch && part.includes(postalMatch[1])) {
         const cityMatch = part.replace(postalMatch[1], '').trim()
@@ -484,7 +484,7 @@ export function ArtisanModalContent({
     setValue("ville_siege_social", city)
     setValue("intervention_latitude", suggestion.lat)
     setValue("intervention_longitude", suggestion.lng)
-    
+
     setAddressQuery(suggestion.label)
     clearSuggestions()
     setShowSuggestions(false)
@@ -565,17 +565,17 @@ export function ArtisanModalContent({
         console.log("[ArtisanModalContent] Skipping reset - same artisan already initialized:", artisan.id)
         return
       }
-      
+
       console.log("[ArtisanModalContent] Initializing form for artisan:", artisan.id)
       const formValues = mapArtisanToForm(artisan)
       console.log("[ArtisanModalContent] Mapped form values:", formValues)
-      
+
       // Marquer immédiatement comme initialisé pour éviter les doubles resets
       initializedArtisanIdRef.current = artisan.id
-      
+
       // Réinitialiser le formulaire avec les nouvelles valeurs et réinitialiser isDirty
       reset(formValues, { keepDefaultValues: false, keepDirtyValues: false })
-      
+
       // Mettre à jour l'adresse query pour le géocodage
       const artisanAny = artisan as any
       const fullAddress = [
@@ -586,7 +586,7 @@ export function ArtisanModalContent({
       if (fullAddress) {
         setAddressQuery(fullAddress)
       }
-      
+
       // Marquer le formulaire comme initialisé après un court délai pour laisser reset() se terminer
       setTimeout(() => {
         console.log("[ArtisanModalContent] Form initialized, dirtyFields should be empty now")
@@ -596,7 +596,7 @@ export function ArtisanModalContent({
       setIsFormInitialized(false)
       initializedArtisanIdRef.current = null
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [artisan])
 
   // Réinitialiser le flag quand l'artisan change
@@ -673,7 +673,7 @@ export function ArtisanModalContent({
         description: "Les informations de l'artisan ont été enregistrées.",
       })
       reset(values)
-      
+
       // Fermer le modal après sauvegarde réussie
       shouldCloseAfterSave.current = false
       onClose()
@@ -852,7 +852,7 @@ export function ArtisanModalContent({
       toast.error("Veuillez renseigner les dates de début et de fin")
       return
     }
-    
+
     try {
       await artisansApi.createAbsence(artisanId, {
         start_date: newAbsence.start_date,
@@ -988,8 +988,8 @@ export function ArtisanModalContent({
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
-        if (showUnsavedDialog) {
-          // Laisser UnsavedChangesDialog gérer Escape
+        if (showUnsavedDialog || isStatusReasonModalOpen) {
+          // Laisser UnsavedChangesDialog ou StatusReasonModal gérer Escape
           return
         }
         event.preventDefault()
@@ -1002,7 +1002,7 @@ export function ArtisanModalContent({
     return () => {
       document.removeEventListener("keydown", handleKeyDown, true)
     }
-  }, [handleCancel, showUnsavedDialog])
+  }, [handleCancel, showUnsavedDialog, isStatusReasonModalOpen])
 
   // Raccourci clavier Cmd/Ctrl+Enter pour enregistrer
   const { shortcutHint } = useSubmitShortcut({ formRef, isSubmitting: isSaving })
@@ -1055,7 +1055,7 @@ export function ArtisanModalContent({
                         )}
                         onClick={() => toggleMetier(option.id)}
                       >
-                        <span 
+                        <span
                           className="inline-flex items-center justify-center rounded-full px-2.5 py-0.5 text-xs font-semibold min-w-[80px]"
                           style={{
                             backgroundColor: bgColor,
@@ -1081,9 +1081,9 @@ export function ArtisanModalContent({
                   const bgColor = option.color || "#6b7280"
                   const textColor = getReadableTextColor(bgColor)
                   return (
-                    <Badge 
-                      key={option.id} 
-                      variant="secondary" 
+                    <Badge
+                      key={option.id}
+                      variant="secondary"
                       className="text-xs px-2 py-0.5 h-auto border-0 font-semibold"
                       style={{
                         backgroundColor: bgColor,
@@ -1091,9 +1091,9 @@ export function ArtisanModalContent({
                       }}
                     >
                       {option.label}
-                      <button 
-                        type="button" 
-                        className="ml-1 focus:outline-none opacity-70 hover:opacity-100" 
+                      <button
+                        type="button"
+                        className="ml-1 focus:outline-none opacity-70 hover:opacity-100"
                         style={{ color: textColor }}
                         onClick={() => toggleMetier(option.id)}
                       >
@@ -1258,438 +1258,565 @@ export function ArtisanModalContent({
                   </div>
                 </div>
               ) : showStats ? (
-              /* ========== VUE STATISTIQUES ========== */
-              <div 
-                className="h-full px-4 py-3 md:px-6"
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: 'repeat(8, 1fr)',
-                  gridTemplateRows: 'repeat(7, 1fr)',
-                  gap: '12px',
-                }}
-              >
-                {/* DIV1: Finances (col 1-3, row 1-7) */}
-                <div 
-                  className="overflow-hidden"
+                /* ========== VUE STATISTIQUES ========== */
+                <div
+                  className="h-full px-4 py-3 md:px-6"
                   style={{
-                    gridColumn: 'span 3 / span 3',
-                    gridRow: 'span 7 / span 7',
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(8, 1fr)',
+                    gridTemplateRows: 'repeat(7, 1fr)',
+                    gap: '12px',
                   }}
                 >
-                  <ArtisanFinancesSection interventions={artisanInterventions} artisanId={artisanId} />
+                  {/* DIV1: Finances (col 1-3, row 1-7) */}
+                  <div
+                    className="overflow-hidden"
+                    style={{
+                      gridColumn: 'span 3 / span 3',
+                      gridRow: 'span 7 / span 7',
+                    }}
+                  >
+                    <ArtisanFinancesSection interventions={artisanInterventions} artisanId={artisanId} />
+                  </div>
+
+                  {/* DIV2: Interventions (col 4-8, row 1-7) */}
+                  <div
+                    className="overflow-hidden"
+                    style={{
+                      gridColumn: 'span 5 / span 5',
+                      gridColumnStart: 4,
+                      gridRow: 'span 7 / span 7',
+                    }}
+                  >
+                    <ArtisanInterventionsTable artisanId={artisanId} enableInternalScroll />
+                  </div>
                 </div>
-
-                {/* DIV2: Interventions (col 4-8, row 1-7) */}
-                <div 
-                  className="overflow-hidden"
-                  style={{
-                    gridColumn: 'span 5 / span 5',
-                    gridColumnStart: 4,
-                    gridRow: 'span 7 / span 7',
-                  }}
-                >
-                  <ArtisanInterventionsTable artisanId={artisanId} enableInternalScroll />
-                </div>
-              </div>
-            ) : (
-              /* ========== VUE INFORMATIONS (par défaut) ========== */
-              <div className="flex gap-4 h-full px-4 py-3 md:px-6">
-                {/* ===== COLONNE GAUCHE - Scroll indépendant ===== */}
-                <div className="flex-1 min-w-0 overflow-y-auto min-h-0 scrollbar-minimal">
-                  <div className="space-y-4 pb-4">
-                    {/* Informations de l'artisan */}
-                    <Card>
-                      <CardHeader className="py-3 px-4">
-                        <div className="flex items-center justify-between">
-                          <CardTitle className="flex items-center gap-2 text-sm">
-                            <User className="h-4 w-4" />
-                            Informations de l&apos;artisan
-                          </CardTitle>
-                          <div className="flex items-center gap-2">
-                            <span className="text-[10px] uppercase text-muted-foreground">Dossier</span>
-                            {dossierBadge}
-                            {isDirty && (
-                              <Badge variant="outline" className="border-amber-300 bg-amber-100 text-amber-700 text-[10px]">
-                                Non enregistré
-                              </Badge>
-                            )}
+              ) : (
+                /* ========== VUE INFORMATIONS (par défaut) ========== */
+                <div className="flex gap-4 h-full px-4 py-3 md:px-6">
+                  {/* ===== COLONNE GAUCHE - Scroll indépendant ===== */}
+                  <div className="flex-1 min-w-0 overflow-y-auto min-h-0 scrollbar-minimal">
+                    <div className="space-y-4 pb-4">
+                      {/* Informations de l'artisan */}
+                      <Card>
+                        <CardHeader className="py-3 px-4">
+                          <div className="flex items-center justify-between">
+                            <CardTitle className="flex items-center gap-2 text-sm">
+                              <User className="h-4 w-4" />
+                              Informations de l&apos;artisan
+                            </CardTitle>
+                            <div className="flex items-center gap-2">
+                              <span className="text-[10px] uppercase text-muted-foreground">Dossier</span>
+                              {dossierBadge}
+                              {isDirty && (
+                                <Badge variant="outline" className="border-amber-300 bg-amber-100 text-amber-700 text-[10px]">
+                                  Non enregistré
+                                </Badge>
+                              )}
+                            </div>
                           </div>
-                        </div>
-                      </CardHeader>
-                      <CardContent className="px-4 pb-4 pt-0 space-y-3">
-                        <div className="grid grid-cols-2 gap-2">
+                        </CardHeader>
+                        <CardContent className="px-4 pb-4 pt-0 space-y-3">
+                          <div className="grid grid-cols-2 gap-2">
+                            <div className="space-y-1">
+                              <Label htmlFor="prenom" className={labelClass}>Prénom</Label>
+                              <Input id="prenom" placeholder="Prénom" className={inputClass} {...register("prenom")} />
+                            </div>
+                            <div className="space-y-1">
+                              <Label htmlFor="nom" className={labelClass}>Nom</Label>
+                              <Input id="nom" placeholder="Nom" className={inputClass} {...register("nom")} />
+                            </div>
+                          </div>
+
                           <div className="space-y-1">
-                            <Label htmlFor="prenom" className={labelClass}>Prénom</Label>
-                            <Input id="prenom" placeholder="Prénom" className={inputClass} {...register("prenom")} />
+                            <Label htmlFor="raison_sociale" className={labelClass}>Raison sociale</Label>
+                            <Input id="raison_sociale" placeholder="Nom de l'entreprise" className={inputClass} {...register("raison_sociale")} />
                           </div>
+
+                          <div className="grid grid-cols-2 gap-2">
+                            <div className="space-y-1">
+                              <Label htmlFor="telephone" className={labelClass}>Téléphone</Label>
+                              <Input id="telephone" placeholder="06 00 00 00 00" className={inputClass} {...register("telephone")} />
+                            </div>
+                            <div className="space-y-1">
+                              <Label htmlFor="telephone2" className={labelClass}>Tél. secondaire</Label>
+                              <Input id="telephone2" placeholder="Optionnel" className={inputClass} {...register("telephone2")} />
+                            </div>
+                          </div>
+
                           <div className="space-y-1">
-                            <Label htmlFor="nom" className={labelClass}>Nom</Label>
-                            <Input id="nom" placeholder="Nom" className={inputClass} {...register("nom")} />
+                            <Label htmlFor="email" className={labelClass}>Email</Label>
+                            <Input id="email" type="email" placeholder="contact@email.com" className={inputClass} {...register("email")} />
                           </div>
-                        </div>
 
-                        <div className="space-y-1">
-                          <Label htmlFor="raison_sociale" className={labelClass}>Raison sociale</Label>
-                          <Input id="raison_sociale" placeholder="Nom de l'entreprise" className={inputClass} {...register("raison_sociale")} />
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-2">
+                          {/* Adresse du siège social avec géocodage */}
                           <div className="space-y-1">
-                            <Label htmlFor="telephone" className={labelClass}>Téléphone</Label>
-                            <Input id="telephone" placeholder="06 00 00 00 00" className={inputClass} {...register("telephone")} />
-                          </div>
-                          <div className="space-y-1">
-                            <Label htmlFor="telephone2" className={labelClass}>Tél. secondaire</Label>
-                            <Input id="telephone2" placeholder="Optionnel" className={inputClass} {...register("telephone2")} />
-                          </div>
-                        </div>
-
-                        <div className="space-y-1">
-                          <Label htmlFor="email" className={labelClass}>Email</Label>
-                          <Input id="email" type="email" placeholder="contact@email.com" className={inputClass} {...register("email")} />
-                        </div>
-
-                        {/* Adresse du siège social avec géocodage */}
-                        <div className="space-y-1">
-                          <Label className={labelClass}>Adresse du siège social</Label>
-                          <div className="relative">
-                            <Input
-                              placeholder="Rechercher une adresse..."
-                              value={addressQuery}
-                              className={inputClass}
-                              onChange={(e) => {
-                                setAddressQuery(e.target.value)
-                                setValue("adresse_siege_social", e.target.value)
-                                setValue("intervention_latitude", null)
-                                setValue("intervention_longitude", null)
-                                setShowSuggestions(true)
-                              }}
-                              onFocus={() => setShowSuggestions(true)}
-                              onBlur={() => {
-                                suggestionBlurTimeoutRef.current = window.setTimeout(() => {
-                                  setShowSuggestions(false)
-                                }, 150)
-                              }}
-                            />
-                            {isSuggesting && (
-                              <Loader2 className="absolute right-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 animate-spin text-muted-foreground" />
-                            )}
-                            {showSuggestions && addressSuggestions.length > 0 && (
-                              <div className="absolute z-20 mt-1 max-h-40 w-full overflow-auto rounded-lg border border-border bg-popover shadow-xl">
-                                <ul className="divide-y divide-border/50 text-xs">
-                                  {addressSuggestions.map((suggestion) => (
-                                    <li key={`${suggestion.label}-${suggestion.lat}-${suggestion.lng}`}>
-                                      <button
-                                        type="button"
-                                        className="w-full px-3 py-2 text-left hover:bg-accent/50 transition-colors text-foreground"
-                                        onMouseDown={(e) => e.preventDefault()}
-                                        onClick={() => handleSuggestionSelect(suggestion)}
-                                      >
-                                        <span className="flex items-center gap-2">
-                                          <MapPin className="h-3.5 w-3.5 text-primary shrink-0" />
-                                          <span className="truncate">{suggestion.label}</span>
-                                        </span>
-                                      </button>
-                                    </li>
-                                  ))}
-                                </ul>
+                            <Label className={labelClass}>Adresse du siège social</Label>
+                            <div className="relative">
+                              <Input
+                                placeholder="Rechercher une adresse..."
+                                value={addressQuery}
+                                className={inputClass}
+                                onChange={(e) => {
+                                  setAddressQuery(e.target.value)
+                                  setValue("adresse_siege_social", e.target.value)
+                                  setValue("intervention_latitude", null)
+                                  setValue("intervention_longitude", null)
+                                  setShowSuggestions(true)
+                                }}
+                                onFocus={() => setShowSuggestions(true)}
+                                onBlur={() => {
+                                  suggestionBlurTimeoutRef.current = window.setTimeout(() => {
+                                    setShowSuggestions(false)
+                                  }, 150)
+                                }}
+                              />
+                              {isSuggesting && (
+                                <Loader2 className="absolute right-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 animate-spin text-muted-foreground" />
+                              )}
+                              {showSuggestions && addressSuggestions.length > 0 && (
+                                <div className="absolute z-20 mt-1 max-h-40 w-full overflow-auto rounded-lg border border-border bg-popover shadow-xl">
+                                  <ul className="divide-y divide-border/50 text-xs">
+                                    {addressSuggestions.map((suggestion) => (
+                                      <li key={`${suggestion.label}-${suggestion.lat}-${suggestion.lng}`}>
+                                        <button
+                                          type="button"
+                                          className="w-full px-3 py-2 text-left hover:bg-accent/50 transition-colors text-foreground"
+                                          onMouseDown={(e) => e.preventDefault()}
+                                          onClick={() => handleSuggestionSelect(suggestion)}
+                                        >
+                                          <span className="flex items-center gap-2">
+                                            <MapPin className="h-3.5 w-3.5 text-primary shrink-0" />
+                                            <span className="truncate">{suggestion.label}</span>
+                                          </span>
+                                        </button>
+                                      </li>
+                                    ))}
+                                  </ul>
+                                </div>
+                              )}
+                            </div>
+                            <div className="grid grid-cols-2 gap-1.5 mt-1.5">
+                              <Input
+                                id="code_postal_siege_social"
+                                placeholder="Code postal"
+                                className={inputClass}
+                                {...register("code_postal_siege_social")}
+                              />
+                              <Input
+                                id="ville_siege_social"
+                                placeholder="Ville"
+                                className={inputClass}
+                                {...register("ville_siege_social")}
+                              />
+                            </div>
+                            {watchedLat && watchedLng && (
+                              <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 mt-1.5">
+                                <CheckCircle2 className="h-3 w-3 text-green-600 dark:text-green-400 shrink-0" />
+                                <span className="text-xs text-green-700 dark:text-green-300 font-medium">GPS:</span>
+                                <span className="text-xs text-green-600 dark:text-green-400 font-mono">
+                                  {watchedLat.toFixed(5)}, {watchedLng.toFixed(5)}
+                                </span>
                               </div>
                             )}
                           </div>
-                          <div className="grid grid-cols-2 gap-1.5 mt-1.5">
-                            <Input
-                              id="code_postal_siege_social"
-                              placeholder="Code postal"
-                              className={inputClass}
-                              {...register("code_postal_siege_social")}
-                            />
-                            <Input
-                              id="ville_siege_social"
-                              placeholder="Ville"
-                              className={inputClass}
-                              {...register("ville_siege_social")}
-                            />
-                          </div>
-                          {watchedLat && watchedLng && (
-                            <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 mt-1.5">
-                              <CheckCircle2 className="h-3 w-3 text-green-600 dark:text-green-400 shrink-0" />
-                              <span className="text-xs text-green-700 dark:text-green-300 font-medium">GPS:</span>
-                              <span className="text-xs text-green-600 dark:text-green-400 font-mono">
-                                {watchedLat.toFixed(5)}, {watchedLng.toFixed(5)}
-                              </span>
-                            </div>
-                          )}
-                        </div>
-                      </CardContent>
-                    </Card>
+                        </CardContent>
+                      </Card>
 
-                    {/* Attribution */}
-                    <Card>
-                      <CardHeader className="py-3 px-4">
-                        <CardTitle className="flex items-center gap-2 text-sm">
-                          <UserCheck className="h-4 w-4" />
-                          Attribution
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent className="px-4 pb-4 pt-0">
-                        <div className="grid grid-cols-2 gap-2 items-end">
-                          {/* Sélecteur de gestionnaire avec badge */}
-                          <div className="space-y-1">
-                            <Label className={labelClass}>Attribué à</Label>
-                            <Controller
-                              name="gestionnaire_id"
-                              control={control}
-                              render={({ field }) => {
-                                const assignedUser = referenceData?.users?.find(u => u.id === field.value)
-                                return (
-                                  <div className="flex items-center gap-2">
-                                    <Popover>
-                                      <PopoverTrigger asChild>
-                                        <button 
-                                          type="button" 
-                                          className="flex items-center justify-center h-7 w-7 cursor-pointer group rounded-full"
-                                        >
-                                          <GestionnaireBadge
-                                            firstname={assignedUser?.firstname}
-                                            lastname={assignedUser?.lastname}
-                                            color={assignedUser?.color}
-                                            avatarUrl={assignedUser?.avatar_url}
-                                            size="sm"
-                                            className="transition-transform group-hover:scale-110 h-7 w-7"
-                                          />
-                                        </button>
-                                      </PopoverTrigger>
-                                      <PopoverContent className="w-56 p-2" align="start">
-                                        <div className="space-y-1">
-                                          <p className="text-xs font-medium text-muted-foreground mb-2">Attribuer à</p>
-                                          <div className="space-y-1 max-h-48 overflow-y-auto">
-                                            {/* Option non assigné */}
-                                            <button
-                                              type="button"
-                                              className={cn(
-                                                "w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-left transition-colors",
-                                                !field.value ? "bg-primary/10 text-primary" : "hover:bg-muted"
-                                              )}
-                                              onClick={() => field.onChange("")}
-                                            >
-                                              <GestionnaireBadge
-                                                firstname="?"
-                                                lastname=""
-                                                color="#9ca3af"
-                                                size="sm"
-                                                showBorder={false}
-                                              />
-                                              <span className="text-xs truncate flex-1">Non assigné</span>
-                                            </button>
-                                            {referenceData?.users?.map((user) => {
-                                              const displayName = [user.firstname, user.lastname].filter(Boolean).join(" ").trim() || user.username
-                                              const isSelected = user.id === field.value
-                                              return (
-                                                <button
-                                                  key={user.id}
-                                                  type="button"
-                                                  className={cn(
-                                                    "w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-left transition-colors",
-                                                    isSelected ? "bg-primary/10 text-primary" : "hover:bg-muted"
-                                                  )}
-                                                  onClick={() => field.onChange(user.id)}
-                                                >
-                                                  <GestionnaireBadge
-                                                    firstname={user.firstname}
-                                                    lastname={user.lastname}
-                                                    color={user.color}
-                                                    avatarUrl={user.avatar_url}
-                                                    size="sm"
-                                                    showBorder={false}
-                                                  />
-                                                  <span className="text-xs truncate flex-1">{displayName}</span>
-                                                </button>
-                                              )
-                                            })}
+                      {/* Attribution */}
+                      <Card>
+                        <CardHeader className="py-3 px-4">
+                          <CardTitle className="flex items-center gap-2 text-sm">
+                            <UserCheck className="h-4 w-4" />
+                            Attribution
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent className="px-4 pb-4 pt-0">
+                          <div className="grid grid-cols-2 gap-2 items-end">
+                            {/* Sélecteur de gestionnaire avec badge */}
+                            <div className="space-y-1">
+                              <Label className={labelClass}>Attribué à</Label>
+                              <Controller
+                                name="gestionnaire_id"
+                                control={control}
+                                render={({ field }) => {
+                                  const assignedUser = referenceData?.users?.find(u => u.id === field.value)
+                                  return (
+                                    <div className="flex items-center gap-2">
+                                      <Popover>
+                                        <PopoverTrigger asChild>
+                                          <button
+                                            type="button"
+                                            className="flex items-center justify-center h-7 w-7 cursor-pointer group rounded-full"
+                                          >
+                                            <GestionnaireBadge
+                                              firstname={assignedUser?.firstname}
+                                              lastname={assignedUser?.lastname}
+                                              color={assignedUser?.color}
+                                              avatarUrl={assignedUser?.avatar_url}
+                                              size="sm"
+                                              className="transition-transform group-hover:scale-110 h-7 w-7"
+                                            />
+                                          </button>
+                                        </PopoverTrigger>
+                                        <PopoverContent className="w-56 p-2" align="start">
+                                          <div className="space-y-1">
+                                            <p className="text-xs font-medium text-muted-foreground mb-2">Attribuer à</p>
+                                            <div className="space-y-1 max-h-48 overflow-y-auto">
+                                              {/* Option non assigné */}
+                                              <button
+                                                type="button"
+                                                className={cn(
+                                                  "w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-left transition-colors",
+                                                  !field.value ? "bg-primary/10 text-primary" : "hover:bg-muted"
+                                                )}
+                                                onClick={() => field.onChange("")}
+                                              >
+                                                <GestionnaireBadge
+                                                  firstname="?"
+                                                  lastname=""
+                                                  color="#9ca3af"
+                                                  size="sm"
+                                                  showBorder={false}
+                                                />
+                                                <span className="text-xs truncate flex-1">Non assigné</span>
+                                              </button>
+                                              {referenceData?.users?.map((user) => {
+                                                const displayName = [user.firstname, user.lastname].filter(Boolean).join(" ").trim() || user.username
+                                                const isSelected = user.id === field.value
+                                                return (
+                                                  <button
+                                                    key={user.id}
+                                                    type="button"
+                                                    className={cn(
+                                                      "w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-left transition-colors",
+                                                      isSelected ? "bg-primary/10 text-primary" : "hover:bg-muted"
+                                                    )}
+                                                    onClick={() => field.onChange(user.id)}
+                                                  >
+                                                    <GestionnaireBadge
+                                                      firstname={user.firstname}
+                                                      lastname={user.lastname}
+                                                      color={user.color}
+                                                      avatarUrl={user.avatar_url}
+                                                      size="sm"
+                                                      showBorder={false}
+                                                    />
+                                                    <span className="text-xs truncate flex-1">{displayName}</span>
+                                                  </button>
+                                                )
+                                              })}
+                                            </div>
                                           </div>
-                                        </div>
-                                      </PopoverContent>
-                                    </Popover>
-                                    {/* Afficher le nom de l'utilisateur assigné */}
-                                    {assignedUser && (
-                                      <Badge 
-                                        variant="secondary" 
-                                        className="text-xs px-2 py-0.5 h-auto flex items-center gap-1"
-                                        style={{
-                                          backgroundColor: assignedUser.color ? `${assignedUser.color}20` : undefined,
-                                          borderColor: assignedUser.color || undefined,
-                                          color: assignedUser.color || undefined,
-                                        }}
-                                      >
-                                        {[assignedUser.firstname, assignedUser.lastname].filter(Boolean).join(" ").trim() || assignedUser.username}
-                                        <button 
-                                          type="button" 
-                                          className="ml-0.5 hover:text-destructive focus:outline-none"
-                                          onClick={() => field.onChange("")}
+                                        </PopoverContent>
+                                      </Popover>
+                                      {/* Afficher le nom de l'utilisateur assigné */}
+                                      {assignedUser && (
+                                        <Badge
+                                          variant="secondary"
+                                          className="text-xs px-2 py-0.5 h-auto flex items-center gap-1"
+                                          style={{
+                                            backgroundColor: assignedUser.color ? `${assignedUser.color}20` : undefined,
+                                            borderColor: assignedUser.color || undefined,
+                                            color: assignedUser.color || undefined,
+                                          }}
                                         >
-                                          <X className="h-3 w-3" />
-                                        </button>
-                                      </Badge>
+                                          {[assignedUser.firstname, assignedUser.lastname].filter(Boolean).join(" ").trim() || assignedUser.username}
+                                          <button
+                                            type="button"
+                                            className="ml-0.5 hover:text-destructive focus:outline-none"
+                                            onClick={() => field.onChange("")}
+                                          >
+                                            <X className="h-3 w-3" />
+                                          </button>
+                                        </Badge>
+                                      )}
+                                    </div>
+                                  )
+                                }}
+                              />
+                            </div>
+                            <div className="space-y-1">
+                              <Label className={labelClass}>Statut</Label>
+                              {(() => {
+                                const currentStatusId = watch("statut_id")
+                                const currentStatus = referenceData?.artisanStatuses?.find(
+                                  (s) => s.id === currentStatusId
+                                )
+                                return (
+                                  <div className="flex items-center gap-2 rounded-md border bg-muted px-3 py-2 h-8 text-sm">
+                                    {currentStatus ? (
+                                      <>
+                                        <span
+                                          className="inline-block h-2.5 w-2.5 rounded-full shrink-0"
+                                          style={{ backgroundColor: currentStatus.color ?? '#6B7280' }}
+                                        />
+                                        <span className="truncate">{currentStatus.label}</span>
+                                      </>
+                                    ) : (
+                                      <span className="text-muted-foreground">Non défini</span>
+                                    )}
+                                    <span className="ml-auto text-[10px] text-muted-foreground shrink-0">
+                                      (Auto)
+                                    </span>
+                                  </div>
+                                )
+                              })()}
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    </div>
+                  </div>
+
+                  {/* ===== COLONNE DROITE - Scroll indépendant ===== */}
+                  <div className="flex-1 min-w-0 overflow-y-auto min-h-0 scrollbar-minimal">
+                    <div className="space-y-4 pb-4">
+                      {/* Paramètres de l'entreprise */}
+                      <Card>
+                        <CardHeader className="py-3 px-4">
+                          <CardTitle className="flex items-center gap-2 text-sm">
+                            <Building2 className="h-4 w-4" />
+                            Paramètres de l&apos;entreprise
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent className="px-4 pb-4 pt-0 space-y-3">
+                          <div className="grid grid-cols-2 gap-2">
+                            <div className="space-y-1">
+                              <Label className={labelClass}>Statut juridique</Label>
+                              <Controller
+                                name="statut_juridique"
+                                control={control}
+                                render={({ field }) => (
+                                  <Select
+                                    value={field.value || ""}
+                                    onValueChange={(value) => {
+                                      // Ne déclencher onChange que si la valeur a vraiment changé
+                                      if (value !== field.value) {
+                                        field.onChange(value)
+                                      }
+                                    }}
+                                  >
+                                    <SelectTrigger className={inputClass}>
+                                      <SelectValue placeholder="Sélectionner..." />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {STATUT_JURIDIQUE_OPTIONS.map((option) => (
+                                        <SelectItem key={option.value} value={option.value}>
+                                          {option.label}
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                )}
+                              />
+                            </div>
+                            <div className="space-y-1">
+                              <Label htmlFor="numero_associe" className={labelClass}>N° associé</Label>
+                              <Input
+                                id="numero_associe"
+                                placeholder="Code interne"
+                                className={`${inputClass} bg-muted/50 font-medium`}
+                                {...register("numero_associe")}
+                              />
+                            </div>
+                          </div>
+
+                          <div className="space-y-1 overflow-hidden">
+                            <Label htmlFor="siret" className={labelClass}>SIRET</Label>
+                            <Controller
+                              name="siret"
+                              control={control}
+                              rules={{
+                                validate: (value) => {
+                                  const siret = value?.trim() || ""
+                                  if (siret.length === 0) return true
+                                  if (siret.length === 14 && /^\d+$/.test(siret)) return true
+                                  return "14 chiffres requis"
+                                },
+                              }}
+                              render={({ field, fieldState }) => {
+                                const siretValue = field.value?.replace(/\s/g, "") || ""
+                                const siretValidation = validateSiret(siretValue)
+                                const isSiretValid = siretValidation.isValid && siretValue.length === 14
+
+                                return (
+                                  <div className="space-y-1 w-full overflow-hidden">
+                                    <div className="flex items-center gap-1 w-full overflow-hidden">
+                                      <div className="flex-1 min-w-0 overflow-hidden">
+                                        <InputOTP
+                                          maxLength={14}
+                                          pattern={REGEXP_ONLY_DIGITS}
+                                          value={field.value}
+                                          onChange={(value) => field.onChange(value.replace(/\s/g, ""))}
+                                          onPaste={(e) => {
+                                            e.preventDefault()
+                                            const pastedText = e.clipboardData.getData('text/plain')
+                                            const cleaned = pastedText.replace(/\s/g, "").slice(0, 14)
+                                            field.onChange(cleaned)
+                                          }}
+                                          containerClassName="flex flex-nowrap items-center w-full"
+                                          className="gap-0 w-full"
+                                          pushPasswordManagerStrategy="none"
+                                        >
+                                          <InputOTPGroup className="gap-0 flex-1 min-w-0">
+                                            <InputOTPSlot index={0} className="!w-[calc(100%/3)] !max-w-[22px] h-6 text-[10px] bg-background border border-[#C6CEDC] text-foreground font-mono p-0" />
+                                            <InputOTPSlot index={1} className="!w-[calc(100%/3)] !max-w-[22px] h-6 text-[10px] bg-background border border-[#C6CEDC] text-foreground font-mono p-0" />
+                                            <InputOTPSlot index={2} className="!w-[calc(100%/3)] !max-w-[22px] h-6 text-[10px] bg-background border border-[#C6CEDC] text-foreground font-mono p-0" />
+                                          </InputOTPGroup>
+                                          <span className="text-muted-foreground text-[8px] shrink-0 px-px">·</span>
+                                          <InputOTPGroup className="gap-0 flex-1 min-w-0">
+                                            <InputOTPSlot index={3} className="!w-[calc(100%/3)] !max-w-[22px] h-6 text-[10px] bg-background border border-[#C6CEDC] text-foreground font-mono p-0" />
+                                            <InputOTPSlot index={4} className="!w-[calc(100%/3)] !max-w-[22px] h-6 text-[10px] bg-background border border-[#C6CEDC] text-foreground font-mono p-0" />
+                                            <InputOTPSlot index={5} className="!w-[calc(100%/3)] !max-w-[22px] h-6 text-[10px] bg-background border border-[#C6CEDC] text-foreground font-mono p-0" />
+                                          </InputOTPGroup>
+                                          <span className="text-muted-foreground text-[8px] shrink-0 px-px">·</span>
+                                          <InputOTPGroup className="gap-0 flex-1 min-w-0">
+                                            <InputOTPSlot index={6} className="!w-[calc(100%/3)] !max-w-[22px] h-6 text-[10px] bg-background border border-[#C6CEDC] text-foreground font-mono p-0" />
+                                            <InputOTPSlot index={7} className="!w-[calc(100%/3)] !max-w-[22px] h-6 text-[10px] bg-background border border-[#C6CEDC] text-foreground font-mono p-0" />
+                                            <InputOTPSlot index={8} className="!w-[calc(100%/3)] !max-w-[22px] h-6 text-[10px] bg-background border border-[#C6CEDC] text-foreground font-mono p-0" />
+                                          </InputOTPGroup>
+                                          <span className="text-muted-foreground text-[8px] shrink-0 px-px">·</span>
+                                          <InputOTPGroup className="gap-0 flex-[1.67] min-w-0">
+                                            <InputOTPSlot index={9} className="!w-[calc(100%/5)] !max-w-[22px] h-6 text-[10px] bg-background border border-[#C6CEDC] text-foreground font-mono p-0" />
+                                            <InputOTPSlot index={10} className="!w-[calc(100%/5)] !max-w-[22px] h-6 text-[10px] bg-background border border-[#C6CEDC] text-foreground font-mono p-0" />
+                                            <InputOTPSlot index={11} className="!w-[calc(100%/5)] !max-w-[22px] h-6 text-[10px] bg-background border border-[#C6CEDC] text-foreground font-mono p-0" />
+                                            <InputOTPSlot index={12} className="!w-[calc(100%/5)] !max-w-[22px] h-6 text-[10px] bg-background border border-[#C6CEDC] text-foreground font-mono p-0" />
+                                            <InputOTPSlot index={13} className="!w-[calc(100%/5)] !max-w-[22px] h-6 text-[10px] bg-background border border-[#C6CEDC] text-foreground font-mono p-0" />
+                                          </InputOTPGroup>
+                                        </InputOTP>
+                                      </div>
+                                      {siretValue.length > 0 && (
+                                        isSiretValid ? (
+                                          <CheckCircle2 className="h-3.5 w-3.5 text-green-600 shrink-0" />
+                                        ) : siretValue.length === 14 ? (
+                                          <AlertCircle className="h-3.5 w-3.5 text-destructive shrink-0" />
+                                        ) : null
+                                      )}
+                                    </div>
+                                    {fieldState.error && (
+                                      <p className="text-xs text-destructive">{fieldState.error.message}</p>
                                     )}
                                   </div>
                                 )
                               }}
                             />
                           </div>
-                          <div className="space-y-1">
-                            <Label className={labelClass}>Statut</Label>
-                            {(() => {
-                              const currentStatusId = watch("statut_id")
-                              const currentStatus = referenceData?.artisanStatuses?.find(
-                                (s) => s.id === currentStatusId
-                              )
-                              return (
-                                <div className="flex items-center gap-2 rounded-md border bg-muted px-3 py-2 h-8 text-sm">
-                                  {currentStatus ? (
-                                    <>
-                                      <span
-                                        className="inline-block h-2.5 w-2.5 rounded-full shrink-0"
-                                        style={{ backgroundColor: currentStatus.color ?? '#6B7280' }}
-                                      />
-                                      <span className="truncate">{currentStatus.label}</span>
-                                    </>
-                                  ) : (
-                                    <span className="text-muted-foreground">Non défini</span>
-                                  )}
-                                  <span className="ml-auto text-[10px] text-muted-foreground shrink-0">
-                                    (Auto)
-                                  </span>
-                                </div>
-                              )
-                            })()}
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  </div>
-                </div>
 
-                {/* ===== COLONNE DROITE - Scroll indépendant ===== */}
-                <div className="flex-1 min-w-0 overflow-y-auto min-h-0 scrollbar-minimal">
-                  <div className="space-y-4 pb-4">
-                    {/* Paramètres de l'entreprise */}
-                    <Card>
-                      <CardHeader className="py-3 px-4">
-                        <CardTitle className="flex items-center gap-2 text-sm">
-                          <Building2 className="h-4 w-4" />
-                          Paramètres de l&apos;entreprise
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent className="px-4 pb-4 pt-0 space-y-3">
-                        <div className="grid grid-cols-2 gap-2">
-                          <div className="space-y-1">
-                            <Label className={labelClass}>Statut juridique</Label>
-                            <Controller
-                              name="statut_juridique"
-                              control={control}
-                              render={({ field }) => (
-                                <Select 
-                                  value={field.value || ""} 
-                                  onValueChange={(value) => {
-                                    // Ne déclencher onChange que si la valeur a vraiment changé
-                                    if (value !== field.value) {
-                                      field.onChange(value)
-                                    }
-                                  }}
-                                >
-                                  <SelectTrigger className={inputClass}>
-                                    <SelectValue placeholder="Sélectionner..." />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    {STATUT_JURIDIQUE_OPTIONS.map((option) => (
-                                      <SelectItem key={option.value} value={option.value}>
-                                        {option.label}
-                                      </SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
-                              )}
-                            />
+                          <div className="grid grid-cols-2 gap-2">
+                            <div className="space-y-1">
+                              <Label className={labelClass}>Métiers</Label>
+                              {renderMetiersControl()}
+                            </div>
+                            <div className="space-y-1">
+                              <Label className={labelClass}>Zone d&apos;intervention</Label>
+                              <Controller
+                                name="zone_intervention"
+                                control={control}
+                                render={({ field }) => (
+                                  <Select
+                                    value={field.value || ""}
+                                    onValueChange={(value) => {
+                                      // Ne déclencher onChange que si la valeur a vraiment changé
+                                      if (value !== field.value) {
+                                        field.onChange(value)
+                                      }
+                                    }}
+                                  >
+                                    <SelectTrigger className={inputClass}>
+                                      <SelectValue placeholder="Sélectionner..." />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {ZONE_INTERVENTION_OPTIONS.map((option) => (
+                                        <SelectItem key={option.value} value={option.value}>
+                                          {option.label}
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                )}
+                              />
+                            </div>
                           </div>
-                          <div className="space-y-1">
-                            <Label htmlFor="numero_associe" className={labelClass}>N° associé</Label>
-                            <Input 
-                              id="numero_associe" 
-                              placeholder="Code interne"
-                              className={`${inputClass} bg-muted/50 font-medium`}
-                              {...register("numero_associe")}
-                            />
-                          </div>
-                        </div>
 
-                        <div className="space-y-1 overflow-hidden">
-                          <Label htmlFor="siret" className={labelClass}>SIRET</Label>
+                        </CardContent>
+                      </Card>
+
+                      {/* IBAN */}
+                      <Card>
+                        <CardHeader className="py-3 px-4">
+                          <CardTitle className="flex items-center gap-2 text-sm">
+                            <Landmark className="h-4 w-4" />
+                            IBAN
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent className="px-4 pb-4 pt-0 overflow-hidden">
                           <Controller
-                            name="siret"
+                            name="iban"
                             control={control}
                             rules={{
                               validate: (value) => {
-                                const siret = value?.trim() || ""
-                                if (siret.length === 0) return true
-                                if (siret.length === 14 && /^\d+$/.test(siret)) return true
-                                return "14 chiffres requis"
+                                const raw = value?.trim() || ""
+                                if (raw.length === 0) return true
+                                const iban = raw.replace(/\s/g, "").toUpperCase()
+                                if (iban.length !== IBAN_LENGTH) return "27 caractères requis"
+                                if (!/^[A-Z0-9]+$/.test(iban)) return "Caractères invalides"
+                                return true
                               },
                             }}
                             render={({ field, fieldState }) => {
-                              const siretValue = field.value?.replace(/\s/g, "") || ""
-                              const siretValidation = validateSiret(siretValue)
-                              const isSiretValid = siretValidation.isValid && siretValue.length === 14
+                              const ibanValue = field.value?.replace(/\s/g, "").toUpperCase() || ""
+                              const isIbanComplete = ibanValue.length === IBAN_LENGTH
+                              const isIbanValid = isIbanComplete && /^[A-Z0-9]+$/.test(ibanValue)
 
                               return (
                                 <div className="space-y-1 w-full overflow-hidden">
                                   <div className="flex items-center gap-1 w-full overflow-hidden">
                                     <div className="flex-1 min-w-0 overflow-hidden">
                                       <InputOTP
-                                        maxLength={14}
-                                        pattern={REGEXP_ONLY_DIGITS}
+                                        maxLength={IBAN_LENGTH}
+                                        pattern={REGEXP_ONLY_DIGITS_AND_CHARS}
+                                        inputMode="text"
                                         value={field.value}
-                                        onChange={(value) => field.onChange(value.replace(/\s/g, ""))}
+                                        onChange={(value) => field.onChange(value.replace(/\s/g, "").toUpperCase())}
                                         onPaste={(e) => {
                                           e.preventDefault()
                                           const pastedText = e.clipboardData.getData('text/plain')
-                                          const cleaned = pastedText.replace(/\s/g, "").slice(0, 14)
+                                          const cleaned = pastedText.replace(/\s/g, "").toUpperCase().slice(0, IBAN_LENGTH)
                                           field.onChange(cleaned)
                                         }}
                                         containerClassName="flex flex-nowrap items-center w-full"
                                         className="gap-0 w-full"
                                         pushPasswordManagerStrategy="none"
                                       >
-                                        <InputOTPGroup className="gap-0 flex-1 min-w-0">
-                                          <InputOTPSlot index={0} className="!w-[calc(100%/3)] !max-w-[22px] h-6 text-[10px] bg-background border border-[#C6CEDC] text-foreground font-mono p-0" />
-                                          <InputOTPSlot index={1} className="!w-[calc(100%/3)] !max-w-[22px] h-6 text-[10px] bg-background border border-[#C6CEDC] text-foreground font-mono p-0" />
-                                          <InputOTPSlot index={2} className="!w-[calc(100%/3)] !max-w-[22px] h-6 text-[10px] bg-background border border-[#C6CEDC] text-foreground font-mono p-0" />
-                                        </InputOTPGroup>
-                                        <span className="text-muted-foreground text-[8px] shrink-0 px-px">·</span>
-                                        <InputOTPGroup className="gap-0 flex-1 min-w-0">
-                                          <InputOTPSlot index={3} className="!w-[calc(100%/3)] !max-w-[22px] h-6 text-[10px] bg-background border border-[#C6CEDC] text-foreground font-mono p-0" />
-                                          <InputOTPSlot index={4} className="!w-[calc(100%/3)] !max-w-[22px] h-6 text-[10px] bg-background border border-[#C6CEDC] text-foreground font-mono p-0" />
-                                          <InputOTPSlot index={5} className="!w-[calc(100%/3)] !max-w-[22px] h-6 text-[10px] bg-background border border-[#C6CEDC] text-foreground font-mono p-0" />
-                                        </InputOTPGroup>
-                                        <span className="text-muted-foreground text-[8px] shrink-0 px-px">·</span>
-                                        <InputOTPGroup className="gap-0 flex-1 min-w-0">
-                                          <InputOTPSlot index={6} className="!w-[calc(100%/3)] !max-w-[22px] h-6 text-[10px] bg-background border border-[#C6CEDC] text-foreground font-mono p-0" />
-                                          <InputOTPSlot index={7} className="!w-[calc(100%/3)] !max-w-[22px] h-6 text-[10px] bg-background border border-[#C6CEDC] text-foreground font-mono p-0" />
-                                          <InputOTPSlot index={8} className="!w-[calc(100%/3)] !max-w-[22px] h-6 text-[10px] bg-background border border-[#C6CEDC] text-foreground font-mono p-0" />
-                                        </InputOTPGroup>
-                                        <span className="text-muted-foreground text-[8px] shrink-0 px-px">·</span>
-                                        <InputOTPGroup className="gap-0 flex-[1.67] min-w-0">
-                                          <InputOTPSlot index={9} className="!w-[calc(100%/5)] !max-w-[22px] h-6 text-[10px] bg-background border border-[#C6CEDC] text-foreground font-mono p-0" />
-                                          <InputOTPSlot index={10} className="!w-[calc(100%/5)] !max-w-[22px] h-6 text-[10px] bg-background border border-[#C6CEDC] text-foreground font-mono p-0" />
-                                          <InputOTPSlot index={11} className="!w-[calc(100%/5)] !max-w-[22px] h-6 text-[10px] bg-background border border-[#C6CEDC] text-foreground font-mono p-0" />
-                                          <InputOTPSlot index={12} className="!w-[calc(100%/5)] !max-w-[22px] h-6 text-[10px] bg-background border border-[#C6CEDC] text-foreground font-mono p-0" />
-                                          <InputOTPSlot index={13} className="!w-[calc(100%/5)] !max-w-[22px] h-6 text-[10px] bg-background border border-[#C6CEDC] text-foreground font-mono p-0" />
-                                        </InputOTPGroup>
+                                        {IBAN_GROUPS.map((size, groupIndex) => {
+                                          const startIndex = IBAN_GROUPS.slice(0, groupIndex).reduce(
+                                            (sum, groupSize) => sum + groupSize,
+                                            0
+                                          )
+                                          return (
+                                            <React.Fragment key={`iban-group-${groupIndex}`}>
+                                              <InputOTPGroup className="gap-0 flex-1 min-w-0">
+                                                {Array.from({ length: size }).map((_, slotIndex) => (
+                                                  <InputOTPSlot
+                                                    key={`iban-slot-${startIndex + slotIndex}`}
+                                                    index={startIndex + slotIndex}
+                                                    className="!w-[calc(100%/4)] !max-w-[18px] h-6 text-[9px] bg-background border border-[#C6CEDC] text-foreground font-mono p-0"
+                                                  />
+                                                ))}
+                                              </InputOTPGroup>
+                                              {groupIndex < IBAN_GROUPS.length - 1 && (
+                                                <span className="text-muted-foreground text-[8px] shrink-0 px-px">·</span>
+                                              )}
+                                            </React.Fragment>
+                                          )
+                                        })}
                                       </InputOTP>
                                     </div>
-                                    {siretValue.length > 0 && (
-                                      isSiretValid ? (
+                                    {ibanValue.length > 0 && (
+                                      isIbanValid ? (
                                         <CheckCircle2 className="h-3.5 w-3.5 text-green-600 shrink-0" />
-                                      ) : siretValue.length === 14 ? (
+                                      ) : isIbanComplete ? (
                                         <AlertCircle className="h-3.5 w-3.5 text-destructive shrink-0" />
                                       ) : null
                                     )}
@@ -1701,320 +1828,193 @@ export function ArtisanModalContent({
                               )
                             }}
                           />
-                        </div>
+                        </CardContent>
+                      </Card>
 
-                        <div className="grid grid-cols-2 gap-2">
-                          <div className="space-y-1">
-                            <Label className={labelClass}>Métiers</Label>
-                            {renderMetiersControl()}
-                          </div>
-                          <div className="space-y-1">
-                            <Label className={labelClass}>Zone d&apos;intervention</Label>
-                            <Controller
-                              name="zone_intervention"
-                              control={control}
-                              render={({ field }) => (
-                                <Select 
-                                  value={field.value || ""} 
-                                  onValueChange={(value) => {
-                                    // Ne déclencher onChange que si la valeur a vraiment changé
-                                    if (value !== field.value) {
-                                      field.onChange(value)
-                                    }
-                                  }}
-                                >
-                                  <SelectTrigger className={inputClass}>
-                                    <SelectValue placeholder="Sélectionner..." />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    {ZONE_INTERVENTION_OPTIONS.map((option) => (
-                                      <SelectItem key={option.value} value={option.value}>
-                                        {option.label}
-                                      </SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
-                              )}
-                            />
-                          </div>
-                        </div>
-
-                      </CardContent>
-                    </Card>
-
-                    {/* IBAN */}
-                    <Card>
-                      <CardHeader className="py-3 px-4">
-                        <CardTitle className="flex items-center gap-2 text-sm">
-                          <Landmark className="h-4 w-4" />
-                          IBAN
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent className="px-4 pb-4 pt-0 overflow-hidden">
-                        <Controller
-                          name="iban"
-                          control={control}
-                          rules={{
-                            validate: (value) => {
-                              const raw = value?.trim() || ""
-                              if (raw.length === 0) return true
-                              const iban = raw.replace(/\s/g, "").toUpperCase()
-                              if (iban.length !== IBAN_LENGTH) return "27 caractères requis"
-                              if (!/^[A-Z0-9]+$/.test(iban)) return "Caractères invalides"
-                              return true
-                            },
-                          }}
-                          render={({ field, fieldState }) => {
-                            const ibanValue = field.value?.replace(/\s/g, "").toUpperCase() || ""
-                            const isIbanComplete = ibanValue.length === IBAN_LENGTH
-                            const isIbanValid = isIbanComplete && /^[A-Z0-9]+$/.test(ibanValue)
-
-                            return (
-                              <div className="space-y-1 w-full overflow-hidden">
-                                <div className="flex items-center gap-1 w-full overflow-hidden">
-                                  <div className="flex-1 min-w-0 overflow-hidden">
-                                    <InputOTP
-                                      maxLength={IBAN_LENGTH}
-                                      pattern={REGEXP_ONLY_DIGITS_AND_CHARS}
-                                      inputMode="text"
-                                      value={field.value}
-                                      onChange={(value) => field.onChange(value.replace(/\s/g, "").toUpperCase())}
-                                      onPaste={(e) => {
-                                        e.preventDefault()
-                                        const pastedText = e.clipboardData.getData('text/plain')
-                                        const cleaned = pastedText.replace(/\s/g, "").toUpperCase().slice(0, IBAN_LENGTH)
-                                        field.onChange(cleaned)
-                                      }}
-                                      containerClassName="flex flex-nowrap items-center w-full"
-                                      className="gap-0 w-full"
-                                      pushPasswordManagerStrategy="none"
-                                    >
-                                      {IBAN_GROUPS.map((size, groupIndex) => {
-                                        const startIndex = IBAN_GROUPS.slice(0, groupIndex).reduce(
-                                          (sum, groupSize) => sum + groupSize,
-                                          0
-                                        )
-                                        return (
-                                          <React.Fragment key={`iban-group-${groupIndex}`}>
-                                            <InputOTPGroup className="gap-0 flex-1 min-w-0">
-                                              {Array.from({ length: size }).map((_, slotIndex) => (
-                                                <InputOTPSlot
-                                                  key={`iban-slot-${startIndex + slotIndex}`}
-                                                  index={startIndex + slotIndex}
-                                                  className="!w-[calc(100%/4)] !max-w-[18px] h-6 text-[9px] bg-background border border-[#C6CEDC] text-foreground font-mono p-0"
-                                                />
-                                              ))}
-                                            </InputOTPGroup>
-                                            {groupIndex < IBAN_GROUPS.length - 1 && (
-                                              <span className="text-muted-foreground text-[8px] shrink-0 px-px">·</span>
-                                            )}
-                                          </React.Fragment>
-                                        )
-                                      })}
-                                    </InputOTP>
-                                  </div>
-                                  {ibanValue.length > 0 && (
-                                    isIbanValid ? (
-                                      <CheckCircle2 className="h-3.5 w-3.5 text-green-600 shrink-0" />
-                                    ) : isIbanComplete ? (
-                                      <AlertCircle className="h-3.5 w-3.5 text-destructive shrink-0" />
-                                    ) : null
-                                  )}
-                                </div>
-                                {fieldState.error && (
-                                  <p className="text-xs text-destructive">{fieldState.error.message}</p>
+                      {/* Gestion des absences (collapsible) */}
+                      <Collapsible open={isAbsencesOpen} onOpenChange={setIsAbsencesOpen}>
+                        <Card>
+                          <CollapsibleTrigger asChild>
+                            <CardHeader className="cursor-pointer py-3 px-4 hover:bg-muted/50">
+                              <CardTitle className="flex items-center gap-2 text-sm">
+                                <Calendar className="h-4 w-4" />
+                                Gestion des absences
+                                {isAbsencesOpen ? (
+                                  <ChevronDown className="ml-auto h-4 w-4" />
+                                ) : (
+                                  <ChevronRight className="ml-auto h-4 w-4" />
                                 )}
-                              </div>
-                            )
-                          }}
-                        />
-                      </CardContent>
-                    </Card>
-
-                    {/* Gestion des absences (collapsible) */}
-                    <Collapsible open={isAbsencesOpen} onOpenChange={setIsAbsencesOpen}>
-                      <Card>
-                        <CollapsibleTrigger asChild>
-                          <CardHeader className="cursor-pointer py-3 px-4 hover:bg-muted/50">
-                            <CardTitle className="flex items-center gap-2 text-sm">
-                              <Calendar className="h-4 w-4" />
-                              Gestion des absences
-                              {isAbsencesOpen ? (
-                                <ChevronDown className="ml-auto h-4 w-4" />
-                              ) : (
-                                <ChevronRight className="ml-auto h-4 w-4" />
-                              )}
-                              {absences.length > 0 && (
-                                <Badge variant="secondary" className="ml-2 text-xs">
-                                  {absences.length}
-                                </Badge>
-                              )}
-                            </CardTitle>
-                          </CardHeader>
-                        </CollapsibleTrigger>
-                        <CollapsibleContent>
-                          <CardContent className="px-4 pb-4 pt-0 space-y-3">
-                            {/* Formulaire d'ajout d'absence */}
-                            <div className="space-y-2 p-3 rounded-lg bg-muted/30 border border-border/50">
-                              <div className="grid grid-cols-2 gap-2">
-                                <div className="space-y-1">
-                                  <Label className={labelClass}>Date de début</Label>
-                                  <Input
-                                    type="date"
-                                    className={inputClass}
-                                    value={newAbsence.start_date}
-                                    onChange={(e) => setNewAbsence(prev => ({ ...prev, start_date: e.target.value }))}
-                                  />
-                                </div>
-                                <div className="space-y-1">
-                                  <Label className={labelClass}>Date de fin</Label>
-                                  <Input
-                                    type="date"
-                                    className={inputClass}
-                                    value={newAbsence.end_date}
-                                    onChange={(e) => setNewAbsence(prev => ({ ...prev, end_date: e.target.value }))}
-                                  />
-                                </div>
-                              </div>
-                              <div className="space-y-1">
-                                <Label className={labelClass}>Motif (optionnel)</Label>
-                                <Input
-                                  placeholder="Ex: Congés, Maladie..."
-                                  className={inputClass}
-                                  value={newAbsence.reason}
-                                  onChange={(e) => setNewAbsence(prev => ({ ...prev, reason: e.target.value }))}
-                                />
-                              </div>
-                              <Button
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                                className="w-full mt-2"
-                                onClick={handleAddAbsence}
-                              >
-                                <Plus className="h-3 w-3 mr-1" />
-                                Ajouter une absence
-                              </Button>
-                            </div>
-
-                            {/* Liste des absences */}
-                            {absences.length > 0 && (
-                              <div className="space-y-1.5">
-                                {absences.map((absence) => (
-                                  <div
-                                    key={absence.id}
-                                    className="flex items-center justify-between p-2 rounded border bg-background border-border text-xs"
-                                  >
-                                    <div className="flex items-center gap-2">
-                                      <Calendar className="h-3 w-3 text-muted-foreground" />
-                                      <span>
-                                        Du {formatDate(absence.startDate)} au {formatDate(absence.endDate)}
-                                      </span>
-                                      {absence.reason && (
-                                        <Badge variant="outline" className="text-[10px]">
-                                          {absence.reason}
-                                        </Badge>
-                                      )}
-                                      {absence.isConfirmed ? (
-                                        <Badge variant="secondary" className="text-[10px]">
-                                          Confirmée
-                                        </Badge>
-                                      ) : (
-                                        <Badge variant="outline" className="text-[10px]">
-                                          Proposée
-                                        </Badge>
-                                      )}
-                                    </div>
-                                    <Button
-                                      type="button"
-                                      variant="ghost"
-                                      size="icon"
-                                      className="h-6 w-6 text-destructive hover:text-destructive"
-                                      onClick={() => handleDeleteAbsence(absence.id)}
-                                    >
-                                      <Trash2 className="h-3 w-3" />
-                                    </Button>
+                                {absences.length > 0 && (
+                                  <Badge variant="secondary" className="ml-2 text-xs">
+                                    {absences.length}
+                                  </Badge>
+                                )}
+                              </CardTitle>
+                            </CardHeader>
+                          </CollapsibleTrigger>
+                          <CollapsibleContent>
+                            <CardContent className="px-4 pb-4 pt-0 space-y-3">
+                              {/* Formulaire d'ajout d'absence */}
+                              <div className="space-y-2 p-3 rounded-lg bg-muted/30 border border-border/50">
+                                <div className="grid grid-cols-2 gap-2">
+                                  <div className="space-y-1">
+                                    <Label className={labelClass}>Date de début</Label>
+                                    <Input
+                                      type="date"
+                                      className={inputClass}
+                                      value={newAbsence.start_date}
+                                      onChange={(e) => setNewAbsence(prev => ({ ...prev, start_date: e.target.value }))}
+                                    />
                                   </div>
-                                ))}
+                                  <div className="space-y-1">
+                                    <Label className={labelClass}>Date de fin</Label>
+                                    <Input
+                                      type="date"
+                                      className={inputClass}
+                                      value={newAbsence.end_date}
+                                      onChange={(e) => setNewAbsence(prev => ({ ...prev, end_date: e.target.value }))}
+                                    />
+                                  </div>
+                                </div>
+                                <div className="space-y-1">
+                                  <Label className={labelClass}>Motif (optionnel)</Label>
+                                  <Input
+                                    placeholder="Ex: Congés, Maladie..."
+                                    className={inputClass}
+                                    value={newAbsence.reason}
+                                    onChange={(e) => setNewAbsence(prev => ({ ...prev, reason: e.target.value }))}
+                                  />
+                                </div>
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  className="w-full mt-2"
+                                  onClick={handleAddAbsence}
+                                >
+                                  <Plus className="h-3 w-3 mr-1" />
+                                  Ajouter une absence
+                                </Button>
                               </div>
-                            )}
 
-                            {absences.length === 0 && (
-                              <p className="text-xs italic text-muted-foreground text-center py-2">
-                                Aucune absence enregistrée
-                              </p>
-                            )}
-                          </CardContent>
-                        </CollapsibleContent>
-                      </Card>
-                    </Collapsible>
+                              {/* Liste des absences */}
+                              {absences.length > 0 && (
+                                <div className="space-y-1.5">
+                                  {absences.map((absence) => (
+                                    <div
+                                      key={absence.id}
+                                      className="flex items-center justify-between p-2 rounded border bg-background border-border text-xs"
+                                    >
+                                      <div className="flex items-center gap-2">
+                                        <Calendar className="h-3 w-3 text-muted-foreground" />
+                                        <span>
+                                          Du {formatDate(absence.startDate)} au {formatDate(absence.endDate)}
+                                        </span>
+                                        {absence.reason && (
+                                          <Badge variant="outline" className="text-[10px]">
+                                            {absence.reason}
+                                          </Badge>
+                                        )}
+                                        {absence.isConfirmed ? (
+                                          <Badge variant="secondary" className="text-[10px]">
+                                            Confirmée
+                                          </Badge>
+                                        ) : (
+                                          <Badge variant="outline" className="text-[10px]">
+                                            Proposée
+                                          </Badge>
+                                        )}
+                                      </div>
+                                      <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-6 w-6 text-destructive hover:text-destructive"
+                                        onClick={() => handleDeleteAbsence(absence.id)}
+                                      >
+                                        <Trash2 className="h-3 w-3" />
+                                      </Button>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
 
-                    {/* Documents de l'entreprise (collapsible) */}
-                    <Collapsible open={isDocumentsOpen} onOpenChange={setIsDocumentsOpen}>
-                      <Card>
-                        <CollapsibleTrigger asChild>
-                          <CardHeader className="cursor-pointer py-3 px-4 hover:bg-muted/50">
-                            <CardTitle className="flex items-center gap-2 text-sm">
-                              <Upload className="h-4 w-4" />
-                              Documents de l&apos;entreprise
-                              {isDocumentsOpen ? (
-                                <ChevronDown className="ml-auto h-4 w-4" />
-                              ) : (
-                                <ChevronRight className="ml-auto h-4 w-4" />
+                              {absences.length === 0 && (
+                                <p className="text-xs italic text-muted-foreground text-center py-2">
+                                  Aucune absence enregistrée
+                                </p>
                               )}
-                              {attachmentCount > 0 && (
-                                <Badge variant="secondary" className="ml-2 text-xs">
-                                  {attachmentCount}
-                                </Badge>
-                              )}
-                            </CardTitle>
-                          </CardHeader>
-                        </CollapsibleTrigger>
-                        <CollapsibleContent>
-                          <CardContent className="px-4 pb-4 pt-0">
-                            <DocumentManager
-                              entityType="artisan"
-                              entityId={artisan?.id ?? artisanId}
-                              kinds={ARTISAN_DOCUMENT_KINDS}
-                              currentUser={currentUser ?? undefined}
-                              onChange={handleDocumentsChange}
-                            />
-                          </CardContent>
-                        </CollapsibleContent>
-                      </Card>
-                    </Collapsible>
+                            </CardContent>
+                          </CollapsibleContent>
+                        </Card>
+                      </Collapsible>
 
-                    {/* Commentaires (collapsible) */}
-                    <Collapsible open={isCommentsOpen} onOpenChange={setIsCommentsOpen}>
-                      <Card>
-                        <CollapsibleTrigger asChild>
-                          <CardHeader className="cursor-pointer py-3 px-4 hover:bg-muted/50">
-                            <CardTitle className="flex items-center gap-2 text-sm">
-                              <MessageSquare className="h-4 w-4" />
-                              Commentaires
-                              {isCommentsOpen ? (
-                                <ChevronDown className="ml-auto h-4 w-4" />
-                              ) : (
-                                <ChevronRight className="ml-auto h-4 w-4" />
-                              )}
-                            </CardTitle>
-                          </CardHeader>
-                        </CollapsibleTrigger>
-                        <CollapsibleContent>
-                          <CardContent className="px-4 pb-4 pt-0">
-                            <CommentSection 
-                              entityType="artisan" 
-                              entityId={artisanId} 
-                              currentUserId={currentUser?.id ?? undefined} 
-                            />
-                          </CardContent>
-                        </CollapsibleContent>
-                      </Card>
-                    </Collapsible>
+                      {/* Documents de l'entreprise (collapsible) */}
+                      <Collapsible open={isDocumentsOpen} onOpenChange={setIsDocumentsOpen}>
+                        <Card>
+                          <CollapsibleTrigger asChild>
+                            <CardHeader className="cursor-pointer py-3 px-4 hover:bg-muted/50">
+                              <CardTitle className="flex items-center gap-2 text-sm">
+                                <Upload className="h-4 w-4" />
+                                Documents de l&apos;entreprise
+                                {isDocumentsOpen ? (
+                                  <ChevronDown className="ml-auto h-4 w-4" />
+                                ) : (
+                                  <ChevronRight className="ml-auto h-4 w-4" />
+                                )}
+                                {attachmentCount > 0 && (
+                                  <Badge variant="secondary" className="ml-2 text-xs">
+                                    {attachmentCount}
+                                  </Badge>
+                                )}
+                              </CardTitle>
+                            </CardHeader>
+                          </CollapsibleTrigger>
+                          <CollapsibleContent>
+                            <CardContent className="px-4 pb-4 pt-0">
+                              <DocumentManager
+                                entityType="artisan"
+                                entityId={artisan?.id ?? artisanId}
+                                kinds={ARTISAN_DOCUMENT_KINDS}
+                                currentUser={currentUser ?? undefined}
+                                onChange={handleDocumentsChange}
+                              />
+                            </CardContent>
+                          </CollapsibleContent>
+                        </Card>
+                      </Collapsible>
+
+                      {/* Commentaires (collapsible) */}
+                      <Collapsible open={isCommentsOpen} onOpenChange={setIsCommentsOpen}>
+                        <Card>
+                          <CollapsibleTrigger asChild>
+                            <CardHeader className="cursor-pointer py-3 px-4 hover:bg-muted/50">
+                              <CardTitle className="flex items-center gap-2 text-sm">
+                                <MessageSquare className="h-4 w-4" />
+                                Commentaires
+                                {isCommentsOpen ? (
+                                  <ChevronDown className="ml-auto h-4 w-4" />
+                                ) : (
+                                  <ChevronRight className="ml-auto h-4 w-4" />
+                                )}
+                              </CardTitle>
+                            </CardHeader>
+                          </CollapsibleTrigger>
+                          <CollapsibleContent>
+                            <CardContent className="px-4 pb-4 pt-0">
+                              <CommentSection
+                                entityType="artisan"
+                                entityId={artisanId}
+                                currentUserId={currentUser?.id ?? undefined}
+                              />
+                            </CardContent>
+                          </CollapsibleContent>
+                        </Card>
+                      </Collapsible>
+                    </div>
                   </div>
                 </div>
-              </div>
-            )}
+              )}
             </div>
           </fieldset>
 

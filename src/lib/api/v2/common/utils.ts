@@ -296,37 +296,16 @@ export const mapInterventionRecord = (item: any, refs: any): any => {
 
     // Log détaillé pour chaque intervention
     const interventionId = item.id_inter || 'unknown';
-    console.log(`[mapInterventionRecord] 📋 Intervention ${interventionId}`);
-    console.log('  └─ Artisan brut:', {
-      id: primaryArtisanData.id,
-      raison_sociale: primaryArtisanData.raison_sociale,
-      plain_nom: primaryArtisanData.plain_nom,
-      prenom: primaryArtisanData.prenom,
-      nom: primaryArtisanData.nom,
-    });
-    console.log('  └─ Après trim:', {
-      raison_sociale: raisonSociale || null,
-      plain_nom: plainNom || null,
-      prenom: prenom || null,
-      nom: nom || null,
-    });
 
     if (raisonSociale && raisonSociale.length > 0) {
       artisanDisplayName = raisonSociale;
-      console.log(`  ✅ Fallback 1 utilisé (raison_sociale): "${artisanDisplayName}"`);
     } else if (plainNom && plainNom.length > 0) {
       artisanDisplayName = plainNom;
-      console.log(`  ✅ Fallback 2 utilisé (plain_nom): "${artisanDisplayName}"`);
     } else if (prenom || nom) {
       artisanDisplayName = `${prenom ?? ""} ${nom ?? ""}`.trim() || null;
-      console.log(`  ✅ Fallback 3 utilisé (prenom + nom): "${artisanDisplayName}"`);
     } else {
-      console.log('  ❌ Fallback 4 utilisé (null) → affichera "—"');
     }
-    console.log(`  └─ 🎯 Valeur finale affichée: "${artisanDisplayName || '—'}"\n`);
-  } else {
-    console.log(`[mapInterventionRecord] ⚠️  Intervention ${item.id_inter || 'unknown'} - Aucun artisan trouvé\n`);
-  }
+  } 
 
   // Extraction des coûts depuis intervention_costs
   const interventionCosts = Array.isArray(item.intervention_costs)

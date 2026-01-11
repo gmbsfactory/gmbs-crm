@@ -22,6 +22,15 @@ export interface ReferenceData {
 export const referenceApi = {
   // Récupérer toutes les données de référence
   async getAll(): Promise<ReferenceData> {
+    // Debug: vérifier si l'utilisateur est authentifié
+    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+    console.log('[referenceApi.getAll] Session debug:', {
+      hasSession: !!session,
+      userId: session?.user?.id,
+      email: session?.user?.email,
+      sessionError
+    });
+
     const [interventionStatuses, artisanStatuses, agencies, metiers, users] = await Promise.all([
       supabase.from('intervention_statuses').select('id, code, label, color, sort_order').eq('is_active', true).order('sort_order'),
       supabase.from('artisan_statuses').select('id, code, label, color').eq('is_active', true).order('sort_order'),
@@ -29,6 +38,18 @@ export const referenceApi = {
       supabase.from('metiers').select('id, code, label, color').eq('is_active', true).order('label'),
       supabase.from('users').select('id, username, firstname, lastname, code_gestionnaire, color, avatar_url').neq('status', 'archived').order('username', { ascending: true })
     ]);
+
+    // Debug: afficher les erreurs détaillées
+    console.log('[referenceApi.getAll] Users query result:', {
+      count: users.data?.length || 0,
+      error: users.error,
+      errorDetails: users.error ? {
+        message: users.error.message,
+        code: users.error.code,
+        details: users.error.details,
+        hint: users.error.hint
+      } : null
+    });
 
     // Mapper les agences pour extraire requires_reference depuis agency_config
     const mappedAgencies = (agencies.data || []).map((item: any) => ({
