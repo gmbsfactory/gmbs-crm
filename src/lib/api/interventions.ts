@@ -318,7 +318,8 @@ export async function duplicateIntervention(originalId: string, authorId: string
     name: originalData.commentaire_agent ?? originalData.contexte_intervention ?? originalData.adresse ?? "Intervention",
     address: originalData.adresse ?? "",
     context: "Devis supplémentaire", // Valeur par défaut pour devis supp (le contexte original est exclu)
-    agency: originalData.agence ?? originalData.agence_id ?? undefined,
+    agency: originalData.agence ?? originalData.agence_id ?? "",
+    metier: originalData.metier_id ?? "",
     consigne: undefined, // Forcer consigne à undefined pour devis supp
     status: originalData.statut ? mapStatusFromDb(originalData.statut) : "DEMANDE",
     dueAt: originalData.date_prevue ? new Date(originalData.date_prevue) : undefined,

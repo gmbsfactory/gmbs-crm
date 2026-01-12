@@ -9,7 +9,6 @@ import {
 import {
   FileText,
   ExternalLink,
-  ArrowRight,
   CheckCircle,
   Copy,
   UserCheck,
@@ -78,7 +77,6 @@ export function InterventionContextMenuContent({
   const {
     duplicateDevisSupp,
     assignToMe,
-    transitionToDevisEnvoye,
     transitionToAccepte,
     deleteIntervention,
     isLoading,
@@ -91,14 +89,11 @@ export function InterventionContextMenuContent({
   const { can } = usePermissions()
 
   const statusValue = intervention.statusValue || intervention.statut
-  const idInter = intervention.id_inter
 
   // État pour le dialogue de confirmation de suppression
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
 
   // Conditions d'affichage pour les transitions
-  const canTransitionToDevisEnvoye =
-    statusValue === "DEMANDE" && idInter && idInter.trim() !== ""
   const canTransitionToAccepte = statusValue === "DEVIS_ENVOYE"
   const showAssignToMe = viewType === "market"
   const canWriteInterventions = can("write_interventions")
@@ -143,20 +138,8 @@ export function InterventionContextMenuContent({
         </ContextMenuItem>
 
         {/* Séparateur avant les actions conditionnelles */}
-        {(canWriteInterventions && (canTransitionToDevisEnvoye ||
-          canTransitionToAccepte ||
+        {(canWriteInterventions && (canTransitionToAccepte ||
           showAssignToMe)) && <ContextMenuSeparator />}
-
-        {/* Transition vers "Devis envoyé" */}
-        {canWriteInterventions && canTransitionToDevisEnvoye && (
-          <ContextMenuItem
-            onSelect={() => transitionToDevisEnvoye()}
-            disabled={isLoading.transitionDevisEnvoye}
-          >
-            <ArrowRight className="mr-2 h-4 w-4" />
-            Passer à Devis envoyé
-          </ContextMenuItem>
-        )}
 
         {/* Transition vers "Accepté" */}
         {canWriteInterventions && canTransitionToAccepte && (

@@ -438,7 +438,7 @@ export function ArtisanModalContent({
   // États pour les sections collapsibles
   const [isAbsencesOpen, setIsAbsencesOpen] = useState(false)
   const [isDocumentsOpen, setIsDocumentsOpen] = useState(false)
-  const [isCommentsOpen, setIsCommentsOpen] = useState(false)
+  const [isCommentsOpen, setIsCommentsOpen] = useState(true) // Toujours déplié par défaut
 
   // Toggle entre vue Informations et vue Statistiques
   // Initialiser avec la vue par défaut si spécifiée

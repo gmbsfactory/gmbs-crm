@@ -1255,7 +1255,7 @@ function PageContent() {
               <span>Réorganisez vos vues, puis appuyez sur ESC</span>
             </div>
           )}
-          <div className="flex flex-wrap items-end gap-4 overflow-visible pt-3 mb-3">
+          <div className="flex flex-wrap items-end gap-4 overflow-visible pt-3">
             <div className="flex-1 min-w-0 overflow-visible">
               <ViewTabs
                 views={views}
