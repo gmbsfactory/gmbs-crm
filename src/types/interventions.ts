@@ -23,7 +23,8 @@ export const InterventionBaseSchema = z.object({
   name: z.string().min(1, "Le nom de l'intervention est obligatoire"),
   address: z.string().min(1, "L'adresse est obligatoire"),
   context: z.string().min(1, "Merci de renseigner le contexte"),
-  agency: z.string().optional(),
+  agency: z.string().min(1, "L'agence est obligatoire"),
+  metier: z.string().min(1, "Le métier est obligatoire"),
   consigne: z.string().optional(),
   invoice2goId: z.string().trim().min(1).optional(),
   dueAt: z.coerce.date().optional(),
@@ -41,7 +42,7 @@ export const UpdateInterventionSchema = InterventionBaseSchema.partial()
 export const DuplicateCheckSchema = z.object({
   name: z.string().min(1),
   address: z.string().min(1),
-  agency: z.string().optional(),
+  agency: z.string().min(1),
 })
 
 export const InvoiceLookupSchema = z.object({

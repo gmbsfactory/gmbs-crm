@@ -69,5 +69,18 @@ export type WorkflowEntityContext = {
   commentaire?: string | null
   devisId?: string | null
   idIntervention?: string | null
+  // Champs pour validation création
+  agenceId?: string | null
+  metierId?: string | null
+  // Champs pour validation DEVIS_ENVOYE
+  nomPrenomFacturation?: string | null
+  assignedUserId?: string | null
+  // Champs pour validation INTER_EN_COURS
+  coutIntervention?: number | null
+  coutSST?: number | null
+  consigneArtisan?: string | null
+  nomPrenomClient?: string | null
+  telephoneClient?: string | null
+  datePrevue?: string | Date | null
   [key: string]: unknown
 }
