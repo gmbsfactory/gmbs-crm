@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { motion, useScroll, useTransform, useSpring, type MotionValue } from "framer-motion"
 import { useQueryClient } from "@tanstack/react-query"
 import { Building, ChevronDown, ChevronRight, FileText, MessageSquare, Upload, X, Search, Eye, Mail, MessageCircle, Users, Palette } from "lucide-react"
@@ -119,7 +119,7 @@ interface InterventionEditFormProps {
   onPopoverOpenChange?: (isOpen: boolean) => void
 }
 
-export function InterventionEditForm({
+export const InterventionEditForm = memo(function InterventionEditForm({
   intervention,
   onSuccess,
   onCancel,
@@ -2005,13 +2005,13 @@ export function InterventionEditForm({
                           value={formData.statut_id}
                           onChange={(value) => handleInputChange("statut_id", value)}
                           placeholder="Statut"
-                          searchPlaceholder="Rechercher un statut..."
                           onOpenChange={onPopoverOpenChange}
+                          searchPlaceholder="Rechercher un statut..."
                           sortAlphabetically={false}
                           options={(refData?.interventionStatuses || [])
                             .map(s => ({
                               id: s.id,
-                              label: getStatusDisplayLabel(s.code, s.label, sstPayment, clientPayment),
+                              label: s.label,
                               color: getInterventionStatusColor(s.label, s.code) || s.color,
                               code: s.code || ""
                             }))
@@ -2019,7 +2019,7 @@ export function InterventionEditForm({
                               const orderA = STATUS_SORT_ORDER[a.code] || 999
                               const orderB = STATUS_SORT_ORDER[b.code] || 999
                               if (orderA !== orderB) return orderA - orderB
-                              return a.label.localeCompare(b.label, "fr")
+                              return (a.label || "").localeCompare(b.label || "", "fr")
                             })
                           }
                         />
@@ -3218,4 +3218,4 @@ export function InterventionEditForm({
       />
     </>
   )
-}
+})

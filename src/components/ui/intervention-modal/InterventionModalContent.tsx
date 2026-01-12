@@ -260,6 +260,27 @@ GMBS`
     }
   }, [clientPhone, smsText])
 
+  // Memoized handlers to prevent heavy re-renders of InterventionEditForm
+  const handleArtisanSearchOpenChange = useCallback((isOpen: boolean) => {
+    setIsArtisanSearchOpen(isOpen)
+    onArtisanSearchOpenChange?.(isOpen)
+  }, [onArtisanSearchOpenChange])
+
+  const handleEmailModalOpenChange = useCallback((isOpen: boolean) => {
+    setIsEmailModalOpen(isOpen)
+    onEmailModalOpenChange?.(isOpen)
+  }, [onEmailModalOpenChange])
+
+  const handleStatusReasonModalOpenChange = useCallback((isOpen: boolean) => {
+    setIsStatusReasonModalOpen(isOpen)
+    onStatusReasonModalOpenChange?.(isOpen)
+  }, [onStatusReasonModalOpenChange])
+
+  const handlePopoverOpenChange = useCallback((isOpen: boolean) => {
+    setIsPopoverOpen(isOpen)
+    onPopoverOpenChange?.(isOpen)
+  }, [onPopoverOpenChange])
+
   // Récupérer les données de l'intervention
   const {
     data: intervention,
@@ -752,22 +773,10 @@ GMBS`
                 onClientPhoneChange={setClientPhone}
                 onOpenSmsModal={handleOpenSmsModal}
                 onHasUnsavedChanges={setHasUnsavedChanges}
-                onArtisanSearchOpenChange={(isOpen) => {
-                  setIsArtisanSearchOpen(isOpen)
-                  onArtisanSearchOpenChange?.(isOpen)
-                }}
-                onEmailModalOpenChange={(isOpen) => {
-                  setIsEmailModalOpen(isOpen)
-                  onEmailModalOpenChange?.(isOpen)
-                }}
-                onStatusReasonModalOpenChange={(isOpen) => {
-                  setIsStatusReasonModalOpen(isOpen)
-                  onStatusReasonModalOpenChange?.(isOpen)
-                }}
-                onPopoverOpenChange={(isOpen) => {
-                  setIsPopoverOpen(isOpen)
-                  onPopoverOpenChange?.(isOpen)
-                }}
+                onArtisanSearchOpenChange={handleArtisanSearchOpenChange}
+                onEmailModalOpenChange={handleEmailModalOpenChange}
+                onStatusReasonModalOpenChange={handleStatusReasonModalOpenChange}
+                onPopoverOpenChange={handlePopoverOpenChange}
               />
             ) : (
               <div className="rounded border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
