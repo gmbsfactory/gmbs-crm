@@ -1,13 +1,13 @@
 'use client';
 
-import { useEffect, useState, useRef, useCallback } from 'react';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { useEffect, useState, useRef, useCallback, useLayoutEffect } from 'react';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
-import { X, Paperclip, Mail, Loader2 } from 'lucide-react';
+import { X, Paperclip, Mail, Loader2, ZoomIn, ZoomOut, RotateCcw } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase-client';
 import type { EmailTemplateData } from '@/lib/email-templates/intervention-emails';
@@ -48,8 +48,25 @@ export function EmailEditModal({
   const [htmlContent, setHtmlContent] = useState('');
   const [attachments, setAttachments] = useState<AttachmentFile[]>([]);
   const [isSending, setIsSending] = useState(false);
+  const [previewZoom, setPreviewZoom] = useState(100); // Zoom percentage (100 = 100%)
+  const [optimalZoom, setOptimalZoom] = useState(100); // Calculated optimal zoom
   const fileInputRef = useRef<HTMLInputElement>(null);
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const previewContainerRef = useRef<HTMLDivElement>(null);
+  const previewContentRef = useRef<HTMLDivElement>(null);
+
+  // Zoom controls
+  const handleZoomIn = useCallback(() => {
+    setPreviewZoom(prev => Math.min(prev + 10, 150));
+  }, []);
+
+  const handleZoomOut = useCallback(() => {
+    setPreviewZoom(prev => Math.max(prev - 10, 30));
+  }, []);
+
+  const handleZoomReset = useCallback(() => {
+    setPreviewZoom(optimalZoom);
+  }, [optimalZoom]);
 
   // Editable template data fields (only commentaire and coutSST)
   const [editableData, setEditableData] = useState<Partial<EmailTemplateData>>({
@@ -140,6 +157,46 @@ export function EmailEditModal({
       }
     };
   }, []);
+
+  // Calculate optimal zoom to fit content
+  const calculateOptimalZoom = useCallback(() => {
+    if (!previewContainerRef.current || !previewContentRef.current) return;
+
+    const contentEl = previewContentRef.current;
+    const containerEl = previewContainerRef.current;
+    
+    // Temporarily set zoom to 100% to measure actual content
+    const originalTransform = contentEl.style.transform;
+    contentEl.style.transform = 'scale(1)';
+    
+    const containerHeight = containerEl.clientHeight;
+    const contentHeight = contentEl.scrollHeight;
+    
+    contentEl.style.transform = originalTransform;
+    
+    if (contentHeight > 0 && containerHeight > 0) {
+      // Calculate optimal zoom percentage (min 50%, max 100%)
+      const optimal = Math.min(100, Math.max(50, Math.floor((containerHeight / contentHeight) * 100)));
+      setOptimalZoom(optimal);
+      setPreviewZoom(optimal);
+    }
+  }, []);
+
+  // Reset zoom when modal opens
+  useEffect(() => {
+    if (isOpen) {
+      setPreviewZoom(100);
+      setOptimalZoom(100);
+    }
+  }, [isOpen]);
+
+  // Calculate optimal zoom when content is rendered
+  useLayoutEffect(() => {
+    if (isOpen && htmlContent) {
+      const timer = setTimeout(calculateOptimalZoom, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [isOpen, htmlContent, calculateOptimalZoom]);
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
@@ -364,172 +421,235 @@ export function EmailEditModal({
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
       <DialogContent
-        className="w-[80vw] max-w-[80vw] max-h-[90vh] overflow-y-auto z-[80]"
+        className="w-[85vw] max-w-[85vw] h-[90vh] max-h-[90vh] overflow-hidden z-[80] p-0 flex"
         overlayClassName="z-[75]"
       >
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Mail className="h-5 w-5" />
-            {emailType === 'devis' ? 'Email demande de devis' : 'Email demande d\'intervention'}
-          </DialogTitle>
-          <DialogDescription>
-            Destinataire : {artisanEmail}
-          </DialogDescription>
-        </DialogHeader>
-
-        <div className="grid grid-cols-1 lg:grid-cols-[70%_30%] gap-4 h-[calc(90vh-120px)]">
-          {/* Left: Preview */}
-          <div className="flex flex-col h-full">
-            <div className="space-y-2 flex-shrink-0">
-              <Label>Aperçu de l&apos;email</Label>
-            </div>
-            <div className="border rounded-lg overflow-hidden bg-background flex-1 flex flex-col min-h-0">
-              <div className="border-b bg-muted/50 px-4 py-2 flex-shrink-0">
-                <span className="text-xs font-medium text-muted-foreground">Ce que le client recevra</span>
+        <div className="flex flex-row w-full h-full">
+          {/* Left: Preview - full height with zoom controls and scroll */}
+          <div className="flex flex-col w-[65%] h-full border-r">
+            <div className="border-b bg-muted/50 px-4 py-2 flex-shrink-0 flex items-center justify-between">
+              <div>
+                <span className="text-sm font-medium">Aperçu de l&apos;email</span>
+                <p className="text-xs text-muted-foreground">Ce que le destinataire recevra</p>
               </div>
+              {/* Zoom controls */}
+              <div className="flex items-center gap-1">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleZoomOut}
+                  disabled={previewZoom <= 30}
+                  className="h-8 w-8 p-0"
+                  title="Zoom arrière"
+                >
+                  <ZoomOut className="h-4 w-4" />
+                </Button>
+                <span className="text-xs font-medium w-12 text-center">{previewZoom}%</span>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleZoomIn}
+                  disabled={previewZoom >= 150}
+                  className="h-8 w-8 p-0"
+                  title="Zoom avant"
+                >
+                  <ZoomIn className="h-4 w-4" />
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleZoomReset}
+                  className="h-8 w-8 p-0"
+                  title="Réinitialiser le zoom"
+                >
+                  <RotateCcw className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+            <div
+              ref={previewContainerRef}
+              className="bg-white"
+              style={{
+                fontFamily: 'system-ui, -apple-system, sans-serif',
+                height: 'calc(100% - 52px)',
+                overflowY: 'auto',
+                overflowX: 'auto',
+              }}
+            >
               <div
-                className="p-4 overflow-y-auto bg-white flex-1"
+                ref={previewContentRef}
+                className="p-4"
                 style={{
-                  fontFamily: 'system-ui, -apple-system, sans-serif',
+                  zoom: previewZoom / 100,
                 }}
                 dangerouslySetInnerHTML={{ __html: getPreviewHtml(htmlContent) }}
               />
             </div>
           </div>
 
-          {/* Right: Editor */}
-          <div className="space-y-4 overflow-y-auto h-full">
-            {/* Subject */}
-            <div className="space-y-2">
-              <Label htmlFor="email-subject">Sujet</Label>
-              <Input
-                id="email-subject"
-                value={subject}
-                onChange={(e) => setSubject(e.target.value)}
-                placeholder="Sujet de l'email"
-                disabled={isSending}
-              />
-            </div>
-
-            {/* Coût SST (only for intervention type) */}
-            {emailType === 'intervention' && (
-              <div className="space-y-2">
-                <Label htmlFor="cout-sst">Coût SST</Label>
-                <Input
-                  id="cout-sst"
-                  type="text"
-                  value={editableData.coutSST || ''}
-                  onChange={(e) => setEditableData(prev => ({ ...prev, coutSST: e.target.value }))}
-                  placeholder="Ex: 150 EUR ou Non spécifié"
-                  disabled={isSending}
-                />
-                <p className="text-xs text-muted-foreground">
-                  Coût SST pour cette intervention
-                </p>
+          {/* Right: Header + Editor + Footer */}
+          <div className="flex flex-col w-[35%] h-full">
+            {/* Header */}
+            <div className="px-6 py-4 border-b flex-shrink-0">
+              <div className="flex items-center gap-2">
+                <Mail className="h-5 w-5 text-primary" />
+                <h2 className="text-lg font-semibold">
+                  {emailType === 'devis' ? 'Email demande de devis' : 'Email demande d\'intervention'}
+                </h2>
               </div>
-            )}
-
-            {/* Commentaire */}
-            <div className="space-y-2">
-              <Label htmlFor="commentaire">Commentaire</Label>
-              <Textarea
-                id="commentaire"
-                value={editableData.commentaire || ''}
-                onChange={(e) => setEditableData(prev => ({ ...prev, commentaire: e.target.value }))}
-                placeholder="Commentaires additionnels (optionnel)"
-                rows={3}
-                disabled={isSending}
-              />
-              <p className="text-xs text-muted-foreground">
-                Commentaires additionnels qui apparaîtront dans l&apos;email
+              <p className="text-sm text-muted-foreground mt-1">
+                Destinataire : <span className="font-medium text-foreground">{artisanEmail}</span>
               </p>
             </div>
 
-            {/* Attachments */}
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label>Pièces jointes</Label>
-                <Badge variant="secondary" className="text-xs">
-                  Logo GMBS inclus automatiquement
-                </Badge>
-              </div>
-
-              {/* File input */}
-              <div className="flex items-center gap-2">
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  multiple
-                  onChange={handleFileSelect}
-                  disabled={isSending || attachments.length >= MAX_ATTACHMENTS}
-                  className="hidden"
-                  id="file-upload"
+            {/* Editor - scrollable */}
+            <div className="overflow-y-auto px-6 py-4 space-y-4" style={{ height: 'calc(100% - 140px)' }}>
+              {/* Subject */}
+              <div className="space-y-2">
+                <Label htmlFor="email-subject">Sujet</Label>
+                <Input
+                  id="email-subject"
+                  value={subject}
+                  onChange={(e) => setSubject(e.target.value)}
+                  placeholder="Sujet de l'email"
+                  disabled={isSending}
                 />
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={isSending || attachments.length >= MAX_ATTACHMENTS}
-                  className="flex items-center gap-2"
-                >
-                  <Paperclip className="h-4 w-4" />
-                  Ajouter une pièce jointe
-                  {attachments.length > 0 && ` (${attachments.length}/${MAX_ATTACHMENTS})`}
-                </Button>
               </div>
 
-              {/* Attachment list */}
-              {attachments.length > 0 && (
+              {/* Coût SST (only for intervention type) */}
+              {emailType === 'intervention' && (
                 <div className="space-y-2">
-                  {attachments.map((att) => (
-                    <div
-                      key={att.id}
-                      className="flex items-center justify-between p-2 bg-muted rounded-md"
-                    >
-                      <div className="flex items-center gap-2 flex-1 min-w-0">
-                        <Paperclip className="h-4 w-4 flex-shrink-0" />
-                        <span className="text-sm truncate">{att.name}</span>
-                        <span className="text-xs text-muted-foreground flex-shrink-0">
-                          ({formatFileSize(att.size)})
-                        </span>
-                      </div>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleRemoveAttachment(att.id)}
-                        disabled={isSending}
-                        className="h-8 w-8 p-0"
-                      >
-                        <X className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  ))}
+                  <Label htmlFor="cout-sst">Coût SST</Label>
+                  <Input
+                    id="cout-sst"
+                    type="text"
+                    value={editableData.coutSST || ''}
+                    onChange={(e) => setEditableData(prev => ({ ...prev, coutSST: e.target.value }))}
+                    placeholder="Ex: 150 EUR ou Non spécifié"
+                    disabled={isSending}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Coût SST pour cette intervention
+                  </p>
                 </div>
               )}
+
+              {/* Commentaire */}
+              <div className="space-y-2">
+                <Label htmlFor="commentaire">Commentaire</Label>
+                <Textarea
+                  id="commentaire"
+                  value={editableData.commentaire || ''}
+                  onChange={(e) => setEditableData(prev => ({ ...prev, commentaire: e.target.value }))}
+                  placeholder="Commentaires additionnels (optionnel)"
+                  rows={3}
+                  disabled={isSending}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Commentaires additionnels qui apparaîtront dans l&apos;email
+                </p>
+              </div>
+
+              {/* Attachments */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label>Pièces jointes</Label>
+                  <Badge variant="secondary" className="text-xs">
+                    Logo GMBS inclus
+                  </Badge>
+                </div>
+
+                {/* File input */}
+                <div className="flex items-center gap-2">
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    multiple
+                    onChange={handleFileSelect}
+                    disabled={isSending || attachments.length >= MAX_ATTACHMENTS}
+                    className="hidden"
+                    id="file-upload"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={isSending || attachments.length >= MAX_ATTACHMENTS}
+                    className="flex items-center gap-2"
+                  >
+                    <Paperclip className="h-4 w-4" />
+                    Ajouter
+                    {attachments.length > 0 && ` (${attachments.length}/${MAX_ATTACHMENTS})`}
+                  </Button>
+                </div>
+
+                {/* Attachment list */}
+                {attachments.length > 0 && (
+                  <div className="space-y-2">
+                    {attachments.map((att) => (
+                      <div
+                        key={att.id}
+                        className="flex items-center justify-between p-2 bg-muted rounded-md"
+                      >
+                        <div className="flex items-center gap-2 flex-1 min-w-0">
+                          <Paperclip className="h-4 w-4 flex-shrink-0" />
+                          <span className="text-sm truncate">{att.name}</span>
+                          <span className="text-xs text-muted-foreground flex-shrink-0">
+                            ({formatFileSize(att.size)})
+                          </span>
+                        </div>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleRemoveAttachment(att.id)}
+                          disabled={isSending}
+                          className="h-8 w-8 p-0"
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="px-6 py-4 border-t flex-shrink-0 flex justify-end gap-2">
+              <Button type="button" variant="outline" onClick={handleClose} disabled={isSending}>
+                Annuler
+              </Button>
+              <Button type="button" onClick={handleSend} disabled={isSending}>
+                {isSending ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Envoi en cours...
+                  </>
+                ) : (
+                  <>
+                    <Mail className="mr-2 h-4 w-4" />
+                    Envoyer
+                  </>
+                )}
+              </Button>
             </div>
           </div>
         </div>
 
-        <DialogFooter>
-          <Button type="button" variant="outline" onClick={handleClose} disabled={isSending}>
-            Annuler
-          </Button>
-          <Button type="button" onClick={handleSend} disabled={isSending}>
-            {isSending ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Envoi en cours...
-              </>
-            ) : (
-              <>
-                <Mail className="mr-2 h-4 w-4" />
-                Envoyer
-              </>
-            )}
-          </Button>
-        </DialogFooter>
+        {/* Hidden DialogHeader and DialogFooter for accessibility */}
+        <DialogHeader className="sr-only">
+          <DialogTitle>
+            {emailType === 'devis' ? 'Email demande de devis' : 'Email demande d\'intervention'}
+          </DialogTitle>
+          <DialogDescription>
+            Destinataire : {artisanEmail}
+          </DialogDescription>
+        </DialogHeader>
       </DialogContent>
     </Dialog>
   );
