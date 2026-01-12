@@ -267,11 +267,13 @@ function SortableTab({
                 tabIndex={tabIndex}
                 onClick={() => onSelect(view.id)}
                 className={cn(
-                  "relative flex items-center gap-2 border px-3 py-1.5 text-sm font-medium rounded-full",
-                  // PILULE INACTIVE : style léger
+                  "relative flex items-center gap-2 border px-3 py-1.5 text-sm font-medium transition-all duration-200",
+                  // PILULE INACTIVE : rounded-full, flotte au-dessus
+                  !isActive && "rounded-full",
                   !isActive && !hasStatusColor && "border-primary/40 bg-primary/15 text-primary hover:bg-primary/25",
                   !isActive && hasStatusColor && "hover:opacity-80",
-                  // PILULE ACTIVE : style plein
+                  // INTERCALAIRE ACTIF : coins supérieurs arrondis, inférieurs carrés, fusionne avec table
+                  isActive && "rounded-t-lg rounded-b-none border-b-0 relative z-20 -mb-[4px]",
                   isActive && !hasStatusColor && "border-primary bg-primary text-primary-foreground",
                 )}
                 style={getButtonStyle()}

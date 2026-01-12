@@ -84,6 +84,13 @@ const STATUSES_REQUIRING_DEFINITIVE_ID = new Set([
   "STAND_BY",
 ])
 
+// Nouvelles règles de validation par statut
+const STATUSES_REQUIRING_NOM_FACTURATION = new Set(["DEVIS_ENVOYE"])
+const STATUSES_REQUIRING_ASSIGNED_USER = new Set(["DEVIS_ENVOYE"])
+const STATUSES_REQUIRING_COUTS = new Set(["INTER_EN_COURS"])
+const STATUSES_REQUIRING_CONSIGNE_ARTISAN = new Set(["INTER_EN_COURS"])
+const STATUSES_REQUIRING_CLIENT_INFO = new Set(["INTER_EN_COURS"])
+
 const formatDistanceKm = (value: number) => {
   if (!Number.isFinite(value)) return "—"
   if (value < 1) return "< 1 km"
@@ -776,6 +783,46 @@ export const InterventionEditForm = memo(function InterventionEditForm({
     )
   }, [selectedStatus])
 
+  // Nouvelles règles de validation pour DEVIS_ENVOYE
+  const requiresNomFacturation = useMemo(() => {
+    if (!selectedStatus) return false
+    const code = (selectedStatus.code ?? "").toUpperCase()
+    return STATUSES_REQUIRING_NOM_FACTURATION.has(code) || 
+           (selectedStatus.label ?? "").toLowerCase().includes("devis envoyé")
+  }, [selectedStatus])
+
+  const requiresAssignedUser = useMemo(() => {
+    if (!selectedStatus) return false
+    const code = (selectedStatus.code ?? "").toUpperCase()
+    return STATUSES_REQUIRING_ASSIGNED_USER.has(code) ||
+           (selectedStatus.label ?? "").toLowerCase().includes("devis envoyé")
+  }, [selectedStatus])
+
+  // Nouvelles règles de validation pour INTER_EN_COURS
+  const requiresCouts = useMemo(() => {
+    if (!selectedStatus) return false
+    const code = (selectedStatus.code ?? "").toUpperCase()
+    return STATUSES_REQUIRING_COUTS.has(code) ||
+           (selectedStatus.label ?? "").toLowerCase().includes("inter en cours") ||
+           (selectedStatus.label ?? "").toLowerCase().includes("intervention en cours")
+  }, [selectedStatus])
+
+  const requiresConsigneArtisan = useMemo(() => {
+    if (!selectedStatus) return false
+    const code = (selectedStatus.code ?? "").toUpperCase()
+    return STATUSES_REQUIRING_CONSIGNE_ARTISAN.has(code) ||
+           (selectedStatus.label ?? "").toLowerCase().includes("inter en cours") ||
+           (selectedStatus.label ?? "").toLowerCase().includes("intervention en cours")
+  }, [selectedStatus])
+
+  const requiresClientInfo = useMemo(() => {
+    if (!selectedStatus) return false
+    const code = (selectedStatus.code ?? "").toUpperCase()
+    return STATUSES_REQUIRING_CLIENT_INFO.has(code) ||
+           (selectedStatus.label ?? "").toLowerCase().includes("inter en cours") ||
+           (selectedStatus.label ?? "").toLowerCase().includes("intervention en cours")
+  }, [selectedStatus])
+
   // --- Gestion des acomptes ---
   // Note: sstPayment et clientPayment sont déclarés plus haut
 
@@ -994,7 +1041,37 @@ export const InterventionEditForm = memo(function InterventionEditForm({
       userEditedIdInterRef.current = true
     }
     setFormData((prev) => ({ ...prev, [field]: value }))
-  }, [])
+    
+    // Logique d'ouverture automatique des sections collapsibles lors du changement de statut
+    // Note: Les toasts d'erreur apparaîtront uniquement lors de la validation finale (handleSubmit)
+    if (field === "statut_id" && value && refData?.interventionStatuses) {
+      const selectedStatus = refData.interventionStatuses.find((s) => s.id === value)
+      if (selectedStatus) {
+        const statusCode = (selectedStatus.code ?? "").toUpperCase()
+        const statusLabel = (selectedStatus.label ?? "").toLowerCase()
+        
+        // Pour DEVIS_ENVOYE : ouvrir "Détails facturation" si le champ est vide
+        if (statusCode === "DEVIS_ENVOYE" || statusLabel.includes("devis envoyé")) {
+          setFormData((currentFormData) => {
+            if (!currentFormData.nomPrenomFacturation?.trim()) {
+              setIsProprietaireOpen(true)
+            }
+            return currentFormData
+          })
+        }
+        
+        // Pour INTER_EN_COURS : ouvrir "Détails client" si les champs sont vides
+        if (statusCode === "INTER_EN_COURS" || statusLabel.includes("inter en cours") || statusLabel.includes("intervention en cours")) {
+          setFormData((currentFormData) => {
+            if (!currentFormData.nomPrenomClient?.trim() || !currentFormData.telephoneClient?.trim()) {
+              setIsClientOpen(true)
+            }
+            return currentFormData
+          })
+        }
+      }
+    }
+  }, [refData?.interventionStatuses])
 
   const handleLocationChange = (lat: number, lng: number) => {
     setFormData((prev) => ({
@@ -1824,6 +1901,48 @@ export const InterventionEditForm = memo(function InterventionEditForm({
       return
     }
 
+    // === VALIDATIONS POUR DEVIS_ENVOYE ===
+    if (requiresNomFacturation && !formData.nomPrenomFacturation?.trim()) {
+      toast.error("Le nom/prénom de facturation (propriétaire) est obligatoire pour passer à Devis envoyé")
+      return
+    }
+
+    if (requiresAssignedUser && !formData.assigned_user_id) {
+      toast.error("L'intervention doit être assignée à un gestionnaire pour passer à Devis envoyé")
+      return
+    }
+
+    // === VALIDATIONS POUR INTER_EN_COURS ===
+    if (requiresCouts) {
+      const coutInterValue = parseFloat(formData.coutIntervention) || 0
+      const coutSSTValue = parseFloat(formData.coutSST) || 0
+      
+      if (coutInterValue <= 0) {
+        toast.error("Le coût d'intervention doit être renseigné pour passer en cours")
+        return
+      }
+      if (coutSSTValue <= 0) {
+        toast.error("Le coût SST doit être renseigné pour passer en cours")
+        return
+      }
+    }
+
+    if (requiresConsigneArtisan && !formData.consigne_intervention?.trim()) {
+      toast.error("La consigne pour l'artisan doit être renseignée pour passer en cours")
+      return
+    }
+
+    if (requiresClientInfo) {
+      if (!formData.nomPrenomClient?.trim()) {
+        toast.error("Le nom/prénom du client doit être renseigné pour passer en cours")
+        return
+      }
+      if (!formData.telephoneClient?.trim()) {
+        toast.error("Le téléphone du client doit être renseigné pour passer en cours")
+        return
+      }
+    }
+
     const nextStatusCode = getInterventionStatusCode(formData.statut_id)
     const reasonType = getReasonTypeForTransition(initialStatusCode, nextStatusCode)
 
@@ -1937,10 +2056,17 @@ export const InterventionEditForm = memo(function InterventionEditForm({
                         }}
                       >
                         {/* Badge utilisateur assigné - Largeur fixe à gauche */}
-                        <div className="flex items-center">
+                        <div className="flex items-center relative">
                           <Popover>
                             <PopoverTrigger asChild>
-                              <button type="button" className="flex items-center justify-center h-7 w-7 cursor-pointer group rounded-full">
+                              <button 
+                                type="button" 
+                                className={cn(
+                                  "flex items-center justify-center h-7 w-7 cursor-pointer group rounded-full",
+                                  requiresAssignedUser && !formData.assigned_user_id && "ring-2 ring-orange-400 ring-offset-1"
+                                )}
+                                title={requiresAssignedUser && !formData.assigned_user_id ? "Attribution obligatoire pour ce statut" : undefined}
+                              >
                                 {(() => {
                                   const assignedUser = refData?.users.find(u => u.id === formData.assigned_user_id)
                                   return (
@@ -1995,6 +2121,9 @@ export const InterventionEditForm = memo(function InterventionEditForm({
                               </div>
                             </PopoverContent>
                           </Popover>
+                          {requiresAssignedUser && !formData.assigned_user_id && (
+                            <span className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-orange-500 animate-pulse" />
+                          )}
                         </div>
 
                         {/* Statut - Badge coloré */}
@@ -2071,18 +2200,24 @@ export const InterventionEditForm = memo(function InterventionEditForm({
                         />
 
                         {/* ID Intervention - Input */}
-                        <div className="flex items-center">
+                        <div className="flex items-center relative">
                           <Input
                             id="idIntervention"
                             value={formData.id_inter}
                             onChange={(event) => handleInputChange("id_inter", event.target.value)}
-                            placeholder="ID Inter."
-                            className="h-7 text-xs rounded-full px-3"
+                            placeholder={requiresDefinitiveId ? "ID Inter. *" : "ID Inter."}
+                            className={cn(
+                              "h-7 text-xs rounded-full px-3",
+                              requiresDefinitiveId && (!formData.id_inter?.trim() || formData.id_inter.toLowerCase().includes("auto")) && "border-orange-400 focus-visible:ring-orange-400"
+                            )}
                             required={requiresDefinitiveId}
                             pattern={requiresDefinitiveId ? "^(?!.*(?:[Aa][Uu][Tt][Oo])).+$" : undefined}
-                            title={requiresDefinitiveId ? "ID définitif requis" : undefined}
+                            title={requiresDefinitiveId ? "ID définitif requis (sans 'AUTO')" : undefined}
                             autoComplete="off"
                           />
+                          {requiresDefinitiveId && (!formData.id_inter?.trim() || formData.id_inter.toLowerCase().includes("auto")) && (
+                            <span className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-orange-500 animate-pulse" title="ID définitif requis" />
+                          )}
                         </div>
                       </div>
                     </CardContent>
@@ -2467,31 +2602,55 @@ export const InterventionEditForm = memo(function InterventionEditForm({
                   </Card>
 
                   {/* DIV6: CONSIGNE INTERVENTION - Row 5, Cols 3-4 */}
-                  <Card style={{ gridArea: "5 / 3 / 6 / 5" }}>
+                  <Card style={{ gridArea: "5 / 3 / 6 / 5" }} className={cn(requiresConsigneArtisan && !formData.consigne_intervention?.trim() && "ring-2 ring-orange-400/50")}>
                     <CardContent className="p-4">
-                      <Label htmlFor="consigneIntervention" className="text-xs font-medium mb-2 block">Consigne pour l&apos;artisan</Label>
+                      <Label htmlFor="consigneIntervention" className="text-xs font-medium mb-2 block">
+                        Consigne pour l&apos;artisan {requiresConsigneArtisan && <span className="text-orange-500">*</span>}
+                      </Label>
                       <Textarea
                         id="consigneIntervention"
                         value={formData.consigne_intervention}
                         onChange={(event) => handleInputChange("consigne_intervention", event.target.value)}
                         placeholder="Consignes spécifiques..."
                         rows={4}
-                        className="text-sm resize-none"
+                        className={cn("text-sm resize-none", requiresConsigneArtisan && !formData.consigne_intervention?.trim() && "border-orange-400 focus-visible:ring-orange-400")}
                       />
                     </CardContent>
                   </Card>
 
                   {/* DIV4: FINANCES & PLANIFICATION - Row 6, Cols 1-4 */}
-                  <Card style={{ gridArea: "6 / 1 / 7 / 5" }}>
+                  <Card style={{ gridArea: "6 / 1 / 7 / 5" }} className={cn(requiresCouts && (!(parseFloat(formData.coutIntervention) > 0) || !(parseFloat(formData.coutSST) > 0)) && "ring-2 ring-orange-400/50")}>
                     <CardContent className="p-4">
                       <div className="grid grid-cols-5 gap-3 items-end">
                         <div>
-                          <Label htmlFor="coutIntervention" className="text-xs">Coût inter.</Label>
-                          <Input id="coutIntervention" type="number" step="0.01" min="0" value={formData.coutIntervention} onChange={(e) => handleInputChange("coutIntervention", e.target.value)} placeholder="0.00 €" className="h-8 text-sm mt-1" />
+                          <Label htmlFor="coutIntervention" className="text-xs">
+                            Coût inter. {requiresCouts && <span className="text-orange-500">*</span>}
+                          </Label>
+                          <Input 
+                            id="coutIntervention" 
+                            type="number" 
+                            step="0.01" 
+                            min="0" 
+                            value={formData.coutIntervention} 
+                            onChange={(e) => handleInputChange("coutIntervention", e.target.value)} 
+                            placeholder="0.00 €" 
+                            className={cn("h-8 text-sm mt-1", requiresCouts && !(parseFloat(formData.coutIntervention) > 0) && "border-orange-400 focus-visible:ring-orange-400")}
+                          />
                         </div>
                         <div>
-                          <Label htmlFor="coutSST" className="text-xs">Coût SST</Label>
-                          <Input id="coutSST" type="number" step="0.01" min="0" value={formData.coutSST} onChange={(e) => handleInputChange("coutSST", e.target.value)} placeholder="0.00 €" className="h-8 text-sm mt-1" />
+                          <Label htmlFor="coutSST" className="text-xs">
+                            Coût SST {requiresCouts && <span className="text-orange-500">*</span>}
+                          </Label>
+                          <Input 
+                            id="coutSST" 
+                            type="number" 
+                            step="0.01" 
+                            min="0" 
+                            value={formData.coutSST} 
+                            onChange={(e) => handleInputChange("coutSST", e.target.value)} 
+                            placeholder="0.00 €" 
+                            className={cn("h-8 text-sm mt-1", requiresCouts && !(parseFloat(formData.coutSST) > 0) && "border-orange-400 focus-visible:ring-orange-400")}
+                          />
                         </div>
                         <div>
                           <Label htmlFor="coutMateriel" className="text-xs">Coût mat.</Label>
@@ -2509,9 +2668,24 @@ export const InterventionEditForm = memo(function InterventionEditForm({
                             )}
                           </div>
                         </div>
-                        <div>
-                          <Label htmlFor="datePrevue" className="text-xs">Date prévue {requiresDatePrevue && "*"}</Label>
-                          <Input id="datePrevue" type="date" value={formData.date_prevue} onChange={(e) => handleInputChange("date_prevue", e.target.value)} className="h-8 text-sm mt-1" required={requiresDatePrevue} />
+                        <div className="relative">
+                          <Label htmlFor="datePrevue" className="text-xs">
+                            Date prévue {requiresDatePrevue && <span className="text-orange-500">*</span>}
+                          </Label>
+                          <Input 
+                            id="datePrevue" 
+                            type="date" 
+                            value={formData.date_prevue} 
+                            onChange={(e) => handleInputChange("date_prevue", e.target.value)} 
+                            className={cn(
+                              "h-8 text-sm mt-1",
+                              requiresDatePrevue && !formData.date_prevue?.trim() && "border-orange-400 focus-visible:ring-orange-400"
+                            )}
+                            required={requiresDatePrevue} 
+                          />
+                          {requiresDatePrevue && !formData.date_prevue?.trim() && (
+                            <span className="absolute top-0 -right-1 h-2 w-2 rounded-full bg-orange-500 animate-pulse" title="Date prévue requise" />
+                          )}
                         </div>
                       </div>
                     </CardContent>
@@ -2545,11 +2719,14 @@ export const InterventionEditForm = memo(function InterventionEditForm({
                 {/* Détails facturation */}
                 <SectionLock isLocked={!canEditIntervention}>
                   <Collapsible open={isProprietaireOpen} onOpenChange={setIsProprietaireOpen}>
-                    <Card>
+                    <Card className={cn(requiresNomFacturation && !formData.nomPrenomFacturation?.trim() && "ring-2 ring-orange-400/50")}>
                       <CollapsibleTrigger asChild>
                         <CardHeader className="cursor-pointer py-2 px-3 hover:bg-muted/50">
                           <CardTitle className="flex items-center gap-2 text-xs">
                             Détails facturation
+                            {requiresNomFacturation && !formData.nomPrenomFacturation?.trim() && (
+                              <span className="h-2 w-2 rounded-full bg-orange-500 animate-pulse" title="Champ obligatoire manquant" />
+                            )}
                             {isProprietaireOpen ? <ChevronDown className="ml-auto h-3 w-3" /> : <ChevronRight className="ml-auto h-3 w-3" />}
                           </CardTitle>
                         </CardHeader>
@@ -2558,8 +2735,16 @@ export const InterventionEditForm = memo(function InterventionEditForm({
                         <CardContent className="pt-0 px-3 pb-3">
                           <div className="space-y-2">
                             <div>
-                              <Label htmlFor="nomPrenomFacturation" className="text-[10px]">Nom Prénom</Label>
-                              <Input id="nomPrenomFacturation" value={formData.nomPrenomFacturation} onChange={(e) => handleInputChange("nomPrenomFacturation", e.target.value)} placeholder="Nom Prénom" className="h-7 text-xs mt-1" />
+                              <Label htmlFor="nomPrenomFacturation" className="text-[10px]">
+                                Nom Prénom {requiresNomFacturation && <span className="text-orange-500">*</span>}
+                              </Label>
+                              <Input 
+                                id="nomPrenomFacturation" 
+                                value={formData.nomPrenomFacturation} 
+                                onChange={(e) => handleInputChange("nomPrenomFacturation", e.target.value)} 
+                                placeholder="Nom Prénom" 
+                                className={cn("h-7 text-xs mt-1", requiresNomFacturation && !formData.nomPrenomFacturation?.trim() && "border-orange-400 focus-visible:ring-orange-400")}
+                              />
                             </div>
                             <div className="grid grid-cols-2 gap-2">
                               <div>
@@ -2581,11 +2766,14 @@ export const InterventionEditForm = memo(function InterventionEditForm({
                 {/* Détails client */}
                 <SectionLock isLocked={!canEditIntervention}>
                   <Collapsible open={isClientOpen} onOpenChange={setIsClientOpen}>
-                    <Card>
+                    <Card className={cn(requiresClientInfo && (!formData.nomPrenomClient?.trim() || !formData.telephoneClient?.trim()) && "ring-2 ring-orange-400/50")}>
                       <CollapsibleTrigger asChild>
                         <CardHeader className="cursor-pointer py-2 px-3 hover:bg-muted/50">
                           <CardTitle className="flex items-center gap-2 text-xs">
                             Détails client
+                            {requiresClientInfo && (!formData.nomPrenomClient?.trim() || !formData.telephoneClient?.trim()) && (
+                              <span className="h-2 w-2 rounded-full bg-orange-500 animate-pulse" title="Champs obligatoires manquants" />
+                            )}
                             {isClientOpen ? <ChevronDown className="ml-auto h-3 w-3" /> : <ChevronRight className="ml-auto h-3 w-3" />}
                           </CardTitle>
                         </CardHeader>
@@ -2635,13 +2823,29 @@ export const InterventionEditForm = memo(function InterventionEditForm({
                           ) : (
                             <div className="space-y-2">
                               <div>
-                                <Label htmlFor="nomPrenomClient" className="text-[10px]">Nom Prénom</Label>
-                                <Input id="nomPrenomClient" value={formData.nomPrenomClient} onChange={(e) => handleInputChange("nomPrenomClient", e.target.value)} placeholder="Nom Prénom" className="h-7 text-xs mt-1" />
+                                <Label htmlFor="nomPrenomClient" className="text-[10px]">
+                                  Nom Prénom {requiresClientInfo && <span className="text-orange-500">*</span>}
+                                </Label>
+                                <Input 
+                                  id="nomPrenomClient" 
+                                  value={formData.nomPrenomClient} 
+                                  onChange={(e) => handleInputChange("nomPrenomClient", e.target.value)} 
+                                  placeholder="Nom Prénom" 
+                                  className={cn("h-7 text-xs mt-1", requiresClientInfo && !formData.nomPrenomClient?.trim() && "border-orange-400 focus-visible:ring-orange-400")}
+                                />
                               </div>
                               <div className="grid grid-cols-2 gap-2">
                                 <div>
-                                  <Label htmlFor="telephoneClient" className="text-[10px]">Téléphone</Label>
-                                  <Input id="telephoneClient" value={formData.telephoneClient} onChange={(e) => handleInputChange("telephoneClient", e.target.value)} placeholder="06..." className="h-7 text-xs mt-1" />
+                                  <Label htmlFor="telephoneClient" className="text-[10px]">
+                                    Téléphone {requiresClientInfo && <span className="text-orange-500">*</span>}
+                                  </Label>
+                                  <Input 
+                                    id="telephoneClient" 
+                                    value={formData.telephoneClient} 
+                                    onChange={(e) => handleInputChange("telephoneClient", e.target.value)} 
+                                    placeholder="06..." 
+                                    className={cn("h-7 text-xs mt-1", requiresClientInfo && !formData.telephoneClient?.trim() && "border-orange-400 focus-visible:ring-orange-400")}
+                                  />
                                 </div>
                                 <div>
                                   <Label htmlFor="emailClient" className="text-[10px]">Email</Label>

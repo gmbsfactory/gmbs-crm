@@ -940,6 +940,16 @@ export function NewInterventionForm({
       return
     }
 
+    // Validation obligatoire : Agence et Métier à la création
+    if (!formData.agence_id) {
+      toast.error("L'agence est obligatoire pour créer une intervention")
+      return
+    }
+    if (!formData.metier_id) {
+      toast.error("Le métier est obligatoire pour créer une intervention")
+      return
+    }
+
     let idInterValue: string = formData.id_inter?.trim() ?? ""
     if (requiresDefinitiveId) {
       if (idInterValue.length === 0 || idInterValue.toLowerCase().includes("auto")) {
@@ -1320,13 +1330,14 @@ export function NewInterventionForm({
                     }
                   />
 
-                  {/* Agence - Badge coloré */}
+                  {/* Agence - Badge coloré (obligatoire) */}
                   <SearchableBadgeSelect
                     label="Agence"
+                    required
                     hideLabel
                     value={formData.agence_id}
                     onChange={(value) => handleInputChange("agence_id", value)}
-                    placeholder="Agence"
+                    placeholder="Agence *"
                     onOpenChange={onPopoverOpenChange}
                     searchPlaceholder="Rechercher une agence..."
                     options={(refData?.agencies || []).map(a => ({
@@ -1351,13 +1362,14 @@ export function NewInterventionForm({
                     </div>
                   )}
 
-                  {/* Métier - Badge coloré */}
+                  {/* Métier - Badge coloré (obligatoire) */}
                   <SearchableBadgeSelect
                     label="Métier"
+                    required
                     hideLabel
                     value={formData.metier_id}
                     onChange={(value) => handleInputChange("metier_id", value)}
-                    placeholder="Métier"
+                    placeholder="Métier *"
                     minWidth="100px"
                     onOpenChange={onPopoverOpenChange}
                     searchPlaceholder="Rechercher un métier..."

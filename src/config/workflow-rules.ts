@@ -10,6 +10,16 @@ export type WorkflowRule = {
     proprietaire?: boolean
     commentaire?: boolean
     devisId?: boolean
+    // Nouveaux champs pour DEVIS_ENVOYE
+    nomPrenomFacturation?: boolean
+    assignedUser?: boolean
+    // Nouveaux champs pour INTER_EN_COURS
+    coutIntervention?: boolean
+    coutSST?: boolean
+    consigneArtisan?: boolean
+    nomPrenomClient?: boolean
+    telephoneClient?: boolean
+    datePrevue?: boolean
   }
   autoActions?: string[]
   restrictions?: {
@@ -24,7 +34,11 @@ export const WORKFLOW_RULES: Record<InterventionStatusValue, WorkflowRule> = {
     autoActions: [],
   },
   DEVIS_ENVOYE: {
-    requirements: { devisId: true },
+    requirements: { 
+      devisId: true,
+      nomPrenomFacturation: true,
+      assignedUser: true,
+    },
     autoActions: ["send_email_devis"],
     restrictions: {},
   },
@@ -51,7 +65,15 @@ export const WORKFLOW_RULES: Record<InterventionStatusValue, WorkflowRule> = {
     autoActions: [],
   },
   INTER_EN_COURS: {
-    requirements: { artisan: true },
+    requirements: { 
+      artisan: true,
+      coutIntervention: true,
+      coutSST: true,
+      consigneArtisan: true,
+      nomPrenomClient: true,
+      telephoneClient: true,
+      datePrevue: true,
+    },
     autoActions: [],
   },
   INTER_TERMINEE: {
@@ -159,6 +181,83 @@ export const VALIDATION_RULES: ValidationRule[] = [
     message: "Un commentaire est obligatoire pour ce statut",
     blockTransition: true,
     validate: (context) => Boolean(context.commentaire && context.commentaire.toString().trim().length > 0),
+  },
+  // === NOUVELLES RÈGLES DE VALIDATION ===
+  // Règles pour DEVIS_ENVOYE
+  {
+    key: "DEVIS_ENVOYE_NOM_FACTURATION",
+    to: "DEVIS_ENVOYE",
+    message: "Le nom/prénom de facturation (propriétaire) doit être renseigné pour passer à Devis envoyé",
+    blockTransition: true,
+    validate: (context) => {
+      if (!context.nomPrenomFacturation) return false
+      return String(context.nomPrenomFacturation).trim().length > 0
+    },
+  },
+  {
+    key: "DEVIS_ENVOYE_ASSIGNED_USER",
+    to: "DEVIS_ENVOYE",
+    message: "L'intervention doit être assignée à un gestionnaire pour passer à Devis envoyé",
+    blockTransition: true,
+    validate: (context) => Boolean(context.assignedUserId),
+  },
+  // Règles pour INTER_EN_COURS
+  {
+    key: "INTER_EN_COURS_COUT_INTERVENTION",
+    to: "INTER_EN_COURS",
+    message: "Le coût d'intervention doit être renseigné pour passer en cours",
+    blockTransition: true,
+    validate: (context) => {
+      if (context.coutIntervention === undefined || context.coutIntervention === null) return false
+      return Number(context.coutIntervention) > 0
+    },
+  },
+  {
+    key: "INTER_EN_COURS_COUT_SST",
+    to: "INTER_EN_COURS",
+    message: "Le coût SST doit être renseigné pour passer en cours",
+    blockTransition: true,
+    validate: (context) => {
+      if (context.coutSST === undefined || context.coutSST === null) return false
+      return Number(context.coutSST) > 0
+    },
+  },
+  {
+    key: "INTER_EN_COURS_CONSIGNE_ARTISAN",
+    to: "INTER_EN_COURS",
+    message: "La consigne pour l'artisan doit être renseignée pour passer en cours",
+    blockTransition: true,
+    validate: (context) => {
+      if (!context.consigneArtisan) return false
+      return String(context.consigneArtisan).trim().length > 0
+    },
+  },
+  {
+    key: "INTER_EN_COURS_NOM_CLIENT",
+    to: "INTER_EN_COURS",
+    message: "Le nom/prénom du client doit être renseigné pour passer en cours",
+    blockTransition: true,
+    validate: (context) => {
+      if (!context.nomPrenomClient) return false
+      return String(context.nomPrenomClient).trim().length > 0
+    },
+  },
+  {
+    key: "INTER_EN_COURS_TELEPHONE_CLIENT",
+    to: "INTER_EN_COURS",
+    message: "Le téléphone du client doit être renseigné pour passer en cours",
+    blockTransition: true,
+    validate: (context) => {
+      if (!context.telephoneClient) return false
+      return String(context.telephoneClient).trim().length > 0
+    },
+  },
+  {
+    key: "INTER_EN_COURS_DATE_PREVUE",
+    to: "INTER_EN_COURS",
+    message: "La date prévue doit être renseignée pour passer en cours",
+    blockTransition: true,
+    validate: (context) => Boolean(context.datePrevue),
   },
 ]
 
