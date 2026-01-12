@@ -35,6 +35,7 @@ export interface SearchableBadgeSelectProps {
   searchPlaceholder?: string
   emptyText?: string
   onOpenChange?: (open: boolean) => void
+  sortAlphabetically?: boolean
 }
 
 export function SearchableBadgeSelect({
@@ -49,6 +50,7 @@ export function SearchableBadgeSelect({
   searchPlaceholder = "Rechercher...",
   emptyText = "Aucun résultat",
   onOpenChange,
+  sortAlphabetically = true,
 }: SearchableBadgeSelectProps) {
   const [open, setOpen] = React.useState(false)
 
@@ -60,19 +62,19 @@ export function SearchableBadgeSelect({
   const [search, setSearch] = React.useState("")
   const inputRef = React.useRef<HTMLInputElement>(null)
 
-  // Trier les options par ordre alphabétique
-  const sortedOptions = React.useMemo(() =>
-    [...options].sort((a, b) => a.label.localeCompare(b.label, 'fr', { sensitivity: 'base' })),
-    [options]
-  )
+  // Trier les options par ordre alphabétique seulement si demandé
+  const processedOptions = React.useMemo(() => {
+    if (!sortAlphabetically) return options
+    return [...options].sort((a, b) => a.label.localeCompare(b.label, 'fr', { sensitivity: 'base' }))
+  }, [options, sortAlphabetically])
 
   // Filtrer les options selon la recherche
   const filteredOptions = React.useMemo(() => {
-    if (!search) return sortedOptions
-    return sortedOptions.filter(opt =>
+    if (!search) return processedOptions
+    return processedOptions.filter(opt =>
       opt.label.toLowerCase().includes(search.toLowerCase())
     )
-  }, [sortedOptions, search])
+  }, [processedOptions, search])
 
   const selectedOption = options.find((o) => o.id === value)
   const selectedColor = selectedOption?.color || "#6b7280"

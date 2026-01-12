@@ -61,6 +61,16 @@ const INTERVENTION_DOCUMENT_KINDS = [
   { kind: "facturesArtisans", label: "Facture Artisan" },
 ]
 
+const STATUS_SORT_ORDER: Record<string, number> = {
+  DEMANDE: 1,
+  INTER_EN_COURS: 2,
+  VISITE_TECHNIQUE: 3,
+  ACCEPTE: 4,
+  DEVIS_ENVOYE: 5,
+  ATT_ACOMPTE: 6,
+  INTER_TERMINEE: 7,
+}
+
 const MAX_RADIUS_KM = 10000
 
 // Note: requires_reference est maintenant géré via la table agency_config en base de données
@@ -1949,7 +1959,7 @@ export function InterventionEditForm({
                             <PopoverContent className="w-56 p-2 z-[100]" align="start">
                               <div className="space-y-1">
                                 <p className="text-xs font-medium text-muted-foreground mb-2">Attribuer à ({refData?.users?.length || 0} utilisateurs)</p>
-                                <div className="space-y-1">
+                                <div className="space-y-1 max-h-64 overflow-y-auto scrollbar-minimal pr-1">
                                   {refData?.users && refData.users.length > 0 ? (
                                     refData.users.map((user) => {
                                       const displayName = [user.firstname, user.lastname].filter(Boolean).join(" ").trim() || user.username
@@ -1997,11 +2007,21 @@ export function InterventionEditForm({
                           placeholder="Statut"
                           searchPlaceholder="Rechercher un statut..."
                           onOpenChange={onPopoverOpenChange}
-                          options={(refData?.interventionStatuses || []).map(s => ({
-                            id: s.id,
-                            label: getStatusDisplayLabel(s.code, s.label, sstPayment, clientPayment),
-                            color: getInterventionStatusColor(s.label, s.code) || s.color,
-                          }))}
+                          sortAlphabetically={false}
+                          options={(refData?.interventionStatuses || [])
+                            .map(s => ({
+                              id: s.id,
+                              label: getStatusDisplayLabel(s.code, s.label, sstPayment, clientPayment),
+                              color: getInterventionStatusColor(s.label, s.code) || s.color,
+                              code: s.code || ""
+                            }))
+                            .sort((a, b) => {
+                              const orderA = STATUS_SORT_ORDER[a.code] || 999
+                              const orderB = STATUS_SORT_ORDER[b.code] || 999
+                              if (orderA !== orderB) return orderA - orderB
+                              return a.label.localeCompare(b.label, "fr")
+                            })
+                          }
                         />
 
                         {/* Agence - Badge coloré */}
