@@ -272,6 +272,9 @@ export async function PATCH(req: Request) {
 
     if (typeof body.firstname === 'string') payload.firstname = body.firstname.trim() || null
     if (typeof body.lastname === 'string') payload.lastname = body.lastname.trim() || null
+    if (typeof body.email === 'string') payload.email = body.email.trim().toLowerCase() || null
+    if (typeof body.avatar_url === 'string') payload.avatar_url = body.avatar_url.trim() || null
+    else if (body.avatar_url === null) payload.avatar_url = null
 
     if (Object.keys(payload).length === 0) return NextResponse.json({ ok: true })
 

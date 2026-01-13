@@ -51,11 +51,7 @@ const ROUTE_CONFIG: (RouteConfig | { type: "spacer" })[] = [
     name: "Comptabilité",
     href: "/comptabilite",
     icon: Calculator,
-    permission: {
-      type: "page_override",
-      key: "view_comptabilite",
-      pageOverrideKey: "comptabilite",
-    },
+    permission: { type: "simple", key: "view_comptabilite" },
   },
   {
     name: () => t("contacts"),

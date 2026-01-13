@@ -8,7 +8,6 @@ import {
   Shield, 
   FileText, 
   Users, 
-  Calculator,
   Lock,
   Unlock,
   Check,
@@ -25,12 +24,16 @@ import {
   Send,
   Copy,
   Loader2,
-  Mail
+  Mail,
+  Pencil,
+  Camera
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { updateUserPermissions } from "@/hooks/usePermissions"
 import { toast } from "sonner"
 import { useCurrentUser } from "@/hooks/useCurrentUser"
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar"
+import { supabase } from "@/lib/supabase-client"
 
 // Types
 type TeamUser = {
@@ -47,6 +50,7 @@ type TeamUser = {
   color: string | null
   username?: string | null
   last_seen_at?: string | null
+  avatar_url?: string | null
   page_permissions?: Record<string, boolean>
 }
 
@@ -152,7 +156,10 @@ interface UserPermissionsDialogProps {
     role: Role
     surnom: string
     color: string
-    pagePermissions: Record<string, boolean>
+    firstname?: string
+    lastname?: string
+    email?: string
+    avatar_url?: string | null
   }) => Promise<void>
 }
 
@@ -163,7 +170,7 @@ async function fetchUserPermissions(userId: string) {
   return response.json()
 }
 
-// Composant pour le sélecteur de couleur moderne
+// Composant pour le sélecteur de couleur moderne (sur une ligne)
 function ColorSelector({ value, onChange }: { value: string; onChange: (color: string) => void }) {
   const presetColors = [
     "#6366f1", "#8b5cf6", "#a855f7", "#d946ef",
@@ -173,38 +180,36 @@ function ColorSelector({ value, onChange }: { value: string; onChange: (color: s
   ]
   
   return (
-    <div className="space-y-3">
-      <div className="flex flex-wrap gap-2">
-        {presetColors.map((color) => (
-          <button
-            key={color}
-            type="button"
-            onClick={() => onChange(color)}
-            className={cn(
-              "h-7 w-7 rounded-full transition-all duration-200 hover:scale-110",
-              "ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2",
-              value === color && "ring-2 ring-primary ring-offset-2 scale-110"
-            )}
-            style={{ backgroundColor: color }}
-          />
-        ))}
-        <label className="relative h-7 w-7 cursor-pointer">
-          <input
-            type="color"
-            value={value || "#6366f1"}
-            onChange={(e) => onChange(e.target.value)}
-            className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
-          />
-          <div 
-            className="h-full w-full rounded-full border-2 border-dashed border-muted-foreground/30 flex items-center justify-center hover:border-muted-foreground/50 transition-colors"
-            style={{ backgroundColor: value && !presetColors.includes(value) ? value : 'transparent' }}
-          >
-            {(!value || presetColors.includes(value)) && (
-              <Palette className="h-3.5 w-3.5 text-muted-foreground" />
-            )}
-          </div>
-        </label>
-      </div>
+    <div className="flex flex-wrap gap-2">
+      {presetColors.map((color) => (
+        <button
+          key={color}
+          type="button"
+          onClick={() => onChange(color)}
+          className={cn(
+            "h-7 w-7 rounded-full transition-all duration-200 hover:scale-110",
+            "ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2",
+            value === color && "ring-2 ring-primary ring-offset-2 scale-110"
+          )}
+          style={{ backgroundColor: color }}
+        />
+      ))}
+      <label className="relative h-7 w-7 cursor-pointer">
+        <input
+          type="color"
+          value={value || "#6366f1"}
+          onChange={(e) => onChange(e.target.value)}
+          className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+        />
+        <div 
+          className="h-full w-full rounded-full border-2 border-dashed border-muted-foreground/30 flex items-center justify-center hover:border-muted-foreground/50 transition-colors"
+          style={{ backgroundColor: value && !presetColors.includes(value) ? value : 'transparent' }}
+        >
+          {(!value || presetColors.includes(value)) && (
+            <Palette className="h-3.5 w-3.5 text-muted-foreground" />
+          )}
+        </div>
+      </label>
     </div>
   )
 }
@@ -432,14 +437,22 @@ export function UserPermissionsDialog({
   onSave 
 }: UserPermissionsDialogProps) {
   const queryClient = useQueryClient()
+  const fileInputRef = React.useRef<HTMLInputElement>(null)
   const [activeSection, setActiveSection] = React.useState<"profile" | "permissions">("profile")
   const [role, setRole] = React.useState<Role>("gestionnaire")
   const [surnom, setSurnom] = React.useState("")
   const [color, setColor] = React.useState("")
-  const [pagePermissions, setPagePermissions] = React.useState<Record<string, boolean>>({})
   const [permissionOverrides, setPermissionOverrides] = React.useState<Record<string, boolean | null>>({})
   const [saving, setSaving] = React.useState(false)
   const [expandedCategories, setExpandedCategories] = React.useState<Set<string>>(new Set())
+  
+  // Editable profile fields
+  const [isEditingProfile, setIsEditingProfile] = React.useState(false)
+  const [firstname, setFirstname] = React.useState("")
+  const [lastname, setLastname] = React.useState("")
+  const [email, setEmail] = React.useState("")
+  const [avatarUrl, setAvatarUrl] = React.useState<string | null>(null)
+  const [uploadingAvatar, setUploadingAvatar] = React.useState(false)
   
   // Password reset states
   const [resetPasswordLoading, setResetPasswordLoading] = React.useState(false)
@@ -452,7 +465,6 @@ export function UserPermissionsDialog({
   const adminHasSmtp = !!(currentUser as any)?.email_smtp
   
   // Check if current user is an admin (can reset passwords)
-  // Note: currentUser.roles is an array of role names from the API
   const currentUserRoles = (currentUser as any)?.roles || []
   const isCurrentUserAdmin = Array.isArray(currentUserRoles) 
     ? currentUserRoles.some((r: string) => r?.toLowerCase()?.includes('admin'))
@@ -472,9 +484,14 @@ export function UserPermissionsDialog({
       setRole((user.role as Role) || "gestionnaire")
       setSurnom(user.code_gestionnaire || user.surnom || "")
       setColor(user.color || "#6366f1")
-      setPagePermissions(user.page_permissions || {})
       setActiveSection("profile")
       setExpandedCategories(new Set())
+      setIsEditingProfile(false)
+      // Profile fields
+      setFirstname(user.firstname || user.prenom || "")
+      setLastname(user.lastname || user.name || "")
+      setEmail(user.email || "")
+      setAvatarUrl(user.avatar_url || null)
       // Reset password reset states
       setResetPasswordLink(null)
       setResetLinkCopied(false)
@@ -560,6 +577,90 @@ export function UserPermissionsDialog({
     })
   }
 
+  // Handle avatar upload
+  async function handleAvatarUpload(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0]
+    if (!file || !user?.id) return
+
+    if (!file.type.startsWith('image/')) {
+      toast.error('Le fichier doit être une image')
+      return
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('L\'image ne doit pas dépasser 5MB')
+      return
+    }
+
+    setUploadingAvatar(true)
+
+    try {
+      const timestamp = Date.now()
+      const extension = file.name.split('.').pop() || 'jpg'
+      const filename = `user_${user.id}_avatar_${timestamp}.${extension}`
+      const storagePath = `users/${user.id}/${filename}`
+
+      // Delete old avatar if exists
+      if (avatarUrl) {
+        try {
+          const urlParts = avatarUrl.split('/')
+          const oldPath = urlParts.slice(urlParts.indexOf('users')).join('/')
+          await supabase.storage.from('documents').remove([oldPath])
+        } catch (err) {
+          console.warn('Erreur lors de la suppression de l\'ancienne photo:', err)
+        }
+      }
+
+      // Upload new avatar
+      const { error: uploadError } = await supabase.storage
+        .from('documents')
+        .upload(storagePath, file, {
+          contentType: file.type,
+          cacheControl: '3600',
+          upsert: true
+        })
+
+      if (uploadError) {
+        throw new Error(`Erreur lors de l'upload: ${uploadError.message}`)
+      }
+
+      // Get public URL
+      const { data: { publicUrl } } = supabase.storage
+        .from('documents')
+        .getPublicUrl(storagePath)
+
+      setAvatarUrl(publicUrl)
+      toast.success('Photo de profil mise à jour')
+
+      if (fileInputRef.current) {
+        fileInputRef.current.value = ''
+      }
+    } catch (e: any) {
+      console.error('Erreur lors de l\'upload de la photo:', e)
+      toast.error(e?.message || 'Impossible d\'uploader la photo')
+    } finally {
+      setUploadingAvatar(false)
+    }
+  }
+
+  // Handle avatar removal
+  async function handleRemoveAvatar() {
+    if (!avatarUrl || !user?.id) return
+
+    try {
+      const urlParts = avatarUrl.split('/')
+      const filename = urlParts[urlParts.length - 1]
+      const storagePath = `users/${user.id}/${filename}`
+      
+      await supabase.storage.from('documents').remove([storagePath])
+      setAvatarUrl(null)
+      toast.success('Photo de profil supprimée')
+    } catch (e: any) {
+      console.error('Erreur lors de la suppression de la photo:', e)
+      toast.error('Impossible de supprimer la photo')
+    }
+  }
+
   const savePermissionsMutation = useMutation({
     mutationFn: async () => {
       if (!user) return
@@ -589,13 +690,16 @@ export function UserPermissionsDialog({
         role,
         surnom,
         color,
-        pagePermissions,
+        firstname,
+        lastname,
+        email,
+        avatar_url: avatarUrl,
       })
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["user-permissions"] })
       queryClient.invalidateQueries({ queryKey: ["user-permissions-edit"] })
-      toast.success("Permissions enregistrées avec succès")
+      toast.success("Modifications enregistrées avec succès")
       onOpenChange(false)
     },
     onError: (error) => {
@@ -680,7 +784,6 @@ export function UserPermissionsDialog({
         toast.success(`Email envoyé à ${user.email}`)
         setResetPasswordLink(data.resetLink)
       } else {
-        // Email not sent but link generated
         setResetPasswordLink(data.resetLink)
         toast.info(data.message || 'Lien généré, mais email non envoyé')
       }
@@ -691,10 +794,8 @@ export function UserPermissionsDialog({
     }
   }
 
-  const displayName = user 
-    ? `${user.firstname || user.prenom || ""} ${user.lastname || user.name || ""}`.trim() 
-    : ""
-
+  const displayName = `${firstname} ${lastname}`.trim() || "Utilisateur"
+  const initials = ((firstname?.[0] || 'U') + (lastname?.[0] || '')).toUpperCase()
   const overrideCount = Object.values(permissionOverrides).filter(v => v !== null && v !== undefined).length
 
   if (!open) return null
@@ -727,7 +828,7 @@ export function UserPermissionsDialog({
               transition={{ type: "spring", damping: 25, stiffness: 300 }}
               onClick={(e) => e.stopPropagation()}
             >
-              {/* Header avec dégradé */}
+              {/* Header avec profil éditable */}
               <div className="relative px-6 py-5 border-b bg-gradient-to-br from-primary/5 via-background to-background">
                 <button
                   onClick={() => onOpenChange(false)}
@@ -736,17 +837,132 @@ export function UserPermissionsDialog({
                   <X className="h-5 w-5 text-muted-foreground" />
                 </button>
                 
-                <div className="flex items-center gap-4">
-                  <div 
-                    className="h-14 w-14 rounded-2xl flex items-center justify-center text-lg font-bold text-white shadow-lg"
-                    style={{ backgroundColor: color || "#6366f1" }}
-                  >
-                    {(user?.firstname?.[0] || user?.prenom?.[0] || "").toUpperCase()}
-                    {(user?.lastname?.[0] || user?.name?.[0] || "").toUpperCase()}
+                <div className="flex items-start gap-4">
+                  {/* Avatar avec bouton d'édition */}
+                  <div className="relative">
+                    <Avatar
+                      className="h-20 w-20 border-[5px] shadow-lg"
+                      style={{ borderColor: color || '#6366f1' }}
+                    >
+                      {avatarUrl ? (
+                        <AvatarImage
+                          src={avatarUrl}
+                          alt={displayName}
+                          className="object-cover"
+                        />
+                      ) : null}
+                      <AvatarFallback
+                        className="text-2xl font-semibold uppercase tracking-wide text-white"
+                        style={{
+                          background: color || '#6366f1',
+                          color: '#ffffff',
+                        }}
+                      >
+                        {initials}
+                      </AvatarFallback>
+                    </Avatar>
+                    
+                    {isEditingProfile && (
+                      <div className="absolute -bottom-1 -right-1 flex gap-1">
+                        <button
+                          type="button"
+                          onClick={() => fileInputRef.current?.click()}
+                          disabled={uploadingAvatar}
+                          className="h-7 w-7 rounded-full bg-primary text-primary-foreground shadow-lg flex items-center justify-center hover:bg-primary/90 transition-colors disabled:opacity-50"
+                          title="Changer la photo"
+                        >
+                          {uploadingAvatar ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <Camera className="h-3.5 w-3.5" />
+                          )}
+                        </button>
+                        {avatarUrl && (
+                          <button
+                            type="button"
+                            onClick={handleRemoveAvatar}
+                            className="h-7 w-7 rounded-full bg-destructive text-destructive-foreground shadow-lg flex items-center justify-center hover:bg-destructive/90 transition-colors"
+                            title="Supprimer la photo"
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </button>
+                        )}
+                      </div>
+                    )}
+                    
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/*"
+                      onChange={handleAvatarUpload}
+                      className="hidden"
+                      disabled={uploadingAvatar}
+                    />
                   </div>
-                  <div>
-                    <h2 className="text-xl font-bold">{displayName}</h2>
-                    <p className="text-sm text-muted-foreground">{user?.email}</p>
+                  
+                  {/* Infos utilisateur */}
+                  <div className="flex-1 min-w-0">
+                    {isEditingProfile ? (
+                      <div className="space-y-3">
+                        <div className="grid grid-cols-2 gap-2">
+                          <input
+                            type="text"
+                            value={firstname}
+                            onChange={(e) => setFirstname(e.target.value)}
+                            placeholder="Prénom"
+                            className="px-3 py-2 rounded-lg border bg-muted/30 focus:bg-background focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all outline-none text-sm"
+                          />
+                          <input
+                            type="text"
+                            value={lastname}
+                            onChange={(e) => setLastname(e.target.value)}
+                            placeholder="Nom"
+                            className="px-3 py-2 rounded-lg border bg-muted/30 focus:bg-background focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all outline-none text-sm"
+                          />
+                        </div>
+                        <input
+                          type="email"
+                          value={email}
+                          onChange={(e) => setEmail(e.target.value)}
+                          placeholder="Email"
+                          className="w-full px-3 py-2 rounded-lg border bg-muted/30 focus:bg-background focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all outline-none text-sm"
+                        />
+                        <div className="flex items-center gap-2">
+                          <Hash className="h-4 w-4 text-muted-foreground" />
+                          <input
+                            type="text"
+                            value={surnom}
+                            onChange={(e) => setSurnom(e.target.value)}
+                            placeholder="Surnom / Code (ex: JD)"
+                            className="flex-1 px-3 py-2 rounded-lg border bg-muted/30 focus:bg-background focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all outline-none text-sm"
+                          />
+                        </div>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="flex items-center gap-2">
+                          <h2 className="text-xl font-bold truncate">{displayName}</h2>
+                          <button
+                            type="button"
+                            onClick={() => setIsEditingProfile(true)}
+                            className="p-1.5 rounded-lg hover:bg-muted transition-colors"
+                            title="Modifier le profil"
+                          >
+                            <Pencil className="h-4 w-4 text-muted-foreground" />
+                          </button>
+                        </div>
+                        <p className="text-sm text-muted-foreground truncate">{email}</p>
+                        {surnom && (
+                          <span 
+                            className="inline-flex items-center gap-1.5 mt-2 px-3 py-1 rounded-full text-sm font-medium text-white"
+                            style={{ backgroundColor: color || '#6366f1' }}
+                          >
+                            <Hash className="h-3.5 w-3.5" />
+                            {surnom}
+                          </span>
+                        )}
+                      </>
+                    )}
                   </div>
                 </div>
                 
@@ -762,7 +978,7 @@ export function UserPermissionsDialog({
                     )}
                   >
                     <span className="flex items-center gap-2">
-                <User className="h-4 w-4" />
+                      <User className="h-4 w-4" />
                       Profil
                     </span>
                   </button>
@@ -776,11 +992,11 @@ export function UserPermissionsDialog({
                     )}
                   >
                     <span className="flex items-center gap-2">
-                <Shield className="h-4 w-4" />
-                Permissions
-                {overrideCount > 0 && (
+                      <Shield className="h-4 w-4" />
+                      Permissions
+                      {overrideCount > 0 && (
                         <span className="px-1.5 py-0.5 rounded-full bg-primary text-primary-foreground text-xs">
-                    {overrideCount}
+                          {overrideCount}
                         </span>
                       )}
                     </span>
@@ -800,13 +1016,13 @@ export function UserPermissionsDialog({
                       transition={{ duration: 0.2 }}
                       className="space-y-6"
                     >
-              {/* Sélection du rôle */}
-              <div className="space-y-3">
+                      {/* Sélection du rôle */}
+                      <div className="space-y-3">
                         <label className="text-sm font-semibold flex items-center gap-2">
                           <Sparkles className="h-4 w-4 text-primary" />
                           Rôle de l&apos;utilisateur
                         </label>
-                <div className="grid grid-cols-3 gap-3">
+                        <div className="grid grid-cols-3 gap-3">
                           {(["admin", "manager", "gestionnaire"] as Role[]).map((r) => {
                             const config = ROLE_CONFIG[r]
                             const Icon = config.icon
@@ -814,13 +1030,13 @@ export function UserPermissionsDialog({
                             
                             return (
                               <motion.button
-                      key={r}
-                      type="button"
+                                key={r}
+                                type="button"
                                 onClick={() => setRole(r)}
-                      className={cn(
+                                className={cn(
                                   "relative p-4 rounded-xl border-2 transition-all text-left overflow-hidden",
                                   isSelected 
-                          ? "border-primary bg-primary/5" 
+                                    ? "border-primary bg-primary/5" 
                                     : "border-muted hover:border-muted-foreground/30 hover:bg-muted/30"
                                 )}
                                 whileHover={{ scale: 1.02 }}
@@ -860,74 +1076,22 @@ export function UserPermissionsDialog({
                         </div>
                       </div>
 
-              {/* Surnom et couleur */}
-                      <div className="grid grid-cols-2 gap-6">
-                        <div className="space-y-3">
-                          <label className="text-sm font-semibold flex items-center gap-2">
-                            <Hash className="h-4 w-4 text-muted-foreground" />
-                            Surnom / Code
-                          </label>
-                          <input
-                            type="text"
-                    placeholder="Ex: JD, Pierre..."
-                    value={surnom} 
-                    onChange={(e) => setSurnom(e.target.value)} 
-                            className="w-full px-4 py-3 rounded-xl border bg-muted/30 focus:bg-background focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all outline-none"
-                  />
-                </div>
-                        <div className="space-y-3">
-                          <label className="text-sm font-semibold flex items-center gap-2">
-                            <Palette className="h-4 w-4 text-muted-foreground" />
-                            Couleur du badge
-                          </label>
-                          <ColorSelector value={color} onChange={setColor} />
-                </div>
-              </div>
-
-                      {/* Page permissions */}
-              <div className="space-y-3">
+                      {/* Couleur du badge - sur une seule ligne */}
+                      <div className="space-y-3">
                         <label className="text-sm font-semibold flex items-center gap-2">
-                          <Calculator className="h-4 w-4 text-amber-500" />
-                          Accès spéciaux
+                          <Palette className="h-4 w-4 text-muted-foreground" />
+                          Couleur du badge
                         </label>
-                        <div className="p-4 rounded-xl border bg-muted/20">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                              <div className="h-10 w-10 rounded-xl bg-amber-500/10 flex items-center justify-center">
-                                <Calculator className="h-5 w-5 text-amber-600 dark:text-amber-400" />
-                        </div>
-                        <div>
-                          <p className="font-medium">Page Comptabilité</p>
-                                <p className="text-xs text-muted-foreground">
-                                  Accès au module comptabilité
-                                </p>
-                              </div>
-                            </div>
-                            <button
-                              type="button"
-                              onClick={() => setPagePermissions(prev => ({ 
-                                ...prev, 
-                                comptabilite: !prev.comptabilite 
-                              }))}
-                              className={cn(
-                                "relative h-7 w-12 rounded-full transition-colors",
-                                pagePermissions.comptabilite || rolePermissions.has("view_comptabilite")
-                                  ? "bg-primary"
-                                  : "bg-muted-foreground/20"
-                              )}
-                            >
-                              <div className={cn(
-                                "absolute top-1 h-5 w-5 rounded-full bg-white shadow-sm transition-transform",
-                                pagePermissions.comptabilite || rolePermissions.has("view_comptabilite")
-                                  ? "translate-x-6"
-                                  : "translate-x-1"
-                              )} />
-                            </button>
-                          </div>
-                        </div>
-                        
-                        {/* Password Reset Section - Only visible to admins */}
-                        {isCurrentUserAdmin && (
+                        <ColorSelector value={color} onChange={setColor} />
+                      </div>
+
+                      {/* Password Reset Section - Only visible to admins */}
+                      {isCurrentUserAdmin && (
+                        <div className="space-y-3">
+                          <label className="text-sm font-semibold flex items-center gap-2">
+                            <KeyRound className="h-4 w-4 text-blue-500" />
+                            Mot de passe
+                          </label>
                           <div className="p-4 rounded-xl border bg-muted/20 space-y-4">
                             <div className="flex items-center gap-3">
                               <div className="h-10 w-10 rounded-xl bg-blue-500/10 flex items-center justify-center">
@@ -1045,8 +1209,8 @@ export function UserPermissionsDialog({
                               </motion.div>
                             )}
                           </div>
-                        )}
-                      </div>
+                        </div>
+                      )}
                     </motion.div>
                   ) : (
                     <motion.div
@@ -1062,17 +1226,17 @@ export function UserPermissionsDialog({
                         <div className="flex items-center gap-4 text-xs">
                           <span className="flex items-center gap-1.5">
                             <div className="h-2.5 w-2.5 rounded-full bg-emerald-500" />
-                    Du rôle
-                  </span>
+                            Du rôle
+                          </span>
                           <span className="flex items-center gap-1.5">
                             <div className="h-2.5 w-2.5 rounded-full bg-blue-500" />
                             Ajouté
-                  </span>
+                          </span>
                           <span className="flex items-center gap-1.5">
                             <div className="h-2.5 w-2.5 rounded-full bg-red-500" />
                             Retiré
-                  </span>
-                </div>
+                          </span>
+                        </div>
                         {overrideCount > 0 && (
                           <button
                             type="button"
@@ -1083,16 +1247,16 @@ export function UserPermissionsDialog({
                             Réinitialiser ({overrideCount})
                           </button>
                         )}
-              </div>
+                      </div>
 
-              {loadingPermissions ? (
+                      {loadingPermissions ? (
                         <div className="flex items-center justify-center py-12">
                           <div className="flex flex-col items-center gap-3">
                             <div className="h-8 w-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
                             <p className="text-sm text-muted-foreground">Chargement des permissions...</p>
                           </div>
-                </div>
-              ) : (
+                        </div>
+                      ) : (
                         <div className="space-y-3">
                           {Object.entries(PERMISSION_CATEGORIES).map(([categoryKey, category]) => (
                             <PermissionCategory
@@ -1108,12 +1272,12 @@ export function UserPermissionsDialog({
                               onToggleExpand={() => toggleCategory(categoryKey)}
                             />
                           ))}
-                            </div>
+                        </div>
                       )}
                     </motion.div>
                   )}
                 </AnimatePresence>
-                                    </div>
+              </div>
               
               {/* Footer */}
               <div className="px-6 py-4 border-t bg-muted/20 flex items-center justify-end gap-3">
@@ -1145,7 +1309,7 @@ export function UserPermissionsDialog({
                     </>
                   )}
                 </motion.button>
-                                  </div>
+              </div>
             </motion.div>
           </motion.div>
         </>

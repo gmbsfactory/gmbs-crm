@@ -14,6 +14,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Pagination } from "@/components/ui/pagination"
 import { TruncatedCell } from "@/components/ui/truncated-cell"
 import { useCurrentUser } from "@/hooks/useCurrentUser"
+import { usePermissions } from "@/hooks/usePermissions"
 import { useInterventionModal } from "@/hooks/useInterventionModal"
 import { interventionsApi } from "@/lib/api/v2"
 import type { InterventionWithStatus } from "@/types/intervention"
@@ -101,6 +102,7 @@ export default function ComptabilitePage() {
   const router = useRouter()
   const { open: openInterventionModal } = useInterventionModal()
   const { data: currentUser, isLoading: loadingUser } = useCurrentUser()
+  const { can, isLoading: loadingPermissions } = usePermissions()
   const [interventions, setInterventions] = useState<InterventionRecord[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -121,16 +123,8 @@ export default function ComptabilitePage() {
   const [currentPage, setCurrentPage] = useState(1)
   const itemsPerPage = 100
 
-  const hasRoleAccess = useMemo(() => {
-    const roles = currentUser?.roles || []
-    return roles.some((role) => {
-      const normalized = (role || "").toLowerCase()
-      return normalized === "admin" || normalized === "manager"
-    })
-  }, [currentUser?.roles])
-
-  const hasPagePermission = currentUser?.page_permissions?.comptabilite !== false
-  const canAccessComptabilite = hasRoleAccess && hasPagePermission
+  // Vérifier l'accès via la permission view_comptabilite
+  const canAccessComptabilite = can("view_comptabilite")
 
   // Charger depuis localStorage après le montage côté client
   useEffect(() => {
@@ -211,7 +205,7 @@ export default function ComptabilitePage() {
   }, [periodType, startYear, startMonth, endYear, endMonth])
 
   useEffect(() => {
-    if (loadingUser) return
+    if (loadingUser || loadingPermissions) return
     if (!currentUser) {
       router.replace("/dashboard")
       return
@@ -219,7 +213,7 @@ export default function ComptabilitePage() {
     if (!canAccessComptabilite) {
       router.replace("/dashboard")
     }
-  }, [canAccessComptabilite, currentUser, loadingUser, router])
+  }, [canAccessComptabilite, currentUser, loadingUser, loadingPermissions, router])
 
   useEffect(() => {
     const fetchInterventions = async () => {
@@ -266,7 +260,7 @@ export default function ComptabilitePage() {
     fetchInterventions()
   }, [canAccessComptabilite, currentUser, dateRange])
 
-  const isLoading = loading || loadingUser
+  const isLoading = loading || loadingUser || loadingPermissions
 
   // Pagination
   const totalPages = Math.ceil(interventions.length / itemsPerPage)
@@ -389,7 +383,7 @@ export default function ComptabilitePage() {
     }
   }
 
-  if (!loadingUser && (!currentUser || !canAccessComptabilite)) {
+  if (!loadingUser && !loadingPermissions && (!currentUser || !canAccessComptabilite)) {
     return null
   }
 

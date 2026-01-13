@@ -358,12 +358,23 @@ export function TeamSettings() {
     role: string
     surnom: string
     color: string
-    pagePermissions: Record<string, boolean>
+    firstname?: string
+    lastname?: string
+    email?: string
+    avatar_url?: string | null
   }) => {
     await fetch('/api/settings/team/user', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId: data.userId, surnom: data.surnom, color: data.color })
+      body: JSON.stringify({ 
+        userId: data.userId, 
+        surnom: data.surnom, 
+        color: data.color,
+        firstname: data.firstname,
+        lastname: data.lastname,
+        email: data.email,
+        avatar_url: data.avatar_url,
+      })
     })
     
     if (data.role) {
@@ -373,12 +384,6 @@ export function TeamSettings() {
         body: JSON.stringify({ userId: data.userId, role: data.role })
       })
     }
-    
-    await fetch(`/api/settings/team/user/${data.userId}/page-permissions`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ permissions: data.pagePermissions })
-    })
     
     await loadTeam()
     

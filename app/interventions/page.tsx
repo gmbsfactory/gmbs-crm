@@ -225,6 +225,7 @@ export default function Page() {
 function PageContent() {
   const router = useRouter()
   const { preferredMode, setPreferredMode } = useModalDisplay()
+  const { isAdmin } = usePermissions()
   const {
     views,
     activeView,
@@ -1272,6 +1273,7 @@ function PageContent() {
                 onEnterReorderMode={() => setIsReorderMode(true)}
                 interventionCounts={combinedViewCounts}
                 viewStatusColors={viewStatusColors}
+                isAdmin={isAdmin}
               />
             </div>
             {!isReorderMode && (
@@ -1285,6 +1287,8 @@ function PageContent() {
                   shortcutId="interventions"
                 />
 
+                {/* Bouton "Plus" réservé aux admins uniquement */}
+                {isAdmin && (
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button variant="outline" size="sm" className="shrink-0">
@@ -1661,6 +1665,7 @@ function PageContent() {
                     )}
                   </DropdownMenuContent>
                 </DropdownMenu>
+                )}
               </div>
             )}
           </div>

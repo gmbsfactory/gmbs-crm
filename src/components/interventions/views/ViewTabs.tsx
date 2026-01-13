@@ -150,6 +150,7 @@ type SortableTabProps = {
   tabRef?: React.RefObject<HTMLButtonElement | null>
   tabIndex?: number
   onBadgeRef?: (element: HTMLElement | null) => void  // Callback pour enregistrer la ref de la pastille
+  isAdmin?: boolean  // Si true, affiche le menu contextuel (réservé aux admins)
 }
 
 function SortableTab({
@@ -171,6 +172,7 @@ function SortableTab({
   tabRef,
   tabIndex,
   onBadgeRef,
+  isAdmin = false,
 }: SortableTabProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: view.id,
@@ -319,6 +321,8 @@ function SortableTab({
             )
           })()}
         </ContextMenuTrigger>
+        {/* Menu contextuel réservé aux admins uniquement */}
+        {isAdmin && (
         <ContextMenuContent className="w-56">
           {showRename && (
             <ContextMenuItem onSelect={() => onRenameView?.(view.id)}>
@@ -403,6 +407,7 @@ function SortableTab({
             </>
           )}
         </ContextMenuContent>
+        )}
       </ContextMenu>
       {/* DESIGN v1.4 - Menu masqué, remplacé par clic droit */}
       {false && (onRenameView || onDuplicateView || onDeleteView || onResetDefault || onConfigureColumns) && (
@@ -493,6 +498,8 @@ type ViewTabsProps = {
   interventionCounts?: Record<string, number>
   /** Couleurs des vues basées sur les statuts (passées depuis le parent) */
   viewStatusColors?: Record<string, string | null>
+  /** Si true, affiche le menu contextuel sur les pastilles (réservé aux admins) */
+  isAdmin?: boolean
 }
 
 export function ViewTabs({
@@ -510,6 +517,7 @@ export function ViewTabs({
   onEnterReorderMode,
   interventionCounts = {},
   viewStatusColors = {},
+  isAdmin = false,
 }: ViewTabsProps) {
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
@@ -710,6 +718,7 @@ export function ViewTabs({
                   tabRef={tabRefs.current[view.id]}
                   tabIndex={0}
                   onBadgeRef={(element) => registerBadgeRef(view.id, element)}
+                  isAdmin={isAdmin}
                 />
               )
             })}
