@@ -29,7 +29,11 @@ const inter = Inter({ subsets: ["latin"] })
 export const metadata: Metadata = {
   title: "GMBS CRM - Dashboard",
   description: "Interface CRM moderne pour GMBS",
-  generator: 'v0.app'
+  generator: 'v0.app',
+  icons: {
+    icon: '/logoGM.png',
+    apple: '/logoGM.png',
+  },
 }
 
 // Viewport configuration moved to inline meta tag in head for better compatibility
