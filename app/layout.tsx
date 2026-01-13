@@ -30,10 +30,6 @@ export const metadata: Metadata = {
   title: "GMBS CRM - Dashboard",
   description: "Interface CRM moderne pour GMBS",
   generator: 'v0.app',
-  icons: {
-    icon: '/gmbs-logo.svg',
-    apple: '/gmbs-logo.svg',
-  },
 }
 
 // Viewport configuration moved to inline meta tag in head for better compatibility
