@@ -1,8 +1,11 @@
 import { NextResponse } from 'next/server'
-import { createServerSupabase, bearerFrom } from '@/lib/supabase/server'
+import { createServerSupabase, createServerSupabaseAdmin, bearerFrom } from '@/lib/supabase/server'
 import { cookies } from 'next/headers'
 import { isLateLogin } from '@/lib/utils/business-days'
 import { getLocalDateString } from '@/lib/date-utils'
+import { decryptPassword } from '@/lib/utils/encryption'
+import { sendEmailToArtisan } from '@/lib/services/email-service'
+import { generateLatenessEmailTemplate, generateLatenessEmailSubject } from '@/lib/email-templates/lateness-email'
 
 export const runtime = 'nodejs'
 
@@ -76,10 +79,10 @@ export async function POST(req: Request) {
 
     console.log('[first-activity] 🔍 Checking first activity for user:', profile.id)
 
-    // Fetch user data including lateness tracking and roles
+    // Fetch user data including lateness tracking, roles, and user info for email
     const { data: userData, error: userDataError } = await supabase
       .from('users')
-      .select('last_activity_date, lateness_count, lateness_count_year, last_lateness_date, user_roles(roles(name))')
+      .select('firstname, lastname, email, last_activity_date, lateness_count, lateness_count_year, last_lateness_date, lateness_email_sent_at, user_roles(roles(name))')
       .eq('id', profile.id)
       .single()
 
@@ -164,6 +167,20 @@ export async function POST(req: Request) {
 
           console.log('[first-activity] ✅ INCREMENTING lateness count to:', newLatenessCount)
           console.log('[first-activity] 📦 Patch object:', patch)
+
+          // Send lateness notification email (async, non-blocking)
+          sendLatenessEmail(
+            profile.id,
+            userData.firstname || '',
+            userData.lastname || '',
+            userData.email || '',
+            now,
+            newLatenessCount,
+            userData.lateness_email_sent_at,
+            today
+          ).catch((err) => {
+            console.error('[first-activity] ❌ Failed to send lateness email:', err)
+          })
         } else {
           console.log('[first-activity] ⚠️ Already marked late today (should not happen)')
         }
@@ -248,5 +265,126 @@ export async function POST(req: Request) {
       { error: 'internal server error' },
       { status: 500 }
     )
+  }
+}
+
+/**
+ * Sends a lateness notification email to the user.
+ * This function runs asynchronously and doesn't block the main response.
+ */
+async function sendLatenessEmail(
+  userId: string,
+  firstname: string,
+  lastname: string,
+  userEmail: string,
+  loginTime: Date,
+  latenessCount: number,
+  lastEmailSentAt: string | null,
+  today: string
+): Promise<void> {
+  try {
+    // Check if email was already sent today
+    if (lastEmailSentAt) {
+      const lastSentDate = getLocalDateString(new Date(lastEmailSentAt))
+      if (lastSentDate === today) {
+        console.log('[first-activity] 📧 Email already sent today, skipping')
+        return
+      }
+    }
+
+    // Check if user has an email
+    if (!userEmail) {
+      console.log('[first-activity] 📧 User has no email, skipping')
+      return
+    }
+
+    // Get lateness email configuration using admin client
+    const adminSupabase = createServerSupabaseAdmin()
+    const { data: config, error: configError } = await adminSupabase
+      .from('lateness_email_config')
+      .select('email_smtp, email_password_encrypted, is_enabled, motivation_message')
+      .limit(1)
+      .maybeSingle()
+
+    if (configError) {
+      console.error('[first-activity] 📧 Error fetching email config:', configError)
+      return
+    }
+
+    if (!config) {
+      console.log('[first-activity] 📧 No lateness email config found, skipping')
+      return
+    }
+
+    if (!config.is_enabled) {
+      console.log('[first-activity] 📧 Lateness email is disabled, skipping')
+      return
+    }
+
+    if (!config.email_smtp || !config.email_password_encrypted) {
+      console.log('[first-activity] 📧 Lateness email not fully configured, skipping')
+      return
+    }
+
+    // Calculate lateness in minutes (time since 10:00 AM)
+    const hours = loginTime.getHours()
+    const minutes = loginTime.getMinutes()
+    const latenessMinutes = (hours - 10) * 60 + minutes
+
+    // Format login time
+    const loginTimeStr = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`
+
+    // Decrypt password
+    let smtpPassword: string
+    try {
+      smtpPassword = decryptPassword(config.email_password_encrypted)
+    } catch (error) {
+      console.error('[first-activity] 📧 Failed to decrypt email password:', error)
+      return
+    }
+
+    // Generate email content
+    const emailData = {
+      firstname: firstname || 'Utilisateur',
+      lastname: lastname || '',
+      latenessMinutes,
+      loginTime: loginTimeStr,
+      latenessCount,
+      motivationMessage: config.motivation_message || "Ne t'inquiète pas, demain sera meilleur ! 💪"
+    }
+
+    const htmlContent = generateLatenessEmailTemplate(emailData)
+    const subject = generateLatenessEmailSubject(latenessMinutes)
+
+    console.log('[first-activity] 📧 Sending lateness email to:', userEmail)
+
+    // Send email
+    const result = await sendEmailToArtisan({
+      type: 'intervention', // Using 'intervention' type as it's a generic email
+      artisanEmail: userEmail,
+      subject,
+      htmlContent,
+      smtpEmail: config.email_smtp,
+      smtpPassword
+    })
+
+    if (!result.success) {
+      console.error('[first-activity] 📧 Failed to send email:', result.error)
+      return
+    }
+
+    console.log('[first-activity] 📧 ✅ Lateness email sent successfully!')
+
+    // Update user record to mark email as sent
+    const { error: updateError } = await adminSupabase
+      .from('users')
+      .update({ lateness_email_sent_at: new Date().toISOString() })
+      .eq('id', userId)
+
+    if (updateError) {
+      console.error('[first-activity] 📧 Failed to update lateness_email_sent_at:', updateError)
+    }
+  } catch (error) {
+    console.error('[first-activity] 📧 Unexpected error sending lateness email:', error)
   }
 }
