@@ -16,7 +16,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { GestionnaireBadge } from "@/components/ui/gestionnaire-badge"
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable"
 import { MapLibreMap } from "@/components/maps/MapLibreMap"
-import { DocumentManager } from "@/components/documents/DocumentManager"
+import { DocumentManager } from "@/components/documents"
 import { useReferenceData } from "@/hooks/useReferenceData"
 import { useGeocodeSearch } from "@/hooks/useGeocodeSearch"
 import type { GeocodeSuggestion } from "@/hooks/useGeocodeSearch"

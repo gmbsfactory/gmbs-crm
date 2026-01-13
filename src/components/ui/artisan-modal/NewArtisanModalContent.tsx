@@ -53,7 +53,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { ModeIcons } from "@/components/ui/mode-selector"
-import { DocumentManager } from "@/components/documents/DocumentManager"
+import { DocumentManager } from "@/components/documents"
 import { CommentSection } from "@/components/shared/CommentSection"
 import { useReferenceData } from "@/hooks/useReferenceData"
 import { toast } from "sonner"

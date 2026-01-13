@@ -38,7 +38,7 @@ import {
   DropdownMenuContent,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { DocumentManager } from "@/components/documents/DocumentManager"
+import { DocumentManager } from "@/components/documents"
 import { ModeIcons } from "@/components/ui/mode-selector"
 import { CommentSection } from "@/components/shared/CommentSection"
 import { StatusReasonModal } from "@/components/shared/StatusReasonModal"

@@ -1,0 +1,1 @@
+export { DocumentManagerLegacy } from "./DocumentManagerLegacy";
