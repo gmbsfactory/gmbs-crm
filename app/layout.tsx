@@ -27,9 +27,8 @@ import "./globals.css"
 const inter = Inter({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
-  title: "GMBS CRM - Dashboard",
-  description: "Interface CRM moderne pour GMBS",
-  generator: 'v0.app',
+  title: "CRM GMBS",
+  description: "Interface CRM   GMBS",
 }
 
 // Viewport configuration moved to inline meta tag in head for better compatibility
