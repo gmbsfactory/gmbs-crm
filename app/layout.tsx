@@ -31,8 +31,8 @@ export const metadata: Metadata = {
   description: "Interface CRM moderne pour GMBS",
   generator: 'v0.app',
   icons: {
-    icon: '/logoGM.png',
-    apple: '/logoGM.png',
+    icon: '/gmbs-logo.svg',
+    apple: '/gmbs-logo.svg',
   },
 }
 
