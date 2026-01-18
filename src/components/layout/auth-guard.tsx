@@ -23,7 +23,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
   const hasRedirected = useRef(false)
   
   // Pages publiques qui ne nécessitent pas d'authentification
-  const publicPaths = ["/login", "/landingpage", "/set-password", "/auth/callback"]
+  const publicPaths = ["/login", "/landingpage", "/set-password", "/auth/callback", "/portail"]
   const isPublicPath = publicPaths.some((path) => pathname?.startsWith(path))
   
   // Ne pas appeler les hooks sur les pages publiques

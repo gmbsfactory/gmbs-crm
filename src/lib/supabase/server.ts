@@ -17,6 +17,9 @@ export function createServerSupabaseAdmin(): SupabaseClient {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || ''
   
+  console.log('[createServerSupabaseAdmin] URL:', url ? 'SET' : 'NOT SET')
+  console.log('[createServerSupabaseAdmin] Service Role Key:', serviceRoleKey ? `SET (${serviceRoleKey.substring(0, 20)}...)` : 'NOT SET')
+  
   if (!serviceRoleKey) {
     console.warn('[createServerSupabaseAdmin] SUPABASE_SERVICE_ROLE_KEY not set, falling back to anon key')
     return createServerSupabase()

@@ -12,6 +12,7 @@ import {
   Users,
   Target,
   Cog,
+  Puzzle,
 } from "lucide-react"
 
 /**
@@ -26,6 +27,7 @@ const ALL_TABS = [
   { key: "team", label: "Team", icon: Users, requiresPermission: "write_users" as PermissionKey },
   { key: "enums", label: "Référentiels", icon: Cog, requiresPermission: "manage_settings" as PermissionKey },
   { key: "targets", label: "Perf", icon: Target, requiresPermission: "view_comptabilite" as PermissionKey },
+  { key: "plugins", label: "Plugins", icon: Puzzle, requiresPermission: "manage_settings" as PermissionKey },
 ]
 
 export default function SettingsNav() {

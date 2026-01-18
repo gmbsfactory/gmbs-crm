@@ -46,6 +46,7 @@ import { Avatar } from "@/components/artisans/Avatar"
 import { GestionnaireBadge } from "@/components/ui/gestionnaire-badge"
 import { ArtisanFinancesSection } from "./ArtisanFinancesSection"
 import { ArtisanInterventionsTable } from "./ArtisanInterventionsTable"
+import { ArtisanPortalLink } from "@/components/artisans/ArtisanPortalLink"
 import { useReferenceData } from "@/hooks/useReferenceData"
 import { useGeocodeSearch, type GeocodeSuggestion } from "@/hooks/useGeocodeSearch"
 import { interventionsApi } from "@/lib/api/v2"
@@ -2063,7 +2064,7 @@ export function ArtisanModalContent({
 
           {/* Footer */}
           <footer className="modal-config-columns-footer flex items-center justify-between gap-2 px-4 py-3 md:px-6 bg-[#8DA5CE] dark:bg-transparent">
-            <div>
+            <div className="flex items-center gap-2">
               {artisan && canWriteArtisans && (
                 getArtisanStatusCode(artisan.statut_id ?? null) === "ARCHIVE" ? (
                   <Button
@@ -2087,6 +2088,13 @@ export function ArtisanModalContent({
                     Archiver
                   </Button>
                 )
+              )}
+              {/* Bouton Lien Portail Artisan */}
+              {artisan && (
+                <ArtisanPortalLink
+                  artisanId={artisan.id}
+                  artisanName={displayName}
+                />
               )}
             </div>
             <div className="flex items-center gap-2">

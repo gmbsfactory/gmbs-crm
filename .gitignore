@@ -104,3 +104,4 @@ logs/
 docs/todo/*
 
 exports/*.csv
+.env*.local

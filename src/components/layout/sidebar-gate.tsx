@@ -4,8 +4,8 @@ import { usePathname } from "next/navigation"
 import { AppSidebar } from "@/components/layout/app-sidebar"
 import { useInterface } from "@/contexts/interface-context"
 
-// Pages where sidebar should be hidden (auth pages, etc.)
-const HIDE_SIDEBAR_PATHS = ["/login", "/set-password", "/auth/callback"]
+// Pages where sidebar should be hidden (auth pages, portail artisan, etc.)
+const HIDE_SIDEBAR_PATHS = ["/login", "/set-password", "/auth/callback", "/portail"]
 
 export default function SidebarGate({ isAuthed }: { isAuthed: boolean }) {
   const pathname = usePathname()
