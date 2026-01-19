@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseAdmin } from '@/lib/supabase/server'
 import { validatePortalApiRequest } from '@/lib/portal-external/auth'
 
-const STORAGE_BUCKET = 'artisan-documents'
+const STORAGE_BUCKET = 'documents' // Main documents bucket
 
 // Document types artisans can view/upload via portal
 const ALLOWED_KINDS = ['kbis', 'assurance', 'cni_recto_verso', 'iban', 'decharge_partenariat', 'autre']
@@ -51,28 +51,17 @@ export async function GET(
       return NextResponse.json({ error: 'Database error' }, { status: 500 })
     }
 
-    // Generate URLs
+    // Map documents - url field already contains the full URL
     const documentsWithUrls = (documents || []).map(doc => {
-      // The url field might already be a full URL or a storage path
-      let url = doc.url
-      
-      // If it's a storage path, generate signed URL
-      if (doc.url && !doc.url.startsWith('http')) {
-        const { data } = supabase.storage
-          .from(STORAGE_BUCKET)
-          .getPublicUrl(doc.url)
-        url = data?.publicUrl || doc.url
-      }
-
       return {
         id: doc.id,
         kind: doc.kind,
         kindLabel: mapKindToLabel(doc.kind),
         filename: doc.filename,
         mimeType: doc.mime_type,
-        url,
-        createdAt: doc.created_at,
-        updatedAt: doc.updated_at
+        url: doc.url, // URL is stored directly
+        sizeBytes: doc.file_size,
+        createdAt: doc.created_at
       }
     })
 
@@ -157,7 +146,7 @@ export async function POST(
 
     // Upload to storage
     const buffer = Buffer.from(base64Data, 'base64')
-    const storagePath = `${artisanId}/${kind}/${Date.now()}-${filename}`
+    const storagePath = `artisans/${artisanId}/${kind}/${Date.now()}-${filename}`
 
     const { error: uploadError } = await supabase.storage
       .from(STORAGE_BUCKET)
@@ -194,7 +183,7 @@ export async function POST(
           url: urlData.publicUrl,
           filename,
           mime_type: mimeType,
-          updated_at: new Date().toISOString()
+          file_size: buffer.length
         })
         .eq('id', existingDoc.id)
         .select('id')
@@ -215,7 +204,8 @@ export async function POST(
           kind,
           url: urlData.publicUrl,
           filename,
-          mime_type: mimeType
+          mime_type: mimeType,
+          file_size: buffer.length
         })
         .select('id')
         .single()

@@ -137,18 +137,15 @@ export async function POST(
   try {
     const supabase = createServerSupabaseAdmin()
 
-    // Verify intervention belongs to artisan
-    const { data: intervention, error: intError } = await supabase
-      .from('interventions')
-      .select('id, artisan_id')
-      .eq('id', interventionId)
+    // Verify artisan is assigned to intervention via intervention_artisans
+    const { data: assignment, error: assignError } = await supabase
+      .from('intervention_artisans')
+      .select('id')
+      .eq('intervention_id', interventionId)
+      .eq('artisan_id', artisanId)
       .single()
 
-    if (intError || !intervention) {
-      return NextResponse.json({ error: 'Intervention not found' }, { status: 404 })
-    }
-
-    if (intervention.artisan_id !== artisanId) {
+    if (assignError || !assignment) {
       return NextResponse.json({ error: 'Not authorized' }, { status: 403 })
     }
 

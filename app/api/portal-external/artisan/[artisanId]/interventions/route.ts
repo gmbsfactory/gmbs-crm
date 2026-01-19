@@ -25,23 +25,42 @@ export async function GET(
   try {
     const supabase = createServerSupabaseAdmin()
 
-    // Get interventions where this artisan is assigned
+    // Get interventions where this artisan is assigned via intervention_artisans table
+    const { data: assignments, error: assignError } = await supabase
+      .from('intervention_artisans')
+      .select('intervention_id')
+      .eq('artisan_id', artisanId)
+
+    if (assignError) {
+      console.error('[portal-external] Error fetching assignments:', assignError)
+      return NextResponse.json({ error: 'Database error' }, { status: 500 })
+    }
+
+    const interventionIds = (assignments || []).map(a => a.intervention_id)
+
+    if (interventionIds.length === 0) {
+      return NextResponse.json({ interventions: [], count: 0 })
+    }
+
     const { data: interventions, error } = await supabase
       .from('interventions')
       .select(`
         id,
-        name,
-        address,
-        context,
-        consigne,
-        status,
-        status_changed_at,
-        due_at,
+        id_inter,
+        adresse,
+        code_postal,
+        ville,
+        contexte_intervention,
+        consigne_intervention,
+        date,
+        due_date,
         created_at,
         updated_at,
-        agency
+        statut:statut_id(code, label, color),
+        metier:metier_id(label),
+        agence:agence_id(nom)
       `)
-      .eq('artisan_id', artisanId)
+      .in('id', interventionIds)
       .order('created_at', { ascending: false })
 
     if (error) {
@@ -50,21 +69,31 @@ export async function GET(
     }
 
     // Map to a clean format for the portal
-    const mapped = (interventions || []).map(i => ({
-      id: i.id,
-      name: i.name,
-      address: i.address,
-      context: i.context,
-      consigne: i.consigne,
-      status: i.status,
-      statusCode: mapStatusToCode(i.status),
-      statusLabel: mapStatusToLabel(i.status),
-      statusChangedAt: i.status_changed_at,
-      dueAt: i.due_at,
-      createdAt: i.created_at,
-      updatedAt: i.updated_at,
-      agency: i.agency
-    }))
+    const mapped = (interventions || []).map((i: Record<string, unknown>) => {
+      const statut = i.statut as { code?: string; label?: string; color?: string } | null
+      const metier = i.metier as { label?: string } | null
+      const agence = i.agence as { nom?: string } | null
+      
+      return {
+        id: i.id,
+        idInter: i.id_inter,
+        address: i.adresse,
+        postalCode: i.code_postal,
+        city: i.ville,
+        context: i.contexte_intervention,
+        consigne: i.consigne_intervention,
+        status: statut?.code || null,
+        statusCode: mapStatusToCode(statut?.code || ''),
+        statusLabel: statut?.label || mapStatusToLabel(statut?.code || ''),
+        statusColor: statut?.color || null,
+        date: i.date,
+        dueAt: i.due_date,
+        createdAt: i.created_at,
+        updatedAt: i.updated_at,
+        metier: metier?.label || null,
+        agency: agence?.nom || null
+      }
+    })
 
     return NextResponse.json({
       interventions: mapped,
