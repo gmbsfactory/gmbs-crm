@@ -51,6 +51,6 @@ export const config = {
     // - api/auth (auth endpoints)
     // - api/portail (artisan portal API)
     // - public files/extensions
-    '/((?!_next/static|_next/image|favicon.ico|login|landingpage|portail|api/auth/|api/portail/|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)',
+    '/((?!_next/static|_next/image|favicon.ico|login|landingpage|portail|api/auth/|api/portail/|api/portal-external/|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)',
   ],
 }
