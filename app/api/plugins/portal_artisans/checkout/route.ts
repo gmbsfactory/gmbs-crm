@@ -4,8 +4,11 @@ import { createClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
 import Stripe from 'stripe'
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '')
-const PRICE_ID = process.env.STRIPE_PRICE_PORTAL_ARTISANS || ''
+// Trim to éviter les retours ligne accidentels dans Vercel env
+const STRIPE_SECRET = (process.env.STRIPE_SECRET_KEY || '').trim()
+const PRICE_ID = (process.env.STRIPE_PRICE_PORTAL_ARTISANS || '').trim()
+
+const stripe = STRIPE_SECRET ? new Stripe(STRIPE_SECRET) : null
 
 /**
  * POST /api/plugins/portal_artisans/checkout
@@ -16,7 +19,7 @@ export async function POST(request: NextRequest) {
   
   try {
     // Check env vars
-    if (!process.env.STRIPE_SECRET_KEY) {
+    if (!STRIPE_SECRET || !stripe) {
       console.error('[checkout] Missing STRIPE_SECRET_KEY')
       return NextResponse.json({ error: 'Stripe not configured' }, { status: 500 })
     }
@@ -31,8 +34,8 @@ export async function POST(request: NextRequest) {
     console.log('[checkout] Available cookies:', allCookies.map(c => c.name))
     
     // Find the Supabase auth cookie (format varies by project)
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
-    const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
+    const supabaseUrl = (process.env.NEXT_PUBLIC_SUPABASE_URL || '').trim()
+    const supabaseKey = (process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '').trim()
     
     // Try to get access token from various cookie formats
     let accessToken: string | null = null

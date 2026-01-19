@@ -14,8 +14,8 @@ export async function GET(request: NextRequest) {
     const allCookies = cookieStore.getAll()
     
     // Find the Supabase auth cookie
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
-    const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
+    const supabaseUrl = (process.env.NEXT_PUBLIC_SUPABASE_URL || '').trim()
+    const supabaseKey = (process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '').trim()
     
     // Try to get access token from various cookie formats
     let accessToken: string | null = null
