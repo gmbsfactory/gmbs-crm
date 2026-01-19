@@ -25,6 +25,22 @@ export async function GET(
   try {
     const supabase = createServerSupabaseAdmin()
 
+    // First, verify artisan exists
+    const { data: artisan, error: artisanError } = await supabase
+      .from('artisans')
+      .select('id, nom, prenom')
+      .eq('id', artisanId)
+      .single()
+
+    if (artisanError) {
+      console.error('[portal-external] Error fetching artisan:', artisanError)
+      return NextResponse.json({ 
+        error: 'Artisan not found', 
+        details: artisanError.message,
+        code: artisanError.code
+      }, { status: 404 })
+    }
+
     // Get interventions where this artisan is assigned via intervention_artisans table
     const { data: assignments, error: assignError } = await supabase
       .from('intervention_artisans')
@@ -37,7 +53,8 @@ export async function GET(
         error: 'Database error', 
         details: assignError.message,
         code: assignError.code,
-        hint: assignError.hint
+        hint: assignError.hint,
+        table: 'intervention_artisans'
       }, { status: 500 })
     }
 
