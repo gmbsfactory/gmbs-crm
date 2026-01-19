@@ -1,14 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getPortalSDK } from '@/lib/gmbs-plugins/portal-sdk'
 import { createServerSupabase, bearerFrom } from '@/lib/supabase/server'
+import { cookies } from 'next/headers'
 
 /**
  * POST /api/plugins/portal/generate-link
  * Generate a portal link for an artisan
  */
 export async function POST(request: NextRequest) {
-  // Verify CRM authentication
-  const token = bearerFrom(request)
+  // Verify CRM authentication - try bearer token first, then cookies
+  let token = bearerFrom(request)
+  if (!token) {
+    const cookieStore = await cookies()
+    token = cookieStore.get('sb-access-token')?.value || null
+  }
   const supabase = createServerSupabase(token || undefined)
   const { data: { user } } = await supabase.auth.getUser()
   

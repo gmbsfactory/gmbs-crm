@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServerSupabase, bearerFrom } from '@/lib/supabase/server'
+import { createServerSupabase, createServerSupabaseAdmin, bearerFrom } from '@/lib/supabase/server'
+import { cookies } from 'next/headers'
 import Stripe from 'stripe'
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!)
@@ -10,7 +11,12 @@ const PRICE_ID = process.env.STRIPE_PRICE_PORTAL_ARTISANS!
  * Create a Stripe Checkout session for Portal Artisans subscription
  */
 export async function POST(request: NextRequest) {
-  const token = bearerFrom(request)
+  // Try bearer token first, then cookies
+  let token = bearerFrom(request)
+  if (!token) {
+    const cookieStore = await cookies()
+    token = cookieStore.get('sb-access-token')?.value || null
+  }
   const supabase = createServerSupabase(token || undefined)
   
   // Check authentication
@@ -19,8 +25,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
+  // Use admin client for plugin_subscriptions (RLS requires service_role)
+  const adminSupabase = createServerSupabaseAdmin()
+
   // Check if already subscribed
-  const { data: existingSubscription } = await supabase
+  const { data: existingSubscription } = await adminSupabase
     .from('plugin_subscriptions')
     .select('id, status, stripe_subscription_id')
     .eq('plugin_id', 'portal_artisans')
@@ -48,12 +57,12 @@ export async function POST(request: NextRequest) {
     }
 
     if (existingSubscription) {
-      await supabase
+      await adminSupabase
         .from('plugin_subscriptions')
         .update(subscriptionData)
         .eq('id', existingSubscription.id)
     } else {
-      await supabase
+      await adminSupabase
         .from('plugin_subscriptions')
         .insert(subscriptionData)
     }
