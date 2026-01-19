@@ -5,10 +5,20 @@ import { validatePortalApiRequest } from '@/lib/portal-external/auth'
 /**
  * GET /api/portal-external/artisan/[artisanId]/interventions
  * 
- * Returns interventions assigned to an artisan.
+ * Returns interventions assigned to an artisan with enriched data.
  * Called by portal_gmbs to display artisan's interventions.
  * 
  * Auth: X-GMBS-Key-Id + X-GMBS-Secret headers
+ * 
+ * Response includes:
+ * - id_inter: readable intervention ID
+ * - address, city, postal_code: location
+ * - client_name: agency/client name
+ * - owner_name, owner_phone: property owner info
+ * - metier: trade/profession
+ * - consigne: instructions for artisan
+ * - status info with code and label
+ * - document counts (photos_count, has_devis, has_facture_artisan)
  */
 export async function GET(
   request: NextRequest,
@@ -64,6 +74,7 @@ export async function GET(
       return NextResponse.json({ interventions: [], count: 0 })
     }
 
+    // Fetch interventions with related data (agency, owner, metier, status)
     const { data: interventions, error } = await supabase
       .from('interventions')
       .select(`
@@ -80,7 +91,27 @@ export async function GET(
         updated_at,
         statut_id,
         metier_id,
-        agence_id
+        agence_id,
+        owner_id,
+        agencies:agence_id (
+          id,
+          label
+        ),
+        owner:owner_id (
+          id,
+          owner_firstname,
+          owner_lastname,
+          telephone
+        ),
+        metiers:metier_id (
+          id,
+          label
+        ),
+        intervention_statuses:statut_id (
+          id,
+          code,
+          label
+        )
       `)
       .in('id', interventionIds)
       .order('created_at', { ascending: false })
@@ -96,23 +127,90 @@ export async function GET(
       }, { status: 500 })
     }
 
-    // Map to a clean format for the portal (simplified without joins for now)
+    // Fetch document counts for all interventions in one query
+    const { data: attachmentCounts, error: attachmentError } = await supabase
+      .from('intervention_attachments')
+      .select('intervention_id, kind')
+      .in('intervention_id', interventionIds)
+      .in('kind', ['photos', 'devis', 'facturesArtisans'])
+
+    if (attachmentError) {
+      console.error('[portal-external] Error fetching attachments:', attachmentError)
+      // Non-blocking: continue without document counts
+    }
+
+    // Build a map of document counts per intervention
+    const docCountsMap: Record<string, { photos: number; devis: number; facturesArtisans: number }> = {}
+    for (const id of interventionIds) {
+      docCountsMap[id] = { photos: 0, devis: 0, facturesArtisans: 0 }
+    }
+    if (attachmentCounts) {
+      for (const att of attachmentCounts) {
+        const intId = att.intervention_id as string
+        const kind = att.kind as string
+        if (docCountsMap[intId] && (kind === 'photos' || kind === 'devis' || kind === 'facturesArtisans')) {
+          docCountsMap[intId][kind as 'photos' | 'devis' | 'facturesArtisans']++
+        }
+      }
+    }
+
+    // Fetch SST costs for all interventions
+    const { data: sstCosts } = await supabase
+      .from('intervention_costs')
+      .select('intervention_id, amount')
+      .in('intervention_id', interventionIds)
+      .eq('cost_type', 'sst')
+
+    // Build SST costs map
+    const sstCostsMap: Record<string, number> = {}
+    if (sstCosts) {
+      for (const cost of sstCosts) {
+        sstCostsMap[cost.intervention_id as string] = Number(cost.amount)
+      }
+    }
+
+    // Map to a clean format for the portal
     const mapped = (interventions || []).map((i: Record<string, unknown>) => {
+      const agency = i.agencies as { id: string; label: string } | null
+      const owner = i.owner as { id: string; owner_firstname: string | null; owner_lastname: string | null; telephone: string | null } | null
+      const metier = i.metiers as { id: string; label: string } | null
+      const status = i.intervention_statuses as { id: string; code: string; label: string } | null
+      const intId = i.id as string
+      const docCounts = docCountsMap[intId] || { photos: 0, devis: 0, facturesArtisans: 0 }
+
+      // Build owner name from firstname + lastname
+      let ownerName: string | null = null
+      if (owner) {
+        const parts = [owner.owner_firstname, owner.owner_lastname].filter(Boolean)
+        ownerName = parts.length > 0 ? parts.join(' ') : null
+      }
+
       return {
         id: i.id,
-        idInter: i.id_inter,
-        address: i.adresse,
-        postalCode: i.code_postal,
-        city: i.ville,
+        id_inter: i.id_inter,
+        name: i.contexte_intervention, // Use context as intervention name
         context: i.contexte_intervention,
         consigne: i.consigne_intervention,
-        statusId: i.statut_id,
+        address: i.adresse,
+        city: i.ville,
+        postal_code: i.code_postal,
+        client_name: agency?.label || null,
+        owner_name: ownerName,
+        owner_phone: owner?.telephone || null,
+        metier: metier?.label || null,
+        status: status?.code || null,
+        statusCode: status?.code || null,
+        statusLabel: status?.label || null,
         date: i.date,
         dueAt: i.due_date,
         createdAt: i.created_at,
         updatedAt: i.updated_at,
-        metierId: i.metier_id,
-        agenceId: i.agence_id
+        // Document counts
+        photos_count: docCounts.photos,
+        has_devis: docCounts.devis > 0,
+        has_facture_artisan: docCounts.facturesArtisans > 0,
+        // SST cost
+        cout_sst: sstCostsMap[intId] || null
       }
     })
 
@@ -126,41 +224,3 @@ export async function GET(
     return NextResponse.json({ error: 'Internal error' }, { status: 500 })
   }
 }
-
-// Map CRM status to user-friendly labels
-function mapStatusToCode(status: string): string {
-  const map: Record<string, string> = {
-    'DEMANDE': 'pending',
-    'DEVIS_ENVOYE': 'quote_sent',
-    'VISITE_TECHNIQUE': 'technical_visit',
-    'REFUSE': 'refused',
-    'ANNULE': 'cancelled',
-    'STAND_BY': 'on_hold',
-    'ACCEPTE': 'accepted',
-    'INTER_EN_COURS': 'in_progress',
-    'INTER_TERMINEE': 'completed',
-    'SAV': 'after_sales',
-    'ATT_ACOMPTE': 'awaiting_deposit',
-    'POTENTIEL': 'potential'
-  }
-  return map[status] || 'unknown'
-}
-
-function mapStatusToLabel(status: string): string {
-  const map: Record<string, string> = {
-    'DEMANDE': 'Demande',
-    'DEVIS_ENVOYE': 'Devis envoyé',
-    'VISITE_TECHNIQUE': 'Visite technique',
-    'REFUSE': 'Refusé',
-    'ANNULE': 'Annulé',
-    'STAND_BY': 'En attente',
-    'ACCEPTE': 'Accepté',
-    'INTER_EN_COURS': 'En cours',
-    'INTER_TERMINEE': 'Terminée',
-    'SAV': 'SAV',
-    'ATT_ACOMPTE': 'Attente acompte',
-    'POTENTIEL': 'Potentiel'
-  }
-  return map[status] || status
-}
-// Force redeploy Mon Jan 19 21:04:15 CET 2026
