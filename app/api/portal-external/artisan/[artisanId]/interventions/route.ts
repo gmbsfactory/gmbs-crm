@@ -78,24 +78,26 @@ export async function GET(
         due_date,
         created_at,
         updated_at,
-        statut:statut_id(code, label, color),
-        metier:metier_id(label),
-        agence:agence_id(nom)
+        statut_id,
+        metier_id,
+        agence_id
       `)
       .in('id', interventionIds)
       .order('created_at', { ascending: false })
 
     if (error) {
       console.error('[portal-external] Error fetching interventions:', error)
-      return NextResponse.json({ error: 'Database error' }, { status: 500 })
+      return NextResponse.json({ 
+        error: 'Database error', 
+        details: error.message,
+        code: error.code,
+        hint: error.hint,
+        table: 'interventions'
+      }, { status: 500 })
     }
 
-    // Map to a clean format for the portal
+    // Map to a clean format for the portal (simplified without joins for now)
     const mapped = (interventions || []).map((i: Record<string, unknown>) => {
-      const statut = i.statut as { code?: string; label?: string; color?: string } | null
-      const metier = i.metier as { label?: string } | null
-      const agence = i.agence as { nom?: string } | null
-      
       return {
         id: i.id,
         idInter: i.id_inter,
@@ -104,16 +106,13 @@ export async function GET(
         city: i.ville,
         context: i.contexte_intervention,
         consigne: i.consigne_intervention,
-        status: statut?.code || null,
-        statusCode: mapStatusToCode(statut?.code || ''),
-        statusLabel: statut?.label || mapStatusToLabel(statut?.code || ''),
-        statusColor: statut?.color || null,
+        statusId: i.statut_id,
         date: i.date,
         dueAt: i.due_date,
         createdAt: i.created_at,
         updatedAt: i.updated_at,
-        metier: metier?.label || null,
-        agency: agence?.nom || null
+        metierId: i.metier_id,
+        agenceId: i.agence_id
       }
     })
 
