@@ -164,3 +164,4 @@ function mapStatusToLabel(status: string): string {
   }
   return map[status] || status
 }
+// Force redeploy Mon Jan 19 21:04:15 CET 2026
