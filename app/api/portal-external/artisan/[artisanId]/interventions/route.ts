@@ -33,7 +33,12 @@ export async function GET(
 
     if (assignError) {
       console.error('[portal-external] Error fetching assignments:', assignError)
-      return NextResponse.json({ error: 'Database error' }, { status: 500 })
+      return NextResponse.json({ 
+        error: 'Database error', 
+        details: assignError.message,
+        code: assignError.code,
+        hint: assignError.hint
+      }, { status: 500 })
     }
 
     const interventionIds = (assignments || []).map(a => a.intervention_id)
