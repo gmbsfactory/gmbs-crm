@@ -200,11 +200,15 @@ export async function GET(
       .eq('cost_type', 'sst')
       .single()
 
-    // Extract related data
-    const agency = intervention.agencies as { id: string; label: string } | null
-    const owner = intervention.owner as { id: string; owner_firstname: string | null; owner_lastname: string | null; telephone: string | null } | null
-    const metier = intervention.metiers as { id: string; label: string } | null
-    const status = intervention.intervention_statuses as { id: string; code: string; label: string } | null
+    // Extract related data (Supabase returns arrays for joins, take first element)
+    const agencyArr = intervention.agencies as { id: string; label: string }[] | null
+    const agency = agencyArr?.[0] || null
+    const ownerArr = intervention.owner as { id: string; owner_firstname: string | null; owner_lastname: string | null; telephone: string | null }[] | null
+    const owner = ownerArr?.[0] || null
+    const metierArr = intervention.metiers as { id: string; label: string }[] | null
+    const metier = metierArr?.[0] || null
+    const statusArr = intervention.intervention_statuses as { id: string; code: string; label: string }[] | null
+    const status = statusArr?.[0] || null
 
     // Build owner name from firstname + lastname
     let ownerName: string | null = null
