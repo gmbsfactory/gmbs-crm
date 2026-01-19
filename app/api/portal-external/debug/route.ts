@@ -74,5 +74,11 @@ export async function GET(request: NextRequest) {
     VERCEL_ENV: process.env.VERCEL_ENV || 'not-vercel'
   }
 
+  // Supabase config check
+  debug.supabaseConfig = {
+    NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL ? '✓ Set' : '✗ Missing',
+    SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY ? `✓ Set (${process.env.SUPABASE_SERVICE_ROLE_KEY.substring(0, 20)}...)` : '✗ Missing - WILL USE ANON KEY!'
+  }
+
   return NextResponse.json(debug)
 }
