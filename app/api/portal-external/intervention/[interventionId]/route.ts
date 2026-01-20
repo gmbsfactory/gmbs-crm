@@ -99,15 +99,19 @@ export async function GET(
         metier_id,
         agence_id,
         owner_id,
+        tenant_id,
         assigned_user_id,
-        agencies:agence_id (
-          id,
-          label
-        ),
         owner:owner_id (
           id,
           owner_firstname,
           owner_lastname,
+          telephone
+        ),
+        tenant:tenant_id (
+          id,
+          firstname,
+          lastname,
+          plain_nom_client,
           telephone
         ),
         assigned_user:assigned_user_id (
@@ -209,17 +213,28 @@ export async function GET(
       .single()
 
     // Extract related data (Supabase may return arrays for joins - use unknown first)
-    const agency = intervention.agencies as unknown as { id: string; label: string } | null
     const owner = intervention.owner as unknown as { id: string; owner_firstname: string | null; owner_lastname: string | null; telephone: string | null } | null
+    const tenant = intervention.tenant as unknown as { id: string; firstname: string | null; lastname: string | null; plain_nom_client: string | null; telephone: string | null } | null
     const assignedUser = intervention.assigned_user as unknown as { id: string; firstname: string | null; lastname: string | null; email: string | null } | null
     const metier = intervention.metiers as unknown as { id: string; label: string } | null
     const status = intervention.intervention_statuses as unknown as { id: string; code: string; label: string } | null
 
-    // Build owner name from firstname + lastname
+    // Build owner name (Propriétaire/Facturation) from firstname + lastname
     let ownerName: string | null = null
     if (owner) {
       const parts = [owner.owner_firstname, owner.owner_lastname].filter(Boolean)
       ownerName = parts.length > 0 ? parts.join(' ') : null
+    }
+
+    // Build tenant name (Locataire/Client) - use plain_nom_client or firstname + lastname
+    let tenantName: string | null = null
+    if (tenant) {
+      if (tenant.plain_nom_client) {
+        tenantName = tenant.plain_nom_client
+      } else {
+        const parts = [tenant.firstname, tenant.lastname].filter(Boolean)
+        tenantName = parts.length > 0 ? parts.join(' ') : null
+      }
     }
 
     // Build assigned user fullname
@@ -240,7 +255,8 @@ export async function GET(
         address: intervention.adresse,
         city: intervention.ville,
         postal_code: intervention.code_postal,
-        client_name: agency?.label || null,
+        // Legacy fields for compatibility
+        client_name: tenantName,
         owner_name: ownerName,
         owner_phone: owner?.telephone || null,
         metier: metier?.label || null,
@@ -258,7 +274,7 @@ export async function GET(
         has_facture_artisan: documents.facturesArtisans.length > 0,
         // SST cost
         cout_sst: sstCost?.amount ? Number(sstCost.amount) : null,
-        // Enriched data for portal
+        // Enriched data for portal contact tab
         assigned_user_id: intervention.assigned_user_id,
         assigned_user: assignedUser ? {
           id: assignedUser.id,
@@ -267,11 +283,17 @@ export async function GET(
           email: assignedUser.email,
           fullname: assignedUserFullname
         } : null,
-        client: null, // Client data not available yet
+        // Propriétaire (facturation)
         owner: owner ? {
           id: owner.id,
           name: ownerName,
           phone: owner.telephone
+        } : null,
+        // Locataire (tenant/client)
+        tenant: tenant ? {
+          id: tenant.id,
+          name: tenantName,
+          phone: tenant.telephone
         } : null
       },
       documents

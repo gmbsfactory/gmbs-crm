@@ -74,7 +74,7 @@ export async function GET(
       return NextResponse.json({ interventions: [], count: 0 })
     }
 
-    // Fetch interventions with related data (agency, owner, metier, status, assigned_user)
+    // Fetch interventions with related data (owner, tenant, metier, status, assigned_user)
     const { data: interventions, error } = await supabase
       .from('interventions')
       .select(`
@@ -94,15 +94,19 @@ export async function GET(
         metier_id,
         agence_id,
         owner_id,
+        tenant_id,
         assigned_user_id,
-        agencies:agence_id (
-          id,
-          label
-        ),
         owner:owner_id (
           id,
           owner_firstname,
           owner_lastname,
+          telephone
+        ),
+        tenant:tenant_id (
+          id,
+          firstname,
+          lastname,
+          plain_nom_client,
           telephone
         ),
         assigned_user:assigned_user_id (
@@ -179,19 +183,30 @@ export async function GET(
 
     // Map to a clean format for the portal
     const mapped = (interventions || []).map((i: Record<string, unknown>) => {
-      const agency = i.agencies as { id: string; label: string } | null
       const owner = i.owner as { id: string; owner_firstname: string | null; owner_lastname: string | null; telephone: string | null } | null
+      const tenant = i.tenant as { id: string; firstname: string | null; lastname: string | null; plain_nom_client: string | null; telephone: string | null } | null
       const assignedUser = i.assigned_user as { id: string; firstname: string | null; lastname: string | null; email: string | null } | null
       const metier = i.metiers as { id: string; label: string } | null
       const status = i.intervention_statuses as { id: string; code: string; label: string } | null
       const intId = i.id as string
       const docCounts = docCountsMap[intId] || { photos: 0, devis: 0, facturesArtisans: 0 }
 
-      // Build owner name from firstname + lastname
+      // Build owner name (Propriétaire/Facturation) from firstname + lastname
       let ownerName: string | null = null
       if (owner) {
         const parts = [owner.owner_firstname, owner.owner_lastname].filter(Boolean)
         ownerName = parts.length > 0 ? parts.join(' ') : null
+      }
+
+      // Build tenant name (Locataire/Client) - use plain_nom_client or firstname + lastname
+      let tenantName: string | null = null
+      if (tenant) {
+        if (tenant.plain_nom_client) {
+          tenantName = tenant.plain_nom_client
+        } else {
+          const parts = [tenant.firstname, tenant.lastname].filter(Boolean)
+          tenantName = parts.length > 0 ? parts.join(' ') : null
+        }
       }
 
       // Build assigned user fullname
@@ -210,7 +225,8 @@ export async function GET(
         address: i.adresse,
         city: i.ville,
         postal_code: i.code_postal,
-        client_name: agency?.label || null,
+        // Legacy field for compatibility
+        client_name: tenantName,
         owner_name: ownerName,
         owner_phone: owner?.telephone || null,
         metier: metier?.label || null,
@@ -228,7 +244,7 @@ export async function GET(
         has_facture_artisan: docCounts.facturesArtisans > 0,
         // SST cost
         cout_sst: sstCostsMap[intId] || null,
-        // Enriched data for portal
+        // Enriched data for portal contact tab
         assigned_user_id: i.assigned_user_id,
         assigned_user: assignedUser ? {
           id: assignedUser.id,
@@ -237,11 +253,17 @@ export async function GET(
           email: assignedUser.email,
           fullname: assignedUserFullname
         } : null,
-        client: null, // Client data not available yet
+        // Propriétaire (facturation)
         owner: owner ? {
           id: owner.id,
           name: ownerName,
           phone: owner.telephone
+        } : null,
+        // Locataire (tenant/client)
+        tenant: tenant ? {
+          id: tenant.id,
+          name: tenantName,
+          phone: tenant.telephone
         } : null
       }
     })
