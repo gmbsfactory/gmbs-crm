@@ -15,6 +15,8 @@ export async function GET(
   const { interventionId } = await params
   const artisanId = request.nextUrl.searchParams.get('artisanId')
 
+  console.log('[get-report] Request received:', { interventionId, artisanId })
+
   if (!artisanId) {
     return NextResponse.json({ error: 'artisanId required' }, { status: 400 })
   }
@@ -23,23 +25,35 @@ export async function GET(
   const apiKeyId = process.env.PORTAL_API_KEY_ID
   const apiSecret = process.env.PORTAL_API_SECRET
 
+  console.log('[get-report] Portal config:', { 
+    portalBaseUrl: portalBaseUrl ? '✓ set' : '✗ missing',
+    apiKeyId: apiKeyId ? '✓ set' : '✗ missing',
+    apiSecret: apiSecret ? '✓ set' : '✗ missing'
+  })
+
   if (!portalBaseUrl || !apiKeyId || !apiSecret) {
-    console.error('[get-report] Missing portal configuration')
+    console.error('[get-report] Missing portal configuration:', {
+      PORTAL_GMBS_BASE_URL: !!portalBaseUrl,
+      PORTAL_API_KEY_ID: !!apiKeyId,
+      PORTAL_API_SECRET: !!apiSecret
+    })
     return NextResponse.json({ error: 'Portal configuration error' }, { status: 500 })
   }
 
   try {
+    const url = `${portalBaseUrl}/api/v1/interventions/${interventionId}/report?artisanId=${artisanId}`
+    console.log('[get-report] Calling portal API:', url)
+
     // Appeler l'API du portal pour récupérer le rapport
-    const portalResponse = await fetch(
-      `${portalBaseUrl}/api/v1/interventions/${interventionId}/report?artisanId=${artisanId}`,
-      {
-        method: 'GET',
-        headers: {
-          'X-GMBS-Key-Id': apiKeyId,
-          'X-GMBS-Secret': apiSecret
-        }
+    const portalResponse = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'X-GMBS-Key-Id': apiKeyId,
+        'X-GMBS-Secret': apiSecret
       }
-    )
+    })
+
+    console.log('[get-report] Portal response status:', portalResponse.status)
 
     if (!portalResponse.ok) {
       if (portalResponse.status === 404) {
@@ -47,11 +61,19 @@ export async function GET(
         return NextResponse.json({ report: null, photos: [] }, { status: 200 })
       }
       const errorText = await portalResponse.text()
-      console.error('[get-report] Portal API error:', errorText)
-      throw new Error('Portal API error')
+      console.error('[get-report] Portal API error:', portalResponse.status, errorText)
+      return NextResponse.json({ 
+        error: 'Portal API error', 
+        details: errorText,
+        status: portalResponse.status 
+      }, { status: 500 })
     }
 
     const data = await portalResponse.json()
+    console.log('[get-report] Portal response data:', { 
+      hasReport: !!data.report, 
+      photosCount: data.photos?.length || 0 
+    })
 
     return NextResponse.json({
       report: data.report || null,
@@ -60,6 +82,9 @@ export async function GET(
 
   } catch (error) {
     console.error('[get-report] Failed to fetch report from portal:', error)
-    return NextResponse.json({ error: 'Failed to fetch report' }, { status: 500 })
+    return NextResponse.json({ 
+      error: 'Failed to fetch report',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    }, { status: 500 })
   }
 }
