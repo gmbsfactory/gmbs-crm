@@ -74,7 +74,7 @@ export async function GET(
       return NextResponse.json({ interventions: [], count: 0 })
     }
 
-    // Fetch interventions with related data (agency, owner, metier, status, assigned_user, client/account)
+    // Fetch interventions with related data (agency, owner, metier, status, assigned_user)
     const { data: interventions, error } = await supabase
       .from('interventions')
       .select(`
@@ -94,7 +94,6 @@ export async function GET(
         metier_id,
         agence_id,
         owner_id,
-        account_id,
         assigned_user_id,
         agencies:agence_id (
           id,
@@ -104,11 +103,6 @@ export async function GET(
           id,
           owner_firstname,
           owner_lastname,
-          telephone
-        ),
-        accounts:account_id (
-          id,
-          nom_compte,
           telephone
         ),
         assigned_user:assigned_user_id (
@@ -187,7 +181,6 @@ export async function GET(
     const mapped = (interventions || []).map((i: Record<string, unknown>) => {
       const agency = i.agencies as { id: string; label: string } | null
       const owner = i.owner as { id: string; owner_firstname: string | null; owner_lastname: string | null; telephone: string | null } | null
-      const account = i.accounts as { id: string; nom_compte: string | null; telephone: string | null } | null
       const assignedUser = i.assigned_user as { id: string; firstname: string | null; lastname: string | null; email: string | null } | null
       const metier = i.metiers as { id: string; label: string } | null
       const status = i.intervention_statuses as { id: string; code: string; label: string } | null
@@ -235,7 +228,7 @@ export async function GET(
         has_facture_artisan: docCounts.facturesArtisans > 0,
         // SST cost
         cout_sst: sstCostsMap[intId] || null,
-        // New enriched data for portal
+        // Enriched data for portal
         assigned_user_id: i.assigned_user_id,
         assigned_user: assignedUser ? {
           id: assignedUser.id,
@@ -244,11 +237,7 @@ export async function GET(
           email: assignedUser.email,
           fullname: assignedUserFullname
         } : null,
-        client: account ? {
-          id: account.id,
-          name: account.nom_compte,
-          phone: account.telephone
-        } : null,
+        client: null, // Client data not available yet
         owner: owner ? {
           id: owner.id,
           name: ownerName,

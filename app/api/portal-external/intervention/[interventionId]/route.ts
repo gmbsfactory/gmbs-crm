@@ -99,7 +99,6 @@ export async function GET(
         metier_id,
         agence_id,
         owner_id,
-        account_id,
         assigned_user_id,
         agencies:agence_id (
           id,
@@ -109,11 +108,6 @@ export async function GET(
           id,
           owner_firstname,
           owner_lastname,
-          telephone
-        ),
-        accounts:account_id (
-          id,
-          nom_compte,
           telephone
         ),
         assigned_user:assigned_user_id (
@@ -214,19 +208,12 @@ export async function GET(
       .eq('cost_type', 'sst')
       .single()
 
-    // Extract related data (Supabase returns arrays for joins, take first element)
-    const agencyArr = intervention.agencies as { id: string; label: string }[] | null
-    const agency = agencyArr?.[0] || null
-    const ownerArr = intervention.owner as { id: string; owner_firstname: string | null; owner_lastname: string | null; telephone: string | null }[] | null
-    const owner = ownerArr?.[0] || null
-    const accountArr = intervention.accounts as { id: string; nom_compte: string | null; telephone: string | null }[] | null
-    const account = accountArr?.[0] || null
-    const assignedUserArr = intervention.assigned_user as { id: string; firstname: string | null; lastname: string | null; email: string | null }[] | null
-    const assignedUser = assignedUserArr?.[0] || null
-    const metierArr = intervention.metiers as { id: string; label: string }[] | null
-    const metier = metierArr?.[0] || null
-    const statusArr = intervention.intervention_statuses as { id: string; code: string; label: string }[] | null
-    const status = statusArr?.[0] || null
+    // Extract related data (Supabase may return arrays for joins - use unknown first)
+    const agency = intervention.agencies as unknown as { id: string; label: string } | null
+    const owner = intervention.owner as unknown as { id: string; owner_firstname: string | null; owner_lastname: string | null; telephone: string | null } | null
+    const assignedUser = intervention.assigned_user as unknown as { id: string; firstname: string | null; lastname: string | null; email: string | null } | null
+    const metier = intervention.metiers as unknown as { id: string; label: string } | null
+    const status = intervention.intervention_statuses as unknown as { id: string; code: string; label: string } | null
 
     // Build owner name from firstname + lastname
     let ownerName: string | null = null
@@ -271,7 +258,7 @@ export async function GET(
         has_facture_artisan: documents.facturesArtisans.length > 0,
         // SST cost
         cout_sst: sstCost?.amount ? Number(sstCost.amount) : null,
-        // New enriched data for portal
+        // Enriched data for portal
         assigned_user_id: intervention.assigned_user_id,
         assigned_user: assignedUser ? {
           id: assignedUser.id,
@@ -280,11 +267,7 @@ export async function GET(
           email: assignedUser.email,
           fullname: assignedUserFullname
         } : null,
-        client: account ? {
-          id: account.id,
-          name: account.nom_compte,
-          phone: account.telephone
-        } : null,
+        client: null, // Client data not available yet
         owner: owner ? {
           id: owner.id,
           name: ownerName,
