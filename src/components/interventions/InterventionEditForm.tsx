@@ -63,6 +63,7 @@ const INTERVENTION_DOCUMENT_KINDS = [
 
 import { PhotoGallery } from "@/components/interventions/PhotoGallery"
 import { ReportView } from "@/components/interventions/ReportView"
+import { PortalReportSection } from "@/components/interventions/PortalReportSection"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
 const STATUS_SORT_ORDER: Record<string, number> = {
@@ -2946,27 +2947,30 @@ export const InterventionEditForm = memo(function InterventionEditForm({
                     </CollapsibleTrigger>
                     <CollapsibleContent>
                       <CardContent className="pt-0 px-3 pb-3">
-                        <Tabs defaultValue="photos" className="w-full">
-                          <TabsList className="grid w-full grid-cols-2 mb-4">
-                            <TabsTrigger value="photos">Photos & Observations</TabsTrigger>
-                            <TabsTrigger value="report">Rapport & Impression</TabsTrigger>
-                          </TabsList>
-                          <TabsContent value="photos">
-                            <PhotoGallery interventionId={intervention.id} />
-                          </TabsContent>
-                          <TabsContent value="report">
-                            <ReportView intervention={{
-                              id: intervention.id,
-                              name: formData.id_inter,
-                              date: formData.date || (intervention.created_at ? new Date(intervention.created_at).toISOString() : new Date().toISOString()),
-                              address: formData.adresseComplete,
-                              context: formData.contexte_intervention,
-                              clientName: formData.nomPrenomClient,
-                              clientPhone: formData.telephoneClient,
-                              statusLabel: selectedStatus?.label
-                            }} />
-                          </TabsContent>
-                        </Tabs>
+                        <PortalReportSection
+                          interventionId={intervention.id}
+                          artisanId={primaryArtisan?.id || null}
+                          currentStatusCode={getInterventionStatusCode(formData.statut_id)}
+                          hasPortalReport={(intervention as any).has_portal_report || false}
+                          onValidateReport={async () => {
+                            const response = await fetch(`/api/interventions/${intervention.id}/validate-report`, {
+                              method: 'POST',
+                              headers: {
+                                'Content-Type': 'application/json'
+                              }
+                            })
+                            if (!response.ok) {
+                              const error = await response.json()
+                              throw new Error(error.error || 'Validation failed')
+                            }
+                          }}
+                          onRefresh={() => {
+                            queryClient.invalidateQueries({ queryKey: ['intervention', intervention.id] })
+                            if (onSuccess) {
+                              onSuccess(intervention)
+                            }
+                          }}
+                        />
                       </CardContent>
                     </CollapsibleContent>
                   </Card>

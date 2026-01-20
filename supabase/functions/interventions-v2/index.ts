@@ -366,6 +366,8 @@ const DEFAULT_INTERVENTION_COLUMNS = [
   'sous_statut_text',
   'sous_statut_text_color',
   'sous_statut_bg_color',
+  // Portal report flag
+  'has_portal_report',
 ];
 
 const DEFAULT_SELECT = DEFAULT_INTERVENTION_COLUMNS.join(',');

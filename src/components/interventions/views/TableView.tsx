@@ -222,12 +222,14 @@ const renderCell = (
     const statusCode = (statusInfo?.code ?? value ?? "") as string
 
     // Utiliser getStatusDisplay pour obtenir label, color et icon de manière centralisée
+    const hasPortalReport = (intervention as any).has_portal_report || false
     const statusDisplay = getStatusDisplay(statusCode, {
       statusFromDb: statusInfo ? {
         code: statusInfo.code ?? statusCode,
         label: statusInfo.label ?? String(value),
         color: statusInfo.color ?? null,
       } : undefined,
+      hasPortalReport,
     })
 
     // Récupérer les paiements pour vérifier si l'accompte est validé

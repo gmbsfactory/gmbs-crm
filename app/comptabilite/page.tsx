@@ -240,7 +240,7 @@ export default function ComptabilitePage() {
         // Appliquer le filtre de date si disponible
         if (dateRange) {
           filtered = filtered.filter((intervention) => {
-            const interventionDate = (intervention as any).dateIntervention ?? intervention.date
+            const interventionDate = (intervention as any).dateIntervention ?? (intervention as any).date
             if (!interventionDate) return false
             const date = new Date(interventionDate)
             const start = new Date(dateRange.start)
@@ -282,17 +282,17 @@ export default function ComptabilitePage() {
   }, [dateRange])
 
   // Gestion de la sélection
-  const allSelected = paginatedInterventions.length > 0 && paginatedInterventions.every((i) => selectedRows.has(i.id))
+  const allSelected = paginatedInterventions.length > 0 && paginatedInterventions.every((i) => selectedRows.has((i as any).id))
   const someSelected = selectedRows.size > 0 && !allSelected
 
   const toggleSelectAll = () => {
     const newSelected = new Set(selectedRows)
     if (allSelected) {
       // Désélectionner toutes les lignes de la page actuelle
-      paginatedInterventions.forEach((i) => newSelected.delete(i.id))
+      paginatedInterventions.forEach((i) => newSelected.delete((i as any).id))
     } else {
       // Sélectionner toutes les lignes de la page actuelle
-      paginatedInterventions.forEach((i) => newSelected.add(i.id))
+      paginatedInterventions.forEach((i) => newSelected.add((i as any).id))
     }
     setSelectedRows(newSelected)
   }
@@ -319,7 +319,7 @@ export default function ComptabilitePage() {
   const copySelectedRows = async () => {
     if (selectedRows.size === 0) return
 
-    const selectedInterventions = interventions.filter((i) => selectedRows.has(i.id))
+    const selectedInterventions = interventions.filter((i) => selectedRows.has((i as any).id))
     
     // En-têtes de colonnes
     const headers = [
@@ -349,14 +349,14 @@ export default function ComptabilitePage() {
       // Nettoyer toutes les valeurs pour éviter les retours à la ligne
       const inter = intervention as any
       return [
-        cleanValue(formatDate(inter.dateIntervention ?? intervention.date)),
+        cleanValue(formatDate(inter.dateIntervention ?? inter.date)),
         cleanValue(inter.agenceLabel || inter.agence || "—"),
         cleanValue(inter.assignedUserName || inter.attribueA || "—"),
-        cleanValue(intervention.id_inter || "—"),
+        cleanValue(inter.id_inter || "—"),
         cleanValue(formatClientName(intervention)),
         cleanValue(formatAddress(intervention)),
         cleanValue(getMetierLabel(intervention)),
-        cleanValue(inter.contexteIntervention ?? intervention.contexte_intervention ?? "—"),
+        cleanValue(inter.contexteIntervention ?? inter.contexte_intervention ?? "—"),
         cleanValue(formatCurrency(getCostAmountByType(intervention, "materiel"))),
         cleanValue(formatCurrency(getCostAmountByType(intervention, "intervention"))),
         cleanValue(formatCurrency(getCostAmountByType(intervention, "sst"))),
@@ -598,21 +598,21 @@ export default function ComptabilitePage() {
               paginatedInterventions.map((intervention) => {
                 const acompteClient = getPaymentInfo(intervention, "acompte_client")
                 const acompteArtisan = getPaymentInfo(intervention, "acompte_artisan")
-                const isSelected = selectedRows.has(intervention.id)
+                const isSelected = selectedRows.has((intervention as any).id)
                 return (
                   <TableRow 
-                    key={intervention.id}
+                    key={(intervention as any).id}
                     className={cn(isSelected && "bg-muted/50")}
                   >
                     <TableCell>
                       <Checkbox
                         checked={isSelected}
-                        onCheckedChange={() => toggleSelectRow(intervention.id)}
-                        aria-label={`Sélectionner la ligne ${intervention.id_inter || intervention.id}`}
+                        onCheckedChange={() => toggleSelectRow((intervention as any).id)}
+                        aria-label={`Sélectionner la ligne ${(intervention as any).id_inter || (intervention as any).id}`}
                       />
                     </TableCell>
                     <TableCell>
-                      <TruncatedCell content={formatDate((intervention as any).dateIntervention ?? intervention.date)} maxWidth="75px" />
+                      <TruncatedCell content={formatDate((intervention as any).dateIntervention ?? (intervention as any).date)} maxWidth="75px" />
                     </TableCell>
                     <TableCell>
                       <TruncatedCell content={(intervention as any).agenceLabel || (intervention as any).agence || "—"} maxWidth="70px" />
@@ -621,7 +621,7 @@ export default function ComptabilitePage() {
                       <TruncatedCell content={(intervention as any).assignedUserName || (intervention as any).attribueA || "—"} maxWidth="70px" />
                     </TableCell>
                     <TableCell>
-                      <TruncatedCell content={intervention.id_inter || "—"} maxWidth="60px" />
+                      <TruncatedCell content={(intervention as any).id_inter || "—"} maxWidth="60px" />
                     </TableCell>
                     <TableCell>
                       <TruncatedCell content={formatClientName(intervention)} maxWidth="90px" />
@@ -634,7 +634,7 @@ export default function ComptabilitePage() {
                     </TableCell>
                     <TableCell>
                       <TruncatedCell
-                        content={(intervention as any).contexteIntervention ?? intervention.contexte_intervention ?? "—"}
+                        content={(intervention as any).contexteIntervention ?? (intervention as any).contexte_intervention ?? "—"}
                         maxWidth="130px"
                       />
                     </TableCell>
@@ -667,8 +667,8 @@ export default function ComptabilitePage() {
                         variant="ghost"
                         size="sm"
                         onClick={() => {
-                          if (intervention.id) {
-                            openInterventionModal(intervention.id)
+                          if ((intervention as any).id) {
+                            openInterventionModal((intervention as any).id)
                           }
                         }}
                       >

@@ -27,6 +27,11 @@ export interface GetStatusDisplayOptions {
    * Permet de récupérer les labels/couleurs depuis workflow.statuses
    */
   workflow?: WorkflowConfig | null
+  /**
+   * Indique si un rapport portal a été soumis
+   * Si true et statut = INTER_EN_COURS, affiche "À vérifier" au lieu de "En cours"
+   */
+  hasPortalReport?: boolean
 }
 
 /**
@@ -66,7 +71,16 @@ export function getStatusDisplay(
     }
   }
 
-  const { statusFromDb, workflow } = options
+  const { statusFromDb, workflow, hasPortalReport } = options
+
+  // Cas spécial : INTER_EN_COURS + rapport portal soumis → afficher "À vérifier"
+  if (code === 'INTER_EN_COURS' && hasPortalReport) {
+    return {
+      label: 'À vérifier',
+      color: '#9333EA',  // Purple-600
+      icon: iconForStatus('INTER_EN_COURS'),
+    }
+  }
 
   // 1. Priorité absolue : statusFromDb (hydraté depuis la DB via mapInterventionRecord)
   if (statusFromDb && statusFromDb.code === code) {

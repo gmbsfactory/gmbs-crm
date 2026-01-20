@@ -264,6 +264,16 @@ export const mapInterventionRecord = (item: any, refs: any): any => {
     : undefined;
   const statusCode =
     normalizedStatus?.code ?? item.statut ?? item.statusValue ?? null;
+
+  // Logique spéciale: Si INTER_EN_COURS + has_portal_report → afficher "À vérifier"
+  const hasPortalReport = item.has_portal_report || false;
+  const shouldShowWaitingVerification = statusCode === 'INTER_EN_COURS' && hasPortalReport;
+  const displayLabel = shouldShowWaitingVerification
+    ? 'À vérifier'
+    : (normalizedStatus?.label ?? item.statusLabel ?? null);
+  const displayColor = shouldShowWaitingVerification
+    ? '#9333EA'  // Purple-600
+    : (normalizedStatus?.color ?? null);
   const metier = item.metier_id
     ? refs.metiersById?.get(item.metier_id)
     : undefined;
@@ -338,7 +348,8 @@ export const mapInterventionRecord = (item: any, refs: any): any => {
     owner_id: ownerId,
     client_id: item.client_id ?? tenantId,
     status: normalizedStatus,
-    statusLabel: normalizedStatus?.label ?? item.statusLabel ?? null,
+    statusLabel: displayLabel,
+    has_portal_report: hasPortalReport,  // Préserver le flag pour usage ultérieur
     artisans: artisanIds, // Liste des IDs d'artisans
     artisan: artisanDisplayName, // Nom d'affichage de l'artisan principal (raison_sociale > plain_nom > prenom nom)
     primaryArtisan: primaryArtisanData, // Données complètes de l'artisan principal
@@ -412,7 +423,7 @@ export const mapInterventionRecord = (item: any, refs: any): any => {
     assignedUserAvatarUrl: userInfo.avatarUrl ?? null,
     statut: statusCode,
     statusValue: statusCode,
-    statusColor: normalizedStatus?.color ?? null,
+    statusColor: displayColor,
     numeroSST: item.numero_sst ?? item.numeroSST ?? null,
     pourcentageSST: item.pourcentage_sst ?? item.pourcentageSST ?? null,
     commentaire: item.commentaire ?? item.commentaire_agent ?? null,
