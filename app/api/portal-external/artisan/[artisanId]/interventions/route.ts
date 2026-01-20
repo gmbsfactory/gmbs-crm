@@ -100,6 +100,7 @@ export async function GET(
           id,
           owner_firstname,
           owner_lastname,
+          plain_nom_facturation,
           telephone
         ),
         tenant:tenant_id (
@@ -183,7 +184,7 @@ export async function GET(
 
     // Map to a clean format for the portal
     const mapped = (interventions || []).map((i: Record<string, unknown>) => {
-      const owner = i.owner as { id: string; owner_firstname: string | null; owner_lastname: string | null; telephone: string | null } | null
+      const owner = i.owner as { id: string; owner_firstname: string | null; owner_lastname: string | null; plain_nom_facturation: string | null; telephone: string | null } | null
       const tenant = i.tenant as { id: string; firstname: string | null; lastname: string | null; plain_nom_client: string | null; telephone: string | null } | null
       const assignedUser = i.assigned_user as { id: string; firstname: string | null; lastname: string | null; email: string | null } | null
       const metier = i.metiers as { id: string; label: string } | null
@@ -191,11 +192,15 @@ export async function GET(
       const intId = i.id as string
       const docCounts = docCountsMap[intId] || { photos: 0, devis: 0, facturesArtisans: 0 }
 
-      // Build owner name (Propriétaire/Facturation) from firstname + lastname
+      // Build owner name (Propriétaire/Facturation) - use plain_nom_facturation first, then firstname + lastname
       let ownerName: string | null = null
       if (owner) {
-        const parts = [owner.owner_firstname, owner.owner_lastname].filter(Boolean)
-        ownerName = parts.length > 0 ? parts.join(' ') : null
+        if (owner.plain_nom_facturation) {
+          ownerName = owner.plain_nom_facturation
+        } else {
+          const parts = [owner.owner_firstname, owner.owner_lastname].filter(Boolean)
+          ownerName = parts.length > 0 ? parts.join(' ') : null
+        }
       }
 
       // Build tenant name (Locataire/Client) - use plain_nom_client or firstname + lastname
