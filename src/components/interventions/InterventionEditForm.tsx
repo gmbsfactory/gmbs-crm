@@ -2953,22 +2953,19 @@ export const InterventionEditForm = memo(function InterventionEditForm({
                           currentStatusCode={getInterventionStatusCode(formData.statut_id)}
                           hasPortalReport={(intervention as any).has_portal_report || false}
                           onValidateReport={async () => {
-                            const response = await fetch(`/api/interventions/${intervention.id}/validate-report`, {
-                              method: 'POST',
-                              headers: {
-                                'Content-Type': 'application/json'
-                              }
-                            })
-                            if (!response.ok) {
-                              const error = await response.json()
-                              throw new Error(error.error || 'Validation failed')
+                            // Trouver le statut INTER_TERMINEE
+                            const termineeStatus = refData?.interventionStatuses?.find(s => s.code === 'INTER_TERMINEE')
+                            if (termineeStatus) {
+                              // Changer le statut localement dans le formulaire (pas de sauvegarde immédiate)
+                              // L'utilisateur devra cliquer sur "Enregistrer" pour sauvegarder avec le popup de commentaire
+                              handleInputChange('statut_id', termineeStatus.id)
+                              toast.success('Rapport validé - Cliquez sur Enregistrer pour finaliser')
+                            } else {
+                              throw new Error('Statut INTER_TERMINEE non trouvé')
                             }
                           }}
                           onRefresh={() => {
-                            queryClient.invalidateQueries({ queryKey: ['intervention', intervention.id] })
-                            if (onSuccess) {
-                              onSuccess(intervention)
-                            }
+                            // Plus besoin de refresh car on ne sauvegarde pas immédiatement
                           }}
                         />
                       </CardContent>
