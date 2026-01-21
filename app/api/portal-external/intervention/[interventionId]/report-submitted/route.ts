@@ -34,7 +34,7 @@ export async function POST(
   const supabase = createServerSupabaseAdmin()
 
   try {
-    // 1. Récupérer l'intervention avec ses relations (incluant le gestionnaire assigné)
+    // 1. Récupérer l'intervention avec ses relations (incluant le gestionnaire assigné si présent)
     const { data: intervention, error: intError } = await supabase
       .from('interventions')
       .select(`
@@ -47,16 +47,21 @@ export async function POST(
           id,
           prenom,
           nom
-        ),
-        assigned_user:users!interventions_assigned_user_id_fkey (
-          id,
-          username,
-          firstname,
-          lastname
         )
       `)
       .eq('id', interventionId)
       .single()
+
+    // Récupérer le gestionnaire assigné séparément (optionnel)
+    let assignedUser: { id: string; username: string; firstname: string | null; lastname: string | null } | null = null
+    if (intervention?.assigned_user_id) {
+      const { data: userData } = await supabase
+        .from('users')
+        .select('id, username, firstname, lastname')
+        .eq('id', intervention.assigned_user_id)
+        .single()
+      assignedUser = userData
+    }
 
     if (intError || !intervention) {
       console.error('[report-submitted] Intervention not found:', intError)
@@ -93,10 +98,9 @@ export async function POST(
       : 'Artisan'
 
     // 5. Construire le nom/username du gestionnaire assigné pour la mention
-    const assignedUserRecord = intervention.assigned_user as unknown as { id: string; username: string; firstname: string | null; lastname: string | null } | null
-    const gestionnaireUsername = assignedUserRecord?.username || 'gestionnaire'
-    const gestionnaireName = assignedUserRecord
-      ? [assignedUserRecord.firstname, assignedUserRecord.lastname].filter(Boolean).join(' ') || assignedUserRecord.username
+    const gestionnaireUsername = assignedUser?.username || 'gestionnaire'
+    const gestionnaireName = assignedUser
+      ? [assignedUser.firstname, assignedUser.lastname].filter(Boolean).join(' ') || assignedUser.username
       : 'Gestionnaire'
 
     // 6. Créer un reminder pour le gestionnaire assigné avec mention @username
