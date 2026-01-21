@@ -2133,31 +2133,42 @@ export const InterventionEditForm = memo(function InterventionEditForm({
                         </div>
 
                         {/* Statut - Badge coloré */}
-                        <SearchableBadgeSelect
-                          label="Statut"
-                          required
-                          hideLabel
-                          value={formData.statut_id}
-                          onChange={(value) => handleInputChange("statut_id", value)}
-                          placeholder="Statut"
-                          onOpenChange={onPopoverOpenChange}
-                          searchPlaceholder="Rechercher un statut..."
-                          sortAlphabetically={false}
-                          options={(refData?.interventionStatuses || [])
-                            .map(s => ({
-                              id: s.id,
-                              label: s.label,
-                              color: getInterventionStatusColor(s.label, s.code) || s.color,
-                              code: s.code || ""
-                            }))
-                            .sort((a, b) => {
-                              const orderA = STATUS_SORT_ORDER[a.code] || 999
-                              const orderB = STATUS_SORT_ORDER[b.code] || 999
-                              if (orderA !== orderB) return orderA - orderB
-                              return (a.label || "").localeCompare(b.label || "", "fr")
-                            })
-                          }
-                        />
+                        {(() => {
+                          // Calculer l'affichage conditionnel "À vérifier" si INTER_EN_COURS + rapport portal
+                          const currentStatusCode = getInterventionStatusCode(formData.statut_id)
+                          const hasPortalReport = (intervention as any).has_portal_report || false
+                          const shouldShowAVerifier = currentStatusCode === 'INTER_EN_COURS' && hasPortalReport
+                          
+                          return (
+                            <SearchableBadgeSelect
+                              label="Statut"
+                              required
+                              hideLabel
+                              value={formData.statut_id}
+                              onChange={(value) => handleInputChange("statut_id", value)}
+                              placeholder="Statut"
+                              onOpenChange={onPopoverOpenChange}
+                              searchPlaceholder="Rechercher un statut..."
+                              sortAlphabetically={false}
+                              displayLabel={shouldShowAVerifier ? "À vérifier" : undefined}
+                              displayColor={shouldShowAVerifier ? "#9333EA" : undefined}
+                              options={(refData?.interventionStatuses || [])
+                                .map(s => ({
+                                  id: s.id,
+                                  label: s.label,
+                                  color: getInterventionStatusColor(s.label, s.code) || s.color,
+                                  code: s.code || ""
+                                }))
+                                .sort((a, b) => {
+                                  const orderA = STATUS_SORT_ORDER[a.code] || 999
+                                  const orderB = STATUS_SORT_ORDER[b.code] || 999
+                                  if (orderA !== orderB) return orderA - orderB
+                                  return (a.label || "").localeCompare(b.label || "", "fr")
+                                })
+                              }
+                            />
+                          )
+                        })()}
 
                         {/* Agence - Badge coloré */}
                         <SearchableBadgeSelect
@@ -2953,19 +2964,20 @@ export const InterventionEditForm = memo(function InterventionEditForm({
                           currentStatusCode={getInterventionStatusCode(formData.statut_id)}
                           hasPortalReport={(intervention as any).has_portal_report || false}
                           onValidateReport={async () => {
-                            // Trouver le statut INTER_TERMINEE
-                            const termineeStatus = refData?.interventionStatuses?.find(s => s.code === 'INTER_TERMINEE')
-                            if (termineeStatus) {
-                              // Changer le statut localement dans le formulaire (pas de sauvegarde immédiate)
-                              // L'utilisateur devra cliquer sur "Enregistrer" pour sauvegarder avec le popup de commentaire
-                              handleInputChange('statut_id', termineeStatus.id)
-                              toast.success('Rapport validé - Cliquez sur Enregistrer pour finaliser')
-                            } else {
+                            // Trouver le statut INTER_TERMINEE et mettre à jour localement
+                            // Le changement sera persisté lors de la sauvegarde avec le popup de commentaire
+                            const termineeStatus = refData?.interventionStatuses.find(s => s.code === 'INTER_TERMINEE')
+                            if (!termineeStatus) {
                               throw new Error('Statut INTER_TERMINEE non trouvé')
                             }
+                            setFormData(prev => ({
+                              ...prev,
+                              statut_id: termineeStatus.id
+                            }))
+                            // Pas d'appel API ici - le changement sera sauvegardé avec le bouton "Sauvegarder"
                           }}
                           onRefresh={() => {
-                            // Plus besoin de refresh car on ne sauvegarde pas immédiatement
+                            // Pas de refresh automatique - l'utilisateur doit sauvegarder pour persister
                           }}
                         />
                       </CardContent>

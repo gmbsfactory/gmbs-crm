@@ -86,7 +86,7 @@ export function PortalReportSection({
     setIsValidating(true)
     try {
       await onValidateReport()
-      // Le toast est géré par onValidateReport
+      toast.success('Rapport validé - Intervention terminée')
       onRefresh?.()
     } catch (error) {
       console.error('Validation error:', error)

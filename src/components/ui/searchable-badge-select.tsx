@@ -36,6 +36,10 @@ export interface SearchableBadgeSelectProps {
   emptyText?: string
   onOpenChange?: (open: boolean) => void
   sortAlphabetically?: boolean
+  /** Override the displayed label (useful for conditional display like "À vérifier") */
+  displayLabel?: string
+  /** Override the displayed color */
+  displayColor?: string
 }
 
 export function SearchableBadgeSelect({
@@ -51,6 +55,8 @@ export function SearchableBadgeSelect({
   emptyText = "Aucun résultat",
   onOpenChange,
   sortAlphabetically = true,
+  displayLabel,
+  displayColor,
 }: SearchableBadgeSelectProps) {
   const [open, setOpen] = React.useState(false)
 
@@ -77,8 +83,9 @@ export function SearchableBadgeSelect({
   }, [processedOptions, search])
 
   const selectedOption = options.find((o) => o.id === value)
-  const selectedColor = selectedOption?.color || "#6b7280"
-  const selectedLabel = selectedOption?.label || placeholder
+  // Use displayLabel/displayColor overrides if provided, otherwise use selected option values
+  const selectedColor = displayColor || selectedOption?.color || "#6b7280"
+  const selectedLabel = displayLabel || selectedOption?.label || placeholder
 
   // Réinitialiser la recherche quand le popover se ferme et focus l'input
   React.useEffect(() => {
