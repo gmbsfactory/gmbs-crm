@@ -357,14 +357,19 @@ export function RemindersProvider({ children }: { children: ReactNode }) {
               }
 
               // Si c'est un nouveau reminder ou une mise à jour qui concerne l'utilisateur
-              // et que ce n'est PAS l'utilisateur courant qui l'a créé (pour éviter le double toast)
+              // Afficher le toast si l'utilisateur est mentionné (même s'il est aussi le user_id)
+              // Cela permet aux reminders système (ex: rapport Portal) de notifier le gestionnaire
               const publicUserId = await getPublicUserId()
               const isCreator = newReminder?.user_id === publicUserId
+              const isMentioned = Array.isArray(newReminder?.mentioned_user_ids) && 
+                newReminder.mentioned_user_ids.includes(publicUserId!)
 
-              // Si on n'est pas le créateur, c'est qu'on a été identifié/mentionné
-              if (!isCreator && newReminder) {
+              // Afficher le toast si:
+              // 1. L'utilisateur est mentionné (reminder système ou mention par un autre utilisateur)
+              // 2. OU si l'utilisateur n'est pas le créateur mais est concerné d'une autre façon
+              if ((isMentioned || !isCreator) && newReminder) {
                 const interventionId = newReminder.intervention_id
-                toast("Vous avez été identifié dans un reminder", {
+                toast("📋 Nouveau rapport à vérifier", {
                   description: newReminder.note || "Aucune description",
                   duration: Infinity,
                   closeButton: true,

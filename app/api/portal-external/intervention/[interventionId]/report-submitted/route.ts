@@ -34,7 +34,7 @@ export async function POST(
   const supabase = createServerSupabaseAdmin()
 
   try {
-    // 1. Récupérer l'intervention avec ses relations
+    // 1. Récupérer l'intervention avec ses relations (incluant le gestionnaire assigné)
     const { data: intervention, error: intError } = await supabase
       .from('interventions')
       .select(`
@@ -47,6 +47,12 @@ export async function POST(
           id,
           prenom,
           nom
+        ),
+        assigned_user:users!interventions_assigned_user_id_fkey (
+          id,
+          username,
+          firstname,
+          lastname
         )
       `)
       .eq('id', interventionId)
@@ -86,9 +92,18 @@ export async function POST(
       ? [artisanRecord.prenom, artisanRecord.nom].filter(Boolean).join(' ')
       : 'Artisan'
 
-    // 5. Créer un reminder pour le gestionnaire assigné
+    // 5. Construire le nom/username du gestionnaire assigné pour la mention
+    const assignedUserRecord = intervention.assigned_user as unknown as { id: string; username: string; firstname: string | null; lastname: string | null } | null
+    const gestionnaireUsername = assignedUserRecord?.username || 'gestionnaire'
+    const gestionnaireName = assignedUserRecord
+      ? [assignedUserRecord.firstname, assignedUserRecord.lastname].filter(Boolean).join(' ') || assignedUserRecord.username
+      : 'Gestionnaire'
+
+    // 6. Créer un reminder pour le gestionnaire assigné avec mention @username
     if (intervention.assigned_user_id) {
-      const reminderNote = `📋 Rapport d'intervention reçu pour ${intervention.id_inter || 'INT-' + interventionId.slice(0, 8)} par ${artisanName}. ${photoCount ? `${photoCount} photo(s) jointe(s).` : ''} En attente de validation.`
+      // Format: @username pour déclencher la notification realtime
+      const interRef = intervention.id_inter || 'INT-' + interventionId.slice(0, 8)
+      const reminderNote = `@${gestionnaireUsername} 📋 Rapport de l'inter #${interRef} à vérifier - soumis par ${artisanName}. ${photoCount ? `${photoCount} photo(s) jointe(s).` : ''}`
 
       // Vérifier s'il existe déjà un reminder actif pour cette intervention
       const { data: existingReminder, error: existingReminderError } = await supabase
@@ -104,13 +119,13 @@ export async function POST(
       }
 
       if (existingReminder) {
-        // Mettre à jour le reminder existant
+        // Mettre à jour le reminder existant avec nouvelle mention
         const { error: updateReminderError } = await supabase
           .from('intervention_reminders')
           .update({
             note: reminderNote,
             updated_at: new Date().toISOString(),
-            mentioned_user_ids: [intervention.assigned_user_id]  // Re-mention pour nouvelle notification
+            mentioned_user_ids: [intervention.assigned_user_id]  // Re-mention pour nouvelle notification realtime
           })
           .eq('id', existingReminder.id)
 
@@ -118,7 +133,9 @@ export async function POST(
           console.error('[report-submitted] Failed to update reminder:', updateReminderError)
         }
       } else {
-        // Créer un nouveau reminder avec mention
+        // Créer un nouveau reminder avec mention du gestionnaire
+        // Le gestionnaire est à la fois user_id et dans mentioned_user_ids
+        // RemindersContext affichera le toast car il est dans mentioned_user_ids
         const { error: insertReminderError } = await supabase
           .from('intervention_reminders')
           .insert({
@@ -126,7 +143,7 @@ export async function POST(
             user_id: intervention.assigned_user_id,
             note: reminderNote,
             is_active: true,
-            mentioned_user_ids: [intervention.assigned_user_id]  // Mention = notification
+            mentioned_user_ids: [intervention.assigned_user_id]  // Mention = notification realtime
           })
 
         if (insertReminderError) {
@@ -135,7 +152,7 @@ export async function POST(
       }
     }
 
-    // 6. Logger l'action dans les commentaires
+    // 7. Logger l'action dans les commentaires
     await supabase
       .from('comments')
       .insert({
