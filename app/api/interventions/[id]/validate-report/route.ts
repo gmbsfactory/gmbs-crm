@@ -30,7 +30,7 @@ export async function POST(
   const { data: user, error: userError } = await adminSupabase
     .from('users')
     .select('id, firstname, lastname')
-    .eq('auth_id', authUser.user.id)
+    .eq('auth_user_id', authUser.user.id)
     .single()
     
   if (userError || !user) {
