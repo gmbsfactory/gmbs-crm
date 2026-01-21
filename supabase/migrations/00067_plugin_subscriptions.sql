@@ -44,6 +44,7 @@ CREATE INDEX IF NOT EXISTS idx_plugin_subscriptions_stripe ON public.plugin_subs
 ALTER TABLE public.plugin_subscriptions ENABLE ROW LEVEL SECURITY;
 
 -- Policy: authenticated users can read
+DROP POLICY IF EXISTS "Authenticated users can read plugin subscriptions" ON public.plugin_subscriptions;
 CREATE POLICY "Authenticated users can read plugin subscriptions"
 ON public.plugin_subscriptions
 FOR SELECT
@@ -51,6 +52,7 @@ TO authenticated
 USING (true);
 
 -- Policy: only service role can modify
+DROP POLICY IF EXISTS "Service role can manage plugin subscriptions" ON public.plugin_subscriptions;
 CREATE POLICY "Service role can manage plugin subscriptions"
 ON public.plugin_subscriptions
 FOR ALL
