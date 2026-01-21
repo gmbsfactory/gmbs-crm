@@ -34,14 +34,27 @@ export async function POST(
   const supabase = createServerSupabaseAdmin()
 
   try {
-    // 1. Récupérer l'intervention avec ses relations (incluant le gestionnaire assigné si présent)
+    // 1. Récupérer l'intervention (sans artisan_id car il n'existe pas dans cette table)
     const { data: intervention, error: intError } = await supabase
       .from('interventions')
       .select(`
         id,
         id_inter,
         assigned_user_id,
-        statut_id,
+        statut_id
+      `)
+      .eq('id', interventionId)
+      .single()
+
+    if (intError || !intervention) {
+      console.error('[report-submitted] Intervention not found:', intError)
+      return NextResponse.json({ error: 'Intervention not found' }, { status: 404 })
+    }
+
+    // 2. Récupérer l'artisan associé via intervention_artisans (relation many-to-many)
+    const { data: interventionArtisan, error: artisanError } = await supabase
+      .from('intervention_artisans')
+      .select(`
         artisan_id,
         artisan:artisans (
           id,
@@ -49,12 +62,20 @@ export async function POST(
           nom
         )
       `)
-      .eq('id', interventionId)
-      .single()
+      .eq('intervention_id', interventionId)
+      .eq('artisan_id', artisanId)
+      .maybeSingle()
 
-    // Récupérer le gestionnaire assigné séparément (optionnel)
+    // Note: On ne bloque pas si l'artisan n'est pas trouvé dans intervention_artisans
+    // car le Portal a déjà validé cette association côté Portal
+    const artisanRecord = interventionArtisan?.artisan as unknown as { id: string; prenom: string | null; nom: string | null } | null
+    const artisanName = artisanRecord
+      ? [artisanRecord.prenom, artisanRecord.nom].filter(Boolean).join(' ')
+      : 'Artisan'
+
+    // 3. Récupérer le gestionnaire assigné (optionnel)
     let assignedUser: { id: string; username: string; firstname: string | null; lastname: string | null } | null = null
-    if (intervention?.assigned_user_id) {
+    if (intervention.assigned_user_id) {
       const { data: userData } = await supabase
         .from('users')
         .select('id, username, firstname, lastname')
@@ -63,21 +84,7 @@ export async function POST(
       assignedUser = userData
     }
 
-    if (intError || !intervention) {
-      console.error('[report-submitted] Intervention not found:', intError)
-      return NextResponse.json({ error: 'Intervention not found' }, { status: 404 })
-    }
-
-    // 2. Vérifier que l'artisan correspond
-    if (intervention.artisan_id !== artisanId) {
-      console.error('[report-submitted] Artisan mismatch:', {
-        expected: intervention.artisan_id,
-        received: artisanId
-      })
-      return NextResponse.json({ error: 'Artisan mismatch' }, { status: 403 })
-    }
-
-    // 3. Marquer l'intervention comme ayant un rapport (PAS de changement de statut)
+    // 4. Marquer l'intervention comme ayant un rapport (PAS de changement de statut)
     const { error: updateError } = await supabase
       .from('interventions')
       .update({
@@ -91,17 +98,8 @@ export async function POST(
       return NextResponse.json({ error: 'Failed to update intervention' }, { status: 500 })
     }
 
-    // 4. Construire le nom de l'artisan
-    const artisanRecord = intervention.artisan as unknown as { id: string; prenom: string | null; nom: string | null } | null
-    const artisanName = artisanRecord
-      ? [artisanRecord.prenom, artisanRecord.nom].filter(Boolean).join(' ')
-      : 'Artisan'
-
     // 5. Construire le nom/username du gestionnaire assigné pour la mention
     const gestionnaireUsername = assignedUser?.username || 'gestionnaire'
-    const gestionnaireName = assignedUser
-      ? [assignedUser.firstname, assignedUser.lastname].filter(Boolean).join(' ') || assignedUser.username
-      : 'Gestionnaire'
 
     // 6. Créer un reminder pour le gestionnaire assigné avec mention @username
     if (intervention.assigned_user_id) {
@@ -138,8 +136,6 @@ export async function POST(
         }
       } else {
         // Créer un nouveau reminder avec mention du gestionnaire
-        // Le gestionnaire est à la fois user_id et dans mentioned_user_ids
-        // RemindersContext affichera le toast car il est dans mentioned_user_ids
         const { error: insertReminderError } = await supabase
           .from('intervention_reminders')
           .insert({
@@ -167,6 +163,8 @@ export async function POST(
         is_internal: true,
         created_at: new Date().toISOString()
       })
+
+    console.log('[report-submitted] Success for intervention:', interventionId)
 
     return NextResponse.json({
       success: true,
