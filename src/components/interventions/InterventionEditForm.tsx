@@ -2964,8 +2964,18 @@ export const InterventionEditForm = memo(function InterventionEditForm({
                           currentStatusCode={getInterventionStatusCode(formData.statut_id)}
                           hasPortalReport={(intervention as any).has_portal_report || false}
                           onValidateReport={async () => {
-                            // Trouver le statut INTER_TERMINEE et mettre à jour localement
-                            // Le changement sera persisté lors de la sauvegarde avec le popup de commentaire
+                            // 1. Appeler l'API pour désactiver le reminder et créer le commentaire de validation
+                            const response = await fetch(`/api/interventions/${intervention.id}/validate-report`, {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' }
+                            })
+                            if (!response.ok) {
+                              const error = await response.json()
+                              throw new Error(error.error || 'Validation failed')
+                            }
+                            
+                            // 2. Trouver le statut INTER_TERMINEE et mettre à jour LOCALEMENT
+                            // Le changement de statut sera persisté lors de la sauvegarde avec le popup de commentaire
                             const termineeStatus = refData?.interventionStatuses.find(s => s.code === 'INTER_TERMINEE')
                             if (!termineeStatus) {
                               throw new Error('Statut INTER_TERMINEE non trouvé')
@@ -2974,7 +2984,6 @@ export const InterventionEditForm = memo(function InterventionEditForm({
                               ...prev,
                               statut_id: termineeStatus.id
                             }))
-                            // Pas d'appel API ici - le changement sera sauvegardé avec le bouton "Sauvegarder"
                           }}
                           onRefresh={() => {
                             // Pas de refresh automatique - l'utilisateur doit sauvegarder pour persister

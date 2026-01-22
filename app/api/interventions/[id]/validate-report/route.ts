@@ -5,8 +5,10 @@ import { cookies } from 'next/headers'
 /**
  * POST /api/interventions/[id]/validate-report
  *
- * Validates the portal report and changes status to INTER_TERMINEE.
- * Deactivates associated reminders.
+ * Validates the portal report:
+ * - Deactivates associated reminders (task completed)
+ * - Creates a system comment for report validation
+ * - Does NOT change status (that's done via form save with comment popup)
  *
  * Auth: Requires authenticated user (gestionnaire)
  */
@@ -75,36 +77,7 @@ export async function POST(
       )
     }
 
-    // 2. Récupérer le statut INTER_TERMINEE
-    const { data: termineeStatus, error: statusError } = await adminSupabase
-      .from('intervention_statuses')
-      .select('id')
-      .eq('code', 'INTER_TERMINEE')
-      .single()
-
-    if (statusError || !termineeStatus) {
-      console.error('[validate-report] Status INTER_TERMINEE not found:', statusError)
-      return NextResponse.json({ error: 'Status configuration error' }, { status: 500 })
-    }
-
-    // 3. Mettre à jour l'intervention : passer à TERMINEE et garder le flag rapport
-    const { error: updateError } = await adminSupabase
-      .from('interventions')
-      .update({
-        statut_id: termineeStatus.id,
-        has_portal_report: true,  // Garder le flag (déjà true normalement)
-        date_termine: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        updated_by: user.id
-      })
-      .eq('id', interventionId)
-
-    if (updateError) {
-      console.error('[validate-report] Failed to update intervention:', updateError)
-      return NextResponse.json({ error: 'Failed to update intervention' }, { status: 500 })
-    }
-
-    // 4. Désactiver tous les reminders actifs pour cette intervention
+    // 2. Désactiver tous les reminders actifs pour cette intervention (tâche accomplie)
     const { error: reminderError } = await adminSupabase
       .from('intervention_reminders')
       .update({
@@ -119,14 +92,14 @@ export async function POST(
       // Ne pas bloquer - continuer quand même
     }
 
-    // 5. Logger l'action dans les commentaires
+    // 3. Logger l'action dans les commentaires (sans mentionner le changement de statut)
     await adminSupabase
       .from('comments')
       .insert({
         entity_type: 'intervention',
         entity_id: interventionId,
         author_id: user.id,
-        content: `Rapport d'intervention validé par ${user.firstname} ${user.lastname}. Intervention terminée.`,
+        content: `Rapport d'intervention validé par ${user.firstname} ${user.lastname}.`,
         comment_type: 'system',
         is_internal: true,
         created_at: new Date().toISOString()
@@ -134,7 +107,7 @@ export async function POST(
 
     return NextResponse.json({
       success: true,
-      message: 'Report validated and intervention completed'
+      message: 'Report validated, reminder deactivated'
     })
 
   } catch (error) {
