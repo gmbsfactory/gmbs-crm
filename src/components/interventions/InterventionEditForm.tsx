@@ -721,14 +721,14 @@ export const InterventionEditForm = memo(function InterventionEditForm({
   }, [formData.statut_id, refData])
 
   const isClosedStatus = useMemo(() => {
-    const code = (selectedStatus?.code ?? "").toUpperCase()
-    const label = (selectedStatus?.label ?? "").toLowerCase()
-    const normalizedLabel = label.normalize("NFD").replace(/[\u0300-\u036f]/g, "")
-    if (code === "INTER_TERMINEE" || code === "TERMINE" || code === "TERMINEE" || code === "CLOTURE" || code === "CLOTUREE") {
-      return true
-    }
-    return normalizedLabel.includes("termine") || normalizedLabel.includes("clotur")
-  }, [selectedStatus?.code, selectedStatus?.label])
+    if (!intervention.statut_id || !refData?.interventionStatuses) return false
+
+    const initialStatus = refData.interventionStatuses.find((s) => s.id === intervention.statut_id)
+    if (!initialStatus) return false
+
+    // On ne bloque que si le code est INTER_TERMINEE en base au chargement
+    return initialStatus.code === "INTER_TERMINEE"
+  }, [intervention.statut_id, refData?.interventionStatuses])
 
   const canEditIntervention = canWriteInterventions && (!isClosedStatus || canEditClosedInterventions)
 
