@@ -826,11 +826,10 @@ export function NewInterventionForm({
       latitude: suggestion.lat,
       longitude: suggestion.lng,
       adresseComplete: suggestion.label,
-      // Ne pas écraser le champ adresse s'il a été saisi manuellement
-      adresse: prev.adresse,
-      // Ne modifier code_postal et ville que s'ils sont vides
-      code_postal: prev.code_postal || addressParts.postalCode || "",
-      ville: prev.ville || addressParts.city || "",
+      // Overwrite address fields with new selection
+      adresse: addressParts.street || "",
+      code_postal: addressParts.postalCode || "",
+      ville: addressParts.city || "",
     }))
 
     setLocationQuery(suggestion.label)
@@ -898,11 +897,10 @@ export function NewInterventionForm({
         latitude: result.lat,
         longitude: result.lng,
         adresseComplete: result.label,
-        // Mettre à jour adresse si elle est vide, sinon garder la valeur existante
-        adresse: prev.adresse || addressParts.street || "",
-        // Ne modifier code_postal et ville que s'ils sont vides
-        code_postal: prev.code_postal || addressParts.postalCode || "",
-        ville: prev.ville || addressParts.city || "",
+        // Overwrite address fields with new selection
+        adresse: addressParts.street || "",
+        code_postal: addressParts.postalCode || "",
+        ville: addressParts.city || "",
       }))
       setLocationQuery(result.label)
     } catch (error) {
