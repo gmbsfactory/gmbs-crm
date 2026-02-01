@@ -3,15 +3,15 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { Controller, useForm } from "react-hook-form"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { 
-  ChevronRight, 
-  ChevronDown, 
-  X, 
-  Loader2, 
-  CheckCircle2, 
-  AlertCircle, 
-  MapPin, 
-  User, 
+import {
+  ChevronRight,
+  ChevronDown,
+  X,
+  Loader2,
+  CheckCircle2,
+  AlertCircle,
+  MapPin,
+  User,
   Building2,
   Landmark,
   Calendar,
@@ -218,7 +218,7 @@ const buildCreatePayload = (values: ArtisanFormValues) => {
   // pour que l'API les mette à jour correctement
   const metiers = (values.metiers ?? []).filter(Boolean)
   const zones = values.zone_intervention ? [values.zone_intervention] : []
-  
+
   return {
     prenom: values.prenom || undefined,
     nom: values.nom || undefined,
@@ -324,8 +324,8 @@ export function NewArtisanModalContent({ mode, onClose, onCycleMode, artisanId, 
     const last = currentUserData.lastname ?? currentUserData.nom ?? ""
     const displayNameCandidate = [first, last].filter(Boolean).join(" ").trim()
     const displayName = displayNameCandidate || currentUserData.username || currentUserData.email || "Vous"
-    return { 
-      id: currentUserData.id, 
+    return {
+      id: currentUserData.id,
       displayName,
       avatarUrl: currentUserData.avatar_url ?? null,
     }
@@ -358,7 +358,7 @@ export function NewArtisanModalContent({ mode, onClose, onCycleMode, artisanId, 
   }, [referenceData]);
 
 
-  const { control, register, handleSubmit, reset, setValue, watch, getValues, formState: { errors, isDirty, dirtyFields } } = useForm<ArtisanFormValues>({
+  const { control, register, handleSubmit, reset, setValue, watch, getValues, formState: { errors, isDirty, dirtyFields, isSubmitted } } = useForm<ArtisanFormValues>({
     defaultValues: buildDefaultFormValues(),
   })
 
@@ -384,7 +384,7 @@ export function NewArtisanModalContent({ mode, onClose, onCycleMode, artisanId, 
   useEffect(() => {
     if (existingArtisan && isEditMode) {
       const artisanAny = existingArtisan as any
-      
+
       // Extraire les métiers
       const metierIds: string[] = (() => {
         if (Array.isArray(artisanAny.artisan_metiers)) {
@@ -414,7 +414,7 @@ export function NewArtisanModalContent({ mode, onClose, onCycleMode, artisanId, 
         }
         return ""
       })()
-      
+
       // Debug: vérifier ce qui est chargé
       console.log("[NewArtisanModalContent] Chargement artisan existant:", {
         artisan_metiers: artisanAny.artisan_metiers,
@@ -621,7 +621,7 @@ export function NewArtisanModalContent({ mode, onClose, onCycleMode, artisanId, 
   // Récupérer le nombre d'artisans pour générer le numéro associé (création uniquement)
   useEffect(() => {
     if (isEditMode) return
-    
+
     const fetchArtisanCount = async () => {
       try {
         const count = await artisansApi.getTotalCount()
@@ -643,7 +643,7 @@ export function NewArtisanModalContent({ mode, onClose, onCycleMode, artisanId, 
   })
 
   const updateArtisan = useMutation({
-    mutationFn: (payload: { id: string; data: ReturnType<typeof buildCreatePayload> }) => 
+    mutationFn: (payload: { id: string; data: ReturnType<typeof buildCreatePayload> }) =>
       artisansApi.update(payload.id, payload.data),
   })
 
@@ -683,14 +683,14 @@ export function NewArtisanModalContent({ mode, onClose, onCycleMode, artisanId, 
     if (suggestionBlurTimeoutRef.current) {
       window.clearTimeout(suggestionBlurTimeoutRef.current)
     }
-    
+
     const parts = suggestion.label.split(',').map(p => p.trim())
     const postalMatch = suggestion.label.match(/\b(\d{5})\b/)
-    
+
     let street = parts[0] || suggestion.label
     let postalCode = postalMatch?.[1] || ""
     let city = ""
-    
+
     for (const part of parts) {
       if (postalMatch && part.includes(postalMatch[1])) {
         const cityMatch = part.replace(postalMatch[1], '').trim()
@@ -705,7 +705,7 @@ export function NewArtisanModalContent({ mode, onClose, onCycleMode, artisanId, 
     setValue("ville_siege_social", city)
     setValue("intervention_latitude", suggestion.lat)
     setValue("intervention_longitude", suggestion.lng)
-    
+
     setAddressQuery(suggestion.label)
     clearSuggestions()
     setShowSuggestions(false)
@@ -720,14 +720,14 @@ export function NewArtisanModalContent({ mode, onClose, onCycleMode, artisanId, 
       toast.error("Veuillez renseigner les dates de début et de fin")
       return
     }
-    
+
     const newEntry: PendingAbsence = {
       id: `pending-${Date.now()}`,
       start_date: newAbsence.start_date,
       end_date: newAbsence.end_date,
       reason: newAbsence.reason,
     }
-    
+
     setPendingAbsences(prev => [...prev, newEntry])
     setNewAbsence({ start_date: "", end_date: "", reason: "" })
     toast.success("Absence ajoutée")
@@ -750,81 +750,81 @@ export function NewArtisanModalContent({ mode, onClose, onCycleMode, artisanId, 
   // Fonction interne pour créer l'artisan (appelée après vérification des doublons)
   const performCreateArtisan = async (values: ArtisanFormValues) => {
     const payload = buildCreatePayload(values)
-    
+
     try {
       const created = await createArtisan.mutateAsync(payload)
 
-    // Créer les absences
-    if (pendingAbsences.length > 0 && created.id) {
-      for (const absence of pendingAbsences) {
-        try {
-          await artisansApi.createAbsence(created.id, {
-            start_date: absence.start_date,
-            end_date: absence.end_date,
-            reason: absence.reason || undefined,
-            is_confirmed: false,
-          })
-        } catch (absenceError) {
-          console.error("Erreur lors de la création de l'absence:", absenceError)
+      // Créer les absences
+      if (pendingAbsences.length > 0 && created.id) {
+        for (const absence of pendingAbsences) {
+          try {
+            await artisansApi.createAbsence(created.id, {
+              start_date: absence.start_date,
+              end_date: absence.end_date,
+              reason: absence.reason || undefined,
+              is_confirmed: false,
+            })
+          } catch (absenceError) {
+            console.error("Erreur lors de la création de l'absence:", absenceError)
+          }
         }
       }
-    }
 
-    // Ajouter le commentaire initial si renseigné
-    const trimmedComment = values.commentaire_initial.trim()
-    if (trimmedComment.length > 0 && created.id) {
-      try {
-        await commentsApi.create({
-          entity_id: created.id,
-          entity_type: "artisan",
-          content: trimmedComment,
-          comment_type: "internal",
-          is_internal: true,
-          author_id: currentUser?.id,
-        })
-      } catch (commentError) {
-        console.error("Impossible d'ajouter le commentaire initial:", commentError)
-        toast.error("L'artisan a été créé mais le commentaire n'a pas pu être enregistré.")
+      // Ajouter le commentaire initial si renseigné
+      const trimmedComment = values.commentaire_initial.trim()
+      if (trimmedComment.length > 0 && created.id) {
+        try {
+          await commentsApi.create({
+            entity_id: created.id,
+            entity_type: "artisan",
+            content: trimmedComment,
+            comment_type: "internal",
+            is_internal: true,
+            author_id: currentUser?.id,
+          })
+        } catch (commentError) {
+          console.error("Impossible d'ajouter le commentaire initial:", commentError)
+          toast.error("L'artisan a été créé mais le commentaire n'a pas pu être enregistré.")
+        }
       }
-    }
 
-    // Invalider et forcer le refetch immédiat de toutes les listes d'artisans
-    await queryClient.invalidateQueries({
-      queryKey: artisanKeys.invalidateLists(),
-      refetchType: 'active' // Force le refetch des queries actives
-    })
+      // Invalider et forcer le refetch immédiat de toutes les listes d'artisans
+      await queryClient.invalidateQueries({
+        queryKey: artisanKeys.invalidateLists(),
+        refetchType: 'active' // Force le refetch des queries actives
+      })
 
-    // Forcer un refetch immédiat pour contourner le staleTime
-    await queryClient.refetchQueries({
-      queryKey: artisanKeys.invalidateLists(),
-      type: 'active'
-    })
+      // Forcer un refetch immédiat pour contourner le staleTime
+      await queryClient.refetchQueries({
+        queryKey: artisanKeys.invalidateLists(),
+        type: 'active'
+      })
 
-    if (typeof window !== "undefined") {
-      window.dispatchEvent(
-        new CustomEvent("artisan-updated", {
-          detail: { id: created.id, data: created, optimistic: true, type: "create" },
-        }),
-      )
-    }
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(
+          new CustomEvent("artisan-updated", {
+            detail: { id: created.id, data: created, optimistic: true, type: "create" },
+          }),
+        )
+      }
 
-    toast.success("Artisan créé", {
-      description: "La fiche artisan a été enregistrée.",
-    })
-    reset(buildDefaultFormValues())
-    setPendingAbsences([])
+      toast.success("Artisan créé", {
+        description: "La fiche artisan a été enregistrée.",
+      })
+      reset(buildDefaultFormValues())
+      setPendingAbsences([])
 
-    // Attendre un court délai pour que le refetch se termine
-    // avant de fermer le modal
-    await new Promise(resolve => setTimeout(resolve, 300))
+      // Attendre un court délai pour que le refetch se termine
+      // avant de fermer le modal
+      await new Promise(resolve => setTimeout(resolve, 300))
 
-    // Fermer le modal après sauvegarde réussie
-    shouldCloseAfterSave.current = false
-    onClose()
+      // Fermer le modal après sauvegarde réussie
+      shouldCloseAfterSave.current = false
+      onClose()
     } catch (error: any) {
       // Vérifier si c'est une erreur de doublon avec artisan supprimé (code 409)
       const errorMessage = error?.message || ""
-      
+
       // Essayer de parser le message d'erreur JSON
       try {
         // L'erreur peut contenir le JSON directement ou dans le message
@@ -885,11 +885,11 @@ export function NewArtisanModalContent({ mode, onClose, onCycleMode, artisanId, 
       toast.success("Artisan restauré", {
         description: "L'artisan a été réactivé avec ses données d'origine.",
       })
-      
+
       setDeletedArtisanDialog({ isOpen: false, artisan: null, deletedAt: null, pendingFormValues: null })
       reset(buildDefaultFormValues())
       setPendingAbsences([])
-      
+
       // Fermer le modal après sauvegarde réussie
       shouldCloseAfterSave.current = false
       onClose()
@@ -968,7 +968,7 @@ export function NewArtisanModalContent({ mode, onClose, onCycleMode, artisanId, 
       toast.success("Artisan mis à jour", {
         description: "L'artisan a été réactivé avec les nouvelles informations.",
       })
-      
+
       setDeletedArtisanDialog({ isOpen: false, artisan: null, deletedAt: null, pendingFormValues: null })
       reset(buildDefaultFormValues())
       setPendingAbsences([])
@@ -991,7 +991,7 @@ export function NewArtisanModalContent({ mode, onClose, onCycleMode, artisanId, 
   const onSubmit = async (values: ArtisanFormValues) => {
     try {
       const payload = buildCreatePayload(values)
-      
+
       // Debug: vérifier que les métiers et zones sont bien inclus
       console.log("[NewArtisanModalContent] Payload avant envoi:", {
         payload_complet: payload,
@@ -1001,7 +1001,7 @@ export function NewArtisanModalContent({ mode, onClose, onCycleMode, artisanId, 
         metiers_values: values.metiers,
         metierOptions: metierOptions.map(m => ({ id: m.id, label: m.label })),
       })
-      
+
       if (isEditMode && artisanId) {
         // Mode édition
         const updated = await updateArtisan.mutateAsync({ id: artisanId, data: payload })
@@ -1059,7 +1059,7 @@ export function NewArtisanModalContent({ mode, onClose, onCycleMode, artisanId, 
         }
 
         toast.success("Artisan mis à jour")
-        
+
         // Fermer le modal après sauvegarde réussie
         shouldCloseAfterSave.current = false
         onClose()
@@ -1170,7 +1170,7 @@ export function NewArtisanModalContent({ mode, onClose, onCycleMode, artisanId, 
       toast.success("Artisan archivé", {
         description: "L'artisan a été archivé avec succès.",
       })
-      
+
       setPendingArchive(false)
       onClose()
     } catch (mutationError) {
@@ -1337,107 +1337,134 @@ export function NewArtisanModalContent({ mode, onClose, onCycleMode, artisanId, 
   })()
 
   // Rendu du contrôle métiers
-  const renderMetiersControl = () => (
-    <Controller
-      name="metiers"
-      control={control}
-      render={({ field }) => {
-        const selected = field.value ?? []
-        const toggleMetier = (id: string) => {
-          const next = new Set(selected)
-          if (next.has(id)) {
-            next.delete(id)
-          } else {
-            next.add(id)
+  const renderMetiersControl = (isRequired = false) => {
+    const selectedMetiers = watch("metiers") || []
+    const isFieldEmpty = isRequired && selectedMetiers.length === 0 && isSubmitted
+
+    return (
+      <Controller
+        name="metiers"
+        control={control}
+        rules={{ required: isRequired }}
+        render={({ field }) => {
+          const selected = field.value ?? []
+          const toggleMetier = (id: string) => {
+            const next = new Set(selected)
+            if (next.has(id)) {
+              next.delete(id)
+            } else {
+              next.add(id)
+            }
+            field.onChange(Array.from(next))
           }
-          field.onChange(Array.from(next))
-        }
 
-        const selectedLabels = metierOptions.filter((option) => selected.includes(option.id))
+          const selectedLabels = metierOptions.filter((option) => selected.includes(option.id))
 
-        return (
-          <div className="space-y-1.5">
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button type="button" variant="outline" size="sm" className="w-full justify-between h-8 text-sm bg-background border-border/80 hover:bg-muted/50">
-                  <span className="truncate text-foreground">
-                    {selected.length > 0
-                      ? `${selected.length} métier${selected.length > 1 ? "s" : ""}`
-                      : "Sélectionner"}
-                  </span>
-                  <ChevronRight className="ml-1 h-3 w-3 text-muted-foreground shrink-0" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent className="w-64 max-h-48 overflow-y-auto bg-popover border-border p-1">
-                {metierOptions.length ? (
-                  metierOptions.map((option) => {
-                    const isSelected = selected.includes(option.id)
+          return (
+            <div className="space-y-1.5">
+              <div className="relative">
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className={cn(
+                        "w-full justify-between h-8 text-sm bg-background border-border/80 hover:bg-muted/50",
+                        isFieldEmpty && "border-orange-400 focus-visible:ring-orange-400"
+                      )}
+                    >
+                      <span className="truncate text-foreground">
+                        {selected.length > 0
+                          ? `${selected.length} métier${selected.length > 1 ? "s" : ""}`
+                          : "Sélectionner"}
+                      </span>
+                      <ChevronRight className="ml-1 h-3 w-3 text-muted-foreground shrink-0" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent className="w-64 max-h-80 overflow-y-auto bg-popover border-border p-1">
+                    {metierOptions.length ? (
+                      metierOptions.map((option) => {
+                        const isSelected = selected.includes(option.id)
+                        const bgColor = option.color || "#6b7280"
+                        const textColor = getReadableTextColor(bgColor)
+                        return (
+                          <div
+                            key={option.id}
+                            className={cn(
+                              "w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-left transition-colors mb-0.5 cursor-pointer",
+                              isSelected ? "ring-2 ring-primary ring-offset-1" : "hover:bg-accent/50"
+                            )}
+                            onClick={() => toggleMetier(option.id)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter" || e.key === " ") {
+                                e.preventDefault()
+                                toggleMetier(option.id)
+                              }
+                            }}
+                            tabIndex={0}
+                            role="menuitemcheckbox"
+                            aria-checked={isSelected}
+                          >
+                            <span
+                              className="inline-flex items-center justify-center rounded-full px-2.5 py-0.5 text-xs font-semibold min-w-[80px]"
+                              style={{
+                                backgroundColor: bgColor,
+                                color: textColor,
+                              }}
+                            >
+                              {option.label}
+                            </span>
+                          </div>
+                        )
+                      })
+                    ) : (
+                      <div className="text-sm text-muted-foreground px-2 py-1.5">
+                        Aucun métier
+                      </div>
+                    )}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+                {isFieldEmpty && (
+                  <span className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-orange-500 animate-pulse" title="Champ obligatoire" />
+                )}
+              </div>
+
+              {selectedLabels.length > 0 && (
+                <div className="flex flex-wrap gap-1">
+                  {selectedLabels.map((option) => {
                     const bgColor = option.color || "#6b7280"
                     const textColor = getReadableTextColor(bgColor)
                     return (
-                      <button
+                      <Badge
                         key={option.id}
-                        type="button"
-                        className={cn(
-                          "w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-left transition-colors mb-0.5",
-                          isSelected ? "ring-2 ring-primary ring-offset-1" : "hover:opacity-80"
-                        )}
-                        onClick={() => toggleMetier(option.id)}
+                        variant="secondary"
+                        className="text-xs px-2 py-0.5 h-auto border-0 font-semibold"
+                        style={{
+                          backgroundColor: bgColor,
+                          color: textColor,
+                        }}
                       >
-                        <span 
-                          className="inline-flex items-center justify-center rounded-full px-2.5 py-0.5 text-xs font-semibold min-w-[80px]"
-                          style={{
-                            backgroundColor: bgColor,
-                            color: textColor,
-                          }}
+                        {option.label}
+                        <button
+                          type="button"
+                          className="ml-1 focus:outline-none opacity-70 hover:opacity-100"
+                          style={{ color: textColor }}
+                          onClick={() => toggleMetier(option.id)}
                         >
-                          {option.label}
-                        </span>
-                      </button>
+                          <X className="h-2.5 w-2.5" />
+                        </button>
+                      </Badge>
                     )
-                  })
-                ) : (
-                  <div className="text-sm text-muted-foreground px-2 py-1.5">
-                    Aucun métier
-                  </div>
-                )}
-              </DropdownMenuContent>
-            </DropdownMenu>
-
-            {selectedLabels.length > 0 && (
-              <div className="flex flex-wrap gap-1">
-                {selectedLabels.map((option) => {
-                  const bgColor = option.color || "#6b7280"
-                  const textColor = getReadableTextColor(bgColor)
-                  return (
-                    <Badge 
-                      key={option.id} 
-                      variant="secondary" 
-                      className="text-xs px-2 py-0.5 h-auto border-0 font-semibold"
-                      style={{
-                        backgroundColor: bgColor,
-                        color: textColor,
-                      }}
-                    >
-                      {option.label}
-                      <button 
-                        type="button" 
-                        className="ml-1 focus:outline-none opacity-70 hover:opacity-100" 
-                        style={{ color: textColor }}
-                        onClick={() => toggleMetier(option.id)}
-                      >
-                        <X className="h-2.5 w-2.5" />
-                      </button>
-                    </Badge>
-                  )
-                })}
-              </div>
-            )}
-          </div>
-        )
-      }}
-    />
-  )
+                  })}
+                </div>
+              )}
+            </div>
+          )
+        }}
+      />
+    )
+  }
 
   return (
     <TooltipProvider>
@@ -1591,24 +1618,64 @@ export function NewArtisanModalContent({ mode, onClose, onCycleMode, artisanId, 
                       <CardContent className="px-4 pb-4 pt-0 space-y-3">
                         <div className="grid grid-cols-2 gap-2">
                           <div className="space-y-1">
-                            <Label htmlFor="prenom" className={labelClass}>Prénom</Label>
-                            <Input id="prenom" placeholder="Prénom" className={inputClass} {...register("prenom")} />
+                            <Label htmlFor="prenom" className={labelClass}>Prénom *</Label>
+                            <div className="relative">
+                              <Input
+                                id="prenom"
+                                placeholder="Prénom"
+                                className={cn(inputClass, isSubmitted && !watch("prenom")?.trim() && "border-orange-400 focus-visible:ring-orange-400")}
+                                {...register("prenom", { required: true })}
+                              />
+                              {isSubmitted && !watch("prenom")?.trim() && (
+                                <span className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-orange-500 animate-pulse" title="Champ obligatoire" />
+                              )}
+                            </div>
                           </div>
                           <div className="space-y-1">
-                            <Label htmlFor="nom" className={labelClass}>Nom</Label>
-                            <Input id="nom" placeholder="Nom" className={inputClass} {...register("nom")} />
+                            <Label htmlFor="nom" className={labelClass}>Nom *</Label>
+                            <div className="relative">
+                              <Input
+                                id="nom"
+                                placeholder="Nom"
+                                className={cn(inputClass, isSubmitted && !watch("nom")?.trim() && "border-orange-400 focus-visible:ring-orange-400")}
+                                {...register("nom", { required: true })}
+                              />
+                              {isSubmitted && !watch("nom")?.trim() && (
+                                <span className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-orange-500 animate-pulse" title="Champ obligatoire" />
+                              )}
+                            </div>
                           </div>
                         </div>
 
                         <div className="space-y-1">
-                          <Label htmlFor="raison_sociale" className={labelClass}>Raison sociale</Label>
-                          <Input id="raison_sociale" placeholder="Nom de l'entreprise" className={inputClass} {...register("raison_sociale")} />
+                          <Label htmlFor="raison_sociale" className={labelClass}>Raison sociale *</Label>
+                          <div className="relative">
+                            <Input
+                              id="raison_sociale"
+                              placeholder="Nom de l'entreprise"
+                              className={cn(inputClass, isSubmitted && !watch("raison_sociale")?.trim() && "border-orange-400 focus-visible:ring-orange-400")}
+                              {...register("raison_sociale", { required: true })}
+                            />
+                            {isSubmitted && !watch("raison_sociale")?.trim() && (
+                              <span className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-orange-500 animate-pulse" title="Champ obligatoire" />
+                            )}
+                          </div>
                         </div>
 
                         <div className="grid grid-cols-2 gap-2">
                           <div className="space-y-1">
-                            <Label htmlFor="telephone" className={labelClass}>Téléphone</Label>
-                            <Input id="telephone" placeholder="06 00 00 00 00" className={inputClass} {...register("telephone")} />
+                            <Label htmlFor="telephone" className={labelClass}>Téléphone *</Label>
+                            <div className="relative">
+                              <Input
+                                id="telephone"
+                                placeholder="06 00 00 00 00"
+                                className={cn(inputClass, isSubmitted && !watch("telephone")?.trim() && "border-orange-400 focus-visible:ring-orange-400")}
+                                {...register("telephone", { required: true })}
+                              />
+                              {isSubmitted && !watch("telephone")?.trim() && (
+                                <span className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-orange-500 animate-pulse" title="Champ obligatoire" />
+                              )}
+                            </div>
                           </div>
                           <div className="space-y-1">
                             <Label htmlFor="telephone2" className={labelClass}>Tél. secondaire</Label>
@@ -1617,32 +1684,54 @@ export function NewArtisanModalContent({ mode, onClose, onCycleMode, artisanId, 
                         </div>
 
                         <div className="space-y-1">
-                          <Label htmlFor="email" className={labelClass}>Email</Label>
-                          <Input id="email" type="email" placeholder="contact@email.com" className={inputClass} {...register("email")} />
+                          <Label htmlFor="email" className={labelClass}>Email *</Label>
+                          <div className="relative">
+                            <Input
+                              id="email"
+                              type="email"
+                              placeholder="contact@email.com"
+                              className={cn(inputClass, isSubmitted && !watch("email")?.trim() && "border-orange-400 focus-visible:ring-orange-400")}
+                              {...register("email", { required: true })}
+                            />
+                            {isSubmitted && !watch("email")?.trim() && (
+                              <span className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-orange-500 animate-pulse" title="Champ obligatoire" />
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Métiers (déplacé ici) */}
+                        <div className="space-y-1">
+                          <Label className={labelClass}>Métiers *</Label>
+                          {renderMetiersControl(true)}
                         </div>
 
                         {/* Adresse du siège social avec géocodage */}
                         <div className="space-y-1">
-                          <Label className={labelClass}>Adresse du siège social</Label>
+                          <Label className={labelClass}>Adresse du siège social *</Label>
                           <div className="relative">
-                            <Input
-                              placeholder="Rechercher une adresse..."
-                              value={addressQuery}
-                              className={inputClass}
-                              onChange={(e) => {
-                                setAddressQuery(e.target.value)
-                                setValue("adresse_siege_social", e.target.value)
-                                setValue("intervention_latitude", null)
-                                setValue("intervention_longitude", null)
-                                setShowSuggestions(true)
-                              }}
-                              onFocus={() => setShowSuggestions(true)}
-                              onBlur={() => {
-                                suggestionBlurTimeoutRef.current = window.setTimeout(() => {
-                                  setShowSuggestions(false)
-                                }, 150)
-                              }}
-                            />
+                            <div className="relative">
+                              <Input
+                                placeholder="Rechercher une adresse..."
+                                value={addressQuery}
+                                className={cn(inputClass, isSubmitted && !addressQuery?.trim() && "border-orange-400 focus-visible:ring-orange-400")}
+                                onChange={(e) => {
+                                  setAddressQuery(e.target.value)
+                                  setValue("adresse_siege_social", e.target.value)
+                                  setValue("intervention_latitude", null)
+                                  setValue("intervention_longitude", null)
+                                  setShowSuggestions(true)
+                                }}
+                                onFocus={() => setShowSuggestions(true)}
+                                onBlur={() => {
+                                  suggestionBlurTimeoutRef.current = window.setTimeout(() => {
+                                    setShowSuggestions(false)
+                                  }, 150)
+                                }}
+                              />
+                              {isSubmitted && !addressQuery?.trim() && (
+                                <span className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-orange-500 animate-pulse" title="Champ obligatoire" />
+                              )}
+                            </div>
                             {isSuggesting && (
                               <Loader2 className="absolute right-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 animate-spin text-muted-foreground" />
                             )}
@@ -1717,8 +1806,8 @@ export function NewArtisanModalContent({ mode, onClose, onCycleMode, artisanId, 
                                   <div className="flex items-center gap-2">
                                     <Popover>
                                       <PopoverTrigger asChild>
-                                        <button 
-                                          type="button" 
+                                        <button
+                                          type="button"
                                           className="flex items-center justify-center h-8 w-8 cursor-pointer group rounded-full"
                                         >
                                           <GestionnaireBadge
@@ -1784,8 +1873,8 @@ export function NewArtisanModalContent({ mode, onClose, onCycleMode, artisanId, 
                                     </Popover>
                                     {/* Afficher le nom de l'utilisateur assigné */}
                                     {assignedUser && (
-                                      <Badge 
-                                        variant="secondary" 
+                                      <Badge
+                                        variant="secondary"
                                         className="text-xs px-2 py-0.5 h-auto flex items-center gap-1"
                                         style={{
                                           backgroundColor: assignedUser.color ? `${assignedUser.color}20` : undefined,
@@ -1794,8 +1883,8 @@ export function NewArtisanModalContent({ mode, onClose, onCycleMode, artisanId, 
                                         }}
                                       >
                                         {[assignedUser.firstname, assignedUser.lastname].filter(Boolean).join(" ").trim() || assignedUser.username}
-                                        <button 
-                                          type="button" 
+                                        <button
+                                          type="button"
                                           className="ml-0.5 hover:text-destructive focus:outline-none"
                                           onClick={() => field.onChange("")}
                                         >
@@ -1815,13 +1904,13 @@ export function NewArtisanModalContent({ mode, onClose, onCycleMode, artisanId, 
                               const currentStatus = referenceData?.artisanStatuses?.find(
                                 (s) => s.id === currentStatusId
                               )
-                              
+
                               // Vérifier si le statut est modifiable
                               // - En création : toujours modifiable (POTENTIEL par défaut)
                               // - En édition : modifiable si des options sont disponibles
                               const hasAvailableOptions = availableStatusesForModification.length > 0
                               const isStatusModifiable = !isEditMode || (isEditMode && hasAvailableOptions)
-                              
+
                               // Mode lecture seule OU statut non modifiable : affichage statique
                               if (!canWriteArtisans || !isStatusModifiable) {
                                 return (
@@ -1854,10 +1943,10 @@ export function NewArtisanModalContent({ mode, onClose, onCycleMode, artisanId, 
                                     ) || referenceData?.artisanStatuses?.find(
                                       (s) => s.id === selectedStatusId
                                     );
-                                    
+
                                     return (
-                                      <Select 
-                                        value={selectedStatusId || ""} 
+                                      <Select
+                                        value={selectedStatusId || ""}
                                         onValueChange={field.onChange}
                                       >
                                         <SelectTrigger className={inputClass}>
@@ -1918,8 +2007,8 @@ export function NewArtisanModalContent({ mode, onClose, onCycleMode, artisanId, 
                               name="statut_juridique"
                               control={control}
                               render={({ field }) => (
-                                <Select 
-                                  value={field.value || ""} 
+                                <Select
+                                  value={field.value || ""}
                                   onValueChange={(value) => {
                                     // Ne déclencher onChange que si la valeur a vraiment changé
                                     if (value !== field.value) {
@@ -1943,8 +2032,8 @@ export function NewArtisanModalContent({ mode, onClose, onCycleMode, artisanId, 
                           </div>
                           <div className="space-y-1">
                             <Label htmlFor="numero_associe" className={labelClass}>N° associé</Label>
-                            <Input 
-                              id="numero_associe" 
+                            <Input
+                              id="numero_associe"
                               placeholder={generatedNumeroAssocie ? "" : "Chargement..."}
                               className={`${inputClass} bg-muted/50 font-medium`}
                               value={generatedNumeroAssocie}
@@ -2035,40 +2124,34 @@ export function NewArtisanModalContent({ mode, onClose, onCycleMode, artisanId, 
                           />
                         </div>
 
-                        <div className="grid grid-cols-2 gap-2">
-                          <div className="space-y-1">
-                            <Label className={labelClass}>Métiers</Label>
-                            {renderMetiersControl()}
-                          </div>
-                          <div className="space-y-1">
-                            <Label className={labelClass}>Zone d&apos;intervention</Label>
-                            <Controller
-                              name="zone_intervention"
-                              control={control}
-                              render={({ field }) => (
-                                <Select 
-                                  value={field.value || ""} 
-                                  onValueChange={(value) => {
-                                    // Ne déclencher onChange que si la valeur a vraiment changé
-                                    if (value !== field.value) {
-                                      field.onChange(value)
-                                    }
-                                  }}
-                                >
-                                  <SelectTrigger className={inputClass}>
-                                    <SelectValue placeholder="Sélectionner..." />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    {ZONE_INTERVENTION_OPTIONS.map((option) => (
-                                      <SelectItem key={option.value} value={option.value}>
-                                        {option.label}
-                                      </SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
-                              )}
-                            />
-                          </div>
+                        <div className="space-y-1">
+                          <Label className={labelClass}>Zone d&apos;intervention</Label>
+                          <Controller
+                            name="zone_intervention"
+                            control={control}
+                            render={({ field }) => (
+                              <Select
+                                value={field.value || ""}
+                                onValueChange={(value) => {
+                                  // Ne déclencher onChange que si la valeur a vraiment changé
+                                  if (value !== field.value) {
+                                    field.onChange(value)
+                                  }
+                                }}
+                              >
+                                <SelectTrigger className={inputClass}>
+                                  <SelectValue placeholder="Sélectionner..." />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {ZONE_INTERVENTION_OPTIONS.map((option) => (
+                                    <SelectItem key={option.value} value={option.value}>
+                                      {option.label}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            )}
+                          />
                         </div>
                       </CardContent>
                     </Card>
@@ -2236,7 +2319,7 @@ export function NewArtisanModalContent({ mode, onClose, onCycleMode, artisanId, 
                                     key={absence.id}
                                     className={cn(
                                       "flex items-center justify-between p-2 rounded border text-xs",
-                                      absence.isPending 
+                                      absence.isPending
                                         ? "bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800"
                                         : "bg-background border-border"
                                     )}
@@ -2262,7 +2345,7 @@ export function NewArtisanModalContent({ mode, onClose, onCycleMode, artisanId, 
                                       variant="ghost"
                                       size="icon"
                                       className="h-6 w-6 text-destructive hover:text-destructive"
-                                      onClick={() => absence.isPending 
+                                      onClick={() => absence.isPending
                                         ? handleRemovePendingAbsence(absence.id)
                                         : handleDeleteExistingAbsence(absence.id)
                                       }
@@ -2404,8 +2487,8 @@ export function NewArtisanModalContent({ mode, onClose, onCycleMode, artisanId, 
         </form>
 
         {/* Dialogue de confirmation pour artisan supprimé - z-[200] pour être au-dessus du modal */}
-        <AlertDialog 
-          open={deletedArtisanDialog.isOpen} 
+        <AlertDialog
+          open={deletedArtisanDialog.isOpen}
           onOpenChange={(open) => !open && handleCloseDeletedDialog()}
         >
           <AlertDialogContent className="max-w-md z-[200]">
@@ -2429,7 +2512,7 @@ export function NewArtisanModalContent({ mode, onClose, onCycleMode, artisanId, 
                     )}
                     .
                   </p>
-                  
+
                   {deletedArtisanDialog.artisan && (
                     <div className="p-3 rounded-lg bg-muted/50 border text-sm space-y-1">
                       <p className="font-medium text-foreground">

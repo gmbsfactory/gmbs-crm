@@ -1392,6 +1392,11 @@ export function ArtisanModalContent({
                             <Input id="email" type="email" placeholder="contact@email.com" className={inputClass} {...register("email")} />
                           </div>
 
+                          <div className="space-y-1">
+                            <Label className={labelClass}>Métiers</Label>
+                            {renderMetiersControl()}
+                          </div>
+
                           {/* Adresse du siège social avec géocodage */}
                           <div className="space-y-1">
                             <Label className={labelClass}>Adresse du siège social</Label>
@@ -1746,40 +1751,34 @@ export function ArtisanModalContent({
                             />
                           </div>
 
-                          <div className="grid grid-cols-2 gap-2">
-                            <div className="space-y-1">
-                              <Label className={labelClass}>Métiers</Label>
-                              {renderMetiersControl()}
-                            </div>
-                            <div className="space-y-1">
-                              <Label className={labelClass}>Zone d&apos;intervention</Label>
-                              <Controller
-                                name="zone_intervention"
-                                control={control}
-                                render={({ field }) => (
-                                  <Select
-                                    value={field.value || ""}
-                                    onValueChange={(value) => {
-                                      // Ne déclencher onChange que si la valeur a vraiment changé
-                                      if (value !== field.value) {
-                                        field.onChange(value)
-                                      }
-                                    }}
-                                  >
-                                    <SelectTrigger className={inputClass}>
-                                      <SelectValue placeholder="Sélectionner..." />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      {ZONE_INTERVENTION_OPTIONS.map((option) => (
-                                        <SelectItem key={option.value} value={option.value}>
-                                          {option.label}
-                                        </SelectItem>
-                                      ))}
-                                    </SelectContent>
-                                  </Select>
-                                )}
-                              />
-                            </div>
+                          <div className="space-y-1">
+                            <Label className={labelClass}>Zone d&apos;intervention</Label>
+                            <Controller
+                              name="zone_intervention"
+                              control={control}
+                              render={({ field }) => (
+                                <Select
+                                  value={field.value || ""}
+                                  onValueChange={(value) => {
+                                    // Ne déclencher onChange que si la valeur a vraiment changé
+                                    if (value !== field.value) {
+                                      field.onChange(value)
+                                    }
+                                  }}
+                                >
+                                  <SelectTrigger className={inputClass}>
+                                    <SelectValue placeholder="Sélectionner..." />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {ZONE_INTERVENTION_OPTIONS.map((option) => (
+                                      <SelectItem key={option.value} value={option.value}>
+                                        {option.label}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              )}
+                            />
                           </div>
 
                         </CardContent>

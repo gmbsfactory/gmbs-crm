@@ -41,7 +41,7 @@ import { DuplicateInterventionDialog } from "@/components/interventions/Duplicat
 import { SearchableBadgeSelect } from "@/components/ui/searchable-badge-select"
 
 const INTERVENTION_DOCUMENT_KINDS = [
-  { kind: "devis", label: "Devis" },
+  { kind: "devis", label: "Devis GMBS" },
   { kind: "facturesGMBS", label: "Facture GMBS" },
   { kind: "facturesMateriel", label: "Facture Matériel" },
   { kind: "photos", label: "Photos" },
