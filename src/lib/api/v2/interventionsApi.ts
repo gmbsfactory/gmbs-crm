@@ -2108,18 +2108,7 @@ export const interventionsApi = {
     // Pour la fin de période, on utilise le début du lundi suivant
     const nextMondayStr = formatDate(nextMonday);
 
-    // Récupérer les statuts d'intervention nécessaires
-    const { data: statuses, error: statusError } = await supabase
-      .from("intervention_statuses")
-      .select("id, code")
-      .in("code", ["DEVIS_ENVOYE", "INTER_EN_COURS", "INTER_TERMINEE"]);
-
-    if (statusError) {
-      throw new Error(`Erreur lors de la récupération des statuts: ${statusError.message}`);
-    }
-
-    const statusMap = new Map(statuses?.map((s: any) => [s.code, s.id]) || []);
-
+    // Récupérer les transitions de statut pour la période
     // Fonction helper pour initialiser les stats d'un jour
     const initDayStats = (): WeekDayStats => ({
       lundi: 0,
@@ -2138,50 +2127,29 @@ export const interventionsApi = {
     const interFactures = initDayStats();
     const nouveauxArtisans = initDayStats();
 
-    // Récupérer les interventions de l'utilisateur pour la semaine
-    const { data: interventions, error: interventionsError } = await supabase
-      .from("interventions")
+    const { data: transitions, error: transitionsError } = await supabase
+      .from("intervention_status_transitions")
       .select(`
         id,
-        date,
-        statut_id,
-        status:intervention_statuses(code)
+        transition_date,
+        to_status_code,
+        interventions!inner(assigned_user_id, is_active)
       `)
-      .eq("assigned_user_id", userId)
-      .eq("is_active", true)
-      .gte("date", mondayStr)
-      .lt("date", nextMondayStr); // Jusqu'au lundi suivant (inclut we)
+      .eq("interventions.assigned_user_id", userId)
+      .eq("interventions.is_active", true)
+      .in("to_status_code", ["DEVIS_ENVOYE", "INTER_EN_COURS", "INTER_TERMINEE"])
+      .gte("transition_date", mondayStr)
+      .lt("transition_date", nextMondayStr);
 
-    if (interventionsError) {
-      throw new Error(`Erreur lors de la récupération des interventions: ${interventionsError.message}`);
+    if (transitionsError) {
+      throw new Error(`Erreur lors de la récupération des transitions de statut: ${transitionsError.message}`);
     }
 
-    // Vérifier toutes les interventions de l'utilisateur (sans filtre de date) pour debug
-    const { data: allUserInterventions, count: totalCount } = await supabase
-      .from("interventions")
-      .select("id, date, assigned_user_id", { count: "exact" })
-      .eq("assigned_user_id", userId)
-      .eq("is_active", true)
-      .limit(10);
-
-    if (allUserInterventions && allUserInterventions.length > 0) {
-      allUserInterventions.map(i => ({ id: i.id, date: i.date }));
-    }
-
-    if (interventions && interventions.length > 0) {
-      const firstIntervention = interventions[0] as any;
-    }
-
-    // Compter les interventions par jour et par statut
-    (interventions || []).forEach((intervention: any) => {
-      const interventionDate = new Date(intervention.date);
-      const dateStr = formatDate(interventionDate);
-      const statusCode = intervention.status?.code;
-
-      if (!statusCode) {
-        console.log(`[WeeklyStats] Intervention sans statut:`, intervention.id);
-        return;
-      }
+    // Compter les transitions par jour et par statut
+    (transitions || []).forEach((transition: any) => {
+      const transitionDate = new Date(transition.transition_date);
+      const dateStr = formatDate(transitionDate);
+      const statusCode = transition.to_status_code;
 
       let dayKey: keyof WeekDayStats | null = null;
       if (dateStr === mondayStr) dayKey = "lundi";
@@ -2202,8 +2170,6 @@ export const interventionsApi = {
       } else if (statusCode === "INTER_TERMINEE") {
         if (dayKey) interFactures[dayKey]++;
         interFactures.total++;
-      } else {
-        console.log(`[WeeklyStats] Statut non compté: ${statusCode} pour intervention ${intervention.id}`);
       }
     });
 
@@ -2402,36 +2368,35 @@ export const interventionsApi = {
       const devisEnvoye = initWeekStats();
       const interEnCours = initWeekStats();
       const interFactures = initWeekStats();
-      const nouveauxArtisans = initWeekStats();
 
-      // Récupérer les interventions du mois
-      const { data: interventions, error: interventionsError } = await supabase
-        .from("interventions")
+      // Récupérer les transitions de statut du mois
+      const { data: transitions, error: transitionsError } = await supabase
+        .from("intervention_status_transitions")
         .select(`
           id,
-          date,
-          statut_id,
-          status:intervention_statuses(code)
+          transition_date,
+          to_status_code,
+          interventions!inner(assigned_user_id, is_active)
         `)
-        .eq("assigned_user_id", userId)
-        .eq("is_active", true)
-        .gte("date", monthStartStr)
-        .lte("date", monthEndStr);
+        .eq("interventions.assigned_user_id", userId)
+        .eq("interventions.is_active", true)
+        .in("to_status_code", ["DEVIS_ENVOYE", "INTER_EN_COURS", "INTER_TERMINEE"])
+        .gte("transition_date", monthStartStr)
+        .lte("transition_date", monthEndStr);
 
-      if (interventionsError) {
-        throw new Error(`Erreur lors de la récupération des interventions: ${interventionsError.message}`);
+      if (transitionsError) {
+        throw new Error(`Erreur lors de la récupération des transitions: ${transitionsError.message}`);
       }
 
       // Compter par semaine
-      (interventions || []).forEach((intervention: any) => {
-        const interventionDate = new Date(intervention.date);
-        const statusCode = intervention.status?.code;
-        if (!statusCode) return;
+      (transitions || []).forEach((transition: any) => {
+        const transitionDate = new Date(transition.transition_date);
+        const statusCode = transition.to_status_code;
 
-        // Trouver dans quelle semaine tombe cette intervention
+        // Trouver dans quelle semaine tombe cette transition
         for (let i = 0; i < weeks.length && i < 5; i++) {
           const week = weeks[i];
-          if (interventionDate >= week.start && interventionDate <= week.end) {
+          if (transitionDate >= week.start && transitionDate <= week.end) {
             const weekKey = `semaine${i + 1}` as keyof MonthWeekStats;
 
             if (statusCode === "DEVIS_ENVOYE") {
@@ -2448,6 +2413,8 @@ export const interventionsApi = {
           }
         }
       });
+
+      const nouveauxArtisans = initWeekStats();
 
       // Récupérer les artisans du mois
       const { data: artisans, error: artisansError } = await supabase
@@ -2468,13 +2435,11 @@ export const interventionsApi = {
 
         if (!artisanDate) return;
 
-        let matched = false;
         for (let i = 0; i < weeks.length && i < 5; i++) {
           const week = weeks[i];
           if (artisanDate >= week.start && artisanDate <= week.end) {
             const weekKey = `semaine${i + 1}` as keyof MonthWeekStats;
             nouveauxArtisans[weekKey]++;
-            matched = true;
             break;
           }
         }
@@ -2585,38 +2550,39 @@ export const interventionsApi = {
       const devisEnvoye = initMonthStats();
       const interEnCours = initMonthStats();
       const interFactures = initMonthStats();
-      const nouveauxArtisans = initMonthStats();
 
       const monthNames: (keyof YearMonthStats)[] = [
         "janvier", "fevrier", "mars", "avril", "mai", "juin",
         "juillet", "aout", "septembre", "octobre", "novembre", "decembre"
       ];
 
-      // Récupérer les interventions de l'année
-      const { data: interventions, error: interventionsError } = await supabase
-        .from("interventions")
+      // Récupérer les transitions de statut de l'année
+      const { data: transitions, error: transitionsError } = await supabase
+        .from("intervention_status_transitions")
         .select(`
           id,
-          date,
-          statut_id,
-          status:intervention_statuses(code)
+          transition_date,
+          to_status_code,
+          interventions!inner(assigned_user_id, is_active)
         `)
-        .eq("assigned_user_id", userId)
-        .eq("is_active", true)
-        .gte("date", yearStartStr)
-        .lte("date", yearEndStr);
+        .eq("interventions.assigned_user_id", userId)
+        .eq("interventions.is_active", true)
+        .in("to_status_code", ["DEVIS_ENVOYE", "INTER_EN_COURS", "INTER_TERMINEE"])
+        .gte("transition_date", yearStartStr)
+        .lte("transition_date", yearEndStr);
 
-      if (interventionsError) {
-        throw new Error(`Erreur lors de la récupération des interventions: ${interventionsError.message}`);
+      if (transitionsError) {
+        throw new Error(`Erreur lors de la récupération des transitions: ${transitionsError.message}`);
       }
 
       // Compter par mois
-      (interventions || []).forEach((intervention: any) => {
-        const interventionDate = new Date(intervention.date);
-        const monthIndex = interventionDate.getMonth();
+      (transitions || []).forEach((transition: any) => {
+        const transitionDate = new Date(transition.transition_date);
+        const monthIndex = transitionDate.getMonth();
         const monthKey = monthNames[monthIndex];
-        const statusCode = intervention.status?.code;
-        if (!statusCode || !monthKey) return;
+        const statusCode = transition.to_status_code;
+
+        if (!monthKey) return;
 
         if (statusCode === "DEVIS_ENVOYE") {
           devisEnvoye[monthKey]++;
@@ -2629,6 +2595,8 @@ export const interventionsApi = {
           interFactures.total++;
         }
       });
+
+      const nouveauxArtisans = initMonthStats();
 
       // Récupérer les artisans de l'année
       const { data: artisans, error: artisansError } = await supabase
