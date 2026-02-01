@@ -63,12 +63,16 @@ const INTERVENTION_DOCUMENT_KINDS = [
 
 const STATUS_SORT_ORDER: Record<string, number> = {
   DEMANDE: 1,
-  INTER_EN_COURS: 2,
-  VISITE_TECHNIQUE: 3,
-  ACCEPTE: 4,
-  DEVIS_ENVOYE: 5,
-  ATT_ACOMPTE: 6,
-  INTER_TERMINEE: 7,
+  DEVIS_ENVOYE: 2,
+  ACCEPTE: 3,
+  INTER_EN_COURS: 4,
+  ATT_ACOMPTE: 5,
+  INTER_TERMINEE: 6,
+  VISITE_TECHNIQUE: 7,
+  STAND_BY: 8,
+  ANNULE: 9,
+  REFUSE: 10,
+  SAV: 11,
 }
 
 const MAX_RADIUS_KM = 10000
@@ -787,15 +791,15 @@ export const InterventionEditForm = memo(function InterventionEditForm({
   const requiresNomFacturation = useMemo(() => {
     if (!selectedStatus) return false
     const code = (selectedStatus.code ?? "").toUpperCase()
-    return STATUSES_REQUIRING_NOM_FACTURATION.has(code) || 
-           (selectedStatus.label ?? "").toLowerCase().includes("devis envoyé")
+    return STATUSES_REQUIRING_NOM_FACTURATION.has(code) ||
+      (selectedStatus.label ?? "").toLowerCase().includes("devis envoyé")
   }, [selectedStatus])
 
   const requiresAssignedUser = useMemo(() => {
     if (!selectedStatus) return false
     const code = (selectedStatus.code ?? "").toUpperCase()
     return STATUSES_REQUIRING_ASSIGNED_USER.has(code) ||
-           (selectedStatus.label ?? "").toLowerCase().includes("devis envoyé")
+      (selectedStatus.label ?? "").toLowerCase().includes("devis envoyé")
   }, [selectedStatus])
 
   // Nouvelles règles de validation pour INTER_EN_COURS
@@ -803,24 +807,24 @@ export const InterventionEditForm = memo(function InterventionEditForm({
     if (!selectedStatus) return false
     const code = (selectedStatus.code ?? "").toUpperCase()
     return STATUSES_REQUIRING_COUTS.has(code) ||
-           (selectedStatus.label ?? "").toLowerCase().includes("inter en cours") ||
-           (selectedStatus.label ?? "").toLowerCase().includes("intervention en cours")
+      (selectedStatus.label ?? "").toLowerCase().includes("inter en cours") ||
+      (selectedStatus.label ?? "").toLowerCase().includes("intervention en cours")
   }, [selectedStatus])
 
   const requiresConsigneArtisan = useMemo(() => {
     if (!selectedStatus) return false
     const code = (selectedStatus.code ?? "").toUpperCase()
     return STATUSES_REQUIRING_CONSIGNE_ARTISAN.has(code) ||
-           (selectedStatus.label ?? "").toLowerCase().includes("inter en cours") ||
-           (selectedStatus.label ?? "").toLowerCase().includes("intervention en cours")
+      (selectedStatus.label ?? "").toLowerCase().includes("inter en cours") ||
+      (selectedStatus.label ?? "").toLowerCase().includes("intervention en cours")
   }, [selectedStatus])
 
   const requiresClientInfo = useMemo(() => {
     if (!selectedStatus) return false
     const code = (selectedStatus.code ?? "").toUpperCase()
     return STATUSES_REQUIRING_CLIENT_INFO.has(code) ||
-           (selectedStatus.label ?? "").toLowerCase().includes("inter en cours") ||
-           (selectedStatus.label ?? "").toLowerCase().includes("intervention en cours")
+      (selectedStatus.label ?? "").toLowerCase().includes("inter en cours") ||
+      (selectedStatus.label ?? "").toLowerCase().includes("intervention en cours")
   }, [selectedStatus])
 
   // --- Gestion des acomptes ---
@@ -1041,7 +1045,7 @@ export const InterventionEditForm = memo(function InterventionEditForm({
       userEditedIdInterRef.current = true
     }
     setFormData((prev) => ({ ...prev, [field]: value }))
-    
+
     // Logique d'ouverture automatique des sections collapsibles lors du changement de statut
     // Note: Les toasts d'erreur apparaîtront uniquement lors de la validation finale (handleSubmit)
     if (field === "statut_id" && value && refData?.interventionStatuses) {
@@ -1049,7 +1053,7 @@ export const InterventionEditForm = memo(function InterventionEditForm({
       if (selectedStatus) {
         const statusCode = (selectedStatus.code ?? "").toUpperCase()
         const statusLabel = (selectedStatus.label ?? "").toLowerCase()
-        
+
         // Pour DEVIS_ENVOYE : ouvrir "Détails facturation" si le champ est vide
         if (statusCode === "DEVIS_ENVOYE" || statusLabel.includes("devis envoyé")) {
           setFormData((currentFormData) => {
@@ -1059,7 +1063,7 @@ export const InterventionEditForm = memo(function InterventionEditForm({
             return currentFormData
           })
         }
-        
+
         // Pour INTER_EN_COURS : ouvrir "Détails client" si les champs sont vides
         if (statusCode === "INTER_EN_COURS" || statusLabel.includes("inter en cours") || statusLabel.includes("intervention en cours")) {
           setFormData((currentFormData) => {
@@ -1916,7 +1920,7 @@ export const InterventionEditForm = memo(function InterventionEditForm({
     if (requiresCouts) {
       const coutInterValue = parseFloat(formData.coutIntervention) || 0
       const coutSSTValue = parseFloat(formData.coutSST) || 0
-      
+
       if (coutInterValue <= 0) {
         toast.error("Le coût d'intervention doit être renseigné pour passer en cours")
         return
@@ -2059,8 +2063,8 @@ export const InterventionEditForm = memo(function InterventionEditForm({
                         <div className="flex items-center relative">
                           <Popover>
                             <PopoverTrigger asChild>
-                              <button 
-                                type="button" 
+                              <button
+                                type="button"
                                 className={cn(
                                   "flex items-center justify-center h-7 w-7 cursor-pointer group rounded-full",
                                   requiresAssignedUser && !formData.assigned_user_id && "ring-2 ring-orange-400 ring-offset-1"
@@ -2626,14 +2630,14 @@ export const InterventionEditForm = memo(function InterventionEditForm({
                           <Label htmlFor="coutIntervention" className="text-xs">
                             Coût inter. {requiresCouts && <span className="text-orange-500">*</span>}
                           </Label>
-                          <Input 
-                            id="coutIntervention" 
-                            type="number" 
-                            step="0.01" 
-                            min="0" 
-                            value={formData.coutIntervention} 
-                            onChange={(e) => handleInputChange("coutIntervention", e.target.value)} 
-                            placeholder="0.00 €" 
+                          <Input
+                            id="coutIntervention"
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            value={formData.coutIntervention}
+                            onChange={(e) => handleInputChange("coutIntervention", e.target.value)}
+                            placeholder="0.00 €"
                             className={cn("h-8 text-sm mt-1", requiresCouts && !(parseFloat(formData.coutIntervention) > 0) && "border-orange-400 focus-visible:ring-orange-400")}
                           />
                         </div>
@@ -2641,14 +2645,14 @@ export const InterventionEditForm = memo(function InterventionEditForm({
                           <Label htmlFor="coutSST" className="text-xs">
                             Coût SST {requiresCouts && <span className="text-orange-500">*</span>}
                           </Label>
-                          <Input 
-                            id="coutSST" 
-                            type="number" 
-                            step="0.01" 
-                            min="0" 
-                            value={formData.coutSST} 
-                            onChange={(e) => handleInputChange("coutSST", e.target.value)} 
-                            placeholder="0.00 €" 
+                          <Input
+                            id="coutSST"
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            value={formData.coutSST}
+                            onChange={(e) => handleInputChange("coutSST", e.target.value)}
+                            placeholder="0.00 €"
                             className={cn("h-8 text-sm mt-1", requiresCouts && !(parseFloat(formData.coutSST) > 0) && "border-orange-400 focus-visible:ring-orange-400")}
                           />
                         </div>
@@ -2672,16 +2676,16 @@ export const InterventionEditForm = memo(function InterventionEditForm({
                           <Label htmlFor="datePrevue" className="text-xs">
                             Date prévue {requiresDatePrevue && <span className="text-orange-500">*</span>}
                           </Label>
-                          <Input 
-                            id="datePrevue" 
-                            type="date" 
-                            value={formData.date_prevue} 
-                            onChange={(e) => handleInputChange("date_prevue", e.target.value)} 
+                          <Input
+                            id="datePrevue"
+                            type="date"
+                            value={formData.date_prevue}
+                            onChange={(e) => handleInputChange("date_prevue", e.target.value)}
                             className={cn(
                               "h-8 text-sm mt-1",
                               requiresDatePrevue && !formData.date_prevue?.trim() && "border-orange-400 focus-visible:ring-orange-400"
                             )}
-                            required={requiresDatePrevue} 
+                            required={requiresDatePrevue}
                           />
                           {requiresDatePrevue && !formData.date_prevue?.trim() && (
                             <span className="absolute top-0 -right-1 h-2 w-2 rounded-full bg-orange-500 animate-pulse" title="Date prévue requise" />
@@ -2738,11 +2742,11 @@ export const InterventionEditForm = memo(function InterventionEditForm({
                               <Label htmlFor="nomPrenomFacturation" className="text-[10px]">
                                 Nom Prénom {requiresNomFacturation && <span className="text-orange-500">*</span>}
                               </Label>
-                              <Input 
-                                id="nomPrenomFacturation" 
-                                value={formData.nomPrenomFacturation} 
-                                onChange={(e) => handleInputChange("nomPrenomFacturation", e.target.value)} 
-                                placeholder="Nom Prénom" 
+                              <Input
+                                id="nomPrenomFacturation"
+                                value={formData.nomPrenomFacturation}
+                                onChange={(e) => handleInputChange("nomPrenomFacturation", e.target.value)}
+                                placeholder="Nom Prénom"
                                 className={cn("h-7 text-xs mt-1", requiresNomFacturation && !formData.nomPrenomFacturation?.trim() && "border-orange-400 focus-visible:ring-orange-400")}
                               />
                             </div>
@@ -2826,11 +2830,11 @@ export const InterventionEditForm = memo(function InterventionEditForm({
                                 <Label htmlFor="nomPrenomClient" className="text-[10px]">
                                   Nom Prénom {requiresClientInfo && <span className="text-orange-500">*</span>}
                                 </Label>
-                                <Input 
-                                  id="nomPrenomClient" 
-                                  value={formData.nomPrenomClient} 
-                                  onChange={(e) => handleInputChange("nomPrenomClient", e.target.value)} 
-                                  placeholder="Nom Prénom" 
+                                <Input
+                                  id="nomPrenomClient"
+                                  value={formData.nomPrenomClient}
+                                  onChange={(e) => handleInputChange("nomPrenomClient", e.target.value)}
+                                  placeholder="Nom Prénom"
                                   className={cn("h-7 text-xs mt-1", requiresClientInfo && !formData.nomPrenomClient?.trim() && "border-orange-400 focus-visible:ring-orange-400")}
                                 />
                               </div>
@@ -2839,11 +2843,11 @@ export const InterventionEditForm = memo(function InterventionEditForm({
                                   <Label htmlFor="telephoneClient" className="text-[10px]">
                                     Téléphone {requiresClientInfo && <span className="text-orange-500">*</span>}
                                   </Label>
-                                  <Input 
-                                    id="telephoneClient" 
-                                    value={formData.telephoneClient} 
-                                    onChange={(e) => handleInputChange("telephoneClient", e.target.value)} 
-                                    placeholder="06..." 
+                                  <Input
+                                    id="telephoneClient"
+                                    value={formData.telephoneClient}
+                                    onChange={(e) => handleInputChange("telephoneClient", e.target.value)}
+                                    placeholder="06..."
                                     className={cn("h-7 text-xs mt-1", requiresClientInfo && !formData.telephoneClient?.trim() && "border-orange-400 focus-visible:ring-orange-400")}
                                   />
                                 </div>
