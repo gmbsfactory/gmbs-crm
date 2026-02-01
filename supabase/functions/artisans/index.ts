@@ -122,7 +122,7 @@ serve(async (req: Request) => {
         raisonSociale: artisan.raison_sociale,
         siret: artisan.siret,
         statutJuridique: artisan.statut_juridique,
-        metiers: [], // TODO: Récupérer depuis artisan_metiers
+        metiers: [],
         zoneIntervention: artisan.departement,
         commentaire: artisan.commentaire,
         statutDossier: artisan.statut_dossier,
@@ -223,7 +223,7 @@ serve(async (req: Request) => {
         raisonSociale: data.raison_sociale,
         siret: data.siret,
         statutJuridique: data.statut_juridique,
-        metiers: [], // TODO: Récupérer depuis artisan_metiers
+        metiers: [],
         zoneIntervention: data.departement,
         commentaire: data.commentaire,
         statutDossier: data.statut_dossier,

@@ -49,8 +49,7 @@ serve(async (req: Request) => {
 
       // Appliquer le filtre par rôle si spécifié
       if (role) {
-        // TODO: Implémenter le filtrage par rôle via user_roles
-        // Pour l'instant, on retourne tous les utilisateurs
+        // Filtrage par rôle non implémenté
       }
 
       const { data, error } = await query;
@@ -69,7 +68,7 @@ serve(async (req: Request) => {
         prenom: user.prenom,
         username: user.username,
         email: user.email,
-        roles: [], // TODO: Récupérer depuis user_roles
+        roles: [],
         tokenVersion: user.token_version,
         color: user.color,
         deleteDate: user.delete_date
@@ -116,7 +115,7 @@ serve(async (req: Request) => {
         prenom: data.prenom,
         username: data.username,
         email: data.email,
-        roles: [], // TODO: Récupérer depuis user_roles
+        roles: [],
         tokenVersion: data.token_version,
         color: data.color,
         deleteDate: data.delete_date
@@ -172,7 +171,7 @@ serve(async (req: Request) => {
         prenom: data.prenom,
         username: data.username,
         email: data.email,
-        roles: [], // TODO: Récupérer depuis user_roles
+        roles: [],
         tokenVersion: data.token_version,
         color: data.color,
         deleteDate: data.delete_date
