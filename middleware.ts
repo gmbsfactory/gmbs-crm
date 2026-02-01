@@ -12,10 +12,14 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(url)
   }
 
+  // Ajouter le pathname aux headers pour le layout
+  const response = NextResponse.next()
+  response.headers.set('x-pathname', pathname)
+
   // Pages publiques - pas de vérification nécessaire
-  const publicPaths = ['/login', '/landingpage', '/set-password', '/auth/callback']
+  const publicPaths = ['/login', '/landingpage', '/set-password', '/auth/callback', '/portail']
   if (publicPaths.some(path => pathname.startsWith(path))) {
-    return NextResponse.next()
+    return response
   }
 
   // Si pas de token, rediriger vers login
@@ -31,7 +35,7 @@ export async function middleware(req: NextRequest) {
   // La vérification de l'existence de l'utilisateur et des gestionnaires
   // est gérée par AuthGuard côté client pour éviter les problèmes de timing
   // et permettre une meilleure gestion des erreurs
-  return NextResponse.next()
+  return response
 }
 
 // Exclude static assets, images, favicon, and public auth endpoints; allow /login and /landingpage
@@ -43,8 +47,11 @@ export const config = {
     // - favicon.ico
     // - login (public login page)
     // - landingpage (public landing page)
+    // - portail (public artisan portal)
     // - api/auth (auth endpoints)
+    // - api/portail (artisan portal API)
+    // - api/portal-external (external portal API - called by portal_gmbs)
     // - public files/extensions
-    '/((?!_next/static|_next/image|favicon.ico|login|landingpage|api/auth/|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)',
+    '/((?!_next/static|_next/image|favicon.ico|login|landingpage|portail|api/auth/|api/portail/|api/portal-external/|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)',
   ],
 }
