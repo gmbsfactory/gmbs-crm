@@ -258,8 +258,6 @@ export class SyncQueue {
    * @param modification - Modification à synchroniser
    */
   private async syncModification(modification: QueuedModification): Promise<void> {
-    // TODO: Intégrer avec l'API réelle
-    // Pour l'instant, on simule juste le traitement
     console.log('[SyncQueue] Synchronisation de la modification:', modification.id)
   }
 

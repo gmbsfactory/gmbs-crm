@@ -4,8 +4,7 @@ const send = (name: string, value: number) => {
   // Envoi vers console pour le développement
   console.info(`[Vitals] ${name}: ${Math.round(value)}`)
   
-  // TODO: Envoyer vers votre service d'analytics (Sentry, Google Analytics, etc.)
-  // Example: gtag('event', name, { value: Math.round(value) })
+  // gtag('event', name, { value: Math.round(value) })
 }
 
 export function initWebVitals() {

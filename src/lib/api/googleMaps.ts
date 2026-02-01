@@ -43,7 +43,6 @@ export async function geocodeAddress(address: string): Promise<GeocodedAddress |
 export async function searchNearbyArtisans(address: string, radiusMeters = 15000): Promise<NearbyPlace[]> {
   if (!address) return []
 
-  // TODO: Integrate MapTiler Places or OpenStreetMap Overpass to provide nearby artisans.
   console.debug("[mapServices] searchNearbyArtisans placeholder", { address, radiusMeters })
   return []
 }

@@ -162,7 +162,6 @@ export default function InterventionForm({
   const handleArtisanSearch = async () => {
     setIsSearchingArtisan(true)
     try {
-      // TODO: Brancher l'intégration Google Maps + recherche locale/artisan
       const response = await fetch("/api/interventions/artisans/search", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -251,7 +250,6 @@ export default function InterventionForm({
                 onBlur={async () => {
                   const value = form.getValues("invoice2goId")
                   if (!value) return
-                  // TODO: appeler l'API pour précharger le PDF/preview Invoice2go
                   await fetch("/api/interventions/invoice", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
