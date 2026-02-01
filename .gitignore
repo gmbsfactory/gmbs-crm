@@ -111,3 +111,6 @@ exports/*.csv
 # Fichiers données sensibles
 *.csv
 !data/docs_imports/*.csv
+
+# Test coverage
+/coverage
