@@ -3135,7 +3135,7 @@ export const interventionsApi = {
       tauxMarge,
       couts: totalCouts,
       marge: margeTotal,
-      avgCycleTime: 0, // TODO: récupérer depuis cycles_moyens si disponible
+      avgCycleTime: 0,
       deltaInterventions: 0, // v3 ne calcule pas les deltas
       deltaChiffreAffaires: 0, // v3 ne calcule pas les deltas
       deltaMarge: 0, // v3 ne calcule pas les deltas

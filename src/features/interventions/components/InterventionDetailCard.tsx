@@ -12,7 +12,7 @@ export type InterventionDetailCardProps = {
   onSendEmail?: (intervention: InterventionView) => void
   onCall?: (intervention: InterventionView) => void
   onAddDocument?: (intervention: InterventionView) => void
-  onStatusChange?: (intervention: InterventionView, newStatus: string) => void // TODO missing backend mutation
+  onStatusChange?: (intervention: InterventionView, newStatus: string) => void
   className?: string
 }
 

@@ -95,12 +95,22 @@ docs/GUIDE_REPARATION_MIGRATIONS.md
 # Legacy files and folders
 /legacy
 
-# Geocoding logs
-
-
 # Logs
 logs/
+*.log
 
+# Archive prompts IA
+docs/archive/prompts/
+
+# Todo notes
 docs/todo/*
 
+# Exports
 exports/*.csv
+
+# Fichiers données sensibles
+*.csv
+!data/docs_imports/*.csv
+
+# Test coverage
+/coverage

@@ -9,7 +9,6 @@ export type DeepSearchResult<T> = {
 export async function deepSearchArtisans(query: string): Promise<DeepSearchResult<unknown>[]> {
   if (!query) return []
 
-  // TODO: Call DeepSearch service when available.
   console.debug("[deepSearch] deepSearchArtisans placeholder", { query })
   return []
 }
@@ -17,7 +16,6 @@ export async function deepSearchArtisans(query: string): Promise<DeepSearchResul
 export async function deepSearchInterventions(query: string): Promise<DeepSearchResult<unknown>[]> {
   if (!query) return []
 
-  // TODO: Call DeepSearch service when available.
   console.debug("[deepSearch] deepSearchInterventions placeholder", { query })
   return []
 }

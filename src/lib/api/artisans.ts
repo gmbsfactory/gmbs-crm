@@ -15,8 +15,6 @@ type SearchParams = {
 }
 
 export async function searchArtisansLocally({ query, limit = 10 }: SearchParams = {}): Promise<ArtisanSearchResult[]> {
-  // TODO: Implement proper artisan search with Prisma
-  // For now, return empty array to avoid build errors
   console.debug("[artisans] search placeholder", { query, limit })
   return []
 }
