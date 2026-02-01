@@ -391,6 +391,9 @@ export const mapInterventionRecord = (item: any, refs: any): any => {
       typeof item.longitude === "number"
         ? item.longitude.toString()
         : item.longitudeAdresse ?? null,
+    adresse: item.adresse_complete || item.adresse || null,
+    adresse_complete: item.adresse_complete || null,
+    adresseComplete: item.adresse_complete || null,
     codePostal: item.code_postal ?? item.codePostal ?? null,
     dateIntervention:
       item.date_intervention ?? item.dateIntervention ?? item.date ?? null,
