@@ -44,7 +44,7 @@ describe("/api/geocode", () => {
 
     vi.stubGlobal("fetch", fetchMock)
 
-    const { GET } = await import("../../app/api/geocode/route")
+    const { GET } = await import("../../../app/api/geocode/route")
     const request = new NextRequest(`http://localhost/api/geocode?q=${encodeURIComponent(TEST_ADDRESS)}`)
     const response = await GET(request)
 
@@ -84,7 +84,7 @@ describe("/api/geocode", () => {
 
     vi.stubGlobal("fetch", fetchMock)
 
-    const { GET } = await import("../../app/api/geocode/route")
+    const { GET } = await import("../../../app/api/geocode/route")
     const request = new NextRequest(`http://localhost/api/geocode?q=${encodeURIComponent("Lyon, France")}`)
     const response = await GET(request)
 
@@ -96,7 +96,7 @@ describe("/api/geocode", () => {
   })
 
   it("should return 400 for empty query", async () => {
-    const { GET } = await import("../../app/api/geocode/route")
+    const { GET } = await import("../../../app/api/geocode/route")
     const request = new NextRequest("http://localhost/api/geocode")
     const response = await GET(request)
 
@@ -123,7 +123,7 @@ describe("/api/geocode", () => {
 
     vi.stubGlobal("fetch", fetchMock)
 
-    const { GET } = await import("../../app/api/geocode/route")
+    const { GET } = await import("../../../app/api/geocode/route")
 
     const requestFactory = () =>
       new NextRequest(`http://localhost/api/geocode?q=${encodeURIComponent(TEST_ADDRESS)}`, {
@@ -158,7 +158,7 @@ describe("/api/geocode", () => {
 
     vi.stubGlobal("fetch", fetchMock)
 
-    const { GET } = await import("../../app/api/geocode/route")
+    const { GET } = await import("../../../app/api/geocode/route")
     const request = new NextRequest(`http://localhost/api/geocode?q=${encodeURIComponent("Adresse inconnue")}`)
     const response = await GET(request)
 
@@ -205,7 +205,7 @@ describe("/api/geocode", () => {
 
     vi.stubGlobal("fetch", fetchMock)
 
-    const { GET } = await import("../../app/api/geocode/route")
+    const { GET } = await import("../../../app/api/geocode/route")
     const request = new NextRequest(`http://localhost/api/geocode?q=${encodeURIComponent("Paris")}&suggest=1&limit=3`)
     const response = await GET(request)
 

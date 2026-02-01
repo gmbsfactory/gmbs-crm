@@ -343,7 +343,7 @@ describe("Geocode Providers", () => {
     describe("API Route - /api/geocode", () => {
         it("should use FrenchAddressProvider for French addresses", async () => {
             console.log("\n[TEST] API Route: Utilisation du provider BAN pour les adresses FR")
-            const { GET } = await import("../../app/api/geocode/route")
+            const { GET } = await import("../../../app/api/geocode/route")
             const request = new NextRequest(
                 `http://localhost/api/geocode?q=${encodeURIComponent(TEST_ADDRESSES.paris)}`,
             )
@@ -361,7 +361,7 @@ describe("Geocode Providers", () => {
 
         it("should return suggestions when suggest=1", async () => {
             console.log("\n[TEST] API Route: Mode suggestion (plusieurs résultats)")
-            const { GET } = await import("../../app/api/geocode/route")
+            const { GET } = await import("../../../app/api/geocode/route")
             const request = new NextRequest(
                 `http://localhost/api/geocode?q=${encodeURIComponent("Rue de Rivoli Paris")}&suggest=1&limit=5`,
             )
@@ -381,7 +381,7 @@ describe("Geocode Providers", () => {
                 console.log("[TEST] OPENCAGE_API_KEY non définie, le test fonctionnera avec les providers disponibles")
             }
 
-            const { GET } = await import("../../app/api/geocode/route")
+            const { GET } = await import("../../../app/api/geocode/route")
             const request = new NextRequest(
                 `http://localhost/api/geocode?q=${encodeURIComponent(TEST_ADDRESSES.lyon)}`,
             )
@@ -399,7 +399,7 @@ describe("Geocode Providers", () => {
 
         it("should return 404 when no results found", async () => {
             console.log("\n[TEST] API Route: Retourne 404 si aucun résultat trouvé")
-            const { GET } = await import("../../app/api/geocode/route")
+            const { GET } = await import("../../../app/api/geocode/route")
             const request = new NextRequest(
                 `http://localhost/api/geocode?q=${encodeURIComponent(TEST_ADDRESSES.invalid)}`,
             )
