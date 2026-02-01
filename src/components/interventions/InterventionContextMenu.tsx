@@ -13,6 +13,7 @@ import {
   Copy,
   UserCheck,
   Trash2,
+  User,
 } from "lucide-react"
 import { useInterventionContextMenu, type AssignToMeAnimationCallback } from "@/hooks/useInterventionContextMenu"
 import type { InterventionView } from "@/types/intervention-view"
@@ -47,18 +48,18 @@ export function InterventionContextMenuContent({
   rowElement,
 }: InterventionContextMenuContentProps) {
   const { triggerAnimation } = useGenieEffectContext()
-  
+
   // Fonction pour trouver l'élément de la ligne dans le DOM
   const findRowElement = useCallback(() => {
     // Essayer d'abord avec la prop rowElement
     if (rowElement) return rowElement
-    
+
     // Sinon, chercher dans le DOM via data-intervention-id
     const selector = `tr[data-intervention-id="${intervention.id}"]`
     const element = document.querySelector(selector)
     return element as HTMLElement | null
   }, [intervention.id, rowElement])
-  
+
   // Callback pour déclencher l'animation avant l'assignation
   const handleAssignWithAnimation = useCallback<AssignToMeAnimationCallback>(
     (interventionId, onAnimationComplete) => {
@@ -73,7 +74,7 @@ export function InterventionContextMenuContent({
     },
     [findRowElement, viewType, triggerAnimation]
   )
-  
+
   const {
     duplicateDevisSupp,
     assignToMe,
@@ -127,6 +128,33 @@ export function InterventionContextMenuContent({
   return (
     <>
       <ContextMenuContent className="w-56">
+        {/* Informations Artisan */}
+        {intervention.primaryArtisan && (
+          <>
+            <div className="px-2 py-1.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+              <User className="h-3 w-3" />
+              Artisan principal
+            </div>
+            <div className="px-2 pb-2 flex flex-col gap-1.5">
+              <div className="text-sm font-semibold truncate leading-none">
+                {intervention.artisan}
+              </div>
+              {(intervention.primaryArtisan as any).status && (
+                <div className="flex items-center gap-1.5">
+                  <span
+                    className="h-2 w-2 rounded-full shrink-0 shadow-sm"
+                    style={{ backgroundColor: (intervention.primaryArtisan as any).status.color }}
+                  />
+                  <span className="text-[11px] text-muted-foreground font-medium">
+                    {(intervention.primaryArtisan as any).status.label}
+                  </span>
+                </div>
+              )}
+            </div>
+            <ContextMenuSeparator />
+          </>
+        )}
+
         {/* Actions de base */}
         <ContextMenuItem onSelect={handleOpen} disabled={isLoading.duplicate || isLoading.assign}>
           <FileText className="mr-2 h-4 w-4" />

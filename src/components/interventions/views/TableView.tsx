@@ -98,6 +98,12 @@ import { interventionsApi } from "@/lib/api/v2"
 import { toast } from "sonner"
 import { useFilterMappers } from "@/contexts/FilterMappersContext"
 import { convertViewFiltersToServerFilters } from "@/lib/filter-converter"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
 
 const numberFormatter = new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 2 })
 const dateFormatter = new Intl.DateTimeFormat("fr-FR", { dateStyle: "medium" })
@@ -507,6 +513,47 @@ const renderCell = (
         ${metierColor} 50%,
         color-mix(in oklab, ${metierColor}, black 20%) 100%
       )`,
+    }
+  }
+
+  // Rendu personnalisé pour l'artisan principal avec son statut
+  if (property === "artisan") {
+    const artisanName = value as string | null
+    if (!artisanName) return { content: "—" }
+
+    const primaryArtisan = (intervention as any).primaryArtisan
+    const artisanStatus = primaryArtisan?.status
+
+    return {
+      content: (
+        <TooltipProvider delayDuration={300}>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className="inline-flex items-center gap-2 cursor-help">
+                {artisanStatus?.color && (
+                  <span
+                    className="h-2 w-2 rounded-full shrink-0 shadow-sm"
+                    style={{ backgroundColor: artisanStatus.color }}
+                  />
+                )}
+                <span className="truncate">{artisanName}</span>
+              </span>
+            </TooltipTrigger>
+            <TooltipContent side="top" className="flex items-center gap-2 px-2 py-1">
+              {artisanStatus?.color && (
+                <span
+                  className="h-2 w-2 rounded-full shrink-0"
+                  style={{ backgroundColor: artisanStatus.color }}
+                />
+              )}
+              <span className="text-xs font-medium">
+                {artisanStatus?.label || "Statut inconnu"}
+              </span>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      ),
+      cellClassName: "font-medium max-w-[200px]",
     }
   }
 

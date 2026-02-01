@@ -297,15 +297,15 @@ export const mapInterventionRecord = (item: any, refs: any): any => {
     // Log détaillé pour chaque intervention
     const interventionId = item.id_inter || 'unknown';
 
-    if (raisonSociale && raisonSociale.length > 0) {
-      artisanDisplayName = raisonSociale;
+    if (prenom || nom) {
+      artisanDisplayName = `${prenom ?? ""} ${nom ?? ""}`.trim() || null;
     } else if (plainNom && plainNom.length > 0) {
       artisanDisplayName = plainNom;
-    } else if (prenom || nom) {
-      artisanDisplayName = `${prenom ?? ""} ${nom ?? ""}`.trim() || null;
+    } else if (raisonSociale && raisonSociale.length > 0) {
+      artisanDisplayName = raisonSociale;
     } else {
     }
-  } 
+  }
 
   // Extraction des coûts depuis intervention_costs
   const interventionCosts = Array.isArray(item.intervention_costs)

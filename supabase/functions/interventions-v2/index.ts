@@ -376,7 +376,7 @@ const AVAILABLE_RELATIONS: Record<string, string> = {
   users: 'users!assigned_user_id(id,firstname,lastname,username,color,code_gestionnaire,avatar_url)',
   statuses: 'intervention_statuses(id,code,label,color,sort_order)',
   metiers: 'metiers(id,label,code)',
-  artisans: 'intervention_artisans(id,artisan_id,is_primary,role,artisans(id,nom,prenom,plain_nom,email,telephone,telephone2,numero_associe,siret,raison_sociale))',
+  artisans: 'intervention_artisans(id,artisan_id,is_primary,role,artisans(id,nom,prenom,plain_nom,email,telephone,telephone2,numero_associe,siret,raison_sociale,status:artisan_statuses(id,code,label,color)))',
   costs: 'intervention_costs(id,cost_type,label,amount,currency)',
   owner: 'owner:owner_id(id,owner_firstname,owner_lastname,plain_nom_facturation,email,telephone)',
 };
@@ -417,16 +417,16 @@ const parseListParam = (values: string[]): string[] => {
 const buildSelectClause = (extraSelect: string | null, include: string[], hasSearch: boolean = false): string => {
   const base = new Set<string>(DEFAULT_INTERVENTION_COLUMNS);
   const selectFragments: string[] = [];
-  
+
   // ⚠️ TOUJOURS inclure les artisans, coûts, tenants et users par défaut
   // Les tenants sont nécessaires pour l'affichage des informations client dans ExpandedRowContent
   // Les users sont nécessaires pour l'affichage des badges des gestionnaires dans TableView
   const defaultRelations = ['artisans', 'costs', 'tenants', 'users'];
-  
+
   // Si recherche active, inclure aussi agencies pour le filtrage client
   const searchRelations = hasSearch ? ['agencies'] : [];
   const allIncludes = [...new Set([...defaultRelations, ...searchRelations, ...include])];
-  
+
   if (extraSelect) {
     selectFragments.push(extraSelect);
   }
@@ -812,7 +812,7 @@ async function handleInterventionCompletionSideEffects(
         // Mettre à jour uniquement le statut de dossier si nécessaire
         const currentDossierStatus = artisan.statut_dossier as string | null;
         const newDossierStatus = calculateDossierStatus(attachments ?? [], completed > 0);
-        
+
         if (newDossierStatus !== currentDossierStatus) {
           const { error: dossierUpdateError } = await supabase
             .from('artisans')
@@ -869,7 +869,7 @@ async function handleInterventionCompletionSideEffects(
         // Mais on peut quand même mettre à jour le statut de dossier
         const currentDossierStatus = artisan.statut_dossier as string | null;
         const newDossierStatus = calculateDossierStatus(attachments ?? [], completed > 0);
-        
+
         if (newDossierStatus !== currentDossierStatus) {
           const { error: dossierUpdateError } = await supabase
             .from('artisans')
@@ -976,15 +976,15 @@ serve(async (req: Request) => {
   // Handle CORS preflight requests FIRST, before any other code
   // This MUST be the very first statement to ensure OPTIONS always returns 200
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { 
-      status: 200, 
-      headers: corsHeaders 
+    return new Response('ok', {
+      status: 200,
+      headers: corsHeaders
     });
   }
 
   const startTime = Date.now();
   let requestId: string | undefined;
-  
+
   try {
     requestId = crypto.randomUUID();
 
@@ -1004,12 +1004,12 @@ serve(async (req: Request) => {
 
     const url = new URL(req.url);
     const pathSegments = url.pathname.split('/').filter(segment => segment);
-    
+
     // Parsing plus robuste pour gérer les sous-ressources
     let resource = pathSegments[pathSegments.length - 1];
     let resourceId: string | null = null;
     let subResource: string | null = null;
-    
+
     // Pour /interventions-v2/interventions/{id}/artisans
     if (pathSegments.length >= 4 && pathSegments[pathSegments.length - 3] === 'interventions') {
       resourceId = pathSegments[pathSegments.length - 2];
@@ -1249,9 +1249,9 @@ serve(async (req: Request) => {
       const clampedLimit = Math.max(1, Math.min(Number.isFinite(rawLimit) ? rawLimit : 100, 50000));
       const rawOffset = Number.parseInt(url.searchParams.get('offset') ?? '0', 10);
       const clampedOffset = Math.max(0, Number.isFinite(rawOffset) ? rawOffset : 0);
-      
+
       console.log(`[Edge Function] Pagination - rawOffset: ${rawOffset}, clampedOffset: ${clampedOffset}, rawLimit: ${rawLimit}, clampedLimit: ${clampedLimit}`);
-      
+
       const include = parseListParam(url.searchParams.getAll('include'));
       const extraSelect = url.searchParams.get('select');
       const artisanFilters = parseListParam(url.searchParams.getAll('artisan'));
@@ -1528,7 +1528,7 @@ serve(async (req: Request) => {
       const fetchStart = Date.now();
       const { data, error, count } = await query;
       const fetchDuration = Date.now() - fetchStart;
-      
+
       if (data && Array.isArray(data) && data.length > 0) {
         console.log(`[Edge Function] Résultats - Premier ID: ${data[0].id}, Dernier ID: ${data[data.length - 1].id}, Total: ${data.length}`);
       } else {
@@ -1633,10 +1633,9 @@ serve(async (req: Request) => {
           created_at,
           updated_at
           ${includeRelations.includes('agencies') ? ',agencies(id,label,code)' : ''}
-          ${
-            includeRelations.includes('tenants') || includeRelations.includes('clients')
-              ? ',tenants:tenant_id(id,firstname,lastname,plain_nom_client,email,telephone,telephone2)'
-              : ''
+          ${includeRelations.includes('tenants') || includeRelations.includes('clients')
+            ? ',tenants:tenant_id(id,firstname,lastname,plain_nom_client,email,telephone,telephone2)'
+            : ''
           }
           ${includeRelations.includes('users') ? ',users!assigned_user_id(id,firstname,lastname,username)' : ''}
           ${includeRelations.includes('statuses') ? ',intervention_statuses(id,code,label,color)' : ''}
@@ -1824,7 +1823,7 @@ serve(async (req: Request) => {
       // Fonction helper pour générer un nouvel id_inter en cas de collision
       const generateUniqueIdInter = async (baseIdInter: string | null | undefined): Promise<string | null> => {
         if (!baseIdInter) return null;
-        
+
         // Si ce n'est pas un ID auto-généré, retourner tel quel (sera vérifié plus tard)
         if (!baseIdInter.startsWith('AUTO-')) {
           return baseIdInter;
@@ -2141,7 +2140,7 @@ serve(async (req: Request) => {
     if (req.method === 'DELETE' && resourceId && resource === 'interventions') {
       const { data, error } = await supabase
         .from('interventions')
-        .update({ 
+        .update({
           is_active: false,
           updated_at: new Date().toISOString(),
           ...(authUserId ? { updated_by: authUserId } : {}),
@@ -2398,7 +2397,7 @@ serve(async (req: Request) => {
 
   } catch (error) {
     const responseTime = Date.now() - startTime;
-    
+
     console.log(JSON.stringify({
       level: 'error',
       requestId: requestId || 'unknown',
