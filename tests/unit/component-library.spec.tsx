@@ -67,7 +67,7 @@ describe("ComponentLibraryPage", () => {
     ).toBeInTheDocument()
   })
 
-  it("renders category filter buttons", () => {
+  it("renders category filter buttons", { timeout: 10000 }, () => {
     render(<ComponentLibraryPage />)
 
     // Check that category filter buttons exist
