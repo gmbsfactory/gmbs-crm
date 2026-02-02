@@ -675,7 +675,8 @@ export const interventionsApi = {
       .eq("id", id)
       .select(`
         *,
-        status:intervention_statuses(id,code,label,color,sort_order)
+        status:intervention_statuses(id,code,label,color,sort_order),
+        intervention_artisans(artisan_id)
       `)
       .single();
 
