@@ -26,6 +26,7 @@ import { useGeocodeSearch } from "@/hooks/useGeocodeSearch"
 import type { GeocodeSuggestion } from "@/hooks/useGeocodeSearch"
 import { useNearbyArtisans, type NearbyArtisan } from "@/hooks/useNearbyArtisans"
 import { useFormDataChanges } from "@/hooks/useFormDataChanges"
+import { documentsApi } from "@/lib/api/v2/documentsApi"
 import { interventionsApi } from "@/lib/api/v2"
 import { commentsApi } from "@/lib/api/v2/commentsApi"
 import { supabase } from "@/lib/supabase-client"
@@ -352,6 +353,26 @@ export const InterventionEditForm = memo(function InterventionEditForm({
   // État pour stocker le second artisan sélectionné via recherche (qui peut ne pas être dans nearbyArtisansSecondMetier)
   const [searchSelectedSecondArtisan, setSearchSelectedSecondArtisan] = useState<NearbyArtisan | null>(null)
   const [absentArtisanIds, setAbsentArtisanIds] = useState<Set<string>>(new Set())
+  const [hasFactureGMBS, setHasFactureGMBS] = useState(false)
+
+  const checkFactureGMBS = useCallback(async () => {
+    if (!intervention.id) return
+    try {
+      const docs = await documentsApi.getAll({
+        entity_id: intervention.id,
+        entity_type: "intervention",
+        kind: "facturesGMBS"
+      })
+      const found = (docs?.data?.length ?? 0) > 0
+      setHasFactureGMBS(found)
+    } catch (error) {
+      console.error("[InterventionEditForm] Erreur checkFactureGMBS:", error)
+    }
+  }, [intervention.id])
+
+  useEffect(() => {
+    void checkFactureGMBS()
+  }, [checkFactureGMBS])
   useEffect(() => {
     onArtisanSearchOpenChange?.(showArtisanSearch || showSecondArtisanSearch)
   }, [showArtisanSearch, showSecondArtisanSearch, onArtisanSearchOpenChange])
@@ -735,9 +756,9 @@ export const InterventionEditForm = memo(function InterventionEditForm({
   const getInterventionStatusCode = useCallback(
     (statusId?: string | null) => {
       if (!statusId || !refData?.interventionStatuses) {
-        return null
+        return ""
       }
-      return refData.interventionStatuses.find((status) => status.id === statusId)?.code ?? null
+      return refData.interventionStatuses.find((status) => status.id === statusId)?.code ?? ""
     },
     [refData?.interventionStatuses],
   )
@@ -825,6 +846,18 @@ export const InterventionEditForm = memo(function InterventionEditForm({
     return STATUSES_REQUIRING_CLIENT_INFO.has(code) ||
       (selectedStatus.label ?? "").toLowerCase().includes("inter en cours") ||
       (selectedStatus.label ?? "").toLowerCase().includes("intervention en cours")
+  }, [selectedStatus])
+
+  const requiresArtisan = useMemo(() => {
+    if (!selectedStatus) return false
+    const code = (selectedStatus.code ?? "").toUpperCase()
+    return ["VISITE_TECHNIQUE", "INTER_EN_COURS", "INTER_TERMINEE", "ATT_ACOMPTE"].includes(code)
+  }, [selectedStatus])
+
+  const requiresFacture = useMemo(() => {
+    if (!selectedStatus) return false
+    const code = (selectedStatus.code ?? "").toUpperCase()
+    return code === "INTER_TERMINEE"
   }, [selectedStatus])
 
   // --- Gestion des acomptes ---
@@ -1945,7 +1978,35 @@ export const InterventionEditForm = memo(function InterventionEditForm({
       }
     }
 
+    // === VALIDATIONS POUR ARTISAN ===
     const nextStatusCode = getInterventionStatusCode(formData.statut_id)
+    const ARTISAN_REQUIRED_STATUSES = ["VISITE_TECHNIQUE", "INTER_EN_COURS", "INTER_TERMINEE", "ATT_ACOMPTE"]
+
+    if (ARTISAN_REQUIRED_STATUSES.includes(nextStatusCode) && (!selectedArtisanId || !selectedArtisanData)) {
+      toast.error(`Un artisan est obligatoire pour passer au statut ${nextStatusCode}`)
+      return
+    }
+
+    // === VALIDATIONS POUR INTER_TERMINEE (FACTURE GMBS) ===
+    if (nextStatusCode === "INTER_TERMINEE") {
+      try {
+        const docs = await documentsApi.getAll({
+          entity_id: intervention.id,
+          entity_type: "intervention",
+          kind: "facturesGMBS"
+        })
+
+        if (!docs.data || docs.data.length === 0) {
+          toast.error("La facture GMBS est obligatoire pour passer au statut terminé")
+          return
+        }
+      } catch (error) {
+        console.error("Erreur lors de la vérification des documents:", error)
+        toast.error("Erreur lors de la vérification des documents obligatoires")
+        return
+      }
+    }
+
     const reasonType = getReasonTypeForTransition(initialStatusCode, nextStatusCode)
 
     if (reasonType) {
@@ -2361,14 +2422,14 @@ export const InterventionEditForm = memo(function InterventionEditForm({
 
                       {/* Panel Artisans */}
                       <ResizablePanel defaultSize={DEFAULT_ARTISANS_PANEL_SIZE} minSize={15} maxSize={70}>
-                        <Card className="h-full flex flex-col overflow-hidden rounded-l-none border-l-0">
+                        <Card className={cn("h-full flex flex-col overflow-hidden rounded-l-none border-l-0", requiresArtisan && (!selectedArtisanId || !selectedArtisanData) && "ring-2 ring-orange-400/50")}>
                           <CardContent className="p-3 flex flex-col h-full overflow-hidden">
                             {/* Header artisans */}
                             <div className="flex items-center justify-between gap-2 mb-3 flex-shrink-0 flex-wrap min-w-0">
                               <div className="flex items-center gap-2 min-w-0 overflow-hidden">
                                 <h3 className="font-semibold text-sm flex items-center gap-2 flex-shrink-0">
                                   <Building className="h-4 w-4" />
-                                  Artisans
+                                  Artisans {requiresArtisan && <span className="text-orange-500">*</span>}
                                 </h3>
                                 <div className="flex gap-0.5 flex-shrink-0">
                                   <Button
@@ -2909,21 +2970,23 @@ export const InterventionEditForm = memo(function InterventionEditForm({
                   </Collapsible>
                 </SectionLock>
 
-                {/* Documents */}
                 <Collapsible open={isDocumentsOpen} onOpenChange={setIsDocumentsOpen}>
-                  <Card>
+                  <Card className={cn(requiresFacture && !hasFactureGMBS && "ring-2 ring-orange-400/50")}>
                     <CollapsibleTrigger asChild>
                       <CardHeader className="cursor-pointer py-2 px-3 hover:bg-muted/50">
                         <CardTitle className="flex items-center gap-2 text-xs">
                           <Upload className="h-3 w-3" />
-                          Documents
+                          Documents {requiresFacture && <span className="text-orange-500">*</span>}
+                          {requiresFacture && !hasFactureGMBS && (
+                            <span className="h-2 w-2 rounded-full bg-orange-500 animate-pulse" title="Facture GMBS obligatoire" />
+                          )}
                           {isDocumentsOpen ? <ChevronDown className="ml-auto h-3 w-3" /> : <ChevronRight className="ml-auto h-3 w-3" />}
                         </CardTitle>
                       </CardHeader>
                     </CollapsibleTrigger>
                     <CollapsibleContent>
                       <CardContent className="pt-0 px-3 pb-3">
-                        <DocumentManager entityType="intervention" entityId={intervention.id} kinds={INTERVENTION_DOCUMENT_KINDS} currentUser={currentUser ?? undefined} />
+                        <DocumentManager entityType="intervention" entityId={intervention.id} kinds={INTERVENTION_DOCUMENT_KINDS} currentUser={currentUser ?? undefined} onChange={() => void checkFactureGMBS()} />
                       </CardContent>
                     </CollapsibleContent>
                   </Card>

@@ -598,6 +598,40 @@ export function NewInterventionForm({
     )
   }, [selectedStatus])
 
+  const requiresArtisan = useMemo(() => {
+    if (!selectedStatus) {
+      return false
+    }
+    const code = (selectedStatus.code ?? "").toUpperCase()
+    const ARTISAN_REQUIRED_STATUSES = ["VISITE_TECHNIQUE", "INTER_EN_COURS", "INTER_TERMINEE", "ATT_ACOMPTE"]
+    if (ARTISAN_REQUIRED_STATUSES.includes(code)) {
+      return true
+    }
+    const normalizedLabel = (selectedStatus.label ?? "").trim().toLowerCase()
+    return (
+      normalizedLabel === "visite technique" ||
+      normalizedLabel === "en cours" ||
+      normalizedLabel === "intervention en cours" ||
+      normalizedLabel === "inter en cours" ||
+      normalizedLabel === "terminé" ||
+      normalizedLabel === "termine" ||
+      normalizedLabel === "attente acompte" ||
+      normalizedLabel === "att acompte"
+    )
+  }, [selectedStatus])
+
+  const requiresFacture = useMemo(() => {
+    if (!selectedStatus) {
+      return false
+    }
+    const code = (selectedStatus.code ?? "").toUpperCase()
+    if (code === "INTER_TERMINEE") {
+      return true
+    }
+    const normalizedLabel = (selectedStatus.label ?? "").trim().toLowerCase()
+    return normalizedLabel === "terminé" || normalizedLabel === "termine"
+  }, [selectedStatus])
+
   const handleInputChange = useCallback((field: keyof typeof formData, value: any) => {
     setFormData((prev) => ({ ...prev, [field]: value }))
   }, [])
@@ -961,6 +995,20 @@ export function NewInterventionForm({
     const datePrevueValue = formData.date_prevue?.trim() ?? ""
     if (requiresDatePrevue && datePrevueValue.length === 0) {
       form.reportValidity()
+      return
+    }
+
+    if (requiresArtisan && (!selectedArtisanId || !selectedArtisanData)) {
+      toast.error("Un artisan est obligatoire pour ce statut")
+      return
+    }
+
+    if (requiresFacture) {
+      // Pour une nouvelle intervention, on ne peut pas encore vérifier les documents en base,
+      // mais on peut vérifier si des documents ont été préparés dans le DocumentManager si possible.
+      // Cependant, INTER_TERMINEE à la création est un cas limite.
+      // Pour l'instant, on bloque simplement en demandant le document.
+      toast.error("Le statut terminé nécessite une facture GMBS. Veuillez créer l'intervention dans un autre statut d'abord, puis téléverser la facture.")
       return
     }
 
@@ -1532,14 +1580,14 @@ export function NewInterventionForm({
 
                 {/* Panel Artisans */}
                 <ResizablePanel defaultSize={30} minSize={15} maxSize={70}>
-                  <Card className="h-full flex flex-col overflow-hidden rounded-l-none border-l-0">
+                  <Card className={cn("h-full flex flex-col overflow-hidden rounded-l-none border-l-0", requiresArtisan && (!selectedArtisanId || !selectedArtisanData) && "ring-2 ring-orange-400/50")}>
                     <CardContent className="p-3 flex flex-col h-full overflow-hidden">
                       {/* Header artisans */}
                       <div className="flex items-center justify-between gap-2 mb-3 flex-shrink-0 flex-wrap min-w-0">
                         <div className="flex items-center gap-2 min-w-0 overflow-hidden">
                           <h3 className="font-semibold text-sm flex items-center gap-2 flex-shrink-0">
                             <Building className="h-4 w-4" />
-                            Artisans
+                            Artisans {requiresArtisan && <span className="text-orange-500">*</span>}
                           </h3>
                           <div className="flex gap-0.5 flex-shrink-0">
                             <Button
@@ -2281,12 +2329,15 @@ export function NewInterventionForm({
 
             {/* Documents */}
             <Collapsible open={isDocumentsOpen} onOpenChange={setIsDocumentsOpen}>
-              <Card>
+              <Card className={cn(requiresFacture && "ring-2 ring-orange-400/50")}>
                 <CollapsibleTrigger asChild>
                   <CardHeader className="cursor-pointer py-2 px-3 hover:bg-muted/50">
                     <CardTitle className="flex items-center gap-2 text-xs">
                       <Upload className="h-3 w-3" />
-                      Documents
+                      Documents {requiresFacture && <span className="text-orange-500">*</span>}
+                      {requiresFacture && (
+                        <span className="h-2 w-2 rounded-full bg-orange-500 animate-pulse" title="Facture GMBS obligatoire" />
+                      )}
                       {isDocumentsOpen ? <ChevronDown className="ml-auto h-3 w-3" /> : <ChevronRight className="ml-auto h-3 w-3" />}
                     </CardTitle>
                   </CardHeader>
