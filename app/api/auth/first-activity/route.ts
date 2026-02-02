@@ -194,7 +194,9 @@ export async function POST(req: Request) {
     // Update user record with atomic conditional update to prevent race conditions
     // Only update if last_activity_date is NULL or different from today (atomic check)
     // This ensures that even if multiple requests arrive simultaneously, only one will succeed
-    let updateQuery = supabase
+    // Use admin client to bypass RLS since users don't have permission to update lateness fields
+    const adminSupabase = createServerSupabaseAdmin()
+    let updateQuery = adminSupabase
       .from('users')
       .update(patch)
       .eq('id', profile.id)
@@ -216,7 +218,7 @@ export async function POST(req: Request) {
       if (updateError.code === 'PGRST116' || updateError.message?.includes('0 rows')) {
         console.log('[first-activity] ⚠️ Race condition detected: another request already processed first activity')
         // Fetch the current state to return accurate data
-        const { data: currentData } = await supabase
+        const { data: currentData } = await adminSupabase
           .from('users')
           .select('lateness_count')
           .eq('id', profile.id)
@@ -239,7 +241,7 @@ export async function POST(req: Request) {
     if (!updatedData || updatedData.last_activity_date !== today) {
       console.log('[first-activity] ⚠️ Race condition detected: another request already processed first activity')
       // Fetch the current state to return accurate data
-      const { data: currentData } = await supabase
+      const { data: currentData } = await adminSupabase
         .from('users')
         .select('lateness_count')
         .eq('id', profile.id)

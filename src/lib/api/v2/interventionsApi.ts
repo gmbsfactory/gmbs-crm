@@ -193,6 +193,13 @@ export const interventionsApi = {
       searchParams.set("search", params.search);
     }
 
+    // Ajouter les relations à inclure (payments, artisans, costs, etc.)
+    if (params?.include && Array.isArray(params.include) && params.include.length > 0) {
+      params.include.forEach((relation) => {
+        searchParams.append("include", relation);
+      });
+    }
+
     if (process.env.NODE_ENV === "production") {
       searchParams.set("_ts", Date.now().toString());
     }
@@ -573,13 +580,10 @@ export const interventionsApi = {
       }
     }
 
-    // Récupérer le statut actuel avant la mise à jour pour détecter si on passe à "terminé"
-    let wasTerminatedBefore = false;
+    // Récupérer le statut actuel avant la mise à jour pour la transition
     let oldStatutId: string | null = null;
-    let currentIntervention: any = null; // Déclarer la variable en dehors du bloc if
+    let currentIntervention: any = null;
 
-    // Retirer la condition typeof window !== "undefined" pour permettre la récupération
-    // du statut même en environnement Node.js (scripts de test, etc.)
     if (payload.statut_id) {
       const { data } = await supabase
         .from("interventions")
@@ -590,16 +594,9 @@ export const interventionsApi = {
         .eq("id", id)
         .single();
 
-      currentIntervention = data; // Assigner la valeur
-
+      currentIntervention = data;
       if (currentIntervention) {
         oldStatutId = currentIntervention.statut_id;
-
-        if ((currentIntervention as any).status) {
-          const terminatedStatusCodes = ['INTER_TERMINEE'];
-          const currentStatusCode = (currentIntervention as any).status?.code;
-          wasTerminatedBefore = currentStatusCode && terminatedStatusCodes.includes(currentStatusCode);
-        }
       }
     }
 
@@ -688,43 +685,8 @@ export const interventionsApi = {
     const refs = await getReferenceCache();
     const mapped = mapInterventionRecord(updated, refs) as InterventionWithStatus;
 
-    // Si l'intervention vient de passer à un statut terminé, recalculer les statuts des artisans associés
-    const terminatedStatusCodes = ['INTER_TERMINEE'];
-    const isTerminated = mapped.status?.code && terminatedStatusCodes.includes(mapped.status.code);
-
-    // Si le statut vient de passer à "terminé", recalculer les statuts des artisans
-    if (isTerminated && !wasTerminatedBefore && typeof window !== "undefined") {
-      // Récupérer les artisans associés à cette intervention
-      const { data: interventionArtisans } = await supabase
-        .from('intervention_artisans')
-        .select('artisan_id, is_primary')
-        .eq('intervention_id', id);
-
-      if (interventionArtisans && interventionArtisans.length > 0) {
-        // Prioriser les artisans primaires, sinon prendre tous
-        const artisanIds = interventionArtisans
-          .filter(ia => ia.is_primary === true)
-          .map(ia => ia.artisan_id)
-          .filter(Boolean) as string[];
-
-        const finalArtisanIds = artisanIds.length > 0
-          ? artisanIds
-          : interventionArtisans.map(ia => ia.artisan_id).filter(Boolean) as string[];
-
-        // Appeler l'API route pour recalculer chaque artisan en arrière-plan
-        finalArtisanIds.forEach(artisanId => {
-          fetch(`/api/artisans/${artisanId}/recalculate-status`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-          }).catch(error => {
-            console.warn(`[interventionsApi] Erreur lors du recalcul pour artisan ${artisanId}:`, error);
-          });
-        });
-      }
-    }
-
-    // Note: L'invalidation des queries TanStack Query est gérée par useInterventionsMutations
-    // Les composants utilisant TanStack Query seront automatiquement mis à jour via invalidateQueries
+    // Note: Le recalcul du statut artisan est géré automatiquement par le trigger SQL
+    // trg_artisan_status_on_intervention_update qui se déclenche quand statut_id change
 
     return mapped;
   },

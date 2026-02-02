@@ -1,5 +1,8 @@
 import { vi } from "vitest"
 
+// Ré-export des utilitaires du dossier supabase/
+export * from "./supabase/supabase-mock-builder"
+
 // Mock Supabase client
 export const mockSupabaseClient = {
   from: vi.fn(() => ({

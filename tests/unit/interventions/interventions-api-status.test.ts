@@ -7,6 +7,9 @@ import { referenceApi } from "@/lib/reference-api";
 vi.mock("@/lib/supabase-client", () => ({
   supabase: {
     from: vi.fn(),
+    auth: {
+      getSession: vi.fn().mockResolvedValue({ data: { session: null }, error: null }),
+    },
   },
 }));
 
@@ -34,7 +37,8 @@ describe("interventionsApi - status handling", () => {
   });
 
   it("getAll should return interventions with joined status data", async () => {
-    const mockRange = vi.fn().mockResolvedValue({
+    // getAll utilise fetch vers l'edge function, on doit mocker fetch
+    const mockResponseData = {
       data: [
         {
           id: "1",
@@ -48,28 +52,23 @@ describe("interventionsApi - status handling", () => {
           },
         },
       ],
-      error: null,
-      count: 1,
-    });
-
-    const mockQuery = {
-      select: vi.fn().mockReturnThis(),
-      order: vi.fn().mockReturnThis(),
-      eq: vi.fn().mockReturnThis(),
-      gte: vi.fn().mockReturnThis(),
-      lte: vi.fn().mockReturnThis(),
-      range: mockRange,
+      total: 1,
     };
 
-    vi.mocked(supabase.from).mockReturnValue(mockQuery as any);
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: () => Promise.resolve(mockResponseData),
+    });
+    vi.stubGlobal("fetch", fetchMock);
 
     const result = await interventionsApi.getAll();
 
     expect(result.data).toHaveLength(1);
     expect(result.data[0].status?.label).toBe("Demandé");
-    expect(mockQuery.select).toHaveBeenCalledWith(
-      expect.stringContaining("status:intervention_statuses"),
-      expect.objectContaining({ count: "exact" }),
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining("/interventions-v2/interventions"),
+      expect.any(Object),
     );
   });
 

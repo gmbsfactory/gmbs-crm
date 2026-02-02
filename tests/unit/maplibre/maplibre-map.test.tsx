@@ -10,11 +10,17 @@ import { MapLibreMapImpl } from "@/components/maps/MapLibreMapImpl"
 
 const maptilerConfig = vi.hoisted(() => ({ apiKey: "" }))
 
+const mockGeoJSONSource = {
+  setData: vi.fn(),
+}
+
 const mapInstanceBase = {
   addControl: vi.fn(),
   on: vi.fn().mockReturnThis(),
+  once: vi.fn(),
   remove: vi.fn(),
   easeTo: vi.fn(),
+  fitBounds: vi.fn(),
   getStyle: vi.fn(() => ({
     layers: [{ id: "label-layer", type: "symbol" }],
     sources: { openmaptiles: {} },
@@ -23,6 +29,14 @@ const mapInstanceBase = {
   removeLayer: vi.fn(),
   addLayer: vi.fn(),
   isStyleLoaded: vi.fn(() => true),
+  getSource: vi.fn(() => mockGeoJSONSource),
+  addSource: vi.fn(),
+  removeSource: vi.fn(),
+}
+
+const mockMarkerElement = {
+  style: { cursor: "" },
+  addEventListener: vi.fn(),
 }
 
 const markerInstanceBase = {
@@ -32,6 +46,7 @@ const markerInstanceBase = {
   remove: vi.fn(),
   setDraggable: vi.fn(),
   getLngLat: vi.fn(() => ({ lat: 48.85, lng: 2.35 })),
+  getElement: vi.fn(() => mockMarkerElement),
 }
 
 const MapMock = vi.hoisted(() => vi.fn())
@@ -56,11 +71,21 @@ describe("MapLibreMapImpl", () => {
     MarkerMock.mockReset()
     NavigationControlMock.mockReset()
     maptilerConfig.apiKey = ""
+
+    // Reset mockMarkerElement
+    mockMarkerElement.style = { cursor: "" }
+    mockMarkerElement.addEventListener = vi.fn()
+
+    // Reset mockGeoJSONSource
+    mockGeoJSONSource.setData = vi.fn()
+
     Object.assign(mapInstanceBase, {
       addControl: vi.fn(),
       on: vi.fn().mockReturnThis(),
+      once: vi.fn(),
       remove: vi.fn(),
       easeTo: vi.fn(),
+      fitBounds: vi.fn(),
       getStyle: vi.fn(() => ({
         layers: [{ id: "label-layer", type: "symbol" }],
         sources: { openmaptiles: {} },
@@ -69,6 +94,9 @@ describe("MapLibreMapImpl", () => {
       removeLayer: vi.fn(),
       addLayer: vi.fn(),
       isStyleLoaded: vi.fn(() => true),
+      getSource: vi.fn(() => mockGeoJSONSource),
+      addSource: vi.fn(),
+      removeSource: vi.fn(),
     })
     Object.assign(markerInstanceBase, {
       setLngLat: vi.fn().mockReturnThis(),
@@ -77,6 +105,7 @@ describe("MapLibreMapImpl", () => {
       remove: vi.fn(),
       setDraggable: vi.fn(),
       getLngLat: vi.fn(() => ({ lat: 48.85, lng: 2.35 })),
+      getElement: vi.fn(() => mockMarkerElement),
     })
 
     MapMock.mockImplementation(() => mapInstanceBase)

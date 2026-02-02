@@ -986,6 +986,19 @@
     background-clip: padding-box;
   }
 
+  /* Ligne cochée en compta - fond vert */
+  .data-table tbody tr.compta-checked td,
+  .shadcn-table tbody tr.compta-checked td {
+    --cell-base-color: #bbf7d0 !important;
+    background: #bbf7d0 !important;
+  }
+
+  :root[data-theme="dark"] .data-table tbody tr.compta-checked td,
+  :root[data-theme="dark"] .shadcn-table tbody tr.compta-checked td {
+    --cell-base-color: #166534 !important;
+    background: #166534 !important;
+  }
+
   .badge-success { background: var(--success-bg); color: var(--success); }
   .badge-error { background: var(--error-bg); color: var(--error); }
   .badge-warning { background: var(--warning-bg); color: var(--warning); }
