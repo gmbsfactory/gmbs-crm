@@ -17,6 +17,7 @@ import { useCurrentUser } from "@/hooks/useCurrentUser"
 import { usePermissions } from "@/hooks/usePermissions"
 import { useInterventionModal } from "@/hooks/useInterventionModal"
 import { interventionsApi } from "@/lib/api/v2"
+import { comptaApi } from "@/lib/api/compta"
 import type { InterventionWithStatus } from "@/types/intervention"
 import { cn } from "@/lib/utils"
 
@@ -118,6 +119,9 @@ export default function ComptabilitePage() {
   // États pour la sélection et la copie
   const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set())
   const [copied, setCopied] = useState(false)
+  
+  // État pour les interventions marquées comme "gérées" en compta
+  const [checkedInterventions, setCheckedInterventions] = useState<Set<string>>(new Set())
 
   // États pour la pagination
   const [currentPage, setCurrentPage] = useState(1)
@@ -249,7 +253,19 @@ export default function ComptabilitePage() {
           })
         }
 
+        // Tâche #181 : Trier par date de facturation (date_termine) - plus récent en premier
+        filtered.sort((a, b) => {
+          const dateA = new Date((a as any).date_termine || 0).getTime()
+          const dateB = new Date((b as any).date_termine || 0).getTime()
+          return dateB - dateA
+        })
+
         setInterventions(filtered as InterventionRecord[])
+        
+        // Tâche #182 : Récupérer les checks compta
+        const ids = filtered.map(i => i.id)
+        const checks = await comptaApi.getCheckedInterventions(ids)
+        setCheckedInterventions(checks)
       } catch (err: any) {
         setError(err?.message || "Impossible de charger les interventions")
       } finally {
@@ -305,6 +321,20 @@ export default function ComptabilitePage() {
       newSelected.add(id)
     }
     setSelectedRows(newSelected)
+  }
+
+  // Tâche #182 : Toggle le statut "géré" d'une intervention
+  const toggleComptaCheck = async (interventionId: string) => {
+    const newState = await comptaApi.toggleCheck(interventionId)
+    setCheckedInterventions(prev => {
+      const next = new Set(prev)
+      if (newState) {
+        next.add(interventionId)
+      } else {
+        next.delete(interventionId)
+      }
+      return next
+    })
   }
 
   // Fonction pour nettoyer les valeurs et éviter les retours à la ligne
@@ -557,6 +587,7 @@ export default function ComptabilitePage() {
                   className={cn(someSelected && "data-[state=checked]:bg-primary/50")}
                 />
               </TableHead>
+              <TableHead className="w-[50px]">Géré</TableHead>
               <TableHead className="w-[85px]">Date</TableHead>
               <TableHead className="w-[80px]">Agence</TableHead>
               <TableHead className="w-[80px]">Attribué</TableHead>
@@ -579,7 +610,7 @@ export default function ComptabilitePage() {
           <TableBody>
             {isLoading && (
               <TableRow>
-                <TableCell colSpan={18} className="text-center text-sm text-muted-foreground">
+                <TableCell colSpan={19} className="text-center text-sm text-muted-foreground">
                   <div className="flex items-center justify-center gap-2 py-4">
                     <Loader2 className="h-4 w-4 animate-spin" />
                     Chargement des interventions…
@@ -589,7 +620,7 @@ export default function ComptabilitePage() {
             )}
             {!isLoading && interventions.length === 0 && (
               <TableRow>
-                <TableCell colSpan={18} className="text-center text-sm text-muted-foreground py-8">
+                <TableCell colSpan={19} className="text-center text-sm text-muted-foreground py-8">
                   Aucune intervention terminée pour la période sélectionnée.
                 </TableCell>
               </TableRow>
@@ -599,16 +630,28 @@ export default function ComptabilitePage() {
                 const acompteClient = getPaymentInfo(intervention, "acompte_client")
                 const acompteArtisan = getPaymentInfo(intervention, "acompte_artisan")
                 const isSelected = selectedRows.has(intervention.id)
+                const isComptaChecked = checkedInterventions.has(intervention.id)
                 return (
                   <TableRow 
                     key={intervention.id}
-                    className={cn(isSelected && "bg-muted/50")}
+                    className={cn(
+                      isSelected && "bg-muted/50",
+                      isComptaChecked && "bg-green-50 dark:bg-green-900/20"
+                    )}
                   >
                     <TableCell>
                       <Checkbox
                         checked={isSelected}
                         onCheckedChange={() => toggleSelectRow(intervention.id)}
                         aria-label={`Sélectionner la ligne ${intervention.id_inter || intervention.id}`}
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <Checkbox
+                        checked={isComptaChecked}
+                        onCheckedChange={() => toggleComptaCheck(intervention.id)}
+                        aria-label="Marquer comme géré"
+                        className="data-[state=checked]:bg-green-500 data-[state=checked]:border-green-500"
                       />
                     </TableCell>
                     <TableCell>
