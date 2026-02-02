@@ -580,13 +580,10 @@ export const interventionsApi = {
       }
     }
 
-    // Récupérer le statut actuel avant la mise à jour pour détecter si on passe à "terminé"
-    let wasTerminatedBefore = false;
+    // Récupérer le statut actuel avant la mise à jour pour la transition
     let oldStatutId: string | null = null;
-    let currentIntervention: any = null; // Déclarer la variable en dehors du bloc if
+    let currentIntervention: any = null;
 
-    // Retirer la condition typeof window !== "undefined" pour permettre la récupération
-    // du statut même en environnement Node.js (scripts de test, etc.)
     if (payload.statut_id) {
       const { data } = await supabase
         .from("interventions")
@@ -597,16 +594,9 @@ export const interventionsApi = {
         .eq("id", id)
         .single();
 
-      currentIntervention = data; // Assigner la valeur
-
+      currentIntervention = data;
       if (currentIntervention) {
         oldStatutId = currentIntervention.statut_id;
-
-        if ((currentIntervention as any).status) {
-          const terminatedStatusCodesBefore = ['INTER_TERMINEE', 'TERMINE'];
-          const currentStatusCode = (currentIntervention as any).status?.code;
-          wasTerminatedBefore = currentStatusCode && terminatedStatusCodesBefore.includes(currentStatusCode);
-        }
       }
     }
 
@@ -695,71 +685,8 @@ export const interventionsApi = {
     const refs = await getReferenceCache();
     const mapped = mapInterventionRecord(updated, refs) as InterventionWithStatus;
 
-    // Si l'intervention vient de passer à/de un statut terminé, recalculer les statuts des artisans associés
-    const terminatedStatusCodes = ['INTER_TERMINEE', 'TERMINE'];
-    const isTerminated = mapped.status?.code && terminatedStatusCodes.includes(mapped.status.code);
-
-    // Recalculer les statuts artisans si:
-    // 1. L'intervention vient de passer à "terminé" (upgrade possible)
-    // 2. L'intervention quitte un statut "terminé" (downgrade possible)
-    const needsRecalculation = (isTerminated && !wasTerminatedBefore) || (wasTerminatedBefore && !isTerminated);
-
-    console.log(`[interventionsApi] Recalcul statut artisan check:`, {
-      interventionId: id,
-      newStatusCode: mapped.status?.code,
-      isTerminated,
-      wasTerminatedBefore,
-      needsRecalculation
-    });
-
-    if (needsRecalculation) {
-      // Récupérer TOUS les artisans associés à cette intervention (primaires ET secondaires)
-      const { data: interventionArtisans, error: artisansError } = await supabase
-        .from('intervention_artisans')
-        .select('artisan_id')
-        .eq('intervention_id', id);
-
-      console.log(`[interventionsApi] Artisans liés à l'intervention ${id}:`, {
-        count: interventionArtisans?.length ?? 0,
-        artisans: interventionArtisans,
-        error: artisansError?.message
-      });
-
-      if (interventionArtisans && interventionArtisans.length > 0) {
-        // Récupérer tous les artisans liés (sans filtre is_primary)
-        const artisanIds = interventionArtisans
-          .map(ia => ia.artisan_id)
-          .filter(Boolean) as string[];
-
-        // Appeler la fonction RPC pour recalculer le statut de chaque artisan
-        for (const artisanId of artisanIds) {
-          try {
-            console.log(`[interventionsApi] Appel RPC recalculate_artisan_status pour artisan ${artisanId}...`);
-
-            const { data: rpcResult, error: rpcError } = await supabase
-              .rpc('recalculate_artisan_status', { artisan_uuid: artisanId });
-
-            if (rpcError) {
-              console.error(`[interventionsApi] ERREUR RPC recalcul artisan ${artisanId}:`, {
-                message: rpcError.message,
-                details: rpcError.details,
-                hint: rpcError.hint,
-                code: rpcError.code
-              });
-            } else {
-              console.log(`[interventionsApi] ✅ Statut artisan ${artisanId} recalculé:`, rpcResult);
-            }
-          } catch (error) {
-            console.error(`[interventionsApi] Exception lors du recalcul pour artisan ${artisanId}:`, error);
-          }
-        }
-      } else {
-        console.warn(`[interventionsApi] Aucun artisan lié à l'intervention ${id}, pas de recalcul`);
-      }
-    }
-
-    // Note: L'invalidation des queries TanStack Query est gérée par useInterventionsMutations
-    // Les composants utilisant TanStack Query seront automatiquement mis à jour via invalidateQueries
+    // Note: Le recalcul du statut artisan est géré automatiquement par le trigger SQL
+    // trg_artisan_status_on_intervention_update qui se déclenche quand statut_id change
 
     return mapped;
   },
