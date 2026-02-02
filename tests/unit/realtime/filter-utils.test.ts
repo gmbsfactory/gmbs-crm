@@ -36,7 +36,7 @@ const baseIntervention: Intervention = {
   is_active: true,
   created_at: null,
   updated_at: null,
-  artisans: [],
+  artisans: ["artisan-1"], // L'implémentation utilise intervention.artisans (tableau)
   costs: [],
   payments: [],
   attachments: [],
@@ -92,7 +92,8 @@ describe("matchesFilters", () => {
       metier: "metier-1",
     }
     expect(matchesFilters(makeIntervention(), filters)).toBe(true)
-    expect(matchesFilters(makeIntervention({ artisan_id: "artisan-9" }), filters)).toBe(false)
+    // L'implémentation utilise intervention.artisans (tableau), pas artisan_id
+    expect(matchesFilters(makeIntervention({ artisans: ["artisan-9"] }), filters)).toBe(false)
 
     const arrayFilters: GetAllParams = {
       ...baseFilters,
@@ -100,7 +101,7 @@ describe("matchesFilters", () => {
       agence: ["agency-1", "agency-2"],
       metier: ["metier-9", "metier-1"],
     }
-    expect(matchesFilters(makeIntervention({ artisan_id: "artisan-2" }), arrayFilters)).toBe(true)
+    expect(matchesFilters(makeIntervention({ artisans: ["artisan-2"] }), arrayFilters)).toBe(true)
   })
 
   it("applies date range filters", () => {
