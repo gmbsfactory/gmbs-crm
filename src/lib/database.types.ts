@@ -7,30 +7,10 @@ export type Json =
   | Json[]
 
 export type Database = {
-  graphql_public: {
-    Tables: {
-      [_ in never]: never
-    }
-    Views: {
-      [_ in never]: never
-    }
-    Functions: {
-      graphql: {
-        Args: {
-          extensions?: Json
-          operationName?: string
-          query?: string
-          variables?: Json
-        }
-        Returns: Json
-      }
-    }
-    Enums: {
-      [_ in never]: never
-    }
-    CompositeTypes: {
-      [_ in never]: never
-    }
+  // Allows to automatically instantiate createClient with right options
+  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
+  __InternalSupabase: {
+    PostgrestVersion: "13.0.4"
   }
   public: {
     Tables: {
@@ -362,6 +342,180 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      artisan_portal_tokens: {
+        Row: {
+          artisan_id: string
+          created_at: string | null
+          created_by: string | null
+          expires_at: string | null
+          id: string
+          is_active: boolean | null
+          last_accessed_at: string | null
+          token: string
+        }
+        Insert: {
+          artisan_id: string
+          created_at?: string | null
+          created_by?: string | null
+          expires_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          last_accessed_at?: string | null
+          token: string
+        }
+        Update: {
+          artisan_id?: string
+          created_at?: string | null
+          created_by?: string | null
+          expires_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          last_accessed_at?: string | null
+          token?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "artisan_portal_tokens_artisan_id_fkey"
+            columns: ["artisan_id"]
+            isOneToOne: false
+            referencedRelation: "artisans"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "artisan_portal_tokens_artisan_id_fkey"
+            columns: ["artisan_id"]
+            isOneToOne: false
+            referencedRelation: "artisans_search_mv"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      artisan_report_photos: {
+        Row: {
+          artisan_id: string
+          comment: string | null
+          created_at: string | null
+          filename: string
+          id: string
+          intervention_id: string
+          mime_type: string | null
+          portal_photo_id: string | null
+          report_id: string | null
+          size_bytes: number | null
+          storage_path: string
+          synced_from_portal: boolean | null
+        }
+        Insert: {
+          artisan_id: string
+          comment?: string | null
+          created_at?: string | null
+          filename: string
+          id?: string
+          intervention_id: string
+          mime_type?: string | null
+          portal_photo_id?: string | null
+          report_id?: string | null
+          size_bytes?: number | null
+          storage_path: string
+          synced_from_portal?: boolean | null
+        }
+        Update: {
+          artisan_id?: string
+          comment?: string | null
+          created_at?: string | null
+          filename?: string
+          id?: string
+          intervention_id?: string
+          mime_type?: string | null
+          portal_photo_id?: string | null
+          report_id?: string | null
+          size_bytes?: number | null
+          storage_path?: string
+          synced_from_portal?: boolean | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "artisan_report_photos_artisan_id_fkey"
+            columns: ["artisan_id"]
+            isOneToOne: false
+            referencedRelation: "artisans"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "artisan_report_photos_artisan_id_fkey"
+            columns: ["artisan_id"]
+            isOneToOne: false
+            referencedRelation: "artisans_search_mv"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "artisan_report_photos_intervention_id_fkey"
+            columns: ["intervention_id"]
+            isOneToOne: false
+            referencedRelation: "interventions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "artisan_report_photos_intervention_id_fkey"
+            columns: ["intervention_id"]
+            isOneToOne: false
+            referencedRelation: "interventions_search_mv"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "artisan_report_photos_report_id_fkey"
+            columns: ["report_id"]
+            isOneToOne: false
+            referencedRelation: "artisan_reports"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      artisan_reports: {
+        Row: {
+          artisan_id: string
+          content: string
+          created_at: string | null
+          id: string
+          intervention_id: string
+          metadata: Json | null
+          photo_ids: string[] | null
+          portal_report_id: string | null
+          status: string | null
+          submitted_at: string | null
+          synced_from_portal: boolean | null
+          updated_at: string | null
+        }
+        Insert: {
+          artisan_id: string
+          content: string
+          created_at?: string | null
+          id?: string
+          intervention_id: string
+          metadata?: Json | null
+          photo_ids?: string[] | null
+          portal_report_id?: string | null
+          status?: string | null
+          submitted_at?: string | null
+          synced_from_portal?: boolean | null
+          updated_at?: string | null
+        }
+        Update: {
+          artisan_id?: string
+          content?: string
+          created_at?: string | null
+          id?: string
+          intervention_id?: string
+          metadata?: Json | null
+          photo_ids?: string[] | null
+          portal_report_id?: string | null
+          status?: string | null
+          submitted_at?: string | null
+          synced_from_portal?: boolean | null
+          updated_at?: string | null
+        }
+        Relationships: []
       }
       artisan_status_history: {
         Row: {
@@ -1228,6 +1382,7 @@ export type Database = {
           id: string
           intervention_id: string | null
           kind: string
+          metadata: Json | null
           mime_type: string | null
           url: string
         }
@@ -1242,6 +1397,7 @@ export type Database = {
           id?: string
           intervention_id?: string | null
           kind: string
+          metadata?: Json | null
           mime_type?: string | null
           url: string
         }
@@ -1256,6 +1412,7 @@ export type Database = {
           id?: string
           intervention_id?: string | null
           kind?: string
+          metadata?: Json | null
           mime_type?: string | null
           url?: string
         }
@@ -1394,6 +1551,42 @@ export type Database = {
             columns: ["status_transition_id"]
             isOneToOne: false
             referencedRelation: "intervention_status_transitions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      intervention_compta_checks: {
+        Row: {
+          checked_at: string | null
+          checked_by: string | null
+          id: string
+          intervention_id: string
+        }
+        Insert: {
+          checked_at?: string | null
+          checked_by?: string | null
+          id?: string
+          intervention_id: string
+        }
+        Update: {
+          checked_at?: string | null
+          checked_by?: string | null
+          id?: string
+          intervention_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "intervention_compta_checks_intervention_id_fkey"
+            columns: ["intervention_id"]
+            isOneToOne: true
+            referencedRelation: "interventions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "intervention_compta_checks_intervention_id_fkey"
+            columns: ["intervention_id"]
+            isOneToOne: true
+            referencedRelation: "interventions_search_mv"
             referencedColumns: ["id"]
           },
         ]
@@ -1747,6 +1940,7 @@ export type Database = {
           date_termine: string | null
           due_date: string | null
           floor: string | null
+          has_portal_report: boolean | null
           id: string
           id_inter: string | null
           is_active: boolean | null
@@ -1786,6 +1980,7 @@ export type Database = {
           date_termine?: string | null
           due_date?: string | null
           floor?: string | null
+          has_portal_report?: boolean | null
           id?: string
           id_inter?: string | null
           is_active?: boolean | null
@@ -1825,6 +2020,7 @@ export type Database = {
           date_termine?: string | null
           due_date?: string | null
           floor?: string | null
+          has_portal_report?: boolean | null
           id?: string
           id_inter?: string | null
           is_active?: boolean | null
@@ -1926,6 +2122,54 @@ export type Database = {
           },
           {
             foreignKeyName: "interventions_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "v_user_permissions_debug"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      lateness_email_config: {
+        Row: {
+          created_at: string | null
+          email_password_encrypted: string
+          email_smtp: string
+          id: string
+          is_enabled: boolean | null
+          motivation_message: string | null
+          updated_at: string | null
+          updated_by: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          email_password_encrypted: string
+          email_smtp: string
+          id?: string
+          is_enabled?: boolean | null
+          motivation_message?: string | null
+          updated_at?: string | null
+          updated_by?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          email_password_encrypted?: string
+          email_smtp?: string
+          id?: string
+          is_enabled?: boolean | null
+          motivation_message?: string | null
+          updated_at?: string | null
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lateness_email_config_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lateness_email_config_updated_by_fkey"
             columns: ["updated_by"]
             isOneToOne: false
             referencedRelation: "v_user_permissions_debug"
@@ -2230,6 +2474,51 @@ export type Database = {
           description?: string | null
           id?: string
           key?: string
+        }
+        Relationships: []
+      }
+      plugin_subscriptions: {
+        Row: {
+          cancel_at_period_end: boolean | null
+          created_at: string | null
+          current_period_end: string | null
+          current_period_start: string | null
+          id: string
+          metadata: Json | null
+          plugin_id: string
+          status: string
+          stripe_customer_id: string | null
+          stripe_price_id: string | null
+          stripe_subscription_id: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          cancel_at_period_end?: boolean | null
+          created_at?: string | null
+          current_period_end?: string | null
+          current_period_start?: string | null
+          id?: string
+          metadata?: Json | null
+          plugin_id: string
+          status?: string
+          stripe_customer_id?: string | null
+          stripe_price_id?: string | null
+          stripe_subscription_id?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          cancel_at_period_end?: boolean | null
+          created_at?: string | null
+          current_period_end?: string | null
+          current_period_start?: string | null
+          id?: string
+          metadata?: Json | null
+          plugin_id?: string
+          status?: string
+          stripe_customer_id?: string | null
+          stripe_price_id?: string | null
+          stripe_subscription_id?: string | null
+          updated_at?: string | null
         }
         Relationships: []
       }
@@ -2852,6 +3141,7 @@ export type Database = {
       }
       users: {
         Row: {
+          archived_at: string | null
           auth_user_id: string | null
           avatar_url: string | null
           code_gestionnaire: string | null
@@ -2875,13 +3165,16 @@ export type Database = {
           lastname: string | null
           lateness_count: number | null
           lateness_count_year: number | null
+          lateness_email_sent_at: string | null
           lateness_notification_shown_at: string | null
+          restored_at: string | null
           status: Database["public"]["Enums"]["user_status"]
           token_version: number | null
           updated_at: string | null
           username: string
         }
         Insert: {
+          archived_at?: string | null
           auth_user_id?: string | null
           avatar_url?: string | null
           code_gestionnaire?: string | null
@@ -2905,13 +3198,16 @@ export type Database = {
           lastname?: string | null
           lateness_count?: number | null
           lateness_count_year?: number | null
+          lateness_email_sent_at?: string | null
           lateness_notification_shown_at?: string | null
+          restored_at?: string | null
           status?: Database["public"]["Enums"]["user_status"]
           token_version?: number | null
           updated_at?: string | null
           username: string
         }
         Update: {
+          archived_at?: string | null
           auth_user_id?: string | null
           avatar_url?: string | null
           code_gestionnaire?: string | null
@@ -2935,7 +3231,9 @@ export type Database = {
           lastname?: string | null
           lateness_count?: number | null
           lateness_count_year?: number | null
+          lateness_email_sent_at?: string | null
           lateness_notification_shown_at?: string | null
+          restored_at?: string | null
           status?: Database["public"]["Enums"]["user_status"]
           token_version?: number | null
           updated_at?: string | null
@@ -3217,6 +3515,8 @@ export type Database = {
       v_user_permissions_debug: {
         Row: {
           email: string | null
+          firstname: string | null
+          lastname: string | null
           permissions: string[] | null
           role_name: string | null
           user_id: string | null
@@ -3250,6 +3550,13 @@ export type Database = {
         Args: { p_include_check?: boolean; p_user_id?: string }
         Returns: {
           intervention_id: string
+        }[]
+      }
+      generate_artisan_portal_token: {
+        Args: { p_artisan_id: string; p_created_by?: string }
+        Returns: {
+          expires_at: string
+          token: string
         }[]
       }
       get_actor_snapshot: {
@@ -3448,7 +3755,7 @@ export type Database = {
       }
       recalculate_artisan_status: {
         Args: { artisan_uuid: string }
-        Returns: undefined
+        Returns: string
       }
       refresh_artisans_search: { Args: never; Returns: undefined }
       refresh_current_podium_period: { Args: never; Returns: undefined }
@@ -3515,10 +3822,17 @@ export type Database = {
         Returns: boolean
       }
       user_has_role: { Args: { role_name: string }; Returns: boolean }
+      validate_artisan_portal_token: {
+        Args: { p_token: string }
+        Returns: {
+          artisan_id: string
+          is_valid: boolean
+        }[]
+      }
     }
     Enums: {
       target_period_type: "week" | "month" | "year"
-      user_status: "connected" | "dnd" | "busy" | "offline"
+      user_status: "connected" | "dnd" | "busy" | "offline" | "archived"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -3644,14 +3958,10 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
-  graphql_public: {
-    Enums: {},
-  },
   public: {
     Enums: {
       target_period_type: ["week", "month", "year"],
-      user_status: ["connected", "dnd", "busy", "offline"],
+      user_status: ["connected", "dnd", "busy", "offline", "archived"],
     },
   },
 } as const
-

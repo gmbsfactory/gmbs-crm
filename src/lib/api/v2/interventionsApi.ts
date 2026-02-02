@@ -704,12 +704,26 @@ export const interventionsApi = {
     // 2. L'intervention quitte un statut "terminé" (downgrade possible)
     const needsRecalculation = (isTerminated && !wasTerminatedBefore) || (wasTerminatedBefore && !isTerminated);
 
+    console.log(`[interventionsApi] Recalcul statut artisan check:`, {
+      interventionId: id,
+      newStatusCode: mapped.status?.code,
+      isTerminated,
+      wasTerminatedBefore,
+      needsRecalculation
+    });
+
     if (needsRecalculation) {
       // Récupérer TOUS les artisans associés à cette intervention (primaires ET secondaires)
-      const { data: interventionArtisans } = await supabase
+      const { data: interventionArtisans, error: artisansError } = await supabase
         .from('intervention_artisans')
         .select('artisan_id')
         .eq('intervention_id', id);
+
+      console.log(`[interventionsApi] Artisans liés à l'intervention ${id}:`, {
+        count: interventionArtisans?.length ?? 0,
+        artisans: interventionArtisans,
+        error: artisansError?.message
+      });
 
       if (interventionArtisans && interventionArtisans.length > 0) {
         // Récupérer tous les artisans liés (sans filtre is_primary)
@@ -720,18 +734,27 @@ export const interventionsApi = {
         // Appeler la fonction RPC pour recalculer le statut de chaque artisan
         for (const artisanId of artisanIds) {
           try {
+            console.log(`[interventionsApi] Appel RPC recalculate_artisan_status pour artisan ${artisanId}...`);
+
             const { data: rpcResult, error: rpcError } = await supabase
               .rpc('recalculate_artisan_status', { artisan_uuid: artisanId });
 
             if (rpcError) {
-              console.warn(`[interventionsApi] Erreur RPC recalcul artisan ${artisanId}:`, rpcError.message);
+              console.error(`[interventionsApi] ERREUR RPC recalcul artisan ${artisanId}:`, {
+                message: rpcError.message,
+                details: rpcError.details,
+                hint: rpcError.hint,
+                code: rpcError.code
+              });
             } else {
-              console.log(`[interventionsApi] Statut artisan ${artisanId} recalculé:`, rpcResult);
+              console.log(`[interventionsApi] ✅ Statut artisan ${artisanId} recalculé:`, rpcResult);
             }
           } catch (error) {
-            console.warn(`[interventionsApi] Erreur lors du recalcul pour artisan ${artisanId}:`, error);
+            console.error(`[interventionsApi] Exception lors du recalcul pour artisan ${artisanId}:`, error);
           }
         }
+      } else {
+        console.warn(`[interventionsApi] Aucun artisan lié à l'intervention ${id}, pas de recalcul`);
       }
     }
 
