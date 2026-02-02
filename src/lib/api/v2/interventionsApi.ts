@@ -193,6 +193,13 @@ export const interventionsApi = {
       searchParams.set("search", params.search);
     }
 
+    // Ajouter les relations à inclure (payments, artisans, costs, etc.)
+    if (params?.include && Array.isArray(params.include) && params.include.length > 0) {
+      params.include.forEach((relation) => {
+        searchParams.append("include", relation);
+      });
+    }
+
     if (process.env.NODE_ENV === "production") {
       searchParams.set("_ts", Date.now().toString());
     }

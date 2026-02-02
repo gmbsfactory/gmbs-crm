@@ -378,6 +378,7 @@ const AVAILABLE_RELATIONS: Record<string, string> = {
   metiers: 'metiers(id,label,code)',
   artisans: 'intervention_artisans(id,artisan_id,is_primary,role,artisans(id,nom,prenom,plain_nom,email,telephone,telephone2,numero_associe,siret,raison_sociale,status:artisan_statuses(id,code,label,color)))',
   costs: 'intervention_costs(id,cost_type,label,amount,currency)',
+  payments: 'intervention_payments(id,payment_type,amount,is_received,payment_date,reference)',
   owner: 'owner:owner_id(id,owner_firstname,owner_lastname,plain_nom_facturation,email,telephone)',
 };
 

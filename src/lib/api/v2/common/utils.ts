@@ -343,7 +343,11 @@ export const mapInterventionRecord = (item: any, refs: any): any => {
     artisan: artisanDisplayName, // Nom d'affichage de l'artisan principal (raison_sociale > plain_nom > prenom nom)
     primaryArtisan: primaryArtisanData, // Données complètes de l'artisan principal
     costs: interventionCosts, // Liste des coûts avec leurs labels
-    payments: Array.isArray(item.payments) ? item.payments : [],
+    payments: Array.isArray(item.payments) && item.payments.length > 0
+      ? item.payments
+      : Array.isArray(item.intervention_payments)
+        ? item.intervention_payments
+        : [],
     attachments: Array.isArray(item.attachments) ? item.attachments : [],
     // Utiliser le cache des coûts si disponible, sinon calculer depuis intervention_costs, sinon fallback sur les champs directs
     coutIntervention:

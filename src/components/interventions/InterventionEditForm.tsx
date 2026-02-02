@@ -1802,6 +1802,40 @@ export const InterventionEditForm = memo(function InterventionEditForm({
         }
       }
 
+      // Mettre à jour les acomptes
+      const accompteSSTValue = parseFloat(formData.accompteSST) || 0
+      const accompteClientValue = parseFloat(formData.accompteClient) || 0
+
+      // Acompte SST
+      if (accompteSSTValue > 0 || formData.accompteSSTRecu || formData.dateAccompteSSTRecu) {
+        try {
+          await interventionsApi.upsertPayment(intervention.id, {
+            payment_type: 'acompte_sst',
+            amount: accompteSSTValue,
+            currency: 'EUR',
+            is_received: formData.accompteSSTRecu || false,
+            payment_date: formData.dateAccompteSSTRecu || null
+          })
+        } catch (paymentError) {
+          console.error('[InterventionEditForm] Erreur lors de la mise à jour de l\'acompte SST:', paymentError)
+        }
+      }
+
+      // Acompte Client
+      if (accompteClientValue > 0 || formData.accompteClientRecu || formData.dateAccompteClientRecu) {
+        try {
+          await interventionsApi.upsertPayment(intervention.id, {
+            payment_type: 'acompte_client',
+            amount: accompteClientValue,
+            currency: 'EUR',
+            is_received: formData.accompteClientRecu || false,
+            payment_date: formData.dateAccompteClientRecu || null
+          })
+        } catch (paymentError) {
+          console.error('[InterventionEditForm] Erreur lors de la mise à jour de l\'acompte client:', paymentError)
+        }
+      }
+
       // Invalider le cache du dashboard si des coûts ont été mis à jour
       if (costsUpdated) {
         // Invalider toutes les queries du dashboard admin pour forcer le rechargement
