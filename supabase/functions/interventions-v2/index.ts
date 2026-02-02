@@ -648,15 +648,11 @@ async function handleInterventionCompletionSideEffects(
       return;
     }
 
+    // CORRECTION: Récupérer TOUS les artisans liés (primaires ET secondaires)
+    // Chaque artisan lié à une intervention terminée doit voir son compteur mis à jour
     let artisanIds = artisanLinks
-      .filter((link) => link && link.is_primary === true && link.artisan_id)
+      .filter((link) => link?.artisan_id)
       .map((link) => link.artisan_id as string);
-
-    if (artisanIds.length === 0) {
-      artisanIds = artisanLinks
-        .filter((link) => link?.artisan_id)
-        .map((link) => link.artisan_id as string);
-    }
 
     artisanIds = Array.from(new Set(artisanIds));
 
@@ -754,11 +750,11 @@ async function handleInterventionCompletionSideEffects(
         // Continuer quand même, on utilisera une valeur par défaut
       }
 
+      // CORRECTION: Compter TOUTES les interventions de l'artisan (primaires ET secondaires)
       const { data: linkedInterventions, error: linkedError } = await supabase
         .from('intervention_artisans')
         .select('intervention_id')
-        .eq('artisan_id', artisanId)
-        .eq('is_primary', true);
+        .eq('artisan_id', artisanId);
 
       if (linkedError) {
         console.error(
