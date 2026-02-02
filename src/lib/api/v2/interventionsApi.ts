@@ -603,9 +603,9 @@ export const interventionsApi = {
         oldStatutId = currentIntervention.statut_id;
 
         if ((currentIntervention as any).status) {
-          const terminatedStatusCodes = ['INTER_TERMINEE'];
+          const terminatedStatusCodesBefore = ['INTER_TERMINEE', 'TERMINE'];
           const currentStatusCode = (currentIntervention as any).status?.code;
-          wasTerminatedBefore = currentStatusCode && terminatedStatusCodes.includes(currentStatusCode);
+          wasTerminatedBefore = currentStatusCode && terminatedStatusCodesBefore.includes(currentStatusCode);
         }
       }
     }
@@ -695,38 +695,43 @@ export const interventionsApi = {
     const refs = await getReferenceCache();
     const mapped = mapInterventionRecord(updated, refs) as InterventionWithStatus;
 
-    // Si l'intervention vient de passer à un statut terminé, recalculer les statuts des artisans associés
-    const terminatedStatusCodes = ['INTER_TERMINEE'];
+    // Si l'intervention vient de passer à/de un statut terminé, recalculer les statuts des artisans associés
+    const terminatedStatusCodes = ['INTER_TERMINEE', 'TERMINE'];
     const isTerminated = mapped.status?.code && terminatedStatusCodes.includes(mapped.status.code);
 
-    // Si le statut vient de passer à "terminé", recalculer les statuts des artisans
-    if (isTerminated && !wasTerminatedBefore && typeof window !== "undefined") {
-      // Récupérer les artisans associés à cette intervention
+    // Recalculer les statuts artisans si:
+    // 1. L'intervention vient de passer à "terminé" (upgrade possible)
+    // 2. L'intervention quitte un statut "terminé" (downgrade possible)
+    const needsRecalculation = (isTerminated && !wasTerminatedBefore) || (wasTerminatedBefore && !isTerminated);
+
+    if (needsRecalculation) {
+      // Récupérer TOUS les artisans associés à cette intervention (primaires ET secondaires)
       const { data: interventionArtisans } = await supabase
         .from('intervention_artisans')
-        .select('artisan_id, is_primary')
+        .select('artisan_id')
         .eq('intervention_id', id);
 
       if (interventionArtisans && interventionArtisans.length > 0) {
-        // Prioriser les artisans primaires, sinon prendre tous
+        // Récupérer tous les artisans liés (sans filtre is_primary)
         const artisanIds = interventionArtisans
-          .filter(ia => ia.is_primary === true)
           .map(ia => ia.artisan_id)
           .filter(Boolean) as string[];
 
-        const finalArtisanIds = artisanIds.length > 0
-          ? artisanIds
-          : interventionArtisans.map(ia => ia.artisan_id).filter(Boolean) as string[];
+        // Appeler la fonction RPC pour recalculer le statut de chaque artisan
+        for (const artisanId of artisanIds) {
+          try {
+            const { data: rpcResult, error: rpcError } = await supabase
+              .rpc('recalculate_artisan_status', { artisan_uuid: artisanId });
 
-        // Appeler l'API route pour recalculer chaque artisan en arrière-plan
-        finalArtisanIds.forEach(artisanId => {
-          fetch(`/api/artisans/${artisanId}/recalculate-status`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-          }).catch(error => {
+            if (rpcError) {
+              console.warn(`[interventionsApi] Erreur RPC recalcul artisan ${artisanId}:`, rpcError.message);
+            } else {
+              console.log(`[interventionsApi] Statut artisan ${artisanId} recalculé:`, rpcResult);
+            }
+          } catch (error) {
             console.warn(`[interventionsApi] Erreur lors du recalcul pour artisan ${artisanId}:`, error);
-          });
-        });
+          }
+        }
       }
     }
 
