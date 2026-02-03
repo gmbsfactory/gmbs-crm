@@ -54,16 +54,12 @@ next-env.d.ts
 
 
 .DS_Store
-package-lock.json
 
 # dossier de test pour les font et le bg
 /shader-showcase
 
 # macos
 .DS_Store
-
-# package lock
-package-lock.json
 
 # Keep docs tracked (uncomment next line to ignore)
 # /docs

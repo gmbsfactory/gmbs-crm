@@ -1784,52 +1784,63 @@ export const InterventionEditForm = memo(function InterventionEditForm({
         costsToUpdate.push({ cost_type: "intervention", amount: coutInterventionValue })
       }
 
-      // Mettre à jour chaque coût (artisan principal = artisan_order 1, sauf pour 'intervention' qui est global)
+      // Préparer tous les coûts à mettre à jour (artisan principal + 2ème artisan si présent)
       let costsUpdated = false
+      const allCostsToUpsert: Array<{
+        cost_type: 'sst' | 'materiel' | 'intervention' | 'marge';
+        amount: number;
+        artisan_order?: 1 | 2 | null;
+        label?: string | null;
+      }> = []
+
+      // Coûts artisan principal
       for (const cost of costsToUpdate) {
-        try {
-          await interventionsApi.upsertCost(intervention.id, {
-            cost_type: cost.cost_type,
-            label: cost.cost_type === "sst" ? "Coût SST" : cost.cost_type === "materiel" ? "Coût Matériel" : "Coût Intervention",
-            amount: cost.amount,
-            // artisan_order: null pour 'intervention' (coût global), 1 pour sst/materiel de l'artisan principal
-            artisan_order: cost.cost_type === "intervention" ? null : 1,
-          })
-          costsUpdated = true
-        } catch (costError) {
-          console.error(`[InterventionEditForm] Erreur lors de la mise à jour du coût ${cost.cost_type}:`, costError)
-          // Ne pas bloquer la soumission si un coût échoue
-        }
+        allCostsToUpsert.push({
+          cost_type: cost.cost_type as 'sst' | 'materiel' | 'intervention',
+          label: cost.cost_type === "sst" ? "Coût SST" : cost.cost_type === "materiel" ? "Coût Matériel" : "Coût Intervention",
+          amount: cost.amount,
+          artisan_order: cost.cost_type === "intervention" ? null : 1,
+        })
       }
 
-      // Mettre à jour les coûts du 2ème artisan (artisan_order = 2)
+      // Coûts du 2ème artisan (artisan_order = 2)
       const coutSST2Value = parseFloat(formData.coutSSTSecondArtisan) || 0
       const coutMateriel2Value = parseFloat(formData.coutMaterielSecondArtisan) || 0
 
       if (selectedSecondArtisanId) {
-        // Si un 2ème artisan est sélectionné, créer/mettre à jour ses coûts
+        // Si un 2ème artisan est sélectionné, ajouter ses coûts au batch
+        allCostsToUpsert.push({
+          cost_type: "sst",
+          label: "Coût SST 2ème artisan",
+          amount: coutSST2Value,
+          artisan_order: 2,
+        })
+        allCostsToUpsert.push({
+          cost_type: "materiel",
+          label: "Coût Matériel 2ème artisan",
+          amount: coutMateriel2Value,
+          artisan_order: 2,
+        })
+      }
+
+      // Upsert batch de tous les coûts en une seule opération
+      if (allCostsToUpsert.length > 0) {
         try {
-          await interventionsApi.upsertCost(intervention.id, {
-            cost_type: "sst",
-            label: "Coût SST 2ème artisan",
-            amount: coutSST2Value,
-            artisan_order: 2,
-          })
-          await interventionsApi.upsertCost(intervention.id, {
-            cost_type: "materiel",
-            label: "Coût Matériel 2ème artisan",
-            amount: coutMateriel2Value,
-            artisan_order: 2,
-          })
+          await interventionsApi.upsertCostsBatch(intervention.id, allCostsToUpsert)
           costsUpdated = true
         } catch (costError) {
-          console.error(`[InterventionEditForm] Erreur lors de la mise à jour des coûts du 2ème artisan:`, costError)
+          console.error(`[InterventionEditForm] Erreur lors de la mise à jour des coûts:`, costError)
+          // Ne pas bloquer la soumission si les coûts échouent
         }
-      } else {
-        // Si pas de 2ème artisan, supprimer ses coûts
+      }
+
+      // Si pas de 2ème artisan, supprimer ses coûts (en parallèle)
+      if (!selectedSecondArtisanId) {
         try {
-          await interventionsApi.deleteCost(intervention.id, "sst", 2)
-          await interventionsApi.deleteCost(intervention.id, "materiel", 2)
+          await Promise.all([
+            interventionsApi.deleteCost(intervention.id, "sst", 2),
+            interventionsApi.deleteCost(intervention.id, "materiel", 2)
+          ])
         } catch (deleteError) {
           // Ignorer les erreurs de suppression (le coût n'existait peut-être pas)
         }

@@ -675,7 +675,8 @@ export const interventionsApi = {
       .eq("id", id)
       .select(`
         *,
-        status:intervention_statuses(id,code,label,color,sort_order)
+        status:intervention_statuses(id,code,label,color,sort_order),
+        intervention_artisans(artisan_id)
       `)
       .single();
 
@@ -685,8 +686,53 @@ export const interventionsApi = {
     const refs = await getReferenceCache();
     const mapped = mapInterventionRecord(updated, refs) as InterventionWithStatus;
 
-    // Note: Le recalcul du statut artisan est géré automatiquement par le trigger SQL
-    // trg_artisan_status_on_intervention_update qui se déclenche quand statut_id change
+    // Recalculer le statut des artisans si le statut de l'intervention a changé
+    // Le trigger SQL ne fonctionne pas de manière fiable, donc on appelle explicitement la RPC
+    console.log(`[interventionsApi] 🔍 Vérification recalcul artisan: payload.statut_id=${payload.statut_id}, oldStatutId=${oldStatutId}`);
+
+    if (payload.statut_id && oldStatutId !== payload.statut_id) {
+      const terminatedCodes = ['TERMINE', 'INTER_TERMINEE'];
+      const oldStatusCode = oldStatutId ? refs.interventionStatusesById.get(oldStatutId)?.code : null;
+      const newStatusCode = refs.interventionStatusesById.get(payload.statut_id)?.code;
+
+      console.log(`[interventionsApi] 🔍 Codes statut: oldStatusCode=${oldStatusCode}, newStatusCode=${newStatusCode}`);
+
+      // Recalculer seulement si on entre ou sort d'un statut terminé
+      const wasTerminated = oldStatusCode && terminatedCodes.includes(oldStatusCode);
+      const isNowTerminated = newStatusCode && terminatedCodes.includes(newStatusCode);
+
+      console.log(`[interventionsApi] 🔍 Condition terminée: wasTerminated=${wasTerminated}, isNowTerminated=${isNowTerminated}`);
+
+      if (wasTerminated || isNowTerminated) {
+        // Récupérer les artisans liés à cette intervention
+        const artisanIds = (updated as any).intervention_artisans
+          ?.map((ia: { artisan_id: string | null }) => ia.artisan_id)
+          .filter((id: string | null): id is string => !!id) || [];
+
+        console.log(`[interventionsApi] 🔍 Artisans liés à recalculer:`, artisanIds);
+
+        // Recalculer le statut de chaque artisan
+        for (const artisanId of artisanIds) {
+          try {
+            console.log(`[interventionsApi] 📞 Appel RPC recalculate_artisan_status pour artisan ${artisanId}...`);
+            const { data: rpcResult, error: rpcError } = await supabase.rpc('recalculate_artisan_status', {
+              artisan_uuid: artisanId
+            });
+            if (rpcError) {
+              console.warn(`[interventionsApi] ❌ Erreur RPC artisan ${artisanId}:`, rpcError);
+            } else {
+              console.log(`[interventionsApi] ✅ Statut artisan ${artisanId} recalculé: ${rpcResult}`);
+            }
+          } catch (err) {
+            console.warn(`[interventionsApi] ❌ Exception artisan ${artisanId}:`, err);
+          }
+        }
+      } else {
+        console.log(`[interventionsApi] ⏭️ Pas de recalcul: le changement de statut n'implique pas un statut terminé`);
+      }
+    } else {
+      console.log(`[interventionsApi] ⏭️ Pas de recalcul: statut_id non changé ou non fourni`);
+    }
 
     return mapped;
   },
@@ -901,6 +947,8 @@ export const interventionsApi = {
 
   /**
    * Créer ou mettre à jour un coût d'intervention
+   * Note: Utilise select + update/insert car les index uniques sont partiels
+   * Pour plusieurs coûts, préférer upsertCostsBatch() qui est plus optimisé
    * @param interventionId - ID de l'intervention
    * @param cost - Données du coût (type, montant, ordre artisan)
    */
@@ -914,8 +962,8 @@ export const interventionsApi = {
       throw new Error("interventionId is required");
     }
 
-    // Par défaut lors de l'import, tous les coûts sont reliés à l'artisan 1 (artisan principal)
-    const artisanOrder = cost.artisan_order ?? 1;
+    // Par défaut, tous les coûts sont reliés à l'artisan 1 (sauf intervention/marge qui sont globaux)
+    const artisanOrder = cost.artisan_order ?? (cost.cost_type === 'intervention' || cost.cost_type === 'marge' ? null : 1);
 
     // Chercher un coût existant avec le même type et ordre
     let query = supabase
@@ -937,7 +985,6 @@ export const interventionsApi = {
     }
 
     if (existing) {
-      // Mettre à jour le coût existant
       const { error: updateError } = await supabase
         .from('intervention_costs')
         .update({
@@ -951,7 +998,6 @@ export const interventionsApi = {
         throw new Error(`Erreur lors de la mise à jour du coût: ${updateError.message}`);
       }
     } else {
-      // Créer un nouveau coût
       const { error: insertError } = await supabase
         .from('intervention_costs')
         .insert({
@@ -966,6 +1012,109 @@ export const interventionsApi = {
         throw new Error(`Erreur lors de la création du coût: ${insertError.message}`);
       }
     }
+  },
+
+  /**
+   * Créer ou mettre à jour plusieurs coûts d'intervention en batch (optimisé)
+   * Réduit le nombre de requêtes réseau via batch select + batch insert + parallel updates
+   * @param interventionId - ID de l'intervention
+   * @param costs - Liste des coûts à upsert
+   */
+  async upsertCostsBatch(interventionId: string, costs: Array<{
+    cost_type: 'sst' | 'materiel' | 'intervention' | 'marge';
+    amount: number;
+    artisan_order?: 1 | 2 | null;
+    label?: string | null;
+  }>): Promise<void> {
+    if (!interventionId || costs.length === 0) {
+      return;
+    }
+
+    // Normaliser les artisan_order
+    const normalizedCosts = costs.map(c => ({
+      ...c,
+      artisan_order: c.artisan_order ?? (c.cost_type === 'intervention' || c.cost_type === 'marge' ? null : 1)
+    }));
+
+    // 1. Récupérer tous les coûts existants pour cette intervention en une seule requête
+    const { data: existingCosts, error: selectError } = await supabase
+      .from('intervention_costs')
+      .select('id, cost_type, artisan_order')
+      .eq('intervention_id', interventionId);
+
+    if (selectError) {
+      throw new Error(`Erreur lors de la recherche des coûts existants: ${selectError.message}`);
+    }
+
+    // Créer une map pour retrouver rapidement les coûts existants
+    // Clé: "cost_type|artisan_order" (artisan_order peut être null)
+    const existingMap = new Map<string, string>();
+    for (const e of existingCosts || []) {
+      const key = `${e.cost_type}|${e.artisan_order ?? 'null'}`;
+      existingMap.set(key, e.id);
+    }
+
+    // 2. Séparer en updates et inserts
+    const toUpdate: Array<{ id: string; amount: number; label: string | null }> = [];
+    const toInsert: Array<{
+      intervention_id: string;
+      cost_type: string;
+      amount: number;
+      artisan_order: number | null;
+      label: string | null
+    }> = [];
+
+    for (const cost of normalizedCosts) {
+      const key = `${cost.cost_type}|${cost.artisan_order ?? 'null'}`;
+      const existingId = existingMap.get(key);
+
+      if (existingId) {
+        toUpdate.push({ id: existingId, amount: cost.amount, label: cost.label ?? null });
+      } else {
+        toInsert.push({
+          intervention_id: interventionId,
+          cost_type: cost.cost_type,
+          amount: cost.amount,
+          artisan_order: cost.artisan_order ?? null,
+          label: cost.label ?? null
+        });
+      }
+    }
+
+    // 3. Exécuter les updates en parallèle et l'insert batch simultanément
+    const operations: Promise<void>[] = [];
+
+    // Updates parallèles (Supabase ne supporte pas les updates batch avec IDs différents)
+    if (toUpdate.length > 0) {
+      operations.push(
+        Promise.all(toUpdate.map(async ({ id, amount, label }) => {
+          const { error } = await supabase
+            .from('intervention_costs')
+            .update({ amount, label, updated_at: new Date().toISOString() })
+            .eq('id', id);
+          if (error) {
+            throw new Error(`Erreur lors de la mise à jour du coût: ${error.message}`);
+          }
+        })).then(() => {})
+      );
+    }
+
+    // Insert batch
+    if (toInsert.length > 0) {
+      operations.push(
+        (async () => {
+          const { error } = await supabase
+            .from('intervention_costs')
+            .insert(toInsert);
+          if (error) {
+            throw new Error(`Erreur lors de l'insertion des coûts: ${error.message}`);
+          }
+        })()
+      );
+    }
+
+    // Attendre toutes les opérations
+    await Promise.all(operations);
   },
 
   /**

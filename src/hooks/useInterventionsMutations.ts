@@ -3,6 +3,7 @@ import { toast } from "sonner"
 import { interventionsApi, type Intervention, type InterventionCost, type InterventionPayment } from "@/lib/api/v2"
 import { useInterventionModal } from "@/hooks/useInterventionModal"
 import { interventionKeys } from "@/lib/react-query/queryKeys"
+import { invalidateArtisanQueries } from "@/lib/react-query/invalidate-artisan-queries"
 import { getRemoteEditIndicatorManager } from "@/lib/realtime/remote-edit-indicator"
 import { getSyncQueue } from "@/lib/realtime/sync-queue"
 import { isNetworkError } from "@/lib/realtime/realtime-client"
@@ -220,6 +221,10 @@ export function useInterventionsMutations() {
       queryClient.invalidateQueries({ queryKey: interventionKeys.detail(variables.id) })
       // Invalider les résumés
       queryClient.invalidateQueries({ queryKey: interventionKeys.summaries() })
+
+      if (variables.data?.statut_id) {
+        invalidateArtisanQueries(queryClient, (data as any)?.artisans)
+      }
     },
     onError: (error, variables) => {
       // En cas d'erreur réseau, mettre en file d'attente pour synchronisation différée
@@ -341,7 +346,6 @@ export function useInterventionsMutations() {
     addPayment: addPaymentMutation,
   }
 }
-
 
 
 
