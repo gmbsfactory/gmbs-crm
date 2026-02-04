@@ -219,9 +219,7 @@ export const InterventionEditForm = memo(function InterventionEditForm({
     latitude: intervention.latitude || 48.8566,
     longitude: intervention.longitude || 2.3522,
     // Charger adresse_complete depuis la BDD ou construire à partir des champs si non disponible
-    adresseComplete: (intervention as any).adresse_complete || [intervention.adresse, intervention.code_postal, intervention.ville]
-      .filter(Boolean)
-      .join(", ") || "",
+    adresse_complete: (intervention as any).adresse_complete || intervention.adresse || "",
 
     // Dates
     date: intervention.date?.split('T')[0] || "",
@@ -386,8 +384,8 @@ export const InterventionEditForm = memo(function InterventionEditForm({
     loading: isLoadingNearbyArtisans,
     error: nearbyArtisansError,
   } = useNearbyArtisans(
-    formData.adresseComplete ? formData.latitude : null,
-    formData.adresseComplete ? formData.longitude : null,
+    formData.adresse_complete ? formData.latitude : null,
+    formData.adresse_complete ? formData.longitude : null,
     {
       limit: 100,
       maxDistanceKm: perimeterKmValue,
@@ -424,8 +422,8 @@ export const InterventionEditForm = memo(function InterventionEditForm({
     artisans: nearbyArtisansSecondMetier,
     loading: isLoadingNearbyArtisansSecondMetier,
   } = useNearbyArtisans(
-    formData.adresseComplete ? formData.latitude : null,
-    formData.adresseComplete ? formData.longitude : null,
+    formData.adresse_complete ? formData.latitude : null,
+    formData.adresse_complete ? formData.longitude : null,
     {
       limit: 100,
       maxDistanceKm: perimeterKmValue,
@@ -622,14 +620,12 @@ export const InterventionEditForm = memo(function InterventionEditForm({
         intervention.code_postal !== prev.code_postal ||
         intervention.ville !== prev.ville ||
         intervention.latitude !== prev.latitude ||
-        intervention.longitude !== prev.longitude
+        intervention.longitude !== prev.longitude ||
+        intervention.adresse_complete !== prev.adresse_complete
 
       if (hasAddressChanged) {
-        // Charger adresse_complete depuis la BDD (ne pas reconstruire automatiquement)
-        const newAdresseComplete = (intervention as any).adresse_complete || ""
-
         // Synchroniser le champ de recherche d'adresse avec adresse_complete
-        setLocationQuery(newAdresseComplete)
+        setLocationQuery(intervention.adresse_complete || prev.adresse_complete || "")
 
         return {
           ...prev,
@@ -638,7 +634,7 @@ export const InterventionEditForm = memo(function InterventionEditForm({
           ville: intervention.ville || prev.ville || "",
           latitude: intervention.latitude ?? prev.latitude ?? 48.8566,
           longitude: intervention.longitude ?? prev.longitude ?? 2.3522,
-          adresseComplete: newAdresseComplete,
+          adresse_complete: intervention.adresse_complete || prev.adresse_complete || "",
         }
       }
       return prev
@@ -1540,11 +1536,11 @@ export const InterventionEditForm = memo(function InterventionEditForm({
       ...prev,
       latitude: suggestion.lat,
       longitude: suggestion.lng,
-      adresseComplete: suggestion.label,
+      adresse_complete: suggestion.label,
       // NE PAS écraser le champ adresse (saisie libre)
       // On ne met à jour code_postal et ville que s'ils sont vides
-      code_postal: prev.code_postal || addressParts.postalCode || "",
-      ville: prev.ville || addressParts.city || "",
+      code_postal: addressParts.postalCode || prev.code_postal || "",
+      ville: addressParts.city || prev.ville || "",
     }))
 
     // Mettre à jour la query pour refléter la sélection
@@ -1623,11 +1619,11 @@ export const InterventionEditForm = memo(function InterventionEditForm({
         ...prev,
         latitude: result.lat,
         longitude: result.lng,
-        adresseComplete: result.label,
+        adresse_complete: result.label,
         // NE PAS écraser le champ adresse (saisie libre)
         // On ne met à jour code_postal et ville que s'ils sont vides
-        code_postal: prev.code_postal || addressParts.postalCode || "",
-        ville: prev.ville || addressParts.city || "",
+        code_postal: addressParts.postalCode || prev.code_postal || "",
+        ville: addressParts.city || prev.ville || "",
       }))
       setLocationQuery(result.label)
     } catch (error) {
@@ -1693,7 +1689,7 @@ export const InterventionEditForm = memo(function InterventionEditForm({
         adresse: formData.adresse || undefined,
         code_postal: formData.code_postal || undefined,
         ville: formData.ville || undefined,
-        adresse_complete: formData.adresseComplete || null,
+        adresse_complete: formData.adresse_complete || null,
         latitude: formData.latitude,
         longitude: formData.longitude,
         numero_sst: formData.numero_sst || undefined,
@@ -1943,8 +1939,7 @@ export const InterventionEditForm = memo(function InterventionEditForm({
           ville: payload.ville || prev.ville || "",
           latitude: payload.latitude ?? prev.latitude ?? 48.8566,
           longitude: payload.longitude ?? prev.longitude ?? 2.3522,
-          // Préserver adresseComplete indépendamment des autres champs d'adresse
-          adresseComplete: prev.adresseComplete || "",
+          adresse_complete: payload.adresse_complete || prev.adresse_complete || "",
         }))
       }
 

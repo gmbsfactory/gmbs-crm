@@ -198,7 +198,7 @@ export function NewInterventionForm({
     ville: defaultValues?.ville || "",
     latitude: defaultValues?.latitude || 48.8566,
     longitude: defaultValues?.longitude || 2.3522,
-    adresseComplete: defaultValues?.adresse && defaultValues?.ville
+    adresse_complete: defaultValues?.adresse && defaultValues?.ville
       ? `${defaultValues.adresse}, ${defaultValues.ville}`
       : "",
 
@@ -297,10 +297,10 @@ export function NewInterventionForm({
 
   // Synchroniser locationQuery avec l'adresse complète initiale
   useEffect(() => {
-    if (formData.adresseComplete && !locationQuery) {
-      setLocationQuery(formData.adresseComplete)
+    if (formData.adresse_complete && !locationQuery) {
+      setLocationQuery(formData.adresse_complete)
     }
-  }, [formData.adresseComplete]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [formData.adresse_complete]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Marquer le formulaire comme prêt après l'initialisation complète
   useEffect(() => {
@@ -347,8 +347,8 @@ export function NewInterventionForm({
     loading: isLoadingNearbyArtisans,
     error: nearbyArtisansError,
   } = useNearbyArtisans(
-    formData.adresseComplete ? formData.latitude : null,
-    formData.adresseComplete ? formData.longitude : null,
+    formData.adresse_complete ? formData.latitude : null,
+    formData.adresse_complete ? formData.longitude : null,
     {
       limit: 100,
       maxDistanceKm: perimeterKmValue,
@@ -362,8 +362,8 @@ export function NewInterventionForm({
     artisans: nearbyArtisansSecondMetier,
     loading: isLoadingNearbyArtisansSecondMetier,
   } = useNearbyArtisans(
-    formData.adresseComplete ? formData.latitude : null,
-    formData.adresseComplete ? formData.longitude : null,
+    formData.adresse_complete ? formData.latitude : null,
+    formData.adresse_complete ? formData.longitude : null,
     {
       limit: 100,
       maxDistanceKm: perimeterKmValue,
@@ -858,11 +858,11 @@ export function NewInterventionForm({
       ...prev,
       latitude: suggestion.lat,
       longitude: suggestion.lng,
-      adresseComplete: suggestion.label,
+      adresse_complete: suggestion.label,
       // NE PAS écraser le champ adresse (saisie libre)
       // On ne met à jour code_postal et ville que s'ils sont vides
-      code_postal: prev.code_postal || addressParts.postalCode || "",
-      ville: prev.ville || addressParts.city || "",
+      code_postal: addressParts.postalCode || prev.code_postal || "",
+      ville: addressParts.city || prev.ville || "",
     }))
 
     setLocationQuery(suggestion.label)
@@ -929,11 +929,11 @@ export function NewInterventionForm({
         ...prev,
         latitude: result.lat,
         longitude: result.lng,
-        adresseComplete: result.label,
+        adresse_complete: result.label,
         // NE PAS écraser le champ adresse (saisie libre)
         // On ne met à jour code_postal et ville que s'ils sont vides
-        code_postal: prev.code_postal || addressParts.postalCode || "",
-        ville: prev.ville || addressParts.city || "",
+        code_postal: addressParts.postalCode || prev.code_postal || "",
+        ville: addressParts.city || prev.ville || "",
       }))
       setLocationQuery(result.label)
     } catch (error) {
@@ -1061,7 +1061,7 @@ export function NewInterventionForm({
         adresse: formData.adresse || undefined,
         code_postal: formData.code_postal || undefined,
         ville: formData.ville || undefined,
-        adresse_complete: formData.adresseComplete || null,
+        adresse_complete: formData.adresse_complete || null,
         latitude: formData.latitude,
         longitude: formData.longitude,
         ...(idInterValue.length > 0 && { id_inter: idInterValue }),
