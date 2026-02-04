@@ -538,7 +538,7 @@ const renderCell = (
               <Tooltip>
                 <TooltipTrigger asChild>
                   <span
-                    className="inline-flex items-center justify-center rounded-full px-2 py-0.5 text-xs font-bold leading-none shrink-0 cursor-help"
+                    className="inline-flex items-center justify-center rounded-full px-2 py-0.5 text-xs font-bold leading-none shrink-0"
                     style={{ backgroundColor: statusColor, color: textColor }}
                   >
                     {statusAbbr}

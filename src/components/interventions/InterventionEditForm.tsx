@@ -1166,9 +1166,7 @@ export const InterventionEditForm = memo(function InterventionEditForm({
       (tenant?.plain_nom_client || `${tenant?.lastname || ''} ${tenant?.firstname || ''}`.trim() || '')
     const telephoneClient = formData.telephoneClient || tenant?.telephone || ''
     const telephoneClient2 = tenant?.telephone2 || ''
-    const adresse = (formData.adresse || intervention.adresse) /*&& (formData.code_postal || intervention.code_postal || formData.ville || intervention.ville)*/
-      ? `${formData.adresse || intervention.adresse}, ${formData.code_postal || intervention.code_postal || ''} ${formData.ville || intervention.ville || ''}`.trim()
-      : ''      // TO COMPLICATES
+    const adresse = formData.adresse || intervention.adresse || ''
 
     // Get consigne based on artisan type
     // If artisan is not yet saved, use consigne_intervention as default

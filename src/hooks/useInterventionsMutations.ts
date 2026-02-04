@@ -205,7 +205,7 @@ export function useInterventionsMutations() {
     },
     onSuccess: (data, variables) => {
       const statusLabel = (data as any).status?.label || "modifiée"
-      toast.success(`Intervention (${data.id_inter || ""}) ${statusLabel} avec succès`, {
+      toast.success(`Intervention ${data.id_inter || ""} a été modifiée avec succès`, {
         description: new Date().toLocaleString(),
         action: {
           label: "Voir",
