@@ -2,15 +2,15 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  Building2, 
-  Briefcase, 
-  ListChecks, 
-  Plus, 
-  Settings2, 
-  Trash2, 
-  X, 
-  Check, 
+import {
+  Building2,
+  Briefcase,
+  ListChecks,
+  Plus,
+  Settings2,
+  Trash2,
+  X,
+  Check,
   AlertTriangle,
   Search,
   Palette,
@@ -24,14 +24,16 @@ import { cn } from '@/lib/utils';
 import { agenciesApi } from '@/lib/api/v2/agenciesApi';
 import { metiersApi } from '@/lib/api/v2/metiersApi';
 import { interventionStatusesApi } from '@/lib/api/v2/interventionStatusesApi';
+import { artisanStatusesApi } from '@/lib/api/v2/artisanStatusesApi';
 
-type EntityType = 'agencies' | 'metiers' | 'intervention-statuses';
+type EntityType = 'agencies' | 'metiers' | 'intervention-statuses' | 'artisan-statuses';
 
 interface EntityItem {
   id: string;
   code: string;
   label: string;
   color?: string | null;
+  abbreviation?: string | null;
   description?: string | null;
   is_active: boolean;
   requires_reference?: boolean;
@@ -71,6 +73,17 @@ const ENTITY_CONFIG = {
     hasRequiresReference: false,
     api: interventionStatusesApi,
   },
+  'artisan-statuses': {
+    icon: ListChecks,
+    title: 'Statuts Artisan',
+    description: 'Gérez les statuts des artisans (abréviations, couleurs)',
+    color: 'from-purple-500/20 to-pink-500/10',
+    iconColor: 'text-purple-600 dark:text-purple-400',
+    canCreate: true,
+    canDelete: true,
+    hasRequiresReference: false,
+    api: artisanStatusesApi,
+  },
 };
 
 // Couleurs prédéfinies pour le sélecteur
@@ -86,24 +99,25 @@ export function EnumManager() {
   const [data, setData] = useState<EntityItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
-  
+
   // Create/Edit modal
   const [showModal, setShowModal] = useState(false);
   const [editingItem, setEditingItem] = useState<EntityItem | null>(null);
   const [formData, setFormData] = useState({
     label: '',
     color: '#6366f1',
+    abbreviation: '',
     description: '',
     is_active: true,
     requires_reference: false,
   });
   const [saving, setSaving] = useState(false);
-  
+
   // Delete modal
   const [deletingItem, setDeletingItem] = useState<EntityItem | null>(null);
   const [deleteCodeConfirm, setDeleteCodeConfirm] = useState('');
   const [deleting, setDeleting] = useState(false);
-  
+
   // Toggle loading states
   const [togglingIds, setTogglingIds] = useState<Set<string>>(new Set());
 
@@ -133,9 +147,9 @@ export function EnumManager() {
   const filteredData = data.filter(item => {
     if (!searchQuery) return true;
     const query = searchQuery.toLowerCase();
-    return item.label.toLowerCase().includes(query) || 
-           item.code.toLowerCase().includes(query) ||
-           (item.description?.toLowerCase().includes(query));
+    return item.label.toLowerCase().includes(query) ||
+      item.code.toLowerCase().includes(query) ||
+      (item.description?.toLowerCase().includes(query));
   });
 
   // Open create modal
@@ -144,6 +158,7 @@ export function EnumManager() {
     setFormData({
       label: '',
       color: '#6366f1',
+      abbreviation: '',
       description: '',
       is_active: true,
       requires_reference: false,
@@ -157,6 +172,7 @@ export function EnumManager() {
     setFormData({
       label: item.label,
       color: item.color || '#6366f1',
+      abbreviation: item.abbreviation || '',
       description: item.description || '',
       is_active: item.is_active,
       requires_reference: item.requires_reference || false,
@@ -183,6 +199,10 @@ export function EnumManager() {
         if (selectedEntity === 'metiers') {
           updateData.description = formData.description || undefined;
         }
+        // Abbreviation pour les statuts artisan
+        if (selectedEntity === 'artisan-statuses') {
+          updateData.abbreviation = formData.abbreviation || undefined;
+        }
         // requires_reference seulement pour les agences
         if (config.hasRequiresReference && formData.requires_reference !== undefined) {
           // Utiliser l'API spécifique pour requires_reference
@@ -199,6 +219,10 @@ export function EnumManager() {
         // Description seulement pour les métiers
         if (selectedEntity === 'metiers') {
           createData.description = formData.description || undefined;
+        }
+        // Abbreviation pour les statuts artisan
+        if (selectedEntity === 'artisan-statuses') {
+          createData.abbreviation = formData.abbreviation || undefined;
         }
         // Vérifier si l'API a une méthode create (intervention-statuses n'en a pas)
         if ('create' in config.api && typeof config.api.create === 'function') {
@@ -244,7 +268,7 @@ export function EnumManager() {
     setTogglingIds(prev => new Set(prev).add(item.id));
     try {
       await agenciesApi.updateRequiresReference(item.id, !item.requires_reference);
-      setData(prev => prev.map(i => 
+      setData(prev => prev.map(i =>
         i.id === item.id ? { ...i, requires_reference: !item.requires_reference } : i
       ));
       toast.success(item.requires_reference ? 'Référence agence désactivée' : 'Référence agence activée');
@@ -269,15 +293,15 @@ export function EnumManager() {
               const entityConfig = ENTITY_CONFIG[entityType];
               const EntityIcon = entityConfig.icon;
               const isSelected = selectedEntity === entityType;
-              
+
               return (
                 <motion.button
                   key={entityType}
                   onClick={() => setSelectedEntity(entityType)}
                   className={cn(
                     "flex items-center gap-2 px-4 py-2.5 rounded-xl font-medium transition-all",
-                    isSelected 
-                      ? "bg-primary text-primary-foreground shadow-md" 
+                    isSelected
+                      ? "bg-primary text-primary-foreground shadow-md"
                       : "bg-muted/50 hover:bg-muted text-muted-foreground hover:text-foreground"
                   )}
                   whileHover={{ scale: 1.02 }}
@@ -290,7 +314,7 @@ export function EnumManager() {
             })}
           </div>
         </div>
-        
+
         {/* Header with search and add button */}
         <div className={cn("px-6 py-5 bg-gradient-to-br via-background to-background border-b", config.color)}>
           <div className="flex items-center justify-between">
@@ -315,7 +339,7 @@ export function EnumManager() {
               </motion.button>
             )}
           </div>
-          
+
           {/* Search */}
           <div className="mt-4 relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -361,7 +385,7 @@ export function EnumManager() {
                       className="h-10 w-10 rounded-xl border-2 shadow-sm"
                       style={{ backgroundColor: item.color || '#6366f1', borderColor: item.color || '#6366f1' }}
                     />
-                    
+
                     {/* Info */}
                     <div>
                       <div className="flex items-center gap-2">
@@ -369,13 +393,18 @@ export function EnumManager() {
                         <span className="px-2 py-0.5 rounded-md bg-muted text-xs font-mono text-muted-foreground">
                           {item.code}
                         </span>
+                        {item.abbreviation && (
+                          <span className="px-2 py-0.5 rounded-md bg-primary/10 text-xs font-bold text-primary">
+                            {item.abbreviation}
+                          </span>
+                        )}
                       </div>
                       {item.description && (
                         <p className="text-sm text-muted-foreground line-clamp-1">{item.description}</p>
                       )}
                     </div>
                   </div>
-                  
+
                   <div className="flex items-center gap-4">
                     {/* Requires reference toggle (agencies only) */}
                     {config.hasRequiresReference && (
@@ -392,17 +421,17 @@ export function EnumManager() {
                         <span className="text-xs text-muted-foreground">Réf. requise</span>
                       </div>
                     )}
-                    
+
                     {/* Status badge */}
                     <div className={cn(
                       "px-3 py-1 rounded-lg text-xs font-medium",
-                      item.is_active 
-                        ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" 
+                      item.is_active
+                        ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
                         : "bg-gray-500/10 text-gray-600 dark:text-gray-400"
                     )}>
                       {item.is_active ? 'Actif' : 'Inactif'}
                     </div>
-                    
+
                     {/* Actions */}
                     <div className="flex items-center gap-1">
                       <motion.button
@@ -477,7 +506,7 @@ export function EnumManager() {
                     </div>
                   </div>
                 </div>
-                
+
                 <div className="p-6 space-y-4">
                   {/* Label */}
                   <div className="space-y-2">
@@ -493,7 +522,7 @@ export function EnumManager() {
                       className="w-full px-4 py-2.5 rounded-xl border bg-muted/30 focus:bg-background focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all outline-none"
                     />
                   </div>
-                  
+
                   {/* Description (if applicable) */}
                   {selectedEntity === 'metiers' && (
                     <div className="space-y-2">
@@ -510,7 +539,24 @@ export function EnumManager() {
                       />
                     </div>
                   )}
-                  
+
+                  {/* Abbreviation (if applicable) */}
+                  {selectedEntity === 'artisan-statuses' && (
+                    <div className="space-y-2">
+                      <label className="text-xs text-muted-foreground font-medium flex items-center gap-1">
+                        <Palette className="h-3.5 w-3.5" />
+                        Abréviation (3-4 lettres)
+                      </label>
+                      <input
+                        type="text"
+                        value={formData.abbreviation}
+                        onChange={(e) => setFormData(prev => ({ ...prev, abbreviation: e.target.value.toUpperCase().substring(0, 4) }))}
+                        placeholder="EX: CAN"
+                        className="w-full px-4 py-2.5 rounded-xl border bg-muted/30 focus:bg-background focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all outline-none font-bold"
+                      />
+                    </div>
+                  )}
+
                   {/* Color selector */}
                   <div className="space-y-2">
                     <label className="text-xs text-muted-foreground font-medium flex items-center gap-1">
@@ -549,7 +595,7 @@ export function EnumManager() {
                       />
                     </div>
                   </div>
-                  
+
                   {/* Requires reference toggle (agencies only) */}
                   {config.hasRequiresReference && (
                     <div className="flex items-center justify-between p-4 rounded-xl bg-muted/30 border">
@@ -575,7 +621,7 @@ export function EnumManager() {
                       </button>
                     </div>
                   )}
-                  
+
                   {/* Active toggle */}
                   {editingItem && (
                     <div className="flex items-center justify-between p-4 rounded-xl bg-muted/30 border">
@@ -602,7 +648,7 @@ export function EnumManager() {
                     </div>
                   )}
                 </div>
-                
+
                 <div className="px-6 py-4 border-t bg-muted/20 flex items-center justify-end gap-3">
                   <button
                     onClick={() => setShowModal(false)}
@@ -672,7 +718,7 @@ export function EnumManager() {
                     </div>
                   </div>
                 </div>
-                
+
                 <div className="p-6 space-y-4">
                   <div className="p-4 rounded-xl bg-muted/30 border flex items-center gap-3">
                     <div
@@ -684,7 +730,7 @@ export function EnumManager() {
                       <p className="text-xs text-muted-foreground font-mono">{deletingItem.code}</p>
                     </div>
                   </div>
-                  
+
                   <div className="space-y-2">
                     <label className="text-sm text-muted-foreground">
                       Tapez le code <span className="font-mono font-bold">{deletingItem.code}</span> pour confirmer :
@@ -698,7 +744,7 @@ export function EnumManager() {
                     />
                   </div>
                 </div>
-                
+
                 <div className="px-6 py-4 border-t bg-muted/20 flex items-center justify-end gap-3">
                   <button
                     onClick={() => { setDeletingItem(null); setDeleteCodeConfirm(''); }}

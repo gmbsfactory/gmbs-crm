@@ -14,6 +14,7 @@ import { runQuery, getPropertyValue } from "@/lib/query-engine"
 import { SCROLL_CONFIG } from "@/config/interventions"
 import { toDate } from "@/lib/date-utils"
 import { getPropertyLabel, getPropertySchema } from "@/types/property-schema"
+import { getArtisanStatusAbbreviation } from "@/config/status-colors"
 import type { InterventionView as InterventionEntity } from "@/types/intervention-view"
 import type {
   InterventionViewByLayout,
@@ -523,35 +524,33 @@ const renderCell = (
 
     const primaryArtisan = (intervention as any).primaryArtisan
     const artisanStatus = primaryArtisan?.status
+    const statusColor = artisanStatus?.color || "#6B7280"
+    const statusLabel = artisanStatus?.label || "Statut inconnu"
+    const statusAbbr = getArtisanStatusAbbreviation(statusLabel, artisanStatus?.code, artisanStatus?.abbreviation)
+    const textColor = getReadableTextColor(statusColor)
 
     return {
       content: (
-        <TooltipProvider delayDuration={300}>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <span className="inline-flex items-center gap-2 cursor-help">
-                {artisanStatus?.color && (
+        <div className="flex items-center gap-2 max-w-full">
+          <span className="truncate flex-1">{artisanName}</span>
+          {artisanStatus && (
+            <TooltipProvider delayDuration={300}>
+              <Tooltip>
+                <TooltipTrigger asChild>
                   <span
-                    className="h-2 w-2 rounded-full shrink-0 shadow-sm"
-                    style={{ backgroundColor: artisanStatus.color }}
-                  />
-                )}
-                <span className="truncate">{artisanName}</span>
-              </span>
-            </TooltipTrigger>
-            <TooltipContent side="top" className="flex items-center gap-2 px-2 py-1">
-              {artisanStatus?.color && (
-                <span
-                  className="h-2 w-2 rounded-full shrink-0"
-                  style={{ backgroundColor: artisanStatus.color }}
-                />
-              )}
-              <span className="text-xs font-medium">
-                {artisanStatus?.label || "Statut inconnu"}
-              </span>
-            </TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
+                    className="inline-flex items-center justify-center rounded-full px-2 py-0.5 text-xs font-bold leading-none shrink-0 cursor-help"
+                    style={{ backgroundColor: statusColor, color: textColor }}
+                  >
+                    {statusAbbr}
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent side="top" className="px-2 py-1">
+                  <span className="text-xs font-medium">{statusLabel}</span>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          )}
+        </div>
       ),
       cellClassName: "font-medium max-w-[200px]",
     }
