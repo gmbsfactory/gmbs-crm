@@ -11,7 +11,6 @@ import {
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import type { InterventionStatus } from "@/types/intervention";
-import { getInterventionStatusColor } from "@/config/status-colors";
 import { cn } from "@/lib/utils";
 
 interface StatusSelectorProps {
@@ -50,7 +49,7 @@ export function StatusSelector({
   );
 
   const badgeColor = activeStatus
-    ? getInterventionStatusColor(activeStatus.label, activeStatus.code)
+    ? activeStatus.color || FALLBACK_COLOR
     : FALLBACK_COLOR;
   const badgeTextColor = getContrastColor(badgeColor);
 
@@ -82,7 +81,7 @@ export function StatusSelector({
             <div className="flex items-center gap-2">
               <span
                 className="inline-block h-2.5 w-2.5 rounded-full"
-                style={{ backgroundColor: getInterventionStatusColor(status.label, status.code) || FALLBACK_COLOR }}
+                style={{ backgroundColor: status.color || FALLBACK_COLOR }}
               />
               <span>{status.label}</span>
             </div>
