@@ -89,6 +89,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { AvatarGroup, AvatarGroupTooltip } from "@/components/ui/avatar-group"
 import { GestionnaireBadge } from "@/components/ui/gestionnaire-badge"
+import { ExpandableAvatarGroup } from "@/components/ui/expandable-avatar-group"
 import { StatusBadge, MetierBadge, AgenceBadge } from "@/components/ui/BadgeComponents"
 import { ArtisanStatusBadge } from "@/components/ui/ArtisanStatusBadge"
 import { Pagination } from "@/components/ui/pagination"
@@ -174,6 +175,13 @@ const mockGestionnaires = [
   { id: "g-3", firstname: "Chloe", lastname: "Durand", color: "#22c55e", code: "CD" },
   { id: "g-4", firstname: "Dylan", lastname: "Moreau", color: "#f97316", code: "DM" },
   { id: "g-5", firstname: "Emma", lastname: "Bernard", color: "#8b5cf6", code: "EB" },
+  { id: "g-6", firstname: "Felix", lastname: "Rousseau", color: "#ec4899", code: "FR" },
+  { id: "g-7", firstname: "Gabrielle", lastname: "Leroy", color: "#14b8a6", code: "GL" },
+  { id: "g-8", firstname: "Hugo", lastname: "Simon", color: "#f59e0b", code: "HS" },
+  { id: "g-9", firstname: "Isabelle", lastname: "Laurent", color: "#a855f7", code: "IL" },
+  { id: "g-10", firstname: "Jules", lastname: "Michel", color: "#ef4444", code: "JM" },
+  { id: "g-11", firstname: "Lea", lastname: "Garcia", color: "#06b6d4", code: "LG" },
+  { id: "g-12", firstname: "Marc", lastname: "Dubois", color: "#84cc16", code: "MD" },
 ]
 
 const mockInterventions = [
@@ -1515,7 +1523,7 @@ function AvatarShowcase() {
           <div>
             <p className="text-xs text-muted-foreground mb-2">Motion variant</p>
             <AvatarGroup variant="motion" className="h-9 -space-x-2">
-              {mockGestionnaires.map((g) => (
+              {mockGestionnaires.slice(0, 5).map((g) => (
                 <GestionnaireBadge
                   key={g.id}
                   firstname={g.firstname}
@@ -1546,6 +1554,146 @@ function AvatarShowcase() {
                 />
               ))}
             </AvatarGroup>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function ExpandableAvatarShowcase() {
+  const [clickedId, setClickedId] = React.useState<string | null>(null)
+
+  return (
+    <div className="space-y-8">
+      {/* Expandable Avatar Group - Apple Style */}
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+            Expandable Avatar Group (Apple-like) ⭐
+          </p>
+          {clickedId && (
+            <Badge variant="secondary" className="text-xs">
+              Dernier clic: {mockGestionnaires.find(g => g.id === clickedId)?.firstname}
+            </Badge>
+          )}
+        </div>
+        
+        {/* Demo with 5 items (no overflow) */}
+        <div className="rounded-lg border bg-muted/20 p-6">
+          <p className="text-xs text-muted-foreground mb-3">5 gestionnaires (pas de débordement)</p>
+          <ExpandableAvatarGroup
+            items={mockGestionnaires.slice(0, 5).map(g => ({
+              id: g.id,
+              firstname: g.firstname,
+              lastname: g.lastname,
+              color: g.color,
+              searchText: `${g.firstname} ${g.lastname} ${g.code}`,
+            }))}
+            maxVisible={5}
+            onAvatarClick={setClickedId}
+          />
+        </div>
+
+        {/* Demo with 8 items (shows +4) */}
+        <div className="rounded-lg border bg-muted/20 p-6">
+          <p className="text-xs text-muted-foreground mb-3">8 gestionnaires (affiche +4)</p>
+          <ExpandableAvatarGroup
+            items={mockGestionnaires.slice(0, 8).map(g => ({
+              id: g.id,
+              firstname: g.firstname,
+              lastname: g.lastname,
+              color: g.color,
+              searchText: `${g.firstname} ${g.lastname} ${g.code}`,
+            }))}
+            maxVisible={4}
+            onAvatarClick={setClickedId}
+          />
+        </div>
+
+        {/* Demo with all 12 items (shows +8 with search) */}
+        <div className="rounded-lg border bg-muted/20 p-6">
+          <p className="text-xs text-muted-foreground mb-3">12 gestionnaires (affiche +8, avec recherche)</p>
+          <ExpandableAvatarGroup
+            items={mockGestionnaires.map(g => ({
+              id: g.id,
+              firstname: g.firstname,
+              lastname: g.lastname,
+              color: g.color,
+              searchText: `${g.firstname} ${g.lastname} ${g.code}`,
+            }))}
+            maxVisible={4}
+            onAvatarClick={setClickedId}
+          />
+        </div>
+
+        {/* Size variants */}
+        <div className="rounded-lg border bg-muted/20 p-6 space-y-4">
+          <p className="text-xs text-muted-foreground">Tailles disponibles</p>
+          <div className="flex flex-col gap-4">
+            <div className="flex items-center gap-4">
+              <span className="text-xs text-muted-foreground w-16">xs</span>
+              <ExpandableAvatarGroup
+                items={mockGestionnaires.slice(0, 6).map(g => ({ id: g.id, firstname: g.firstname, lastname: g.lastname, color: g.color }))}
+                maxVisible={3}
+                avatarSize="xs"
+              />
+            </div>
+            <div className="flex items-center gap-4">
+              <span className="text-xs text-muted-foreground w-16">sm</span>
+              <ExpandableAvatarGroup
+                items={mockGestionnaires.slice(0, 6).map(g => ({ id: g.id, firstname: g.firstname, lastname: g.lastname, color: g.color }))}
+                maxVisible={3}
+                avatarSize="sm"
+              />
+            </div>
+            <div className="flex items-center gap-4">
+              <span className="text-xs text-muted-foreground w-16">md</span>
+              <ExpandableAvatarGroup
+                items={mockGestionnaires.slice(0, 6).map(g => ({ id: g.id, firstname: g.firstname, lastname: g.lastname, color: g.color }))}
+                maxVisible={3}
+                avatarSize="md"
+              />
+            </div>
+            <div className="flex items-center gap-4">
+              <span className="text-xs text-muted-foreground w-16">lg</span>
+              <ExpandableAvatarGroup
+                items={mockGestionnaires.slice(0, 6).map(g => ({ id: g.id, firstname: g.firstname, lastname: g.lastname, color: g.color }))}
+                maxVisible={3}
+                avatarSize="lg"
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Features */}
+      <div className="rounded-lg border bg-muted/20 p-4">
+        <p className="text-xs font-medium mb-3">Fonctionnalités Apple-like</p>
+        <div className="grid gap-2 md:grid-cols-2 text-[10px] text-muted-foreground">
+          <div className="flex items-center gap-2">
+            <div className="h-1.5 w-1.5 rounded-full bg-green-500" />
+            <span>Animations fluides (spring physics)</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="h-1.5 w-1.5 rounded-full bg-green-500" />
+            <span>Badge +N pour items cachés</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="h-1.5 w-1.5 rounded-full bg-green-500" />
+            <span>Popover avec grille élégante</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="h-1.5 w-1.5 rounded-full bg-green-500" />
+            <span>Recherche automatique (12+ items)</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="h-1.5 w-1.5 rounded-full bg-green-500" />
+            <span>Backdrop blur subtil</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="h-1.5 w-1.5 rounded-full bg-green-500" />
+            <span>Hover states délicats</span>
           </div>
         </div>
       </div>
@@ -1977,6 +2125,23 @@ const categories: ComponentCategory[] = [
         ],
         version: "v1.3",
         preview: <AvatarShowcase />,
+      },
+      {
+        id: "expandable-avatar-group",
+        title: "Expandable Avatar Group",
+        description: "Groupe d'avatars avec expansion Apple-like - affiche N premiers, +N pour le reste avec popover",
+        tags: ["avatar", "group", "expandable", "apple", "popover"],
+        source: [
+          { path: "src/components/ui/expandable-avatar-group.tsx" },
+          { path: "src/components/ui/gestionnaire-badge.tsx" },
+          { path: "src/components/ui/popover.tsx" },
+        ],
+        usedIn: [
+          { path: "app/component/page.tsx", label: "prototype" },
+        ],
+        version: "v1.0",
+        preview: <ExpandableAvatarShowcase />,
+        fullWidth: true,
       },
     ],
   },
