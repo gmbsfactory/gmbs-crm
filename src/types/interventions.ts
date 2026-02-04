@@ -22,6 +22,9 @@ export const InterventionStatusEnum = z.enum(InterventionStatusValues)
 export const InterventionBaseSchema = z.object({
   name: z.string().min(1, "Le nom de l'intervention est obligatoire"),
   address: z.string().min(1, "L'adresse est obligatoire"),
+  geolocalizedAddress: z.string().nullable().optional(),
+  latitude: z.number().nullable().optional(),
+  longitude: z.number().nullable().optional(),
   context: z.string().min(1, "Merci de renseigner le contexte"),
   agency: z.string().min(1, "L'agence est obligatoire"),
   metier: z.string().min(1, "Le métier est obligatoire"),
@@ -74,6 +77,9 @@ export type InterventionDTO = {
   name: string
   agency: string | null
   address: string
+  geolocalizedAddress: string | null
+  latitude: number | null
+  longitude: number | null
   context: string
   consigne: string | null
   status: InterventionStatusValue
