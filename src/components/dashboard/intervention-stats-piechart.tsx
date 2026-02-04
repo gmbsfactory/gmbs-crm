@@ -14,7 +14,6 @@ import { Plus } from "lucide-react"
 import { useRouter } from "next/navigation"
 import useModal from "@/hooks/useModal"
 import { useInterventionModal } from "@/hooks/useInterventionModal"
-import { getInterventionStatusColor } from "@/config/status-colors"
 import { INTERVENTION_STATUS } from "@/config/interventions"
 import { useInterventionStatuses } from "@/hooks/useInterventionStatuses"
 import { getMetierColor } from "@/config/metier-colors"
@@ -40,7 +39,7 @@ export function InterventionStatsPieChart({ period }: InterventionStatsPieChartP
   const triggerPositionRef = useRef<{ x: number; y: number } | null>(null)
   const fixedTriggerPositionRef = useRef<{ x: number; y: number } | null>(null)
   const closeTimeoutRef = useRef<NodeJS.Timeout | null>(null)
-  
+
   const router = useRouter()
 
   // Utiliser le hook React Query pour charger l'utilisateur (cache partagé)
@@ -53,7 +52,7 @@ export function InterventionStatsPieChart({ period }: InterventionStatsPieChartP
   // Log les statuts chargés depuis la DB pour déboguer
   useEffect(() => {
     if (dbStatuses.length > 0 && process.env.NODE_ENV === 'development') {
-      console.log(`[Dashboard Colors] Statuts chargés depuis la DB (${dbStatuses.length}):`, 
+      console.log(`[Dashboard Colors] Statuts chargés depuis la DB (${dbStatuses.length}):`,
         dbStatuses.map(s => ({ code: s.code, label: s.label, color: s.color }))
       )
     }
@@ -179,14 +178,14 @@ export function InterventionStatsPieChart({ period }: InterventionStatsPieChartP
     const statusConfig = Object.values(INTERVENTION_STATUS).find(
       s => s.label === normalizedLabel || s.label.toLowerCase() === normalizedLabel.toLowerCase()
     )
-    
+
     if (statusConfig?.hexColor) {
       console.warn(`[Dashboard Colors] "${statusLabel}" → INTERVENTION_STATUS (${statusConfig.value}) → ${statusConfig.hexColor} (fallback, pas en DB)`)
       return statusConfig.hexColor
     }
 
     // 4. Dernier fallback
-    const fallbackColor = getInterventionStatusColor(statusLabel) || "#6366F1"
+    const fallbackColor = "#6366F1" // Couleur par défaut fixe
     console.warn(`[Dashboard Colors] "${statusLabel}" → FALLBACK → ${fallbackColor}`)
     return fallbackColor
   }
@@ -217,53 +216,53 @@ export function InterventionStatsPieChart({ period }: InterventionStatsPieChartP
   // Préparer les données pour le graphique
   const chartData = stats?.by_status_label
     ? Object.entries(stats.by_status_label)
-        .map(([label, count]) => {
-          const color = getStatusColor(label)
-          return {
-            name: label,
-            value: count,
-            isCheck: false,
-            fill: color,
-          }
-        })
-        .filter((item) => item.value > 0 && fundamentalStatuses.includes(item.name))
-        .sort((a, b) => {
-          const indexA = fundamentalStatuses.indexOf(a.name)
-          const indexB = fundamentalStatuses.indexOf(b.name)
-          if (indexA === -1) return 1
-          if (indexB === -1) return -1
-          return indexA - indexB
-        })
-        .concat(
-          stats.interventions_a_checker && stats.interventions_a_checker > 0
-            ? [
-                {
-                  name: "Check",
-                  value: stats.interventions_a_checker,
-                  isCheck: true,
-                  fill: "#EF4444",
-                },
-              ]
-            : []
-        )
+      .map(([label, count]) => {
+        const color = getStatusColor(label)
+        return {
+          name: label,
+          value: count,
+          isCheck: false,
+          fill: color,
+        }
+      })
+      .filter((item) => item.value > 0 && fundamentalStatuses.includes(item.name))
+      .sort((a, b) => {
+        const indexA = fundamentalStatuses.indexOf(a.name)
+        const indexB = fundamentalStatuses.indexOf(b.name)
+        if (indexA === -1) return 1
+        if (indexB === -1) return -1
+        return indexA - indexB
+      })
+      .concat(
+        stats.interventions_a_checker && stats.interventions_a_checker > 0
+          ? [
+            {
+              name: "Check",
+              value: stats.interventions_a_checker,
+              isCheck: true,
+              fill: "#EF4444",
+            },
+          ]
+          : []
+      )
     : []
 
   // Composant pour afficher les deux labels (intérieur et extérieur)
   const CustomPieLabel = (props: any) => {
     const { cx, cy, midAngle, innerRadius, outerRadius, payload } = props
-    
+
     // Vérifier que les props nécessaires existent
     if (!cx || !cy || innerRadius === undefined || outerRadius === undefined || !payload) {
       return null
     }
-    
+
     const RADIAN = Math.PI / 180
-    
+
     // Position pour le label intérieur (nombre)
     const innerRadius_pos = innerRadius + (outerRadius - innerRadius) * 0.5
     const innerX = cx + innerRadius_pos * Math.cos(-midAngle * RADIAN)
     const innerY = cy + innerRadius_pos * Math.sin(-midAngle * RADIAN)
-    
+
     // Position pour le label extérieur (nom)
     const outerRadius_pos = outerRadius + 30
     const outerX = cx + outerRadius_pos * Math.cos(-midAngle * RADIAN)
@@ -387,169 +386,64 @@ export function InterventionStatsPieChart({ period }: InterventionStatsPieChartP
     <Card
       className="bg-background border-border/5 shadow-sm/30 hover:shadow-lg hover:border-border/50 transition-all duration-300"
     >
-          <CardHeader>
-            <CardTitle>Mes interventions</CardTitle>
-          </CardHeader>
-          <CardContent className="px-2 pt-2">
-            <div className="w-full flex items-center justify-center">
-              <ChartContainer config={chartConfig} className="h-[350px] w-full max-w-md">
-                <PieChart>
-                  {/* Désactiver le tooltip de Recharts pour éviter le double hover */}
-                  <ChartTooltip
-                    content={() => null}
-                    cursor={false}
-                  />
-                  <Pie
-                    data={chartData}
-                    dataKey="value"
-                    nameKey="name"
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={60}
-                    outerRadius={100}
-                    labelLine={false}
-                    label={<CustomPieLabel />}
-                    onMouseEnter={(data: any, index: number) => {
-                      if (closeTimeoutRef.current) {
-                        clearTimeout(closeTimeoutRef.current)
-                        closeTimeoutRef.current = null
-                      }
-                      
-                      setHoveredSegmentIndex(index)
-                      
-                      const statusLabel = chartData[index]?.name
-                      if (statusLabel) {
-                        fixedTriggerPositionRef.current = triggerPositionRef.current || { 
-                          x: window.innerWidth / 2, 
-                          y: window.innerHeight / 2 
-                        }
-                        setHoveredStatus(statusLabel)
-                        setHoverCardOpen(true)
-                      }
-                    }}
-                    onMouseLeave={() => {
-                      setHoveredSegmentIndex(null)
-                      closeTimeoutRef.current = setTimeout(() => {
-                        setHoverCardOpen(false)
-                        setTimeout(() => {
-                          setHoveredStatus(null)
-                          fixedTriggerPositionRef.current = null
-                        }, 150)
-                        closeTimeoutRef.current = null
-                      }, 500)
-                    }}
-                    onClick={(data: any, index: number, event: any) => {
-                      const clickedSegment = chartData[index]
-                      if (clickedSegment?.isCheck) {
-                        navigateWithModifier({
-                          router,
-                          path: "/interventions",
-                          event,
-                          sessionStorageKey: 'pending-intervention-filter',
-                          sessionStorageValue: {
-                            viewId: "mes-interventions-a-check",
-                            property: "isCheck",
-                            operator: "eq",
-                            value: true
-                          }
-                        })
-                      }
-                    }}
-                  >
-                    {chartData.map((entry, index) => {
-                      const statusColor = entry.fill || getStatusColor(entry.name)
-                      const isHovered = hoveredSegmentIndex === index
-                      const hoverColor = isHovered ? adjustColor(statusColor, -20) : statusColor
-                      
-                      return (
-                        <Cell 
-                          key={`cell-${index}`}
-                          fill={hoverColor}
-                          style={{ 
-                            cursor: "pointer",
-                            transition: "fill 0.2s ease-in-out",
-                          }}
-                        />
-                      )
-                    })}
-                  </Pie>
-                </PieChart>
-              </ChartContainer>
-            </div>
-
-            {/* HoverCard pour afficher les détails au survol */}
-            {hoveredStatus && fixedTriggerPositionRef.current && (
-              <HoverCard 
-                open={hoverCardOpen} 
-                onOpenChange={(open) => {
-                  setHoverCardOpen(open)
-                  if (open && closeTimeoutRef.current) {
+      <CardHeader>
+        <CardTitle>Mes interventions</CardTitle>
+      </CardHeader>
+      <CardContent className="px-2 pt-2">
+        <div className="w-full flex items-center justify-center">
+          <ChartContainer config={chartConfig} className="h-[350px] w-full max-w-md">
+            <PieChart>
+              {/* Désactiver le tooltip de Recharts pour éviter le double hover */}
+              <ChartTooltip
+                content={() => null}
+                cursor={false}
+              />
+              <Pie
+                data={chartData}
+                dataKey="value"
+                nameKey="name"
+                cx="50%"
+                cy="50%"
+                innerRadius={60}
+                outerRadius={100}
+                labelLine={false}
+                label={<CustomPieLabel />}
+                onMouseEnter={(data: any, index: number) => {
+                  if (closeTimeoutRef.current) {
                     clearTimeout(closeTimeoutRef.current)
                     closeTimeoutRef.current = null
                   }
-                  if (!open) {
+
+                  setHoveredSegmentIndex(index)
+
+                  const statusLabel = chartData[index]?.name
+                  if (statusLabel) {
+                    fixedTriggerPositionRef.current = triggerPositionRef.current || {
+                      x: window.innerWidth / 2,
+                      y: window.innerHeight / 2
+                    }
+                    setHoveredStatus(statusLabel)
+                    setHoverCardOpen(true)
+                  }
+                }}
+                onMouseLeave={() => {
+                  setHoveredSegmentIndex(null)
+                  closeTimeoutRef.current = setTimeout(() => {
+                    setHoverCardOpen(false)
                     setTimeout(() => {
                       setHoveredStatus(null)
                       fixedTriggerPositionRef.current = null
-                    }, 100)
-                  }
-                }} 
-                openDelay={150} 
-                closeDelay={400}
-              >
-                <HoverCardTrigger asChild>
-                  <div
-                    className="fixed pointer-events-none z-0"
-                    style={{
-                      left: `${fixedTriggerPositionRef.current.x}px`,
-                      top: `${fixedTriggerPositionRef.current.y}px`,
-                      width: 16,
-                      height: 16,
-                    }}
-                    aria-hidden="true"
-                  />
-                </HoverCardTrigger>
-                <HoverCardContent
-                  className="w-96 max-h-[500px] overflow-y-auto z-50"
-                  side="right"
-                  align="start"
-                  sideOffset={12}
-                  onMouseEnter={() => {
-                    if (closeTimeoutRef.current) {
-                      clearTimeout(closeTimeoutRef.current)
-                      closeTimeoutRef.current = null
-                    }
-                  }}
-                  onMouseLeave={() => {
-                    if (closeTimeoutRef.current) {
-                      clearTimeout(closeTimeoutRef.current)
-                    }
-                    closeTimeoutRef.current = setTimeout(() => {
-                      setHoverCardOpen(false)
-                      closeTimeoutRef.current = null
-                    }, 300)
-                  }}
-                >
-                  <InterventionStatusContent 
-                    userId={userId}
-                    statusLabel={hoveredStatus}
-                    onOpenIntervention={(id: string) => openInterventionModal(id)}
-                    period={period}
-                  />
-                </HoverCardContent>
-              </HoverCard>
-            )}
-
-            {/* Ligne pour les interventions à checker */}
-            {stats && (stats.interventions_a_checker ?? 0) > 0 && (
-              <div className="mt-4 pt-4 border-t">
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation()
+                    }, 150)
+                    closeTimeoutRef.current = null
+                  }, 500)
+                }}
+                onClick={(data: any, index: number, event: any) => {
+                  const clickedSegment = chartData[index]
+                  if (clickedSegment?.isCheck) {
                     navigateWithModifier({
                       router,
                       path: "/interventions",
-                      event: e,
+                      event,
                       sessionStorageKey: 'pending-intervention-filter',
                       sessionStorageValue: {
                         viewId: "mes-interventions-a-check",
@@ -558,19 +452,124 @@ export function InterventionStatsPieChart({ period }: InterventionStatsPieChartP
                         value: true
                       }
                     })
-                  }}
-                  className="w-full flex items-center justify-between p-3 rounded-lg border bg-red-50 border-red-200 hover:bg-red-100 transition-colors cursor-pointer"
-                >
-                  <div className="flex items-center gap-2">
-                    <AlertCircle className="h-4 w-4 text-red-600" />
-                    <span className="text-sm font-medium text-red-900">Interventions à checker</span>
-                  </div>
-                  <span className="text-sm font-semibold text-red-700">{stats.interventions_a_checker}</span>
-                </button>
+                  }
+                }}
+              >
+                {chartData.map((entry, index) => {
+                  const statusColor = entry.fill || getStatusColor(entry.name)
+                  const isHovered = hoveredSegmentIndex === index
+                  const hoverColor = isHovered ? adjustColor(statusColor, -20) : statusColor
+
+                  return (
+                    <Cell
+                      key={`cell-${index}`}
+                      fill={hoverColor}
+                      style={{
+                        cursor: "pointer",
+                        transition: "fill 0.2s ease-in-out",
+                      }}
+                    />
+                  )
+                })}
+              </Pie>
+            </PieChart>
+          </ChartContainer>
+        </div>
+
+        {/* HoverCard pour afficher les détails au survol */}
+        {hoveredStatus && fixedTriggerPositionRef.current && (
+          <HoverCard
+            open={hoverCardOpen}
+            onOpenChange={(open) => {
+              setHoverCardOpen(open)
+              if (open && closeTimeoutRef.current) {
+                clearTimeout(closeTimeoutRef.current)
+                closeTimeoutRef.current = null
+              }
+              if (!open) {
+                setTimeout(() => {
+                  setHoveredStatus(null)
+                  fixedTriggerPositionRef.current = null
+                }, 100)
+              }
+            }}
+            openDelay={150}
+            closeDelay={400}
+          >
+            <HoverCardTrigger asChild>
+              <div
+                className="fixed pointer-events-none z-0"
+                style={{
+                  left: `${fixedTriggerPositionRef.current.x}px`,
+                  top: `${fixedTriggerPositionRef.current.y}px`,
+                  width: 16,
+                  height: 16,
+                }}
+                aria-hidden="true"
+              />
+            </HoverCardTrigger>
+            <HoverCardContent
+              className="w-96 max-h-[500px] overflow-y-auto z-50"
+              side="right"
+              align="start"
+              sideOffset={12}
+              onMouseEnter={() => {
+                if (closeTimeoutRef.current) {
+                  clearTimeout(closeTimeoutRef.current)
+                  closeTimeoutRef.current = null
+                }
+              }}
+              onMouseLeave={() => {
+                if (closeTimeoutRef.current) {
+                  clearTimeout(closeTimeoutRef.current)
+                }
+                closeTimeoutRef.current = setTimeout(() => {
+                  setHoverCardOpen(false)
+                  closeTimeoutRef.current = null
+                }, 300)
+              }}
+            >
+              <InterventionStatusContent
+                userId={userId}
+                statusLabel={hoveredStatus}
+                onOpenIntervention={(id: string) => openInterventionModal(id)}
+                period={period}
+              />
+            </HoverCardContent>
+          </HoverCard>
+        )}
+
+        {/* Ligne pour les interventions à checker */}
+        {stats && (stats.interventions_a_checker ?? 0) > 0 && (
+          <div className="mt-4 pt-4 border-t">
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                navigateWithModifier({
+                  router,
+                  path: "/interventions",
+                  event: e,
+                  sessionStorageKey: 'pending-intervention-filter',
+                  sessionStorageValue: {
+                    viewId: "mes-interventions-a-check",
+                    property: "isCheck",
+                    operator: "eq",
+                    value: true
+                  }
+                })
+              }}
+              className="w-full flex items-center justify-between p-3 rounded-lg border bg-red-50 border-red-200 hover:bg-red-100 transition-colors cursor-pointer"
+            >
+              <div className="flex items-center gap-2">
+                <AlertCircle className="h-4 w-4 text-red-600" />
+                <span className="text-sm font-medium text-red-900">Interventions à checker</span>
               </div>
-            )}
-          </CardContent>
-        </Card>
+              <span className="text-sm font-semibold text-red-700">{stats.interventions_a_checker}</span>
+            </button>
+          </div>
+        )}
+      </CardContent>
+    </Card>
   )
 }
 

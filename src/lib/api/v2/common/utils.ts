@@ -538,6 +538,7 @@ export const mapArtisanRecord = (item: any, refs: any): any => {
     attribueA: userInfo.code ?? userInfo.username ?? undefined,
     gestionnaireUsername: userInfo.username ?? undefined,
     gestionnaireName: userInfo.fullName ?? undefined,
+    status: item.statut_id ? refs.artisanStatusesById?.get(item.statut_id) : (item.artisan_statuses || item.statut || null),
     statutArtisan: item.statut_id ?? item.statutArtisan ?? null,
     statutInactif: item.is_active === false,
     commentaire: item.suivi_relances_docs ?? item.commentaire ?? null,
