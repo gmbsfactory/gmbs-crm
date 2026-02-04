@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { bearerFrom, createServerSupabase } from '@/lib/supabase/server';
+import { createSSRServerClient } from '@/lib/supabase/server-ssr';
 import { decryptPassword } from '@/lib/utils/encryption';
 import { sendEmailToArtisan, validateGmailEmail, type Attachment } from '@/lib/services/email-service';
 import { validateRequiredFields } from '@/lib/email-templates/intervention-emails';
@@ -30,13 +30,9 @@ interface SendEmailRequest {
 export async function POST(request: Request, { params }: Params) {
   try {
     const { id: interventionId } = await params;
-    const token = bearerFrom(request);
 
-    if (!token) {
-      return NextResponse.json({ error: 'Authentification requise' }, { status: 401 });
-    }
-
-    const supabase = createServerSupabase(token);
+    // @supabase/ssr lit automatiquement les cookies de session
+    const supabase = await createSSRServerClient();
     const { data: auth } = await supabase.auth.getUser();
     const userId = auth?.user?.id;
 

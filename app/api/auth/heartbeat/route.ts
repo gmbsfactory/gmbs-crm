@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server'
-import { createServerSupabase, bearerFrom } from '@/lib/supabase/server'
+import { createSSRServerClient } from '@/lib/supabase/server-ssr'
 import { supabaseAdmin } from '@/lib/supabase-admin'
-import { cookies } from 'next/headers'
 
 export const runtime = 'nodejs'
 
@@ -18,21 +17,10 @@ export const runtime = 'nodejs'
  * - Pas de dépendance aux événements beforeunload/pagehide
  * - Fonctionne comme Teams/Skype/Slack
  */
-export async function POST(req: Request) {
+export async function POST() {
   try {
-    // Lire le token depuis le header Authorization OU depuis les cookies HTTP-only
-    let token = bearerFrom(req)
-
-    if (!token) {
-      const cookieStore = await cookies()
-      token = cookieStore.get('sb-access-token')?.value || null
-    }
-
-    if (!token) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    const supabase = createServerSupabase(token)
+    // @supabase/ssr lit automatiquement les cookies de session
+    const supabase = await createSSRServerClient()
 
     // Vérifier l'authentification
     const { data: authUser, error: authError } = await supabase.auth.getUser()

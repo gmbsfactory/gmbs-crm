@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
-import { createServerSupabase, createServerSupabaseAdmin, bearerFrom } from '@/lib/supabase/server'
+import { createSSRServerClient } from '@/lib/supabase/server-ssr'
+import { createServerSupabaseAdmin } from '@/lib/supabase/server'
 import { encryptPassword } from '@/lib/utils/encryption'
 import { validateGmailEmail } from '@/lib/services/email-service'
 
@@ -7,21 +8,14 @@ export const runtime = 'nodejs'
 
 export async function PATCH(req: Request) {
   console.log('[profile] PATCH request received')
-  
-  const token = bearerFrom(req)
-  if (!token) {
-    console.log('[profile] No token provided')
-    return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
-  }
-  console.log('[profile] Token received, length:', token.length)
-  
-  // Client avec token utilisateur pour vérifier l'authentification
-  const supabaseAuth = createServerSupabase(token)
-  
+
+  // @supabase/ssr lit automatiquement les cookies de session
+  const supabaseAuth = await createSSRServerClient()
+
   // Client admin pour les opérations de mise à jour (contourne les RLS)
   const supabase = createServerSupabaseAdmin()
-  
-  // Vérifier l'utilisateur authentifié avec le token
+
+  // Vérifier l'utilisateur authentifié
   const { data: authData, error: authError } = await supabaseAuth.auth.getUser()
   console.log('[profile] Auth user:', authData?.user?.id, 'error:', authError?.message)
   

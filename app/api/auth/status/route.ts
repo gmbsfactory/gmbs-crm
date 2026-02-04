@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server'
-import { createServerSupabase, bearerFrom } from '@/lib/supabase/server'
+import { createSSRServerClient } from '@/lib/supabase/server-ssr'
 import { supabaseAdmin } from '@/lib/supabase-admin'
-import { cookies } from 'next/headers'
 
 export const runtime = 'nodejs'
 
@@ -16,20 +15,8 @@ export const runtime = 'nodejs'
  */
 export async function PATCH(req: Request) {
   try {
-    // Lire le token depuis le header Authorization OU depuis les cookies HTTP-only
-    let token = bearerFrom(req)
-    
-    // Si pas de token dans le header, lire depuis les cookies HTTP-only
-    if (!token) {
-      const cookieStore = await cookies()
-      token = cookieStore.get('sb-access-token')?.value || null
-    }
-    
-    if (!token) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    const supabase = createServerSupabase(token)
+    // @supabase/ssr lit automatiquement les cookies de session
+    const supabase = await createSSRServerClient()
 
     // SÉCURITÉ: Vérifier l'authentification AVANT toute opération avec supabaseAdmin
     const { data: authUser, error: authError } = await supabase.auth.getUser()

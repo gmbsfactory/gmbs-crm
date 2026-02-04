@@ -40,24 +40,15 @@ export default function LoginPage() {
       }
       const { error } = await supabase.auth.signInWithPassword({ email, password })
       if (error) throw new Error(error.message)
-      const { data: session } = await supabase.auth.getSession()
-      const token = session?.session?.access_token
-      const refresh = session?.session?.refresh_token
-      const expires_at = session?.session?.expires_at
-      if (token && refresh) {
-        const sessionResponse = await fetch('/api/auth/session', { 
-          method: 'POST', 
-          headers: { 'Content-Type': 'application/json' }, 
-          body: JSON.stringify({ access_token: token, refresh_token: refresh, expires_at }) 
-        })
-        
-        // Attendre la réponse complète
-        if (!sessionResponse.ok) {
-          throw new Error('Erreur lors de la définition de la session')
-        }
-        
-        await fetch('/api/auth/status', { method: 'PATCH', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ status: 'connected' }) })
-      }
+
+      // @supabase/ssr gère automatiquement les cookies de session après signIn
+      // Mettre le statut à "connected" (credentials: 'include' envoie les cookies automatiquement)
+      await fetch('/api/auth/status', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ status: 'connected' }),
+      }).catch(() => { /* Non-bloquant */ })
       
       // Invalider le cache pour forcer un refetch avec le nouvel utilisateur
       queryClient.invalidateQueries({ queryKey: ["currentUser"] })
@@ -82,11 +73,9 @@ export default function LoginPage() {
         }))
       }
       
-      // Naviguer avec un rechargement complet pour garantir que les cookies sont disponibles
+      // Rechargement complet pour que le middleware lise les cookies SSR
       const url = new URL(window.location.href)
       const redirect = url.searchParams.get('redirect') || '/dashboard'
-      // Utiliser window.location.href au lieu de router.replace pour forcer un rechargement complet
-      // Cela garantit que les cookies créés par /api/auth/session sont disponibles pour le middleware
       window.location.href = redirect
     } catch (e: any) {
       setError(e?.message || 'Erreur inconnue')

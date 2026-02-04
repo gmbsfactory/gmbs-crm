@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
-import { createServerSupabase, createServerSupabaseAdmin, bearerFrom } from '@/lib/supabase/server'
-import { cookies } from 'next/headers'
+import { createSSRServerClient } from '@/lib/supabase/server-ssr'
+import { createServerSupabaseAdmin } from '@/lib/supabase/server'
 import { isLateLogin } from '@/lib/utils/business-days'
 import { getLocalDateString } from '@/lib/date-utils'
 import { decryptPassword } from '@/lib/utils/encryption'
@@ -24,20 +24,10 @@ export const runtime = 'nodejs'
  *
  * This ensures lateness is only counted ONCE per day, based on the FIRST activity time.
  */
-export async function POST(req: Request) {
+export async function POST() {
   try {
-    // Get authentication token
-    let token = bearerFrom(req)
-    if (!token) {
-      const cookieStore = await cookies()
-      token = cookieStore.get('sb-access-token')?.value || null
-    }
-
-    if (!token) {
-      return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
-    }
-
-    const supabase = createServerSupabase(token)
+    // @supabase/ssr lit automatiquement les cookies de session
+    const supabase = await createSSRServerClient()
 
     // Get authenticated user
     const { data: authUser, error: authError } = await supabase.auth.getUser()

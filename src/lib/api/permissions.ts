@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server"
-import { createServerSupabase, bearerFrom } from "@/lib/supabase/server"
-import { cookies } from "next/headers"
+import { createSSRServerClient } from "@/lib/supabase/server-ssr"
 import { supabaseAdmin } from "@/lib/supabase-admin"
 
 /**
@@ -94,21 +93,11 @@ interface UserWithRoles {
  * Get the authenticated user with their roles and computed permissions
  * Returns null if not authenticated
  */
-export async function getAuthenticatedUser(req: Request): Promise<UserWithRoles | null> {
+export async function getAuthenticatedUser(_req: Request): Promise<UserWithRoles | null> {
   try {
-    // Get token from Authorization header or cookies
-    let token = bearerFrom(req)
-    
-    if (!token) {
-      const cookieStore = await cookies()
-      token = cookieStore.get("sb-access-token")?.value || null
-    }
-    
-    if (!token) return null
+    const supabase = await createSSRServerClient()
 
-    const supabase = createServerSupabase(token)
-
-    // Get auth user
+    // Get auth user (token is automatiquement lu depuis les cookies par @supabase/ssr)
     const { data: authUser, error: authError } = await supabase.auth.getUser()
     if (authError || !authUser?.user?.id) return null
 

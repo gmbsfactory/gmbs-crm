@@ -5,7 +5,7 @@ import { supabase } from './supabase-client';
 
 export interface ReferenceData {
   interventionStatuses: Array<{ id: string; code: string; label: string; color: string; sort_order: number | null }>;
-  artisanStatuses: Array<{ id: string; code: string; label: string; color: string }>;
+  artisanStatuses: Array<{ id: string; code: string; label: string; color: string; abbreviation: string | null }>;
   agencies: Array<{ id: string; code: string; label: string; color: string | null; requires_reference?: boolean }>;
   metiers: Array<{ id: string; code: string; label: string; color: string | null }>;
   users: Array<{
@@ -33,7 +33,7 @@ export const referenceApi = {
 
     const [interventionStatuses, artisanStatuses, agencies, metiers, users] = await Promise.all([
       supabase.from('intervention_statuses').select('id, code, label, color, sort_order').eq('is_active', true).order('sort_order'),
-      supabase.from('artisan_statuses').select('id, code, label, color').eq('is_active', true).order('sort_order'),
+      supabase.from('artisan_statuses').select('id, code, label, color, abbreviation').eq('is_active', true).order('sort_order'),
       supabase.from('agencies').select('id, code, label, color, agency_config!left(requires_reference)').eq('is_active', true).order('label'),
       supabase.from('metiers').select('id, code, label, color').eq('is_active', true).order('label'),
       supabase.from('users').select('id, username, firstname, lastname, code_gestionnaire, color, avatar_url').neq('status', 'archived').order('username', { ascending: true })
@@ -75,7 +75,7 @@ export const referenceApi = {
       .from('intervention_statuses')
       .select('id, code, label, color, sort_order')
       .order('sort_order');
-    
+
     if (error) throw error;
     return data || [];
   },
@@ -86,9 +86,9 @@ export const referenceApi = {
       .from('agencies')
       .select('id, code, label, color, agency_config!left(requires_reference)')
       .order('label');
-    
+
     if (error) throw error;
-    
+
     // Mapper pour extraire requires_reference depuis agency_config
     return (data || []).map((item: any) => ({
       id: item.id,

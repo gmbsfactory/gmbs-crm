@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server'
-import { createServerSupabase, bearerFrom } from '@/lib/supabase/server'
-import { cookies } from 'next/headers'
+import { createSSRServerClient } from '@/lib/supabase/server-ssr'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 
 export const runtime = 'nodejs'
@@ -9,21 +8,10 @@ export const runtime = 'nodejs'
  * GET /api/user-preferences
  * Récupère les préférences de l'utilisateur connecté
  */
-export async function GET(req: Request) {
+export async function GET() {
   try {
-    // Obtenir le token d'authentification
-    let token = bearerFrom(req)
-    if (!token) {
-      const cookieStore = await cookies()
-      token = cookieStore.get('sb-access-token')?.value || null
-    }
-
-    if (!token) {
-      return NextResponse.json({ error: 'Non authentifié' }, { status: 401 })
-    }
-
-    // Obtenir l'ID de l'utilisateur depuis Supabase Auth
-    const supabase = createServerSupabase(token)
+    // @supabase/ssr lit automatiquement les cookies de session
+    const supabase = await createSSRServerClient()
     const { data: authUser, error: authError } = await supabase.auth.getUser()
     
     if (authError || !authUser?.user?.id) {
@@ -65,19 +53,8 @@ export async function GET(req: Request) {
  */
 export async function PUT(req: Request) {
   try {
-    // Obtenir le token d'authentification
-    let token = bearerFrom(req)
-    if (!token) {
-      const cookieStore = await cookies()
-      token = cookieStore.get('sb-access-token')?.value || null
-    }
-
-    if (!token) {
-      return NextResponse.json({ error: 'Non authentifié' }, { status: 401 })
-    }
-
-    // Obtenir l'ID de l'utilisateur depuis Supabase Auth
-    const supabase = createServerSupabase(token)
+    // @supabase/ssr lit automatiquement les cookies de session
+    const supabase = await createSSRServerClient()
     const { data: authUser, error: authError } = await supabase.auth.getUser()
     
     if (authError || !authUser?.user?.id) {
