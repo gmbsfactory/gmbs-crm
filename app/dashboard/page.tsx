@@ -21,8 +21,8 @@ import { useUserRoles } from "@/hooks/useUserRoles"
 import { usePermissions } from "@/hooks/usePermissions"
 import useModal from "@/hooks/useModal"
 import { useArtisanModal } from "@/hooks/useArtisanModal"
-import { AvatarGroup, AvatarGroupTooltip } from "@/components/ui/avatar-group"
 import { GestionnaireBadge } from "@/components/ui/gestionnaire-badge"
+import { ExpandableAvatarGroup } from "@/components/ui/expandable-avatar-group"
 import { useGestionnaires, type Gestionnaire } from "@/hooks/useGestionnaires"
 import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
@@ -472,343 +472,315 @@ export default function DashboardPage() {
         className="flex flex-col min-h-screen relative z-10"
         style={{ willChange: isAnimating ? 'clip-path' : 'auto' } as React.CSSProperties}
       >
-            <div className="flex flex-col p-6 gap-3">
-              {/* ═══════════════════════════════════════════════════════════════
+        <div className="flex flex-col p-6 gap-3">
+          {/* ═══════════════════════════════════════════════════════════════
                   FILTERBAR - Hauteur fixe en haut
                   ═══════════════════════════════════════════════════════════════ */}
-              <div
-                className="flex-shrink-0 relative grid items-center p-3 bg-muted/50 rounded-lg overflow-x-auto overflow-y-hidden"
-                style={{
-                  height: '60px',
-                  minHeight: '50px',
-                  gridTemplateColumns: '1fr auto',
-                  gap: 'clamp(0.5rem, 1.5vw, 2rem)',
-                }}
-              >
-                {/* Partie gauche : Sélecteur de période */}
-                <div className="flex items-center gap-2 min-w-fit flex-shrink-0">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium whitespace-nowrap">Période :</span>
-                    {isMounted ? (
-                      <Select value={periodType} onValueChange={(value) => setPeriodType(value as PeriodType)}>
-                        <SelectTrigger className="w-fit min-w-[110px]">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="week">Semaine</SelectItem>
-                          <SelectItem value="month">Mois</SelectItem>
-                          <SelectItem value="year">Année</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    ) : (
-                      <div className="w-[110px] h-10 rounded-md border bg-background flex items-center px-3">
-                        <span className="text-sm text-muted-foreground">Chargement...</span>
-                      </div>
-                    )}
+          <div
+            className="flex-shrink-0 relative grid items-center p-3 bg-muted/50 rounded-lg overflow-x-auto overflow-y-hidden"
+            style={{
+              height: '60px',
+              minHeight: '50px',
+              gridTemplateColumns: '1fr auto',
+              gap: 'clamp(0.5rem, 1.5vw, 2rem)',
+            }}
+          >
+            {/* Partie gauche : Sélecteur de période */}
+            <div className="flex items-center gap-2 min-w-fit flex-shrink-0">
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-medium whitespace-nowrap">Période :</span>
+                {isMounted ? (
+                  <Select value={periodType} onValueChange={(value) => setPeriodType(value as PeriodType)}>
+                    <SelectTrigger className="w-fit min-w-[110px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="week">Semaine</SelectItem>
+                      <SelectItem value="month">Mois</SelectItem>
+                      <SelectItem value="year">Année</SelectItem>
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <div className="w-[110px] h-10 rounded-md border bg-background flex items-center px-3">
+                    <span className="text-sm text-muted-foreground">Chargement...</span>
                   </div>
-
-                  {/* Deuxième filtre adaptatif */}
-                  <div className="flex items-center gap-2">
-                    {isMounted ? (
-                      <Select
-                        value={getCurrentSelectValue()}
-                        onValueChange={handlePeriodSelect}
-                      >
-                        <SelectTrigger className={cn(
-                          "w-auto min-w-[120px]",
-                          periodType === "week" && "min-w-[180px]",
-                          periodType === "month" && "min-w-[140px]",
-                          periodType === "year" && "min-w-[100px]"
-                        )}>
-                          <SelectValue>
-                            {periodOptions.find((opt) => opt.value === getCurrentSelectValue())?.label || "Sélectionner"}
-                          </SelectValue>
-                        </SelectTrigger>
-                        <SelectContent className="max-h-[300px]">
-                          {(() => {
-                            const currentYear = getYear(new Date())
-                            const years = [currentYear - 1, currentYear, currentYear + 1]
-
-                            if (periodType === "month") {
-                              return years.map((year) => {
-                                const yearMonths = periodOptions.filter((opt) => opt.year === year)
-                                if (yearMonths.length === 0) return null
-                                return (
-                                  <div key={year}>
-                                    <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground sticky top-0 bg-popover">
-                                      {year}
-                                    </div>
-                                    {yearMonths.map((month) => (
-                                      <SelectItem key={month.value} value={month.value}>
-                                        {month.label}
-                                      </SelectItem>
-                                    ))}
-                                  </div>
-                                )
-                              })
-                            }
-
-                            if (periodType === "week") {
-                              return years.map((year) => {
-                                const yearWeeks = periodOptions.filter((opt) => opt.year === year)
-                                if (yearWeeks.length === 0) return null
-                                return (
-                                  <div key={year}>
-                                    <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground sticky top-0 bg-popover">
-                                      {year}
-                                    </div>
-                                    {yearWeeks.map((week) => (
-                                      <SelectItem key={week.value} value={week.value}>
-                                        {week.label}
-                                      </SelectItem>
-                                    ))}
-                                  </div>
-                                )
-                              })
-                            }
-
-                            // Pour year
-                            return periodOptions.map((year) => (
-                              <SelectItem key={year.value} value={year.value}>
-                                {year.label}
-                              </SelectItem>
-                            ))
-                          })()}
-                        </SelectContent>
-                      </Select>
-                    ) : (
-                      <div className="w-[180px] h-10 rounded-md border bg-background flex items-center px-3">
-                        <span className="text-sm text-muted-foreground">Chargement...</span>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Dates et interventions à droite des boutons de sélection */}
-                  <div className="flex items-center gap-2 text-sm">
-                    <span className="text-foreground font-medium hidden xl:inline whitespace-nowrap">
-                      {new Date(period.startDate).toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" })} - {new Date(period.endDate).toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" })}
-                    </span>
-                    {totalInterventions !== null && (
-                      <Badge variant="secondary" className="text-foreground font-medium whitespace-nowrap">
-                        {totalInterventions} intervention{totalInterventions > 1 ? "s" : ""}
-                      </Badge>
-                    )}
-                  </div>
-                </div>
-
-                {/* Partie centrale : Bienvenue centré absolument */}
-                <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center justify-center pointer-events-none z-10">
-                  {/* Effet "Bienvenue" centré */}
-                  {showBienvenue && currentUser?.id && selectedGestionnaireId === currentUser.id && (
-                    <motion.div
-                      initial={{ opacity: 0, scale: 0.8 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      transition={{ duration: 0.5 }}
-                      className="flex items-center"
-                    >
-                      <AppleBienvenueEffect speed={0.2} className="text-primary h-6 lg:h-8" />
-                    </motion.div>
-                  )}
-                </div>
-
-                {/* Partie droite : Badge gestionnaire sélectionné + Nom + AvatarGroup */}
-                <div className="flex items-center gap-2 justify-end flex-shrink-0 min-w-fit">
-                  {/* Badge du gestionnaire sélectionné */}
-                  {selectedGestionnaireId && (() => {
-                    const selectedGestionnaire = gestionnaires.find(g => g.id === selectedGestionnaireId)
-                    if (!selectedGestionnaire) return null
-                    const displayName = getDisplayName(selectedGestionnaire)
-
-                    return (
-                      <>
-                        <motion.div
-                          key={selectedGestionnaireId}
-                          layoutId={`gestionnaire-badge-${selectedGestionnaireId}`}
-                          initial={{ opacity: 0 }}
-                          animate={{ opacity: 1 }}
-                          exit={{ opacity: 0 }}
-                          style={{ width: "2.25rem", height: "2.25rem" }}
-                          transition={{ type: "spring", stiffness: 300, damping: 25 }}
-                        >
-                          <GestionnaireBadge
-                            firstname={selectedGestionnaire.firstname}
-                            lastname={selectedGestionnaire.lastname}
-                            prenom={selectedGestionnaire.prenom}
-                            name={selectedGestionnaire.name}
-                            color={selectedGestionnaire.color}
-                            avatarUrl={selectedGestionnaire.avatar_url}
-                            size="sm"
-                            className="ring-2 ring-primary ring-offset-2"
-                          />
-                        </motion.div>
-                        <motion.span
-                          className="text-sm font-medium text-foreground whitespace-nowrap"
-                          initial={{ opacity: 0 }}
-                          animate={{ opacity: 1 }}
-                          transition={{ delay: 0.1 }}
-                        >
-                          {displayName}
-                        </motion.span>
-                      </>
-                    )
-                  })()}
-
-                  {/* AvatarGroup des gestionnaires */}
-                  {isLoadingGestionnaires ? (
-                    <div className="h-9 w-9 rounded-full bg-muted animate-pulse flex-shrink-0" />
-                  ) : gestionnaires.length === 0 ? (
-                    <div className="text-sm text-muted-foreground whitespace-nowrap">Aucun gestionnaire</div>
-                  ) : (
-                    <motion.div
-                      layout
-                      transition={{ type: "spring", stiffness: 300, damping: 25 }}
-                      className="flex-shrink-0"
-                    >
-                      <AvatarGroup variant="motion" className="h-9 -space-x-2">
-                        {gestionnaires
-                          .filter((gestionnaire) => gestionnaire.id !== selectedGestionnaireId)
-                          .map((gestionnaire) => {
-                            const isCurrentUser = currentUser?.id === gestionnaire.id
-                            const displayName = getDisplayName(gestionnaire)
-
-                            return (
-                              <motion.div
-                                key={gestionnaire.id}
-                                layoutId={`gestionnaire-badge-${gestionnaire.id}`}
-                                layout
-                                initial={false}
-                                style={{ width: "2.25rem", height: "2.25rem" }}
-                                transition={{ type: "spring", stiffness: 300, damping: 25 }}
-                              >
-                                <GestionnaireBadge
-                                  firstname={gestionnaire.firstname}
-                                  lastname={gestionnaire.lastname}
-                                  prenom={gestionnaire.prenom}
-                                  name={gestionnaire.name}
-                                  color={gestionnaire.color}
-                                  avatarUrl={gestionnaire.avatar_url}
-                                  size="sm"
-                                  className={cn(
-                                    "transition-all",
-                                    isCurrentUser && "ring-2 ring-green-500/50"
-                                  )}
-                                  onClick={() => setSelectedGestionnaireId(gestionnaire.id)}
-                                >
-                                  <AvatarGroupTooltip>
-                                    <div className="flex flex-col gap-1">
-                                      <p className="font-semibold">{displayName}</p>
-                                      {isCurrentUser && (
-                                        <Badge variant="secondary" className="w-fit text-xs">
-                                          Vous
-                                        </Badge>
-                                      )}
-                                      {gestionnaire.code_gestionnaire && (
-                                        <p className="text-xs text-muted-foreground">
-                                          {gestionnaire.code_gestionnaire}
-                                        </p>
-                                      )}
-                                    </div>
-                                  </AvatarGroupTooltip>
-                                </GestionnaireBadge>
-                              </motion.div>
-                            )
-                          })}
-                      </AvatarGroup>
-                    </motion.div>
-                  )}
-
-                  {/* Bouton Mode Admin (visible uniquement pour les admins) */}
-                  {isAdmin && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => router.push("/admin/dashboard")}
-                      className="flex items-center gap-2 whitespace-nowrap flex-shrink-0"
-                    >
-                      <Shield className="h-4 w-4" />
-                      <span className="hidden lg:inline">Mode Admin</span>
-                      <span className="lg:hidden">Admin</span>
-                    </Button>
-                  )}
-                </div>
+                )}
               </div>
 
-              {/* ═══════════════════════════════════════════════════════════════
+              {/* Deuxième filtre adaptatif */}
+              <div className="flex items-center gap-2">
+                {isMounted ? (
+                  <Select
+                    value={getCurrentSelectValue()}
+                    onValueChange={handlePeriodSelect}
+                  >
+                    <SelectTrigger className={cn(
+                      "w-auto min-w-[120px]",
+                      periodType === "week" && "min-w-[180px]",
+                      periodType === "month" && "min-w-[140px]",
+                      periodType === "year" && "min-w-[100px]"
+                    )}>
+                      <SelectValue>
+                        {periodOptions.find((opt) => opt.value === getCurrentSelectValue())?.label || "Sélectionner"}
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent className="max-h-[300px]">
+                      {(() => {
+                        const currentYear = getYear(new Date())
+                        const years = [currentYear - 1, currentYear, currentYear + 1]
+
+                        if (periodType === "month") {
+                          return years.map((year) => {
+                            const yearMonths = periodOptions.filter((opt) => opt.year === year)
+                            if (yearMonths.length === 0) return null
+                            return (
+                              <div key={year}>
+                                <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground sticky top-0 bg-popover">
+                                  {year}
+                                </div>
+                                {yearMonths.map((month) => (
+                                  <SelectItem key={month.value} value={month.value}>
+                                    {month.label}
+                                  </SelectItem>
+                                ))}
+                              </div>
+                            )
+                          })
+                        }
+
+                        if (periodType === "week") {
+                          return years.map((year) => {
+                            const yearWeeks = periodOptions.filter((opt) => opt.year === year)
+                            if (yearWeeks.length === 0) return null
+                            return (
+                              <div key={year}>
+                                <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground sticky top-0 bg-popover">
+                                  {year}
+                                </div>
+                                {yearWeeks.map((week) => (
+                                  <SelectItem key={week.value} value={week.value}>
+                                    {week.label}
+                                  </SelectItem>
+                                ))}
+                              </div>
+                            )
+                          })
+                        }
+
+                        // Pour year
+                        return periodOptions.map((year) => (
+                          <SelectItem key={year.value} value={year.value}>
+                            {year.label}
+                          </SelectItem>
+                        ))
+                      })()}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <div className="w-[180px] h-10 rounded-md border bg-background flex items-center px-3">
+                    <span className="text-sm text-muted-foreground">Chargement...</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Dates et interventions à droite des boutons de sélection */}
+              <div className="flex items-center gap-2 text-sm">
+                <span className="text-foreground font-medium hidden xl:inline whitespace-nowrap">
+                  {new Date(period.startDate).toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" })} - {new Date(period.endDate).toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" })}
+                </span>
+                {totalInterventions !== null && (
+                  <Badge variant="secondary" className="text-foreground font-medium whitespace-nowrap">
+                    {totalInterventions} intervention{totalInterventions > 1 ? "s" : ""}
+                  </Badge>
+                )}
+              </div>
+            </div>
+
+            {/* Partie centrale : Bienvenue centré absolument */}
+            <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center justify-center pointer-events-none z-10">
+              {/* Effet "Bienvenue" centré */}
+              {showBienvenue && currentUser?.id && selectedGestionnaireId === currentUser.id && (
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.8 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ duration: 0.5 }}
+                  className="flex items-center"
+                >
+                  <AppleBienvenueEffect speed={0.2} className="text-primary h-6 lg:h-8" />
+                </motion.div>
+              )}
+            </div>
+
+            {/* Partie droite : Badge gestionnaire sélectionné + Nom + ExpandableAvatarGroup */}
+            <div className="flex items-center gap-2 justify-end flex-shrink-0 min-w-fit">
+              {/* Badge du gestionnaire sélectionné */}
+              {selectedGestionnaireId && (() => {
+                const selectedGestionnaire = gestionnaires.find(g => g.id === selectedGestionnaireId)
+                if (!selectedGestionnaire) return null
+                const displayName = getDisplayName(selectedGestionnaire)
+
+                return (
+                  <>
+                    <motion.div
+                      key={selectedGestionnaireId}
+                      layoutId={`gestionnaire-badge-${selectedGestionnaireId}`}
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      style={{ width: "2.25rem", height: "2.25rem" }}
+                      transition={{ type: "spring", stiffness: 300, damping: 25 }}
+                    >
+                      <GestionnaireBadge
+                        firstname={selectedGestionnaire.firstname}
+                        lastname={selectedGestionnaire.lastname}
+                        prenom={selectedGestionnaire.prenom}
+                        name={selectedGestionnaire.name}
+                        color={selectedGestionnaire.color}
+                        avatarUrl={selectedGestionnaire.avatar_url}
+                        size="sm"
+                        className="ring-2 ring-primary ring-offset-2"
+                      />
+                    </motion.div>
+                    <motion.span
+                      className="text-sm font-medium text-foreground whitespace-nowrap"
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      transition={{ delay: 0.1 }}
+                    >
+                      {displayName}
+                    </motion.span>
+                  </>
+                )
+              })()}
+
+              {/* ExpandableAvatarGroup des gestionnaires */}
+              {isLoadingGestionnaires ? (
+                <div className="h-9 w-9 rounded-full bg-muted animate-pulse flex-shrink-0" />
+              ) : gestionnaires.length === 0 ? (
+                <div className="text-sm text-muted-foreground whitespace-nowrap">Aucun gestionnaire</div>
+              ) : (
+                <motion.div
+                  layout
+                  transition={{ type: "spring", stiffness: 300, damping: 25 }}
+                  className="flex-shrink-0"
+                >
+                  <ExpandableAvatarGroup
+                    items={gestionnaires
+                      .filter((gestionnaire) => gestionnaire.id !== selectedGestionnaireId)
+                      .map((gestionnaire) => {
+                        const displayName = getDisplayName(gestionnaire)
+                        return {
+                          id: gestionnaire.id,
+                          firstname: gestionnaire.firstname,
+                          lastname: gestionnaire.lastname,
+                          prenom: gestionnaire.prenom,
+                          name: gestionnaire.name,
+                          color: gestionnaire.color,
+                          avatarUrl: gestionnaire.avatar_url,
+                          searchText: `${displayName} ${gestionnaire.code_gestionnaire || ''}`.trim(),
+                        }
+                      })}
+                    maxVisible={8}
+                    avatarSize="sm"
+                    onAvatarClick={(id) => setSelectedGestionnaireId(id)}
+                    showSearch={true}
+                    searchThreshold={8}
+                  />
+                </motion.div>
+              )}
+
+              {/* Bouton Mode Admin (visible uniquement pour les admins) */}
+              {isAdmin && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => router.push("/admin/dashboard")}
+                  className="flex items-center gap-2 whitespace-nowrap flex-shrink-0"
+                >
+                  <Shield className="h-4 w-4" />
+                  <span className="hidden lg:inline">Mode Admin</span>
+                  <span className="lg:hidden">Admin</span>
+                </Button>
+              )}
+            </div>
+          </div>
+
+          {/* ═══════════════════════════════════════════════════════════════
                   CONTENU PRINCIPAL - Prend tout l'espace restant
                   flex-1 + min-h-0 permet au contenu de shrink si nécessaire
                   ═══════════════════════════════════════════════════════════════ */}
-              <div className="flex gap-3 min-h-[800px]">
+          <div className="flex gap-3 min-h-[800px]">
 
-                {/* ─────────────────────────────────────────────────────────────
+            {/* ─────────────────────────────────────────────────────────────
                     COLONNE GAUCHE : Interventions + Artisans + Tableau
                     flex-[2] = prend 2 parts de l'espace horizontal (~66%)
                     ───────────────────────────────────────────────────────────── */}
-                <div className="flex-[2] flex flex-col gap-3">
+            <div className="flex-[2] flex flex-col gap-3">
 
-                  {/* Interventions + Artisans côte à côte */}
-                  <div className="flex gap-3 min-h-[400px]">
-                    <div className="flex-1">
-                      <InterventionStatsBarChart hoverPeriod={period} userId={effectiveUserId} />
-                    </div>
-                    <div className="flex-1">
-                      <ArtisanStatsList period={period} userId={effectiveUserId} />
-                    </div>
-                  </div>
-
-                  {/* Tableau en dessous */}
-                  <div className="min-h-[400px]">
-                    <WeeklyStatsTable period={period} userId={effectiveUserId} />
-                  </div>
-
+              {/* Interventions + Artisans côte à côte */}
+              <div className="flex gap-3 min-h-[400px]">
+                <div className="flex-1">
+                  <InterventionStatsBarChart hoverPeriod={period} userId={effectiveUserId} />
                 </div>
+                <div className="flex-1">
+                  <ArtisanStatsList period={period} userId={effectiveUserId} />
+                </div>
+              </div>
 
-                {/* ─────────────────────────────────────────────────────────────
+              {/* Tableau en dessous */}
+              <div className="min-h-[400px]">
+                <WeeklyStatsTable period={period} userId={effectiveUserId} />
+              </div>
+
+            </div>
+
+            {/* ─────────────────────────────────────────────────────────────
                     COLONNE DROITE : KPIs tactiques
                     flex-1 = prend 1 part de l'espace horizontal (~33%)
                     ───────────────────────────────────────────────────────────── */}
-                <div className="flex-1 flex flex-col gap-2 min-h-0">
+            <div className="flex-1 flex flex-col gap-2 min-h-0">
 
-                  {/* ═══ BLOC RETARD + SPEEDOMÈTRES ═══ */}
-                  <div className="flex flex-col flex-shrink-0 p-2 bg-muted/30 rounded-lg" style={{ height: '30%', minHeight: '180px' }}>
+              {/* ═══ BLOC RETARD + SPEEDOMÈTRES ═══ */}
+              <div className="flex flex-col flex-shrink-0 p-2 bg-muted/30 rounded-lg" style={{ height: '30%', minHeight: '180px' }}>
 
-                    {/* Indicateur de retards */}
-                    <div
-                      className="mb-2 flex-shrink-0 rounded-md px-2 py-1 text-center font-semibold text-base transition-colors duration-300"
-                      style={{
-                        backgroundColor: `${getLatenessColor(latenessCount)}20`,
-                        color: getLatenessColor(latenessCount),
-                        border: `2px solid ${getLatenessColor(latenessCount)}`,
-                      }}
-                    >
-                      {isAdmin ? (
-                        <>👑 Le boss n&apos;est jamais en retard</>
-                      ) : (
-                        <>⏰ Retard dans l&apos;année : {latenessCount}</>
-                      )}
-                    </div>
+                {/* Indicateur de retards */}
+                <div
+                  className="mb-2 flex-shrink-0 rounded-md px-2 py-1 text-center font-semibold text-base transition-colors duration-300"
+                  style={{
+                    backgroundColor: `${getLatenessColor(latenessCount)}20`,
+                    color: getLatenessColor(latenessCount),
+                    border: `2px solid ${getLatenessColor(latenessCount)}`,
+                  }}
+                >
+                  {isAdmin ? (
+                    <>👑 Le boss n&apos;est jamais en retard</>
+                  ) : (
+                    <>⏰ Retard dans l&apos;année : {latenessCount}</>
+                  )}
+                </div>
 
-                    {/* KPIs de marge côte à côte - prennent l'espace restant */}
-                    <div className="flex-1 grid grid-cols-2 gap-2 min-h-0 overflow-hidden">
-                      <div className="h-full overflow-hidden">
-                        <MarginStatsCard period={period} userId={effectiveUserId} compact />
-                      </div>
-                      <div className="h-full overflow-hidden">
-                        <MarginTotalCard period={period} userId={effectiveUserId} compact />
-                      </div>
-                    </div>
-
+                {/* KPIs de marge côte à côte - prennent l'espace restant */}
+                <div className="flex-1 grid grid-cols-2 gap-2 min-h-0 overflow-hidden">
+                  <div className="h-full overflow-hidden">
+                    <MarginStatsCard period={period} userId={effectiveUserId} compact />
                   </div>
-
-                  {/* ═══ PODIUM ═══ */}
-                  <div className="flex-1 overflow-hidden min-h-0">
-                    <GestionnaireRankingPodium period={period} useAutoPeriod={true} />
+                  <div className="h-full overflow-hidden">
+                    <MarginTotalCard period={period} userId={effectiveUserId} compact />
                   </div>
-
                 </div>
 
               </div>
+
+              {/* ═══ PODIUM ═══ */}
+              <div className="flex-1 overflow-hidden min-h-0">
+                <GestionnaireRankingPodium period={period} useAutoPeriod={true} />
+              </div>
+
             </div>
+
           </div>
+        </div>
+      </div>
     </>
   )
 }
