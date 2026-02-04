@@ -6,7 +6,6 @@ import { useQueryClient } from "@tanstack/react-query"
 import { Building, ChevronDown, ChevronRight, FileText, MessageSquare, Upload, X, Search, Eye, Mail, MessageCircle, Users, Palette } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { getInterventionStatusColor } from "@/config/status-colors"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
@@ -1542,10 +1541,10 @@ export const InterventionEditForm = memo(function InterventionEditForm({
       latitude: suggestion.lat,
       longitude: suggestion.lng,
       adresseComplete: suggestion.label,
-      // Overwrite address fields with new selection
-      adresse: addressParts.street || "",
-      code_postal: addressParts.postalCode || "",
-      ville: addressParts.city || "",
+      // NE PAS écraser le champ adresse (saisie libre)
+      // On ne met à jour code_postal et ville que s'ils sont vides
+      code_postal: prev.code_postal || addressParts.postalCode || "",
+      ville: prev.ville || addressParts.city || "",
     }))
 
     // Mettre à jour la query pour refléter la sélection
@@ -1625,10 +1624,10 @@ export const InterventionEditForm = memo(function InterventionEditForm({
         latitude: result.lat,
         longitude: result.lng,
         adresseComplete: result.label,
-        // Overwrite address fields with new selection
-        adresse: addressParts.street || "",
-        code_postal: addressParts.postalCode || "",
-        ville: addressParts.city || "",
+        // NE PAS écraser le champ adresse (saisie libre)
+        // On ne met à jour code_postal et ville que s'ils sont vides
+        code_postal: prev.code_postal || addressParts.postalCode || "",
+        ville: prev.ville || addressParts.city || "",
       }))
       setLocationQuery(result.label)
     } catch (error) {
@@ -2249,7 +2248,7 @@ export const InterventionEditForm = memo(function InterventionEditForm({
                             .map(s => ({
                               id: s.id,
                               label: s.label,
-                              color: getInterventionStatusColor(s.label, s.code) || s.color,
+                              color: s.color,
                               code: s.code || ""
                             }))
                             .sort((a, b) => {

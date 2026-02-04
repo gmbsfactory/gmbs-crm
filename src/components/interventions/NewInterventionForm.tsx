@@ -28,7 +28,6 @@ import type { CreateInterventionData } from "@/lib/api/v2/common/types"
 import { supabase } from "@/lib/supabase-client"
 import { useCurrentUser } from "@/hooks/useCurrentUser"
 import { cn } from "@/lib/utils"
-import { getInterventionStatusColor } from "@/config/status-colors"
 import { calculatePrimaryArtisanMargin, calculateSecondaryArtisanMargin, formatMarginPercentage, getMarginColorClass } from "@/lib/utils/margin-calculator"
 import { ArtisanSearchModal, type ArtisanSearchResult } from "@/components/artisans/ArtisanSearchModal"
 import { Avatar } from "@/components/artisans/Avatar"
@@ -860,10 +859,10 @@ export function NewInterventionForm({
       latitude: suggestion.lat,
       longitude: suggestion.lng,
       adresseComplete: suggestion.label,
-      // Overwrite address fields with new selection
-      adresse: addressParts.street || "",
-      code_postal: addressParts.postalCode || "",
-      ville: addressParts.city || "",
+      // NE PAS écraser le champ adresse (saisie libre)
+      // On ne met à jour code_postal et ville que s'ils sont vides
+      code_postal: prev.code_postal || addressParts.postalCode || "",
+      ville: prev.ville || addressParts.city || "",
     }))
 
     setLocationQuery(suggestion.label)
@@ -931,10 +930,10 @@ export function NewInterventionForm({
         latitude: result.lat,
         longitude: result.lng,
         adresseComplete: result.label,
-        // Overwrite address fields with new selection
-        adresse: addressParts.street || "",
-        code_postal: addressParts.postalCode || "",
-        ville: addressParts.city || "",
+        // NE PAS écraser le champ adresse (saisie libre)
+        // On ne met à jour code_postal et ville que s'ils sont vides
+        code_postal: prev.code_postal || addressParts.postalCode || "",
+        ville: prev.ville || addressParts.city || "",
       }))
       setLocationQuery(result.label)
     } catch (error) {
@@ -1364,7 +1363,7 @@ export function NewInterventionForm({
                       .map(s => ({
                         id: s.id,
                         label: s.label,
-                        color: getInterventionStatusColor(s.label, s.code) || s.color,
+                        color: s.color,
                         code: s.code || ""
                       }))
                       .sort((a, b) => {
