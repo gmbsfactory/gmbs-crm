@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState, useRef } from "react"
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogDescription, DialogBody, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Textarea } from "@/components/ui/textarea"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -94,8 +94,9 @@ export function StatusReasonModal({ open, type, onConfirm, onCancel, isSubmittin
       }}
       modal={true}
     >
-      <DialogContent 
-        className="sm:max-w-md !z-[1300]" 
+      <DialogContent
+        variant="premium"
+        className="sm:max-w-md !z-[1300]"
         overlayClassName="!z-[1200]"
         onInteractOutside={(e) => {
           // Empêcher la fermeture en cliquant à l'extérieur pendant la soumission
@@ -110,28 +111,30 @@ export function StatusReasonModal({ open, type, onConfirm, onCancel, isSubmittin
           }
         }}
       >
-        <DialogHeader>
+        <DialogHeader variant="premium">
           <DialogTitle>{copy.title}</DialogTitle>
           <DialogDescription>{copy.description}</DialogDescription>
         </DialogHeader>
-        <div className="space-y-3">
-          <div className="flex items-center gap-2 text-sm font-medium">
-            <span>{copy.label}</span>
-            <Badge variant={type === "archive" ? "secondary" : "default"} className="uppercase tracking-wide text-[11px]">
-              {copy.badge}
-            </Badge>
+        <DialogBody translucent>
+          <div className="space-y-3">
+            <div className="flex items-center gap-2 text-sm font-medium">
+              <span>{copy.label}</span>
+              <Badge variant={type === "archive" ? "secondary" : "default"} className="uppercase tracking-wide text-[11px]">
+                {copy.badge}
+              </Badge>
+            </div>
+            <Textarea
+              autoFocus
+              rows={4}
+              value={reason}
+              onChange={(event) => setReason(event.target.value)}
+              placeholder={copy.placeholder}
+              disabled={isSubmitting}
+              required
+            />
           </div>
-          <Textarea
-            autoFocus
-            rows={4}
-            value={reason}
-            onChange={(event) => setReason(event.target.value)}
-            placeholder={copy.placeholder}
-            disabled={isSubmitting}
-            required
-          />
-        </div>
-        <DialogFooter>
+        </DialogBody>
+        <DialogFooter variant="premium">
           <Button type="button" variant="ghost" onClick={onCancel} disabled={isSubmitting}>
             Annuler
           </Button>

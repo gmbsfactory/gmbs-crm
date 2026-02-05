@@ -405,7 +405,7 @@ export default function Topbar() {
   }, [clearSearch])
 
   return (
-    <div className="fixed top-0 left-0 right-0 z-50 border-b bg-background shadow-sm">
+    <div className="fixed top-0 left-0 right-0 z-50 liquid-glass-topbar-blue">
       <div className="flex h-16 items-center px-4 relative">
         {/* Left: Logo + boutons d'ajout */}
         <div className="flex items-center gap-2">

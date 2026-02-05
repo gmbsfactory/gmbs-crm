@@ -17,9 +17,12 @@ const SheetOverlay = React.forwardRef<
   <DialogPrimitive.Overlay
     ref={ref}
     className={cn(
-      "shadcn-dialog-overlay data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
+      "modal-overlay fixed inset-0 z-50 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
       className,
     )}
+    style={{
+      background: "rgba(0, 0, 0, 0.20)",
+    }}
     {...props}
   />
 ))
@@ -65,15 +68,54 @@ const SheetContent = React.forwardRef<
 ))
 SheetContent.displayName = DialogPrimitive.Content.displayName
 
-const SheetHeader = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
-  <div className={cn("sticky top-0 z-10 border-b bg-background p-6", className)} {...props} />
+// Style inline pour forcer le header solide - effet lévitation
+const premiumHeaderStyle: React.CSSProperties = {
+  background: "rgba(255, 255, 255, 0.97)",
+  borderBottom: "1px solid rgba(255, 255, 255, 0.8)",
+  padding: "1.25rem 1.5rem",
+  boxShadow: "0 4px 16px rgba(51, 113, 178, 0.08), 0 2px 6px rgba(0, 0, 0, 0.04), inset 0 1px 0 rgba(255, 255, 255, 1)",
+}
+
+// Style inline pour forcer le footer solide - effet lévitation
+const premiumFooterStyle: React.CSSProperties = {
+  background: "rgba(255, 255, 255, 0.95)",
+  borderTop: "1px solid rgba(255, 255, 255, 0.8)",
+  padding: "1rem 1.5rem",
+  boxShadow: "0 -4px 16px rgba(51, 113, 178, 0.08), 0 -2px 6px rgba(0, 0, 0, 0.04), inset 0 -1px 0 rgba(255, 255, 255, 1)",
+}
+
+const SheetHeader = ({ className, style, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
+  <div
+    className={cn("glass-modal-header sticky top-0 z-10", className)}
+    style={{ ...premiumHeaderStyle, ...style }}
+    {...props}
+  />
 )
 SheetHeader.displayName = "SheetHeader"
 
-const SheetFooter = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
-  <div className={cn("sticky bottom-0 z-10 border-t bg-background p-4", className)} {...props} />
+const SheetFooter = ({ className, style, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
+  <div
+    className={cn("glass-modal-footer sticky bottom-0 z-10", className)}
+    style={{ ...premiumFooterStyle, ...style }}
+    {...props}
+  />
 )
 SheetFooter.displayName = "SheetFooter"
+
+// Style inline pour le body transparent
+const premiumBodyStyle: React.CSSProperties = {
+  background: "transparent",
+  padding: "1.5rem",
+}
+
+const SheetBody = ({ className, style, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
+  <div
+    className={cn("glass-modal-body glass-modal-body--translucent flex-1 overflow-y-auto", className)}
+    style={{ ...premiumBodyStyle, ...style }}
+    {...props}
+  />
+)
+SheetBody.displayName = "SheetBody"
 
 const SheetTitle = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Title>,
@@ -83,4 +125,12 @@ const SheetTitle = React.forwardRef<
 ))
 SheetTitle.displayName = DialogPrimitive.Title.displayName
 
-export { Sheet, SheetTrigger, SheetClose, SheetPortal, SheetOverlay, SheetContent, SheetHeader, SheetFooter, SheetTitle }
+const SheetDescription = React.forwardRef<
+  React.ElementRef<typeof DialogPrimitive.Description>,
+  React.ComponentPropsWithoutRef<typeof DialogPrimitive.Description>
+>(({ className, ...props }, ref) => (
+  <DialogPrimitive.Description ref={ref} className={cn("text-sm text-muted-foreground", className)} {...props} />
+))
+SheetDescription.displayName = DialogPrimitive.Description.displayName
+
+export { Sheet, SheetTrigger, SheetClose, SheetPortal, SheetOverlay, SheetContent, SheetHeader, SheetBody, SheetFooter, SheetTitle, SheetDescription }

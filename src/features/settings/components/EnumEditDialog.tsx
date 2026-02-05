@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogBody, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -107,13 +107,13 @@ export function EnumEditDialog({ config, item, isCreating, onClose, onSave }: En
 
   return (
     <Dialog open={true} onOpenChange={onClose}>
-      <DialogContent>
-        <DialogHeader>
+      <DialogContent variant="premium">
+        <DialogHeader variant="premium">
           <DialogTitle>
             {isCreating ? `Ajouter ${config.title}` : `Modifier ${config.title}`}
           </DialogTitle>
         </DialogHeader>
-        <div className="space-y-4">
+        <DialogBody translucent className="space-y-4">
           {config.fields.map(field => {
             if (!field.editable) {
               // Champs non éditables (ex: code)
@@ -191,8 +191,8 @@ export function EnumEditDialog({ config, item, isCreating, onClose, onSave }: En
               </div>
             );
           })}
-        </div>
-        <DialogFooter>
+        </DialogBody>
+        <DialogFooter variant="premium">
           <Button variant="outline" onClick={onClose} disabled={saving}>
             Annuler
           </Button>

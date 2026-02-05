@@ -4,6 +4,7 @@ import { useRef } from "react"
 import {
   AlertDialog,
   AlertDialogAction,
+  AlertDialogBody,
   AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
@@ -73,6 +74,8 @@ export function DuplicateInterventionDialog({ duplicates, onConfirm, onCancel }:
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>Intervention similaire détectée</AlertDialogTitle>
+        </AlertDialogHeader>
+        <AlertDialogBody>
           <AlertDialogDescription className="space-y-2">
             <p>
               Une intervention à l&apos;adresse <strong>{address}</strong> avec l&apos;agence{" "}
@@ -87,7 +90,7 @@ export function DuplicateInterventionDialog({ duplicates, onConfirm, onCancel }:
             </p>
             <p>Voulez-vous quand même créer cette intervention ?</p>
           </AlertDialogDescription>
-        </AlertDialogHeader>
+        </AlertDialogBody>
         <AlertDialogFooter>
           <AlertDialogCancel onClick={onCancel}>Annuler</AlertDialogCancel>
           <AlertDialogAction onClick={handleConfirm}>Confirmer</AlertDialogAction>

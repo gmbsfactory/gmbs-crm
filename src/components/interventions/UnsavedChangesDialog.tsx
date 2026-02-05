@@ -3,6 +3,7 @@
 import {
   AlertDialog,
   AlertDialogAction,
+  AlertDialogBody,
   AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
@@ -32,10 +33,12 @@ export function UnsavedChangesDialog({
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>Modifications non enregistrées</AlertDialogTitle>
+        </AlertDialogHeader>
+        <AlertDialogBody>
           <AlertDialogDescription>
             Vous êtes sur le point de quitter le modal avec des modifications non enregistrées.
           </AlertDialogDescription>
-        </AlertDialogHeader>
+        </AlertDialogBody>
         <AlertDialogFooter className="flex-col sm:flex-row gap-2">
           <AlertDialogCancel onClick={onCancel}>
             Annuler

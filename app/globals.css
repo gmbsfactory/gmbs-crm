@@ -4,29 +4,593 @@
 
 @import "@/styles/tokens.css";
 
-/* === Glass Effect (scoped and optimized) === */
+/* ═══════════════════════════════════════════════════════════════════════════
+   LIQUID GLASS DESIGN SYSTEM
+   Un système de design glassmorphism fluide et moderne
+   Préserve toutes les couleurs métier existantes (statuts, accent, charts...)
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* === Variables Liquid Glass (Light Mode) === */
+:root {
+  /* Couleurs du logo GMBS - bleu professionnel */
+  --gmbs-blue: #3371B2;
+  --gmbs-blue-rgb: 51, 113, 178;
+  --gmbs-blue-primary: 210 52% 45%;     /* #3371B2 - bleu principal */
+  --gmbs-blue-dark: 228 60% 40%;        /* #263FA7 - bleu foncé */
+  --gmbs-blue-light: 210 52% 92%;       /* Bleu très clair pour backgrounds */
+  --gmbs-blue-medium: 210 45% 85%;      /* Bleu moyen pour accents */
+
+  /* Background dégradé bleu pour mode clair - TRÈS VISIBLE */
+  --app-bg-gradient: linear-gradient(
+    145deg,
+    hsl(210 60% 92%) 0%,
+    hsl(212 55% 86%) 25%,
+    hsl(215 50% 82%) 50%,
+    hsl(218 45% 85%) 75%,
+    hsl(220 40% 88%) 100%
+  );
+
+  /* Glass backgrounds avec opacités variables */
+  --glass-bg-subtle: rgba(255, 255, 255, 0.45);
+  --glass-bg-light: rgba(255, 255, 255, 0.55);
+  --glass-bg-medium: rgba(255, 255, 255, 0.65);
+  --glass-bg-strong: rgba(255, 255, 255, 0.75);
+  --glass-bg-solid: rgba(255, 255, 255, 0.88);
+
+  /* Glass borders - lumineuses et subtiles */
+  --glass-border-subtle: rgba(255, 255, 255, 0.25);
+  --glass-border-light: rgba(255, 255, 255, 0.35);
+  --glass-border-medium: rgba(255, 255, 255, 0.50);
+  --glass-border-strong: rgba(255, 255, 255, 0.65);
+  --glass-border-accent: rgba(255, 255, 255, 0.80);
+
+  /* Bordures colorées pour le mode light */
+  --glass-border-dark: rgba(0, 0, 0, 0.06);
+  --glass-border-dark-medium: rgba(0, 0, 0, 0.10);
+
+  /* ═══════════════════════════════════════════════════
+     MODAL TRANSLUCIDE - Le panneau de verre
+     ═══════════════════════════════════════════════════ */
+  /* Le modal lui-même - TRÈS translucide pour voir le fond */
+  --modal-panel-bg: rgba(255, 255, 255, 0.18);
+  --modal-panel-border: rgba(255, 255, 255, 0.35);
+  --modal-panel-shadow:
+    0 25px 50px -12px rgba(0, 0, 0, 0.20),
+    0 0 0 1px rgba(255, 255, 255, 0.4),
+    inset 0 1px 1px rgba(255, 255, 255, 0.6);
+
+  /* Éléments qui RESSORTENT du panneau - contraste fort */
+  --modal-element-bg: rgba(255, 255, 255, 0.95);
+  --modal-element-border: rgba(var(--gmbs-blue-rgb), 0.25);
+  --modal-element-shadow:
+    0 4px 16px rgba(0, 0, 0, 0.12),
+    0 2px 4px rgba(0, 0, 0, 0.08);
+
+  /* Header/Footer - SOLIDES pour contraste avec le corps translucide */
+  --modal-header-bg: rgba(255, 255, 255, 0.92);
+  --modal-footer-bg: rgba(255, 255, 255, 0.88);
+
+  /* Inputs - TRÈS SOLIDES, ressortent du panneau */
+  --modal-input-bg: rgba(255, 255, 255, 0.98);
+  --modal-input-border: rgba(var(--gmbs-blue-rgb), 0.30);
+  --modal-input-shadow:
+    0 4px 12px rgba(0, 0, 0, 0.10),
+    0 2px 4px rgba(0, 0, 0, 0.06),
+    inset 0 1px 2px rgba(0, 0, 0, 0.02);
+
+  /* Dividers subtils */
+  --modal-divider: rgba(var(--gmbs-blue-rgb), 0.15);
+
+  /* Glass shadows - ombres douces et diffuses */
+  --glass-shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.04), 0 4px 16px rgba(0, 0, 0, 0.03);
+  --glass-shadow-md: 0 4px 16px rgba(0, 0, 0, 0.06), 0 8px 32px rgba(0, 0, 0, 0.04);
+  --glass-shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.08), 0 16px 48px rgba(0, 0, 0, 0.06);
+  --glass-shadow-xl: 0 12px 48px rgba(0, 0, 0, 0.10), 0 24px 64px rgba(0, 0, 0, 0.08);
+
+  /* Glow effects - pour les éléments interactifs */
+  --glass-glow-accent: 0 0 20px hsl(var(--accent-hsl) / 0.15), 0 0 40px hsl(var(--accent-hsl) / 0.08);
+  --glass-glow-white: 0 0 20px rgba(255, 255, 255, 0.3), 0 0 40px rgba(255, 255, 255, 0.15);
+  --glass-glow-hover: 0 0 24px hsl(var(--accent-hsl) / 0.20), 0 0 48px hsl(var(--accent-hsl) / 0.12);
+
+  /* Inner highlights - reflets internes */
+  --glass-highlight-top: inset 0 1px 0 rgba(255, 255, 255, 0.60);
+  --glass-highlight-strong: inset 0 1px 0 rgba(255, 255, 255, 0.80);
+  --glass-highlight-subtle: inset 0 1px 0 rgba(255, 255, 255, 0.30);
+
+  /* Blur intensities */
+  --glass-blur-sm: 8px;
+  --glass-blur-md: 12px;
+  --glass-blur-lg: 20px;
+  --glass-blur-xl: 32px;
+
+  /* Glass saturation boost */
+  --glass-saturate: 1.15;
+  --glass-saturate-strong: 1.25;
+}
+
+/* === Variables Liquid Glass (Dark Mode) === */
+:root[data-theme="dark"] {
+  /* Pas de background bleu en dark mode - garder le style sombre */
+  --app-bg-gradient: none;
+
+  /* Modal translucide - dark mode */
+  --modal-panel-bg: rgba(20, 25, 35, 0.60);
+  --modal-panel-border: rgba(255, 255, 255, 0.12);
+  --modal-panel-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.08);
+
+  --modal-element-bg: rgba(35, 40, 50, 0.95);
+  --modal-element-border: rgba(255, 255, 255, 0.12);
+  --modal-element-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+
+  --modal-header-bg: rgba(25, 30, 40, 0.90);
+  --modal-footer-bg: rgba(25, 30, 40, 0.85);
+
+  --modal-input-bg: rgba(40, 45, 55, 0.98);
+  --modal-input-border: rgba(255, 255, 255, 0.15);
+  --modal-input-shadow: 0 2px 8px rgba(0, 0, 0, 0.20), inset 0 1px 2px rgba(0, 0, 0, 0.15);
+
+  --modal-divider: rgba(255, 255, 255, 0.08);
+
+  /* Glass backgrounds - plus opaques en dark mode pour lisibilité */
+  --glass-bg-subtle: rgba(255, 255, 255, 0.04);
+  --glass-bg-light: rgba(255, 255, 255, 0.06);
+  --glass-bg-medium: rgba(255, 255, 255, 0.08);
+  --glass-bg-strong: rgba(255, 255, 255, 0.12);
+  --glass-bg-solid: rgba(255, 255, 255, 0.16);
+
+  /* Glass borders */
+  --glass-border-subtle: rgba(255, 255, 255, 0.08);
+  --glass-border-light: rgba(255, 255, 255, 0.12);
+  --glass-border-medium: rgba(255, 255, 255, 0.18);
+  --glass-border-strong: rgba(255, 255, 255, 0.25);
+  --glass-border-accent: rgba(255, 255, 255, 0.35);
+
+  /* Bordures sombres non utilisées en dark mode */
+  --glass-border-dark: rgba(0, 0, 0, 0.30);
+  --glass-border-dark-medium: rgba(0, 0, 0, 0.40);
+
+  /* Glass shadows - plus prononcées */
+  --glass-shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.20), 0 4px 16px rgba(0, 0, 0, 0.15);
+  --glass-shadow-md: 0 4px 16px rgba(0, 0, 0, 0.25), 0 8px 32px rgba(0, 0, 0, 0.20);
+  --glass-shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.30), 0 16px 48px rgba(0, 0, 0, 0.25);
+  --glass-shadow-xl: 0 12px 48px rgba(0, 0, 0, 0.35), 0 24px 64px rgba(0, 0, 0, 0.30);
+
+  /* Glow effects - plus visibles */
+  --glass-glow-accent: 0 0 24px hsl(var(--accent-hsl) / 0.25), 0 0 48px hsl(var(--accent-hsl) / 0.15);
+  --glass-glow-white: 0 0 20px rgba(255, 255, 255, 0.10), 0 0 40px rgba(255, 255, 255, 0.05);
+  --glass-glow-hover: 0 0 32px hsl(var(--accent-hsl) / 0.35), 0 0 64px hsl(var(--accent-hsl) / 0.20);
+
+  /* Inner highlights */
+  --glass-highlight-top: inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  --glass-highlight-strong: inset 0 1px 0 rgba(255, 255, 255, 0.20);
+  --glass-highlight-subtle: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+
+  /* Blur - légèrement augmenté pour dark mode */
+  --glass-blur-sm: 10px;
+  --glass-blur-md: 16px;
+  --glass-blur-lg: 24px;
+  --glass-blur-xl: 40px;
+
+  --glass-saturate: 1.20;
+  --glass-saturate-strong: 1.35;
+}
+
+/* === Classes Liquid Glass de base === */
+
+/* Glass Panel - Surface légère */
+.glass-panel {
+  background: var(--glass-bg-light);
+  border: 1px solid var(--glass-border-light);
+  backdrop-filter: blur(var(--glass-blur-md)) saturate(var(--glass-saturate));
+  -webkit-backdrop-filter: blur(var(--glass-blur-md)) saturate(var(--glass-saturate));
+  box-shadow: var(--glass-highlight-top), var(--glass-shadow-sm);
+}
+
+/* Glass Strong - Surface plus opaque */
+.glass-strong {
+  background: var(--glass-bg-strong);
+  border: 1px solid var(--glass-border-medium);
+  backdrop-filter: blur(var(--glass-blur-lg)) saturate(var(--glass-saturate-strong));
+  -webkit-backdrop-filter: blur(var(--glass-blur-lg)) saturate(var(--glass-saturate-strong));
+  box-shadow: var(--glass-highlight-strong), var(--glass-shadow-md);
+}
+
+/* Glass Card - Pour les cartes principales */
+.glass-card {
+  background: var(--glass-bg-medium);
+  border: 1px solid var(--glass-border-light);
+  border-top-color: var(--glass-border-medium);
+  backdrop-filter: blur(var(--glass-blur-lg)) saturate(var(--glass-saturate));
+  -webkit-backdrop-filter: blur(var(--glass-blur-lg)) saturate(var(--glass-saturate));
+  box-shadow: var(--glass-highlight-top), var(--glass-shadow-md);
+  border-radius: var(--radius-lg);
+  transition: all var(--transition-base) var(--transition-easing);
+}
+
+.glass-card:hover {
+  background: var(--glass-bg-strong);
+  border-color: var(--glass-border-medium);
+  box-shadow: var(--glass-highlight-strong), var(--glass-shadow-lg);
+  transform: translateY(-2px);
+}
+
+/* Glass Subtle - Surface très légère pour backgrounds */
+.glass-subtle {
+  background: var(--glass-bg-subtle);
+  border: 1px solid var(--glass-border-subtle);
+  backdrop-filter: blur(var(--glass-blur-sm)) saturate(var(--glass-saturate));
+  -webkit-backdrop-filter: blur(var(--glass-blur-sm)) saturate(var(--glass-saturate));
+}
+
+/* Glass Solid - Surface presque opaque */
+.glass-solid {
+  background: var(--glass-bg-solid);
+  border: 1px solid var(--glass-border-strong);
+  backdrop-filter: blur(var(--glass-blur-xl)) saturate(var(--glass-saturate-strong));
+  -webkit-backdrop-filter: blur(var(--glass-blur-xl)) saturate(var(--glass-saturate-strong));
+  box-shadow: var(--glass-highlight-strong), var(--glass-shadow-lg);
+}
+
+/* Glass Button - Pour les boutons */
+.glass-button {
+  background: var(--glass-bg-medium);
+  border: 1px solid var(--glass-border-light);
+  backdrop-filter: blur(var(--glass-blur-md)) saturate(var(--glass-saturate));
+  -webkit-backdrop-filter: blur(var(--glass-blur-md)) saturate(var(--glass-saturate));
+  box-shadow: var(--glass-highlight-top), var(--glass-shadow-sm);
+  transition: all var(--transition-fast) var(--transition-easing);
+}
+
+.glass-button:hover {
+  background: var(--glass-bg-strong);
+  border-color: var(--glass-border-medium);
+  box-shadow: var(--glass-highlight-strong), var(--glass-shadow-md), var(--glass-glow-white);
+  transform: translateY(-1px);
+}
+
+.glass-button:active {
+  transform: translateY(0);
+  box-shadow: var(--glass-highlight-subtle), var(--glass-shadow-sm);
+}
+
+/* Glass Input - Pour les champs de formulaire */
+.glass-input {
+  background: var(--glass-bg-subtle);
+  border: 1px solid var(--glass-border-light);
+  backdrop-filter: blur(var(--glass-blur-sm)) saturate(var(--glass-saturate));
+  -webkit-backdrop-filter: blur(var(--glass-blur-sm)) saturate(var(--glass-saturate));
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.04);
+  transition: all var(--transition-fast) var(--transition-easing);
+}
+
+.glass-input:focus {
+  background: var(--glass-bg-light);
+  border-color: hsl(var(--accent-hsl) / 0.5);
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.02), var(--glass-glow-accent);
+  outline: none;
+}
+
+/* Glass Modal/Dialog - Pour les overlays */
+.glass-modal {
+  background: var(--glass-bg-solid);
+  border: 1px solid var(--glass-border-strong);
+  backdrop-filter: blur(var(--glass-blur-xl)) saturate(var(--glass-saturate-strong));
+  -webkit-backdrop-filter: blur(var(--glass-blur-xl)) saturate(var(--glass-saturate-strong));
+  box-shadow: var(--glass-highlight-strong), var(--glass-shadow-xl);
+  border-radius: var(--radius-xl);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   MODAL TRANSLUCIDE PREMIUM - EFFET VERRE
+   ═══════════════════════════════════════════════════════════════════════════
+   Concept : Le modal est un PANNEAU DE VERRE translucide.
+   On voit le background bleu à travers le modal.
+   Les éléments (header, footer, inputs) RESSORTENT avec un fond solide.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Le panneau de verre principal - TRÈS TRANSLUCIDE */
+.glass-modal-premium {
+  background: var(--modal-panel-bg) !important;
+  border: 1px solid var(--modal-panel-border) !important;
+  backdrop-filter: blur(20px) saturate(1.5) !important;
+  -webkit-backdrop-filter: blur(20px) saturate(1.5) !important;
+  box-shadow: var(--modal-panel-shadow) !important;
+  border-radius: var(--radius-xl, 16px) !important;
+  overflow: hidden;
+  padding: 0;
+}
+
+/* Header - SOLIDE, contraste avec le corps translucide */
+.glass-modal-header {
+  background: var(--modal-header-bg) !important;
+  backdrop-filter: blur(12px) !important;
+  -webkit-backdrop-filter: blur(12px) !important;
+  border-bottom: 1px solid var(--modal-divider) !important;
+  padding: 1.25rem 1.5rem;
+  position: relative;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+}
+
+/* Ligne de brillance en bas du header */
+.glass-modal-header::after {
+  content: "";
+  position: absolute;
+  bottom: -1px;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent 5%,
+    rgba(var(--gmbs-blue-rgb), 0.30) 50%,
+    transparent 95%
+  );
+}
+
+/* Corps du modal - TRANSPARENT pour voir le background à travers */
+.glass-modal-body {
+  background: transparent !important;
+  padding: 1.5rem;
+  position: relative;
+}
+
+/* Variante translucide explicite */
+.glass-modal-body--translucent {
+  background: transparent !important;
+}
+
+/* Footer - SOLIDE, contraste avec le corps translucide */
+.glass-modal-footer {
+  background: var(--modal-footer-bg) !important;
+  backdrop-filter: blur(12px) !important;
+  -webkit-backdrop-filter: blur(12px) !important;
+  border-top: 1px solid var(--modal-divider) !important;
+  padding: 1rem 1.5rem;
+  position: relative;
+  box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.06);
+}
+
+/* Ligne de brillance en haut du footer */
+.glass-modal-footer::before {
+  content: "";
+  position: absolute;
+  top: -1px;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent 5%,
+    rgba(var(--gmbs-blue-rgb), 0.30) 50%,
+    transparent 95%
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   ÉLÉMENTS QUI RESSORTENT DU PANNEAU
+   Ces éléments ont un background solide pour créer du contraste
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Inputs - TRÈS VISIBLES, ressortent du verre */
+.glass-modal-premium input:not([type="checkbox"]):not([type="radio"]),
+.glass-modal-premium textarea,
+.glass-modal-premium select,
+.glass-modal-premium [data-slot="control"] {
+  background: var(--modal-input-bg) !important;
+  border: 1px solid var(--modal-input-border) !important;
+  border-radius: var(--radius-md);
+  box-shadow: var(--modal-input-shadow) !important;
+  transition: all 0.2s ease;
+}
+
+.glass-modal-premium input:not([type="checkbox"]):not([type="radio"]):focus,
+.glass-modal-premium textarea:focus,
+.glass-modal-premium select:focus {
+  border-color: var(--gmbs-blue) !important;
+  box-shadow:
+    var(--modal-input-shadow),
+    0 0 0 3px rgba(var(--gmbs-blue-rgb), 0.15),
+    0 0 16px rgba(var(--gmbs-blue-rgb), 0.10) !important;
+  outline: none;
+}
+
+/* Labels - texte bien lisible */
+.glass-modal-premium label {
+  color: var(--text);
+  font-weight: 600;
+  text-shadow: 0 1px 2px rgba(255, 255, 255, 0.5);
+}
+
+:root[data-theme="dark"] .glass-modal-premium label {
+  text-shadow: none;
+}
+
+/* Cards dans le body - éléments qui ressortent */
+.glass-modal-body .card,
+.glass-modal-body .glass-card,
+.glass-modal-premium .modal-element {
+  background: var(--modal-element-bg);
+  border: 1px solid var(--modal-element-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--modal-element-shadow);
+}
+
+/* Badges dans le modal */
+.glass-modal-premium .badge,
+.glass-modal-premium [class*="Badge"] {
+  background: var(--modal-element-bg);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.06);
+}
+
+/* Séparateur gradient */
+.glass-modal-divider {
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(var(--gmbs-blue-rgb), 0.15),
+    transparent
+  );
+  margin: 1rem 0;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   BOUTONS DANS LE MODAL - Ressortent avec effet de profondeur
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.glass-modal-premium button,
+.glass-modal-footer button {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.glass-modal-premium button:hover,
+.glass-modal-footer button:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12), 0 2px 4px rgba(0, 0, 0, 0.06);
+  transform: translateY(-1px);
+}
+
+.glass-modal-premium button:active,
+.glass-modal-footer button:active {
+  transform: translateY(0);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+}
+
+/* Glass Navbar/Topbar */
+.glass-navbar {
+  background: var(--glass-bg-medium);
+  border-bottom: 1px solid var(--glass-border-light);
+  backdrop-filter: blur(var(--glass-blur-lg)) saturate(var(--glass-saturate-strong));
+  -webkit-backdrop-filter: blur(var(--glass-blur-lg)) saturate(var(--glass-saturate-strong));
+  box-shadow: var(--glass-shadow-sm);
+}
+
+/* Glass Sidebar */
+.glass-sidebar {
+  background: var(--glass-bg-light);
+  border-right: 1px solid var(--glass-border-light);
+  backdrop-filter: blur(var(--glass-blur-lg)) saturate(var(--glass-saturate));
+  -webkit-backdrop-filter: blur(var(--glass-blur-lg)) saturate(var(--glass-saturate));
+}
+
+/* Glass Dropdown/Popover */
+.glass-dropdown {
+  background: var(--glass-bg-strong);
+  border: 1px solid var(--glass-border-medium);
+  backdrop-filter: blur(var(--glass-blur-lg)) saturate(var(--glass-saturate-strong));
+  -webkit-backdrop-filter: blur(var(--glass-blur-lg)) saturate(var(--glass-saturate-strong));
+  box-shadow: var(--glass-highlight-top), var(--glass-shadow-lg);
+  border-radius: var(--radius-lg);
+}
+
+/* Glass Badge */
+.glass-badge {
+  background: var(--glass-bg-light);
+  border: 1px solid var(--glass-border-subtle);
+  backdrop-filter: blur(var(--glass-blur-sm));
+  -webkit-backdrop-filter: blur(var(--glass-blur-sm));
+  box-shadow: var(--glass-highlight-subtle);
+}
+
+/* Glass Table Header */
+.glass-table-header {
+  background: var(--glass-bg-medium);
+  border-bottom: 1px solid var(--glass-border-light);
+  backdrop-filter: blur(var(--glass-blur-md)) saturate(var(--glass-saturate));
+  -webkit-backdrop-filter: blur(var(--glass-blur-md)) saturate(var(--glass-saturate));
+  box-shadow: var(--glass-highlight-top);
+}
+
+/* Glass Accent - Avec couleur d'accent */
+.glass-accent {
+  background: linear-gradient(
+    135deg,
+    hsl(var(--accent-hsl) / 0.15),
+    hsl(var(--accent-hsl) / 0.08)
+  );
+  border: 1px solid hsl(var(--accent-hsl) / 0.25);
+  backdrop-filter: blur(var(--glass-blur-md)) saturate(var(--glass-saturate-strong));
+  -webkit-backdrop-filter: blur(var(--glass-blur-md)) saturate(var(--glass-saturate-strong));
+  box-shadow: var(--glass-highlight-top), var(--glass-glow-accent);
+}
+
+/* Glass Accent Button - Bouton principal avec accent */
+.glass-accent-button {
+  background: linear-gradient(
+    135deg,
+    hsl(var(--accent-hsl) / 0.85),
+    hsl(var(--accent-hsl) / 0.95)
+  );
+  border: 1px solid hsl(var(--accent-hsl) / 0.6);
+  backdrop-filter: blur(var(--glass-blur-sm));
+  -webkit-backdrop-filter: blur(var(--glass-blur-sm));
+  box-shadow:
+    inset 0 1px 0 hsl(var(--accent-hsl) / 0.3),
+    var(--glass-shadow-md),
+    var(--glass-glow-accent);
+  color: white;
+  transition: all var(--transition-fast) var(--transition-easing);
+}
+
+.glass-accent-button:hover {
+  background: linear-gradient(
+    135deg,
+    hsl(var(--accent-hsl) / 0.95),
+    hsl(var(--accent-hsl))
+  );
+  box-shadow:
+    inset 0 1px 0 hsl(var(--accent-hsl) / 0.4),
+    var(--glass-shadow-lg),
+    var(--glass-glow-hover);
+  transform: translateY(-2px);
+}
+
+.glass-accent-button:active {
+  transform: translateY(0);
+  box-shadow:
+    inset 0 1px 0 hsl(var(--accent-hsl) / 0.2),
+    var(--glass-shadow-sm);
+}
+
+/* === Theme Glass Container === */
 .theme-glass {
   background-color: var(--glass-bg, #0a0a0a);
 }
 
-.glass-panel {
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  backdrop-filter: blur(10px) saturate(1.08);
-  -webkit-backdrop-filter: blur(10px) saturate(1.08);
-}
-
-.glass-strong {
-  background: rgba(255, 255, 255, 0.075);
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  backdrop-filter: blur(12px) saturate(1.12);
-  -webkit-backdrop-filter: blur(12px) saturate(1.12);
-}
-
+/* === Fallback pour navigateurs sans backdrop-filter === */
 @supports not ((backdrop-filter: blur(2px))) {
-  .glass-panel, .glass-strong {
-    background: rgba(255, 255, 255, 0.08);
-    border-color: rgba(255, 255, 255, 0.12);
+  .glass-panel,
+  .glass-strong,
+  .glass-card,
+  .glass-subtle,
+  .glass-solid,
+  .glass-button,
+  .glass-input,
+  .glass-modal,
+  .glass-navbar,
+  .glass-sidebar,
+  .glass-dropdown,
+  .glass-badge,
+  .glass-table-header,
+  .glass-accent {
+    background: hsl(var(--bg-light-hsl) / 0.95);
+    border-color: hsl(var(--border));
+  }
+
+  :root[data-theme="dark"] .glass-panel,
+  :root[data-theme="dark"] .glass-strong,
+  :root[data-theme="dark"] .glass-card,
+  :root[data-theme="dark"] .glass-subtle,
+  :root[data-theme="dark"] .glass-solid,
+  :root[data-theme="dark"] .glass-button,
+  :root[data-theme="dark"] .glass-input,
+  :root[data-theme="dark"] .glass-modal,
+  :root[data-theme="dark"] .glass-navbar,
+  :root[data-theme="dark"] .glass-sidebar,
+  :root[data-theme="dark"] .glass-dropdown,
+  :root[data-theme="dark"] .glass-badge,
+  :root[data-theme="dark"] .glass-table-header,
+  :root[data-theme="dark"] .glass-accent {
+    background: hsl(var(--bg-light-hsl) / 0.98);
   }
 }
 
@@ -374,102 +938,107 @@
 
   body {
     min-height: 100vh;
-    background-color: var(--bg);
+    background: var(--app-bg-gradient, var(--bg));
+    background-attachment: fixed;
     color: var(--text);
     font-feature-settings: "rlig" 1, "calt" 1;
     text-rendering: optimizeLegibility;
   }
+
+  /* Dark mode - pas de gradient bleu */
+  :root[data-theme="dark"] body {
+    background: var(--bg);
+    background-attachment: unset;
+  }
 }
 
 @layer components {
+  /* ═══════════════════════════════════════════════════════
+     LIQUID GLASS COMPONENTS
+     Composants avec effet glassmorphism fluide
+     ═══════════════════════════════════════════════════════ */
+
   .card {
-    background: var(--bg-light);
-    background-image: linear-gradient(
-      to bottom,
-      color-mix(in oklab, var(--bg-light), white 6%),
-      var(--bg-light)
-    );
-    border: 1px solid hsl(var(--border));
-    box-shadow: inset 0 1px 0 var(--highlight), var(--shadow-sm);
+    background: var(--glass-bg-medium);
+    border: 1px solid var(--glass-border-light);
+    border-top-color: var(--glass-border-medium);
+    backdrop-filter: blur(var(--glass-blur-lg)) saturate(var(--glass-saturate));
+    -webkit-backdrop-filter: blur(var(--glass-blur-lg)) saturate(var(--glass-saturate));
+    box-shadow: var(--glass-highlight-top), var(--glass-shadow-md);
     border-radius: var(--radius-lg);
     padding: 16px;
-    transition:
-      box-shadow var(--transition-base) var(--transition-easing),
-      background-image var(--transition-base) var(--transition-easing);
+    transition: all var(--transition-base) var(--transition-easing);
   }
 
   .card:hover {
-    background-image: linear-gradient(
-      to bottom,
-      color-mix(in oklab, var(--bg-light), white 10%),
-      var(--bg-light)
-    );
-    box-shadow: inset 0 1px 0 var(--highlight), var(--shadow-md);
+    background: var(--glass-bg-strong);
+    border-color: var(--glass-border-medium);
+    box-shadow: var(--glass-highlight-strong), var(--glass-shadow-lg);
+    transform: translateY(-2px);
   }
 
   .button-primary,
   .shadcn-button[data-variant="default"] {
     background: linear-gradient(
-      to bottom,
-      color-mix(in oklab, var(--accent-color), white 10%),
-      var(--accent-color)
+      135deg,
+      hsl(var(--accent-hsl) / 0.85),
+      hsl(var(--accent-hsl) / 0.95)
     );
-    border: 1px solid color-mix(in oklab, var(--accent-color), black 10%);
+    border: 1px solid hsl(var(--accent-hsl) / 0.6);
+    backdrop-filter: blur(var(--glass-blur-sm));
+    -webkit-backdrop-filter: blur(var(--glass-blur-sm));
     color: white;
-    box-shadow: inset 0 1px 0 color-mix(in oklab, var(--accent-color), white 30%), var(--shadow-sm);
+    box-shadow:
+      inset 0 1px 0 hsl(var(--accent-hsl) / 0.3),
+      var(--glass-shadow-md),
+      var(--glass-glow-accent);
     border-radius: var(--radius-md);
     font-weight: 600;
-    transition:
-      transform var(--transition-fast) var(--transition-easing),
-      box-shadow var(--transition-base) var(--transition-easing),
-      background var(--transition-base) var(--transition-easing);
+    transition: all var(--transition-fast) var(--transition-easing);
   }
 
   .button-primary:hover,
   .shadcn-button[data-variant="default"]:hover {
     background: linear-gradient(
-      to bottom,
-      color-mix(in oklab, var(--accent-color), white 14%),
-      var(--accent-color)
+      135deg,
+      hsl(var(--accent-hsl) / 0.95),
+      hsl(var(--accent-hsl))
     );
     transform: translateY(-2px);
-    box-shadow: inset 0 1px 0 color-mix(in oklab, var(--accent-color), white 30%), var(--shadow-md);
+    box-shadow:
+      inset 0 1px 0 hsl(var(--accent-hsl) / 0.4),
+      var(--glass-shadow-lg),
+      var(--glass-glow-hover);
   }
 
   .button-primary:active,
   .shadcn-button[data-variant="default"]:active {
     transform: translateY(0);
-    box-shadow: inset 0 1px 0 color-mix(in oklab, var(--accent-color), white 30%), var(--shadow-xs);
+    box-shadow:
+      inset 0 1px 0 hsl(var(--accent-hsl) / 0.2),
+      var(--glass-shadow-sm);
   }
 
   .button-secondary,
   .shadcn-button[data-variant="outline"],
   .shadcn-button[data-variant="secondary"] {
-    background: var(--bg-light);
-    background-image: linear-gradient(
-      to bottom,
-      color-mix(in oklab, var(--bg-light), white 6%),
-      var(--bg-light)
-    );
-    border: 1px solid hsl(var(--border));
+    background: var(--glass-bg-medium);
+    border: 1px solid var(--glass-border-light);
+    backdrop-filter: blur(var(--glass-blur-md)) saturate(var(--glass-saturate));
+    -webkit-backdrop-filter: blur(var(--glass-blur-md)) saturate(var(--glass-saturate));
     color: var(--text);
-    box-shadow: inset 0 1px 0 var(--highlight), var(--shadow-xs);
+    box-shadow: var(--glass-highlight-top), var(--glass-shadow-sm);
     border-radius: var(--radius-md);
-    transition:
-      transform var(--transition-fast) var(--transition-easing),
-      box-shadow var(--transition-base) var(--transition-easing),
-      background-image var(--transition-base) var(--transition-easing);
+    transition: all var(--transition-fast) var(--transition-easing);
   }
 
   .button-secondary:hover,
   .shadcn-button[data-variant="outline"]:hover,
   .shadcn-button[data-variant="secondary"]:hover {
-    background-image: linear-gradient(
-      to bottom,
-      color-mix(in oklab, var(--bg-light), white 10%),
-      var(--bg-light)
-    );
-    box-shadow: inset 0 1px 0 var(--highlight), var(--shadow-sm);
+    background: var(--glass-bg-strong);
+    border-color: var(--glass-border-medium);
+    box-shadow: var(--glass-highlight-strong), var(--glass-shadow-md), var(--glass-glow-white);
+    transform: translateY(-1px);
   }
 
   .button-primary:disabled,
@@ -479,53 +1048,41 @@
     cursor: not-allowed;
     box-shadow: none;
     transform: none;
+    backdrop-filter: none;
   }
 
   .data-table-wrapper {
-    background: var(--bg-light);
-    background-image: linear-gradient(
-      to bottom,
-      color-mix(in oklab, var(--bg-light), black 3%),
-      color-mix(in oklab, var(--bg-light), white 2%)
-    );
+    background: var(--glass-bg-light);
     border-radius: calc(var(--radius-lg) + 2px);
-    border: 1px solid color-mix(in oklab, var(--border), black 10%);
-    /* Effet enfoncé/gravé - ombres internes pour donner l'impression d'une surface creusée */
+    border: 1px solid var(--glass-border-light);
+    backdrop-filter: blur(var(--glass-blur-md)) saturate(var(--glass-saturate));
+    -webkit-backdrop-filter: blur(var(--glass-blur-md)) saturate(var(--glass-saturate));
     box-shadow:
-      inset 2px 5px 15px rgba(0, 0, 0, 0.08),
-      inset -2px -2px 8px rgba(255, 255, 255, 0.3),
-      0 1px 3px rgba(0, 0, 0, 0.05);
+      var(--glass-highlight-subtle),
+      var(--glass-shadow-md);
     padding: 1px;
     overflow: visible;
   }
 
   .card-table-wrapper {
-    background: var(--bg-light);
-    background-image: linear-gradient(
-      to bottom,
-      color-mix(in oklab, var(--bg-light), white 6%),
-      var(--bg-light)
-    );
+    background: var(--glass-bg-medium);
     border-radius: var(--radius-lg);
-    border: 1px solid var(--border);
+    border: 1px solid var(--glass-border-light);
+    backdrop-filter: blur(var(--glass-blur-lg)) saturate(var(--glass-saturate));
+    -webkit-backdrop-filter: blur(var(--glass-blur-lg)) saturate(var(--glass-saturate));
     box-shadow:
-      inset 0 1px 0 var(--highlight),
-      var(--shadow-sm);
+      var(--glass-highlight-top),
+      var(--glass-shadow-md);
     padding: 0;
     overflow: hidden;
   }
 
   :root[data-theme="dark"] .card-table-wrapper {
-    background: var(--bg-light);
-    background-image: linear-gradient(
-      to bottom,
-      color-mix(in oklab, var(--bg-light), white 4%),
-      var(--bg-light)
-    );
-    border: 1px solid var(--border);
+    background: var(--glass-bg-medium);
+    border: 1px solid var(--glass-border-light);
     box-shadow:
-      inset 0 1px 0 var(--highlight),
-      var(--shadow-sm);
+      var(--glass-highlight-top),
+      var(--glass-shadow-md);
   }
 
   .data-table {
@@ -535,31 +1092,24 @@
   }
 
   .data-table thead {
-    border-bottom: 1px solid var(--border);
-    box-shadow:
-      inset 0 1px 0 var(--highlight),
-      0 2px 4px rgba(0, 0, 0, 0.08);
+    border-bottom: 1px solid var(--glass-border-light);
     position: sticky;
     top: 0;
     z-index: 30;
-    background: linear-gradient(
-      to bottom,
-      color-mix(in oklab, var(--bg-light), white 12%),
-      color-mix(in oklab, var(--bg-light), white 2%)
-    );
-    backdrop-filter: blur(12px);
+    background: var(--glass-bg-medium);
+    backdrop-filter: blur(var(--glass-blur-lg)) saturate(var(--glass-saturate-strong));
+    -webkit-backdrop-filter: blur(var(--glass-blur-lg)) saturate(var(--glass-saturate-strong));
+    box-shadow:
+      var(--glass-highlight-top),
+      0 2px 8px rgba(0, 0, 0, 0.06);
   }
 
   :root[data-theme="dark"] .data-table thead {
-    background: linear-gradient(
-      to bottom,
-      color-mix(in oklab, var(--bg-light), black 12%),
-      color-mix(in oklab, var(--bg-light), black 4%)
-    );
-    border-bottom: 1px solid var(--border);
+    background: var(--glass-bg-strong);
+    border-bottom: 1px solid var(--glass-border-light);
     box-shadow:
-      inset 0 1px 0 var(--highlight),
-      0 2px 4px rgba(0, 0, 0, 0.16);
+      var(--glass-highlight-top),
+      0 2px 8px rgba(0, 0, 0, 0.20);
   }
 
   .data-table th {
@@ -1138,23 +1688,16 @@
     height: 100%;
     width: 100%;
     overflow: hidden;
-    background: var(--bg-light);
-    background-image: linear-gradient(
-      to bottom,
-      color-mix(in oklab, var(--bg-light), white 8%),
-      color-mix(in oklab, var(--bg-light), black 4%)
-    );
-    box-shadow: inset 0 1px 0 var(--highlight);
+    /* TRANSPARENT pour laisser voir le background translucide de GenericModal */
+    background: transparent;
+    background-image: none;
     color: var(--text);
   }
 
   .modal-config-surface-full {
-    background: color-mix(in oklab, var(--bg), white 4%);
-    background-image: linear-gradient(
-      to bottom,
-      color-mix(in oklab, var(--bg), white 6%),
-      color-mix(in oklab, var(--bg), black 4%)
-    );
+    /* TRANSPARENT pour tester le rendu translucide sur fullpage */
+    background: transparent;
+    background-image: none;
   }
 
   .modal-config-columns-header {
@@ -1567,23 +2110,16 @@
   }
 
   :root[data-theme="dark"] .modal-config-surface {
-    background: hsl(var(--background));
-    background-image: linear-gradient(
-      to bottom,
-      hsl(var(--muted) / 0.3),
-      hsl(var(--background))
-    );
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    /* TRANSPARENT pour laisser voir le background translucide de GenericModal */
+    background: transparent;
+    background-image: none;
     color: hsl(var(--foreground));
   }
 
   :root[data-theme="dark"] .modal-config-surface-full {
-    background: hsl(var(--background));
-    background-image: linear-gradient(
-      to bottom,
-      hsl(var(--muted) / 0.25),
-      hsl(var(--background))
-    );
+    /* TRANSPARENT pour tester le rendu translucide sur fullpage */
+    background: transparent;
+    background-image: none;
   }
 
   :root[data-theme="dark"] .modal-config-columns-header {
@@ -3996,4 +4532,391 @@ input:focus-visible {
 :root[data-theme="dark"] .history-icon--primary {
   background: linear-gradient(to bottom, rgba(139, 92, 246, 0.2), rgba(139, 92, 246, 0.1));
   border-color: rgba(167, 139, 250, 0.5);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   LIQUID GLASS UTILITIES
+   Classes utilitaires pour appliquer facilement les effets glass
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+@layer utilities {
+  /* Backdrop blur utilities */
+  .glass-blur-none { backdrop-filter: none; -webkit-backdrop-filter: none; }
+  .glass-blur-sm { backdrop-filter: blur(var(--glass-blur-sm)); -webkit-backdrop-filter: blur(var(--glass-blur-sm)); }
+  .glass-blur-md { backdrop-filter: blur(var(--glass-blur-md)); -webkit-backdrop-filter: blur(var(--glass-blur-md)); }
+  .glass-blur-lg { backdrop-filter: blur(var(--glass-blur-lg)); -webkit-backdrop-filter: blur(var(--glass-blur-lg)); }
+  .glass-blur-xl { backdrop-filter: blur(var(--glass-blur-xl)); -webkit-backdrop-filter: blur(var(--glass-blur-xl)); }
+
+  /* Glass background utilities */
+  .glass-bg-subtle { background: var(--glass-bg-subtle); }
+  .glass-bg-light { background: var(--glass-bg-light); }
+  .glass-bg-medium { background: var(--glass-bg-medium); }
+  .glass-bg-strong { background: var(--glass-bg-strong); }
+  .glass-bg-solid { background: var(--glass-bg-solid); }
+
+  /* Glass border utilities */
+  .glass-border-subtle { border-color: var(--glass-border-subtle); }
+  .glass-border-light { border-color: var(--glass-border-light); }
+  .glass-border-medium { border-color: var(--glass-border-medium); }
+  .glass-border-strong { border-color: var(--glass-border-strong); }
+  .glass-border-accent { border-color: var(--glass-border-accent); }
+
+  /* Glass shadow utilities */
+  .glass-shadow-sm { box-shadow: var(--glass-shadow-sm); }
+  .glass-shadow-md { box-shadow: var(--glass-shadow-md); }
+  .glass-shadow-lg { box-shadow: var(--glass-shadow-lg); }
+  .glass-shadow-xl { box-shadow: var(--glass-shadow-xl); }
+
+  /* Glass glow utilities */
+  .glass-glow { box-shadow: var(--glass-glow-white); }
+  .glass-glow-accent { box-shadow: var(--glass-glow-accent); }
+  .glass-glow-hover { box-shadow: var(--glass-glow-hover); }
+
+  /* Glass highlight utilities */
+  .glass-highlight { box-shadow: var(--glass-highlight-top); }
+  .glass-highlight-strong { box-shadow: var(--glass-highlight-strong); }
+  .glass-highlight-subtle { box-shadow: var(--glass-highlight-subtle); }
+
+  /* Combined glass effects for quick use */
+  .glass-effect {
+    backdrop-filter: blur(var(--glass-blur-md)) saturate(var(--glass-saturate));
+    -webkit-backdrop-filter: blur(var(--glass-blur-md)) saturate(var(--glass-saturate));
+  }
+
+  .glass-effect-strong {
+    backdrop-filter: blur(var(--glass-blur-lg)) saturate(var(--glass-saturate-strong));
+    -webkit-backdrop-filter: blur(var(--glass-blur-lg)) saturate(var(--glass-saturate-strong));
+  }
+
+  /* Hover transition for glass elements */
+  .glass-hover-lift {
+    transition: all var(--transition-base) var(--transition-easing);
+  }
+  .glass-hover-lift:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--glass-shadow-lg);
+  }
+
+  /* Interactive glass states */
+  .glass-interactive {
+    transition: all var(--transition-fast) var(--transition-easing);
+    cursor: pointer;
+  }
+  .glass-interactive:hover {
+    background: var(--glass-bg-strong);
+    border-color: var(--glass-border-medium);
+  }
+  .glass-interactive:active {
+    transform: scale(0.98);
+  }
+
+  /* Glass divider */
+  .glass-divider {
+    height: 1px;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      var(--glass-border-medium),
+      transparent
+    );
+  }
+
+  /* Glass shine effect (top highlight line) */
+  .glass-shine::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 10%;
+    right: 10%;
+    height: 1px;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      var(--glass-border-accent),
+      transparent
+    );
+    opacity: 0.6;
+  }
+
+  /* Glass frosted overlay */
+  .glass-frosted {
+    background: var(--glass-bg-medium);
+    backdrop-filter: blur(var(--glass-blur-xl)) saturate(var(--glass-saturate-strong));
+    -webkit-backdrop-filter: blur(var(--glass-blur-xl)) saturate(var(--glass-saturate-strong));
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   LIQUID GLASS - STYLES PRIORITAIRES (Spécificité maximale)
+   Ces styles sont HORS des @layer pour avoir la priorité absolue
+
+   LOGIQUE :
+   - Background app = bleu léger (plus clair que topbar)
+   - Topbar = bleu gradient (plus foncé)
+   - Sidebar = bleu comme la topbar
+   - Cards = blanches pour contraste
+   - Modaux = TRANSLUCIDES, sections qui LÉVITENT dessus
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   BACKGROUND DE L'APPLICATION - Bleu léger (plus clair que la topbar)
+   ═══════════════════════════════════════════════════════════════════════════ */
+.liquid-glass-app-bg {
+  background: linear-gradient(
+    180deg,
+    hsl(210 45% 92%) 0%,
+    hsl(212 40% 90%) 50%,
+    hsl(215 35% 91%) 100%
+  );
+  background-attachment: fixed;
+}
+
+/* Dark mode - background standard */
+:root[data-theme="dark"] .liquid-glass-app-bg,
+.dark .liquid-glass-app-bg {
+  background: hsl(var(--background));
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   TOPBAR - BLEU GRADIENT (plus foncé que le background)
+   ═══════════════════════════════════════════════════════════════════════════ */
+.liquid-glass-topbar-blue {
+  background: linear-gradient(
+    135deg,
+    hsl(210 55% 88%) 0%,
+    hsl(212 50% 85%) 50%,
+    hsl(215 45% 82%) 100%
+  );
+  backdrop-filter: blur(12px) saturate(1.3);
+  -webkit-backdrop-filter: blur(12px) saturate(1.3);
+  border-bottom: 1px solid rgba(51, 113, 178, 0.20);
+  box-shadow:
+    0 4px 20px rgba(51, 113, 178, 0.12),
+    0 1px 4px rgba(0, 0, 0, 0.05),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.4);
+}
+
+/* Dark mode - topbar sombre */
+:root[data-theme="dark"] .liquid-glass-topbar-blue,
+.dark .liquid-glass-topbar-blue {
+  background: linear-gradient(
+    135deg,
+    hsl(220 40% 18%) 0%,
+    hsl(222 45% 15%) 100%
+  );
+  border-bottom-color: rgba(255, 255, 255, 0.08);
+  box-shadow:
+    0 4px 20px rgba(0, 0, 0, 0.25),
+    0 1px 4px rgba(0, 0, 0, 0.15),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.05);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   SIDEBAR - Bleu comme la topbar
+   ═══════════════════════════════════════════════════════════════════════════ */
+.liquid-glass-sidebar {
+  background: linear-gradient(
+    180deg,
+    hsl(210 50% 87%) 0%,
+    hsl(212 45% 85%) 50%,
+    hsl(215 40% 84%) 100%
+  );
+  backdrop-filter: blur(12px) saturate(1.2);
+  -webkit-backdrop-filter: blur(12px) saturate(1.2);
+  border-right: 1px solid rgba(51, 113, 178, 0.15);
+  box-shadow:
+    2px 0 16px rgba(51, 113, 178, 0.08),
+    inset -1px 0 0 rgba(255, 255, 255, 0.4);
+}
+
+/* Dark mode - sidebar sombre */
+:root[data-theme="dark"] .liquid-glass-sidebar,
+.dark .liquid-glass-sidebar {
+  background: linear-gradient(
+    180deg,
+    hsl(220 40% 16%) 0%,
+    hsl(222 45% 14%) 100%
+  );
+  border-right-color: rgba(255, 255, 255, 0.06);
+  box-shadow:
+    2px 0 12px rgba(0, 0, 0, 0.20),
+    inset -1px 0 0 rgba(255, 255, 255, 0.03);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   CARDS - Blanches pour contraste avec le background
+   ═══════════════════════════════════════════════════════════════════════════ */
+html:not([data-theme="dark"]) .card,
+:root:not([data-theme="dark"]) .card,
+html:not([data-theme="dark"]) [data-slot="card"],
+:root:not([data-theme="dark"]) [data-slot="card"] {
+  background: rgba(255, 255, 255, 0.95) !important;
+  border: 1px solid rgba(51, 113, 178, 0.08) !important;
+  box-shadow:
+    0 2px 8px rgba(0, 0, 0, 0.04),
+    0 1px 2px rgba(0, 0, 0, 0.02) !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   DROPDOWNS & POPOVERS - Blancs et nets
+   ═══════════════════════════════════════════════════════════════════════════ */
+html:not([data-theme="dark"]) [data-radix-popper-content-wrapper] > div,
+:root:not([data-theme="dark"]) [data-radix-popper-content-wrapper] > div {
+  background: rgba(255, 255, 255, 0.98) !important;
+  border: 1px solid rgba(51, 113, 178, 0.12) !important;
+  box-shadow:
+    0 8px 24px rgba(0, 0, 0, 0.10),
+    0 4px 8px rgba(0, 0, 0, 0.06) !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   GENERIC MODAL - CENTERPAGE & HALFPAGE = TRANSLUCIDE
+   Les sections LÉVITENT au-dessus du panneau de verre
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Overlay des modaux - PAS de blur, juste assombrissement léger */
+html:not([data-theme="dark"]) .modal-overlay,
+:root:not([data-theme="dark"]) .modal-overlay {
+  background: rgba(0, 0, 0, 0.20) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   LIQUID GLASS STYLE UNIFORME - Valeurs optimales (DesignDebugBar)
+   background: rgba(87, 100, 151, 0.25)
+   backdrop-filter: blur(16px) saturate(1.4)
+   PAS D'OVERLAY - l'opacité est gérée directement par le background
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* CENTERPAGE MODAL (modal-surface) - Liquid Glass */
+html:not([data-theme="dark"]) .modal-surface,
+:root:not([data-theme="dark"]) .modal-surface {
+  background: rgba(87, 100, 151, 0.25) !important;
+  background-image: none !important;
+  backdrop-filter: blur(16px) saturate(1.4) !important;
+  -webkit-backdrop-filter: blur(16px) saturate(1.4) !important;
+  border: 1px solid rgba(255, 255, 255, 0.3) !important;
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.08),
+    inset 0 1px 1px rgba(255, 255, 255, 0.4) !important;
+}
+
+/* HALFPAGE MODAL (shadcn-sheet-content) - Liquid Glass */
+html:not([data-theme="dark"]) .shadcn-sheet-content,
+:root:not([data-theme="dark"]) .shadcn-sheet-content {
+  background: rgba(87, 100, 151, 0.25) !important;
+  background-image: none !important;
+  backdrop-filter: blur(16px) saturate(1.4) !important;
+  -webkit-backdrop-filter: blur(16px) saturate(1.4) !important;
+  border-left: 1px solid rgba(255, 255, 255, 0.3) !important;
+  box-shadow:
+    -4px 0 24px rgba(0, 0, 0, 0.06),
+    inset 1px 0 1px rgba(255, 255, 255, 0.4) !important;
+}
+
+/* FULLPAGE MODAL - Liquid Glass */
+html:not([data-theme="dark"]) .modal-surface-full,
+:root:not([data-theme="dark"]) .modal-surface-full {
+  background: rgba(87, 100, 151, 0.25) !important;
+  background-image: none !important;
+  backdrop-filter: blur(16px) saturate(1.4) !important;
+  -webkit-backdrop-filter: blur(16px) saturate(1.4) !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   SECTIONS QUI LÉVITENT - Effet de flottement au-dessus du modal
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Intervention form sections - LÉVITENT avec ombre prononcée */
+html:not([data-theme="dark"]) .modal-surface .intervention-form-section,
+html:not([data-theme="dark"]) .shadcn-sheet-content .intervention-form-section,
+:root:not([data-theme="dark"]) .modal-surface .intervention-form-section,
+:root:not([data-theme="dark"]) .shadcn-sheet-content .intervention-form-section {
+  background: rgba(255, 255, 255, 0.97) !important;
+  background-image: none !important;
+  border: 1px solid rgba(255, 255, 255, 0.8) !important;
+  border-radius: 12px !important;
+  box-shadow:
+    0 8px 32px rgba(51, 113, 178, 0.12),
+    0 4px 12px rgba(0, 0, 0, 0.08),
+    0 2px 4px rgba(0, 0, 0, 0.04),
+    inset 0 1px 0 rgba(255, 255, 255, 1) !important;
+  transform: translateY(0);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+/* Hover sur les sections - effet de lévitation accentué */
+html:not([data-theme="dark"]) .modal-surface .intervention-form-section:hover,
+html:not([data-theme="dark"]) .shadcn-sheet-content .intervention-form-section:hover {
+  transform: translateY(-2px);
+  box-shadow:
+    0 12px 40px rgba(51, 113, 178, 0.15),
+    0 6px 16px rgba(0, 0, 0, 0.10),
+    0 3px 6px rgba(0, 0, 0, 0.05),
+    inset 0 1px 0 rgba(255, 255, 255, 1) !important;
+}
+
+/* Section headers - solides */
+html:not([data-theme="dark"]) .modal-surface .intervention-form-section-header,
+html:not([data-theme="dark"]) .shadcn-sheet-content .intervention-form-section-header,
+:root:not([data-theme="dark"]) .modal-surface .intervention-form-section-header,
+:root:not([data-theme="dark"]) .shadcn-sheet-content .intervention-form-section-header {
+  background: rgba(255, 255, 255, 0.98) !important;
+  background-image: none !important;
+  border-bottom: 1px solid rgba(51, 113, 178, 0.08) !important;
+}
+
+/* Inputs dans les modaux - ressortent aussi */
+html:not([data-theme="dark"]) .modal-surface input:not([type="checkbox"]):not([type="radio"]),
+html:not([data-theme="dark"]) .modal-surface textarea,
+html:not([data-theme="dark"]) .modal-surface select,
+html:not([data-theme="dark"]) .shadcn-sheet-content input:not([type="checkbox"]):not([type="radio"]),
+html:not([data-theme="dark"]) .shadcn-sheet-content textarea,
+html:not([data-theme="dark"]) .shadcn-sheet-content select {
+  background: rgba(255, 255, 255, 0.98) !important;
+  border: 1px solid rgba(51, 113, 178, 0.12) !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04) !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   ALERT DIALOGS (glass-modal-premium) - Translucides avec sections lévitantes
+   ═══════════════════════════════════════════════════════════════════════════ */
+html:not([data-theme="dark"]) .glass-modal-premium,
+:root:not([data-theme="dark"]) .glass-modal-premium {
+  background: rgba(255, 255, 255, 0.25) !important;
+  border: 1px solid rgba(255, 255, 255, 0.4) !important;
+  backdrop-filter: blur(16px) saturate(1.4) !important;
+  -webkit-backdrop-filter: blur(16px) saturate(1.4) !important;
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.08),
+    inset 0 1px 1px rgba(255, 255, 255, 0.6) !important;
+}
+
+/* Header du modal premium - SOLIDE avec ombre prononcée vers le bas */
+html:not([data-theme="dark"]) .glass-modal-header,
+:root:not([data-theme="dark"]) .glass-modal-header {
+  background: rgba(255, 255, 255, 0.97) !important;
+  border-bottom: 1px solid rgba(51, 113, 178, 0.1) !important;
+  box-shadow:
+    0 4px 12px rgba(0, 0, 0, 0.08),
+    0 2px 4px rgba(0, 0, 0, 0.04),
+    0 8px 24px rgba(51, 113, 178, 0.06) !important;
+}
+
+/* Footer du modal premium - SOLIDE avec ombre prononcée vers le haut */
+html:not([data-theme="dark"]) .glass-modal-footer,
+:root:not([data-theme="dark"]) .glass-modal-footer {
+  background: rgba(255, 255, 255, 0.95) !important;
+  border-top: 1px solid rgba(51, 113, 178, 0.1) !important;
+  box-shadow:
+    0 -4px 12px rgba(0, 0, 0, 0.08),
+    0 -2px 4px rgba(0, 0, 0, 0.04),
+    0 -8px 24px rgba(51, 113, 178, 0.06) !important;
+}
+
+/* Body du modal premium - transparent */
+html:not([data-theme="dark"]) .glass-modal-body,
+:root:not([data-theme="dark"]) .glass-modal-body {
+  background: transparent !important;
 }

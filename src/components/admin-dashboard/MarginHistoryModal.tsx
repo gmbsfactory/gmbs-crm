@@ -1,6 +1,6 @@
 "use client"
 
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogHeader, DialogBody, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { VerticalBarChart } from "./VerticalBarChart"
 import { useMarginHistory } from "@/hooks/useMarginHistory"
 import type { PeriodType } from "@/lib/api/v2"
@@ -64,44 +64,46 @@ export function MarginHistoryModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
+      <DialogContent variant="premium" className="max-w-4xl max-h-[90vh] overflow-hidden">
+        <DialogHeader variant="premium">
           <DialogTitle>Évolution de la Marge Globale</DialogTitle>
           <DialogDescription>
             Historique des 4 dernières périodes et projection de la période suivante
           </DialogDescription>
         </DialogHeader>
 
-        {isLoading ? (
-          <div className="py-8">
-            <Skeleton className="h-[400px] w-full" />
-          </div>
-        ) : error ? (
-          <div className="flex flex-col items-center justify-center py-8 text-center">
-            <AlertCircle className="h-8 w-8 text-destructive mb-2" />
-            <p className="text-destructive font-semibold mb-1">
-              Erreur lors du chargement des données
-            </p>
-            <p className="text-sm text-muted-foreground">
-              {error instanceof Error ? error.message : "Une erreur est survenue"}
-            </p>
-          </div>
-        ) : (
-          <VerticalBarChart
-            data={chartData}
-            title="Évolution de la Marge Globale"
-            valueFormatter={(value) =>
-              new Intl.NumberFormat("fr-FR", {
-                style: "currency",
-                currency: "EUR",
-              }).format(value)
-            }
-            legendLabels={{
-              series1: "Marge réelle",
-              projection: "Projection",
-            }}
-          />
-        )}
+        <DialogBody translucent className="overflow-y-auto">
+          {isLoading ? (
+            <div className="py-8">
+              <Skeleton className="h-[400px] w-full" />
+            </div>
+          ) : error ? (
+            <div className="flex flex-col items-center justify-center py-8 text-center">
+              <AlertCircle className="h-8 w-8 text-destructive mb-2" />
+              <p className="text-destructive font-semibold mb-1">
+                Erreur lors du chargement des données
+              </p>
+              <p className="text-sm text-muted-foreground">
+                {error instanceof Error ? error.message : "Une erreur est survenue"}
+              </p>
+            </div>
+          ) : (
+            <VerticalBarChart
+              data={chartData}
+              title="Évolution de la Marge Globale"
+              valueFormatter={(value) =>
+                new Intl.NumberFormat("fr-FR", {
+                  style: "currency",
+                  currency: "EUR",
+                }).format(value)
+              }
+              legendLabels={{
+                series1: "Marge réelle",
+                projection: "Projection",
+              }}
+            />
+          )}
+        </DialogBody>
       </DialogContent>
     </Dialog>
   )

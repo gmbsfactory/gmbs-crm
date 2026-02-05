@@ -1,6 +1,6 @@
 "use client"
 
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogHeader, DialogBody, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { VerticalBarChart } from "./VerticalBarChart"
 import { useCycleTimeHistory } from "@/hooks/useCycleTimeHistory"
 import type { PeriodType } from "@/lib/api/v2"
@@ -64,14 +64,15 @@ export function CycleTimeHistoryModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
+      <DialogContent variant="premium" className="max-w-4xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader variant="premium">
           <DialogTitle>Évolution du Cycle Moyen</DialogTitle>
           <DialogDescription>
             Historique des 4 dernières périodes et projection de la période suivante
           </DialogDescription>
         </DialogHeader>
 
+        <DialogBody translucent>
         {isLoading ? (
           <div className="py-8">
             <Skeleton className="h-[400px] w-full" />
@@ -97,6 +98,7 @@ export function CycleTimeHistoryModal({
             }}
           />
         )}
+        </DialogBody>
       </DialogContent>
     </Dialog>
   )

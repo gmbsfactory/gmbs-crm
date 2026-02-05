@@ -65,24 +65,27 @@ const containerVariants: Record<ModalDisplayMode, Variants> = {
   },
 }
 
+// Les styles Liquid Glass sont définis dans globals.css avec !important
+// Classes utilisées : modal-surface, shadcn-sheet-content, modal-surface-full
+
 const getModalStyle = (mode: ModalDisplayMode) => {
   switch (mode) {
     case "halfpage":
       return {
         container: "fixed top-0 right-0 z-[70] h-full w-1/2 p-4",
         wrapper: "pointer-events-none h-full w-full",
-        content: "pointer-events-auto flex h-full w-full flex-col overflow-hidden shadcn-sheet-content",
+        content: "pointer-events-auto flex h-full w-full flex-col overflow-hidden shadcn-sheet-content rounded-l-2xl",
       }
     case "centerpage":
       return {
         container: "fixed inset-0 z-[70] flex items-center justify-center p-4 pointer-events-none",
         wrapper: "flex h-full w-full items-center justify-center",
         content:
-          "pointer-events-auto modal-surface flex h-[85vh] w-full max-w-[80vw] flex-col overflow-hidden p-0",
+          "pointer-events-auto modal-surface flex h-[85vh] w-full max-w-[80vw] flex-col overflow-hidden p-0 rounded-2xl",
       }
     case "fullpage":
       return {
-        container: "fixed inset-0 z-[70] flex bg-background",
+        container: "fixed inset-0 z-[70] flex",
         wrapper: "h-full w-full",
         content: "pointer-events-auto modal-surface-full flex h-full w-full flex-col overflow-y-auto",
       }
@@ -114,6 +117,7 @@ export function GenericModal({
     portalContainerRef.current = getPortalContainer()
   }, [])
 
+  // Overlay uniquement pour centerpage - donne un effet de focus sur le modal
   const showBackdrop = mode === "centerpage"
 
   const transition = useMemo(
@@ -193,7 +197,8 @@ export function GenericModal({
               <motion.div
                 role="presentation"
                 aria-hidden
-                className="modal-overlay z-[60]"
+                className="modal-overlay fixed inset-0 z-[60]"
+                style={{ background: "rgba(0, 0, 0, 0.20)" }}
                 initial="initial"
                 animate="animate"
                 exit="exit"

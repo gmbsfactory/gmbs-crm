@@ -101,7 +101,21 @@ const config: Config = {
   			md: 'var(--shadow-md)',
   			lg: 'var(--shadow-lg)',
   			xl: 'var(--shadow-xl)',
-  			card: 'var(--card-shadow)'
+  			card: 'var(--card-shadow)',
+  			// Liquid Glass shadows
+  			'glass-sm': 'var(--glass-shadow-sm)',
+  			'glass-md': 'var(--glass-shadow-md)',
+  			'glass-lg': 'var(--glass-shadow-lg)',
+  			'glass-xl': 'var(--glass-shadow-xl)',
+  			'glass-glow': 'var(--glass-glow-white)',
+  			'glass-glow-accent': 'var(--glass-glow-accent)',
+  			'glass-highlight': 'var(--glass-highlight-top)'
+  		},
+  		backdropBlur: {
+  			'glass-sm': 'var(--glass-blur-sm)',
+  			'glass-md': 'var(--glass-blur-md)',
+  			'glass-lg': 'var(--glass-blur-lg)',
+  			'glass-xl': 'var(--glass-blur-xl)'
   		},
   		keyframes: {
   			'accordion-down': {

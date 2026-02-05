@@ -33,7 +33,7 @@ export function AppSidebar() {
       aria-label="Application Sidebar"
     >
       <nav className={cn(
-        "flex-1 space-y-1 pr-5 py-10 rounded-r-lg border-r bg-background",
+        "flex-1 space-y-1 pr-5 py-10 rounded-r-lg liquid-glass-sidebar",
         sidebarMode === "collapsed" ? "pl-9" : "pl-7"
       )}>
         {navigation.map((item, idx) => {

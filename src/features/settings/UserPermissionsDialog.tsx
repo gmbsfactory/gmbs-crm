@@ -804,9 +804,10 @@ export function UserPermissionsDialog({
     <AnimatePresence>
       {open && (
         <>
-          {/* Backdrop */}
+          {/* Backdrop - NO blur, just darkening */}
           <motion.div
-            className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm"
+            className="modal-overlay fixed inset-0 z-50"
+            style={{ background: "rgba(0, 0, 0, 0.20)" }}
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -821,15 +822,29 @@ export function UserPermissionsDialog({
             exit={{ opacity: 0 }}
           >
             <motion.div
-              className="pointer-events-auto relative w-full max-w-2xl max-h-[90vh] bg-background rounded-2xl shadow-2xl border overflow-hidden flex flex-col"
+              className="pointer-events-auto relative w-full max-w-2xl max-h-[90vh] rounded-2xl overflow-hidden flex flex-col glass-modal-premium"
+              style={{
+                background: "rgba(255, 255, 255, 0.25)",
+                backdropFilter: "blur(16px) saturate(1.4)",
+                WebkitBackdropFilter: "blur(16px) saturate(1.4)",
+                border: "1px solid rgba(255, 255, 255, 0.4)",
+                boxShadow: "0 8px 32px rgba(0, 0, 0, 0.08), inset 0 1px 1px rgba(255, 255, 255, 0.6)",
+              }}
               initial={{ scale: 0.95, y: 20 }}
               animate={{ scale: 1, y: 0 }}
               exit={{ scale: 0.95, y: 20 }}
               transition={{ type: "spring", damping: 25, stiffness: 300 }}
               onClick={(e) => e.stopPropagation()}
             >
-              {/* Header avec profil éditable */}
-              <div className="relative px-6 py-5 border-b bg-gradient-to-br from-primary/5 via-background to-background">
+              {/* Header avec profil éditable - SOLID avec effet lévitation */}
+              <div
+                className="glass-modal-header relative px-6 py-5"
+                style={{
+                  background: "rgba(255, 255, 255, 0.97)",
+                  borderBottom: "1px solid rgba(255, 255, 255, 0.8)",
+                  boxShadow: "0 4px 16px rgba(51, 113, 178, 0.08), 0 2px 6px rgba(0, 0, 0, 0.04), inset 0 1px 0 rgba(255, 255, 255, 1)",
+                }}
+              >
                 <button
                   onClick={() => onOpenChange(false)}
                   className="absolute right-4 top-4 p-2 rounded-lg hover:bg-muted transition-colors"
@@ -1004,8 +1019,11 @@ export function UserPermissionsDialog({
                 </div>
               </div>
               
-              {/* Content */}
-              <div className="flex-1 overflow-y-auto p-6 scrollbar-minimal">
+              {/* Content - TRANSPARENT body */}
+              <div
+                className="glass-modal-body glass-modal-body--translucent flex-1 overflow-y-auto p-6 scrollbar-minimal"
+                style={{ background: "transparent" }}
+              >
                 <AnimatePresence mode="wait">
                   {activeSection === "profile" ? (
                     <motion.div
@@ -1279,8 +1297,15 @@ export function UserPermissionsDialog({
                 </AnimatePresence>
               </div>
               
-              {/* Footer */}
-              <div className="px-6 py-4 border-t bg-muted/20 flex items-center justify-end gap-3">
+              {/* Footer - SOLID avec effet lévitation */}
+              <div
+                className="glass-modal-footer px-6 py-4 flex items-center justify-end gap-3"
+                style={{
+                  background: "rgba(255, 255, 255, 0.95)",
+                  borderTop: "1px solid rgba(255, 255, 255, 0.8)",
+                  boxShadow: "0 -4px 16px rgba(51, 113, 178, 0.08), 0 -2px 6px rgba(0, 0, 0, 0.04), inset 0 -1px 0 rgba(255, 255, 255, 1)",
+                }}
+              >
                 <button
                   type="button"
                   onClick={() => onOpenChange(false)}

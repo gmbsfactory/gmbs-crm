@@ -32,14 +32,22 @@ export function WorkflowAdminModal({ isOpen, onClose }: WorkflowAdminModalProps)
       {isOpen ? (
         <motion.div
           key="workflow-admin"
-          className="modal-overlay z-50 flex items-center justify-center p-4"
+          className="modal-overlay fixed inset-0 z-50 flex items-center justify-center p-4"
+          style={{ background: "rgba(0, 0, 0, 0.20)" }}
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           onClick={onClose}
         >
           <motion.div
-            className="modal-content h-[80vh] w-[90vw] max-w-7xl overflow-hidden p-0"
+            className="glass-modal-premium h-[80vh] w-[90vw] max-w-7xl overflow-hidden p-0 rounded-2xl"
+            style={{
+              background: "rgba(255, 255, 255, 0.25)",
+              backdropFilter: "blur(16px) saturate(1.4)",
+              WebkitBackdropFilter: "blur(16px) saturate(1.4)",
+              border: "1px solid rgba(255, 255, 255, 0.4)",
+              boxShadow: "0 8px 32px rgba(0, 0, 0, 0.08), inset 0 1px 1px rgba(255, 255, 255, 0.6)",
+            }}
             initial={{ scale: 0.9, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             exit={{ scale: 0.94, opacity: 0 }}
