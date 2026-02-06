@@ -612,7 +612,7 @@ export default function DashboardPage() {
             </div>
 
             {/* Partie droite : Badge gestionnaire sélectionné + Nom + ExpandableAvatarGroup */}
-            <div className="flex items-center gap-2 justify-end flex-shrink-0 min-w-fit">
+            <div className="flex items-center gap-4 justify-end flex-shrink-0 min-w-fit">
               {/* Badge du gestionnaire sélectionné */}
               {selectedGestionnaireId && (() => {
                 const selectedGestionnaire = gestionnaires.find(g => g.id === selectedGestionnaireId)
@@ -629,7 +629,8 @@ export default function DashboardPage() {
                       exit={{ opacity: 0 }}
                       style={{ width: "2.25rem", height: "2.25rem" }}
                       transition={{ type: "spring", stiffness: 300, damping: 25 }}
-                    >
+                      className="flex items-center justify-center"
+                      >
                       <GestionnaireBadge
                         firstname={selectedGestionnaire.firstname}
                         lastname={selectedGestionnaire.lastname}

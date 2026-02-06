@@ -86,6 +86,7 @@ export interface DocumentManagerProps {
   onChange?: () => void;
   currentUser?: CurrentUser;
   variant?: DocumentVariant;
+  highlightedKinds?: string[];
 }
 
 // ===== Constantes partagées =====

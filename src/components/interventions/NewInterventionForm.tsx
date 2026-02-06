@@ -18,7 +18,7 @@ import { MapLibreMap } from "@/components/maps/MapLibreMap"
 import { DocumentManager } from "@/components/documents"
 import type { NearbyArtisan } from "@/hooks/useNearbyArtisans"
 import { interventionsApi } from "@/lib/api/v2"
-import { commentsApi } from "@/lib/api/v2/commentsApi"
+
 import type { CreateInterventionData } from "@/lib/api/v2/common/types"
 import { cn } from "@/lib/utils"
 import { formatMarginPercentage, getMarginColorClass } from "@/lib/utils/margin-calculator"
@@ -26,6 +26,7 @@ import { ArtisanSearchModal } from "@/components/artisans/ArtisanSearchModal"
 import { Avatar } from "@/components/artisans/Avatar"
 import { toast } from "sonner"
 import { findOrCreateOwner, findOrCreateTenant } from "@/lib/interventions/owner-tenant-helpers"
+import { runPostMutationTasks } from "@/lib/interventions/post-mutation-tasks"
 import { EmailEditModal } from "@/components/interventions/EmailEditModal"
 import { DuplicateInterventionDialog } from "@/components/interventions/DuplicateInterventionDialog"
 import { SearchableBadgeSelect } from "@/components/ui/searchable-badge-select"
@@ -439,122 +440,44 @@ export function NewInterventionForm({
       const created = await interventionsApi.create(createData)
       setCreatedInterventionId(created.id)
 
-      // Assigner l'artisan principal si sélectionné
-      if (selectedArtisanId) {
-        try {
-          await interventionsApi.setPrimaryArtisan(created.id, selectedArtisanId)
-        } catch (artisanError) {
-          console.error("[NewInterventionForm] Impossible d'assigner l'artisan", artisanError)
-        }
-      }
-
-      // Assigner le second artisan si sélectionné
-      if (selectedSecondArtisanId) {
-        try {
-          await interventionsApi.setSecondaryArtisan(created.id, selectedSecondArtisanId)
-        } catch (artisanError) {
-          console.error("[NewInterventionForm] Impossible d'assigner le second artisan", artisanError)
-        }
-      }
-
-      // Créer les coûts si renseignés
-      const coutSSTValue = parseFloat(formData.coutSST) || 0
-      const coutMaterielValue = parseFloat(formData.coutMateriel) || 0
-      const coutInterventionValue = parseFloat(formData.coutIntervention) || 0
-
-      if (coutSSTValue > 0) {
-        try {
-          await interventionsApi.upsertCost(created.id, {
-            cost_type: "sst",
-            label: "Coût SST",
-            amount: coutSSTValue,
-            artisan_order: 1,
-          })
-        } catch (costError) {
-          console.error("[NewInterventionForm] Erreur coût SST:", costError)
-        }
-      }
-
-      if (coutMaterielValue > 0) {
-        try {
-          await interventionsApi.upsertCost(created.id, {
-            cost_type: "materiel",
-            label: "Coût Matériel",
-            amount: coutMaterielValue,
-            artisan_order: 1,
-          })
-        } catch (costError) {
-          console.error("[NewInterventionForm] Erreur coût matériel:", costError)
-        }
-      }
-
-      if (coutInterventionValue > 0) {
-        try {
-          await interventionsApi.upsertCost(created.id, {
-            cost_type: "intervention",
-            label: "Coût Intervention",
-            amount: coutInterventionValue,
-            artisan_order: null, // Coût global
-          })
-        } catch (costError) {
-          console.error("[NewInterventionForm] Erreur coût intervention:", costError)
-        }
-      }
-
-      // Créer les coûts du 2ème artisan si renseignés
-      const coutSST2Value = parseFloat(formData.coutSSTSecondArtisan) || 0
-      const coutMateriel2Value = parseFloat(formData.coutMaterielSecondArtisan) || 0
-
-      if (selectedSecondArtisanId && coutSST2Value > 0) {
-        try {
-          await interventionsApi.upsertCost(created.id, {
-            cost_type: "sst",
-            label: "Coût SST 2ème artisan",
-            amount: coutSST2Value,
-            artisan_order: 2,
-          })
-        } catch (costError) {
-          console.error("[NewInterventionForm] Erreur coût SST 2ème artisan:", costError)
-        }
-      }
-
-      if (selectedSecondArtisanId && coutMateriel2Value > 0) {
-        try {
-          await interventionsApi.upsertCost(created.id, {
-            cost_type: "materiel",
-            label: "Coût Matériel 2ème artisan",
-            amount: coutMateriel2Value,
-            artisan_order: 2,
-          })
-        } catch (costError) {
-          console.error("[NewInterventionForm] Erreur coût matériel 2ème artisan:", costError)
-        }
-      }
-
-      // Ajouter le commentaire initial si renseigné
-      const trimmedInitialComment = formData.commentaire_initial.trim()
-      if (trimmedInitialComment.length > 0) {
-        try {
-          await commentsApi.create({
-            entity_id: created.id,
-            entity_type: "intervention",
-            content: trimmedInitialComment,
-            comment_type: "internal",
-            is_internal: true,
-            author_id: currentUser?.id,
-          })
-        } catch (commentError) {
-          console.error("[NewInterventionForm] Impossible d'ajouter le commentaire initial", commentError)
-          toast.error("L'intervention a bien été créée mais le commentaire initial n'a pas pu être enregistré.")
-        }
-      }
-
+      // Fermer le modal immédiatement — les tâches secondaires s'exécutent en arrière-plan
       toast.success("Intervention créée")
       onSuccess?.(created)
 
-      // onCancel() is redundant here and triggers the UnsavedChangesDialog
-      // because hasUnsavedChanges is still true and isSubmitting is set back to false soon after.
-      // onSuccess already handles the modal closure in the parent component.
+      // Préparer les coûts (uniquement ceux avec montant > 0 pour la création)
+      const coutSSTValue = parseFloat(formData.coutSST) || 0
+      const coutMaterielValue = parseFloat(formData.coutMateriel) || 0
+      const coutInterventionValue = parseFloat(formData.coutIntervention) || 0
+      const coutSST2Value = parseFloat(formData.coutSSTSecondArtisan) || 0
+      const coutMateriel2Value = parseFloat(formData.coutMaterielSecondArtisan) || 0
+
+      const costs: Array<{ cost_type: 'sst' | 'materiel' | 'intervention' | 'marge'; amount: number; artisan_order?: 1 | 2 | null; label?: string | null }> = []
+
+      if (coutSSTValue > 0) costs.push({ cost_type: "sst", label: "Coût SST", amount: coutSSTValue, artisan_order: 1 })
+      if (coutMaterielValue > 0) costs.push({ cost_type: "materiel", label: "Coût Matériel", amount: coutMaterielValue, artisan_order: 1 })
+      if (coutInterventionValue > 0) costs.push({ cost_type: "intervention", label: "Coût Intervention", amount: coutInterventionValue, artisan_order: null })
+      if (selectedSecondArtisanId && coutSST2Value > 0) costs.push({ cost_type: "sst", label: "Coût SST 2ème artisan", amount: coutSST2Value, artisan_order: 2 })
+      if (selectedSecondArtisanId && coutMateriel2Value > 0) costs.push({ cost_type: "materiel", label: "Coût Matériel 2ème artisan", amount: coutMateriel2Value, artisan_order: 2 })
+
+      // Préparer le commentaire initial
+      const trimmedInitialComment = formData.commentaire_initial.trim()
+
+      // Lancer toutes les tâches secondaires en arrière-plan (fire-and-forget)
+      runPostMutationTasks({
+        interventionId: created.id,
+        artisans: {
+          primary: { current: null, next: selectedArtisanId },
+          secondary: { current: null, next: selectedSecondArtisanId },
+        },
+        costs: costs.length > 0 ? costs : undefined,
+        comment: trimmedInitialComment.length > 0 ? {
+          entity_type: "intervention",
+          content: trimmedInitialComment,
+          comment_type: "internal",
+          is_internal: true,
+          author_id: currentUser?.id,
+        } : undefined,
+      })
 
     } catch (error) {
       console.error("Erreur lors de la création:", error)

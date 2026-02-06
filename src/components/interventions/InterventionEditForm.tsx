@@ -37,6 +37,7 @@ import { EmailEditModal } from "@/components/interventions/EmailEditModal"
 import { SectionLock } from "@/components/ui/SectionLock"
 import { generateDevisWhatsAppText, generateInterventionWhatsAppText, type EmailTemplateData } from "@/lib/email-templates/intervention-emails"
 import { findOrCreateOwner, findOrCreateTenant } from "@/lib/interventions/owner-tenant-helpers"
+import { runPostMutationTasks } from "@/lib/interventions/post-mutation-tasks"
 import { normalizeArtisanData, getDisplayName } from "@/lib/artisans"
 
 // Shared form state hook
@@ -1066,150 +1067,7 @@ export const InterventionEditForm = memo(function InterventionEditForm({
         },
       })
 
-      // Mettre à jour les coûts
-      const costsToUpdate: Array<{ cost_type: "sst" | "materiel" | "intervention"; amount: number }> = []
-
-      const coutSSTValue = parseFloat(formData.coutSST) || 0
-      const coutMaterielValue = parseFloat(formData.coutMateriel) || 0
-      const coutInterventionValue = parseFloat(formData.coutIntervention) || 0
-
-      if (coutSSTValue >= 0) {
-        costsToUpdate.push({ cost_type: "sst", amount: coutSSTValue })
-      }
-      if (coutMaterielValue >= 0) {
-        costsToUpdate.push({ cost_type: "materiel", amount: coutMaterielValue })
-      }
-      if (coutInterventionValue >= 0) {
-        costsToUpdate.push({ cost_type: "intervention", amount: coutInterventionValue })
-      }
-
-      // Préparer tous les coûts à mettre à jour (artisan principal + 2ème artisan si présent)
-      let costsUpdated = false
-      const allCostsToUpsert: Array<{
-        cost_type: 'sst' | 'materiel' | 'intervention' | 'marge';
-        amount: number;
-        artisan_order?: 1 | 2 | null;
-        label?: string | null;
-      }> = []
-
-      // Coûts artisan principal
-      for (const cost of costsToUpdate) {
-        allCostsToUpsert.push({
-          cost_type: cost.cost_type as 'sst' | 'materiel' | 'intervention',
-          label: cost.cost_type === "sst" ? "Coût SST" : cost.cost_type === "materiel" ? "Coût Matériel" : "Coût Intervention",
-          amount: cost.amount,
-          artisan_order: cost.cost_type === "intervention" ? null : 1,
-        })
-      }
-
-      // Coûts du 2ème artisan (artisan_order = 2)
-      const coutSST2Value = parseFloat(formData.coutSSTSecondArtisan) || 0
-      const coutMateriel2Value = parseFloat(formData.coutMaterielSecondArtisan) || 0
-
-      if (selectedSecondArtisanId) {
-        // Si un 2ème artisan est sélectionné, ajouter ses coûts au batch
-        allCostsToUpsert.push({
-          cost_type: "sst",
-          label: "Coût SST 2ème artisan",
-          amount: coutSST2Value,
-          artisan_order: 2,
-        })
-        allCostsToUpsert.push({
-          cost_type: "materiel",
-          label: "Coût Matériel 2ème artisan",
-          amount: coutMateriel2Value,
-          artisan_order: 2,
-        })
-      }
-
-      // Upsert batch de tous les coûts en une seule opération
-      if (allCostsToUpsert.length > 0) {
-        try {
-          await interventionsApi.upsertCostsBatch(intervention.id, allCostsToUpsert)
-          costsUpdated = true
-        } catch (costError) {
-          console.error(`[InterventionEditForm] Erreur lors de la mise à jour des coûts:`, costError)
-          // Ne pas bloquer la soumission si les coûts échouent
-        }
-      }
-
-      // Si pas de 2ème artisan, supprimer ses coûts (en parallèle)
-      if (!selectedSecondArtisanId) {
-        try {
-          await Promise.all([
-            interventionsApi.deleteCost(intervention.id, "sst", 2),
-            interventionsApi.deleteCost(intervention.id, "materiel", 2)
-          ])
-        } catch (deleteError) {
-          // Ignorer les erreurs de suppression (le coût n'existait peut-être pas)
-        }
-      }
-
-      // Mettre à jour les acomptes
-      const accompteSSTValue = parseFloat(formData.accompteSST) || 0
-      const accompteClientValue = parseFloat(formData.accompteClient) || 0
-
-      // Acompte SST
-      if (accompteSSTValue > 0 || formData.accompteSSTRecu || formData.dateAccompteSSTRecu) {
-        try {
-          await interventionsApi.upsertPayment(intervention.id, {
-            payment_type: 'acompte_sst',
-            amount: accompteSSTValue,
-            currency: 'EUR',
-            is_received: formData.accompteSSTRecu || false,
-            payment_date: formData.dateAccompteSSTRecu || null
-          })
-        } catch (paymentError) {
-          console.error('[InterventionEditForm] Erreur lors de la mise à jour de l\'acompte SST:', paymentError)
-        }
-      }
-
-      // Acompte Client
-      if (accompteClientValue > 0 || formData.accompteClientRecu || formData.dateAccompteClientRecu) {
-        try {
-          await interventionsApi.upsertPayment(intervention.id, {
-            payment_type: 'acompte_client',
-            amount: accompteClientValue,
-            currency: 'EUR',
-            is_received: formData.accompteClientRecu || false,
-            payment_date: formData.dateAccompteClientRecu || null
-          })
-        } catch (paymentError) {
-          console.error('[InterventionEditForm] Erreur lors de la mise à jour de l\'acompte client:', paymentError)
-        }
-      }
-
-      // Invalider le cache du dashboard si des coûts ont été mis à jour
-      if (costsUpdated) {
-        // Invalider toutes les queries du dashboard admin pour forcer le rechargement
-        await queryClient.invalidateQueries({ queryKey: ["admin", "dashboard"] })
-        // Invalider aussi les queries de podium si elles existent
-        await queryClient.invalidateQueries({ queryKey: ["podium"] })
-        console.log('[InterventionEditForm] Cache dashboard invalidé après mise à jour des coûts')
-      }
-
-      const currentPrimaryId = primaryArtisanIdRef.current
-      const nextPrimaryId = selectedArtisanId ?? null
-      const currentSecondaryId = secondaryArtisanIdRef.current
-      const nextSecondaryId = selectedSecondArtisanId ?? null
-
-      let payload: InterventionWithStatus = updated as InterventionWithStatus
-
-      // Gérer l'artisan principal
-      if (currentPrimaryId !== nextPrimaryId) {
-        await interventionsApi.setPrimaryArtisan(intervention.id, nextPrimaryId)
-        primaryArtisanIdRef.current = nextPrimaryId
-      }
-
-      // Gérer l'artisan secondaire
-      if (currentSecondaryId !== nextSecondaryId) {
-        await interventionsApi.setSecondaryArtisan(intervention.id, nextSecondaryId)
-        secondaryArtisanIdRef.current = nextSecondaryId
-      }
-
-      // Recharger les données pour avoir les coûts et artisans à jour
-      payload = await interventionsApi.getById(intervention.id)
-
+      // Commentaire de raison de statut — CRITIQUE, doit être awaité avant fermeture
       if (options?.reason && options.reasonType) {
         try {
           await commentsApi.create({
@@ -1221,33 +1079,68 @@ export const InterventionEditForm = memo(function InterventionEditForm({
             author_id: currentUser?.id ?? undefined,
             reason_type: options.reasonType,
           })
-          await queryClient.invalidateQueries({ queryKey: ["comments", "intervention", intervention.id] })
         } catch (commentError) {
           console.error("[InterventionEditForm] Impossible d'ajouter le commentaire obligatoire", commentError)
           throw new Error("Le commentaire obligatoire n'a pas pu être enregistré. Merci de réessayer.")
         }
       }
 
-      // Mettre à jour le formData avec les valeurs retournées par le serveur
-      // pour synchroniser les champs qui peuvent avoir été modifiés côté serveur (comme id_inter)
-      if (payload) {
-        setFormData((prev) => ({
-          ...prev,
-          id_inter: payload.id_inter || prev.id_inter || "",
-          statut_id: payload.statut_id || prev.statut_id || "",
-          agence_id: payload.agence_id || prev.agence_id || "",
-          reference_agence: (payload as any).reference_agence || prev.reference_agence || "",
-          // Synchroniser les champs d'adresse avec les données sauvegardées
-          adresse: payload.adresse || prev.adresse || "",
-          code_postal: payload.code_postal || prev.code_postal || "",
-          ville: payload.ville || prev.ville || "",
-          latitude: payload.latitude ?? prev.latitude ?? 48.8566,
-          longitude: payload.longitude ?? prev.longitude ?? 2.3522,
-          adresse_complete: payload.adresse_complete || prev.adresse_complete || "",
-        }))
+      // Fermer le modal immédiatement — les tâches secondaires s'exécutent en arrière-plan
+      onSuccess?.(updated as InterventionWithStatus)
+
+      // Préparer les coûts pour le batch
+      const coutSSTValue = parseFloat(formData.coutSST) || 0
+      const coutMaterielValue = parseFloat(formData.coutMateriel) || 0
+      const coutInterventionValue = parseFloat(formData.coutIntervention) || 0
+      const coutSST2Value = parseFloat(formData.coutSSTSecondArtisan) || 0
+      const coutMateriel2Value = parseFloat(formData.coutMaterielSecondArtisan) || 0
+
+      const allCosts: Array<{ cost_type: 'sst' | 'materiel' | 'intervention' | 'marge'; amount: number; artisan_order?: 1 | 2 | null; label?: string | null }> = []
+
+      if (coutSSTValue >= 0) allCosts.push({ cost_type: "sst", label: "Coût SST", amount: coutSSTValue, artisan_order: 1 })
+      if (coutMaterielValue >= 0) allCosts.push({ cost_type: "materiel", label: "Coût Matériel", amount: coutMaterielValue, artisan_order: 1 })
+      if (coutInterventionValue >= 0) allCosts.push({ cost_type: "intervention", label: "Coût Intervention", amount: coutInterventionValue, artisan_order: null })
+
+      if (selectedSecondArtisanId) {
+        allCosts.push({ cost_type: "sst", label: "Coût SST 2ème artisan", amount: coutSST2Value, artisan_order: 2 })
+        allCosts.push({ cost_type: "materiel", label: "Coût Matériel 2ème artisan", amount: coutMateriel2Value, artisan_order: 2 })
       }
 
-      onSuccess?.(payload)
+      // Préparer les paiements
+      const accompteSSTValue = parseFloat(formData.accompteSST) || 0
+      const accompteClientValue = parseFloat(formData.accompteClient) || 0
+      const payments: Array<{ payment_type: string; amount: number; currency?: string; is_received?: boolean; payment_date?: string | null }> = []
+
+      if (accompteSSTValue > 0 || formData.accompteSSTRecu || formData.dateAccompteSSTRecu) {
+        payments.push({ payment_type: 'acompte_sst', amount: accompteSSTValue, currency: 'EUR', is_received: formData.accompteSSTRecu || false, payment_date: formData.dateAccompteSSTRecu || null })
+      }
+      if (accompteClientValue > 0 || formData.accompteClientRecu || formData.dateAccompteClientRecu) {
+        payments.push({ payment_type: 'acompte_client', amount: accompteClientValue, currency: 'EUR', is_received: formData.accompteClientRecu || false, payment_date: formData.dateAccompteClientRecu || null })
+      }
+
+      // Mettre à jour les refs de manière optimiste
+      const currentPrimaryId = primaryArtisanIdRef.current
+      const nextPrimaryId = selectedArtisanId ?? null
+      const currentSecondaryId = secondaryArtisanIdRef.current
+      const nextSecondaryId = selectedSecondArtisanId ?? null
+
+      if (currentPrimaryId !== nextPrimaryId) primaryArtisanIdRef.current = nextPrimaryId
+      if (currentSecondaryId !== nextSecondaryId) secondaryArtisanIdRef.current = nextSecondaryId
+
+      // Lancer toutes les tâches secondaires en arrière-plan (fire-and-forget)
+      runPostMutationTasks({
+        interventionId: intervention.id,
+        artisans: {
+          primary: { current: currentPrimaryId, next: nextPrimaryId },
+          secondary: { current: currentSecondaryId, next: nextSecondaryId },
+        },
+        costs: allCosts.length > 0 ? allCosts : undefined,
+        deleteSecondaryCosts: !selectedSecondArtisanId,
+        payments: payments.length > 0 ? payments : undefined,
+        queryClient,
+        invalidateDashboard: allCosts.length > 0,
+        invalidateComments: !!(options?.reason && options.reasonType),
+      })
     } catch (error) {
       console.error("Erreur lors de la mise à jour:", error)
       const message = error instanceof Error ? error.message : "Erreur lors de la mise à jour de l'intervention"
@@ -2329,7 +2222,14 @@ export const InterventionEditForm = memo(function InterventionEditForm({
                     </CollapsibleTrigger>
                     <CollapsibleContent>
                       <CardContent className="pt-0 px-3 pb-3">
-                        <DocumentManager entityType="intervention" entityId={intervention.id} kinds={DOCUMENT_KINDS} currentUser={currentUser ?? undefined} onChange={() => void checkFactureGMBS()} />
+                        <DocumentManager
+                          entityType="intervention"
+                          entityId={intervention.id}
+                          kinds={DOCUMENT_KINDS}
+                          currentUser={currentUser ?? undefined}
+                          onChange={() => void checkFactureGMBS()}
+                          highlightedKinds={requiresFacture && !hasFactureGMBS ? ["facturesGMBS"] : []}
+                        />
                       </CardContent>
                     </CollapsibleContent>
                   </Card>

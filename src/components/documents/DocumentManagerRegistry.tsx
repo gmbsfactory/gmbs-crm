@@ -41,6 +41,7 @@ export function DocumentManagerRegistry({
   multiple = true,
   onChange,
   currentUser,
+  highlightedKinds,
 }: DocumentManagerProps) {
   // Props communes à passer à la variante sélectionnée
   const commonProps = {
@@ -51,13 +52,14 @@ export function DocumentManagerRegistry({
     multiple,
     onChange,
     currentUser,
+    highlightedKinds,
   };
 
   // Sélection de la variante
   switch (variant) {
     case "legacy":
       return <DocumentManagerLegacy {...commonProps} />;
-    
+
     case "docs_gmbs":
     default:
       return <DocumentManagerGmbs {...commonProps} />;
