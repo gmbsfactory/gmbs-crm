@@ -1017,6 +1017,16 @@ function PageContent() {
             (currentIntervention as any).commentaireAgent ?? (currentIntervention as any).commentaire ?? null,
           devisId: nextDevisId ?? currentIntervention.devisId ?? null,
           idIntervention: interventionBusinessId,
+          // Champs pour la validation cumulative
+          nomPrenomFacturation: (currentIntervention as any).nomPrenomFacturation ?? null,
+          assignedUserId: (currentIntervention as any).assigned_user_id ?? null,
+          coutIntervention: (currentIntervention as any).coutIntervention ?? null,
+          coutSST: (currentIntervention as any).coutSST ?? null,
+          consigneArtisan: (currentIntervention as any).consigneIntervention ?? null,
+          nomPrenomClient: (currentIntervention as any).nomPrenomClient ?? null,
+          telephoneClient: (currentIntervention as any).telephoneClient ?? null,
+          datePrevue: (currentIntervention as any).datePrevue ?? null,
+          attachments: (currentIntervention as any).attachments ?? [],
         },
       )
 

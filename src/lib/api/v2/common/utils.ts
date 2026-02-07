@@ -395,10 +395,10 @@ export const mapInterventionRecord = (item: any, refs: any): any => {
       typeof item.longitude === "number"
         ? item.longitude.toString()
         : item.longitudeAdresse ?? null,
-    adresse: item.adresse_complete || item.adresse || null,
+    adresse: item.adresse || null,
     adresse_complete: item.adresse_complete || null,
-    adresseComplete: item.adresse_complete || null,
     codePostal: item.code_postal ?? item.codePostal ?? null,
+    ville: item.ville ?? null,
     dateIntervention:
       item.date_intervention ?? item.dateIntervention ?? item.date ?? null,
     prenomClient: item.prenom_client ?? item.prenomClient ?? null,

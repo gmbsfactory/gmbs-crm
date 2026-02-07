@@ -38,24 +38,72 @@ export function ExpandableAvatarGroup({
 }: ExpandableAvatarGroupProps) {
   const [isOpen, setIsOpen] = React.useState(false)
   const [searchQuery, setSearchQuery] = React.useState("")
+  // Track selection history for queue ordering (most recent deselection first)
+  const [selectionHistory, setSelectionHistory] = React.useState<string[]>([])
 
-  const visibleItems = items.slice(0, maxVisible)
-  const hiddenCount = Math.max(0, items.length - maxVisible)
+  // Reorder items based on selection history
+  // Most recently deselected items appear first in the queue
+  const orderedItems = React.useMemo(() => {
+    if (selectionHistory.length === 0) return items
+    
+    // Create a map of item order based on history (most recent = lowest index)
+    const orderMap = new Map<string, number>()
+    selectionHistory.forEach((id, index) => {
+      orderMap.set(id, index)
+    })
+    
+    // Sort items: items in history come first (sorted by recency), then the rest
+    return [...items].sort((a, b) => {
+      const aOrder = orderMap.get(a.id)
+      const bOrder = orderMap.get(b.id)
+      
+      // Both in history: sort by recency (lower index = more recent)
+      if (aOrder !== undefined && bOrder !== undefined) {
+        return aOrder - bOrder
+      }
+      
+      // Only 'a' in history: it comes first
+      if (aOrder !== undefined) return -1
+      
+      // Only 'b' in history: it comes first
+      if (bOrder !== undefined) return 1
+      
+      // Neither in history: maintain original order
+      return 0
+    })
+  }, [items, selectionHistory])
+
+  const visibleItems = orderedItems.slice(0, maxVisible)
+  const hiddenCount = Math.max(0, orderedItems.length - maxVisible)
   const hasMore = hiddenCount > 0
 
-  // Filter items for popover
+  // Handle avatar click with queue logic
+  const handleAvatarClick = React.useCallback((id: string) => {
+    // Update selection history: add this ID to the front
+    setSelectionHistory(prev => {
+      // Remove if already exists to avoid duplicates
+      const filtered = prev.filter(historyId => historyId !== id)
+      // Add to front (most recent)
+      return [id, ...filtered]
+    })
+    
+    // Call parent handler
+    onAvatarClick?.(id)
+  }, [onAvatarClick])
+
+  // Filter items for popover (use ordered items)
   const filteredItems = React.useMemo(() => {
-    if (!searchQuery.trim()) return items
+    if (!searchQuery.trim()) return orderedItems
     
     const query = searchQuery.toLowerCase()
-    return items.filter(item => {
+    return orderedItems.filter(item => {
       const searchableText = item.searchText || 
         `${item.firstname || ''} ${item.lastname || ''} ${item.prenom || ''} ${item.name || ''}`.toLowerCase()
       return searchableText.includes(query)
     })
-  }, [items, searchQuery])
+  }, [orderedItems, searchQuery])
 
-  const shouldShowSearch = showSearch && items.length >= searchThreshold
+  const shouldShowSearch = showSearch && orderedItems.length >= searchThreshold
 
   return (
     <div className={cn("flex items-center", className)}>
@@ -85,7 +133,7 @@ export function ExpandableAvatarGroup({
                   "ring-2 ring-background transition-all hover:scale-110 hover:z-50",
                   onAvatarClick && "cursor-pointer"
                 )}
-                onClick={() => onAvatarClick?.(item.id)}
+                onClick={() => handleAvatarClick(item.id)}
               />
             </motion.div>
           ))}
@@ -181,7 +229,7 @@ export function ExpandableAvatarGroup({
                                 onAvatarClick && "cursor-pointer"
                               )}
                               onClick={() => {
-                                onAvatarClick?.(item.id)
+                                handleAvatarClick(item.id)
                                 setIsOpen(false)
                               }}
                             />
@@ -203,9 +251,9 @@ export function ExpandableAvatarGroup({
                 {/* Footer with count */}
                 <div className="px-4 py-2 border-t bg-muted/20">
                   <p className="text-xs text-center text-muted-foreground">
-                    {filteredItems.length === items.length
-                      ? `${items.length} gestionnaire${items.length > 1 ? 's' : ''}`
-                      : `${filteredItems.length} sur ${items.length} résultat${items.length > 1 ? 's' : ''}`
+                    {filteredItems.length === orderedItems.length
+                      ? `${orderedItems.length} gestionnaire${orderedItems.length > 1 ? 's' : ''}`
+                      : `${filteredItems.length} sur ${orderedItems.length} résultat${orderedItems.length > 1 ? 's' : ''}`
                     }
                   </p>
                 </div>

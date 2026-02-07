@@ -136,7 +136,7 @@ export function LegacyInterventionForm({ onSuccess, onCancel, mode = "centerpage
     ville: defaultValues?.ville || "",
     latitude: defaultValues?.latitude || 48.8566,
     longitude: defaultValues?.longitude || 2.3522,
-    adresseComplete: defaultValues?.adresse && defaultValues?.ville
+    adresse_complete: defaultValues?.adresse && defaultValues?.ville
       ? `${defaultValues.adresse}, ${defaultValues.ville}`
       : "Paris, France",
     coutIntervention: defaultValues?.coutIntervention || "",
@@ -243,7 +243,7 @@ export function LegacyInterventionForm({ onSuccess, onCancel, mode = "centerpage
       ...prev,
       latitude: suggestion.lat,
       longitude: suggestion.lng,
-      adresseComplete: suggestion.label,
+      adresse_complete: suggestion.label,
       // NE PAS écraser le champ adresse (saisie libre)
       // On ne met à jour code_postal et ville que s'ils sont vides
       code_postal: prev.code_postal || addressParts.postalCode || "",
@@ -326,7 +326,7 @@ export function LegacyInterventionForm({ onSuccess, onCancel, mode = "centerpage
         ...prev,
         latitude: result.lat,
         longitude: result.lng,
-        adresseComplete: result.label,
+        adresse_complete: result.label,
         // NE PAS écraser le champ adresse (saisie libre)
         // On ne met à jour code_postal et ville que s'ils sont vides
         code_postal: prev.code_postal || addressParts.postalCode || "",
@@ -421,7 +421,7 @@ export function LegacyInterventionForm({ onSuccess, onCancel, mode = "centerpage
         adresse: formData.adresse || undefined,
         code_postal: formData.code_postal || undefined,
         ville: formData.ville || undefined,
-        adresse_complete: formData.adresseComplete || null,
+        adresse_complete: formData.adresse_complete || null,
         latitude: formData.latitude,
         longitude: formData.longitude,
         id_inter: idInterValue,

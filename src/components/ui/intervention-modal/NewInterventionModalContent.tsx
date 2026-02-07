@@ -18,6 +18,7 @@ import { usePermissions } from "@/hooks/usePermissions"
 type Props = {
   mode: ModalDisplayMode
   onClose: () => void
+  waitForExit: () => Promise<void>
   onCycleMode?: () => void
   onUnsavedDialogOpenChange?: (isOpen: boolean) => void
   onUnsavedChangesStateChange?: (hasChanges: boolean, isSubmitting: boolean) => void
@@ -28,6 +29,7 @@ type Props = {
 export function NewInterventionModalContent({
   mode,
   onClose,
+  waitForExit,
   onCycleMode,
   onUnsavedDialogOpenChange,
   onUnsavedChangesStateChange,
@@ -149,20 +151,31 @@ export function NewInterventionModalContent({
     async (data: { id: string }) => {
       if (!data?.id) return
 
-      // Invalider toutes les listes d'interventions pour recharger avec la nouvelle intervention
-      await queryClient.invalidateQueries({ queryKey: interventionKeys.invalidateLists() })
-      await queryClient.invalidateQueries({ queryKey: interventionKeys.invalidateLightLists() })
-
       // Si on devait fermer après sauvegarde, s'assurer que le dialog est fermé
       if (shouldCloseAfterSaveRef.current) {
         setShowUnsavedDialog(false)
         shouldCloseAfterSaveRef.current = false
       }
 
-      // Fermer le modal (pas de retour à l'intervention initiale lors de la création réussie)
+      // 1. Invalider les queries actives immédiatement (non-bloquant, le refetch démarre en arrière-plan)
+      queryClient.invalidateQueries({
+        queryKey: interventionKeys.invalidateLists(),
+        refetchType: 'active',
+      })
+      queryClient.invalidateQueries({
+        queryKey: interventionKeys.invalidateLightLists(),
+        refetchType: 'active',
+      })
+
+      // 2. Fermer le modal immédiatement pour démarrer l'animation
       onClose()
+
+      // 3. Attendre la fin de l'animation puis invalider les queries inactives
+      await waitForExit()
+      queryClient.invalidateQueries({ queryKey: interventionKeys.invalidateLists(), refetchType: 'inactive' })
+      queryClient.invalidateQueries({ queryKey: interventionKeys.invalidateLightLists(), refetchType: 'inactive' })
     },
-    [queryClient, onClose],
+    [queryClient, onClose, waitForExit],
   )
 
   const ModeIcon = ModeIcons[mode]

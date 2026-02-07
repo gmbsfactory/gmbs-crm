@@ -6,7 +6,6 @@ import { Building, ChevronDown, ChevronRight, FileText, MessageSquare, Upload, X
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
@@ -17,92 +16,29 @@ import { GestionnaireBadge } from "@/components/ui/gestionnaire-badge"
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable"
 import { MapLibreMap } from "@/components/maps/MapLibreMap"
 import { DocumentManager } from "@/components/documents"
-import { useReferenceData } from "@/hooks/useReferenceData"
-import { useGeocodeSearch } from "@/hooks/useGeocodeSearch"
-import type { GeocodeSuggestion } from "@/hooks/useGeocodeSearch"
-import { useNearbyArtisans, type NearbyArtisan } from "@/hooks/useNearbyArtisans"
-import { useFormDataChanges } from "@/hooks/useFormDataChanges"
+import type { NearbyArtisan } from "@/hooks/useNearbyArtisans"
 import { interventionsApi } from "@/lib/api/v2"
-import { commentsApi } from "@/lib/api/v2/commentsApi"
+
 import type { CreateInterventionData } from "@/lib/api/v2/common/types"
-import { supabase } from "@/lib/supabase-client"
-import { useCurrentUser } from "@/hooks/useCurrentUser"
 import { cn } from "@/lib/utils"
-import { calculatePrimaryArtisanMargin, calculateSecondaryArtisanMargin, formatMarginPercentage, getMarginColorClass } from "@/lib/utils/margin-calculator"
-import { ArtisanSearchModal, type ArtisanSearchResult } from "@/components/artisans/ArtisanSearchModal"
+import { formatMarginPercentage, getMarginColorClass } from "@/lib/utils/margin-calculator"
+import { ArtisanSearchModal } from "@/components/artisans/ArtisanSearchModal"
 import { Avatar } from "@/components/artisans/Avatar"
-import { useArtisanModal } from "@/hooks/useArtisanModal"
 import { toast } from "sonner"
 import { findOrCreateOwner, findOrCreateTenant } from "@/lib/interventions/owner-tenant-helpers"
+import { runPostMutationTasks } from "@/lib/interventions/post-mutation-tasks"
 import { EmailEditModal } from "@/components/interventions/EmailEditModal"
-import { generateDevisEmailTemplate, generateInterventionEmailTemplate, generateDevisWhatsAppText, generateInterventionWhatsAppText, type EmailTemplateData } from "@/lib/email-templates/intervention-emails"
 import { DuplicateInterventionDialog } from "@/components/interventions/DuplicateInterventionDialog"
 import { SearchableBadgeSelect } from "@/components/ui/searchable-badge-select"
 
-const INTERVENTION_DOCUMENT_KINDS = [
-  { kind: "devis", label: "Devis GMBS" },
-  { kind: "facturesGMBS", label: "Facture GMBS" },
-  { kind: "facturesMateriel", label: "Facture Matériel" },
-  { kind: "photos", label: "Photos" },
-  { kind: "facturesArtisans", label: "Facture Artisan" },
-]
+// Shared form utilities
+import { useInterventionFormState } from "@/hooks/useInterventionFormState"
+import { INTERVENTION_DOCUMENT_KINDS, STATUS_SORT_ORDER, MAX_RADIUS_KM } from "@/lib/interventions/form-constants"
+import { formatDistanceKm, hexToRgba } from "@/lib/interventions/form-utils"
 
-const STATUS_SORT_ORDER: Record<string, number> = {
-  DEMANDE: 1,
-  INTER_EN_COURS: 2,
-  VISITE_TECHNIQUE: 3,
-  ACCEPTE: 4,
-  DEVIS_ENVOYE: 5,
-  ATT_ACOMPTE: 6,
-  INTER_TERMINEE: 7,
-}
-
-
-const MAX_RADIUS_KM = 10000
-
-// Note: requires_reference est maintenant géré via la table agency_config en base de données
-const STATUSES_REQUIRING_DATE_PREVUE = new Set(["VISITE_TECHNIQUE", "INTER_EN_COURS"])
-const STATUSES_REQUIRING_DEFINITIVE_ID = new Set([
-  "DEVIS_ENVOYE",
-  "VISITE_TECHNIQUE",
-  "ACCEPTE",
-  "INTER_EN_COURS",
-  "INTER_TERMINEE",
-  "STAND_BY",
-])
-
-// Compteur pour garantir l'unicité même si Date.now() est identique
-let autoIdCounter = 0
-
-const generateAutoInterventionId = () => {
-  const timestampSegment = Date.now().toString().slice(-6)
-  const randomSegment = Math.floor(Math.random() * 100000)
-    .toString()
-    .padStart(5, "0")
-  autoIdCounter = (autoIdCounter + 1) % 100000
-  const counterSegment = autoIdCounter.toString().padStart(5, "0")
-  const uuidSegment = typeof crypto !== 'undefined' && crypto.randomUUID
-    ? crypto.randomUUID().slice(0, 8)
-    : Math.random().toString(36).slice(2, 10)
-  return `AUTO-${timestampSegment}-${randomSegment}-${counterSegment}-${uuidSegment}`
-}
-
-const formatDistanceKm = (value: number) => {
-  if (!Number.isFinite(value)) return "—"
-  if (value < 1) return "< 1 km"
-  if (value < 10) return `${value.toFixed(1)} km`
-  return `${Math.round(value)} km`
-}
-
-// hexToRgba is used for badges elsewhere in the file
-function hexToRgba(hex: string, alpha: number): string | null {
-  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex)
-  if (!result) return null
-  const r = parseInt(result[1], 16)
-  const g = parseInt(result[2], 16)
-  const b = parseInt(result[3], 16)
-  return `rgba(${r}, ${g}, ${b}, ${alpha})`
-}
+// Convert readonly INTERVENTION_DOCUMENT_KINDS to mutable for DocumentManager
+const DOCUMENT_KINDS = [...INTERVENTION_DOCUMENT_KINDS] as { kind: string; label: string }[]
+import { createNewFormData } from "@/lib/interventions/form-types"
 
 interface NewInterventionFormProps {
   onSuccess?: (data: any) => void
@@ -159,115 +95,157 @@ export function NewInterventionForm({
   defaultValues,
   onPopoverOpenChange
 }: NewInterventionFormProps) {
-  const { data: refData, loading: refDataLoading } = useReferenceData()
   const queryClient = useQueryClient()
-  const [isGeocoding, setIsGeocoding] = useState(false)
-  const [geocodeError, setGeocodeError] = useState<string | null>(null)
 
-  // Utiliser le hook centralisé useCurrentUser au lieu d'un fetch direct
-  const { data: currentUserData } = useCurrentUser()
-  const currentUser = useMemo(() => {
-    if (!currentUserData) return null
-    const first = currentUserData.firstname ?? currentUserData.prenom ?? ""
-    const last = currentUserData.lastname ?? currentUserData.nom ?? ""
-    const displayNameCandidate = [first, last].filter(Boolean).join(" ").trim()
-    const displayName = displayNameCandidate || currentUserData.username || currentUserData.email || "Vous"
-    return {
-      id: currentUserData.id,
-      displayName,
-      code: currentUserData.code_gestionnaire ?? null,
-      color: currentUserData.color ?? null,
-      roles: Array.isArray(currentUserData.roles) ? currentUserData.roles : [],
-    }
-  }, [currentUserData])
+  // Use the shared form state hook
+  const {
+    // Reference data
+    refData,
+    refDataLoading,
+    currentUser,
 
-  const [formData, setFormData] = useState({
-    // Champs principaux
-    statut_id: "",
-    id_inter: "",
-    agence_id: defaultValues?.agence_id || "",
-    reference_agence: defaultValues?.reference_agence || "",
-    assigned_user_id: defaultValues?.assigned_user_id || "",
-    metier_id: defaultValues?.metier_id || "",
-    contexte_intervention: "",
-    consigne_intervention: "",
+    // Form state
+    formData,
+    setFormData,
+    isSubmitting,
+    setIsSubmitting,
+    isFormReady,
+    hasUnsavedChanges,
 
-    // Adresse
-    adresse: defaultValues?.adresse || "",
-    code_postal: defaultValues?.code_postal || "",
-    ville: defaultValues?.ville || "",
-    latitude: defaultValues?.latitude || 48.8566,
-    longitude: defaultValues?.longitude || 2.3522,
-    adresseComplete: defaultValues?.adresse && defaultValues?.ville
+    // Geocoding
+    locationQuery,
+    setLocationQuery,
+    locationSuggestions,
+    isSuggesting,
+    clearSuggestions,
+    showLocationSuggestions,
+    setShowLocationSuggestions,
+    isGeocoding,
+    geocodeError,
+    setGeocodeError,
+    suggestionBlurTimeoutRef,
+
+    // Perimeter
+    perimeterKmInput,
+    setPerimeterKmInput,
+    perimeterKmValue,
+
+    // Primary artisan
+    selectedArtisanId,
+    setSelectedArtisanId,
+    selectedArtisanData,
+    searchSelectedArtisan,
+    setSearchSelectedArtisan,
+    nearbyArtisans,
+    isLoadingNearbyArtisans,
+    nearbyArtisansError,
+
+    // Secondary artisan
+    selectedSecondArtisanId,
+    setSelectedSecondArtisanId,
+    selectedSecondArtisanData,
+    searchSelectedSecondArtisan,
+    setSearchSelectedSecondArtisan,
+    nearbyArtisansSecondMetier,
+    isLoadingNearbyArtisansSecondMetier,
+
+    // Absences
+    absentArtisanIds,
+
+    // Margins
+    margePrimaryArtisan,
+    margeSecondArtisan,
+
+    // Map
+    mapMarkers,
+    mapSelectedConnection,
+
+    // Collapsible sections
+    collapsibleState,
+    setCollapsibleState,
+
+    // Artisan search
+    showArtisanSearch,
+    setShowArtisanSearch,
+    showSecondArtisanSearch,
+    setShowSecondArtisanSearch,
+    artisanSearchPosition,
+    setArtisanSearchPosition,
+    secondArtisanSearchPosition,
+    setSecondArtisanSearchPosition,
+    artisanSearchContainerRef,
+    artisanDisplayMode,
+    setArtisanDisplayMode,
+
+    // Email modals
+    isDevisEmailModalOpen,
+    setIsDevisEmailModalOpen,
+    isInterventionEmailModalOpen,
+    setIsInterventionEmailModalOpen,
+    selectedArtisanForEmail,
+    setSelectedArtisanForEmail,
+    effectiveSelectedArtisanId,
+    selectedArtisanEmail,
+
+    // Validation
+    selectedStatus,
+    requiresDefinitiveId,
+    requiresDatePrevue,
+    requiresArtisan,
+    requiresFacture,
+
+    // Handlers
+    handleInputChange,
+    handleLocationChange,
+    applyArtisanSelection,
+    handleSelectNearbyArtisan,
+    handleRemoveSelectedArtisan,
+    handleSelectSecondArtisan,
+    handleRemoveSecondArtisan,
+    handleSecondArtisanSearchSelect,
+    handleArtisanSearchSelect,
+    handleSuggestionSelect,
+    handleGeocodeAddress,
+    handleOpenDevisEmailModal,
+    handleOpenInterventionEmailModal,
+    generateEmailTemplateData,
+    handleOpenArtisanModal,
+  } = useInterventionFormState({
+    mode: "create",
+    initialFormData: createNewFormData(defaultValues),
+    initialLocationQuery: defaultValues?.adresse && defaultValues?.ville
       ? `${defaultValues.adresse}, ${defaultValues.ville}`
       : "",
-
-    // Dates
-    date: new Date().toISOString().split('T')[0],
-    date_prevue: defaultValues?.datePrevue || "",
-
-    // Commentaires
-    consigne_second_artisan: defaultValues?.consigneSecondArtisan || "",
-    commentaire_initial: defaultValues?.commentairesIntervention || "",
-
-    // Propriétaire (owner) - Champ fusionné nom-prénom
-    nomPrenomFacturation: defaultValues?.nomPrenomFacturation || "",
-    telephoneProprietaire: defaultValues?.telephoneProprietaire || "",
-    emailProprietaire: defaultValues?.emailProprietaire || "",
-
-    // Client (tenant) - Champ fusionné nom-prénom
-    nomPrenomClient: defaultValues?.nomPrenomClient || "",
-    telephoneClient: defaultValues?.telephoneClient || "",
-    emailClient: defaultValues?.emailClient || "",
-
-    // Logement vacant
-    is_vacant: false,
-    key_code: "",
-    floor: "",
-    apartment_number: "",
-    vacant_housing_instructions: "",
-
-    // Artisan
-    artisan: defaultValues?.artisan || "",
-    artisanTelephone: defaultValues?.artisanTelephone || "",
-    artisanEmail: defaultValues?.artisanEmail || "",
-
-    // Coûts
-    coutSST: defaultValues?.coutSST || "",
-    coutMateriel: defaultValues?.coutMateriel || "",
-    coutIntervention: defaultValues?.coutIntervention || "",
-
-    // Acomptes
-    accompteSST: "",
-    accompteSSTRecu: false,
-    dateAccompteSSTRecu: "",
-    accompteClient: "",
-    accompteClientRecu: false,
-    dateAccompteClientRecu: "",
-
-    // Sous-statut personnalisé
-    sousStatutText: "",
-    sousStatutTextColor: "#000000",
-    sousStatutBgColor: "transparent",
-
-    // Deuxième artisan
-    secondArtisan: "",
-    secondArtisanTelephone: "",
-    secondArtisanEmail: "",
-    metierSecondArtisanId: "",
-    coutSSTSecondArtisan: "",
-    coutMaterielSecondArtisan: "",
+    initialSelectedArtisanId: defaultValues?.artisanId ?? null,
+    onClientNameChange,
+    onAgencyNameChange,
+    onClientPhoneChange,
+    onHasUnsavedChanges,
+    onSubmittingChange,
   })
 
-  const [perimeterKmInput, setPerimeterKmInput] = useState("50")
-  const perimeterKmValue = useMemo(() => {
-    const parsed = Number.parseFloat(perimeterKmInput)
-    if (!Number.isFinite(parsed) || parsed <= 0) {
-      return 50
-    }
-    return Math.min(parsed, MAX_RADIUS_KM)
-  }, [perimeterKmInput])
-  const [selectedArtisanId, setSelectedArtisanId] = useState<string | null>(defaultValues?.artisanId ?? null)
+  // Destructure collapsible state for easier access
+  const {
+    isProprietaireOpen,
+    isClientOpen,
+    isAccompteOpen,
+    isDocumentsOpen,
+    isCommentsOpen,
+    isSecondArtisanOpen,
+    isSousStatutOpen,
+  } = collapsibleState
+
+  // Helper functions to update collapsible state
+  const setIsProprietaireOpen = useCallback((open: boolean) => setCollapsibleState(prev => ({ ...prev, isProprietaireOpen: open })), [setCollapsibleState])
+  const setIsClientOpen = useCallback((open: boolean) => setCollapsibleState(prev => ({ ...prev, isClientOpen: open })), [setCollapsibleState])
+  const setIsAccompteOpen = useCallback((open: boolean) => setCollapsibleState(prev => ({ ...prev, isAccompteOpen: open })), [setCollapsibleState])
+  const setIsDocumentsOpen = useCallback((open: boolean) => setCollapsibleState(prev => ({ ...prev, isDocumentsOpen: open })), [setCollapsibleState])
+  const setIsCommentsOpen = useCallback((open: boolean) => setCollapsibleState(prev => ({ ...prev, isCommentsOpen: open })), [setCollapsibleState])
+  const setIsSecondArtisanOpen = useCallback((open: boolean) => setCollapsibleState(prev => ({ ...prev, isSecondArtisanOpen: open })), [setCollapsibleState])
+  const setIsSousStatutOpen = useCallback((open: boolean) => setCollapsibleState(prev => ({ ...prev, isSousStatutOpen: open })), [setCollapsibleState])
+
+  // Form-specific state (not in shared hook)
+  const [createdInterventionId, setCreatedInterventionId] = useState<string | null>(null)
 
   // États pour la gestion des doublons
   const [confirmableDuplicates, setConfirmableDuplicates] = useState<Array<{
@@ -282,195 +260,13 @@ export function NewInterventionForm({
   // Le ref est synchrone et garantit que la valeur est mise à jour avant requestSubmit()
   const skipDuplicateCheckRef = useRef(false)
 
-  const {
-    query: locationQuery,
-    setQuery: setLocationQuery,
-    suggestions: locationSuggestions,
-    isSuggesting,
-    clearSuggestions,
-    geocode: geocodeQuery,
-  } = useGeocodeSearch({ initialQuery: "" })
-  const suggestionBlurTimeoutRef = useRef<number | null>(null)
-  const [showLocationSuggestions, setShowLocationSuggestions] = useState(false)
-  const [isSubmitting, setIsSubmitting] = useState(false)
-  const [isFormReady, setIsFormReady] = useState(false)
-
-  // Synchroniser locationQuery avec l'adresse complète initiale
-  useEffect(() => {
-    if (formData.adresseComplete && !locationQuery) {
-      setLocationQuery(formData.adresseComplete)
-    }
-  }, [formData.adresseComplete]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Marquer le formulaire comme prêt après l'initialisation complète
-  useEffect(() => {
-    // Attendre que tous les useEffect d'initialisation soient terminés
-    setIsFormReady(true)
-  }, [])
-
-  // Détection des modifications non sauvegardées
-  const hasUnsavedChanges = useFormDataChanges(formData, isSubmitting, isFormReady)
-
-  // Notifier le parent des modifications non sauvegardées
-  useEffect(() => {
-    onHasUnsavedChanges?.(hasUnsavedChanges)
-  }, [hasUnsavedChanges, onHasUnsavedChanges])
-
-  const [isProprietaireOpen, setIsProprietaireOpen] = useState(false)
-  const [isClientOpen, setIsClientOpen] = useState(false)
-  const [isAccompteOpen, setIsAccompteOpen] = useState(false)
-  const [isDocumentsOpen, setIsDocumentsOpen] = useState(false)
-  const [isCommentsOpen, setIsCommentsOpen] = useState(true)
-  const [isSecondArtisanOpen, setIsSecondArtisanOpen] = useState(false)
-  const [isSousStatutOpen, setIsSousStatutOpen] = useState(false)
-  const [showArtisanSearch, setShowArtisanSearch] = useState(false)
-  const [showSecondArtisanSearch, setShowSecondArtisanSearch] = useState(false)
-  const [artisanSearchPosition, setArtisanSearchPosition] = useState<{ x: number; y: number; width?: number; height?: number } | null>(null)
-  const artisanSearchContainerRef = useRef<HTMLDivElement>(null)
-  const [artisanDisplayMode, setArtisanDisplayMode] = useState<"nom" | "rs" | "tel">("nom")
-  const [secondArtisanSearchPosition, setSecondArtisanSearchPosition] = useState<{ x: number; y: number; width?: number; height?: number } | null>(null)
-  // État pour stocker l'artisan sélectionné via recherche (qui peut ne pas être dans nearbyArtisans)
-  const [searchSelectedArtisan, setSearchSelectedArtisan] = useState<NearbyArtisan | null>(null)
-  const [searchSelectedSecondArtisan, setSearchSelectedSecondArtisan] = useState<NearbyArtisan | null>(null)
-  const [absentArtisanIds, setAbsentArtisanIds] = useState<Set<string>>(new Set())
-  const [selectedSecondArtisanId, setSelectedSecondArtisanId] = useState<string | null>(null)
-  const { open: openArtisanModal } = useArtisanModal()
-  const [createdInterventionId, setCreatedInterventionId] = useState<string | null>(null)
-
-  // Email modal states
-  const [isDevisEmailModalOpen, setIsDevisEmailModalOpen] = useState(false)
-  const [isInterventionEmailModalOpen, setIsInterventionEmailModalOpen] = useState(false)
-  const [selectedArtisanForEmail, setSelectedArtisanForEmail] = useState<string | null>(null)
-
-  const {
-    artisans: nearbyArtisans,
-    loading: isLoadingNearbyArtisans,
-    error: nearbyArtisansError,
-  } = useNearbyArtisans(
-    formData.adresseComplete ? formData.latitude : null,
-    formData.adresseComplete ? formData.longitude : null,
-    {
-      limit: 100,
-      maxDistanceKm: perimeterKmValue,
-      sampleSize: 400,
-      metier_id: formData.metier_id || null,
-    }
-  )
-
-  // Hook séparé pour les artisans du second métier
-  const {
-    artisans: nearbyArtisansSecondMetier,
-    loading: isLoadingNearbyArtisansSecondMetier,
-  } = useNearbyArtisans(
-    formData.adresseComplete ? formData.latitude : null,
-    formData.adresseComplete ? formData.longitude : null,
-    {
-      limit: 100,
-      maxDistanceKm: perimeterKmValue,
-      sampleSize: 400,
-      metier_id: formData.metierSecondArtisanId || null,
-    }
-  )
-
-  const selectedArtisanData = useMemo(
-    () => {
-      if (!selectedArtisanId) return null
-      // D'abord chercher dans les artisans à proximité
-      const nearbyArtisan = nearbyArtisans.find((artisan) => artisan.id === selectedArtisanId)
-      if (nearbyArtisan) return nearbyArtisan
-      // Sinon utiliser l'artisan de la recherche (qui peut ne pas être à proximité)
-      return searchSelectedArtisan
-    },
-    [selectedArtisanId, nearbyArtisans, searchSelectedArtisan],
-  )
-
-  const selectedSecondArtisanData = useMemo(
-    () => {
-      if (!selectedSecondArtisanId) return null
-      const nearbyArtisan = nearbyArtisansSecondMetier.find((artisan) => artisan.id === selectedSecondArtisanId)
-      if (nearbyArtisan) return nearbyArtisan
-      return searchSelectedSecondArtisan
-    },
-    [selectedSecondArtisanId, nearbyArtisansSecondMetier, searchSelectedSecondArtisan],
-  )
-
-  useEffect(() => {
-    let cancelled = false
-    const artisanIds = new Set<string>()
-
-    nearbyArtisans.forEach((artisan) => artisanIds.add(artisan.id))
-    nearbyArtisansSecondMetier.forEach((artisan) => artisanIds.add(artisan.id))
-    if (searchSelectedArtisan?.id) artisanIds.add(searchSelectedArtisan.id)
-    if (searchSelectedSecondArtisan?.id) artisanIds.add(searchSelectedSecondArtisan.id)
-
-    if (artisanIds.size === 0) {
-      setAbsentArtisanIds(new Set())
-      return
-    }
-
-    setAbsentArtisanIds(new Set())
-    const nowIso = new Date().toISOString()
-
-    const loadAbsences = async () => {
-      const { data, error } = await supabase
-        .from("artisan_absences")
-        .select("artisan_id")
-        .in("artisan_id", Array.from(artisanIds))
-        .lte("start_date", nowIso)
-        .gte("end_date", nowIso)
-
-      if (cancelled) return
-
-      if (error) {
-        console.warn("[NewInterventionForm] Erreur lors du chargement des absences:", error)
-        setAbsentArtisanIds(new Set())
-        return
-      }
-
-      setAbsentArtisanIds(
-        new Set((data ?? []).map((absence) => absence.artisan_id).filter(Boolean)),
-      )
-    }
-
-    loadAbsences()
-
-    return () => {
-      cancelled = true
-    }
-  }, [
-    nearbyArtisans,
-    nearbyArtisansSecondMetier,
-    searchSelectedArtisan?.id,
-    searchSelectedSecondArtisan?.id,
-  ])
-
-  // Calcul de la marge du 1er artisan
-  const margePrimaryArtisan = useMemo(() => {
-    return calculatePrimaryArtisanMargin(
-      formData.coutIntervention,
-      formData.coutSST,
-      formData.coutMateriel
-    )
-  }, [formData.coutIntervention, formData.coutSST, formData.coutMateriel])
-
-  // Calcul de la marge du 2ème artisan
-  const margeSecondArtisan = useMemo(() => {
-    return calculateSecondaryArtisanMargin(
-      formData.coutIntervention,
-      formData.coutSST,
-      formData.coutMateriel,
-      formData.coutSSTSecondArtisan,
-      formData.coutMaterielSecondArtisan
-    )
-  }, [formData.coutIntervention, formData.coutSST, formData.coutMateriel, formData.coutSSTSecondArtisan, formData.coutMaterielSecondArtisan])
-
   // Initialiser le statut par défaut à "DEMANDE"
   useEffect(() => {
     if (!refData?.interventionStatuses || formData.statut_id) {
       return
     }
     const defaultStatus = refData.interventionStatuses.find(
-      (status) =>
+      (status: any) =>
         status.code === "DEMANDE" ||
         status.label?.toLowerCase() === "demandé" ||
         status.label?.toLowerCase() === "demande",
@@ -478,471 +274,7 @@ export function NewInterventionForm({
     if (defaultStatus?.id) {
       setFormData((prev) => ({ ...prev, statut_id: defaultStatus.id }))
     }
-  }, [refData, formData.statut_id])
-
-  const mapMarkers = useMemo(() => {
-    if (!refData?.artisanStatuses) {
-      return nearbyArtisans.map((artisan) => ({
-        id: artisan.id,
-        lat: artisan.lat,
-        lng: artisan.lng,
-        color: artisan.id === selectedArtisanData?.id ? "#f97316" : "#2563eb",
-        title: artisan.displayName,
-      }))
-    }
-
-    const archiveStatuses = refData.artisanStatuses.filter(
-      (s) => s.code === "ARCHIVE" || s.code === "ARCHIVER"
-    )
-    const archiveStatusIds = new Set(archiveStatuses.map((s) => s.id))
-    const visibleArtisans =
-      archiveStatusIds.size > 0
-        ? nearbyArtisans.filter(
-          (artisan) => !artisan.statut_id || !archiveStatusIds.has(artisan.statut_id),
-        )
-        : nearbyArtisans
-
-    return visibleArtisans.map((artisan) => ({
-      id: artisan.id,
-      lat: artisan.lat,
-      lng: artisan.lng,
-      color: artisan.id === selectedArtisanData?.id ? "#f97316" : "#2563eb",
-      title: artisan.displayName,
-    }))
-  }, [nearbyArtisans, selectedArtisanData, refData?.artisanStatuses])
-
-  const mapSelectedConnection = useMemo(() => {
-    if (!selectedArtisanData) return null
-    return {
-      lat: selectedArtisanData.lat,
-      lng: selectedArtisanData.lng,
-      distanceLabel: formatDistanceKm(selectedArtisanData.distanceKm),
-    }
-  }, [selectedArtisanData])
-
-  useEffect(() => {
-    return () => {
-      if (suggestionBlurTimeoutRef.current) {
-        window.clearTimeout(suggestionBlurTimeoutRef.current)
-      }
-    }
-  }, [])
-
-  // Sync client name with parent
-  useEffect(() => {
-    onClientNameChange?.(formData.nomPrenomClient)
-  }, [formData.nomPrenomClient, onClientNameChange])
-
-  // Sync client phone with parent
-  useEffect(() => {
-    onClientPhoneChange?.(formData.telephoneClient)
-  }, [formData.telephoneClient, onClientPhoneChange])
-
-  // Sync agency name with parent
-  useEffect(() => {
-    if (refData?.agencies && formData.agence_id) {
-      const agency = refData.agencies.find((a: any) => a.id === formData.agence_id)
-      if (agency) {
-        onAgencyNameChange?.(agency.label || "")
-      }
-    } else if (!formData.agence_id) {
-      onAgencyNameChange?.("")
-    }
-  }, [formData.agence_id, refData?.agencies, onAgencyNameChange])
-
-  const selectedStatus = useMemo(() => {
-    if (!formData.statut_id || !refData?.interventionStatuses) {
-      return undefined
-    }
-    return refData.interventionStatuses.find((status) => status.id === formData.statut_id)
-  }, [formData.statut_id, refData])
-
-  const requiresDefinitiveId = useMemo(() => {
-    if (!selectedStatus) {
-      return false
-    }
-    const code = (selectedStatus.code ?? "").toUpperCase()
-    if (STATUSES_REQUIRING_DEFINITIVE_ID.has(code)) {
-      return true
-    }
-    const normalizedLabel = (selectedStatus.label ?? "").trim().toLowerCase()
-    return (
-      normalizedLabel === "devis envoyé" ||
-      normalizedLabel === "visite technique" ||
-      normalizedLabel === "accepté" ||
-      normalizedLabel === "accepte" ||
-      normalizedLabel === "en cours" ||
-      normalizedLabel === "intervention en cours" ||
-      normalizedLabel === "inter en cours" ||
-      normalizedLabel === "terminé" ||
-      normalizedLabel === "termine" ||
-      normalizedLabel === "stand-by" ||
-      normalizedLabel === "stand by"
-    )
-  }, [selectedStatus])
-
-  const requiresDatePrevue = useMemo(() => {
-    if (!selectedStatus) {
-      return false
-    }
-    const code = (selectedStatus.code ?? "").toUpperCase()
-    if (STATUSES_REQUIRING_DATE_PREVUE.has(code)) {
-      return true
-    }
-    const normalizedLabel = (selectedStatus.label ?? "").trim().toLowerCase()
-    return (
-      normalizedLabel === "visite technique" ||
-      normalizedLabel === "intervention en cours" ||
-      normalizedLabel === "inter en cours"
-    )
-  }, [selectedStatus])
-
-  const requiresArtisan = useMemo(() => {
-    if (!selectedStatus) {
-      return false
-    }
-    const code = (selectedStatus.code ?? "").toUpperCase()
-    const ARTISAN_REQUIRED_STATUSES = ["VISITE_TECHNIQUE", "INTER_EN_COURS", "INTER_TERMINEE", "ATT_ACOMPTE"]
-    if (ARTISAN_REQUIRED_STATUSES.includes(code)) {
-      return true
-    }
-    const normalizedLabel = (selectedStatus.label ?? "").trim().toLowerCase()
-    return (
-      normalizedLabel === "visite technique" ||
-      normalizedLabel === "en cours" ||
-      normalizedLabel === "intervention en cours" ||
-      normalizedLabel === "inter en cours" ||
-      normalizedLabel === "terminé" ||
-      normalizedLabel === "termine" ||
-      normalizedLabel === "attente acompte" ||
-      normalizedLabel === "att acompte"
-    )
-  }, [selectedStatus])
-
-  const requiresFacture = useMemo(() => {
-    if (!selectedStatus) {
-      return false
-    }
-    const code = (selectedStatus.code ?? "").toUpperCase()
-    if (code === "INTER_TERMINEE") {
-      return true
-    }
-    const normalizedLabel = (selectedStatus.label ?? "").trim().toLowerCase()
-    return normalizedLabel === "terminé" || normalizedLabel === "termine"
-  }, [selectedStatus])
-
-  const handleInputChange = useCallback((field: keyof typeof formData, value: any) => {
-    setFormData((prev) => ({ ...prev, [field]: value }))
-  }, [])
-
-  const handleLocationChange = (lat: number, lng: number) => {
-    setFormData((prev) => ({
-      ...prev,
-      latitude: lat,
-      longitude: lng,
-    }))
-    setGeocodeError(null)
-  }
-
-  const applyArtisanSelection = useCallback((artisan: NearbyArtisan | null) => {
-    setSelectedArtisanId(artisan?.id ?? null)
-    setFormData((prev) => ({
-      ...prev,
-      artisan: artisan?.displayName ?? "",
-      artisanTelephone: artisan?.telephone ?? "",
-      artisanEmail: artisan?.email ?? "",
-    }))
-  }, [])
-
-  const handleSelectNearbyArtisan = useCallback(
-    (artisan: NearbyArtisan) => {
-      setSelectedArtisanId(artisan.id)
-      handleInputChange("artisan", `${artisan.prenom || ""} ${artisan.nom || ""}`.trim())
-    },
-    [handleInputChange],
-  )
-
-  const handleRemoveSelectedArtisan = useCallback(() => {
-    setSelectedArtisanId(null)
-    setSearchSelectedArtisan(null)
-  }, [])
-
-  // Fonctions pour le 2ème artisan
-  const handleSelectSecondArtisan = useCallback(
-    (artisan: NearbyArtisan) => {
-      setSelectedSecondArtisanId(artisan.id)
-      handleInputChange("secondArtisan", `${artisan.prenom || ""} ${artisan.nom || ""}`.trim())
-      handleInputChange("secondArtisanTelephone", artisan.telephone || "")
-      handleInputChange("secondArtisanEmail", artisan.email || "")
-    },
-    [handleInputChange],
-  )
-
-  const handleRemoveSecondArtisan = useCallback(() => {
-    setSelectedSecondArtisanId(null)
-    setSearchSelectedSecondArtisan(null)
-    handleInputChange("secondArtisan", "")
-    handleInputChange("secondArtisanTelephone", "")
-    handleInputChange("secondArtisanEmail", "")
-  }, [handleInputChange])
-
-  const handleSecondArtisanSearchSelect = useCallback((artisan: ArtisanSearchResult) => {
-    const displayName = artisan.raison_sociale
-      || artisan.plain_nom
-      || [artisan.prenom, artisan.nom].filter(Boolean).join(" ")
-      || "Artisan sans nom"
-
-    setSelectedSecondArtisanId(artisan.id)
-    setFormData((prev) => ({
-      ...prev,
-      secondArtisan: displayName,
-      secondArtisanTelephone: artisan.telephone || "",
-      secondArtisanEmail: artisan.email || "",
-    }))
-
-    const isInProximity = nearbyArtisansSecondMetier.some(a => a.id === artisan.id)
-    if (!isInProximity) {
-      const nearbyArtisanFormat: NearbyArtisan = {
-        id: artisan.id,
-        displayName: displayName,
-        distanceKm: 0,
-        telephone: artisan.telephone || null,
-        telephone2: artisan.telephone2 || null,
-        email: artisan.email || null,
-        adresse: artisan.adresse_intervention || artisan.adresse_siege_social || null,
-        ville: artisan.ville_intervention || artisan.ville_siege_social || null,
-        codePostal: artisan.code_postal_intervention || artisan.code_postal_siege_social || null,
-        lat: 0,
-        lng: 0,
-        prenom: artisan.prenom || null,
-        nom: artisan.nom || null,
-        raison_sociale: artisan.raison_sociale || null,
-        statut_id: artisan.statut_id || null,
-        photoProfilMetadata: null,
-      }
-      setSearchSelectedSecondArtisan(nearbyArtisanFormat)
-    } else {
-      setSearchSelectedSecondArtisan(null)
-    }
-  }, [nearbyArtisansSecondMetier])
-
-  // Fonctions pour les emails
-  const effectiveSelectedArtisanId = useMemo(() => {
-    return selectedArtisanForEmail || selectedArtisanId || null
-  }, [selectedArtisanForEmail, selectedArtisanId])
-
-  const selectedArtisanEmail = useMemo(() => {
-    const artisanId = effectiveSelectedArtisanId
-    if (!artisanId) return ''
-    if (selectedArtisanData && selectedArtisanData.id === artisanId) {
-      return selectedArtisanData.email || ''
-    }
-    if (selectedSecondArtisanData && selectedSecondArtisanData.id === artisanId) {
-      return selectedSecondArtisanData.email || ''
-    }
-    return ''
-  }, [effectiveSelectedArtisanId, selectedArtisanData, selectedSecondArtisanData])
-
-  const generateEmailTemplateData = useCallback((artisanId: string): EmailTemplateData => {
-    const nomClient = formData.nomPrenomClient || ''
-    const telephoneClient = formData.telephoneClient || ''
-    const adresse = formData.adresse
-      ? `${formData.adresse}, ${formData.code_postal || ''} ${formData.ville || ''}`.trim()
-      : ''
-    const isPrimary = artisanId === selectedArtisanId
-    const consigneArtisan = isPrimary
-      ? (formData.consigne_intervention || '')
-      : (formData.consigne_second_artisan || '')
-    const coutSST = formData.coutSST || ''
-
-    return {
-      nomClient,
-      telephoneClient,
-      telephoneClient2: '',
-      adresse,
-      datePrevue: formData.date_prevue || undefined,
-      consigneArtisan: consigneArtisan || undefined,
-      coutSST,
-      commentaire: undefined,
-      idIntervention: formData.id_inter || undefined,
-    }
-  }, [formData, selectedArtisanId])
-
-  const handleOpenDevisEmailModal = useCallback((artisanId?: string) => {
-    const targetArtisanId = artisanId || effectiveSelectedArtisanId
-    if (!targetArtisanId) {
-      toast.error('Veuillez sélectionner un artisan')
-      return
-    }
-    if (artisanId) {
-      setSelectedArtisanForEmail(artisanId)
-    }
-    setIsDevisEmailModalOpen(true)
-  }, [effectiveSelectedArtisanId])
-
-  const handleOpenInterventionEmailModal = useCallback((artisanId?: string) => {
-    const targetArtisanId = artisanId || effectiveSelectedArtisanId
-    if (!targetArtisanId) {
-      toast.error('Veuillez sélectionner un artisan')
-      return
-    }
-    if (artisanId) {
-      setSelectedArtisanForEmail(artisanId)
-    }
-    setIsInterventionEmailModalOpen(true)
-  }, [effectiveSelectedArtisanId])
-
-  const handleArtisanSearchSelect = useCallback((artisan: ArtisanSearchResult) => {
-    const displayName = artisan.raison_sociale
-      || artisan.plain_nom
-      || [artisan.prenom, artisan.nom].filter(Boolean).join(" ")
-      || "Artisan sans nom"
-
-    setSelectedArtisanId(artisan.id)
-    setFormData((prev) => ({
-      ...prev,
-      artisan: displayName,
-      artisanTelephone: artisan.telephone || "",
-      artisanEmail: artisan.email || "",
-    }))
-
-    // Si l'artisan sélectionné via recherche n'est pas dans la liste de proximité,
-    // on le convertit au format NearbyArtisan et on le stocke pour l'afficher
-    const isInProximity = nearbyArtisans.some(a => a.id === artisan.id)
-    if (!isInProximity) {
-      // Convertir l'artisan de la recherche au format NearbyArtisan
-      const nearbyArtisanFormat: NearbyArtisan = {
-        id: artisan.id,
-        displayName: displayName,
-        distanceKm: 0, // Distance inconnue pour artisan hors proximité
-        telephone: artisan.telephone || null,
-        telephone2: artisan.telephone2 || null,
-        email: artisan.email || null,
-        adresse: artisan.adresse_intervention || artisan.adresse_siege_social || null,
-        ville: artisan.ville_intervention || artisan.ville_siege_social || null,
-        codePostal: artisan.code_postal_intervention || artisan.code_postal_siege_social || null,
-        lat: 0,
-        lng: 0,
-        prenom: artisan.prenom || null,
-        nom: artisan.nom || null,
-        raison_sociale: artisan.raison_sociale || null,
-        statut_id: artisan.statut_id || null,
-        photoProfilMetadata: null,
-      }
-      setSearchSelectedArtisan(nearbyArtisanFormat)
-    } else {
-      // Si l'artisan est dans la liste de proximité, pas besoin de le stocker séparément
-      setSearchSelectedArtisan(null)
-    }
-  }, [nearbyArtisans])
-
-  const handleOpenArtisanModal = useCallback((artisanId: string, event: React.MouseEvent) => {
-    event.stopPropagation()
-    openArtisanModal(artisanId, {
-      origin: `new-intervention`,
-    })
-  }, [openArtisanModal])
-
-  const handleSuggestionSelect = useCallback((suggestion: GeocodeSuggestion) => {
-    if (suggestionBlurTimeoutRef.current) {
-      window.clearTimeout(suggestionBlurTimeoutRef.current)
-      suggestionBlurTimeoutRef.current = null
-    }
-
-    const addressParts = parseAddress(suggestion.label)
-
-    clearSuggestions()
-    setShowLocationSuggestions(false)
-
-    setFormData((prev) => ({
-      ...prev,
-      latitude: suggestion.lat,
-      longitude: suggestion.lng,
-      adresseComplete: suggestion.label,
-      // NE PAS écraser le champ adresse (saisie libre)
-      // On ne met à jour code_postal et ville que s'ils sont vides
-      code_postal: prev.code_postal || addressParts.postalCode || "",
-      ville: prev.ville || addressParts.city || "",
-    }))
-
-    setLocationQuery(suggestion.label)
-    setGeocodeError(null)
-  }, [clearSuggestions, setLocationQuery])
-
-  const parseAddress = (fullAddress: string): { street: string; postalCode: string; city: string } => {
-    const parts = fullAddress.split(',').map(p => p.trim())
-
-    let street = ""
-    let postalCode = ""
-    let city = ""
-
-    const postalCodeRegex = /\b(\d{5})\b/
-
-    for (let i = 0; i < parts.length; i++) {
-      const part = parts[i]
-      const match = part.match(postalCodeRegex)
-
-      if (match) {
-        postalCode = match[1]
-
-        const cityInSamePart = part.replace(match[0], '').trim()
-        if (cityInSamePart) {
-          city = cityInSamePart
-        }
-        else if (i > 0 && !city) {
-          city = parts[i - 1]
-        }
-      }
-    }
-
-    if (!city && parts.length >= 2) {
-      city = parts[1].replace(postalCodeRegex, '').trim()
-    }
-
-    street = parts[0] || fullAddress
-
-    return { street, postalCode, city }
-  }
-
-  const handleGeocodeAddress = useCallback(async () => {
-    const fullAddress = locationQuery.trim()
-    if (!fullAddress) {
-      setGeocodeError("Adresse manquante")
-      return
-    }
-
-    setIsGeocoding(true)
-    setGeocodeError(null)
-    clearSuggestions()
-    setShowLocationSuggestions(false)
-
-    try {
-      const result = await geocodeQuery(fullAddress)
-      if (!result) {
-        setGeocodeError("Adresse introuvable")
-        return
-      }
-
-      const addressParts = parseAddress(result.label)
-
-      setFormData((prev) => ({
-        ...prev,
-        latitude: result.lat,
-        longitude: result.lng,
-        adresseComplete: result.label,
-        // NE PAS écraser le champ adresse (saisie libre)
-        // On ne met à jour code_postal et ville que s'ils sont vides
-        code_postal: prev.code_postal || addressParts.postalCode || "",
-        ville: prev.ville || addressParts.city || "",
-      }))
-      setLocationQuery(result.label)
-    } catch (error) {
-      console.error("[Geocode] Error:", error)
-      setGeocodeError("Une erreur est survenue lors de la géolocalisation")
-    } finally {
-      setIsGeocoding(false)
-    }
-  }, [locationQuery, geocodeQuery, clearSuggestions, setLocationQuery])
+  }, [refData, formData.statut_id, setFormData])
 
   // Handlers pour la gestion des doublons
   const handleConfirmDuplicate = useCallback(() => {
@@ -960,7 +292,7 @@ export function NewInterventionForm({
     setConfirmableDuplicates([])
     setIsSubmitting(false)
     onSubmittingChange?.(false)
-  }, [onSubmittingChange])
+  }, [onSubmittingChange, setIsSubmitting])
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -1061,7 +393,7 @@ export function NewInterventionForm({
         adresse: formData.adresse || undefined,
         code_postal: formData.code_postal || undefined,
         ville: formData.ville || undefined,
-        adresse_complete: formData.adresseComplete || null,
+        adresse_complete: formData.adresse_complete || null,
         latitude: formData.latitude,
         longitude: formData.longitude,
         ...(idInterValue.length > 0 && { id_inter: idInterValue }),
@@ -1108,122 +440,44 @@ export function NewInterventionForm({
       const created = await interventionsApi.create(createData)
       setCreatedInterventionId(created.id)
 
-      // Assigner l'artisan principal si sélectionné
-      if (selectedArtisanId) {
-        try {
-          await interventionsApi.setPrimaryArtisan(created.id, selectedArtisanId)
-        } catch (artisanError) {
-          console.error("[NewInterventionForm] Impossible d'assigner l'artisan", artisanError)
-        }
-      }
-
-      // Assigner le second artisan si sélectionné
-      if (selectedSecondArtisanId) {
-        try {
-          await interventionsApi.setSecondaryArtisan(created.id, selectedSecondArtisanId)
-        } catch (artisanError) {
-          console.error("[NewInterventionForm] Impossible d'assigner le second artisan", artisanError)
-        }
-      }
-
-      // Créer les coûts si renseignés
-      const coutSSTValue = parseFloat(formData.coutSST) || 0
-      const coutMaterielValue = parseFloat(formData.coutMateriel) || 0
-      const coutInterventionValue = parseFloat(formData.coutIntervention) || 0
-
-      if (coutSSTValue > 0) {
-        try {
-          await interventionsApi.upsertCost(created.id, {
-            cost_type: "sst",
-            label: "Coût SST",
-            amount: coutSSTValue,
-            artisan_order: 1,
-          })
-        } catch (costError) {
-          console.error("[NewInterventionForm] Erreur coût SST:", costError)
-        }
-      }
-
-      if (coutMaterielValue > 0) {
-        try {
-          await interventionsApi.upsertCost(created.id, {
-            cost_type: "materiel",
-            label: "Coût Matériel",
-            amount: coutMaterielValue,
-            artisan_order: 1,
-          })
-        } catch (costError) {
-          console.error("[NewInterventionForm] Erreur coût matériel:", costError)
-        }
-      }
-
-      if (coutInterventionValue > 0) {
-        try {
-          await interventionsApi.upsertCost(created.id, {
-            cost_type: "intervention",
-            label: "Coût Intervention",
-            amount: coutInterventionValue,
-            artisan_order: null, // Coût global
-          })
-        } catch (costError) {
-          console.error("[NewInterventionForm] Erreur coût intervention:", costError)
-        }
-      }
-
-      // Créer les coûts du 2ème artisan si renseignés
-      const coutSST2Value = parseFloat(formData.coutSSTSecondArtisan) || 0
-      const coutMateriel2Value = parseFloat(formData.coutMaterielSecondArtisan) || 0
-
-      if (selectedSecondArtisanId && coutSST2Value > 0) {
-        try {
-          await interventionsApi.upsertCost(created.id, {
-            cost_type: "sst",
-            label: "Coût SST 2ème artisan",
-            amount: coutSST2Value,
-            artisan_order: 2,
-          })
-        } catch (costError) {
-          console.error("[NewInterventionForm] Erreur coût SST 2ème artisan:", costError)
-        }
-      }
-
-      if (selectedSecondArtisanId && coutMateriel2Value > 0) {
-        try {
-          await interventionsApi.upsertCost(created.id, {
-            cost_type: "materiel",
-            label: "Coût Matériel 2ème artisan",
-            amount: coutMateriel2Value,
-            artisan_order: 2,
-          })
-        } catch (costError) {
-          console.error("[NewInterventionForm] Erreur coût matériel 2ème artisan:", costError)
-        }
-      }
-
-      // Ajouter le commentaire initial si renseigné
-      const trimmedInitialComment = formData.commentaire_initial.trim()
-      if (trimmedInitialComment.length > 0) {
-        try {
-          await commentsApi.create({
-            entity_id: created.id,
-            entity_type: "intervention",
-            content: trimmedInitialComment,
-            comment_type: "internal",
-            is_internal: true,
-            author_id: currentUser?.id,
-          })
-        } catch (commentError) {
-          console.error("[NewInterventionForm] Impossible d'ajouter le commentaire initial", commentError)
-          toast.error("L'intervention a bien été créée mais le commentaire initial n'a pas pu être enregistré.")
-        }
-      }
-
+      // Fermer le modal immédiatement — les tâches secondaires s'exécutent en arrière-plan
       toast.success("Intervention créée")
       onSuccess?.(created)
 
-      // onCancel() is redundant here and triggers the UnsavedChangesDialog
-      // because hasUnsavedChanges is still true and isSubmitting is set back to false soon after.
-      // onSuccess already handles the modal closure in the parent component.
+      // Préparer les coûts (uniquement ceux avec montant > 0 pour la création)
+      const coutSSTValue = parseFloat(formData.coutSST) || 0
+      const coutMaterielValue = parseFloat(formData.coutMateriel) || 0
+      const coutInterventionValue = parseFloat(formData.coutIntervention) || 0
+      const coutSST2Value = parseFloat(formData.coutSSTSecondArtisan) || 0
+      const coutMateriel2Value = parseFloat(formData.coutMaterielSecondArtisan) || 0
+
+      const costs: Array<{ cost_type: 'sst' | 'materiel' | 'intervention' | 'marge'; amount: number; artisan_order?: 1 | 2 | null; label?: string | null }> = []
+
+      if (coutSSTValue > 0) costs.push({ cost_type: "sst", label: "Coût SST", amount: coutSSTValue, artisan_order: 1 })
+      if (coutMaterielValue > 0) costs.push({ cost_type: "materiel", label: "Coût Matériel", amount: coutMaterielValue, artisan_order: 1 })
+      if (coutInterventionValue > 0) costs.push({ cost_type: "intervention", label: "Coût Intervention", amount: coutInterventionValue, artisan_order: null })
+      if (selectedSecondArtisanId && coutSST2Value > 0) costs.push({ cost_type: "sst", label: "Coût SST 2ème artisan", amount: coutSST2Value, artisan_order: 2 })
+      if (selectedSecondArtisanId && coutMateriel2Value > 0) costs.push({ cost_type: "materiel", label: "Coût Matériel 2ème artisan", amount: coutMateriel2Value, artisan_order: 2 })
+
+      // Préparer le commentaire initial
+      const trimmedInitialComment = formData.commentaire_initial.trim()
+
+      // Lancer toutes les tâches secondaires en arrière-plan (fire-and-forget)
+      runPostMutationTasks({
+        interventionId: created.id,
+        artisans: {
+          primary: { current: null, next: selectedArtisanId },
+          secondary: { current: null, next: selectedSecondArtisanId },
+        },
+        costs: costs.length > 0 ? costs : undefined,
+        comment: trimmedInitialComment.length > 0 ? {
+          entity_type: "intervention",
+          content: trimmedInitialComment,
+          comment_type: "internal",
+          is_internal: true,
+          author_id: currentUser?.id,
+        } : undefined,
+      })
 
     } catch (error) {
       console.error("Erreur lors de la création:", error)
@@ -2344,7 +1598,7 @@ export function NewInterventionForm({
                 <CollapsibleContent>
                   <CardContent className="pt-0 px-3 pb-3">
                     {createdInterventionId ? (
-                      <DocumentManager entityType="intervention" entityId={createdInterventionId} kinds={INTERVENTION_DOCUMENT_KINDS} currentUser={currentUser ?? undefined} />
+                      <DocumentManager entityType="intervention" entityId={createdInterventionId} kinds={DOCUMENT_KINDS} currentUser={currentUser ?? undefined} />
                     ) : (
                       <p className="text-xs italic text-muted-foreground">
                         Les documents pourront être ajoutés après la création de l&apos;intervention.

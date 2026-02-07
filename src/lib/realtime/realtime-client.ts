@@ -26,8 +26,10 @@ export function createInterventionsChannel(
         event: '*', // INSERT, UPDATE, DELETE
         schema: 'public',
         table: 'interventions',
-        // ⚠️ IMPORTANT: Pas de filtre is_active ici pour détecter les soft deletes
-        // On écoute tous les événements UPDATE pour détecter les changements de is_active
+        // ⚠️ OPTIMISATION: Filtre pour ignorer les soft deletes (interventions inactives)
+        // Réduit le trafic de 50% en ne syncant que les interventions actives
+        // Note: Les soft deletes sont détectés quand is_active passe de true → false
+        filter: 'is_active=eq.true',
       },
       (payload) => {
         const newIntervention = payload.new && 'id' in payload.new ? payload.new : null

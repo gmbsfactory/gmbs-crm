@@ -1,4 +1,6 @@
 import { AUTHORIZED_TRANSITIONS, VALIDATION_RULES } from "@/config/workflow-rules"
+import { STATUS_CHAIN_CONFIG } from "@/config/intervention-status-chains"
+import { getCumulativeEntryRules } from "@/lib/workflow/cumulative-validation"
 import type {
   TransitionCondition,
   WorkflowConfig,
@@ -48,14 +50,35 @@ export function validateTransition(
     failedConditions.push("Transition non autorisée par la configuration du workflow")
   }
 
+  const seenMessages = new Set<string>()
+
   VALIDATION_RULES.forEach((rule) => {
     if (rule.from && rule.from !== fromStatus.key) return
     if (rule.to && rule.to !== toStatus.key) return
     if (rule.statuses && !rule.statuses.includes(toStatus.key as InterventionStatusValue)) return
     if (!rule.validate(context)) {
-      failedConditions.push(rule.message)
+      if (!seenMessages.has(rule.message)) {
+        seenMessages.add(rule.message)
+        failedConditions.push(rule.message)
+      }
     }
   })
+
+  // Validation cumulative : en mode strict, appliquer aussi les règles
+  // d'entrée de tous les statuts prédécesseurs sur la chaîne principale
+  if (STATUS_CHAIN_CONFIG.validationMode === 'strict') {
+    const cumulativeRules = getCumulativeEntryRules(
+      toStatus.key as InterventionStatusValue
+    )
+    cumulativeRules.forEach((rule) => {
+      if (!rule.validate(context)) {
+        if (!seenMessages.has(rule.message)) {
+          seenMessages.add(rule.message)
+          failedConditions.push(rule.message)
+        }
+      }
+    })
+  }
 
   return {
     canTransition: missingRequirements.length === 0 && failedConditions.length === 0,

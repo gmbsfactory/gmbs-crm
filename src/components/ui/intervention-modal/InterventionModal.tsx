@@ -132,6 +132,7 @@ export function InterventionModal({
         <NewInterventionModalContent
           mode={effectiveMode}
           onClose={onClose}
+          waitForExit={waitForExit}
           onCycleMode={cycleMode}
           onUnsavedDialogOpenChange={setIsUnsavedDialogOpen}
           onUnsavedChangesStateChange={handleUnsavedChangesStateChange}

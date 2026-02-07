@@ -1,18 +1,17 @@
 "use client"
 
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { motion, useScroll, useTransform, useSpring, type MotionValue } from "framer-motion"
 import { useQueryClient } from "@tanstack/react-query"
 import { Building, ChevronDown, ChevronRight, FileText, MessageSquare, Upload, X, Search, Eye, Mail, MessageCircle, Users, Palette } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { Badge } from "@/components/ui/badge"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { GestionnaireBadge } from "@/components/ui/gestionnaire-badge"
 import { SearchableBadgeSelect } from "@/components/ui/searchable-badge-select"
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable"
@@ -20,97 +19,37 @@ import { MapLibreMap } from "@/components/maps/MapLibreMap"
 import { DocumentManager } from "@/components/documents"
 import { CommentSection } from "@/components/shared/CommentSection"
 import { StatusReasonModal } from "@/components/shared/StatusReasonModal"
-import { useReferenceData } from "@/hooks/useReferenceData"
-import { useGeocodeSearch } from "@/hooks/useGeocodeSearch"
-import type { GeocodeSuggestion } from "@/hooks/useGeocodeSearch"
-import { useNearbyArtisans, type NearbyArtisan } from "@/hooks/useNearbyArtisans"
-import { useFormDataChanges } from "@/hooks/useFormDataChanges"
+import type { NearbyArtisan } from "@/hooks/useNearbyArtisans"
 import { documentsApi } from "@/lib/api/v2/documentsApi"
 import { interventionsApi } from "@/lib/api/v2"
 import { commentsApi } from "@/lib/api/v2/commentsApi"
-import { supabase } from "@/lib/supabase-client"
 import type { Intervention, UpdateInterventionData } from "@/lib/api/v2/common/types"
 import type { InterventionWithStatus } from "@/types/intervention"
-import { useCurrentUser } from "@/hooks/useCurrentUser"
 import { usePermissions } from "@/hooks/usePermissions"
 import { useInterventionsMutations } from "@/hooks/useInterventionsMutations"
 import { getReasonTypeForTransition, type StatusReasonType } from "@/lib/comments/statusReason"
 import { cn } from "@/lib/utils"
-import { calculatePrimaryArtisanMargin, calculateSecondaryArtisanMargin, formatMarginPercentage, getMarginColorClass } from "@/lib/utils/margin-calculator"
-import { ArtisanSearchModal, type ArtisanSearchResult } from "@/components/artisans/ArtisanSearchModal"
+import { formatMarginPercentage, getMarginColorClass } from "@/lib/utils/margin-calculator"
+import { ArtisanSearchModal } from "@/components/artisans/ArtisanSearchModal"
 import { Avatar } from "@/components/artisans/Avatar"
-import { useArtisanModal } from "@/hooks/useArtisanModal"
 import { toast } from "sonner"
 import { EmailEditModal } from "@/components/interventions/EmailEditModal"
 import { SectionLock } from "@/components/ui/SectionLock"
-import { generateDevisEmailTemplate, generateInterventionEmailTemplate, generateDevisWhatsAppText, generateInterventionWhatsAppText, type EmailTemplateData } from "@/lib/email-templates/intervention-emails"
+import { generateDevisWhatsAppText, generateInterventionWhatsAppText, type EmailTemplateData } from "@/lib/email-templates/intervention-emails"
 import { findOrCreateOwner, findOrCreateTenant } from "@/lib/interventions/owner-tenant-helpers"
-import {
-  isSSTDepositReceived,
-  isClientDepositReceived,
-  hasAnyDepositReceived,
-  getStatusDisplayLabel
-} from "@/lib/interventions/deposit-helpers"
+import { runPostMutationTasks } from "@/lib/interventions/post-mutation-tasks"
 import { normalizeArtisanData, getDisplayName } from "@/lib/artisans"
 
-const INTERVENTION_DOCUMENT_KINDS = [
-  { kind: "devis", label: "Devis GMBS" },
-  { kind: "facturesGMBS", label: "Facture GMBS" },
-  { kind: "facturesMateriel", label: "Facture Matériel" },
-  { kind: "photos", label: "Photos" },
-  { kind: "facturesArtisans", label: "Facture Artisan" },
-]
+// Shared form state hook
+import { useInterventionFormState } from "@/hooks/useInterventionFormState"
 
-const STATUS_SORT_ORDER: Record<string, number> = {
-  DEMANDE: 1,
-  DEVIS_ENVOYE: 2,
-  ACCEPTE: 3,
-  INTER_EN_COURS: 4,
-  ATT_ACOMPTE: 5,
-  INTER_TERMINEE: 6,
-  VISITE_TECHNIQUE: 7,
-  STAND_BY: 8,
-  ANNULE: 9,
-  REFUSE: 10,
-  SAV: 11,
-}
+// Shared form utilities
+import { INTERVENTION_DOCUMENT_KINDS, STATUS_SORT_ORDER, MAX_RADIUS_KM } from "@/lib/interventions/form-constants"
+import { formatDistanceKm, hexToRgba } from "@/lib/interventions/form-utils"
+import { createEditFormData } from "@/lib/interventions/form-types"
 
-const MAX_RADIUS_KM = 10000
-
-// Note: requires_reference est maintenant géré via la table agency_config en base de données
-const STATUSES_REQUIRING_DATE_PREVUE = new Set(["VISITE_TECHNIQUE", "INTER_EN_COURS"])
-const STATUSES_REQUIRING_DEFINITIVE_ID = new Set([
-  "DEVIS_ENVOYE",
-  "VISITE_TECHNIQUE",
-  "ACCEPTE",
-  "INTER_EN_COURS",
-  "INTER_TERMINEE",
-  "STAND_BY",
-])
-
-// Nouvelles règles de validation par statut
-const STATUSES_REQUIRING_NOM_FACTURATION = new Set(["DEVIS_ENVOYE"])
-const STATUSES_REQUIRING_ASSIGNED_USER = new Set(["DEVIS_ENVOYE"])
-const STATUSES_REQUIRING_COUTS = new Set(["INTER_EN_COURS"])
-const STATUSES_REQUIRING_CONSIGNE_ARTISAN = new Set(["INTER_EN_COURS"])
-const STATUSES_REQUIRING_CLIENT_INFO = new Set(["INTER_EN_COURS"])
-
-const formatDistanceKm = (value: number) => {
-  if (!Number.isFinite(value)) return "—"
-  if (value < 1) return "< 1 km"
-  if (value < 10) return `${value.toFixed(1)} km`
-  return `${Math.round(value)} km`
-}
-
-
-function hexToRgba(hex: string, alpha: number): string | null {
-  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex)
-  if (!result) return null
-  const r = parseInt(result[1], 16)
-  const g = parseInt(result[2], 16)
-  const b = parseInt(result[3], 16)
-  return `rgba(${r}, ${g}, ${b}, ${alpha})`
-}
+// Convert readonly INTERVENTION_DOCUMENT_KINDS to mutable for DocumentManager
+const DOCUMENT_KINDS = [...INTERVENTION_DOCUMENT_KINDS] as { kind: string; label: string }[]
 
 interface InterventionEditFormProps {
   intervention: Intervention & { tenants?: any; owner?: any; intervention_artisans?: any[]; intervention_costs?: any[]; intervention_payments?: any[] }
@@ -147,212 +86,210 @@ export const InterventionEditForm = memo(function InterventionEditForm({
   onStatusReasonModalOpenChange,
   onPopoverOpenChange
 }: InterventionEditFormProps) {
-  const { data: refData, loading: refDataLoading } = useReferenceData()
   const queryClient = useQueryClient()
   const { update: updateMutation } = useInterventionsMutations()
-  const [isGeocoding, setIsGeocoding] = useState(false)
-  const [geocodeError, setGeocodeError] = useState<string | null>(null)
-  const [pendingReasonType, setPendingReasonType] = useState<StatusReasonType | null>(null)
-
-  // Utiliser le hook centralisé useCurrentUser au lieu d'un fetch direct
-  const { data: currentUserData } = useCurrentUser()
   const { can } = usePermissions()
-  const currentUser = useMemo(() => {
-    if (!currentUserData) return null
-    const first = currentUserData.firstname ?? currentUserData.prenom ?? ""
-    const last = currentUserData.lastname ?? currentUserData.nom ?? ""
-    const displayNameCandidate = [first, last].filter(Boolean).join(" ").trim()
-    const displayName = displayNameCandidate || currentUserData.username || currentUserData.email || "Vous"
-    return {
-      id: currentUserData.id,
-      displayName,
-      code: currentUserData.code_gestionnaire ?? null,
-      color: currentUserData.color ?? null,
-      avatarUrl: currentUserData.avatar_url ?? null,
-      roles: Array.isArray(currentUserData.roles) ? currentUserData.roles : [],
-    }
-  }, [currentUserData])
 
-  // Email modal states
-  const [isDevisEmailModalOpen, setIsDevisEmailModalOpen] = useState(false)
-  const [isInterventionEmailModalOpen, setIsInterventionEmailModalOpen] = useState(false)
-  const [selectedArtisanForEmail, setSelectedArtisanForEmail] = useState<string | null>(null)
-  useEffect(() => {
-    onEmailModalOpenChange?.(isDevisEmailModalOpen || isInterventionEmailModalOpen)
-  }, [isDevisEmailModalOpen, isInterventionEmailModalOpen, onEmailModalOpenChange])
+  // Edit-specific state
+  const [pendingReasonType, setPendingReasonType] = useState<StatusReasonType | null>(null)
+  const [hasFactureGMBS, setHasFactureGMBS] = useState(false)
+  const [secondArtisanDisplayMode, setSecondArtisanDisplayMode] = useState<"nom" | "rs" | "tel">("nom")
 
-  // Extraire les coûts et paiements
+  // Extraire les coûts et paiements (needed for createEditFormData)
   const costs = intervention.intervention_costs || []
   const payments = intervention.intervention_payments || []
-  // Coûts artisan principal (artisan_order = 1 ou undefined/null pour rétrocompatibilité)
   const sstCost = costs.find(c => c.cost_type === 'sst' && (c.artisan_order === 1 || c.artisan_order === undefined || c.artisan_order === null))
   const materielCost = costs.find(c => c.cost_type === 'materiel' && (c.artisan_order === 1 || c.artisan_order === undefined || c.artisan_order === null))
   const interventionCost = costs.find(c => c.cost_type === 'intervention')
-  // Coûts second artisan (artisan_order = 2)
   const sstCostSecondArtisan = costs.find(c => c.cost_type === 'sst' && c.artisan_order === 2)
   const materielCostSecondArtisan = costs.find(c => c.cost_type === 'materiel' && c.artisan_order === 2)
-
-  // Extraire les paiements d'acomptes (calculés avant useState pour être utilisés dans l'initialisation)
   const sstPayment = payments.find(p => p.payment_type === 'acompte_sst')
   const clientPayment = payments.find(p => p.payment_type === 'acompte_client')
 
-  // Artisans liés - memoized pour éviter les changements à chaque render
+  // Artisans liés
   const artisans = useMemo(() => intervention.intervention_artisans || [], [intervention.intervention_artisans])
   const primaryArtisan = artisans.find(a => a.is_primary)?.artisans
   const secondaryArtisan = artisans.find(a => !a.is_primary)?.artisans
 
-  const [formData, setFormData] = useState({
-    // Champs principaux
-    statut_id: intervention.statut_id || "",
-    id_inter: intervention.id_inter || "",
-    agence_id: intervention.agence_id || "",
-    reference_agence: (intervention as any).reference_agence || "",
-    assigned_user_id: intervention.assigned_user_id || "",
-    metier_id: intervention.metier_id || "",
-    contexte_intervention: intervention.contexte_intervention || "",
-    consigne_intervention: intervention.consigne_intervention || "",
-
-    // Adresse
-    adresse: intervention.adresse || "",
-    code_postal: intervention.code_postal || "",
-    ville: intervention.ville || "",
-    latitude: intervention.latitude || 48.8566,
-    longitude: intervention.longitude || 2.3522,
-    // Charger adresse_complete depuis la BDD ou construire à partir des champs si non disponible
-    adresseComplete: (intervention as any).adresse_complete || [intervention.adresse, intervention.code_postal, intervention.ville]
-      .filter(Boolean)
-      .join(", ") || "",
-
-    // Dates
-    date: intervention.date?.split('T')[0] || "",
-    date_prevue: intervention.date_prevue?.split('T')[0] || "",
-
-    // SST
-    numero_sst: (intervention as any).numero_sst || "",
-    pourcentage_sst: (intervention as any).pourcentage_sst?.toString() || "",
-
-    // Commentaires
-    consigne_second_artisan: intervention.consigne_second_artisan || "",
-    commentaire_agent: intervention.commentaire_agent || "",
-
-    // Propriétaire (owner) - Champ fusionné nom-prénom
-    nomPrenomFacturation: intervention.owner?.plain_nom_facturation ||
-      `${intervention.owner?.owner_lastname || ''} ${intervention.owner?.owner_firstname || ''}`.trim() || "",
-    telephoneProprietaire: intervention.owner?.telephone || "",
-    emailProprietaire: intervention.owner?.email || "",
-
-    // Client (tenant) - Champ fusionné nom-prénom
-    nomPrenomClient: intervention.tenants?.plain_nom_client ||
-      `${intervention.tenants?.lastname || ''} ${intervention.tenants?.firstname || ''}`.trim() || "",
-    telephoneClient: intervention.tenants?.telephone || "",
-    emailClient: intervention.tenants?.email || "",
-
-    // Logement vacant
-    is_vacant: (intervention as any).is_vacant || false,
-    key_code: (intervention as any).key_code || "",
-    floor: (intervention as any).floor || "",
-    apartment_number: (intervention as any).apartment_number || "",
-    vacant_housing_instructions: (intervention as any).vacant_housing_instructions || "",
-
-    // Artisan
-    artisan: primaryArtisan ? `${primaryArtisan.prenom || ''} ${primaryArtisan.nom || ''}`.trim() : "",
-    artisanTelephone: primaryArtisan?.telephone || "",
-    artisanEmail: primaryArtisan?.email || "",
-
-    // Coûts
-    coutSST: sstCost?.amount?.toString() || "",
-    coutMateriel: materielCost?.amount?.toString() || "",
-    coutIntervention: interventionCost?.amount?.toString() || "",
-
-    // Acomptes
-    accompteSST: sstPayment?.amount?.toString() || "",
-    accompteSSTRecu: sstPayment?.is_received || false,
-    dateAccompteSSTRecu: sstPayment?.payment_date?.split('T')[0] || "",
-    accompteClient: clientPayment?.amount?.toString() || "",
-    accompteClientRecu: clientPayment?.is_received || false,
-    dateAccompteClientRecu: clientPayment?.payment_date?.split('T')[0] || "",
-
-    // Sous-statut personnalisé
-    sousStatutText: (intervention as any).sous_statut_text || "",
-    sousStatutTextColor: (intervention as any).sous_statut_text_color || "#000000",
-    sousStatutBgColor: (intervention as any).sous_statut_bg_color || "transparent",
-
-    // Deuxième artisan
-    secondArtisan: secondaryArtisan ? `${secondaryArtisan.prenom || ''} ${secondaryArtisan.nom || ''}`.trim() : "",
-    secondArtisanTelephone: secondaryArtisan?.telephone || "",
-    secondArtisanEmail: secondaryArtisan?.email || "",
-    metierSecondArtisanId: (intervention as any).metier_second_artisan_id || "",
-    // Coûts du 2ème artisan depuis intervention_costs avec artisan_order = 2
-    coutSSTSecondArtisan: sstCostSecondArtisan?.amount?.toString() || "",
-    coutMaterielSecondArtisan: materielCostSecondArtisan?.amount?.toString() || "",
-  })
-  const isStatusReasonModalOpen = pendingReasonType !== null
-  const [perimeterKmInput, setPerimeterKmInput] = useState("50")
-  const perimeterKmValue = useMemo(() => {
-    const parsed = Number.parseFloat(perimeterKmInput)
-    if (!Number.isFinite(parsed) || parsed <= 0) {
-      return 50
-    }
-    return Math.min(parsed, MAX_RADIUS_KM)
-  }, [perimeterKmInput])
-  const [selectedArtisanId, setSelectedArtisanId] = useState<string | null>(primaryArtisan?.id ?? null)
+  // Refs for tracking artisan changes (edit-specific)
   const primaryArtisanIdRef = useRef<string | null>(primaryArtisan?.id ?? null)
-  const [selectedSecondArtisanId, setSelectedSecondArtisanId] = useState<string | null>(secondaryArtisan?.id ?? null)
   const secondaryArtisanIdRef = useRef<string | null>(secondaryArtisan?.id ?? null)
-  const [secondArtisanSearchPosition, setSecondArtisanSearchPosition] = useState<{ x: number; y: number; width?: number; height?: number } | null>(null)
 
-  // Utiliser adresse_complete si disponible, sinon vide
-  const initialLocationQuery = (intervention as any).adresse_complete || ""
-
+  // Use the shared form state hook
   const {
-    query: locationQuery,
-    setQuery: setLocationQuery,
-    suggestions: locationSuggestions,
+    // Reference data
+    refData,
+    refDataLoading,
+    currentUser,
+
+    // Form state
+    formData,
+    setFormData,
+    isSubmitting,
+    setIsSubmitting,
+    isFormReady,
+    hasUnsavedChanges,
+
+    // Geocoding
+    locationQuery,
+    setLocationQuery,
+    locationSuggestions,
     isSuggesting,
     clearSuggestions,
-    geocode: geocodeQuery,
-  } = useGeocodeSearch({ initialQuery: initialLocationQuery })
-  const suggestionBlurTimeoutRef = useRef<number | null>(null)
-  const [showLocationSuggestions, setShowLocationSuggestions] = useState(false)
-  const [isSubmitting, setIsSubmitting] = useState(false)
-  const [isFormReady, setIsFormReady] = useState(false)
+    showLocationSuggestions,
+    setShowLocationSuggestions,
+    isGeocoding,
+    geocodeError,
+    setGeocodeError,
+    suggestionBlurTimeoutRef,
 
-  // Marquer le formulaire comme prêt après l'initialisation complète
+    // Perimeter
+    perimeterKmInput,
+    setPerimeterKmInput,
+    perimeterKmValue,
+
+    // Primary artisan
+    selectedArtisanId,
+    setSelectedArtisanId,
+    selectedArtisanData,
+    searchSelectedArtisan,
+    setSearchSelectedArtisan,
+    nearbyArtisans,
+    isLoadingNearbyArtisans,
+    nearbyArtisansError,
+
+    // Secondary artisan
+    selectedSecondArtisanId,
+    setSelectedSecondArtisanId,
+    selectedSecondArtisanData,
+    searchSelectedSecondArtisan,
+    setSearchSelectedSecondArtisan,
+    nearbyArtisansSecondMetier,
+    isLoadingNearbyArtisansSecondMetier,
+
+    // Absences
+    absentArtisanIds,
+
+    // Margins
+    margePrimaryArtisan,
+    margeSecondArtisan,
+
+    // Map
+    mapMarkers,
+    mapSelectedConnection,
+
+    // Collapsible sections
+    collapsibleState,
+    setCollapsibleState,
+
+    // Artisan search
+    showArtisanSearch,
+    setShowArtisanSearch,
+    showSecondArtisanSearch,
+    setShowSecondArtisanSearch,
+    artisanSearchPosition,
+    setArtisanSearchPosition,
+    secondArtisanSearchPosition,
+    setSecondArtisanSearchPosition,
+    artisanSearchContainerRef,
+    artisanDisplayMode,
+    setArtisanDisplayMode,
+
+    // Email modals
+    isDevisEmailModalOpen,
+    setIsDevisEmailModalOpen,
+    isInterventionEmailModalOpen,
+    setIsInterventionEmailModalOpen,
+    selectedArtisanForEmail,
+    setSelectedArtisanForEmail,
+    effectiveSelectedArtisanId,
+    selectedArtisanEmail,
+
+    // Validation
+    selectedStatus,
+    requiresDefinitiveId,
+    requiresDatePrevue,
+    requiresArtisan,
+    requiresFacture,
+    requiresNomFacturation,
+    requiresAssignedUser,
+    requiresCouts,
+    requiresConsigneArtisan,
+    requiresClientInfo,
+
+    // Handlers (from shared hook)
+    handleInputChange: baseHandleInputChange,
+    handleLocationChange,
+    applyArtisanSelection,
+    handleSelectNearbyArtisan,
+    handleRemoveSelectedArtisan,
+    handleSelectSecondArtisan,
+    handleRemoveSecondArtisan,
+    handleSecondArtisanSearchSelect,
+    handleArtisanSearchSelect,
+    handleSuggestionSelect,
+    handleGeocodeAddress,
+    handleOpenDevisEmailModal,
+    handleOpenInterventionEmailModal,
+    generateEmailTemplateData: baseGenerateEmailTemplateData,
+    handleOpenArtisanModal: baseHandleOpenArtisanModal,
+
+    // For edit-specific wrappers
+    openArtisanModal,
+  } = useInterventionFormState({
+    mode: "edit",
+    initialFormData: createEditFormData(
+      intervention,
+      primaryArtisan,
+      secondaryArtisan,
+      { sstCost, materielCost, interventionCost, sstCostSecondArtisan, materielCostSecondArtisan },
+      { sstPayment, clientPayment }
+    ),
+    initialLocationQuery: (intervention as any).adresse_complete || "",
+    initialSelectedArtisanId: primaryArtisan?.id ?? null,
+    initialSelectedSecondArtisanId: secondaryArtisan?.id ?? null,
+    onClientNameChange,
+    onAgencyNameChange,
+    onClientPhoneChange,
+    onHasUnsavedChanges,
+    onSubmittingChange,
+  })
+
+  // Destructure collapsible state for easier access
+  const {
+    isProprietaireOpen,
+    isClientOpen,
+    isAccompteOpen,
+    isDocumentsOpen,
+    isCommentsOpen,
+    isSecondArtisanOpen,
+    isSousStatutOpen,
+  } = collapsibleState
+
+  // Helper functions to update collapsible state
+  const setIsProprietaireOpen = useCallback((open: boolean) => setCollapsibleState(prev => ({ ...prev, isProprietaireOpen: open })), [setCollapsibleState])
+  const setIsClientOpen = useCallback((open: boolean) => setCollapsibleState(prev => ({ ...prev, isClientOpen: open })), [setCollapsibleState])
+  const setIsAccompteOpen = useCallback((open: boolean) => setCollapsibleState(prev => ({ ...prev, isAccompteOpen: open })), [setCollapsibleState])
+  const setIsDocumentsOpen = useCallback((open: boolean) => setCollapsibleState(prev => ({ ...prev, isDocumentsOpen: open })), [setCollapsibleState])
+  const setIsCommentsOpen = useCallback((open: boolean) => setCollapsibleState(prev => ({ ...prev, isCommentsOpen: open })), [setCollapsibleState])
+  const setIsSecondArtisanOpen = useCallback((open: boolean) => setCollapsibleState(prev => ({ ...prev, isSecondArtisanOpen: open })), [setCollapsibleState])
+  const setIsSousStatutOpen = useCallback((open: boolean) => setCollapsibleState(prev => ({ ...prev, isSousStatutOpen: open })), [setCollapsibleState])
+
+  // Edit-specific: Status reason modal state
+  const isStatusReasonModalOpen = pendingReasonType !== null
+
+  // Edit-specific effects
   useEffect(() => {
-    // Attendre que tous les useEffect d'initialisation soient terminés
-    setIsFormReady(true)
-  }, [])
+    onEmailModalOpenChange?.(isDevisEmailModalOpen || isInterventionEmailModalOpen)
+  }, [isDevisEmailModalOpen, isInterventionEmailModalOpen, onEmailModalOpenChange])
 
-  // Détection des modifications non sauvegardées
-  const hasUnsavedChanges = useFormDataChanges(formData, isSubmitting, isFormReady)
-
-  // Notifier le parent des modifications non sauvegardées
-  useEffect(() => {
-    onHasUnsavedChanges?.(hasUnsavedChanges)
-  }, [hasUnsavedChanges, onHasUnsavedChanges])
   useEffect(() => {
     onStatusReasonModalOpenChange?.(isStatusReasonModalOpen)
   }, [isStatusReasonModalOpen, onStatusReasonModalOpenChange])
 
-  const [isProprietaireOpen, setIsProprietaireOpen] = useState(false)
-  const [isClientOpen, setIsClientOpen] = useState(false)
-  const [isAccompteOpen, setIsAccompteOpen] = useState(false)
-  const [isDocumentsOpen, setIsDocumentsOpen] = useState(false)
-  const [isCommentsOpen, setIsCommentsOpen] = useState(true)
-  const [isSecondArtisanOpen, setIsSecondArtisanOpen] = useState(false)
-  const [isSousStatutOpen, setIsSousStatutOpen] = useState(false)
-  const [showArtisanSearch, setShowArtisanSearch] = useState(false)
-  const [showSecondArtisanSearch, setShowSecondArtisanSearch] = useState(false)
-  const [artisanSearchPosition, setArtisanSearchPosition] = useState<{ x: number; y: number; width?: number; height?: number } | null>(null)
-  const artisanSearchContainerRef = useRef<HTMLDivElement>(null)
-  const [artisanDisplayMode, setArtisanDisplayMode] = useState<"nom" | "rs" | "tel">("nom")
-  const [secondArtisanDisplayMode, setSecondArtisanDisplayMode] = useState<"nom" | "rs" | "tel">("nom")
-  // État pour stocker l'artisan sélectionné via recherche (qui peut ne pas être dans nearbyArtisans)
-  const [searchSelectedArtisan, setSearchSelectedArtisan] = useState<NearbyArtisan | null>(null)
-  // État pour stocker le second artisan sélectionné via recherche (qui peut ne pas être dans nearbyArtisansSecondMetier)
-  const [searchSelectedSecondArtisan, setSearchSelectedSecondArtisan] = useState<NearbyArtisan | null>(null)
-  const [absentArtisanIds, setAbsentArtisanIds] = useState<Set<string>>(new Set())
-  const [hasFactureGMBS, setHasFactureGMBS] = useState(false)
+  useEffect(() => {
+    onArtisanSearchOpenChange?.(showArtisanSearch || showSecondArtisanSearch)
+  }, [showArtisanSearch, showSecondArtisanSearch, onArtisanSearchOpenChange])
 
   const checkFactureGMBS = useCallback(async () => {
     if (!intervention.id) return
@@ -372,29 +309,13 @@ export const InterventionEditForm = memo(function InterventionEditForm({
   useEffect(() => {
     void checkFactureGMBS()
   }, [checkFactureGMBS])
-  useEffect(() => {
-    onArtisanSearchOpenChange?.(showArtisanSearch || showSecondArtisanSearch)
-  }, [showArtisanSearch, showSecondArtisanSearch, onArtisanSearchOpenChange])
+
+  // Edit-specific: Right column width management
   const DEFAULT_RIGHT_COLUMN_WIDTH = 320
   const rightColumnStorageKey = currentUser?.id
     ? `gmbs:intervention-form:right-column-width:${currentUser.id}`
     : null
   const [rightColumnWidth, setRightColumnWidth] = useState(DEFAULT_RIGHT_COLUMN_WIDTH)
-  const { open: openArtisanModal } = useArtisanModal()
-  const {
-    artisans: nearbyArtisans,
-    loading: isLoadingNearbyArtisans,
-    error: nearbyArtisansError,
-  } = useNearbyArtisans(
-    formData.adresseComplete ? formData.latitude : null,
-    formData.adresseComplete ? formData.longitude : null,
-    {
-      limit: 100,
-      maxDistanceKm: perimeterKmValue,
-      sampleSize: 400,
-      metier_id: formData.metier_id || null,
-    }
-  )
 
   useEffect(() => {
     if (typeof window === "undefined") return
@@ -419,50 +340,16 @@ export const InterventionEditForm = memo(function InterventionEditForm({
     }
   }, [rightColumnStorageKey])
 
-  // Hook séparé pour les artisans du second métier
-  const {
-    artisans: nearbyArtisansSecondMetier,
-    loading: isLoadingNearbyArtisansSecondMetier,
-  } = useNearbyArtisans(
-    formData.adresseComplete ? formData.latitude : null,
-    formData.adresseComplete ? formData.longitude : null,
-    {
-      limit: 100,
-      maxDistanceKm: perimeterKmValue,
-      sampleSize: 400,
-      metier_id: formData.metierSecondArtisanId || null,
-    }
-  )
-
-  const selectedArtisanData = useMemo(
-    () => {
-      if (!selectedArtisanId) return null
-      // D'abord chercher dans les artisans à proximité
-      const nearbyArtisan = nearbyArtisans.find((artisan) => artisan.id === selectedArtisanId)
-      if (nearbyArtisan) return nearbyArtisan
-      // Sinon utiliser l'artisan de la recherche (qui peut ne pas être à proximité)
-      return searchSelectedArtisan
-    },
-    [selectedArtisanId, nearbyArtisans, searchSelectedArtisan],
-  )
-
-  // CORRECTIF: Initialiser searchSelectedArtisan avec primaryArtisan si non trouvé dans nearbyArtisans
-  // Cela permet d'afficher la carte de l'artisan déjà sélectionné lors de l'ouverture du modal
+  // Edit-specific: Initialize searchSelectedArtisan with primaryArtisan if not in nearbyArtisans
+  // This allows displaying the artisan card when opening the modal
   useEffect(() => {
-    // Ne rien faire si pas d'artisan principal ou si loading en cours
     if (!primaryArtisan?.id || isLoadingNearbyArtisans) return
-
-    // Vérifier si l'artisan principal est bien celui sélectionné
     if (selectedArtisanId !== primaryArtisan.id) return
 
-    // Vérifier si l'artisan est déjà dans nearbyArtisans
     const isInNearbyArtisans = nearbyArtisans.some(a => a.id === primaryArtisan.id)
     if (isInNearbyArtisans) return
-
-    // Vérifier si on a déjà un searchSelectedArtisan valide pour cet artisan
     if (searchSelectedArtisan?.id === primaryArtisan.id) return
 
-    // Créer un objet NearbyArtisan à partir de primaryArtisan
     const displayName = primaryArtisan.plain_nom
       || [primaryArtisan.prenom, primaryArtisan.nom].filter(Boolean).join(" ")
       || "Artisan sans nom"
@@ -485,88 +372,7 @@ export const InterventionEditForm = memo(function InterventionEditForm({
       statut_id: null,
       photoProfilMetadata: null,
     })
-  }, [primaryArtisan, selectedArtisanId, isLoadingNearbyArtisans, nearbyArtisans, searchSelectedArtisan])
-  const selectedSecondArtisanData = useMemo(
-    () => {
-      if (!selectedSecondArtisanId) return null
-      // D'abord chercher dans les artisans à proximité du second métier
-      const nearbyArtisan = nearbyArtisansSecondMetier.find((artisan) => artisan.id === selectedSecondArtisanId)
-      if (nearbyArtisan) return nearbyArtisan
-      // Sinon utiliser l'artisan de la recherche (qui peut ne pas être à proximité)
-      return searchSelectedSecondArtisan
-    },
-    [selectedSecondArtisanId, nearbyArtisansSecondMetier, searchSelectedSecondArtisan],
-  )
-
-  useEffect(() => {
-    let cancelled = false
-    const artisanIds = new Set<string>()
-
-    nearbyArtisans.forEach((artisan) => artisanIds.add(artisan.id))
-    nearbyArtisansSecondMetier.forEach((artisan) => artisanIds.add(artisan.id))
-    if (searchSelectedArtisan?.id) artisanIds.add(searchSelectedArtisan.id)
-    if (searchSelectedSecondArtisan?.id) artisanIds.add(searchSelectedSecondArtisan.id)
-
-    if (artisanIds.size === 0) {
-      setAbsentArtisanIds(new Set())
-      return
-    }
-
-    setAbsentArtisanIds(new Set())
-    const nowIso = new Date().toISOString()
-
-    const loadAbsences = async () => {
-      const { data, error } = await supabase
-        .from("artisan_absences")
-        .select("artisan_id")
-        .in("artisan_id", Array.from(artisanIds))
-        .lte("start_date", nowIso)
-        .gte("end_date", nowIso)
-
-      if (cancelled) return
-
-      if (error) {
-        console.warn("[InterventionEditForm] Erreur lors du chargement des absences:", error)
-        setAbsentArtisanIds(new Set())
-        return
-      }
-
-      setAbsentArtisanIds(
-        new Set((data ?? []).map((absence) => absence.artisan_id).filter(Boolean)),
-      )
-    }
-
-    loadAbsences()
-
-    return () => {
-      cancelled = true
-    }
-  }, [
-    nearbyArtisans,
-    nearbyArtisansSecondMetier,
-    searchSelectedArtisan?.id,
-    searchSelectedSecondArtisan?.id,
-  ])
-
-  // Calcul de la marge du 1er artisan
-  const margePrimaryArtisan = useMemo(() => {
-    return calculatePrimaryArtisanMargin(
-      formData.coutIntervention,
-      formData.coutSST,
-      formData.coutMateriel
-    )
-  }, [formData.coutIntervention, formData.coutSST, formData.coutMateriel])
-
-  // Calcul de la marge du 2ème artisan
-  const margeSecondArtisan = useMemo(() => {
-    return calculateSecondaryArtisanMargin(
-      formData.coutIntervention,
-      formData.coutSST,
-      formData.coutMateriel,
-      formData.coutSSTSecondArtisan,
-      formData.coutMaterielSecondArtisan
-    )
-  }, [formData.coutIntervention, formData.coutSST, formData.coutMateriel, formData.coutSSTSecondArtisan, formData.coutMaterielSecondArtisan])
+  }, [primaryArtisan, selectedArtisanId, isLoadingNearbyArtisans, nearbyArtisans, searchSelectedArtisan, setSearchSelectedArtisan])
 
   // Fonction helper pour obtenir le nom à afficher selon le mode
   // Uses centralized artisan display utilities
@@ -622,14 +428,12 @@ export const InterventionEditForm = memo(function InterventionEditForm({
         intervention.code_postal !== prev.code_postal ||
         intervention.ville !== prev.ville ||
         intervention.latitude !== prev.latitude ||
-        intervention.longitude !== prev.longitude
+        intervention.longitude !== prev.longitude ||
+        intervention.adresse_complete !== prev.adresse_complete
 
       if (hasAddressChanged) {
-        // Charger adresse_complete depuis la BDD (ne pas reconstruire automatiquement)
-        const newAdresseComplete = (intervention as any).adresse_complete || ""
-
         // Synchroniser le champ de recherche d'adresse avec adresse_complete
-        setLocationQuery(newAdresseComplete)
+        setLocationQuery(intervention.adresse_complete || prev.adresse_complete || "")
 
         return {
           ...prev,
@@ -638,55 +442,14 @@ export const InterventionEditForm = memo(function InterventionEditForm({
           ville: intervention.ville || prev.ville || "",
           latitude: intervention.latitude ?? prev.latitude ?? 48.8566,
           longitude: intervention.longitude ?? prev.longitude ?? 2.3522,
-          adresseComplete: newAdresseComplete,
+          adresse_complete: intervention.adresse_complete || prev.adresse_complete || "",
         }
       }
       return prev
     })
   }, [intervention, setLocationQuery])
 
-  const mapMarkers = useMemo(() => {
-    if (!refData?.artisanStatuses) {
-      // Fallback si pas de refData
-      return nearbyArtisans.map((artisan) => ({
-        id: artisan.id,
-        lat: artisan.lat,
-        lng: artisan.lng,
-        color: artisan.id === selectedArtisanData?.id ? "#f97316" : "#2563eb",
-        title: artisan.displayName,
-      }))
-    }
-
-    // Trouver les IDs des statuts ARCHIVE et ARCHIVER
-    const archiveStatuses = refData.artisanStatuses.filter(
-      (s) => s.code === "ARCHIVE" || s.code === "ARCHIVER"
-    )
-    const archiveStatusIds = new Set(archiveStatuses.map((s) => s.id))
-    const visibleArtisans =
-      archiveStatusIds.size > 0
-        ? nearbyArtisans.filter(
-          (artisan) => !artisan.statut_id || !archiveStatusIds.has(artisan.statut_id),
-        )
-        : nearbyArtisans
-
-    return visibleArtisans.map((artisan) => ({
-      id: artisan.id,
-      lat: artisan.lat,
-      lng: artisan.lng,
-      color: artisan.id === selectedArtisanData?.id ? "#f97316" : "#2563eb",
-      title: artisan.displayName,
-    }))
-  }, [nearbyArtisans, selectedArtisanData, refData?.artisanStatuses])
-
-  const mapSelectedConnection = useMemo(() => {
-    if (!selectedArtisanData) return null
-    return {
-      lat: selectedArtisanData.lat,
-      lng: selectedArtisanData.lng,
-      distanceLabel: formatDistanceKm(selectedArtisanData.distanceKm),
-    }
-  }, [selectedArtisanData])
-
+  // Edit-specific: Update refs when artisans change
   useEffect(() => {
     primaryArtisanIdRef.current = primaryArtisan?.id ?? null
   }, [primaryArtisan?.id])
@@ -695,36 +458,7 @@ export const InterventionEditForm = memo(function InterventionEditForm({
     secondaryArtisanIdRef.current = secondaryArtisan?.id ?? null
   }, [secondaryArtisan?.id])
 
-  useEffect(() => {
-    return () => {
-      if (suggestionBlurTimeoutRef.current) {
-        window.clearTimeout(suggestionBlurTimeoutRef.current)
-      }
-    }
-  }, [])
-
-  // Sync client name with parent
-  useEffect(() => {
-    onClientNameChange?.(formData.nomPrenomClient)
-  }, [formData.nomPrenomClient, onClientNameChange])
-
-  // Sync client phone with parent
-  useEffect(() => {
-    onClientPhoneChange?.(formData.telephoneClient)
-  }, [formData.telephoneClient, onClientPhoneChange])
-
-  // Sync agency name with parent
-  useEffect(() => {
-    if (refData?.agencies && formData.agence_id) {
-      const agency = refData.agencies.find((a: any) => a.id === formData.agence_id)
-      if (agency) {
-        onAgencyNameChange?.(agency.label || "")
-      }
-    } else if (!formData.agence_id) {
-      onAgencyNameChange?.("")
-    }
-  }, [formData.agence_id, refData?.agencies, onAgencyNameChange])
-
+  // Edit-specific: Permission checks
   const canEditContext = useMemo(() => {
     const roles = currentUser?.roles ?? []
     return roles.some((role) => typeof role === "string" && role.toLowerCase().includes("admin"))
@@ -732,13 +466,6 @@ export const InterventionEditForm = memo(function InterventionEditForm({
 
   const canWriteInterventions = can("write_interventions")
   const canEditClosedInterventions = can("edit_closed_interventions")
-
-  const selectedStatus = useMemo(() => {
-    if (!formData.statut_id || !refData?.interventionStatuses) {
-      return undefined
-    }
-    return refData.interventionStatuses.find((status) => status.id === formData.statut_id)
-  }, [formData.statut_id, refData])
 
   const isClosedStatus = useMemo(() => {
     if (!intervention.statut_id || !refData?.interventionStatuses) return false
@@ -752,12 +479,13 @@ export const InterventionEditForm = memo(function InterventionEditForm({
 
   const canEditIntervention = canWriteInterventions && (!isClosedStatus || canEditClosedInterventions)
 
+  // Edit-specific: Helper to get status code
   const getInterventionStatusCode = useCallback(
     (statusId?: string | null) => {
       if (!statusId || !refData?.interventionStatuses) {
         return ""
       }
-      return refData.interventionStatuses.find((status) => status.id === statusId)?.code ?? ""
+      return refData.interventionStatuses.find((status: any) => status.id === statusId)?.code ?? ""
     },
     [refData?.interventionStatuses],
   )
@@ -767,109 +495,53 @@ export const InterventionEditForm = memo(function InterventionEditForm({
     [intervention.statut_id, getInterventionStatusCode],
   )
 
-  const requiresDefinitiveId = useMemo(() => {
-    if (!selectedStatus) {
-      return false
-    }
-    const code = (selectedStatus.code ?? "").toUpperCase()
-    if (STATUSES_REQUIRING_DEFINITIVE_ID.has(code)) {
-      return true
-    }
-    const normalizedLabel = (selectedStatus.label ?? "").trim().toLowerCase()
-    return (
-      normalizedLabel === "devis envoyé" ||
-      normalizedLabel === "visite technique" ||
-      normalizedLabel === "accepté" ||
-      normalizedLabel === "accepte" ||
-      normalizedLabel === "en cours" ||
-      normalizedLabel === "intervention en cours" ||
-      normalizedLabel === "inter en cours" ||
-      normalizedLabel === "terminé" ||
-      normalizedLabel === "termine" ||
-      normalizedLabel === "stand-by" ||
-      normalizedLabel === "stand by"
-    )
-  }, [selectedStatus])
-
-  const requiresDatePrevue = useMemo(() => {
-    if (!selectedStatus) {
-      return false
-    }
-    const code = (selectedStatus.code ?? "").toUpperCase()
-    if (STATUSES_REQUIRING_DATE_PREVUE.has(code)) {
-      return true
-    }
-    const normalizedLabel = (selectedStatus.label ?? "").trim().toLowerCase()
-    return (
-      normalizedLabel === "visite technique" ||
-      normalizedLabel === "intervention en cours" ||
-      normalizedLabel === "inter en cours"
-    )
-  }, [selectedStatus])
-
-  // Nouvelles règles de validation pour DEVIS_ENVOYE
-  const requiresNomFacturation = useMemo(() => {
-    if (!selectedStatus) return false
-    const code = (selectedStatus.code ?? "").toUpperCase()
-    return STATUSES_REQUIRING_NOM_FACTURATION.has(code) ||
-      (selectedStatus.label ?? "").toLowerCase().includes("devis envoyé")
-  }, [selectedStatus])
-
-  const requiresAssignedUser = useMemo(() => {
-    if (!selectedStatus) return false
-    const code = (selectedStatus.code ?? "").toUpperCase()
-    return STATUSES_REQUIRING_ASSIGNED_USER.has(code) ||
-      (selectedStatus.label ?? "").toLowerCase().includes("devis envoyé")
-  }, [selectedStatus])
-
-  // Nouvelles règles de validation pour INTER_EN_COURS
-  const requiresCouts = useMemo(() => {
-    if (!selectedStatus) return false
-    const code = (selectedStatus.code ?? "").toUpperCase()
-    return STATUSES_REQUIRING_COUTS.has(code) ||
-      (selectedStatus.label ?? "").toLowerCase().includes("inter en cours") ||
-      (selectedStatus.label ?? "").toLowerCase().includes("intervention en cours")
-  }, [selectedStatus])
-
-  const requiresConsigneArtisan = useMemo(() => {
-    if (!selectedStatus) return false
-    const code = (selectedStatus.code ?? "").toUpperCase()
-    return STATUSES_REQUIRING_CONSIGNE_ARTISAN.has(code) ||
-      (selectedStatus.label ?? "").toLowerCase().includes("inter en cours") ||
-      (selectedStatus.label ?? "").toLowerCase().includes("intervention en cours")
-  }, [selectedStatus])
-
-  const requiresClientInfo = useMemo(() => {
-    if (!selectedStatus) return false
-    const code = (selectedStatus.code ?? "").toUpperCase()
-    return STATUSES_REQUIRING_CLIENT_INFO.has(code) ||
-      (selectedStatus.label ?? "").toLowerCase().includes("inter en cours") ||
-      (selectedStatus.label ?? "").toLowerCase().includes("intervention en cours")
-  }, [selectedStatus])
-
-  const requiresArtisan = useMemo(() => {
-    if (!selectedStatus) return false
-    const code = (selectedStatus.code ?? "").toUpperCase()
-    return ["VISITE_TECHNIQUE", "INTER_EN_COURS", "INTER_TERMINEE", "ATT_ACOMPTE"].includes(code)
-  }, [selectedStatus])
-
-  const requiresFacture = useMemo(() => {
-    if (!selectedStatus) return false
-    const code = (selectedStatus.code ?? "").toUpperCase()
-    return code === "INTER_TERMINEE"
-  }, [selectedStatus])
-
-  // --- Gestion des acomptes ---
-  // Note: sstPayment et clientPayment sont déclarés plus haut
-
+  // --- Gestion des acomptes (edit-specific) ---
   const canEditAccomptes = useMemo(() => {
     const currentStatusCode = getInterventionStatusCode(formData.statut_id)
-    // On autorise l'édition si le statut est ACCEPTE ou ATT_ACOMPTE (pour éviter de bloquer l'utilisateur pendant la saisie)
     return currentStatusCode === 'ACCEPTE' || currentStatusCode === 'ATT_ACOMPTE'
   }, [formData.statut_id, getInterventionStatusCode])
 
+  // Edit-specific: Wrapper for handleInputChange with auto-open collapsible sections
+  const handleInputChange = useCallback((field: string, value: any) => {
+    // Track manual id_inter edits
+    if (field === "id_inter") {
+      userEditedIdInterRef.current = true
+    }
+
+    // Call the base handler from the hook
+    baseHandleInputChange(field as any, value)
+
+    // Auto-open collapsible sections based on status change
+    if (field === "statut_id" && value && refData?.interventionStatuses) {
+      const status = refData.interventionStatuses.find((s: any) => s.id === value)
+      if (status) {
+        const statusCode = (status.code ?? "").toUpperCase()
+        const statusLabel = (status.label ?? "").toLowerCase()
+
+        // For DEVIS_ENVOYE: open "Détails facturation" if field is empty
+        if (statusCode === "DEVIS_ENVOYE" || statusLabel.includes("devis envoyé")) {
+          setFormData((currentFormData: any) => {
+            if (!currentFormData.nomPrenomFacturation?.trim()) {
+              setIsProprietaireOpen(true)
+            }
+            return currentFormData
+          })
+        }
+
+        // For INTER_EN_COURS: open "Détails client" if fields are empty
+        if (statusCode === "INTER_EN_COURS" || statusLabel.includes("inter en cours") || statusLabel.includes("intervention en cours")) {
+          setFormData((currentFormData: any) => {
+            if (!currentFormData.nomPrenomClient?.trim() || !currentFormData.telephoneClient?.trim()) {
+              setIsClientOpen(true)
+            }
+            return currentFormData
+          })
+        }
+      }
+    }
+  }, [baseHandleInputChange, refData?.interventionStatuses, setFormData, setIsProprietaireOpen, setIsClientOpen])
+
   const handleAccompteSSTChange = async (value: string) => {
-    // Mettre à jour le formData local
     handleInputChange('accompteSST', value)
   }
 
@@ -1071,63 +743,6 @@ export const InterventionEditForm = memo(function InterventionEditForm({
 
   // --- Fin Gestion des acomptes ---
 
-  const handleInputChange = useCallback((field: keyof typeof formData, value: any) => {
-    // Marquer que l'utilisateur a modifié manuellement le champ id_inter
-    if (field === "id_inter") {
-      userEditedIdInterRef.current = true
-    }
-    setFormData((prev) => ({ ...prev, [field]: value }))
-
-    // Logique d'ouverture automatique des sections collapsibles lors du changement de statut
-    // Note: Les toasts d'erreur apparaîtront uniquement lors de la validation finale (handleSubmit)
-    if (field === "statut_id" && value && refData?.interventionStatuses) {
-      const selectedStatus = refData.interventionStatuses.find((s) => s.id === value)
-      if (selectedStatus) {
-        const statusCode = (selectedStatus.code ?? "").toUpperCase()
-        const statusLabel = (selectedStatus.label ?? "").toLowerCase()
-
-        // Pour DEVIS_ENVOYE : ouvrir "Détails facturation" si le champ est vide
-        if (statusCode === "DEVIS_ENVOYE" || statusLabel.includes("devis envoyé")) {
-          setFormData((currentFormData) => {
-            if (!currentFormData.nomPrenomFacturation?.trim()) {
-              setIsProprietaireOpen(true)
-            }
-            return currentFormData
-          })
-        }
-
-        // Pour INTER_EN_COURS : ouvrir "Détails client" si les champs sont vides
-        if (statusCode === "INTER_EN_COURS" || statusLabel.includes("inter en cours") || statusLabel.includes("intervention en cours")) {
-          setFormData((currentFormData) => {
-            if (!currentFormData.nomPrenomClient?.trim() || !currentFormData.telephoneClient?.trim()) {
-              setIsClientOpen(true)
-            }
-            return currentFormData
-          })
-        }
-      }
-    }
-  }, [refData?.interventionStatuses])
-
-  const handleLocationChange = (lat: number, lng: number) => {
-    setFormData((prev) => ({
-      ...prev,
-      latitude: lat,
-      longitude: lng,
-    }))
-    setGeocodeError(null)
-  }
-
-  const applyArtisanSelection = useCallback((artisan: NearbyArtisan | null) => {
-    setSelectedArtisanId(artisan?.id ?? null)
-    setFormData((prev) => ({
-      ...prev,
-      artisan: artisan?.displayName ?? "",
-      artisanTelephone: artisan?.telephone ?? "",
-      artisanEmail: artisan?.email ?? "",
-    }))
-  }, [])
-
   // Get artisans with valid email from intervention_artisans AND from selected artisan in form
   const artisansWithEmail = useMemo(() => {
     const artisansFromIntervention = artisans
@@ -1157,32 +772,25 @@ export const InterventionEditForm = memo(function InterventionEditForm({
     return artisansFromIntervention
   }, [artisans, selectedArtisanData])
 
-  // Generate email template data from intervention
+  // Edit-specific: Generate email template data from intervention (more comprehensive than hook version)
   const generateEmailTemplateData = useCallback((artisanId: string): EmailTemplateData => {
-    // Check if artisan is from intervention_artisans or from selected artisan in form
     const selectedArtisan = artisans.find((ia: any) => ia.artisan_id === artisanId)
     const isFromIntervention = !!selectedArtisan
     const isPrimary = selectedArtisan?.is_primary || false
 
-    // Get tenant data - prioritize formData over database values
     const tenant = intervention.tenants
     const nomClient = formData.nomPrenomClient ||
       (tenant?.plain_nom_client || `${tenant?.lastname || ''} ${tenant?.firstname || ''}`.trim() || '')
     const telephoneClient = formData.telephoneClient || tenant?.telephone || ''
     const telephoneClient2 = tenant?.telephone2 || ''
-    const adresse = (formData.adresse || intervention.adresse) /*&& (formData.code_postal || intervention.code_postal || formData.ville || intervention.ville)*/
-      ? `${formData.adresse || intervention.adresse}, ${formData.code_postal || intervention.code_postal || ''} ${formData.ville || intervention.ville || ''}`.trim()
-      : ''      // TO COMPLICATES
+    const adresse = formData.adresse || intervention.adresse || ''
 
-    // Get consigne based on artisan type
-    // If artisan is not yet saved, use consigne_intervention as default
     const consigneArtisan = isFromIntervention
       ? (isPrimary
         ? (formData.consigne_intervention || intervention.consigne_intervention || '')
         : (formData.consigne_second_artisan || intervention.consigne_second_artisan || ''))
       : (formData.consigne_intervention || intervention.consigne_intervention || '')
 
-    // Calculate coutSST
     const coutSST = formData.coutSST || ''
 
     return {
@@ -1198,39 +806,8 @@ export const InterventionEditForm = memo(function InterventionEditForm({
     }
   }, [intervention, artisans, formData])
 
-  // Get the effective selected artisan ID (from Select or from form selection)
-  const effectiveSelectedArtisanId = useMemo(() => {
-    return selectedArtisanForEmail || selectedArtisanId || null
-  }, [selectedArtisanForEmail, selectedArtisanId])
-
-  // Handle opening devis email modal
-  const handleOpenDevisEmailModal = useCallback((artisanId?: string) => {
-    const targetArtisanId = artisanId || effectiveSelectedArtisanId
-    if (!targetArtisanId) {
-      toast.error('Veuillez sélectionner un artisan')
-      return
-    }
-    if (artisanId) {
-      setSelectedArtisanForEmail(artisanId)
-    }
-    setIsDevisEmailModalOpen(true)
-  }, [effectiveSelectedArtisanId])
-
-  // Handle opening intervention email modal
-  const handleOpenInterventionEmailModal = useCallback((artisanId?: string) => {
-    const targetArtisanId = artisanId || effectiveSelectedArtisanId
-    if (!targetArtisanId) {
-      toast.error('Veuillez sélectionner un artisan')
-      return
-    }
-    if (artisanId) {
-      setSelectedArtisanForEmail(artisanId)
-    }
-    setIsInterventionEmailModalOpen(true)
-  }, [effectiveSelectedArtisanId])
-
-  // Get selected artisan email
-  const selectedArtisanEmail = useMemo(() => {
+  // Edit-specific: Get selected artisan email (includes check for artisansWithEmail)
+  const editSelectedArtisanEmail = useMemo(() => {
     const artisanId = effectiveSelectedArtisanId
     if (!artisanId) return ''
 
@@ -1238,40 +815,10 @@ export const InterventionEditForm = memo(function InterventionEditForm({
     const artisan = artisansWithEmail.find((a) => a.id === artisanId)
     if (artisan) return artisan.email
 
-    // Vérifier si c'est le premier artisan sélectionné dans le form
-    if (selectedArtisanData && selectedArtisanData.id === artisanId) {
-      return selectedArtisanData.email || ''
-    }
+    // Fall back to hook's value
+    return selectedArtisanEmail
+  }, [effectiveSelectedArtisanId, artisansWithEmail, selectedArtisanEmail])
 
-    // Vérifier si c'est le second artisan sélectionné dans le form
-    if (selectedSecondArtisanData && selectedSecondArtisanData.id === artisanId) {
-      return selectedSecondArtisanData.email || ''
-    }
-
-    return ''
-  }, [effectiveSelectedArtisanId, artisansWithEmail, selectedArtisanData, selectedSecondArtisanData])
-
-  // Fonction pour obtenir le numéro de téléphone de l'artisan sélectionné
-  const getSelectedArtisanPhone = useCallback((): string => {
-    const artisanId = effectiveSelectedArtisanId
-    if (!artisanId) return ''
-
-    // Chercher dans artisansWithEmail (depuis intervention_artisans)
-    const artisan = artisansWithEmail.find((a) => a.id === artisanId)
-    if (artisan && artisan.telephone) return artisan.telephone
-
-    // Vérifier si c'est le premier artisan sélectionné dans le form
-    if (selectedArtisanData && selectedArtisanData.id === artisanId && selectedArtisanData.telephone) {
-      return selectedArtisanData.telephone
-    }
-
-    // Vérifier si c'est le second artisan sélectionné dans le form
-    if (selectedSecondArtisanData && selectedSecondArtisanData.id === artisanId && selectedSecondArtisanData.telephone) {
-      return selectedSecondArtisanData.telephone
-    }
-
-    return ''
-  }, [effectiveSelectedArtisanId, artisansWithEmail, selectedArtisanData, selectedSecondArtisanData])
 
   // Fonction pour formater le numéro de téléphone pour WhatsApp
   const formatPhoneForWhatsApp = useCallback((phone: string): string => {
@@ -1378,139 +925,7 @@ export const InterventionEditForm = memo(function InterventionEditForm({
     document.addEventListener('touchend', handleMouseUp)
   }, [rightColumnWidth, rightColumnStorageKey])
 
-  const handleSelectNearbyArtisan = useCallback(
-    (artisan: NearbyArtisan) => {
-      if (selectedArtisanId === artisan.id) {
-        // Désélectionner si on clique sur l'artisan déjà sélectionné
-        // Mais on garde le comportement actuel de juste mettre à jour le champ texte
-        // Si on veut permettre la désélection au clic, on pourrait le faire ici
-        // Pour l'instant on suit la spec qui demande un bouton X explicite
-      }
-
-      setSelectedArtisanId(artisan.id)
-      handleInputChange("artisan", `${artisan.prenom || ""} ${artisan.nom || ""}`.trim())
-
-      // Si l'artisan a un email, on le présélectionne pour l'envoi d'email
-      if (artisan.email) {
-        setSelectedArtisanForEmail(artisan.id)
-      }
-    },
-    [selectedArtisanId, handleInputChange],
-  )
-
-  const handleRemoveSelectedArtisan = useCallback(() => {
-    setSelectedArtisanId(null)
-    setSearchSelectedArtisan(null)
-    // Optionnel : vider le champ texte artisan si on désélectionne ?
-    // handleInputChange("artisan", "")
-  }, [])
-
-  const handleSelectSecondArtisan = useCallback(
-    (artisan: NearbyArtisan) => {
-      setSelectedSecondArtisanId(artisan.id)
-      handleInputChange("secondArtisan", `${artisan.prenom || ""} ${artisan.nom || ""}`.trim())
-      handleInputChange("secondArtisanTelephone", artisan.telephone || "")
-      handleInputChange("secondArtisanEmail", artisan.email || "")
-    },
-    [handleInputChange],
-  )
-
-  const handleRemoveSecondArtisan = useCallback(() => {
-    setSelectedSecondArtisanId(null)
-    setSearchSelectedSecondArtisan(null)
-    handleInputChange("secondArtisan", "")
-    handleInputChange("secondArtisanTelephone", "")
-    handleInputChange("secondArtisanEmail", "")
-  }, [handleInputChange])
-
-  const handleSecondArtisanSearchSelect = useCallback((artisan: ArtisanSearchResult) => {
-    const displayName = artisan.raison_sociale
-      || artisan.plain_nom
-      || [artisan.prenom, artisan.nom].filter(Boolean).join(" ")
-      || "Artisan sans nom"
-
-    setSelectedSecondArtisanId(artisan.id)
-    setFormData((prev) => ({
-      ...prev,
-      secondArtisan: displayName,
-      secondArtisanTelephone: artisan.telephone || "",
-      secondArtisanEmail: artisan.email || "",
-    }))
-
-    // Si l'artisan sélectionné via recherche n'est pas dans la liste de proximité,
-    // on le convertit au format NearbyArtisan et on le stocke pour l'afficher
-    const isInProximity = nearbyArtisansSecondMetier.some(a => a.id === artisan.id)
-    if (!isInProximity) {
-      // Convertir l'artisan de la recherche au format NearbyArtisan
-      const nearbyArtisanFormat: NearbyArtisan = {
-        id: artisan.id,
-        displayName: displayName,
-        distanceKm: 0, // Distance inconnue pour artisan hors proximité
-        telephone: artisan.telephone || null,
-        telephone2: artisan.telephone2 || null,
-        email: artisan.email || null,
-        adresse: artisan.adresse_intervention || artisan.adresse_siege_social || null,
-        ville: artisan.ville_intervention || artisan.ville_siege_social || null,
-        codePostal: artisan.code_postal_intervention || artisan.code_postal_siege_social || null,
-        lat: 0,
-        lng: 0,
-        prenom: artisan.prenom || null,
-        nom: artisan.nom || null,
-        raison_sociale: artisan.raison_sociale || null,
-        statut_id: artisan.statut_id || null,
-        photoProfilMetadata: null,
-      }
-      setSearchSelectedSecondArtisan(nearbyArtisanFormat)
-    } else {
-      // Si l'artisan est dans la liste de proximité, pas besoin de le stocker séparément
-      setSearchSelectedSecondArtisan(null)
-    }
-  }, [nearbyArtisansSecondMetier])
-
-  const handleArtisanSearchSelect = useCallback((artisan: ArtisanSearchResult) => {
-    const displayName = artisan.raison_sociale
-      || artisan.plain_nom
-      || [artisan.prenom, artisan.nom].filter(Boolean).join(" ")
-      || "Artisan sans nom"
-
-    setSelectedArtisanId(artisan.id)
-    setFormData((prev) => ({
-      ...prev,
-      artisan: displayName,
-      artisanTelephone: artisan.telephone || "",
-      artisanEmail: artisan.email || "",
-    }))
-
-    // Si l'artisan sélectionné via recherche n'est pas dans la liste de proximité,
-    // on le convertit au format NearbyArtisan et on le stocke pour l'afficher
-    const isInProximity = nearbyArtisans.some(a => a.id === artisan.id)
-    if (!isInProximity) {
-      // Convertir l'artisan de la recherche au format NearbyArtisan
-      const nearbyArtisanFormat: NearbyArtisan = {
-        id: artisan.id,
-        displayName: displayName,
-        distanceKm: 0, // Distance inconnue pour artisan hors proximité
-        telephone: artisan.telephone || null,
-        telephone2: artisan.telephone2 || null,
-        email: artisan.email || null,
-        adresse: artisan.adresse_intervention || artisan.adresse_siege_social || null,
-        ville: artisan.ville_intervention || artisan.ville_siege_social || null,
-        codePostal: artisan.code_postal_intervention || artisan.code_postal_siege_social || null,
-        lat: 0,
-        lng: 0,
-        prenom: artisan.prenom || null,
-        nom: artisan.nom || null,
-        raison_sociale: artisan.raison_sociale || null,
-        statut_id: artisan.statut_id || null,
-        photoProfilMetadata: null,
-      }
-      setSearchSelectedArtisan(nearbyArtisanFormat)
-    } else {
-      // Si l'artisan est dans la liste de proximité, pas besoin de le stocker séparément
-      setSearchSelectedArtisan(null)
-    }
-  }, [nearbyArtisans])
-
+  // Edit-specific: handleOpenArtisanModal with intervention context
   const handleOpenArtisanModal = useCallback((artisanId: string, event: React.MouseEvent) => {
     event.stopPropagation()
     // Ouvrir le modal d'artisan avec le layoutId de l'intervention actuelle
@@ -1521,122 +936,8 @@ export const InterventionEditForm = memo(function InterventionEditForm({
     })
   }, [intervention.id, openArtisanModal])
 
-  const handleSuggestionSelect = useCallback((suggestion: GeocodeSuggestion) => {
-    // Annuler le timeout de blur si existant
-    if (suggestionBlurTimeoutRef.current) {
-      window.clearTimeout(suggestionBlurTimeoutRef.current)
-      suggestionBlurTimeoutRef.current = null
-    }
-
-    // Parser l'adresse pour extraire code postal et ville
-    const addressParts = parseAddress(suggestion.label)
-
-    // Fermer immédiatement le dropdown
-    clearSuggestions()
-    setShowLocationSuggestions(false)
-
-    // Mettre à jour les champs de géocodage uniquement
-    setFormData((prev) => ({
-      ...prev,
-      latitude: suggestion.lat,
-      longitude: suggestion.lng,
-      adresseComplete: suggestion.label,
-      // NE PAS écraser le champ adresse (saisie libre)
-      // On ne met à jour code_postal et ville que s'ils sont vides
-      code_postal: prev.code_postal || addressParts.postalCode || "",
-      ville: prev.ville || addressParts.city || "",
-    }))
-
-    // Mettre à jour la query pour refléter la sélection
-    setLocationQuery(suggestion.label)
-    setGeocodeError(null)
-  }, [clearSuggestions, setLocationQuery])
-
-  // Fonction helper pour parser une adresse
-  const parseAddress = (fullAddress: string): { street: string; postalCode: string; city: string } => {
-    // Formats supportés :
-    // OpenCage : "123 Rue de Rivoli, 75001 Paris, France"
-    // Nominatim : "Rue de Rivoli, Paris, Île-de-France, 75001, France"
-
-    const parts = fullAddress.split(',').map(p => p.trim())
-
-    let street = ""
-    let postalCode = ""
-    let city = ""
-
-    // Chercher le code postal dans toutes les parties (format 5 chiffres français)
-    const postalCodeRegex = /\b(\d{5})\b/
-
-    for (let i = 0; i < parts.length; i++) {
-      const part = parts[i]
-      const match = part.match(postalCodeRegex)
-
-      if (match) {
-        postalCode = match[1]
-
-        // Si le code postal est dans la même partie que la ville (format "75001 Paris")
-        const cityInSamePart = part.replace(match[0], '').trim()
-        if (cityInSamePart) {
-          city = cityInSamePart
-        }
-        // Sinon, chercher la ville dans les parties précédentes
-        else if (i > 0 && !city) {
-          city = parts[i - 1]
-        }
-      }
-    }
-
-    // Si pas de ville trouvée, prendre la deuxième partie comme ville
-    if (!city && parts.length >= 2) {
-      city = parts[1].replace(postalCodeRegex, '').trim()
-    }
-
-    // La rue est toujours la première partie (avant la première virgule)
-    street = parts[0] || fullAddress
-
-    return { street, postalCode, city }
-  }
-
-  const handleGeocodeAddress = useCallback(async () => {
-    const fullAddress = locationQuery.trim()
-    if (!fullAddress) {
-      setGeocodeError("Adresse manquante")
-      return
-    }
-
-    setIsGeocoding(true)
-    setGeocodeError(null)
-    clearSuggestions() // Fermer le dropdown
-    setShowLocationSuggestions(false)
-
-    try {
-      const result = await geocodeQuery(fullAddress)
-      if (!result) {
-        setGeocodeError("Adresse introuvable")
-        return
-      }
-
-      // Parser l'adresse pour extraire code postal et ville
-      const addressParts = parseAddress(result.label)
-
-      setFormData((prev) => ({
-        ...prev,
-        latitude: result.lat,
-        longitude: result.lng,
-        adresseComplete: result.label,
-        // NE PAS écraser le champ adresse (saisie libre)
-        // On ne met à jour code_postal et ville que s'ils sont vides
-        code_postal: prev.code_postal || addressParts.postalCode || "",
-        ville: prev.ville || addressParts.city || "",
-      }))
-      setLocationQuery(result.label)
-    } catch (error) {
-      console.error("[Geocode] Error:", error)
-      setGeocodeError("Une erreur est survenue lors de la géolocalisation")
-    } finally {
-      setIsGeocoding(false)
-    }
-  }, [locationQuery, geocodeQuery, clearSuggestions, setLocationQuery])
+  // Note: handleSuggestionSelect, handleGeocodeAddress, and related functions
+  // are now provided by useInterventionFormState hook
 
   const executeSubmit = async (options?: { reason?: string; reasonType?: StatusReasonType }) => {
     setIsSubmitting(true)
@@ -1693,7 +994,7 @@ export const InterventionEditForm = memo(function InterventionEditForm({
         adresse: formData.adresse || undefined,
         code_postal: formData.code_postal || undefined,
         ville: formData.ville || undefined,
-        adresse_complete: formData.adresseComplete || null,
+        adresse_complete: formData.adresse_complete || null,
         latitude: formData.latitude,
         longitude: formData.longitude,
         numero_sst: formData.numero_sst || undefined,
@@ -1766,150 +1067,7 @@ export const InterventionEditForm = memo(function InterventionEditForm({
         },
       })
 
-      // Mettre à jour les coûts
-      const costsToUpdate: Array<{ cost_type: "sst" | "materiel" | "intervention"; amount: number }> = []
-
-      const coutSSTValue = parseFloat(formData.coutSST) || 0
-      const coutMaterielValue = parseFloat(formData.coutMateriel) || 0
-      const coutInterventionValue = parseFloat(formData.coutIntervention) || 0
-
-      if (coutSSTValue >= 0) {
-        costsToUpdate.push({ cost_type: "sst", amount: coutSSTValue })
-      }
-      if (coutMaterielValue >= 0) {
-        costsToUpdate.push({ cost_type: "materiel", amount: coutMaterielValue })
-      }
-      if (coutInterventionValue >= 0) {
-        costsToUpdate.push({ cost_type: "intervention", amount: coutInterventionValue })
-      }
-
-      // Préparer tous les coûts à mettre à jour (artisan principal + 2ème artisan si présent)
-      let costsUpdated = false
-      const allCostsToUpsert: Array<{
-        cost_type: 'sst' | 'materiel' | 'intervention' | 'marge';
-        amount: number;
-        artisan_order?: 1 | 2 | null;
-        label?: string | null;
-      }> = []
-
-      // Coûts artisan principal
-      for (const cost of costsToUpdate) {
-        allCostsToUpsert.push({
-          cost_type: cost.cost_type as 'sst' | 'materiel' | 'intervention',
-          label: cost.cost_type === "sst" ? "Coût SST" : cost.cost_type === "materiel" ? "Coût Matériel" : "Coût Intervention",
-          amount: cost.amount,
-          artisan_order: cost.cost_type === "intervention" ? null : 1,
-        })
-      }
-
-      // Coûts du 2ème artisan (artisan_order = 2)
-      const coutSST2Value = parseFloat(formData.coutSSTSecondArtisan) || 0
-      const coutMateriel2Value = parseFloat(formData.coutMaterielSecondArtisan) || 0
-
-      if (selectedSecondArtisanId) {
-        // Si un 2ème artisan est sélectionné, ajouter ses coûts au batch
-        allCostsToUpsert.push({
-          cost_type: "sst",
-          label: "Coût SST 2ème artisan",
-          amount: coutSST2Value,
-          artisan_order: 2,
-        })
-        allCostsToUpsert.push({
-          cost_type: "materiel",
-          label: "Coût Matériel 2ème artisan",
-          amount: coutMateriel2Value,
-          artisan_order: 2,
-        })
-      }
-
-      // Upsert batch de tous les coûts en une seule opération
-      if (allCostsToUpsert.length > 0) {
-        try {
-          await interventionsApi.upsertCostsBatch(intervention.id, allCostsToUpsert)
-          costsUpdated = true
-        } catch (costError) {
-          console.error(`[InterventionEditForm] Erreur lors de la mise à jour des coûts:`, costError)
-          // Ne pas bloquer la soumission si les coûts échouent
-        }
-      }
-
-      // Si pas de 2ème artisan, supprimer ses coûts (en parallèle)
-      if (!selectedSecondArtisanId) {
-        try {
-          await Promise.all([
-            interventionsApi.deleteCost(intervention.id, "sst", 2),
-            interventionsApi.deleteCost(intervention.id, "materiel", 2)
-          ])
-        } catch (deleteError) {
-          // Ignorer les erreurs de suppression (le coût n'existait peut-être pas)
-        }
-      }
-
-      // Mettre à jour les acomptes
-      const accompteSSTValue = parseFloat(formData.accompteSST) || 0
-      const accompteClientValue = parseFloat(formData.accompteClient) || 0
-
-      // Acompte SST
-      if (accompteSSTValue > 0 || formData.accompteSSTRecu || formData.dateAccompteSSTRecu) {
-        try {
-          await interventionsApi.upsertPayment(intervention.id, {
-            payment_type: 'acompte_sst',
-            amount: accompteSSTValue,
-            currency: 'EUR',
-            is_received: formData.accompteSSTRecu || false,
-            payment_date: formData.dateAccompteSSTRecu || null
-          })
-        } catch (paymentError) {
-          console.error('[InterventionEditForm] Erreur lors de la mise à jour de l\'acompte SST:', paymentError)
-        }
-      }
-
-      // Acompte Client
-      if (accompteClientValue > 0 || formData.accompteClientRecu || formData.dateAccompteClientRecu) {
-        try {
-          await interventionsApi.upsertPayment(intervention.id, {
-            payment_type: 'acompte_client',
-            amount: accompteClientValue,
-            currency: 'EUR',
-            is_received: formData.accompteClientRecu || false,
-            payment_date: formData.dateAccompteClientRecu || null
-          })
-        } catch (paymentError) {
-          console.error('[InterventionEditForm] Erreur lors de la mise à jour de l\'acompte client:', paymentError)
-        }
-      }
-
-      // Invalider le cache du dashboard si des coûts ont été mis à jour
-      if (costsUpdated) {
-        // Invalider toutes les queries du dashboard admin pour forcer le rechargement
-        await queryClient.invalidateQueries({ queryKey: ["admin", "dashboard"] })
-        // Invalider aussi les queries de podium si elles existent
-        await queryClient.invalidateQueries({ queryKey: ["podium"] })
-        console.log('[InterventionEditForm] Cache dashboard invalidé après mise à jour des coûts')
-      }
-
-      const currentPrimaryId = primaryArtisanIdRef.current
-      const nextPrimaryId = selectedArtisanId ?? null
-      const currentSecondaryId = secondaryArtisanIdRef.current
-      const nextSecondaryId = selectedSecondArtisanId ?? null
-
-      let payload: InterventionWithStatus = updated as InterventionWithStatus
-
-      // Gérer l'artisan principal
-      if (currentPrimaryId !== nextPrimaryId) {
-        await interventionsApi.setPrimaryArtisan(intervention.id, nextPrimaryId)
-        primaryArtisanIdRef.current = nextPrimaryId
-      }
-
-      // Gérer l'artisan secondaire
-      if (currentSecondaryId !== nextSecondaryId) {
-        await interventionsApi.setSecondaryArtisan(intervention.id, nextSecondaryId)
-        secondaryArtisanIdRef.current = nextSecondaryId
-      }
-
-      // Recharger les données pour avoir les coûts et artisans à jour
-      payload = await interventionsApi.getById(intervention.id)
-
+      // Commentaire de raison de statut — CRITIQUE, doit être awaité avant fermeture
       if (options?.reason && options.reasonType) {
         try {
           await commentsApi.create({
@@ -1921,34 +1079,68 @@ export const InterventionEditForm = memo(function InterventionEditForm({
             author_id: currentUser?.id ?? undefined,
             reason_type: options.reasonType,
           })
-          await queryClient.invalidateQueries({ queryKey: ["comments", "intervention", intervention.id] })
         } catch (commentError) {
           console.error("[InterventionEditForm] Impossible d'ajouter le commentaire obligatoire", commentError)
           throw new Error("Le commentaire obligatoire n'a pas pu être enregistré. Merci de réessayer.")
         }
       }
 
-      // Mettre à jour le formData avec les valeurs retournées par le serveur
-      // pour synchroniser les champs qui peuvent avoir été modifiés côté serveur (comme id_inter)
-      if (payload) {
-        setFormData((prev) => ({
-          ...prev,
-          id_inter: payload.id_inter || prev.id_inter || "",
-          statut_id: payload.statut_id || prev.statut_id || "",
-          agence_id: payload.agence_id || prev.agence_id || "",
-          reference_agence: (payload as any).reference_agence || prev.reference_agence || "",
-          // Synchroniser les champs d'adresse avec les données sauvegardées
-          adresse: payload.adresse || prev.adresse || "",
-          code_postal: payload.code_postal || prev.code_postal || "",
-          ville: payload.ville || prev.ville || "",
-          latitude: payload.latitude ?? prev.latitude ?? 48.8566,
-          longitude: payload.longitude ?? prev.longitude ?? 2.3522,
-          // Préserver adresseComplete indépendamment des autres champs d'adresse
-          adresseComplete: prev.adresseComplete || "",
-        }))
+      // Fermer le modal immédiatement — les tâches secondaires s'exécutent en arrière-plan
+      onSuccess?.(updated as InterventionWithStatus)
+
+      // Préparer les coûts pour le batch
+      const coutSSTValue = parseFloat(formData.coutSST) || 0
+      const coutMaterielValue = parseFloat(formData.coutMateriel) || 0
+      const coutInterventionValue = parseFloat(formData.coutIntervention) || 0
+      const coutSST2Value = parseFloat(formData.coutSSTSecondArtisan) || 0
+      const coutMateriel2Value = parseFloat(formData.coutMaterielSecondArtisan) || 0
+
+      const allCosts: Array<{ cost_type: 'sst' | 'materiel' | 'intervention' | 'marge'; amount: number; artisan_order?: 1 | 2 | null; label?: string | null }> = []
+
+      if (coutSSTValue >= 0) allCosts.push({ cost_type: "sst", label: "Coût SST", amount: coutSSTValue, artisan_order: 1 })
+      if (coutMaterielValue >= 0) allCosts.push({ cost_type: "materiel", label: "Coût Matériel", amount: coutMaterielValue, artisan_order: 1 })
+      if (coutInterventionValue >= 0) allCosts.push({ cost_type: "intervention", label: "Coût Intervention", amount: coutInterventionValue, artisan_order: null })
+
+      if (selectedSecondArtisanId) {
+        allCosts.push({ cost_type: "sst", label: "Coût SST 2ème artisan", amount: coutSST2Value, artisan_order: 2 })
+        allCosts.push({ cost_type: "materiel", label: "Coût Matériel 2ème artisan", amount: coutMateriel2Value, artisan_order: 2 })
       }
 
-      onSuccess?.(payload)
+      // Préparer les paiements
+      const accompteSSTValue = parseFloat(formData.accompteSST) || 0
+      const accompteClientValue = parseFloat(formData.accompteClient) || 0
+      const payments: Array<{ payment_type: string; amount: number; currency?: string; is_received?: boolean; payment_date?: string | null }> = []
+
+      if (accompteSSTValue > 0 || formData.accompteSSTRecu || formData.dateAccompteSSTRecu) {
+        payments.push({ payment_type: 'acompte_sst', amount: accompteSSTValue, currency: 'EUR', is_received: formData.accompteSSTRecu || false, payment_date: formData.dateAccompteSSTRecu || null })
+      }
+      if (accompteClientValue > 0 || formData.accompteClientRecu || formData.dateAccompteClientRecu) {
+        payments.push({ payment_type: 'acompte_client', amount: accompteClientValue, currency: 'EUR', is_received: formData.accompteClientRecu || false, payment_date: formData.dateAccompteClientRecu || null })
+      }
+
+      // Mettre à jour les refs de manière optimiste
+      const currentPrimaryId = primaryArtisanIdRef.current
+      const nextPrimaryId = selectedArtisanId ?? null
+      const currentSecondaryId = secondaryArtisanIdRef.current
+      const nextSecondaryId = selectedSecondArtisanId ?? null
+
+      if (currentPrimaryId !== nextPrimaryId) primaryArtisanIdRef.current = nextPrimaryId
+      if (currentSecondaryId !== nextSecondaryId) secondaryArtisanIdRef.current = nextSecondaryId
+
+      // Lancer toutes les tâches secondaires en arrière-plan (fire-and-forget)
+      runPostMutationTasks({
+        interventionId: intervention.id,
+        artisans: {
+          primary: { current: currentPrimaryId, next: nextPrimaryId },
+          secondary: { current: currentSecondaryId, next: nextSecondaryId },
+        },
+        costs: allCosts.length > 0 ? allCosts : undefined,
+        deleteSecondaryCosts: !selectedSecondArtisanId,
+        payments: payments.length > 0 ? payments : undefined,
+        queryClient,
+        invalidateDashboard: allCosts.length > 0,
+        invalidateComments: !!(options?.reason && options.reasonType),
+      })
     } catch (error) {
       console.error("Erreur lors de la mise à jour:", error)
       const message = error instanceof Error ? error.message : "Erreur lors de la mise à jour de l'intervention"
@@ -3030,7 +2222,14 @@ export const InterventionEditForm = memo(function InterventionEditForm({
                     </CollapsibleTrigger>
                     <CollapsibleContent>
                       <CardContent className="pt-0 px-3 pb-3">
-                        <DocumentManager entityType="intervention" entityId={intervention.id} kinds={INTERVENTION_DOCUMENT_KINDS} currentUser={currentUser ?? undefined} onChange={() => void checkFactureGMBS()} />
+                        <DocumentManager
+                          entityType="intervention"
+                          entityId={intervention.id}
+                          kinds={DOCUMENT_KINDS}
+                          currentUser={currentUser ?? undefined}
+                          onChange={() => void checkFactureGMBS()}
+                          highlightedKinds={requiresFacture && !hasFactureGMBS ? ["facturesGMBS"] : []}
+                        />
                       </CardContent>
                     </CollapsibleContent>
                   </Card>
