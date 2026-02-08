@@ -431,11 +431,15 @@ export async function syncCacheWithRealtimeEvent(
       console.log(`[cache-sync] ℹ️ Modification locale détectée pour intervention ${enrichedNewRecord.id}, badge non créé (dans localModifications: ${isLocal})`)
     }
 
-    // Mise à jour du détail de l'intervention si elle existe dans le cache
-    queryClient.setQueryData(
-      interventionKeys.detail(enrichedNewRecord.id),
-      enrichedNewRecord
-    )
+    // Invalider le détail pour forcer un refetch avec JOINs complets (costs, payments, artisans)
+    // On utilise invalidateQueries au lieu de setQueryData car le payload Realtime
+    // ne contient que les colonnes de la table interventions, pas les données enfants.
+    // refetchType: 'active' = refetch uniquement si le modal est ouvert (query montée)
+    console.log(`[cache-sync] Invalidation du détail pour intervention ${enrichedNewRecord.id_inter} avec refetchType 'active'`)
+    queryClient.invalidateQueries({
+      queryKey: interventionKeys.detail(enrichedNewRecord.id),
+      refetchType: 'active',
+    })
   }
 
   // Note: L'invalidation immédiate ci-dessus avec refetchType: 'active' garantit déjà
