@@ -1,7 +1,7 @@
 // ===== API INTERVENTIONS V2 =====
 // Gestion complète des interventions
 
-import { supabase } from "@/lib/supabase-client";
+import { supabase, getSupabaseClientForNode } from "./common/client";
 import { RevenueProjectionService } from "@/lib/services/revenueProjection";
 import type {
   AdminDashboardStats,
@@ -53,35 +53,6 @@ import type { InterventionWithStatus, InterventionStatus } from "@/types/interve
 import { isCheckStatus } from "@/lib/interventions/checkStatus";
 import { automaticTransitionService } from "@/lib/interventions/automatic-transition-service";
 import type { InterventionStatusKey } from "@/config/interventions";
-
-/**
- * Crée un client Supabase admin pour Node.js avec les bonnes credentials
- * Utilise la service role key pour contourner les RLS lors des imports
- */
-function getSupabaseClientForNode() {
-  // Si on est dans le navigateur, utiliser le client standard
-  if (typeof window !== 'undefined') {
-    return supabase;
-  }
-
-  // Dans Node.js, créer un nouveau client avec les credentials du service role
-  const { createClient } = require('@supabase/supabase-js');
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-  if (!supabaseUrl || !serviceRoleKey) {
-    console.warn('[interventionsApi] SUPABASE_URL ou SUPABASE_SERVICE_ROLE_KEY manquants, utilisation du client standard');
-    return supabase;
-  }
-
-  return createClient(supabaseUrl, serviceRoleKey, {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false,
-      detectSessionInUrl: false,
-    }
-  });
-}
 
 // Utiliser le client admin dans Node.js, le client standard dans le navigateur
 const supabaseClient = typeof window !== 'undefined' ? supabase : getSupabaseClientForNode();
