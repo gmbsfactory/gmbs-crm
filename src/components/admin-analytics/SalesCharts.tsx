@@ -31,7 +31,7 @@ export function SalesCharts({ data, isLoading }: SalesChartsProps) {
                                 <XAxis dataKey="name" className="text-xs" />
                                 <YAxis className="text-xs" tickFormatter={(value) => `${value / 1000}k`} />
                                 <Tooltip
-                                    formatter={(value: number) => [`${value.toLocaleString()} €`, undefined]}
+                                    formatter={(value) => [`${Number(value).toLocaleString()} €`, undefined]}
                                     contentStyle={{ backgroundColor: 'hsl(var(--background))', borderColor: 'hsl(var(--border))' }}
                                 />
                                 <Legend />
@@ -56,7 +56,7 @@ export function SalesCharts({ data, isLoading }: SalesChartsProps) {
                                 <XAxis type="number" unit="%" />
                                 <YAxis dataKey="name" type="category" width={100} className="text-xs" />
                                 <Tooltip
-                                    formatter={(value: number) => [`${value}%`, "Croissance"]}
+                                    formatter={(value) => [`${Number(value)}%`, "Croissance"]}
                                     contentStyle={{ backgroundColor: 'hsl(var(--background))', borderColor: 'hsl(var(--border))' }}
                                 />
                                 <Bar dataKey="growth" fill="#8884d8" radius={[0, 4, 4, 0]}>

@@ -244,7 +244,6 @@ export class SyncQueue {
 
         // Attendre avant la prochaine tentative (backoff exponentiel)
         const delay = delays[attempt] || delays[delays.length - 1]
-        console.log(`[SyncQueue] Tentative ${attempt + 1}/${maxRetries} échouée pour ${modification.id}, nouvelle tentative dans ${delay}ms`)
         await new Promise((resolve) => setTimeout(resolve, delay))
       }
     }
@@ -260,7 +259,6 @@ export class SyncQueue {
   private async syncModification(modification: QueuedModification): Promise<void> {
     // TODO: Intégrer avec l'API réelle
     // Pour l'instant, on simule juste le traitement
-    console.log('[SyncQueue] Synchronisation de la modification:', modification.id)
   }
 
   /**
@@ -270,7 +268,6 @@ export class SyncQueue {
   restoreOnReconnect() {
     this.loadFromStorage()
     if (this.queue.length > 0) {
-      console.log(`[SyncQueue] ${this.queue.length} modification(s) en attente de synchronisation`)
       // Redémarrer le traitement par batch si nécessaire
       this.startBatchProcessing()
     }
@@ -289,5 +286,4 @@ export function getSyncQueue(): SyncQueue {
   }
   return syncQueueInstance
 }
-
 

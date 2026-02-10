@@ -31,7 +31,6 @@ export function ArtisanFinancesSection({ interventions, artisanId }: ArtisanFina
         if (process.env.NODE_ENV === "development") {
           const labels = intervention.costs.map((c) => c.label).filter(Boolean)
           if (labels.length > 0) {
-            console.log("[ArtisanFinancesSection] Labels de coûts trouvés:", labels)
           }
         }
 
@@ -174,8 +173,8 @@ export function ArtisanFinancesSection({ interventions, artisanId }: ArtisanFina
                       tickFormatter={(value) => `€${(value / 1000).toFixed(0)}k`}
                     />
                     <Tooltip
-                      formatter={(value: number) => [
-                        `€${value.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+                      formatter={(value) => [
+                        `€${Number(value).toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
                         "",
                       ]}
                     />

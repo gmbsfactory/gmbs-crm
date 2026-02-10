@@ -31,17 +31,14 @@ function getAdminClient() {
 
 export async function POST(request: Request, { params }: Params) {
   try {
-    console.log("[assign] Starting assignment...")
     
     const permCheck = await requirePermission(request, "write_interventions")
     if (isPermissionError(permCheck)) return permCheck.error
 
     const { id } = await params
-    console.log("[assign] Intervention ID:", id)
     
     // requirePermission a déjà vérifié l'authentification et retourne l'ID utilisateur public
     const userId = permCheck.user.id
-    console.log("[assign] User ID:", userId)
     
     if (!userId) {
       return NextResponse.json({ error: "Utilisateur non trouvé" }, { status: 401 })
@@ -78,7 +75,6 @@ export async function POST(request: Request, { params }: Params) {
       return NextResponse.json({ error: "Intervention non trouvée" }, { status: 404 })
     }
     
-    console.log("[assign] Success:", updated.id_inter)
     return NextResponse.json({ intervention: updated, id_inter: updated.id_inter })
   } catch (error) {
     console.error("[assign] Erreur:", error)

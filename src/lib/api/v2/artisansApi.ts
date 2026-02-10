@@ -2001,10 +2001,6 @@ export const artisansApi = {
         batchOffset += BATCH_SIZE;
       }
 
-      console.log('[artisansApi.getNearbyArtisans] Artisans with target metier:', {
-        metier_id,
-        count: artisanIdsWithTargetMetier.size
-      });
     }
 
     // Calculate bounding box for geographic pre-filtering
@@ -2019,16 +2015,6 @@ export const artisansApi = {
     const maxLat = latitude + latDelta;
     const minLng = longitude - lngDelta;
     const maxLng = longitude + lngDelta;
-
-    console.log('[artisansApi.getNearbyArtisans] Bounding box:', {
-      minLat,
-      maxLat,
-      minLng,
-      maxLng,
-      latDelta,
-      lngDelta,
-      maxDistanceKm
-    });
 
     // Fetch artisans with coordinates within the bounding box
     // No need for SAMPLE_SIZE limit since we're using geographic filtering
@@ -2073,13 +2059,6 @@ export const artisansApi = {
       console.error('[artisansApi.getNearbyArtisans] Query error:', error);
       throw error;
     }
-
-    console.log('[artisansApi.getNearbyArtisans] Fetched artisans:', {
-      count: data?.length || 0,
-      latitude,
-      longitude,
-      maxDistanceKm
-    });
 
     // Calculate distances and enrich data
     const enriched: (any | null)[] =
@@ -2158,15 +2137,6 @@ export const artisansApi = {
       });
 
     const total = validArtisans.length;
-
-    console.log('[artisansApi.getNearbyArtisans] After distance filter:', {
-      enrichedCount: enriched.length,
-      validCount: validArtisans.length,
-      total,
-      maxDistanceKm,
-      closestDistance: validArtisans[0]?.distanceKm,
-      farthestDistance: validArtisans[validArtisans.length - 1]?.distanceKm,
-    });
 
     // Apply pagination
     const paginatedArtisans = validArtisans.slice(offset, offset + limit);
@@ -2310,10 +2280,6 @@ export const artisansApi = {
         batchOffset += BATCH_SIZE;
       }
 
-      console.log('[artisansApi.searchArtisans] Artisans with target metier:', {
-        metier_id,
-        count: artisanIdsWithTargetMetier.size
-      });
     }
 
     // Construire la requête Supabase

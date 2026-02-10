@@ -99,7 +99,6 @@ export function usePreloadView(
           staleTime,
         })
 
-        console.log(`[usePreloadView] ✅ Vue "${viewTitle}" préchargée (idle)`)
       } catch (err) {
         console.warn(`[usePreloadView] ⚠️ Erreur lors du préchargement vue "${viewTitle}":`, err)
       }
@@ -146,7 +145,6 @@ export function usePreloadGeneralList(options: PreloadOptions = {}) {
         staleTime,
       })
 
-      console.log(`[usePreloadGeneralList] ✅ Liste générale préchargée (idle)`)
     }, { timeout: 2000 })
 
     return cleanup
@@ -199,7 +197,6 @@ export function usePreloadViews(
     // Limiter le nombre de vues à précharger selon les capacités
     const viewsToPreload = currentViews.slice(0, maxViews)
     
-    console.log(`[usePreloadViews] 🚀 Préchargement de ${viewsToPreload.length}/${currentViews.length} vues (adaptatif: ${batchSize} batch, ${batchDelay}ms délai)`)
 
     let cancelled = false
     const cleanups: (() => void)[] = []
@@ -237,7 +234,6 @@ export function usePreloadViews(
           staleTime,
         })
 
-        console.log(`[usePreloadViews] ✅ Vue "${view.title}" préchargée`)
       } catch (err) {
         console.warn(`[usePreloadViews] ⚠️ Erreur préchargement "${view.title}":`, err)
       }

@@ -63,12 +63,6 @@ export function GenieEffectProvider({ children }: { children: React.ReactNode })
     targetViewId: string,
     onComplete: () => void
   ) => {
-    console.log(`[GenieEffect] 🎬 Animation déclenchée:`, {
-      interventionId,
-      targetViewId,
-      sourceElement: sourceElement.tagName,
-      registeredBadges: Array.from(badgeRefs.current.keys()),
-    })
     
     const targetElement = badgeRefs.current.get(targetViewId)
     
@@ -80,7 +74,6 @@ export function GenieEffectProvider({ children }: { children: React.ReactNode })
       return
     }
     
-    console.log(`[GenieEffect] ✅ Pastille cible trouvée:`, targetElement)
     
     setIsAnimating(true)
     setAnimatingInterventionId(interventionId)
@@ -172,7 +165,6 @@ export function GenieEffectProvider({ children }: { children: React.ReactNode })
     document.body.appendChild(clone)
     animationCloneRef.current = clone
     
-    console.log(`[GenieEffect] 🚀 Clone créé à:`, { startX, startY, startWidth, startHeight })
     
     // Cacher la ligne source immédiatement (elle est clonée)
     sourceElement.style.opacity = "0"

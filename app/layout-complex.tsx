@@ -44,7 +44,7 @@ export default async function RootLayout({
     if (rawSettings) {
       try {
         settings = JSON.parse(rawSettings) || {};
-      } catch (_) {}
+      } catch (_) { /* Silenced: corrupted localStorage data, use defaults */ }
     }
     let storedMode = localStorage.getItem('color-mode');
     if (!storedMode && settings && typeof settings.theme === 'string') storedMode = settings.theme;
@@ -141,7 +141,7 @@ export default async function RootLayout({
       root.style.setProperty('--primary', tone.p || tone.h);
       root.style.setProperty('--primary-foreground', tone.pf || tone.af || '0 0% 100%');
     }
-  } catch (_) {}
+  } catch (_) { /* Silenced: SSR or DOM not ready for theme application */ }
 })();`,
           }}
         />

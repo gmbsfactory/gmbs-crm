@@ -673,11 +673,9 @@ export default function ArtisansPage(): ReactElement {
   }, [])
 
   const handleSendEmail = useCallback((contact: Contact) => {
-    console.log("Send email to:", contact.email)
   }, [])
 
   const handleCall = useCallback((contact: Contact) => {
-    console.log("Call:", contact.phone)
   }, [])
 
   // Compteurs avec filtres serveur appliqués

@@ -313,9 +313,9 @@ export default function Interventions({
                 >
                   <InterventionCard
                     intervention={intervention}
-                    onSendEmail={() => console.log("TODO: send email", intervention.id)}
-                    onCall={() => console.log("TODO: call", intervention.id)}
-                    onAddDocument={() => console.log("TODO: add document", intervention.id)}
+                    onSendEmail={() => {}}
+                    onCall={() => {}}
+                    onAddDocument={() => {}}
                     onStatusChange={(it, status) => handleStatusChange(it as unknown as SupabaseIntervention, status)}
                     expanded={expandedId === intervention.id}
                     onToggle={() => setExpandedId((prev) => (prev === intervention.id ? null : intervention.id))}

@@ -111,7 +111,6 @@ export const interventionsApi = {
             m.id === params.metier
         );
         metierParam = metierObj?.id || params.metier;
-        console.log(`[interventionsApi.getAll] Métier conversion: "${params.metier}" → "${metierParam}"`, { metierObj });
       }
 
       // Convertir plusieurs métiers (codes → IDs) - insensible à la casse
@@ -123,10 +122,6 @@ export const interventionsApi = {
               m.id === metierCodeOrId
           );
           return metierObj?.id || metierCodeOrId;
-        });
-        console.log(`[interventionsApi.getAll] Métiers conversion:`, {
-          input: params.metiers,
-          output: metiersParam
         });
       }
     }
@@ -201,9 +196,6 @@ export const interventionsApi = {
     const functionsUrl = getSupabaseFunctionsUrl();
     const url = `${functionsUrl}/interventions-v2/interventions${queryString ? `?${queryString}` : ""}`;
 
-    console.log(`[interventionsApi.getAll] URL: ${url}`)
-    console.log(`[interventionsApi.getAll] Params: limit=${limit}, offset=${params?.offset ?? 0}`)
-
     const fetchStart = Date.now();
     const response = await fetch(url, {
       headers: await getHeaders(),
@@ -220,8 +212,6 @@ export const interventionsApi = {
       ? raw.data.map((item: any) => mapInterventionRecord(item, refs) as InterventionWithStatus)
       : [];
     const mapDuration = Date.now() - mapStart;
-
-    console.log(`🚀 [interventionsApi.getAll] Fetch: ${fetchDuration}ms, Map: ${mapDuration}ms, Total: ${transformedData.length} items`);
 
     const total =
       typeof raw?.pagination?.total === "number"
@@ -2179,7 +2169,6 @@ export const interventionsApi = {
       const statusCode = intervention.status?.code;
 
       if (!statusCode) {
-        console.log(`[WeeklyStats] Intervention sans statut:`, intervention.id);
         return;
       }
 
@@ -2203,7 +2192,6 @@ export const interventionsApi = {
         if (dayKey) interFactures[dayKey]++;
         interFactures.total++;
       } else {
-        console.log(`[WeeklyStats] Statut non compté: ${statusCode} pour intervention ${intervention.id}`);
       }
     });
 
@@ -3003,20 +2991,6 @@ export const interventionsApi = {
     const periodStartTimestamp = `${periodStart}T00:00:00`;
     const periodEndTimestamp = `${periodEnd}T23:59:59`;
 
-    // Log: Paramètres de la requête
-    console.log('\n📊 ========================================');
-    console.log('📊 DASHBOARD ADMIN - Récupération des statistiques');
-    console.log('📊 ========================================');
-    console.log(`📅 Période: ${periodType}`);
-    console.log(`📅 Date début: ${periodStart}`);
-    console.log(`📅 Date fin: ${periodEnd}`);
-    if (agenceIds?.length) console.log(`🏢 Agences: ${agenceIds.join(', ')}`);
-    if (gestionnaireIds?.length) console.log(`👤 Gestionnaires: ${gestionnaireIds.join(', ')}`);
-    if (metierIds?.length) console.log(`🔧 Métiers: ${metierIds.join(', ')}`);
-
-    // Log: Opération en cours
-    console.log('\n🔍 Opération: Appel de la fonction RPC get_admin_dashboard_stats_v3...');
-
     // Appeler la fonction RPC V3
     const { data: rpcResult, error: rpcError } = await supabase.rpc(
       'get_admin_dashboard_stats_v3',
@@ -3044,8 +3018,6 @@ export const interventionsApi = {
       console.error('\n❌ Aucune donnée retournée par la fonction RPC');
       throw new Error('Aucune donnée retournée par la fonction RPC');
     }
-
-    console.log('✅ RPC exécuté avec succès');
 
     // Parser le résultat JSON de la fonction SQL V3
     const kpiMain = rpcResult.kpi_main || {};
@@ -3084,13 +3056,6 @@ export const interventionsApi = {
     const rawGestionnaireStats = rpcResult.performance_gestionnaires || [];
 
     // DEBUG: Données brutes reçues
-    console.log('\n🏢 ========================================');
-    console.log('🏢 DEBUG: Données brutes reçues');
-    console.log('🏢 ========================================');
-    console.log('📊 rawAgencyStats:', JSON.stringify(rawAgencyStats, null, 2));
-    console.log('👤 rawGestionnaireStats:', JSON.stringify(rawGestionnaireStats, null, 2));
-    console.log('📊 rawAgencyStats.length:', rawAgencyStats?.length || 0);
-    console.log('👤 rawGestionnaireStats.length:', rawGestionnaireStats?.length || 0);
 
     // Normaliser les codes du funnel de conversion depuis v3
     // V3 retourne déjà: { status_code: 'DEMANDE', count: X }
@@ -3099,9 +3064,6 @@ export const interventionsApi = {
       statusCode: item.status_code || '',
       count: item.count || 0,
     }));
-
-    console.log('\n🔄 Funnel de conversion:', JSON.stringify(normalizedConversionFunnel, null, 2));
-    console.log('📋 Status breakdown:', JSON.stringify(statusBreakdown, null, 2));
 
     // Récupérer les valeurs depuis kpi_main (v3)
     const nbDemandees = kpiMain.nb_interventions_demandees || 0;
@@ -3113,16 +3075,6 @@ export const interventionsApi = {
     const tauxMarge = kpiMain.taux_marge || 0;
 
     // Log: KPIs principaux
-    console.log('\n📈 ========================================');
-    console.log('📈 KPIs PRINCIPAUX (V3)');
-    console.log('📈 ========================================');
-    console.log(`📥 Interventions demandées: ${nbDemandees}`);
-    console.log(`✅ Interventions terminées: ${nbTerminees}`);
-    console.log(`📊 Taux de transformation: ${tauxTransformation.toFixed(2)}%`);
-    console.log(`💰 Taux de marge: ${tauxMarge.toFixed(2)}%`);
-    console.log(`💵 Chiffre d'affaires total: ${totalPaiements.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })}`);
-    console.log(`💸 Coûts totaux: ${totalCouts.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })}`);
-    console.log(`💎 Marge nette: ${margeTotal.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })}`);
 
     // Construire mainStats
     const mainStats = {
@@ -3142,7 +3094,6 @@ export const interventionsApi = {
     };
 
     // Récupérer le cache de référence pour mapper les codes aux labels
-    console.log('\n🔍 Opération: Récupération du cache de référence...');
     const refs = await getReferenceCache();
 
     // Récupérer les statuts pour mapper les codes aux labels
@@ -3155,7 +3106,6 @@ export const interventionsApi = {
     // ========================================
     // 2. STATISTIQUES DES STATUTS (V3)
     // ========================================
-    console.log('\n🔍 Opération: Mapping des statistiques par statut (V3)...');
 
     // Mapper le status breakdown retourné par v3
     // V3 retourne: { status_code: 'XXX', status_label: 'Label', count: N }
@@ -3182,20 +3132,10 @@ export const interventionsApi = {
     };
 
     // Log: Statistiques par statut
-    console.log('\n📋 ========================================');
-    console.log('📋 STATISTIQUES PAR STATUT (V3)');
-    console.log('📋 ========================================');
-    console.log(`📥 Demandes reçues: ${statusStats.nbDemandesRecues}`);
-    console.log(`📄 Devis envoyés: ${statusStats.nbDevisEnvoye}`);
-    console.log(`🔄 En cours: ${statusStats.nbEnCours}`);
-    console.log(`⏳ Attente acompte: ${statusStats.nbAttAcompte}`);
-    console.log(`✅ Acceptées: ${statusStats.nbAccepte}`);
-    console.log(`🏁 Terminées: ${statusStats.nbTermine}`);
 
     // ========================================
     // 3. STATISTIQUES PAR MÉTIER (V3)
     // ========================================
-    console.log('\n🔍 Opération: Calcul des statistiques par métier (V3)...');
 
     const metierStats = rawMetierStats
       .map((item: any) => {
@@ -3226,20 +3166,14 @@ export const interventionsApi = {
       .sort((a: any, b: any) => b.nbInterventionsPrises - a.nbInterventionsPrises);
 
     // Log: Statistiques par métier (top 5)
-    console.log('\n🔧 ========================================');
-    console.log('🔧 STATISTIQUES PAR MÉTIER (Top 5)');
-    console.log('🔧 ========================================');
     metierStats.slice(0, 5).forEach((metier: any, index: number) => {
-      console.log(`${index + 1}. ${metier.metierLabel}: ${metier.count} interventions (${metier.percentage.toFixed(1)}%)`);
     });
     if (metierStats.length > 5) {
-      console.log(`... et ${metierStats.length - 5} autre(s) métier(s)`);
     }
 
     // ========================================
     // 4. STATISTIQUES PAR AGENCE (V3)
     // ========================================
-    console.log('\n🔍 Opération: Calcul des statistiques par agence (V3)...');
 
     const agencyStats = rawAgencyStats.map((item: any) => {
       const ca = Number(item.ca_total || 0);
@@ -3259,29 +3193,18 @@ export const interventionsApi = {
     }).sort((a: any, b: any) => b.ca - a.ca);
 
     // DEBUG: agencyStats après mapping
-    console.log('\n✅ agencyStats mappées:', agencyStats.length);
     if (agencyStats.length > 0) {
-      console.log('📋 Premier élément:', JSON.stringify(agencyStats[0], null, 2));
     }
 
     // Log: Statistiques par agence (top 5)
-    console.log('\n🏢 ========================================');
-    console.log('🏢 STATISTIQUES PAR AGENCE (Top 5)');
-    console.log('🏢 ========================================');
     agencyStats.slice(0, 5).forEach((agency: typeof agencyStats[0], index: number) => {
-      console.log(`${index + 1}. ${agency.agencyLabel}:`);
-      console.log(`   - Interventions: ${agency.nbTotalInterventions} totales, ${agency.nbInterventionsTerminees} terminées`);
-      console.log(`   - CA: ${agency.ca.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })}`);
-      console.log(`   - Marge: ${agency.marge.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })} (${agency.tauxMarge.toFixed(2)}%)`);
     });
     if (agencyStats.length > 5) {
-      console.log(`... et ${agencyStats.length - 5} autre(s) agence(s)`);
     }
 
     // ========================================
     // 5. STATISTIQUES PAR GESTIONNAIRE (V3)
     // ========================================
-    console.log('\n🔍 Opération: Calcul des statistiques par gestionnaire (V3)...');
 
     const gestionnaireStats = rawGestionnaireStats.map((item: any) => {
       const ca = Number(item.ca_total || 0);
@@ -3305,27 +3228,14 @@ export const interventionsApi = {
     }).sort((a: any, b: any) => b.ca - a.ca);
 
     // DEBUG: gestionnaireStats après mapping
-    console.log('\n✅ gestionnaireStats mappées:', gestionnaireStats.length);
     if (gestionnaireStats.length > 0) {
-      console.log('📋 Premier élément:', JSON.stringify(gestionnaireStats[0], null, 2));
     }
 
     // Log: Statistiques par gestionnaire (top 5)
-    console.log('\n👤 ========================================');
-    console.log('👤 STATISTIQUES PAR GESTIONNAIRE (Top 5)');
-    console.log('👤 ========================================');
     gestionnaireStats.slice(0, 5).forEach((gestionnaire: typeof gestionnaireStats[0], index: number) => {
-      console.log(`${index + 1}. ${gestionnaire.gestionnaireLabel}:`);
-      console.log(`   - Interventions: ${gestionnaire.nbInterventionsPrises} prises, ${gestionnaire.nbInterventionsTerminees} terminées`);
-      console.log(`   - Taux transformation: ${gestionnaire.tauxTransformation.toFixed(2)}%`);
-      console.log(`   - CA: ${gestionnaire.ca.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })}`);
-      console.log(`   - Marge: ${gestionnaire.marge.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })} (${gestionnaire.tauxMarge.toFixed(2)}%)`);
     });
     if (gestionnaireStats.length > 5) {
-      console.log(`... et ${gestionnaireStats.length - 5} autre(s) gestionnaire(s)`);
     }
-
-    console.log('✅ ========================================\n');
 
     return {
       mainStats,

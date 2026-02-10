@@ -53,7 +53,6 @@ export class NominatimProvider implements GeocodeProvider {
         }
 
         if (verbose) {
-            console.log(`[${this.name}] Fetching: ${endpoint.toString()}`)
         }
 
         try {
@@ -74,10 +73,8 @@ export class NominatimProvider implements GeocodeProvider {
             const data = (await response.json()) as NominatimApiResponse
             
             if (verbose) {
-                console.log(`[${this.name}] Raw API Results:`, data?.length ?? 0)
                 if (data && data.length > 0) {
                     data.slice(0, 2).forEach((f, i) => {
-                        console.log(`  Result ${i+1}: ${f.display_name} (importance: ${f.importance})`)
                     })
                 }
             }
@@ -124,5 +121,4 @@ export class NominatimProvider implements GeocodeProvider {
         return `GMBS-CRM/1.0 (${projectUrl})`
     }
 }
-
 

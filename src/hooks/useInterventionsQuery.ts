@@ -200,7 +200,6 @@ export function useInterventionsQuery(
     const firstId = newArray[0]?.id ?? 'none'
     const lastId = newArray[newArray.length - 1]?.id ?? 'none'
     if (process.env.NODE_ENV !== 'production') {
-      console.log(`[useInterventionsQuery] interventions mis à jour - length: ${newArray.length}, page: ${page}, offset: ${offset}, firstId: ${firstId}, lastId: ${lastId}`)
     }
     return newArray
   }, [data?.data, page, offset])

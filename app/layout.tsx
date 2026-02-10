@@ -66,7 +66,7 @@ export default async function RootLayout({
         console.warn('Données corrompues dans gmbs:settings, nettoyage...', e);
         try {
           localStorage.removeItem('gmbs:settings');
-        } catch (_) {}
+        } catch (_) { /* Silenced: localStorage.removeItem is non-critical cleanup */ }
         settings = {};
       }
     }

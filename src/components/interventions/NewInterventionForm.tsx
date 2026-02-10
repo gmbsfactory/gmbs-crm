@@ -58,7 +58,6 @@ const STATUS_SORT_ORDER: Record<string, number> = {
   INTER_TERMINEE: 7,
 }
 
-
 const MAX_RADIUS_KM = 10000
 
 // Note: requires_reference est maintenant géré via la table agency_config en base de données
@@ -1059,7 +1058,6 @@ export function NewInterventionForm({
       // Réinitialiser le flag après vérification
       skipDuplicateCheckRef.current = false
 
-      console.log(`[NewInterventionForm] 📝 Création de l'intervention via interventionsApi`)
       const created = await interventionsApi.create(createData)
       setCreatedInterventionId(created.id)
 

@@ -149,7 +149,6 @@ type TableViewProps = {
   headerColor?: string | null
 }
 
-
 type CellRender = {
   content: ReactNode
   backgroundColor?: string
@@ -705,7 +704,6 @@ export function TableView({
 }: TableViewProps) {
   // Log pour debug pagination
   useEffect(() => {
-    console.log(`[TableView] Props pagination - currentPage: ${currentPage}, totalPages: ${totalPages}, totalCount: ${totalCount}, onPageChange: ${typeof onPageChange}`)
   }, [currentPage, totalPages, totalCount, onPageChange])
 
   // Récupérer les fonctions de mapping depuis le Context
@@ -731,7 +729,6 @@ export function TableView({
     // Si on les réapplique ici, on filtre 2 fois les mêmes données !
     const firstId = interventions[0]?.id ?? 'none'
     const lastId = interventions[interventions.length - 1]?.id ?? 'none'
-    console.log(`[TableView] dataset recalculé - length: ${interventions.length}, firstId: ${firstId}, lastId: ${lastId}, currentPage: ${currentPage}`)
     return interventions;
   }, [interventions, currentPage])
   const orderedIds = useMemo(() => dataset.map((item) => item.id), [dataset])
@@ -826,7 +823,6 @@ export function TableView({
     if (previousPageRef.current !== currentPage) {
       previousPageRef.current = currentPage
       if (tableContainerRef.current && dataset.length > 0) {
-        console.log(`[TableView] Réinitialisation du scroll pour la page ${currentPage}`)
         tableContainerRef.current.scrollTop = 0
         requestAnimationFrame(() => {
           if (tableContainerRef.current) {
@@ -842,7 +838,6 @@ export function TableView({
   useEffect(() => {
     if (previousRowHeightRef.current !== rowHeight && dataset.length > 0) {
       previousRowHeightRef.current = rowHeight
-      console.log(`[TableView] Mise à jour du virtualizer - rowHeight changé: ${rowHeight}`)
       rowVirtualizer.measure()
     }
   }, [rowHeight, dataset.length, rowVirtualizer])

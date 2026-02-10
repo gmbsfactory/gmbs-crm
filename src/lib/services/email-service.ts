@@ -161,7 +161,6 @@ export async function sendEmailToArtisan(params: SendEmailParams): Promise<SendE
       // If not the last attempt, wait before retrying
       if (attempt < maxAttempts) {
         const delay = backoffDelays[attempt];
-        console.log(`[Email Service] Retrying in ${delay}ms...`);
         await sleep(delay);
       }
     }
@@ -193,6 +192,4 @@ export function validateGmailEmail(email: string): boolean {
   const domain = email.split('@')[1]?.toLowerCase();
   return domain === 'gmail.com' || domain === 'googlemail.com';
 }
-
-
 

@@ -197,7 +197,6 @@ const filtersShallowEqual = (a: ViewFilter[], b: ViewFilter[]) => {
   )
 }
 
-
 export default function Page() {
   const { can, isLoading } = usePermissions()
 
@@ -438,7 +437,6 @@ function PageContent() {
 
         if (shouldRetry) {
           const delay = baseDelay * Math.pow(2, attempt)
-          console.log(`[retryWithBackoff] Tentative ${attempt + 1}/${maxRetries + 1} après ${delay}ms pour erreur ${status}`)
           await new Promise((resolve) => setTimeout(resolve, delay))
           continue
         }
@@ -524,7 +522,6 @@ function PageContent() {
   }, [isViewChanging, remoteLoading, fetchedInterventions.length])
 
   const normalizedInterventions = useMemo(() => {
-    console.log(`[page.tsx] normalizedInterventions recalculé - fetchedInterventions.length: ${fetchedInterventions.length}, page: ${page}, currentPage: ${currentPage}`)
     const normalized = fetchedInterventions.map((item) => {
       const statusCode = item.status?.code ?? item.statusValue ?? (item as any).statut
       const normalizedStatus = mapStatusFromDb(statusCode)
@@ -541,7 +538,6 @@ function PageContent() {
       } as InterventionEntity & { datePrevue: string | null; isCheck: boolean }
     })
     const checkCount = normalized.filter(i => i.isCheck).length
-    console.log(`[page.tsx] interventions avec isCheck=true: ${checkCount}/${normalized.length}`)
     return normalized
   }, [fetchedInterventions, page, currentPage])
 
@@ -831,7 +827,6 @@ function PageContent() {
 
   // Log pour debug
   useEffect(() => {
-    console.log(`[page.tsx] viewInterventions mis à jour - length: ${viewInterventions.length}, fetchedInterventions.length: ${fetchedInterventions.length}, page: ${page}, currentPage: ${currentPage}, totalPages: ${totalPages}`)
   }, [viewInterventions.length, fetchedInterventions.length, page, currentPage, totalPages])
 
   // Remplacer localViewCounts par viewCounts (counts réels depuis BDD)

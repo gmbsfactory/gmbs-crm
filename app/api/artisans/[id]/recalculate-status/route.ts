@@ -42,7 +42,6 @@ export async function POST(
     // Exécuter le script de manière asynchrone (ne pas attendre la fin)
     execAsync(`node ${scriptPath} ${artisanId}`)
       .then(() => {
-        console.log(`✅ Statut recalculé pour artisan ${artisanId}`);
       })
       .catch((error) => {
         console.error(`❌ Erreur lors du recalcul pour artisan ${artisanId}:`, error);

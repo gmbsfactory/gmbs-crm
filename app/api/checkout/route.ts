@@ -24,7 +24,7 @@ async function getOrSetWalletId(): Promise<string> {
     try {
       const parsed = JSON.parse(raw) as { id: string; sig: string }
       if (parsed.sig === sign(parsed.id)) return parsed.id
-    } catch {}
+    } catch { /* Silenced: corrupted cookie, fall through to new ID */ }
   }
   const id = crypto.randomUUID()
   const value = JSON.stringify({ id, sig: sign(id) })

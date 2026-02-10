@@ -357,7 +357,6 @@ export function NewArtisanModalContent({ mode, onClose, onCycleMode, artisanId, 
     )?.id || "";
   }, [referenceData]);
 
-
   const { control, register, handleSubmit, reset, setValue, watch, getValues, formState: { errors, isDirty, dirtyFields } } = useForm<ArtisanFormValues>({
     defaultValues: buildDefaultFormValues(),
   })
@@ -416,14 +415,6 @@ export function NewArtisanModalContent({ mode, onClose, onCycleMode, artisanId, 
       })()
       
       // Debug: vérifier ce qui est chargé
-      console.log("[NewArtisanModalContent] Chargement artisan existant:", {
-        artisan_metiers: artisanAny.artisan_metiers,
-        metiers: artisanAny.metiers,
-        metierIds,
-        artisan_zones: artisanAny.artisan_zones,
-        zones: artisanAny.zones,
-        zoneValue,
-      })
 
       // Sauvegarder le statut initial pour pouvoir y revenir depuis ONE_SHOT
       if (artisanAny.statut_id && !initialArtisanStatusId) {
@@ -994,14 +985,6 @@ export function NewArtisanModalContent({ mode, onClose, onCycleMode, artisanId, 
       const payload = buildCreatePayload(values)
       
       // Debug: vérifier que les métiers et zones sont bien inclus
-      console.log("[NewArtisanModalContent] Payload avant envoi:", {
-        payload_complet: payload,
-        metiers: payload.metiers,
-        zones: payload.zones,
-        zone_intervention: values.zone_intervention,
-        metiers_values: values.metiers,
-        metierOptions: metierOptions.map(m => ({ id: m.id, label: m.label })),
-      })
       
       if (isEditMode && artisanId) {
         // Mode édition

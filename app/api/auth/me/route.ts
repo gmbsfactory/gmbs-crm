@@ -6,7 +6,6 @@ export const runtime = 'nodejs'
 
 // This route handles authentication and user information retrieval.
 
-
 // Sélection de base sans jointures pour éviter les erreurs
 const userSelectBasic = `
   id, firstname, lastname, email, status, color, 
@@ -137,7 +136,6 @@ export async function GET(req: Request) {
     const userEmail = authUser?.user?.email || null
 
     if (!userId && !userEmail) {
-      console.log('[auth/me] No userId and no userEmail, returning null')
       return NextResponse.json({ user: null })
     }
 
@@ -159,15 +157,12 @@ export async function GET(req: Request) {
           .maybeSingle()
 
         if (mappingError) {
-          console.log('[auth/me] Mapping error detected:', mappingError.code, mappingError.message)
           // Si la table n'existe pas (PGRST205), ignorer et continuer avec le fallback
           if (mappingError.code === 'PGRST205') {
-            console.log('[auth/me] Table does not exist, continuing with fallback')
             // Continuer avec le fallback par email
           }
           // Si erreur de jointure, essayer sans jointures
           else if (mappingError.code === 'PGRST301' || mappingError.message?.includes('relation') || mappingError.message?.includes('column')) {
-            console.log('[auth/me] Join error, trying without joins...')
             const { data: mappingResultBasic, error: mappingErrorBasic } = await supabase
               .from('auth_user_mapping')
               .select(`
@@ -201,10 +196,8 @@ export async function GET(req: Request) {
           .maybeSingle()
 
         if (fallbackError) {
-          console.log('[auth/me] Fallback error detected:', fallbackError.code, fallbackError.message)
           // Si erreur de jointure, essayer sans jointures
           if (fallbackError.code === 'PGRST301' || fallbackError.message?.includes('relation') || fallbackError.message?.includes('column')) {
-            console.log('[auth/me] Join error in fallback, trying without joins...')
             const { data: fallbackResultBasic, error: fallbackErrorBasic } = await supabase
               .from('users')
               .select(userSelectBasic)
@@ -246,7 +239,6 @@ export async function GET(req: Request) {
     }
 
     if (!record) {
-      console.log('[auth/me] User not found in database')
       return NextResponse.json({ user: null })
     }
 
@@ -276,7 +268,6 @@ export async function GET(req: Request) {
             roles = rolesData
               .map((entry: any) => entry?.roles?.name)
               .filter((name: any): name is string => typeof name === 'string')
-            console.log('[auth/me] Fetched roles:', roles.length)
           }
 
           // Récupérer les permissions
