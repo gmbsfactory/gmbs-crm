@@ -2082,7 +2082,7 @@ export const InterventionEditForm = memo(function InterventionEditForm({
           {/* LAYOUT DEUX COLONNES DISTINCTES - Chaque colonne a son propre scroll */}
           <div className="flex gap-3 flex-1 min-h-0">
             {/* COLONNE GAUCHE - Scroll indépendant avec scrollbar minimale à gauche */}
-            <div className="flex-1 min-w-0 overflow-y-auto min-h-0 scrollbar-minimal scrollbar-left">
+            <div className="flex-1 min-w-0 overflow-y-auto min-h-0 scrollbar-minimal scrollbar-left px-3 pt-2">
               <SectionLock isLocked={!canEditIntervention}>
                 <div
                   className="grid gap-3 pb-4"
@@ -2759,7 +2759,7 @@ export const InterventionEditForm = memo(function InterventionEditForm({
 
             {/* COLONNE DROITE - Collapsibles avec scroll indépendant et scrollbar minimale */}
             <div
-              className="flex-shrink-0 overflow-y-auto min-h-0 scrollbar-minimal"
+              className="flex-shrink-0 overflow-y-auto min-h-0 scrollbar-minimal px-3 pt-2"
               style={{ width: `${rightColumnWidth}px` }}
             >
               <div className="flex flex-col gap-2 pb-4">

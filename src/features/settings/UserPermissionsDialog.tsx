@@ -836,14 +836,9 @@ export function UserPermissionsDialog({
               transition={{ type: "spring", damping: 25, stiffness: 300 }}
               onClick={(e) => e.stopPropagation()}
             >
-              {/* Header avec profil éditable - SOLID avec effet lévitation */}
+              {/* Header avec profil éditable */}
               <div
                 className="glass-modal-header relative px-6 py-5"
-                style={{
-                  background: "rgba(255, 255, 255, 0.97)",
-                  borderBottom: "1px solid rgba(255, 255, 255, 0.8)",
-                  boxShadow: "0 4px 16px rgba(51, 113, 178, 0.08), 0 2px 6px rgba(0, 0, 0, 0.04), inset 0 1px 0 rgba(255, 255, 255, 1)",
-                }}
               >
                 <button
                   onClick={() => onOpenChange(false)}
@@ -1297,14 +1292,9 @@ export function UserPermissionsDialog({
                 </AnimatePresence>
               </div>
               
-              {/* Footer - SOLID avec effet lévitation */}
+              {/* Footer */}
               <div
                 className="glass-modal-footer px-6 py-4 flex items-center justify-end gap-3"
-                style={{
-                  background: "rgba(255, 255, 255, 0.95)",
-                  borderTop: "1px solid rgba(255, 255, 255, 0.8)",
-                  boxShadow: "0 -4px 16px rgba(51, 113, 178, 0.08), 0 -2px 6px rgba(0, 0, 0, 0.04), inset 0 -1px 0 rgba(255, 255, 255, 1)",
-                }}
               >
                 <button
                   type="button"

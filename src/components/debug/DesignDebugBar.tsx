@@ -11,10 +11,10 @@ type DebugValues = {
 }
 
 const DEFAULT_VALUES: DebugValues = {
-  blur: 16,
-  opacity: 0.25,
-  saturation: 1.4,
-  color: "#ffffff",
+  blur: 50,
+  opacity: 0.14,
+  saturation: 3,
+  color: "#4b5cb5",
 }
 
 // Convertir hex en rgba

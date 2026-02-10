@@ -66,9 +66,9 @@
     0 4px 16px rgba(0, 0, 0, 0.12),
     0 2px 4px rgba(0, 0, 0, 0.08);
 
-  /* Header/Footer - SOLIDES pour contraste avec le corps translucide */
-  --modal-header-bg: rgba(255, 255, 255, 0.92);
-  --modal-footer-bg: rgba(255, 255, 255, 0.88);
+  /* Header/Footer - Continuité avec le background translucide du modal */
+  --modal-header-bg: rgba(255, 255, 255, 0.15);
+  --modal-footer-bg: rgba(255, 255, 255, 0.12);
 
   /* Inputs - TRÈS SOLIDES, ressortent du panneau */
   --modal-input-bg: rgba(255, 255, 255, 0.98);
@@ -1687,7 +1687,7 @@
     min-height: 0;
     height: 100%;
     width: 100%;
-    overflow: hidden;
+    overflow: visible;
     /* TRANSPARENT pour laisser voir le background translucide de GenericModal */
     background: transparent;
     background-image: none;
@@ -1706,12 +1706,9 @@
     justify-content: space-between;
     gap: 0.65rem;
     padding: 1rem 1.25rem;
-    background-image: linear-gradient(
-      to bottom,
-      color-mix(in oklab, var(--bg-light), white 12%),
-      color-mix(in oklab, var(--bg-light), transparent 0%)
-    );
-    border-bottom: 1px solid color-mix(in oklab, var(--border), black 8%);
+    background-image: none;
+    border-bottom: 1px solid var(--modal-divider);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08), 0 4px 12px rgba(0, 0, 0, 0.05);
   }
 
   .modal-config-columns-title {
@@ -1787,7 +1784,7 @@
     flex-direction: column;
     gap: 1.25rem;
     min-height: 0;
-    overflow: hidden;
+    overflow: visible;
   }
 
   .modal-config-columns-grid {
@@ -2077,12 +2074,13 @@
     justify-content: space-between;
     gap: 1rem;
     padding: 1rem 1.25rem;
-    border-top: 1px solid color-mix(in oklab, var(--border), black 10%);
+    border-top: 1px solid var(--modal-divider);
     background-image: linear-gradient(
       to bottom,
-      color-mix(in oklab, var(--bg), white 6%),
-      color-mix(in oklab, var(--bg), black 2%)
+      rgba(255, 255, 255, 0.08),
+      rgba(255, 255, 255, 0.35)
     );
+    box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.08), 0 -4px 12px rgba(0, 0, 0, 0.05);
   }
 
   .modal-config-columns-tooltip {
@@ -2124,11 +2122,8 @@
 
   :root[data-theme="dark"] .modal-config-columns-header {
     border-bottom: 1px solid hsl(var(--border));
-    background-image: linear-gradient(
-      to bottom,
-      hsl(var(--muted) / 0.4),
-      transparent
-    );
+    background-image: none;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15), 0 4px 12px rgba(0, 0, 0, 0.10);
   }
 
   :root[data-theme="dark"] .modal-config-columns-icon-button {
@@ -2323,6 +2318,7 @@
       hsl(var(--muted) / 0.3),
       hsl(var(--background))
     );
+    box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.15), 0 -4px 12px rgba(0, 0, 0, 0.10);
   }
 
   :root[data-theme="dark"] .tooltip-surface {
@@ -4774,10 +4770,10 @@ html:not([data-theme="dark"]) [data-radix-popper-content-wrapper] > div,
    Les sections LÉVITENT au-dessus du panneau de verre
    ═══════════════════════════════════════════════════════════════════════════ */
 
-/* Overlay des modaux - PAS de blur, juste assombrissement léger */
+/* Overlay des modaux - transparent, l'opacité est gérée par le background du modal */
 html:not([data-theme="dark"]) .modal-overlay,
 :root:not([data-theme="dark"]) .modal-overlay {
-  background: rgba(0, 0, 0, 0.20) !important;
+  background: rgba(0, 0, 0, 0) !important;
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
 }
@@ -4828,7 +4824,7 @@ html:not([data-theme="dark"]) .modal-surface-full,
    SECTIONS QUI LÉVITENT - Effet de flottement au-dessus du modal
    ═══════════════════════════════════════════════════════════════════════════ */
 
-/* Intervention form sections - LÉVITENT avec ombre prononcée */
+/* Intervention form sections - LÉVITENT avec ombre diffuse uniforme */
 html:not([data-theme="dark"]) .modal-surface .intervention-form-section,
 html:not([data-theme="dark"]) .shadcn-sheet-content .intervention-form-section,
 :root:not([data-theme="dark"]) .modal-surface .intervention-form-section,
@@ -4837,24 +4833,13 @@ html:not([data-theme="dark"]) .shadcn-sheet-content .intervention-form-section,
   background-image: none !important;
   border: 1px solid rgba(255, 255, 255, 0.8) !important;
   border-radius: 12px !important;
-  box-shadow:
-    0 8px 32px rgba(51, 113, 178, 0.12),
-    0 4px 12px rgba(0, 0, 0, 0.08),
-    0 2px 4px rgba(0, 0, 0, 0.04),
-    inset 0 1px 0 rgba(255, 255, 255, 1) !important;
-  transform: translateY(0);
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  box-shadow: none !important;
 }
 
-/* Hover sur les sections - effet de lévitation accentué */
+/* Hover sur les sections */
 html:not([data-theme="dark"]) .modal-surface .intervention-form-section:hover,
 html:not([data-theme="dark"]) .shadcn-sheet-content .intervention-form-section:hover {
-  transform: translateY(-2px);
-  box-shadow:
-    0 12px 40px rgba(51, 113, 178, 0.15),
-    0 6px 16px rgba(0, 0, 0, 0.10),
-    0 3px 6px rgba(0, 0, 0, 0.05),
-    inset 0 1px 0 rgba(255, 255, 255, 1) !important;
+  box-shadow: none !important;
 }
 
 /* Section headers - solides */
@@ -4893,27 +4878,7 @@ html:not([data-theme="dark"]) .glass-modal-premium,
     inset 0 1px 1px rgba(255, 255, 255, 0.6) !important;
 }
 
-/* Header du modal premium - SOLIDE avec ombre prononcée vers le bas */
-html:not([data-theme="dark"]) .glass-modal-header,
-:root:not([data-theme="dark"]) .glass-modal-header {
-  background: rgba(255, 255, 255, 0.97) !important;
-  border-bottom: 1px solid rgba(51, 113, 178, 0.1) !important;
-  box-shadow:
-    0 4px 12px rgba(0, 0, 0, 0.08),
-    0 2px 4px rgba(0, 0, 0, 0.04),
-    0 8px 24px rgba(51, 113, 178, 0.06) !important;
-}
-
-/* Footer du modal premium - SOLIDE avec ombre prononcée vers le haut */
-html:not([data-theme="dark"]) .glass-modal-footer,
-:root:not([data-theme="dark"]) .glass-modal-footer {
-  background: rgba(255, 255, 255, 0.95) !important;
-  border-top: 1px solid rgba(51, 113, 178, 0.1) !important;
-  box-shadow:
-    0 -4px 12px rgba(0, 0, 0, 0.08),
-    0 -2px 4px rgba(0, 0, 0, 0.04),
-    0 -8px 24px rgba(51, 113, 178, 0.06) !important;
-}
+/* Header/Footer du modal - Utilisent les variables CSS (même style clair/sombre) */
 
 /* Body du modal premium - transparent */
 html:not([data-theme="dark"]) .glass-modal-body,

@@ -21,7 +21,7 @@ const SheetOverlay = React.forwardRef<
       className,
     )}
     style={{
-      background: "rgba(0, 0, 0, 0.20)",
+      background: "rgba(0, 0, 0, 0)",
     }}
     {...props}
   />
@@ -68,26 +68,12 @@ const SheetContent = React.forwardRef<
 ))
 SheetContent.displayName = DialogPrimitive.Content.displayName
 
-// Style inline pour forcer le header solide - effet lévitation
-const premiumHeaderStyle: React.CSSProperties = {
-  background: "rgba(255, 255, 255, 0.97)",
-  borderBottom: "1px solid rgba(255, 255, 255, 0.8)",
-  padding: "1.25rem 1.5rem",
-  boxShadow: "0 4px 16px rgba(51, 113, 178, 0.08), 0 2px 6px rgba(0, 0, 0, 0.04), inset 0 1px 0 rgba(255, 255, 255, 1)",
-}
-
-// Style inline pour forcer le footer solide - effet lévitation
-const premiumFooterStyle: React.CSSProperties = {
-  background: "rgba(255, 255, 255, 0.95)",
-  borderTop: "1px solid rgba(255, 255, 255, 0.8)",
-  padding: "1rem 1.5rem",
-  boxShadow: "0 -4px 16px rgba(51, 113, 178, 0.08), 0 -2px 6px rgba(0, 0, 0, 0.04), inset 0 -1px 0 rgba(255, 255, 255, 1)",
-}
+// Pas de style inline - géré par les variables CSS et .glass-modal-header/.glass-modal-footer
 
 const SheetHeader = ({ className, style, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
   <div
     className={cn("glass-modal-header sticky top-0 z-10", className)}
-    style={{ ...premiumHeaderStyle, ...style }}
+    style={style}
     {...props}
   />
 )
@@ -96,7 +82,7 @@ SheetHeader.displayName = "SheetHeader"
 const SheetFooter = ({ className, style, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
   <div
     className={cn("glass-modal-footer sticky bottom-0 z-10", className)}
-    style={{ ...premiumFooterStyle, ...style }}
+    style={style}
     {...props}
   />
 )

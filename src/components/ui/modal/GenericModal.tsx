@@ -198,7 +198,7 @@ export function GenericModal({
                 role="presentation"
                 aria-hidden
                 className="modal-overlay fixed inset-0 z-[60]"
-                style={{ background: "rgba(0, 0, 0, 0.20)" }}
+                style={{ background: "rgba(0, 0, 0, 0)" }}
                 initial="initial"
                 animate="animate"
                 exit="exit"

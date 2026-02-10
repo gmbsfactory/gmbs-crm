@@ -22,7 +22,9 @@ const AlertDialogOverlay = React.forwardRef<
       className
     )}
     style={{
-      background: "rgba(0, 0, 0, 0.20)",
+      background: "rgba(0, 0, 0, 0.05)",
+      backdropFilter: "blur(2px)",
+      WebkitBackdropFilter: "blur(2px)",
     }}
     {...props}
     ref={ref}
@@ -60,13 +62,7 @@ const AlertDialogContent = React.forwardRef<
 ))
 AlertDialogContent.displayName = AlertDialogPrimitive.Content.displayName
 
-// Style inline pour forcer le header solide - effet lévitation
-const premiumHeaderStyle: React.CSSProperties = {
-  background: "rgba(255, 255, 255, 0.97)",
-  borderBottom: "1px solid rgba(255, 255, 255, 0.8)",
-  padding: "1.25rem 1.5rem",
-  boxShadow: "0 4px 16px rgba(51, 113, 178, 0.08), 0 2px 6px rgba(0, 0, 0, 0.04), inset 0 1px 0 rgba(255, 255, 255, 1)",
-}
+// Pas de style inline pour le header - géré par CSS variables et .glass-modal-header
 
 // Style inline pour le body transparent
 const premiumBodyStyle: React.CSSProperties = {
@@ -74,13 +70,7 @@ const premiumBodyStyle: React.CSSProperties = {
   padding: "1.5rem",
 }
 
-// Style inline pour forcer le footer solide - effet lévitation
-const premiumFooterStyle: React.CSSProperties = {
-  background: "rgba(255, 255, 255, 0.95)",
-  borderTop: "1px solid rgba(255, 255, 255, 0.8)",
-  padding: "1rem 1.5rem",
-  boxShadow: "0 -4px 16px rgba(51, 113, 178, 0.08), 0 -2px 6px rgba(0, 0, 0, 0.04), inset 0 -1px 0 rgba(255, 255, 255, 1)",
-}
+// Pas de style inline pour le footer - géré par CSS variables et .glass-modal-footer
 
 const AlertDialogHeader = ({
   className,
@@ -92,7 +82,7 @@ const AlertDialogHeader = ({
       "glass-modal-header flex flex-col space-y-2 text-center sm:text-left",
       className
     )}
-    style={{ ...premiumHeaderStyle, ...style }}
+    style={style}
     {...props}
   />
 )
@@ -124,7 +114,7 @@ const AlertDialogFooter = ({
       "glass-modal-footer flex flex-col-reverse sm:flex-row sm:justify-end sm:space-x-2",
       className
     )}
-    style={{ ...premiumFooterStyle, ...style }}
+    style={style}
     {...props}
   />
 )

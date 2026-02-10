@@ -26,7 +26,9 @@ const DialogOverlay = React.forwardRef<
       className
     )}
     style={{
-      background: "rgba(0, 0, 0, 0.20)",
+      background: "rgba(0, 0, 0, 0.05)",
+      backdropFilter: "blur(2px)",
+      WebkitBackdropFilter: "blur(2px)",
     }}
     {...props}
   />
@@ -97,13 +99,7 @@ interface DialogHeaderProps extends React.HTMLAttributes<HTMLDivElement> {
   variant?: "default" | "premium"
 }
 
-// Style inline pour forcer le header solide - effet lévitation
-const premiumHeaderStyle: React.CSSProperties = {
-  background: "rgba(255, 255, 255, 0.97)",
-  borderBottom: "1px solid rgba(255, 255, 255, 0.8)",
-  padding: "1.25rem 1.5rem",
-  boxShadow: "0 4px 16px rgba(51, 113, 178, 0.08), 0 2px 6px rgba(0, 0, 0, 0.04), inset 0 1px 0 rgba(255, 255, 255, 1)",
-}
+// Pas de style inline pour le header - géré par CSS variables et .glass-modal-header
 
 const DialogHeader = ({
   className,
@@ -117,7 +113,7 @@ const DialogHeader = ({
       variant === "premium" && "glass-modal-header",
       className
     )}
-    style={variant === "premium" ? { ...premiumHeaderStyle, ...style } : style}
+    style={style}
     {...props}
   />
 )
@@ -147,13 +143,7 @@ interface DialogFooterProps extends React.HTMLAttributes<HTMLDivElement> {
   variant?: "default" | "premium"
 }
 
-// Style inline pour forcer le footer solide - effet lévitation
-const premiumFooterStyle: React.CSSProperties = {
-  background: "rgba(255, 255, 255, 0.95)",
-  borderTop: "1px solid rgba(255, 255, 255, 0.8)",
-  padding: "1rem 1.5rem",
-  boxShadow: "0 -4px 16px rgba(51, 113, 178, 0.08), 0 -2px 6px rgba(0, 0, 0, 0.04), inset 0 -1px 0 rgba(255, 255, 255, 1)",
-}
+// Pas de style inline pour le footer - géré par CSS variables et .glass-modal-footer
 
 const DialogFooter = ({
   className,
@@ -167,7 +157,7 @@ const DialogFooter = ({
       variant === "premium" && "glass-modal-footer",
       className
     )}
-    style={variant === "premium" ? { ...premiumFooterStyle, ...style } : style}
+    style={style}
     {...props}
   />
 )

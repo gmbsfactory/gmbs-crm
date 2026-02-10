@@ -751,7 +751,7 @@ GMBS`
           </div>
         </header>
 
-        <div className="modal-config-columns-body overflow-hidden flex flex-col">
+        <div className="modal-config-columns-body flex flex-col">
           <div className={`${bodyPadding} flex-1 min-h-0 flex flex-col`}>
             {isLoading ? (
               <div className="space-y-4">
