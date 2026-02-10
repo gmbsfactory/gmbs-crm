@@ -357,7 +357,7 @@ export function NewArtisanModalContent({ mode, onClose, onCycleMode, artisanId, 
     )?.id || "";
   }, [referenceData]);
 
-  const { control, register, handleSubmit, reset, setValue, watch, getValues, formState: { errors, isDirty, dirtyFields } } = useForm<ArtisanFormValues>({
+  const { control, register, handleSubmit, reset, setValue, watch, getValues, formState: { errors, isDirty, dirtyFields, isSubmitted } } = useForm<ArtisanFormValues>({
     defaultValues: buildDefaultFormValues(),
   })
 
