@@ -69,7 +69,7 @@ export async function POST(req: Request) {
       .maybeSingle()
     if (existing.error) {
       console.error('[create-user] Error checking existing user:', existing.error.message)
-      return NextResponse.json({ error: existing.error.message }, { status: 500 })
+      return NextResponse.json({ error: 'Une erreur interne est survenue' }, { status: 500 })
     }
     
     // If user exists and is archived, return special response for restoration prompt
@@ -192,7 +192,7 @@ export async function POST(req: Request) {
           console.error('[create-user] Rollback failed:', rollbackError?.message)
         }
       }
-      return NextResponse.json({ error: ins.error.message }, { status: 500 })
+      return NextResponse.json({ error: 'Une erreur interne est survenue' }, { status: 500 })
     }
 
     // ===== Assign role =====
@@ -236,7 +236,7 @@ export async function POST(req: Request) {
     return NextResponse.json(response)
   } catch (e: any) {
     console.error('[create-user] Unexpected error:', e?.message, e?.stack)
-    return NextResponse.json({ error: e?.message || 'Unexpected error' }, { status: 500 })
+    return NextResponse.json({ error: 'Une erreur interne est survenue' }, { status: 500 })
   }
 }
 
@@ -268,7 +268,10 @@ export async function PATCH(req: Request) {
     if (Object.keys(payload).length === 0) return NextResponse.json({ ok: true })
 
     const { error } = await supabaseAdmin.from('users').update(payload).eq('id', userId)
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    if (error) {
+      console.error('[update-user] PATCH error:', error.message)
+      return NextResponse.json({ error: 'Une erreur interne est survenue' }, { status: 500 })
+    }
     return NextResponse.json({ ok: true })
   } catch (e: any) {
     return NextResponse.json({ error: e?.message || 'Bad payload' }, { status: 400 })
@@ -293,7 +296,10 @@ export async function DELETE(req: Request) {
       .eq('id', userId)
       .maybeSingle()
 
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    if (error) {
+      console.error('[delete-user] SELECT error:', error.message)
+      return NextResponse.json({ error: 'Une erreur interne est survenue' }, { status: 500 })
+    }
     if (!data) return NextResponse.json({ error: 'not_found' }, { status: 404 })
 
     if ((data.email || '').toLowerCase() !== emailConfirm) {
@@ -338,19 +344,27 @@ export async function DELETE(req: Request) {
       console.warn('[delete-user] auth_user_mapping deletion failed:', e?.message)
     }
 
-    // 4. SOFT DELETE: Update status to 'archived' instead of deleting
-    // This preserves the user's history (interventions, etc.)
+    // 4. SOFT DELETE: Archive + GDPR anonymize personal data (Article 17)
+    // This preserves the user's history (interventions, etc.) while removing PII
     const { error: archiveError } = await supabaseAdmin
       .from('users')
-      .update({ 
+      .update({
         status: 'archived',
         archived_at: new Date().toISOString(),
+        // RGPD Article 17 - Anonymisation des données personnelles
+        email: `deleted_${userId}@anonymized.local`,
+        firstname: 'Utilisateur',
+        lastname: 'Supprimé',
+        username: `deleted_${userId}`,
+        code_gestionnaire: null,
+        avatar_url: null,
+        color: null,
       })
       .eq('id', userId)
     
     if (archiveError) {
       console.error('[delete-user] Archive failed:', archiveError.message)
-      return NextResponse.json({ error: archiveError.message }, { status: 500 })
+      return NextResponse.json({ error: 'Une erreur interne est survenue' }, { status: 500 })
     }
 
     return NextResponse.json({ ok: true, archived: true })
