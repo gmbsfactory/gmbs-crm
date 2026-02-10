@@ -1465,7 +1465,7 @@ export function TableView({
                                   style={headerCellStyle}
                                   className={cn(
                                     "z-20 border-b px-4 py-4 text-center text-sm font-semibold",
-                                    "whitespace-nowrap backdrop-blur-sm align-middle relative select-none",
+                                    "whitespace-nowrap align-middle relative select-none",
                                     // Sans couleur spécifique → style pastille active (fond opaque + texte blanc)
                                     !headerColor && "border-primary bg-primary text-primary-foreground",
                                     densityHeaderClass,
@@ -1512,7 +1512,7 @@ export function TableView({
                               }}
                               className={cn(
                                 "z-20 border-b px-4 py-4 text-center text-sm font-semibold",
-                                "whitespace-nowrap backdrop-blur-sm align-middle relative select-none",
+                                "whitespace-nowrap align-middle relative select-none",
                                 // Sans couleur spécifique → style pastille active (fond opaque + texte blanc)
                                 !headerColor && "border-primary bg-primary text-primary-foreground",
                                 densityHeaderClass,
@@ -1869,7 +1869,7 @@ export function TableView({
             onPrevious={onPreviousPage}
             canGoNext={currentPage < totalPages}
             canGoPrevious={currentPage > 1}
-            className="border-t bg-background mt-2"
+            className="mt-2 bg-transparent border-none"
           />
         ) : null}
       </div>

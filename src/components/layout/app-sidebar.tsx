@@ -23,7 +23,7 @@ export function AppSidebar() {
   return (
     <div
       className={cn(
-        "sticky top-0 group/sidebar flex flex-col bg-transparent transition-[width] duration-200 ease-out",
+        "sticky top-0 group/sidebar flex flex-col bg-transparent transition-[width] duration-200 ease-out z-[45]",
         sidebarMode === "expanded" ? "w-72" : "w-20",
         // Hybrid expands only on hover (not focus) to avoid sticking open after click
         expandOnHover && "hover:w-72"

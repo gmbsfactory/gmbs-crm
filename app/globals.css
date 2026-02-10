@@ -285,8 +285,7 @@
 .glass-input {
   background: var(--glass-bg-subtle);
   border: 1px solid var(--glass-border-light);
-  backdrop-filter: blur(var(--glass-blur-sm)) saturate(var(--glass-saturate));
-  -webkit-backdrop-filter: blur(var(--glass-blur-sm)) saturate(var(--glass-saturate));
+  /* backdrop-filter supprimé : les inputs héritent du blur du modal parent, évite le double compositing GPU */
   box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.04);
   transition: all var(--transition-fast) var(--transition-easing);
 }
@@ -337,6 +336,9 @@
   border-radius: var(--radius-xl);
   overflow: hidden;
   padding: 0;
+  will-change: backdrop-filter, transform;
+  transform: translateZ(0);
+  contain: layout style paint;
 }
 
 :root[data-theme="dark"] .glass-modal-premium {
@@ -1640,6 +1642,9 @@
     box-shadow:
       0 8px 32px rgba(0, 0, 0, 0.08),
       inset 0 1px 1px rgba(255, 255, 255, 0.4);
+    will-change: backdrop-filter, transform;
+    transform: translateZ(0);
+    contain: layout style paint;
   }
 
   .shadcn-sheet-content {
@@ -1653,6 +1658,9 @@
       inset 1px 0 1px rgba(255, 255, 255, 0.4);
     min-width: 0;
     min-height: 0;
+    will-change: backdrop-filter, transform;
+    transform: translateZ(0);
+    contain: layout style paint;
   }
 
   .modal-content,
@@ -1704,6 +1712,9 @@
     box-shadow:
       inset 0 1px 0 color-mix(in oklab, var(--bg), white 6%),
       0 18px 42px rgba(15, 23, 42, 0.18);
+    will-change: backdrop-filter, transform;
+    transform: translateZ(0);
+    contain: layout style paint;
   }
 
   :root[data-theme="dark"] .modal-surface,
@@ -4730,22 +4741,46 @@ input:focus-visible {
   box-shadow: 0 4px 20px rgba(0,0,0,0.25), 0 1px 4px rgba(0,0,0,0.15), inset 0 -1px 0 rgba(255,255,255,0.05);
 }
 
-/* Sidebar - Bleu comme la topbar */
+/* Sidebar - Effet miroir/projection glass */
+/* Le backdrop-filter est déporté sur un ::before qui déborde dans le contenu,
+   permettant aux couleurs de la page de se projeter dans la sidebar.
+   pointer-events: none empêche le déclenchement du hover et le blocage de l'interface. */
 .liquid-glass-sidebar {
-  background: rgba(75, 92, 181, 0.14);
-  backdrop-filter: blur(50px) saturate(1.5);
-  -webkit-backdrop-filter: blur(50px) saturate(1.5);
+  position: relative;
+  z-index: 0;
+  overflow: visible;
+  background: transparent;
   border-right: 1px solid rgba(var(--gmbs-blue-rgb), 0.15);
   box-shadow:
     2px 0 16px rgba(var(--gmbs-blue-rgb), 0.08),
     inset -1px 0 0 rgba(255, 255, 255, 0.4);
 }
 
+.liquid-glass-sidebar::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  right: -40px;
+  background: rgba(75, 92, 181, 0.14);
+  backdrop-filter: blur(30px) saturate(2.5);
+  -webkit-backdrop-filter: blur(30px) saturate(2.5);
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: -1;
+  will-change: backdrop-filter;
+  transform: translateZ(0);
+  -webkit-mask-image: linear-gradient(to right, black calc(100% - 40px), transparent);
+  mask-image: linear-gradient(to right, black calc(100% - 40px), transparent);
+}
+
 :root[data-theme="dark"] .liquid-glass-sidebar {
-  background: rgba(20, 25, 45, 0.14);
-  backdrop-filter: blur(50px) saturate(1.5);
-  -webkit-backdrop-filter: blur(50px) saturate(1.5);
   border-right-color: var(--glass-border-subtle);
   box-shadow: 2px 0 12px rgba(0,0,0,0.20), inset -1px 0 0 rgba(255,255,255,0.03);
+}
+
+:root[data-theme="dark"] .liquid-glass-sidebar::before {
+  background: rgba(20, 25, 45, 0.14);
 }
 
