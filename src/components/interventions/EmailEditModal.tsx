@@ -12,6 +12,7 @@ import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase-client';
 import type { EmailTemplateData } from '@/lib/email-templates/intervention-emails';
 import { generateDevisEmailTemplate, generateInterventionEmailTemplate } from '@/lib/email-templates/intervention-emails';
+import DOMPurify from 'dompurify';
 
 export interface EmailEditModalProps {
   isOpen: boolean;
@@ -485,7 +486,7 @@ export function EmailEditModal({
                 style={{
                   zoom: previewZoom / 100,
                 }}
-                dangerouslySetInnerHTML={{ __html: getPreviewHtml(htmlContent) }}
+                dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(getPreviewHtml(htmlContent)) }}
               />
             </div>
           </div>
