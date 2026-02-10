@@ -392,7 +392,7 @@ export function ArtisanSearchModal({
         position: "fixed",
         left: `${left}px`,
         top: `${position.y}px`,
-        zIndex: 99999,
+        zIndex: 80,
         pointerEvents: "auto",
       }
     })()
@@ -401,7 +401,7 @@ export function ArtisanSearchModal({
       left: "50%",
       top: "50%",
       transform: "translate(-50%, -50%)",
-      zIndex: 99999,
+      zIndex: 80,
       pointerEvents: "auto",
     }
 

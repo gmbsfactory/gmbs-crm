@@ -2143,7 +2143,7 @@ export const InterventionEditForm = memo(function InterventionEditForm({
                                           type="button"
                                           className={cn(
                                             "w-full flex items-center gap-1.5 px-2 py-1 rounded-md text-left transition-colors",
-                                            isSelected ? "bg-primary/10 text-primary" : "hover:bg-muted"
+                                            isSelected ? "bg-[var(--glass-bg-medium)] text-primary" : "hover:bg-[var(--glass-bg-light)]"
                                           )}
                                           onClick={() => handleInputChange("assigned_user_id", user.id)}
                                         >
@@ -2548,7 +2548,7 @@ export const InterventionEditForm = memo(function InterventionEditForm({
                                       variant="outline"
                                       size="sm"
                                       onClick={() => handleOpenWhatsApp('devis', selectedArtisanId, selectedArtisanData.telephone || '')}
-                                      className="flex-1 text-[10px] h-7 px-2 bg-[#25D366]/10 hover:bg-[#25D366]/20 border-[#25D366]/30 text-[#25D366]"
+                                      className="flex-1 text-[10px] h-7 px-2 bg-[rgba(var(--whatsapp-green-rgb),0.1)] hover:bg-[rgba(var(--whatsapp-green-rgb),0.2)] border-[rgba(var(--whatsapp-green-rgb),0.3)] text-[var(--whatsapp-green)]"
                                     >
                                       <MessageCircle className="h-3 w-3 mr-1" />
                                       WA Devis
@@ -2558,7 +2558,7 @@ export const InterventionEditForm = memo(function InterventionEditForm({
                                       variant="outline"
                                       size="sm"
                                       onClick={() => handleOpenWhatsApp('intervention', selectedArtisanId, selectedArtisanData.telephone || '')}
-                                      className="flex-1 text-[10px] h-7 px-2 bg-[#25D366]/10 hover:bg-[#25D366]/20 border-[#25D366]/30 text-[#25D366]"
+                                      className="flex-1 text-[10px] h-7 px-2 bg-[rgba(var(--whatsapp-green-rgb),0.1)] hover:bg-[rgba(var(--whatsapp-green-rgb),0.2)] border-[rgba(var(--whatsapp-green-rgb),0.3)] text-[var(--whatsapp-green)]"
                                     >
                                       <MessageCircle className="h-3 w-3 mr-1" />
                                       WA Inter.
@@ -3142,7 +3142,7 @@ export const InterventionEditForm = memo(function InterventionEditForm({
                                       variant="outline"
                                       size="sm"
                                       onClick={() => handleOpenWhatsApp('devis', selectedSecondArtisanId, selectedSecondArtisanData.telephone || '')}
-                                      className="flex-1 text-[10px] h-7 px-2 bg-[#25D366]/10 hover:bg-[#25D366]/20 border-[#25D366]/30 text-[#25D366]"
+                                      className="flex-1 text-[10px] h-7 px-2 bg-[rgba(var(--whatsapp-green-rgb),0.1)] hover:bg-[rgba(var(--whatsapp-green-rgb),0.2)] border-[rgba(var(--whatsapp-green-rgb),0.3)] text-[var(--whatsapp-green)]"
                                     >
                                       <MessageCircle className="h-3 w-3 mr-1" />
                                       WA Devis
@@ -3152,7 +3152,7 @@ export const InterventionEditForm = memo(function InterventionEditForm({
                                       variant="outline"
                                       size="sm"
                                       onClick={() => handleOpenWhatsApp('intervention', selectedSecondArtisanId, selectedSecondArtisanData.telephone || '')}
-                                      className="flex-1 text-[10px] h-7 px-2 bg-[#25D366]/10 hover:bg-[#25D366]/20 border-[#25D366]/30 text-[#25D366]"
+                                      className="flex-1 text-[10px] h-7 px-2 bg-[rgba(var(--whatsapp-green-rgb),0.1)] hover:bg-[rgba(var(--whatsapp-green-rgb),0.2)] border-[rgba(var(--whatsapp-green-rgb),0.3)] text-[var(--whatsapp-green)]"
                                     >
                                       <MessageCircle className="h-3 w-3 mr-1" />
                                       WA Inter.

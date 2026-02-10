@@ -18,30 +18,15 @@ const AlertDialogOverlay = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <AlertDialogPrimitive.Overlay
     className={cn(
-      "fixed inset-0 z-[199] data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
+      "fixed inset-0 z-[70] bg-black/20 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
       className
     )}
-    style={{
-      background: "rgba(0, 0, 0, 0.05)",
-      backdropFilter: "blur(2px)",
-      WebkitBackdropFilter: "blur(2px)",
-    }}
     {...props}
     ref={ref}
   />
 ))
 AlertDialogOverlay.displayName = AlertDialogPrimitive.Overlay.displayName
 
-// Styles inline pour forcer l'effet glass translucide
-const premiumGlassStyle: React.CSSProperties = {
-  background: "rgba(255, 255, 255, 0.25)",
-  backdropFilter: "blur(16px) saturate(1.4)",
-  WebkitBackdropFilter: "blur(16px) saturate(1.4)",
-  border: "1px solid rgba(255, 255, 255, 0.4)",
-  boxShadow: "0 8px 32px rgba(0, 0, 0, 0.08), inset 0 1px 1px rgba(255, 255, 255, 0.6)",
-  borderRadius: "16px",
-  overflow: "hidden",
-}
 
 const AlertDialogContent = React.forwardRef<
   React.ElementRef<typeof AlertDialogPrimitive.Content>,
@@ -52,10 +37,10 @@ const AlertDialogContent = React.forwardRef<
     <AlertDialogPrimitive.Content
       ref={ref}
       className={cn(
-        "glass-modal-premium fixed left-[50%] top-[50%] z-[200] grid w-full max-w-lg translate-x-[-50%] translate-y-[-50%] gap-0 duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%]",
+        "glass-modal-premium fixed left-[50%] top-[50%] z-[80] grid w-full max-w-lg translate-x-[-50%] translate-y-[-50%] gap-0 rounded-2xl overflow-hidden duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%]",
         className
       )}
-      style={{ ...premiumGlassStyle, ...style }}
+      style={style}
       {...props}
     />
   </AlertDialogPortal>
@@ -63,14 +48,6 @@ const AlertDialogContent = React.forwardRef<
 AlertDialogContent.displayName = AlertDialogPrimitive.Content.displayName
 
 // Pas de style inline pour le header - géré par CSS variables et .glass-modal-header
-
-// Style inline pour le body transparent
-const premiumBodyStyle: React.CSSProperties = {
-  background: "transparent",
-  padding: "1.5rem",
-}
-
-// Pas de style inline pour le footer - géré par CSS variables et .glass-modal-footer
 
 const AlertDialogHeader = ({
   className,
@@ -95,10 +72,10 @@ const AlertDialogBody = ({
 }: React.HTMLAttributes<HTMLDivElement>) => (
   <div
     className={cn(
-      "glass-modal-body glass-modal-body--translucent",
+      "glass-modal-body glass-modal-body--translucent p-6",
       className
     )}
-    style={{ ...premiumBodyStyle, ...style }}
+    style={style}
     {...props}
   />
 )

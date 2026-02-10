@@ -85,7 +85,7 @@ export function TruncatedCell({ content, className, maxWidth = "300px" }: Trunca
       {portalElement && tooltipPos && contentStr
         ? createPortal(
             <div
-              className="fixed z-[1000] max-w-sm break-words rounded-lg border-2 border-border bg-card p-3 text-sm font-normal text-card-foreground shadow-2xl whitespace-normal pointer-events-none"
+              className="fixed z-[1000] max-w-sm break-words rounded-md border border-border bg-popover p-3 text-sm font-normal text-popover-foreground shadow-md whitespace-normal pointer-events-none"
               style={{
                 left: `${tooltipPos.x}px`,
                 top: `${tooltipPos.y}px`,

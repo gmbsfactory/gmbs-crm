@@ -118,7 +118,7 @@ export const PodiumCard = ({ entry, position, displayMetric = 'margin' }: Podium
           config.gradient,
           config.shadow,
           config.scale,
-          "border-none"
+          "border"
         )}
       >
         <div className="absolute -top-12 flex flex-col items-center gap-1.5">

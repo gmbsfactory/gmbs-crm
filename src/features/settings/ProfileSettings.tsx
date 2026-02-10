@@ -200,7 +200,7 @@ export function ProfileSettings() {
   const surnom = currentUser?.code_gestionnaire || currentUser?.surnom || ''
   const email = currentUser?.email || ''
   const avatarUrl = currentUser?.avatar_url || null
-  const userColor = currentUser?.color || '#6366f1'
+  const userColor = currentUser?.color || 'hsl(var(--primary))'
   const initials = ((firstName?.[0] || 'U') + (lastName?.[0] || '')).toUpperCase()
 
   // Fonction pour changer le mot de passe

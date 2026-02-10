@@ -50,6 +50,18 @@ export function GestionnaireBadge({
   const userColor = color || defaultColor
   const sizeConfig = sizeMap[size]
 
+  // Calcul dynamique du contraste texte noir/blanc selon luminosité du fond
+  const getTextColor = (bgColor: string): string => {
+    const hex = bgColor.startsWith('#') ? bgColor.slice(1) : bgColor
+    if (!/^[0-9a-fA-F]{6}$/.test(hex)) return '#ffffff'
+    const r = parseInt(hex.slice(0, 2), 16)
+    const g = parseInt(hex.slice(2, 4), 16)
+    const b = parseInt(hex.slice(4, 6), 16)
+    const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255
+    return luminance > 0.65 ? '#000000' : '#ffffff'
+  }
+  const fallbackTextColor = getTextColor(userColor)
+
   // Structure identique à SettingsRoot.tsx qui fonctionne
   return (
     <div
@@ -80,8 +92,8 @@ export function GestionnaireBadge({
         <AvatarFallback 
           className={cn(sizeConfig.text, "font-semibold uppercase")}
           style={{ 
-            background: userColor, 
-            color: '#ffffff',
+            background: userColor,
+            color: fallbackTextColor,
           }}
         >
           {initials}

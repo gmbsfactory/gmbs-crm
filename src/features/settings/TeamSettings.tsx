@@ -495,7 +495,7 @@ export function TeamSettings() {
                           {user.code_gestionnaire || user.surnom ? (
                             <span 
                               className="px-2 py-0.5 rounded-full text-xs font-medium text-white"
-                              style={{ backgroundColor: user.color || '#6366f1' }}
+                              style={{ backgroundColor: user.color || 'hsl(var(--primary))' }}
                             >
                               {user.code_gestionnaire || user.surnom}
                             </span>

@@ -492,16 +492,16 @@ export function TargetsSettings() {
                   <div className="px-6 py-4 flex items-center gap-3">
                     <div
                       className="h-10 w-10 rounded-full flex items-center justify-center text-sm font-bold text-white shadow-md"
-                      style={{ backgroundColor: user.color || '#6366f1' }}
+                      style={{ backgroundColor: user.color || 'hsl(var(--primary))' }}
                     >
                       {(user.firstname?.[0] || '').toUpperCase()}{(user.lastname?.[0] || '').toUpperCase()}
                     </div>
                     <div>
                       <p className="font-semibold">{getUserName(user)}</p>
                       {user.code_gestionnaire && (
-                        <span 
+                        <span
                           className="px-2 py-0.5 rounded-full text-xs font-medium text-white"
-                          style={{ backgroundColor: user.color || '#6366f1' }}
+                          style={{ backgroundColor: user.color || 'hsl(var(--primary))' }}
                         >
                           {user.code_gestionnaire}
                         </span>

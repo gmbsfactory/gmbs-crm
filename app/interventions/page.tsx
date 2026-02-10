@@ -260,10 +260,10 @@ function PageContent() {
       const status = getStatusByCode(statusCode)
       colors[viewId] = status?.color ?? null
     })
-    // Market : couleur rouge fixe (pas liée à un statut)
-    colors["market"] = "#EF4444"
-    // Mes Interventions à check : couleur rouge pour indiquer l'urgence
-    colors["mes-interventions-a-check"] = "#EF4444"
+    // Market : couleur cancelled (pas liée à un statut)
+    colors["market"] = "hsl(var(--status-cancelled-fg))"
+    // Mes Interventions à check : couleur cancelled pour indiquer l'urgence
+    colors["mes-interventions-a-check"] = "hsl(var(--status-cancelled-fg))"
     return colors
   }, [getStatusByCode])
 
@@ -1754,9 +1754,9 @@ function PageContent() {
                 : "hover:shadow-card border border-border bg-transparent"
                 }`}
               style={isCheckFilterActive ? {
-                backgroundColor: "#EF444415",
-                borderColor: "#EF4444",
-                color: "#EF4444"
+                backgroundColor: "hsl(var(--status-cancelled-fg) / 0.08)",
+                borderColor: "hsl(var(--status-cancelled-fg))",
+                color: "hsl(var(--status-cancelled-fg))"
               } : {}}
               title="Interventions avec date d'échéance dépassée (peut être combiné avec d'autres statuts)"
             >

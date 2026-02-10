@@ -17,12 +17,9 @@ const SheetOverlay = React.forwardRef<
   <DialogPrimitive.Overlay
     ref={ref}
     className={cn(
-      "modal-overlay fixed inset-0 z-50 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
+      "modal-overlay fixed inset-0 z-50 bg-black/5 backdrop-blur-[2px] data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
       className,
     )}
-    style={{
-      background: "rgba(0, 0, 0, 0)",
-    }}
     {...props}
   />
 ))
@@ -35,8 +32,8 @@ type SheetContentProps = React.ComponentPropsWithoutRef<typeof DialogPrimitive.C
 }
 
 const sideClasses: Record<NonNullable<SheetContentProps["side"]>, string> = {
-  right: "fixed inset-y-0 right-0 h-full w-full border-l sm:max-w-[640px] md:max-w-[720px]",
-  left: "fixed inset-y-0 left-0 h-full w-full border-r sm:max-w-[640px] md:max-w-[720px]",
+  right: "fixed inset-y-0 right-0 h-full w-full border-l rounded-l-2xl sm:max-w-[640px] md:max-w-[720px]",
+  left: "fixed inset-y-0 left-0 h-full w-full border-r rounded-r-2xl sm:max-w-[640px] md:max-w-[720px]",
   top: "fixed inset-x-0 top-0 w-full border-b",
   bottom: "fixed inset-x-0 bottom-0 w-full border-t",
 }
@@ -50,7 +47,7 @@ const SheetContent = React.forwardRef<
     <DialogPrimitive.Content
       ref={ref}
       className={cn(
-        "shadcn-sheet-content z-50 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=open]:slide-in-from-right data-[state=closed]:slide-out-to-right",
+        "shadcn-sheet-content z-[60] data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=open]:slide-in-from-right data-[state=closed]:slide-out-to-right",
         sideClasses[side],
         className,
       )}
@@ -88,16 +85,10 @@ const SheetFooter = ({ className, style, ...props }: React.HTMLAttributes<HTMLDi
 )
 SheetFooter.displayName = "SheetFooter"
 
-// Style inline pour le body transparent
-const premiumBodyStyle: React.CSSProperties = {
-  background: "transparent",
-  padding: "1.5rem",
-}
-
 const SheetBody = ({ className, style, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
   <div
-    className={cn("glass-modal-body glass-modal-body--translucent flex-1 overflow-y-auto", className)}
-    style={{ ...premiumBodyStyle, ...style }}
+    className={cn("glass-modal-body glass-modal-body--translucent flex-1 overflow-y-auto p-6", className)}
+    style={style}
     {...props}
   />
 )

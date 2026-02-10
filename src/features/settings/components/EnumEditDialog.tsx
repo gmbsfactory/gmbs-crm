@@ -34,7 +34,7 @@ export function EnumEditDialog({ config, item, isCreating, onClose, onSave }: En
       config.fields.forEach(field => {
         if (field.editable) {
           if (field.type === 'color') {
-            initialData[field.name] = '#6366f1';
+            initialData[field.name] = 'hsl(var(--primary))';
           } else if (field.type === 'checkbox') {
             initialData[field.name] = false;
           } else {
@@ -169,7 +169,7 @@ export function EnumEditDialog({ config, item, isCreating, onClose, onSave }: En
                     </Label>
                     {field.type === 'color' ? (
                       <ColorPicker
-                        value={formData[field.name] || '#6366f1'}
+                        value={formData[field.name] || 'hsl(var(--primary))'}
                         onChange={(color) => setFormData({ ...formData, [field.name]: color })}
                       />
                     ) : field.type === 'textarea' ? (

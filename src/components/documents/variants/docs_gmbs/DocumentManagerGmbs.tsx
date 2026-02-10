@@ -23,7 +23,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { GestionnaireBadge } from "@/components/ui/gestionnaire-badge";
+import { ManagerBadge } from "@/components/documents/ManagerBadge";
 import { useDocumentManager } from "@/components/documents/useDocumentManager";
 import {
   type DocumentManagerProps,
@@ -33,49 +33,6 @@ import {
   formatDate,
   formatTime,
 } from "@/components/documents/types";
-
-function ManagerBadge({
-  code,
-  displayName,
-  color,
-  avatarUrl,
-  fallback,
-}: {
-  code?: string | null;
-  displayName?: string | null;
-  color?: string | null;
-  avatarUrl?: string | null;
-  fallback?: string;
-} = {}) {
-  const nameParts = displayName?.split(" ") ?? [];
-  const firstname = nameParts[0] || null;
-  const lastname = nameParts.slice(1).join(" ") || null;
-
-  if (!displayName && !code && !fallback) {
-    return <span className="text-[9px] text-muted-foreground">—</span>;
-  }
-
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <div className="inline-flex">
-          <GestionnaireBadge
-            firstname={firstname}
-            lastname={lastname}
-            color={color}
-            avatarUrl={avatarUrl}
-            size="sm"
-            showBorder={true}
-            className="h-6 w-6"
-          />
-        </div>
-      </TooltipTrigger>
-      <TooltipContent side="top" className="text-[10px]">
-        {displayName || code || fallback || "Inconnu"}
-      </TooltipContent>
-    </Tooltip>
-  );
-}
 
 // Interface pour une ligne de kind pré-défini
 interface KindRowData {
@@ -179,14 +136,14 @@ export function DocumentManagerGmbs({
     <TooltipProvider>
       <div className="space-y-2 min-w-0 overflow-hidden">
         {(manager.uploadError || manager.fetchError) && (
-          <div className="rounded border border-destructive/40 bg-destructive/10 px-2 py-1 text-[10px] text-destructive">
+          <div className="rounded border border-destructive/40 bg-destructive/10 px-2 py-1 text-xs text-destructive">
             {manager.uploadError ?? manager.fetchError}
           </div>
         )}
 
         {manager.isQueueUploading && (
           <div className="space-y-1">
-            <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
               <Loader2 className="h-3 w-3 animate-spin" />
               Upload ({manager.completedInQueue}/{manager.queueLength})
             </div>
@@ -203,7 +160,7 @@ export function DocumentManagerGmbs({
           <Button
             type="button"
             onClick={handleAddRow}
-            className="inline-flex items-center justify-center gap-1 shrink-0 whitespace-nowrap text-[10px] h-7 px-2"
+            className="inline-flex items-center justify-center gap-1 shrink-0 whitespace-nowrap text-xs h-7 px-2"
           >
             <Plus className="h-3 w-3" />
             Ajouter
@@ -214,17 +171,17 @@ export function DocumentManagerGmbs({
           <Table className="min-w-[400px]">
             <TableHeader>
               <TableRow className="h-7">
-                <TableHead className="min-w-[100px] text-[10px] py-1 px-2">Nom</TableHead>
-                <TableHead className="min-w-[60px] text-[10px] py-1 px-2">Type</TableHead>
-                <TableHead className="min-w-[70px] text-[10px] py-1 px-2">Date</TableHead>
-                <TableHead className="min-w-[50px] text-[10px] py-1 px-2">Gest.</TableHead>
-                <TableHead className="min-w-[80px] text-[10px] py-1 px-2 text-right">Actions</TableHead>
+                <TableHead className="min-w-[100px] text-xs py-1 px-2">Nom</TableHead>
+                <TableHead className="min-w-[60px] text-xs py-1 px-2">Type</TableHead>
+                <TableHead className="min-w-[70px] text-xs py-1 px-2">Date</TableHead>
+                <TableHead className="min-w-[50px] text-xs py-1 px-2">Gest.</TableHead>
+                <TableHead className="min-w-[80px] text-xs py-1 px-2 text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {manager.isLoading && kindRows.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="py-3 text-center text-[10px]">
+                  <TableCell colSpan={5} className="py-3 text-center text-xs">
                     <div className="flex items-center justify-center gap-1.5 text-muted-foreground">
                       <Loader2 className="h-3 w-3 animate-spin" />
                       Chargement...
@@ -362,7 +319,7 @@ function KindRowGmbs({
       <TableCell className="py-1 px-2">
         <div className="relative">
           <div
-            className={`group flex min-h-[36px] w-full cursor-pointer items-center gap-2 rounded border border-dashed ${
+            className={`group flex min-h-[48px] w-full cursor-pointer items-center gap-2 rounded border border-dashed ${
               isDragOver
                 ? "border-primary bg-primary/5"
                 : "border-muted-foreground/30 bg-muted/20 hover:border-primary/50 hover:bg-muted/40"
@@ -376,25 +333,25 @@ function KindRowGmbs({
               onChange={handleFileInput}
             />
             <Upload className="h-3.5 w-3.5 text-muted-foreground/60 group-hover:text-primary/70" />
-            <span className="text-[10px] text-muted-foreground/70 group-hover:text-foreground/70">
+            <span className="text-xs text-muted-foreground group-hover:text-foreground/70">
               Glisser ou cliquer
             </span>
           </div>
         </div>
       </TableCell>
       <TableCell className="py-1 px-2">
-        <Badge variant="outline" className="text-[9px] px-1.5 py-0.5 bg-muted/50">
+        <Badge variant="outline" className="text-[11px] px-1.5 py-0.5 bg-muted/50">
           {kindRow.label}
         </Badge>
       </TableCell>
       <TableCell className="py-1 px-2">
-        <span className="text-[9px] text-muted-foreground">—</span>
+        <span className="text-[11px] text-muted-foreground">—</span>
       </TableCell>
       <TableCell className="py-1 px-2">
-        <span className="text-[9px] text-muted-foreground">—</span>
+        <span className="text-[11px] text-muted-foreground">—</span>
       </TableCell>
       <TableCell className="py-1 px-2">
-        <span className="text-[9px] text-muted-foreground">—</span>
+        <span className="text-[11px] text-muted-foreground">—</span>
       </TableCell>
     </TableRow>
   );
@@ -460,10 +417,10 @@ function DocumentRowGmbs({
               onChange={(event) => manager.setRenamingName(event.target.value)}
               autoFocus
               disabled={manager.isRenaming}
-              className="h-6 text-[10px]"
+              className="h-6 text-xs"
             />
             {manager.renameError && (
-              <p className="text-[9px] text-destructive">{manager.renameError}</p>
+              <p className="text-[11px] text-destructive">{manager.renameError}</p>
             )}
             <div className="flex gap-1">
               <Button
@@ -471,7 +428,7 @@ function DocumentRowGmbs({
                 size="sm"
                 onClick={manager.saveRename}
                 disabled={manager.isRenaming || manager.renamingName.trim().length === 0}
-                className="h-5 text-[9px] px-1.5"
+                className="h-8 text-[11px] px-1.5"
               >
                 OK
               </Button>
@@ -481,7 +438,7 @@ function DocumentRowGmbs({
                 size="sm"
                 onClick={manager.cancelRename}
                 disabled={manager.isRenaming}
-                className="h-5 text-[9px] px-1.5"
+                className="h-8 text-[11px] px-1.5"
               >
                 ✕
               </Button>
@@ -491,12 +448,12 @@ function DocumentRowGmbs({
           <div className="flex items-center gap-1">
             <div className="flex-1 min-w-0">
               <div
-                className="text-[10px] font-medium leading-tight line-clamp-2"
+                className="text-xs font-medium leading-tight line-clamp-2"
                 title={row.filename}
               >
                 {row.filename}
               </div>
-              <div className="text-[9px] text-muted-foreground">
+              <div className="text-[11px] text-muted-foreground">
                 {formatFileSize(row.fileSize)}
               </div>
             </div>
@@ -506,7 +463,7 @@ function DocumentRowGmbs({
               size="icon"
               onClick={() => manager.startRename(row)}
               aria-label={`Renommer ${row.filename}`}
-              className="h-5 w-5 shrink-0"
+              className="h-8 w-8 shrink-0"
             >
               <Pencil className="h-3 w-3" />
             </Button>
@@ -514,12 +471,12 @@ function DocumentRowGmbs({
         )}
       </TableCell>
       <TableCell className="py-1 px-2">
-        <Badge variant="outline" className="text-[9px] px-1.5 py-0.5">
+        <Badge variant="outline" className="text-[11px] px-1.5 py-0.5">
           {kindLabel}
         </Badge>
       </TableCell>
       <TableCell className="py-1 px-2">
-        <div className="text-[9px] text-muted-foreground leading-tight">
+        <div className="text-[11px] text-muted-foreground leading-tight">
           <div>{formatDate(row.createdAt) ?? "—"}</div>
           <div className="font-medium text-slate-700">
             {formatTime(row.createdAt) ?? "—"}
@@ -535,7 +492,7 @@ function DocumentRowGmbs({
         />
       </TableCell>
       <TableCell className="py-1 px-2">
-        <div className="flex justify-end gap-0">
+        <div className="flex justify-end gap-1">
           <Tooltip>
             <Popover
               open={isPreviewing}
@@ -557,13 +514,13 @@ function DocumentRowGmbs({
                       manager.setActivePreviewId(row.id);
                     }}
                     aria-label={`Aperçu – ${row.filename}`}
-                    className="h-6 w-6 p-0"
+                    className="h-8 w-8 p-0"
                   >
                     <Eye className="h-3.5 w-3.5" />
                   </Button>
                 </TooltipTrigger>
               </PopoverTrigger>
-              <TooltipContent side="top" className="text-[10px]">Aperçu</TooltipContent>
+              <TooltipContent side="top" className="text-xs">Aperçu</TooltipContent>
               {previewRow ? (
                 <PopoverContent className="w-auto p-1.5" side="left" align="center">
                   <div
@@ -573,7 +530,7 @@ function DocumentRowGmbs({
                   >
                     <div className="flex-none px-3 pt-2">
                       <h4 className="text-xs font-semibold truncate">{previewRow.filename}</h4>
-                      <p className="text-[10px] text-muted-foreground">
+                      <p className="text-xs text-muted-foreground">
                         {kindLabel} • {formatDate(previewRow.createdAt) ?? "—"}
                       </p>
                     </div>
@@ -612,7 +569,7 @@ function DocumentRowGmbs({
                   size="icon"
                   onClick={() => manager.handleCopyLink(row.url, row.filename, row.id)}
                   aria-label="Copier le lien"
-                  className={`h-6 w-6 p-0 ${manager.copiedLinkId === row.id ? "text-green-600" : ""}`}
+                  className={`h-8 w-8 p-0 ${manager.copiedLinkId === row.id ? "text-green-600" : ""}`}
                 >
                   {manager.copiedLinkId === row.id ? (
                     <Check className="h-3.5 w-3.5" />
@@ -621,7 +578,7 @@ function DocumentRowGmbs({
                   )}
                 </Button>
               </TooltipTrigger>
-              <TooltipContent side="top" className="text-[10px]">
+              <TooltipContent side="top" className="text-xs">
                 {manager.copiedLinkId === row.id ? "Copié !" : "Lien"}
               </TooltipContent>
             </Tooltip>
@@ -636,12 +593,12 @@ function DocumentRowGmbs({
                   size="icon"
                   onClick={() => manager.handleOpenInNewTab(row.url)}
                   aria-label="Ouvrir dans un nouvel onglet"
-                  className="h-6 w-6 p-0"
+                  className="h-8 w-8 p-0"
                 >
                   <ExternalLink className="h-3.5 w-3.5" />
                 </Button>
               </TooltipTrigger>
-              <TooltipContent side="top" className="text-[10px]">Ouvrir</TooltipContent>
+              <TooltipContent side="top" className="text-xs">Ouvrir</TooltipContent>
             </Tooltip>
           )}
 
@@ -658,7 +615,7 @@ function DocumentRowGmbs({
                     manager.handleRemoveStaged(row.stagedKind, row.stagedId)
                   }
                   aria-label="Retirer le document en attente"
-                  className="h-6 w-6 p-0"
+                  className="h-8 w-8 p-0"
                 >
                   <Trash2 className="h-3.5 w-3.5" />
                 </Button>
@@ -672,7 +629,7 @@ function DocumentRowGmbs({
                   onClick={() => row.recordId && manager.handleDelete(row.recordId)}
                   disabled={manager.deleteInProgress === row.recordId}
                   aria-label="Supprimer le document"
-                  className="h-6 w-6 p-0"
+                  className="h-8 w-8 p-0"
                 >
                   {manager.deleteInProgress === row.recordId ? (
                     <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -682,7 +639,7 @@ function DocumentRowGmbs({
                 </Button>
               </TooltipTrigger>
             )}
-            <TooltipContent side="top" className="text-[10px]">Supprimer</TooltipContent>
+            <TooltipContent side="top" className="text-xs">Supprimer</TooltipContent>
           </Tooltip>
         </div>
       </TableCell>
@@ -771,7 +728,7 @@ function AdditionalRowGmbs({
     >
       <TableCell className="py-1 px-2">
         <div
-          className={`group relative flex min-h-[36px] w-full cursor-pointer items-center gap-2 rounded border border-dashed ${
+          className={`group relative flex min-h-[48px] w-full cursor-pointer items-center gap-2 rounded border border-dashed ${
             isDragOver
               ? "border-primary bg-primary/5"
               : "border-muted-foreground/30 bg-muted/20 hover:border-primary/50"
@@ -786,9 +743,9 @@ function AdditionalRowGmbs({
             onChange={handleFileInput}
           />
           <FilePlus className="h-3.5 w-3.5 text-primary/70" />
-          <div className="text-[9px] text-muted-foreground">
+          <div className="text-[11px] text-muted-foreground">
             {pendingFiles.length > 0 ? (
-              <span className="text-[10px] font-medium text-foreground">
+              <span className="text-xs font-medium text-foreground">
                 {pendingFiles.length} fichier(s)
               </span>
             ) : (
@@ -797,7 +754,7 @@ function AdditionalRowGmbs({
           </div>
         </div>
         {pendingFiles.length > 0 && (
-          <ul className="mt-0.5 space-y-0 text-[9px] text-muted-foreground max-h-[28px] overflow-y-auto">
+          <ul className="mt-0.5 space-y-0 text-[11px] text-muted-foreground max-h-[28px] overflow-y-auto">
             {pendingFiles.map((file) => (
               <li key={file.name} className="truncate">• {file.name}</li>
             ))}
@@ -806,12 +763,12 @@ function AdditionalRowGmbs({
       </TableCell>
       <TableCell className="py-1 px-2 align-top">
         <Select value={pendingKind} onValueChange={handleKindSelect}>
-          <SelectTrigger className="h-6 text-[10px] min-w-[60px]">
+          <SelectTrigger className="h-6 text-xs min-w-[60px]">
             <SelectValue placeholder="Type" />
           </SelectTrigger>
           <SelectContent>
             {manager.kindMetadata.map(({ original, label, normalized }) => (
-              <SelectItem key={normalized} value={original} className="text-[10px]">
+              <SelectItem key={normalized} value={original} className="text-xs">
                 {label}
               </SelectItem>
             ))}
@@ -819,7 +776,7 @@ function AdditionalRowGmbs({
         </Select>
       </TableCell>
       <TableCell className="py-1 px-2 align-top">
-        <span className="text-[9px] text-muted-foreground">—</span>
+        <span className="text-[11px] text-muted-foreground">—</span>
       </TableCell>
       <TableCell className="py-1 px-2 align-top">
         <ManagerBadge
@@ -838,12 +795,12 @@ function AdditionalRowGmbs({
               size="icon"
               onClick={onRemove}
               aria-label="Supprimer cette ligne"
-              className="h-6 w-6 p-0"
+              className="h-8 w-8 p-0"
             >
               <Trash2 className="h-3.5 w-3.5" />
             </Button>
           </TooltipTrigger>
-          <TooltipContent side="top" className="text-[10px]">Supprimer</TooltipContent>
+          <TooltipContent side="top" className="text-xs">Supprimer</TooltipContent>
         </Tooltip>
       </TableCell>
     </TableRow>

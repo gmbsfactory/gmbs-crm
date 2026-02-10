@@ -426,8 +426,8 @@ export default function InterventionCard({
                             isCheck && "check-status-badge"
                           )}
                           style={{
-                            backgroundColor: isCheck ? "#EF4444" : `${statusColor}10`,
-                            borderColor: isCheck ? "#EF4444" : `${statusColor}40`,
+                            backgroundColor: isCheck ? "hsl(var(--status-cancelled-fg))" : `${statusColor}10`,
+                            borderColor: isCheck ? "hsl(var(--status-cancelled-fg))" : `${statusColor}40`,
                             color: isCheck ? "#FFFFFF" : statusColor,
                           }}
                           onClick={(event) => event.stopPropagation()}
@@ -730,7 +730,7 @@ export default function InterventionCard({
                   <div className="space-y-4">
                     <h4 className="text-sm font-semibold text-muted-foreground">Détail des coûts</h4>
                     <div className="grid gap-4 sm:grid-cols-3">
-                      <div className="rounded-lg border bg-background/60 p-3">
+                      <div className="rounded-lg border bg-muted/30 p-3">
                         <div className="text-xs font-medium text-muted-foreground">SST</div>
                         <EditableCell
                           value={intervention.coutSST ?? 0}
@@ -739,7 +739,7 @@ export default function InterventionCard({
                           className="mt-2 text-blue-600"
                         />
                       </div>
-                      <div className="rounded-lg border bg-background/60 p-3">
+                      <div className="rounded-lg border bg-muted/30 p-3">
                         <div className="text-xs font-medium text-muted-foreground">Matériaux</div>
                         <EditableCell
                           value={intervention.coutMateriel ?? 0}
@@ -748,7 +748,7 @@ export default function InterventionCard({
                           className="mt-2 text-purple-600"
                         />
                       </div>
-                      <div className="rounded-lg border bg-background/60 p-3">
+                      <div className="rounded-lg border bg-muted/30 p-3">
                         <div className="text-xs font-medium text-muted-foreground">Intervention</div>
                         <EditableCell
                           value={intervention.coutIntervention ?? 0}
@@ -778,7 +778,7 @@ export default function InterventionCard({
                   </div>
 
                   <div className="grid gap-4 lg:grid-cols-2">
-                    <div className="rounded-lg border bg-background/60 p-4">
+                    <div className="rounded-lg border bg-muted/30 p-4">
                       <h5 className="mb-3 flex items-center gap-2 text-sm font-semibold text-muted-foreground">
                         <User className="h-4 w-4" /> Informations client
                       </h5>
@@ -796,7 +796,7 @@ export default function InterventionCard({
                         )}
                       </div>
                     </div>
-                    <div className="rounded-lg border bg-background/60 p-4">
+                    <div className="rounded-lg border bg-muted/30 p-4">
                       <h5 className="mb-3 flex items-center gap-2 text-sm font-semibold text-muted-foreground">
                         <Clock className="h-4 w-4" /> Informations intervention
                       </h5>

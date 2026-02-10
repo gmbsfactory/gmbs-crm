@@ -1382,7 +1382,7 @@ export function NewArtisanModalContent({ mode, onClose, onCycleMode, artisanId, 
                       <ChevronRight className="ml-1 h-3 w-3 text-muted-foreground shrink-0" />
                     </Button>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent className="w-64 max-h-80 overflow-y-auto bg-popover border-border p-1">
+                  <DropdownMenuContent className="w-64 max-h-80 overflow-y-auto p-1">
                     {metierOptions.length ? (
                       metierOptions.map((option) => {
                         const isSelected = selected.includes(option.id)
@@ -1470,7 +1470,7 @@ export function NewArtisanModalContent({ mode, onClose, onCycleMode, artisanId, 
     <TooltipProvider>
       <div className={cn("modal-config-surface", surfaceVariantClass, surfaceModeClass)}>
         {/* Header */}
-        <header className="modal-config-columns-header relative bg-[#8DA5CE] dark:bg-transparent">
+        <header className="modal-config-columns-header relative">
           <div className="flex items-center gap-3">
             <Tooltip>
               <TooltipTrigger asChild>
@@ -1577,7 +1577,7 @@ export function NewArtisanModalContent({ mode, onClose, onCycleMode, artisanId, 
         </header>
 
         <form ref={formRef} onSubmit={handleSubmit(onSubmit)} className="flex flex-1 min-h-0 flex-col">
-          <div className="modal-config-columns-body flex-1 min-h-0 bg-[#C6CEDC] dark:bg-transparent">
+          <div className="modal-config-columns-body flex-1 min-h-0">
             {!canWriteArtisans ? (
               <div className="px-4 py-3 md:px-6">
                 <div className="rounded border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
@@ -1829,7 +1829,7 @@ export function NewArtisanModalContent({ mode, onClose, onCycleMode, artisanId, 
                                               type="button"
                                               className={cn(
                                                 "w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-left transition-colors",
-                                                !field.value ? "bg-primary/10 text-primary" : "hover:bg-muted"
+                                                !field.value ? "bg-[var(--glass-bg-medium)] text-primary" : "hover:bg-[var(--glass-bg-light)]"
                                               )}
                                               onClick={() => field.onChange("")}
                                             >
@@ -1851,7 +1851,7 @@ export function NewArtisanModalContent({ mode, onClose, onCycleMode, artisanId, 
                                                   type="button"
                                                   className={cn(
                                                     "w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-left transition-colors",
-                                                    isSelected ? "bg-primary/10 text-primary" : "hover:bg-muted"
+                                                    isSelected ? "bg-[var(--glass-bg-medium)] text-primary" : "hover:bg-[var(--glass-bg-light)]"
                                                   )}
                                                   onClick={() => field.onChange(user.id)}
                                                 >
@@ -2458,7 +2458,7 @@ export function NewArtisanModalContent({ mode, onClose, onCycleMode, artisanId, 
           </div>
 
           {/* Footer */}
-          <footer className="modal-config-columns-footer flex items-center justify-end gap-2 px-4 py-3 md:px-6 bg-[#8DA5CE] dark:bg-transparent">
+          <footer className="modal-config-columns-footer flex items-center justify-end gap-2 px-4 py-3 md:px-6">
             <Button type="button" variant="outline" size="sm" onClick={handleCancel} disabled={isSubmitting}>
               Annuler
             </Button>

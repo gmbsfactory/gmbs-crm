@@ -23,7 +23,7 @@ export function AppSidebar() {
   return (
     <div
       className={cn(
-        "relative group/sidebar flex flex-col bg-transparent transition-[width] duration-200 ease-out",
+        "sticky top-0 group/sidebar flex flex-col bg-transparent transition-[width] duration-200 ease-out",
         sidebarMode === "expanded" ? "w-72" : "w-20",
         // Hybrid expands only on hover (not focus) to avoid sticking open after click
         expandOnHover && "hover:w-72"
@@ -34,7 +34,8 @@ export function AppSidebar() {
     >
       <nav className={cn(
         "flex-1 space-y-1 pr-5 py-10 rounded-r-lg liquid-glass-sidebar",
-        sidebarMode === "collapsed" ? "pl-9" : "pl-7"
+        sidebarMode === "expanded" ? "pl-7" : "pl-9",
+        expandOnHover && "group-hover/sidebar:pl-7"
       )}>
         {navigation.map((item, idx) => {
           if (item.type === "spacer") {
@@ -50,7 +51,7 @@ export function AppSidebar() {
                   className={cn(
                     "w-full gap-3",
                     sidebarMode === "expanded" && "justify-start",
-                    sidebarMode === "hybrid" && "justify-start",
+                    sidebarMode === "hybrid" && "justify-center group-hover/sidebar:justify-start",
                     sidebarMode === "collapsed" && "justify-center",
                     isActive && "bg-secondary"
                   )}
@@ -60,7 +61,7 @@ export function AppSidebar() {
                     className={cn(
                       "text-sm transition-opacity duration-200",
                       sidebarMode === "expanded" ? "opacity-100" : "opacity-0",
-                      sidebarMode === "hybrid" && "group-hover/sidebar:opacity-100",
+                      sidebarMode === "hybrid" && "hidden group-hover/sidebar:inline group-hover/sidebar:opacity-100",
                       sidebarMode === "collapsed" && "hidden"
                     )}
                   >

@@ -114,7 +114,7 @@ export function MarginTotalCard({ period, userId: propUserId, compact = false }:
 
     if (loading) {
         return (
-            <Card className="h-full bg-background border-border/5 shadow-sm/30">
+            <Card className="h-full bg-card border shadow-sm">
                 <CardContent className="h-full flex items-center justify-center p-4">
                     <Loader />
                 </CardContent>
@@ -148,7 +148,7 @@ export function MarginTotalCard({ period, userId: propUserId, compact = false }:
     }
 
     return (
-        <Card className="h-full bg-background border-border/5 shadow-sm/30 overflow-hidden">
+        <Card className="h-full bg-card border shadow-sm overflow-hidden">
             <CardContent className="p-4 flex flex-col h-full">
                 <div className="flex items-center justify-between mb-2">
                     <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Marge Totale</span>

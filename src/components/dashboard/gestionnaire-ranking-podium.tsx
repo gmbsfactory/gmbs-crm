@@ -136,7 +136,7 @@ export function GestionnaireRankingPodium({ period, useAutoPeriod = false }: Ges
 
   if (loading) {
     return (
-      <Card className="bg-background border-border/5 shadow-sm/30">
+      <Card className="bg-card border shadow-sm">
         <CardHeader>
           <CardTitle>Podium</CardTitle>
         </CardHeader>
@@ -153,7 +153,7 @@ export function GestionnaireRankingPodium({ period, useAutoPeriod = false }: Ges
 
   if (error) {
     return (
-      <Card className="bg-background border-border/5 shadow-sm/30">
+      <Card className="bg-card border shadow-sm">
         <CardHeader>
           <CardTitle>Podium</CardTitle>
         </CardHeader>
@@ -166,7 +166,7 @@ export function GestionnaireRankingPodium({ period, useAutoPeriod = false }: Ges
 
   if (!ranking || ranking.rankings.length === 0) {
     return (
-      <Card className="bg-background border-border/5 shadow-sm/30">
+      <Card className="bg-card border shadow-sm">
         <CardHeader>
           <CardTitle>Podium</CardTitle>
         </CardHeader>
@@ -180,7 +180,7 @@ export function GestionnaireRankingPodium({ period, useAutoPeriod = false }: Ges
   }
 
   return (
-    <Card className="bg-background border-border/5 shadow-sm/30 h-full flex flex-col">
+    <Card className="bg-card border shadow-sm h-full flex flex-col">
       <CardHeader className="pb-3 flex-shrink-0">
         <div className="flex items-center justify-between">
           <div className="flex items-center justify-center gap-3">

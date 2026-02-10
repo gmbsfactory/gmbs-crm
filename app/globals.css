@@ -106,6 +106,26 @@
   /* Glass saturation boost */
   --glass-saturate: 1.15;
   --glass-saturate-strong: 1.25;
+
+  /* Standardized tokens */
+  --radius-xs: 4px;
+  --blur-reference: 50px;
+  --saturate-reference: 1.5;
+  --glass-modal-bg: rgba(87, 100, 151, 0.20);
+  --glass-modal-border: rgba(255, 255, 255, 0.3);
+  --glass-section-bg: rgba(255, 255, 255, 0.97);
+
+  /* Navigation gradient tones (sidebar + topbar) */
+  --nav-blue-light: 210 50% 87%;
+  --nav-blue-mid: 212 45% 85%;
+  --nav-blue-end: 215 40% 84%;
+  --nav-topbar-start: 210 55% 88%;
+  --nav-topbar-mid: 212 50% 85%;
+  --nav-topbar-end: 215 45% 82%;
+
+  /* Couleurs marque tierces */
+  --whatsapp-green: #25D366;
+  --whatsapp-green-rgb: 37, 211, 102;
 }
 
 /* === Variables Liquid Glass (Dark Mode) === */
@@ -173,6 +193,14 @@
 
   --glass-saturate: 1.20;
   --glass-saturate-strong: 1.35;
+
+  /* Navigation gradient tones - dark */
+  --nav-blue-light: 220 40% 16%;
+  --nav-blue-mid: 221 42% 15%;
+  --nav-blue-end: 222 45% 14%;
+  --nav-topbar-start: 220 40% 18%;
+  --nav-topbar-mid: 221 42% 16%;
+  --nav-topbar-end: 222 45% 15%;
 }
 
 /* === Classes Liquid Glass de base === */
@@ -270,6 +298,15 @@
   outline: none;
 }
 
+:root[data-theme="dark"] .glass-input {
+  background: rgba(255, 255, 255, 0.10);
+  border-color: rgba(255, 255, 255, 0.20);
+}
+:root[data-theme="dark"] .glass-input:focus {
+  background: rgba(255, 255, 255, 0.14);
+  border-color: hsl(var(--accent-hsl) / 0.5);
+}
+
 /* Glass Modal/Dialog - Pour les overlays */
 .glass-modal {
   background: var(--glass-bg-solid);
@@ -290,22 +327,30 @@
 
 /* Le panneau de verre principal - TRÈS TRANSLUCIDE */
 .glass-modal-premium {
-  background: var(--modal-panel-bg) !important;
-  border: 1px solid var(--modal-panel-border) !important;
-  backdrop-filter: blur(20px) saturate(1.5) !important;
-  -webkit-backdrop-filter: blur(20px) saturate(1.5) !important;
-  box-shadow: var(--modal-panel-shadow) !important;
-  border-radius: var(--radius-xl, 16px) !important;
+  background: rgba(255, 255, 255, 0.25);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  backdrop-filter: blur(var(--glass-blur-lg)) saturate(1.4);
+  -webkit-backdrop-filter: blur(var(--glass-blur-lg)) saturate(1.4);
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.08),
+    inset 0 1px 1px rgba(255, 255, 255, 0.6);
+  border-radius: var(--radius-xl);
   overflow: hidden;
   padding: 0;
 }
 
+:root[data-theme="dark"] .glass-modal-premium {
+  background: var(--modal-panel-bg);
+  border: 1px solid var(--modal-panel-border);
+  box-shadow: var(--modal-panel-shadow);
+}
+
 /* Header - SOLIDE, contraste avec le corps translucide */
 .glass-modal-header {
-  background: var(--modal-header-bg) !important;
-  backdrop-filter: blur(12px) !important;
-  -webkit-backdrop-filter: blur(12px) !important;
-  border-bottom: 1px solid var(--modal-divider) !important;
+  background: var(--modal-header-bg);
+  backdrop-filter: blur(var(--glass-blur-md));
+  -webkit-backdrop-filter: blur(var(--glass-blur-md));
+  border-bottom: 1px solid var(--modal-divider);
   padding: 1.25rem 1.5rem;
   position: relative;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
@@ -329,22 +374,22 @@
 
 /* Corps du modal - TRANSPARENT pour voir le background à travers */
 .glass-modal-body {
-  background: transparent !important;
+  background: transparent;
   padding: 1.5rem;
   position: relative;
 }
 
 /* Variante translucide explicite */
 .glass-modal-body--translucent {
-  background: transparent !important;
+  background: transparent;
 }
 
 /* Footer - SOLIDE, contraste avec le corps translucide */
 .glass-modal-footer {
-  background: var(--modal-footer-bg) !important;
-  backdrop-filter: blur(12px) !important;
-  -webkit-backdrop-filter: blur(12px) !important;
-  border-top: 1px solid var(--modal-divider) !important;
+  background: var(--modal-footer-bg);
+  backdrop-filter: blur(var(--glass-blur-md));
+  -webkit-backdrop-filter: blur(var(--glass-blur-md));
+  border-top: 1px solid var(--modal-divider);
   padding: 1rem 1.5rem;
   position: relative;
   box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.06);
@@ -376,21 +421,21 @@
 .glass-modal-premium textarea,
 .glass-modal-premium select,
 .glass-modal-premium [data-slot="control"] {
-  background: var(--modal-input-bg) !important;
-  border: 1px solid var(--modal-input-border) !important;
+  background: var(--modal-input-bg);
+  border: 1px solid var(--modal-input-border);
   border-radius: var(--radius-md);
-  box-shadow: var(--modal-input-shadow) !important;
+  box-shadow: var(--modal-input-shadow);
   transition: all 0.2s ease;
 }
 
 .glass-modal-premium input:not([type="checkbox"]):not([type="radio"]):focus,
 .glass-modal-premium textarea:focus,
 .glass-modal-premium select:focus {
-  border-color: var(--gmbs-blue) !important;
+  border-color: var(--gmbs-blue);
   box-shadow:
     var(--modal-input-shadow),
     0 0 0 3px rgba(var(--gmbs-blue-rgb), 0.15),
-    0 0 16px rgba(var(--gmbs-blue-rgb), 0.10) !important;
+    0 0 16px rgba(var(--gmbs-blue-rgb), 0.10);
   outline: none;
 }
 
@@ -474,12 +519,17 @@
 
 /* Glass Dropdown/Popover */
 .glass-dropdown {
-  background: var(--glass-bg-strong);
+  background: rgba(75, 92, 181, 0.14);
   border: 1px solid var(--glass-border-medium);
-  backdrop-filter: blur(var(--glass-blur-lg)) saturate(var(--glass-saturate-strong));
-  -webkit-backdrop-filter: blur(var(--glass-blur-lg)) saturate(var(--glass-saturate-strong));
+  backdrop-filter: blur(50px) saturate(1.5);
+  -webkit-backdrop-filter: blur(50px) saturate(1.5);
   box-shadow: var(--glass-highlight-top), var(--glass-shadow-lg);
   border-radius: var(--radius-lg);
+}
+
+:root[data-theme="dark"] .glass-dropdown {
+  background: rgba(75, 92, 181, 0.14);
+  border: 1px solid rgba(255, 255, 255, 0.15);
 }
 
 /* Glass Badge */
@@ -601,15 +651,6 @@
   }
 }
 
-/* Hide scrollbars for nicer chat scrolling while keeping scrollability */
-.no-scrollbar {
-  -ms-overflow-style: none; /* IE and Edge */
-  scrollbar-width: none; /* Firefox */
-}
-.no-scrollbar::-webkit-scrollbar {
-  display: none; /* Chrome, Safari, Opera */
-}
-
 /* Hide scrollbars for view tabs navigation */
 .scrollbar-hide {
   -ms-overflow-style: none; /* IE and Edge */
@@ -637,7 +678,7 @@
 
 .chat-content-scroll::-webkit-scrollbar-thumb {
   background-color: hsl(var(--muted-foreground) / 0.3);
-  border-radius: 3px;
+  border-radius: var(--radius-xs);
 }
 
 /* Scrollbars minimales et discrètes - visibles au survol */
@@ -701,7 +742,7 @@
 
 @layer base {
   html {
-    font-size: 12px; /* Réduit de 16px (défaut) à 14px pour augmenter la densité d'information */
+    font-size: 12px; /* TODO: Le commentaire disait "14px" mais la valeur réelle est 12px — vérifier si voulu (très petit, affecte tout le site via rem) */
   }
 
   :root {
@@ -958,23 +999,39 @@
      Composants avec effet glassmorphism fluide
      ═══════════════════════════════════════════════════════ */
 
-  .card {
+  .card,
+  [data-slot="card"] {
+    background: var(--glass-section-bg, rgba(255, 255, 255, 0.95));
+    border: 1px solid rgba(51, 113, 178, 0.08);
+    box-shadow:
+      0 2px 8px rgba(0, 0, 0, 0.04),
+      0 1px 2px rgba(0, 0, 0, 0.02);
+    border-radius: var(--radius-lg);
+    padding: 16px;
+    transition: all var(--transition-base) var(--transition-easing);
+  }
+
+  :root[data-theme="dark"] .card,
+  :root[data-theme="dark"] [data-slot="card"] {
     background: var(--glass-bg-medium);
     border: 1px solid var(--glass-border-light);
     border-top-color: var(--glass-border-medium);
     backdrop-filter: blur(var(--glass-blur-lg)) saturate(var(--glass-saturate));
     -webkit-backdrop-filter: blur(var(--glass-blur-lg)) saturate(var(--glass-saturate));
     box-shadow: var(--glass-highlight-top), var(--glass-shadow-md);
-    border-radius: var(--radius-lg);
-    padding: 16px;
-    transition: all var(--transition-base) var(--transition-easing);
   }
 
   .card:hover {
+    box-shadow:
+      0 4px 12px rgba(0, 0, 0, 0.06),
+      0 2px 4px rgba(0, 0, 0, 0.03);
+    transform: translateY(-2px);
+  }
+
+  :root[data-theme="dark"] .card:hover {
     background: var(--glass-bg-strong);
     border-color: var(--glass-border-medium);
     box-shadow: var(--glass-highlight-strong), var(--glass-shadow-lg);
-    transform: translateY(-2px);
   }
 
   .button-primary,
@@ -1384,24 +1441,21 @@
         color-mix(in oklab, var(--accent-color), rgba(0, 0, 0, 0.15)) 100%
       ),
       rgba(255, 255, 255, 0.9);
-    backdrop-filter: blur(32px) saturate(1.4);
-    -webkit-backdrop-filter: blur(32px) saturate(1.4);
+    /* backdrop-filter supprimé : fond à 90% d'opacité, le blur est quasi invisible */
     pointer-events: none;
     z-index: 1;
   }
 
   :root[data-theme="dark"] .data-table thead::before,
   :root[data-theme="dark"] .shadcn-table thead::before {
-    background: 
+    background:
       linear-gradient(
         180deg,
-        color-mix(in oklab, var(--accent-color), rgba(255, 255, 255, 0.28)) 0%,
-        color-mix(in oklab, var(--accent-color), rgba(255, 255, 255, 0.18)) 55%,
-        color-mix(in oklab, var(--accent-color), rgba(0, 0, 0, 0.22)) 100%
+        color-mix(in oklab, var(--accent-color), rgba(0, 0, 0, 0.70)) 0%,
+        color-mix(in oklab, var(--accent-color), rgba(0, 0, 0, 0.78)) 55%,
+        color-mix(in oklab, var(--accent-color), rgba(0, 0, 0, 0.85)) 100%
       ),
-      rgba(0, 0, 0, 0.85);
-    backdrop-filter: blur(40px) saturate(1.6);
-    -webkit-backdrop-filter: blur(40px) saturate(1.6);
+      rgba(10, 12, 20, 0.92);
   }
 
   .data-table thead th {
@@ -1516,7 +1570,7 @@
 
   .table-scroll-wrapper::-webkit-scrollbar-thumb {
     background: var(--border);
-    border-radius: 5px;
+    border-radius: var(--radius-xs);
     border: 2px solid transparent;
     background-clip: padding-box;
   }
@@ -1556,37 +1610,49 @@
 
   .modal-overlay,
   .shadcn-dialog-overlay {
-    background: var(--backdrop-color);
+    background: rgba(0, 0, 0, 0);
     backdrop-filter: none;
+    -webkit-backdrop-filter: none;
     animation: fadeIn var(--transition-base) var(--transition-easing);
     position: fixed;
     inset: 0;
     z-index: 40;
   }
 
+  :root[data-theme="dark"] .modal-overlay,
+  :root[data-theme="dark"] .shadcn-dialog-overlay {
+    background: var(--backdrop-color);
+  }
+
   .modal-surface,
   .modal-content,
-  .shadcn-sheet-content,
   .shadcn-dialog-content {
-    background: var(--bg-light);
-    background-image: linear-gradient(
-      to bottom,
-      color-mix(in oklab, var(--bg-light), white 6%),
-      var(--bg-light)
-    );
-    border: 1px solid hsl(var(--border));
     border-radius: var(--radius-xl);
-    box-shadow:
-      inset 0 1px 0 var(--highlight),
-      var(--shadow-xl);
     color: var(--text);
   }
 
   .modal-surface {
+    background: var(--glass-modal-bg, rgba(87, 100, 151, 0.25));
+    background-image: none;
+    backdrop-filter: blur(var(--glass-blur-lg)) saturate(1.4);
+    -webkit-backdrop-filter: blur(var(--glass-blur-lg)) saturate(1.4);
+    border: 1px solid var(--glass-modal-border, rgba(255, 255, 255, 0.3));
     box-shadow:
-      inset 0 1px 0 var(--highlight),
-      0 26px 52px rgba(15, 23, 42, 0.28);
-    backdrop-filter: blur(6px);
+      0 8px 32px rgba(0, 0, 0, 0.08),
+      inset 0 1px 1px rgba(255, 255, 255, 0.4);
+  }
+
+  .shadcn-sheet-content {
+    background: var(--glass-modal-bg, rgba(87, 100, 151, 0.25));
+    background-image: none;
+    backdrop-filter: blur(var(--glass-blur-lg)) saturate(1.4);
+    -webkit-backdrop-filter: blur(var(--glass-blur-lg)) saturate(1.4);
+    border-left: 1px solid var(--glass-modal-border, rgba(255, 255, 255, 0.3));
+    box-shadow:
+      -4px 0 24px rgba(0, 0, 0, 0.06),
+      inset 1px 0 1px rgba(255, 255, 255, 0.4);
+    min-width: 0;
+    min-height: 0;
   }
 
   .modal-content,
@@ -1630,17 +1696,11 @@
     justify-content: flex-end;
   }
 
-  .shadcn-sheet-content {
-    box-shadow:
-      inset 0 1px 0 var(--highlight),
-      0 22px 48px rgba(15, 23, 42, 0.24);
-    backdrop-filter: blur(8px);
-    min-width: 0;
-    min-height: 0;
-  }
-
   .modal-surface-full {
-    background: color-mix(in oklab, var(--bg), white 4%);
+    background: var(--glass-modal-bg, rgba(87, 100, 151, 0.25));
+    background-image: none;
+    backdrop-filter: blur(var(--glass-blur-lg)) saturate(1.4);
+    -webkit-backdrop-filter: blur(var(--glass-blur-lg)) saturate(1.4);
     box-shadow:
       inset 0 1px 0 color-mix(in oklab, var(--bg), white 6%),
       0 18px 42px rgba(15, 23, 42, 0.18);
@@ -1727,7 +1787,7 @@
   .modal-config-columns-icon-button {
     width: 2rem;
     height: 2rem;
-    border-radius: 0.75rem;
+    border-radius: var(--radius-lg);
     background-image: linear-gradient(
       to bottom,
       color-mix(in oklab, var(--bg-light), white 10%),
@@ -1749,7 +1809,7 @@
   .modal-config--centerpage .modal-config-columns-icon-button {
     width: 1.75rem;
     height: 1.75rem;
-    border-radius: 0.6rem;
+    border-radius: var(--radius-md);
   }
 
   .modal-config-columns-icon-button:hover {
@@ -1912,7 +1972,7 @@
     justify-content: center;
     width: 2rem;
     height: 2rem;
-    border-radius: 0.7rem;
+    border-radius: var(--radius-md);
     border: 1px dashed color-mix(in oklab, var(--border), black 10%);
     color: color-mix(in oklab, var(--text-muted), white 8%);
     background: color-mix(in oklab, var(--bg), white 6%);
@@ -1955,7 +2015,7 @@
   .modal-config-columns-toggle {
     width: 2rem;
     height: 2rem;
-    border-radius: 0.7rem;
+    border-radius: var(--radius-md);
     border: 1px solid transparent;
     background: transparent;
     color: color-mix(in oklab, var(--text-muted), transparent 30%);
@@ -1972,7 +2032,7 @@
   .modal-config--centerpage .modal-config-columns-toggle {
     width: 1.75rem;
     height: 1.75rem;
-    border-radius: 0.5rem;
+    border-radius: var(--radius-sm);
   }
 
   .modal-config-columns-toggle:hover {
@@ -2511,7 +2571,7 @@
   .intervention-form-icon-button {
     width: 2rem;
     height: 2rem;
-    border-radius: 0.75rem;
+    border-radius: var(--radius-lg);
     background-image: linear-gradient(
       to bottom,
       color-mix(in oklab, var(--bg-light), white 10%),
@@ -2879,6 +2939,60 @@
       inset 0 1px 0 rgba(255, 255, 255, 0.05),
       var(--shadow-md);
     overflow: hidden;
+  }
+
+  /* Sections lévitantes dans les modaux (light mode) */
+  .modal-surface .intervention-form-section,
+  .shadcn-sheet-content .intervention-form-section {
+    background: var(--glass-section-bg, rgba(255, 255, 255, 0.97));
+    background-image: none;
+    border: 1px solid rgba(255, 255, 255, 0.8);
+    border-radius: var(--radius-lg);
+    box-shadow: none;
+  }
+
+  .modal-surface .intervention-form-section-header,
+  .shadcn-sheet-content .intervention-form-section-header {
+    background: rgba(255, 255, 255, 0.98);
+    background-image: none;
+    border-bottom: 1px solid rgba(51, 113, 178, 0.08);
+  }
+
+  /* Sections dans les modaux (dark mode) */
+  :root[data-theme="dark"] .modal-surface .intervention-form-section,
+  :root[data-theme="dark"] .shadcn-sheet-content .intervention-form-section {
+    background: rgba(255, 255, 255, 0.06);
+    border-color: rgba(255, 255, 255, 0.10);
+  }
+
+  :root[data-theme="dark"] .modal-surface .intervention-form-section-header,
+  :root[data-theme="dark"] .shadcn-sheet-content .intervention-form-section-header {
+    background: rgba(255, 255, 255, 0.08);
+    border-bottom-color: rgba(255, 255, 255, 0.10);
+  }
+
+  /* Inputs dans les modaux (light mode) */
+  .modal-surface input:not([type="checkbox"]):not([type="radio"]),
+  .modal-surface textarea,
+  .modal-surface select,
+  .shadcn-sheet-content input:not([type="checkbox"]):not([type="radio"]),
+  .shadcn-sheet-content textarea,
+  .shadcn-sheet-content select {
+    background: rgba(255, 255, 255, 0.98);
+    border: 1px solid rgba(51, 113, 178, 0.12);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+  }
+
+  /* Inputs dans les modaux (dark mode) */
+  :root[data-theme="dark"] .modal-surface input:not([type="checkbox"]):not([type="radio"]),
+  :root[data-theme="dark"] .modal-surface textarea,
+  :root[data-theme="dark"] .modal-surface select,
+  :root[data-theme="dark"] .shadcn-sheet-content input:not([type="checkbox"]):not([type="radio"]),
+  :root[data-theme="dark"] .shadcn-sheet-content textarea,
+  :root[data-theme="dark"] .shadcn-sheet-content select {
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.20);
   }
 
   :root[data-theme="dark"] .intervention-form-section-header {
@@ -3393,12 +3507,6 @@ input:focus-visible {
   to { max-height: 100%; opacity: 1; }
 }
 
-@keyframes gradient {
-  0% { background-position: 0% 50%; }
-  50% { background-position: 100% 50%; }
-  100% { background-position: 0% 50%; }
-}
-
 @keyframes expand-contract {
   0%, 100% { width: 2rem; }
   50% { width: 3rem; }
@@ -3435,8 +3543,9 @@ input:focus-visible {
   }
   
   /* Désactiver les backdrop-blur coûteux en CPU */
-  .backdrop-blur-sm, .backdrop-blur, .backdrop-blur-md, 
-  .backdrop-blur-lg, .backdrop-blur-xl, [class*="backdrop-blur"] {
+  .backdrop-blur-sm, .backdrop-blur, .backdrop-blur-md,
+  .backdrop-blur-lg, .backdrop-blur-xl, [class*="backdrop-blur"],
+  [class*="glass-"] {
     backdrop-filter: none !important;
     -webkit-backdrop-filter: none !important;
   }
@@ -3460,7 +3569,8 @@ input:focus-visible {
 .performance-mode .backdrop-blur-md,
 .performance-mode .backdrop-blur-lg,
 .performance-mode .backdrop-blur-xl,
-.performance-mode [class*="backdrop-blur"] {
+.performance-mode [class*="backdrop-blur"],
+.performance-mode [class*="glass-"] {
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
 }
@@ -3497,7 +3607,7 @@ input:focus-visible {
 }
 
 /* Thème Color en mode sombre */
-.dark .theme-color {
+:root[data-theme="dark"] .theme-color {
   --background: 160 30% 8%; /* Fond vert sage très foncé pour plus de contraste */
   --foreground: 0 0% 98%;
   --card: 160 30% 12%; /* Cards plus contrastées */
@@ -3527,7 +3637,7 @@ input:focus-visible {
 }
 
 /* Thème Glass en mode sombre */
-.dark .theme-glass {
+:root[data-theme="dark"] .theme-glass {
   --card: 0 0% 8% / 0.6; /* Cards plus contrastées avec transparence */
   --card-foreground: 0 0% 98%;
   --popover: 0 0% 6% / 0.9;
@@ -3552,68 +3662,6 @@ input:focus-visible {
 }
 
 @layer utilities {
-  /* Utilitaires pour le thème glass */
-  .glass-card {
-    @apply bg-white/5 backdrop-blur-md border border-white/10;
-    box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
-  }
-  
-  .glass-nav {
-    @apply bg-white/10 backdrop-blur-lg border-b border-white/20;
-  }
-  
-  .glass-sidebar {
-    @apply bg-black/20 backdrop-blur-xl border-r border-white/10;
-  }
-
-  /* Animations pour les thèmes */
-  @keyframes expand-contract {
-    0%,
-    100% {
-      width: 2rem;
-    }
-    50% {
-      width: 3rem;
-    }
-  }
-
-  @keyframes shimmer {
-    0%,
-    100% {
-      opacity: 0.3;
-      transform: translateX(-100%);
-    }
-    50% {
-      opacity: 0.6;
-      transform: translateX(100%);
-    }
-  }
-
-  @keyframes breathing {
-    0%,
-    100% {
-      opacity: 1;
-      transform: scale(1);
-    }
-    50% {
-      opacity: 0.8;
-      transform: scale(1.02);
-    }
-  }
-
-  @keyframes glass-float {
-    0%, 100% {
-      transform: translateY(0px);
-    }
-    50% {
-      transform: translateY(-10px);
-    }
-  }
-
-  .animate-glass-float {
-    animation: glass-float 6s ease-in-out infinite;
-  }
-
   /* DAT-001 : Animation pour le badge "Check" (due date dépassée) */
   @keyframes check-pulse {
     0%, 100% {
@@ -4643,20 +4691,11 @@ input:focus-visible {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   LIQUID GLASS - STYLES PRIORITAIRES (Spécificité maximale)
-   Ces styles sont HORS des @layer pour avoir la priorité absolue
-
-   LOGIQUE :
-   - Background app = bleu léger (plus clair que topbar)
-   - Topbar = bleu gradient (plus foncé)
-   - Sidebar = bleu comme la topbar
-   - Cards = blanches pour contraste
-   - Modaux = TRANSLUCIDES, sections qui LÉVITENT dessus
+   LIQUID GLASS - LAYOUT COMPONENTS
+   Background, topbar, sidebar - styles non-@layer pour priorité
    ═══════════════════════════════════════════════════════════════════════════ */
 
-/* ═══════════════════════════════════════════════════════════════════════════
-   BACKGROUND DE L'APPLICATION - Bleu léger (plus clair que la topbar)
-   ═══════════════════════════════════════════════════════════════════════════ */
+/* Background de l'application - Bleu léger */
 .liquid-glass-app-bg {
   background: linear-gradient(
     180deg,
@@ -4667,221 +4706,46 @@ input:focus-visible {
   background-attachment: fixed;
 }
 
-/* Dark mode - background standard */
-:root[data-theme="dark"] .liquid-glass-app-bg,
-.dark .liquid-glass-app-bg {
+:root[data-theme="dark"] .liquid-glass-app-bg {
   background: hsl(var(--background));
 }
 
-/* ═══════════════════════════════════════════════════════════════════════════
-   TOPBAR - BLEU GRADIENT (plus foncé que le background)
-   ═══════════════════════════════════════════════════════════════════════════ */
+/* Topbar - Bleu gradient */
 .liquid-glass-topbar-blue {
-  background: linear-gradient(
-    135deg,
-    hsl(210 55% 88%) 0%,
-    hsl(212 50% 85%) 50%,
-    hsl(215 45% 82%) 100%
-  );
-  backdrop-filter: blur(12px) saturate(1.3);
-  -webkit-backdrop-filter: blur(12px) saturate(1.3);
-  border-bottom: 1px solid rgba(51, 113, 178, 0.20);
+  background: rgba(75, 92, 181, 0.14);
+  backdrop-filter: blur(50px) saturate(1.5);
+  -webkit-backdrop-filter: blur(50px) saturate(1.5);
+  border-bottom: 1px solid rgba(var(--gmbs-blue-rgb), 0.20);
   box-shadow:
-    0 4px 20px rgba(51, 113, 178, 0.12),
+    0 4px 20px rgba(var(--gmbs-blue-rgb), 0.12),
     0 1px 4px rgba(0, 0, 0, 0.05),
     inset 0 -1px 0 rgba(255, 255, 255, 0.4);
 }
 
-/* Dark mode - topbar sombre */
-:root[data-theme="dark"] .liquid-glass-topbar-blue,
-.dark .liquid-glass-topbar-blue {
-  background: linear-gradient(
-    135deg,
-    hsl(220 40% 18%) 0%,
-    hsl(222 45% 15%) 100%
-  );
-  border-bottom-color: rgba(255, 255, 255, 0.08);
-  box-shadow:
-    0 4px 20px rgba(0, 0, 0, 0.25),
-    0 1px 4px rgba(0, 0, 0, 0.15),
-    inset 0 -1px 0 rgba(255, 255, 255, 0.05);
+:root[data-theme="dark"] .liquid-glass-topbar-blue {
+  background: rgba(20, 25, 45, 0.14);
+  backdrop-filter: blur(50px) saturate(1.5);
+  -webkit-backdrop-filter: blur(50px) saturate(1.5);
+  border-bottom-color: var(--glass-border-subtle);
+  box-shadow: 0 4px 20px rgba(0,0,0,0.25), 0 1px 4px rgba(0,0,0,0.15), inset 0 -1px 0 rgba(255,255,255,0.05);
 }
 
-/* ═══════════════════════════════════════════════════════════════════════════
-   SIDEBAR - Bleu comme la topbar
-   ═══════════════════════════════════════════════════════════════════════════ */
+/* Sidebar - Bleu comme la topbar */
 .liquid-glass-sidebar {
-  background: linear-gradient(
-    180deg,
-    hsl(210 50% 87%) 0%,
-    hsl(212 45% 85%) 50%,
-    hsl(215 40% 84%) 100%
-  );
-  backdrop-filter: blur(12px) saturate(1.2);
-  -webkit-backdrop-filter: blur(12px) saturate(1.2);
-  border-right: 1px solid rgba(51, 113, 178, 0.15);
+  background: rgba(75, 92, 181, 0.14);
+  backdrop-filter: blur(50px) saturate(1.5);
+  -webkit-backdrop-filter: blur(50px) saturate(1.5);
+  border-right: 1px solid rgba(var(--gmbs-blue-rgb), 0.15);
   box-shadow:
-    2px 0 16px rgba(51, 113, 178, 0.08),
+    2px 0 16px rgba(var(--gmbs-blue-rgb), 0.08),
     inset -1px 0 0 rgba(255, 255, 255, 0.4);
 }
 
-/* Dark mode - sidebar sombre */
-:root[data-theme="dark"] .liquid-glass-sidebar,
-.dark .liquid-glass-sidebar {
-  background: linear-gradient(
-    180deg,
-    hsl(220 40% 16%) 0%,
-    hsl(222 45% 14%) 100%
-  );
-  border-right-color: rgba(255, 255, 255, 0.06);
-  box-shadow:
-    2px 0 12px rgba(0, 0, 0, 0.20),
-    inset -1px 0 0 rgba(255, 255, 255, 0.03);
+:root[data-theme="dark"] .liquid-glass-sidebar {
+  background: rgba(20, 25, 45, 0.14);
+  backdrop-filter: blur(50px) saturate(1.5);
+  -webkit-backdrop-filter: blur(50px) saturate(1.5);
+  border-right-color: var(--glass-border-subtle);
+  box-shadow: 2px 0 12px rgba(0,0,0,0.20), inset -1px 0 0 rgba(255,255,255,0.03);
 }
 
-/* ═══════════════════════════════════════════════════════════════════════════
-   CARDS - Blanches pour contraste avec le background
-   ═══════════════════════════════════════════════════════════════════════════ */
-html:not([data-theme="dark"]) .card,
-:root:not([data-theme="dark"]) .card,
-html:not([data-theme="dark"]) [data-slot="card"],
-:root:not([data-theme="dark"]) [data-slot="card"] {
-  background: rgba(255, 255, 255, 0.95) !important;
-  border: 1px solid rgba(51, 113, 178, 0.08) !important;
-  box-shadow:
-    0 2px 8px rgba(0, 0, 0, 0.04),
-    0 1px 2px rgba(0, 0, 0, 0.02) !important;
-}
-
-/* ═══════════════════════════════════════════════════════════════════════════
-   DROPDOWNS & POPOVERS - Blancs et nets
-   ═══════════════════════════════════════════════════════════════════════════ */
-html:not([data-theme="dark"]) [data-radix-popper-content-wrapper] > div,
-:root:not([data-theme="dark"]) [data-radix-popper-content-wrapper] > div {
-  background: rgba(255, 255, 255, 0.98) !important;
-  border: 1px solid rgba(51, 113, 178, 0.12) !important;
-  box-shadow:
-    0 8px 24px rgba(0, 0, 0, 0.10),
-    0 4px 8px rgba(0, 0, 0, 0.06) !important;
-}
-
-/* ═══════════════════════════════════════════════════════════════════════════
-   GENERIC MODAL - CENTERPAGE & HALFPAGE = TRANSLUCIDE
-   Les sections LÉVITENT au-dessus du panneau de verre
-   ═══════════════════════════════════════════════════════════════════════════ */
-
-/* Overlay des modaux - transparent, l'opacité est gérée par le background du modal */
-html:not([data-theme="dark"]) .modal-overlay,
-:root:not([data-theme="dark"]) .modal-overlay {
-  background: rgba(0, 0, 0, 0) !important;
-  backdrop-filter: none !important;
-  -webkit-backdrop-filter: none !important;
-}
-
-/* ═══════════════════════════════════════════════════════════════════════════
-   LIQUID GLASS STYLE UNIFORME - Valeurs optimales (DesignDebugBar)
-   background: rgba(87, 100, 151, 0.25)
-   backdrop-filter: blur(16px) saturate(1.4)
-   PAS D'OVERLAY - l'opacité est gérée directement par le background
-   ═══════════════════════════════════════════════════════════════════════════ */
-
-/* CENTERPAGE MODAL (modal-surface) - Liquid Glass */
-html:not([data-theme="dark"]) .modal-surface,
-:root:not([data-theme="dark"]) .modal-surface {
-  background: rgba(87, 100, 151, 0.25) !important;
-  background-image: none !important;
-  backdrop-filter: blur(16px) saturate(1.4) !important;
-  -webkit-backdrop-filter: blur(16px) saturate(1.4) !important;
-  border: 1px solid rgba(255, 255, 255, 0.3) !important;
-  box-shadow:
-    0 8px 32px rgba(0, 0, 0, 0.08),
-    inset 0 1px 1px rgba(255, 255, 255, 0.4) !important;
-}
-
-/* HALFPAGE MODAL (shadcn-sheet-content) - Liquid Glass */
-html:not([data-theme="dark"]) .shadcn-sheet-content,
-:root:not([data-theme="dark"]) .shadcn-sheet-content {
-  background: rgba(87, 100, 151, 0.25) !important;
-  background-image: none !important;
-  backdrop-filter: blur(16px) saturate(1.4) !important;
-  -webkit-backdrop-filter: blur(16px) saturate(1.4) !important;
-  border-left: 1px solid rgba(255, 255, 255, 0.3) !important;
-  box-shadow:
-    -4px 0 24px rgba(0, 0, 0, 0.06),
-    inset 1px 0 1px rgba(255, 255, 255, 0.4) !important;
-}
-
-/* FULLPAGE MODAL - Liquid Glass */
-html:not([data-theme="dark"]) .modal-surface-full,
-:root:not([data-theme="dark"]) .modal-surface-full {
-  background: rgba(87, 100, 151, 0.25) !important;
-  background-image: none !important;
-  backdrop-filter: blur(16px) saturate(1.4) !important;
-  -webkit-backdrop-filter: blur(16px) saturate(1.4) !important;
-}
-
-/* ═══════════════════════════════════════════════════════════════════════════
-   SECTIONS QUI LÉVITENT - Effet de flottement au-dessus du modal
-   ═══════════════════════════════════════════════════════════════════════════ */
-
-/* Intervention form sections - LÉVITENT avec ombre diffuse uniforme */
-html:not([data-theme="dark"]) .modal-surface .intervention-form-section,
-html:not([data-theme="dark"]) .shadcn-sheet-content .intervention-form-section,
-:root:not([data-theme="dark"]) .modal-surface .intervention-form-section,
-:root:not([data-theme="dark"]) .shadcn-sheet-content .intervention-form-section {
-  background: rgba(255, 255, 255, 0.97) !important;
-  background-image: none !important;
-  border: 1px solid rgba(255, 255, 255, 0.8) !important;
-  border-radius: 12px !important;
-  box-shadow: none !important;
-}
-
-/* Hover sur les sections */
-html:not([data-theme="dark"]) .modal-surface .intervention-form-section:hover,
-html:not([data-theme="dark"]) .shadcn-sheet-content .intervention-form-section:hover {
-  box-shadow: none !important;
-}
-
-/* Section headers - solides */
-html:not([data-theme="dark"]) .modal-surface .intervention-form-section-header,
-html:not([data-theme="dark"]) .shadcn-sheet-content .intervention-form-section-header,
-:root:not([data-theme="dark"]) .modal-surface .intervention-form-section-header,
-:root:not([data-theme="dark"]) .shadcn-sheet-content .intervention-form-section-header {
-  background: rgba(255, 255, 255, 0.98) !important;
-  background-image: none !important;
-  border-bottom: 1px solid rgba(51, 113, 178, 0.08) !important;
-}
-
-/* Inputs dans les modaux - ressortent aussi */
-html:not([data-theme="dark"]) .modal-surface input:not([type="checkbox"]):not([type="radio"]),
-html:not([data-theme="dark"]) .modal-surface textarea,
-html:not([data-theme="dark"]) .modal-surface select,
-html:not([data-theme="dark"]) .shadcn-sheet-content input:not([type="checkbox"]):not([type="radio"]),
-html:not([data-theme="dark"]) .shadcn-sheet-content textarea,
-html:not([data-theme="dark"]) .shadcn-sheet-content select {
-  background: rgba(255, 255, 255, 0.98) !important;
-  border: 1px solid rgba(51, 113, 178, 0.12) !important;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04) !important;
-}
-
-/* ═══════════════════════════════════════════════════════════════════════════
-   ALERT DIALOGS (glass-modal-premium) - Translucides avec sections lévitantes
-   ═══════════════════════════════════════════════════════════════════════════ */
-html:not([data-theme="dark"]) .glass-modal-premium,
-:root:not([data-theme="dark"]) .glass-modal-premium {
-  background: rgba(255, 255, 255, 0.25) !important;
-  border: 1px solid rgba(255, 255, 255, 0.4) !important;
-  backdrop-filter: blur(16px) saturate(1.4) !important;
-  -webkit-backdrop-filter: blur(16px) saturate(1.4) !important;
-  box-shadow:
-    0 8px 32px rgba(0, 0, 0, 0.08),
-    inset 0 1px 1px rgba(255, 255, 255, 0.6) !important;
-}
-
-/* Header/Footer du modal - Utilisent les variables CSS (même style clair/sombre) */
-
-/* Body du modal premium - transparent */
-html:not([data-theme="dark"]) .glass-modal-body,
-:root:not([data-theme="dark"]) .glass-modal-body {
-  background: transparent !important;
-}

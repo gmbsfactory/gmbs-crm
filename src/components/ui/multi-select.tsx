@@ -164,8 +164,8 @@ export function MultiSelect({
                                 console.log("Simple div onMouseDown triggered", option.value)
                             }}
                             className={cn(
-                                "relative flex cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-accent hover:text-accent-foreground",
-                                selected.includes(option.value) && "bg-accent text-accent-foreground"
+                                "relative flex cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-[var(--glass-bg-light)] hover:text-foreground",
+                                selected.includes(option.value) && "bg-[var(--glass-bg-medium)] text-foreground"
                             )}
                         >
                             <Check

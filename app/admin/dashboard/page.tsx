@@ -511,7 +511,7 @@ export default function AdminDashboardPage() {
           {/* KPI Cards Row - 5 Columns */}
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
             {isLoading ? (
-              Array(5).fill(0).map((_, i) => <Skeleton key={i} className="h-[140px] rounded-xl" />)
+              Array(5).fill(0).map((_, i) => <Skeleton key={i} className="h-[140px] rounded-lg" />)
             ) : (
               <>
                 <KPICard

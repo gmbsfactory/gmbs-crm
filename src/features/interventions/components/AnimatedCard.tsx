@@ -31,7 +31,7 @@ export default function AnimatedCard({
 }: AnimatedCardProps) {
   return (
     <div
-      className="w-[220px] rounded-xl border border-border/60 bg-popover p-3 shadow-xl ring-1 ring-black/5 transition-all"
+      className="w-[220px] rounded-lg border border-border/60 bg-card p-3 shadow-lg transition-all"
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
     >
@@ -47,8 +47,8 @@ export default function AnimatedCard({
               key={action.id}
               type="button"
               className={cn(
-                "w-full rounded-lg border border-transparent bg-background/60 px-3 py-2 text-left transition-all",
-                "hover:border-muted-foreground/20 hover:bg-background/80 hover:shadow-sm",
+                "w-full rounded-lg border border-transparent bg-muted/30 px-3 py-2 text-left transition-all",
+                "hover:border-muted-foreground/20 hover:bg-muted/50 hover:shadow-sm",
                 isActive && "ring-2 ring-offset-1",
               )}
               style={isActive ? { boxShadow: `0 0 0 2px ${statusColor}` } : undefined}

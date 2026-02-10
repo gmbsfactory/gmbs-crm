@@ -102,17 +102,14 @@ export default function DashboardPage() {
 
   // Fonction pour calculer la couleur selon le nombre de retards (0 = vert, 10+ = rouge)
   const getLatenessColor = (count: number): string => {
-    if (count === 0) return 'rgb(34, 197, 94)' // green-500
+    if (count === 0) return 'hsl(var(--status-done-fg))'
 
     // Normaliser entre 0 et 1 (cap à 10 retards)
     const ratio = Math.min(count / 10, 1)
+    const pct = Math.round(ratio * 100)
 
-    // Interpolation RGB de vert (34, 197, 94) vers rouge (239, 68, 68)
-    const r = Math.round(34 + (239 - 34) * ratio)
-    const g = Math.round(197 + (68 - 197) * ratio)
-    const b = Math.round(94 + (68 - 94) * ratio)
-
-    return `rgb(${r}, ${g}, ${b})`
+    // Interpolation via color-mix() entre success (done) et error (cancelled)
+    return `color-mix(in srgb, hsl(var(--status-cancelled-fg)) ${pct}%, hsl(var(--status-done-fg)))`
   }
 
   // Références pour l'animation

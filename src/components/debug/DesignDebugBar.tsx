@@ -13,7 +13,7 @@ type DebugValues = {
 const DEFAULT_VALUES: DebugValues = {
   blur: 50,
   opacity: 0.14,
-  saturation: 3,
+  saturation: 1.5,
   color: "#4b5cb5",
 }
 

@@ -700,7 +700,7 @@ function GestionnaireSelector({
                     type="button"
                     className={cn(
                       "w-full flex items-center gap-1.5 px-2 py-1 rounded-md text-left transition-colors",
-                      isSelected ? "bg-primary/10 text-primary" : "hover:bg-muted"
+                      isSelected ? "bg-primary/10 text-primary" : "hover:bg-[var(--glass-bg-light)]"
                     )}
                     onClick={(e) => {
                       e.stopPropagation()
@@ -1199,7 +1199,7 @@ export function TableView({
       <div
         ref={styleMenuRef}
         data-quick-style-panel="true"
-        className="fixed z-[95] min-w-[340px] max-w-[420px] rounded-lg border border-border bg-popover p-3 shadow-xl"
+        className="glass-dropdown fixed z-[95] min-w-[340px] max-w-[420px] p-3"
         style={{ top: styleMenu.y, left: styleMenu.x }}
         onClick={(event) => event.stopPropagation()}
         onPointerDown={(event) => event.stopPropagation()}
@@ -1454,9 +1454,9 @@ export function TableView({
                                 minWidth: width,
                                 maxWidth: width,
                                 ...(headerColor ? {
-                                  backgroundColor: `${headerColor}25`, // Version pastel (15% opacité)
-                                  borderColor: `${headerColor}40`,
-                                  color: headerColor, // Texte dans la couleur du statut
+                                  backgroundColor: headerColor,
+                                  borderColor: headerColor,
+                                  color: "#FFFFFF",
                                 } : {}),
                               }
                               return (
@@ -1466,8 +1466,8 @@ export function TableView({
                                   className={cn(
                                     "z-20 border-b px-4 py-4 text-center text-sm font-semibold",
                                     "whitespace-nowrap backdrop-blur-sm align-middle relative select-none",
-                                    // Sans couleur spécifique → couleur d'accentuation (primary) en version pastel
-                                    !headerColor && "border-primary/40 bg-primary/15 text-primary",
+                                    // Sans couleur spécifique → style pastille active (fond opaque + texte blanc)
+                                    !headerColor && "border-primary bg-primary text-primary-foreground",
                                     densityHeaderClass,
                                   )}
                                   onContextMenu={(event) => handleHeaderContextMenu(event, property)}
@@ -1505,16 +1505,16 @@ export function TableView({
                                 minWidth: 100,
                                 maxWidth: 100,
                                 ...(headerColor ? {
-                                  backgroundColor: `${headerColor}25`, // Version pastel (15% opacité)
-                                  borderColor: `${headerColor}40`,
-                                  color: headerColor, // Texte dans la couleur du statut
+                                  backgroundColor: headerColor,
+                                  borderColor: headerColor,
+                                  color: "#FFFFFF",
                                 } : {}),
                               }}
                               className={cn(
                                 "z-20 border-b px-4 py-4 text-center text-sm font-semibold",
                                 "whitespace-nowrap backdrop-blur-sm align-middle relative select-none",
-                                // Sans couleur spécifique → couleur d'accentuation (primary)
-                                !headerColor && "border-primary/40 bg-primary/15 text-primary",
+                                // Sans couleur spécifique → style pastille active (fond opaque + texte blanc)
+                                !headerColor && "border-primary bg-primary text-primary-foreground",
                                 densityHeaderClass,
                               )}
                             >

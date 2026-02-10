@@ -447,7 +447,7 @@ export function ArtisanModalContent({
   // Gestion des absences
   const [newAbsence, setNewAbsence] = useState({ start_date: "", end_date: "", reason: "" })
 
-  const inputClass = "h-8 text-sm bg-background border-input/80 focus:border-primary focus:ring-1 focus:ring-primary/30 placeholder:text-muted-foreground/60"
+  const inputClass = "h-8 text-sm bg-background dark:bg-white/10 border-input/80 dark:border-white/20 focus:border-primary focus:ring-1 focus:ring-primary/30 placeholder:text-muted-foreground/60"
   const labelClass = "text-xs font-medium text-foreground/80"
 
   const {
@@ -1088,7 +1088,7 @@ export function ArtisanModalContent({
                   <ChevronRight className="ml-1 h-3 w-3 text-muted-foreground shrink-0" />
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent className="w-64 max-h-48 overflow-y-auto bg-popover border-border p-1">
+              <DropdownMenuContent className="w-64 max-h-48 overflow-y-auto p-1">
                 {metierOptions.length ? (
                   metierOptions.map((option) => {
                     const isSelected = selected.includes(option.id)
@@ -1163,7 +1163,7 @@ export function ArtisanModalContent({
     <TooltipProvider>
       <div className={cn("modal-config-surface", surfaceVariantClass, surfaceModeClass)}>
         {/* Header */}
-        <header className="modal-config-columns-header relative bg-[#8DA5CE] dark:bg-transparent">
+        <header className="modal-config-columns-header relative">
           <div className="flex items-center gap-3">
             <Tooltip>
               <TooltipTrigger asChild>
@@ -1276,7 +1276,7 @@ export function ArtisanModalContent({
             disabled={!canWriteArtisans}
             className={cn("flex flex-col flex-1 min-h-0", !canWriteArtisans && "opacity-70")}
           >
-            <div className="modal-config-columns-body flex-1 min-h-0 h-full overflow-hidden bg-[#C6CEDC] dark:bg-transparent">
+            <div className="modal-config-columns-body flex-1 min-h-0 h-full overflow-hidden">
               {!canWriteArtisans ? (
                 <div className="px-4 py-3 md:px-6">
                   <div className="rounded border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
@@ -1516,7 +1516,7 @@ export function ArtisanModalContent({
                                                 type="button"
                                                 className={cn(
                                                   "w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-left transition-colors",
-                                                  !field.value ? "bg-primary/10 text-primary" : "hover:bg-muted"
+                                                  !field.value ? "bg-[var(--glass-bg-medium)] text-primary" : "hover:bg-[var(--glass-bg-light)]"
                                                 )}
                                                 onClick={() => field.onChange("")}
                                               >
@@ -1538,7 +1538,7 @@ export function ArtisanModalContent({
                                                     type="button"
                                                     className={cn(
                                                       "w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-left transition-colors",
-                                                      isSelected ? "bg-primary/10 text-primary" : "hover:bg-muted"
+                                                      isSelected ? "bg-[var(--glass-bg-medium)] text-primary" : "hover:bg-[var(--glass-bg-light)]"
                                                     )}
                                                     onClick={() => field.onChange(user.id)}
                                                   >
@@ -1708,29 +1708,29 @@ export function ArtisanModalContent({
                                           pushPasswordManagerStrategy="none"
                                         >
                                           <InputOTPGroup className="gap-0 flex-1 min-w-0">
-                                            <InputOTPSlot index={0} className="!w-[calc(100%/3)] !max-w-[22px] h-6 text-[10px] bg-background border border-[#C6CEDC] text-foreground font-mono p-0" />
-                                            <InputOTPSlot index={1} className="!w-[calc(100%/3)] !max-w-[22px] h-6 text-[10px] bg-background border border-[#C6CEDC] text-foreground font-mono p-0" />
-                                            <InputOTPSlot index={2} className="!w-[calc(100%/3)] !max-w-[22px] h-6 text-[10px] bg-background border border-[#C6CEDC] text-foreground font-mono p-0" />
+                                            <InputOTPSlot index={0} className="!w-[calc(100%/3)] !max-w-[22px] h-6 text-[10px] bg-background dark:bg-white/10 border border-input text-foreground font-mono p-0" />
+                                            <InputOTPSlot index={1} className="!w-[calc(100%/3)] !max-w-[22px] h-6 text-[10px] bg-background dark:bg-white/10 border border-input text-foreground font-mono p-0" />
+                                            <InputOTPSlot index={2} className="!w-[calc(100%/3)] !max-w-[22px] h-6 text-[10px] bg-background dark:bg-white/10 border border-input text-foreground font-mono p-0" />
                                           </InputOTPGroup>
                                           <span className="text-muted-foreground text-[8px] shrink-0 px-px">·</span>
                                           <InputOTPGroup className="gap-0 flex-1 min-w-0">
-                                            <InputOTPSlot index={3} className="!w-[calc(100%/3)] !max-w-[22px] h-6 text-[10px] bg-background border border-[#C6CEDC] text-foreground font-mono p-0" />
-                                            <InputOTPSlot index={4} className="!w-[calc(100%/3)] !max-w-[22px] h-6 text-[10px] bg-background border border-[#C6CEDC] text-foreground font-mono p-0" />
-                                            <InputOTPSlot index={5} className="!w-[calc(100%/3)] !max-w-[22px] h-6 text-[10px] bg-background border border-[#C6CEDC] text-foreground font-mono p-0" />
+                                            <InputOTPSlot index={3} className="!w-[calc(100%/3)] !max-w-[22px] h-6 text-[10px] bg-background dark:bg-white/10 border border-input text-foreground font-mono p-0" />
+                                            <InputOTPSlot index={4} className="!w-[calc(100%/3)] !max-w-[22px] h-6 text-[10px] bg-background dark:bg-white/10 border border-input text-foreground font-mono p-0" />
+                                            <InputOTPSlot index={5} className="!w-[calc(100%/3)] !max-w-[22px] h-6 text-[10px] bg-background dark:bg-white/10 border border-input text-foreground font-mono p-0" />
                                           </InputOTPGroup>
                                           <span className="text-muted-foreground text-[8px] shrink-0 px-px">·</span>
                                           <InputOTPGroup className="gap-0 flex-1 min-w-0">
-                                            <InputOTPSlot index={6} className="!w-[calc(100%/3)] !max-w-[22px] h-6 text-[10px] bg-background border border-[#C6CEDC] text-foreground font-mono p-0" />
-                                            <InputOTPSlot index={7} className="!w-[calc(100%/3)] !max-w-[22px] h-6 text-[10px] bg-background border border-[#C6CEDC] text-foreground font-mono p-0" />
-                                            <InputOTPSlot index={8} className="!w-[calc(100%/3)] !max-w-[22px] h-6 text-[10px] bg-background border border-[#C6CEDC] text-foreground font-mono p-0" />
+                                            <InputOTPSlot index={6} className="!w-[calc(100%/3)] !max-w-[22px] h-6 text-[10px] bg-background dark:bg-white/10 border border-input text-foreground font-mono p-0" />
+                                            <InputOTPSlot index={7} className="!w-[calc(100%/3)] !max-w-[22px] h-6 text-[10px] bg-background dark:bg-white/10 border border-input text-foreground font-mono p-0" />
+                                            <InputOTPSlot index={8} className="!w-[calc(100%/3)] !max-w-[22px] h-6 text-[10px] bg-background dark:bg-white/10 border border-input text-foreground font-mono p-0" />
                                           </InputOTPGroup>
                                           <span className="text-muted-foreground text-[8px] shrink-0 px-px">·</span>
                                           <InputOTPGroup className="gap-0 flex-[1.67] min-w-0">
-                                            <InputOTPSlot index={9} className="!w-[calc(100%/5)] !max-w-[22px] h-6 text-[10px] bg-background border border-[#C6CEDC] text-foreground font-mono p-0" />
-                                            <InputOTPSlot index={10} className="!w-[calc(100%/5)] !max-w-[22px] h-6 text-[10px] bg-background border border-[#C6CEDC] text-foreground font-mono p-0" />
-                                            <InputOTPSlot index={11} className="!w-[calc(100%/5)] !max-w-[22px] h-6 text-[10px] bg-background border border-[#C6CEDC] text-foreground font-mono p-0" />
-                                            <InputOTPSlot index={12} className="!w-[calc(100%/5)] !max-w-[22px] h-6 text-[10px] bg-background border border-[#C6CEDC] text-foreground font-mono p-0" />
-                                            <InputOTPSlot index={13} className="!w-[calc(100%/5)] !max-w-[22px] h-6 text-[10px] bg-background border border-[#C6CEDC] text-foreground font-mono p-0" />
+                                            <InputOTPSlot index={9} className="!w-[calc(100%/5)] !max-w-[22px] h-6 text-[10px] bg-background dark:bg-white/10 border border-input text-foreground font-mono p-0" />
+                                            <InputOTPSlot index={10} className="!w-[calc(100%/5)] !max-w-[22px] h-6 text-[10px] bg-background dark:bg-white/10 border border-input text-foreground font-mono p-0" />
+                                            <InputOTPSlot index={11} className="!w-[calc(100%/5)] !max-w-[22px] h-6 text-[10px] bg-background dark:bg-white/10 border border-input text-foreground font-mono p-0" />
+                                            <InputOTPSlot index={12} className="!w-[calc(100%/5)] !max-w-[22px] h-6 text-[10px] bg-background dark:bg-white/10 border border-input text-foreground font-mono p-0" />
+                                            <InputOTPSlot index={13} className="!w-[calc(100%/5)] !max-w-[22px] h-6 text-[10px] bg-background dark:bg-white/10 border border-input text-foreground font-mono p-0" />
                                           </InputOTPGroup>
                                         </InputOTP>
                                       </div>
@@ -1843,7 +1843,7 @@ export function ArtisanModalContent({
                                                   <InputOTPSlot
                                                     key={`iban-slot-${startIndex + slotIndex}`}
                                                     index={startIndex + slotIndex}
-                                                    className="!w-[calc(100%/4)] !max-w-[18px] h-6 text-[9px] bg-background border border-[#C6CEDC] text-foreground font-mono p-0"
+                                                    className="!w-[calc(100%/4)] !max-w-[18px] h-6 text-[9px] bg-background dark:bg-white/10 border border-input text-foreground font-mono p-0"
                                                   />
                                                 ))}
                                               </InputOTPGroup>
@@ -2061,7 +2061,7 @@ export function ArtisanModalContent({
           </fieldset>
 
           {/* Footer */}
-          <footer className="modal-config-columns-footer flex items-center justify-between gap-2 px-4 py-3 md:px-6 bg-[#8DA5CE] dark:bg-transparent">
+          <footer className="modal-config-columns-footer flex items-center justify-between gap-2 px-4 py-3 md:px-6">
             <div>
               {artisan && canWriteArtisans && (
                 getArtisanStatusCode(artisan.statut_id ?? null) === "ARCHIVE" ? (

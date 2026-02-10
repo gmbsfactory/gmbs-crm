@@ -503,18 +503,7 @@ export function CommentSection({
         >
           {orderedComments.map((comment) => {
             const authorDetails = comment.users as CommentAuthorDetails | undefined
-            // DEBUG: Log pour diagnostiquer le problème d'avatar_url
-            if (process.env.NODE_ENV === 'development' || typeof window !== 'undefined') {
-              console.log('[CommentSection] Comment author:', {
-                commentId: comment.id,
-                authorId: comment.author_id,
-                hasUsers: !!authorDetails,
-                firstname: authorDetails?.firstname,
-                lastname: authorDetails?.lastname,
-                avatar_url: authorDetails?.avatar_url,
-                color: authorDetails?.color,
-              })
-            }
+
             const authorName =
               authorDetails &&
               ([authorDetails.firstname, authorDetails.lastname].filter(Boolean).join(" ").trim() ||
@@ -537,12 +526,12 @@ export function CommentSection({
             const bubbleRounding = getBubbleRounding(lineCount)
             
             const bubbleBaseClass =
-              `message-bubble inline-flex max-w-full whitespace-pre-wrap break-words ${bubbleRounding} border px-4 py-2 text-left text-sm leading-relaxed shadow-inner shadow-black/10 backdrop-blur-sm transition-all data-[new=true]:animate-in data-[new=true]:fade-in-0 data-[new=true]:slide-in-from-bottom-2`
+              `message-bubble inline-flex max-w-full whitespace-pre-wrap break-words ${bubbleRounding} border px-4 py-2 text-left text-sm leading-relaxed shadow-inner shadow-black/10 transition-all data-[new=true]:animate-in data-[new=true]:fade-in-0 data-[new=true]:slide-in-from-bottom-2`
             const bubbleToneClass = normalizedBubbleColor
               ? ""
               : isCurrentUserComment
-                  ? "border-primary/30 bg-primary/10 text-primary-foreground/80"
-                  : "border-border/40 bg-background/70 text-foreground"
+                  ? "border-primary/30 bg-primary/15 text-primary-foreground/80"
+                  : "border-border/60 bg-background/70 text-foreground"
             const bubbleClassName = cn(
               bubbleBaseClass,
               bubbleToneClass,
@@ -634,7 +623,7 @@ export function CommentSection({
                     {isEditing ? (
                       <div
                         className={cn(
-                          "flex min-w-0 flex-1 flex-col gap-3 rounded-3xl border border-border/40 bg-background/80 px-4 py-3 shadow-inner shadow-black/10 backdrop-blur-sm",
+                          "flex min-w-0 flex-1 flex-col gap-3 rounded-2xl border border-border/60 bg-background/80 px-4 py-3 shadow-inner shadow-black/10",
                           isCurrentUserComment ? "items-end text-right" : "items-start text-left"
                         )}
                       >
@@ -701,7 +690,7 @@ export function CommentSection({
                           <Badge
                             variant="outline"
                             className={cn(
-                              "rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide",
+                              "rounded-full px-2 py-0.5 text-xs font-semibold uppercase tracking-wide",
                               reasonBadge.className,
                             )}
                           >
@@ -710,7 +699,7 @@ export function CommentSection({
                         ) : null}
                         <time
                           dateTime={comment.created_at ?? undefined}
-                          className="flex-shrink-0 whitespace-nowrap text-xs italic text-muted-foreground"
+                          className="flex-shrink-0 whitespace-nowrap text-xs text-muted-foreground"
                         >
                           {formattedDate}
                         </time>
@@ -779,7 +768,7 @@ export function CommentSection({
         {commentsContent}
 
         <div className="flex items-center gap-2">
-          <div className="flex flex-1 items-center gap-2 rounded-full border border-border/40 bg-background/70 px-3 py-1 shadow-inner shadow-black/10 backdrop-blur-sm">
+          <div className="flex flex-1 items-center gap-2 rounded-full border border-border/60 bg-background/70 px-3 py-1 shadow-inner shadow-black/10">
             <Textarea
               id={textareaId}
               value={newComment}

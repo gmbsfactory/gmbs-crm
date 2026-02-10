@@ -69,7 +69,7 @@ export function DocumentPreview({ url, mimeType, filename, className }: Document
         <iframe
           src={url}
           title={filename ?? "Document PDF"}
-          className="h-full w-full"
+          className="h-[400px] min-h-[10rem] w-full"
         />
       </div>
     );

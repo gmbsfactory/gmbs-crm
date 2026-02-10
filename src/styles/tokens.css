@@ -33,11 +33,6 @@
   --status-refused: var(--status-refused-fg);
   --status-standby: var(--status-standby-fg);
   --status-sav: var(--status-sav-fg);
-
-  /* Card radius and shadows for parity */
-  --card-radius: 0.75rem;
-  --card-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
-  --radius-xl: 1rem;
 }
 
 .status-chip {

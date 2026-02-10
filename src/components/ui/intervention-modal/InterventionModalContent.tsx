@@ -42,7 +42,7 @@ type NoteDialogContentProps = React.ComponentPropsWithoutRef<typeof AlertDialogP
 const NoteDialogContent = React.forwardRef<HTMLDivElement, NoteDialogContentProps>(
   ({ className, ...props }, ref) => (
     <AlertDialogPortal>
-      <AlertDialogPrimitive.Overlay className="fixed inset-0 z-[100] bg-black/20 pointer-events-none" />
+      <AlertDialogPrimitive.Overlay className="fixed inset-0 z-[69] bg-black/20 pointer-events-none" />
       <AlertDialogPrimitive.Content ref={ref} className={className} {...props} />
     </AlertDialogPortal>
   ),
@@ -57,7 +57,7 @@ const SmsDialogContent = React.forwardRef<HTMLDivElement, NoteDialogContentProps
       <AlertDialogPrimitive.Content
         ref={ref}
         className={cn(
-          "fixed left-[50%] top-[50%] z-[201] grid w-full max-w-md translate-x-[-50%] translate-y-[-50%] gap-4 border bg-background p-6 shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 sm:rounded-lg",
+          "fixed left-[50%] top-[50%] z-[80] grid w-full max-w-md translate-x-[-50%] translate-y-[-50%] gap-4 border border-border/60 bg-background p-6 shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 rounded-2xl",
           className
         )}
         {...props}
@@ -875,7 +875,7 @@ GMBS`
               {clientPhone && clientPhone.trim() !== "" && (
                 <Button
                   onClick={handleOpenWhatsApp}
-                  className="flex items-center gap-2 bg-[#25D366] hover:bg-[#20BA5A] text-white"
+                  className="flex items-center gap-2 bg-[var(--whatsapp-green)] hover:bg-[#20BA5A] text-white"
                 >
                   <MessageCircle className="h-4 w-4" />
                   Envoyer sur WhatsApp
@@ -898,7 +898,7 @@ GMBS`
         <NoteDialogContent
           ref={noteDialogContentRef}
           className={cn(
-            "note-reminder-dialog fixed z-[110] w-[min(448px,calc(100vw-32px))] max-w-md rounded-lg border border-border bg-popover p-6 shadow-xl focus:outline-none",
+            "note-reminder-dialog fixed z-[70] w-[min(448px,calc(100vw-32px))] max-w-md rounded-xl border border-border/60 bg-popover p-6 shadow-xl focus:outline-none",
             "data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=open]:slide-in-from-right-4 data-[state=closed]:slide-out-to-right-4 data-[state=open]:fade-in-0 data-[state=closed]:fade-out-0",
           )}
           style={{

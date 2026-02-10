@@ -359,7 +359,7 @@ export function EnumManager() {
                     {/* Color indicator */}
                     <div
                       className="h-10 w-10 rounded-xl border-2 shadow-sm"
-                      style={{ backgroundColor: item.color || '#6366f1', borderColor: item.color || '#6366f1' }}
+                      style={{ backgroundColor: item.color || 'hsl(var(--primary))', borderColor: item.color || 'hsl(var(--primary))' }}
                     />
                     
                     {/* Info */}
@@ -677,7 +677,7 @@ export function EnumManager() {
                   <div className="p-4 rounded-xl bg-muted/30 border flex items-center gap-3">
                     <div
                       className="h-8 w-8 rounded-lg"
-                      style={{ backgroundColor: deletingItem.color || '#6366f1' }}
+                      style={{ backgroundColor: deletingItem.color || 'hsl(var(--primary))' }}
                     />
                     <div>
                       <p className="font-medium">{deletingItem.label}</p>
