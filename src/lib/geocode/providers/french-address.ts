@@ -45,7 +45,6 @@ export class FrenchAddressProvider implements GeocodeProvider {
         }
 
         if (verbose) {
-            console.log(`[${this.name}] Fetching: ${endpoint.toString()}`)
         }
 
         try {
@@ -64,10 +63,8 @@ export class FrenchAddressProvider implements GeocodeProvider {
             const data = (await response.json()) as FrenchAddressApiResponse
 
             if (verbose) {
-                console.log(`[${this.name}] Raw API Results:`, data.features?.length ?? 0)
                 if (data.features && data.features.length > 0) {
                     data.features.slice(0, 2).forEach((f, i) => {
-                        console.log(`  Result ${i + 1}: ${f.properties.label} (${f.properties.score})`)
                     })
                 }
             }
@@ -91,5 +88,4 @@ export class FrenchAddressProvider implements GeocodeProvider {
         }
     }
 }
-
 

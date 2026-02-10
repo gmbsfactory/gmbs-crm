@@ -1,7 +1,7 @@
 // ===== API ARTISANS V2 =====
 // Gestion complète des artisans
 
-import { supabase } from "@/lib/supabase-client";
+import { supabase, getSupabaseClientForNode } from "./common/client";
 import type {
   Artisan,
   ArtisanQueryParams,
@@ -23,35 +23,6 @@ import {
   chunkArray,
   MAX_BATCH_SIZE,
 } from "./common/utils";
-
-/**
- * Crée un client Supabase admin pour Node.js avec les bonnes credentials
- * Utilise la service role key pour contourner les RLS lors des imports
- */
-function getSupabaseClientForNode() {
-  // Si on est dans le navigateur, utiliser le client standard
-  if (typeof window !== 'undefined') {
-    return supabase;
-  }
-
-  // Dans Node.js, créer un nouveau client avec les credentials du service role
-  const { createClient } = require('@supabase/supabase-js');
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-  if (!supabaseUrl || !serviceRoleKey) {
-    console.warn('[artisansApi] SUPABASE_URL ou SUPABASE_SERVICE_ROLE_KEY manquants, utilisation du client standard');
-    return supabase;
-  }
-
-  return createClient(supabaseUrl, serviceRoleKey, {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false,
-      detectSessionInUrl: false,
-    }
-  });
-}
 
 // Utiliser le client admin dans Node.js, le client standard dans le navigateur
 const supabaseClient = typeof window !== 'undefined' ? supabase : getSupabaseClientForNode();
@@ -2001,10 +1972,6 @@ export const artisansApi = {
         batchOffset += BATCH_SIZE;
       }
 
-      console.log('[artisansApi.getNearbyArtisans] Artisans with target metier:', {
-        metier_id,
-        count: artisanIdsWithTargetMetier.size
-      });
     }
 
     // Calculate bounding box for geographic pre-filtering
@@ -2019,16 +1986,6 @@ export const artisansApi = {
     const maxLat = latitude + latDelta;
     const minLng = longitude - lngDelta;
     const maxLng = longitude + lngDelta;
-
-    console.log('[artisansApi.getNearbyArtisans] Bounding box:', {
-      minLat,
-      maxLat,
-      minLng,
-      maxLng,
-      latDelta,
-      lngDelta,
-      maxDistanceKm
-    });
 
     // Fetch artisans with coordinates within the bounding box
     // No need for SAMPLE_SIZE limit since we're using geographic filtering
@@ -2073,13 +2030,6 @@ export const artisansApi = {
       console.error('[artisansApi.getNearbyArtisans] Query error:', error);
       throw error;
     }
-
-    console.log('[artisansApi.getNearbyArtisans] Fetched artisans:', {
-      count: data?.length || 0,
-      latitude,
-      longitude,
-      maxDistanceKm
-    });
 
     // Calculate distances and enrich data
     const enriched: (any | null)[] =
@@ -2158,15 +2108,6 @@ export const artisansApi = {
       });
 
     const total = validArtisans.length;
-
-    console.log('[artisansApi.getNearbyArtisans] After distance filter:', {
-      enrichedCount: enriched.length,
-      validCount: validArtisans.length,
-      total,
-      maxDistanceKm,
-      closestDistance: validArtisans[0]?.distanceKm,
-      farthestDistance: validArtisans[validArtisans.length - 1]?.distanceKm,
-    });
 
     // Apply pagination
     const paginatedArtisans = validArtisans.slice(offset, offset + limit);
@@ -2310,10 +2251,6 @@ export const artisansApi = {
         batchOffset += BATCH_SIZE;
       }
 
-      console.log('[artisansApi.searchArtisans] Artisans with target metier:', {
-        metier_id,
-        count: artisanIdsWithTargetMetier.size
-      });
     }
 
     // Construire la requête Supabase

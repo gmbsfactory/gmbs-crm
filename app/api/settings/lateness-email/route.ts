@@ -11,14 +11,12 @@ export const runtime = 'nodejs'
  * Uses admin client to bypass RLS restrictions on user_roles
  */
 async function isAdmin(userId: string): Promise<boolean> {
-  console.log('[lateness-email] Checking admin role for userId:', userId)
   const adminSupabase = createServerSupabaseAdmin()
   const { data: roles, error } = await adminSupabase
     .from('user_roles')
     .select('roles(name)')
     .eq('user_id', userId)
   
-  console.log('[lateness-email] Roles query result:', { roles, error: error?.message })
   
   if (error) {
     console.error('[lateness-email] Error checking admin role:', error)
@@ -29,7 +27,6 @@ async function isAdmin(userId: string): Promise<boolean> {
     .map((r: any) => r.roles?.name?.toLowerCase())
     .filter((name: any): name is string => typeof name === 'string')
   
-  console.log('[lateness-email] Role names:', roleNames)
   return roleNames.includes('admin')
 }
 
@@ -40,7 +37,6 @@ async function isAdmin(userId: string): Promise<boolean> {
  * Admin only.
  */
 export async function GET(req: Request) {
-  console.log('[lateness-email] GET request received')
   try {
     // Get authentication token
     let token = bearerFrom(req)
@@ -48,8 +44,6 @@ export async function GET(req: Request) {
       const cookieStore = await cookies()
       token = cookieStore.get('sb-access-token')?.value || null
     }
-
-    console.log('[lateness-email] Token present:', !!token)
 
     if (!token) {
       return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
@@ -59,7 +53,6 @@ export async function GET(req: Request) {
 
     // Get authenticated user
     const { data: authUser, error: authError } = await supabase.auth.getUser()
-    console.log('[lateness-email] Auth user:', authUser?.user?.id, 'error:', authError?.message)
     
     if (authError || !authUser?.user) {
       return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
@@ -79,7 +72,6 @@ export async function GET(req: Request) {
 
     if (mapping?.public_user_id) {
       userId = mapping.public_user_id
-      console.log('[lateness-email] Found userId via mapping:', userId)
     } else if (authEmail) {
       // Fallback: find user by email
       const adminSupabase = createServerSupabaseAdmin()
@@ -91,18 +83,15 @@ export async function GET(req: Request) {
       
       if (userByEmail?.id) {
         userId = userByEmail.id
-        console.log('[lateness-email] Found userId via email fallback:', userId)
       }
     }
 
     if (!userId) {
-      console.log('[lateness-email] No userId found, returning 404')
       return NextResponse.json({ error: 'user not found' }, { status: 404 })
     }
 
     // Check admin role
     const userIsAdmin = await isAdmin(userId)
-    console.log('[lateness-email] isAdmin result:', userIsAdmin)
     
     if (!userIsAdmin) {
       return NextResponse.json({ error: 'forbidden - admin only' }, { status: 403 })
@@ -159,7 +148,6 @@ export async function GET(req: Request) {
  * - motivation_message: string
  */
 export async function PATCH(req: Request) {
-  console.log('[lateness-email] PATCH request received')
   try {
     // Get authentication token
     let token = bearerFrom(req)
@@ -167,8 +155,6 @@ export async function PATCH(req: Request) {
       const cookieStore = await cookies()
       token = cookieStore.get('sb-access-token')?.value || null
     }
-
-    console.log('[lateness-email] PATCH - Token present:', !!token)
 
     if (!token) {
       return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
@@ -178,7 +164,6 @@ export async function PATCH(req: Request) {
 
     // Get authenticated user
     const { data: authUser, error: authError } = await supabase.auth.getUser()
-    console.log('[lateness-email] PATCH - Auth user:', authUser?.user?.id, 'error:', authError?.message)
     
     if (authError || !authUser?.user) {
       return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
@@ -198,7 +183,6 @@ export async function PATCH(req: Request) {
 
     if (mapping?.public_user_id) {
       userId = mapping.public_user_id
-      console.log('[lateness-email] PATCH - Found userId via mapping:', userId)
     } else if (authEmail) {
       // Fallback: find user by email
       const adminSupabase = createServerSupabaseAdmin()
@@ -210,25 +194,21 @@ export async function PATCH(req: Request) {
       
       if (userByEmail?.id) {
         userId = userByEmail.id
-        console.log('[lateness-email] PATCH - Found userId via email fallback:', userId)
       }
     }
 
     if (!userId) {
-      console.log('[lateness-email] PATCH - No userId found')
       return NextResponse.json({ error: 'user not found' }, { status: 404 })
     }
 
     // Check admin role
     const userIsAdmin = await isAdmin(userId)
-    console.log('[lateness-email] PATCH - isAdmin result:', userIsAdmin)
     
     if (!userIsAdmin) {
       return NextResponse.json({ error: 'forbidden - admin only' }, { status: 403 })
     }
 
     const body = await req.json().catch(() => ({}))
-    console.log('[lateness-email] PATCH body keys:', Object.keys(body))
 
     const patch: Record<string, unknown> = {}
 

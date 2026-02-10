@@ -41,12 +41,10 @@ class AbortControllerManager {
    * Cancel all pending requests (called on logout)
    */
   cancelAll(reason: string = 'Logout initiated'): void {
-    console.log(`[AbortControllerManager] Canceling ${this.controllers.size} pending requests`)
 
     for (const [requestId, metadata] of this.controllers.entries()) {
       try {
         metadata.controller.abort(reason)
-        console.log(`[AbortControllerManager] Aborted: ${metadata.url}`)
       } catch (error) {
         console.warn(`[AbortControllerManager] Failed to abort ${requestId}:`, error)
       }

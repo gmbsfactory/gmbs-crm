@@ -76,7 +76,6 @@ export async function POST(req: Request) {
     if (authAdminAvailable) {
       // Create new auth.users entry
       try {
-        console.log('[restore-user] Creating auth user for:', archivedUser.email)
         
         const { data: authUser, error: authError } = await supabaseAdmin.auth.admin.createUser({
           email: archivedUser.email,
@@ -105,7 +104,6 @@ export async function POST(req: Request) {
         }
 
         const newAuthUserId = authUser.user.id
-        console.log('[restore-user] Auth user created with ID:', newAuthUserId)
 
         // Update public.users with new auth ID if different
         // (In most cases we want to keep the same ID for data integrity)
@@ -126,7 +124,6 @@ export async function POST(req: Request) {
             }, {
               onConflict: 'public_user_id'
             })
-          console.log('[restore-user] auth_user_mapping created/updated')
         } catch (mappingError: any) {
           console.warn('[restore-user] auth_user_mapping creation failed:', mappingError?.message)
         }
@@ -151,7 +148,6 @@ export async function POST(req: Request) {
             console.error('[restore-user] Link generation failed:', linkError.message)
           } else {
             inviteLink = linkData?.properties?.action_link || ''
-            console.log('[restore-user] Invite link generated:', inviteLink ? 'yes' : 'no')
           }
         } catch (linkGenError: any) {
           console.error('[restore-user] Link generation exception:', linkGenError?.message)
@@ -182,8 +178,6 @@ export async function POST(req: Request) {
       console.error('[restore-user] Status update failed:', updateError.message)
       return NextResponse.json({ error: updateError.message }, { status: 500 })
     }
-
-    console.log('[restore-user] User restored successfully:', userId)
 
     return NextResponse.json({
       ok: true,

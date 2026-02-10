@@ -103,11 +103,8 @@ export function ArtisanSearchModal({
   const loadNearbyArtisans = useCallback(
     async (offset: number = 0, append: boolean = false) => {
       if (!latitude || !longitude) {
-        console.log('[ArtisanSearchModal] No coordinates:', { latitude, longitude })
         return
       }
-
-      console.log('[ArtisanSearchModal] Loading nearby artisans:', { latitude, longitude, offset, append })
 
       if (append) {
         setIsLoadingMore(true)
@@ -123,12 +120,6 @@ export function ArtisanSearchModal({
           offset,
           limit: 30,
           metier_id,
-        })
-
-        console.log('[ArtisanSearchModal] Response:', {
-          artisansCount: response.artisans.length,
-          hasMore: response.hasMore,
-          total: response.total
         })
 
         if (append) {

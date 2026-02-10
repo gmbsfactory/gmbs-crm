@@ -102,7 +102,6 @@ const formatDistanceKm = (value: number) => {
   return `${Math.round(value)} km`
 }
 
-
 function hexToRgba(hex: string, alpha: number): string | null {
   const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex)
   if (!result) return null
@@ -1696,7 +1695,6 @@ export const InterventionEditForm = memo(function InterventionEditForm({
       })
 
       // Utiliser useInterventionsMutations pour enregistrer la modification locale
-      console.log(`[InterventionEditForm] 📝 Mise à jour de l'intervention ${intervention.id} via useInterventionsMutations`)
       const updated = await updateMutation.mutateAsync({
         id: intervention.id,
         data: {
@@ -1853,7 +1851,6 @@ export const InterventionEditForm = memo(function InterventionEditForm({
         await queryClient.invalidateQueries({ queryKey: ["admin", "dashboard"] })
         // Invalider aussi les queries de podium si elles existent
         await queryClient.invalidateQueries({ queryKey: ["podium"] })
-        console.log('[InterventionEditForm] Cache dashboard invalidé après mise à jour des coûts')
       }
 
       const currentPrimaryId = primaryArtisanIdRef.current

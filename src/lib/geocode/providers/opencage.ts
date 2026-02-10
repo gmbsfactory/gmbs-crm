@@ -64,7 +64,6 @@ export class OpenCageProvider implements GeocodeProvider {
         }
 
         if (verbose) {
-            console.log(`[${this.name}] Fetching (key hidden): ${endpoint.toString().replace(this.apiKey, 'HIDDEN')}`)
         }
 
         try {
@@ -84,10 +83,8 @@ export class OpenCageProvider implements GeocodeProvider {
             const results = data?.results ?? []
 
             if (verbose) {
-                console.log(`[${this.name}] Raw API Results:`, results.length)
                 if (results.length > 0) {
                     results.slice(0, 2).forEach((f, i) => {
-                        console.log(`  Result ${i+1}: ${f.formatted} (confidence: ${f.confidence})`)
                     })
                 }
             }
@@ -123,5 +120,4 @@ export class OpenCageProvider implements GeocodeProvider {
         }
     }
 }
-
 

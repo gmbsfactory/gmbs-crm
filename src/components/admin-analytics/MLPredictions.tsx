@@ -46,7 +46,7 @@ export function MLPredictions({ data, isLoading }: MLPredictionsProps) {
                                 <XAxis dataKey="date" className="text-xs" />
                                 <YAxis className="text-xs" tickFormatter={(value) => `${value / 1000}k`} />
                                 <Tooltip
-                                    formatter={(value: number) => [`${value.toLocaleString()} €`, undefined]}
+                                    formatter={(value) => [`${Number(value).toLocaleString()} €`, undefined]}
                                     contentStyle={{ backgroundColor: 'hsl(var(--background))', borderColor: 'hsl(var(--border))' }}
                                 />
                                 <Area

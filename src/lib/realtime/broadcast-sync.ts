@@ -59,7 +59,6 @@ export function createBroadcastSync(queryClient: QueryClient) {
 
     // Ignorer les messages avec des timestamps récents déjà traités
     if (recentTimestamps.has(timestamp)) {
-      console.log('[BroadcastSync] Message ignoré (timestamp déjà traité):', timestamp)
       return
     }
 

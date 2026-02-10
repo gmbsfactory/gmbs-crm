@@ -128,7 +128,6 @@ export class GeocodeService {
     }
 
     if (fullOptions.verbose) {
-      console.log(`[GeocodeService] Geocoding: "${trimmedQuery}"`, { mode: this.config.mode, options: fullOptions })
     }
 
     // Vérifier le cache
@@ -156,14 +155,12 @@ export class GeocodeService {
     // Mettre en cache
     if (results.length > 0) {
       if (fullOptions.verbose) {
-        console.log(`[GeocodeService] Found ${results.length} results from ${results[0]?.provider}`)
       }
       this.cache.set(cacheKey, {
         results,
         expiresAt: Date.now() + this.config.cacheTtlMs,
       })
     } else if (fullOptions.verbose) {
-      console.log(`[GeocodeService] No results found for: "${trimmedQuery}"`)
     }
 
     return results.slice(0, fullOptions.limit)
@@ -179,23 +176,19 @@ export class GeocodeService {
     )
 
     if (options.verbose) {
-      console.log(`[GeocodeService] Cascade mode: ${eligibleProviders.length} eligible providers`, eligibleProviders.map(p => p.name))
     }
 
     for (const provider of eligibleProviders) {
       try {
         if (options.verbose) {
-          console.log(`[GeocodeService] Trying provider: ${provider.name}`)
         }
         const results = await provider.geocode(query, options)
         if (results.length > 0) {
           if (options.verbose) {
-            console.log(`[GeocodeService] Success with provider: ${provider.name} (${results.length} results)`)
           }
           return results
         }
         if (options.verbose) {
-          console.log(`[GeocodeService] Provider ${provider.name} returned no results`)
         }
       } catch (error) {
         console.warn(`[GeocodeService] Provider ${provider.name} failed:`, error)
@@ -205,18 +198,15 @@ export class GeocodeService {
 
     // Fallback : essayer tous les providers disponibles
     if (options.verbose) {
-      console.log(`[GeocodeService] Cascade fallback: trying all available providers`)
     }
     for (const provider of this.providers) {
       if (!eligibleProviders.includes(provider) && provider.isAvailable()) {
         try {
           if (options.verbose) {
-            console.log(`[GeocodeService] Trying fallback provider: ${provider.name}`)
           }
           const results = await provider.geocode(query, options)
           if (results.length > 0) {
             if (options.verbose) {
-              console.log(`[GeocodeService] Success with fallback provider: ${provider.name} (${results.length} results)`)
             }
             return results
           }
@@ -360,5 +350,4 @@ export class GeocodeService {
  * Instance par défaut du service (singleton)
  */
 export const geocodeService = GeocodeService.getInstance()
-
 

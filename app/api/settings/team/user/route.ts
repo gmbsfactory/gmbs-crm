@@ -102,12 +102,10 @@ export async function POST(req: Request) {
 
     // Check if Auth Admin API is available
     const authAdminAvailable = hasAuthAdmin()
-    console.log('[create-user] Auth Admin available:', authAdminAvailable)
 
     if (authAdminAvailable) {
       // ===== WITH AUTH: Create user in auth.users first =====
       try {
-        console.log('[create-user] Creating auth user for:', email)
         
         const { data: authUser, error: authError } = await supabaseAdmin.auth.admin.createUser({
           email,
@@ -122,12 +120,10 @@ export async function POST(req: Request) {
         if (authError) {
           console.error('[create-user] Auth user creation failed:', authError.message, authError)
           // Fallback: create only in public.users
-          console.log('[create-user] Falling back to public.users only')
         } else if (!authUser?.user) {
           console.error('[create-user] Auth user creation returned no user')
         } else {
           userId = authUser.user.id
-          console.log('[create-user] Auth user created with ID:', userId)
 
           // Generate password recovery link
           // Use request host header for accurate URL (works for all environments including preview)
@@ -150,7 +146,6 @@ export async function POST(req: Request) {
               // Continue without invite link - user can use "forgot password" later
             } else {
               inviteLink = linkData?.properties?.action_link || ''
-              console.log('[create-user] Invite link generated:', inviteLink ? 'yes' : 'no')
             }
           } catch (linkGenError: any) {
             console.error('[create-user] Link generation exception:', linkGenError?.message)
@@ -166,7 +161,6 @@ export async function POST(req: Request) {
     // @ts-ignore - userId may be undefined
     if (!userId) {
       userId = crypto.randomUUID()
-      console.log('[create-user] Generated new UUID for public.users only:', userId)
     }
 
     // ===== Create profile in public.users =====
@@ -182,7 +176,6 @@ export async function POST(req: Request) {
     }
     if (color) insertPayload.color = color
 
-    console.log('[create-user] Inserting into public.users...')
     const ins = await supabaseAdmin
       .from('users')
       .insert(insertPayload)
@@ -195,15 +188,12 @@ export async function POST(req: Request) {
       if (authAdminAvailable && inviteLink) {
         try {
           await supabaseAdmin.auth.admin.deleteUser(userId)
-          console.log('[create-user] Rolled back auth user')
         } catch (rollbackError: any) {
           console.error('[create-user] Rollback failed:', rollbackError?.message)
         }
       }
       return NextResponse.json({ error: ins.error.message }, { status: 500 })
     }
-
-    console.log('[create-user] User created in public.users')
 
     // ===== Assign role =====
     try {
@@ -243,7 +233,6 @@ export async function POST(req: Request) {
       response.inviteLink = inviteLink
     }
 
-    console.log('[create-user] Success, returning response')
     return NextResponse.json(response)
   } catch (e: any) {
     console.error('[create-user] Unexpected error:', e?.message, e?.stack)
@@ -322,7 +311,6 @@ export async function DELETE(req: Request) {
         .eq('public_user_id', userId)
         .maybeSingle()
       authUserId = mapping?.auth_user_id || null
-      console.log('[delete-user] Found auth_user_id:', authUserId)
     } catch (e: any) {
       console.warn('[delete-user] Mapping lookup failed:', e?.message)
     }
@@ -334,7 +322,6 @@ export async function DELETE(req: Request) {
         if (authDeleteError) {
           console.warn('[delete-user] Auth user deletion failed:', authDeleteError.message)
         } else {
-          console.log('[delete-user] Auth user deleted successfully')
         }
       } catch (authDeleteException: any) {
         console.warn('[delete-user] Auth user deletion exception:', authDeleteException?.message)
@@ -347,7 +334,6 @@ export async function DELETE(req: Request) {
         .from('auth_user_mapping')
         .delete()
         .eq('public_user_id', userId)
-      console.log('[delete-user] Mapping deleted')
     } catch (e: any) {
       console.warn('[delete-user] auth_user_mapping deletion failed:', e?.message)
     }
@@ -367,7 +353,6 @@ export async function DELETE(req: Request) {
       return NextResponse.json({ error: archiveError.message }, { status: 500 })
     }
 
-    console.log('[delete-user] User archived successfully:', userId)
     return NextResponse.json({ ok: true, archived: true })
   } catch (e: any) {
     return NextResponse.json({ error: e?.message || 'Bad payload' }, { status: 400 })

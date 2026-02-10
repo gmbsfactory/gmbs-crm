@@ -45,11 +45,9 @@ export function useInterventionsRealtime() {
       return // Déjà en cours
     }
 
-    console.log('[Realtime] Démarrage du polling de fallback (60s - synchronisé avec cron Supabase)')
     setConnectionStatus('polling')
 
     pollingIntervalRef.current = setInterval(() => {
-      console.log('[Realtime] Polling: invalidation des queries actives')
       // Invalider uniquement les listes (complètes + light) pour limiter le trafic
       queryClient.invalidateQueries({
         queryKey: interventionKeys.invalidateLists(),
@@ -66,7 +64,6 @@ export function useInterventionsRealtime() {
     if (pollingIntervalRef.current) {
       clearInterval(pollingIntervalRef.current)
       pollingIntervalRef.current = null
-      console.log('[Realtime] Arrêt du polling de fallback')
     }
   }, [])
 
@@ -76,7 +73,6 @@ export function useInterventionsRealtime() {
       return // Déjà programmée
     }
 
-    console.log('[Realtime] Tentative de reconnexion dans 30s...')
     setConnectionStatus('connecting')
 
     reconnectTimeoutRef.current = setTimeout(() => {
@@ -97,7 +93,6 @@ export function useInterventionsRealtime() {
         const channel = createInterventionsChannel(async (payload) => {
           const newIntervention = payload.new && 'id' in payload.new ? payload.new : null
           const oldIntervention = payload.old && 'id' in payload.old ? payload.old : null
-          console.log('[Realtime] Événement reçu:', payload.eventType, newIntervention?.id || oldIntervention?.id)
           await syncCacheWithRealtimeEvent(queryClient, payload, currentUserId)
         })
 
@@ -108,7 +103,6 @@ export function useInterventionsRealtime() {
           if (channelRef.current) {
             channelRef.current.subscribe((status) => {
               if (status === 'SUBSCRIBED') {
-                console.log('[Realtime] ✅ Reconnexion réussie')
                 // S'assurer que le polling est bien arrêté (défensif)
                 stopPolling()
                 setConnectionStatus('realtime')
@@ -134,7 +128,6 @@ export function useInterventionsRealtime() {
   }, [queryClient, currentUserId, startPolling, stopPolling])
 
   useEffect(() => {
-    console.log('[Realtime] Initialisation de la synchronisation Realtime')
     
     // Initialiser la synchronisation BroadcastChannel
     initializeCacheSync(queryClient)
@@ -143,7 +136,6 @@ export function useInterventionsRealtime() {
     const channel = createInterventionsChannel(async (payload) => {
       const newIntervention = payload.new && 'id' in payload.new ? payload.new : null
       const oldIntervention = payload.old && 'id' in payload.old ? payload.old : null
-      console.log('[Realtime] Événement reçu:', payload.eventType, newIntervention?.id || oldIntervention?.id)
       await syncCacheWithRealtimeEvent(queryClient, payload, currentUserId)
     })
 
@@ -152,7 +144,6 @@ export function useInterventionsRealtime() {
     // Surveiller le statut de connexion
     channel.subscribe((status) => {
       if (status === 'SUBSCRIBED') {
-        console.log('[Realtime] ✅ Channel souscrit avec succès')
         // S'assurer que le polling est arrêté AVANT de changer le statut
         stopPolling()
         // Petit délai pour éviter les race conditions
@@ -201,7 +192,6 @@ export function useInterventionsRealtime() {
 
     // Nettoyage lors du démontage
     return () => {
-      console.log('[Realtime] Nettoyage du channel')
       stopPolling()
       if (reconnectTimeoutRef.current) {
         clearTimeout(reconnectTimeoutRef.current)
