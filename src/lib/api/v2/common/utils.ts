@@ -395,10 +395,10 @@ export const mapInterventionRecord = (item: any, refs: any): any => {
       typeof item.longitude === "number"
         ? item.longitude.toString()
         : item.longitudeAdresse ?? null,
-    adresse: item.adresse_complete || item.adresse || null,
+    adresse: item.adresse || null,
     adresse_complete: item.adresse_complete || null,
-    adresseComplete: item.adresse_complete || null,
     codePostal: item.code_postal ?? item.codePostal ?? null,
+    ville: item.ville ?? null,
     dateIntervention:
       item.date_intervention ?? item.dateIntervention ?? item.date ?? null,
     prenomClient: item.prenom_client ?? item.prenomClient ?? null,
@@ -538,6 +538,7 @@ export const mapArtisanRecord = (item: any, refs: any): any => {
     attribueA: userInfo.code ?? userInfo.username ?? undefined,
     gestionnaireUsername: userInfo.username ?? undefined,
     gestionnaireName: userInfo.fullName ?? undefined,
+    status: item.statut_id ? refs.artisanStatusesById?.get(item.statut_id) : (item.artisan_statuses || item.statut || null),
     statutArtisan: item.statut_id ?? item.statutArtisan ?? null,
     statutInactif: item.is_active === false,
     commentaire: item.suivi_relances_docs ?? item.commentaire ?? null,

@@ -33,6 +33,7 @@ import {
   formatDate,
   formatTime,
 } from "@/components/documents/types";
+import { cn } from "@/lib/utils";
 
 function ManagerBadge({
   code,
@@ -92,6 +93,7 @@ export function DocumentManagerGmbs({
   multiple = true,
   onChange,
   currentUser,
+  highlightedKinds,
 }: Omit<DocumentManagerProps, "variant">) {
   const manager = useDocumentManager({
     entityType,
@@ -113,20 +115,20 @@ export function DocumentManagerGmbs({
   // Grouper les documents par kind
   const documentsByKind = useMemo(() => {
     const grouped = new Map<string, DocumentRow[]>();
-    
+
     // Initialiser avec tous les kinds
     kinds.forEach(({ kind }) => {
       const normalized = normalizeKind(kind);
       grouped.set(normalized, []);
     });
-    
+
     // Ajouter les documents existants
     manager.rows.forEach((row) => {
       const normalized = normalizeKind(row.kind);
       const existing = grouped.get(normalized) ?? [];
       grouped.set(normalized, [...existing, row]);
     });
-    
+
     return grouped;
   }, [kinds, manager.rows]);
 
@@ -170,7 +172,7 @@ export function DocumentManagerGmbs({
   // Upload direct pour une ligne supplémentaire (quand kind et fichiers sont sélectionnés)
   const handleAdditionalUpload = useCallback(async (id: string, kind: string, files: File[]) => {
     if (!kind || files.length === 0 || !entityId) return;
-    
+
     await manager.processUploadQueue(kind, files);
     handleRemoveAdditionalRow(id);
   }, [entityId, manager, handleRemoveAdditionalRow]);
@@ -241,9 +243,10 @@ export function DocumentManagerGmbs({
                       manager={manager}
                       entityId={entityId}
                       multiple={multiple}
+                      isHighlighted={highlightedKinds?.includes(kindRow.kind)}
                     />
                   ))}
-                  
+
                   {/* Lignes supplémentaires ajoutées manuellement */}
                   {additionalRows.map((row) => (
                     <AdditionalRowGmbs
@@ -276,11 +279,13 @@ function KindRowGmbs({
   manager,
   entityId,
   multiple,
+  isHighlighted,
 }: {
   kindRow: KindRowData;
   manager: ReturnType<typeof useDocumentManager>;
   entityId: string;
   multiple: boolean;
+  isHighlighted?: boolean;
 }) {
   const [isDragOver, setIsDragOver] = useState(false);
   const hasDocuments = kindRow.documents.length > 0;
@@ -326,11 +331,12 @@ function KindRowGmbs({
           manager={manager}
           kindLabel={kindRow.label}
           showAddButton={true}
-          onAddClick={() => {}}
+          onAddClick={() => { }}
           kindRow={kindRow}
           entityId={entityId}
+          isHighlighted={isHighlighted}
         />
-        
+
         {/* Lignes supplémentaires pour les autres documents de ce kind */}
         {kindRow.documents.slice(1).map((doc) => (
           <DocumentRowGmbs
@@ -339,19 +345,22 @@ function KindRowGmbs({
             manager={manager}
             kindLabel={kindRow.label}
             showAddButton={false}
-            onAddClick={() => {}}
+            onAddClick={() => { }}
             kindRow={kindRow}
             entityId={entityId}
+            isHighlighted={isHighlighted}
           />
         ))}
       </>
     );
   }
 
-  // Ligne placeholder pour drop/upload
   return (
     <TableRow
-      className={`h-auto transition-colors ${isDragOver ? "bg-primary/10" : "bg-muted/20"}`}
+      className={cn(
+        "h-auto transition-colors",
+        isDragOver ? "bg-primary/10" : "bg-muted/20"
+      )}
       onDragOver={(e) => {
         e.preventDefault();
         setIsDragOver(true);
@@ -362,11 +371,10 @@ function KindRowGmbs({
       <TableCell className="py-1 px-2">
         <div className="relative">
           <div
-            className={`group flex min-h-[36px] w-full cursor-pointer items-center gap-2 rounded border border-dashed ${
-              isDragOver
-                ? "border-primary bg-primary/5"
-                : "border-muted-foreground/30 bg-muted/20 hover:border-primary/50 hover:bg-muted/40"
-            } px-2 py-1.5 transition-colors`}
+            className={`group flex min-h-[36px] w-full cursor-pointer items-center gap-2 rounded border border-dashed ${isDragOver
+              ? "border-primary bg-primary/5"
+              : "border-muted-foreground/30 bg-muted/20 hover:border-primary/50 hover:bg-muted/40"
+              } px-2 py-1.5 transition-colors`}
           >
             <input
               type="file"
@@ -383,9 +391,18 @@ function KindRowGmbs({
         </div>
       </TableCell>
       <TableCell className="py-1 px-2">
-        <Badge variant="outline" className="text-[9px] px-1.5 py-0.5 bg-muted/50">
-          {kindRow.label}
-        </Badge>
+        <div className="flex items-center gap-1">
+          <Badge
+            variant="outline"
+            className={cn(
+              "text-[9px] px-1.5 py-0.5",
+              isHighlighted ? "border-orange-500 text-orange-700 ring-1 ring-orange-500 bg-orange-50" : "bg-muted/50"
+            )}
+          >
+            {kindRow.label}
+          </Badge>
+          {isHighlighted && <span className="text-orange-500 font-bold text-[10px] leading-none mb-0.5">*</span>}
+        </div>
       </TableCell>
       <TableCell className="py-1 px-2">
         <span className="text-[9px] text-muted-foreground">—</span>
@@ -409,6 +426,7 @@ function DocumentRowGmbs({
   onAddClick,
   kindRow,
   entityId,
+  isHighlighted,
 }: {
   row: DocumentRow;
   manager: ReturnType<typeof useDocumentManager>;
@@ -417,6 +435,7 @@ function DocumentRowGmbs({
   onAddClick: () => void;
   kindRow: KindRowData;
   entityId: string;
+  isHighlighted?: boolean;
 }) {
   const [isDragOver, setIsDragOver] = useState(false);
   const isPreviewing = manager.preview.open && manager.preview.row?.id === row.id;
@@ -444,7 +463,10 @@ function DocumentRowGmbs({
 
   return (
     <TableRow
-      className={`h-auto transition-colors ${isDragOver ? "bg-primary/10" : ""}`}
+      className={cn(
+        "h-auto transition-colors",
+        isDragOver ? "bg-primary/10" : ""
+      )}
       onDragOver={(e) => {
         e.preventDefault();
         setIsDragOver(true);
@@ -514,9 +536,18 @@ function DocumentRowGmbs({
         )}
       </TableCell>
       <TableCell className="py-1 px-2">
-        <Badge variant="outline" className="text-[9px] px-1.5 py-0.5">
-          {kindLabel}
-        </Badge>
+        <div className="flex items-center gap-1">
+          <Badge
+            variant="outline"
+            className={cn(
+              "text-[9px] px-1.5 py-0.5",
+              isHighlighted ? "border-orange-500 text-orange-700 ring-1 ring-orange-500 bg-orange-50" : ""
+            )}
+          >
+            {kindLabel}
+          </Badge>
+          {isHighlighted && <span className="text-orange-500 font-bold text-[10px] leading-none mb-0.5">*</span>}
+        </div>
       </TableCell>
       <TableCell className="py-1 px-2">
         <div className="text-[9px] text-muted-foreground leading-tight">
@@ -771,11 +802,10 @@ function AdditionalRowGmbs({
     >
       <TableCell className="py-1 px-2">
         <div
-          className={`group relative flex min-h-[36px] w-full cursor-pointer items-center gap-2 rounded border border-dashed ${
-            isDragOver
-              ? "border-primary bg-primary/5"
-              : "border-muted-foreground/30 bg-muted/20 hover:border-primary/50"
-          } px-2 py-1.5 transition-colors`}
+          className={`group relative flex min-h-[36px] w-full cursor-pointer items-center gap-2 rounded border border-dashed ${isDragOver
+            ? "border-primary bg-primary/5"
+            : "border-muted-foreground/30 bg-muted/20 hover:border-primary/50"
+            } px-2 py-1.5 transition-colors`}
         >
           <input
             key={fileInputKey}

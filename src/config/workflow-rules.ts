@@ -20,6 +20,8 @@ export type WorkflowRule = {
     nomPrenomClient?: boolean
     telephoneClient?: boolean
     datePrevue?: boolean
+    // Nouveau champ pour INTER_TERMINEE
+    factureGmbsFile?: boolean
   }
   autoActions?: string[]
   restrictions?: {
@@ -34,7 +36,7 @@ export const WORKFLOW_RULES: Record<InterventionStatusValue, WorkflowRule> = {
     autoActions: [],
   },
   DEVIS_ENVOYE: {
-    requirements: { 
+    requirements: {
       devisId: true,
       nomPrenomFacturation: true,
       assignedUser: true,
@@ -65,7 +67,7 @@ export const WORKFLOW_RULES: Record<InterventionStatusValue, WorkflowRule> = {
     autoActions: [],
   },
   INTER_EN_COURS: {
-    requirements: { 
+    requirements: {
       artisan: true,
       coutIntervention: true,
       coutSST: true,
@@ -77,7 +79,7 @@ export const WORKFLOW_RULES: Record<InterventionStatusValue, WorkflowRule> = {
     autoActions: [],
   },
   INTER_TERMINEE: {
-    requirements: { artisan: true, facture: true, proprietaire: true },
+    requirements: { artisan: true, facture: true, proprietaire: true, factureGmbsFile: true },
     autoActions: ["generate_invoice_if_missing"],
   },
   SAV: {
@@ -85,7 +87,7 @@ export const WORKFLOW_RULES: Record<InterventionStatusValue, WorkflowRule> = {
     autoActions: [],
   },
   ATT_ACOMPTE: {
-    requirements: { devisId: true },
+    requirements: { devisId: true, artisan: true },
     autoActions: [],
   },
   POTENTIEL: {
@@ -162,9 +164,9 @@ export const VALIDATION_RULES: ValidationRule[] = [
     },
   },
   {
-    key: "INTER_EN_COURS_WITHOUT_ARTISAN",
-    to: "INTER_EN_COURS",
-    message: "Un artisan doit être assigné pour passer en cours",
+    key: "ARTISAN_REQUIRED_FOR_STATUS",
+    statuses: ["VISITE_TECHNIQUE", "INTER_EN_COURS", "INTER_TERMINEE", "ATT_ACOMPTE"],
+    message: "Un artisan principal doit être assigné pour ce statut",
     blockTransition: true,
     validate: (context) => Boolean(context.artisanId),
   },
@@ -174,6 +176,18 @@ export const VALIDATION_RULES: ValidationRule[] = [
     message: "Facture et propriétaire requis pour finaliser l'intervention",
     blockTransition: true,
     validate: (context) => Boolean(context.factureId) && Boolean(context.proprietaireId),
+  },
+  {
+    key: "INTER_TERMINEE_GMBS_INVOICE_REQUIRED",
+    to: "INTER_TERMINEE",
+    message: "Un fichier facture GMBS doit être uploadé pour finaliser l'intervention",
+    blockTransition: true,
+    validate: (context) => {
+      // Vérifier que les attachments existent et contiennent au moins une facture GMBS
+      const attachments = context.attachments as Array<{ kind: string }> | undefined
+      if (!attachments || !Array.isArray(attachments)) return false
+      return attachments.some(att => att.kind === 'facturesGMBS')
+    },
   },
   {
     key: "COMMENTAIRE_REQUIS",

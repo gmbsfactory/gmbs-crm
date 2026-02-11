@@ -139,6 +139,7 @@ export type InterventionView = Intervention & {
     // Champs mappés pour l'affichage
     statusLabel?: string | null;
     statusColor?: string | null;
+    adresse_complete?: string | null;
     attribueA?: string;
     assignedUserName?: string;
     assignedUserCode?: string | null;

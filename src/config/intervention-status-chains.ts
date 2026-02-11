@@ -42,6 +42,23 @@ export const INTERVENTION_STATUS_CHAINS = {
 export const DEFAULT_STATUS_CHAIN = INTERVENTION_STATUS_CHAINS.MAIN_PROGRESSION;
 
 /**
+ * Chaîne cumulative pour la validation.
+ *
+ * Pour atteindre un statut X sur cette chaîne, TOUS les prérequis
+ * des statuts précédents X doivent aussi être satisfaits.
+ *
+ * VISITE_TECHNIQUE est exclu car c'est un détour optionnel
+ * (la chaîne VISIT_FIRST_PROGRESSION existe comme alternative sans devis).
+ */
+export const CUMULATIVE_VALIDATION_CHAIN: InterventionStatusKey[] = [
+    'DEMANDE',
+    'DEVIS_ENVOYE',
+    'ACCEPTE',
+    'INTER_EN_COURS',
+    'INTER_TERMINEE',
+];
+
+/**
  * Mode de validation des prérequis pour les statuts intermédiaires
  */
 export type IntermediateStatusValidationMode = 'strict' | 'permissive';
@@ -55,7 +72,7 @@ export const STATUS_CHAIN_CONFIG = {
      * - 'strict' : Tous les prérequis doivent être remplis pour chaque statut intermédiaire
      * - 'permissive' : Les prérequis ne sont vérifiés que pour le statut final
      */
-    validationMode: 'permissive' as IntermediateStatusValidationMode,
+    validationMode: 'strict' as IntermediateStatusValidationMode,
 
     /**
      * Délai entre chaque transition intermédiaire (en millisecondes)

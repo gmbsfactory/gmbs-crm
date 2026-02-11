@@ -11,7 +11,6 @@ import { ChartContainer, ChartTooltip, type ChartConfig } from "@/components/ui/
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card"
 import { useRouter } from "next/navigation"
 import { useInterventionModal } from "@/hooks/useInterventionModal"
-import { getInterventionStatusColor } from "@/config/status-colors"
 import { INTERVENTION_STATUS } from "@/config/interventions"
 import { useInterventionStatuses } from "@/hooks/useInterventionStatuses"
 import { InterventionStatusContent } from "./intervention-status-content"
@@ -93,18 +92,33 @@ export function InterventionStatsBarChart({ hoverPeriod, userId: propUserId }: I
 
     // Ajouter une entrée pour chaque statut possible dans le config (pour les tooltips)
     fundamentalStatuses.forEach((status) => {
+      // Chercher dans la base de données d'abord par label
+      let dbStatus = statusesByLabel.get(status)
+
+      // Si pas trouvé par label, chercher dans INTERVENTION_STATUS pour obtenir le code
+      if (!dbStatus) {
+        const statusConfig = Object.values(INTERVENTION_STATUS).find(
+          s => s.label === status || s.label.toLowerCase() === status.toLowerCase()
+        )
+        if (statusConfig) {
+          dbStatus = statusesByCode.get(statusConfig.value)
+        }
+      }
+
       config[status] = {
         label: status,
-        color: getInterventionStatusColor(status),
+        color: dbStatus?.color || "#6366F1", // Utiliser la couleur de la base
       }
     })
+    // Chercher "Check" dans la base de données
+    const checkStatus = statusesByCode.get("CHECK")
     config["Check"] = {
       label: "Check",
-      color: getInterventionStatusColor("Check"),
+      color: checkStatus?.color || "#EF4444", // Utiliser la couleur de la base
     }
 
     return config
-  }, [fundamentalStatuses])
+  }, [fundamentalStatuses, statusesByLabel, statusesByCode])
 
   // Préparer les données pour le graphique (uniquement les statuts fondamentaux)
   // Mémorisé pour éviter les recalculs constants qui causent la boucle infinie
@@ -113,7 +127,20 @@ export function InterventionStatsBarChart({ hoverPeriod, userId: propUserId }: I
 
     return Object.entries(stats.by_status_label)
       .map(([label, count]) => {
-        const color = getInterventionStatusColor(label)
+        // Chercher dans la base de données d'abord par label
+        let dbStatus = statusesByLabel.get(label)
+
+        // Si pas trouvé par label, chercher dans INTERVENTION_STATUS pour obtenir le code
+        if (!dbStatus) {
+          const statusConfig = Object.values(INTERVENTION_STATUS).find(
+            s => s.label === label || s.label.toLowerCase() === label.toLowerCase()
+          )
+          if (statusConfig) {
+            dbStatus = statusesByCode.get(statusConfig.value)
+          }
+        }
+
+        const color = dbStatus?.color || "#6366F1" // Utiliser la couleur de la base
         return {
           name: label,
           value: count,
@@ -130,13 +157,13 @@ export function InterventionStatsBarChart({ hoverPeriod, userId: propUserId }: I
         if (indexB === -1) return -1
         return indexA - indexB
       })
-  }, [stats?.by_status_label, fundamentalStatuses])
+  }, [stats?.by_status_label, fundamentalStatuses, statusesByLabel, statusesByCode])
 
   // Mémoriser les cellules avec leurs couleurs pour éviter les recalculs
   const chartCells = useMemo(() => {
     if (chartData.length === 0) return []
     return chartData.map((entry, index) => {
-      const statusColor = entry.color || getInterventionStatusColor(entry.name)
+      const statusColor = entry.color || "#6366F1" // Couleur par défaut
 
       return (
         <Cell

@@ -291,11 +291,14 @@ export async function syncCacheWithRealtimeEvent(
     } else if (!isRemoteModification) {
     }
 
-    // Mise a jour du detail de l'intervention si elle existe dans le cache
-    queryClient.setQueryData(
-      interventionKeys.detail(enrichedNewRecord.id),
-      enrichedNewRecord
-    )
+    // Invalider le détail pour forcer un refetch avec JOINs complets (costs, payments, artisans)
+    // On utilise invalidateQueries au lieu de setQueryData car le payload Realtime
+    // ne contient que les colonnes de la table interventions, pas les données enfants.
+    // refetchType: 'active' = refetch uniquement si le modal est ouvert (query montée)
+    queryClient.invalidateQueries({
+      queryKey: interventionKeys.detail(enrichedNewRecord.id),
+      refetchType: 'active',
+    })
   }
 
   // Rafraichir les compteurs si necessaire
