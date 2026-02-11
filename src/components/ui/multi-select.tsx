@@ -56,7 +56,6 @@ export function MultiSelect({
     }
 
     const handleSelect = React.useCallback((optionValue: string) => {
-        console.log("handleSelect called", optionValue)
         isSelectingRef.current = true
         onChange(
             selected.includes(optionValue)
@@ -71,11 +70,9 @@ export function MultiSelect({
     }, [selected, onChange])
 
     const handleOpenChange = React.useCallback((newOpen: boolean) => {
-        console.log("handleOpenChange called", { newOpen, isSelecting: isSelectingRef.current })
         // Empêcher la fermeture si on est en train de sélectionner
         // Cela empêche cmdk de fermer automatiquement le popover lors de la sélection
         if (!newOpen && isSelectingRef.current) {
-            console.log("Preventing close because selecting")
             return
         }
         setOpen(newOpen)
@@ -157,11 +154,9 @@ export function MultiSelect({
                             onClick={(e) => {
                                 e.preventDefault()
                                 e.stopPropagation()
-                                console.log("Simple div onClick triggered", option.value)
                                 handleSelect(option.value)
                             }}
                             onMouseDown={(e) => {
-                                console.log("Simple div onMouseDown triggered", option.value)
                             }}
                             className={cn(
                                 "relative flex cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-accent hover:text-accent-foreground",

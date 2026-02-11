@@ -81,9 +81,7 @@ export function useProgressiveLoad<TData>({
   )
 
   const loadProgressively = useCallback(async () => {
-    console.log('🚀 [useProgressiveLoad] Starting...', { isLoading: isLoadingRef.current, enabled });
     if (isLoadingRef.current || !enabled) {
-      console.log('⏹️ [useProgressiveLoad] Skipping (already loading or disabled)');
       return;
     }
 
@@ -100,12 +98,9 @@ export function useProgressiveLoad<TData>({
     try {
       let total = 0
       if (fetchTotal) {
-        console.log('📊 [useProgressiveLoad] Fetching total...');
         total = await fetchTotal()
-        console.log('📊 [useProgressiveLoad] Total received:', total);
         
         if (shouldStopRef.current) {
-          console.log('⏹️ [useProgressiveLoad] Stopped after fetchTotal');
           isLoadingRef.current = false
           setState((prev) => ({ ...prev, isLoading: false, total }))
           return
@@ -113,12 +108,9 @@ export function useProgressiveLoad<TData>({
         setState((prev) => ({ ...prev, total }))
       }
 
-      console.log('📦 [useProgressiveLoad] Loading first batch...', { initialBatchSize });
       const firstBatchSize = await loadBatch(0, initialBatchSize)
-      console.log('📦 [useProgressiveLoad] First batch loaded:', firstBatchSize);
 
       if (firstBatchSize === 0 || shouldStopRef.current) {
-        console.log('⏹️ [useProgressiveLoad] Stopping (firstBatchSize=0 or shouldStop)', { firstBatchSize, shouldStop: shouldStopRef.current });
         setState((prev) => ({ ...prev, isLoading: false, isComplete: true }))
         return
       }
@@ -165,16 +157,12 @@ export function useProgressiveLoad<TData>({
   }, [])
 
   useEffect(() => {
-    console.log('🔄 [useProgressiveLoad] useEffect triggered', { enabled });
     if (enabled) {
-      console.log('✅ [useProgressiveLoad] Calling loadProgressively...');
       loadProgressively()
     } else {
-      console.log('⏹️ [useProgressiveLoad] Disabled, not loading');
     }
 
     return () => {
-      console.log('🧹 [useProgressiveLoad] Cleanup');
       shouldStopRef.current = true
     }
   }, [enabled, loadProgressively])

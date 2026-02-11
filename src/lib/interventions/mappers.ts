@@ -111,6 +111,9 @@ export const mapRowToIntervention = (row: InterventionRow): InterventionDTO => {
     name: deriveName(row),
     agency: coerceNullableString(row.agence),
     address: coerceNullableString(row.adresse) ?? "",
+    adresse_complete: coerceNullableString(row.adresse_complete),
+    latitude: typeof row.latitude === 'number' ? row.latitude : null,
+    longitude: typeof row.longitude === 'number' ? row.longitude : null,
     context: coerceNullableString(row.contexte_intervention) ?? "",
     consigne: coerceNullableString(row.consigne_intervention),
     status,
@@ -140,6 +143,9 @@ export const buildInsertPayload = (input: CreateInterventionInput): Intervention
     updated_at: now,
     agence: coerceNullableString(input.agency),
     adresse: coerceNullableString(input.address) ?? "",
+    adresse_complete: coerceNullableString(input.adresse_complete),
+    latitude: input.latitude ?? null,
+    longitude: input.longitude ?? null,
     contexte_intervention: context,
     commentaire_agent: comment,
     consigne_intervention: coerceNullableString(input.consigne),
@@ -159,6 +165,15 @@ export const buildUpdatePayload = (input: UpdateInterventionInput): Intervention
   }
   if (input.address !== undefined) {
     payload.adresse = coerceNullableString(input.address)
+  }
+  if (input.adresse_complete !== undefined) {
+    payload.adresse_complete = coerceNullableString(input.adresse_complete)
+  }
+  if (input.latitude !== undefined) {
+    payload.latitude = input.latitude
+  }
+  if (input.longitude !== undefined) {
+    payload.longitude = input.longitude
   }
   if (input.context !== undefined) {
     const context = coerceNullableString(input.context) ?? coerceNullableString(input.name) ?? null

@@ -611,13 +611,10 @@ export function ArtisanModalContent({
     if (artisan) {
       // Ne pas re-reset si c'est le même artisan et que le formulaire est déjà initialisé
       if (initializedArtisanIdRef.current === artisan.id) {
-        console.log("[ArtisanModalContent] Skipping reset - same artisan already initialized:", artisan.id)
         return
       }
 
-      console.log("[ArtisanModalContent] Initializing form for artisan:", artisan.id)
       const formValues = mapArtisanToForm(artisan)
-      console.log("[ArtisanModalContent] Mapped form values:", formValues)
 
       // Marquer immédiatement comme initialisé pour éviter les doubles resets
       initializedArtisanIdRef.current = artisan.id
@@ -638,7 +635,6 @@ export function ArtisanModalContent({
 
       // Marquer le formulaire comme initialisé après un court délai pour laisser reset() se terminer
       setTimeout(() => {
-        console.log("[ArtisanModalContent] Form initialized, dirtyFields should be empty now")
         setIsFormInitialized(true)
       }, 150)
     } else {

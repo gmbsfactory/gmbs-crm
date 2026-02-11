@@ -215,3 +215,50 @@ export function getArtisanStatusStyles(label?: string | null): { bg: string; bor
   }
 }
 
+/**
+ * Abréviations pour les statuts d'artisans
+ */
+export const ARTISAN_STATUS_ABBREVIATIONS: Record<string, string> = {
+  // Par label
+  "Candidat": "CAN",
+  "Potentiel": "POT",
+  "Novice": "NOV",
+  "Formation": "FOR",
+  "Confirmé": "CON",
+  "Expert": "EXP",
+  "One Shot": "ONE",
+  "OneShot": "ONE",
+  "Inactif": "INA",
+  "Archivé": "ARC",
+  "Actif": "ACT",
+  // Par code
+  "CANDIDAT": "CAN",
+  "POTENTIEL": "POT",
+  "NOVICE": "NOV",
+  "FORMATION": "FOR",
+  "CONFIRME": "CON",
+  "EXPERT": "EXP",
+  "ONE_SHOT": "ONE",
+  "INACTIF": "INA",
+  "ARCHIVE": "ARC",
+}
+
+/**
+ * Helper pour obtenir la version réduite d'un statut d'artisan
+ * @param label - Label du statut
+ * @param abbreviation - Abréviation explicite du statut (si disponible)
+ * @returns Abbreviation (3-4 lettres) ou fallback
+ */
+export function getArtisanStatusAbbreviation(label?: string | null, code?: string | null, abbreviation?: string | null): string {
+  if (abbreviation) return abbreviation.toUpperCase()
+  if (label && ARTISAN_STATUS_ABBREVIATIONS[label]) {
+    return ARTISAN_STATUS_ABBREVIATIONS[label]
+  }
+  if (code && ARTISAN_STATUS_ABBREVIATIONS[code]) {
+    return ARTISAN_STATUS_ABBREVIATIONS[code]
+  }
+
+  const base = label || code || ""
+  if (base.length <= 3) return base.toUpperCase()
+  return base.substring(0, 3).toUpperCase()
+}

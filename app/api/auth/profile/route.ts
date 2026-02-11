@@ -6,14 +6,11 @@ import { validateGmailEmail } from '@/lib/services/email-service'
 export const runtime = 'nodejs'
 
 export async function PATCH(req: Request) {
-  console.log('[profile] PATCH request received')
   
   const token = bearerFrom(req)
   if (!token) {
-    console.log('[profile] No token provided')
     return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
   }
-  console.log('[profile] Token received, length:', token.length)
   
   // Client avec token utilisateur pour vérifier l'authentification
   const supabaseAuth = createServerSupabase(token)
@@ -23,10 +20,8 @@ export async function PATCH(req: Request) {
   
   // Vérifier l'utilisateur authentifié avec le token
   const { data: authData, error: authError } = await supabaseAuth.auth.getUser()
-  console.log('[profile] Auth user:', authData?.user?.id, 'error:', authError?.message)
   
   const body = await req.json().catch(() => ({} as Record<string, unknown>))
-  console.log('[profile] Body keys:', Object.keys(body))
   
   const patch: Record<string, unknown> = {}
 
@@ -94,17 +89,14 @@ export async function PATCH(req: Request) {
   }
 
   if (Object.keys(patch).length === 0) {
-    console.log('[profile] No changes to save')
     return NextResponse.json({ ok: true })
   }
   
-  console.log('[profile] Patch to apply:', Object.keys(patch))
   
   // Utiliser auth.uid() pour trouver l'utilisateur via la table de mapping
   const authUserId = authData?.user?.id
   const authEmail = authData?.user?.email
   if (!authUserId) {
-    console.log('[profile] No auth user id found')
     return NextResponse.json({ error: 'not_authenticated' }, { status: 401 })
   }
   
@@ -115,7 +107,6 @@ export async function PATCH(req: Request) {
     .eq('auth_user_id', authUserId)
     .maybeSingle()
   
-  console.log('[profile] Mapping result:', mapping?.public_user_id, 'error:', mappingErr?.message)
   
   let me: { id: string } | null = null
   let selErr: any = null
@@ -131,7 +122,6 @@ export async function PATCH(req: Request) {
     selErr = result.error
   } else if (authEmail) {
     // Fallback: chercher par email si pas de mapping
-    console.log('[profile] No mapping found, trying email fallback:', authEmail)
     const result = await supabase
       .from('users')
       .select('id')
@@ -142,7 +132,6 @@ export async function PATCH(req: Request) {
     
     // Si trouvé par email, créer automatiquement le mapping pour la prochaine fois
     if (me && !selErr) {
-      console.log('[profile] Creating mapping for future use')
       await supabase
         .from('auth_user_mapping')
         .insert({ auth_user_id: authUserId, public_user_id: me.id })
@@ -150,18 +139,15 @@ export async function PATCH(req: Request) {
     }
   }
   
-  console.log('[profile] SELECT result:', me?.id, 'error:', selErr?.message, 'code:', selErr?.code)
   
   if (selErr) {
     console.error('[profile] SELECT error:', selErr)
     return NextResponse.json({ error: selErr.message }, { status: 500 })
   }
   if (!me) {
-    console.log('[profile] User not found for id:', authUserId)
     return NextResponse.json({ error: 'not_found' }, { status: 404 })
   }
   
-  console.log('[profile] Updating user:', me.id)
   const { error } = await supabase.from('users').update(patch).eq('id', me.id)
   
   if (error) {
@@ -169,6 +155,5 @@ export async function PATCH(req: Request) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
   
-  console.log('[profile] Update successful')
   return NextResponse.json({ ok: true })
 }

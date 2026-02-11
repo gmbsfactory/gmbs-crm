@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useEffect, useLayoutEffect, useRef, useState } from "react"
+import React, { useEffect, useLayoutEffect, useRef, useState, useCallback } from "react"
 import { createPortal } from "react-dom"
 import { cn } from "@/lib/utils"
 
@@ -13,22 +13,21 @@ type TruncatedCellProps = {
 export function TruncatedCell({ content, className, maxWidth = "300px" }: TruncatedCellProps) {
   const [tooltipPos, setTooltipPos] = useState<{ x: number; y: number } | null>(null)
   const cellRef = useRef<HTMLDivElement>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
   const [isOverflowing, setIsOverflowing] = useState(false)
   const [portalElement, setPortalElement] = useState<HTMLElement | null>(null)
+  const [isFocused, setIsFocused] = useState(false)
 
   useLayoutEffect(() => {
     const element = cellRef.current
     if (!element) return
 
-    // Vérifier si le contenu déborde
     const checkOverflow = () => {
       setIsOverflowing(element.scrollWidth > element.clientWidth)
     }
 
-    // Vérifier immédiatement après le rendu
     checkOverflow()
 
-    // Le ResizeObserver détectera les changements de taille ultérieurs
     const resizeObserver = new ResizeObserver(checkOverflow)
     resizeObserver.observe(element)
 
@@ -54,25 +53,72 @@ export function TruncatedCell({ content, className, maxWidth = "300px" }: Trunca
     })
   }
 
+  const showTooltipAtElement = useCallback(() => {
+    if (!isOverflowing || !containerRef.current) return
+    const rect = containerRef.current.getBoundingClientRect()
+    const margin = 16
+    setTooltipPos({
+      x: Math.max(margin, rect.left),
+      y: Math.max(margin, rect.bottom + 4),
+    })
+  }, [isOverflowing])
+
   const handleMouseEnter = (event: React.MouseEvent) => {
     if (!isOverflowing) return
     updateTooltipPosition(event)
   }
 
   const handleMouseLeave = () => {
+    if (!isFocused) {
+      setTooltipPos(null)
+    }
+  }
+
+  const handleFocus = () => {
+    setIsFocused(true)
+    showTooltipAtElement()
+  }
+
+  const handleBlur = () => {
+    setIsFocused(false)
     setTooltipPos(null)
   }
+
+  const handleKeyDown = (event: React.KeyboardEvent) => {
+    if (!isOverflowing) return
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault()
+      if (tooltipPos) {
+        setTooltipPos(null)
+      } else {
+        showTooltipAtElement()
+      }
+    }
+    if (event.key === "Escape" && tooltipPos) {
+      setTooltipPos(null)
+    }
+  }
+
+  const isTooltipVisible = !!(portalElement && tooltipPos && contentStr)
 
   return (
     <>
       <div
+        ref={containerRef}
         className="relative"
+        tabIndex={isOverflowing ? 0 : undefined}
+        role={isOverflowing ? "button" : undefined}
+        aria-expanded={isOverflowing ? isTooltipVisible : undefined}
+        aria-label={isOverflowing && contentStr ? contentStr : undefined}
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
         onMouseMove={(event) => {
-          if (!isOverflowing || !tooltipPos) return
+          if (!isOverflowing || !tooltipPos || isFocused) return
           updateTooltipPosition(event)
         }}
+        onFocus={handleFocus}
+        onBlur={handleBlur}
+        onKeyDown={handleKeyDown}
       >
         <div
           ref={cellRef}
@@ -82,9 +128,10 @@ export function TruncatedCell({ content, className, maxWidth = "300px" }: Trunca
           {content}
         </div>
       </div>
-      {portalElement && tooltipPos && contentStr
+      {isTooltipVisible
         ? createPortal(
             <div
+              role="tooltip"
               className="fixed z-[1000] max-w-sm break-words rounded-lg border-2 border-border bg-card p-3 text-sm font-normal text-card-foreground shadow-2xl whitespace-normal pointer-events-none"
               style={{
                 left: `${tooltipPos.x}px`,
@@ -99,5 +146,3 @@ export function TruncatedCell({ content, className, maxWidth = "300px" }: Trunca
     </>
   )
 }
-
-

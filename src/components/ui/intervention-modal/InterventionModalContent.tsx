@@ -358,7 +358,6 @@ GMBS`
     onClose()
   }, [hasUnsavedChanges, isSubmitting, onClose])
 
-
   // Intercepter la touche Échap pour appliquer la même logique que handleCancel
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -442,7 +441,6 @@ GMBS`
       } else {
         // Tab : navigation avant
         if (activeElement === lastElement) {
-          console.log("  ✅ TRAP: Dernier élément -> Premier")
           event.preventDefault()
           firstElement.focus()
         }
@@ -496,8 +494,6 @@ GMBS`
         queryKey: interventionKeys.invalidateLightLists(),
         refetchType: 'active' // Forcer le refetch immédiat des queries actives
       })
-
-      console.log("✅ Intervention mise à jour avec succès", data)
 
       // 4. Fermer le modal pour démarrer l'animation
       // L'invalidation a déjà été faite ci-dessus, donc l'UI se mettra à jour immédiatement

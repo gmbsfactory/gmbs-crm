@@ -16,11 +16,6 @@ export const env: EnvConfig = {
 };
 
 export function logEnvironmentConfig() {
-  console.log('🔧 Configuration d\'environnement chargée:');
-  console.log(`  SUPABASE_URL: ${env.SUPABASE_URL}`);
-  console.log(`  SUPABASE_ANON_KEY: ${env.SUPABASE_ANON_KEY ? '✅ Définie' : '❌ Non définie'}`);
-  console.log(`  NODE_ENV: ${env.NODE_ENV}`);
-  console.log(`  Note: SUPABASE_SERVICE_ROLE_KEY est dans env.server.ts (serveur uniquement)`);
 }
 
 // Export par défaut

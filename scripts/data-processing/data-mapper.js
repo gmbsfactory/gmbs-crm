@@ -1900,8 +1900,20 @@ class DataMapper {
     // Supprimer les guillemets en début/fin et les caractères parasites
     cleanedAddress = cleanedAddress.replace(/^["':\s]+|["':\s]+$/g, "");
 
+    // Nettoyer spécifiquement les : en début de ligne (cas comme ": BATIMENT...")
+    cleanedAddress = cleanedAddress.replace(/^:\s*/, "");
+
     // Nettoyer les virgules en fin de ligne
     cleanedAddress = cleanedAddress.replace(/,\s*$/, "");
+
+    // Vérifier que l'adresse n'est pas vide après nettoyage
+    if (!cleanedAddress || cleanedAddress.trim() === "") {
+      return {
+        adresse: null,
+        ville: null,
+        codePostal: null,
+      };
+    }
 
     // Extraire le code postal (5 chiffres) - chercher partout dans la chaîne
     const codePostalMatch = cleanedAddress.match(/\b(\d{5})\b/);
@@ -2287,30 +2299,10 @@ class DataMapper {
     if (!dateValue || String(dateValue).trim() === "") return null;
 
     const strValue = String(dateValue).trim();
+    // Extraire uniquement la partie date si elle contient une heure
+    // Exemple: "06/02/2025 00:00:00" -> "06/02/2025"
+    const dateOnly = strValue.split(/\s+/)[0];
 
-    // Si c'est un nombre (timestamp Excel sérialisé), convertir en date
-    // Excel stocke les dates comme nombre de jours depuis le 1er janvier 1900
-    // Exemple: 45489 = environ le 29/08/2024
-    if (!isNaN(strValue) && !isNaN(parseFloat(strValue))) {
-      const excelSerial = parseFloat(strValue);
-      // Les dates Excel commencent le 1er janvier 1900 (mais Excel compte le 29/02/1900 comme valide)
-      // Pour convertir: date = new Date(1900, 0, excelSerial - 1)
-      // Mais attention: Excel compte le 1er janvier 1900 comme jour 1, pas jour 0
-      if (excelSerial > 0 && excelSerial < 100000) { // Plage raisonnable pour une date Excel
-        try {
-          // Excel epoch: 1er janvier 1900 = jour 1
-          const excelEpoch = new Date(1899, 11, 30); // 30 décembre 1899 (car Excel compte le 29/02/1900)
-          const date = new Date(excelEpoch.getTime() + (excelSerial - 1) * 24 * 60 * 60 * 1000);
-
-          // Vérifier que la date est raisonnable (entre 1900 et 2100)
-          if (date.getFullYear() >= 1900 && date.getFullYear() <= 2100) {
-            return date.toISOString().split('T')[0];
-          }
-        } catch (e) {
-          // Si la conversion échoue, continuer avec le parsing normal
-        }
-      }
-    }
 
     // Formats de date courants
     const dateFormats = [
@@ -2322,14 +2314,14 @@ class DataMapper {
     let parsedDate;
 
     for (const format of dateFormats) {
-      if (format.test(strValue)) {
+      if (format.test(dateOnly)) {
         if (format.source.includes("\\d{2}\\/\\d{2}\\/\\d{4}")) {
           // Convertir DD/MM/YYYY en YYYY-MM-DD
-          const parts = strValue.split("/");
+          const parts = dateOnly.split("/");
           if (parts.length >= 3) {
             const day = parts[0].padStart(2, "0");
             const month = parts[1].padStart(2, "0");
-            const year = parts[2];
+            const year = parts[2].trim(); // Nettoyer l'année au cas où il y aurait des espaces
 
             // Vérifier que l'année est raisonnable (entre 1900 et 2100)
             const yearNum = parseInt(year);
@@ -2340,14 +2332,14 @@ class DataMapper {
             parsedDate = new Date(`${year}-${month}-${day}T00:00:00Z`);
           }
         } else {
-          parsedDate = new Date(strValue);
+          parsedDate = new Date(dateOnly);
         }
         break;
       }
     }
 
     if (!parsedDate) {
-      parsedDate = new Date(strValue);
+      parsedDate = new Date(dateOnly);
     }
 
     // Vérifier si la date est valide

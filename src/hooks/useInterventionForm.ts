@@ -1,4 +1,4 @@
-  import { useCallback, useMemo, useState } from "react"
+import { useCallback, useMemo, useState } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { supabase } from "@/lib/supabase-client"
@@ -20,6 +20,7 @@ const REQUIRES_ARTISAN_STATUSES: InterventionStatusValue[] = [
   "VISITE_TECHNIQUE",
   "INTER_EN_COURS",
   "INTER_TERMINEE",
+  "ATT_ACOMPTE",
 ]
 
 const toDateInputValue = (value: unknown) => {

@@ -1,3 +1,4 @@
+import { ErrorBoundary } from "@/components/ErrorBoundary"
 import GlobalModalHost from "@/components/layout/GlobalModalHost"
 import GlobalShortcuts from "@/components/layout/global-shortcuts"
 import { ConditionalPadding } from "@/components/layout/conditional-padding"
@@ -66,7 +67,7 @@ export default async function RootLayout({
         console.warn('Données corrompues dans gmbs:settings, nettoyage...', e);
         try {
           localStorage.removeItem('gmbs:settings');
-        } catch (_) {}
+        } catch (_) { /* Silenced: localStorage.removeItem is non-critical cleanup */ }
         settings = {};
       }
     }
@@ -267,7 +268,9 @@ export default async function RootLayout({
                                       <GlobalShortcuts />
                                       <GlobalModalHost />
                                       <div className="flex-1 flex flex-col min-h-0 overflow-auto">
-                                        {children}
+                                        <ErrorBoundary section="page-content">
+                                          {children}
+                                        </ErrorBoundary>
                                       </div>
                                     </main>
                                   </ConditionalPadding>

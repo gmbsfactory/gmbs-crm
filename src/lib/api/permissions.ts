@@ -180,6 +180,9 @@ export async function getAuthenticatedUser(req: Request): Promise<UserWithRoles 
           }
         }
         loadedFromDb = true
+      } else if (error) {
+        console.error('Permission check failed:', error)
+        loadedFromDb = true // fail-secure: deny all permissions instead of falling back to role-based
       }
     }
 

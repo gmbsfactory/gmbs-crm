@@ -12,7 +12,8 @@ import type {
   UpdateDocumentData,
 } from "./common/types";
 import { getSupabaseFunctionsUrl, getHeaders, handleResponse } from "./common/utils";
-import { supabase } from "@/lib/supabase-client";
+import { safeErrorMessage } from "@/lib/api/v2/common/error-handler";
+import { supabase, getSupabaseClientForNode } from "./common/client";
 
 // Détecter si on est dans Node.js (pas de window)
 const isNodeJs = typeof window === 'undefined';
@@ -23,13 +24,13 @@ const isNodeJs = typeof window === 'undefined';
  */
 function normalizeInterventionKind(kind: string): string {
   if (!kind) return kind;
-  
+
   const trimmed = kind.trim();
   if (!trimmed) return kind;
-  
+
   const lower = trimmed.toLowerCase();
   const compact = lower.replace(/[_\s-]/g, '');
-  
+
   // Mapping vers les valeurs canoniques avec 's' (comme dans l'Edge Function)
   const canonicalMap: Record<string, string> = {
     facturegmbs: 'facturesGMBS',
@@ -39,11 +40,11 @@ function normalizeInterventionKind(kind: string): string {
     facturemateriel: 'facturesMateriel',
     facturesmateriel: 'facturesMateriel'
   };
-  
+
   if (canonicalMap[compact]) {
     return canonicalMap[compact];
   }
-  
+
   // Gérer les cas spéciaux comme 'a_classe'
   const needsClassification = [
     'aclasser',
@@ -62,28 +63,8 @@ function normalizeInterventionKind(kind: string): string {
   ) {
     return 'a_classe';
   }
-  
-  return trimmed;
-}
 
-/**
- * Crée un client Supabase pour Node.js avec les bonnes credentials
- */
-function getSupabaseClientForNode() {
-  if (!isNodeJs) {
-    return supabase; // Utiliser le client existant dans le browser
-  }
-  
-  // Dans Node.js, créer un nouveau client avec les credentials du service role
-  const { createClient } = require('@supabase/supabase-js');
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  
-  if (!supabaseUrl || !serviceRoleKey) {
-    throw new Error('SUPABASE_URL et SUPABASE_SERVICE_ROLE_KEY requis pour Node.js');
-  }
-  
-  return createClient(supabaseUrl, serviceRoleKey);
+  return trimmed;
 }
 
 export const documentsApi = {
@@ -410,9 +391,9 @@ export const documentsApi = {
         const result = await this.create(document);
         results.success++;
         results.details.push({ item: document, success: true, data: result });
-      } catch (error: any) {
+      } catch (error: unknown) {
         results.errors++;
-        results.details.push({ item: document, success: false, error: error.message });
+        results.details.push({ item: document, success: false, error: safeErrorMessage(error, "la création du document") });
       }
     }
 
@@ -437,9 +418,9 @@ export const documentsApi = {
         const result = await this.upload(file);
         results.success++;
         results.details.push({ item: file, success: true, data: result });
-      } catch (error: any) {
+      } catch (error: unknown) {
         results.errors++;
-        results.details.push({ item: file, success: false, error: error.message });
+        results.details.push({ item: file, success: false, error: safeErrorMessage(error, "l'upload du fichier") });
       }
     }
 
