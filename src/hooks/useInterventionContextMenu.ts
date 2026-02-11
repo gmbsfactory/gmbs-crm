@@ -12,6 +12,44 @@ import { interventionsApi } from "@/lib/api/v2/interventionsApi"
 import type { InterventionStatusValue } from "@/types/interventions"
 import type { ContextMenuViewType } from "@/types/context-menu"
 
+// Types locaux pour les données en cache TanStack Query
+interface InterventionCacheItem {
+  id: string;
+  id_inter?: string | null;
+  assigned_user_id?: string | null;
+  assignedUserCode?: string | null;
+  assignedUserName?: string | null;
+  assignedUserColor?: string | null;
+  attribueA?: string | null;
+  statusValue?: string;
+  status?: { code?: string; label?: string; color?: string } | null;
+  statut?: string;
+  agence_id?: string;
+  reference_agence?: string;
+  metier_id?: string;
+  adresse?: string;
+  code_postal?: string;
+  ville?: string;
+  latitude?: number;
+  longitude?: number;
+  date_prevue?: string;
+  owner?: { plain_nom_facturation?: string; owner_lastname?: string; owner_firstname?: string; telephone?: string; email?: string } | Array<{ plain_nom_facturation?: string; owner_lastname?: string; owner_firstname?: string; telephone?: string; email?: string }>;
+  tenants?: { plain_nom_client?: string; lastname?: string; firstname?: string; telephone?: string; email?: string } | Array<{ plain_nom_client?: string; lastname?: string; firstname?: string; telephone?: string; email?: string }>;
+  intervention_artisans?: Array<{ is_primary?: boolean; artisan_id?: string; artisans?: { prenom?: string; nom?: string; telephone?: string; email?: string } }>;
+  intervention_costs?: Array<{ cost_type: string; amount?: number | null }>;
+  intervention_payments?: Array<{ payment_type: string; amount?: number | null; is_received?: boolean; payment_date?: string | null }>;
+  numero_sst?: string;
+  pourcentage_sst?: number;
+  consigne_second_artisan?: string;
+  [key: string]: unknown;
+}
+
+interface InterventionListCache {
+  data: InterventionCacheItem[];
+  count?: number;
+  pagination?: { total: number; limit: number; offset: number; hasMore: boolean };
+}
+
 // Type pour le callback d'animation
 export type AssignToMeAnimationCallback = (
   interventionId: string,
@@ -54,25 +92,20 @@ export function useInterventionContextMenu(
 
   // Fonction pour ouvrir le modal avec les données pré-remplies (devis supp)
   const duplicateDevisSupp = useCallback(async () => {
-    console.log("[useInterventionContextMenu] duplicateDevisSupp appelé pour interventionId:", interventionId)
 
     // Récupérer les données de l'intervention depuis le cache ou les charger
-    let interventionData = queryClient.getQueryData(interventionKeys.detail(interventionId)) as any
-
-    console.log("[useInterventionContextMenu] Données récupérées du cache:", interventionData ? "OK" : "NULL")
+    let interventionData = queryClient.getQueryData(interventionKeys.detail(interventionId)) as InterventionCacheItem | undefined
 
     // Si les données ne sont pas en cache, essayer de les charger depuis les listes
     if (!interventionData) {
-      console.log("[useInterventionContextMenu] Tentative de récupération depuis les listes...")
       // Chercher dans les listes d'interventions en cache
       const listsQueries = queryClient.getQueriesData({ queryKey: interventionKeys.lists() })
       for (const [, queryData] of listsQueries) {
-        const data = queryData as any
+        const data = queryData as InterventionListCache | undefined
         if (data?.data && Array.isArray(data.data)) {
-          const found = data.data.find((item: any) => item.id === interventionId)
+          const found = data.data.find((item) => item.id === interventionId)
           if (found) {
             interventionData = found
-            console.log("[useInterventionContextMenu] Données trouvées dans les listes")
             break
           }
         }
@@ -103,8 +136,8 @@ export function useInterventionContextMenu(
       : interventionData.intervention_payments || []
 
     // Récupérer l'artisan principal (comme dans InterventionEditForm)
-    const primaryArtisan = artisans.find((ia: any) => ia.is_primary)?.artisans || artisans[0]?.artisans
-    const primaryArtisanId = artisans.find((ia: any) => ia.is_primary)?.artisan_id || artisans[0]?.artisan_id || null
+    const primaryArtisan = artisans.find((ia) => ia.is_primary)?.artisans || artisans[0]?.artisans
+    const primaryArtisanId = artisans.find((ia) => ia.is_primary)?.artisan_id || artisans[0]?.artisan_id || null
 
     const defaultValues = {
       agence_id: interventionData.agence_id || "",
@@ -138,28 +171,26 @@ export function useInterventionContextMenu(
       artisanTelephone: primaryArtisan?.telephone || "",
       artisanEmail: primaryArtisan?.email || "",
       // Coûts
-      coutIntervention: costs.find((c: any) => c.cost_type === "intervention")?.amount?.toString() || "",
-      coutSST: costs.find((c: any) => c.cost_type === "sst")?.amount?.toString() || "",
-      coutMateriel: costs.find((c: any) => c.cost_type === "materiel")?.amount?.toString() || "",
+      coutIntervention: costs.find((c) => c.cost_type === "intervention")?.amount?.toString() || "",
+      coutSST: costs.find((c) => c.cost_type === "sst")?.amount?.toString() || "",
+      coutMateriel: costs.find((c) => c.cost_type === "materiel")?.amount?.toString() || "",
       numero_sst: interventionData.numero_sst || "",
       pourcentage_sst: interventionData.pourcentage_sst || undefined,
       // Acomptes
-      accompteSST: payments.find((p: any) => p.payment_type === "acompte_sst")?.amount?.toString() || "",
-      accompteSSTRecu: payments.find((p: any) => p.payment_type === "acompte_sst")?.is_received || false,
-      dateAccompteSSTRecu: payments.find((p: any) => p.payment_type === "acompte_sst")?.payment_date
-        ? (typeof payments.find((p: any) => p.payment_type === "acompte_sst")?.payment_date === 'string' &&
-          payments.find((p: any) => p.payment_type === "acompte_sst")?.payment_date.includes('T'))
-          ? payments.find((p: any) => p.payment_type === "acompte_sst")?.payment_date.split('T')[0]
-          : payments.find((p: any) => p.payment_type === "acompte_sst")?.payment_date
-        : "",
-      accompteClient: payments.find((p: any) => p.payment_type === "acompte_client")?.amount?.toString() || "",
-      accompteClientRecu: payments.find((p: any) => p.payment_type === "acompte_client")?.is_received || false,
-      dateAccompteClientRecu: payments.find((p: any) => p.payment_type === "acompte_client")?.payment_date
-        ? (typeof payments.find((p: any) => p.payment_type === "acompte_client")?.payment_date === 'string' &&
-          payments.find((p: any) => p.payment_type === "acompte_client")?.payment_date.includes('T'))
-          ? payments.find((p: any) => p.payment_type === "acompte_client")?.payment_date.split('T')[0]
-          : payments.find((p: any) => p.payment_type === "acompte_client")?.payment_date
-        : "",
+      accompteSST: payments.find((p) => p.payment_type === "acompte_sst")?.amount?.toString() || "",
+      accompteSSTRecu: payments.find((p) => p.payment_type === "acompte_sst")?.is_received || false,
+      dateAccompteSSTRecu: (() => {
+        const d = payments.find((p) => p.payment_type === "acompte_sst")?.payment_date
+        if (!d) return ""
+        return typeof d === 'string' && d.includes('T') ? d.split('T')[0] : d
+      })(),
+      accompteClient: payments.find((p) => p.payment_type === "acompte_client")?.amount?.toString() || "",
+      accompteClientRecu: payments.find((p) => p.payment_type === "acompte_client")?.is_received || false,
+      dateAccompteClientRecu: (() => {
+        const d = payments.find((p) => p.payment_type === "acompte_client")?.payment_date
+        if (!d) return ""
+        return typeof d === 'string' && d.includes('T') ? d.split('T')[0] : d
+      })(),
       commentairesIntervention: `devis supp avec l'ancien ID ${interventionData.id_inter || interventionId}`,
       // Consigne second artisan
       consigneSecondArtisan: interventionData.consigne_second_artisan || "",
@@ -168,10 +199,6 @@ export function useInterventionContextMenu(
     }
 
     // Ouvrir le modal "new-intervention" avec le contexte
-    console.log("[useInterventionContextMenu] Ouverture du modal avec context:", {
-      duplicateFrom: interventionId,
-      hasDefaultValues: !!defaultValues,
-    })
 
     try {
       modal.open("new", {
@@ -181,7 +208,6 @@ export function useInterventionContextMenu(
           defaultValues,
         },
       })
-      console.log("[useInterventionContextMenu] Modal ouvert avec succès")
     } catch (error) {
       console.error("[useInterventionContextMenu] Erreur lors de l'ouverture du modal:", error)
       toast.error("Erreur", {
@@ -191,7 +217,7 @@ export function useInterventionContextMenu(
   }, [interventionId, queryClient, modal])
 
   // Ref pour stocker les données de la liste avant suppression (pour rollback)
-  const previousListsDataRef = useRef<Map<string, any>>(new Map())
+  const previousListsDataRef = useRef<Map<string, unknown>>(new Map())
 
   // Mutation pour assigner l'intervention à l'utilisateur connecté ("Je gère")
   const assignToMeMutation = useMutation({
@@ -230,21 +256,21 @@ export function useInterventionContextMenu(
         // Pour les listes complètes
         queryClient.setQueriesData(
           { queryKey: interventionKeys.lists() },
-          (oldData: any) => {
+          (oldData: InterventionListCache | undefined) => {
             if (!oldData?.data || !Array.isArray(oldData.data)) {
               return oldData
             }
             
             // Vérifier si c'est une vue Market (filtre user === null)
             // On détecte ça par la présence d'interventions sans assigned_user_id
-            const isMarketView = oldData.data.some((i: any) => 
+            const isMarketView = oldData.data.some((i) =>
               i.id === interventionId && !i.assigned_user_id
             )
             
             if (isMarketView) {
               // Vue Market : RETIRER l'intervention car elle a maintenant un propriétaire
               const filteredData = oldData.data.filter(
-                (intervention: any) => intervention.id !== interventionId
+                (intervention) => intervention.id !== interventionId
               )
               return { 
                 ...oldData, 
@@ -254,7 +280,7 @@ export function useInterventionContextMenu(
               }
             } else {
               // Autres vues : METTRE À JOUR les propriétés de l'intervention
-              const updatedData = oldData.data.map((intervention: any) =>
+              const updatedData = oldData.data.map((intervention) =>
                 intervention.id === interventionId
                   ? {
                     ...intervention,
@@ -274,18 +300,18 @@ export function useInterventionContextMenu(
         // Pour les listes légères
         queryClient.setQueriesData(
           { queryKey: interventionKeys.lightLists() },
-          (oldData: any) => {
+          (oldData: InterventionListCache | undefined) => {
             if (!oldData?.data || !Array.isArray(oldData.data)) {
               return oldData
             }
             
-            const isMarketView = oldData.data.some((i: any) => 
+            const isMarketView = oldData.data.some((i) =>
               i.id === interventionId && !i.assigned_user_id
             )
             
             if (isMarketView) {
               const filteredData = oldData.data.filter(
-                (intervention: any) => intervention.id !== interventionId
+                (intervention) => intervention.id !== interventionId
               )
               return { 
                 ...oldData, 
@@ -293,7 +319,7 @@ export function useInterventionContextMenu(
                 count: typeof oldData.count === 'number' ? Math.max(0, oldData.count - 1) : oldData.count
               }
             } else {
-              const updatedData = oldData.data.map((intervention: any) =>
+              const updatedData = oldData.data.map((intervention) =>
                 intervention.id === interventionId
                   ? {
                     ...intervention,
@@ -341,7 +367,7 @@ export function useInterventionContextMenu(
       // Sinon on les invalide maintenant
       queryClient.invalidateQueries({ queryKey: interventionKeys.summaries() })
 
-      toast.success(`Intervention (${idInter || (data as any).id_inter || interventionId}) assignée à moi avec succès`, {
+      toast.success(`Intervention (${idInter || (data as Record<string, unknown>).id_inter || interventionId}) assignée à moi avec succès`, {
         description: new Date().toLocaleString(),
         action: {
           label: "Voir",
@@ -380,7 +406,7 @@ export function useInterventionContextMenu(
       const previousIntervention = queryClient.getQueryData(interventionKeys.detail(interventionId))
 
       // Mise à jour optimiste du détail
-      queryClient.setQueryData(interventionKeys.detail(interventionId), (old: any) => {
+      queryClient.setQueryData(interventionKeys.detail(interventionId), (old: InterventionCacheItem | undefined) => {
         if (!old) return old
         return {
           ...old,
@@ -399,11 +425,11 @@ export function useInterventionContextMenu(
       }
       queryClient.setQueriesData(
         { queryKey: interventionKeys.lists() },
-        (oldData: any) => {
+        (oldData: InterventionListCache | undefined) => {
           if (!oldData?.data || !Array.isArray(oldData.data)) {
             return oldData
           }
-          const updatedData = oldData.data.map((intervention: any) =>
+          const updatedData = oldData.data.map((intervention) =>
             intervention.id === interventionId
               ? {
                 ...intervention,
@@ -418,11 +444,11 @@ export function useInterventionContextMenu(
       )
       queryClient.setQueriesData(
         { queryKey: interventionKeys.lightLists() },
-        (oldData: any) => {
+        (oldData: InterventionListCache | undefined) => {
           if (!oldData?.data || !Array.isArray(oldData.data)) {
             return oldData
           }
-          const updatedData = oldData.data.map((intervention: any) =>
+          const updatedData = oldData.data.map((intervention) =>
             intervention.id === interventionId
               ? {
                 ...intervention,
@@ -457,7 +483,7 @@ export function useInterventionContextMenu(
       queryClient.invalidateQueries({ queryKey: interventionKeys.detail(interventionId) })
       queryClient.invalidateQueries({ queryKey: interventionKeys.summaries() })
 
-      toast.success(`Intervention (${idInter || (data as any).id_inter || interventionId}) modifiée vers Devis Envoyé avec succès`, {
+      toast.success(`Intervention (${idInter || (data as Record<string, unknown>).id_inter || interventionId}) modifiée vers Devis Envoyé avec succès`, {
         description: new Date().toLocaleString(),
         action: {
           label: "Voir",
@@ -483,7 +509,7 @@ export function useInterventionContextMenu(
       const previousIntervention = queryClient.getQueryData(interventionKeys.detail(interventionId))
 
       // Mise à jour optimiste du détail
-      queryClient.setQueryData(interventionKeys.detail(interventionId), (old: any) => {
+      queryClient.setQueryData(interventionKeys.detail(interventionId), (old: InterventionCacheItem | undefined) => {
         if (!old) return old
         return {
           ...old,
@@ -502,11 +528,11 @@ export function useInterventionContextMenu(
       }
       queryClient.setQueriesData(
         { queryKey: interventionKeys.lists() },
-        (oldData: any) => {
+        (oldData: InterventionListCache | undefined) => {
           if (!oldData?.data || !Array.isArray(oldData.data)) {
             return oldData
           }
-          const updatedData = oldData.data.map((intervention: any) =>
+          const updatedData = oldData.data.map((intervention) =>
             intervention.id === interventionId
               ? {
                 ...intervention,
@@ -521,11 +547,11 @@ export function useInterventionContextMenu(
       )
       queryClient.setQueriesData(
         { queryKey: interventionKeys.lightLists() },
-        (oldData: any) => {
+        (oldData: InterventionListCache | undefined) => {
           if (!oldData?.data || !Array.isArray(oldData.data)) {
             return oldData
           }
-          const updatedData = oldData.data.map((intervention: any) =>
+          const updatedData = oldData.data.map((intervention) =>
             intervention.id === interventionId
               ? {
                 ...intervention,
@@ -560,7 +586,7 @@ export function useInterventionContextMenu(
       queryClient.invalidateQueries({ queryKey: interventionKeys.detail(interventionId) })
       queryClient.invalidateQueries({ queryKey: interventionKeys.summaries() })
 
-      toast.success(`Intervention (${idInter || (data as any).id_inter || interventionId}) modifiée vers Accepté avec succès`, {
+      toast.success(`Intervention (${idInter || (data as Record<string, unknown>).id_inter || interventionId}) modifiée vers Accepté avec succès`, {
         description: new Date().toLocaleString(),
         action: {
           label: "Voir",

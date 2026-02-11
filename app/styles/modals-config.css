@@ -1,0 +1,440 @@
+/* === Column Configuration Modal === */
+
+@layer components {
+  /* Column configuration modal */
+  .modal-config-surface {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    height: 100%;
+    width: 100%;
+    overflow: hidden;
+    background: var(--bg-light);
+    background-image: linear-gradient(
+      to bottom,
+      color-mix(in oklab, var(--bg-light), white 8%),
+      color-mix(in oklab, var(--bg-light), black 4%)
+    );
+    box-shadow: inset 0 1px 0 var(--highlight);
+    color: var(--text);
+  }
+
+  .modal-config-surface-full {
+    background: color-mix(in oklab, var(--bg), white 4%);
+    background-image: linear-gradient(
+      to bottom,
+      color-mix(in oklab, var(--bg), white 6%),
+      color-mix(in oklab, var(--bg), black 4%)
+    );
+  }
+
+  .modal-config-columns-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.65rem;
+    padding: 1rem 1.25rem;
+    background-image: linear-gradient(
+      to bottom,
+      color-mix(in oklab, var(--bg-light), white 12%),
+      color-mix(in oklab, var(--bg-light), transparent 0%)
+    );
+    border-bottom: 1px solid color-mix(in oklab, var(--border), black 8%);
+  }
+
+  .modal-config-columns-title {
+    font-size: 0.95rem;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+    color: var(--text);
+  }
+
+  .modal-config-columns-icon-placeholder {
+    display: inline-flex;
+    width: 2.25rem;
+    height: 2.25rem;
+  }
+
+  .modal-config-columns-icon-button {
+    width: 2rem;
+    height: 2rem;
+    border-radius: 0.75rem;
+    background-image: linear-gradient(
+      to bottom,
+      color-mix(in oklab, var(--bg-light), white 10%),
+      color-mix(in oklab, var(--bg-light), black 4%)
+    );
+    border: 1px solid color-mix(in oklab, var(--border), black 8%);
+    color: color-mix(in oklab, var(--text-muted), white 6%);
+    box-shadow:
+      inset 0 1px 0 var(--highlight),
+      var(--shadow-xs);
+    transition:
+      transform var(--transition-fast) var(--transition-easing),
+      box-shadow var(--transition-fast) var(--transition-easing),
+      border-color var(--transition-fast) var(--transition-easing),
+      color var(--transition-fast) var(--transition-easing);
+  }
+
+  .modal-config--halfpage .modal-config-columns-icon-button,
+  .modal-config--centerpage .modal-config-columns-icon-button {
+    width: 1.75rem;
+    height: 1.75rem;
+    border-radius: 0.6rem;
+  }
+
+  .modal-config-columns-icon-button:hover {
+    transform: translateY(-1px);
+    color: color-mix(in oklab, var(--text), var(--accent) 6%);
+    box-shadow:
+      inset 0 1px 0 var(--highlight),
+      var(--shadow-sm);
+  }
+
+  .modal-config-columns-icon-button:active {
+    transform: translateY(0);
+    box-shadow:
+      inset 0 1px 0 var(--highlight),
+      var(--shadow-xs);
+  }
+
+  .modal-config-columns-icon-button--danger {
+    color: color-mix(in oklab, var(--error), white 10%);
+  }
+
+  .modal-config-columns-icon-button--danger:hover {
+    border-color: color-mix(in oklab, var(--error), var(--border) 40%);
+    box-shadow:
+      inset 0 1px 0 color-mix(in oklab, var(--error), white 35%),
+      var(--shadow-sm);
+  }
+
+  .modal-config-columns-body {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .modal-config-columns-grid {
+    display: grid;
+    gap: 1.5rem;
+    height: 100%;
+    min-height: 0;
+  }
+
+  .modal-config--halfpage .modal-config-columns-grid,
+  .modal-config--centerpage .modal-config-columns-grid {
+    gap: 1.1rem;
+  }
+
+  .modal-config-columns-panel {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    background: color-mix(in oklab, var(--bg), white 5%);
+    background-image: linear-gradient(
+      to bottom,
+      color-mix(in oklab, var(--bg), white 9%),
+      color-mix(in oklab, var(--bg), black 2%)
+    );
+    border: 1px solid color-mix(in oklab, var(--border), black 8%);
+    border-radius: var(--radius-xl);
+    box-shadow:
+      inset 0 1px 0 var(--highlight),
+      var(--shadow-lg);
+    /* Empêche les enfants (header) de déborder en angle carré sur les coins arrondis */
+    overflow: hidden;
+  }
+
+  .modal-config-columns-panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 0.6rem;
+    padding: 0.95rem 1.25rem;
+    border-bottom: 1px solid color-mix(in oklab, var(--border), black 10%);
+    background-image: linear-gradient(
+      to bottom,
+      color-mix(in oklab, var(--bg-light), white 14%),
+      color-mix(in oklab, var(--bg-light), transparent 0%)
+    );
+    /* Suit les coins arrondis du parent pour éviter les artefacts visibles */
+    border-top-left-radius: inherit;
+    border-top-right-radius: inherit;
+  }
+
+  .modal-config-columns-scroll {
+    flex: 1;
+    min-height: 0;
+    padding-right: 0.25rem;
+  }
+
+  .modal-config-columns-scroll-inner {
+    display: flex;
+    flex-direction: column;
+    gap: 0.65rem;
+    padding: 1.1rem 1.35rem 1.5rem;
+  }
+
+  .modal-config--halfpage .modal-config-columns-scroll-inner,
+  .modal-config--centerpage .modal-config-columns-scroll-inner {
+    padding: 0.9rem 1.2rem 1.3rem;
+  }
+
+  .modal-config-columns-scroll [data-orientation="vertical"] {
+    width: 0.5rem;
+    padding: 3px 2px;
+    margin: 0.4rem 0.1rem;
+    border-radius: 999px;
+    background: transparent;
+  }
+
+  .modal-config-columns-scroll [data-orientation="vertical"] > div {
+    background: color-mix(in oklab, var(--border), black 20%);
+    border-radius: 999px;
+  }
+
+  .modal-config-columns-item {
+    padding: 0.85rem 1.15rem;
+    border-radius: calc(var(--radius-xl) - 6px);
+    border: 1px solid color-mix(in oklab, var(--border), black 12%);
+    background: color-mix(in oklab, var(--bg-light), white 4%);
+    background-image: linear-gradient(
+      to bottom,
+      color-mix(in oklab, var(--bg-light), white 12%),
+      color-mix(in oklab, var(--bg-light), black 2%)
+    );
+    box-shadow:
+      inset 0 1px 0 var(--highlight),
+      var(--shadow-sm);
+    transition:
+      border-color var(--transition-base) var(--transition-easing),
+      box-shadow var(--transition-base) var(--transition-easing),
+      transform var(--transition-fast) var(--transition-easing);
+  }
+
+  .modal-config-columns-item:hover {
+    border-color: color-mix(in oklab, var(--border), var(--accent) 18%);
+    box-shadow:
+      inset 0 1px 0 var(--highlight),
+      var(--shadow-md);
+  }
+
+  .modal-config-columns-item--dragging {
+    background-image: linear-gradient(
+      to bottom,
+      color-mix(in oklab, var(--accent), white 45%),
+      color-mix(in oklab, var(--accent), white 20%)
+    );
+    border-color: color-mix(in oklab, var(--accent), white 25%);
+    box-shadow:
+      inset 0 1px 0 color-mix(in oklab, var(--accent), white 40%),
+      var(--shadow-md);
+    transform: translateY(-2px);
+  }
+
+  .modal-config-columns-drag-handle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2rem;
+    height: 2rem;
+    border-radius: 0.7rem;
+    border: 1px dashed color-mix(in oklab, var(--border), black 10%);
+    color: color-mix(in oklab, var(--text-muted), white 8%);
+    background: color-mix(in oklab, var(--bg), white 6%);
+    transition:
+      border-color var(--transition-fast) var(--transition-easing),
+      color var(--transition-fast) var(--transition-easing),
+      background-color var(--transition-fast) var(--transition-easing);
+    cursor: grab;
+  }
+
+  .modal-config-columns-drag-handle:hover {
+    border-style: solid;
+    border-color: color-mix(in oklab, var(--border), var(--accent) 35%);
+    color: var(--text);
+  }
+
+  .modal-config-columns-select {
+    height: 2.25rem;
+    border-radius: calc(var(--radius-md) - 4px);
+    border: 1px solid color-mix(in oklab, var(--border), black 10%);
+    background-image: linear-gradient(
+      to bottom,
+      color-mix(in oklab, var(--bg-light), white 10%),
+      color-mix(in oklab, var(--bg-light), black 2%)
+    );
+    box-shadow: inset 0 1px 0 var(--highlight);
+    color: var(--text);
+  }
+
+  .modal-config--halfpage .modal-config-columns-select,
+  .modal-config--centerpage .modal-config-columns-select {
+    height: 1.85rem;
+    font-size: 0.7rem;
+  }
+
+  .modal-config-columns-select:hover {
+    border-color: color-mix(in oklab, var(--border), var(--accent) 20%);
+  }
+
+  .modal-config-columns-toggle {
+    width: 2rem;
+    height: 2rem;
+    border-radius: 0.7rem;
+    border: 1px solid transparent;
+    background: transparent;
+    color: color-mix(in oklab, var(--text-muted), transparent 30%);
+    box-shadow: none;
+    transition:
+      border-color var(--transition-fast) var(--transition-easing),
+      background-color var(--transition-fast) var(--transition-easing),
+      box-shadow var(--transition-fast) var(--transition-easing),
+      color var(--transition-fast) var(--transition-easing),
+      transform var(--transition-fast) var(--transition-easing);
+  }
+
+  .modal-config--halfpage .modal-config-columns-toggle,
+  .modal-config--centerpage .modal-config-columns-toggle {
+    width: 1.75rem;
+    height: 1.75rem;
+    border-radius: 0.5rem;
+  }
+
+  .modal-config-columns-toggle:hover {
+    color: color-mix(in oklab, var(--text-muted), transparent 10%);
+    background: color-mix(in oklab, var(--bg), white 4%);
+  }
+
+  .modal-config-columns-toggle--active {
+    border-color: color-mix(in oklab, var(--accent-color), transparent 10%);
+    background: color-mix(in oklab, var(--accent-color), transparent 5%);
+    background-image: linear-gradient(
+      to bottom,
+      color-mix(in oklab, var(--accent-color), white 25%),
+      color-mix(in oklab, var(--accent-color), black 5%)
+    );
+    color: white;
+    box-shadow:
+      0 0 0 2px color-mix(in oklab, var(--accent-color), white 30%),
+      inset 0 1px 0 color-mix(in oklab, var(--accent-color), white 45%),
+      var(--shadow-sm);
+  }
+
+  .modal-config-columns-toggle--active:hover {
+    background-image: linear-gradient(
+      to bottom,
+      color-mix(in oklab, var(--accent-color), white 30%),
+      var(--accent-color)
+    );
+    box-shadow:
+      0 0 0 2px color-mix(in oklab, var(--accent-color), white 35%),
+      inset 0 1px 0 color-mix(in oklab, var(--accent-color), white 50%),
+      var(--shadow-md);
+  }
+
+  .modal-config-columns-color-picker {
+    width: 2.35rem;
+    height: 2rem;
+    border-radius: calc(var(--radius-md) - 5px);
+    border: 1px solid color-mix(in oklab, var(--border), black 14%);
+    background: transparent;
+    box-shadow:
+      inset 0 1px 0 var(--highlight),
+      var(--shadow-xs);
+    cursor: pointer;
+  }
+
+  .modal-config--halfpage .modal-config-columns-color-picker,
+  .modal-config--centerpage .modal-config-columns-color-picker {
+    width: 2rem;
+    height: 1.75rem;
+  }
+
+  .modal-config-columns-empty {
+    padding: 1.2rem 1.5rem;
+    border-radius: calc(var(--radius-xl) - 6px);
+    border: 1px dashed color-mix(in oklab, var(--border), black 18%);
+    background: color-mix(in oklab, var(--bg), white 6%);
+    background-image: linear-gradient(
+      to bottom,
+      color-mix(in oklab, var(--bg), white 10%),
+      color-mix(in oklab, var(--bg), black 2%)
+    );
+    color: color-mix(in oklab, var(--text-muted), white 10%);
+    text-align: center;
+  }
+
+  .modal-config-columns-available-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.65rem;
+    padding: 0.75rem 0.95rem;
+    border-radius: calc(var(--radius-xl) - 7px);
+    border: 1px solid color-mix(in oklab, var(--border), black 12%);
+    background: color-mix(in oklab, var(--bg), white 6%);
+    background-image: linear-gradient(
+      to bottom,
+      color-mix(in oklab, var(--bg), white 10%),
+      color-mix(in oklab, var(--bg), black 2%)
+    );
+    box-shadow:
+      inset 0 1px 0 var(--highlight),
+      var(--shadow-xs);
+    transition:
+      border-color var(--transition-fast) var(--transition-easing),
+      box-shadow var(--transition-fast) var(--transition-easing);
+  }
+
+  .modal-config-columns-available-item:hover {
+    border-color: color-mix(in oklab, var(--border), var(--accent) 14%);
+    box-shadow:
+      inset 0 1px 0 var(--highlight),
+      var(--shadow-sm);
+  }
+
+  .modal-config-columns-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 1rem 1.25rem;
+    border-top: 1px solid color-mix(in oklab, var(--border), black 10%);
+    background-image: linear-gradient(
+      to bottom,
+      color-mix(in oklab, var(--bg), white 6%),
+      color-mix(in oklab, var(--bg), black 2%)
+    );
+  }
+
+  .modal-config-columns-tooltip {
+    white-space: nowrap;
+  }
+
+  .tooltip-surface {
+    position: relative;
+    z-index: 9999;
+    background: color-mix(in oklab, var(--bg-light), white 8%);
+    background-image: linear-gradient(
+      to bottom,
+      color-mix(in oklab, var(--bg-light), white 12%),
+      color-mix(in oklab, var(--bg-light), black 6%)
+    );
+    border: 1px solid color-mix(in oklab, var(--border), black 12%);
+    box-shadow:
+      inset 0 1px 0 var(--highlight),
+      var(--shadow-sm);
+    border-radius: calc(var(--radius-md) - 2px);
+    color: var(--text);
+    font-size: 0.75rem;
+    font-weight: 500;
+    letter-spacing: 0.01em;
+  }
+}

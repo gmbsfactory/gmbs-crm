@@ -82,7 +82,7 @@ const getModalStyle = (mode: ModalDisplayMode) => {
       }
     case "fullpage":
       return {
-        container: "fixed inset-0 z-[9999] flex bg-background",
+        container: "fixed inset-0 z-[70] flex bg-background",
         wrapper: "h-full w-full",
         content: "pointer-events-auto modal-surface-full flex h-full w-full flex-col overflow-y-auto",
       }

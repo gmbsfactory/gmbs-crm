@@ -316,11 +316,6 @@ export function RemindersProvider({ children }: { children: ReactNode }) {
             if (concernsUser) {
               const newReminder = payload.new && 'id' in payload.new ? payload.new : null
               const oldReminder = payload.old && 'id' in payload.old ? payload.old : null
-              console.log("[RemindersContext] 📨 Événement reminder concernant l'utilisateur:", {
-                eventType: payload.eventType,
-                reminderId: newReminder?.id ?? oldReminder?.id,
-                interventionId: newReminder?.intervention_id ?? oldReminder?.intervention_id,
-              })
               
               // Appeler refreshReminders via une référence stable
               try {
@@ -385,7 +380,6 @@ export function RemindersProvider({ children }: { children: ReactNode }) {
         .subscribe((status) => {
           if (status === "SUBSCRIBED") {
             isSubscribed = true
-            console.log("[RemindersContext] ✅ Subscription realtime activée pour les reminders")
           } else if (status === "CHANNEL_ERROR") {
             isSubscribed = false
             console.warn("[RemindersContext] ❌ Erreur de subscription realtime:", status)

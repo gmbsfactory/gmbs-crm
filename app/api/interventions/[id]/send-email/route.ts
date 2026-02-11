@@ -110,7 +110,6 @@ export async function POST(request: Request, { params }: Params) {
     let user: { email_smtp: string | null; email_password_encrypted: string | null } | null = null;
     const authEmail = auth?.user?.email;
     
-    console.log('[send-email] Looking for user credentials, authUserId:', userId, 'authEmail:', authEmail);
     
     // 1. Chercher via le mapping
     const { data: mapping, error: mappingError } = await supabase
@@ -119,7 +118,6 @@ export async function POST(request: Request, { params }: Params) {
       .eq('auth_user_id', userId)
       .maybeSingle();
     
-    console.log('[send-email] Mapping result:', mapping?.public_user_id, 'error:', mappingError?.message);
     
     if (mapping?.public_user_id) {
       const { data: userData, error: userError } = await supabase
@@ -128,7 +126,6 @@ export async function POST(request: Request, { params }: Params) {
         .eq('id', mapping.public_user_id)
         .single();
       
-      console.log('[send-email] User by mapping:', userData?.email_smtp ? 'found' : 'not found', 'error:', userError?.message);
       
       if (!userError) {
         user = userData;
@@ -137,20 +134,17 @@ export async function POST(request: Request, { params }: Params) {
     
     // 2. Fallback: chercher par email
     if (!user && authEmail) {
-      console.log('[send-email] Trying email fallback:', authEmail);
       const { data: userData, error: emailError } = await supabase
         .from('users')
         .select('email_smtp, email_password_encrypted')
         .eq('email', authEmail)
         .maybeSingle();
       
-      console.log('[send-email] User by email:', userData?.email_smtp ? 'found' : 'not found', 'error:', emailError?.message);
       
       user = userData;
     }
 
     if (!user) {
-      console.log('[send-email] User not found! authUserId:', userId, 'authEmail:', authEmail);
       return NextResponse.json({ error: 'Utilisateur non trouvé' }, { status: 404 });
     }
 

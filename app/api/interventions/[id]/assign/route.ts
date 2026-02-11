@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import { requirePermission, isPermissionError } from "@/lib/api/permissions"
-import { createClient } from "@supabase/supabase-js"
+import { createServerSupabaseAdmin } from "@/lib/supabase/server"
 
 type Params = {
   params: Promise<{
@@ -8,49 +8,22 @@ type Params = {
   }>
 }
 
-// Créer un client Supabase admin inline pour cette route
-function getAdminClient() {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-  
-  if (!supabaseUrl || !serviceKey) {
-    console.error("[assign] Missing env vars:", { 
-      hasUrl: !!supabaseUrl, 
-      hasKey: !!serviceKey 
-    })
-    return null
-  }
-  
-  return createClient(supabaseUrl, serviceKey, {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false,
-    }
-  })
-}
-
 export async function POST(request: Request, { params }: Params) {
   try {
-    console.log("[assign] Starting assignment...")
-    
+
     const permCheck = await requirePermission(request, "write_interventions")
     if (isPermissionError(permCheck)) return permCheck.error
 
     const { id } = await params
-    console.log("[assign] Intervention ID:", id)
-    
+
     // requirePermission a déjà vérifié l'authentification et retourne l'ID utilisateur public
     const userId = permCheck.user.id
-    console.log("[assign] User ID:", userId)
-    
+
     if (!userId) {
       return NextResponse.json({ error: "Utilisateur non trouvé" }, { status: 401 })
     }
 
-    const supabaseAdmin = getAdminClient()
-    if (!supabaseAdmin) {
-      return NextResponse.json({ error: "Configuration serveur manquante (env vars)" }, { status: 500 })
-    }
+    const supabaseAdmin = createServerSupabaseAdmin()
 
     // Mettre à jour l'intervention avec l'utilisateur assigné directement via le client admin
     const { data: updated, error } = await supabaseAdmin
@@ -78,7 +51,6 @@ export async function POST(request: Request, { params }: Params) {
       return NextResponse.json({ error: "Intervention non trouvée" }, { status: 404 })
     }
     
-    console.log("[assign] Success:", updated.id_inter)
     return NextResponse.json({ intervention: updated, id_inter: updated.id_inter })
   } catch (error) {
     console.error("[assign] Erreur:", error)

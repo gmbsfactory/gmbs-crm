@@ -13,14 +13,7 @@
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient, type SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2';
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-requested-with',
-  'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
-  'Access-Control-Max-Age': '86400',
-  'Cache-Control': 'no-store, no-cache, must-revalidate',
-};
+import { getCorsHeaders } from '../_shared/cors.ts';
 
 // Types pour la validation
 interface CreateInterventionRequest {
@@ -376,8 +369,9 @@ const AVAILABLE_RELATIONS: Record<string, string> = {
   users: 'users!assigned_user_id(id,firstname,lastname,username,color,code_gestionnaire,avatar_url)',
   statuses: 'intervention_statuses(id,code,label,color,sort_order)',
   metiers: 'metiers(id,label,code)',
-  artisans: 'intervention_artisans(id,artisan_id,is_primary,role,artisans(id,nom,prenom,plain_nom,email,telephone,telephone2,numero_associe,siret,raison_sociale))',
+  artisans: 'intervention_artisans(id,artisan_id,is_primary,role,artisans(id,nom,prenom,plain_nom,email,telephone,telephone2,numero_associe,siret,raison_sociale,status:artisan_statuses(id,code,label,color)))',
   costs: 'intervention_costs(id,cost_type,label,amount,currency)',
+  payments: 'intervention_payments(id,payment_type,amount,is_received,payment_date,reference)',
   owner: 'owner:owner_id(id,owner_firstname,owner_lastname,plain_nom_facturation,email,telephone)',
 };
 
@@ -417,16 +411,16 @@ const parseListParam = (values: string[]): string[] => {
 const buildSelectClause = (extraSelect: string | null, include: string[], hasSearch: boolean = false): string => {
   const base = new Set<string>(DEFAULT_INTERVENTION_COLUMNS);
   const selectFragments: string[] = [];
-  
+
   // ⚠️ TOUJOURS inclure les artisans, coûts, tenants et users par défaut
   // Les tenants sont nécessaires pour l'affichage des informations client dans ExpandedRowContent
   // Les users sont nécessaires pour l'affichage des badges des gestionnaires dans TableView
   const defaultRelations = ['artisans', 'costs', 'tenants', 'users'];
-  
+
   // Si recherche active, inclure aussi agencies pour le filtrage client
   const searchRelations = hasSearch ? ['agencies'] : [];
   const allIncludes = [...new Set([...defaultRelations, ...searchRelations, ...include])];
-  
+
   if (extraSelect) {
     selectFragments.push(extraSelect);
   }
@@ -587,12 +581,211 @@ const createCursor = (row: any, direction: CursorDirection): InterventionCursor 
   };
 };
 
+/**
+ * Fonction interne pour recalculer le statut d'un artisan basé sur ses interventions terminées.
+ * Supporte le downgrade (si moins d'interventions terminées, le statut peut baisser).
+ */
+async function recalculateArtisanStatusInternal(
+  supabase: SupabaseClient,
+  artisanId: string,
+  terminatedStatusIds: Set<string>,
+  requestId: string,
+  interventionId: string,
+): Promise<void> {
+  try {
+    // Charger l'artisan avec son statut actuel
+    const { data: artisan, error: artisanError } = await supabase
+      .from('artisans')
+      .select('id, statut_id')
+      .eq('id', artisanId)
+      .single();
+
+    if (artisanError || !artisan) {
+      console.error(JSON.stringify({
+        level: 'error',
+        requestId,
+        interventionId,
+        artisanId,
+        message: 'Failed to load artisan for status recalculation',
+        error: artisanError?.message ?? 'NOT_FOUND',
+      }));
+      return;
+    }
+
+    // Charger les statuts artisan
+    const { data: artisanStatuses, error: statusError } = await supabase
+      .from('artisan_statuses')
+      .select('id, code');
+
+    if (statusError || !artisanStatuses) {
+      console.error(JSON.stringify({
+        level: 'error',
+        requestId,
+        interventionId,
+        artisanId,
+        message: 'Failed to load artisan statuses',
+        error: statusError?.message,
+      }));
+      return;
+    }
+
+    const codeToStatusId = new Map<string, string>();
+    const statusIdToCode = new Map<string, string>();
+    for (const status of artisanStatuses) {
+      if (status?.code && status?.id) {
+        const upperCode = (status.code as string).toUpperCase();
+        codeToStatusId.set(upperCode, status.id as string);
+        statusIdToCode.set(status.id as string, upperCode);
+      }
+    }
+
+    const currentCode = artisan.statut_id
+      ? statusIdToCode.get(artisan.statut_id as string) ?? null
+      : null;
+
+    // Ne pas modifier ARCHIVE automatiquement
+    if (currentCode === 'ARCHIVE') {
+      return;
+    }
+
+    // Compter TOUTES les interventions terminées de l'artisan
+    const { data: linkedInterventions, error: linkedError } = await supabase
+      .from('intervention_artisans')
+      .select('intervention_id')
+      .eq('artisan_id', artisanId);
+
+    if (linkedError) {
+      console.error(JSON.stringify({
+        level: 'error',
+        requestId,
+        interventionId,
+        artisanId,
+        message: 'Failed to load artisan interventions for recalculation',
+        error: linkedError.message,
+      }));
+      return;
+    }
+
+    const interventionIds = (linkedInterventions ?? [])
+      .map((row) => row?.intervention_id as string | null)
+      .filter((value): value is string => Boolean(value));
+
+    let completedCount = 0;
+    if (interventionIds.length > 0) {
+      const { count, error: countError } = await supabase
+        .from('interventions')
+        .select('id', { count: 'exact', head: true })
+        .in('id', interventionIds)
+        .in('statut_id', Array.from(terminatedStatusIds));
+
+      if (countError) {
+        console.error(JSON.stringify({
+          level: 'error',
+          requestId,
+          interventionId,
+          artisanId,
+          message: 'Failed to count completed interventions for artisan recalculation',
+          error: countError.message,
+        }));
+        return;
+      }
+
+      completedCount = count ?? 0;
+    }
+
+    // Calculer le nouveau statut selon les seuils
+    let newCode: string | null = null;
+    if (completedCount >= 10) {
+      newCode = 'EXPERT';
+    } else if (completedCount >= 6) {
+      newCode = 'CONFIRME';
+    } else if (completedCount >= 3) {
+      newCode = 'FORMATION';
+    } else if (completedCount >= 1) {
+      newCode = 'NOVICE';
+    } else {
+      // 0 intervention terminée = POTENTIEL (downgrade)
+      newCode = 'POTENTIEL';
+    }
+
+    // Si pas de changement, on ne fait rien
+    if (newCode === currentCode) {
+      console.log(JSON.stringify({
+        level: 'info',
+        requestId,
+        interventionId,
+        artisanId,
+        message: 'Artisan status unchanged after recalculation',
+        currentStatus: currentCode,
+        completedCount,
+      }));
+      return;
+    }
+
+    const newStatusId = codeToStatusId.get(newCode);
+    if (!newStatusId) {
+      console.error(JSON.stringify({
+        level: 'error',
+        requestId,
+        interventionId,
+        artisanId,
+        message: 'New status code not found in artisan_statuses',
+        newCode,
+      }));
+      return;
+    }
+
+    // Mettre à jour l'artisan
+    const { error: updateError } = await supabase
+      .from('artisans')
+      .update({
+        statut_id: newStatusId,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', artisanId);
+
+    if (updateError) {
+      console.error(JSON.stringify({
+        level: 'error',
+        requestId,
+        interventionId,
+        artisanId,
+        message: 'Failed to update artisan status during recalculation',
+        error: updateError.message,
+      }));
+      return;
+    }
+
+    console.log(JSON.stringify({
+      level: 'info',
+      requestId,
+      interventionId,
+      artisanId,
+      message: 'Artisan status recalculated successfully',
+      previousStatus: currentCode,
+      newStatus: newCode,
+      completedCount,
+    }));
+
+  } catch (error) {
+    console.error(JSON.stringify({
+      level: 'error',
+      requestId,
+      interventionId,
+      artisanId,
+      message: 'Unexpected error during artisan status recalculation',
+      error: error instanceof Error ? error.message : String(error),
+    }));
+  }
+}
+
 async function handleInterventionCompletionSideEffects(
   supabase: SupabaseClient,
   intervention: { id: string; statut_id?: string | null },
   requestId: string,
+  oldStatutId?: string | null,
 ) {
-  if (!intervention?.id || !intervention?.statut_id) {
+  if (!intervention?.id) {
     return;
   }
 
@@ -621,7 +814,50 @@ async function handleInterventionCompletionSideEffects(
         .map((row) => row.id as string),
     );
 
-    if (!terminatedStatusIds.has(intervention.statut_id)) {
+    // Vérifier si le statut a changé par rapport à un statut terminé (dans n'importe quelle direction)
+    const isNowTerminated = intervention.statut_id && terminatedStatusIds.has(intervention.statut_id);
+    const wasTerminated = oldStatutId && terminatedStatusIds.has(oldStatutId);
+
+    // Si pas de changement concernant les statuts terminés, on ne fait rien
+    if (!isNowTerminated && !wasTerminated) {
+      return;
+    }
+
+    // NOUVEAU: Gérer le downgrade quand l'intervention QUITTE un statut terminé
+    if (wasTerminated && !isNowTerminated) {
+      console.log(
+        JSON.stringify({
+          level: 'info',
+          requestId,
+          interventionId: intervention.id,
+          message: 'Intervention leaving terminated status, recalculating artisan statuses (downgrade)',
+          oldStatutId,
+          newStatutId: intervention.statut_id,
+        }),
+      );
+
+      // Récupérer tous les artisans liés à cette intervention
+      const { data: downgradeArtisanLinks, error: downgradeError } = await supabase
+        .from('intervention_artisans')
+        .select('artisan_id')
+        .eq('intervention_id', intervention.id);
+
+      if (!downgradeError && downgradeArtisanLinks) {
+        const downgradeArtisanIds = downgradeArtisanLinks
+          .map((link) => link?.artisan_id as string)
+          .filter(Boolean);
+
+        // Pour chaque artisan, recalculer son statut basé sur le nouveau compte d'interventions terminées
+        for (const artisanId of downgradeArtisanIds) {
+          await recalculateArtisanStatusInternal(supabase, artisanId, terminatedStatusIds, requestId, intervention.id);
+        }
+      }
+
+      return;
+    }
+
+    // Si l'intervention n'est pas terminée maintenant, sortir
+    if (!isNowTerminated) {
       return;
     }
 
@@ -647,15 +883,11 @@ async function handleInterventionCompletionSideEffects(
       return;
     }
 
+    // CORRECTION: Récupérer TOUS les artisans liés (primaires ET secondaires)
+    // Chaque artisan lié à une intervention terminée doit voir son compteur mis à jour
     let artisanIds = artisanLinks
-      .filter((link) => link && link.is_primary === true && link.artisan_id)
+      .filter((link) => link?.artisan_id)
       .map((link) => link.artisan_id as string);
-
-    if (artisanIds.length === 0) {
-      artisanIds = artisanLinks
-        .filter((link) => link?.artisan_id)
-        .map((link) => link.artisan_id as string);
-    }
 
     artisanIds = Array.from(new Set(artisanIds));
 
@@ -753,11 +985,11 @@ async function handleInterventionCompletionSideEffects(
         // Continuer quand même, on utilisera une valeur par défaut
       }
 
+      // CORRECTION: Compter TOUTES les interventions de l'artisan (primaires ET secondaires)
       const { data: linkedInterventions, error: linkedError } = await supabase
         .from('intervention_artisans')
         .select('intervention_id')
-        .eq('artisan_id', artisanId)
-        .eq('is_primary', true);
+        .eq('artisan_id', artisanId);
 
       if (linkedError) {
         console.error(
@@ -812,7 +1044,7 @@ async function handleInterventionCompletionSideEffects(
         // Mettre à jour uniquement le statut de dossier si nécessaire
         const currentDossierStatus = artisan.statut_dossier as string | null;
         const newDossierStatus = calculateDossierStatus(attachments ?? [], completed > 0);
-        
+
         if (newDossierStatus !== currentDossierStatus) {
           const { error: dossierUpdateError } = await supabase
             .from('artisans')
@@ -869,7 +1101,7 @@ async function handleInterventionCompletionSideEffects(
         // Mais on peut quand même mettre à jour le statut de dossier
         const currentDossierStatus = artisan.statut_dossier as string | null;
         const newDossierStatus = calculateDossierStatus(attachments ?? [], completed > 0);
-        
+
         if (newDossierStatus !== currentDossierStatus) {
           const { error: dossierUpdateError } = await supabase
             .from('artisans')
@@ -973,18 +1205,24 @@ async function handleInterventionCompletionSideEffects(
 }
 
 serve(async (req: Request) => {
+  const corsHeaders = {
+    ...getCorsHeaders(req),
+    'Access-Control-Max-Age': '86400',
+    'Cache-Control': 'no-store, no-cache, must-revalidate',
+  };
+
   // Handle CORS preflight requests FIRST, before any other code
   // This MUST be the very first statement to ensure OPTIONS always returns 200
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { 
-      status: 200, 
-      headers: corsHeaders 
+    return new Response('ok', {
+      status: 200,
+      headers: corsHeaders
     });
   }
 
   const startTime = Date.now();
   let requestId: string | undefined;
-  
+
   try {
     requestId = crypto.randomUUID();
 
@@ -1004,12 +1242,12 @@ serve(async (req: Request) => {
 
     const url = new URL(req.url);
     const pathSegments = url.pathname.split('/').filter(segment => segment);
-    
+
     // Parsing plus robuste pour gérer les sous-ressources
     let resource = pathSegments[pathSegments.length - 1];
     let resourceId: string | null = null;
     let subResource: string | null = null;
-    
+
     // Pour /interventions-v2/interventions/{id}/artisans
     if (pathSegments.length >= 4 && pathSegments[pathSegments.length - 3] === 'interventions') {
       resourceId = pathSegments[pathSegments.length - 2];
@@ -1249,9 +1487,9 @@ serve(async (req: Request) => {
       const clampedLimit = Math.max(1, Math.min(Number.isFinite(rawLimit) ? rawLimit : 100, 50000));
       const rawOffset = Number.parseInt(url.searchParams.get('offset') ?? '0', 10);
       const clampedOffset = Math.max(0, Number.isFinite(rawOffset) ? rawOffset : 0);
-      
+
       console.log(`[Edge Function] Pagination - rawOffset: ${rawOffset}, clampedOffset: ${clampedOffset}, rawLimit: ${rawLimit}, clampedLimit: ${clampedLimit}`);
-      
+
       const include = parseListParam(url.searchParams.getAll('include'));
       const extraSelect = url.searchParams.get('select');
       const artisanFilters = parseListParam(url.searchParams.getAll('artisan'));
@@ -1528,7 +1766,7 @@ serve(async (req: Request) => {
       const fetchStart = Date.now();
       const { data, error, count } = await query;
       const fetchDuration = Date.now() - fetchStart;
-      
+
       if (data && Array.isArray(data) && data.length > 0) {
         console.log(`[Edge Function] Résultats - Premier ID: ${data[0].id}, Dernier ID: ${data[data.length - 1].id}, Total: ${data.length}`);
       } else {
@@ -1633,10 +1871,9 @@ serve(async (req: Request) => {
           created_at,
           updated_at
           ${includeRelations.includes('agencies') ? ',agencies(id,label,code)' : ''}
-          ${
-            includeRelations.includes('tenants') || includeRelations.includes('clients')
-              ? ',tenants:tenant_id(id,firstname,lastname,plain_nom_client,email,telephone,telephone2)'
-              : ''
+          ${includeRelations.includes('tenants') || includeRelations.includes('clients')
+            ? ',tenants:tenant_id(id,firstname,lastname,plain_nom_client,email,telephone,telephone2)'
+            : ''
           }
           ${includeRelations.includes('users') ? ',users!assigned_user_id(id,firstname,lastname,username)' : ''}
           ${includeRelations.includes('statuses') ? ',intervention_statuses(id,code,label,color)' : ''}
@@ -1680,7 +1917,7 @@ serve(async (req: Request) => {
       if (body.id_inter) {
         const { data: existing, error: findError } = await supabase
           .from('interventions')
-          .select('id')
+          .select('id, statut_id')
           .eq('id_inter', body.id_inter)
           .single();
 
@@ -1739,7 +1976,9 @@ serve(async (req: Request) => {
             message: 'Intervention updated via upsert'
           }));
 
-          await handleInterventionCompletionSideEffects(supabase, data, requestId);
+          // Passer l'ancien statut pour gérer le downgrade
+          const oldStatutIdUpsert = existing.statut_id || null;
+          await handleInterventionCompletionSideEffects(supabase, data, requestId, oldStatutIdUpsert);
 
           return new Response(
             JSON.stringify(data),
@@ -1824,7 +2063,7 @@ serve(async (req: Request) => {
       // Fonction helper pour générer un nouvel id_inter en cas de collision
       const generateUniqueIdInter = async (baseIdInter: string | null | undefined): Promise<string | null> => {
         if (!baseIdInter) return null;
-        
+
         // Si ce n'est pas un ID auto-généré, retourner tel quel (sera vérifié plus tard)
         if (!baseIdInter.startsWith('AUTO-')) {
           return baseIdInter;
@@ -2129,7 +2368,7 @@ serve(async (req: Request) => {
         message: 'Intervention updated successfully'
       }));
 
-      await handleInterventionCompletionSideEffects(supabase, data, requestId);
+      await handleInterventionCompletionSideEffects(supabase, data, requestId, oldStatutId);
 
       return new Response(
         JSON.stringify(data),
@@ -2141,7 +2380,7 @@ serve(async (req: Request) => {
     if (req.method === 'DELETE' && resourceId && resource === 'interventions') {
       const { data, error } = await supabase
         .from('interventions')
-        .update({ 
+        .update({
           is_active: false,
           updated_at: new Date().toISOString(),
           ...(authUserId ? { updated_by: authUserId } : {}),
@@ -2398,7 +2637,7 @@ serve(async (req: Request) => {
 
   } catch (error) {
     const responseTime = Date.now() - startTime;
-    
+
     console.log(JSON.stringify({
       level: 'error',
       requestId: requestId || 'unknown',

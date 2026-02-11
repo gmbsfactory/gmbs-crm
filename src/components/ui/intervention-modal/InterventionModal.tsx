@@ -53,6 +53,7 @@ export function InterventionModal({
   const [isStatusReasonModalOpen, setIsStatusReasonModalOpen] = useState(false)
   const [isUnsavedDialogOpen, setIsUnsavedDialogOpen] = useState(false)
   const [isPopoverOpen, setIsPopoverOpen] = useState(false)
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
 
   // Callbacks pour recevoir les informations de InterventionModalContent
   const handleUnsavedChangesStateChange = useCallback((hasChanges: boolean, submitting: boolean) => {
@@ -112,6 +113,7 @@ export function InterventionModal({
       setIsEmailModalOpen(false)
       setIsStatusReasonModalOpen(false)
       setIsUnsavedDialogOpen(false)
+      setIsDeleteDialogOpen(false)
     }
   }, [isOpen])
 
@@ -130,6 +132,7 @@ export function InterventionModal({
         <NewInterventionModalContent
           mode={effectiveMode}
           onClose={onClose}
+          waitForExit={waitForExit}
           onCycleMode={cycleMode}
           onUnsavedDialogOpenChange={setIsUnsavedDialogOpen}
           onUnsavedChangesStateChange={handleUnsavedChangesStateChange}
@@ -169,6 +172,7 @@ export function InterventionModal({
         onStatusReasonModalOpenChange={setIsStatusReasonModalOpen}
         onPopoverOpenChange={setIsPopoverOpen}
         onUnsavedDialogOpenChange={setIsUnsavedDialogOpen}
+        onDeleteDialogOpenChange={setIsDeleteDialogOpen}
       />
     )
   })()
@@ -192,7 +196,8 @@ export function InterventionModal({
         isEmailModalOpen ||
         isStatusReasonModalOpen ||
         isUnsavedDialogOpen ||
-        isPopoverOpen
+        isPopoverOpen ||
+        isDeleteDialogOpen
       }
     >
       {renderedContent}

@@ -1,0 +1,255 @@
+/* === Utility Classes === */
+
+@layer utilities {
+  /* Style de surlignage pour les recherches */
+  .search-highlight {
+    font-weight: 600;
+    background-color: hsl(var(--primary) / 0.25);
+    color: hsl(var(--primary));
+    border-radius: 2px;
+    padding: 0 3px;
+    margin: 0 1px;
+    box-decoration-break: clone;
+    -webkit-box-decoration-break: clone;
+  }
+
+  :root[data-theme="dark"] .search-highlight {
+    background-color: hsl(var(--primary) / 0.35);
+    color: hsl(var(--accent-foreground));
+  }
+
+  .gradient-micro {
+    background-image: linear-gradient(
+      to bottom,
+      color-mix(in oklab, var(--bg-light), white 2%),
+      var(--bg-light)
+    );
+  }
+
+  .gradient-standard {
+    background-image: linear-gradient(
+      to bottom,
+      color-mix(in oklab, var(--bg-light), white 6%),
+      var(--bg-light)
+    );
+  }
+
+  .gradient-accent {
+    background-image: linear-gradient(
+      to bottom,
+      color-mix(in oklab, var(--bg-light), white 12%),
+      var(--bg-light)
+    );
+  }
+
+  .gradient-accent-primary {
+    background-image: linear-gradient(
+      to bottom,
+      color-mix(in oklab, var(--accent-color), white 10%),
+      var(--accent-color)
+    );
+  }
+
+  .skeleton {
+    background: var(--bg);
+    animation: skeleton-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    border-radius: var(--radius-md);
+  }
+
+  /* Désactiver les animations skeleton sur les vues de données (table, kanban, list) */
+  [data-view-type="table"] .skeleton,
+  [data-view-type="kanban"] .skeleton,
+  [data-view-type="list"] .skeleton {
+    animation: none;
+    background: var(--bg-dark);
+  }
+
+  /* Mode économie d'énergie (activé via localStorage ou détection device-capabilities) */
+  .low-power-mode .skeleton,
+  html.low-power-mode .skeleton {
+    animation: none;
+    background: var(--bg-dark);
+  }
+
+  [disabled],
+  .is-disabled {
+    opacity: 0.60;
+    cursor: not-allowed;
+    background: var(--bg-dark) !important;
+    color: var(--text-muted) !important;
+    box-shadow: none !important;
+    transform: none !important;
+  }
+
+  .animate-glass-float {
+    animation: glass-float 6s ease-in-out infinite;
+  }
+
+  /* Désactiver glass-float sur les vues de données */
+  [data-view-type="table"] .animate-glass-float,
+  [data-view-type="kanban"] .animate-glass-float,
+  [data-view-type="list"] .animate-glass-float {
+    animation: none;
+  }
+
+  /* Mode économie d'énergie */
+  .low-power-mode .animate-glass-float,
+  html.low-power-mode .animate-glass-float {
+    animation: none;
+  }
+
+  /* Styles pour les plages de dates - Approche shadcn/ui améliorée */
+  .rdp-range_start,
+  [class*="range_start"] {
+    background: hsl(var(--primary)) !important;
+    color: hsl(var(--primary-foreground)) !important;
+    font-weight: 700 !important;
+    border-radius: 50% 0 0 50% !important;
+    box-shadow: 0 2px 8px hsl(var(--primary) / 0.3) !important;
+  }
+
+  .rdp-range_end,
+  [class*="range_end"] {
+    background: hsl(var(--primary)) !important;
+    color: hsl(var(--primary-foreground)) !important;
+    font-weight: 700 !important;
+    border-radius: 0 50% 50% 0 !important;
+    box-shadow: 0 2px 8px hsl(var(--primary) / 0.3) !important;
+  }
+
+  .rdp-range_middle,
+  [class*="range_middle"] {
+    background: hsl(var(--primary) / 0.35) !important;
+    color: hsl(var(--primary-foreground)) !important;
+    font-weight: 500 !important;
+    border-radius: 0 !important;
+  }
+
+  /* Quand la plage est complète, renforcer la visibilité */
+  [data-range-complete="true"] .rdp-range_start,
+  [data-range-complete="true"] .rdp-range_end {
+    box-shadow: 
+      0 0 0 3px hsl(var(--primary) / 0.2),
+      0 4px 12px hsl(var(--primary) / 0.4) !important;
+    transform: scale(1.05);
+  }
+
+  [data-range-complete="true"] .rdp-range_middle {
+    background: hsl(var(--primary) / 0.4) !important;
+  }
+
+  /* Hover sur les dates de début/fin */
+  .rdp-range_start:hover,
+  .rdp-range_end:hover {
+    background: hsl(var(--primary)) !important;
+    transform: scale(1.1);
+    box-shadow: 0 4px 16px hsl(var(--primary) / 0.5) !important;
+  }
+
+  /* Amélioration pour les dates sélectionnées uniques */
+  .rdp-day_selected:not(.rdp-range_start):not(.rdp-range_end):not(.rdp-range_middle) {
+    background: hsl(var(--primary)) !important;
+    color: hsl(var(--primary-foreground)) !important;
+    font-weight: 700 !important;
+    border-radius: 50% !important;
+    box-shadow: 0 2px 8px hsl(var(--primary) / 0.3) !important;
+  }
+
+  /* Utilitaires pour le thème glass */
+  .glass-card {
+    @apply bg-white/5 backdrop-blur-md border border-white/10;
+    box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
+  }
+  
+  .glass-nav {
+    @apply bg-white/10 backdrop-blur-lg border-b border-white/20;
+  }
+  
+  .glass-sidebar {
+    @apply bg-black/20 backdrop-blur-xl border-r border-white/10;
+  }
+
+  /* Animations pour les thèmes */
+  @keyframes expand-contract {
+    0%,
+    100% {
+      width: 2rem;
+    }
+    50% {
+      width: 3rem;
+    }
+  }
+
+  @keyframes shimmer {
+    0%,
+    100% {
+      opacity: 0.3;
+      transform: translateX(-100%);
+    }
+    50% {
+      opacity: 0.6;
+      transform: translateX(100%);
+    }
+  }
+
+  @keyframes breathing {
+    0%,
+    100% {
+      opacity: 1;
+      transform: scale(1);
+    }
+    50% {
+      opacity: 0.8;
+      transform: scale(1.02);
+    }
+  }
+
+  @keyframes glass-float {
+    0%, 100% {
+      transform: translateY(0px);
+    }
+    50% {
+      transform: translateY(-10px);
+    }
+  }
+
+  .animate-glass-float {
+    animation: glass-float 6s ease-in-out infinite;
+  }
+
+  /* DAT-001 : Animation pour le badge "Check" (due date dépassée) */
+  @keyframes check-pulse {
+    0%, 100% {
+      opacity: 1;
+      box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7);
+    }
+    50% {
+      opacity: 0.85;
+      box-shadow: 0 0 0 4px rgba(239, 68, 68, 0);
+    }
+  }
+
+  .check-status-badge {
+    animation: check-pulse 2s ease-in-out infinite;
+  }
+
+  /* Désactiver check-pulse sur les vues de données et en mode low-power */
+  [data-view-type="table"] .check-status-badge,
+  [data-view-type="kanban"] .check-status-badge,
+  [data-view-type="list"] .check-status-badge,
+  .low-power-mode .check-status-badge,
+  html.low-power-mode .check-status-badge {
+    animation: none;
+  }
+
+  /* Respecter prefers-reduced-motion pour TOUTES les animations */
+  @media (prefers-reduced-motion: reduce) {
+    .skeleton,
+    .animate-glass-float,
+    .check-status-badge,
+    [class*="animate-"] {
+      animation: none !important;
+      transition: none !important;
+    }
+  }
+}

@@ -35,8 +35,8 @@ export const useSettings = create<SettingsState>((set) => ({
         if (colorMode && ["light", "dark", "system"].includes(colorMode)) {
           theme = colorMode as ThemeMode
         }
-      } catch {}
-      
+      } catch { /* Silenced: localStorage unavailable in SSR */ }
+
       const raw = localStorage.getItem("gmbs:settings")
       if (raw) {
         const parsed = JSON.parse(raw)
@@ -54,6 +54,6 @@ export const useSettings = create<SettingsState>((set) => ({
         // Si gmbs:settings n'existe pas mais color-mode existe, initialiser avec color-mode
         set({ theme })
       }
-    } catch {}
+    } catch { /* Silenced: localStorage unavailable in SSR */ }
   },
 }))

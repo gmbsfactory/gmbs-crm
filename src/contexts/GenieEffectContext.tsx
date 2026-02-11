@@ -63,24 +63,22 @@ export function GenieEffectProvider({ children }: { children: React.ReactNode })
     targetViewId: string,
     onComplete: () => void
   ) => {
-    console.log(`[GenieEffect] 🎬 Animation déclenchée:`, {
-      interventionId,
-      targetViewId,
-      sourceElement: sourceElement.tagName,
-      registeredBadges: Array.from(badgeRefs.current.keys()),
-    })
     
     const targetElement = badgeRefs.current.get(targetViewId)
-    
+
     if (!targetElement) {
-      console.warn(`[GenieEffect] ⚠️ Pastille non trouvée pour la vue: ${targetViewId}`)
-      console.warn(`[GenieEffect] Vues disponibles:`, Array.from(badgeRefs.current.keys()))
-      // Pas de cible trouvée, exécuter la mutation directement
+      console.warn(`[GenieEffect] Pastille non trouvée pour la vue: ${targetViewId}`)
+      onComplete()
+      return
+    }
+
+    // Respecter prefers-reduced-motion : skip animation
+    const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches
+    if (prefersReducedMotion) {
       onComplete()
       return
     }
     
-    console.log(`[GenieEffect] ✅ Pastille cible trouvée:`, targetElement)
     
     setIsAnimating(true)
     setAnimatingInterventionId(interventionId)
@@ -172,7 +170,6 @@ export function GenieEffectProvider({ children }: { children: React.ReactNode })
     document.body.appendChild(clone)
     animationCloneRef.current = clone
     
-    console.log(`[GenieEffect] 🚀 Clone créé à:`, { startX, startY, startWidth, startHeight })
     
     // Cacher la ligne source immédiatement (elle est clonée)
     sourceElement.style.opacity = "0"

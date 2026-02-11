@@ -1,0 +1,215 @@
+/* === Form Styles - Dark Mode === */
+
+@layer components {
+  /* Dark mode styles for intervention form */
+  :root[data-theme="dark"] .intervention-form-surface {
+    background: hsl(var(--background));
+    background-image: linear-gradient(
+      to bottom,
+      hsl(var(--muted) / 0.3),
+      hsl(var(--background))
+    );
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    color: hsl(var(--foreground));
+  }
+
+  :root[data-theme="dark"] .intervention-form-surface-full {
+    background: hsl(var(--background));
+    background-image: linear-gradient(
+      to bottom,
+      hsl(var(--muted) / 0.25),
+      hsl(var(--background))
+    );
+  }
+
+  :root[data-theme="dark"] .intervention-form-header {
+    border-bottom: 1px solid hsl(var(--border));
+    background-image: linear-gradient(
+      to bottom,
+      hsl(var(--muted) / 0.4),
+      transparent
+    );
+  }
+
+  :root[data-theme="dark"] .intervention-form-icon-button {
+    background-image: linear-gradient(
+      to bottom,
+      hsl(var(--muted) / 0.6),
+      hsl(var(--muted) / 0.4)
+    );
+    border-color: hsl(var(--border));
+    color: hsl(var(--muted-foreground));
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.05),
+      var(--shadow-xs);
+  }
+
+  :root[data-theme="dark"] .intervention-form-icon-button:hover {
+    color: hsl(var(--foreground));
+    background-image: linear-gradient(
+      to bottom,
+      hsl(var(--muted) / 0.7),
+      hsl(var(--muted) / 0.5)
+    );
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.06),
+      var(--shadow-sm);
+  }
+
+  :root[data-theme="dark"] .intervention-form-icon-button:active {
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.04),
+      var(--shadow-xs);
+  }
+
+  :root[data-theme="dark"] .intervention-form-icon-button--danger {
+    color: hsl(var(--destructive));
+  }
+
+  :root[data-theme="dark"] .intervention-form-section {
+    background: hsl(var(--card));
+    background-image: linear-gradient(
+      to bottom,
+      hsl(var(--muted) / 0.5),
+      hsl(var(--card))
+    );
+    border: 1px solid hsl(var(--border));
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.05),
+      var(--shadow-md);
+    overflow: hidden;
+  }
+
+  :root[data-theme="dark"] .intervention-form-section-header {
+    border-bottom: 1px solid hsl(var(--border));
+    background-image: linear-gradient(
+      to bottom,
+      hsl(var(--muted) / 0.6),
+      transparent
+    );
+  }
+
+  :root[data-theme="dark"] .intervention-form-input {
+    border-color: hsl(var(--border));
+    background-image: linear-gradient(
+      to bottom,
+      hsl(var(--muted) / 0.6),
+      hsl(var(--muted) / 0.4)
+    );
+    color: hsl(var(--foreground));
+  }
+
+  :root[data-theme="dark"] .intervention-form-input:focus {
+    border-color: hsl(var(--accent) / 0.6);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.05),
+      0 0 0 2px hsl(var(--accent) / 0.3);
+  }
+
+  :root[data-theme="dark"] .intervention-form-textarea {
+    border-color: hsl(var(--border));
+    background-image: linear-gradient(
+      to bottom,
+      hsl(var(--muted) / 0.6),
+      hsl(var(--muted) / 0.4)
+    );
+    color: hsl(var(--foreground));
+  }
+
+  :root[data-theme="dark"] .intervention-form-textarea:focus {
+    border-color: hsl(var(--accent) / 0.6);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.05),
+      0 0 0 2px hsl(var(--accent) / 0.3);
+  }
+
+  :root[data-theme="dark"] .intervention-form-select {
+    border-color: hsl(var(--border));
+    background-image: linear-gradient(
+      to bottom,
+      hsl(var(--muted) / 0.6),
+      hsl(var(--muted) / 0.4)
+    );
+    color: hsl(var(--foreground));
+  }
+
+  :root[data-theme="dark"] .intervention-form-button {
+    border-color: hsl(var(--border));
+    background-image: linear-gradient(
+      to bottom,
+      hsl(var(--muted) / 0.6),
+      hsl(var(--muted) / 0.4)
+    );
+    color: hsl(var(--foreground));
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.05),
+      var(--shadow-xs);
+  }
+
+  :root[data-theme="dark"] .intervention-form-button:hover {
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.06),
+      var(--shadow-sm);
+  }
+
+  :root[data-theme="dark"] .intervention-form-button--primary {
+    background-image: linear-gradient(
+      to bottom,
+      hsl(var(--accent) / 0.8),
+      hsl(var(--accent))
+    );
+    border-color: hsl(var(--accent) / 0.6);
+    color: hsl(var(--accent-foreground));
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.1),
+      var(--shadow-sm);
+  }
+
+  :root[data-theme="dark"] .intervention-form-button--primary:hover {
+    background-image: linear-gradient(
+      to bottom,
+      hsl(var(--accent) / 0.9),
+      hsl(var(--accent))
+    );
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.12),
+      var(--shadow-md);
+  }
+
+  :root[data-theme="dark"] .intervention-form-footer {
+    border-top: 1px solid hsl(var(--border));
+    background-image: linear-gradient(
+      to bottom,
+      hsl(var(--muted) / 0.3),
+      hsl(var(--background))
+    );
+  }
+
+  :root[data-theme="dark"] .intervention-form-error {
+    border-color: hsl(var(--destructive) / 0.6);
+    background: hsl(var(--destructive) / 0.1);
+    background-image: linear-gradient(
+      to bottom,
+      hsl(var(--destructive) / 0.15),
+      hsl(var(--destructive) / 0.05)
+    );
+    color: hsl(var(--destructive));
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.05),
+      var(--shadow-sm);
+  }
+
+  :root[data-theme="dark"] .intervention-form-warning {
+    border-color: hsl(var(--warning) / 0.6);
+    background: hsl(var(--warning) / 0.1);
+    background-image: linear-gradient(
+      to bottom,
+      hsl(var(--warning) / 0.15),
+      hsl(var(--warning) / 0.05)
+    );
+    color: hsl(var(--warning));
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.05),
+      var(--shadow-sm);
+  }
+}

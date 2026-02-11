@@ -3,18 +3,35 @@ import { supabaseAdmin } from '@/lib/supabase-admin'
 
 export const runtime = 'nodejs'
 
-export async function POST(req: Request) {
-  if (!supabaseAdmin) return NextResponse.json({ error: 'No DB' }, { status: 500 })
-  const { identifier } = await req.json().catch(() => ({}))
-  if (!identifier) return NextResponse.json({ error: 'missing_identifier' }, { status: 400 })
-  if (String(identifier).includes('@')) return NextResponse.json({ email: identifier })
-  const { data, error } = await supabaseAdmin
-    .from('users')
-    .select('email')
-    .eq('username', identifier)
-    .maybeSingle()
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  if (!data?.email) return NextResponse.json({ error: 'not_found' }, { status: 404 })
-  return NextResponse.json({ email: data.email })
-}
+const GENERIC_RESPONSE = { message: 'Si ce compte existe, un email a été envoyé.' }
 
+export async function POST(req: Request) {
+  if (!supabaseAdmin) return NextResponse.json(GENERIC_RESPONSE)
+  const { identifier } = await req.json().catch(() => ({}))
+  if (!identifier) return NextResponse.json(GENERIC_RESPONSE)
+
+  // Délai constant pour éviter timing attack
+  const startTime = Date.now()
+
+  let email: string | null = null
+
+  if (String(identifier).includes('@')) {
+    email = identifier
+  } else {
+    const { data } = await supabaseAdmin
+      .from('users')
+      .select('email')
+      .eq('username', identifier)
+      .maybeSingle()
+    email = data?.email || null
+  }
+
+  // Uniformiser le temps de réponse (~200ms minimum)
+  const elapsed = Date.now() - startTime
+  if (elapsed < 200) {
+    await new Promise(r => setTimeout(r, 200 - elapsed))
+  }
+
+  // Toujours même structure de réponse
+  return NextResponse.json({ email })
+}

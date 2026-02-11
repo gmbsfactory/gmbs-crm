@@ -63,10 +63,6 @@ export function usePodiumPeriod(): UsePodiumPeriodResult {
 
           // Détecter si la période a changé
           if (periodStart && (newStart !== periodStart || newEnd !== periodEnd)) {
-            console.log('🔄 Podium: Nouvelle période détectée', {
-              ancienne: { start: periodStart, end: periodEnd },
-              nouvelle: { start: newStart, end: newEnd }
-            })
           }
 
           setPeriodStart(newStart)
@@ -93,7 +89,6 @@ export function usePodiumPeriod(): UsePodiumPeriodResult {
     const CHECK_INTERVAL = 60 * 60 * 1000 // 1 heure en millisecondes
 
     const intervalId = setInterval(() => {
-      console.log('🔍 Podium: Vérification de la période...')
       loadPodiumPeriod()
     }, CHECK_INTERVAL)
 

@@ -1,20 +1,17 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { getCorsHeaders } from '../_shared/cors.ts';
 // Cache temporairement désactivé
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-  'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-};
-
 serve(async (req: Request) => {
+  const corsHeaders = getCorsHeaders(req);
+
   // Handle CORS preflight requests FIRST, before any other code
   // This MUST be the very first statement to ensure OPTIONS always returns 200
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { 
-      status: 200, 
-      headers: corsHeaders 
+    return new Response('ok', {
+      status: 200,
+      headers: corsHeaders
     });
   }
 
@@ -122,7 +119,7 @@ serve(async (req: Request) => {
         raisonSociale: artisan.raison_sociale,
         siret: artisan.siret,
         statutJuridique: artisan.statut_juridique,
-        metiers: [], // TODO: Récupérer depuis artisan_metiers
+        metiers: [],
         zoneIntervention: artisan.departement,
         commentaire: artisan.commentaire,
         statutDossier: artisan.statut_dossier,
@@ -223,7 +220,7 @@ serve(async (req: Request) => {
         raisonSociale: data.raison_sociale,
         siret: data.siret,
         statutJuridique: data.statut_juridique,
-        metiers: [], // TODO: Récupérer depuis artisan_metiers
+        metiers: [],
         zoneIntervention: data.departement,
         commentaire: data.commentaire,
         statutDossier: data.statut_dossier,

@@ -2,6 +2,7 @@ import nodemailer, { type Transporter } from 'nodemailer';
 import type { SendMailOptions } from 'nodemailer';
 import * as fs from 'fs';
 import * as path from 'path';
+import { safeErrorMessage } from "@/lib/api/v2/common/error-handler";
 
 /**
  * Email service for sending emails via Gmail SMTP
@@ -110,7 +111,7 @@ export async function sendEmailToArtisan(params: SendEmailParams): Promise<SendE
   } catch (error) {
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'Failed to load logo',
+      error: safeErrorMessage(error, "le chargement du logo"),
     };
   }
 
@@ -161,7 +162,6 @@ export async function sendEmailToArtisan(params: SendEmailParams): Promise<SendE
       // If not the last attempt, wait before retrying
       if (attempt < maxAttempts) {
         const delay = backoffDelays[attempt];
-        console.log(`[Email Service] Retrying in ${delay}ms...`);
         await sleep(delay);
       }
     }
@@ -193,6 +193,4 @@ export function validateGmailEmail(email: string): boolean {
   const domain = email.split('@')[1]?.toLowerCase();
   return domain === 'gmail.com' || domain === 'googlemail.com';
 }
-
-
 

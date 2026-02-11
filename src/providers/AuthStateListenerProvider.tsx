@@ -128,7 +128,6 @@ export function AuthStateListenerProvider({ children }: { children: ReactNode })
           })
             .then(response => {
               if (response.ok) {
-                console.log('[AuthStateListenerProvider] ✅ Status set to connected')
                 // Invalider le cache currentUser pour forcer un refetch avec le nouveau statut
                 queryClient.invalidateQueries({ queryKey: ["currentUser"] })
               } else {
@@ -162,11 +161,8 @@ export function AuthStateListenerProvider({ children }: { children: ReactNode })
 
         if (lastCheck === today) {
           // Already checked today, skip API call
-          console.log('[AuthStateListenerProvider] Already checked first activity today, skipping')
           return
         }
-
-        console.log('[AuthStateListenerProvider] Checking first activity of the day...')
 
         // Call API to check and log first activity
         const response = await fetch('/api/auth/first-activity', {
@@ -180,7 +176,6 @@ export function AuthStateListenerProvider({ children }: { children: ReactNode })
         }
 
         const data = await response.json()
-        console.log('[AuthStateListenerProvider] First activity check result:', data)
 
         // Only update localStorage if the API call was successful
         // Check both ok flag and wasFirstActivity to ensure we got a valid response
@@ -189,7 +184,6 @@ export function AuthStateListenerProvider({ children }: { children: ReactNode })
           localStorage.setItem(storageKey, today)
 
           if (data.wasFirstActivity) {
-            console.log('[AuthStateListenerProvider] ✅ First activity of the day detected')
           }
         } else {
           console.warn('[AuthStateListenerProvider] Invalid response from first-activity API, not updating localStorage')
@@ -220,7 +214,6 @@ export function AuthStateListenerProvider({ children }: { children: ReactNode })
 
         if (response.ok) {
           const data = await response.json()
-          console.log('[AuthStateListenerProvider] ❤️ Heartbeat sent:', data.last_seen_at)
         } else {
           console.warn('[AuthStateListenerProvider] Heartbeat failed:', response.status)
         }
@@ -269,7 +262,6 @@ export function AuthStateListenerProvider({ children }: { children: ReactNode })
         const { type, timestamp, reason, tabId } = event.data
 
         if (type === 'logout-initiated') {
-          console.log(`[AuthStateListenerProvider] Logout broadcast received from tab ${tabId} (reason: ${reason})`)
 
           // Import and execute logout immediately
           import('@/lib/auth/logout-manager').then(({ getLogoutManager }) => {
@@ -345,7 +337,6 @@ export function AuthStateListenerProvider({ children }: { children: ReactNode })
           if (now - heartbeat.lastSeen > HEARTBEAT_TIMEOUT) {
             delete heartbeats[id]
             cleaned = true
-            console.log(`[AuthStateListenerProvider] Cleaned up dead tab: ${id}`)
           }
         }
 
@@ -385,7 +376,6 @@ export function AuthStateListenerProvider({ children }: { children: ReactNode })
       const currentCount = getTabCount()
       const newCount = currentCount + 1
       setTabCount(newCount)
-      console.log(`[AuthStateListenerProvider] Tab opened. Total tabs: ${newCount} (tabId: ${tabId})`)
       
       // Broadcast to other tabs
       if (tabChannel) {
@@ -398,7 +388,6 @@ export function AuthStateListenerProvider({ children }: { children: ReactNode })
       const currentCount = getTabCount()
       const newCount = Math.max(0, currentCount - 1)
       setTabCount(newCount)
-      console.log(`[AuthStateListenerProvider] Tab closed. Remaining tabs: ${newCount} (tabId: ${tabId})`)
       
       // Broadcast to other tabs
       if (tabChannel) {
@@ -420,7 +409,6 @@ export function AuthStateListenerProvider({ children }: { children: ReactNode })
         })
 
         if (response.ok) {
-          console.log('[AuthStateListenerProvider] ✅ Status set to offline (last tab closed)')
         } else {
           console.warn('[AuthStateListenerProvider] Failed to set offline status:', response.status)
         }
@@ -439,7 +427,6 @@ export function AuthStateListenerProvider({ children }: { children: ReactNode })
           // Sync tab count from other tabs
           if (count !== undefined) {
             setTabCount(count)
-            console.log(`[AuthStateListenerProvider] Tab count synced from other tab: ${count}`)
           }
         } else if (type === 'heartbeat') {
           // Update heartbeat from other tabs
@@ -465,7 +452,6 @@ export function AuthStateListenerProvider({ children }: { children: ReactNode })
     const handleStorageChange = (e: StorageEvent) => {
       if (e.key === TAB_COUNT_KEY && e.newValue) {
         const newCount = parseInt(e.newValue, 10)
-        console.log(`[AuthStateListenerProvider] Tab count updated via storage event: ${newCount}`)
       }
     }
     window.addEventListener('storage', handleStorageChange)
@@ -490,10 +476,8 @@ export function AuthStateListenerProvider({ children }: { children: ReactNode })
         
         // Only set offline if this was the last tab
         if (remainingTabs === 0) {
-          console.log('[AuthStateListenerProvider] Last tab closing, setting status to offline')
           setOfflineStatus()
         } else {
-          console.log(`[AuthStateListenerProvider] Tab closing but ${remainingTabs} tab(s) still open, keeping status online`)
         }
       }
     }

@@ -3,7 +3,7 @@
  * Permet de synchroniser les modifications différées lorsque la connexion est rétablie
  */
 
-import type { Intervention } from '@/lib/api/v2/common/types'
+import type { Intervention, CreateInterventionData, UpdateInterventionData } from '@/lib/api/v2/common/types'
 import { isNetworkError } from './realtime-client'
 
 export interface QueuedModification {
@@ -244,7 +244,6 @@ export class SyncQueue {
 
         // Attendre avant la prochaine tentative (backoff exponentiel)
         const delay = delays[attempt] || delays[delays.length - 1]
-        console.log(`[SyncQueue] Tentative ${attempt + 1}/${maxRetries} échouée pour ${modification.id}, nouvelle tentative dans ${delay}ms`)
         await new Promise((resolve) => setTimeout(resolve, delay))
       }
     }
@@ -258,9 +257,21 @@ export class SyncQueue {
    * @param modification - Modification à synchroniser
    */
   private async syncModification(modification: QueuedModification): Promise<void> {
-    // TODO: Intégrer avec l'API réelle
-    // Pour l'instant, on simule juste le traitement
-    console.log('[SyncQueue] Synchronisation de la modification:', modification.id)
+    const { interventionsApi } = await import('@/lib/api/v2')
+
+    switch (modification.type) {
+      case 'create':
+        await interventionsApi.create(modification.data as CreateInterventionData)
+        break
+      case 'update':
+        await interventionsApi.update(modification.interventionId, modification.data as UpdateInterventionData)
+        break
+      case 'delete':
+        await interventionsApi.delete(modification.interventionId)
+        break
+      default:
+        throw new Error(`Unknown modification type: ${(modification as { type: string }).type}`)
+    }
   }
 
   /**
@@ -270,7 +281,6 @@ export class SyncQueue {
   restoreOnReconnect() {
     this.loadFromStorage()
     if (this.queue.length > 0) {
-      console.log(`[SyncQueue] ${this.queue.length} modification(s) en attente de synchronisation`)
       // Redémarrer le traitement par batch si nécessaire
       this.startBatchProcessing()
     }
@@ -289,5 +299,4 @@ export function getSyncQueue(): SyncQueue {
   }
   return syncQueueInstance
 }
-
 

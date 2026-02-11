@@ -21,7 +21,7 @@ describe("Workflow configuration", () => {
   })
 
   it("validates transition requirements", () => {
-    const validation = validateTransition(DEFAULT_WORKFLOW_CONFIG, "EN_COURS", "TERMINE", {
+    const validation = validateTransition(DEFAULT_WORKFLOW_CONFIG, "INTER_EN_COURS", "INTER_TERMINEE", {
       id: "intervention-1",
       artisanId: null,
       factureId: null,
@@ -30,6 +30,7 @@ describe("Workflow configuration", () => {
     })
 
     expect(validation.canTransition).toBe(false)
+    // Le status INTER_TERMINEE requiert artisan, facture et proprietaire
     expect(validation.missingRequirements).toEqual(
       expect.arrayContaining(["artisanId", "factureId", "proprietaireId"]),
     )

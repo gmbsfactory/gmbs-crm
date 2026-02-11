@@ -297,15 +297,15 @@ export const mapInterventionRecord = (item: any, refs: any): any => {
     // Log détaillé pour chaque intervention
     const interventionId = item.id_inter || 'unknown';
 
-    if (raisonSociale && raisonSociale.length > 0) {
-      artisanDisplayName = raisonSociale;
+    if (prenom || nom) {
+      artisanDisplayName = `${prenom ?? ""} ${nom ?? ""}`.trim() || null;
     } else if (plainNom && plainNom.length > 0) {
       artisanDisplayName = plainNom;
-    } else if (prenom || nom) {
-      artisanDisplayName = `${prenom ?? ""} ${nom ?? ""}`.trim() || null;
+    } else if (raisonSociale && raisonSociale.length > 0) {
+      artisanDisplayName = raisonSociale;
     } else {
     }
-  } 
+  }
 
   // Extraction des coûts depuis intervention_costs
   const interventionCosts = Array.isArray(item.intervention_costs)
@@ -343,7 +343,11 @@ export const mapInterventionRecord = (item: any, refs: any): any => {
     artisan: artisanDisplayName, // Nom d'affichage de l'artisan principal (raison_sociale > plain_nom > prenom nom)
     primaryArtisan: primaryArtisanData, // Données complètes de l'artisan principal
     costs: interventionCosts, // Liste des coûts avec leurs labels
-    payments: Array.isArray(item.payments) ? item.payments : [],
+    payments: Array.isArray(item.payments) && item.payments.length > 0
+      ? item.payments
+      : Array.isArray(item.intervention_payments)
+        ? item.intervention_payments
+        : [],
     attachments: Array.isArray(item.attachments) ? item.attachments : [],
     // Utiliser le cache des coûts si disponible, sinon calculer depuis intervention_costs, sinon fallback sur les champs directs
     coutIntervention:
@@ -391,7 +395,10 @@ export const mapInterventionRecord = (item: any, refs: any): any => {
       typeof item.longitude === "number"
         ? item.longitude.toString()
         : item.longitudeAdresse ?? null,
+    adresse: item.adresse || null,
+    adresse_complete: item.adresse_complete || null,
     codePostal: item.code_postal ?? item.codePostal ?? null,
+    ville: item.ville ?? null,
     dateIntervention:
       item.date_intervention ?? item.dateIntervention ?? item.date ?? null,
     prenomClient: item.prenom_client ?? item.prenomClient ?? null,
@@ -531,6 +538,7 @@ export const mapArtisanRecord = (item: any, refs: any): any => {
     attribueA: userInfo.code ?? userInfo.username ?? undefined,
     gestionnaireUsername: userInfo.username ?? undefined,
     gestionnaireName: userInfo.fullName ?? undefined,
+    status: item.statut_id ? refs.artisanStatusesById?.get(item.statut_id) : (item.artisan_statuses || item.statut || null),
     statutArtisan: item.statut_id ?? item.statutArtisan ?? null,
     statutInactif: item.is_active === false,
     commentaire: item.suivi_relances_docs ?? item.commentaire ?? null,

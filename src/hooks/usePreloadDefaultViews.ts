@@ -57,7 +57,6 @@ export function usePreloadDefaultViews() {
       setIsPreloading(true)
       const timer = setTimeout(() => {
         setIsPreloading(false)
-        console.log(`[usePreloadDefaultViews] 🎉 Préchargement de ${defaultViewsToPreload.length} vues (adaptatif)`)
       }, 1000)
       return () => clearTimeout(timer)
     }

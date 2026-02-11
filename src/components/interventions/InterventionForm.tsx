@@ -19,6 +19,7 @@ const ARTISAN_REQUIRED_STATUSES: InterventionStatusValue[] = [
   "VISITE_TECHNIQUE",
   "INTER_EN_COURS",
   "INTER_TERMINEE",
+  "ATT_ACOMPTE",
 ]
 
 export type InterventionFormProps = {
@@ -86,7 +87,7 @@ export default function InterventionForm({
   const handleSaveAndConfirm = useCallback(() => {
     setShowUnsavedDialog(false)
     shouldCloseAfterSave.current = true
-    
+
     // Soumettre le formulaire programmatiquement
     if (formRef.current) {
       formRef.current.requestSubmit()
@@ -110,11 +111,11 @@ export default function InterventionForm({
 
   // Utiliser le hook centralisé useCurrentUser au lieu d'un fetch direct
   const { data: currentUser } = useCurrentUser()
-  
+
   // Déterminer si l'utilisateur peut éditer le contexte (admin uniquement)
   useEffect(() => {
     if (mode !== "edit") return
-    
+
     const roles: string[] = Array.isArray(currentUser?.roles) ? currentUser.roles : []
     const isAdmin = roles.some(
       (role) => typeof role === "string" && role.toLowerCase().includes("admin"),
@@ -162,7 +163,6 @@ export default function InterventionForm({
   const handleArtisanSearch = async () => {
     setIsSearchingArtisan(true)
     try {
-      // TODO: Brancher l'intégration Google Maps + recherche locale/artisan
       const response = await fetch("/api/interventions/artisans/search", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -193,38 +193,38 @@ export default function InterventionForm({
           <div className="intervention-form-section-content">
             <div className="intervention-form-field">
               <Label htmlFor="name" className="intervention-form-label">Nom intervention *</Label>
-              <Input 
-                id="name" 
-                placeholder="Ex: Rénovation toiture" 
+              <Input
+                id="name"
+                placeholder="Ex: Rénovation toiture"
                 className="intervention-form-input"
-                {...form.register("name")} 
-                required 
+                {...form.register("name")}
+                required
               />
             </div>
             <div className="intervention-form-field">
               <Label htmlFor="address" className="intervention-form-label">Adresse *</Label>
-              <Input 
-                id="address" 
-                placeholder="123 rue de Paris, Lyon" 
+              <Input
+                id="address"
+                placeholder="123 rue de Paris, Lyon"
                 className="intervention-form-input"
-                {...form.register("address")} 
-                required 
+                {...form.register("address")}
+                required
               />
             </div>
             <div className="intervention-form-field">
               <Label htmlFor="context" className="intervention-form-label">Contexte d&apos;intervention *</Label>
-              <Textarea 
-                id="context" 
-                placeholder="Préciser le contexte client/agence" 
-                rows={3} 
+              <Textarea
+                id="context"
+                placeholder="Préciser le contexte client/agence"
+                rows={3}
                 className={cn(
                   "intervention-form-textarea",
                   isContextReadOnly && "cursor-not-allowed bg-muted/50 text-muted-foreground",
                 )}
                 readOnly={isContextReadOnly}
                 aria-readonly={isContextReadOnly}
-                {...form.register("context")} 
-                required 
+                {...form.register("context")}
+                required
               />
               {isContextReadOnly && (
                 <p className="mt-1 text-xs text-muted-foreground">
@@ -234,24 +234,23 @@ export default function InterventionForm({
             </div>
             <div className="intervention-form-field">
               <Label htmlFor="agency" className="intervention-form-label">Agence</Label>
-              <Input 
-                id="agency" 
-                placeholder="GMBS Lyon" 
+              <Input
+                id="agency"
+                placeholder="GMBS Lyon"
                 className="intervention-form-input"
-                {...form.register("agency")} 
+                {...form.register("agency")}
               />
             </div>
             <div className="intervention-form-field">
               <Label htmlFor="invoice2goId" className="intervention-form-label">ID Invoice2go</Label>
-              <Input 
-                id="invoice2goId" 
-                placeholder="Définir pour valider l&apos;intervention" 
+              <Input
+                id="invoice2goId"
+                placeholder="Définir pour valider l&apos;intervention"
                 className="intervention-form-input"
                 {...form.register("invoice2goId")}
                 onBlur={async () => {
                   const value = form.getValues("invoice2goId")
                   if (!value) return
-                  // TODO: appeler l'API pour précharger le PDF/preview Invoice2go
                   await fetch("/api/interventions/invoice", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
@@ -264,12 +263,12 @@ export default function InterventionForm({
             </div>
             <div className="intervention-form-field">
               <Label htmlFor="consigne" className="intervention-form-label">Consignes à l&apos;artisan</Label>
-              <Textarea 
-                id="consigne" 
-                placeholder="Instructions spécifiques" 
-                rows={2} 
+              <Textarea
+                id="consigne"
+                placeholder="Instructions spécifiques"
+                rows={2}
                 className="intervention-form-textarea"
-                {...form.register("consigne")} 
+                {...form.register("consigne")}
               />
             </div>
           </div>
@@ -302,11 +301,11 @@ export default function InterventionForm({
               </div>
               <div className="intervention-form-field">
                 <Label htmlFor="dueAt" className="intervention-form-label">Échéance</Label>
-                <Input 
-                  id="dueAt" 
-                  type="date" 
+                <Input
+                  id="dueAt"
+                  type="date"
                   className="intervention-form-input"
-                  {...form.register("dueAt")} 
+                  {...form.register("dueAt")}
                 />
                 {status === "INTER_EN_COURS" ? (
                   <p className="text-xs text-muted-foreground">
@@ -319,16 +318,16 @@ export default function InterventionForm({
                   Artisan assigné {ARTISAN_REQUIRED_STATUSES.includes(status) ? "*" : ""}
                 </Label>
                 <div className="flex gap-2">
-                  <Input 
-                    id="artisanId" 
-                    placeholder="UUID artisan" 
+                  <Input
+                    id="artisanId"
+                    placeholder="UUID artisan"
                     className="intervention-form-input"
-                    {...form.register("artisanId")} 
+                    {...form.register("artisanId")}
                   />
-                  <Button 
-                    type="button" 
+                  <Button
+                    type="button"
                     className="intervention-form-button"
-                    onClick={handleArtisanSearch} 
+                    onClick={handleArtisanSearch}
                     disabled={isSearchingArtisan}
                   >
                     Rechercher
@@ -340,11 +339,11 @@ export default function InterventionForm({
               </div>
               <div className="intervention-form-field">
                 <Label htmlFor="managerId" className="intervention-form-label">Gestionnaire</Label>
-                <Input 
-                  id="managerId" 
-                  placeholder="UUID utilisateur" 
+                <Input
+                  id="managerId"
+                  placeholder="UUID utilisateur"
                   className="intervention-form-input"
-                  {...form.register("managerId")} 
+                  {...form.register("managerId")}
                 />
               </div>
             </div>
@@ -385,7 +384,7 @@ export default function InterventionForm({
             <p className="text-sm">{serverError}</p>
           </div>
         ) : null}
-        
+
         <div className="flex justify-end gap-2 pt-4">
           {onCancel && (
             <Button

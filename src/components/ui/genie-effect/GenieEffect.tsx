@@ -82,6 +82,14 @@ export function GenieEffectOverlay() {
       return
     }
 
+    // Respecter prefers-reduced-motion : skip animation
+    const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches
+    if (prefersReducedMotion) {
+      if (config.onComplete) config.onComplete()
+      clearGenieEffect()
+      return
+    }
+
     const { sourceElement, targetElement, duration = 800, onComplete, onBadgeBounce } = config
 
     // Récupérer les positions
@@ -100,9 +108,10 @@ export function GenieEffectOverlay() {
 
     // Configurer le clone
     if (cloneRef.current) {
-      // Copier le contenu de la ligne
-      cloneRef.current.innerHTML = sourceElement.outerHTML
-      
+      // Copier le contenu via cloneNode (sécurisé, pas de innerHTML)
+      cloneRef.current.textContent = ""
+      cloneRef.current.appendChild(sourceElement.cloneNode(true))
+
       // Style initial
       Object.assign(cloneRef.current.style, {
         position: "fixed",
@@ -218,6 +227,9 @@ export function GenieEffectOverlay() {
     <div
       ref={cloneRef}
       className="genie-effect-clone"
+      role="presentation"
+      aria-hidden="true"
+      aria-label="Animation de transition"
       style={{
         position: "fixed",
         zIndex: 9999,
@@ -324,5 +336,15 @@ export const badgeBounceStyles = `
   .badge-bouncing {
     animation: badge-bounce 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55),
                badge-glow 0.5s ease-out;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .badge-bouncing {
+      animation: none;
+    }
+    .genie-effect-clone {
+      animation: none;
+      transition: none;
+    }
   }
 `

@@ -25,7 +25,6 @@ class LogoutManager {
   private async setStatusOfflineWithRetry(): Promise<void> {
     for (let attempt = 1; attempt <= this.MAX_STATUS_RETRIES; attempt++) {
       try {
-        console.log(`[LogoutManager] Setting status offline (attempt ${attempt}/${this.MAX_STATUS_RETRIES})`)
 
         const response = await fetch('/api/auth/status', {
           method: 'PATCH',
@@ -36,7 +35,6 @@ class LogoutManager {
         })
 
         if (response.ok) {
-          console.log('[LogoutManager] Status set to offline successfully')
           return // Success
         } else {
           console.warn(`[LogoutManager] Status update failed (${response.status}), attempt ${attempt}`)
@@ -71,8 +69,6 @@ class LogoutManager {
         reason,
         tabId: window.name || 'unknown',
       })
-
-      console.log('[LogoutManager] Logout broadcast sent to other tabs')
 
       // Close channel after brief delay to ensure message is sent
       setTimeout(() => channel.close(), 100)
@@ -112,7 +108,6 @@ class LogoutManager {
     this.isLoggingOut = true
 
     try {
-      console.log(`[LogoutManager] Starting logout (reason: ${reason})`)
 
       // STEP 1: Set status to offline (with retries, non-blocking)
       if (!skipStatusUpdate) {
@@ -126,7 +121,6 @@ class LogoutManager {
       const abortManager = getAbortControllerManager()
       const pendingCount = abortManager.getPendingCount()
       if (pendingCount > 0) {
-        console.log(`[LogoutManager] Canceling ${pendingCount} pending requests`)
         abortManager.cancelAll('Logout initiated')
       }
 
@@ -136,7 +130,6 @@ class LogoutManager {
       }
 
       // STEP 4: Clear React Query cache
-      console.log('[LogoutManager] Clearing React Query cache')
       queryClient.removeQueries({ queryKey: ["currentUser"] })
       queryClient.invalidateQueries({ queryKey: ["currentUser"] })
       queryClient.clear()
@@ -147,11 +140,9 @@ class LogoutManager {
       }
 
       // STEP 6: Sign out from Supabase
-      console.log('[LogoutManager] Signing out from Supabase')
       await supabase.auth.signOut()
 
       // STEP 7: Delete session cookies
-      console.log('[LogoutManager] Deleting session cookies')
       try {
         const deleteResponse = await fetch('/api/auth/session', {
           method: 'DELETE',
@@ -166,7 +157,6 @@ class LogoutManager {
       }
 
       // STEP 8: Redirect to login
-      console.log('[LogoutManager] Redirecting to /login')
       window.location.href = '/login'
 
     } catch (error) {

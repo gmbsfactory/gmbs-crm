@@ -3,6 +3,7 @@ import { toast } from "sonner"
 import { interventionsApi, type Intervention, type InterventionCost, type InterventionPayment } from "@/lib/api/v2"
 import { useInterventionModal } from "@/hooks/useInterventionModal"
 import { interventionKeys } from "@/lib/react-query/queryKeys"
+import { invalidateArtisanQueries } from "@/lib/react-query/invalidate-artisan-queries"
 import { getRemoteEditIndicatorManager } from "@/lib/realtime/remote-edit-indicator"
 import { getSyncQueue } from "@/lib/realtime/sync-queue"
 import { isNetworkError } from "@/lib/realtime/realtime-client"
@@ -17,22 +18,21 @@ export function useInterventionsMutations() {
   const syncQueue = getSyncQueue()
   const invalidateLists = () => {
     // Debug: Compter les queries qui seront invalidées
-    const listQueries = queryClient.getQueryCache().findAll({ 
-      queryKey: interventionKeys.invalidateLists() 
+    const listQueries = queryClient.getQueryCache().findAll({
+      queryKey: interventionKeys.invalidateLists()
     })
-    const lightQueries = queryClient.getQueryCache().findAll({ 
-      queryKey: interventionKeys.invalidateLightLists() 
+    const lightQueries = queryClient.getQueryCache().findAll({
+      queryKey: interventionKeys.invalidateLightLists()
     })
-    
+
     if (process.env.NODE_ENV !== 'production') {
-      console.log(`[useInterventionsMutations] Invalidating ${listQueries.length} list queries and ${lightQueries.length} light queries`)
     }
-    
-    queryClient.invalidateQueries({ 
+
+    queryClient.invalidateQueries({
       queryKey: interventionKeys.invalidateLists(),
       refetchType: 'active' // Invalider seulement les queries actives (montées)
     })
-    queryClient.invalidateQueries({ 
+    queryClient.invalidateQueries({
       queryKey: interventionKeys.invalidateLightLists(),
       refetchType: 'active'
     })
@@ -54,6 +54,7 @@ export function useInterventionsMutations() {
       adresse?: string
       code_postal?: string
       ville?: string
+      adresse_complete?: string
       latitude?: number
       longitude?: number
       numero_sst?: string
@@ -148,7 +149,7 @@ export function useInterventionsMutations() {
 
       // Préparer les données optimistes à appliquer
       const optimisticData: Record<string, unknown> = {}
-      
+
       // Mapper les champs de la mutation vers les champs utilisés dans le cache
       if (variables.data.sous_statut_text !== undefined) {
         optimisticData.understatement = variables.data.sous_statut_text
@@ -199,11 +200,10 @@ export function useInterventionsMutations() {
         }
       )
 
-      console.log(`[useInterventionsMutations] 🚀 Mise à jour optimiste appliquée pour ${variables.id}`, optimisticData)
     },
     onSuccess: (data, variables) => {
       const statusLabel = (data as any).status?.label || "modifiée"
-      toast.success(`Intervention (${data.id_inter || variables.id}) ${statusLabel} avec succès`, {
+      toast.success(`Intervention ${data.id_inter || ""} a été modifiée avec succès`, {
         description: new Date().toLocaleString(),
         action: {
           label: "Voir",
@@ -220,6 +220,10 @@ export function useInterventionsMutations() {
       queryClient.invalidateQueries({ queryKey: interventionKeys.detail(variables.id) })
       // Invalider les résumés
       queryClient.invalidateQueries({ queryKey: interventionKeys.summaries() })
+
+      if (variables.data?.statut_id) {
+        invalidateArtisanQueries(queryClient, (data as any)?.artisans)
+      }
     },
     onError: (error, variables) => {
       // En cas d'erreur réseau, mettre en file d'attente pour synchronisation différée
@@ -341,7 +345,4 @@ export function useInterventionsMutations() {
     addPayment: addPaymentMutation,
   }
 }
-
-
-
 

@@ -27,8 +27,8 @@ export function PipelineFunnel({ data, isLoading }: PipelineFunnelProps) {
                     <ResponsiveContainer width="100%" height="100%">
                         <FunnelChart>
                             <Tooltip
-                                formatter={(value: number, name: string, props: any) => {
-                                    if (name === "value") return [`${value.toLocaleString()} €`, "Valeur"]
+                                formatter={(value, name) => {
+                                    if (name === "value") return [`${Number(value).toLocaleString()} €`, "Valeur"]
                                     return [value, name]
                                 }}
                                 contentStyle={{ backgroundColor: 'hsl(var(--background))', borderColor: 'hsl(var(--border))' }}

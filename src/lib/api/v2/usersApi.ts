@@ -15,6 +15,7 @@ import type {
     UpdateGestionnaireTargetData,
     TargetPeriodType,
 } from "./common/types";
+import { safeErrorMessage } from "@/lib/api/v2/common/error-handler";
 
 export const usersApi = {
   // Récupérer tous les utilisateurs avec leurs rôles
@@ -408,9 +409,9 @@ export const usersApi = {
         const result = await this.create(user);
         results.success++;
         results.details.push({ item: user, success: true, data: result });
-      } catch (error: any) {
+      } catch (error: unknown) {
         results.errors++;
-        results.details.push({ item: user, success: false, error: error.message });
+        results.details.push({ item: user, success: false, error: safeErrorMessage(error, "la création de l'utilisateur") });
       }
     }
 

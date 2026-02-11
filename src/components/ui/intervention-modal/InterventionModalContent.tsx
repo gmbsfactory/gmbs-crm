@@ -92,6 +92,7 @@ type Props = {
   onStatusReasonModalOpenChange?: (isOpen: boolean) => void
   onPopoverOpenChange?: (isOpen: boolean) => void
   onUnsavedDialogOpenChange?: (isOpen: boolean) => void
+  onDeleteDialogOpenChange?: (isOpen: boolean) => void
 }
 
 export function InterventionModalContent({
@@ -114,6 +115,7 @@ export function InterventionModalContent({
   onStatusReasonModalOpenChange,
   onPopoverOpenChange,
   onUnsavedDialogOpenChange,
+  onDeleteDialogOpenChange,
 }: Props) {
   const bodyPadding = mode === "fullpage" ? "px-8 py-6 md:px-12" : "px-5 py-4 md:px-8"
   const surfaceVariantClass = mode === "fullpage" ? "modal-config-surface-full" : undefined
@@ -356,7 +358,6 @@ GMBS`
     onClose()
   }, [hasUnsavedChanges, isSubmitting, onClose])
 
-
   // Intercepter la touche Échap pour appliquer la même logique que handleCancel
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -440,7 +441,6 @@ GMBS`
       } else {
         // Tab : navigation avant
         if (activeElement === lastElement) {
-          console.log("  ✅ TRAP: Dernier élément -> Premier")
           event.preventDefault()
           firstElement.focus()
         }
@@ -494,8 +494,6 @@ GMBS`
         queryKey: interventionKeys.invalidateLightLists(),
         refetchType: 'active' // Forcer le refetch immédiat des queries actives
       })
-
-      console.log("✅ Intervention mise à jour avec succès", data)
 
       // 4. Fermer le modal pour démarrer l'animation
       // L'invalidation a déjà été faite ci-dessus, donc l'UI se mettra à jour immédiatement
@@ -598,6 +596,11 @@ GMBS`
     // Ouvrir le dialogue au lieu d'utiliser window.confirm
     setShowDeleteDialog(true)
   }, [])
+
+  // Signaler au parent quand le dialogue de suppression s'ouvre/se ferme
+  useEffect(() => {
+    onDeleteDialogOpenChange?.(showDeleteDialog)
+  }, [showDeleteDialog, onDeleteDialogOpenChange])
 
   const handleConfirmDelete = useCallback(() => {
     deleteIntervention()
@@ -953,7 +956,7 @@ GMBS`
 
       {/* Dialogue de confirmation de suppression */}
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
-        <AlertDialogContent className="z-[120]">
+        <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Confirmer la suppression</AlertDialogTitle>
             <AlertDialogDescription>

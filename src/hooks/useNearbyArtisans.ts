@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react"
 import { supabase } from "@/lib/supabase-client"
+import { safeErrorMessage } from "@/lib/api/v2/common/error-handler"
 
 export interface AvatarMetadata {
   hash: string | null
@@ -104,7 +105,7 @@ export function useNearbyArtisans(
           if (cancelled) return
 
           if (metierError) {
-            setState({ artisans: [], loading: false, error: metierError.message })
+            setState({ artisans: [], loading: false, error: safeErrorMessage(metierError, "la recherche d'artisans par métier") })
             return
           }
 
@@ -195,7 +196,7 @@ export function useNearbyArtisans(
         if (cancelled) return
 
         if (error) {
-          setState({ artisans: [], loading: false, error: error.message })
+          setState({ artisans: [], loading: false, error: safeErrorMessage(error, "la recherche d'artisans à proximité") })
           return
         }
 

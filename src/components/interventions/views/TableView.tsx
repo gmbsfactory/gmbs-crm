@@ -14,6 +14,7 @@ import { runQuery, getPropertyValue } from "@/lib/query-engine"
 import { SCROLL_CONFIG } from "@/config/interventions"
 import { toDate } from "@/lib/date-utils"
 import { getPropertyLabel, getPropertySchema } from "@/types/property-schema"
+import { getArtisanStatusAbbreviation } from "@/config/status-colors"
 import type { InterventionView as InterventionEntity } from "@/types/intervention-view"
 import type {
   InterventionViewByLayout,
@@ -98,6 +99,12 @@ import { interventionsApi } from "@/lib/api/v2"
 import { toast } from "sonner"
 import { useFilterMappers } from "@/contexts/FilterMappersContext"
 import { convertViewFiltersToServerFilters } from "@/lib/filter-converter"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
 
 const numberFormatter = new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 2 })
 const dateFormatter = new Intl.DateTimeFormat("fr-FR", { dateStyle: "medium" })
@@ -148,7 +155,6 @@ type TableViewProps = {
   /** Couleur du header (provenant de l'onglet de vue actif) */
   headerColor?: string | null
 }
-
 
 type CellRender = {
   content: ReactNode
@@ -510,6 +516,45 @@ const renderCell = (
     }
   }
 
+  // Rendu personnalisé pour l'artisan principal avec son statut
+  if (property === "artisan") {
+    const artisanName = value as string | null
+    if (!artisanName) return { content: "—" }
+
+    const primaryArtisan = (intervention as any).primaryArtisan
+    const artisanStatus = primaryArtisan?.status
+    const statusColor = artisanStatus?.color || "#6B7280"
+    const statusLabel = artisanStatus?.label || "Statut inconnu"
+    const statusAbbr = getArtisanStatusAbbreviation(statusLabel, artisanStatus?.code, artisanStatus?.abbreviation)
+    const textColor = getReadableTextColor(statusColor)
+
+    return {
+      content: (
+        <div className="flex items-center gap-2 max-w-full">
+          <span className="truncate flex-1">{artisanName}</span>
+          {artisanStatus && (
+            <TooltipProvider delayDuration={300}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span
+                    className="inline-flex items-center justify-center rounded-full px-2 py-0.5 text-xs font-bold leading-none shrink-0"
+                    style={{ backgroundColor: statusColor, color: textColor }}
+                  >
+                    {statusAbbr}
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent side="top" className="px-2 py-1">
+                  <span className="text-xs font-medium">{statusLabel}</span>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          )}
+        </div>
+      ),
+      cellClassName: "font-medium max-w-[200px]",
+    }
+  }
+
   switch (schema.type) {
     case "date": {
       if (!value) return { content: "—" }
@@ -705,7 +750,6 @@ export function TableView({
 }: TableViewProps) {
   // Log pour debug pagination
   useEffect(() => {
-    console.log(`[TableView] Props pagination - currentPage: ${currentPage}, totalPages: ${totalPages}, totalCount: ${totalCount}, onPageChange: ${typeof onPageChange}`)
   }, [currentPage, totalPages, totalCount, onPageChange])
 
   // Récupérer les fonctions de mapping depuis le Context
@@ -731,7 +775,6 @@ export function TableView({
     // Si on les réapplique ici, on filtre 2 fois les mêmes données !
     const firstId = interventions[0]?.id ?? 'none'
     const lastId = interventions[interventions.length - 1]?.id ?? 'none'
-    console.log(`[TableView] dataset recalculé - length: ${interventions.length}, firstId: ${firstId}, lastId: ${lastId}, currentPage: ${currentPage}`)
     return interventions;
   }, [interventions, currentPage])
   const orderedIds = useMemo(() => dataset.map((item) => item.id), [dataset])
@@ -826,7 +869,6 @@ export function TableView({
     if (previousPageRef.current !== currentPage) {
       previousPageRef.current = currentPage
       if (tableContainerRef.current && dataset.length > 0) {
-        console.log(`[TableView] Réinitialisation du scroll pour la page ${currentPage}`)
         tableContainerRef.current.scrollTop = 0
         requestAnimationFrame(() => {
           if (tableContainerRef.current) {
@@ -842,7 +884,6 @@ export function TableView({
   useEffect(() => {
     if (previousRowHeightRef.current !== rowHeight && dataset.length > 0) {
       previousRowHeightRef.current = rowHeight
-      console.log(`[TableView] Mise à jour du virtualizer - rowHeight changé: ${rowHeight}`)
       rowVirtualizer.measure()
     }
   }, [rowHeight, dataset.length, rowVirtualizer])
