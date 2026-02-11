@@ -15,6 +15,7 @@ module.exports = [
       "out/**",
       "build/**",
       "coverage/**",
+      "scripts/**",
     ],
   },
   ...compat.config({
@@ -39,7 +40,6 @@ module.exports = [
   }),
   {
     files: [
-      "scripts/**/*.{js,ts,tsx}",
       "examples/**/*.{js,ts,tsx}",
       "tests/**/*.{js,ts,tsx}",
       "supabase/functions/**/*.{js,ts,tsx}",
