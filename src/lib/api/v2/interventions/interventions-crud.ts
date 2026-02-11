@@ -45,7 +45,7 @@ export const interventionsCrud = {
       // Convertir un seul métier (code → ID) - insensible à la casse
       if (params?.metier && typeof params.metier === 'string') {
         const metierObj = Array.from(refs.metiersById.values()).find(
-          (m: any) =>
+          (m: { code?: string; id?: string }) =>
             m.code?.toUpperCase() === params.metier?.toUpperCase() ||
             m.id === params.metier
         );
@@ -56,7 +56,7 @@ export const interventionsCrud = {
       if (params?.metiers && params.metiers.length > 0) {
         metiersParam = params.metiers.map((metierCodeOrId) => {
           const metierObj = Array.from(refs.metiersById.values()).find(
-            (m: any) =>
+            (m: { code?: string; id?: string }) =>
               m.code?.toUpperCase() === metierCodeOrId?.toUpperCase() ||
               m.id === metierCodeOrId
           );
@@ -155,7 +155,7 @@ export const interventionsCrud = {
     const mapStart = Date.now();
     // Mapping direct batch (synchrone = plus rapide)
     const transformedData = Array.isArray(raw?.data)
-      ? raw.data.map((item: any) => mapInterventionRecord(item, refs) as InterventionWithStatus)
+      ? raw.data.map((item: Record<string, unknown>) => mapInterventionRecord(item, refs) as InterventionWithStatus)
       : [];
     const mapDuration = Date.now() - mapStart;
 
@@ -249,7 +249,7 @@ export const interventionsCrud = {
     const refs = await getReferenceCache();
 
     const transformedData = Array.isArray(raw?.data)
-      ? raw.data.map((item: any) => mapInterventionRecord(item, refs) as InterventionWithStatus)
+      ? raw.data.map((item: Record<string, unknown>) => mapInterventionRecord(item, refs) as InterventionWithStatus)
       : [];
 
     const total =
@@ -458,9 +458,9 @@ export const interventionsCrud = {
       return [];
     }
 
-    return data.map((match: any) => {
-      const agencyData = match.agences as any;
-      const userData = match.users as any;
+    return data.map((match) => {
+      const agencyData = match.agences as { label?: string } | null;
+      const userData = match.users as { firstname?: string; lastname?: string } | null;
 
       return {
         id: match.id,
@@ -511,7 +511,7 @@ export const interventionsCrud = {
 
     // Récupérer le statut actuel avant la mise à jour pour la transition
     let oldStatutId: string | null = null;
-    let currentIntervention: any = null;
+    let currentIntervention: { statut_id: string | null; status?: { code?: string } | null } | null = null;
 
     if (payload.statut_id) {
       const { data } = await supabase
@@ -523,8 +523,13 @@ export const interventionsCrud = {
         .eq("id", id)
         .single();
 
-      currentIntervention = data;
-      if (currentIntervention) {
+      if (data) {
+        const statusRaw = data.status;
+        const statusObj = Array.isArray(statusRaw) ? statusRaw[0] : statusRaw;
+        currentIntervention = {
+          statut_id: data.statut_id,
+          status: statusObj ? { code: statusObj.code } : null,
+        };
         oldStatutId = currentIntervention.statut_id;
       }
     }
@@ -547,8 +552,8 @@ export const interventionsCrud = {
         // Récupérer le code de l'ancien statut
         // On essaie d'abord via currentIntervention, sinon via le cache
         let oldStatusCode: InterventionStatusKey | undefined;
-        if (currentIntervention && (currentIntervention as any).status?.code) {
-          oldStatusCode = (currentIntervention as any).status.code as InterventionStatusKey;
+        if (currentIntervention && currentIntervention.status?.code) {
+          oldStatusCode = currentIntervention.status.code as InterventionStatusKey;
         } else if (oldStatutId) {
           const oldStatusObj = refs.interventionStatusesById.get(oldStatutId);
           oldStatusCode = oldStatusObj?.code as InterventionStatusKey;
@@ -634,9 +639,9 @@ export const interventionsCrud = {
 
       if (wasTerminated || isNowTerminated) {
         // Récupérer les artisans liés à cette intervention
-        const artisanIds = (updated as any).intervention_artisans
-          ?.map((ia: { artisan_id: string | null }) => ia.artisan_id)
-          .filter((id: string | null): id is string => !!id) || [];
+        const artisanIds = ((updated as unknown as { intervention_artisans?: Array<{ artisan_id: string | null }> }).intervention_artisans ?? [])
+          .map((ia) => ia.artisan_id)
+          .filter((id): id is string => !!id);
 
         console.log(`[interventionsApi] 🔍 Artisans liés à recalculer:`, artisanIds);
 
@@ -694,7 +699,7 @@ export const interventionsCrud = {
   },
 
   // Upsert direct via Supabase (pour import en masse)
-  async upsertDirect(data: CreateInterventionData & { id_inter?: string }, customClient?: any): Promise<Intervention> {
+  async upsertDirect(data: CreateInterventionData & { id_inter?: string }, customClient?: typeof supabase): Promise<Intervention> {
     // Utiliser le client personnalisé si fourni, sinon utiliser supabaseClient (qui utilise getSupabaseClientForNode() dans Node.js)
     const client = customClient || supabaseClient;
 
@@ -769,16 +774,16 @@ export const interventionsCrud = {
 
   // Créer plusieurs interventions en lot
   async createBulk(interventions: CreateInterventionData[]): Promise<BulkOperationResult> {
-    const results = { success: 0, errors: 0, details: [] as any[] };
+    const results: BulkOperationResult = { success: 0, errors: 0, details: [] };
 
     for (const intervention of interventions) {
       try {
         const result = await this.create(intervention);
         results.success++;
-        results.details.push({ item: intervention, success: true, data: result });
-      } catch (error: any) {
+        results.details.push({ item: intervention as unknown as Record<string, unknown>, success: true, data: result as unknown as Record<string, unknown> });
+      } catch (error: unknown) {
         results.errors++;
-        results.details.push({ item: intervention, success: false, error: error.message });
+        results.details.push({ item: intervention as unknown as Record<string, unknown>, success: false, error: error instanceof Error ? error.message : String(error) });
       }
     }
 

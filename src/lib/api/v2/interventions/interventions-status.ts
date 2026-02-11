@@ -8,13 +8,14 @@ import type {
 import {
   getReferenceCache,
 } from "@/lib/api/v2/common/utils";
+import type { UpdateInterventionData } from "@/lib/api/v2/common/types";
 import type { InterventionWithStatus, InterventionStatus } from "@/types/intervention";
 
 // Utiliser le client admin dans Node.js, le client standard dans le navigateur
 const supabaseClient = typeof window !== 'undefined' ? supabase : getSupabaseClientForNode();
 
 // Référence vers les méthodes CRUD — sera injectée par l'index
-let _crudRef: { update: (id: string, data: any) => Promise<InterventionWithStatus> } | null = null;
+let _crudRef: { update: (id: string, data: UpdateInterventionData) => Promise<InterventionWithStatus> } | null = null;
 
 export function _setCrudRef(ref: typeof _crudRef) {
   _crudRef = ref;
@@ -235,8 +236,8 @@ export const interventionsStatus = {
     interventionId: string,
     artisanId: string,
     role: "primary" | "secondary" = "primary",
-    customClient?: any
-  ): Promise<any> {
+    customClient?: typeof supabaseClient
+  ): Promise<Record<string, unknown>> {
     const client = customClient || supabaseClient;
 
     const { data: result, error } = await client
@@ -282,7 +283,7 @@ export const interventionsStatus = {
       .single();
 
     if (error) {
-      if ((error as any).code === 'PGRST116') return null;
+      if ('code' in error && error.code === 'PGRST116') return null;
       if (error.message?.includes('Results contain 0 rows')) return null;
       throw error;
     }
@@ -301,7 +302,7 @@ export const interventionsStatus = {
       .single();
 
     if (error) {
-      if ((error as any).code === 'PGRST116') return null;
+      if ('code' in error && error.code === 'PGRST116') return null;
       if (error.message?.includes('Results contain 0 rows')) return null;
       throw error;
     }

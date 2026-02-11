@@ -38,6 +38,110 @@ import { getReferenceCache } from "@/lib/api/v2/common/utils";
 import { isCheckStatus } from "@/lib/interventions/checkStatus";
 import type { InterventionStatusKey } from "@/config/interventions";
 
+// ===== Internal types for Supabase query results =====
+interface StatusQueryRow {
+  statut_id: string | null;
+  date_prevue: string | null;
+  status: { id?: string; code?: string; label?: string } | null;
+}
+
+interface MarginQueryRow {
+  id: string;
+  id_inter: string | null;
+  intervention_costs: Array<{ id: string; cost_type: string; amount: number; label: string | null }>;
+}
+
+interface TransitionRow {
+  id: string;
+  transition_date: string;
+  to_status_code: string;
+  interventions: Record<string, unknown> | Array<Record<string, unknown>>;
+}
+
+interface ArtisanCreatedRow {
+  id: string;
+  created_at: string | null;
+  gestionnaire_id: string | null;
+}
+
+interface ArtisanMissionneRow {
+  id: string;
+  created_at: string | null;
+  gestionnaire_id: string | null;
+  intervention_artisans: unknown;
+}
+
+interface RpcRankingItem {
+  user_id: string;
+  total_margin: number;
+  total_revenue: number;
+  total_interventions: number;
+  average_margin_percentage: number;
+}
+
+interface RpcRankingResult {
+  rankings: RpcRankingItem[];
+  period?: { start_date: string | null; end_date: string | null };
+}
+
+interface SparklineRow {
+  date: string;
+  nb_interventions_demandees?: number;
+  nb_interventions_terminees?: number;
+  ca_jour?: number;
+  marge_jour?: number;
+}
+
+interface VolumeByStatusRow {
+  date: string;
+  demande?: number;
+  devis_envoye?: number;
+  accepte?: number;
+  en_cours?: number;
+  termine?: number;
+}
+
+interface StatusBreakdownRow {
+  status_code: string;
+  status_label: string;
+  count: number;
+}
+
+interface ConversionFunnelRow {
+  status_code: string;
+  count: number;
+}
+
+interface PerformanceRow {
+  [key: string]: unknown;
+}
+
+interface RecentInterventionQueryRow {
+  id: string;
+  id_inter: string | null;
+  due_date: string | null;
+  date_prevue: string | null;
+  date: string;
+  adresse: string | null;
+  ville: string | null;
+  status: { id?: string; code?: string; label?: string; color?: string } | null;
+  intervention_costs: Array<{ cost_type: string; amount: number | null }>;
+}
+
+interface RecentInterventionByStatusRow {
+  id: string;
+  id_inter: string | null;
+  due_date: string | null;
+  date_prevue: string | null;
+  date: string;
+  agence_id: string | null;
+  metier_id: string | null;
+  status: { id?: string; code?: string; label?: string; color?: string } | null;
+  agence: { id?: string; label?: string; code?: string } | null;
+  metier: { id?: string; label?: string; code?: string } | null;
+  intervention_costs: Array<{ cost_type: string; amount: number | null }>;
+}
+
 // Référence vers les méthodes costs — sera injectée par l'index
 let _costsRef: { calculateMarginForIntervention: (costs: InterventionCost[], interventionId?: string | number) => MarginCalculation | null } | null = null;
 
@@ -95,7 +199,7 @@ export const interventionsStats = {
     let interventionsAChecker = 0;
 
     // Compter les interventions par statut
-    (data || []).forEach((item: any) => {
+    (data as StatusQueryRow[] || []).forEach((item) => {
       const status = item.status;
       const statusCode = status?.code || null;
       const datePrevue = item.date_prevue || null;
@@ -191,10 +295,10 @@ export const interventionsStats = {
     let interventionsWithCosts = 0;
 
     // Parcourir les interventions et calculer les marges
-    (data || []).forEach((intervention: any) => {
+    (data as MarginQueryRow[] || []).forEach((intervention) => {
       if (!_costsRef) throw new Error("Costs reference not initialized");
       const marginCalc = _costsRef.calculateMarginForIntervention(
-        intervention.intervention_costs || [],
+        intervention.intervention_costs as unknown as InterventionCost[] || [],
         intervention.id_inter || intervention.id
       );
 
@@ -293,7 +397,8 @@ export const interventionsStats = {
     }
 
     // Récupérer les informations des utilisateurs pour enrichir les résultats
-    const userIds = rpcResult.rankings.map((r: any) => r.user_id);
+    const rpcTyped = rpcResult as RpcRankingResult;
+    const userIds = rpcTyped.rankings.map((r) => r.user_id);
     const { data: users, error: usersError } = await supabase
       .from("users")
       .select("id, firstname, lastname, code_gestionnaire, color, avatar_url")
@@ -309,7 +414,7 @@ export const interventionsStats = {
     );
 
     // Mapper les résultats SQL avec les informations utilisateur
-    const rankings: GestionnaireMarginRanking[] = rpcResult.rankings.map((item: any, index: number) => {
+    const rankings: GestionnaireMarginRanking[] = rpcTyped.rankings.map((item, index: number) => {
       const user = usersMap.get(item.user_id);
       const fullName = user
         ? `${user.firstname || ""} ${user.lastname || ""}`.trim() || user.code_gestionnaire || "Utilisateur"
@@ -401,7 +506,8 @@ export const interventionsStats = {
     }
 
     // Récupérer les informations des utilisateurs pour enrichir les résultats
-    const userIds = rpcResult.rankings.map((r: any) => r.user_id);
+    const rpcTypedV3 = rpcResult as RpcRankingResult;
+    const userIds = rpcTypedV3.rankings.map((r) => r.user_id);
     const { data: users, error: usersError } = await supabase
       .from("users")
       .select("id, firstname, lastname, code_gestionnaire, color, avatar_url")
@@ -418,7 +524,7 @@ export const interventionsStats = {
 
     // Mapper les résultats SQL avec les informations utilisateur
     // Note: get_podium_ranking_by_period renvoie déjà les résultats triés par marge décroissante
-    const rankings: GestionnaireMarginRanking[] = rpcResult.rankings.map((item: any, index: number) => {
+    const rankings: GestionnaireMarginRanking[] = rpcTypedV3.rankings.map((item, index: number) => {
       const user = usersMap.get(item.user_id);
 
       const firstname = user?.firstname || "";
@@ -550,7 +656,7 @@ export const interventionsStats = {
     }
 
     // Compter les transitions par jour et par statut
-    (transitions || []).forEach((transition: any) => {
+    ((transitions as unknown as TransitionRow[]) || []).forEach((transition) => {
       const transitionDate = new Date(transition.transition_date);
       const dateStr = formatDate(transitionDate);
       const statusCode = transition.to_status_code;
@@ -591,7 +697,7 @@ export const interventionsStats = {
     }
 
     // Compter les artisans par jour
-    (artisans || []).forEach((artisan: any) => {
+    (artisans as ArtisanCreatedRow[] || []).forEach((artisan) => {
       // Utiliser uniquement created_at
       const artisanDate = artisan.created_at ? new Date(artisan.created_at) : null;
 
@@ -647,8 +753,8 @@ export const interventionsStats = {
       console.error("Erreur lors de la récupération des artisans missionnés:", artisansMissionnesError);
     } else if (artisansMissionnesData) {
       // Dédupliquer les artisans (car le JOIN peut créer plusieurs lignes par artisan)
-      const uniqueArtisans = new Map<string, any>();
-      artisansMissionnesData.forEach((artisan: any) => {
+      const uniqueArtisans = new Map<string, ArtisanMissionneRow>();
+      (artisansMissionnesData as ArtisanMissionneRow[]).forEach((artisan) => {
         if (!uniqueArtisans.has(artisan.id)) {
           uniqueArtisans.set(artisan.id, artisan);
         }
@@ -793,7 +899,7 @@ export const interventionsStats = {
       }
 
       // Compter par semaine
-      (transitions || []).forEach((transition: any) => {
+      ((transitions as unknown as TransitionRow[]) || []).forEach((transition) => {
         const transitionDate = new Date(transition.transition_date);
         const statusCode = transition.to_status_code;
 
@@ -834,7 +940,7 @@ export const interventionsStats = {
       }
 
       // Compter les artisans par semaine
-      (artisans || []).forEach((artisan: any) => {
+      (artisans as ArtisanCreatedRow[] || []).forEach((artisan) => {
         const artisanDate = artisan.created_at ? new Date(artisan.created_at) : null;
 
         if (!artisanDate) return;
@@ -874,8 +980,8 @@ export const interventionsStats = {
 
       if (!artisansMissionnesError && artisansMissionnesData) {
         // Dédupliquer les artisans (car le JOIN peut créer plusieurs lignes par artisan)
-        const uniqueArtisans = new Map<string, any>();
-        artisansMissionnesData.forEach((artisan: any) => {
+        const uniqueArtisans = new Map<string, ArtisanMissionneRow>();
+        (artisansMissionnesData as ArtisanMissionneRow[]).forEach((artisan) => {
           if (!uniqueArtisans.has(artisan.id)) {
             uniqueArtisans.set(artisan.id, artisan);
           }
@@ -980,7 +1086,7 @@ export const interventionsStats = {
       }
 
       // Compter par mois
-      (transitions || []).forEach((transition: any) => {
+      ((transitions as unknown as TransitionRow[]) || []).forEach((transition) => {
         const transitionDate = new Date(transition.transition_date);
         const monthIndex = transitionDate.getMonth();
         const monthKey = monthNames[monthIndex];
@@ -1016,7 +1122,7 @@ export const interventionsStats = {
       }
 
       // Compter les artisans par mois
-      (artisans || []).forEach((artisan: any) => {
+      (artisans as ArtisanCreatedRow[] || []).forEach((artisan) => {
         const artisanDate = artisan.created_at ? new Date(artisan.created_at) : null;
 
         if (!artisanDate) return;
@@ -1051,8 +1157,8 @@ export const interventionsStats = {
 
       if (!artisansMissionnesError && artisansMissionnesData) {
         // Dédupliquer les artisans (car le JOIN peut créer plusieurs lignes par artisan)
-        const uniqueArtisans = new Map<string, any>();
-        artisansMissionnesData.forEach((artisan: any) => {
+        const uniqueArtisans = new Map<string, ArtisanMissionneRow>();
+        (artisansMissionnesData as ArtisanMissionneRow[]).forEach((artisan) => {
           if (!uniqueArtisans.has(artisan.id)) {
             uniqueArtisans.set(artisan.id, artisan);
           }
@@ -1162,11 +1268,11 @@ export const interventionsStats = {
       throw new Error(`Erreur lors de la récupération des interventions récentes: ${error.message}`);
     }
 
-    return (data || []).map((item: any) => {
+    return (data as RecentInterventionQueryRow[] || []).map((item) => {
       // Grouper les coûts par type
       const costs: { sst?: number; materiel?: number; intervention?: number; marge?: number } = {};
       if (item.intervention_costs && Array.isArray(item.intervention_costs)) {
-        item.intervention_costs.forEach((cost: any) => {
+        item.intervention_costs.forEach((cost) => {
           const costType = cost.cost_type as "sst" | "materiel" | "intervention" | "marge";
           if (costType && cost.amount !== null && cost.amount !== undefined) {
             if (costs[costType] === undefined) {
@@ -1183,7 +1289,7 @@ export const interventionsStats = {
         due_date: item.due_date,
         date_prevue: item.date_prevue,
         date: item.date,
-        status: item.status ? { label: item.status.label, code: item.status.code } : null,
+        status: item.status ? { label: item.status.label || "", code: item.status.code || "" } : null,
         adresse: item.adresse,
         ville: item.ville,
         costs,
@@ -1283,8 +1389,8 @@ export const interventionsStats = {
     }
 
     // Filtrer et mapper les interventions
-    const filtered = (data || [])
-      .filter((item: any) => {
+    const filtered = (data as RecentInterventionByStatusRow[] || [])
+      .filter((item) => {
         if (isCheckStatus) {
           // Pour Check, on a déjà filtré par date_prevue, mais on doit aussi vérifier le statut
           // Check s'applique à certaines interventions selon leur statut et date_prevue
@@ -1296,11 +1402,11 @@ export const interventionsStats = {
           return status && status.label === statusLabel;
         }
       })
-      .map((item: any) => {
+      .map((item) => {
         // Calculer la marge (somme des coûts de type 'marge')
         let marge = 0;
         if (item.intervention_costs && Array.isArray(item.intervention_costs)) {
-          item.intervention_costs.forEach((cost: any) => {
+          item.intervention_costs.forEach((cost) => {
             if (cost.cost_type === "marge" && cost.amount !== null && cost.amount !== undefined) {
               marge += Number(cost.amount);
             }
@@ -1408,7 +1514,7 @@ export const interventionsStats = {
 
     // Mapper les sparklines depuis sparkline_data (v3)
     const rawSparklines = rpcResult.sparkline_data || [];
-    const sparklines = Array.isArray(rawSparklines) ? rawSparklines.map((item: any) => ({
+    const sparklines = Array.isArray(rawSparklines) ? rawSparklines.map((item: SparklineRow) => ({
       date: item.date,
       countDemandees: item.nb_interventions_demandees ?? 0,
       countTerminees: item.nb_interventions_terminees ?? 0,
@@ -1418,7 +1524,7 @@ export const interventionsStats = {
 
     // Mapper les données de volume par statut depuis volume_by_status (v3)
     const rawVolumeByStatus = rpcResult.volume_by_status || [];
-    const volumeByStatus = Array.isArray(rawVolumeByStatus) ? rawVolumeByStatus.map((item: any) => ({
+    const volumeByStatus = Array.isArray(rawVolumeByStatus) ? rawVolumeByStatus.map((item: VolumeByStatusRow) => ({
       date: item.date,
       demande: item.demande ?? 0,
       devis_envoye: item.devis_envoye ?? 0,
@@ -1444,7 +1550,7 @@ export const interventionsStats = {
     // Normaliser les codes du funnel de conversion depuis v3
     // V3 retourne déjà: { status_code: 'DEMANDE', count: X }
     // On normalise les codes si nécessaire pour le front
-    const normalizedConversionFunnel = conversionFunnel.map((item: any) => ({
+    const normalizedConversionFunnel = (conversionFunnel as ConversionFunnelRow[]).map((item) => ({
       statusCode: item.status_code || '',
       count: item.count || 0,
     }));
@@ -1485,7 +1591,7 @@ export const interventionsStats = {
       .from('intervention_statuses')
       .select('id, code, label');
 
-    const statusMapByCode = new Map(statuses?.map((s: any) => [s.code, s]) || []);
+    const statusMapByCode = new Map(statuses?.map((s) => [s.code, s]) || []);
 
     // ========================================
     // 2. STATISTIQUES DES STATUTS (V3)
@@ -1493,17 +1599,17 @@ export const interventionsStats = {
 
     // Mapper le status breakdown retourné par v3
     // V3 retourne: { status_code: 'XXX', status_label: 'Label', count: N }
-    const breakdown = statusBreakdown.map((item: any) => ({
+    const breakdown = (statusBreakdown as StatusBreakdownRow[]).map((item) => ({
       statusCode: item.status_code || '',
       statusLabel: item.status_label || '',
       count: item.count || 0,
     }));
 
     // Construire statusStats depuis le breakdown
-    const nbDevisEnvoye = breakdown.find((s: any) => s.statusCode === 'DEVIS_ENVOYE')?.count || 0;
-    const nbEnCours = breakdown.find((s: any) => s.statusCode === 'INTER_EN_COURS')?.count || 0;
-    const nbAttAcompte = breakdown.find((s: any) => s.statusCode === 'ATT_ACOMPTE')?.count || 0;
-    const nbAccepte = breakdown.find((s: any) => s.statusCode === 'ACCEPTE')?.count || 0;
+    const nbDevisEnvoye = breakdown.find((s) => s.statusCode === 'DEVIS_ENVOYE')?.count || 0;
+    const nbEnCours = breakdown.find((s) => s.statusCode === 'INTER_EN_COURS')?.count || 0;
+    const nbAttAcompte = breakdown.find((s) => s.statusCode === 'ATT_ACOMPTE')?.count || 0;
+    const nbAccepte = breakdown.find((s) => s.statusCode === 'ACCEPTE')?.count || 0;
 
     const statusStats = {
       nbDemandesRecues: mainStats.nbInterventionsDemandees,
@@ -1521,21 +1627,21 @@ export const interventionsStats = {
     // 3. STATISTIQUES PAR MÉTIER (V3)
     // ========================================
 
-    const metierStats = rawMetierStats
-      .map((item: any) => {
-        const metierId = item.metier_id;
+    const metierStats = (rawMetierStats as PerformanceRow[])
+      .map((item) => {
+        const metierId = String(item.metier_id || '');
         if (!metierId) return null;
 
         const ca = Number(item.ca_total || 0);
         const marge = Number(item.marge_total || 0);
         const tauxMarge = Number(item.taux_marge || 0);
-        const nbInterventionsPrises = item.nb_interventions_demandees || 0;
-        const nbInterventionsTerminees = item.nb_interventions_terminees || 0;
+        const nbInterventionsPrises = Number(item.nb_interventions_demandees || 0);
+        const nbInterventionsTerminees = Number(item.nb_interventions_terminees || 0);
         const pourcentageVolume = Number(item.pourcentage_volume || 0);
 
         return {
           metierId,
-          metierLabel: item.metier_nom || 'Inconnu',
+          metierLabel: String(item.metier_nom || 'Inconnu'),
           nbInterventionsPrises,
           nbInterventionsTerminees,
           ca,
@@ -1546,11 +1652,11 @@ export const interventionsStats = {
           count: nbInterventionsPrises, // compatibilité avec les usages existants
         };
       })
-      .filter(Boolean)
-      .sort((a: any, b: any) => b.nbInterventionsPrises - a.nbInterventionsPrises);
+      .filter((item): item is NonNullable<typeof item> => item !== null)
+      .sort((a, b) => (b.nbInterventionsPrises ?? 0) - (a.nbInterventionsPrises ?? 0));
 
     // Log: Statistiques par métier (top 5)
-    metierStats.slice(0, 5).forEach((metier: any, index: number) => {
+    metierStats.slice(0, 5).forEach((_metier, _index: number) => {
     });
     if (metierStats.length > 5) {
     }
@@ -1559,22 +1665,22 @@ export const interventionsStats = {
     // 4. STATISTIQUES PAR AGENCE (V3)
     // ========================================
 
-    const agencyStats = rawAgencyStats.map((item: any) => {
+    const agencyStats = (rawAgencyStats as PerformanceRow[]).map((item) => {
       const ca = Number(item.ca_total || 0);
       const marge = Number(item.marge_total || 0);
       const tauxMarge = Number(item.taux_marge || 0);
 
       return {
-        agencyId: item.agence_id,
-        agencyLabel: item.agence_nom || 'Inconnu',
-        nbTotalInterventions: item.nb_interventions_demandees || 0,
-        nbInterventionsTerminees: item.nb_interventions_terminees || 0,
+        agencyId: String(item.agence_id || ''),
+        agencyLabel: String(item.agence_nom || 'Inconnu'),
+        nbTotalInterventions: Number(item.nb_interventions_demandees || 0),
+        nbInterventionsTerminees: Number(item.nb_interventions_terminees || 0),
         tauxMarge,
         ca,
         couts: ca - marge, // Calculé depuis CA et marge
         marge,
       };
-    }).sort((a: any, b: any) => b.ca - a.ca);
+    }).sort((a, b) => b.ca - a.ca);
 
     // DEBUG: agencyStats après mapping
     if (agencyStats.length > 0) {
@@ -1590,17 +1696,17 @@ export const interventionsStats = {
     // 5. STATISTIQUES PAR GESTIONNAIRE (V3)
     // ========================================
 
-    const gestionnaireStats = rawGestionnaireStats.map((item: any) => {
+    const gestionnaireStats = (rawGestionnaireStats as PerformanceRow[]).map((item) => {
       const ca = Number(item.ca_total || 0);
       const marge = Number(item.marge_total || 0);
       const tauxMarge = Number(item.taux_marge || 0);
-      const nbInterventionsPrises = item.nb_interventions_prises || 0;
-      const nbInterventionsTerminees = item.nb_interventions_terminees || 0;
+      const nbInterventionsPrises = Number(item.nb_interventions_prises || 0);
+      const nbInterventionsTerminees = Number(item.nb_interventions_terminees || 0);
       const tauxCompletion = Number(item.taux_completion || 0);
 
       return {
-        gestionnaireId: item.gestionnaire_id,
-        gestionnaireLabel: item.gestionnaire_nom || 'Inconnu',
+        gestionnaireId: String(item.gestionnaire_id || ''),
+        gestionnaireLabel: String(item.gestionnaire_nom || 'Inconnu'),
         nbInterventionsPrises,
         nbInterventionsTerminees,
         tauxTransformation: tauxCompletion, // V3 appelle ça taux_completion
@@ -1609,7 +1715,7 @@ export const interventionsStats = {
         couts: ca - marge, // Calculé depuis CA et marge
         marge,
       };
-    }).sort((a: any, b: any) => b.ca - a.ca);
+    }).sort((a, b) => b.ca - a.ca);
 
     // DEBUG: gestionnaireStats après mapping
     if (gestionnaireStats.length > 0) {

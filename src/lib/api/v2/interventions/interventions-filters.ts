@@ -36,7 +36,7 @@ export const interventionsFilters = {
       if (params?.metier && typeof params.metier === 'string') {
         const refs = await getReferenceCache();
         const metierObj = Array.from(refs.metiersById.values()).find(
-          (m: any) =>
+          (m: { code?: string; id?: string }) =>
             m.code?.toUpperCase() === params.metier?.toUpperCase() ||
             m.id === params.metier
         );
@@ -47,7 +47,7 @@ export const interventionsFilters = {
         const refs = await getReferenceCache();
         const metierIds = params.metiers.map((metierCodeOrId) => {
           const metierObj = Array.from(refs.metiersById.values()).find(
-            (m: any) =>
+            (m: { code?: string; id?: string }) =>
               m.code?.toUpperCase() === metierCodeOrId?.toUpperCase() ||
               m.id === metierCodeOrId
           );
@@ -74,8 +74,8 @@ export const interventionsFilters = {
         query = query.lte("date_prevue", today);
         const refs = await getReferenceCache();
         const checkStatusIds = Array.from(refs.interventionStatusesById.values())
-          .filter((s: any) => isCheckStatus(s.code as InterventionStatusKey, null))
-          .map((s: any) => s.id);
+          .filter((s: { code?: string; id?: string }) => isCheckStatus(s.code as InterventionStatusKey, null))
+          .map((s: { code?: string; id?: string }) => s.id);
         if (checkStatusIds.length > 0) {
           query = query.in("statut_id", checkStatusIds);
         }
@@ -119,7 +119,7 @@ export const interventionsFilters = {
     if (params?.metier && typeof params.metier === 'string') {
       const refs = await getReferenceCache();
       const metierObj = Array.from(refs.metiersById.values()).find(
-        (m: any) =>
+        (m: { code?: string; id?: string }) =>
           m.code?.toUpperCase() === params.metier?.toUpperCase() ||
           m.id === params.metier
       );
@@ -130,7 +130,7 @@ export const interventionsFilters = {
       const refs = await getReferenceCache();
       const metierIds = params.metiers.map((metierCodeOrId) => {
         const metierObj = Array.from(refs.metiersById.values()).find(
-          (m: any) =>
+          (m: { code?: string; id?: string }) =>
             m.code?.toUpperCase() === metierCodeOrId?.toUpperCase() ||
             m.id === metierCodeOrId
         );
@@ -260,7 +260,7 @@ export const interventionsFilters = {
     }
     if (params?.metier && typeof params.metier === 'string') {
       const metierObj = Array.from(refs.metiersById.values()).find(
-        (m: any) =>
+        (m: { code?: string; id?: string }) =>
           m.code?.toUpperCase() === params.metier?.toUpperCase() ||
           m.id === params.metier
       );

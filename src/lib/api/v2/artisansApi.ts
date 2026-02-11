@@ -57,7 +57,7 @@ async function filterArtisansByMetiers(
     }
 
     if (artisansWithMetiers) {
-      artisansWithMetiers.forEach((am: any) => {
+      artisansWithMetiers.forEach((am) => {
         if (am.artisan_id) {
           filteredIds.add(am.artisan_id);
         }
@@ -98,7 +98,7 @@ async function filterArtisansByMetier(
     }
 
     if (artisansWithMetier) {
-      artisansWithMetier.forEach((am: any) => {
+      artisansWithMetier.forEach((am) => {
         if (am.artisan_id) {
           filteredIds.add(am.artisan_id);
         }
@@ -134,7 +134,7 @@ export const artisansApi = {
           // Fallback vers l'ancienne méthode si RPC échoue
         } else if (searchResults && searchResults.length > 0) {
           // Extraire les IDs triés par pertinence
-          let artisanIds = searchResults.map((r: any) => r.id).filter(Boolean);
+          let artisanIds: string[] = searchResults.map((r: { id?: string }) => r.id).filter((id: string | undefined): id is string => Boolean(id));
 
           // Filtrer par métiers AVANT de paginer (côté BD via artisan_metiers)
           if (params?.metiers && params.metiers.length > 0) {
@@ -218,13 +218,13 @@ export const artisansApi = {
           }
 
           // Réordonner selon l'ordre de pertinence de la recherche
-          const idToData = new Map((detailedData ?? []).map((item: any) => [item.id, item]));
+          const idToData = new Map((detailedData ?? []).map((item) => [item.id, item]));
           const orderedData = paginatedIds
-            .map((id: string) => idToData.get(id))
-            .filter((item: any) => item !== undefined);
+            .map((id) => idToData.get(id))
+            .filter((item): item is NonNullable<typeof item> => item !== undefined);
 
           const refs = await getReferenceCache();
-          const transformedData = orderedData.map((item: any) => mapArtisanRecord(item, refs));
+          const transformedData = orderedData.map((item) => mapArtisanRecord(item, refs));
 
           return {
             data: transformedData,
@@ -268,7 +268,7 @@ export const artisansApi = {
       const { data: artisansData, error: idsError } = await idsQuery;
       if (idsError) throw idsError;
 
-      const allArtisanIds = (artisansData || []).map((a: any) => a.id);
+      const allArtisanIds = (artisansData || []).map((a) => a.id);
 
       // 2. Filtrer par métiers
       const filteredIds = await filterArtisansByMetiers(allArtisanIds, params.metiers);
@@ -329,7 +329,7 @@ export const artisansApi = {
       if (detailedError) throw detailedError;
 
       const refs = await getReferenceCache();
-      const transformedData = (detailedData || []).map((item: any) => mapArtisanRecord(item, refs));
+      const transformedData = (detailedData || []).map((item) => mapArtisanRecord(item, refs));
 
       return {
         data: transformedData,
@@ -362,7 +362,7 @@ export const artisansApi = {
       const { data: artisansData, error: idsError } = await idsQuery;
       if (idsError) throw idsError;
 
-      const allArtisanIds = (artisansData || []).map((a: any) => a.id);
+      const allArtisanIds = (artisansData || []).map((a) => a.id);
 
       const filteredIds = await filterArtisansByMetier(allArtisanIds, params.metier);
       const filteredIdsArray = Array.from(filteredIds);
@@ -420,7 +420,7 @@ export const artisansApi = {
       if (detailedError) throw detailedError;
 
       const refs = await getReferenceCache();
-      const transformedData = (detailedData || []).map((item: any) => mapArtisanRecord(item, refs));
+      const transformedData = (detailedData || []).map((item) => mapArtisanRecord(item, refs));
 
       return {
         data: transformedData,
@@ -605,7 +605,7 @@ export const artisansApi = {
       artisan_absences: data.artisan_absences || [],
       status: data.status || null,
       gestionnaire: data.gestionnaire || null,
-      statutDossier: (data as any).statut_dossier || null,
+      statutDossier: (data as unknown as { statut_dossier?: string | null }).statut_dossier || null,
     };
   },
 
@@ -640,7 +640,7 @@ export const artisansApi = {
   },
 
   // Upsert direct via Supabase (pour import en masse)
-  async upsertDirect(data: CreateArtisanData, customClient?: any): Promise<Artisan> {
+  async upsertDirect(data: CreateArtisanData, customClient?: typeof supabase): Promise<Artisan> {
     // Utiliser le client personnalisé si fourni, sinon utiliser le client par défaut
     const client = customClient || supabase;
 
@@ -703,7 +703,7 @@ export const artisansApi = {
     filename: string;
     created_at?: string;
     updated_at?: string;
-  }): Promise<any> {
+  }): Promise<Record<string, unknown>> {
     const headers = await getHeaders();
     const response = await fetch(
       `${SUPABASE_FUNCTIONS_URL}/artisans-v2/artisans/${data.artisan_id}/documents`,
@@ -721,7 +721,7 @@ export const artisansApi = {
     artisan_id: string;
     metier_id: string;
     is_primary?: boolean;
-  }): Promise<any> {
+  }): Promise<Record<string, unknown>> {
     const headers = await getHeaders();
     const response = await fetch(
       `${SUPABASE_FUNCTIONS_URL}/artisans-v2/artisans/${data.artisan_id}/metiers`,
@@ -738,7 +738,7 @@ export const artisansApi = {
   async createArtisanZone(data: {
     artisan_id: string;
     zone_id: string;
-  }): Promise<any> {
+  }): Promise<Record<string, unknown>> {
     const headers = await getHeaders();
     const response = await fetch(
       `${SUPABASE_FUNCTIONS_URL}/artisans-v2/artisans/${data.artisan_id}/zones`,
@@ -756,7 +756,7 @@ export const artisansApi = {
     artisanId: string,
     metierId: string,
     isPrimary: boolean = false
-  ): Promise<any> {
+  ): Promise<Record<string, unknown>> {
     const headers = await getHeaders();
     const response = await fetch(
       `${SUPABASE_FUNCTIONS_URL}/artisans-v2/artisans/${artisanId}/metiers`,
@@ -773,7 +773,7 @@ export const artisansApi = {
   },
 
   // Assigner une zone à un artisan
-  async assignZone(artisanId: string, zoneId: string): Promise<any> {
+  async assignZone(artisanId: string, zoneId: string): Promise<Record<string, unknown>> {
     const headers = await getHeaders();
     const response = await fetch(
       `${SUPABASE_FUNCTIONS_URL}/artisans-v2/artisans/${artisanId}/zones`,
@@ -796,16 +796,16 @@ export const artisansApi = {
       is_primary?: boolean;
     }>
   ): Promise<BulkOperationResult> {
-    const results = { success: 0, errors: 0, details: [] as any[] };
+    const results: BulkOperationResult = { success: 0, errors: 0, details: [] };
 
     for (const metier of metiers) {
       try {
         const result = await this.createArtisanMetier(metier);
         results.success++;
-        results.details.push({ item: metier, success: true, data: result });
-      } catch (error: any) {
+        results.details.push({ item: metier as unknown as Record<string, unknown>, success: true, data: result });
+      } catch (error: unknown) {
         results.errors++;
-        results.details.push({ item: metier, success: false, error: error.message });
+        results.details.push({ item: metier as unknown as Record<string, unknown>, success: false, error: error instanceof Error ? error.message : String(error) });
       }
     }
 
@@ -819,16 +819,16 @@ export const artisansApi = {
       zone_id: string;
     }>
   ): Promise<BulkOperationResult> {
-    const results = { success: 0, errors: 0, details: [] as any[] };
+    const results: BulkOperationResult = { success: 0, errors: 0, details: [] };
 
     for (const zone of zones) {
       try {
         const result = await this.createArtisanZone(zone);
         results.success++;
-        results.details.push({ item: zone, success: true, data: result });
-      } catch (error: any) {
+        results.details.push({ item: zone as unknown as Record<string, unknown>, success: true, data: result });
+      } catch (error: unknown) {
         results.errors++;
-        results.details.push({ item: zone, success: false, error: error.message });
+        results.details.push({ item: zone as unknown as Record<string, unknown>, success: false, error: error instanceof Error ? error.message : String(error) });
       }
     }
 
@@ -837,16 +837,16 @@ export const artisansApi = {
 
   // Créer plusieurs artisans en lot
   async createBulk(artisans: CreateArtisanData[]): Promise<BulkOperationResult> {
-    const results = { success: 0, errors: 0, details: [] as any[] };
+    const results: BulkOperationResult = { success: 0, errors: 0, details: [] };
 
     for (const artisan of artisans) {
       try {
         const result = await this.create(artisan);
         results.success++;
-        results.details.push({ item: artisan, success: true, data: result });
-      } catch (error: any) {
+        results.details.push({ item: artisan as unknown as Record<string, unknown>, success: true, data: result as unknown as Record<string, unknown> });
+      } catch (error: unknown) {
         results.errors++;
-        results.details.push({ item: artisan, success: false, error: error.message });
+        results.details.push({ item: artisan as unknown as Record<string, unknown>, success: false, error: error instanceof Error ? error.message : String(error) });
       }
     }
 
@@ -874,7 +874,7 @@ export const artisansApi = {
   },
 
   // Rechercher par plain_nom (pour la recherche SST)
-  async searchByPlainNom(searchTerm: string, params?: ArtisanQueryParams, customClient?: any): Promise<PaginatedResponse<Artisan>> {
+  async searchByPlainNom(searchTerm: string, params?: ArtisanQueryParams, customClient?: typeof supabaseClient): Promise<PaginatedResponse<Artisan>> {
     // Utiliser le client personnalisé si fourni, sinon utiliser supabaseClient (qui utilise getSupabaseClientForNode() dans Node.js)
     const client = customClient || supabaseClient;
 
@@ -903,7 +903,7 @@ export const artisansApi = {
 
     const refs = await getReferenceCache();
 
-    const transformedData = (data || []).map((item: any) =>
+    const transformedData = (data || []).map((item: Record<string, unknown>) =>
       mapArtisanRecord(item, refs)
     );
 
@@ -1004,8 +1004,9 @@ export const artisansApi = {
     let dossiersACompleter = 0;
 
     // Compter les artisans par statut et les dossiers à compléter
-    (data || []).forEach((item: any) => {
-      const status = item.status;
+    (data || []).forEach((item) => {
+      const statusRaw = item.status;
+      const status = Array.isArray(statusRaw) ? statusRaw[0] as { id?: string; code?: string; label?: string } | undefined : statusRaw as { id?: string; code?: string; label?: string } | null;
       if (status) {
         const code = status.code || "SANS_STATUT";
         const label = status.label || "Sans statut";
@@ -1089,11 +1090,14 @@ export const artisansApi = {
       intervention_dates: string[];
     }>();
 
-    (artisansStats || []).forEach((artisan: any) => {
-      const interventionDates = (artisan.intervention_artisans || [])
-        .filter((ia: any) => ia.interventions?.is_active)
-        .map((ia: any) => ia.interventions?.date)
-        .filter((date: string | null) => date !== null);
+    (artisansStats || []).forEach((artisan) => {
+      const interventionArtisansList = artisan.intervention_artisans || [];
+      const interventionDates = interventionArtisansList
+        .map((ia) => {
+          const interv = Array.isArray(ia.interventions) ? ia.interventions[0] : ia.interventions;
+          return interv?.is_active ? interv?.date : null;
+        })
+        .filter((date: unknown): date is string => typeof date === 'string');
 
       if (interventionDates.length > 0) {
         artisanMap.set(artisan.id, {
@@ -1134,7 +1138,7 @@ export const artisansApi = {
 
     // Créer un map des absences par artisan
     const absenceMap = new Map<string, { reason: string | null; end_date: string }>();
-    (absences || []).forEach((absence: any) => {
+    (absences || []).forEach((absence) => {
       absenceMap.set(absence.artisan_id, {
         reason: absence.reason,
         end_date: absence.end_date,
@@ -1218,8 +1222,9 @@ export const artisansApi = {
 
     // Traiter les interventions et calculer les marges
     let interventionsWithMargins = interventionArtisans
-      .map((ia: any) => {
-        const intervention = ia.interventions;
+      .map((ia) => {
+        const interventionRaw = ia.interventions;
+        const intervention = Array.isArray(interventionRaw) ? interventionRaw[0] : interventionRaw;
         if (!intervention || !intervention.is_active) {
           return null;
         }
@@ -1234,8 +1239,9 @@ export const artisansApi = {
 
         // Calculer la marge (somme des coûts de type 'marge')
         let marge = 0;
-        if (intervention.intervention_costs && Array.isArray(intervention.intervention_costs)) {
-          intervention.intervention_costs.forEach((cost: any) => {
+        const costsList = intervention.intervention_costs;
+        if (costsList && Array.isArray(costsList)) {
+          costsList.forEach((cost) => {
             if (cost.cost_type === "marge" && cost.amount !== null && cost.amount !== undefined) {
               marge += Number(cost.amount);
             }
@@ -1243,12 +1249,14 @@ export const artisansApi = {
         }
 
         // Extraire le statut depuis la relation
-        const status = intervention.status;
+        const statusRaw = intervention.status;
+        const status = Array.isArray(statusRaw) ? statusRaw[0] : statusRaw;
         const status_label = status?.label || null;
         const status_color = status?.color || null;
 
         // Extraire le métier depuis la relation
-        const metier = intervention.metier;
+        const metierRaw = intervention.metier;
+        const metier = Array.isArray(metierRaw) ? metierRaw[0] : metierRaw;
         const metier_label = metier?.label || null;
 
         return {
@@ -1331,8 +1339,9 @@ export const artisansApi = {
     }
 
     // Filtrer les artisans par statut label
-    const artisansByStatus = artisans.filter((artisan: any) => {
-      const status = artisan.status;
+    const artisansByStatus = artisans.filter((artisan) => {
+      const statusRaw = artisan.status;
+      const status = Array.isArray(statusRaw) ? statusRaw[0] : statusRaw;
       return status && status.label === statusLabel;
     });
 
@@ -1345,7 +1354,7 @@ export const artisansApi = {
 
     // Pour chaque artisan, récupérer ses maxInterventions dernières interventions avec marges (filtrées par période si fournie)
     const artisansWithInterventions = await Promise.all(
-      topArtisansByStatus.map(async (artisan: any) => {
+      topArtisansByStatus.map(async (artisan) => {
         const recentInterventions = await this.getRecentInterventionsByArtisanWithMargins(
           artisan.id,
           maxInterventions,
@@ -1396,7 +1405,7 @@ export const artisansApi = {
       throw new Error(`Erreur lors de la récupération des artisans: ${error.message}`);
     }
 
-    return (data || []).map((a: any) => ({
+    return (data || []).map((a) => ({
       artisan_id: a.id,
       artisan_nom: a.nom || "",
       artisan_prenom: a.prenom || "",
@@ -1429,7 +1438,7 @@ export const artisansApi = {
       throw new Error(`Erreur lors de la récupération des absences: ${error.message}`);
     }
 
-    return (data || []).map((absence: any) => ({
+    return (data || []).map((absence) => ({
       id: absence.id,
       start_date: absence.start_date,
       end_date: absence.end_date,
@@ -1817,7 +1826,7 @@ export const artisansApi = {
         return 0;
       }
 
-      const artisanIds = filteredArtisans.map((a: any) => a.id).filter(Boolean);
+      const artisanIds = filteredArtisans.map((a) => a.id).filter(Boolean);
       if (artisanIds.length === 0) {
         return 0;
       }
@@ -1861,7 +1870,7 @@ export const artisansApi = {
         return 0;
       }
 
-      const artisanIds = filteredArtisans.map((a: any) => a.id).filter(Boolean);
+      const artisanIds = filteredArtisans.map((a) => a.id).filter(Boolean);
       if (artisanIds.length === 0) {
         return 0;
       }
@@ -2032,8 +2041,28 @@ export const artisansApi = {
     }
 
     // Calculate distances and enrich data
-    const enriched: (any | null)[] =
-      data?.map((row: any) => {
+    interface EnrichedNearbyArtisan {
+      id: string;
+      displayName: string;
+      distanceKm: number;
+      telephone: string | null;
+      telephone2: string | null;
+      email: string | null;
+      adresse: string | null;
+      ville: string | null;
+      codePostal: string | null;
+      lat: number;
+      lng: number;
+      prenom: string | null;
+      nom: string | null;
+      raison_sociale: string | null;
+      statut_id: string | null;
+      photoProfilMetadata: { hash: string | null; sizes: Record<string, string>; mime_preferred: string; baseUrl: string | null } | null;
+      hasTargetMetier: boolean;
+    }
+
+    const enriched: (EnrichedNearbyArtisan | null)[] =
+      data?.map((row) => {
         const lat = Number(row.intervention_latitude);
         const lng = Number(row.intervention_longitude);
 
@@ -2049,7 +2078,7 @@ export const artisansApi = {
           : [];
 
         const photoProfilAttachment = attachments.find(
-          (att: any) =>
+          (att: { kind?: string; url?: string; content_hash?: string; derived_sizes?: Record<string, unknown>; mime_preferred?: string; mime_type?: string }) =>
             att?.kind === "photo_profil" && att?.url && att.url.trim() !== ""
         );
 
@@ -2057,7 +2086,7 @@ export const artisansApi = {
         const photoProfilMetadata = photoProfilAttachment
           ? {
             hash: photoProfilAttachment.content_hash || null,
-            sizes: photoProfilAttachment.derived_sizes || {},
+            sizes: (photoProfilAttachment.derived_sizes || {}) as Record<string, string>,
             mime_preferred:
               photoProfilAttachment.mime_preferred ||
               photoProfilAttachment.mime_type ||
@@ -2096,7 +2125,7 @@ export const artisansApi = {
     // Filter valid artisans: must have valid distance and be within range
     // Note: On ne filtre PAS par ville/codePostal car les coordonnées GPS suffisent
     const validArtisans = enriched
-      .filter((item): item is any => item !== null && item !== undefined && item.distanceKm >= 0)
+      .filter((item): item is EnrichedNearbyArtisan => item !== null && item !== undefined && item.distanceKm >= 0)
       .filter((artisan) => artisan.distanceKm <= maxDistanceKm)
       .sort((a, b) => {
         // Priorité 1: Artisans avec le bon métier en premier
@@ -2138,7 +2167,31 @@ export const artisansApi = {
     metier_id?: string | null;
     limit?: number;
   }): Promise<{
-    artisans: Array<any>;
+    artisans: Array<{
+      id: string;
+      prenom?: string | null;
+      nom?: string | null;
+      plain_nom?: string | null;
+      raison_sociale?: string | null;
+      email?: string | null;
+      telephone?: string | null;
+      telephone2?: string | null;
+      numero_associe?: string | null;
+      adresse_intervention?: string | null;
+      ville_intervention?: string | null;
+      code_postal_intervention?: string | null;
+      adresse_siege_social?: string | null;
+      ville_siege_social?: string | null;
+      code_postal_siege_social?: string | null;
+      intervention_latitude?: number | null;
+      intervention_longitude?: number | null;
+      statut_id?: string | null;
+      is_active?: boolean | null;
+      status?: { id: string; code: string; label: string; color?: string | null } | null;
+      metiers?: Array<{ is_primary: boolean; metier: { id: string; code: string; label: string } }> | null;
+      hasTargetMetier: boolean;
+      distanceKm?: number;
+    }>;
     total: number;
   }> {
     const { searchQuery, latitude, longitude, metier_id = null, limit = 50 } = params;
@@ -2311,19 +2364,32 @@ export const artisansApi = {
       throw searchError;
     }
 
-    // Transformer les données et normaliser la structure status
-    let transformedData = (data || []).map((artisan: any) => {
+    // Transformer les données et normaliser la structure status et metiers (PostgREST retourne les joins comme des tableaux)
+    let transformedData = (data || []).map((artisan) => {
       // Vérifier si l'artisan a le métier ciblé
       const hasTargetMetier = artisanIdsWithTargetMetier.has(artisan.id);
 
+      // Normaliser status: PostgREST peut retourner un objet ou un tableau
+      const statusRaw = artisan.status;
+      const normalizedStatus = Array.isArray(statusRaw)
+        ? statusRaw.length > 0 ? statusRaw[0] : null
+        : statusRaw;
+
+      // Normaliser metiers: chaque metier peut être un tableau PostgREST
+      const metiersRaw = artisan.metiers;
+      const normalizedMetiers = Array.isArray(metiersRaw)
+        ? metiersRaw.map((m) => ({
+          ...m,
+          metier: Array.isArray(m.metier) ? m.metier[0] : m.metier,
+        }))
+        : metiersRaw;
+
       return {
         ...artisan,
-        status: Array.isArray(artisan.status)
-          ? artisan.status.length > 0
-            ? artisan.status[0]
-            : null
-          : artisan.status,
+        status: normalizedStatus as { id: string; code: string; label: string; color?: string | null } | null,
+        metiers: normalizedMetiers as Array<{ is_primary: boolean; metier: { id: string; code: string; label: string } }> | null,
         hasTargetMetier,
+        distanceKm: undefined as number | undefined,
       };
     });
 
@@ -2335,7 +2401,7 @@ export const artisansApi = {
       Number.isFinite(longitude)
     ) {
       transformedData = transformedData
-        .map((artisan: any) => {
+        .map((artisan) => {
           const lat = Number(artisan.intervention_latitude);
           const lng = Number(artisan.intervention_longitude);
 
@@ -2348,7 +2414,7 @@ export const artisansApi = {
           // Artisans sans coordonnées : distance infinie (placés en dernier)
           return { ...artisan, distanceKm: Infinity };
         })
-        .sort((a: any, b: any) => {
+        .sort((a, b) => {
           // Priorité 1: Artisans avec le bon métier en premier
           if (a.hasTargetMetier && !b.hasTargetMetier) return -1;
           if (!a.hasTargetMetier && b.hasTargetMetier) return 1;
@@ -2358,11 +2424,11 @@ export const artisansApi = {
             // Si les deux sans coordonnées, tri par numero_associe
             return (a.numero_associe || "").localeCompare(b.numero_associe || "");
           }
-          return a.distanceKm - b.distanceKm;
+          return (a.distanceKm ?? Infinity) - (b.distanceKm ?? Infinity);
         });
     } else {
       // Pas de coordonnées : tri par métier puis numero_associe
-      transformedData = transformedData.sort((a: any, b: any) => {
+      transformedData = transformedData.sort((a, b) => {
         // Priorité 1: Artisans avec le bon métier en premier
         if (a.hasTargetMetier && !b.hasTargetMetier) return -1;
         if (!a.hasTargetMetier && b.hasTargetMetier) return 1;

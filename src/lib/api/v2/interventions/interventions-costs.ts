@@ -167,7 +167,7 @@ export const interventionsCosts = {
   /**
    * Récupérer les coûts d'une intervention
    */
-  async getCosts(interventionId: string, artisanOrder?: 1 | 2 | null): Promise<any[]> {
+  async getCosts(interventionId: string, artisanOrder?: 1 | 2 | null): Promise<InterventionCost[]> {
     if (!interventionId) {
       throw new Error("interventionId is required");
     }
@@ -229,7 +229,7 @@ export const interventionsCosts = {
       label?: string;
       amount: number;
       currency?: string;
-      metadata?: any;
+      metadata?: Record<string, unknown> | null;
       artisan_order?: 1 | 2 | null;
     }
   ): Promise<InterventionCost> {
@@ -269,10 +269,11 @@ export const interventionsCosts = {
       }
 
       return result;
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('[addCost] Erreur inattendue:', err);
-      if (err.message?.includes('invalid response') || err.message?.includes('upstream server')) {
-        throw new Error(`Erreur de connexion Supabase - veuillez réessayer: ${err.message}`);
+      const errMsg = err instanceof Error ? err.message : String(err);
+      if (errMsg.includes('invalid response') || errMsg.includes('upstream server')) {
+        throw new Error(`Erreur de connexion Supabase - veuillez réessayer: ${errMsg}`);
       }
       throw err;
     }
@@ -369,11 +370,11 @@ export const interventionsCosts = {
       label?: string;
       amount: number;
       currency?: string;
-      metadata?: any;
+      metadata?: Record<string, unknown> | null;
       artisan_order?: 1 | 2 | null;
     }>
   ): Promise<BulkOperationResult> {
-    const results = { success: 0, errors: 0, details: [] as any[] };
+    const results: BulkOperationResult = { success: 0, errors: 0, details: [] };
 
     for (const cost of costs) {
       try {
@@ -384,10 +385,10 @@ export const interventionsCosts = {
           artisan_order: cost.artisan_order ?? (cost.cost_type === 'intervention' || cost.cost_type === 'marge' ? null : 1)
         });
         results.success++;
-        results.details.push({ item: cost, success: true });
-      } catch (error: any) {
+        results.details.push({ item: cost as unknown as Record<string, unknown>, success: true });
+      } catch (error: unknown) {
         results.errors++;
-        results.details.push({ item: cost, success: false, error: error.message });
+        results.details.push({ item: cost as unknown as Record<string, unknown>, success: false, error: error instanceof Error ? error.message : String(error) });
       }
     }
 
