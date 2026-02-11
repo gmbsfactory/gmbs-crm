@@ -65,11 +65,16 @@ export function GenieEffectProvider({ children }: { children: React.ReactNode })
   ) => {
     
     const targetElement = badgeRefs.current.get(targetViewId)
-    
+
     if (!targetElement) {
-      console.warn(`[GenieEffect] ⚠️ Pastille non trouvée pour la vue: ${targetViewId}`)
-      console.warn(`[GenieEffect] Vues disponibles:`, Array.from(badgeRefs.current.keys()))
-      // Pas de cible trouvée, exécuter la mutation directement
+      console.warn(`[GenieEffect] Pastille non trouvée pour la vue: ${targetViewId}`)
+      onComplete()
+      return
+    }
+
+    // Respecter prefers-reduced-motion : skip animation
+    const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches
+    if (prefersReducedMotion) {
       onComplete()
       return
     }
