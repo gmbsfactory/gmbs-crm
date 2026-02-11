@@ -18,6 +18,7 @@ import {
   getReferenceCache,
   invalidateReferenceCache as invalidateCentralCache,
 } from "@/lib/api/v2/common/utils";
+import { safeErrorMessage } from "@/lib/api/v2/common/error-handler";
 import type { InterventionWithStatus } from "@/types/intervention";
 import { automaticTransitionService } from "@/lib/interventions/automatic-transition-service";
 import type { InterventionStatusKey } from "@/config/interventions";
@@ -783,7 +784,7 @@ export const interventionsCrud = {
         results.details.push({ item: intervention as unknown as Record<string, unknown>, success: true, data: result as unknown as Record<string, unknown> });
       } catch (error: unknown) {
         results.errors++;
-        results.details.push({ item: intervention as unknown as Record<string, unknown>, success: false, error: error instanceof Error ? error.message : String(error) });
+        results.details.push({ item: intervention as unknown as Record<string, unknown>, success: false, error: safeErrorMessage(error, "la création de l'intervention") });
       }
     }
 

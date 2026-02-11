@@ -1,6 +1,7 @@
 import { useMemo } from "react"
 import { useQueries, useQueryClient } from "@tanstack/react-query"
 import { interventionKeys, dashboardKeys } from "@/lib/react-query/queryKeys"
+import { safeErrorMessage } from "@/lib/api/v2/common/error-handler"
 import type { InterventionViewDefinition } from "@/types/intervention-views"
 import { interventionsApi, type InterventionQueryParams } from "@/lib/api/v2"
 
@@ -105,7 +106,7 @@ export function useInterventionViewCounts({
 
             const errorDetails = error instanceof Error
               ? {
-                  message: error.message,
+                  message: safeErrorMessage(error, "le comptage des vues"),
                   name: error.name,
                   stack: error.stack,
                 }

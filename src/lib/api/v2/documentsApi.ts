@@ -12,6 +12,7 @@ import type {
   UpdateDocumentData,
 } from "./common/types";
 import { getSupabaseFunctionsUrl, getHeaders, handleResponse } from "./common/utils";
+import { safeErrorMessage } from "@/lib/api/v2/common/error-handler";
 import { supabase, getSupabaseClientForNode } from "./common/client";
 
 // Détecter si on est dans Node.js (pas de window)
@@ -390,9 +391,9 @@ export const documentsApi = {
         const result = await this.create(document);
         results.success++;
         results.details.push({ item: document, success: true, data: result });
-      } catch (error: any) {
+      } catch (error: unknown) {
         results.errors++;
-        results.details.push({ item: document, success: false, error: error.message });
+        results.details.push({ item: document, success: false, error: safeErrorMessage(error, "la création du document") });
       }
     }
 
@@ -417,9 +418,9 @@ export const documentsApi = {
         const result = await this.upload(file);
         results.success++;
         results.details.push({ item: file, success: true, data: result });
-      } catch (error: any) {
+      } catch (error: unknown) {
         results.errors++;
-        results.details.push({ item: file, success: false, error: error.message });
+        results.details.push({ item: file, success: false, error: safeErrorMessage(error, "l'upload du fichier") });
       }
     }
 

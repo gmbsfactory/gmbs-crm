@@ -8,6 +8,7 @@ import type {
   BulkOperationResult,
   MarginCalculation,
 } from "@/lib/api/v2/common/types";
+import { safeErrorMessage } from "@/lib/api/v2/common/error-handler";
 
 export const interventionsCosts = {
   /**
@@ -388,7 +389,7 @@ export const interventionsCosts = {
         results.details.push({ item: cost as unknown as Record<string, unknown>, success: true });
       } catch (error: unknown) {
         results.errors++;
-        results.details.push({ item: cost as unknown as Record<string, unknown>, success: false, error: error instanceof Error ? error.message : String(error) });
+        results.details.push({ item: cost as unknown as Record<string, unknown>, success: false, error: safeErrorMessage(error, "l'insertion du coût") });
       }
     }
 

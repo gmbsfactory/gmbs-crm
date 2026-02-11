@@ -8,6 +8,7 @@ import type {
     Permission,
     Role,
 } from "./common/types";
+import { safeErrorMessage } from "@/lib/api/v2/common/error-handler";
 
 export const rolesApi = {
   // Récupérer tous les rôles
@@ -423,9 +424,9 @@ export const permissionsApi = {
         const result = await this.create(permission);
         results.success++;
         results.details.push({ item: permission, success: true, data: result });
-      } catch (error: any) {
+      } catch (error: unknown) {
         results.errors++;
-        results.details.push({ item: permission, success: false, error: error.message });
+        results.details.push({ item: permission, success: false, error: safeErrorMessage(error, "la création de la permission") });
       }
     }
 

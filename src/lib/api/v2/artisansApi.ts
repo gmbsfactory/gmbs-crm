@@ -23,6 +23,7 @@ import {
   chunkArray,
   MAX_BATCH_SIZE,
 } from "./common/utils";
+import { safeErrorMessage } from "@/lib/api/v2/common/error-handler";
 
 // Utiliser le client admin dans Node.js, le client standard dans le navigateur
 const supabaseClient = typeof window !== 'undefined' ? supabase : getSupabaseClientForNode();
@@ -805,7 +806,7 @@ export const artisansApi = {
         results.details.push({ item: metier as unknown as Record<string, unknown>, success: true, data: result });
       } catch (error: unknown) {
         results.errors++;
-        results.details.push({ item: metier as unknown as Record<string, unknown>, success: false, error: error instanceof Error ? error.message : String(error) });
+        results.details.push({ item: metier as unknown as Record<string, unknown>, success: false, error: safeErrorMessage(error, "l'ajout du métier artisan") });
       }
     }
 
@@ -828,7 +829,7 @@ export const artisansApi = {
         results.details.push({ item: zone as unknown as Record<string, unknown>, success: true, data: result });
       } catch (error: unknown) {
         results.errors++;
-        results.details.push({ item: zone as unknown as Record<string, unknown>, success: false, error: error instanceof Error ? error.message : String(error) });
+        results.details.push({ item: zone as unknown as Record<string, unknown>, success: false, error: safeErrorMessage(error, "l'ajout de la zone artisan") });
       }
     }
 
@@ -846,7 +847,7 @@ export const artisansApi = {
         results.details.push({ item: artisan as unknown as Record<string, unknown>, success: true, data: result as unknown as Record<string, unknown> });
       } catch (error: unknown) {
         results.errors++;
-        results.details.push({ item: artisan as unknown as Record<string, unknown>, success: false, error: error instanceof Error ? error.message : String(error) });
+        results.details.push({ item: artisan as unknown as Record<string, unknown>, success: false, error: safeErrorMessage(error, "la création de l'artisan") });
       }
     }
 
