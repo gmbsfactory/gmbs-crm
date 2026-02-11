@@ -827,8 +827,6 @@ const fetchArtisansByIds = async (ids: string[]): Promise<ArtisanSearchRecord[]>
 const fetchInterventionsByIds = async (ids: string[]): Promise<InterventionSearchRecord[]> => {
   if (ids.length === 0) return []
 
-  console.log(`[fetchInterventionsByIds] Fetching ${ids.length} interventions via API`)
-
   const results: InterventionSearchRecord[] = []
   const errors: Array<{ id: string; error: any }> = []
 
@@ -861,7 +859,6 @@ const fetchInterventionsByIds = async (ids: string[]): Promise<InterventionSearc
     console.error(`[fetchInterventionsByIds] Failed to fetch ${errors.length}/${ids.length} interventions:`, errors)
   }
 
-  console.log(`[fetchInterventionsByIds] ✅ Successfully fetched ${results.length}/${ids.length} interventions`)
   return results
 }
 
@@ -966,15 +963,6 @@ export async function universalSearch(
   ])
 
   // Debug logging
-  console.log("[universalSearch] Results:", {
-    globalResultsCount: globalResults?.length ?? 0,
-    artisanResultsCount: artisanResults.length,
-    interventionResultsCount: interventionResults.length,
-    artisanIdsCount: artisanIds.length,
-    interventionIdsCount: interventionIds.length,
-    artisanDataCount: artisanData.length,
-    interventionDataCount: interventionData.length,
-  })
 
   // Create a map of entity_id -> rank for scoring
   const artisanRankMap = new Map(limitedArtisanResults.map((r) => [r.entity_id, r.rank ?? 0]))

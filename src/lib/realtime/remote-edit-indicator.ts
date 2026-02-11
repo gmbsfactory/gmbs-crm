@@ -76,7 +76,6 @@ class RemoteEditIndicatorManager {
   addIndicator(indicator: RemoteEditIndicator): void {
     // Ne pas ajouter si c'est une modification locale
     if (this.isLocalModification(indicator.interventionId)) {
-      console.log(`[RemoteEditIndicator] ⏭️ Indicateur ignoré pour ${indicator.interventionId} (modification locale)`)
       return
     }
 
@@ -84,7 +83,6 @@ class RemoteEditIndicatorManager {
     
     // Nettoyer automatiquement après 20 secondes (synchronisation complète)
     setTimeout(() => {
-      console.log(`[RemoteEditIndicator] 🗑️ Nettoyage automatique de l'indicateur pour ${indicator.interventionId}`)
       this.removeIndicator(indicator.interventionId)
     }, 20000)
   }
@@ -163,33 +161,17 @@ export function getRemoteEditIndicatorManager(): RemoteEditIndicatorManager {
  */
 export function getUserColor(userId: string | null, referenceCache?: { usersById?: Map<string, any> }): string {
   if (!userId) {
-    console.log(`[getUserColor] ⚠️ Pas d'userId, retour du gris par défaut`)
     return '#666666' // Gris par défaut
   }
-
-  console.log(`[getUserColor] 🔍 Recherche couleur pour userId: ${userId}`, {
-    hasCache: !!referenceCache,
-    hasUsersById: !!referenceCache?.usersById,
-    cacheSize: referenceCache?.usersById?.size || 0,
-  })
 
   // Si un cache de référence est fourni, essayer de récupérer la couleur depuis la table users
   if (referenceCache?.usersById) {
     const user = referenceCache.usersById.get(userId)
-    console.log(`[getUserColor] 👤 Utilisateur trouvé dans le cache:`, {
-      userId,
-      found: !!user,
-      userColor: user?.color,
-      userData: user,
-    })
     if (user?.color) {
-      console.log(`[getUserColor] ✅ Couleur récupérée depuis la table: ${user.color}`)
       return user.color
     } else {
-      console.log(`[getUserColor] ⚠️ Utilisateur trouvé mais pas de couleur, utilisation du fallback HSL`)
     }
   } else {
-    console.log(`[getUserColor] ⚠️ Pas de cache de référence, utilisation du fallback HSL`)
   }
 
   // Fallback : Hash simple pour générer une couleur cohérente si pas de couleur dans la table
@@ -201,7 +183,6 @@ export function getUserColor(userId: string | null, referenceCache?: { usersById
   // Générer une couleur HSL avec saturation et luminosité fixes pour la lisibilité
   const hue = Math.abs(hash) % 360
   const hslColor = `hsl(${hue}, 70%, 50%)`
-  console.log(`[getUserColor] 🎨 Couleur HSL générée: ${hslColor}`)
   return hslColor
 }
 

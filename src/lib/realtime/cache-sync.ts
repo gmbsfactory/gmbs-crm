@@ -187,29 +187,11 @@ export async function syncCacheWithRealtimeEvent(
   const newIntervention = newRecord && 'id' in newRecord ? newRecord : null
   const oldIntervention = oldRecord && 'id' in oldRecord ? oldRecord : null
 
-  console.log(`[cache-sync] 🔄 Événement ${eventType} pour intervention ${newIntervention?.id || oldIntervention?.id}`, {
-    eventType,
-    newRecordId: newIntervention?.id,
-    oldRecordId: oldIntervention?.id,
-    currentUserId,
-    hasNewRecord: !!newIntervention,
-    hasOldRecord: !!oldIntervention,
-    newRecordUpdatedBy: (newIntervention as any)?.updated_by,
-    newRecordAssignedUserId: newIntervention?.assigned_user_id,
-    fullNewRecord: newIntervention,
-  })
-
   // ⚠️ IMPORTANT : Enrichir le nouveau record avant de le mettre dans le cache
   // Le payload Realtime ne contient que les colonnes de la table, pas les données enrichies
   let enrichedNewRecord: Intervention | null = null
   if (newIntervention) {
     enrichedNewRecord = await enrichRealtimeRecord(newIntervention)
-    console.log(`[cache-sync] Record enrichi pour intervention ${enrichedNewRecord.id}`, {
-      statut_id: enrichedNewRecord.statut_id,
-      updated_by: (enrichedNewRecord as any).updated_by,
-      assigned_user_id: enrichedNewRecord.assigned_user_id,
-      hasUpdatedBy: !!(enrichedNewRecord as any).updated_by,
-    })
   }
 
   // T088: Gestion de la perte d'accès RLS (payload.new absent => plus de permission SELECT)
@@ -223,7 +205,6 @@ export async function syncCacheWithRealtimeEvent(
 
   // Gestion des soft deletes
   if (eventType === 'UPDATE' && isSoftDelete(oldIntervention as Intervention | null, enrichedNewRecord)) {
-    console.log(`[cache-sync] Soft delete détecté pour intervention ${enrichedNewRecord!.id}`)
     handleSoftDelete(queryClient, enrichedNewRecord!, indicatorManager)
     return
   }
@@ -238,14 +219,6 @@ export async function syncCacheWithRealtimeEvent(
       }
 
       if (filters && filters.user !== undefined) {
-        console.log(`[cache-sync] Filtres extraits pour query key:`, {
-          queryKey: queryKey.slice(0, 3),
-          filters: {
-            user: filters.user,
-            statut: filters.statut,
-            artisan: filters.artisan,
-          },
-        })
       }
 
       switch (eventType) {
@@ -271,14 +244,6 @@ export async function syncCacheWithRealtimeEvent(
       }
 
       if (filters && filters.user !== undefined) {
-        console.log(`[cache-sync] Filtres extraits pour query key (light):`, {
-          queryKey: queryKey.slice(0, 3),
-          filters: {
-            user: filters.user,
-            statut: filters.statut,
-            artisan: filters.artisan,
-          },
-        })
       }
 
       switch (eventType) {
@@ -294,8 +259,6 @@ export async function syncCacheWithRealtimeEvent(
     }
   )
 
-  console.log(`[cache-sync] ${updatedListCount} queries de listes complètes mises à jour, ${updatedLightCount} queries de listes light mises à jour`)
-
   // CRITIQUE: Invalider les queries actives pour forcer le re-render
   // Utiliser un délai minimal pour éviter les conflits de rendu React lors de la suppression d'interventions
   // Cela garantit que les mises à jour du DOM sont synchronisées et évite l'erreur "removeChild"
@@ -309,7 +272,6 @@ export async function syncCacheWithRealtimeEvent(
     })
     
     if (process.env.NODE_ENV !== 'production') {
-      console.log(`[cache-sync] Invalidating ${listQueries.length} list queries and ${lightQueries.length} light queries`)
       if (listQueries.length === 0 && lightQueries.length === 0) {
         console.warn('[cache-sync] ⚠️ Aucune query trouvée pour invalidation - vérifier les clés de requête')
       }
@@ -332,13 +294,6 @@ export async function syncCacheWithRealtimeEvent(
     const isLocal = indicatorManager.isLocalModification(enrichedNewRecord.id)
     const isRemoteModification = !isLocal
     
-    console.log(`[cache-sync] 🏷️ Vérification badge pour intervention ${enrichedNewRecord.id}:`, {
-      isLocal,
-      isRemoteModification,
-      currentUserId,
-      eventType,
-      localModificationsSet: indicatorManager.getLocalModifications(),
-    })
     
     // US8: Vérifier les conflits pour les UPDATE
     if (eventType === 'UPDATE' && oldIntervention && enrichedNewRecord) {
@@ -389,29 +344,16 @@ export async function syncCacheWithRealtimeEvent(
       // Utiliser updated_by pour identifier l'utilisateur qui a effectué la modification
       const userId = (enrichedNewRecord as any).updated_by || null
       
-      console.log(`[cache-sync] 🎨 Récupération couleur pour utilisateur ${userId}`, {
-      updated_by: (enrichedNewRecord as any).updated_by,
-      hasUpdatedBy: !!(enrichedNewRecord as any).updated_by,
-        interventionId: enrichedNewRecord.id,
-      })
       
       // Récupérer la couleur depuis la table users via le cache de référence (avec fallback en cas d'erreur)
       let userColor: string
       try {
         const refs = await getReferenceCache()
-        console.log(`[cache-sync] 📦 Cache récupéré:`, {
-          usersCount: refs.usersById?.size || 0,
-          userId,
-          userInCache: refs.usersById?.has(userId || ''),
-          userData: userId ? refs.usersById?.get(userId) : null,
-        })
         userColor = getUserColor(userId, refs)
-        console.log(`[cache-sync] 🎨 Couleur obtenue: ${userColor}`)
       } catch (error) {
         console.warn(`[cache-sync] ⚠️ Erreur lors de la récupération du cache de référence, utilisation du fallback:`, error)
         // Fallback : utiliser getUserColor sans cache si erreur
         userColor = getUserColor(userId)
-        console.log(`[cache-sync] 🎨 Couleur fallback: ${userColor}`)
       }
       
       indicatorManager.addIndicator({
@@ -424,11 +366,8 @@ export async function syncCacheWithRealtimeEvent(
         eventType,
       })
       
-      console.log(`[cache-sync] ✅ Badge créé pour intervention ${enrichedNewRecord.id} par utilisateur ${userId} (couleur: ${userColor})`)
     } else if (!currentUserId) {
-      console.log(`[cache-sync] ⚠️ Pas de currentUserId (${currentUserId}), badge non créé pour intervention ${enrichedNewRecord.id}`)
     } else if (!isRemoteModification) {
-      console.log(`[cache-sync] ℹ️ Modification locale détectée pour intervention ${enrichedNewRecord.id}, badge non créé (dans localModifications: ${isLocal})`)
     }
 
     // Mise à jour du détail de l'intervention si elle existe dans le cache
@@ -615,21 +554,6 @@ function handleUpdate(
   // Cas critiques : ajout/retrait d'intervention ou filtres user présents
   if ((wasInList && !matchesNow) || (!wasInList && matchesNow) || (filters.user !== undefined && filters.user !== null)) {
     const action = wasInList && !matchesNow ? 'RETRAIT' : !wasInList && matchesNow ? 'AJOUT' : 'MISE_A_JOUR'
-    console.log(`[cache-sync] handleUpdate - Intervention ${newRecord.id} - ${action}:`, {
-      wasInList,
-      matchesNow,
-      filters: filterSummary,
-      intervention: {
-        statut_id: newRecord.statut_id,
-        assigned_user_id: newRecord.assigned_user_id,
-        is_active: newRecord.is_active,
-      },
-      // Détails de correspondance pour débogage
-      matchDetails: {
-        statutMatch: filters.statut === undefined || filters.statut === newRecord.statut_id,
-        userMatch: filters.user === undefined || filters.user === newRecord.assigned_user_id || (filters.user === null && newRecord.assigned_user_id === null),
-      },
-    })
   }
 
   // Vérifier que pagination existe
@@ -644,7 +568,6 @@ function handleUpdate(
   // CAS 2: L'intervention n'était pas dans la liste mais doit maintenant y apparaître
   if (!wasInList && matchesNow) {
     // Ajouter l'intervention au début de la liste
-    console.log(`[cache-sync] Ajout de l'intervention ${newRecord.id} à la vue (correspond aux filtres)`)
     return {
       ...oldData,
       data: [newRecord, ...oldData.data],
@@ -675,7 +598,6 @@ function handleUpdate(
   // C'est le cas critique : l'intervention ne correspond plus aux filtres de la vue
   if (wasInList && !matchesNow) {
     // Retirer l'intervention de la liste car elle ne correspond plus aux filtres
-    console.log(`[cache-sync] Retrait de l'intervention ${newRecord.id} de la vue (ne correspond plus aux filtres)`)
     return {
       ...oldData,
       data: oldData.data.filter((i) => i.id !== newRecord.id),
@@ -951,14 +873,9 @@ function handleSoftDelete(
   deletedRecord: Intervention,
   indicatorManager: ReturnType<typeof getRemoteEditIndicatorManager>
 ) {
-  console.log(`[cache-sync] Traitement du soft delete pour intervention ${deletedRecord.id}`)
   const { updatedListCount, updatedLightCount } = removeInterventionFromAllCaches(
     queryClient,
     deletedRecord.id
-  )
-
-  console.log(
-    `[cache-sync] Soft delete: ${updatedListCount} listes complètes et ${updatedLightCount} listes light mises à jour`
   )
 
   // Invalider le détail de l'intervention

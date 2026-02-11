@@ -287,7 +287,6 @@ export function MapLibreMapImpl({
 
     // ⚠️ Attendre que le style soit chargé avant de manipuler les couches
     if (!mapInstance.isStyleLoaded()) {
-      console.log("[MapLibre] Waiting for style to load before toggling 3D buildings")
       return
     }
 

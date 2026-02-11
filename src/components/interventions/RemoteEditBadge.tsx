@@ -35,10 +35,6 @@ export function RemoteEditBadge({ interventionId, className }: RemoteEditBadgePr
       
       // Log seulement quand un badge est trouvé (événement rare)
       if (currentIndicator && !indicator) {
-        console.log(`[RemoteEditBadge] ✅ Badge affiché pour intervention ${interventionId}`, {
-          userColor: currentIndicator.userColor,
-          userId: currentIndicator.userId,
-        })
       }
       
       setIndicator(currentIndicator)

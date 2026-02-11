@@ -37,7 +37,6 @@ export function matchesFilters(
   // Les handlers (handleInsert, handleUpdate) gèrent explicitement le cas où filters est undefined
   if (!filters) {
     if (DEBUG_FILTERS) {
-      console.log('[matchesFilters] Pas de filtres définis, retour false')
     }
     return false
   }
@@ -46,7 +45,6 @@ export function matchesFilters(
   // T092: Vérification court-circuit pour optimiser les performances
   if (!intervention.is_active) {
     if (DEBUG_FILTERS) {
-      console.log(`[matchesFilters] Intervention ${intervention.id} inactive, retour false`)
     }
     return false
   }

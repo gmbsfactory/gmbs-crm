@@ -47,7 +47,6 @@ type InseeSireneResponse = {
   }
 }
 
-
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
@@ -85,7 +84,6 @@ export async function GET(request: NextRequest) {
     let token: string
     try {
       token = await getInseeToken()
-      console.log("[api/siret/verify] Token/clé obtenu avec succès (longueur:", token.length, ")")
     } catch (error) {
       const message =
         error instanceof Error
@@ -168,16 +166,9 @@ async function fetchSiretWithRetry(
         headers,
       })
 
-      console.log("[api/siret/verify] Réponse API INSEE:", {
-        status: response.status,
-        statusText: response.statusText,
-        headers: Object.fromEntries(response.headers.entries()),
-      })
-
       // Gestion des codes HTTP
       if (response.status === 404) {
         const responseText = await response.text().catch(() => "")
-        console.log("[api/siret/verify] API INSEE retourne 404:", responseText)
         return {
           exists: false,
           siret,
@@ -241,9 +232,7 @@ async function fetchSiretWithRetry(
 
       // Succès : parser et mapper les données
       const data = (await response.json()) as InseeSireneResponse
-      console.log("[api/siret/verify] Données reçues de l'API INSEE:", JSON.stringify(data, null, 2).substring(0, 500))
       const result = mapInseeResponseToVerificationResult(siret, data)
-      console.log("[api/siret/verify] Résultat mappé:", JSON.stringify(result, null, 2))
       return result
     } catch (error) {
       // Erreur réseau ou autre

@@ -198,7 +198,6 @@ export function InterventionContextMenuContent({
         {canWriteInterventions && (
           <ContextMenuItem
             onSelect={() => {
-              console.log("[InterventionContextMenu] Clic sur 'Devis supp' pour intervention:", intervention.id)
               duplicateDevisSupp()
             }}
             disabled={isLoading.duplicate}
@@ -249,5 +248,4 @@ export function InterventionContextMenuContent({
     </>
   )
 }
-
 

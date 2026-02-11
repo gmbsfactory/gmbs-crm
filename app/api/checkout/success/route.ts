@@ -24,7 +24,7 @@ async function readWalletId(): Promise<string | null> {
   try {
     const parsed = JSON.parse(raw) as { id: string; sig: string }
     if (parsed.sig === sign(parsed.id)) return parsed.id
-  } catch {}
+  } catch { /* Silenced: corrupted cookie, fall through to null */ }
   return null
 }
 
@@ -36,7 +36,7 @@ async function getBalance(): Promise<number> {
     const payload = JSON.parse(raw) as { balanceCents: number; sig: string }
     const sig = crypto.createHmac("sha256", getSecret()).update(String(payload.balanceCents)).digest("hex")
     if (payload.sig === sig) return Math.max(0, payload.balanceCents)
-  } catch {}
+  } catch { /* Silenced: corrupted cookie, fall through to 0 */ }
   return 0
 }
 

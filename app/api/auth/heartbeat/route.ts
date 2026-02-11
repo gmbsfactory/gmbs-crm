@@ -107,7 +107,6 @@ export async function POST(req: Request) {
         .update({ status: 'connected' })
         .eq('id', publicUserId)
 
-      console.log(`[api/auth/heartbeat] Auto-reconnected user ${publicUserId}`)
     }
 
     return NextResponse.json({

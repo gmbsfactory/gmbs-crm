@@ -54,16 +54,12 @@ export function useInterventionContextMenu(
 
   // Fonction pour ouvrir le modal avec les données pré-remplies (devis supp)
   const duplicateDevisSupp = useCallback(async () => {
-    console.log("[useInterventionContextMenu] duplicateDevisSupp appelé pour interventionId:", interventionId)
 
     // Récupérer les données de l'intervention depuis le cache ou les charger
     let interventionData = queryClient.getQueryData(interventionKeys.detail(interventionId)) as any
 
-    console.log("[useInterventionContextMenu] Données récupérées du cache:", interventionData ? "OK" : "NULL")
-
     // Si les données ne sont pas en cache, essayer de les charger depuis les listes
     if (!interventionData) {
-      console.log("[useInterventionContextMenu] Tentative de récupération depuis les listes...")
       // Chercher dans les listes d'interventions en cache
       const listsQueries = queryClient.getQueriesData({ queryKey: interventionKeys.lists() })
       for (const [, queryData] of listsQueries) {
@@ -72,7 +68,6 @@ export function useInterventionContextMenu(
           const found = data.data.find((item: any) => item.id === interventionId)
           if (found) {
             interventionData = found
-            console.log("[useInterventionContextMenu] Données trouvées dans les listes")
             break
           }
         }
@@ -168,10 +163,6 @@ export function useInterventionContextMenu(
     }
 
     // Ouvrir le modal "new-intervention" avec le contexte
-    console.log("[useInterventionContextMenu] Ouverture du modal avec context:", {
-      duplicateFrom: interventionId,
-      hasDefaultValues: !!defaultValues,
-    })
 
     try {
       modal.open("new", {
@@ -181,7 +172,6 @@ export function useInterventionContextMenu(
           defaultValues,
         },
       })
-      console.log("[useInterventionContextMenu] Modal ouvert avec succès")
     } catch (error) {
       console.error("[useInterventionContextMenu] Erreur lors de l'ouverture du modal:", error)
       toast.error("Erreur", {

@@ -92,7 +92,6 @@ export function SearchSection(props: SearchSectionProps) {
             onClick={(e) => {
               e.preventDefault()
               e.stopPropagation()
-              console.log(`[SearchSection] loadMore clicked for ${type}, extraCount: ${extraCount}`)
               onLoadMore()
             }}
             disabled={isLoadingMore}

@@ -77,8 +77,6 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'user not found' }, { status: 404 })
     }
 
-    console.log('[first-activity] 🔍 Checking first activity for user:', profile.id)
-
     // Fetch user data including lateness tracking, roles, and user info for email
     const { data: userData, error: userDataError } = await supabase
       .from('users')
@@ -101,15 +99,11 @@ export async function POST(req: Request) {
 
     const lastActivityDate = userData.last_activity_date
 
-    console.log('[first-activity] 📅 Last activity date:', lastActivityDate)
-    console.log('[first-activity] 📅 Today:', today, 'at', now.toLocaleTimeString())
-
     // Check if this is the first activity of the day
     const isFirstActivityOfDay = !lastActivityDate || lastActivityDate !== today
 
     if (!isFirstActivityOfDay) {
       // Already had activity today, nothing to do
-      console.log('[first-activity] ✅ Already had activity today, skipping')
       return NextResponse.json({
         ok: true,
         wasFirstActivity: false,
@@ -118,7 +112,6 @@ export async function POST(req: Request) {
     }
 
     // This IS the first activity of the day!
-    console.log('[first-activity] 🎯 First activity of the day detected!')
 
     // Build the patch object
     const patch: any = {
@@ -132,13 +125,9 @@ export async function POST(req: Request) {
       .filter((name): name is string => typeof name === 'string')
     const isAdminOrManager = roles.includes('admin') || roles.includes('manager')
 
-    console.log('[first-activity] 👤 Roles:', roles)
-    console.log('[first-activity] 🚫 Is admin/manager:', isAdminOrManager)
-
     if (!isAdminOrManager) {
       // Reset counter if year has changed
       if (userData.lateness_count_year !== currentYear) {
-        console.log('[first-activity] 📆 Year changed, resetting counter')
         patch.lateness_count = 0
         patch.lateness_count_year = currentYear
         patch.last_lateness_date = null
@@ -146,12 +135,9 @@ export async function POST(req: Request) {
 
       // Check if this first activity time is late
       const isLate = isLateLogin(now)
-      console.log('[first-activity] ⏰ Is late login:', isLate)
 
       if (isLate) {
         const lastLatenessDate = userData.last_lateness_date
-
-        console.log('[first-activity] 📅 Last lateness date:', lastLatenessDate)
 
         // Only count if not already marked late today (extra safety check)
         if (!lastLatenessDate || lastLatenessDate !== today) {
@@ -164,9 +150,6 @@ export async function POST(req: Request) {
           patch.lateness_count = newLatenessCount
           patch.lateness_count_year = currentYear
           patch.last_lateness_date = today
-
-          console.log('[first-activity] ✅ INCREMENTING lateness count to:', newLatenessCount)
-          console.log('[first-activity] 📦 Patch object:', patch)
 
           // Send lateness notification email (async, non-blocking)
           sendLatenessEmail(
@@ -182,13 +165,10 @@ export async function POST(req: Request) {
             console.error('[first-activity] ❌ Failed to send lateness email:', err)
           })
         } else {
-          console.log('[first-activity] ⚠️ Already marked late today (should not happen)')
         }
       } else {
-        console.log('[first-activity] ✅ Not a late login')
       }
     } else {
-      console.log('[first-activity] 🚫 Admin/Manager, skipping lateness tracking')
     }
 
     // Update user record with atomic conditional update to prevent race conditions
@@ -216,7 +196,6 @@ export async function POST(req: Request) {
     if (updateError) {
       // PGRST116 means "0 rows" - this is a race condition, not a real error
       if (updateError.code === 'PGRST116' || updateError.message?.includes('0 rows')) {
-        console.log('[first-activity] ⚠️ Race condition detected: another request already processed first activity')
         // Fetch the current state to return accurate data
         const { data: currentData } = await adminSupabase
           .from('users')
@@ -239,7 +218,6 @@ export async function POST(req: Request) {
     // Check if the update actually happened (race condition protection)
     // If updatedData is null or last_activity_date wasn't updated, another request already processed it
     if (!updatedData || updatedData.last_activity_date !== today) {
-      console.log('[first-activity] ⚠️ Race condition detected: another request already processed first activity')
       // Fetch the current state to return accurate data
       const { data: currentData } = await adminSupabase
         .from('users')
@@ -253,8 +231,6 @@ export async function POST(req: Request) {
         latenessCount: currentData?.lateness_count || userData.lateness_count || 0
       })
     }
-
-    console.log('[first-activity] ✅ Successfully updated user')
 
     return NextResponse.json({
       ok: true,
@@ -289,14 +265,12 @@ async function sendLatenessEmail(
     if (lastEmailSentAt) {
       const lastSentDate = getLocalDateString(new Date(lastEmailSentAt))
       if (lastSentDate === today) {
-        console.log('[first-activity] 📧 Email already sent today, skipping')
         return
       }
     }
 
     // Check if user has an email
     if (!userEmail) {
-      console.log('[first-activity] 📧 User has no email, skipping')
       return
     }
 
@@ -314,17 +288,14 @@ async function sendLatenessEmail(
     }
 
     if (!config) {
-      console.log('[first-activity] 📧 No lateness email config found, skipping')
       return
     }
 
     if (!config.is_enabled) {
-      console.log('[first-activity] 📧 Lateness email is disabled, skipping')
       return
     }
 
     if (!config.email_smtp || !config.email_password_encrypted) {
-      console.log('[first-activity] 📧 Lateness email not fully configured, skipping')
       return
     }
 
@@ -358,8 +329,6 @@ async function sendLatenessEmail(
     const htmlContent = generateLatenessEmailTemplate(emailData)
     const subject = generateLatenessEmailSubject(latenessMinutes)
 
-    console.log('[first-activity] 📧 Sending lateness email to:', userEmail)
-
     // Send email
     const result = await sendEmailToArtisan({
       type: 'intervention', // Using 'intervention' type as it's a generic email
@@ -374,8 +343,6 @@ async function sendLatenessEmail(
       console.error('[first-activity] 📧 Failed to send email:', result.error)
       return
     }
-
-    console.log('[first-activity] 📧 ✅ Lateness email sent successfully!')
 
     // Update user record to mark email as sent
     const { error: updateError } = await adminSupabase

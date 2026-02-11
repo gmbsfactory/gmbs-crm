@@ -26,7 +26,6 @@ export function useInterventionsMutations() {
     })
     
     if (process.env.NODE_ENV !== 'production') {
-      console.log(`[useInterventionsMutations] Invalidating ${listQueries.length} list queries and ${lightQueries.length} light queries`)
     }
     
     queryClient.invalidateQueries({ 
@@ -200,7 +199,6 @@ export function useInterventionsMutations() {
         }
       )
 
-      console.log(`[useInterventionsMutations] 🚀 Mise à jour optimiste appliquée pour ${variables.id}`, optimisticData)
     },
     onSuccess: (data, variables) => {
       const statusLabel = (data as any).status?.label || "modifiée"
@@ -346,6 +344,4 @@ export function useInterventionsMutations() {
     addPayment: addPaymentMutation,
   }
 }
-
-
 
