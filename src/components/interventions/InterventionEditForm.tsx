@@ -255,6 +255,23 @@ export const InterventionEditForm = memo(function InterventionEditForm({
     onSubmittingChange,
   })
 
+  // Liste des utilisateurs sélectionnables : actifs + archivés éligibles selon date intervention
+  const selectableUsers = useMemo(() => {
+    const active = refData?.users ?? []
+    const allUsers = refData?.allUsers
+    const interventionDate = (intervention as any).date ?? (intervention as any).date_intervention ?? formData?.date
+    if (!allUsers || !interventionDate) return active
+
+    const d = new Date(interventionDate)
+    if (Number.isNaN(d.getTime())) return active
+
+    const activeIds = new Set(active.map(u => u.id))
+    const archivedEligible = allUsers.filter(
+      u => u.status === "archived" && u.archived_at && !activeIds.has(u.id) && new Date(u.archived_at) > d
+    )
+    return [...active, ...archivedEligible]
+  }, [refData?.users, refData?.allUsers, intervention, formData?.date])
+
   // Destructure collapsible state for easier access
   const {
     isProprietaireOpen,
@@ -1366,7 +1383,8 @@ export const InterventionEditForm = memo(function InterventionEditForm({
                                 title={requiresAssignedUser && !formData.assigned_user_id ? "Attribution obligatoire pour ce statut" : undefined}
                               >
                                 {(() => {
-                                  const assignedUser = refData?.users.find(u => u.id === formData.assigned_user_id)
+                                  const assignedUser = selectableUsers.find(u => u.id === formData.assigned_user_id)
+                                    ?? refData?.allUsers?.find(u => u.id === formData.assigned_user_id)
                                   return (
                                     <GestionnaireBadge
                                       firstname={assignedUser?.firstname}
@@ -1382,10 +1400,10 @@ export const InterventionEditForm = memo(function InterventionEditForm({
                             </PopoverTrigger>
                             <PopoverContent className="w-56 p-2 z-[100]" align="start">
                               <div className="space-y-1">
-                                <p className="text-xs font-medium text-muted-foreground mb-2">Attribuer à ({refData?.users?.length || 0} utilisateurs)</p>
+                                <p className="text-xs font-medium text-muted-foreground mb-2">Attribuer à ({selectableUsers.length} utilisateurs)</p>
                                 <div className="space-y-1 max-h-64 overflow-y-auto scrollbar-minimal pr-1">
-                                  {refData?.users && refData.users.length > 0 ? (
-                                    refData.users.map((user) => {
+                                  {selectableUsers.length > 0 ? (
+                                    selectableUsers.map((user) => {
                                       const displayName = [user.firstname, user.lastname].filter(Boolean).join(" ").trim() || user.username
                                       const isSelected = user.id === formData.assigned_user_id
                                       return (

@@ -76,7 +76,11 @@ export default function DashboardPage() {
     if (currentUser?.id && !selectedGestionnaireId) {
       setSelectedGestionnaireId(currentUser.id)
     }
-  }, [currentUser?.id, selectedGestionnaireId])
+    // Verrouiller sur l'utilisateur courant pour les non-admins
+    if (currentUser?.id && !isAdmin && selectedGestionnaireId && selectedGestionnaireId !== currentUser.id) {
+      setSelectedGestionnaireId(currentUser.id)
+    }
+  }, [currentUser?.id, selectedGestionnaireId, isAdmin])
 
   // Fonction pour obtenir le nom d'affichage
   const getDisplayName = (gestionnaire: Gestionnaire) => {
@@ -654,40 +658,44 @@ export default function DashboardPage() {
                 )
               })()}
 
-              {/* ExpandableAvatarGroup des gestionnaires */}
-              {isLoadingGestionnaires ? (
-                <div className="h-9 w-9 rounded-full bg-muted animate-pulse flex-shrink-0" />
-              ) : gestionnaires.length === 0 ? (
-                <div className="text-sm text-muted-foreground whitespace-nowrap">Aucun gestionnaire</div>
-              ) : (
-                <motion.div
-                  layout
-                  transition={{ type: "spring", stiffness: 300, damping: 25 }}
-                  className="flex-shrink-0"
-                >
-                  <ExpandableAvatarGroup
-                    items={gestionnaires
-                      .filter((gestionnaire) => gestionnaire.id !== selectedGestionnaireId)
-                      .map((gestionnaire) => {
-                        const displayName = getDisplayName(gestionnaire)
-                        return {
-                          id: gestionnaire.id,
-                          firstname: gestionnaire.firstname,
-                          lastname: gestionnaire.lastname,
-                          prenom: gestionnaire.prenom,
-                          name: gestionnaire.name,
-                          color: gestionnaire.color,
-                          avatarUrl: gestionnaire.avatar_url,
-                          searchText: `${displayName} ${gestionnaire.code_gestionnaire || ''}`.trim(),
-                        }
-                      })}
-                    maxVisible={8}
-                    avatarSize="sm"
-                    onAvatarClick={(id) => setSelectedGestionnaireId(id)}
-                    showSearch={true}
-                    searchThreshold={8}
-                  />
-                </motion.div>
+              {/* ExpandableAvatarGroup des gestionnaires (admin uniquement) */}
+              {isAdmin && (
+                <>
+                  {isLoadingGestionnaires ? (
+                    <div className="h-9 w-9 rounded-full bg-muted animate-pulse flex-shrink-0" />
+                  ) : gestionnaires.length === 0 ? (
+                    <div className="text-sm text-muted-foreground whitespace-nowrap">Aucun gestionnaire</div>
+                  ) : (
+                    <motion.div
+                      layout
+                      transition={{ type: "spring", stiffness: 300, damping: 25 }}
+                      className="flex-shrink-0"
+                    >
+                      <ExpandableAvatarGroup
+                        items={gestionnaires
+                          .filter((gestionnaire) => gestionnaire.id !== selectedGestionnaireId)
+                          .map((gestionnaire) => {
+                            const displayName = getDisplayName(gestionnaire)
+                            return {
+                              id: gestionnaire.id,
+                              firstname: gestionnaire.firstname,
+                              lastname: gestionnaire.lastname,
+                              prenom: gestionnaire.prenom,
+                              name: gestionnaire.name,
+                              color: gestionnaire.color,
+                              avatarUrl: gestionnaire.avatar_url,
+                              searchText: `${displayName} ${gestionnaire.code_gestionnaire || ''}`.trim(),
+                            }
+                          })}
+                        maxVisible={8}
+                        avatarSize="sm"
+                        onAvatarClick={(id) => setSelectedGestionnaireId(id)}
+                        showSearch={true}
+                        searchThreshold={8}
+                      />
+                    </motion.div>
+                  )}
+                </>
               )}
 
               {/* Bouton Mode Admin (visible uniquement pour les admins) */}

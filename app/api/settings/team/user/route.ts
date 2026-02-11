@@ -352,13 +352,11 @@ export async function DELETE(req: Request) {
         status: 'archived',
         archived_at: new Date().toISOString(),
         // RGPD Article 17 - Anonymisation des données personnelles
+        // firstname, lastname, color et code_gestionnaire sont conservés
+        // pour l'affichage historique dans la table des interventions
         email: `deleted_${userId}@anonymized.local`,
-        firstname: 'Utilisateur',
-        lastname: 'Supprimé',
         username: `deleted_${userId}`,
-        code_gestionnaire: null,
         avatar_url: null,
-        color: null,
       })
       .eq('id', userId)
     

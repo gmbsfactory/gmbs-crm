@@ -11,6 +11,7 @@ export type ReferenceCache = {
   data: ReferenceData;
   fetchedAt: number;
   usersById: Map<string, ReferenceData["users"][number]>;
+  allUsersById: Map<string, ReferenceData["allUsers"][number]>;
   agenciesById: Map<string, ReferenceData["agencies"][number]>;
   interventionStatusesById: Map<string, ReferenceData["interventionStatuses"][number]>;
   artisanStatusesById: Map<string, ReferenceData["artisanStatuses"][number]>;
@@ -82,6 +83,7 @@ class ReferenceCacheManager {
       data,
       fetchedAt: Date.now(),
       usersById: new Map(data.users.map((user) => [user.id, user])),
+      allUsersById: new Map(data.allUsers.map((user) => [user.id, user])),
       agenciesById: new Map(data.agencies.map((agency) => [agency.id, agency])),
       interventionStatusesById: new Map(
         data.interventionStatuses.map((status) => [status.id, status])
