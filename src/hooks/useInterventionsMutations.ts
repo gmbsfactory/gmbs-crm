@@ -1,5 +1,4 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query"
-import { toast } from "sonner"
 import { interventionsApi, type Intervention, type InterventionCost, type InterventionPayment } from "@/lib/api/v2"
 import { useInterventionModal } from "@/hooks/useInterventionModal"
 import { interventionKeys } from "@/lib/react-query/queryKeys"
@@ -63,13 +62,7 @@ export function useInterventionsMutations() {
       return await interventionsApi.create(data)
     },
     onSuccess: (data) => {
-      toast.success(`Intervention (${data.id_inter || data.id}) créée avec succès`, {
-        description: new Date().toLocaleString(),
-        action: {
-          label: "Voir",
-          onClick: () => openInterventionModal(data.id),
-        },
-      })
+      // Note: le toast de succès est géré par le formulaire (nouveau flow modal → toaster)
       // Enregistrer la modification locale pour éviter d'afficher un badge
       if (data?.id) {
         const indicatorManager = getRemoteEditIndicatorManager()
@@ -202,14 +195,7 @@ export function useInterventionsMutations() {
 
     },
     onSuccess: (data, variables) => {
-      const statusLabel = (data as any).status?.label || "modifiée"
-      toast.success(`Intervention ${data.id_inter || ""} a été modifiée avec succès`, {
-        description: new Date().toLocaleString(),
-        action: {
-          label: "Voir",
-          onClick: () => openInterventionModal(variables.id),
-        },
-      })
+      // Note: le toast de succès est géré par le formulaire (nouveau flow modal → toaster)
       // Enregistrer la modification locale pour éviter d'afficher un badge
       const indicatorManager = getRemoteEditIndicatorManager()
       indicatorManager.recordLocalModification(variables.id, data?.updated_at || null)
