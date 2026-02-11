@@ -242,6 +242,7 @@ export const buildUserDisplay = (user?: any) => {
 // Fonction pour mapper un enregistrement d'intervention
 export const mapInterventionRecord = (item: any, refs: any): any => {
   const userInfo = buildUserDisplay(
+    refs.allUsersById?.get(item.assigned_user_id ?? "") ??
     refs.usersById?.get(item.assigned_user_id ?? "")
   );
   const agency = item.agence_id
