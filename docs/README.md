@@ -1,402 +1,147 @@
-# 📚 Documentation CRM GMBS
+# Documentation GMBS-CRM
 
-Bienvenue dans la documentation du CRM GMBS. Cette documentation couvre tous les aspects du système, de l'architecture technique aux guides d'utilisation.
-
----
-
-## 🎯 Accès rapide
-
-### 🔥 Nouveauté : Livrable Interventions & Artisans (05/11/2025)
-
-📖 **[Documentation complète du livrable Spécifications Interventions & Artisans](./livrable-2025-11-04/README.md)**
-
-**Documents disponibles** :
-- 📋 [Résumé exécutif](./livrable-2025-11-04/RESUME_EXECUTIF_LIVRABLE_2025-11-04.md) - Vue d'ensemble en 30 secondes, 21 tâches analysées
-- 📜 [Règles métier](./livrable-2025-11-04/BUSINESS_RULES_2025-11-04.md) - 18 règles métier documentées avec exemples de code
-- 📊 [Classification des tâches](./livrable-2025-11-04/ANALYSE_CLASSIFICATION_TACHES_2025-11-04.md) - Détails techniques et estimations
-- 🔄 [Workflows & Diagrammes](./livrable-2025-11-04/WORKFLOW_REGLES_METIER.md) - 10 workflows visuels + 5 scénarios de test
-
-**Périmètre** :
-- ✅ 10 modifications BDD complexes (15-20 jours)
-- ✅ 11 implémentations simples UI/UX (10-12 jours)
-- ✅ Workflow acomptes complet avec automatisations
-- ✅ Gestion des devis et duplications
-- ✅ Règles de validation agences et dates
-- ✅ **Durée totale estimée : 7-8 semaines**
-
-### 🔥 Synchronisation Google Sheets
-
-📖 **[Documentation complète de la synchronisation bidirectionnelle CRM ↔ Google Sheets](./INDEX_SYNC_GOOGLE_SHEETS.md)**
-
-**Documents disponibles** :
-- 🎯 [Résumé exécutif](./SYNC_GOOGLE_SHEETS_RESUME.md) - Vue d'ensemble et guide utilisateur
-- 🏗️ [Conception technique détaillée](./CONCEPTION_SYNC_GOOGLE_SHEETS.md) - Architecture complète
-- 📐 [Diagrammes d'architecture](./DIAGRAMME_SYNC_ARCHITECTURE.md) - 12 diagrammes Mermaid
-- 🚀 [Guide de démarrage rapide](./QUICK_START_SYNC_IMPLEMENTATION.md) - Implémentation en 30 min
-
-**Cas d'usage** :
-- ✅ Backup automatique du CRM dans Google Sheets
-- ✅ Édition en masse dans Google Sheets
-- ✅ Synchronisation bidirectionnelle automatique
-- ✅ Gestion intelligente des conflits
+CRM pour la gestion des interventions, artisans et clients. Stack : Next.js 15, React 18, TypeScript 5, Supabase, TanStack Query v5, Zustand, Tailwind CSS, shadcn/ui.
 
 ---
 
-## 📁 Structure de la documentation
+## Quick Navigation
 
-### 🏗️ Architecture et API
+### Getting Started
 
-#### API v2
-- **[Guidelines API v2](./guide/backend/GUIDELINES_API_V2.md)** - Standards et bonnes pratiques
-- **[Quick Start API v2](./guide/backend/QUICK_START_API_V2.md)** - Démarrage rapide
-- **[Migration API v2](./MIGRATION_API_V2.md)** - Guide de migration
-- **[API CRM Complète](./API_CRM_COMPLETE.md)** - Documentation complète de l'API
+Prise en main du projet pour les nouveaux developpeurs.
 
-#### Base de données
-- **[Schéma DB (Mermaid)](./db/schema.mermaid)** - Diagramme ERD complet
-- **[Schéma ancien](./db/schema_old.mermaid)** - Archive du schéma précédent
-
-### 📊 Data Mapping
-
-- **[Mapping Artisans](./data-mapping/artisans-mapping.md)** - Structure des données artisans
-- **[Mapping Interventions](./data-mapping/interventions-mapping.md)** - Structure des interventions
-- **[Mapping Google Sheets](./data-mapping/google-sheets-mapping.md)** - Correspondance Sheets ↔ DB
-- **[Sheet → DB → Frontend](./data-mapping/sheet-db-frontend.md)** - Flux de données complet
-
-### 🔧 Import de données
-
-- **[Import Google Sheets - Résumé](./guide/import_sheets/IMPORT_GOOGLE_SHEETS_SUMMARY.md)** - Vue d'ensemble
-- **[CSV Mapping Fixes](./guide/import_sheets/CSV_MAPPING_FIXES.md)** - Corrections des mappings
-- **[Google Credentials Setup](./guide/google-credentials-setup.md)** - Configuration OAuth
-
-### 🚀 Installation et démarrage
-
-- **[Guide d'installation complet](./baz/guide-installation-complet.md)** - Installation de A à Z
-- **[Guide d'installation](./guide/guide_installation.md)** - Version simplifiée
-- **[Quick Start pour collaborateurs](./onboarding/QUICKSTART_FOR_COLLABORATORS.md)** - Onboarding rapide
-- **[Delivery Checklist](./audit/DELIVERY_CHECKLIST.md)** - Checklist avant déploiement
-
-### 🎨 Interface utilisateur
-
-- **[UI Cleanup 2025](./UI_CLEANUP_2025.md)** - Nettoyage et modernisation de l'UI
-- **[Flow des interventions](./baz/interventions-ui-flow-mermaid.md)** - Diagrammes de flux
-- **[Design](./baz/design1-4.md)** - Spécifications de design
-
-### 🐛 Diagnostics et fixes
-
-#### Interventions
-- **[Diagnostic interventions vides](./baz/DIAGNOSTIC_INTERVENTIONS_VIDES.md)**
-- **[Diagnostic statuts interventions](./baz/DIAGNOSTIC_STATUTS_INTERVENTIONS.md)**
-- **[Fix pastilles compteurs](./baz/FIX_PASTILLES_COMPTEURS_INTERVENTIONS.md)**
-- **[Fix pastilles mapping statuts](./baz/FIX_PASTILLES_MAPPING_STATUTS.md)**
-- **[Fix status UUID mapping](./baz/FIX_STATUS_UUID_MAPPING.md)**
-- **[Résumé final fix pastilles](./baz/RESUME_FINAL_FIX_PASTILLES.md)**
-
-#### Optimisations
-- **[Optimisation scroll infini](./baz/OPTIMISATION_INTERVENTIONS_SCROLL_INFINI.md)**
-- **[Optimisation sliding window](./baz/OPTIMISATION_SCROLL_INFINI_SLIDING_WINDOW.md)**
-- **[Optimisation finale résumé](./baz/OPTIMISATION_FINALE_RESUME.md)**
-- **[Amélioration rafraîchissement temps réel](./AMELIORATION_RAFRAICHISSEMENT_TEMPS_REEL.md)**
-- **[Test rafraîchissement](./TEST_RAFRAICHISSEMENT.md)**
-
-### 📝 Références rapides
-
-- **[Quick Fix Reference](./baz/QUICK_FIX_REFERENCE.md)** - Résolution rapide des problèmes
-- **[Quick Reference Status API v2](./baz/QUICK_REFERENCE_STATUS_API_V2.md)** - Statuts et API
-- **[Corrections UUID Mapping](./baz/CORRECTIONS_FINALES_UUID_MAPPING.md)** - Fixes UUID
-
-### 🔄 Workflows spécifiques
-
-- **[Workflow extraction devis](./guide/WORKFLOW_EXTRACTION_DEVIS.md)** - Extraction automatique de devis
-- **[Module IA](./baz/ia-module.md)** - Intégration de l'IA
-
-### 🏢 Multi-tenancy
-
-- **[Tenant Implementation](./TENANT_IMPLEMENTATION.md)** - Implémentation multi-tenant
-
-### 📋 Modifications et changements
-
-- **[Modifications Plain Nom](./MODIFICATIONS_PLAIN_NOM.md)** - Changements de nomenclature
-- **[Validation migration statuts v2](./baz/VALIDATION_MIGRATION_STATUTS_V2.md)** - Validation des statuts
-- **[Branche ORM démarrage](./baz/branche-orm-demarrage.md)** - Migration ORM
-
-### 📝 TODO et planification
-
-- **[TODO principal](./ToDo.md)** - Liste des tâches principales
-- **[TODO détaillé](./todo/todo.txt)** - Liste détaillée des tâches
+| Page | Description |
+|------|-------------|
+| [Vue d'ensemble du projet](getting-started/project-overview.md) | Contexte metier, objectifs et perimetre fonctionnel |
+| [Quick Start](getting-started/quick-start.md) | Installation, configuration et premier lancement |
+| [Structure du projet](getting-started/folder-structure.md) | Organisation des dossiers, conventions de nommage |
+| [Stack technique](getting-started/tech-stack.md) | Technologies utilisees, versions et justifications |
 
 ---
 
-## 🗺️ Parcours recommandés
+### Architecture
 
-### 🆕 Nouveau collaborateur
+Conception technique du systeme, flux de donnees et patterns architecturaux.
 
-```
-1. Quick Start pour collaborateurs
-   └─> /onboarding/QUICKSTART_FOR_COLLABORATORS.md
-
-2. Guide d'installation
-   └─> /guide/guide_installation.md
-
-3. Architecture API v2
-   └─> /guide/backend/QUICK_START_API_V2.md
-
-4. Structure des données
-   └─> /data-mapping/sheet-db-frontend.md
-```
-
-### 👨‍💻 Développeur Backend
-
-```
-1. Guidelines API v2
-   └─> /guide/backend/GUIDELINES_API_V2.md
-
-2. Schéma de base de données
-   └─> /db/schema.mermaid
-
-3. Data Mapping
-   └─> /data-mapping/
-
-4. Quick Fix Reference
-   └─> /baz/QUICK_FIX_REFERENCE.md
-```
-
-### 🎨 Développeur Frontend
-
-```
-1. UI Cleanup 2025
-   └─> /UI_CLEANUP_2025.md
-
-2. Flow des interventions
-   └─> /baz/interventions-ui-flow-mermaid.md
-
-3. API CRM Complète
-   └─> /API_CRM_COMPLETE.md
-
-4. Optimisations scroll
-   └─> /baz/OPTIMISATION_INTERVENTIONS_SCROLL_INFINI.md
-```
-
-### 🔧 DevOps / Déploiement
-
-```
-1. Delivery Checklist
-   └─> /audit/DELIVERY_CHECKLIST.md
-
-2. Guide d'installation complet
-   └─> /baz/guide-installation-complet.md
-
-3. Tenant Implementation
-   └─> /TENANT_IMPLEMENTATION.md
-
-4. Migration API v2
-   └─> /MIGRATION_API_V2.md
-```
-
-### 📊 Product Owner / Manager
-
-```
-1. Livrable Interventions & Artisans (Nouveau !)
-   └─> /livrable-2025-11-04/README.md
-   └─> /livrable-2025-11-04/RESUME_EXECUTIF_LIVRABLE_2025-11-04.md
-
-2. Synchronisation Google Sheets (Résumé)
-   └─> /SYNC_GOOGLE_SHEETS_RESUME.md
-
-3. TODO principal
-   └─> /ToDo.md
-
-4. UI Cleanup 2025
-   └─> /UI_CLEANUP_2025.md
-
-5. Workflow extraction devis
-   └─> /guide/WORKFLOW_EXTRACTION_DEVIS.md
-```
-
-### 📝 Implémentation d'une nouvelle fonctionnalité (Livrable 05/11/2025)
-
-```
-1. Consulter l'index du livrable
-   └─> /livrable-2025-11-04/INDEX_LIVRABLE_2025-11-04.md
-
-2. Lire la règle métier concernée
-   └─> /livrable-2025-11-04/BUSINESS_RULES_2025-11-04.md
-
-3. Voir le workflow visuel
-   └─> /livrable-2025-11-04/WORKFLOW_REGLES_METIER.md
-
-4. Consulter les détails techniques
-   └─> /livrable-2025-11-04/ANALYSE_CLASSIFICATION_TACHES_2025-11-04.md
-```
+| Page | Description |
+|------|-------------|
+| [Flux de donnees](architecture/data-flow.md) | Du composant a PostgreSQL, cache, realtime, sync cross-tab |
+| [Couche API](architecture/api-layer.md) | API v2, facade, modules, pattern d'appel |
+| [Synchronisation Realtime](architecture/realtime-sync.md) | Cache sync, broadcast, conflict detection, enrichment |
+| [State Management](architecture/state-management.md) | TanStack Query vs Zustand vs Context vs URL |
+| [Authentification et Securite](architecture/auth-and-security.md) | Auth Supabase, RBAC, RLS, middleware |
+| [Workflow Engine](architecture/workflow-engine.md) | Machine a etats des interventions, transitions, validation cumulative |
 
 ---
 
-## 🔍 Recherche par sujet
+### Guides
 
-### Authentification et OAuth
-- [Google Credentials Setup](./guide/google-credentials-setup.md)
-- [Synchronisation Google Sheets](./INDEX_SYNC_GOOGLE_SHEETS.md)
+Guides pratiques pour les cas d'usage courants du developpement.
 
-### Base de données
-- [Schéma DB](./db/schema.mermaid)
-- [Data Mapping](./data-mapping/)
-- [Migration API v2](./MIGRATION_API_V2.md)
-
-### Import/Export de données
-- [Import Google Sheets](./guide/import_sheets/IMPORT_GOOGLE_SHEETS_SUMMARY.md)
-- [Synchronisation bidirectionnelle](./CONCEPTION_SYNC_GOOGLE_SHEETS.md)
-- [CSV Mapping](./guide/import_sheets/CSV_MAPPING_FIXES.md)
-
-### Performance et optimisation
-- [Optimisation scroll infini](./baz/OPTIMISATION_INTERVENTIONS_SCROLL_INFINI.md)
-- [Sliding window](./baz/OPTIMISATION_SCROLL_INFINI_SLIDING_WINDOW.md)
-- [Rafraîchissement temps réel](./AMELIORATION_RAFRAICHISSEMENT_TEMPS_REEL.md)
-
-### Interventions
-- [Mapping interventions](./data-mapping/interventions-mapping.md)
-- [Flow UI](./baz/interventions-ui-flow-mermaid.md)
-- [Diagnostics](./baz/DIAGNOSTIC_INTERVENTIONS_VIDES.md)
-
-### Artisans
-- [Mapping artisans](./data-mapping/artisans-mapping.md)
-
-### Statuts
-- [Fix status UUID](./baz/FIX_STATUS_UUID_MAPPING.md)
-- [Quick Reference Status](./baz/QUICK_REFERENCE_STATUS_API_V2.md)
-- [Validation migration](./baz/VALIDATION_MIGRATION_STATUTS_V2.md)
+| Page | Description |
+|------|-------------|
+| [Ajouter une feature](guides/adding-a-feature.md) | Processus complet : composant, hook, API, tests, documentation |
+| [Creer un endpoint API](guides/creating-an-api-endpoint.md) | Ajout d'un module API v2, Edge Function, route Next.js |
+| [Ecrire des tests](guides/writing-tests.md) | Tests unitaires, integration, E2E, mocks, couverture |
+| [Travailler avec les formulaires](guides/working-with-forms.md) | React Hook Form + Zod, validation, patterns |
+| [Utiliser la carte](guides/using-the-map.md) | MapLibre GL, geocodage, markers, interactions |
+| [Gerer la base de donnees](guides/managing-database.md) | Migrations Supabase, types, seeds |
+| [Gestion des erreurs](guides/error-handling.md) | ErrorHandler, boundaries, patterns |
 
 ---
 
-## 🛠️ Outils et ressources
+### API Reference
 
-### Visualisation
-- **Mermaid Live Editor** : https://mermaid.live/
-- Utilisez-le pour visualiser les fichiers `.mermaid`
+Reference technique des modules API, hooks et Edge Functions.
 
-### Base de données
-- **Supabase Studio** : Interface de gestion
-- **PostgreSQL docs** : https://www.postgresql.org/docs/
-
-### API
-- **Postman** : Tester les endpoints
-- **Swagger** : Documentation interactive (à venir)
-
-### Frontend
-- **Next.js docs** : https://nextjs.org/docs
-- **Shadcn/ui** : https://ui.shadcn.com/
+| Page | Description |
+|------|-------------|
+| [Interventions API](api-reference/interventions.md) | CRUD, statuts, couts, stats, filtres (5 sous-modules) |
+| [Artisans API](api-reference/artisans.md) | CRUD, metiers, zones, absences, statuts |
+| [Users API](api-reference/users.md) | Auth, roles, permissions, gestion utilisateurs |
+| [Documents API](api-reference/documents.md) | Upload, stockage Supabase Storage, types supportes |
+| [Settings API](api-reference/settings.md) | Agencies, enums, metiers, roles |
+| [Query Keys Reference](api-reference/query-keys.md) | Reference complete des query keys TanStack Query |
+| [Edge Functions](api-reference/edge-functions.md) | 11 fonctions Deno, patterns, CORS, logging |
 
 ---
 
-## 📊 Statistiques de la documentation
+### Components
 
-- **Total de documents** : 50+
-- **Diagrammes Mermaid** : 15+
-- **Guides d'installation** : 4
-- **Diagnostics et fixes** : 10+
-- **Références API** : 5+
+Bibliotheque de composants et patterns UI.
 
----
-
-## 🤝 Contribution
-
-### Ajouter de la documentation
-
-1. Créer un fichier Markdown dans le dossier approprié
-2. Suivre le format existant
-3. Ajouter un lien dans ce README
-4. Utiliser des diagrammes Mermaid si pertinent
-
-### Standards de documentation
-
-- **Format** : Markdown (.md)
-- **Titres** : Utiliser des emojis pour la clarté
-- **Code** : Blocs de code avec syntaxe highlighting
-- **Diagrammes** : Mermaid quand possible
-- **Liens** : Relatifs depuis docs/
+| Page | Description |
+|------|-------------|
+| [Composants UI (shadcn)](components/ui-components.md) | 30+ composants de base : Button, Card, Dialog, etc. |
+| [Composants Intervention](components/intervention-components.md) | Modal, Card, Views, Filters, Workflow |
+| [Composants Artisan](components/artisan-components.md) | Modal, Card, formulaires, context menu |
+| [Patterns partages](components/shared-patterns.md) | CommentSection, ErrorBoundary, TruncatedCell, etc. |
 
 ---
 
-## 📞 Support
+### Database
 
-### Questions fréquentes
+Schema, migrations et modele de donnees.
 
-**Où trouver la documentation de l'API ?**
-→ [API_CRM_COMPLETE.md](./API_CRM_COMPLETE.md)
-
-**Comment installer le projet ?**
-→ [guide_installation.md](./guide/guide_installation.md)
-
-**Comment importer des données depuis Google Sheets ?**
-→ [IMPORT_GOOGLE_SHEETS_SUMMARY.md](./guide/import_sheets/IMPORT_GOOGLE_SHEETS_SUMMARY.md)
-
-**Comment configurer la synchronisation bidirectionnelle ?**
-→ [QUICK_START_SYNC_IMPLEMENTATION.md](./QUICK_START_SYNC_IMPLEMENTATION.md)
-
-**Problème avec les interventions vides ?**
-→ [DIAGNOSTIC_INTERVENTIONS_VIDES.md](./baz/DIAGNOSTIC_INTERVENTIONS_VIDES.md)
-
-**Problème de performance ?**
-→ [OPTIMISATION_INTERVENTIONS_SCROLL_INFINI.md](./baz/OPTIMISATION_INTERVENTIONS_SCROLL_INFINI.md)
+| Page | Description |
+|------|-------------|
+| [Schema de la base](database/schema.md) | Tables, relations, types, contraintes, diagramme ER |
+| [Migrations](database/migrations.md) | 82+ migrations SQL, conventions, bonnes pratiques |
+| [Politiques RLS](database/rls-policies.md) | Row Level Security, policies par table |
 
 ---
 
-## 🔄 Mises à jour récentes
+### Conventions
 
-### 5 novembre 2025
-- ✨ **Ajout** : Documentation complète livrable Interventions & Artisans
-  - 📋 Résumé exécutif avec vue d'ensemble en 30 secondes
-  - 📜 18 règles métier documentées avec exemples de code
-  - 📊 21 tâches analysées et classées par complexité
-  - 🔄 10 workflows visuels avec diagrammes Mermaid
-  - 🧪 5 scénarios de test critiques
-  - ⏱️ Estimations détaillées : 7-8 semaines (33-41 jours)
+Regles et standards du projet.
 
-### 30 octobre 2025
-- ✨ **Ajout** : Documentation complète synchronisation Google Sheets
-  - Résumé exécutif
-  - Conception technique détaillée (80+ pages)
-  - 12 diagrammes d'architecture
-  - Guide de démarrage rapide (30 min)
-
-### Précédentes mises à jour
-- Voir les fichiers individuels pour l'historique détaillé
+| Page | Description |
+|------|-------------|
+| [Standards de code](conventions/coding-standards.md) | TypeScript strict, React, CSS/Tailwind |
+| [Nommage des fichiers](conventions/file-naming.md) | Conventions de nommage, ou placer quoi |
+| [Workflow Git](conventions/git-workflow.md) | Commits conventionnels, branches, PR |
+| [Standards de tests](conventions/testing-standards.md) | Structure, nommage, mocks, couverture |
 
 ---
 
-## 🎯 Prochaines documentations
+### Maintenance
 
-- [ ] Tests E2E (Playwright)
-- [ ] CI/CD Pipeline
-- [ ] Monitoring et logs
-- [ ] Sécurité et permissions
-- [ ] Mobile responsive guide
-- [ ] Accessibility (a11y) guidelines
+Operations, monitoring et procedures de maintenance.
 
----
-
-**Dernière mise à jour** : 5 novembre 2025  
-**Maintenu par** : L'équipe CRM GMBS
+| Page | Description |
+|------|-------------|
+| [Problemes courants](maintenance/common-issues.md) | Troubleshooting et solutions |
+| [Performance](maintenance/performance.md) | Optimisation, virtualisation, lazy loading |
+| [Monitoring](maintenance/monitoring.md) | Logs, erreurs, metriques |
+| [Mise a jour des dependances](maintenance/updating-dependencies.md) | npm audit, updates, breaking changes |
 
 ---
 
-## 📚 Ressources externes
+### AI Integration
 
-### Documentation officielle
-- [Next.js](https://nextjs.org/docs)
-- [Supabase](https://supabase.com/docs)
-- [PostgreSQL](https://www.postgresql.org/docs/)
-- [Google Sheets API](https://developers.google.com/sheets/api)
-- [Google OAuth](https://developers.google.com/identity/protocols/oauth2)
+Configuration des outils AI pour le developpement.
 
-### Tutoriels et guides
-- [Supabase Auth](https://supabase.com/docs/guides/auth)
-- [Next.js App Router](https://nextjs.org/docs/app)
-- [React Query](https://tanstack.com/query/latest)
-- [Tailwind CSS](https://tailwindcss.com/docs)
+| Page | Description |
+|------|-------------|
+| [LLMs.txt](ai-integration/llms.txt) | Index structure pour agents LLM (pattern Stripe) |
+| [Rules Cursor](ai-integration/cursor-rules.md) | Fichiers de regles pour Cursor IDE |
+| [Instructions Copilot](ai-integration/copilot-instructions.md) | Configuration GitHub Copilot |
+| [Agent Guidelines](ai-integration/agent-guidelines.md) | Guidelines pour Claude Code et autres agents |
 
 ---
 
-Bonne lecture ! 📖✨
+## Pour les agents AI
 
+- **CLAUDE.md** : [/CLAUDE.md](../CLAUDE.md) -- Reference rapide des conventions, architecture et regles du projet
+- **llms.txt** : [/llms.txt](../llms.txt) -- Index structure de la documentation pour agents LLM
 
+---
 
+## Documentation historique
+
+L'ancienne documentation (livrables, diagnostics, data-mapping, sync Google Sheets, fixes) a ete archivee dans [`archive/docs-legacy/`](../archive/docs-legacy/).
+
+---
+
+Derniere mise a jour : Fevrier 2026
+Maintenu par : DD & H

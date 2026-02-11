@@ -1,0 +1,184 @@
+# GMBS-CRM Documentation
+
+> CRM for managing field interventions, artisans (subcontractors), and clients.
+> Stack: Next.js 15 / React 18 / TypeScript 5 / Supabase / TanStack Query 5 / Tailwind CSS
+
+---
+
+## Instructions for LLM Agents
+
+When generating code for GMBS-CRM, follow these rules strictly:
+
+1. ALWAYS use API v2 (`src/lib/api/v2/`). NEVER use or reference a legacy v1 API.
+   - Import from `@/lib/api/v2`: `import { interventionsApi, artisansApi } from '@/lib/api/v2'`
+   - The facade object `apiV2` is also available as default export.
+
+2. ALWAYS use TanStack Query hooks for server data. NEVER store server data in local state.
+   - Use existing hooks: `useInterventionsQuery`, `useArtisansQuery`, `useReferenceDataQuery`
+   - Use `useInterventionsMutations` for CRUD operations with optimistic updates.
+
+3. Query keys are centralized in `src/lib/react-query/queryKeys.ts`.
+   - Use the factory functions: `interventionKeys`, `artisanKeys`, `dashboardKeys`, `referenceKeys`
+   - NEVER hardcode query key strings.
+
+4. Workflow transitions are governed by a strict state machine.
+   - Status changes MUST go through `src/lib/workflow/` validation functions.
+   - NEVER update `statut_id` directly on the intervention record.
+   - 30 authorized transitions are defined in `src/config/workflow-rules.ts`.
+   - Cumulative validation: each status must satisfy all predecessor requirements.
+
+5. Tests are MANDATORY for all new features and code changes.
+   - Test framework: Vitest + React Testing Library
+   - Test location: `tests/unit/`, `tests/integration/`, `tests/e2e/`
+   - Mock pattern: `SupabaseMockBuilder` in `tests/__mocks__/supabase/`
+   - Run: `npm run test`
+
+6. Component pattern: functional component + custom hook for logic.
+   - Props: use `interface` with explicit types, destructured in function signature.
+   - No `any` types. Use `unknown` and narrow with type guards.
+   - Forms: React Hook Form + Zod validation.
+   - UI primitives: shadcn/ui (Radix-based).
+
+7. Path alias: `@/` maps to `./src/`. Always use `@/` imports, never relative cross-feature imports.
+
+8. Supabase client:
+   - Browser: singleton with anon key (respects RLS).
+   - Node/server: service role client via `getSupabaseClientForNode()` (bypasses RLS).
+   - Auth tokens sent via `getHeaders()` helper.
+
+9. Realtime sync:
+   - Supabase Realtime channel on `interventions` table.
+   - Cache sync orchestrated by `src/lib/realtime/cache-sync.ts`.
+   - Cross-tab sync via BroadcastChannel.
+   - Offline queue with exponential backoff in `src/lib/realtime/sync-queue.ts`.
+
+10. Critical files -- changes require tests:
+    - `src/lib/api/v2/interventions/*.ts` (interventions API)
+    - `src/lib/workflow/` (status transitions)
+    - `src/lib/realtime/cache-sync*.ts` (realtime sync)
+    - `src/hooks/useInterventionsQuery.ts` (main query hook)
+    - `supabase/functions/` (Deno edge functions)
+
+---
+
+## Project Structure
+
+```
+gmbs-crm/
+  app/                    # Next.js App Router (pages, API routes, layouts)
+  src/
+    components/           # React components (200+, shadcn/ui based)
+    config/               # Business config (workflow rules, status chains)
+    contexts/             # 9 React Contexts
+    hooks/                # 67 custom hooks
+    lib/                  # Business logic, API, realtime, workflow
+    providers/            # Global providers
+    stores/               # Zustand stores
+    types/                # 11 type definition files
+    utils/                # Utilities
+  supabase/
+    functions/            # 13 Deno Edge Functions
+    migrations/           # 82 SQL migrations
+  tests/                  # Vitest + Playwright tests
+  docs/                   # Project documentation
+```
+
+---
+
+## Documentation Index
+
+### Getting Started
+- [Installation](docs/getting-started/installation.md)
+- [Configuration](docs/getting-started/configuration.md)
+- [Project Structure](docs/getting-started/structure-projet.md)
+- [First Steps](docs/getting-started/premier-pas.md)
+
+### Architecture
+- [Overview](docs/architecture/overview.md)
+- [API Layer (v2)](docs/architecture/api-layer.md)
+- [Data Flow](docs/architecture/data-flow.md)
+- [Workflow Engine](docs/architecture/workflow-engine.md)
+- [Database Schema](docs/database/schema.md)
+
+### API Reference
+- [Interventions API](docs/api-reference/interventions.md)
+- [Artisans API](docs/api-reference/artisans.md)
+- [Clients API](docs/api-reference/clients.md)
+- [Users API](docs/api-reference/users.md)
+- [Documents API](docs/api-reference/documents.md)
+- [Comments API](docs/api-reference/comments.md)
+- [React Hooks Reference](docs/api-reference/hooks.md)
+
+### Guides
+- [Intervention Workflow](docs/guides/workflow-interventions.md)
+- [Business Calculations](docs/guides/calculs-metier.md)
+- [Adding a Feature](docs/guides/ajout-feature.md)
+- [Testing Strategy](docs/guides/testing.md)
+- [API v1 to v2 Migration](docs/guides/migration-api.md)
+- [Troubleshooting](docs/guides/troubleshooting.md)
+- [Deployment](docs/guides/deploiement.md)
+
+### Components
+- [Component Library](docs/components/overview.md)
+- [UI Patterns](docs/components/patterns.md)
+
+### Database
+- [Schema Reference](docs/database/schema.md)
+- [Migrations Guide](docs/database/migrations.md)
+
+### AI Integration
+- [LLM Context (this file)](docs/ai-integration/llms.txt)
+- [Cursor Rules](docs/ai-integration/cursor-rules.md)
+- [GitHub Copilot Instructions](docs/ai-integration/copilot-instructions.md)
+- [Agent Guidelines](docs/ai-integration/agent-guidelines.md)
+
+### Project Configuration
+- [CLAUDE.md](CLAUDE.md) -- Claude Code conventions
+- [ESLint](eslint.config.js) -- Flat config, no cross-feature relative imports
+- [TypeScript](tsconfig.json) -- Strict mode, `@/` path alias
+- [Vitest](vitest.config.ts) -- jsdom, coverage thresholds
+- [Tailwind](tailwind.config.ts) -- Status colors, dark mode
+
+---
+
+## Key Imports Quick Reference
+
+```typescript
+// API layer
+import { interventionsApi, artisansApi, clientsApi } from '@/lib/api/v2'
+import type { Intervention, Artisan, User } from '@/lib/api/v2'
+
+// Query keys
+import { interventionKeys, artisanKeys, dashboardKeys } from '@/lib/react-query/queryKeys'
+
+// Hooks
+import { useInterventionsQuery } from '@/hooks/useInterventionsQuery'
+import { useInterventionsMutations } from '@/hooks/useInterventionsMutations'
+import { useCurrentUser } from '@/hooks/useCurrentUser'
+import { usePermissions } from '@/hooks/usePermissions'
+
+// Workflow
+import { validateTransition } from '@/lib/workflow-engine'
+import { AUTHORIZED_TRANSITIONS } from '@/config/workflow-rules'
+
+// Realtime
+import { syncCacheWithRealtimeEvent } from '@/lib/realtime/cache-sync'
+
+// Reference data cache
+import { getReferenceCache, invalidateReferenceCache } from '@/lib/api/v2'
+```
+
+---
+
+## Intervention Status Flow
+
+```
+DEMANDE -> DEVIS_ENVOYE -> VISITE_TECHNIQUE -> ACCEPTE -> INTER_EN_COURS -> INTER_TERMINEE
+                                                                             -> SAV
+                                                           -> ATT_ACOMPTE
+Exit states: REFUSE, ANNULE, STAND_BY
+Alternative entry: POTENTIEL
+```
+
+30 authorized transitions defined in `src/config/workflow-rules.ts`.
+Each status has entry requirements (artisan, devis_id, facture, etc.) validated cumulatively.
