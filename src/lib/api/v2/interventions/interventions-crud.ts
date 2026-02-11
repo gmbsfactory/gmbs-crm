@@ -1,0 +1,906 @@
+// ===== INTERVENTIONS CRUD =====
+// Opérations CRUD de base sur les interventions
+
+import { supabase, getSupabaseClientForNode } from "@/lib/api/v2/common/client";
+import type {
+  CreateInterventionData,
+  Intervention,
+  BulkOperationResult,
+  InterventionQueryParams,
+  PaginatedResponse,
+  UpdateInterventionData,
+} from "@/lib/api/v2/common/types";
+import {
+  getSupabaseFunctionsUrl,
+  getHeaders,
+  handleResponse,
+  mapInterventionRecord,
+  getReferenceCache,
+  invalidateReferenceCache as invalidateCentralCache,
+} from "@/lib/api/v2/common/utils";
+import { safeErrorMessage } from "@/lib/api/v2/common/error-handler";
+import type { InterventionWithStatus } from "@/types/intervention";
+import { automaticTransitionService } from "@/lib/interventions/automatic-transition-service";
+import type { InterventionStatusKey } from "@/config/interventions";
+
+// Utiliser le client admin dans Node.js, le client standard dans le navigateur
+const supabaseClient = typeof window !== 'undefined' ? supabase : getSupabaseClientForNode();
+
+// Ré-exporter la fonction d'invalidation du cache centralisé pour compatibilité
+export const invalidateReferenceCache = invalidateCentralCache;
+
+export const interventionsCrud = {
+  // Récupérer toutes les interventions (via Edge Function)
+  async getAll(params?: InterventionQueryParams): Promise<PaginatedResponse<InterventionWithStatus>> {
+    type FilterValue = string | string[] | null | undefined;
+
+    const limit = Math.max(1, params?.limit ?? 100);
+
+    // Convertir les codes métier en IDs si nécessaire
+    let metierParam = params?.metier;
+    let metiersParam = params?.metiers;
+
+    if (params?.metier || params?.metiers) {
+      const refs = await getReferenceCache();
+
+      // Convertir un seul métier (code → ID) - insensible à la casse
+      if (params?.metier && typeof params.metier === 'string') {
+        const metierObj = Array.from(refs.metiersById.values()).find(
+          (m: { code?: string; id?: string }) =>
+            m.code?.toUpperCase() === params.metier?.toUpperCase() ||
+            m.id === params.metier
+        );
+        metierParam = metierObj?.id || params.metier;
+      }
+
+      // Convertir plusieurs métiers (codes → IDs) - insensible à la casse
+      if (params?.metiers && params.metiers.length > 0) {
+        metiersParam = params.metiers.map((metierCodeOrId) => {
+          const metierObj = Array.from(refs.metiersById.values()).find(
+            (m: { code?: string; id?: string }) =>
+              m.code?.toUpperCase() === metierCodeOrId?.toUpperCase() ||
+              m.id === metierCodeOrId
+          );
+          return metierObj?.id || metierCodeOrId;
+        });
+      }
+    }
+
+    const searchParams = new URLSearchParams();
+    searchParams.set("limit", limit.toString());
+    if (params?.offset !== undefined) {
+      searchParams.set("offset", params.offset.toString());
+    }
+
+    const appendFilterParam = (key: string, value?: FilterValue) => {
+      // Cas spécial pour user === null (vue Market) : envoyer "null" comme chaîne
+      if (key === "user" && value === null) {
+        searchParams.append(key, "null");
+        return;
+      }
+
+      if (value === undefined || value === null) {
+        // Ne pas envoyer le paramètre si la valeur est undefined ou null
+        return;
+      }
+      if (Array.isArray(value)) {
+        value.forEach((entry) => {
+          // Ignorer les valeurs null dans les tableaux
+          if (entry !== null && typeof entry === "string" && entry.length > 0) {
+            searchParams.append(key, entry);
+          }
+        });
+        return;
+      }
+      if (typeof value === "string" && value.length > 0) {
+        searchParams.append(key, value);
+      }
+    };
+
+    // Gérer statut et statuts (comme metier et metiers)
+    if (params?.statuts && params.statuts.length > 0) {
+      appendFilterParam("statut", params.statuts);
+    } else {
+      appendFilterParam("statut", params?.statut);
+    }
+    appendFilterParam("agence", params?.agence);
+    appendFilterParam("artisan", params?.artisan);
+
+    // Gérer metier et metiers
+    if (metiersParam && Array.isArray(metiersParam) && metiersParam.length > 0) {
+      appendFilterParam("metier", metiersParam);
+    } else if (metierParam) {
+      appendFilterParam("metier", metierParam);
+    }
+
+    appendFilterParam("user", params?.user);
+
+    if (params?.startDate) {
+      searchParams.set("startDate", params.startDate);
+    }
+    if (params?.endDate) {
+      searchParams.set("endDate", params.endDate);
+    }
+    if (params?.isCheck !== undefined) {
+      searchParams.set("isCheck", params.isCheck.toString());
+    }
+    if (params?.search) {
+      searchParams.set("search", params.search);
+    }
+
+    // Ajouter les relations à inclure (payments, artisans, costs, etc.)
+    if (params?.include && Array.isArray(params.include) && params.include.length > 0) {
+      params.include.forEach((relation) => {
+        searchParams.append("include", relation);
+      });
+    }
+
+    if (process.env.NODE_ENV === "production") {
+      searchParams.set("_ts", Date.now().toString());
+    }
+
+    const queryString = searchParams.toString();
+    const functionsUrl = getSupabaseFunctionsUrl();
+    const url = `${functionsUrl}/interventions-v2/interventions${queryString ? `?${queryString}` : ""}`;
+
+    const fetchStart = Date.now();
+    const response = await fetch(url, {
+      headers: await getHeaders(),
+    });
+    const raw = await handleResponse(response);
+    const rawLength = Array.isArray(raw?.data) ? raw.data.length : 0;
+    const fetchDuration = Date.now() - fetchStart;
+
+    const refs = await getReferenceCache();
+
+    const mapStart = Date.now();
+    // Mapping direct batch (synchrone = plus rapide)
+    const transformedData = Array.isArray(raw?.data)
+      ? raw.data.map((item: Record<string, unknown>) => mapInterventionRecord(item, refs) as InterventionWithStatus)
+      : [];
+    const mapDuration = Date.now() - mapStart;
+
+    const total =
+      typeof raw?.pagination?.total === "number"
+        ? raw.pagination.total
+        : transformedData.length;
+
+    const offset = params?.offset ?? 0;
+
+    return {
+      data: transformedData,
+      pagination: {
+        total,
+        limit,
+        offset,
+        hasMore: offset + limit < total,
+      },
+    };
+  },
+
+  /**
+   * Récupère toutes les interventions en version légère (via Edge Function)
+   * Version optimisée pour le warm-up avec moins de données
+   */
+  async getAllLight(params?: InterventionQueryParams): Promise<PaginatedResponse<InterventionWithStatus>> {
+    type FilterValue = string | string[] | null | undefined;
+
+    const limit = Math.max(1, params?.limit ?? 100);
+
+    const searchParams = new URLSearchParams();
+    searchParams.set("limit", limit.toString());
+    if (params?.offset !== undefined) {
+      searchParams.set("offset", params.offset.toString());
+    }
+
+    const appendFilterParam = (key: string, value?: FilterValue) => {
+      if (key === "user" && value === null) {
+        searchParams.append(key, "null");
+        return;
+      }
+
+      if (value === undefined || value === null) {
+        return;
+      }
+      if (Array.isArray(value)) {
+        value.forEach((entry) => {
+          if (entry !== null && typeof entry === "string" && entry.length > 0) {
+            searchParams.append(key, entry);
+          }
+        });
+        return;
+      }
+      if (typeof value === "string" && value.length > 0) {
+        searchParams.append(key, value);
+      }
+    };
+
+    if (params?.statuts && params.statuts.length > 0) {
+      appendFilterParam("statut", params.statuts);
+    } else {
+      appendFilterParam("statut", params?.statut);
+    }
+    appendFilterParam("agence", params?.agence);
+    appendFilterParam("artisan", params?.artisan);
+    appendFilterParam("metier", params?.metier);
+    appendFilterParam("user", params?.user);
+
+    if (params?.startDate) {
+      searchParams.set("startDate", params.startDate);
+    }
+    if (params?.endDate) {
+      searchParams.set("endDate", params.endDate);
+    }
+    if (params?.isCheck !== undefined) {
+      searchParams.set("isCheck", params.isCheck.toString());
+    }
+    if (params?.search) {
+      searchParams.set("search", params.search);
+    }
+
+    const queryString = searchParams.toString();
+    const functionsUrl = getSupabaseFunctionsUrl();
+    const url = `${functionsUrl}/interventions-v2/interventions/light${queryString ? `?${queryString}` : ""}`;
+
+    const response = await fetch(url, {
+      headers: await getHeaders(),
+    });
+    const raw = await handleResponse(response);
+
+    const refs = await getReferenceCache();
+
+    const transformedData = Array.isArray(raw?.data)
+      ? raw.data.map((item: Record<string, unknown>) => mapInterventionRecord(item, refs) as InterventionWithStatus)
+      : [];
+
+    const total =
+      typeof raw?.pagination?.total === "number"
+        ? raw.pagination.total
+        : transformedData.length;
+
+    const offset = params?.offset ?? 0;
+
+    return {
+      data: transformedData,
+      pagination: {
+        total,
+        limit,
+        offset,
+        hasMore: offset + limit < total,
+      },
+    };
+  },
+
+  /**
+   * Obtient le nombre total d'interventions (sans les charger)
+   */
+  async getTotalCount(): Promise<number> {
+    const { count, error } = await supabase
+      .from("interventions")
+      .select("*", { count: "exact", head: true });
+
+    if (error) {
+      console.error("Erreur lors du comptage des interventions:", error);
+      return 0;
+    }
+
+    return count || 0;
+  },
+
+  // Récupérer une intervention par ID
+  async getById(id: string, include?: string[]): Promise<InterventionWithStatus> {
+    const { data, error } = await supabase
+      .from("interventions")
+      .select(`
+        *,
+        status:intervention_statuses(id,code,label,color,sort_order),
+        tenants (
+          id,
+          firstname,
+          lastname,
+          plain_nom_client,
+          email,
+          telephone,
+          telephone2,
+          adresse,
+          ville,
+          code_postal
+        ),
+        owner (
+          id,
+          owner_firstname,
+          owner_lastname,
+          plain_nom_facturation,
+          telephone,
+          telephone2,
+          email,
+          adresse,
+          ville,
+          code_postal
+        ),
+        intervention_artisans (
+          artisan_id,
+          role,
+          is_primary,
+          artisans (
+            id,
+            prenom,
+            nom,
+            plain_nom,
+            raison_sociale,
+            telephone,
+            email
+          )
+        ),
+        intervention_costs (
+          id,
+          cost_type,
+          label,
+          amount,
+          currency,
+          metadata
+        ),
+        intervention_payments (
+          id,
+          payment_type,
+          amount,
+          currency,
+          is_received,
+          payment_date,
+          reference
+        )
+      `)
+      .eq("id", id)
+      .single();
+
+    if (error) throw error;
+    if (!data) throw new Error("Intervention introuvable");
+
+    const refs = await getReferenceCache();
+    return mapInterventionRecord(data, refs) as InterventionWithStatus;
+  },
+
+  // Créer une intervention
+  async create(data: CreateInterventionData): Promise<Intervention> {
+    // 1. Faire l'INSERT
+    const { data: result, error } = await supabase
+      .from('interventions')
+      .insert(data)
+      .select()
+      .single();
+
+    if (error) throw new Error(`Erreur lors de la création de l'intervention: ${error.message}`);
+
+    // 2. Créer la chaîne de transitions si nécessaire
+    if (result.statut_id) {
+      try {
+        // Le trigger a créé une transition NULL → statut_actuel lors de l'INSERT
+        // On la supprime pour la remplacer par la chaîne complète
+        await supabase
+          .from('intervention_status_transitions')
+          .delete()
+          .eq('intervention_id', result.id)
+          .eq('source', 'trigger');
+
+        // Récupérer l'utilisateur actuel
+        const { data: { user } } = await supabase.auth.getUser();
+        const userId = user?.id;
+
+        // Créer les transitions automatiques
+        await automaticTransitionService.createAutomaticTransitions(
+          result.id,
+          result.statut_id,
+          null, // fromStatusId = null pour INSERT
+          userId,
+          {
+            updated_via: 'create',
+            api_operation: true,
+          }
+        );
+      } catch (transitionError) {
+        console.error('Erreur lors de la création des transitions automatiques:', transitionError);
+        // Ne pas bloquer la création si les transitions échouent
+      }
+    }
+
+    const refs = await getReferenceCache();
+    return mapInterventionRecord(result, refs);
+  },
+
+  // Vérifier si une intervention avec la même adresse et agence existe
+  async checkDuplicate(address: string, agencyId: string): Promise<boolean> {
+    const { data, error } = await supabase
+      .from("interventions")
+      .select("id")
+      .eq("adresse", address)
+      .eq("agence_id", agencyId)
+      .limit(1);
+
+    if (error) {
+      console.error("Erreur lors de la vérification des doublons:", error);
+      return false;
+    }
+
+    return data && data.length > 0;
+  },
+
+  // Récupérer les détails des interventions dupliquées
+  async getDuplicateDetails(address: string, agencyId: string): Promise<Array<{
+    id: string;
+    name: string;
+    address: string;
+    agencyId: string | null;
+    agencyLabel: string | null;
+    managerName: string | null;
+    createdAt: string | null;
+  }>> {
+    const { data, error } = await supabase
+      .from("interventions")
+      .select(`
+        id,
+        contexte_intervention,
+        adresse,
+        agence_id,
+        commentaire_agent,
+        created_at,
+        agences:agence_id(label),
+        users:assigned_user_id(firstname, lastname)
+      `)
+      .eq("adresse", address)
+      .eq("agence_id", agencyId)
+      .limit(5);
+
+    if (error) {
+      console.error("Erreur lors de la récupération des détails des doublons:", error);
+      return [];
+    }
+
+    if (!data || data.length === 0) {
+      return [];
+    }
+
+    return data.map((match) => {
+      const agencyData = match.agences as { label?: string } | null;
+      const userData = match.users as { firstname?: string; lastname?: string } | null;
+
+      return {
+        id: match.id,
+        name: match.contexte_intervention || match.commentaire_agent || "Intervention sans nom",
+        address: match.adresse || "",
+        agencyId: match.agence_id,
+        agencyLabel: agencyData?.label || null,
+        managerName: userData
+          ? `${userData.firstname || ""} ${userData.lastname || ""}`.trim() || null
+          : null,
+        createdAt: match.created_at || null,
+      };
+    });
+  },
+
+  // Modifier une intervention
+  async update(id: string, data: UpdateInterventionData): Promise<InterventionWithStatus> {
+    let payload: UpdateInterventionData = { ...data }
+
+    if (Object.prototype.hasOwnProperty.call(payload, "contexte_intervention")) {
+      try {
+        const { data: session } = await supabase.auth.getSession()
+        const token = session?.session?.access_token
+        const response = await fetch("/api/auth/me", {
+          cache: "no-store",
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        })
+
+        let isAdmin = false
+        if (response.ok) {
+          const current = await response.json()
+          const roles: string[] = Array.isArray(current?.user?.roles) ? current.user.roles : []
+          isAdmin = roles.some(
+            (role) => typeof role === "string" && role.toLowerCase().includes("admin"),
+          )
+        }
+
+        if (!isAdmin) {
+          const { contexte_intervention: _ignored, ...rest } = payload
+          payload = rest as UpdateInterventionData
+        }
+      } catch (error) {
+        console.warn("[interventionsApi.update] Unable to verify user role, dropping context update", error)
+        const { contexte_intervention: _ignored, ...rest } = payload
+        payload = rest as UpdateInterventionData
+      }
+    }
+
+    // Récupérer le statut actuel avant la mise à jour pour la transition
+    let oldStatutId: string | null = null;
+    let currentIntervention: { statut_id: string | null; status?: { code?: string } | null } | null = null;
+
+    if (payload.statut_id) {
+      const { data } = await supabase
+        .from("interventions")
+        .select(`
+          statut_id,
+          status:intervention_statuses(code)
+        `)
+        .eq("id", id)
+        .single();
+
+      if (data) {
+        const statusRaw = data.status;
+        const statusObj = Array.isArray(statusRaw) ? statusRaw[0] : statusRaw;
+        currentIntervention = {
+          statut_id: data.statut_id,
+          status: statusObj ? { code: statusObj.code } : null,
+        };
+        oldStatutId = currentIntervention.statut_id;
+      }
+    }
+
+    // Si on change le statut, enregistrer la transition AVANT la mise à jour
+    if (payload.statut_id && oldStatutId !== payload.statut_id) {
+      try {
+        // Récupérer l'utilisateur actuel
+        const { data: { user } } = await supabase.auth.getUser();
+        const userId = user?.id || null;
+
+        // Récupérer les codes de statut pour le service de transition
+        // On utilise le cache de référence pour éviter une requête supplémentaire
+        const refs = await getReferenceCache();
+
+        // Récupérer le code du nouveau statut
+        const newStatusObj = refs.interventionStatusesById.get(payload.statut_id);
+        const newStatusCode = newStatusObj?.code as InterventionStatusKey;
+
+        // Récupérer le code de l'ancien statut
+        // On essaie d'abord via currentIntervention, sinon via le cache
+        let oldStatusCode: InterventionStatusKey | undefined;
+        if (currentIntervention && currentIntervention.status?.code) {
+          oldStatusCode = currentIntervention.status.code as InterventionStatusKey;
+        } else if (oldStatutId) {
+          const oldStatusObj = refs.interventionStatusesById.get(oldStatutId);
+          oldStatusCode = oldStatusObj?.code as InterventionStatusKey;
+        }
+
+        if (newStatusCode && oldStatusCode) {
+          // Utiliser le service de transition automatique
+          await automaticTransitionService.executeTransition(
+            id,
+            oldStatusCode,
+            newStatusCode,
+            userId || undefined,
+            {
+              updated_via: 'api_v2',
+              updated_at: new Date().toISOString(),
+            }
+          );
+        } else {
+          console.warn('[interventionsApi] Impossible de récupérer les codes de statut pour la transition', { oldStatutId, newStatutId: payload.statut_id });
+
+          // Fallback: Enregistrer la transition directe si on n'a pas les codes
+          const { error: transitionError } = await supabase.rpc(
+            'log_status_transition_from_api',
+            {
+              p_intervention_id: id,
+              p_from_status_id: oldStatutId || null,
+              p_to_status_id: payload.statut_id,
+              p_changed_by_user_id: userId,
+              p_metadata: {
+                updated_via: 'api_v2',
+                updated_at: new Date().toISOString(),
+                fallback: true
+              }
+            }
+          );
+
+          if (transitionError) {
+            console.warn('[interventionsApi] Erreur lors de l\'enregistrement de la transition (fallback):', transitionError);
+          }
+        }
+      } catch (error) {
+        console.warn('[interventionsApi] Erreur lors de l\'enregistrement de la transition:', error);
+        // Continuer quand même, le trigger de sécurité enregistrera
+      }
+    }
+
+    const { data: updated, error } = await supabase
+      .from("interventions")
+      .update({
+        ...payload,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", id)
+      .select(`
+        *,
+        status:intervention_statuses(id,code,label,color,sort_order),
+        intervention_artisans(artisan_id)
+      `)
+      .single();
+
+    if (error) throw error;
+    if (!updated) throw new Error("Impossible de mettre à jour l'intervention");
+
+    const refs = await getReferenceCache();
+    const mapped = mapInterventionRecord(updated, refs) as InterventionWithStatus;
+
+    // Recalculer le statut des artisans si le statut de l'intervention a changé
+    // Le trigger SQL ne fonctionne pas de manière fiable, donc on appelle explicitement la RPC
+    console.log(`[interventionsApi] 🔍 Vérification recalcul artisan: payload.statut_id=${payload.statut_id}, oldStatutId=${oldStatutId}`);
+
+    if (payload.statut_id && oldStatutId !== payload.statut_id) {
+      const terminatedCodes = ['TERMINE', 'INTER_TERMINEE'];
+      const oldStatusCode = oldStatutId ? refs.interventionStatusesById.get(oldStatutId)?.code : null;
+      const newStatusCode = refs.interventionStatusesById.get(payload.statut_id)?.code;
+
+      console.log(`[interventionsApi] 🔍 Codes statut: oldStatusCode=${oldStatusCode}, newStatusCode=${newStatusCode}`);
+
+      // Recalculer seulement si on entre ou sort d'un statut terminé
+      const wasTerminated = oldStatusCode && terminatedCodes.includes(oldStatusCode);
+      const isNowTerminated = newStatusCode && terminatedCodes.includes(newStatusCode);
+
+      console.log(`[interventionsApi] 🔍 Condition terminée: wasTerminated=${wasTerminated}, isNowTerminated=${isNowTerminated}`);
+
+      if (wasTerminated || isNowTerminated) {
+        // Récupérer les artisans liés à cette intervention
+        const artisanIds = ((updated as unknown as { intervention_artisans?: Array<{ artisan_id: string | null }> }).intervention_artisans ?? [])
+          .map((ia) => ia.artisan_id)
+          .filter((id): id is string => !!id);
+
+        console.log(`[interventionsApi] 🔍 Artisans liés à recalculer:`, artisanIds);
+
+        // Recalculer le statut de chaque artisan
+        for (const artisanId of artisanIds) {
+          try {
+            console.log(`[interventionsApi] 📞 Appel RPC recalculate_artisan_status pour artisan ${artisanId}...`);
+            const { data: rpcResult, error: rpcError } = await supabase.rpc('recalculate_artisan_status', {
+              artisan_uuid: artisanId
+            });
+            if (rpcError) {
+              console.warn(`[interventionsApi] ❌ Erreur RPC artisan ${artisanId}:`, rpcError);
+            } else {
+              console.log(`[interventionsApi] ✅ Statut artisan ${artisanId} recalculé: ${rpcResult}`);
+            }
+          } catch (err) {
+            console.warn(`[interventionsApi] ❌ Exception artisan ${artisanId}:`, err);
+          }
+        }
+      } else {
+        console.log(`[interventionsApi] ⏭️ Pas de recalcul: le changement de statut n'implique pas un statut terminé`);
+      }
+    } else {
+      console.log(`[interventionsApi] ⏭️ Pas de recalcul: statut_id non changé ou non fourni`);
+    }
+
+    return mapped;
+  },
+
+  // Supprimer une intervention (soft delete)
+  async delete(id: string): Promise<{ message: string; data: Intervention }> {
+    const headers = await getHeaders();
+    const response = await fetch(
+      `${getSupabaseFunctionsUrl()}/interventions-v2/interventions/${id}`,
+      {
+        method: "DELETE",
+        headers,
+      }
+    );
+    return handleResponse(response);
+  },
+
+  // Upsert une intervention (créer ou mettre à jour)
+  async upsert(data: CreateInterventionData & { id_inter?: string }): Promise<Intervention> {
+    const headers = await getHeaders();
+    const response = await fetch(
+      `${getSupabaseFunctionsUrl()}/interventions-v2/interventions/upsert`,
+      {
+        method: "POST",
+        headers,
+        body: JSON.stringify(data),
+      }
+    );
+    return handleResponse(response);
+  },
+
+  // Upsert direct via Supabase (pour import en masse)
+  async upsertDirect(data: CreateInterventionData & { id_inter?: string }, customClient?: typeof supabase): Promise<Intervention> {
+    // Utiliser le client personnalisé si fourni, sinon utiliser supabaseClient (qui utilise getSupabaseClientForNode() dans Node.js)
+    const client = customClient || supabaseClient;
+
+    // 1. Vérifier si l'intervention existe déjà
+    let existingIntervention = null;
+    let oldStatusId = null;
+
+    if (data.id_inter) {
+      const { data: existing } = await client
+        .from('interventions')
+        .select('id, statut_id')
+        .eq('id_inter', data.id_inter)
+        .maybeSingle();
+
+      existingIntervention = existing;
+      oldStatusId = existing?.statut_id || null;
+    }
+
+    // 2. Faire l'upsert
+    const { data: result, error } = await client
+      .from('interventions')
+      .upsert(data, {
+        onConflict: 'id_inter',
+        ignoreDuplicates: false
+      })
+      .select()
+      .single();
+
+    if (error) throw new Error(`Erreur lors de l'upsert de l'intervention: ${error.message}`);
+
+    // 3. Créer la chaîne de transitions si nécessaire
+    if (result.statut_id) {
+      try {
+        if (!existingIntervention) {
+          await client
+            .from('intervention_status_transitions')
+            .delete()
+            .eq('intervention_id', result.id)
+            .eq('source', 'trigger');
+        } else if (oldStatusId && oldStatusId !== result.statut_id) {
+          await client
+            .from('intervention_status_transitions')
+            .delete()
+            .eq('intervention_id', result.id)
+            .eq('from_status_id', oldStatusId)
+            .eq('to_status_id', result.statut_id)
+            .eq('source', 'trigger');
+        }
+
+        const { data: { user } } = await supabase.auth.getUser();
+        const userId = user?.id;
+
+        await automaticTransitionService.createAutomaticTransitions(
+          result.id,
+          result.statut_id,
+          oldStatusId,
+          userId,
+          {
+            updated_via: 'upsertDirect',
+            import_operation: true,
+            id_inter: data.id_inter,
+          }
+        );
+      } catch (transitionError) {
+        console.error('Erreur lors de la création des transitions automatiques:', transitionError);
+      }
+    }
+
+    const refs = await getReferenceCache();
+    return mapInterventionRecord(result, refs);
+  },
+
+  // Créer plusieurs interventions en lot
+  async createBulk(interventions: CreateInterventionData[]): Promise<BulkOperationResult> {
+    const results: BulkOperationResult = { success: 0, errors: 0, details: [] };
+
+    for (const intervention of interventions) {
+      try {
+        const result = await this.create(intervention);
+        results.success++;
+        results.details.push({ item: intervention as unknown as Record<string, unknown>, success: true, data: result as unknown as Record<string, unknown> });
+      } catch (error: unknown) {
+        results.errors++;
+        results.details.push({ item: intervention as unknown as Record<string, unknown>, success: false, error: safeErrorMessage(error, "la création de l'intervention") });
+      }
+    }
+
+    return results;
+  },
+
+  // Récupérer les interventions par utilisateur
+  async getByUser(userId: string, params?: InterventionQueryParams): Promise<PaginatedResponse<Intervention>> {
+    return this.getAll({ ...params, user: userId });
+  },
+
+  // Récupérer les interventions par statut
+  async getByStatus(statusId: string, params?: InterventionQueryParams): Promise<PaginatedResponse<Intervention>> {
+    return this.getAll({ ...params, statut: statusId });
+  },
+
+  // Récupérer les interventions par agence
+  async getByAgency(agencyId: string, params?: InterventionQueryParams): Promise<PaginatedResponse<Intervention>> {
+    return this.getAll({ ...params, agence: agencyId });
+  },
+
+  // Récupérer les interventions par artisan via interventions_artisans
+  async getByArtisan(artisanId: string, params?: Omit<InterventionQueryParams, "artisan">): Promise<PaginatedResponse<InterventionWithStatus>> {
+    const { data: interventionArtisans, error: joinError } = await supabase
+      .from("intervention_artisans")
+      .select("intervention_id")
+      .eq("artisan_id", artisanId);
+
+    if (joinError) throw joinError;
+
+    const interventionIds = (interventionArtisans || []).map((ia) => ia.intervention_id).filter(Boolean);
+
+    if (interventionIds.length === 0) {
+      return {
+        data: [],
+        pagination: {
+          total: 0,
+          limit: params?.limit || 5000,
+          offset: params?.offset || 0,
+          hasMore: false,
+        },
+      };
+    }
+
+    let query = supabase
+      .from("interventions")
+      .select(
+        `
+          *,
+          status:intervention_statuses(id,code,label,color,sort_order),
+          intervention_artisans (
+            artisan_id,
+            is_primary,
+            role
+          ),
+          intervention_costs (
+            id,
+            cost_type,
+            label,
+            amount,
+            currency,
+            metadata
+          )
+        `,
+        { count: "exact" }
+      )
+      .in("id", interventionIds)
+      .order("created_at", { ascending: false });
+
+    if (params?.statut) {
+      query = query.eq("statut_id", params.statut);
+    }
+    if (params?.agence) {
+      query = query.eq("agence_id", params.agence);
+    }
+    if (params?.user) {
+      query = query.eq("assigned_user_id", params.user);
+    }
+    if (params?.startDate) {
+      query = query.gte("date", params.startDate);
+    }
+    if (params?.endDate) {
+      query = query.lte("date", params.endDate);
+    }
+
+    const limit = params?.limit || 5000;
+    const offset = params?.offset || 0;
+    query = query.range(offset, offset + limit - 1);
+
+    const { data, error, count } = await query;
+
+    if (error) throw error;
+
+    const refs = await getReferenceCache();
+
+    const transformedData = (data || []).map((item) =>
+      mapInterventionRecord(item, refs) as InterventionWithStatus
+    );
+
+    return {
+      data: transformedData,
+      pagination: {
+        total: count || 0,
+        limit,
+        offset,
+        hasMore: offset + limit < (count || 0),
+      },
+    };
+  },
+
+  // Récupérer les interventions par période
+  async getByDateRange(
+    startDate: string,
+    endDate: string,
+    params?: InterventionQueryParams
+  ): Promise<PaginatedResponse<Intervention>> {
+    return this.getAll({ ...params, startDate, endDate });
+  },
+};

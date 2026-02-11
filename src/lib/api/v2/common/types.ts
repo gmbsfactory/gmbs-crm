@@ -514,9 +514,9 @@ export interface BulkOperationResult {
   success: number;
   errors: number;
   details: Array<{
-    item: any;
+    item: Record<string, unknown>;
     success: boolean;
-    data?: any;
+    data?: Record<string, unknown>;
     error?: string;
   }>;
 }
@@ -838,7 +838,7 @@ export interface InterventionStatusTransition {
   changed_by_user_id: string | null;
   transition_date: string;
   source: 'api' | 'trigger';
-  metadata: any;
+  metadata: Record<string, unknown> | null;
   created_at: string;
 }
 
@@ -947,7 +947,7 @@ export interface AdminDashboardStats {
   }>;
 
   // Champs legacy pour compatibilité temporaire (optionnels)
-  statusStats?: any;
+  statusStats?: Record<string, unknown>;
 }
 
 /**

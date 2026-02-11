@@ -10,6 +10,7 @@ import type {
     UpdateCommentData,
 } from "./common/types";
 import { SUPABASE_FUNCTIONS_URL, getHeaders, handleResponse } from "./common/utils";
+import { safeErrorMessage } from "@/lib/api/v2/common/error-handler";
 
 export const commentsApi = {
   // Récupérer tous les commentaires
@@ -230,9 +231,9 @@ export const commentsApi = {
         const result = await this.create(comment);
         results.success++;
         results.details.push({ item: comment, success: true, data: result });
-      } catch (error: any) {
+      } catch (error: unknown) {
         results.errors++;
-        results.details.push({ item: comment, success: false, error: error.message });
+        results.details.push({ item: comment, success: false, error: safeErrorMessage(error, "la création du commentaire") });
       }
     }
 
