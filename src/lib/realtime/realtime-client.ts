@@ -11,9 +11,10 @@ const CHANNEL_NAME = 'interventions-changes'
 
 /**
  * Crée et configure le channel Supabase Realtime pour la table interventions
- * 
+ * Ne souscrit PAS au channel — l'appelant (hook) gère le cycle de vie de la souscription.
+ *
  * @param onEvent - Handler appelé lors de la réception d'un événement (peut être async)
- * @returns Channel Realtime configuré
+ * @returns Channel Realtime configuré (non souscrit)
  */
 export function createInterventionsChannel(
   onEvent: (payload: RealtimePostgresChangesPayload<Intervention>) => void | Promise<void>
@@ -34,59 +35,28 @@ export function createInterventionsChannel(
       (payload) => {
         const newIntervention = payload.new && 'id' in payload.new ? payload.new : null
         const oldIntervention = payload.old && 'id' in payload.old ? payload.old : null
-        console.log('[Realtime] 📨 Payload reçu:', {
+        console.log('[Realtime] Payload reçu:', {
           eventType: payload.eventType,
           newId: newIntervention?.id,
           oldId: oldIntervention?.id,
-          table: payload.table,
-          schema: payload.schema,
-          fullPayload: payload,
         })
         try {
           onEvent(payload)
         } catch (error) {
-          console.error('[Realtime] ❌ Erreur lors du traitement de l\'événement:', error)
+          console.error('[Realtime] Erreur lors du traitement de l\'événement:', error)
         }
       }
     )
 
-  // Souscrire au channel et gérer le statut
-  channel.subscribe((status) => {
-    if (status === 'SUBSCRIBED') {
-      console.log('[Realtime] ✅ Channel souscrit avec succès')
-    } else if (status === 'CHANNEL_ERROR') {
-      // Log en warning car le fallback vers polling est géré par le hook
-      // Les détails de l'erreur seront capturés par le gestionnaire 'error' ci-dessous
-      console.warn('[Realtime] ⚠️ Erreur de channel Realtime', {
-        status,
-        channel: CHANNEL_NAME,
-        table: 'interventions',
-        hint: 'Vérifiez que Realtime est activé dans Supabase et que la table est dans la publication supabase_realtime. Le système basculera automatiquement vers le polling.'
-      })
-    } else if (status === 'TIMED_OUT') {
-      console.warn('[Realtime] ⚠️ Timeout de souscription')
-    } else if (status === 'CLOSED') {
-      console.warn('[Realtime] ⚠️ Channel fermé')
-    }
-  })
-
-  // Gestion des erreurs de connexion
-  channel.on('error' as any, {}, (error: any) => {
-    console.error('[Realtime] Erreur de connexion:', {
-      error,
-      message: error?.message || 'Erreur inconnue',
-      channel: CHANNEL_NAME
-    })
-    // Le basculement vers polling sera géré par le hook
-  })
-
-  // Gestion de la déconnexion
-  channel.on('disconnect' as any, {}, () => {
-    console.warn('[Realtime] Déconnexion détectée')
-    // Le basculement vers polling sera géré par le hook
-  })
-
   return channel
+}
+
+/**
+ * Supprime proprement un channel Realtime via le client Supabase.
+ * Préférer à channel.unsubscribe() qui ne nettoie pas les références internes.
+ */
+export function removeInterventionsChannel(channel: RealtimeChannel): void {
+  supabase.removeChannel(channel)
 }
 
 /**

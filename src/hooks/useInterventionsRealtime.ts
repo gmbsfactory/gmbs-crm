@@ -7,10 +7,8 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import type { RealtimeChannel } from '@supabase/supabase-js'
-import { createInterventionsChannel } from '@/lib/realtime/realtime-client'
+import { createInterventionsChannel, removeInterventionsChannel } from '@/lib/realtime/realtime-client'
 import { syncCacheWithRealtimeEvent, initializeCacheSync } from '@/lib/realtime/cache-sync'
-import type { Intervention } from '@/lib/api/v2/common/types'
-import type { RealtimePostgresChangesPayload } from '@supabase/supabase-js'
 import { useCurrentUser } from '@/hooks/useCurrentUser'
 import { interventionKeys } from '@/lib/react-query/queryKeys'
 
@@ -77,69 +75,55 @@ export function useInterventionsRealtime() {
     }
 
     console.log('[Realtime] Tentative de reconnexion dans 30s...')
-    setConnectionStatus('connecting')
 
     reconnectTimeoutRef.current = setTimeout(() => {
       reconnectTimeoutRef.current = null
-      
-      // CRITIQUE: Arrêter le polling AVANT de tenter la reconnexion Realtime
-      // pour éviter qu'ils tournent en parallèle
       stopPolling()
-      
-      // Attendre un court délai pour s'assurer que le polling est complètement arrêté
-      setTimeout(() => {
-        // Essayer de créer un nouveau channel
-        if (channelRef.current) {
-          channelRef.current.unsubscribe()
+
+      // Nettoyer proprement l'ancien channel
+      if (channelRef.current) {
+        removeInterventionsChannel(channelRef.current)
+        channelRef.current = null
+      }
+
+      const channel = createInterventionsChannel(async (payload) => {
+        const newIntervention = payload.new && 'id' in payload.new ? payload.new : null
+        const oldIntervention = payload.old && 'id' in payload.old ? payload.old : null
+        console.log('[Realtime] Événement reçu:', payload.eventType, newIntervention?.id || oldIntervention?.id)
+        await syncCacheWithRealtimeEvent(queryClient, payload, currentUserId)
+      })
+
+      channelRef.current = channel
+
+      // Souscription unique — le hook gère le cycle de vie
+      channel.subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          console.log('[Realtime] Reconnexion réussie')
+          stopPolling()
+          setConnectionStatus('realtime')
+        } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+          console.warn('[Realtime] Échec de reconnexion, retour au polling')
+          // Null AVANT remove pour éviter la récursion infinie
+          // (removeChannel déclenche CLOSED de façon synchrone)
+          const ch = channelRef.current
           channelRef.current = null
-        }
-
-        const channel = createInterventionsChannel(async (payload) => {
-          const newIntervention = payload.new && 'id' in payload.new ? payload.new : null
-          const oldIntervention = payload.old && 'id' in payload.old ? payload.old : null
-          console.log('[Realtime] Événement reçu:', payload.eventType, newIntervention?.id || oldIntervention?.id)
-          await syncCacheWithRealtimeEvent(queryClient, payload, currentUserId)
-        })
-
-        channelRef.current = channel
-
-        // Vérifier le statut de souscription après un court délai
-        setTimeout(() => {
-          if (channelRef.current) {
-            channelRef.current.subscribe((status) => {
-              if (status === 'SUBSCRIBED') {
-                console.log('[Realtime] ✅ Reconnexion réussie')
-                // S'assurer que le polling est bien arrêté (défensif)
-                stopPolling()
-                setConnectionStatus('realtime')
-              } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
-                console.warn('[Realtime] ⚠️ Échec de reconnexion, retour au polling')
-                // S'assurer que Realtime est complètement arrêté avant de démarrer le polling
-                if (channelRef.current) {
-                  channelRef.current.unsubscribe()
-                  channelRef.current = null
-                }
-                // Démarrer le polling seulement après un court délai
-                setTimeout(() => {
-                  startPolling()
-                  // Réessayer dans 30s
-                  attemptReconnect()
-                }, 100)
-              }
-            })
+          if (ch) {
+            removeInterventionsChannel(ch)
           }
-        }, 1000)
-      }, 100) // Délai pour garantir l'arrêt du polling
+          startPolling()
+          attemptReconnect()
+        }
+      })
     }, RECONNECT_INTERVAL)
   }, [queryClient, currentUserId, startPolling, stopPolling])
 
   useEffect(() => {
     console.log('[Realtime] Initialisation de la synchronisation Realtime')
-    
+
     // Initialiser la synchronisation BroadcastChannel
     initializeCacheSync(queryClient)
 
-    // Créer et configurer le channel Realtime
+    // Créer et configurer le channel Realtime (non souscrit)
     const channel = createInterventionsChannel(async (payload) => {
       const newIntervention = payload.new && 'id' in payload.new ? payload.new : null
       const oldIntervention = payload.old && 'id' in payload.old ? payload.old : null
@@ -149,54 +133,20 @@ export function useInterventionsRealtime() {
 
     channelRef.current = channel
 
-    // Surveiller le statut de connexion
+    // Souscription unique — le hook est le seul propriétaire du cycle de vie
     channel.subscribe((status) => {
       if (status === 'SUBSCRIBED') {
-        console.log('[Realtime] ✅ Channel souscrit avec succès')
-        // S'assurer que le polling est arrêté AVANT de changer le statut
+        console.log('[Realtime] Channel souscrit avec succès')
         stopPolling()
-        // Petit délai pour éviter les race conditions
-        setTimeout(() => {
-          setConnectionStatus('realtime')
-        }, 50)
+        setConnectionStatus('realtime')
       } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
-        console.warn(`[Realtime] ⚠️ Problème de connexion (${status}), basculement vers polling`)
-        // S'assurer que Realtime est complètement arrêté avant de démarrer le polling
-        if (channelRef.current) {
-          channelRef.current.unsubscribe()
-        }
-        // Démarrer le polling seulement après un court délai pour éviter les chevauchements
-        setTimeout(() => {
-          startPolling()
-          attemptReconnect()
-        }, 100)
-      }
-    })
-
-    // Gestion des erreurs de connexion
-    channel.on('error' as any, {}, (error: any) => {
-      console.error('[Realtime] Erreur de connexion:', error)
-      // S'assurer que Realtime est arrêté avant de démarrer le polling
-      if (channelRef.current) {
-        channelRef.current.unsubscribe()
-      }
-      setTimeout(() => {
+        console.warn(`[Realtime] Problème de connexion (${status}), basculement vers polling`)
+        const ch = channelRef.current
+        channelRef.current = null
+        if (ch) removeInterventionsChannel(ch)
         startPolling()
         attemptReconnect()
-      }, 100)
-    })
-
-    // Gestion de la déconnexion
-    channel.on('disconnect' as any, {}, () => {
-      console.warn('[Realtime] Déconnexion détectée, basculement vers polling')
-      // S'assurer que Realtime est arrêté avant de démarrer le polling
-      if (channelRef.current) {
-        channelRef.current.unsubscribe()
       }
-      setTimeout(() => {
-        startPolling()
-        attemptReconnect()
-      }, 100)
     })
 
     // Nettoyage lors du démontage
@@ -207,10 +157,9 @@ export function useInterventionsRealtime() {
         clearTimeout(reconnectTimeoutRef.current)
         reconnectTimeoutRef.current = null
       }
-      if (channelRef.current) {
-        channelRef.current.unsubscribe()
-        channelRef.current = null
-      }
+      const ch = channelRef.current
+      channelRef.current = null
+      if (ch) removeInterventionsChannel(ch)
     }
   }, [queryClient, currentUserId, startPolling, stopPolling, attemptReconnect])
 

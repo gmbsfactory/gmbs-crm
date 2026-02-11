@@ -78,6 +78,15 @@ Si la table n'est pas dans la publication, ajoutez-la :
 ALTER PUBLICATION supabase_realtime ADD TABLE interventions;
 ```
 
+
+
+3. Check REPLICA IDENTITY (verification)
+
+-- Verify REPLICA IDENTITY FULL was set
+SELECT relname, relreplident 
+FROM pg_class 
+WHERE relname = 'interventions';
+
 ### 2. Tests Manuels dans le Navigateur
 
 #### A. Ouvrir la Console du Navigateur
@@ -177,6 +186,22 @@ SELECT * FROM interventions LIMIT 1;
 -- Si cette requête échoue, les politiques RLS bloquent l'accès
 -- Vérifiez les politiques dans Supabase Dashboard
 ```
+
+
+### X. Test with actual data changes
+Open your app in the browser (console should show Realtime connecting)
+Open the Supabase dashboard's SQL Editor in another tab
+Update an intervention in the SQL editor:
+
+UPDATE public.interventions 
+SET status = 'completed' 
+WHERE id = 'some-id' 
+LIMIT 1;
+Check the browser console — you should see:
+
+[Realtime] Événement reçu: UPDATE <intervention-id>
+
+
 
 ### 5. Dépannage
 
