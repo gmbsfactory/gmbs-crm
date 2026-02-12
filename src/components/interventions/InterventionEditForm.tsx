@@ -1982,7 +1982,7 @@ export const InterventionEditForm = memo(function InterventionEditForm({
                   </div>
 
                   {/* DIV5: CONTEXTE INTERVENTION - Row 5, Cols 1-2 */}
-                  <Card style={{ gridArea: "5 / 1 / 6 / 3" }}>
+                  <Card style={{ gridArea: "5 / 1 / 6 / 3" }} data-section="context">
                     <CardContent className="p-4">
                       <Label htmlFor="contexteIntervention" className="text-xs font-medium mb-2 block">Contexte intervention *</Label>
                       <Textarea
@@ -2018,7 +2018,7 @@ export const InterventionEditForm = memo(function InterventionEditForm({
                   </Card>
 
                   {/* DIV4: FINANCES & PLANIFICATION - Row 6, Cols 1-4 */}
-                  <Card style={{ gridArea: "6 / 1 / 7 / 5" }} className={cn(requiresCouts && (!(parseFloat(formData.coutIntervention) > 0) || !(parseFloat(formData.coutSST) > 0)) && "ring-2 ring-orange-400/50")}>
+                  <Card style={{ gridArea: "6 / 1 / 7 / 5" }} data-section="costs" className={cn(requiresCouts && (!(parseFloat(formData.coutIntervention) > 0) || !(parseFloat(formData.coutSST) > 0)) && "ring-2 ring-orange-400/50")}>
                     <CardContent className="p-4">
                       <div className="grid grid-cols-5 gap-3 items-end">
                         <div>
@@ -2628,7 +2628,7 @@ export const InterventionEditForm = memo(function InterventionEditForm({
 
                 {/* Commentaires - ouvert par défaut */}
                 <Collapsible open={isCommentsOpen} onOpenChange={setIsCommentsOpen}>
-                  <Card className="flex-1 flex flex-col">
+                  <Card className="flex-1 flex flex-col" data-section="comments">
                     <CollapsibleTrigger asChild>
                       <CardHeader className="cursor-pointer py-2 px-3 hover:bg-muted/50">
                         <CardTitle className="flex items-center gap-2 text-xs">
