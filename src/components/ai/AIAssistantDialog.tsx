@@ -40,9 +40,10 @@ export function AIAssistantDialog({ state, onClose, onAction }: AIAssistantDialo
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DialogContent
         className={cn(
-          "sm:max-w-[600px] max-h-[80vh] overflow-hidden flex flex-col",
+          "sm:max-w-[600px] max-h-[80vh] overflow-hidden flex flex-col z-[100]",
           "bg-background border border-border shadow-lg rounded-lg p-0"
         )}
+        overlayClassName="z-[99]"
       >
         {/* Header */}
         <DialogHeader className="px-6 pt-6 pb-2">
