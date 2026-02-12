@@ -49,10 +49,27 @@ export function useContextualAIAction() {
 
   /**
    * Detecte le contexte courant, enrichi avec les infos de vue active
+   * et la detection de modal ouvert (data-ai-entity dans le DOM)
    */
   const getContext = useCallback((): AIPageContext => {
     const baseContext = detectContext(pathname)
-    return enrichContextWithView(baseContext, viewContext)
+    const enriched = enrichContextWithView(baseContext, viewContext)
+
+    // Detect open modal: if data-ai-entity exists, upgrade to detail-level actions
+    if (typeof document !== 'undefined') {
+      const entityEl = document.querySelector('[data-ai-entity]')
+      if (entityEl && (baseContext.page === 'intervention_list' || baseContext.page === 'artisan_list')) {
+        return {
+          ...enriched,
+          entityType: baseContext.page === 'intervention_list' ? 'intervention' : 'artisan',
+          availableActions: baseContext.page === 'intervention_list'
+            ? ['summary', 'next_steps', 'email_artisan', 'email_client', 'find_artisan', 'suggestions'] as AIActionType[]
+            : ['summary', 'suggestions'] as AIActionType[],
+        }
+      }
+    }
+
+    return enriched
   }, [pathname, viewContext])
 
   /**
@@ -67,6 +84,7 @@ export function useContextualAIAction() {
     entityData?: Record<string, unknown> | null,
     historyContext?: Record<string, unknown> | null,
     summaryData?: AIDataSummary | null,
+    userInstruction?: string | null,
   ) => {
     const context = getContext()
 
@@ -142,6 +160,7 @@ export function useContextualAIAction() {
           entity_data: anonymizedData,
           history_context: historyContext ?? undefined,
           summary_data: summaryData ?? undefined,
+          user_instruction: userInstruction ?? undefined,
         }),
       })
 

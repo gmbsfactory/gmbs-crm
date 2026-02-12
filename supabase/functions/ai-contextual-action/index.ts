@@ -29,6 +29,7 @@ interface AIContextualActionRequest {
   entity_data?: Record<string, unknown> | null;
   history_context?: HistoryContext | null;
   summary_data?: AIDataSummaryPayload | null;
+  user_instruction?: string | null;
   extra_params?: Record<string, unknown>;
 }
 
@@ -182,6 +183,93 @@ Format de reponse attendu :
 1. Action 1
 2. Action 2
 3. Action 3`;
+}
+
+/**
+ * Build a user prompt for suggestions/stats_insights when we have REAL data from collectSummary.
+ * This is the key prompt that makes the AI give business-relevant suggestions instead of generic UI advice.
+ */
+function buildSuggestionsWithDataPrompt(
+  action: 'suggestions' | 'stats_insights',
+  sd: AIDataSummaryPayload,
+  ctx: AIContextualActionRequest['context'],
+  entityData?: Record<string, unknown> | null,
+  userInstruction?: string | null,
+): string {
+  const statusEntries = Object.entries(sd.interventions.byStatus)
+    .map(([k, v]) => `${k}: ${v}`)
+    .join(', ');
+
+  const alertsSection = sd.alerts.length > 0
+    ? `\nAlertes detectees : ${sd.alerts.join(' | ')}`
+    : '';
+
+  let prompt = `Voici les VRAIES donnees du portefeuille de l'utilisateur (dernier mois) :
+
+## Donnees reelles
+- Interventions totales : ${sd.interventions.total}
+- Creees sur la periode : ${sd.interventions.created}
+- Cloturees : ${sd.interventions.completed}
+- Repartition par statut : ${statusEntries || 'Aucune donnee'}
+- CA : ${sd.financial.totalRevenue} EUR | Couts : ${sd.financial.totalCosts} EUR | Marge : ${sd.financial.totalMargin} EUR (${sd.financial.averageMarginPercent}%)${alertsSection}`;
+
+  if (ctx.activeViewTitle) {
+    prompt += `\n\nVue active : ${ctx.activeViewTitle}`;
+  }
+  if (ctx.filterSummary && ctx.filterSummary !== 'Aucun filtre') {
+    prompt += `\nFiltres appliques : ${ctx.filterSummary}`;
+  }
+
+  // If entity data is available (modal open), include it
+  if (entityData && entityData.id_inter !== undefined) {
+    prompt += `\n\nIntervention ouverte :`;
+    prompt += `\n- ID : ${entityData.id_inter ?? 'N/A'}`;
+    prompt += `\n- Statut : ${entityData.statut_label ?? entityData.statut_code ?? 'Inconnu'}`;
+    prompt += `\n- Metier : ${entityData.metier_label ?? 'Non defini'}`;
+    prompt += `\n- Artisan : ${entityData.artisan_pseudo ?? 'Non assigne'}`;
+    prompt += `\n- Cout : ${entityData.cout_intervention != null ? `${entityData.cout_intervention} EUR` : 'Non defini'}`;
+    prompt += `\n- Marge : ${entityData.marge != null ? `${entityData.marge} EUR` : 'Non calculee'}`;
+  }
+
+  if (action === 'suggestions') {
+    prompt += `
+
+A partir de ces donnees REELLES, propose 3 a 5 actions concretes et SPECIFIQUES que le gestionnaire doit faire MAINTENANT.
+
+REGLES STRICTES :
+- Base-toi UNIQUEMENT sur les chiffres ci-dessus
+- Cite les VRAIS chiffres dans chaque suggestion (ex: "15 interventions en attente acompte")
+- Si des interventions sont dans un statut de blocage → alerter avec le nombre exact
+- Si la marge est basse → identifier le probleme avec les chiffres
+- Si des interventions n'ont pas d'artisan → indiquer combien
+
+Pour chaque suggestion :
+1. **Action precise** (avec chiffres reels)
+2. **Urgence** (pourquoi maintenant)
+3. **Impact attendu**
+
+NE PROPOSE JAMAIS des ameliorations d'interface, de filtres, de badges, ou de fonctionnalites logicielles.
+Propose UNIQUEMENT des actions METIER operationnelles basees sur les donnees.`;
+  } else {
+    // stats_insights
+    prompt += `
+
+A partir de ces donnees REELLES, genere 3 a 5 insights analytiques.
+
+Concentre-toi sur :
+- Les tendances : volume, marge, taux de completion
+- Les anomalies : statuts bloques, marges negatives, inactivite
+- Les risques a anticiper
+- Les KPIs critiques
+
+Sois FACTUEL : cite les chiffres exacts des donnees ci-dessus dans chaque insight.`;
+  }
+
+  if (userInstruction) {
+    prompt += `\n\n## FOCUS SPECIFIQUE demande par l'utilisateur\n"${userInstruction}"\nConcentre ta reponse principalement sur ce sujet specifique.`;
+  }
+
+  return prompt;
 }
 
 /**
@@ -350,7 +438,7 @@ serve(async (req: Request) => {
 
     // Parse request body
     const body = await req.json() as AIContextualActionRequest;
-    const { action, context, entity_data, history_context, summary_data, extra_params } = body;
+    const { action, context, entity_data, history_context, summary_data, user_instruction, extra_params } = body;
 
     // Validate action
     if (!action || !VALID_ACTIONS.includes(action)) {
@@ -410,12 +498,19 @@ serve(async (req: Request) => {
       }
     }
 
-    // Build prompt - for data_summary, use the dedicated prompt with real data
+    // Build prompt - route to the appropriate prompt builder based on action + available data
     let userPrompt: string;
     if (action === 'data_summary' && summary_data) {
       userPrompt = buildDataSummaryUserPrompt(summary_data);
+    } else if ((action === 'suggestions' || action === 'stats_insights') && summary_data) {
+      // When we have real data (collected by client), use the data-driven prompt
+      userPrompt = buildSuggestionsWithDataPrompt(action, summary_data, context, entity_data, user_instruction);
     } else {
       userPrompt = buildUserPrompt(action, entity_data, context.page, history_context);
+      // Append user instruction if provided (for actions that don't have dedicated handling)
+      if (user_instruction) {
+        userPrompt += `\n\n## Focus specifique demande par l'utilisateur\n"${user_instruction}"\nConcentre ta reponse principalement sur ce sujet.`;
+      }
     }
 
     // Call Claude API

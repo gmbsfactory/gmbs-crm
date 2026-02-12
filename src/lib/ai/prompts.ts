@@ -479,7 +479,7 @@ export const ACTION_DESCRIPTIONS: Record<AIActionType, string> = {
   email_artisan: 'Generer un brouillon d\'email pour l\'artisan',
   email_client: 'Generer un brouillon d\'email pour le client',
   find_artisan: 'Profil artisan ideal pour cette intervention',
-  suggestions: 'Actions utiles dans le contexte actuel',
-  stats_insights: 'Analyses et tendances du tableau de bord',
-  data_summary: 'Analyse les donnees reelles de la periode selectionnee',
+  suggestions: 'Actions metier basees sur vos vraies donnees',
+  stats_insights: 'Tendances et anomalies dans vos statistiques reelles',
+  data_summary: 'Rapport analytique sur une periode choisie',
 }

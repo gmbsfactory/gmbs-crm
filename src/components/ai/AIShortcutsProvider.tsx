@@ -114,11 +114,25 @@ export function AIShortcutsProvider() {
     }
   }, [])
 
-  // Execute an action with entity data and optional history context
-  const handleAction = useCallback((action: AIActionType) => {
+  // Execute an action with entity data and optional history context.
+  // For list pages (no modal), automatically collect real stats for suggestions/stats_insights.
+  const handleAction = useCallback(async (action: AIActionType, userInstruction?: string) => {
     const data = getEntityData()
-    executeAction(action, data?.entity ?? null, data?.history ?? null)
-  }, [executeAction, getEntityData])
+
+    // On list pages without a modal open, collect real data for suggestions/stats_insights
+    if (!data && (action === 'suggestions' || action === 'stats_insights')) {
+      try {
+        const summaryData = await collectSummary('month')
+        executeAction(action, null, null, summaryData, userInstruction)
+      } catch {
+        // Fallback: execute without summary data
+        executeAction(action, null, null, null, userInstruction)
+      }
+      return
+    }
+
+    executeAction(action, data?.entity ?? null, data?.history ?? null, null, userInstruction)
+  }, [executeAction, getEntityData, collectSummary])
 
   // Handle data_summary action: collect real data first, then execute
   const handleDataSummaryAction = useCallback(async (period: SummaryPeriod) => {
@@ -131,13 +145,13 @@ export function AIShortcutsProvider() {
     }
   }, [collectSummary, executeAction])
 
-  // Handle action from the actions panel
-  const handleSelectAction = useCallback((action: AIActionType, period?: SummaryPeriod) => {
+  // Handle action from the actions panel (with optional period for data_summary, or user instruction for suggestions)
+  const handleSelectAction = useCallback((action: AIActionType, period?: SummaryPeriod, userInstruction?: string) => {
     setActionsOpen(false)
     if (action === 'data_summary' && period) {
       handleDataSummaryAction(period)
     } else {
-      handleAction(action)
+      handleAction(action, userInstruction)
     }
   }, [handleAction, handleDataSummaryAction])
 
