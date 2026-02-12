@@ -265,6 +265,122 @@ function buildAnalysisFallbackPrompt(action: AIActionType, data: Record<string, 
   return 'Aide contextuelle.' + historySection;
 }
 
+// ===== FIND ARTISAN: Database search (no AI needed, instant) =====
+interface ArtisanCandidate {
+  artisan_id: string;
+  artisan_nom: string | null;
+  artisan_prenom: string | null;
+  artisan_raison_sociale: string | null;
+  artisan_telephone: string | null;
+  artisan_email: string | null;
+  artisan_numero_associe: string | null;
+  artisan_ville: string | null;
+  artisan_code_postal: string | null;
+  artisan_statut: string | null;
+  is_gestionnaire_artisan: boolean;
+  interventions_terminees: number;
+  interventions_totales: number;
+}
+
+async function handleFindArtisan(
+  supabase: ReturnType<typeof createClient>,
+  entityData: Record<string, unknown> | null | undefined,
+  authHeader: string | null,
+): Promise<{ content: string; sections: Array<{ title: string; content: string; type: string }> }> {
+  // Extract metier_code and code_postal from entity data
+  const metierCode = (entityData?.metier_code as string) ?? null;
+  const codePostal = (entityData?.code_postal as string) ?? null;
+
+  if (!metierCode || !codePostal) {
+    return {
+      content: 'Donnees insuffisantes pour la recherche. Metier ou code postal manquant.',
+      sections: [{ title: 'Erreur', content: 'Metier ou code postal manquant dans les donnees de l\'intervention.', type: 'warning' }],
+    };
+  }
+
+  // Extract user ID from auth token for "my artisans" prioritization
+  let userId: string | null = null;
+  if (authHeader) {
+    const token = authHeader.replace('Bearer ', '');
+    try {
+      const { data: { user } } = await supabase.auth.getUser(token);
+      userId = user?.id ?? null;
+    } catch {
+      // Auth extraction failed, continue without gestionnaire filter
+    }
+  }
+
+  // Call the RPC function
+  const { data: candidates, error } = await supabase.rpc('find_artisans_for_intervention', {
+    p_metier_code: metierCode,
+    p_code_postal: codePostal,
+    p_gestionnaire_id: userId,
+    p_limit: 10,
+  });
+
+  if (error) {
+    console.error('find_artisans_for_intervention error:', error.message);
+    return {
+      content: `Erreur lors de la recherche : ${error.message}`,
+      sections: [{ title: 'Erreur', content: error.message, type: 'warning' }],
+    };
+  }
+
+  const artisans = (candidates ?? []) as ArtisanCandidate[];
+
+  if (artisans.length === 0) {
+    const dept = codePostal.slice(0, 2);
+    return {
+      content: `Aucun artisan trouve pour le metier ${metierCode} dans le departement ${dept}.\n\nEssayez d'elargir la zone de recherche ou de verifier le metier requis.`,
+      sections: [{ title: 'Aucun resultat', content: `Pas d'artisan ${metierCode} actif dans le departement ${dept}.`, type: 'warning' }],
+    };
+  }
+
+  // Split into "my artisans" and "other artisans"
+  const mine = artisans.filter(a => a.is_gestionnaire_artisan);
+  const others = artisans.filter(a => !a.is_gestionnaire_artisan);
+
+  const formatArtisan = (a: ArtisanCandidate, idx: number): string => {
+    const name = [a.artisan_prenom, a.artisan_nom].filter(Boolean).join(' ') || a.artisan_raison_sociale || 'Inconnu';
+    const company = a.artisan_raison_sociale && a.artisan_raison_sociale !== name ? ` — ${a.artisan_raison_sociale}` : '';
+    const num = a.artisan_numero_associe ? ` (${a.artisan_numero_associe})` : '';
+    const location = [a.artisan_ville, a.artisan_code_postal].filter(Boolean).join(' ') || 'Zone inconnue';
+    const tel = a.artisan_telephone ? `Tel: ${a.artisan_telephone}` : '';
+    const stats = a.interventions_totales > 0
+      ? `${a.interventions_terminees} terminees sur ${a.interventions_totales} (${Math.round(a.interventions_terminees / a.interventions_totales * 100)}%)`
+      : 'Pas encore d\'interventions';
+
+    const lines = [`${idx}. **${name}**${num}${company}`];
+    lines.push(`   ${location}${tel ? ' | ' + tel : ''}`);
+    lines.push(`   ${stats}`);
+    return lines.join('\n');
+  };
+
+  const sections: Array<{ title: string; content: string; type: string }> = [];
+  const contentParts: string[] = [];
+
+  if (mine.length > 0) {
+    const mineText = mine.map((a, i) => formatArtisan(a, i + 1)).join('\n\n');
+    contentParts.push(`## Mes artisans\n\n${mineText}`);
+    sections.push({ title: 'Mes artisans', content: mineText, type: 'text' });
+  }
+
+  if (others.length > 0) {
+    const startIdx = mine.length + 1;
+    const othersText = others.map((a, i) => formatArtisan(a, startIdx + i)).join('\n\n');
+    contentParts.push(`## Autres artisans disponibles\n\n${othersText}`);
+    sections.push({ title: 'Autres artisans disponibles', content: othersText, type: 'text' });
+  }
+
+  const metierLabel = entityData?.metier_label ?? metierCode;
+  const header = `Recherche : **${metierLabel}** dans le departement **${codePostal.slice(0, 2)}** — ${artisans.length} artisan(s) trouve(s)\n\n`;
+
+  return {
+    content: header + contentParts.join('\n\n'),
+    sections,
+  };
+}
+
 // ===== MAIN SERVER =====
 serve(async (req: Request) => {
   const corsHeaders = getCorsHeaders(req);
@@ -326,9 +442,36 @@ serve(async (req: Request) => {
       }
     }
 
+    // ===== FIND_ARTISAN: Database search bypass (no AI, instant) =====
+    if (action === 'find_artisan') {
+      const authHeader = req.headers.get('Authorization');
+      const findResult = await handleFindArtisan(supabase, entity_data, authHeader);
+      const computed_at = new Date().toISOString();
+      const result = { ...findResult, suggested_actions: [] };
+
+      // Cache the result (fire-and-forget)
+      if (context.entityId && context.entityType === 'intervention') {
+        const expiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();
+        supabase.from('intervention_ai_cache').upsert({
+          intervention_id: context.entityId,
+          cache_type: 'find_artisan',
+          cached_value: result,
+          confidence: 1.0,
+          computed_at,
+          expires_at: expiresAt,
+        }, { onConflict: 'intervention_id,cache_type' }).then(() => {});
+      }
+
+      console.log(JSON.stringify({ level: 'info', requestId, action, message: 'DB search completed', duration: Date.now() - startTime }));
+      return new Response(
+        JSON.stringify({ success: true, action, result, cached: false, computed_at, confidence: 1.0 }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     // Build prompt based on action category
     const { model, maxTokens } = getModelConfig(action);
-    const isFastAction = ['summary', 'next_steps', 'email_artisan', 'email_client', 'find_artisan'].includes(action);
+    const isFastAction = ['summary', 'next_steps', 'email_artisan', 'email_client'].includes(action);
 
     let userPrompt: string;
     if (action === 'data_summary' && summary_data) {
