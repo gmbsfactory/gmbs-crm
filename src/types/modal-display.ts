@@ -27,9 +27,9 @@ export const MODAL_DISPLAY_CONFIGS: Record<ModalDisplayMode, ModalDisplayConfig>
   halfpage: {
     label: "Demi-page",
     description: "Modal sur la droite, comme Notion",
-    containerClass: "w-1/2 h-full ml-auto",
+    containerClass: "w-[65%] h-full ml-auto",
     wrapperClass: "justify-end",
-    width: "50%",
+    width: "65%",
     height: "100%",
   },
   centerpage: {

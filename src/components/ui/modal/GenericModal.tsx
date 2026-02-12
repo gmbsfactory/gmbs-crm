@@ -69,7 +69,7 @@ const getModalStyle = (mode: ModalDisplayMode) => {
   switch (mode) {
     case "halfpage":
       return {
-        container: "fixed top-0 right-0 z-[70] h-full w-1/2 p-4",
+        container: "fixed top-0 right-0 z-[70] h-full w-[65%] p-4",
         wrapper: "pointer-events-none h-full w-full",
         content: "pointer-events-auto flex h-full w-full flex-col overflow-hidden shadcn-sheet-content",
       }

@@ -62,11 +62,11 @@ export function AISidePanel({ state, onClose, onExecuteAction, onAction }: AISid
 
   const panelContent = (
     <div className="flex flex-col h-full">
-      {/* Header */}
-      <div className="flex items-center justify-between px-5 py-4 border-b bg-background/95 backdrop-blur-sm">
+      {/* Header — style modal-config-columns-header */}
+      <div className="modal-config-columns-header">
         <div className="flex items-center gap-2 min-w-0">
           <Sparkles className="w-4 h-4 text-primary flex-shrink-0" />
-          <h2 className="text-sm font-semibold truncate">AI Assistant — {actionLabel}</h2>
+          <h2 className="modal-config-columns-title truncate">AI Assistant — {actionLabel}</h2>
         </div>
         <Button variant="ghost" size="icon" className="h-7 w-7 flex-shrink-0" onClick={onClose}>
           <X className="w-4 h-4" />
@@ -177,23 +177,24 @@ export function AISidePanel({ state, onClose, onExecuteAction, onAction }: AISid
     </div>
   )
 
-  // Wide screen: fixed side panel with slide animation
+  // Wide screen: fixed side panel collé à gauche du halfpage (65%)
   if (isWideScreen) {
     return (
       <AnimatePresence>
         {isOpen && (
           <motion.div
-            initial={{ x: '-100%', opacity: 0 }}
+            initial={{ x: '100%', opacity: 0 }}
             animate={{ x: 0, opacity: 1 }}
-            exit={{ x: '-100%', opacity: 0 }}
+            exit={{ x: '100%', opacity: 0 }}
             transition={{ type: 'spring', damping: 25, stiffness: 300 }}
             className={cn(
-              "fixed top-0 left-0 z-[69] h-full",
-              "w-[38vw] max-w-[550px] min-w-[360px]",
-              "bg-background border-r border-border shadow-xl",
+              "fixed top-0 right-[65%] z-[69] h-full",
+              "w-[300px] p-4",
             )}
           >
-            {panelContent}
+            <div className="shadcn-sheet-content flex flex-col h-full overflow-hidden">
+              {panelContent}
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
