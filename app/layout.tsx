@@ -1,3 +1,4 @@
+import { AIShortcutsProvider } from "@/components/ai/AIShortcutsProvider"
 import { ErrorBoundary } from "@/components/ErrorBoundary"
 import GlobalModalHost from "@/components/layout/GlobalModalHost"
 import GlobalShortcuts from "@/components/layout/global-shortcuts"
@@ -266,6 +267,7 @@ export default async function RootLayout({
                                     <main id="main" className="flex flex-1 h-[calc(100vh-4rem)] flex-col overflow-hidden">
                                       <LowPowerModeDetector />
                                       <GlobalShortcuts />
+                                      <AIShortcutsProvider />
                                       <GlobalModalHost />
                                       <div className="flex-1 flex flex-col min-h-0 overflow-auto">
                                         <ErrorBoundary section="page-content">

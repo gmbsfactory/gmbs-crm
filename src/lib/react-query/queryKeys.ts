@@ -1,4 +1,5 @@
 import type { InterventionQueryParams } from "@/lib/api/v2"
+import type { AIActionType } from "@/lib/ai/types"
 
 // Alias pour compatibilité avec le code existant
 type GetAllParams = InterventionQueryParams
@@ -465,4 +466,52 @@ export const referenceKeys = {
    * queryClient.invalidateQueries({ queryKey: referenceKeys.invalidateAll() })
    */
   invalidateAll: () => referenceKeys.all,
+} as const
+
+/**
+ * Factory pour les cles de requete IA
+ * Centralise le cache des resultats IA (resumes, suggestions, predictions)
+ *
+ * @example
+ * // Cache un resume IA pour une intervention
+ * queryClient.setQueryData(aiKeys.action('summary', 'intervention-id'), result)
+ *
+ * @example
+ * // Invalider tous les resultats IA
+ * queryClient.invalidateQueries({ queryKey: aiKeys.all })
+ */
+export const aiKeys = {
+  /** Cle racine pour toutes les queries IA */
+  all: ["ai"] as const,
+
+  /** Prefixe pour les actions contextuelles */
+  actions: () => [...aiKeys.all, "action"] as const,
+
+  /** Cle pour une action IA sur une entite specifique */
+  action: (action: AIActionType, entityId: string) =>
+    [...aiKeys.actions(), action, entityId] as const,
+
+  /** Prefixe pour les embeddings */
+  embeddings: () => [...aiKeys.all, "embedding"] as const,
+
+  /** Cle pour l'embedding d'une intervention */
+  embedding: (interventionId: string) =>
+    [...aiKeys.embeddings(), interventionId] as const,
+
+  /** Prefixe pour les scores artisan */
+  scores: () => [...aiKeys.all, "score"] as const,
+
+  /** Cle pour les scores d'un artisan */
+  artisanScore: (artisanId: string) =>
+    [...aiKeys.scores(), artisanId] as const,
+
+  /** Prefixe pour les predictions */
+  predictions: () => [...aiKeys.all, "prediction"] as const,
+
+  /** Cle pour les predictions d'une intervention */
+  prediction: (interventionId: string) =>
+    [...aiKeys.predictions(), interventionId] as const,
+
+  /** Invalider tous les resultats IA */
+  invalidateAll: () => aiKeys.all,
 } as const
