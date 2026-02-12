@@ -18,20 +18,7 @@ import { aiKeys } from "@/lib/react-query/queryKeys"
 
 /**
  * Hook pour executer des actions IA contextuelles.
- *
- * Detecte automatiquement le contexte de la page courante (intervention, artisan, dashboard)
- * et envoie une requete a l'Edge Function ai-contextual-action.
- *
- * @example
- * const { executeAction, state, close } = useContextualAIAction()
- *
- * // Executer un resume (Cmd+Shift+R)
- * executeAction('summary', interventionData)
- *
- * // Afficher le dialog
- * if (state.isOpen && state.result) {
- *   <AIAssistantDialog result={state.result} onClose={close} />
- * }
+ * Optimise pour la vitesse : prefetch au modal open, cache TanStack Query.
  */
 export function useContextualAIAction() {
   const pathname = usePathname()
@@ -48,6 +35,23 @@ export function useContextualAIAction() {
   })
 
   /**
+   * Read entity ID from DOM data-ai-entity (for cache key when modal is open)
+   */
+  const getEntityIdFromDOM = useCallback((): string | null => {
+    if (typeof document === 'undefined') return null
+    const el = document.querySelector('[data-ai-entity]')
+    if (!el) return null
+    try {
+      const raw = el.getAttribute('data-ai-entity')
+      if (!raw) return null
+      const parsed = JSON.parse(raw)
+      return (parsed.id as string) ?? null
+    } catch {
+      return null
+    }
+  }, [])
+
+  /**
    * Detecte le contexte courant, enrichi avec les infos de vue active
    * et la detection de modal ouvert (data-ai-entity dans le DOM)
    */
@@ -59,8 +63,10 @@ export function useContextualAIAction() {
     if (typeof document !== 'undefined') {
       const entityEl = document.querySelector('[data-ai-entity]')
       if (entityEl && (baseContext.page === 'intervention_list' || baseContext.page === 'artisan_list')) {
+        const entityId = getEntityIdFromDOM()
         return {
           ...enriched,
+          entityId: entityId ?? enriched.entityId,
           entityType: baseContext.page === 'intervention_list' ? 'intervention' : 'artisan',
           availableActions: baseContext.page === 'intervention_list'
             ? ['summary', 'next_steps', 'email_artisan', 'email_client', 'find_artisan', 'suggestions'] as AIActionType[]
@@ -70,14 +76,68 @@ export function useContextualAIAction() {
     }
 
     return enriched
-  }, [pathname, viewContext])
+  }, [pathname, viewContext, getEntityIdFromDOM])
 
   /**
-   * Execute une action IA.
-   *
-   * @param action - L'action a executer (summary, next_steps, email_artisan, etc.)
-   * @param entityData - Les donnees brutes de l'entite (seront anonymisees avant envoi)
-   * @param historyContext - Contexte d'historique condense (construit par buildHistoryContext)
+   * Core fetch logic shared by executeAction and prefetchAction
+   */
+  const callEdgeFunction = useCallback(async (
+    action: AIActionType,
+    context: AIPageContext,
+    entityData?: Record<string, unknown> | null,
+    historyContext?: Record<string, unknown> | null,
+    summaryData?: AIDataSummary | null,
+    userInstruction?: string | null,
+  ): Promise<AIContextualActionResponse> => {
+    // Anonymize entity data
+    let anonymizedData: Record<string, unknown> | null = null
+    if (entityData) {
+      if (context.entityType === 'intervention') {
+        anonymizedData = anonymizeIntervention(entityData) as unknown as Record<string, unknown>
+      } else if (context.entityType === 'artisan') {
+        anonymizedData = anonymizeArtisan(entityData) as unknown as Record<string, unknown>
+      }
+    }
+
+    const headers = await getHeaders()
+    const response = await fetch(`${SUPABASE_FUNCTIONS_URL}/ai-contextual-action`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        action,
+        context: {
+          page: context.page,
+          entityId: context.entityId,
+          entityType: context.entityType,
+          pathname: context.pathname,
+          activeViewId: context.activeViewId,
+          activeViewTitle: context.activeViewTitle,
+          activeViewLayout: context.activeViewLayout,
+          appliedFilters: context.appliedFilters,
+          filterSummary: context.filterSummary,
+        },
+        entity_data: anonymizedData,
+        history_context: historyContext ?? undefined,
+        summary_data: summaryData ?? undefined,
+        user_instruction: userInstruction ?? undefined,
+      }),
+    })
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      throw new Error(`HTTP ${response.status}: ${errorText}`)
+    }
+
+    const result = await response.json() as AIContextualActionResponse
+    if (!result.success) {
+      throw new Error(result.error ?? 'Action IA echouee')
+    }
+
+    return result
+  }, [])
+
+  /**
+   * Execute une action IA (avec dialog).
    */
   const executeAction = useCallback(async (
     action: AIActionType,
@@ -88,7 +148,6 @@ export function useContextualAIAction() {
   ) => {
     const context = getContext()
 
-    // Verifier que l'action est disponible dans ce contexte
     if (!context.availableActions.includes(action)) {
       setState(prev => ({
         ...prev,
@@ -110,9 +169,9 @@ export function useContextualAIAction() {
     })
 
     try {
-      // Check TanStack Query cache first (skip for data_summary - data changes constantly)
+      // Check TanStack Query cache first
       const entityId = context.entityId
-      if (entityId && action !== 'data_summary') {
+      if (entityId && action !== 'data_summary' && action !== 'suggestions' && action !== 'stats_insights') {
         const cachedResult = queryClient.getQueryData<AIContextualActionResponse>(
           aiKeys.action(action, entityId)
         )
@@ -129,58 +188,11 @@ export function useContextualAIAction() {
         }
       }
 
-      // Anonymize entity data before sending to the API
-      let anonymizedData: Record<string, unknown> | null = null
-      if (entityData) {
-        if (context.entityType === 'intervention') {
-          anonymizedData = anonymizeIntervention(entityData) as unknown as Record<string, unknown>
-        } else if (context.entityType === 'artisan') {
-          anonymizedData = anonymizeArtisan(entityData) as unknown as Record<string, unknown>
-        }
-      }
+      const result = await callEdgeFunction(action, context, entityData, historyContext, summaryData, userInstruction)
 
-      // Call Edge Function
-      const headers = await getHeaders()
-      const response = await fetch(`${SUPABASE_FUNCTIONS_URL}/ai-contextual-action`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({
-          action,
-          context: {
-            page: context.page,
-            entityId: context.entityId,
-            entityType: context.entityType,
-            pathname: context.pathname,
-            activeViewId: context.activeViewId,
-            activeViewTitle: context.activeViewTitle,
-            activeViewLayout: context.activeViewLayout,
-            appliedFilters: context.appliedFilters,
-            filterSummary: context.filterSummary,
-          },
-          entity_data: anonymizedData,
-          history_context: historyContext ?? undefined,
-          summary_data: summaryData ?? undefined,
-          user_instruction: userInstruction ?? undefined,
-        }),
-      })
-
-      if (!response.ok) {
-        const errorText = await response.text()
-        throw new Error(`HTTP ${response.status}: ${errorText}`)
-      }
-
-      const result = await response.json() as AIContextualActionResponse
-
-      if (!result.success) {
-        throw new Error(result.error ?? 'Action IA echouee')
-      }
-
-      // Cache result in TanStack Query (5 min staleTime)
+      // Cache result in TanStack Query
       if (entityId) {
-        queryClient.setQueryData(
-          aiKeys.action(action, entityId),
-          result,
-        )
+        queryClient.setQueryData(aiKeys.action(action, entityId), result)
       }
 
       setState({
@@ -202,27 +214,45 @@ export function useContextualAIAction() {
         context,
       })
     }
-  }, [getContext, queryClient])
+  }, [getContext, queryClient, callEdgeFunction])
 
   /**
-   * Ferme le dialog IA
+   * Prefetch silencieux : appelle l'Edge Function et cache le resultat
+   * sans ouvrir le dialog ni modifier le state.
+   * Utilise pour pre-charger summary + next_steps a l'ouverture du modal.
    */
+  const prefetchAction = useCallback(async (
+    action: AIActionType,
+    entityData?: Record<string, unknown> | null,
+    historyContext?: Record<string, unknown> | null,
+  ) => {
+    const context = getContext()
+    const entityId = context.entityId
+    if (!entityId) return
+
+    // Skip if already cached
+    const cached = queryClient.getQueryData<AIContextualActionResponse>(aiKeys.action(action, entityId))
+    if (cached) return
+
+    try {
+      const result = await callEdgeFunction(action, context, entityData, historyContext)
+      queryClient.setQueryData(aiKeys.action(action, entityId), result)
+    } catch {
+      // Silent fail for prefetch
+    }
+  }, [getContext, queryClient, callEdgeFunction])
+
   const close = useCallback(() => {
-    setState(prev => ({
-      ...prev,
-      isOpen: false,
-    }))
+    setState(prev => ({ ...prev, isOpen: false }))
   }, [])
 
-  /**
-   * Retourne les actions disponibles dans le contexte courant
-   */
   const getAvailableActions = useCallback((): AIActionType[] => {
     return getContext().availableActions
   }, [getContext])
 
   return {
     executeAction,
+    prefetchAction,
     state,
     close,
     getContext,

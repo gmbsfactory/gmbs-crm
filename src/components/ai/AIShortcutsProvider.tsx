@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useCallback, useEffect, useState } from "react"
+import React, { useCallback, useEffect, useRef, useState } from "react"
 import { usePathname } from "next/navigation"
 import { useContextualAIAction } from "@/hooks/useContextualAIAction"
 import { useAIDataSummary, type SummaryPeriod } from "@/hooks/useAIDataSummary"
@@ -31,11 +31,12 @@ const MODAL_INTERVENTION_ACTIONS: AIActionType[] = [
  */
 export function AIShortcutsProvider() {
   const pathname = usePathname()
-  const { executeAction, state, close } = useContextualAIAction()
+  const { executeAction, prefetchAction, state, close } = useContextualAIAction()
   const { collectSummary } = useAIDataSummary()
   const viewContext = useAIContextStore((s) => s.viewContext)
   const [actionsOpen, setActionsOpen] = useState(false)
   const [context, setContext] = useState<AIPageContext | null>(null)
+  const lastPrefetchedEntityId = useRef<string | null>(null)
 
   // Update context when pathname or view context changes
   // Also detect if a modal with entity data is open (data-ai-entity in DOM)
@@ -60,6 +61,7 @@ export function AIShortcutsProvider() {
   }, [pathname, viewContext])
 
   // Re-detect context when modals open/close (MutationObserver on data-ai-entity)
+  // Also PREFETCH summary + next_steps in background when a new modal opens
   useEffect(() => {
     const observer = new MutationObserver(() => {
       const base = detectContext(pathname)
@@ -74,8 +76,31 @@ export function AIShortcutsProvider() {
             ? MODAL_INTERVENTION_ACTIONS
             : ['summary', 'suggestions'],
         })
+
+        // PREFETCH: when a new modal opens, pre-load summary + next_steps in background
+        try {
+          const raw = entityEl.getAttribute('data-ai-entity')
+          if (raw) {
+            const parsed = JSON.parse(raw) as Record<string, unknown>
+            const entityId = parsed.id as string
+            if (entityId && entityId !== lastPrefetchedEntityId.current) {
+              lastPrefetchedEntityId.current = entityId
+              let history: Record<string, unknown> | null = null
+              const historyRaw = entityEl.getAttribute('data-ai-history')
+              if (historyRaw) {
+                try { history = JSON.parse(historyRaw) as Record<string, unknown> } catch { /* ignore */ }
+              }
+              // Fire prefetch for summary and next_steps in parallel (silent, no UI)
+              prefetchAction('summary', parsed, history)
+              prefetchAction('next_steps', parsed, history)
+            }
+          }
+        } catch {
+          // Prefetch is best-effort, never block
+        }
       } else {
         setContext(enriched)
+        lastPrefetchedEntityId.current = null
       }
     })
 
@@ -87,7 +112,7 @@ export function AIShortcutsProvider() {
     })
 
     return () => observer.disconnect()
-  }, [pathname, viewContext])
+  }, [pathname, viewContext, prefetchAction])
 
   // Get entity data and optional history context from the currently open modal or page.
   // Reads from data attributes set by InterventionModalContent.

@@ -1,16 +1,12 @@
 // ===== AI CONTEXTUAL ACTION - EDGE FUNCTION =====
 // Point d'entree unique pour toutes les actions IA contextuelles.
-// Recoit une action + contexte + donnees anonymisees, appelle Claude, retourne le resultat.
-//
-// POST /ai-contextual-action
-// Body: { action, context, entity_data, extra_params }
-// Response: { success, action, result, cached, computed_at, confidence }
+// Optimise pour la vitesse : Haiku pour les actions rapides, Sonnet pour l'analytique.
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { getCorsHeaders } from '../_shared/cors.ts';
 
-// Types (mirrored from src/lib/ai/types.ts for Deno)
+// Types
 type AIActionType = 'summary' | 'next_steps' | 'email_artisan' | 'email_client' | 'find_artisan' | 'suggestions' | 'stats_insights' | 'data_summary';
 
 interface AIContextualActionRequest {
@@ -56,24 +52,46 @@ interface HistoryContext {
   alerts: string[];
 }
 
-// System prompt de base
-const BASE_SYSTEM_PROMPT = `Tu es un assistant IA integre dans un CRM de gestion d'interventions batiment (GMBS-CRM).
+// ===== SPEED OPTIMIZATION: Model + token limits per action =====
+// Haiku 4.5 is 3-5x faster than Sonnet for structured tasks
+const FAST_MODEL = 'claude-haiku-4-5-20251001';
+const ANALYSIS_MODEL = 'claude-sonnet-4-5-20250929';
+
+function getModelConfig(action: AIActionType): { model: string; maxTokens: number } {
+  switch (action) {
+    case 'summary':       return { model: FAST_MODEL, maxTokens: 350 };
+    case 'next_steps':    return { model: FAST_MODEL, maxTokens: 300 };
+    case 'email_artisan': return { model: FAST_MODEL, maxTokens: 450 };
+    case 'email_client':  return { model: FAST_MODEL, maxTokens: 450 };
+    case 'find_artisan':  return { model: FAST_MODEL, maxTokens: 300 };
+    case 'suggestions':   return { model: ANALYSIS_MODEL, maxTokens: 600 };
+    case 'stats_insights':return { model: ANALYSIS_MODEL, maxTokens: 600 };
+    case 'data_summary':  return { model: ANALYSIS_MODEL, maxTokens: 800 };
+  }
+}
+
+// ===== COMPACT SYSTEM PROMPTS =====
+const FAST_SYSTEM = `Assistant CRM interventions batiment. Francais, concis, puces. Pas de donnees personnelles. Focus: statut, metier, couts, delais, zone.`;
+
+const ANALYSIS_SYSTEM = `Tu es un assistant IA integre dans un CRM de gestion d'interventions batiment (GMBS-CRM).
 Tu aides les gestionnaires a prendre des decisions rapidement.
 Reponds toujours en francais, de maniere concise et actionnable.
 Utilise des puces pour structurer tes reponses.
 Ne mentionne jamais de donnees personnelles (noms, emails, telephones).
 Concentre-toi sur les faits metier : statut, metier, couts, delais, zone.`;
 
-/**
- * Build the system prompt enriched with the current view context.
- */
-function buildSystemPrompt(ctx: AIContextualActionRequest['context']): string {
+function getSystemPrompt(action: AIActionType, ctx: AIContextualActionRequest['context']): string {
+  const isFast = ['summary', 'next_steps', 'email_artisan', 'email_client', 'find_artisan'].includes(action);
+  const base = isFast ? FAST_SYSTEM : ANALYSIS_SYSTEM;
+
+  // Only add view context for analysis actions (fast actions don't need it)
+  if (isFast) return base;
+
   const lines: string[] = [];
   if (ctx.activeViewTitle) lines.push(`Vue active : ${ctx.activeViewTitle}`);
-  if (ctx.filterSummary && ctx.filterSummary !== 'Aucun filtre') lines.push(`Filtres appliques : ${ctx.filterSummary}`);
-  if (ctx.activeViewLayout) lines.push(`Disposition : ${ctx.activeViewLayout}`);
-  if (lines.length === 0) return BASE_SYSTEM_PROMPT;
-  return `${BASE_SYSTEM_PROMPT}\n\nContexte de navigation de l'utilisateur :\n${lines.join('\n')}`;
+  if (ctx.filterSummary && ctx.filterSummary !== 'Aucun filtre') lines.push(`Filtres : ${ctx.filterSummary}`);
+  if (lines.length === 0) return base;
+  return `${base}\n\nContexte navigation :\n${lines.join('\n')}`;
 }
 
 // Validated action types
@@ -82,113 +100,102 @@ const VALID_ACTIONS: AIActionType[] = [
   'find_artisan', 'suggestions', 'stats_insights', 'data_summary'
 ];
 
-/**
- * Format history context into a text section to append to user prompts
- */
-function formatHistorySection(hc: HistoryContext | null | undefined): string {
-  if (!hc) return '';
-
+// ===== COMPACT INTERVENTION CONTEXT (for fast prompts) =====
+function compactIntervention(d: Record<string, unknown>): string {
   const lines: string[] = [];
+  if (d.id_inter) lines.push(`${d.id_inter}`);
 
-  lines.push(`\n## Historique recent de l'intervention`);
-  lines.push(`- ${hc.totalActions} actions au total`);
-  lines.push(`- ${hc.metrics.daysInCurrentStatus} jours dans le statut actuel`);
-  lines.push(`- ${hc.metrics.daysSinceLastAction} jours depuis la derniere action`);
-  lines.push(`- ${hc.metrics.daysSinceCreation} jours depuis la creation`);
+  const meta = [
+    d.statut_label ?? d.statut_code,
+    d.metier_label,
+    (d.code_postal || d.ville) ? `${d.code_postal ?? ''} ${d.ville ?? ''}`.trim() : null,
+  ].filter(Boolean);
+  if (meta.length) lines.push(meta.join(' | '));
 
-  if (hc.statusChanges.length > 0) {
-    lines.push(`\n### Changements de statut :`);
-    for (const s of hc.statusChanges.slice(0, 10)) {
-      lines.push(`- ${s.date}: ${s.from} -> ${s.to} (par ${s.actor})`);
-    }
-  }
+  const dates = [
+    d.date ? `cree ${d.date}` : null,
+    d.date_prevue ? `prevu ${d.date_prevue}` : null,
+    d.artisan_pseudo ? `artisan: ${d.artisan_pseudo}` : 'PAS D\'ARTISAN',
+  ].filter(Boolean);
+  if (dates.length) lines.push(dates.join(' | '));
 
-  if (hc.costChanges.length > 0) {
-    lines.push(`\n### Modifications de couts :`);
-    for (const c of hc.costChanges.slice(0, 5)) {
-      const amounts = [
-        c.oldAmount != null ? `ancien: ${c.oldAmount} EUR` : null,
-        c.newAmount != null ? `nouveau: ${c.newAmount} EUR` : null,
-      ].filter(Boolean).join(', ');
-      lines.push(`- ${c.date}: ${c.type} ${amounts ? `(${amounts})` : ''}`);
-    }
-  }
+  const costs = [
+    d.cout_intervention != null ? `cout: ${d.cout_intervention}€` : null,
+    d.marge != null ? `marge: ${d.marge}€` : null,
+  ].filter(Boolean);
+  if (costs.length) lines.push(costs.join(' | '));
 
-  if (hc.artisanChanges.length > 0) {
-    lines.push(`\n### Changements artisan :`);
-    for (const a of hc.artisanChanges.slice(0, 5)) {
-      lines.push(`- ${a.date}: ${a.type} (par ${a.actor})`);
-    }
-  }
-
-  if (hc.recentComments.length > 0) {
-    lines.push(`\n### Commentaires recents :`);
-    for (const c of hc.recentComments.slice(0, 5)) {
-      lines.push(`- ${c.date} (${c.actor}): "${c.content}"`);
-    }
-  }
-
-  if (hc.alerts.length > 0) {
-    lines.push(`\n### Alertes :`);
-    for (const a of hc.alerts) {
-      lines.push(`- ${a}`);
-    }
-  }
+  if (d.contexte) lines.push(`${d.contexte}`);
+  if (d.consigne) lines.push(`Consigne: ${d.consigne}`);
+  if (d.commentaire_agent) lines.push(`Note: ${d.commentaire_agent}`);
 
   return lines.join('\n');
 }
 
-/**
- * Build a user prompt specifically for data_summary action using real data
- */
-function buildDataSummaryUserPrompt(sd: AIDataSummaryPayload): string {
-  const statusEntries = Object.entries(sd.interventions.byStatus)
-    .map(([k, v]) => `${k}: ${v}`)
-    .join(', ');
-
-  const alertsSection = sd.alerts.length > 0
-    ? `\n## Alertes detectees\n${sd.alerts.map((a: string) => `- ${a}`).join('\n')}`
-    : '';
-
-  return `Tu es un analyste de donnees pour un CRM de gestion d'interventions.
-Voici les donnees REELLES de la periode ${sd.period.label} :
-
-## Interventions
-- Total : ${sd.interventions.total}
-- Creees sur la periode : ${sd.interventions.created}
-- Cloturees : ${sd.interventions.completed}
-- Par statut : ${statusEntries || 'Aucune donnee'}
-
-## Financier
-- Chiffre d'affaires : ${sd.financial.totalRevenue} EUR
-- Couts : ${sd.financial.totalCosts} EUR
-- Marge : ${sd.financial.totalMargin} EUR (${sd.financial.averageMarginPercent}%)
-${alertsSection}
-
-Genere un resume analytique concis et actionnable. Identifie les points forts, les points faibles, et les actions recommandees.
-
-Format de reponse attendu :
-## Resume de la periode
-- Point 1
-- Point 2
-- Point 3
-
-## Points forts
-- ...
-
-## Points d'attention
-- ...
-
-## Actions recommandees
-1. Action 1
-2. Action 2
-3. Action 3`;
+// ===== COMPACT HISTORY (max 5 lines for fast prompts) =====
+function compactHistory(hc: HistoryContext | null | undefined): string {
+  if (!hc) return '';
+  const lines: string[] = [`\nHistorique: ${hc.metrics.daysInCurrentStatus}j dans statut actuel, ${hc.metrics.daysSinceLastAction}j depuis derniere action`];
+  if (hc.alerts.length > 0) lines.push(`Alertes: ${hc.alerts.join(', ')}`);
+  if (hc.statusChanges.length > 0) {
+    lines.push(`Statuts: ${hc.statusChanges.slice(0, 3).map(s => `${s.from}->${s.to}`).join(', ')}`);
+  }
+  return lines.join('\n');
 }
 
-/**
- * Build a user prompt for suggestions/stats_insights when we have REAL data from collectSummary.
- * This is the key prompt that makes the AI give business-relevant suggestions instead of generic UI advice.
- */
+// ===== FULL HISTORY (for analysis prompts) =====
+function formatHistorySection(hc: HistoryContext | null | undefined): string {
+  if (!hc) return '';
+  const lines: string[] = [];
+  lines.push(`\n## Historique`);
+  lines.push(`- ${hc.totalActions} actions | ${hc.metrics.daysInCurrentStatus}j statut actuel | ${hc.metrics.daysSinceLastAction}j inactif | ${hc.metrics.daysSinceCreation}j depuis creation`);
+  if (hc.statusChanges.length > 0) {
+    lines.push(`Statuts: ${hc.statusChanges.slice(0, 5).map(s => `${s.date}: ${s.from}->${s.to}`).join(' | ')}`);
+  }
+  if (hc.costChanges.length > 0) {
+    lines.push(`Couts: ${hc.costChanges.slice(0, 3).map(c => `${c.type}${c.newAmount != null ? ` ${c.newAmount}€` : ''}`).join(' | ')}`);
+  }
+  if (hc.recentComments.length > 0) {
+    lines.push(`Commentaires: ${hc.recentComments.slice(0, 2).map(c => `"${c.content}"`).join(' | ')}`);
+  }
+  if (hc.alerts.length > 0) {
+    lines.push(`**Alertes: ${hc.alerts.join(' | ')}**`);
+  }
+  return lines.join('\n');
+}
+
+// ===== FAST PROMPTS (compact, directive) =====
+function buildFastPrompt(action: AIActionType, data: Record<string, unknown>, hc: HistoryContext | null | undefined): string {
+  const ctx = compactIntervention(data);
+  const hist = compactHistory(hc);
+
+  switch (action) {
+    case 'summary': {
+      if (data.id_inter !== undefined) {
+        return `${ctx}${hist}\n\n→ Resume 3 puces + 3 prochaines etapes. Max 150 mots.`;
+      }
+      // Artisan
+      return `Artisan ${data.pseudo ?? '?'} | Metiers: ${data.metiers ?? '?'} | Zone: ${data.zone_code_postal ?? ''} ${data.zone_ville ?? ''} | Statut: ${data.statut ?? '?'} | ${data.nombre_interventions_actives ?? '?'} interventions actives\n\n→ Resume 3 puces: specialite, charge, attention. Max 80 mots.`;
+    }
+
+    case 'next_steps':
+      return `${ctx}${hist}\n\n→ 3-5 actions concretes. Pour chaque: action + delai. Max 100 mots.`;
+
+    case 'email_artisan':
+      return `${ctx}${hist}\n\n→ Email pro pour artisan. Placeholder [NOM_ARTISAN]. Format: Objet + Corps. Cordial, concis.`;
+
+    case 'email_client':
+      return `${ctx}${hist}\n\n→ Email pro pour client. Placeholder [NOM_CLIENT]. Format: Objet + Corps. Rassurant, concis.`;
+
+    case 'find_artisan':
+      return `${ctx}\n\n→ Profil artisan ideal: metier, competences, zone. + 3 criteres de selection.`;
+
+    default:
+      return `${ctx}${hist}\n\n→ Aide contextuelle.`;
+  }
+}
+
+// ===== ANALYSIS PROMPTS =====
 function buildSuggestionsWithDataPrompt(
   action: 'suggestions' | 'stats_insights',
   sd: AIDataSummaryPayload,
@@ -196,222 +203,71 @@ function buildSuggestionsWithDataPrompt(
   entityData?: Record<string, unknown> | null,
   userInstruction?: string | null,
 ): string {
-  const statusEntries = Object.entries(sd.interventions.byStatus)
-    .map(([k, v]) => `${k}: ${v}`)
-    .join(', ');
+  const statusEntries = Object.entries(sd.interventions.byStatus).map(([k, v]) => `${k}: ${v}`).join(', ');
+  const alerts = sd.alerts.length > 0 ? `\nAlertes: ${sd.alerts.join(' | ')}` : '';
 
-  const alertsSection = sd.alerts.length > 0
-    ? `\nAlertes detectees : ${sd.alerts.join(' | ')}`
-    : '';
+  let prompt = `Donnees REELLES (dernier mois):
+- Total: ${sd.interventions.total} interventions | Creees: ${sd.interventions.created} | Cloturees: ${sd.interventions.completed}
+- Par statut: ${statusEntries || 'Aucune'}
+- CA: ${sd.financial.totalRevenue}€ | Couts: ${sd.financial.totalCosts}€ | Marge: ${sd.financial.totalMargin}€ (${sd.financial.averageMarginPercent}%)${alerts}`;
 
-  let prompt = `Voici les VRAIES donnees du portefeuille de l'utilisateur (dernier mois) :
+  if (ctx.activeViewTitle) prompt += `\nVue: ${ctx.activeViewTitle}`;
+  if (ctx.filterSummary && ctx.filterSummary !== 'Aucun filtre') prompt += `\nFiltres: ${ctx.filterSummary}`;
 
-## Donnees reelles
-- Interventions totales : ${sd.interventions.total}
-- Creees sur la periode : ${sd.interventions.created}
-- Cloturees : ${sd.interventions.completed}
-- Repartition par statut : ${statusEntries || 'Aucune donnee'}
-- CA : ${sd.financial.totalRevenue} EUR | Couts : ${sd.financial.totalCosts} EUR | Marge : ${sd.financial.totalMargin} EUR (${sd.financial.averageMarginPercent}%)${alertsSection}`;
-
-  if (ctx.activeViewTitle) {
-    prompt += `\n\nVue active : ${ctx.activeViewTitle}`;
-  }
-  if (ctx.filterSummary && ctx.filterSummary !== 'Aucun filtre') {
-    prompt += `\nFiltres appliques : ${ctx.filterSummary}`;
-  }
-
-  // If entity data is available (modal open), include it
   if (entityData && entityData.id_inter !== undefined) {
-    prompt += `\n\nIntervention ouverte :`;
-    prompt += `\n- ID : ${entityData.id_inter ?? 'N/A'}`;
-    prompt += `\n- Statut : ${entityData.statut_label ?? entityData.statut_code ?? 'Inconnu'}`;
-    prompt += `\n- Metier : ${entityData.metier_label ?? 'Non defini'}`;
-    prompt += `\n- Artisan : ${entityData.artisan_pseudo ?? 'Non assigne'}`;
-    prompt += `\n- Cout : ${entityData.cout_intervention != null ? `${entityData.cout_intervention} EUR` : 'Non defini'}`;
-    prompt += `\n- Marge : ${entityData.marge != null ? `${entityData.marge} EUR` : 'Non calculee'}`;
+    prompt += `\nIntervention ouverte: ${compactIntervention(entityData)}`;
   }
 
   if (action === 'suggestions') {
-    prompt += `
-
-A partir de ces donnees REELLES, propose 3 a 5 actions concretes et SPECIFIQUES que le gestionnaire doit faire MAINTENANT.
-
-REGLES STRICTES :
-- Base-toi UNIQUEMENT sur les chiffres ci-dessus
-- Cite les VRAIS chiffres dans chaque suggestion (ex: "15 interventions en attente acompte")
-- Si des interventions sont dans un statut de blocage → alerter avec le nombre exact
-- Si la marge est basse → identifier le probleme avec les chiffres
-- Si des interventions n'ont pas d'artisan → indiquer combien
-
-Pour chaque suggestion :
-1. **Action precise** (avec chiffres reels)
-2. **Urgence** (pourquoi maintenant)
-3. **Impact attendu**
-
-NE PROPOSE JAMAIS des ameliorations d'interface, de filtres, de badges, ou de fonctionnalites logicielles.
-Propose UNIQUEMENT des actions METIER operationnelles basees sur les donnees.`;
+    prompt += `\n\n→ 3-5 actions METIER concretes basees sur ces chiffres. Cite les vrais nombres. JAMAIS de suggestions d'interface/UI.
+Pour chaque: action precise (avec chiffres) + urgence + impact.`;
   } else {
-    // stats_insights
-    prompt += `
-
-A partir de ces donnees REELLES, genere 3 a 5 insights analytiques.
-
-Concentre-toi sur :
-- Les tendances : volume, marge, taux de completion
-- Les anomalies : statuts bloques, marges negatives, inactivite
-- Les risques a anticiper
-- Les KPIs critiques
-
-Sois FACTUEL : cite les chiffres exacts des donnees ci-dessus dans chaque insight.`;
+    prompt += `\n\n→ 3-5 insights analytiques FACTUELS. Cite les chiffres exacts. Tendances, anomalies, risques.`;
   }
 
   if (userInstruction) {
-    prompt += `\n\n## FOCUS SPECIFIQUE demande par l'utilisateur\n"${userInstruction}"\nConcentre ta reponse principalement sur ce sujet specifique.`;
+    prompt += `\n\nFOCUS: "${userInstruction}"`;
   }
-
   return prompt;
 }
 
-/**
- * Build a user prompt based on action type and entity data
- */
-function buildUserPrompt(action: AIActionType, entityData?: Record<string, unknown> | null, pageType?: string, historyContext?: HistoryContext | null): string {
-  const data = entityData ?? {};
-  const historySection = formatHistorySection(historyContext);
-  let basePrompt: string;
+function buildDataSummaryPrompt(sd: AIDataSummaryPayload): string {
+  const statusEntries = Object.entries(sd.interventions.byStatus).map(([k, v]) => `${k}: ${v}`).join(', ');
+  const alerts = sd.alerts.length > 0 ? `\nAlertes: ${sd.alerts.map((a: string) => `- ${a}`).join('\n')}` : '';
 
-  switch (action) {
-    case 'summary': {
-      if (data.id_inter !== undefined) {
-        basePrompt = `Resume cette intervention en 3 points cles, puis liste les prochaines etapes recommandees.
+  return `Donnees REELLES periode ${sd.period.label}:
+- ${sd.interventions.total} interventions | Creees: ${sd.interventions.created} | Cloturees: ${sd.interventions.completed}
+- Par statut: ${statusEntries || 'Aucune'}
+- CA: ${sd.financial.totalRevenue}€ | Couts: ${sd.financial.totalCosts}€ | Marge: ${sd.financial.totalMargin}€ (${sd.financial.averageMarginPercent}%)${alerts}
 
-Donnees intervention :
-- ID : ${data.id_inter ?? 'N/A'}
-- Statut : ${data.statut_label ?? data.statut_code ?? 'Inconnu'}
-- Metier : ${data.metier_label ?? 'Non defini'}
-- Zone : ${data.code_postal ?? ''} ${data.ville ?? ''}
-- Date : ${data.date ?? 'Non definie'}
-- Date prevue : ${data.date_prevue ?? 'Non definie'}
-- Contexte : ${data.contexte ?? 'Aucun contexte'}
-- Consigne : ${data.consigne ?? 'Aucune consigne'}
-- Commentaire agent : ${data.commentaire_agent ?? 'Aucun'}
-- Cout : ${data.cout_intervention != null ? `${data.cout_intervention} EUR` : 'Non defini'}
-- Marge : ${data.marge != null ? `${data.marge} EUR` : 'Non calculee'}
-- Artisan : ${data.artisan_pseudo ?? 'Non assigne'}
-
-Format :
-## Resume
-- Point 1
-- Point 2
-- Point 3
-
-## Prochaines etapes
-1. Action 1
-2. Action 2
-3. Action 3`;
-        return basePrompt + historySection;
-      }
-      // Artisan summary (no history context)
-      return `Resume le profil de cet artisan en 3 points.
-
-Donnees :
-- Metiers : ${data.metiers ?? 'Non definis'}
-- Zone : ${data.zone_code_postal ?? ''} ${data.zone_ville ?? ''}
-- Statut : ${data.statut ?? 'Inconnu'}
-- Interventions actives : ${data.nombre_interventions_actives ?? 'Inconnu'}
-
-Points : specialite, charge actuelle, points d'attention.`;
-    }
-
-    case 'next_steps':
-      basePrompt = `Propose 3-5 prochaines actions concretes pour cette intervention.
-
-- Statut : ${data.statut_label ?? data.statut_code ?? 'Inconnu'}
-- Metier : ${data.metier_label ?? 'Non defini'}
-- Contexte : ${data.contexte ?? 'Aucun'}
-- Date prevue : ${data.date_prevue ?? 'Non definie'}
-- Artisan : ${data.artisan_pseudo ?? 'Non assigne'}
-
-Pour chaque etape : action, raison, delai recommande.`;
-      return basePrompt + historySection;
-
-    case 'email_artisan':
-      basePrompt = `Genere un email professionnel pour l'artisan.
-
-- ID intervention : ${data.id_inter ?? 'N/A'}
-- Metier : ${data.metier_label ?? 'Non defini'}
-- Zone : ${data.code_postal ?? ''} ${data.ville ?? ''}
-- Contexte : ${data.contexte ?? 'Aucun'}
-- Consigne : ${data.consigne ?? 'Aucune'}
-- Date prevue : ${data.date_prevue ?? 'Non definie'}
-
-Utilise [NOM_ARTISAN] comme placeholder. Format : Objet + Corps.`;
-      return basePrompt + historySection;
-
-    case 'email_client':
-      basePrompt = `Genere un email professionnel pour le client.
-
-- ID intervention : ${data.id_inter ?? 'N/A'}
-- Statut : ${data.statut_label ?? data.statut_code ?? 'Inconnu'}
-- Contexte : ${data.contexte ?? 'Aucun'}
-- Date prevue : ${data.date_prevue ?? 'Non definie'}
-
-Utilise [NOM_CLIENT] comme placeholder. Format : Objet + Corps.`;
-      return basePrompt + historySection;
-
-    case 'find_artisan':
-      basePrompt = `Decris le profil artisan ideal pour cette intervention.
-
-- Metier : ${data.metier_label ?? 'Non defini'}
-- Zone : ${data.code_postal ?? ''} ${data.ville ?? ''}
-- Contexte : ${data.contexte ?? 'Aucun'}
-- Consigne : ${data.consigne ?? 'Aucune'}
-
-Reponds : profil recherche + criteres de selection.`;
-      return basePrompt + historySection;
-
-    case 'suggestions': {
-      const sugParts: string[] = [];
-      sugParts.push(`Analyse le contexte actuel et propose 3 a 5 actions concretes et specifiques.`);
-      sugParts.push(`Page : ${pageType ?? 'inconnue'}`);
-      if (data.id_inter !== undefined) {
-        sugParts.push(`\nIntervention ouverte :`);
-        sugParts.push(`- ID : ${data.id_inter ?? 'N/A'}`);
-        sugParts.push(`- Statut : ${data.statut_label ?? data.statut_code ?? 'Inconnu'}`);
-        sugParts.push(`- Metier : ${data.metier_label ?? 'Non defini'}`);
-        sugParts.push(`- Artisan : ${data.artisan_pseudo ?? 'Non assigne'}`);
-        sugParts.push(`- Cout : ${data.cout_intervention != null ? `${data.cout_intervention} EUR` : 'Non defini'}`);
-        sugParts.push(`- Marge : ${data.marge != null ? `${data.marge} EUR` : 'Non calculee'}`);
-        sugParts.push(`- Contexte : ${data.contexte ?? 'Aucun'}`);
-      } else if (data.pseudo !== undefined) {
-        sugParts.push(`\nArtisan ouvert :`);
-        sugParts.push(`- Pseudo : ${data.pseudo}`);
-        sugParts.push(`- Metiers : ${data.metiers ?? 'Non definis'}`);
-        sugParts.push(`- Statut : ${data.statut ?? 'Inconnu'}`);
-      }
-      sugParts.push(`\nSois SPECIFIQUE aux donnees ci-dessus. Pour chaque suggestion : action precise + pourquoi + benefice.`);
-      return sugParts.join('\n') + historySection;
-    }
-
-    case 'stats_insights':
-      return `Analyse le contexte de navigation actuel et propose 3 a 5 insights actionables pour la page "${pageType ?? 'inconnue'}".
-
-Concentre-toi sur :
-- Les actions prioritaires dans cette vue specifique
-- Les anomalies potentielles (retards, marges, blocages)
-- Les recommandations proactives
-
-Sois SPECIFIQUE au contexte de la vue active.` + historySection;
-
-    default:
-      return 'Aide-moi avec le contexte actuel.';
-  }
+→ Resume analytique: points forts, points d'attention, 3 actions recommandees.`;
 }
 
+// ===== FALLBACK for analysis actions without data =====
+function buildAnalysisFallbackPrompt(action: AIActionType, data: Record<string, unknown>, pageType: string, hc: HistoryContext | null | undefined): string {
+  const historySection = formatHistorySection(hc);
+
+  if (action === 'suggestions') {
+    const parts: string[] = [`Page: ${pageType}`];
+    if (data.id_inter !== undefined) {
+      parts.push(`\n${compactIntervention(data)}`);
+    } else if (data.pseudo !== undefined) {
+      parts.push(`\nArtisan ${data.pseudo} | Metiers: ${data.metiers ?? '?'} | Statut: ${data.statut ?? '?'}`);
+    }
+    parts.push(`\n→ 3-5 actions concretes METIER. Sois specifique aux donnees.`);
+    return parts.join('\n') + historySection;
+  }
+
+  if (action === 'stats_insights') {
+    return `Page: ${pageType}\n→ 3-5 insights actionables pour cette vue.` + historySection;
+  }
+
+  return 'Aide contextuelle.' + historySection;
+}
+
+// ===== MAIN SERVER =====
 serve(async (req: Request) => {
   const corsHeaders = getCorsHeaders(req);
-
-  // CORS preflight
   if (req.method === 'OPTIONS') {
     return new Response('ok', { status: 200, headers: corsHeaders });
   }
@@ -419,16 +275,7 @@ serve(async (req: Request) => {
   const startTime = Date.now();
   const requestId = crypto.randomUUID();
 
-  console.log(JSON.stringify({
-    level: 'info',
-    requestId,
-    method: req.method,
-    timestamp: new Date().toISOString(),
-    message: 'AI contextual action request started'
-  }));
-
   try {
-    // Only POST allowed
     if (req.method !== 'POST') {
       return new Response(
         JSON.stringify({ success: false, error: 'Method not allowed' }),
@@ -436,35 +283,31 @@ serve(async (req: Request) => {
       );
     }
 
-    // Parse request body
     const body = await req.json() as AIContextualActionRequest;
-    const { action, context, entity_data, history_context, summary_data, user_instruction, extra_params } = body;
+    const { action, context, entity_data, history_context, summary_data, user_instruction } = body;
 
-    // Validate action
     if (!action || !VALID_ACTIONS.includes(action)) {
       return new Response(
-        JSON.stringify({ success: false, error: `Invalid action: ${action}. Valid: ${VALID_ACTIONS.join(', ')}` }),
+        JSON.stringify({ success: false, error: `Invalid action: ${action}` }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // Get API key
     const anthropicApiKey = Deno.env.get('ANTHROPIC_API_KEY');
     if (!anthropicApiKey) {
-      console.error('ANTHROPIC_API_KEY not configured');
       return new Response(
         JSON.stringify({ success: false, error: 'AI service not configured' }),
         { status: 503, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // Check cache (for summary and next_steps only)
+    // Check cache (summary + next_steps + email_artisan + email_client + find_artisan)
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL')!,
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     );
 
-    const cacheable = ['summary', 'next_steps'].includes(action);
+    const cacheable = ['summary', 'next_steps', 'email_artisan', 'email_client', 'find_artisan'].includes(action);
     if (cacheable && context.entityId && context.entityType === 'intervention') {
       const { data: cached } = await supabase
         .from('intervention_ai_cache')
@@ -475,45 +318,33 @@ serve(async (req: Request) => {
         .maybeSingle();
 
       if (cached) {
-        console.log(JSON.stringify({
-          level: 'info',
-          requestId,
-          action,
-          entityId: context.entityId,
-          message: 'Cache hit',
-          duration: Date.now() - startTime
-        }));
-
+        console.log(JSON.stringify({ level: 'info', requestId, action, message: 'Cache hit', duration: Date.now() - startTime }));
         return new Response(
-          JSON.stringify({
-            success: true,
-            action,
-            result: cached.cached_value,
-            cached: true,
-            computed_at: cached.computed_at,
-            confidence: cached.confidence,
-          }),
+          JSON.stringify({ success: true, action, result: cached.cached_value, cached: true, computed_at: cached.computed_at, confidence: cached.confidence }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
     }
 
-    // Build prompt - route to the appropriate prompt builder based on action + available data
+    // Build prompt based on action category
+    const { model, maxTokens } = getModelConfig(action);
+    const isFastAction = ['summary', 'next_steps', 'email_artisan', 'email_client', 'find_artisan'].includes(action);
+
     let userPrompt: string;
     if (action === 'data_summary' && summary_data) {
-      userPrompt = buildDataSummaryUserPrompt(summary_data);
+      userPrompt = buildDataSummaryPrompt(summary_data);
     } else if ((action === 'suggestions' || action === 'stats_insights') && summary_data) {
-      // When we have real data (collected by client), use the data-driven prompt
       userPrompt = buildSuggestionsWithDataPrompt(action, summary_data, context, entity_data, user_instruction);
+    } else if (isFastAction) {
+      userPrompt = buildFastPrompt(action, entity_data ?? {}, history_context);
     } else {
-      userPrompt = buildUserPrompt(action, entity_data, context.page, history_context);
-      // Append user instruction if provided (for actions that don't have dedicated handling)
+      userPrompt = buildAnalysisFallbackPrompt(action, entity_data ?? {}, context.page, history_context);
       if (user_instruction) {
-        userPrompt += `\n\n## Focus specifique demande par l'utilisateur\n"${user_instruction}"\nConcentre ta reponse principalement sur ce sujet.`;
+        userPrompt += `\n\nFOCUS: "${user_instruction}"`;
       }
     }
 
-    // Call Claude API
+    // Call Claude API with optimized params
     const claudeResponse = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
@@ -522,24 +353,17 @@ serve(async (req: Request) => {
         'anthropic-version': '2023-06-01',
       },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-5-20250929',
-        max_tokens: 1024,
-        system: buildSystemPrompt(context),
+        model,
+        max_tokens: maxTokens,
+        temperature: 0,
+        system: getSystemPrompt(action, context),
         messages: [{ role: 'user', content: userPrompt }],
       }),
     });
 
     if (!claudeResponse.ok) {
       const errorText = await claudeResponse.text();
-      console.error(JSON.stringify({
-        level: 'error',
-        requestId,
-        action,
-        status: claudeResponse.status,
-        error: errorText,
-        message: 'Claude API error'
-      }));
-
+      console.error(JSON.stringify({ level: 'error', requestId, action, status: claudeResponse.status, error: errorText }));
       return new Response(
         JSON.stringify({ success: false, error: 'AI service error' }),
         { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -549,19 +373,17 @@ serve(async (req: Request) => {
     const claudeData = await claudeResponse.json();
     const content = claudeData.content?.[0]?.text ?? '';
 
-    // Build result
     const result = {
       content,
       sections: parseResultSections(content),
       suggested_actions: [],
     };
-
     const computed_at = new Date().toISOString();
 
-    // Cache result if applicable
+    // Cache write (fire-and-forget, don't block response)
     if (cacheable && context.entityId && context.entityType === 'intervention') {
-      const expiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString(); // 5 min TTL
-      await supabase
+      const expiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();
+      supabase
         .from('intervention_ai_cache')
         .upsert({
           intervention_id: context.entityId,
@@ -572,52 +394,30 @@ serve(async (req: Request) => {
           expires_at: expiresAt,
         }, { onConflict: 'intervention_id,cache_type' })
         .then(({ error }) => {
-          if (error) {
-            console.warn(JSON.stringify({
-              level: 'warn',
-              requestId,
-              message: 'Cache write failed',
-              error: error.message
-            }));
-          }
+          if (error) console.warn(JSON.stringify({ level: 'warn', requestId, message: 'Cache write failed', error: error.message }));
         });
     }
 
-    // Log usage
     const inputTokens = claudeData.usage?.input_tokens ?? 0;
     const outputTokens = claudeData.usage?.output_tokens ?? 0;
     console.log(JSON.stringify({
-      level: 'info',
-      requestId,
-      action,
-      entityId: context.entityId,
-      inputTokens,
-      outputTokens,
+      level: 'info', requestId, action, model,
+      inputTokens, outputTokens,
       duration: Date.now() - startTime,
       message: 'AI action completed'
     }));
 
     return new Response(
-      JSON.stringify({
-        success: true,
-        action,
-        result,
-        cached: false,
-        computed_at,
-        confidence: 0.85,
-      }),
+      JSON.stringify({ success: true, action, result, cached: false, computed_at, confidence: 0.85 }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
   } catch (error) {
     console.error(JSON.stringify({
-      level: 'error',
-      requestId,
+      level: 'error', requestId,
       error: error instanceof Error ? error.message : String(error),
       duration: Date.now() - startTime,
-      message: 'AI contextual action failed'
     }));
-
     return new Response(
       JSON.stringify({ success: false, error: 'Internal server error' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -625,9 +425,6 @@ serve(async (req: Request) => {
   }
 });
 
-/**
- * Parse markdown content into structured sections
- */
 function parseResultSections(content: string): Array<{ title: string; content: string; type: string }> {
   const sections: Array<{ title: string; content: string; type: string }> = [];
   const lines = content.split('\n');
@@ -637,14 +434,11 @@ function parseResultSections(content: string): Array<{ title: string; content: s
   for (const line of lines) {
     const headerMatch = line.match(/^##\s+(.+)/);
     if (headerMatch) {
-      // Save previous section
       if (currentTitle || currentContent.length > 0) {
         sections.push({
           title: currentTitle || 'Resultat',
           content: currentContent.join('\n').trim(),
-          type: currentTitle.toLowerCase().includes('attention') || currentTitle.toLowerCase().includes('alerte')
-            ? 'warning'
-            : 'text',
+          type: currentTitle.toLowerCase().includes('attention') || currentTitle.toLowerCase().includes('alerte') ? 'warning' : 'text',
         });
       }
       currentTitle = headerMatch[1];
@@ -654,7 +448,6 @@ function parseResultSections(content: string): Array<{ title: string; content: s
     }
   }
 
-  // Save last section
   if (currentTitle || currentContent.length > 0) {
     sections.push({
       title: currentTitle || 'Resultat',
