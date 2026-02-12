@@ -12,6 +12,7 @@ export type AIActionType =
   | 'find_artisan'
   | 'suggestions'
   | 'stats_insights'
+  | 'data_summary'
 
 /**
  * Pages du CRM detectables par le context-detector
@@ -36,6 +37,15 @@ export interface AIPageContext {
   entityType: 'intervention' | 'artisan' | null
   pathname: string
   availableActions: AIActionType[]
+  activeViewId?: string
+  activeViewTitle?: string
+  activeViewLayout?: string // "table" | "cards" | "calendar" | etc.
+  appliedFilters?: Array<{
+    property: string
+    operator: string
+    value: unknown
+  }>
+  filterSummary?: string // Resume textuel des filtres pour le prompt IA
 }
 
 /**
@@ -135,4 +145,28 @@ export interface AIActionState {
   error: string | null
   currentAction: AIActionType | null
   context: AIPageContext | null
+}
+
+/**
+ * Resume de donnees IA construit a partir des vraies donnees de la periode
+ */
+export interface AIDataSummary {
+  period: {
+    label: string       // "Semaine du 10-14 Fev 2026"
+    startDate: string
+    endDate: string
+  }
+  interventions: {
+    total: number
+    byStatus: Record<string, number>
+    created: number
+    completed: number
+  }
+  financial: {
+    totalRevenue: number
+    totalCosts: number
+    totalMargin: number
+    averageMarginPercent: number
+  }
+  alerts: string[]      // Points d'attention detectes
 }

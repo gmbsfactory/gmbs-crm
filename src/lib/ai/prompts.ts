@@ -2,17 +2,41 @@
 // Templates de prompts pour chaque action IA contextuelle.
 // Les prompts sont construits avec les donnees anonymisees de l'entite.
 
-import type { AIActionType, AnonymizedIntervention, AnonymizedArtisan } from './types'
+import type { AIActionType, AIDataSummary, AIPageContext, AnonymizedIntervention, AnonymizedArtisan } from './types'
+import type { InterventionHistoryContext } from './history-context-builder'
 
 /**
- * System prompt commun a toutes les actions
+ * System prompt de base commun a toutes les actions
  */
-const SYSTEM_PROMPT = `Tu es un assistant IA integre dans un CRM de gestion d'interventions batiment (GMBS-CRM).
+const BASE_SYSTEM_PROMPT = `Tu es un assistant IA integre dans un CRM de gestion d'interventions batiment (GMBS-CRM).
 Tu aides les gestionnaires a prendre des decisions rapidement.
 Reponds toujours en francais, de maniere concise et actionnable.
 Utilise des puces pour structurer tes reponses.
 Ne mentionne jamais de donnees personnelles (noms, emails, telephones).
 Concentre-toi sur les faits metier : statut, metier, couts, delais, zone.`
+
+/**
+ * Construit le system prompt enrichi avec le contexte de vue active.
+ * Si aucun contexte de vue n'est disponible, retourne le prompt de base.
+ */
+function buildSystemPrompt(context?: AIPageContext | null): string {
+  if (!context?.activeViewTitle && !context?.filterSummary) {
+    return BASE_SYSTEM_PROMPT
+  }
+
+  const viewLine = `Vue active : ${context.activeViewTitle ?? 'Non specifiee'}`
+  const filterLine = `Filtres appliques : ${context.filterSummary ?? 'Aucun'}`
+  const layoutLine = context.activeViewLayout
+    ? `Disposition : ${context.activeViewLayout}`
+    : null
+
+  const contextLines = [viewLine, filterLine, layoutLine].filter(Boolean).join('\n')
+
+  return `${BASE_SYSTEM_PROMPT}
+
+Contexte de navigation de l'utilisateur :
+${contextLines}`
+}
 
 /**
  * Construit le prompt pour un resume d'intervention
@@ -187,6 +211,112 @@ Concentre-toi sur :
 Format : liste a puces, concis et actionnable.`
 }
 
+/**
+ * Construit le prompt pour un resume data-driven avec les vraies donnees de la periode
+ */
+export function buildDataSummaryPrompt(summaryData: AIDataSummary): string {
+  const statusEntries = Object.entries(summaryData.interventions.byStatus)
+    .map(([k, v]) => `${k}: ${v}`)
+    .join(', ')
+
+  const alertsSection = summaryData.alerts.length > 0
+    ? `\n## Alertes detectees\n${summaryData.alerts.map((a) => `- ${a}`).join('\n')}`
+    : ''
+
+  return `Tu es un analyste de donnees pour un CRM de gestion d'interventions.
+Voici les donnees REELLES de la periode ${summaryData.period.label} :
+
+## Interventions
+- Total : ${summaryData.interventions.total}
+- Creees sur la periode : ${summaryData.interventions.created}
+- Cloturees : ${summaryData.interventions.completed}
+- Par statut : ${statusEntries || 'Aucune donnee'}
+
+## Financier
+- Chiffre d'affaires : ${summaryData.financial.totalRevenue} EUR
+- Couts : ${summaryData.financial.totalCosts} EUR
+- Marge : ${summaryData.financial.totalMargin} EUR (${summaryData.financial.averageMarginPercent}%)
+${alertsSection}
+
+Genere un resume analytique concis et actionnable. Identifie les points forts, les points faibles, et les actions recommandees.
+
+Format de reponse attendu :
+## Resume de la periode
+- Point 1
+- Point 2
+- Point 3
+
+## Points forts
+- ...
+
+## Points d'attention
+- ...
+
+## Actions recommandees
+1. Action 1
+2. Action 2
+3. Action 3`
+}
+
+// ===== SECTION HISTORIQUE POUR PROMPTS =====
+
+/**
+ * Formate le contexte d'historique en section textuelle pour l'injecter dans le prompt utilisateur.
+ * Retourne une chaine vide si aucun historique n'est disponible.
+ */
+function formatHistorySection(historyContext: InterventionHistoryContext | null | undefined): string {
+  if (!historyContext) return ''
+
+  const lines: string[] = []
+
+  lines.push(`\n## Historique recent de l'intervention`)
+  lines.push(`- ${historyContext.totalActions} actions au total`)
+  lines.push(`- ${historyContext.metrics.daysInCurrentStatus} jours dans le statut actuel`)
+  lines.push(`- ${historyContext.metrics.daysSinceLastAction} jours depuis la derniere action`)
+  lines.push(`- ${historyContext.metrics.daysSinceCreation} jours depuis la creation`)
+
+  if (historyContext.statusChanges.length > 0) {
+    lines.push(`\n### Changements de statut :`)
+    for (const s of historyContext.statusChanges.slice(0, 10)) {
+      lines.push(`- ${s.date}: ${s.from} -> ${s.to} (par ${s.actor})`)
+    }
+  }
+
+  if (historyContext.costChanges.length > 0) {
+    lines.push(`\n### Modifications de couts :`)
+    for (const c of historyContext.costChanges.slice(0, 5)) {
+      const amounts = [
+        c.oldAmount != null ? `ancien: ${c.oldAmount} EUR` : null,
+        c.newAmount != null ? `nouveau: ${c.newAmount} EUR` : null,
+      ].filter(Boolean).join(', ')
+      lines.push(`- ${c.date}: ${c.type} ${amounts ? `(${amounts})` : ''}`)
+    }
+  }
+
+  if (historyContext.artisanChanges.length > 0) {
+    lines.push(`\n### Changements artisan :`)
+    for (const a of historyContext.artisanChanges.slice(0, 5)) {
+      lines.push(`- ${a.date}: ${a.type} (par ${a.actor})`)
+    }
+  }
+
+  if (historyContext.recentComments.length > 0) {
+    lines.push(`\n### Commentaires recents :`)
+    for (const c of historyContext.recentComments.slice(0, 5)) {
+      lines.push(`- ${c.date} (${c.actor}): "${c.content}"`)
+    }
+  }
+
+  if (historyContext.alerts.length > 0) {
+    lines.push(`\n### Alertes :`)
+    for (const a of historyContext.alerts) {
+      lines.push(`- ${a}`)
+    }
+  }
+
+  return lines.join('\n')
+}
+
 // ===== CONSTRUCTEUR DE PROMPTS =====
 
 /**
@@ -195,19 +325,24 @@ Format : liste a puces, concis et actionnable.`
  * @param action - L'action IA a executer
  * @param entityData - Les donnees anonymisees de l'entite (intervention ou artisan)
  * @param pageType - Le type de page (pour les actions contextuelles)
+ * @param context - Le contexte IA de la page courante (optionnel, enrichi avec vue active)
+ * @param historyContext - Contexte d'historique condense de l'intervention (optionnel)
  * @returns { system, user } - Les prompts system et user
  */
 export function buildPrompt(
   action: AIActionType,
   entityData?: AnonymizedIntervention | AnonymizedArtisan | null,
-  pageType?: string
+  pageType?: string,
+  context?: AIPageContext | null,
+  historyContext?: InterventionHistoryContext | null,
 ): { system: string; user: string } {
   let userPrompt: string
+  const historySection = formatHistorySection(historyContext)
 
   switch (action) {
     case 'summary':
       if (entityData && 'id_inter' in entityData) {
-        userPrompt = buildSummaryPrompt(entityData as AnonymizedIntervention)
+        userPrompt = buildSummaryPrompt(entityData as AnonymizedIntervention) + historySection
       } else if (entityData && 'pseudo' in entityData) {
         userPrompt = buildArtisanSummaryPrompt(entityData as AnonymizedArtisan)
       } else {
@@ -217,25 +352,25 @@ export function buildPrompt(
 
     case 'next_steps':
       userPrompt = entityData && 'id_inter' in entityData
-        ? buildNextStepsPrompt(entityData as AnonymizedIntervention)
+        ? buildNextStepsPrompt(entityData as AnonymizedIntervention) + historySection
         : 'Propose les prochaines etapes recommandees.'
       break
 
     case 'email_artisan':
       userPrompt = entityData && 'id_inter' in entityData
-        ? buildEmailArtisanPrompt(entityData as AnonymizedIntervention)
+        ? buildEmailArtisanPrompt(entityData as AnonymizedIntervention) + historySection
         : 'Genere un brouillon d\'email pour l\'artisan.'
       break
 
     case 'email_client':
       userPrompt = entityData && 'id_inter' in entityData
-        ? buildEmailClientPrompt(entityData as AnonymizedIntervention)
+        ? buildEmailClientPrompt(entityData as AnonymizedIntervention) + historySection
         : 'Genere un brouillon d\'email pour le client.'
       break
 
     case 'find_artisan':
       userPrompt = entityData && 'id_inter' in entityData
-        ? buildFindArtisanPrompt(entityData as AnonymizedIntervention)
+        ? buildFindArtisanPrompt(entityData as AnonymizedIntervention) + historySection
         : 'Decris le profil d\'artisan ideal.'
       break
 
@@ -247,12 +382,19 @@ export function buildPrompt(
       userPrompt = buildStatsInsightsPrompt()
       break
 
+    case 'data_summary':
+      // Le prompt data_summary est construit cote client avec les vraies donnees
+      // et envoye directement dans extra_params.summary_data
+      // Ce fallback est utilise si aucune donnee n'est fournie
+      userPrompt = 'Genere un resume des donnees du tableau de bord.'
+      break
+
     default:
       userPrompt = 'Aide-moi avec le contexte actuel.'
   }
 
   return {
-    system: SYSTEM_PROMPT,
+    system: buildSystemPrompt(context),
     user: userPrompt,
   }
 }
@@ -268,6 +410,7 @@ export const ACTION_LABELS: Record<AIActionType, string> = {
   find_artisan: 'Trouver artisan',
   suggestions: 'Suggestions',
   stats_insights: 'Insights stats',
+  data_summary: 'Resume donnees',
 }
 
 /**
@@ -281,4 +424,5 @@ export const ACTION_DESCRIPTIONS: Record<AIActionType, string> = {
   find_artisan: 'Profil artisan ideal pour cette intervention',
   suggestions: 'Actions utiles dans le contexte actuel',
   stats_insights: 'Analyses et tendances du tableau de bord',
+  data_summary: 'Analyse les donnees reelles de la periode selectionnee',
 }

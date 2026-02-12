@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useCallback, useEffect, useMemo } from "react"
+import { useAIContextStore } from "@/stores/ai-context-store"
 import { useArtisansQuery } from "@/hooks/useArtisansQuery"
 import type { ArtisanGetAllParams } from "@/lib/react-query/queryKeys"
 import { useReferenceData } from "@/hooks/useReferenceData"
@@ -391,6 +392,28 @@ export function useArtisanPageState() {
   const handleClearMetier = useCallback(() => {
     setSelectedMetiers([])
   }, [])
+
+  // -----------------------------------------------------------------------
+  // AI context: publish active view info to global store
+  // -----------------------------------------------------------------------
+  const setViewContext = useAIContextStore((s) => s.setViewContext)
+
+  useEffect(() => {
+    if (activeView) {
+      setViewContext({
+        activeViewId: activeView.id,
+        activeViewTitle: activeView.title,
+        activeViewLayout: undefined, // Artisan views have no layout property
+        appliedFilters: (activeView.filters ?? []).map((f) => ({
+          property: f.property,
+          operator: f.operator,
+          value: f.value,
+        })),
+      })
+    }
+    return () => setViewContext(null)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeView?.id, activeView?.title, JSON.stringify(activeView?.filters), setViewContext])
 
   // -----------------------------------------------------------------------
   // Return value

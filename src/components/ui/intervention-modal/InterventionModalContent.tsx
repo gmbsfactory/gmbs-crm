@@ -36,6 +36,8 @@ import { toast } from "sonner"
 import { useInterventionContextMenu } from "@/hooks/useInterventionContextMenu"
 import { useSubmitShortcut } from "@/hooks/useSubmitShortcut"
 import { usePermissions } from "@/hooks/usePermissions"
+import { useInterventionHistory } from "@/hooks/useInterventionHistory"
+import { buildHistoryContext } from "@/lib/ai/history-context-builder"
 
 type NoteDialogContentProps = React.ComponentPropsWithoutRef<typeof AlertDialogPrimitive.Content>
 
@@ -304,6 +306,30 @@ GMBS`
       return undefined
     }
   }, [intervention])
+
+  // Charger l'historique pour enrichir le contexte IA
+  const { data: historyData } = useInterventionHistory(interventionId)
+
+  // Contexte d'historique condense pour le prompt IA
+  const aiHistoryJson = useMemo(() => {
+    if (!historyData?.pages || !intervention) return undefined
+    try {
+      const allItems = historyData.pages.flatMap((p) => p.items ?? [])
+      if (allItems.length === 0) return undefined
+      // Les champs financiers peuvent etre enrichis au runtime mais absents du type statique
+      const raw = intervention as unknown as Record<string, unknown>
+      const historyCtx = buildHistoryContext(allItems, {
+        created_at: intervention.created_at ?? new Date().toISOString(),
+        statut_id: intervention.statut_id,
+        cout_intervention: typeof raw.cout_intervention === "number" ? raw.cout_intervention : null,
+        cout_sst: typeof raw.cout_sst === "number" ? raw.cout_sst : null,
+        marge: typeof raw.marge === "number" ? raw.marge : null,
+      })
+      return JSON.stringify(historyCtx)
+    } catch {
+      return undefined
+    }
+  }, [historyData, intervention])
 
   // Hook pour la suppression et duplication d'intervention
   const { deleteIntervention, duplicateDevisSupp, isLoading: contextMenuLoading } = useInterventionContextMenu(
@@ -619,7 +645,7 @@ GMBS`
 
   return (
     <TooltipProvider>
-      <div ref={modalRef} className={`modal-config-surface ${surfaceVariantClass} ${surfaceModeClass}`} data-ai-entity={aiEntityJson}>
+      <div ref={modalRef} className={`modal-config-surface ${surfaceVariantClass} ${surfaceModeClass}`} data-ai-entity={aiEntityJson} data-ai-history={aiHistoryJson}>
         <header className="modal-config-columns-header relative">
           <div className="flex items-center gap-3">
             <Tooltip>

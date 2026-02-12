@@ -3,10 +3,12 @@
 import React, { useCallback, useEffect, useState } from "react"
 import { usePathname } from "next/navigation"
 import { useContextualAIAction } from "@/hooks/useContextualAIAction"
+import { useAIDataSummary, type SummaryPeriod } from "@/hooks/useAIDataSummary"
 import { detectContext } from "@/lib/ai/context-detector"
 import type { AIActionType, AIPageContext } from "@/lib/ai/types"
 import { AIAssistantDialog } from "./AIAssistantDialog"
 import { AIActionsPanel } from "./AIActionsPanel"
+import { AIFloatingBubble } from "./AIFloatingBubble"
 
 /**
  * Provider global qui installe les raccourcis clavier IA et rend les dialogs.
@@ -21,6 +23,7 @@ import { AIActionsPanel } from "./AIActionsPanel"
 export function AIShortcutsProvider() {
   const pathname = usePathname()
   const { executeAction, state, close } = useContextualAIAction()
+  const { collectSummary } = useAIDataSummary()
   const [actionsOpen, setActionsOpen] = useState(false)
   const [context, setContext] = useState<AIPageContext | null>(null)
 
@@ -29,34 +32,57 @@ export function AIShortcutsProvider() {
     setContext(detectContext(pathname))
   }, [pathname])
 
-  // Get entity data from the currently open modal or page
-  // This is a simplified approach: the component reads from data attributes
-  // on the page, or from the intervention modal state
-  const getEntityData = useCallback((): Record<string, unknown> | null => {
-    // Try to find entity data from a data attribute on the page
+  // Get entity data and optional history context from the currently open modal or page.
+  // Reads from data attributes set by InterventionModalContent.
+  const getEntityData = useCallback((): { entity: Record<string, unknown>; history: Record<string, unknown> | null } | null => {
     const dataEl = document.querySelector('[data-ai-entity]')
-    if (dataEl) {
-      try {
-        const raw = dataEl.getAttribute('data-ai-entity')
-        if (raw) return JSON.parse(raw)
-      } catch {
-        // Invalid JSON, ignore
+    if (!dataEl) return null
+    try {
+      const raw = dataEl.getAttribute('data-ai-entity')
+      if (!raw) return null
+      const entity = JSON.parse(raw) as Record<string, unknown>
+      let history: Record<string, unknown> | null = null
+      const historyRaw = dataEl.getAttribute('data-ai-history')
+      if (historyRaw) {
+        try {
+          history = JSON.parse(historyRaw) as Record<string, unknown>
+        } catch {
+          // Invalid history JSON, continue without it
+        }
       }
+      return { entity, history }
+    } catch {
+      // Invalid JSON, ignore
+      return null
     }
-    return null
   }, [])
 
-  // Execute an action with entity data
+  // Execute an action with entity data and optional history context
   const handleAction = useCallback((action: AIActionType) => {
-    const entityData = getEntityData()
-    executeAction(action, entityData)
+    const data = getEntityData()
+    executeAction(action, data?.entity ?? null, data?.history ?? null)
   }, [executeAction, getEntityData])
 
+  // Handle data_summary action: collect real data first, then execute
+  const handleDataSummaryAction = useCallback(async (period: SummaryPeriod) => {
+    try {
+      const summaryData = await collectSummary(period)
+      executeAction('data_summary', null, null, summaryData)
+    } catch {
+      // If data collection fails, execute without summary data (fallback prompt)
+      executeAction('data_summary', null, null, null)
+    }
+  }, [collectSummary, executeAction])
+
   // Handle action from the actions panel
-  const handleSelectAction = useCallback((action: AIActionType) => {
+  const handleSelectAction = useCallback((action: AIActionType, period?: SummaryPeriod) => {
     setActionsOpen(false)
-    handleAction(action)
-  }, [handleAction])
+    if (action === 'data_summary' && period) {
+      handleDataSummaryAction(period)
+    } else {
+      handleAction(action)
+    }
+  }, [handleAction, handleDataSummaryAction])
 
   // Handle secondary action from the dialog footer
   const handleDialogAction = useCallback((action: AIActionType) => {
@@ -108,6 +134,12 @@ export function AIShortcutsProvider() {
 
   return (
     <>
+      {/* Floating AI bubble (visible when actions are available) */}
+      <AIFloatingBubble
+        context={context}
+        onActivate={() => setActionsOpen(true)}
+      />
+
       {/* Actions panel (Cmd+Shift+A) */}
       <AIActionsPanel
         isOpen={actionsOpen}

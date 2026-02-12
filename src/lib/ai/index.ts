@@ -17,6 +17,7 @@ export type {
   AIResultSection,
   AISuggestedAction,
   AIActionState,
+  AIDataSummary,
 } from './types'
 
 // Context detection
@@ -24,6 +25,7 @@ export {
   detectContext,
   isActionAvailable,
   getDefaultAction,
+  enrichContextWithView,
 } from './context-detector'
 
 // Anonymization (RGPD)
@@ -35,6 +37,13 @@ export {
 // Prompts
 export {
   buildPrompt,
+  buildDataSummaryPrompt,
   ACTION_LABELS,
   ACTION_DESCRIPTIONS,
 } from './prompts'
+
+// History context builder
+export {
+  buildHistoryContext,
+} from './history-context-builder'
+export type { InterventionHistoryContext } from './history-context-builder'

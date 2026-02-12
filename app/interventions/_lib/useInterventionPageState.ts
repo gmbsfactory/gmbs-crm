@@ -25,6 +25,7 @@ import { useInterface } from "@/contexts/interface-context"
 import useInterventionModal from "@/hooks/useInterventionModal"
 import type { InterventionModalOpenOptions } from "@/hooks/useInterventionModal"
 
+import { useAIContextStore } from "@/stores/ai-context-store"
 import { DEFAULT_WORKFLOW_CONFIG } from "@/config/interventions"
 import { runQuery } from "@/lib/query-engine"
 import { validateTransition } from "@/lib/workflow-engine"
@@ -938,6 +939,26 @@ export function useInterventionPageState(): UseInterventionPageStateReturn {
     window.addEventListener("keydown", handleKeyDown)
     return () => window.removeEventListener("keydown", handleKeyDown)
   }, [isReorderMode])
+
+  // ---- AI context: publish active view info to global store ----
+  const setViewContext = useAIContextStore((s) => s.setViewContext)
+
+  useEffect(() => {
+    if (activeView) {
+      setViewContext({
+        activeViewId: activeView.id,
+        activeViewTitle: activeView.title,
+        activeViewLayout: activeView.layout,
+        appliedFilters: (activeView.filters ?? []).map((f) => ({
+          property: f.property,
+          operator: f.operator,
+          value: f.value,
+        })),
+      })
+    }
+    return () => setViewContext(null)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeView?.id, activeView?.title, activeView?.layout, JSON.stringify(activeView?.filters), setViewContext])
 
   // ---------------------------------------------------------------------------
   // Return

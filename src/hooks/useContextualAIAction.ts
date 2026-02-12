@@ -3,11 +3,13 @@
 import { useCallback, useState } from "react"
 import { usePathname } from "next/navigation"
 import { useQueryClient } from "@tanstack/react-query"
-import { detectContext, anonymizeIntervention, anonymizeArtisan } from "@/lib/ai"
+import { detectContext, enrichContextWithView, anonymizeIntervention, anonymizeArtisan } from "@/lib/ai"
+import { useAIContextStore } from "@/stores/ai-context-store"
 import type {
   AIActionType,
   AIActionState,
   AIContextualActionResponse,
+  AIDataSummary,
   AIPageContext,
 } from "@/lib/ai"
 import { getHeaders, SUPABASE_FUNCTIONS_URL } from "@/lib/api/v2/common/utils"
@@ -34,6 +36,7 @@ import { aiKeys } from "@/lib/react-query/queryKeys"
 export function useContextualAIAction() {
   const pathname = usePathname()
   const queryClient = useQueryClient()
+  const viewContext = useAIContextStore((s) => s.viewContext)
 
   const [state, setState] = useState<AIActionState>({
     isLoading: false,
@@ -45,21 +48,25 @@ export function useContextualAIAction() {
   })
 
   /**
-   * Detecte le contexte courant
+   * Detecte le contexte courant, enrichi avec les infos de vue active
    */
   const getContext = useCallback((): AIPageContext => {
-    return detectContext(pathname)
-  }, [pathname])
+    const baseContext = detectContext(pathname)
+    return enrichContextWithView(baseContext, viewContext)
+  }, [pathname, viewContext])
 
   /**
    * Execute une action IA.
    *
    * @param action - L'action a executer (summary, next_steps, email_artisan, etc.)
    * @param entityData - Les donnees brutes de l'entite (seront anonymisees avant envoi)
+   * @param historyContext - Contexte d'historique condense (construit par buildHistoryContext)
    */
   const executeAction = useCallback(async (
     action: AIActionType,
     entityData?: Record<string, unknown> | null,
+    historyContext?: Record<string, unknown> | null,
+    summaryData?: AIDataSummary | null,
   ) => {
     const context = getContext()
 
@@ -85,9 +92,9 @@ export function useContextualAIAction() {
     })
 
     try {
-      // Check TanStack Query cache first
+      // Check TanStack Query cache first (skip for data_summary - data changes constantly)
       const entityId = context.entityId
-      if (entityId) {
+      if (entityId && action !== 'data_summary') {
         const cachedResult = queryClient.getQueryData<AIContextualActionResponse>(
           aiKeys.action(action, entityId)
         )
@@ -126,8 +133,15 @@ export function useContextualAIAction() {
             entityId: context.entityId,
             entityType: context.entityType,
             pathname: context.pathname,
+            activeViewId: context.activeViewId,
+            activeViewTitle: context.activeViewTitle,
+            activeViewLayout: context.activeViewLayout,
+            appliedFilters: context.appliedFilters,
+            filterSummary: context.filterSummary,
           },
           entity_data: anonymizedData,
+          history_context: historyContext ?? undefined,
+          summary_data: summaryData ?? undefined,
         }),
       })
 

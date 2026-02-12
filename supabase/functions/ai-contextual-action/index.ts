@@ -11,7 +11,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { getCorsHeaders } from '../_shared/cors.ts';
 
 // Types (mirrored from src/lib/ai/types.ts for Deno)
-type AIActionType = 'summary' | 'next_steps' | 'email_artisan' | 'email_client' | 'find_artisan' | 'suggestions' | 'stats_insights';
+type AIActionType = 'summary' | 'next_steps' | 'email_artisan' | 'email_client' | 'find_artisan' | 'suggestions' | 'stats_insights' | 'data_summary';
 
 interface AIContextualActionRequest {
   action: AIActionType;
@@ -22,7 +22,32 @@ interface AIContextualActionRequest {
     pathname: string;
   };
   entity_data?: Record<string, unknown> | null;
+  history_context?: HistoryContext | null;
+  summary_data?: AIDataSummaryPayload | null;
   extra_params?: Record<string, unknown>;
+}
+
+interface AIDataSummaryPayload {
+  period: { label: string; startDate: string; endDate: string };
+  interventions: { total: number; byStatus: Record<string, number>; created: number; completed: number };
+  financial: { totalRevenue: number; totalCosts: number; totalMargin: number; averageMarginPercent: number };
+  alerts: string[];
+}
+
+interface HistoryContext {
+  totalActions: number;
+  statusChanges: Array<{ from: string; to: string; actor: string; date: string }>;
+  artisanChanges: Array<{ type: string; actor: string; date: string }>;
+  costChanges: Array<{ type: string; oldAmount?: number; newAmount?: number; date: string }>;
+  recentComments: Array<{ content: string; actor: string; date: string }>;
+  metrics: {
+    daysInCurrentStatus: number;
+    daysSinceCreation: number;
+    daysSinceLastAction: number;
+    totalStatusChanges: number;
+    totalCostChanges: number;
+  };
+  alerts: string[];
 }
 
 // System prompt
@@ -36,19 +61,124 @@ Concentre-toi sur les faits metier : statut, metier, couts, delais, zone.`;
 // Validated action types
 const VALID_ACTIONS: AIActionType[] = [
   'summary', 'next_steps', 'email_artisan', 'email_client',
-  'find_artisan', 'suggestions', 'stats_insights'
+  'find_artisan', 'suggestions', 'stats_insights', 'data_summary'
 ];
+
+/**
+ * Format history context into a text section to append to user prompts
+ */
+function formatHistorySection(hc: HistoryContext | null | undefined): string {
+  if (!hc) return '';
+
+  const lines: string[] = [];
+
+  lines.push(`\n## Historique recent de l'intervention`);
+  lines.push(`- ${hc.totalActions} actions au total`);
+  lines.push(`- ${hc.metrics.daysInCurrentStatus} jours dans le statut actuel`);
+  lines.push(`- ${hc.metrics.daysSinceLastAction} jours depuis la derniere action`);
+  lines.push(`- ${hc.metrics.daysSinceCreation} jours depuis la creation`);
+
+  if (hc.statusChanges.length > 0) {
+    lines.push(`\n### Changements de statut :`);
+    for (const s of hc.statusChanges.slice(0, 10)) {
+      lines.push(`- ${s.date}: ${s.from} -> ${s.to} (par ${s.actor})`);
+    }
+  }
+
+  if (hc.costChanges.length > 0) {
+    lines.push(`\n### Modifications de couts :`);
+    for (const c of hc.costChanges.slice(0, 5)) {
+      const amounts = [
+        c.oldAmount != null ? `ancien: ${c.oldAmount} EUR` : null,
+        c.newAmount != null ? `nouveau: ${c.newAmount} EUR` : null,
+      ].filter(Boolean).join(', ');
+      lines.push(`- ${c.date}: ${c.type} ${amounts ? `(${amounts})` : ''}`);
+    }
+  }
+
+  if (hc.artisanChanges.length > 0) {
+    lines.push(`\n### Changements artisan :`);
+    for (const a of hc.artisanChanges.slice(0, 5)) {
+      lines.push(`- ${a.date}: ${a.type} (par ${a.actor})`);
+    }
+  }
+
+  if (hc.recentComments.length > 0) {
+    lines.push(`\n### Commentaires recents :`);
+    for (const c of hc.recentComments.slice(0, 5)) {
+      lines.push(`- ${c.date} (${c.actor}): "${c.content}"`);
+    }
+  }
+
+  if (hc.alerts.length > 0) {
+    lines.push(`\n### Alertes :`);
+    for (const a of hc.alerts) {
+      lines.push(`- ${a}`);
+    }
+  }
+
+  return lines.join('\n');
+}
+
+/**
+ * Build a user prompt specifically for data_summary action using real data
+ */
+function buildDataSummaryUserPrompt(sd: AIDataSummaryPayload): string {
+  const statusEntries = Object.entries(sd.interventions.byStatus)
+    .map(([k, v]) => `${k}: ${v}`)
+    .join(', ');
+
+  const alertsSection = sd.alerts.length > 0
+    ? `\n## Alertes detectees\n${sd.alerts.map((a: string) => `- ${a}`).join('\n')}`
+    : '';
+
+  return `Tu es un analyste de donnees pour un CRM de gestion d'interventions.
+Voici les donnees REELLES de la periode ${sd.period.label} :
+
+## Interventions
+- Total : ${sd.interventions.total}
+- Creees sur la periode : ${sd.interventions.created}
+- Cloturees : ${sd.interventions.completed}
+- Par statut : ${statusEntries || 'Aucune donnee'}
+
+## Financier
+- Chiffre d'affaires : ${sd.financial.totalRevenue} EUR
+- Couts : ${sd.financial.totalCosts} EUR
+- Marge : ${sd.financial.totalMargin} EUR (${sd.financial.averageMarginPercent}%)
+${alertsSection}
+
+Genere un resume analytique concis et actionnable. Identifie les points forts, les points faibles, et les actions recommandees.
+
+Format de reponse attendu :
+## Resume de la periode
+- Point 1
+- Point 2
+- Point 3
+
+## Points forts
+- ...
+
+## Points d'attention
+- ...
+
+## Actions recommandees
+1. Action 1
+2. Action 2
+3. Action 3`;
+}
 
 /**
  * Build a user prompt based on action type and entity data
  */
-function buildUserPrompt(action: AIActionType, entityData?: Record<string, unknown> | null, pageType?: string): string {
+function buildUserPrompt(action: AIActionType, entityData?: Record<string, unknown> | null, pageType?: string, historyContext?: HistoryContext | null): string {
   const data = entityData ?? {};
+  const historySection = formatHistorySection(historyContext);
+  let basePrompt: string;
 
   switch (action) {
     case 'summary': {
       if (data.id_inter !== undefined) {
-        return `Resume cette intervention en 3 points cles, puis liste les prochaines etapes recommandees.
+        basePrompt = `Resume cette intervention en 3 points cles, puis liste les prochaines etapes recommandees.
 
 Donnees intervention :
 - ID : ${data.id_inter ?? 'N/A'}
@@ -74,8 +204,9 @@ Format :
 1. Action 1
 2. Action 2
 3. Action 3`;
+        return basePrompt + historySection;
       }
-      // Artisan summary
+      // Artisan summary (no history context)
       return `Resume le profil de cet artisan en 3 points.
 
 Donnees :
@@ -88,7 +219,7 @@ Points : specialite, charge actuelle, points d'attention.`;
     }
 
     case 'next_steps':
-      return `Propose 3-5 prochaines actions concretes pour cette intervention.
+      basePrompt = `Propose 3-5 prochaines actions concretes pour cette intervention.
 
 - Statut : ${data.statut_label ?? data.statut_code ?? 'Inconnu'}
 - Metier : ${data.metier_label ?? 'Non defini'}
@@ -97,9 +228,10 @@ Points : specialite, charge actuelle, points d'attention.`;
 - Artisan : ${data.artisan_pseudo ?? 'Non assigne'}
 
 Pour chaque etape : action, raison, delai recommande.`;
+      return basePrompt + historySection;
 
     case 'email_artisan':
-      return `Genere un email professionnel pour l'artisan.
+      basePrompt = `Genere un email professionnel pour l'artisan.
 
 - ID intervention : ${data.id_inter ?? 'N/A'}
 - Metier : ${data.metier_label ?? 'Non defini'}
@@ -109,9 +241,10 @@ Pour chaque etape : action, raison, delai recommande.`;
 - Date prevue : ${data.date_prevue ?? 'Non definie'}
 
 Utilise [NOM_ARTISAN] comme placeholder. Format : Objet + Corps.`;
+      return basePrompt + historySection;
 
     case 'email_client':
-      return `Genere un email professionnel pour le client.
+      basePrompt = `Genere un email professionnel pour le client.
 
 - ID intervention : ${data.id_inter ?? 'N/A'}
 - Statut : ${data.statut_label ?? data.statut_code ?? 'Inconnu'}
@@ -119,9 +252,10 @@ Utilise [NOM_ARTISAN] comme placeholder. Format : Objet + Corps.`;
 - Date prevue : ${data.date_prevue ?? 'Non definie'}
 
 Utilise [NOM_CLIENT] comme placeholder. Format : Objet + Corps.`;
+      return basePrompt + historySection;
 
     case 'find_artisan':
-      return `Decris le profil artisan ideal pour cette intervention.
+      basePrompt = `Decris le profil artisan ideal pour cette intervention.
 
 - Metier : ${data.metier_label ?? 'Non defini'}
 - Zone : ${data.code_postal ?? ''} ${data.ville ?? ''}
@@ -129,6 +263,7 @@ Utilise [NOM_CLIENT] comme placeholder. Format : Objet + Corps.`;
 - Consigne : ${data.consigne ?? 'Aucune'}
 
 Reponds : profil recherche + criteres de selection.`;
+      return basePrompt + historySection;
 
     case 'suggestions':
       return `Propose 3 actions utiles pour la page "${pageType ?? 'inconnue'}".
@@ -173,7 +308,7 @@ serve(async (req: Request) => {
 
     // Parse request body
     const body = await req.json() as AIContextualActionRequest;
-    const { action, context, entity_data, extra_params } = body;
+    const { action, context, entity_data, history_context, summary_data, extra_params } = body;
 
     // Validate action
     if (!action || !VALID_ACTIONS.includes(action)) {
@@ -233,8 +368,13 @@ serve(async (req: Request) => {
       }
     }
 
-    // Build prompt
-    const userPrompt = buildUserPrompt(action, entity_data, context.page);
+    // Build prompt - for data_summary, use the dedicated prompt with real data
+    let userPrompt: string;
+    if (action === 'data_summary' && summary_data) {
+      userPrompt = buildDataSummaryUserPrompt(summary_data);
+    } else {
+      userPrompt = buildUserPrompt(action, entity_data, context.page, history_context);
+    }
 
     // Call Claude API
     const claudeResponse = await fetch('https://api.anthropic.com/v1/messages', {

@@ -3,17 +3,18 @@
 // Utilise le pathname Next.js pour determiner le contexte.
 
 import type { AIActionType, AIPageContext, CRMPage } from './types'
+import type { AIViewContext } from '@/stores/ai-context-store'
 
 /**
  * Actions disponibles par type de page
  */
 const ACTIONS_BY_PAGE: Record<CRMPage, AIActionType[]> = {
   intervention_detail: ['summary', 'next_steps', 'email_artisan', 'email_client', 'find_artisan', 'suggestions'],
-  intervention_list: ['suggestions', 'stats_insights'],
+  intervention_list: ['suggestions', 'stats_insights', 'data_summary'],
   artisan_detail: ['summary', 'suggestions'],
   artisan_list: ['suggestions', 'stats_insights'],
-  dashboard: ['stats_insights', 'suggestions'],
-  admin_dashboard: ['stats_insights', 'suggestions'],
+  dashboard: ['stats_insights', 'suggestions', 'data_summary'],
+  admin_dashboard: ['stats_insights', 'suggestions', 'data_summary'],
   comptabilite: ['stats_insights'],
   settings: [],
   unknown: [],
@@ -125,4 +126,42 @@ export function getDefaultAction(context: AIPageContext): AIActionType | null {
   }
   // Sinon, la premiere action disponible
   return context.availableActions[0] ?? null
+}
+
+/**
+ * Construit un resume textuel des filtres appliques.
+ */
+function buildFilterSummary(
+  filters: Array<{ property: string; operator: string; value: unknown }>,
+): string {
+  if (filters.length === 0) return 'Aucun filtre'
+  return filters
+    .map((f) => {
+      const val = Array.isArray(f.value) ? f.value.join(', ') : String(f.value ?? '')
+      return `${f.property} ${f.operator} ${val}`
+    })
+    .join(' | ')
+}
+
+/**
+ * Enrichit un contexte IA de base avec les informations de vue active
+ * provenant du store Zustand.
+ *
+ * @param baseContext - Le contexte detecte depuis le pathname
+ * @param viewContext - Les informations de vue active depuis le store
+ * @returns Le contexte enrichi avec la vue et les filtres
+ */
+export function enrichContextWithView(
+  baseContext: AIPageContext,
+  viewContext: AIViewContext | null,
+): AIPageContext {
+  if (!viewContext) return baseContext
+  return {
+    ...baseContext,
+    activeViewId: viewContext.activeViewId,
+    activeViewTitle: viewContext.activeViewTitle,
+    activeViewLayout: viewContext.activeViewLayout,
+    appliedFilters: viewContext.appliedFilters,
+    filterSummary: buildFilterSummary(viewContext.appliedFilters),
+  }
 }
