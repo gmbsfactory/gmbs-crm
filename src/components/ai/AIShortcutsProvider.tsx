@@ -6,10 +6,13 @@ import { useContextualAIAction } from "@/hooks/useContextualAIAction"
 import { useAIDataSummary, type SummaryPeriod } from "@/hooks/useAIDataSummary"
 import { detectContext, enrichContextWithView } from "@/lib/ai/context-detector"
 import { useAIContextStore } from "@/stores/ai-context-store"
-import type { AIActionType, AIPageContext } from "@/lib/ai/types"
+import { useAIPanelStore } from "@/stores/ai-panel-store"
+import { useAIActionExecutor } from "@/hooks/useAIActionExecutor"
+import type { AIActionType, AIPageContext, AISuggestedAction } from "@/lib/ai/types"
 import { AIAssistantDialog } from "./AIAssistantDialog"
 import { AIActionsPanel } from "./AIActionsPanel"
 import { AIFloatingBubble } from "./AIFloatingBubble"
+import { AISidePanel } from "./AISidePanel"
 
 /**
  * Actions disponibles quand un modal d'intervention est ouvert
@@ -20,6 +23,31 @@ const MODAL_INTERVENTION_ACTIONS: AIActionType[] = [
 ]
 
 /**
+ * Lit l'ID de l'entite depuis le DOM (data-ai-entity)
+ */
+function getEntityIdFromDOM(): string | null {
+  if (typeof document === 'undefined') return null
+  const el = document.querySelector('[data-ai-entity]')
+  if (!el) return null
+  try {
+    const raw = el.getAttribute('data-ai-entity')
+    if (!raw) return null
+    const parsed = JSON.parse(raw) as Record<string, unknown>
+    return (parsed.id as string) ?? null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Verifie si un modal d'intervention est ouvert
+ */
+function isInterventionModalOpen(): boolean {
+  if (typeof document === 'undefined') return false
+  return !!document.querySelector('[data-ai-entity]')
+}
+
+/**
  * Provider global qui installe les raccourcis clavier IA et rend les dialogs.
  * A placer dans le layout principal (app/layout.tsx), dans le <main>.
  *
@@ -28,6 +56,7 @@ const MODAL_INTERVENTION_ACTIONS: AIActionType[] = [
  * - Cmd/Ctrl + Shift + R : Resume contextuel
  * - Cmd/Ctrl + Shift + S : Suggestions
  * - Cmd/Ctrl + Shift + F : Trouver artisan (sur page detail intervention)
+ * - Cmd/Ctrl + Shift + P : Toggle panneau IA lateral (next_steps)
  */
 export function AIShortcutsProvider() {
   const pathname = usePathname()
@@ -37,6 +66,15 @@ export function AIShortcutsProvider() {
   const [actionsOpen, setActionsOpen] = useState(false)
   const [context, setContext] = useState<AIPageContext | null>(null)
   const lastPrefetchedEntityId = useRef<string | null>(null)
+
+  // AI Panel store
+  const { isPanelOpen, panelInterventionId, openPanel, closePanel } = useAIPanelStore()
+
+  // AI Action executor (for side panel buttons)
+  const aiExecutor = useAIActionExecutor(panelInterventionId ?? '')
+
+  // Track if we should show the side panel vs dialog
+  const showSidePanel = isPanelOpen && state.currentAction === 'next_steps'
 
   // Update context when pathname or view context changes
   // Also detect if a modal with entity data is open (data-ai-entity in DOM)
@@ -101,6 +139,8 @@ export function AIShortcutsProvider() {
       } else {
         setContext(enriched)
         lastPrefetchedEntityId.current = null
+        // Modal closed → close AI panel too
+        if (isPanelOpen) closePanel()
       }
     })
 
@@ -112,7 +152,7 @@ export function AIShortcutsProvider() {
     })
 
     return () => observer.disconnect()
-  }, [pathname, viewContext, prefetchAction])
+  }, [pathname, viewContext, prefetchAction, isPanelOpen, closePanel])
 
   // Get entity data and optional history context from the currently open modal or page.
   // Reads from data attributes set by InterventionModalContent.
@@ -140,7 +180,7 @@ export function AIShortcutsProvider() {
   }, [])
 
   // Execute an action with entity data and optional history context.
-  // For list pages (no modal), automatically collect real stats for suggestions/stats_insights.
+  // For next_steps on wide screen with modal open: open side panel instead of dialog.
   const handleAction = useCallback(async (action: AIActionType, userInstruction?: string) => {
     const data = getEntityData()
 
@@ -156,8 +196,16 @@ export function AIShortcutsProvider() {
       return
     }
 
+    // next_steps with modal open + wide screen → open side panel
+    if (action === 'next_steps' && isInterventionModalOpen()) {
+      const entityId = getEntityIdFromDOM()
+      if (entityId && typeof window !== 'undefined' && window.innerWidth >= 1280) {
+        openPanel(entityId)
+      }
+    }
+
     executeAction(action, data?.entity ?? null, data?.history ?? null, null, userInstruction)
-  }, [executeAction, getEntityData, collectSummary])
+  }, [executeAction, getEntityData, collectSummary, openPanel])
 
   // Handle data_summary action: collect real data first, then execute
   const handleDataSummaryAction = useCallback(async (period: SummaryPeriod) => {
@@ -180,10 +228,21 @@ export function AIShortcutsProvider() {
     }
   }, [handleAction, handleDataSummaryAction])
 
-  // Handle secondary action from the dialog footer
+  // Handle secondary action from the dialog/panel footer
   const handleDialogAction = useCallback((action: AIActionType) => {
     handleAction(action)
   }, [handleAction])
+
+  // Handle AI action button click from side panel
+  const handleExecuteAIAction = useCallback((action: AISuggestedAction) => {
+    aiExecutor.executeAction(action)
+  }, [aiExecutor])
+
+  // Handle side panel close
+  const handleCloseSidePanel = useCallback(() => {
+    closePanel()
+    close()
+  }, [closePanel, close])
 
   // Install keyboard shortcuts
   useEffect(() => {
@@ -200,8 +259,9 @@ export function AIShortcutsProvider() {
           if (actionsOpen) {
             setActionsOpen(false)
           } else {
-            // Close AI dialog if open, then open panel
+            // Close AI dialog/panel if open, then open panel
             if (state.isOpen) close()
+            if (isPanelOpen) closePanel()
             setActionsOpen(true)
           }
           break
@@ -221,12 +281,22 @@ export function AIShortcutsProvider() {
           handleAction('find_artisan')
           break
         }
+        case 'P': {
+          e.preventDefault()
+          // Toggle AI side panel for next_steps
+          if (isPanelOpen) {
+            handleCloseSidePanel()
+          } else if (isInterventionModalOpen()) {
+            handleAction('next_steps')
+          }
+          break
+        }
       }
     }
 
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [actionsOpen, state.isOpen, close, handleAction])
+  }, [actionsOpen, state.isOpen, close, handleAction, isPanelOpen, closePanel, handleCloseSidePanel])
 
   return (
     <>
@@ -244,12 +314,22 @@ export function AIShortcutsProvider() {
         context={context}
       />
 
-      {/* Result dialog */}
-      <AIAssistantDialog
-        state={state}
-        onClose={close}
-        onAction={handleDialogAction}
-      />
+      {/* Side panel for next_steps (wide screen) or Sheet (narrow screen) */}
+      {showSidePanel ? (
+        <AISidePanel
+          state={state}
+          onClose={handleCloseSidePanel}
+          onExecuteAction={handleExecuteAIAction}
+          onAction={handleDialogAction}
+        />
+      ) : (
+        /* Standard result dialog for all other actions */
+        <AIAssistantDialog
+          state={state}
+          onClose={close}
+          onAction={handleDialogAction}
+        />
+      )}
     </>
   )
 }

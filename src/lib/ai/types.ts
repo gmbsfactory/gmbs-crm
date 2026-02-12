@@ -126,13 +126,39 @@ export interface AIResultSection {
 }
 
 /**
- * Action suggeree par l'IA
+ * Types d'actions executables via les boutons du panneau IA
+ */
+export type AIActionButtonType =
+  | 'change_status'
+  | 'assign_artisan'
+  | 'navigate_section'
+  | 'send_email'
+  | 'add_comment'
+
+/**
+ * Payload specifique a chaque type d'action IA
+ */
+export type AIActionPayload =
+  | { type: 'change_status'; target_status_code: string; target_status_label: string; requires_comment: boolean }
+  | { type: 'assign_artisan'; metier_code?: string; code_postal?: string }
+  | { type: 'navigate_section'; section: string }
+  | { type: 'send_email'; email_type: 'client' | 'artisan' }
+  | { type: 'add_comment' }
+
+/**
+ * Action suggeree par l'IA avec payload structure pour execution directe
  */
 export interface AISuggestedAction {
+  id: string
   label: string
   description: string
-  action_type: 'navigate' | 'copy' | 'email' | 'status_change'
-  payload?: Record<string, unknown>
+  action_type: AIActionButtonType
+  payload: AIActionPayload
+  priority: 'high' | 'medium' | 'low'
+  icon?: string
+  status_color?: string
+  disabled?: boolean
+  disabled_reason?: string
 }
 
 /**

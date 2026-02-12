@@ -8,6 +8,8 @@
 // Types
 export type {
   AIActionType,
+  AIActionButtonType,
+  AIActionPayload,
   AIPageContext,
   CRMPage,
   AnonymizedIntervention,

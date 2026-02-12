@@ -403,3 +403,27 @@ sequenceDiagram
 | Cache Sync | `src/lib/realtime/cache-sync.ts` | Orchestration mise a jour cache |
 | Cross-tab | `src/lib/realtime/broadcast-sync.ts` | Propagation inter-onglets |
 | Offline | `src/lib/realtime/sync-queue.ts` | File d'attente mode deconnecte |
+
+---
+
+## Flux d'execution d'actions IA
+
+Le panneau IA interactif ajoute un flux specifique pour executer des actions CRM depuis les recommandations IA.
+
+```
+AISidePanel (bouton clique)
+  → useAIActionExecutor.executeAction(action)
+    → switch(action.payload.type)
+      → 'change_status': mutation API ou custom event 'ai:change-status'
+      → 'assign_artisan': custom event 'ai:open-artisan-search'
+      → 'navigate_section': custom event 'ai:navigate-section'
+      → 'send_email': custom event 'ai:open-email-modal'
+      → 'add_comment': custom event 'ai:focus-comment'
+  → InterventionEditForm / InterventionModalContent ecoute l'event
+    → Execute l'action CRM (ouvre modal, scroll, mutation)
+  → Invalidation cache IA (aiKeys.action('next_steps', interventionId))
+```
+
+Les actions suggerees sont generees de maniere **deterministe** par `buildSuggestedActions()` dans l'Edge Function (pas d'appel IA), basees sur le statut courant et les transitions autorisees.
+
+Pour plus de details : [docs/ai-integration/interactive-next-steps.md](../ai-integration/interactive-next-steps.md)

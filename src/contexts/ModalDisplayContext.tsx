@@ -8,6 +8,7 @@ import {
   type ModalDisplayMode,
 } from "@/types/modal-display"
 import { useInterventionModalState } from "@/hooks/useInterventionModalState"
+import { useAIPanelStore } from "@/stores/ai-panel-store"
 
 const PREFERRED_STORAGE_KEY = "gmbs:modal-display:preferred"
 const DEFAULT_STORAGE_KEY = "gmbs:modal-display:default"
@@ -26,6 +27,7 @@ export function ModalDisplayProvider({ children }: { children: React.ReactNode }
   const [effectiveMode, setEffectiveMode] = useState<ModalDisplayMode>(DEFAULT_MODAL_DISPLAY_MODE)
   const [isDefaultModeModified, setIsDefaultModeModified] = useState(false)
   const overrideMode = useInterventionModalState((state) => state.overrideMode)
+  const isAIPanelOpen = useAIPanelStore((state) => state.isPanelOpen)
 
   useEffect(() => {
     if (typeof window === "undefined") return
@@ -50,6 +52,11 @@ export function ModalDisplayProvider({ children }: { children: React.ReactNode }
     if (typeof window === "undefined") return
     const handleResize = () => {
       const width = window.innerWidth
+      // Forcer halfpage quand le panneau IA est ouvert sur grand ecran
+      if (isAIPanelOpen && width >= 1280) {
+        setEffectiveMode("halfpage")
+        return
+      }
       const baseMode = overrideMode ?? preferredMode
       if (width < 640) {
         setEffectiveMode("fullpage")
@@ -64,7 +71,7 @@ export function ModalDisplayProvider({ children }: { children: React.ReactNode }
     handleResize()
     window.addEventListener("resize", handleResize)
     return () => window.removeEventListener("resize", handleResize)
-  }, [overrideMode, preferredMode])
+  }, [overrideMode, preferredMode, isAIPanelOpen])
 
   const setPreferredMode = useCallback((mode: ModalDisplayMode) => {
     setPreferredModeState(mode)

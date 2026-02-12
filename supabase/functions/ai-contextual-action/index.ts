@@ -381,6 +381,171 @@ async function handleFindArtisan(
   };
 }
 
+// ===== SUGGESTED ACTIONS BUILDER (deterministic, no AI call) =====
+// Source de verite pour les transitions : src/config/workflow-rules.ts (AUTHORIZED_TRANSITIONS)
+interface SuggestedAction {
+  id: string;
+  label: string;
+  description: string;
+  action_type: 'change_status' | 'assign_artisan' | 'navigate_section' | 'send_email' | 'add_comment';
+  payload: Record<string, unknown>;
+  priority: 'high' | 'medium' | 'low';
+  icon?: string;
+  status_color?: string;
+  disabled?: boolean;
+  disabled_reason?: string;
+}
+
+const STATUS_TRANSITIONS: Record<string, Array<{ to: string; label: string; trigger: string }>> = {
+  DEMANDE: [
+    { to: 'DEVIS_ENVOYE', label: 'Devis envoyé', trigger: 'Envoi devis' },
+    { to: 'VISITE_TECHNIQUE', label: 'Visite technique', trigger: 'Visite technique' },
+  ],
+  DEVIS_ENVOYE: [
+    { to: 'ACCEPTE', label: 'Accepté', trigger: 'Acceptation devis' },
+    { to: 'REFUSE', label: 'Refusé', trigger: 'Refus devis' },
+  ],
+  ACCEPTE: [
+    { to: 'INTER_EN_COURS', label: 'Inter en cours', trigger: 'Début intervention' },
+    { to: 'INTER_TERMINEE', label: 'Inter terminée', trigger: 'Clôture express' },
+  ],
+  INTER_EN_COURS: [
+    { to: 'INTER_TERMINEE', label: 'Inter terminée', trigger: 'Fin intervention' },
+    { to: 'SAV', label: 'SAV', trigger: 'Passage SAV' },
+  ],
+  VISITE_TECHNIQUE: [
+    { to: 'ACCEPTE', label: 'Accepté', trigger: 'Acceptation après visite' },
+    { to: 'REFUSE', label: 'Refusé', trigger: 'Refus après visite' },
+  ],
+  INTER_TERMINEE: [
+    { to: 'SAV', label: 'SAV', trigger: 'Ouverture SAV' },
+  ],
+  STAND_BY: [
+    { to: 'ACCEPTE', label: 'Accepté', trigger: 'Reprise' },
+    { to: 'INTER_EN_COURS', label: 'Inter en cours', trigger: 'Reprise intervention' },
+  ],
+  SAV: [
+    { to: 'INTER_TERMINEE', label: 'Inter terminée', trigger: 'Résolution SAV' },
+  ],
+};
+
+const STATUS_COLORS: Record<string, string> = {
+  DEMANDE: '#3B82F6', DEVIS_ENVOYE: '#8B5CF6', VISITE_TECHNIQUE: '#06B6D4',
+  ACCEPTE: '#10B981', INTER_EN_COURS: '#F59E0B', INTER_TERMINEE: '#10B981',
+  ANNULE: '#EF4444', REFUSE: '#EF4444', STAND_BY: '#6B7280', SAV: '#EC4899',
+};
+
+// Statuts ou un commentaire est generalement requis pour la transition
+const REQUIRES_COMMENT_TRANSITIONS = new Set([
+  'REFUSE', 'ANNULE', 'SAV', 'STAND_BY',
+]);
+
+function buildSuggestedActions(entityData: Record<string, unknown> | null | undefined): SuggestedAction[] {
+  if (!entityData) return [];
+
+  const statusCode = (entityData.statut_code as string) ?? null;
+  if (!statusCode) return [];
+
+  const actions: SuggestedAction[] = [];
+  let actionIdx = 0;
+
+  // 1. Status transitions (high priority, max 3)
+  const transitions = STATUS_TRANSITIONS[statusCode] ?? [];
+  for (const t of transitions.slice(0, 3)) {
+    actions.push({
+      id: `action-${actionIdx++}`,
+      label: t.trigger,
+      description: `Passer au statut "${t.label}"`,
+      action_type: 'change_status',
+      payload: {
+        type: 'change_status',
+        target_status_code: t.to,
+        target_status_label: t.label,
+        requires_comment: REQUIRES_COMMENT_TRANSITIONS.has(t.to),
+      },
+      priority: 'high',
+      icon: 'arrow-right',
+      status_color: STATUS_COLORS[t.to] ?? '#6366F1',
+    });
+  }
+
+  // 2. Assign artisan if none assigned and status requires it
+  const hasArtisan = !!entityData.artisan_pseudo;
+  const statusesNeedingArtisan = ['DEMANDE', 'DEVIS_ENVOYE', 'ACCEPTE', 'VISITE_TECHNIQUE'];
+  if (!hasArtisan && statusesNeedingArtisan.includes(statusCode)) {
+    actions.push({
+      id: `action-${actionIdx++}`,
+      label: 'Assigner un artisan',
+      description: 'Rechercher et assigner un artisan pour cette intervention',
+      action_type: 'assign_artisan',
+      payload: {
+        type: 'assign_artisan',
+        metier_code: (entityData.metier_code as string) ?? undefined,
+        code_postal: (entityData.code_postal as string) ?? undefined,
+      },
+      priority: 'high',
+      icon: 'user-plus',
+    });
+  }
+
+  // 3. Send email if relevant
+  if (statusCode === 'DEVIS_ENVOYE' || statusCode === 'ACCEPTE') {
+    actions.push({
+      id: `action-${actionIdx++}`,
+      label: 'Email client',
+      description: 'Envoyer un email au client concernant l\'intervention',
+      action_type: 'send_email',
+      payload: { type: 'send_email', email_type: 'client' },
+      priority: 'medium',
+      icon: 'mail',
+    });
+  }
+  if (hasArtisan && ['ACCEPTE', 'INTER_EN_COURS'].includes(statusCode)) {
+    actions.push({
+      id: `action-${actionIdx++}`,
+      label: 'Email artisan',
+      description: 'Envoyer un email a l\'artisan assigne',
+      action_type: 'send_email',
+      payload: { type: 'send_email', email_type: 'artisan' },
+      priority: 'medium',
+      icon: 'mail',
+    });
+  }
+
+  // 4. Navigate to sections with missing data
+  const missingFields: Array<{ section: string; label: string; desc: string }> = [];
+  if (!entityData.cout_intervention && statusCode !== 'DEMANDE') {
+    missingFields.push({ section: 'costs', label: 'Renseigner les coûts', desc: 'Les coûts d\'intervention ne sont pas remplis' });
+  }
+  if (!entityData.contexte) {
+    missingFields.push({ section: 'context', label: 'Completer le contexte', desc: 'Le contexte de l\'intervention est vide' });
+  }
+  for (const f of missingFields.slice(0, 1)) {
+    actions.push({
+      id: `action-${actionIdx++}`,
+      label: f.label,
+      description: f.desc,
+      action_type: 'navigate_section',
+      payload: { type: 'navigate_section', section: f.section },
+      priority: 'low',
+      icon: 'file-text',
+    });
+  }
+
+  // 5. Add comment (always available as low priority)
+  actions.push({
+    id: `action-${actionIdx++}`,
+    label: 'Ajouter un commentaire',
+    description: 'Ajouter une note ou un commentaire sur cette intervention',
+    action_type: 'add_comment',
+    payload: { type: 'add_comment' },
+    priority: 'low',
+    icon: 'message-square',
+  });
+
+  return actions.slice(0, 6);
+}
+
 // ===== MAIN SERVER =====
 serve(async (req: Request) => {
   const corsHeaders = getCorsHeaders(req);
@@ -516,10 +681,14 @@ serve(async (req: Request) => {
     const claudeData = await claudeResponse.json();
     const content = claudeData.content?.[0]?.text ?? '';
 
+    const suggested_actions = action === 'next_steps'
+      ? buildSuggestedActions(entity_data)
+      : [];
+
     const result = {
       content,
       sections: parseResultSections(content),
-      suggested_actions: [],
+      suggested_actions,
     };
     const computed_at = new Date().toISOString();
 

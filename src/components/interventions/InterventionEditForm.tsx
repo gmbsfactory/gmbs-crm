@@ -311,6 +311,61 @@ export const InterventionEditForm = memo(function InterventionEditForm({
     onArtisanSearchOpenChange?.(showArtisanSearch || showSecondArtisanSearch)
   }, [showArtisanSearch, showSecondArtisanSearch, onArtisanSearchOpenChange])
 
+  // AI custom events listeners
+  useEffect(() => {
+    const interventionId = intervention.id
+
+    const handleOpenArtisanSearch = (e: Event) => {
+      const detail = (e as CustomEvent).detail
+      if (detail?.interventionId !== interventionId) return
+      setShowArtisanSearch(true)
+    }
+
+    const handleNavigateSection = (e: Event) => {
+      const detail = (e as CustomEvent).detail
+      if (detail?.interventionId !== interventionId) return
+      const section = detail?.section as string
+      if (section === 'comments') {
+        setIsCommentsOpen(true)
+        // Scroll to comments section after a tick (to allow collapsible to open)
+        setTimeout(() => {
+          document.querySelector('[data-section="comments"]')?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        }, 100)
+      } else if (section === 'costs') {
+        // Costs section is always visible in the right column, scroll to it
+        setTimeout(() => {
+          document.querySelector('[data-section="costs"]')?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        }, 100)
+      } else if (section === 'context') {
+        // Context/consigne is at the top of the form, scroll there
+        setTimeout(() => {
+          document.querySelector('[data-section="context"]')?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        }, 100)
+      }
+    }
+
+    const handleFocusComment = (e: Event) => {
+      const detail = (e as CustomEvent).detail
+      if (detail?.interventionId !== interventionId) return
+      setIsCommentsOpen(true)
+      setTimeout(() => {
+        const textarea = document.querySelector('[data-section="comments"] textarea') as HTMLTextAreaElement | null
+        textarea?.focus()
+        textarea?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      }, 150)
+    }
+
+    window.addEventListener('ai:open-artisan-search', handleOpenArtisanSearch)
+    window.addEventListener('ai:navigate-section', handleNavigateSection)
+    window.addEventListener('ai:focus-comment', handleFocusComment)
+
+    return () => {
+      window.removeEventListener('ai:open-artisan-search', handleOpenArtisanSearch)
+      window.removeEventListener('ai:navigate-section', handleNavigateSection)
+      window.removeEventListener('ai:focus-comment', handleFocusComment)
+    }
+  }, [intervention.id, setShowArtisanSearch, setIsCommentsOpen])
+
   const checkFactureGMBS = useCallback(async () => {
     if (!intervention.id) return
     try {
