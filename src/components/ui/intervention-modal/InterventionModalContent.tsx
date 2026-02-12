@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useCallback, useEffect, useRef, useState } from "react"
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { Bell, X, MessageSquare, Copy, MessageCircle, Trash2, Plus, Info } from "lucide-react"
 import { InterventionEditForm } from "@/components/interventions/InterventionEditForm"
@@ -294,6 +294,16 @@ GMBS`
     queryFn: () => interventionsApi.getById(interventionId),
     enabled: Boolean(interventionId),
   })
+
+  // Donnees serialisees pour l'assistant IA contextuel (data attribute lu par AIShortcutsProvider)
+  const aiEntityJson = useMemo(() => {
+    if (!intervention) return undefined
+    try {
+      return JSON.stringify(intervention)
+    } catch {
+      return undefined
+    }
+  }, [intervention])
 
   // Hook pour la suppression et duplication d'intervention
   const { deleteIntervention, duplicateDevisSupp, isLoading: contextMenuLoading } = useInterventionContextMenu(
@@ -609,7 +619,7 @@ GMBS`
 
   return (
     <TooltipProvider>
-      <div ref={modalRef} className={`modal-config-surface ${surfaceVariantClass} ${surfaceModeClass}`}>
+      <div ref={modalRef} className={`modal-config-surface ${surfaceVariantClass} ${surfaceModeClass}`} data-ai-entity={aiEntityJson}>
         <header className="modal-config-columns-header relative">
           <div className="flex items-center gap-3">
             <Tooltip>

@@ -554,6 +554,16 @@ export function ArtisanModalContent({
     queryFn: () => artisansApi.getById(artisanId),
   })
 
+  // Donnees serialisees pour l'assistant IA contextuel (data attribute lu par AIShortcutsProvider)
+  const aiEntityJson = useMemo(() => {
+    if (!artisan) return undefined
+    try {
+      return JSON.stringify(artisan)
+    } catch {
+      return undefined
+    }
+  }, [artisan])
+
   // Charger les interventions de l'artisan pour les graphiques et le tableau
   const {
     data: interventionsResponse,
@@ -1157,7 +1167,7 @@ export function ArtisanModalContent({
 
   return (
     <TooltipProvider>
-      <div className={cn("modal-config-surface", surfaceVariantClass, surfaceModeClass)}>
+      <div className={cn("modal-config-surface", surfaceVariantClass, surfaceModeClass)} data-ai-entity={aiEntityJson}>
         {/* Header */}
         <header className="modal-config-columns-header relative bg-[#8DA5CE] dark:bg-transparent">
           <div className="flex items-center gap-3">

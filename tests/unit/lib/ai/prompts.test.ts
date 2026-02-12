@@ -61,7 +61,7 @@ describe('prompts', () => {
     it('should build next_steps prompt', () => {
       const { user } = buildPrompt('next_steps', mockIntervention)
       expect(user).toContain('prochaines actions')
-      expect(user).toContain('INTER_EN_COURS')
+      expect(user).toContain('Intervention en cours')
     })
 
     it('should build email_artisan prompt', () => {
