@@ -4,11 +4,20 @@ import React, { useCallback, useEffect, useState } from "react"
 import { usePathname } from "next/navigation"
 import { useContextualAIAction } from "@/hooks/useContextualAIAction"
 import { useAIDataSummary, type SummaryPeriod } from "@/hooks/useAIDataSummary"
-import { detectContext } from "@/lib/ai/context-detector"
+import { detectContext, enrichContextWithView } from "@/lib/ai/context-detector"
+import { useAIContextStore } from "@/stores/ai-context-store"
 import type { AIActionType, AIPageContext } from "@/lib/ai/types"
 import { AIAssistantDialog } from "./AIAssistantDialog"
 import { AIActionsPanel } from "./AIActionsPanel"
 import { AIFloatingBubble } from "./AIFloatingBubble"
+
+/**
+ * Actions disponibles quand un modal d'intervention est ouvert
+ * (detecte via data-ai-entity dans le DOM)
+ */
+const MODAL_INTERVENTION_ACTIONS: AIActionType[] = [
+  'summary', 'next_steps', 'email_artisan', 'email_client', 'find_artisan', 'suggestions',
+]
 
 /**
  * Provider global qui installe les raccourcis clavier IA et rend les dialogs.
@@ -24,13 +33,61 @@ export function AIShortcutsProvider() {
   const pathname = usePathname()
   const { executeAction, state, close } = useContextualAIAction()
   const { collectSummary } = useAIDataSummary()
+  const viewContext = useAIContextStore((s) => s.viewContext)
   const [actionsOpen, setActionsOpen] = useState(false)
   const [context, setContext] = useState<AIPageContext | null>(null)
 
-  // Update context when pathname changes
+  // Update context when pathname or view context changes
+  // Also detect if a modal with entity data is open (data-ai-entity in DOM)
   useEffect(() => {
-    setContext(detectContext(pathname))
-  }, [pathname])
+    const base = detectContext(pathname)
+    const enriched = enrichContextWithView(base, viewContext)
+
+    // Detect open modal: if data-ai-entity exists, we have a detail entity open
+    const entityEl = document.querySelector('[data-ai-entity]')
+    if (entityEl && (base.page === 'intervention_list' || base.page === 'artisan_list')) {
+      // Modal is open from a list page → upgrade available actions to detail-level
+      setContext({
+        ...enriched,
+        entityType: base.page === 'intervention_list' ? 'intervention' : 'artisan',
+        availableActions: base.page === 'intervention_list'
+          ? MODAL_INTERVENTION_ACTIONS
+          : ['summary', 'suggestions'],
+      })
+    } else {
+      setContext(enriched)
+    }
+  }, [pathname, viewContext])
+
+  // Re-detect context when modals open/close (MutationObserver on data-ai-entity)
+  useEffect(() => {
+    const observer = new MutationObserver(() => {
+      const base = detectContext(pathname)
+      const enriched = enrichContextWithView(base, viewContext)
+      const entityEl = document.querySelector('[data-ai-entity]')
+
+      if (entityEl && (base.page === 'intervention_list' || base.page === 'artisan_list')) {
+        setContext({
+          ...enriched,
+          entityType: base.page === 'intervention_list' ? 'intervention' : 'artisan',
+          availableActions: base.page === 'intervention_list'
+            ? MODAL_INTERVENTION_ACTIONS
+            : ['summary', 'suggestions'],
+        })
+      } else {
+        setContext(enriched)
+      }
+    })
+
+    observer.observe(document.body, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ['data-ai-entity'],
+    })
+
+    return () => observer.disconnect()
+  }, [pathname, viewContext])
 
   // Get entity data and optional history context from the currently open modal or page.
   // Reads from data attributes set by InterventionModalContent.

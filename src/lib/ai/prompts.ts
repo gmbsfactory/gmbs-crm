@@ -191,24 +191,81 @@ Resume en 3 points :
 }
 
 /**
- * Prompt generique pour suggestions contextuelles
+ * Prompt pour suggestions contextuelles enrichi avec vue active et filtres
  */
-function buildSuggestionsPrompt(pageType: string): string {
-  return `En tant qu'assistant CRM, propose 3 actions utiles que le gestionnaire pourrait faire maintenant sur la page "${pageType}".
-Prends en compte les bonnes pratiques de gestion d'interventions batiment.
-Format : liste numerotee avec action + benefice attendu.`
+function buildSuggestionsPrompt(pageType: string, context?: AIPageContext | null, entityData?: AnonymizedIntervention | AnonymizedArtisan | null): string {
+  const parts: string[] = []
+
+  parts.push(`En tant qu'assistant CRM expert en gestion d'interventions batiment, analyse le contexte actuel et propose 3 a 5 actions concretes et specifiques.`)
+
+  // Contexte de page et vue
+  parts.push(`\nPage actuelle : ${pageType}`)
+  if (context?.activeViewTitle) {
+    parts.push(`Vue/pastille active : ${context.activeViewTitle}`)
+  }
+  if (context?.filterSummary && context.filterSummary !== 'Aucun filtre') {
+    parts.push(`Filtres appliques : ${context.filterSummary}`)
+  }
+
+  // Si on a des donnees d'entite (modal ouvert)
+  if (entityData && 'id_inter' in entityData) {
+    const inter = entityData as AnonymizedIntervention
+    parts.push(`\nIntervention ouverte :`)
+    parts.push(`- ID : ${inter.id_inter ?? 'N/A'}`)
+    parts.push(`- Statut : ${inter.statut_label ?? inter.statut_code ?? 'Inconnu'}`)
+    parts.push(`- Metier : ${inter.metier_label ?? 'Non defini'}`)
+    parts.push(`- Artisan : ${inter.artisan_pseudo ?? 'Non assigne'}`)
+    parts.push(`- Cout : ${inter.cout_intervention != null ? `${inter.cout_intervention} EUR` : 'Non defini'}`)
+    parts.push(`- Marge : ${inter.marge != null ? `${inter.marge} EUR` : 'Non calculee'}`)
+    parts.push(`- Date prevue : ${inter.date_prevue ?? 'Non definie'}`)
+    parts.push(`- Contexte : ${inter.contexte ?? 'Aucun'}`)
+  } else if (entityData && 'pseudo' in entityData) {
+    const art = entityData as AnonymizedArtisan
+    parts.push(`\nArtisan ouvert :`)
+    parts.push(`- Pseudo : ${art.pseudo}`)
+    parts.push(`- Metiers : ${art.metiers.join(', ') || 'Non definis'}`)
+    parts.push(`- Zone : ${art.zone_code_postal ?? ''} ${art.zone_ville ?? ''}`)
+    parts.push(`- Statut : ${art.statut ?? 'Inconnu'}`)
+    parts.push(`- Interventions actives : ${art.nombre_interventions_actives ?? 'Inconnu'}`)
+  }
+
+  parts.push(`\nPour chaque suggestion :
+1. Action precise a effectuer maintenant
+2. Pourquoi c'est important (base sur les donnees ci-dessus)
+3. Benefice attendu
+
+Sois SPECIFIQUE : ne dis pas "verifier les interventions" mais "relancer l'artisan X car aucune activite depuis Y jours" si c'est pertinent.`)
+
+  return parts.join('\n')
 }
 
 /**
- * Prompt pour insights sur les stats du dashboard
+ * Prompt pour insights stats enrichi avec contexte de vue et filtres
  */
-function buildStatsInsightsPrompt(): string {
-  return `En tant qu'assistant CRM, propose 3 insights ou alertes basees sur les donnees du tableau de bord.
-Concentre-toi sur :
-- Les tendances (hausse/baisse du volume)
-- Les anomalies potentielles (retards, marges faibles)
-- Les actions proactives recommandees
-Format : liste a puces, concis et actionnable.`
+function buildStatsInsightsPrompt(context?: AIPageContext | null): string {
+  const parts: string[] = []
+
+  parts.push(`En tant qu'analyste CRM expert, analyse le contexte de navigation actuel et propose 3 a 5 insights actionables.`)
+
+  if (context?.activeViewTitle) {
+    parts.push(`\nVue active : ${context.activeViewTitle}`)
+  }
+  if (context?.filterSummary && context.filterSummary !== 'Aucun filtre') {
+    parts.push(`Filtres appliques : ${context.filterSummary}`)
+  }
+  parts.push(`Page : ${context?.page ?? 'inconnue'}`)
+
+  parts.push(`\nConcentre-toi sur :
+- Les tendances detectables depuis le contexte (vue filtree = focus utilisateur)
+- Les anomalies potentielles (retards, marges faibles, interventions bloquees)
+- Les actions proactives a prendre en priorite
+- Les KPIs a surveiller dans cette vue specifique
+
+Sois SPECIFIQUE au contexte de la vue active. Si l'utilisateur est sur "Ma liste en cours", parle des interventions en cours. Si sur "Mes demandes", parle des nouvelles demandes.
+
+Format : liste a puces, concis et actionnable.`)
+
+  return parts.join('\n')
 }
 
 /**
@@ -375,11 +432,11 @@ export function buildPrompt(
       break
 
     case 'suggestions':
-      userPrompt = buildSuggestionsPrompt(pageType ?? 'inconnue')
+      userPrompt = buildSuggestionsPrompt(pageType ?? 'inconnue', context, entityData)
       break
 
     case 'stats_insights':
-      userPrompt = buildStatsInsightsPrompt()
+      userPrompt = buildStatsInsightsPrompt(context)
       break
 
     case 'data_summary':

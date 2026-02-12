@@ -84,14 +84,14 @@ describe('prompts', () => {
 
     it('should build suggestions prompt', () => {
       const { user } = buildPrompt('suggestions', null, 'intervention_list')
-      expect(user).toContain('actions utiles')
+      expect(user).toContain('actions concretes')
       expect(user).toContain('intervention_list')
     })
 
     it('should build stats_insights prompt', () => {
       const { user } = buildPrompt('stats_insights')
       expect(user).toContain('insights')
-      expect(user).toContain('tendances')
+      expect(user).toContain('actionables')
     })
 
     it('should never include PII in prompts', () => {

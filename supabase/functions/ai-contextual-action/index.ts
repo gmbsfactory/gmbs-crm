@@ -20,6 +20,11 @@ interface AIContextualActionRequest {
     entityId: string | null;
     entityType: 'intervention' | 'artisan' | null;
     pathname: string;
+    activeViewId?: string;
+    activeViewTitle?: string;
+    activeViewLayout?: string;
+    appliedFilters?: Array<{ property: string; operator: string; value: unknown }>;
+    filterSummary?: string;
   };
   entity_data?: Record<string, unknown> | null;
   history_context?: HistoryContext | null;
@@ -50,13 +55,25 @@ interface HistoryContext {
   alerts: string[];
 }
 
-// System prompt
-const SYSTEM_PROMPT = `Tu es un assistant IA integre dans un CRM de gestion d'interventions batiment (GMBS-CRM).
+// System prompt de base
+const BASE_SYSTEM_PROMPT = `Tu es un assistant IA integre dans un CRM de gestion d'interventions batiment (GMBS-CRM).
 Tu aides les gestionnaires a prendre des decisions rapidement.
 Reponds toujours en francais, de maniere concise et actionnable.
 Utilise des puces pour structurer tes reponses.
 Ne mentionne jamais de donnees personnelles (noms, emails, telephones).
 Concentre-toi sur les faits metier : statut, metier, couts, delais, zone.`;
+
+/**
+ * Build the system prompt enriched with the current view context.
+ */
+function buildSystemPrompt(ctx: AIContextualActionRequest['context']): string {
+  const lines: string[] = [];
+  if (ctx.activeViewTitle) lines.push(`Vue active : ${ctx.activeViewTitle}`);
+  if (ctx.filterSummary && ctx.filterSummary !== 'Aucun filtre') lines.push(`Filtres appliques : ${ctx.filterSummary}`);
+  if (ctx.activeViewLayout) lines.push(`Disposition : ${ctx.activeViewLayout}`);
+  if (lines.length === 0) return BASE_SYSTEM_PROMPT;
+  return `${BASE_SYSTEM_PROMPT}\n\nContexte de navigation de l'utilisateur :\n${lines.join('\n')}`;
+}
 
 // Validated action types
 const VALID_ACTIONS: AIActionType[] = [
@@ -265,13 +282,38 @@ Utilise [NOM_CLIENT] comme placeholder. Format : Objet + Corps.`;
 Reponds : profil recherche + criteres de selection.`;
       return basePrompt + historySection;
 
-    case 'suggestions':
-      return `Propose 3 actions utiles pour la page "${pageType ?? 'inconnue'}".
-Contexte : CRM gestion interventions batiment.`;
+    case 'suggestions': {
+      const sugParts: string[] = [];
+      sugParts.push(`Analyse le contexte actuel et propose 3 a 5 actions concretes et specifiques.`);
+      sugParts.push(`Page : ${pageType ?? 'inconnue'}`);
+      if (data.id_inter !== undefined) {
+        sugParts.push(`\nIntervention ouverte :`);
+        sugParts.push(`- ID : ${data.id_inter ?? 'N/A'}`);
+        sugParts.push(`- Statut : ${data.statut_label ?? data.statut_code ?? 'Inconnu'}`);
+        sugParts.push(`- Metier : ${data.metier_label ?? 'Non defini'}`);
+        sugParts.push(`- Artisan : ${data.artisan_pseudo ?? 'Non assigne'}`);
+        sugParts.push(`- Cout : ${data.cout_intervention != null ? `${data.cout_intervention} EUR` : 'Non defini'}`);
+        sugParts.push(`- Marge : ${data.marge != null ? `${data.marge} EUR` : 'Non calculee'}`);
+        sugParts.push(`- Contexte : ${data.contexte ?? 'Aucun'}`);
+      } else if (data.pseudo !== undefined) {
+        sugParts.push(`\nArtisan ouvert :`);
+        sugParts.push(`- Pseudo : ${data.pseudo}`);
+        sugParts.push(`- Metiers : ${data.metiers ?? 'Non definis'}`);
+        sugParts.push(`- Statut : ${data.statut ?? 'Inconnu'}`);
+      }
+      sugParts.push(`\nSois SPECIFIQUE aux donnees ci-dessus. Pour chaque suggestion : action precise + pourquoi + benefice.`);
+      return sugParts.join('\n') + historySection;
+    }
 
     case 'stats_insights':
-      return `Propose 3 insights ou alertes pour un dashboard de gestion d'interventions batiment.
-Tendances, anomalies, actions proactives.`;
+      return `Analyse le contexte de navigation actuel et propose 3 a 5 insights actionables pour la page "${pageType ?? 'inconnue'}".
+
+Concentre-toi sur :
+- Les actions prioritaires dans cette vue specifique
+- Les anomalies potentielles (retards, marges, blocages)
+- Les recommandations proactives
+
+Sois SPECIFIQUE au contexte de la vue active.` + historySection;
 
     default:
       return 'Aide-moi avec le contexte actuel.';
@@ -387,7 +429,7 @@ serve(async (req: Request) => {
       body: JSON.stringify({
         model: 'claude-sonnet-4-5-20250929',
         max_tokens: 1024,
-        system: SYSTEM_PROMPT,
+        system: buildSystemPrompt(context),
         messages: [{ role: 'user', content: userPrompt }],
       }),
     });
