@@ -616,6 +616,20 @@ export const InterventionEditForm = memo(function InterventionEditForm({
     }
   }, [baseHandleInputChange, refData?.interventionStatuses, setFormData, setIsProprietaireOpen, setIsClientOpen])
 
+  // AI change-status listener — declared after handleInputChange
+  useEffect(() => {
+    const handleAIChangeStatus = (e: Event) => {
+      const detail = (e as CustomEvent).detail
+      if (detail?.interventionId !== intervention.id) return
+      handleInputChange("statut_id", detail.statusId)
+      // requestSubmit apres le prochain render pour que le state soit a jour
+      setTimeout(() => formRef?.current?.requestSubmit(), 0)
+    }
+
+    window.addEventListener('ai:change-status', handleAIChangeStatus)
+    return () => window.removeEventListener('ai:change-status', handleAIChangeStatus)
+  }, [intervention.id, handleInputChange, formRef])
+
   const handleAccompteSSTChange = async (value: string) => {
     handleInputChange('accompteSST', value)
   }

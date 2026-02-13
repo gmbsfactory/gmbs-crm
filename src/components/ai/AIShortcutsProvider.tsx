@@ -321,6 +321,7 @@ export function AIShortcutsProvider() {
           onClose={handleCloseSidePanel}
           onExecuteAction={handleExecuteAIAction}
           onAction={handleDialogAction}
+          interventionId={panelInterventionId ?? undefined}
         />
       ) : (
         /* Standard result dialog for all other actions */

@@ -9,6 +9,7 @@ import { TooltipProvider } from "@/components/ui/tooltip"
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { AIMarkdownContent } from "./AIMarkdownContent"
 import { AIActionButton } from "./AIActionButton"
+import { AIStatusFileUpload } from "./AIStatusFileUpload"
 import type { AIActionState, AIActionType, AISuggestedAction } from "@/lib/ai/types"
 import { ACTION_LABELS } from "@/lib/ai/prompts"
 import { cn } from "@/lib/utils"
@@ -18,6 +19,13 @@ interface AISidePanelProps {
   onClose: () => void
   onExecuteAction: (action: AISuggestedAction) => void
   onAction?: (action: AIActionType) => void
+  interventionId?: string
+}
+
+/** Statuts qui necessitent un document avant transition */
+const STATUS_DOCUMENT_MAP: Record<string, { kind: string; label: string }> = {
+  'DEVIS_ENVOYE': { kind: 'devis', label: 'Deposer le devis' },
+  'INTER_TERMINEE': { kind: 'facturesGMBS', label: 'Deposer la facture GMBS' },
 }
 
 function groupByPriority(actions: AISuggestedAction[]) {
@@ -31,7 +39,7 @@ function groupByPriority(actions: AISuggestedAction[]) {
  * Panneau lateral IA affiche a gauche du modal intervention (halfpage).
  * Sur ecrans < 1280px, rendu en Sheet (drawer) depuis le bas.
  */
-export function AISidePanel({ state, onClose, onExecuteAction, onAction }: AISidePanelProps) {
+export function AISidePanel({ state, onClose, onExecuteAction, onAction, interventionId }: AISidePanelProps) {
   const { isOpen, isLoading, result, error, currentAction, context } = state
   const [isWideScreen, setIsWideScreen] = useState(false)
 
@@ -111,7 +119,16 @@ export function AISidePanel({ state, onClose, onExecuteAction, onAction }: AISid
                 {grouped.high.length > 0 && (
                   <div className="space-y-1.5">
                     {grouped.high.map(action => (
-                      <AIActionButton key={action.id} action={action} onExecute={onExecuteAction} />
+                      <React.Fragment key={action.id}>
+                        <AIActionButton action={action} onExecute={onExecuteAction} />
+                        {interventionId && action.payload.type === 'change_status' && STATUS_DOCUMENT_MAP[action.payload.target_status_code] && (
+                          <AIStatusFileUpload
+                            interventionId={interventionId}
+                            documentKind={STATUS_DOCUMENT_MAP[action.payload.target_status_code].kind}
+                            documentLabel={STATUS_DOCUMENT_MAP[action.payload.target_status_code].label}
+                          />
+                        )}
+                      </React.Fragment>
                     ))}
                   </div>
                 )}
@@ -120,7 +137,16 @@ export function AISidePanel({ state, onClose, onExecuteAction, onAction }: AISid
                   <div className="space-y-1.5">
                     <p className="text-xs text-muted-foreground mt-3">Autres actions</p>
                     {grouped.medium.map(action => (
-                      <AIActionButton key={action.id} action={action} onExecute={onExecuteAction} />
+                      <React.Fragment key={action.id}>
+                        <AIActionButton action={action} onExecute={onExecuteAction} />
+                        {interventionId && action.payload.type === 'change_status' && STATUS_DOCUMENT_MAP[action.payload.target_status_code] && (
+                          <AIStatusFileUpload
+                            interventionId={interventionId}
+                            documentKind={STATUS_DOCUMENT_MAP[action.payload.target_status_code].kind}
+                            documentLabel={STATUS_DOCUMENT_MAP[action.payload.target_status_code].label}
+                          />
+                        )}
+                      </React.Fragment>
                     ))}
                   </div>
                 )}
@@ -129,7 +155,16 @@ export function AISidePanel({ state, onClose, onExecuteAction, onAction }: AISid
                   <div className="space-y-1.5">
                     <p className="text-xs text-muted-foreground mt-3">Complementaire</p>
                     {grouped.low.map(action => (
-                      <AIActionButton key={action.id} action={action} onExecute={onExecuteAction} />
+                      <React.Fragment key={action.id}>
+                        <AIActionButton action={action} onExecute={onExecuteAction} />
+                        {interventionId && action.payload.type === 'change_status' && STATUS_DOCUMENT_MAP[action.payload.target_status_code] && (
+                          <AIStatusFileUpload
+                            interventionId={interventionId}
+                            documentKind={STATUS_DOCUMENT_MAP[action.payload.target_status_code].kind}
+                            documentLabel={STATUS_DOCUMENT_MAP[action.payload.target_status_code].label}
+                          />
+                        )}
+                      </React.Fragment>
                     ))}
                   </div>
                 )}
@@ -189,7 +224,7 @@ export function AISidePanel({ state, onClose, onExecuteAction, onAction }: AISid
             transition={{ type: 'spring', damping: 25, stiffness: 300 }}
             className={cn(
               "fixed top-0 right-[65%] z-[69] h-full",
-              "w-[300px] p-4",
+              "w-[35%] p-4",
             )}
           >
             <div className="shadcn-sheet-content flex flex-col h-full overflow-hidden">

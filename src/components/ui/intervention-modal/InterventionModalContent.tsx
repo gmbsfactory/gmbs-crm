@@ -285,7 +285,7 @@ GMBS`
     onPopoverOpenChange?.(isOpen)
   }, [onPopoverOpenChange])
 
-  // AI custom events listeners (email modal + status change from AI side panel)
+  // AI custom events listeners (email modal from AI side panel)
   useEffect(() => {
     const handleOpenEmailModal = (e: Event) => {
       const detail = (e as CustomEvent).detail
@@ -293,20 +293,10 @@ GMBS`
       setIsEmailModalOpen(true)
     }
 
-    const handleChangeStatus = (e: Event) => {
-      const detail = (e as CustomEvent).detail
-      if (detail?.interventionId !== interventionId) return
-      // StatusReasonModal handling is done within InterventionEditForm
-      // This event triggers the status reason modal at the modal level
-      setIsStatusReasonModalOpen(true)
-    }
-
     window.addEventListener('ai:open-email-modal', handleOpenEmailModal)
-    window.addEventListener('ai:change-status', handleChangeStatus)
 
     return () => {
       window.removeEventListener('ai:open-email-modal', handleOpenEmailModal)
-      window.removeEventListener('ai:change-status', handleChangeStatus)
     }
   }, [interventionId])
 

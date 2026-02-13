@@ -1,10 +1,7 @@
 "use client"
 
 import { useCallback } from "react"
-import { useQueryClient } from "@tanstack/react-query"
-import { useInterventionsMutations } from "@/hooks/useInterventionsMutations"
 import { useInterventionStatuses } from "@/hooks/useInterventionStatuses"
-import { aiKeys } from "@/lib/react-query/queryKeys"
 import type { AISuggestedAction } from "@/lib/ai/types"
 
 /**
@@ -34,13 +31,7 @@ function dispatchAIEvent(eventName: string, detail: AIEventDetail) {
  * Utilise des custom events DOM pour communiquer avec les composants du modal.
  */
 export function useAIActionExecutor(interventionId: string) {
-  const queryClient = useQueryClient()
-  const { update: updateMutation } = useInterventionsMutations()
   const { getStatusByCode } = useInterventionStatuses()
-
-  const invalidateAICache = useCallback(() => {
-    queryClient.invalidateQueries({ queryKey: aiKeys.action('next_steps', interventionId) })
-  }, [queryClient, interventionId])
 
   const executeAction = useCallback(async (action: AISuggestedAction) => {
     const { payload } = action
@@ -50,22 +41,13 @@ export function useAIActionExecutor(interventionId: string) {
         const status = getStatusByCode(payload.target_status_code)
         if (!status) return
 
-        if (payload.requires_comment) {
-          // Dispatch event pour ouvrir le StatusReasonModal
-          dispatchAIEvent(AI_EVENTS.CHANGE_STATUS, {
-            interventionId,
-            statusId: status.id,
-            statusCode: payload.target_status_code,
-            statusLabel: payload.target_status_label,
-            requiresComment: true,
-          })
-        } else {
-          // Mutation directe
-          updateMutation.mutate(
-            { id: interventionId, data: { statut_id: status.id } },
-            { onSuccess: () => invalidateAICache() },
-          )
-        }
+        // Toujours router via le formulaire — il gere validation + submit
+        dispatchAIEvent(AI_EVENTS.CHANGE_STATUS, {
+          interventionId,
+          statusId: status.id,
+          statusCode: payload.target_status_code,
+          statusLabel: payload.target_status_label,
+        })
         break
       }
 
@@ -101,7 +83,7 @@ export function useAIActionExecutor(interventionId: string) {
         break
       }
     }
-  }, [interventionId, getStatusByCode, updateMutation, invalidateAICache])
+  }, [interventionId, getStatusByCode])
 
   return { executeAction }
 }
