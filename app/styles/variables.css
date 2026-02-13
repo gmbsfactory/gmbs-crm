@@ -1,0 +1,311 @@
+/* === CSS Custom Properties & Theme Variables === */
+
+@layer base {
+  :root {
+    /* Table responsive height - ajustez selon vos besoins */
+    --table-view-offset: 200px; /* Espace pour header, tabs, filtres, padding */
+    
+    /* Surface neutrals */
+    --bg-dark-hsl: 210 6% 92%;
+    --bg-hsl: 210 6% 96%;
+    --bg-light-hsl: 210 10% 99%;
+
+    --bg-dark: oklch(0.92 0.01 240);
+    --bg: oklch(0.96 0.01 240);
+    --bg-light: oklch(0.99 0.004 240);
+
+    /* Text */
+    --text-hsl: 220 15% 14%;
+    --text-muted-hsl: 220 10% 40%;
+    --text: oklch(0.18 0.03 260);
+    --text-muted: oklch(0.45 0.02 260);
+
+    /* Borders & highlights */
+    --border-hsl: 210 10% 96%;
+    --highlight-hsl: 210 12% 97%;
+    --border: oklch(0.96 0.004 240);
+    --highlight: oklch(0.97 0.004 240);
+
+    /* Accent */
+    --accent-hsl: 270 75% 36%;
+    --accent-color: oklch(0.55 0.21 300);
+    --accent-color-light: oklch(0.78 0.18 300);
+
+    /* Semantic */
+    --success: oklch(0.68 0.18 130);
+    --success-bg: oklch(0.92 0.04 130);
+    --success-hsl: 134 63% 44%;
+    --success-bg-hsl: 132 56% 90%;
+
+    --error: oklch(0.55 0.23 20);
+    --error-bg: oklch(0.92 0.06 20);
+    --error-hsl: 12 88% 54%;
+    --error-bg-hsl: 12 80% 94%;
+
+    --warning: oklch(0.72 0.20 85);
+    --warning-bg: oklch(0.94 0.05 85);
+    --warning-hsl: 40 92% 58%;
+    --warning-bg-hsl: 40 92% 92%;
+
+    --info: oklch(0.60 0.19 240);
+    --info-bg: oklch(0.91 0.04 240);
+    --info-hsl: 222 84% 56%;
+    --info-bg-hsl: 222 92% 94%;
+
+    /* Leaderboard colors */
+    --gold: 45 100% 51%;
+    --gold-glow: 45 100% 65%;
+    --silver: 0 0% 75%;
+    --silver-glow: 0 0% 85%;
+    --bronze: 25 75% 47%;
+    --bronze-glow: 25 75% 60%;
+    --cold: 200 70% 50%;
+    --cold-glow: 200 70% 65%;
+
+    /* Shadows */
+    --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.10);
+    --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.10), 0 6px 12px rgba(0, 0, 0, 0.06);
+    --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.12), 0 12px 20px rgba(0, 0, 0, 0.08);
+    --shadow-lg: 0 8px 12px rgba(0, 0, 0, 0.14), 0 24px 32px rgba(0, 0, 0, 0.10);
+    --shadow-xl: 0 12px 16px rgba(0, 0, 0, 0.16), 0 32px 48px rgba(0, 0, 0, 0.12);
+
+    --shadow-inset-top: inset 0 1px 0 var(--highlight);
+    --shadow-inset-sunken: inset 0 2px 4px rgba(0, 0, 0, 0.08);
+
+    /* Radius */
+    --radius-sm: 6px;
+    --radius-md: 10px;
+    --radius-lg: 14px;
+    --radius-xl: 20px;
+
+    /* Transitions */
+    --transition-easing: cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-fast: 150ms;
+    --transition-base: 250ms;
+    --transition-slow: 350ms;
+
+    /* Overlay */
+    --backdrop-color: rgba(0, 0, 0, 0.40);
+
+    /* Shadcn tokens */
+    --background: var(--bg-hsl);
+    --foreground: var(--text-hsl);
+    --card: var(--bg-light-hsl);
+    --card-foreground: var(--text-hsl);
+    --popover: var(--bg-light-hsl);
+    --popover-foreground: var(--text-hsl);
+    --primary: var(--accent-hsl);
+    --primary-foreground: 0 0% 100%;
+    --secondary: var(--bg-dark-hsl);
+    --secondary-foreground: var(--text-hsl);
+    --muted: var(--bg-dark-hsl);
+    --muted-foreground: var(--text-muted-hsl);
+    --accent: var(--accent-hsl);
+    --accent-foreground: 0 0% 100%;
+    --destructive: var(--error-hsl);
+    --destructive-foreground: 0 0% 100%;
+    --border: var(--border-hsl);
+    --input: var(--border-hsl);
+    --ring: var(--accent-hsl);
+    --radius: var(--radius-md);
+
+    --chart-1: 300 65% 52%;
+    --chart-2: 130 60% 48%;
+    --chart-3: 20 78% 54%;
+    --chart-4: 210 60% 46%;
+    --chart-5: 48 92% 60%;
+
+    --sidebar-background: var(--bg-dark-hsl);
+    --sidebar-foreground: var(--text-hsl);
+    --sidebar-primary: var(--bg-hsl);
+    --sidebar-primary-foreground: var(--text-hsl);
+    --sidebar-accent: var(--accent);
+    --sidebar-accent-foreground: 0 0% 100%;
+    --sidebar-border: 210 8% 84%;
+    --sidebar-ring: var(--accent-hsl);
+
+    --card-shadow: var(--shadow-sm);
+
+    color-scheme: light;
+  }
+
+  :root[data-theme="dark"] {
+    --bg-dark-hsl: 220 14% 8%;
+    --bg-hsl: 220 12% 16%;
+    --bg-light-hsl: 220 10% 24%;
+
+    --bg-dark: oklch(0.10 0.02 260);
+    --bg: oklch(0.18 0.02 260);
+    --bg-light: oklch(0.24 0.02 260);
+
+    --text-hsl: 0 0% 96%;
+    --text-muted-hsl: 220 12% 66%;
+    --text: oklch(0.96 0.01 260);
+    --text-muted: oklch(0.72 0.02 260);
+
+    --border-hsl: 220 12% 30%;
+    --highlight-hsl: 220 16% 36%;
+    --border: oklch(0.32 0.02 260);
+    --highlight: oklch(0.38 0.02 260);
+
+    --accent-hsl: 270 58% 68%;
+    --accent-color: oklch(0.74 0.20 300);
+    --accent-color-light: oklch(0.82 0.16 300);
+
+    --success: oklch(0.72 0.16 130);
+    --success-bg: oklch(0.28 0.05 130);
+    --success-hsl: 140 64% 62%;
+    --success-bg-hsl: 140 36% 26%;
+
+    --error: oklch(0.66 0.21 20);
+    --error-bg: oklch(0.28 0.07 20);
+    --error-hsl: 8 78% 64%;
+    --error-bg-hsl: 8 60% 28%;
+
+    --warning: oklch(0.76 0.18 85);
+    --warning-bg: oklch(0.32 0.06 85);
+    --warning-hsl: 42 88% 64%;
+    --warning-bg-hsl: 42 56% 30%;
+
+    --info: oklch(0.70 0.16 240);
+    --info-bg: oklch(0.26 0.06 240);
+    --info-hsl: 220 78% 70%;
+    --info-bg-hsl: 220 60% 28%;
+
+    /* Leaderboard colors in dark mode */
+    --gold: 45 100% 55%;
+    --gold-glow: 45 100% 70%;
+    --silver: 0 0% 80%;
+    --silver-glow: 0 0% 92%;
+    --bronze: 25 75% 52%;
+    --bronze-glow: 25 75% 65%;
+    --cold: 200 70% 55%;
+    --cold-glow: 200 70% 70%;
+
+    --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.18);
+    --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.22), 0 8px 14px rgba(0, 0, 0, 0.16);
+    --shadow-md: 0 6px 12px rgba(0, 0, 0, 0.26), 0 16px 28px rgba(0, 0, 0, 0.18);
+    --shadow-lg: 0 10px 18px rgba(0, 0, 0, 0.30), 0 28px 40px rgba(0, 0, 0, 0.20);
+    --shadow-xl: 0 14px 24px rgba(0, 0, 0, 0.34), 0 36px 56px rgba(0, 0, 0, 0.24);
+
+    --shadow-inset-top: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    --shadow-inset-sunken: inset 0 2px 4px rgba(0, 0, 0, 0.20);
+
+    --backdrop-color: rgba(0, 0, 0, 0.65);
+
+    --background: var(--bg-hsl);
+    --foreground: var(--text-hsl);
+    --card: var(--bg-light-hsl);
+    --card-foreground: var(--text-hsl);
+    --popover: var(--bg-light-hsl);
+    --popover-foreground: var(--text-hsl);
+    --primary: var(--accent-hsl);
+    --primary-foreground: 220 24% 12%;
+    --secondary: 220 14% 24%;
+    --secondary-foreground: var(--text-hsl);
+    --muted: 220 14% 26%;
+    --muted-foreground: var(--text-muted-hsl);
+    --accent: var(--accent-hsl);
+    --accent-foreground: 220 24% 12%;
+    --destructive: var(--error-hsl);
+    --destructive-foreground: 0 0% 98%;
+    --border: var(--border-hsl);
+    --input: var(--border-hsl);
+    --ring: var(--accent-hsl);
+    --card-shadow: var(--shadow-sm);
+
+    --sidebar-background: 220 16% 12%;
+    --sidebar-foreground: var(--text-hsl);
+    --sidebar-primary: var(--bg-hsl);
+    --sidebar-primary-foreground: var(--text-hsl);
+    --sidebar-accent: var(--accent);
+    --sidebar-accent-foreground: 220 24% 12%;
+    --sidebar-border: 220 14% 26%;
+    --sidebar-ring: var(--accent-hsl);
+
+    color-scheme: dark;
+  }
+}
+
+/* === Theme Color === */
+/* Thème Color - Variables CSS personnalisées */
+.theme-color {
+  /* Conversion des couleurs hex vers HSL */
+  --primary: 160 30% 35%; /* #3F756C - Vert sage pour les icônes */
+  --primary-foreground: 0 0% 100%;
+  --secondary: 45 55% 72%; /* #E1C789 - Beige doré pour le fond */
+  --secondary-foreground: 0 0% 0%;
+  --accent: 25 50% 50%; /* #C6743E - Orange terre pour les autres éléments */
+  --accent-foreground: 0 0% 100%;
+  --background: 45 55% 72%; /* Fond global beige doré */
+  --card: 0 0% 100%;
+  --card-foreground: 0 0% 0%;
+  --muted: 45 35% 85%;
+  --muted-foreground: 0 0% 30%;
+  --border: 45 30% 60%;
+  --input: 0 0% 100%;
+  --ring: 160 30% 35%;
+  
+  /* Variables sidebar spécifiques */
+  --sidebar-background: 160 30% 35%; /* Vert sage pour sidebar */
+  --sidebar-foreground: 0 0% 100%;
+  --sidebar-accent: 25 50% 50%; /* Orange terre pour accents */
+  --sidebar-primary: 45 55% 72%; /* Beige doré */
+  --sidebar-border: 160 25% 30%;
+  --sidebar-ring: 25 50% 50%;
+}
+
+/* Thème Color en mode sombre */
+.dark .theme-color {
+  --background: 160 30% 8%; /* Fond vert sage très foncé pour plus de contraste */
+  --foreground: 0 0% 98%;
+  --card: 160 30% 12%; /* Cards plus contrastées */
+  --card-foreground: 0 0% 98%;
+  --muted: 160 20% 18%;
+  --muted-foreground: 0 0% 75%; /* Texte muted plus lisible */
+  --border: 160 20% 25%; /* Bordures plus visibles */
+  --input: 160 25% 15%;
+  --sidebar-background: 160 35% 6%; /* Sidebar encore plus foncée */
+  --sidebar-foreground: 0 0% 98%;
+  --sidebar-border: 160 25% 20%;
+}
+
+/* Thème Glass - Variables pour effet glassmorphism (mode clair) */
+.theme-glass {
+  /* En mode clair, on garde les couleurs de base mais avec transparence */
+  --card: 0 0% 100% / 0.7; /* Cards avec transparence */
+  --popover: 0 0% 100% / 0.9;
+  --secondary: 0 0% 100% / 0.8;
+  --muted: 0 0% 96% / 0.8;
+  --accent: 0 0% 96% / 0.8;
+  --border: 0 0% 89% / 0.6;
+  --input: 0 0% 100% / 0.8;
+  --sidebar-background: 0 0% 100% / 0.8;
+  --sidebar-accent: 0 0% 96% / 0.8;
+  --sidebar-border: 0 0% 89% / 0.6;
+}
+
+/* Thème Glass en mode sombre */
+.dark .theme-glass {
+  --card: 0 0% 8% / 0.6; /* Cards plus contrastées avec transparence */
+  --card-foreground: 0 0% 98%;
+  --popover: 0 0% 6% / 0.9;
+  --popover-foreground: 0 0% 98%;
+  --secondary: 0 0% 12% / 0.7;
+  --secondary-foreground: 0 0% 98%;
+  --muted: 0 0% 12% / 0.7;
+  --muted-foreground: 0 0% 75%; /* Plus lisible */
+  --accent: 0 0% 12% / 0.7;
+  --accent-foreground: 0 0% 98%;
+  --border: 0 0% 30% / 0.5; /* Bordures plus visibles mais transparentes */
+  --input: 0 0% 10% / 0.8;
+  --sidebar-background: 0 0% 6% / 0.7; /* Sidebar plus contrastée */
+  --sidebar-foreground: 0 0% 98%;
+  --sidebar-accent: 0 0% 12% / 0.7;
+  --sidebar-border: 0 0% 30% / 0.5;
+}
+
+/* Thème Formal - Variables par défaut (déjà définies) */
+.theme-formal {
+  /* Utilise les variables CSS par défaut déjà définies dans :root */
+}

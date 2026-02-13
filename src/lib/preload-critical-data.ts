@@ -221,19 +221,16 @@ async function createMappers() {
 export async function preloadCriticalData(queryClient: QueryClient) {
   // Vérifier si le préchargement a déjà été fait
   if (getHasPreloaded()) {
-    console.log("[preloadCriticalData] ⏭️ Préchargement déjà effectué, skip")
     return
   }
   
   // Vérifier l'authentification avant de commencer
   const { data: auth } = await supabase.auth.getSession()
   if (!auth?.session?.user) {
-    console.log("[preloadCriticalData] ⏭️ Utilisateur non authentifié, skip")
     return
   }
   
   try {
-    console.log("[preloadCriticalData] 🚀 Démarrage du préchargement des données critiques")
     setHasPreloaded(true)
 
     // 1. Précharger currentUser (déjà invalidé, mais on peut le précharger explicitement)
@@ -287,7 +284,6 @@ export async function preloadCriticalData(queryClient: QueryClient) {
 
     // 5. Préchargement progressif des vues par défaut
     // Stratégie : Précharger la vue principale immédiatement, les autres en arrière-plan
-    console.log(`[preloadCriticalData] 📋 Préchargement progressif de ${defaultViews.length} vues par défaut`)
     
     // Identifier la vue principale (liste-generale ou mes-demandes en priorité)
     const primaryViewId = currentUserId ? "mes-demandes" : "liste-generale"
@@ -320,7 +316,6 @@ export async function preloadCriticalData(queryClient: QueryClient) {
           staleTime: 30 * 1000,
         })
 
-        console.log(`[preloadCriticalData] ✅ Vue principale "${primaryView.title}" préchargée immédiatement`)
       } catch (err) {
         console.warn(`[preloadCriticalData] ⚠️ Erreur lors du préchargement vue principale "${primaryView.title}":`, err)
       }
@@ -355,12 +350,10 @@ export async function preloadCriticalData(queryClient: QueryClient) {
     scheduleBackgroundPreload()
 
     // 6. Précharger les vues par défaut des artisans
-    console.log("[preloadCriticalData] 🎨 Préchargement des vues artisans")
     await preloadArtisanViews(queryClient, currentUserId)
 
     // 7. Précharger les statistiques du dashboard pour l'utilisateur courant et le mois en cours
     if (currentUserId) {
-      console.log("[preloadCriticalData] 📊 Préchargement des statistiques du dashboard")
       try {
         // Calculer la période par défaut (mois en cours)
         const now = new Date()
@@ -428,13 +421,11 @@ export async function preloadCriticalData(queryClient: QueryClient) {
           staleTime: 30 * 1000, // 30 secondes
         })
 
-        console.log("[preloadCriticalData] ✅ Statistiques du dashboard préchargées")
       } catch (err) {
         console.warn("[preloadCriticalData] ⚠️ Erreur lors du préchargement des stats dashboard:", err)
       }
     }
 
-    console.log("[preloadCriticalData] ✅ Données critiques préchargées")
   } catch (error) {
     // En cas d'erreur, réinitialiser le flag pour permettre un nouveau préchargement
     setHasPreloaded(false)
@@ -497,7 +488,6 @@ async function preloadArtisanViews(queryClient: QueryClient, currentUserId?: str
   try {
     const defaultViews = await getDefaultArtisanViewsToPreload(currentUserId)
     
-    console.log(`[preloadArtisanViews] 📋 Préchargement de ${defaultViews.length} vues par défaut`)
     
     for (const view of defaultViews) {
       try {
@@ -525,7 +515,6 @@ async function preloadArtisanViews(queryClient: QueryClient, currentUserId?: str
           staleTime: 30 * 1000, // 30 secondes
         })
 
-        console.log(`[preloadArtisanViews] ✅ Vue "${view.title}" préchargée`)
       } catch (err) {
         console.warn(`[preloadArtisanViews] ⚠️ Erreur lors du préchargement vue "${view.title}":`, err)
       }
@@ -549,8 +538,6 @@ async function preloadRemainingViews(
   }
 ) {
   if (views.length === 0) return
-
-  console.log(`[preloadCriticalData] 📋 Préchargement en arrière-plan de ${views.length} vues restantes`)
 
   const batchSize = 2 // Limiter à 2 requêtes parallèles
   const batchDelay = 300 // Délai entre les batches
@@ -581,7 +568,6 @@ async function preloadRemainingViews(
             staleTime: 30 * 1000,
           })
 
-          console.log(`[preloadCriticalData] ✅ Vue "${view.title}" préchargée en arrière-plan`)
         } catch (err) {
           console.warn(`[preloadCriticalData] ⚠️ Erreur lors du préchargement vue "${view.title}":`, err)
         }
@@ -594,7 +580,6 @@ async function preloadRemainingViews(
     }
   }
 
-  console.log(`[preloadCriticalData] ✅ Toutes les vues restantes ont été préchargées`)
 }
 
 /**

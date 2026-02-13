@@ -13,12 +13,7 @@
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-  'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-};
+import { getCorsHeaders } from '../_shared/cors.ts';
 
 // Types pour la validation
 interface CreateArtisanRequest {
@@ -285,12 +280,14 @@ async function geocodeArtisan(artisan: {
 }
 
 serve(async (req: Request) => {
+  const corsHeaders = getCorsHeaders(req);
+
   // Handle CORS preflight requests FIRST, before any other code
   // This MUST be the very first statement to ensure OPTIONS always returns 200
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { 
-      status: 200, 
-      headers: corsHeaders 
+    return new Response('ok', {
+      status: 200,
+      headers: corsHeaders
     });
   }
 

@@ -13,14 +13,7 @@
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient, type SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2';
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-requested-with',
-  'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
-  'Access-Control-Max-Age': '86400',
-  'Cache-Control': 'no-store, no-cache, must-revalidate',
-};
+import { getCorsHeaders } from '../_shared/cors.ts';
 
 // Types pour la validation
 interface CreateInterventionRequest {
@@ -1212,6 +1205,12 @@ async function handleInterventionCompletionSideEffects(
 }
 
 serve(async (req: Request) => {
+  const corsHeaders = {
+    ...getCorsHeaders(req),
+    'Access-Control-Max-Age': '86400',
+    'Cache-Control': 'no-store, no-cache, must-revalidate',
+  };
+
   // Handle CORS preflight requests FIRST, before any other code
   // This MUST be the very first statement to ensure OPTIONS always returns 200
   if (req.method === 'OPTIONS') {

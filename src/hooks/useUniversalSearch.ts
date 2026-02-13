@@ -135,13 +135,11 @@ export function useUniversalSearch(): UseUniversalSearchReturn {
 
   const loadMore = React.useCallback(async (type: "artisan" | "intervention") => {
     if (isLoadingMore) {
-      console.log("[useUniversalSearch] loadMore: déjà en cours de chargement")
       return
     }
 
     const currentResults = resultsRef.current
     if (!currentResults) {
-      console.log("[useUniversalSearch] loadMore: aucun résultat actuel")
       return
     }
     
@@ -150,7 +148,6 @@ export function useUniversalSearch(): UseUniversalSearchReturn {
       : currentResults.interventions.items
     
     if (currentItems.length === 0) {
-      console.log("[useUniversalSearch] loadMore: aucun élément à charger")
       return
     }
 
@@ -159,7 +156,6 @@ export function useUniversalSearch(): UseUniversalSearchReturn {
       : currentResults.interventions.hasMore
 
     if (!hasMoreForType) {
-      console.log("[useUniversalSearch] loadMore: plus de résultats disponibles pour", type)
       return
     }
 
@@ -172,7 +168,6 @@ export function useUniversalSearch(): UseUniversalSearchReturn {
     
     try {
       const response = await universalSearch(query.trim(), options)
-      console.log(`[useUniversalSearch] loadMore: ${type} - ${response.artisans.items.length} artisans, ${response.interventions.items.length} interventions`)
       resultsRef.current = response
       setResults(response)
     } catch (err) {

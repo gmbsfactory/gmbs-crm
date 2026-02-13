@@ -24,7 +24,7 @@ function applyCompleteTheme(themeFromStore?: string, classEffectFromStore?: bool
         console.warn('Données corrompues dans gmbs:settings, nettoyage...', e)
         try {
           localStorage.removeItem('gmbs:settings')
-        } catch (_) {}
+        } catch (_) { /* Silenced: localStorage.removeItem is non-critical cleanup */ }
         settings = {}
       }
     }
@@ -145,7 +145,7 @@ function applyCompleteTheme(themeFromStore?: string, classEffectFromStore?: bool
       root.style.setProperty('--primary', tone.p || tone.h)
       root.style.setProperty('--primary-foreground', tone.pf || tone.af || '0 0% 100%')
     }
-  } catch (_) {}
+  } catch (_) { /* Silenced: SSR or DOM not ready for theme application */ }
 }
 
 export function SettingsProvider({ children }: { children: React.ReactNode }) {
@@ -157,7 +157,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
   React.useEffect(() => {
     try {
       hydrate()
-    } catch {}
+    } catch { /* Silenced: hydration may fail in SSR */ }
   }, [hydrate])
 
   // Persist on change
@@ -171,7 +171,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
           statusMock: state.statusMock,
         }
         localStorage.setItem("gmbs:settings", JSON.stringify(persist))
-      } catch {}
+      } catch { /* Silenced: localStorage may be full or unavailable */ }
     })
     return () => unsub()
   }, [])

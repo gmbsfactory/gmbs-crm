@@ -49,10 +49,31 @@ const formatDateTime = (value: string | null | undefined) => {
     return "—"
   }
   try {
-    return new Intl.DateTimeFormat("fr-FR", {
-      dateStyle: "medium",
-      timeStyle: "short",
+    const now = new Date()
+    const isCurrentYear = date.getFullYear() === now.getFullYear()
+
+    if (isCurrentYear) {
+      // Année en cours : "11 févr. 14:30" (pas d'année)
+      return new Intl.DateTimeFormat("fr-FR", {
+        day: "numeric",
+        month: "short",
+        hour: "2-digit",
+        minute: "2-digit",
+      }).format(date)
+    }
+
+    // Années précédentes : "11 févr. 25 14:30" (année courte sur 2 chiffres)
+    const dayMonth = new Intl.DateTimeFormat("fr-FR", {
+      day: "numeric",
+      month: "short",
     }).format(date)
+    const yearShort = String(date.getFullYear()).slice(-2)
+    const time = new Intl.DateTimeFormat("fr-FR", {
+      hour: "2-digit",
+      minute: "2-digit",
+    }).format(date)
+
+    return `${dayMonth} ${yearShort} ${time}`
   } catch {
     return value
   }
@@ -505,15 +526,6 @@ export function CommentSection({
             const authorDetails = comment.users as CommentAuthorDetails | undefined
             // DEBUG: Log pour diagnostiquer le problème d'avatar_url
             if (process.env.NODE_ENV === 'development' || typeof window !== 'undefined') {
-              console.log('[CommentSection] Comment author:', {
-                commentId: comment.id,
-                authorId: comment.author_id,
-                hasUsers: !!authorDetails,
-                firstname: authorDetails?.firstname,
-                lastname: authorDetails?.lastname,
-                avatar_url: authorDetails?.avatar_url,
-                color: authorDetails?.color,
-              })
             }
             const authorName =
               authorDetails &&
@@ -689,14 +701,35 @@ export function CommentSection({
                           isCurrentUserComment ? "items-end text-right" : "items-start text-left"
                         )}
                       >
-                        <div
-                          className={cn(
-                            "flex w-full min-w-0",
-                            isCurrentUserComment ? "justify-end" : "justify-start"
+                        {/* Ligne date + bulle : date toujours à l'opposé de la bulle, centrée verticalement */}
+                        <div className="flex w-full min-w-0 items-center gap-2 flex-row">
+                          {isCurrentUserComment ? (
+                            <>
+                              <time
+                                dateTime={comment.created_at ?? undefined}
+                                className="flex-shrink-0 whitespace-nowrap text-xs italic text-muted-foreground"
+                              >
+                                {formattedDate}
+                              </time>
+                              <div className="flex min-w-0 flex-1 justify-end">
+                                {renderedBubble}
+                              </div>
+                            </>
+                          ) : (
+                            <>
+                              <div className="flex min-w-0 flex-1 justify-start">
+                                {renderedBubble}
+                              </div>
+                              <time
+                                dateTime={comment.created_at ?? undefined}
+                                className="flex-shrink-0 whitespace-nowrap text-xs italic text-muted-foreground"
+                              >
+                                {formattedDate}
+                              </time>
+                            </>
                           )}
-                        >
-                          {renderedBubble}
                         </div>
+                        {/* Badge reason reste en dessous */}
                         {reasonBadge ? (
                           <Badge
                             variant="outline"
@@ -708,12 +741,6 @@ export function CommentSection({
                             {reasonBadge.label}
                           </Badge>
                         ) : null}
-                        <time
-                          dateTime={comment.created_at ?? undefined}
-                          className="flex-shrink-0 whitespace-nowrap text-xs italic text-muted-foreground"
-                        >
-                          {formattedDate}
-                        </time>
                       </div>
                     )}
                   </div>

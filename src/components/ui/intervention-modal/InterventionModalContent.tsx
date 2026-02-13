@@ -358,7 +358,6 @@ GMBS`
     onClose()
   }, [hasUnsavedChanges, isSubmitting, onClose])
 
-
   // Intercepter la touche Échap pour appliquer la même logique que handleCancel
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -442,7 +441,6 @@ GMBS`
       } else {
         // Tab : navigation avant
         if (activeElement === lastElement) {
-          console.log("  ✅ TRAP: Dernier élément -> Premier")
           event.preventDefault()
           firstElement.focus()
         }
@@ -464,51 +462,47 @@ GMBS`
         shouldCloseAfterSaveRef.current = false
       }
 
-      // 1. Mise à jour optimiste immédiate dans React Query pour le détail
-      queryClient.setQueryData(interventionKeys.detail(interventionId), data)
-
-      // 2. Mise à jour optimiste dans toutes les listes qui contiennent cette intervention
-      // Cibler explicitement les listes complètes et light (évite d'invalider les détails/summaries)
-      const updateListCache = (oldData: any) => {
-        if (!oldData?.data || !Array.isArray(oldData.data)) {
-          return oldData
-        }
-        const updatedData = oldData.data.map((intervention: any) =>
-          intervention.id === interventionId ? { ...intervention, ...data } : intervention
-        )
-        return { ...oldData, data: updatedData }
-      }
-      queryClient.setQueriesData({ queryKey: interventionKeys.lists() }, updateListCache)
-      queryClient.setQueriesData({ queryKey: interventionKeys.lightLists() }, updateListCache)
-
-      // 3. Invalider IMMÉDIATEMENT les queries actives pour forcer le refetch et le re-render (sans toucher aux inactives)
-      // Utiliser refetchType: 'active' pour ne refetch que les queries actuellement montées
-      // Cela garantit que l'UI se met à jour instantanément sans attendre waitForExit()
-      queryClient.invalidateQueries({
-        queryKey: interventionKeys.detail(interventionId),
-        refetchType: 'active' // Forcer le refetch immédiat des queries actives
-      })
-      queryClient.invalidateQueries({
-        queryKey: interventionKeys.invalidateLists(),
-        refetchType: 'active' // Forcer le refetch immédiat des queries actives
-      })
-      queryClient.invalidateQueries({
-        queryKey: interventionKeys.invalidateLightLists(),
-        refetchType: 'active' // Forcer le refetch immédiat des queries actives
-      })
-
-      console.log("✅ Intervention mise à jour avec succès", data)
-
-      // 4. Fermer le modal pour démarrer l'animation
-      // L'invalidation a déjà été faite ci-dessus, donc l'UI se mettra à jour immédiatement
+      // Fermer le modal immédiatement (nouveau flow: fermeture avant appel API)
       onClose()
 
-      // 5. Attendre la fin de l'animation et invalider à nouveau en arrière-plan pour garantir la cohérence
-      // Cette invalidation supplémentaire cible uniquement les queries inactives pour limiter les double-refetch
-      await waitForExit()
-      queryClient.invalidateQueries({ queryKey: interventionKeys.detail(interventionId), refetchType: 'inactive' })
-      queryClient.invalidateQueries({ queryKey: interventionKeys.invalidateLists(), refetchType: 'inactive' })
-      queryClient.invalidateQueries({ queryKey: interventionKeys.invalidateLightLists(), refetchType: 'inactive' })
+      // Mise à jour du cache seulement si on a des données réelles
+      if (data && typeof data === 'object' && 'id' in data) {
+        // 1. Mise à jour optimiste immédiate dans React Query pour le détail
+        queryClient.setQueryData(interventionKeys.detail(interventionId), data)
+
+        // 2. Mise à jour optimiste dans toutes les listes qui contiennent cette intervention
+        const updateListCache = (oldData: any) => {
+          if (!oldData?.data || !Array.isArray(oldData.data)) {
+            return oldData
+          }
+          const updatedData = oldData.data.map((intervention: any) =>
+            intervention.id === interventionId ? { ...intervention, ...data } : intervention
+          )
+          return { ...oldData, data: updatedData }
+        }
+        queryClient.setQueriesData({ queryKey: interventionKeys.lists() }, updateListCache)
+        queryClient.setQueriesData({ queryKey: interventionKeys.lightLists() }, updateListCache)
+
+        // 3. Invalider les queries actives pour forcer le refetch
+        queryClient.invalidateQueries({
+          queryKey: interventionKeys.detail(interventionId),
+          refetchType: 'active'
+        })
+        queryClient.invalidateQueries({
+          queryKey: interventionKeys.invalidateLists(),
+          refetchType: 'active'
+        })
+        queryClient.invalidateQueries({
+          queryKey: interventionKeys.invalidateLightLists(),
+          refetchType: 'active'
+        })
+
+        // 4. Attendre la fin de l'animation et invalider les queries inactives
+        await waitForExit()
+        queryClient.invalidateQueries({ queryKey: interventionKeys.detail(interventionId), refetchType: 'inactive' })
+        queryClient.invalidateQueries({ queryKey: interventionKeys.invalidateLists(), refetchType: 'inactive' })
+        queryClient.invalidateQueries({ queryKey: interventionKeys.invalidateLightLists(), refetchType: 'inactive' })
+      }
     },
     [queryClient, interventionId, onClose, waitForExit],
   )

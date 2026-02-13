@@ -52,9 +52,6 @@ export function InterventionStatsPieChart({ period }: InterventionStatsPieChartP
   // Log les statuts chargés depuis la DB pour déboguer
   useEffect(() => {
     if (dbStatuses.length > 0 && process.env.NODE_ENV === 'development') {
-      console.log(`[Dashboard Colors] Statuts chargés depuis la DB (${dbStatuses.length}):`,
-        dbStatuses.map(s => ({ code: s.code, label: s.label, color: s.color }))
-      )
     }
   }, [dbStatuses])
 
@@ -135,7 +132,6 @@ export function InterventionStatsPieChart({ period }: InterventionStatsPieChartP
     // Cas spécial pour "Check" qui n'est pas dans INTERVENTION_STATUS
     if (statusLabel === "Check") {
       if (process.env.NODE_ENV === 'development') {
-        console.log(`[Dashboard Colors] "Check" → #EF4444 (statut spécial)`)
       }
       return "#EF4444"
     }
@@ -144,7 +140,6 @@ export function InterventionStatsPieChart({ period }: InterventionStatsPieChartP
     const dbStatusByLabel = statusesByLabel.get(statusLabel.toLowerCase())
     if (dbStatusByLabel?.color) {
       if (process.env.NODE_ENV === 'development') {
-        console.log(`[Dashboard Colors] "${statusLabel}" → DB (${dbStatusByLabel.code}) → ${dbStatusByLabel.color}`)
       }
       return dbStatusByLabel.color
     }
@@ -167,7 +162,6 @@ export function InterventionStatsPieChart({ period }: InterventionStatsPieChartP
       const dbStatusByCode = statusesByCode.get(mappedCode)
       if (dbStatusByCode?.color) {
         if (process.env.NODE_ENV === 'development') {
-          console.log(`[Dashboard Colors] "${statusLabel}" → DB (${mappedCode}) → ${dbStatusByCode.color}`)
         }
         return dbStatusByCode.color
       }

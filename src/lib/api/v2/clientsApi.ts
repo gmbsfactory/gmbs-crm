@@ -9,6 +9,7 @@ import type {
     UpdateClientData,
 } from "./common/types";
 import { SUPABASE_FUNCTIONS_URL, getHeaders, handleResponse } from "./common/utils";
+import { safeErrorMessage } from "@/lib/api/v2/common/error-handler";
 
 export const clientsApi = {
   // Récupérer tous les clients
@@ -82,9 +83,9 @@ export const clientsApi = {
         const result = await this.create(client);
         results.success++;
         results.details.push({ item: client, success: true, data: result });
-      } catch (error: any) {
+      } catch (error: unknown) {
         results.errors++;
-        results.details.push({ item: client, success: false, error: error.message });
+        results.details.push({ item: client, success: false, error: safeErrorMessage(error, "l'insertion du client") });
       }
     }
 

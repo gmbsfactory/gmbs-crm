@@ -148,32 +148,31 @@ export function NewInterventionModalContent({
   }, [hasUnsavedChanges, isSubmitting, duplicateFromId, modal, onClose])
 
   const handleSuccess = useCallback(
-    async (data: { id: string }) => {
-      if (!data?.id) return
-
+    async (data: { id: string } | null) => {
       // Si on devait fermer après sauvegarde, s'assurer que le dialog est fermé
       if (shouldCloseAfterSaveRef.current) {
         setShowUnsavedDialog(false)
         shouldCloseAfterSaveRef.current = false
       }
 
-      // 1. Invalider les queries actives immédiatement (non-bloquant, le refetch démarre en arrière-plan)
-      queryClient.invalidateQueries({
-        queryKey: interventionKeys.invalidateLists(),
-        refetchType: 'active',
-      })
-      queryClient.invalidateQueries({
-        queryKey: interventionKeys.invalidateLightLists(),
-        refetchType: 'active',
-      })
-
-      // 2. Fermer le modal immédiatement pour démarrer l'animation
+      // Fermer le modal immédiatement (nouveau flow: fermeture avant appel API)
       onClose()
 
-      // 3. Attendre la fin de l'animation puis invalider les queries inactives
-      await waitForExit()
-      queryClient.invalidateQueries({ queryKey: interventionKeys.invalidateLists(), refetchType: 'inactive' })
-      queryClient.invalidateQueries({ queryKey: interventionKeys.invalidateLightLists(), refetchType: 'inactive' })
+      // Invalider le cache seulement si on a des données réelles
+      if (data?.id) {
+        queryClient.invalidateQueries({
+          queryKey: interventionKeys.invalidateLists(),
+          refetchType: 'active',
+        })
+        queryClient.invalidateQueries({
+          queryKey: interventionKeys.invalidateLightLists(),
+          refetchType: 'active',
+        })
+
+        await waitForExit()
+        queryClient.invalidateQueries({ queryKey: interventionKeys.invalidateLists(), refetchType: 'inactive' })
+        queryClient.invalidateQueries({ queryKey: interventionKeys.invalidateLightLists(), refetchType: 'inactive' })
+      }
     },
     [queryClient, onClose, waitForExit],
   )

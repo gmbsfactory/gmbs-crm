@@ -25,8 +25,10 @@ import { formatMarginPercentage, getMarginColorClass } from "@/lib/utils/margin-
 import { ArtisanSearchModal } from "@/components/artisans/ArtisanSearchModal"
 import { Avatar } from "@/components/artisans/Avatar"
 import { toast } from "sonner"
+import { extractErrorMessage } from "@/lib/toast-helpers"
 import { findOrCreateOwner, findOrCreateTenant } from "@/lib/interventions/owner-tenant-helpers"
 import { runPostMutationTasks } from "@/lib/interventions/post-mutation-tasks"
+import { useInterventionModal } from "@/hooks/useInterventionModal"
 import { EmailEditModal } from "@/components/interventions/EmailEditModal"
 import { DuplicateInterventionDialog } from "@/components/interventions/DuplicateInterventionDialog"
 import { SearchableBadgeSelect } from "@/components/ui/searchable-badge-select"
@@ -96,6 +98,7 @@ export function NewInterventionForm({
   onPopoverOpenChange
 }: NewInterventionFormProps) {
   const queryClient = useQueryClient()
+  const { open: openInterventionModal } = useInterventionModal()
 
   // Use the shared form state hook
   const {
@@ -436,53 +439,72 @@ export function NewInterventionForm({
       // Réinitialiser le flag après vérification
       skipDuplicateCheckRef.current = false
 
-      console.log(`[NewInterventionForm] 📝 Création de l'intervention via interventionsApi`)
-      const created = await interventionsApi.create(createData)
-      setCreatedInterventionId(created.id)
+      // === NOUVEAU FLOW: Fermer le modal AVANT l'appel API ===
+      onSuccess?.(null)
+      setIsSubmitting(false)
+      onSubmittingChange?.(false)
 
-      // Fermer le modal immédiatement — les tâches secondaires s'exécutent en arrière-plan
-      toast.success("Intervention créée")
-      onSuccess?.(created)
+      const toastId = toast.loading("Création de l'intervention en cours...")
 
-      // Préparer les coûts (uniquement ceux avec montant > 0 pour la création)
-      const coutSSTValue = parseFloat(formData.coutSST) || 0
-      const coutMaterielValue = parseFloat(formData.coutMateriel) || 0
-      const coutInterventionValue = parseFloat(formData.coutIntervention) || 0
-      const coutSST2Value = parseFloat(formData.coutSSTSecondArtisan) || 0
-      const coutMateriel2Value = parseFloat(formData.coutMaterielSecondArtisan) || 0
+      try {
+        const created = await interventionsApi.create(createData)
+        setCreatedInterventionId(created.id)
 
-      const costs: Array<{ cost_type: 'sst' | 'materiel' | 'intervention' | 'marge'; amount: number; artisan_order?: 1 | 2 | null; label?: string | null }> = []
+        toast.success("Intervention créée avec succès", {
+          id: toastId,
+          action: {
+            label: "Voir",
+            onClick: () => openInterventionModal(created.id),
+          },
+        })
 
-      if (coutSSTValue > 0) costs.push({ cost_type: "sst", label: "Coût SST", amount: coutSSTValue, artisan_order: 1 })
-      if (coutMaterielValue > 0) costs.push({ cost_type: "materiel", label: "Coût Matériel", amount: coutMaterielValue, artisan_order: 1 })
-      if (coutInterventionValue > 0) costs.push({ cost_type: "intervention", label: "Coût Intervention", amount: coutInterventionValue, artisan_order: null })
-      if (selectedSecondArtisanId && coutSST2Value > 0) costs.push({ cost_type: "sst", label: "Coût SST 2ème artisan", amount: coutSST2Value, artisan_order: 2 })
-      if (selectedSecondArtisanId && coutMateriel2Value > 0) costs.push({ cost_type: "materiel", label: "Coût Matériel 2ème artisan", amount: coutMateriel2Value, artisan_order: 2 })
+        // Préparer les coûts (uniquement ceux avec montant > 0 pour la création)
+        const coutSSTValue = parseFloat(formData.coutSST) || 0
+        const coutMaterielValue = parseFloat(formData.coutMateriel) || 0
+        const coutInterventionValue = parseFloat(formData.coutIntervention) || 0
+        const coutSST2Value = parseFloat(formData.coutSSTSecondArtisan) || 0
+        const coutMateriel2Value = parseFloat(formData.coutMaterielSecondArtisan) || 0
 
-      // Préparer le commentaire initial
-      const trimmedInitialComment = formData.commentaire_initial.trim()
+        const costs: Array<{ cost_type: 'sst' | 'materiel' | 'intervention' | 'marge'; amount: number; artisan_order?: 1 | 2 | null; label?: string | null }> = []
 
-      // Lancer toutes les tâches secondaires en arrière-plan (fire-and-forget)
-      runPostMutationTasks({
-        interventionId: created.id,
-        artisans: {
-          primary: { current: null, next: selectedArtisanId },
-          secondary: { current: null, next: selectedSecondArtisanId },
-        },
-        costs: costs.length > 0 ? costs : undefined,
-        comment: trimmedInitialComment.length > 0 ? {
-          entity_type: "intervention",
-          content: trimmedInitialComment,
-          comment_type: "internal",
-          is_internal: true,
-          author_id: currentUser?.id,
-        } : undefined,
-      })
+        if (coutSSTValue > 0) costs.push({ cost_type: "sst", label: "Coût SST", amount: coutSSTValue, artisan_order: 1 })
+        if (coutMaterielValue > 0) costs.push({ cost_type: "materiel", label: "Coût Matériel", amount: coutMaterielValue, artisan_order: 1 })
+        if (coutInterventionValue > 0) costs.push({ cost_type: "intervention", label: "Coût Intervention", amount: coutInterventionValue, artisan_order: null })
+        if (selectedSecondArtisanId && coutSST2Value > 0) costs.push({ cost_type: "sst", label: "Coût SST 2ème artisan", amount: coutSST2Value, artisan_order: 2 })
+        if (selectedSecondArtisanId && coutMateriel2Value > 0) costs.push({ cost_type: "materiel", label: "Coût Matériel 2ème artisan", amount: coutMateriel2Value, artisan_order: 2 })
+
+        // Préparer le commentaire initial
+        const trimmedInitialComment = formData.commentaire_initial.trim()
+
+        // Lancer toutes les tâches secondaires en arrière-plan (fire-and-forget)
+        runPostMutationTasks({
+          interventionId: created.id,
+          artisans: {
+            primary: { current: null, next: selectedArtisanId },
+            secondary: { current: null, next: selectedSecondArtisanId },
+          },
+          costs: costs.length > 0 ? costs : undefined,
+          comment: trimmedInitialComment.length > 0 ? {
+            entity_type: "intervention",
+            content: trimmedInitialComment,
+            comment_type: "internal",
+            is_internal: true,
+            author_id: currentUser?.id,
+          } : undefined,
+        })
+      } catch (apiError) {
+        console.error("Erreur lors de la création:", apiError)
+        const description = extractErrorMessage(apiError)
+        toast.error("Erreur lors de la création de l'intervention", {
+          id: toastId,
+          duration: Infinity,
+          description,
+        })
+      }
 
     } catch (error) {
-      console.error("Erreur lors de la création:", error)
+      console.error("Erreur lors de la préparation:", error)
       toast.error("Erreur lors de la création de l'intervention")
-    } finally {
       setIsSubmitting(false)
       onSubmittingChange?.(false)
     }

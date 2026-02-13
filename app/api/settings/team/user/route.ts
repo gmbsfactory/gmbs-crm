@@ -69,7 +69,7 @@ export async function POST(req: Request) {
       .maybeSingle()
     if (existing.error) {
       console.error('[create-user] Error checking existing user:', existing.error.message)
-      return NextResponse.json({ error: existing.error.message }, { status: 500 })
+      return NextResponse.json({ error: 'Une erreur interne est survenue' }, { status: 500 })
     }
     
     // If user exists and is archived, return special response for restoration prompt
@@ -102,12 +102,10 @@ export async function POST(req: Request) {
 
     // Check if Auth Admin API is available
     const authAdminAvailable = hasAuthAdmin()
-    console.log('[create-user] Auth Admin available:', authAdminAvailable)
 
     if (authAdminAvailable) {
       // ===== WITH AUTH: Create user in auth.users first =====
       try {
-        console.log('[create-user] Creating auth user for:', email)
         
         const { data: authUser, error: authError } = await supabaseAdmin.auth.admin.createUser({
           email,
@@ -122,12 +120,10 @@ export async function POST(req: Request) {
         if (authError) {
           console.error('[create-user] Auth user creation failed:', authError.message, authError)
           // Fallback: create only in public.users
-          console.log('[create-user] Falling back to public.users only')
         } else if (!authUser?.user) {
           console.error('[create-user] Auth user creation returned no user')
         } else {
           userId = authUser.user.id
-          console.log('[create-user] Auth user created with ID:', userId)
 
           // Generate password recovery link
           // Use request host header for accurate URL (works for all environments including preview)
@@ -150,7 +146,6 @@ export async function POST(req: Request) {
               // Continue without invite link - user can use "forgot password" later
             } else {
               inviteLink = linkData?.properties?.action_link || ''
-              console.log('[create-user] Invite link generated:', inviteLink ? 'yes' : 'no')
             }
           } catch (linkGenError: any) {
             console.error('[create-user] Link generation exception:', linkGenError?.message)
@@ -166,7 +161,6 @@ export async function POST(req: Request) {
     // @ts-ignore - userId may be undefined
     if (!userId) {
       userId = crypto.randomUUID()
-      console.log('[create-user] Generated new UUID for public.users only:', userId)
     }
 
     // ===== Create profile in public.users =====
@@ -182,7 +176,6 @@ export async function POST(req: Request) {
     }
     if (color) insertPayload.color = color
 
-    console.log('[create-user] Inserting into public.users...')
     const ins = await supabaseAdmin
       .from('users')
       .insert(insertPayload)
@@ -195,15 +188,12 @@ export async function POST(req: Request) {
       if (authAdminAvailable && inviteLink) {
         try {
           await supabaseAdmin.auth.admin.deleteUser(userId)
-          console.log('[create-user] Rolled back auth user')
         } catch (rollbackError: any) {
           console.error('[create-user] Rollback failed:', rollbackError?.message)
         }
       }
-      return NextResponse.json({ error: ins.error.message }, { status: 500 })
+      return NextResponse.json({ error: 'Une erreur interne est survenue' }, { status: 500 })
     }
-
-    console.log('[create-user] User created in public.users')
 
     // ===== Assign role =====
     try {
@@ -243,11 +233,10 @@ export async function POST(req: Request) {
       response.inviteLink = inviteLink
     }
 
-    console.log('[create-user] Success, returning response')
     return NextResponse.json(response)
   } catch (e: any) {
     console.error('[create-user] Unexpected error:', e?.message, e?.stack)
-    return NextResponse.json({ error: e?.message || 'Unexpected error' }, { status: 500 })
+    return NextResponse.json({ error: 'Une erreur interne est survenue' }, { status: 500 })
   }
 }
 
@@ -279,7 +268,10 @@ export async function PATCH(req: Request) {
     if (Object.keys(payload).length === 0) return NextResponse.json({ ok: true })
 
     const { error } = await supabaseAdmin.from('users').update(payload).eq('id', userId)
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    if (error) {
+      console.error('[update-user] PATCH error:', error.message)
+      return NextResponse.json({ error: 'Une erreur interne est survenue' }, { status: 500 })
+    }
     return NextResponse.json({ ok: true })
   } catch (e: any) {
     return NextResponse.json({ error: e?.message || 'Bad payload' }, { status: 400 })
@@ -304,7 +296,10 @@ export async function DELETE(req: Request) {
       .eq('id', userId)
       .maybeSingle()
 
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    if (error) {
+      console.error('[delete-user] SELECT error:', error.message)
+      return NextResponse.json({ error: 'Une erreur interne est survenue' }, { status: 500 })
+    }
     if (!data) return NextResponse.json({ error: 'not_found' }, { status: 404 })
 
     if ((data.email || '').toLowerCase() !== emailConfirm) {
@@ -322,7 +317,6 @@ export async function DELETE(req: Request) {
         .eq('public_user_id', userId)
         .maybeSingle()
       authUserId = mapping?.auth_user_id || null
-      console.log('[delete-user] Found auth_user_id:', authUserId)
     } catch (e: any) {
       console.warn('[delete-user] Mapping lookup failed:', e?.message)
     }
@@ -334,7 +328,6 @@ export async function DELETE(req: Request) {
         if (authDeleteError) {
           console.warn('[delete-user] Auth user deletion failed:', authDeleteError.message)
         } else {
-          console.log('[delete-user] Auth user deleted successfully')
         }
       } catch (authDeleteException: any) {
         console.warn('[delete-user] Auth user deletion exception:', authDeleteException?.message)
@@ -347,27 +340,31 @@ export async function DELETE(req: Request) {
         .from('auth_user_mapping')
         .delete()
         .eq('public_user_id', userId)
-      console.log('[delete-user] Mapping deleted')
     } catch (e: any) {
       console.warn('[delete-user] auth_user_mapping deletion failed:', e?.message)
     }
 
-    // 4. SOFT DELETE: Update status to 'archived' instead of deleting
-    // This preserves the user's history (interventions, etc.)
+    // 4. SOFT DELETE: Archive + GDPR anonymize personal data (Article 17)
+    // This preserves the user's history (interventions, etc.) while removing PII
     const { error: archiveError } = await supabaseAdmin
       .from('users')
-      .update({ 
+      .update({
         status: 'archived',
         archived_at: new Date().toISOString(),
+        // RGPD Article 17 - Anonymisation des données personnelles
+        // firstname, lastname, color et code_gestionnaire sont conservés
+        // pour l'affichage historique dans la table des interventions
+        email: `deleted_${userId}@anonymized.local`,
+        username: `deleted_${userId}`,
+        avatar_url: null,
       })
       .eq('id', userId)
     
     if (archiveError) {
       console.error('[delete-user] Archive failed:', archiveError.message)
-      return NextResponse.json({ error: archiveError.message }, { status: 500 })
+      return NextResponse.json({ error: 'Une erreur interne est survenue' }, { status: 500 })
     }
 
-    console.log('[delete-user] User archived successfully:', userId)
     return NextResponse.json({ ok: true, archived: true })
   } catch (e: any) {
     return NextResponse.json({ error: e?.message || 'Bad payload' }, { status: 400 })

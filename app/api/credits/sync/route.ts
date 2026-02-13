@@ -4,18 +4,14 @@ import { supabaseAdmin } from "@/lib/supabase-admin"
 export const runtime = "nodejs"
 
 export async function GET() {
-  console.log('[credits/sync] Starting sync...')
   if (!supabaseAdmin) {
-    console.log('[credits/sync] No supabaseAdmin, returning default')
     return NextResponse.json({ totals: { tokens: 0, requests: 0, costUsd: '0.000000' } })
   }
-  console.log('[credits/sync] Querying conversation_usage...')
   const { data, error } = await supabaseAdmin
     .from('conversation_usage')
     .select('total_prompt_tokens, total_completion_tokens, total_requests, total_cost_usd, mode')
     .eq('mode', 'test_beta')
   if (error) {
-    console.log('[credits/sync] DB error:', error.message)
     return new NextResponse(error.message || 'Erreur DB', { status: 500 })
   }
 
@@ -32,7 +28,6 @@ export async function GET() {
   const usedCents = Math.round(cost * 100)
   const balanceCentsOverride = Math.max(0, initialFree - usedCents)
   const result = { totals: { tokens, requests, costUsd }, usedCents, balanceCentsOverride }
-  console.log('[credits/sync] Result:', result)
   return NextResponse.json(result)
 }
 

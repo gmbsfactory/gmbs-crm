@@ -30,7 +30,6 @@ interface InterventionStatsBarChartProps {
 
 // Composants de labels supprimés car remplacés par une disposition plus lisible (YAxis pour les noms, LabelList position right pour les valeurs)
 
-
 export function InterventionStatsBarChart({ hoverPeriod, userId: propUserId }: InterventionStatsBarChartProps) {
   const { open: openInterventionModal } = useInterventionModal()
   const router = useRouter()
@@ -68,9 +67,6 @@ export function InterventionStatsBarChart({ hoverPeriod, userId: propUserId }: I
   // Log les statuts chargés depuis la DB pour déboguer
   useEffect(() => {
     if (dbStatuses.length > 0 && process.env.NODE_ENV === 'development') {
-      console.log(`[Dashboard Colors] Statuts chargés depuis la DB (${dbStatuses.length}):`,
-        dbStatuses.map(s => ({ code: s.code, label: s.label, color: s.color }))
-      )
     }
   }, [dbStatuses])
 
@@ -80,7 +76,6 @@ export function InterventionStatsBarChart({ hoverPeriod, userId: propUserId }: I
     if (!stats?.by_status_label) return null
     return JSON.stringify(stats.by_status_label)
   }, [stats?.by_status_label])
-
 
   // Statuts fondamentaux à afficher
   const fundamentalStatuses = useMemo(() => ["Demandé", "Inter en cours", "Visite technique", "Accepté"], [])
@@ -343,7 +338,6 @@ export function InterventionStatsBarChart({ hoverPeriod, userId: propUserId }: I
       </Card>
     )
   }
-
 
   return (
     <Card

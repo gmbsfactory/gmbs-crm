@@ -94,6 +94,7 @@ import { Pagination } from "@/components/ui/pagination"
 import { GestionnaireBadge } from "@/components/ui/gestionnaire-badge"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { useReferenceData } from "@/hooks/useReferenceData"
+import type { ReferenceData } from "@/lib/reference-api"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { interventionsApi } from "@/lib/api/v2"
 import { toast } from "sonner"
@@ -155,7 +156,6 @@ type TableViewProps = {
   /** Couleur du header (provenant de l'onglet de vue actif) */
   headerColor?: string | null
 }
-
 
 type CellRender = {
   content: ReactNode
@@ -609,6 +609,32 @@ const buildTypographyClasses = (style: TableColumnStyle | undefined) => {
  * Composant pour sélectionner un gestionnaire avec un Popover éditable
  * Structure identique au menu dans InterventionEditForm
  */
+/**
+ * Retourne la liste des utilisateurs sélectionnables pour une intervention :
+ * - Tous les utilisateurs actifs
+ * - + les utilisateurs archivés dont archived_at > dateIntervention
+ *   (ils étaient encore actifs au moment de l'intervention)
+ */
+function getSelectableUsers(
+  activeUsers: ReferenceData["users"] | undefined,
+  allUsers: ReferenceData["allUsers"] | undefined,
+  dateIntervention?: string | null,
+) {
+  const active = activeUsers ?? []
+  if (!allUsers || !dateIntervention) return active
+
+  const interventionDate = new Date(dateIntervention)
+  if (Number.isNaN(interventionDate.getTime())) return active
+
+  const activeIds = new Set(active.map(u => u.id))
+
+  const archivedEligible = allUsers.filter(
+    u => u.status === "archived" && u.archived_at && !activeIds.has(u.id) && new Date(u.archived_at) > interventionDate
+  )
+
+  return [...active, ...archivedEligible]
+}
+
 function GestionnaireSelector({
   interventionId,
   currentUserId,
@@ -616,6 +642,7 @@ function GestionnaireSelector({
   currentUserLastname,
   currentUserColor,
   currentUserAvatarUrl,
+  dateIntervention,
   onUpdate,
 }: {
   interventionId: string
@@ -624,11 +651,18 @@ function GestionnaireSelector({
   currentUserLastname?: string
   currentUserColor?: string
   currentUserAvatarUrl?: string
+  dateIntervention?: string | null
   onUpdate?: (userId: string) => void
 }) {
   const { data: referenceData } = useReferenceData()
   const queryClient = useQueryClient()
   const [open, setOpen] = useState(false)
+
+  // Liste fusionnée : actifs + archivés éligibles selon la date de l'intervention
+  const selectableUsers = useMemo(
+    () => getSelectableUsers(referenceData?.users, referenceData?.allUsers, dateIntervention),
+    [referenceData?.users, referenceData?.allUsers, dateIntervention]
+  )
 
   const updateMutation = useMutation({
     mutationFn: async (newUserId: string) => {
@@ -639,7 +673,7 @@ function GestionnaireSelector({
       // Invalider le cache pour rafraîchir les données
       queryClient.invalidateQueries({ queryKey: ['interventions'] })
 
-      const user = referenceData?.users?.find(u => u.id === newUserId)
+      const user = selectableUsers.find(u => u.id === newUserId)
       const userName = user
         ? [user.firstname, user.lastname].filter(Boolean).join(" ").trim() || user.username
         : "Non assigné"
@@ -686,20 +720,22 @@ function GestionnaireSelector({
       >
         <div className="space-y-1">
           <p className="text-xs font-medium text-muted-foreground mb-2">
-            Attribuer à ({referenceData?.users?.length || 0} utilisateurs)
+            Attribuer à ({selectableUsers.length} utilisateurs)
           </p>
           <div className="space-y-1">
-            {referenceData?.users && referenceData.users.length > 0 ? (
-              referenceData.users.map((user) => {
+            {selectableUsers.length > 0 ? (
+              selectableUsers.map((user) => {
                 const displayName = [user.firstname, user.lastname].filter(Boolean).join(" ").trim() || user.username
                 const isSelected = user.id === currentUserId
+                const isArchived = "status" in user && user.status === "archived"
                 return (
                   <button
                     key={user.id}
                     type="button"
                     className={cn(
                       "w-full flex items-center gap-1.5 px-2 py-1 rounded-md text-left transition-colors",
-                      isSelected ? "bg-primary/10 text-primary" : "hover:bg-muted"
+                      isSelected ? "bg-primary/10 text-primary" : "hover:bg-muted",
+                      isArchived && "opacity-60"
                     )}
                     onClick={(e) => {
                       e.stopPropagation()
@@ -751,7 +787,6 @@ export function TableView({
 }: TableViewProps) {
   // Log pour debug pagination
   useEffect(() => {
-    console.log(`[TableView] Props pagination - currentPage: ${currentPage}, totalPages: ${totalPages}, totalCount: ${totalCount}, onPageChange: ${typeof onPageChange}`)
   }, [currentPage, totalPages, totalCount, onPageChange])
 
   // Récupérer les fonctions de mapping depuis le Context
@@ -777,7 +812,6 @@ export function TableView({
     // Si on les réapplique ici, on filtre 2 fois les mêmes données !
     const firstId = interventions[0]?.id ?? 'none'
     const lastId = interventions[interventions.length - 1]?.id ?? 'none'
-    console.log(`[TableView] dataset recalculé - length: ${interventions.length}, firstId: ${firstId}, lastId: ${lastId}, currentPage: ${currentPage}`)
     return interventions;
   }, [interventions, currentPage])
   const orderedIds = useMemo(() => dataset.map((item) => item.id), [dataset])
@@ -872,7 +906,6 @@ export function TableView({
     if (previousPageRef.current !== currentPage) {
       previousPageRef.current = currentPage
       if (tableContainerRef.current && dataset.length > 0) {
-        console.log(`[TableView] Réinitialisation du scroll pour la page ${currentPage}`)
         tableContainerRef.current.scrollTop = 0
         requestAnimationFrame(() => {
           if (tableContainerRef.current) {
@@ -888,7 +921,6 @@ export function TableView({
   useEffect(() => {
     if (previousRowHeightRef.current !== rowHeight && dataset.length > 0) {
       previousRowHeightRef.current = rowHeight
-      console.log(`[TableView] Mise à jour du virtualizer - rowHeight changé: ${rowHeight}`)
       rowVirtualizer.measure()
     }
   }, [rowHeight, dataset.length, rowVirtualizer])
@@ -1681,6 +1713,8 @@ export function TableView({
                                                   const assignedUserAvatarUrl = (intervention as any).assignedUserAvatarUrl as string | undefined
                                                   const assignedUserCode = (intervention as any).assignedUserCode as string | undefined
 
+                                                  const interventionDate = (intervention as any).dateIntervention ?? (intervention as any).date_intervention ?? (intervention as any).date ?? null
+
                                                   if (!assignedUserId && !assignedUserCode) {
                                                     // Pas d'utilisateur assigné, utiliser le sélecteur avec "?"
                                                     return (
@@ -1691,6 +1725,7 @@ export function TableView({
                                                         currentUserLastname=""
                                                         currentUserColor="#9ca3af"
                                                         currentUserAvatarUrl={undefined}
+                                                        dateIntervention={interventionDate}
                                                       />
                                                     )
                                                   }
@@ -1708,6 +1743,7 @@ export function TableView({
                                                       currentUserLastname={lastname}
                                                       currentUserColor={assignedUserColor}
                                                       currentUserAvatarUrl={assignedUserAvatarUrl}
+                                                      dateIntervention={interventionDate}
                                                     />
                                                   )
                                                 })()}

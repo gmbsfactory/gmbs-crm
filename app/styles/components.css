@@ -1,0 +1,472 @@
+/* === Component Styles === */
+
+@layer components {
+  .card {
+    background: var(--bg-light);
+    background-image: linear-gradient(
+      to bottom,
+      color-mix(in oklab, var(--bg-light), white 6%),
+      var(--bg-light)
+    );
+    border: 1px solid hsl(var(--border));
+    box-shadow: inset 0 1px 0 var(--highlight), var(--shadow-sm);
+    border-radius: var(--radius-lg);
+    padding: 16px;
+    transition:
+      box-shadow var(--transition-base) var(--transition-easing),
+      background-image var(--transition-base) var(--transition-easing);
+  }
+
+  .card:hover {
+    background-image: linear-gradient(
+      to bottom,
+      color-mix(in oklab, var(--bg-light), white 10%),
+      var(--bg-light)
+    );
+    box-shadow: inset 0 1px 0 var(--highlight), var(--shadow-md);
+  }
+
+  .button-primary,
+  .shadcn-button[data-variant="default"] {
+    background: linear-gradient(
+      to bottom,
+      color-mix(in oklab, var(--accent-color), white 10%),
+      var(--accent-color)
+    );
+    border: 1px solid color-mix(in oklab, var(--accent-color), black 10%);
+    color: white;
+    box-shadow: inset 0 1px 0 color-mix(in oklab, var(--accent-color), white 30%), var(--shadow-sm);
+    border-radius: var(--radius-md);
+    font-weight: 600;
+    transition:
+      transform var(--transition-fast) var(--transition-easing),
+      box-shadow var(--transition-base) var(--transition-easing),
+      background var(--transition-base) var(--transition-easing);
+  }
+
+  .button-primary:hover,
+  .shadcn-button[data-variant="default"]:hover {
+    background: linear-gradient(
+      to bottom,
+      color-mix(in oklab, var(--accent-color), white 14%),
+      var(--accent-color)
+    );
+    transform: translateY(-2px);
+    box-shadow: inset 0 1px 0 color-mix(in oklab, var(--accent-color), white 30%), var(--shadow-md);
+  }
+
+  .button-primary:active,
+  .shadcn-button[data-variant="default"]:active {
+    transform: translateY(0);
+    box-shadow: inset 0 1px 0 color-mix(in oklab, var(--accent-color), white 30%), var(--shadow-xs);
+  }
+
+  .button-secondary,
+  .shadcn-button[data-variant="outline"],
+  .shadcn-button[data-variant="secondary"] {
+    background: var(--bg-light);
+    background-image: linear-gradient(
+      to bottom,
+      color-mix(in oklab, var(--bg-light), white 6%),
+      var(--bg-light)
+    );
+    border: 1px solid hsl(var(--border));
+    color: var(--text);
+    box-shadow: inset 0 1px 0 var(--highlight), var(--shadow-xs);
+    border-radius: var(--radius-md);
+    transition:
+      transform var(--transition-fast) var(--transition-easing),
+      box-shadow var(--transition-base) var(--transition-easing),
+      background-image var(--transition-base) var(--transition-easing);
+  }
+
+  .button-secondary:hover,
+  .shadcn-button[data-variant="outline"]:hover,
+  .shadcn-button[data-variant="secondary"]:hover {
+    background-image: linear-gradient(
+      to bottom,
+      color-mix(in oklab, var(--bg-light), white 10%),
+      var(--bg-light)
+    );
+    box-shadow: inset 0 1px 0 var(--highlight), var(--shadow-sm);
+  }
+
+  .button-primary:disabled,
+  .button-secondary:disabled,
+  .shadcn-button[disabled] {
+    opacity: 0.5;
+    cursor: not-allowed;
+    box-shadow: none;
+    transform: none;
+  }
+
+  .badge-success { background: var(--success-bg); color: var(--success); }
+  .badge-error { background: var(--error-bg); color: var(--error); }
+  .badge-warning { background: var(--warning-bg); color: var(--warning); }
+  .badge-info { background: var(--info-bg); color: var(--info); }
+
+
+  .modal-overlay,
+  .shadcn-dialog-overlay {
+    background: var(--backdrop-color);
+    backdrop-filter: none;
+    animation: fadeIn var(--transition-base) var(--transition-easing);
+    position: fixed;
+    inset: 0;
+    z-index: 40;
+  }
+
+  .modal-surface,
+  .modal-content,
+  .shadcn-sheet-content,
+  .shadcn-dialog-content {
+    background: var(--bg-light);
+    background-image: linear-gradient(
+      to bottom,
+      color-mix(in oklab, var(--bg-light), white 6%),
+      var(--bg-light)
+    );
+    border: 1px solid hsl(var(--border));
+    border-radius: var(--radius-xl);
+    box-shadow:
+      inset 0 1px 0 var(--highlight),
+      var(--shadow-xl);
+    color: var(--text);
+  }
+
+  .modal-surface {
+    box-shadow:
+      inset 0 1px 0 var(--highlight),
+      0 26px 52px rgba(15, 23, 42, 0.28);
+    backdrop-filter: blur(6px);
+  }
+
+  .modal-content,
+  .shadcn-dialog-content {
+    padding: 24px;
+    animation: slideUp var(--transition-base) var(--transition-easing);
+    max-width: min(640px, 90vw);
+    max-height: 90vh;
+    overflow-y: auto;
+  }
+
+  .modal-header,
+  .shadcn-dialog-header {
+    margin-bottom: 16px;
+    border-bottom: 1px solid hsl(var(--border));
+    padding-bottom: 16px;
+  }
+
+  .modal-title,
+  .shadcn-dialog-title {
+    color: var(--text);
+    font-size: 1.25rem;
+    font-weight: 700;
+    line-height: 1.2;
+  }
+
+  .modal-description,
+  .shadcn-dialog-description {
+    color: var(--text-muted);
+    font-size: 0.875rem;
+    margin-top: 8px;
+  }
+
+  .modal-footer,
+  .shadcn-dialog-footer {
+    margin-top: 24px;
+    border-top: 1px solid hsl(var(--border));
+    padding-top: 16px;
+    display: flex;
+    gap: 12px;
+    justify-content: flex-end;
+  }
+
+  .shadcn-sheet-content {
+    box-shadow:
+      inset 0 1px 0 var(--highlight),
+      0 22px 48px rgba(15, 23, 42, 0.24);
+    backdrop-filter: blur(8px);
+    min-width: 0;
+    min-height: 0;
+  }
+
+  .modal-surface-full {
+    background: color-mix(in oklab, var(--bg), white 4%);
+    box-shadow:
+      inset 0 1px 0 color-mix(in oklab, var(--bg), white 6%),
+      0 18px 42px rgba(15, 23, 42, 0.18);
+  }
+
+  :root[data-theme="dark"] .modal-surface,
+  :root[data-theme="dark"] .modal-content,
+  :root[data-theme="dark"] .shadcn-sheet-content,
+  :root[data-theme="dark"] .shadcn-dialog-content {
+    background: color-mix(in oklab, var(--bg), black 6%);
+    background-image: linear-gradient(
+      to bottom,
+      color-mix(in oklab, var(--bg), black 10%),
+      color-mix(in oklab, var(--bg), black 14%)
+    );
+    border: 1px solid color-mix(in oklab, var(--border), black 20%);
+    color: color-mix(in oklab, var(--text), white 6%);
+  }
+
+  :root[data-theme="dark"] .modal-surface {
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.04),
+      0 26px 52px rgba(0, 0, 0, 0.55);
+  }
+
+  :root[data-theme="dark"] .shadcn-sheet-content {
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.03),
+      0 22px 48px rgba(0, 0, 0, 0.5);
+  }
+
+  :root[data-theme="dark"] .modal-surface-full {
+    background: color-mix(in oklab, var(--bg), black 4%);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.05),
+      0 18px 42px rgba(0, 0, 0, 0.45);
+  }
+
+
+  .dropdown,
+  .shadcn-popover-content {
+    background: var(--bg-light);
+    background-image: linear-gradient(
+      to bottom,
+      color-mix(in oklab, var(--bg-light), white 6%),
+      var(--bg-light)
+    );
+    border: 1px solid hsl(var(--border));
+    box-shadow: inset 0 1px 0 var(--highlight), var(--shadow-md);
+    border-radius: var(--radius-md);
+    padding: 8px 4px;
+    animation: fadeIn var(--transition-fast) var(--transition-easing);
+    z-index: 50;
+  }
+
+  .dropdown-item {
+    padding: 10px 16px;
+    cursor: pointer;
+    transition: background-color var(--transition-fast) var(--transition-easing);
+    color: var(--text);
+    border-radius: var(--radius-sm);
+    margin: 0 4px;
+  }
+
+  .dropdown-item:hover {
+    background: hsl(var(--background));
+  }
+
+  .dropdown-item.is-active {
+    background: var(--accent-color-light);
+    color: white;
+  }
+
+  .toast {
+    background: var(--bg-light);
+    background-image: linear-gradient(
+      to bottom,
+      color-mix(in oklab, var(--bg-light), white 6%),
+      var(--bg-light)
+    );
+    border: 1px solid hsl(var(--border));
+    border-left: 4px solid var(--accent-color);
+    box-shadow: inset 0 1px 0 var(--highlight), var(--shadow-md);
+    border-radius: var(--radius-md);
+    padding: 12px 16px;
+    animation: slideInRight var(--transition-base) var(--transition-easing);
+  }
+
+  .toast.success { border-left-color: var(--success); }
+  .toast.error { border-left-color: var(--error); }
+  .toast.warning { border-left-color: var(--warning); }
+
+  .drawer {
+    position: fixed;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    width: min(420px, 100%);
+    background: var(--bg-light);
+    box-shadow: var(--shadow-xl);
+    animation: slideInRight var(--transition-base) var(--transition-easing);
+    z-index: 50;
+    border-left: 1px solid hsl(var(--border));
+    padding: 24px;
+    overflow-y: auto;
+  }
+
+  .accordion {
+    border: 1px solid hsl(var(--border));
+    border-radius: var(--radius-md);
+    background: var(--bg);
+  }
+
+  .accordion-item {
+    border-bottom: 1px solid hsl(var(--border));
+  }
+
+  .accordion-trigger {
+    padding: 12px 16px;
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    transition: background-color var(--transition-fast) var(--transition-easing);
+  }
+
+  .accordion-trigger:hover {
+    background: hsl(var(--background));
+  }
+
+  .accordion-content {
+    padding: 12px 16px;
+    animation: expandDown var(--transition-base) var(--transition-easing);
+  }
+
+  .options-group {
+    background: var(--bg);
+    border-radius: var(--radius-lg);
+    padding: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .option-card {
+    background: var(--bg);
+    border: 1px solid hsl(var(--border));
+    border-radius: var(--radius-md);
+    padding: 12px 16px;
+    cursor: pointer;
+    transition: all var(--transition-fast) var(--transition-easing);
+    color: var(--text);
+  }
+
+  .option-card:hover {
+    background-image: linear-gradient(
+      to bottom,
+      color-mix(in oklab, var(--bg), white 4%),
+      var(--bg)
+    );
+    border-color: var(--accent-color-light);
+  }
+
+  .option-card.is-selected {
+    background: var(--bg-light);
+    background-image: linear-gradient(
+      to bottom,
+      color-mix(in oklab, var(--bg-light), white 8%),
+      var(--bg-light)
+    );
+    border-color: var(--accent-color);
+    box-shadow: inset 0 1px 0 var(--highlight), var(--shadow-sm);
+  }
+
+  .option-card.is-selected::before {
+    content: "\2713";
+    display: inline-block;
+    margin-right: 8px;
+    color: var(--accent-color);
+    font-weight: bold;
+  }
+}
+
+/* === Sonner Toaster === */
+
+/* --- Position fixe, expand permanent, pas d'animation au hover --- */
+
+/* Le mode expand={true} + gap={8} sur <Sonner> gère le stacking.
+   pointer-events: none sur le container empêche le hover JS de Sonner
+   de recalculer les positions (data-lifted, --front-toast-height).
+   Les toasts individuels gardent leur interactivité (click, close button). */
+[data-sonner-toaster] {
+  pointer-events: none !important;
+}
+
+[data-sonner-toaster] [data-sonner-toast] {
+  pointer-events: auto !important;
+}
+
+/* Supprimer la zone de détection hover entre les toasts (pseudo-element Sonner) */
+[data-sonner-toaster] [data-sonner-toast]::after {
+  display: none !important;
+}
+
+/* --- Style compact --- */
+[data-sonner-toaster] [data-sonner-toast] {
+  padding: 10px 12px;
+  font-size: 13px;
+  gap: 8px;
+}
+
+[data-sonner-toaster] [data-sonner-toast] [data-title] {
+  font-size: 13px;
+  line-height: 1.3;
+}
+
+[data-sonner-toaster] [data-sonner-toast] [data-description] {
+  font-size: 12px;
+  line-height: 1.3;
+}
+
+/* --- Types de toast --- */
+
+/* Loading : icône spinner + bordure subtile */
+[data-sonner-toaster] [data-sonner-toast][data-type="loading"] {
+  border-left: 3px solid hsl(var(--muted-foreground) / 0.3);
+}
+
+/* Success : bordure verte */
+[data-sonner-toaster] [data-sonner-toast][data-type="success"] {
+  border-left: 3px solid #10b981;
+}
+
+/* Error : bordure rouge épaisse, fond légèrement teinté */
+[data-sonner-toaster] [data-sonner-toast][data-type="error"] {
+  border-left: 4px solid #ef4444;
+  background: hsl(var(--background));
+  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.1), 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+/* Error permanent — close button rouge bien visible */
+[data-sonner-toaster] [data-sonner-toast][data-type="error"] [data-close-button] {
+  background: #ef4444 !important;
+  border-color: #ef4444 !important;
+  color: white !important;
+  width: 20px !important;
+  height: 20px !important;
+  opacity: 1 !important;
+}
+
+[data-sonner-toaster] [data-sonner-toast][data-type="error"] [data-close-button]:hover {
+  background: #dc2626 !important;
+}
+
+/* --- Bouton close en haut à droite --- */
+[data-sonner-toaster] [data-sonner-toast] [data-close-button] {
+  left: auto !important;
+  right: -6px !important;
+  top: -6px !important;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: hsl(var(--background));
+  border: 1px solid hsl(var(--border));
+  color: hsl(var(--foreground));
+  opacity: 1;
+  transform: none;
+}
+
+[data-sonner-toaster] [data-sonner-toast] [data-close-button]:hover {
+  background: hsl(var(--muted));
+}
+
+[data-sonner-toaster] [data-sonner-toast] [data-close-button] svg {
+  width: 10px;
+  height: 10px;
+}

@@ -36,7 +36,7 @@ async function parseCookie(): Promise<number> {
     ) {
       return Math.max(0, Math.min(payload.balanceCents, MAX_BALANCE_CENTS))
     }
-  } catch {}
+  } catch { /* Silenced: corrupted cookie, fall through to 0 */ }
   return 0
 }
 

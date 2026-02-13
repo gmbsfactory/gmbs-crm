@@ -27,12 +27,14 @@ import type { Intervention, UpdateInterventionData } from "@/lib/api/v2/common/t
 import type { InterventionWithStatus } from "@/types/intervention"
 import { usePermissions } from "@/hooks/usePermissions"
 import { useInterventionsMutations } from "@/hooks/useInterventionsMutations"
+import { useInterventionModal } from "@/hooks/useInterventionModal"
 import { getReasonTypeForTransition, type StatusReasonType } from "@/lib/comments/statusReason"
 import { cn } from "@/lib/utils"
 import { formatMarginPercentage, getMarginColorClass } from "@/lib/utils/margin-calculator"
 import { ArtisanSearchModal } from "@/components/artisans/ArtisanSearchModal"
 import { Avatar } from "@/components/artisans/Avatar"
 import { toast } from "sonner"
+import { extractErrorMessage } from "@/lib/toast-helpers"
 import { EmailEditModal } from "@/components/interventions/EmailEditModal"
 import { SectionLock } from "@/components/ui/SectionLock"
 import { generateDevisWhatsAppText, generateInterventionWhatsAppText, type EmailTemplateData } from "@/lib/email-templates/intervention-emails"
@@ -88,6 +90,7 @@ export const InterventionEditForm = memo(function InterventionEditForm({
 }: InterventionEditFormProps) {
   const queryClient = useQueryClient()
   const { update: updateMutation } = useInterventionsMutations()
+  const { open: openInterventionModal } = useInterventionModal()
   const { can } = usePermissions()
 
   // Edit-specific state
@@ -254,6 +257,23 @@ export const InterventionEditForm = memo(function InterventionEditForm({
     onHasUnsavedChanges,
     onSubmittingChange,
   })
+
+  // Liste des utilisateurs sélectionnables : actifs + archivés éligibles selon date intervention
+  const selectableUsers = useMemo(() => {
+    const active = refData?.users ?? []
+    const allUsers = refData?.allUsers
+    const interventionDate = (intervention as any).date ?? (intervention as any).date_intervention ?? formData?.date
+    if (!allUsers || !interventionDate) return active
+
+    const d = new Date(interventionDate)
+    if (Number.isNaN(d.getTime())) return active
+
+    const activeIds = new Set(active.map(u => u.id))
+    const archivedEligible = allUsers.filter(
+      u => u.status === "archived" && u.archived_at && !activeIds.has(u.id) && new Date(u.archived_at) > d
+    )
+    return [...active, ...archivedEligible]
+  }, [refData?.users, refData?.allUsers, intervention, formData?.date])
 
   // Destructure collapsible state for easier access
   const {
@@ -1028,124 +1048,148 @@ export const InterventionEditForm = memo(function InterventionEditForm({
         }
       })
 
-      // Utiliser useInterventionsMutations pour enregistrer la modification locale
-      console.log(`[InterventionEditForm] 📝 Mise à jour de l'intervention ${intervention.id} via useInterventionsMutations`)
-      const updated = await updateMutation.mutateAsync({
-        id: intervention.id,
-        data: {
-          id_inter: updateData.id_inter ?? null,
-          reference_agence: updateData.reference_agence ?? null,
-          agence_id: updateData.agence_id,
-          assigned_user_id: updateData.assigned_user_id,
-          statut_id: updateData.statut_id,
-          metier_id: updateData.metier_id,
-          date: updateData.date,
-          date_prevue: updateData.date_prevue ?? undefined,
-          contexte_intervention: updateData.contexte_intervention,
-          consigne_intervention: updateData.consigne_intervention,
-          consigne_second_artisan: updateData.consigne_second_artisan,
-          commentaire_agent: updateData.commentaire_agent,
-          adresse: updateData.adresse,
-          code_postal: updateData.code_postal,
-          ville: updateData.ville,
-          adresse_complete: updateData.adresse_complete ?? null,
-          latitude: updateData.latitude,
-          longitude: updateData.longitude,
-          numero_sst: updateData.numero_sst,
-          pourcentage_sst: updateData.pourcentage_sst,
-          is_vacant: updateData.is_vacant,
-          key_code: updateData.key_code ?? null,
-          floor: updateData.floor ?? null,
-          apartment_number: updateData.apartment_number ?? null,
-          vacant_housing_instructions: updateData.vacant_housing_instructions ?? null,
-          owner_id: updateData.owner_id ?? null,
-          tenant_id: updateData.tenant_id ?? null,
-          sous_statut_text: updateData.sous_statut_text ?? null,
-          sous_statut_text_color: updateData.sous_statut_text_color ?? '#000000',
-          sous_statut_bg_color: updateData.sous_statut_bg_color ?? 'transparent',
-          metier_second_artisan_id: updateData.metier_second_artisan_id ?? null,
-        },
-      })
+      // === NOUVEAU FLOW: Fermer le modal AVANT l'appel API ===
+      onSuccess?.(null)
+      setIsSubmitting(false)
+      onSubmittingChange?.(false)
 
-      // Commentaire de raison de statut — CRITIQUE, doit être awaité avant fermeture
-      if (options?.reason && options.reasonType) {
-        try {
-          await commentsApi.create({
-            entity_id: intervention.id,
-            entity_type: "intervention",
-            content: options.reason,
-            comment_type: "internal",
-            is_internal: true,
-            author_id: currentUser?.id ?? undefined,
-            reason_type: options.reasonType,
-          })
-        } catch (commentError) {
-          console.error("[InterventionEditForm] Impossible d'ajouter le commentaire obligatoire", commentError)
-          throw new Error("Le commentaire obligatoire n'a pas pu être enregistré. Merci de réessayer.")
+      const toastId = toast.loading("Enregistrement en cours...")
+
+      try {
+        const updated = await updateMutation.mutateAsync({
+          id: intervention.id,
+          data: {
+            id_inter: updateData.id_inter ?? null,
+            reference_agence: updateData.reference_agence ?? null,
+            agence_id: updateData.agence_id,
+            assigned_user_id: updateData.assigned_user_id,
+            statut_id: updateData.statut_id,
+            metier_id: updateData.metier_id,
+            date: updateData.date,
+            date_prevue: updateData.date_prevue ?? undefined,
+            contexte_intervention: updateData.contexte_intervention,
+            consigne_intervention: updateData.consigne_intervention,
+            consigne_second_artisan: updateData.consigne_second_artisan,
+            commentaire_agent: updateData.commentaire_agent,
+            adresse: updateData.adresse,
+            code_postal: updateData.code_postal,
+            ville: updateData.ville,
+            adresse_complete: updateData.adresse_complete ?? null,
+            latitude: updateData.latitude,
+            longitude: updateData.longitude,
+            numero_sst: updateData.numero_sst,
+            pourcentage_sst: updateData.pourcentage_sst,
+            is_vacant: updateData.is_vacant,
+            key_code: updateData.key_code ?? null,
+            floor: updateData.floor ?? null,
+            apartment_number: updateData.apartment_number ?? null,
+            vacant_housing_instructions: updateData.vacant_housing_instructions ?? null,
+            owner_id: updateData.owner_id ?? null,
+            tenant_id: updateData.tenant_id ?? null,
+            sous_statut_text: updateData.sous_statut_text ?? null,
+            sous_statut_text_color: updateData.sous_statut_text_color ?? '#000000',
+            sous_statut_bg_color: updateData.sous_statut_bg_color ?? 'transparent',
+            metier_second_artisan_id: updateData.metier_second_artisan_id ?? null,
+          },
+        })
+
+        // Commentaire de raison de statut
+        if (options?.reason && options.reasonType) {
+          try {
+            await commentsApi.create({
+              entity_id: intervention.id,
+              entity_type: "intervention",
+              content: options.reason,
+              comment_type: "internal",
+              is_internal: true,
+              author_id: currentUser?.id ?? undefined,
+              reason_type: options.reasonType,
+            })
+          } catch (commentError) {
+            console.error("[InterventionEditForm] Impossible d'ajouter le commentaire obligatoire", commentError)
+            // L'intervention est sauvegardée, mais le commentaire a échoué
+          }
         }
+
+        toast.success("Intervention modifiée avec succès", {
+          id: toastId,
+          action: {
+            label: "Voir",
+            onClick: () => openInterventionModal(intervention.id),
+          },
+        })
+
+        // Préparer les coûts pour le batch
+        const coutSSTValue = parseFloat(formData.coutSST) || 0
+        const coutMaterielValue = parseFloat(formData.coutMateriel) || 0
+        const coutInterventionValue = parseFloat(formData.coutIntervention) || 0
+        const coutSST2Value = parseFloat(formData.coutSSTSecondArtisan) || 0
+        const coutMateriel2Value = parseFloat(formData.coutMaterielSecondArtisan) || 0
+
+        const allCosts: Array<{ cost_type: 'sst' | 'materiel' | 'intervention' | 'marge'; amount: number; artisan_order?: 1 | 2 | null; label?: string | null }> = []
+
+        if (coutSSTValue >= 0) allCosts.push({ cost_type: "sst", label: "Coût SST", amount: coutSSTValue, artisan_order: 1 })
+        if (coutMaterielValue >= 0) allCosts.push({ cost_type: "materiel", label: "Coût Matériel", amount: coutMaterielValue, artisan_order: 1 })
+        if (coutInterventionValue >= 0) allCosts.push({ cost_type: "intervention", label: "Coût Intervention", amount: coutInterventionValue, artisan_order: null })
+
+        if (selectedSecondArtisanId) {
+          allCosts.push({ cost_type: "sst", label: "Coût SST 2ème artisan", amount: coutSST2Value, artisan_order: 2 })
+          allCosts.push({ cost_type: "materiel", label: "Coût Matériel 2ème artisan", amount: coutMateriel2Value, artisan_order: 2 })
+        }
+
+        // Préparer les paiements
+        const accompteSSTValue = parseFloat(formData.accompteSST) || 0
+        const accompteClientValue = parseFloat(formData.accompteClient) || 0
+        const payments: Array<{ payment_type: string; amount: number; currency?: string; is_received?: boolean; payment_date?: string | null }> = []
+
+        if (accompteSSTValue > 0 || formData.accompteSSTRecu || formData.dateAccompteSSTRecu) {
+          payments.push({ payment_type: 'acompte_sst', amount: accompteSSTValue, currency: 'EUR', is_received: formData.accompteSSTRecu || false, payment_date: formData.dateAccompteSSTRecu || null })
+        }
+        if (accompteClientValue > 0 || formData.accompteClientRecu || formData.dateAccompteClientRecu) {
+          payments.push({ payment_type: 'acompte_client', amount: accompteClientValue, currency: 'EUR', is_received: formData.accompteClientRecu || false, payment_date: formData.dateAccompteClientRecu || null })
+        }
+
+        // Mettre à jour les refs de manière optimiste
+        const currentPrimaryId = primaryArtisanIdRef.current
+        const nextPrimaryId = selectedArtisanId ?? null
+        const currentSecondaryId = secondaryArtisanIdRef.current
+        const nextSecondaryId = selectedSecondArtisanId ?? null
+
+        if (currentPrimaryId !== nextPrimaryId) primaryArtisanIdRef.current = nextPrimaryId
+        if (currentSecondaryId !== nextSecondaryId) secondaryArtisanIdRef.current = nextSecondaryId
+
+        // Lancer toutes les tâches secondaires en arrière-plan (fire-and-forget)
+        runPostMutationTasks({
+          interventionId: intervention.id,
+          artisans: {
+            primary: { current: currentPrimaryId, next: nextPrimaryId },
+            secondary: { current: currentSecondaryId, next: nextSecondaryId },
+          },
+          costs: allCosts.length > 0 ? allCosts : undefined,
+          deleteSecondaryCosts: !selectedSecondArtisanId,
+          payments: payments.length > 0 ? payments : undefined,
+          queryClient,
+          invalidateDashboard: allCosts.length > 0,
+          invalidateComments: !!(options?.reason && options.reasonType),
+        })
+      } catch (apiError) {
+        console.error("Erreur lors de la mise à jour:", apiError)
+        const description = extractErrorMessage(apiError)
+        toast.error("Erreur lors de la mise à jour de l'intervention", {
+          id: toastId,
+          duration: Infinity,
+          description,
+          action: {
+            label: "Réessayer",
+            onClick: () => openInterventionModal(intervention.id),
+          },
+        })
       }
 
-      // Fermer le modal immédiatement — les tâches secondaires s'exécutent en arrière-plan
-      onSuccess?.(updated as InterventionWithStatus)
-
-      // Préparer les coûts pour le batch
-      const coutSSTValue = parseFloat(formData.coutSST) || 0
-      const coutMaterielValue = parseFloat(formData.coutMateriel) || 0
-      const coutInterventionValue = parseFloat(formData.coutIntervention) || 0
-      const coutSST2Value = parseFloat(formData.coutSSTSecondArtisan) || 0
-      const coutMateriel2Value = parseFloat(formData.coutMaterielSecondArtisan) || 0
-
-      const allCosts: Array<{ cost_type: 'sst' | 'materiel' | 'intervention' | 'marge'; amount: number; artisan_order?: 1 | 2 | null; label?: string | null }> = []
-
-      if (coutSSTValue >= 0) allCosts.push({ cost_type: "sst", label: "Coût SST", amount: coutSSTValue, artisan_order: 1 })
-      if (coutMaterielValue >= 0) allCosts.push({ cost_type: "materiel", label: "Coût Matériel", amount: coutMaterielValue, artisan_order: 1 })
-      if (coutInterventionValue >= 0) allCosts.push({ cost_type: "intervention", label: "Coût Intervention", amount: coutInterventionValue, artisan_order: null })
-
-      if (selectedSecondArtisanId) {
-        allCosts.push({ cost_type: "sst", label: "Coût SST 2ème artisan", amount: coutSST2Value, artisan_order: 2 })
-        allCosts.push({ cost_type: "materiel", label: "Coût Matériel 2ème artisan", amount: coutMateriel2Value, artisan_order: 2 })
-      }
-
-      // Préparer les paiements
-      const accompteSSTValue = parseFloat(formData.accompteSST) || 0
-      const accompteClientValue = parseFloat(formData.accompteClient) || 0
-      const payments: Array<{ payment_type: string; amount: number; currency?: string; is_received?: boolean; payment_date?: string | null }> = []
-
-      if (accompteSSTValue > 0 || formData.accompteSSTRecu || formData.dateAccompteSSTRecu) {
-        payments.push({ payment_type: 'acompte_sst', amount: accompteSSTValue, currency: 'EUR', is_received: formData.accompteSSTRecu || false, payment_date: formData.dateAccompteSSTRecu || null })
-      }
-      if (accompteClientValue > 0 || formData.accompteClientRecu || formData.dateAccompteClientRecu) {
-        payments.push({ payment_type: 'acompte_client', amount: accompteClientValue, currency: 'EUR', is_received: formData.accompteClientRecu || false, payment_date: formData.dateAccompteClientRecu || null })
-      }
-
-      // Mettre à jour les refs de manière optimiste
-      const currentPrimaryId = primaryArtisanIdRef.current
-      const nextPrimaryId = selectedArtisanId ?? null
-      const currentSecondaryId = secondaryArtisanIdRef.current
-      const nextSecondaryId = selectedSecondArtisanId ?? null
-
-      if (currentPrimaryId !== nextPrimaryId) primaryArtisanIdRef.current = nextPrimaryId
-      if (currentSecondaryId !== nextSecondaryId) secondaryArtisanIdRef.current = nextSecondaryId
-
-      // Lancer toutes les tâches secondaires en arrière-plan (fire-and-forget)
-      runPostMutationTasks({
-        interventionId: intervention.id,
-        artisans: {
-          primary: { current: currentPrimaryId, next: nextPrimaryId },
-          secondary: { current: currentSecondaryId, next: nextSecondaryId },
-        },
-        costs: allCosts.length > 0 ? allCosts : undefined,
-        deleteSecondaryCosts: !selectedSecondArtisanId,
-        payments: payments.length > 0 ? payments : undefined,
-        queryClient,
-        invalidateDashboard: allCosts.length > 0,
-        invalidateComments: !!(options?.reason && options.reasonType),
-      })
     } catch (error) {
-      console.error("Erreur lors de la mise à jour:", error)
+      console.error("Erreur lors de la préparation:", error)
       const message = error instanceof Error ? error.message : "Erreur lors de la mise à jour de l'intervention"
       toast.error(message)
-    } finally {
       setIsSubmitting(false)
       onSubmittingChange?.(false)
     }
@@ -1367,7 +1411,8 @@ export const InterventionEditForm = memo(function InterventionEditForm({
                                 title={requiresAssignedUser && !formData.assigned_user_id ? "Attribution obligatoire pour ce statut" : undefined}
                               >
                                 {(() => {
-                                  const assignedUser = refData?.users.find(u => u.id === formData.assigned_user_id)
+                                  const assignedUser = selectableUsers.find(u => u.id === formData.assigned_user_id)
+                                    ?? refData?.allUsers?.find(u => u.id === formData.assigned_user_id)
                                   return (
                                     <GestionnaireBadge
                                       firstname={assignedUser?.firstname}
@@ -1383,10 +1428,10 @@ export const InterventionEditForm = memo(function InterventionEditForm({
                             </PopoverTrigger>
                             <PopoverContent className="w-56 p-2 z-[100]" align="start">
                               <div className="space-y-1">
-                                <p className="text-xs font-medium text-muted-foreground mb-2">Attribuer à ({refData?.users?.length || 0} utilisateurs)</p>
+                                <p className="text-xs font-medium text-muted-foreground mb-2">Attribuer à ({selectableUsers.length} utilisateurs)</p>
                                 <div className="space-y-1 max-h-64 overflow-y-auto scrollbar-minimal pr-1">
-                                  {refData?.users && refData.users.length > 0 ? (
-                                    refData.users.map((user) => {
+                                  {selectableUsers.length > 0 ? (
+                                    selectableUsers.map((user) => {
                                       const displayName = [user.firstname, user.lastname].filter(Boolean).join(" ").trim() || user.username
                                       const isSelected = user.id === formData.assigned_user_id
                                       return (
