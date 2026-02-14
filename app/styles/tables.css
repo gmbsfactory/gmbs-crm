@@ -447,6 +447,17 @@
     );
   }
 
+  /* Ligne cochée en compta - fond vert */
+  .data-table tbody tr.compta-checked td,
+  .shadcn-table tbody tr.compta-checked td {
+    background: #bbf7d0 !important;
+  }
+
+  :root[data-theme="dark"] .data-table tbody tr.compta-checked td,
+  :root[data-theme="dark"] .shadcn-table tbody tr.compta-checked td {
+    background: #166534 !important;
+  }
+
   /* ═══════════════════════════════════════════════════════
      MODE DENSE : Réduit tous les espacements
      ═══════════════════════════════════════════════════════ */

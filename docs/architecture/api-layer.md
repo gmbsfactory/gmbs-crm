@@ -284,8 +284,11 @@ La fonction `mapInterventionRecord(item, refs)` transforme un enregistrement bru
 1. **Resolution des cles etrangeres** via le ReferenceCacheManager (O(1) par lookup)
 2. **Extraction des artisans** depuis `intervention_artisans` (primaire/secondaire)
 3. **Calcul des couts** depuis `intervention_costs` avec priorite : `costs_cache` > calcule > champs legacy
-4. **Chaine de fallback pour les noms** : `prenom nom` > `plain_nom` > `raison_sociale`
-5. **Alias legacy** : snake_case -> camelCase pour compatibilite
+4. **Extraction des relations jointes** : aplatit les objets Supabase `item.tenants` et `item.owner` en champs plats (`prenomClient`, `nomClient`, `prenomProprietaire`, `nomProprietaire`, `nomPrenomFacturation`, etc.)
+5. **Chaine de fallback pour les noms** : objet joint > champs plats > `plain_nom` > concatenation prenom+nom
+6. **Alias legacy** : snake_case -> camelCase pour compatibilite
+
+> **Important :** Quand l'Edge Function retourne des relations jointes (ex: `tenants: {firstname, lastname}`), `mapInterventionRecord` extrait ces champs dans des proprietes plates. Par exemple `item.tenants.firstname` → `prenomClient`, `item.owner.owner_firstname` → `prenomProprietaire`, `item.owner.plain_nom_facturation` → `nomPrenomFacturation`.
 
 ### Constantes metier (`constants.ts`)
 

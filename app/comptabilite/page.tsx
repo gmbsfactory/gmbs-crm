@@ -1,8 +1,8 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
-import { Eye, Loader2, Copy, Check } from "lucide-react"
+import { Copy, Check } from "lucide-react"
 import { format, getYear, startOfMonth, endOfMonth, startOfYear, endOfYear, eachMonthOfInterval } from "date-fns"
 import { fr } from "date-fns/locale"
 
@@ -12,90 +12,23 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Pagination } from "@/components/ui/pagination"
-import { TruncatedCell } from "@/components/ui/truncated-cell"
+import { Skeleton } from "@/components/ui/skeleton"
 import { useCurrentUser } from "@/hooks/useCurrentUser"
 import { usePermissions } from "@/hooks/usePermissions"
 import { useInterventionModal } from "@/hooks/useInterventionModal"
-import { interventionsApi } from "@/lib/api/v2"
-import { comptaApi } from "@/lib/api/compta"
-import type { InterventionWithStatus } from "@/types/intervention"
+import { useComptabiliteQuery } from "@/hooks/useComptabiliteQuery"
 import { cn } from "@/lib/utils"
-
-type InterventionRecord = InterventionWithStatus & {
-  intervention_artisans?: Array<{
-    artisan_id?: string
-    is_primary?: boolean
-    role?: string | null
-    artisans?: { prenom?: string | null; nom?: string | null } | null
-  }>
-}
-
-const formatCurrency = (amount: number | null | undefined) => {
-  if (amount === null || amount === undefined || Number.isNaN(Number(amount))) return "—"
-  return new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(Number(amount))
-}
-
-const formatDate = (value: string | null | undefined) => {
-  if (!value) return "—"
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return "—"
-  return new Intl.DateTimeFormat("fr-FR", { day: "2-digit", month: "2-digit", year: "numeric" }).format(date)
-}
-
-const formatName = (first?: string | null, last?: string | null) => {
-  const full = `${first ?? ""} ${last ?? ""}`.trim()
-  return full.length ? full : "—"
-}
-
-const formatClientName = (intervention: any) => {
-  return formatName(intervention?.prenomClient ?? intervention?.prenom_client, intervention?.nomClient ?? intervention?.nom_client)
-}
-
-const formatAddress = (intervention: any) => {
-  const parts = [
-    intervention?.adresse ?? "",
-    [intervention?.code_postal ?? intervention?.codePostal ?? "", intervention?.ville ?? ""].filter(Boolean).join(" "),
-  ].filter((part) => (part ?? "").toString().trim().length > 0)
-  return parts.length ? parts.join(", ") : "—"
-}
-
-const getMetierLabel = (intervention: any) => intervention?.metierLabel ?? intervention?.metier ?? "—"
-
-const getCostAmountByType = (intervention: InterventionRecord, type: "materiel" | "intervention" | "sst") => {
-  const costs = Array.isArray((intervention as any).costs) ? (intervention as any).costs : []
-  if (costs.length > 0) {
-    return costs
-      .filter((cost: any) => cost?.cost_type === type)
-      .reduce((sum: number, cost: any) => sum + (Number(cost?.amount) || 0), 0)
-  }
-  if (type === "materiel") return (intervention as any).coutMateriel ?? null
-  if (type === "intervention") return (intervention as any).coutIntervention ?? null
-  if (type === "sst") return (intervention as any).coutSST ?? null
-  return null
-}
-
-const getPaymentInfo = (intervention: InterventionRecord, paymentType: string) => {
-  // Utiliser payments ou intervention_payments selon ce qui est disponible
-  const inter = intervention as any
-  const payments = Array.isArray(intervention.payments) && intervention.payments.length > 0
-    ? intervention.payments
-    : Array.isArray(inter.intervention_payments)
-      ? inter.intervention_payments
-      : []
-  if (!payments.length) return { amount: null, date: null }
-  const filtered = payments.filter((payment: any) => payment?.payment_type === paymentType)
-  if (!filtered.length) return { amount: null, date: null }
-  const amount = filtered.reduce((sum: number, payment: any) => sum + (Number(payment?.amount) || 0), 0)
-  const date = filtered.find((payment: any) => payment?.payment_date)?.payment_date ?? filtered[0]?.payment_date ?? null
-  return { amount, date }
-}
-
-const getArtisanName = (intervention: InterventionRecord) => {
-  const artisans = Array.isArray(intervention.intervention_artisans) ? intervention.intervention_artisans : []
-  const primary = artisans.find((artisan) => artisan?.is_primary) ?? artisans[0]
-  const details = primary?.artisans
-  return formatName(details?.prenom, details?.nom)
-}
+import { ComptabiliteTableRow } from "./_components/ComptabiliteTableRow"
+import {
+  formatCurrency,
+  formatDate,
+  formatClientName,
+  formatAddress,
+  getMetierLabel,
+  getCostAmountByType,
+  getPaymentInfo,
+  getArtisanName,
+} from "@/lib/comptabilite/formatters"
 
 type PeriodType = "month" | "year"
 
@@ -105,14 +38,20 @@ const STORAGE_KEY_START_MONTH = "comptabilite-start-month"
 const STORAGE_KEY_END_YEAR = "comptabilite-end-year"
 const STORAGE_KEY_END_MONTH = "comptabilite-end-month"
 
+const cleanValue = (value: string): string => {
+  return value
+    .replace(/[\r\n]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+}
+
+const emptyIfDash = (value: string) => value === "—" ? "" : value
+
 export default function ComptabilitePage() {
   const router = useRouter()
   const { open: openInterventionModal } = useInterventionModal()
   const { data: currentUser, isLoading: loadingUser } = useCurrentUser()
   const { can, isLoading: loadingPermissions } = usePermissions()
-  const [interventions, setInterventions] = useState<InterventionRecord[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
   const [isMounted, setIsMounted] = useState(false)
 
   // État pour les filtres de période
@@ -126,12 +65,6 @@ export default function ComptabilitePage() {
   const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set())
   const [copied, setCopied] = useState(false)
   const [copiedAndChecked, setCopiedAndChecked] = useState(false)
-  
-  // État pour les interventions marquées comme "gérées" en compta
-  const [checkedInterventions, setCheckedInterventions] = useState<Set<string>>(new Set())
-
-  // État pour les dates de facturation (date de passage à INTER_TERMINEE)
-  const [facturationDates, setFacturationDates] = useState<Map<string, string>>(new Map())
 
   // États pour la pagination
   const [currentPage, setCurrentPage] = useState(1)
@@ -229,77 +162,26 @@ export default function ComptabilitePage() {
     }
   }, [canAccessComptabilite, currentUser, loadingUser, loadingPermissions, router])
 
-  useEffect(() => {
-    const fetchInterventions = async () => {
-      if (!currentUser || !canAccessComptabilite) return
-      setLoading(true)
-      setError(null)
-      try {
-        const status = await interventionsApi.getStatusByCode("INTER_TERMINEE")
-        if (!status?.id) {
-          setError("Statut INTER_TERMINEE introuvable")
-          setInterventions([])
-          return
-        }
-        const { data } = await interventionsApi.getAll({
-          statut: status.id,
-          include: ["artisans", "costs", "payments"],
-          limit: 1000,
-        })
-
-        let allInterventions = (data || []).filter((intervention) => {
-          const statusCode = (intervention.status?.code || (intervention as any).statusValue || (intervention as any).statut || "").toUpperCase()
-          return statusCode === "INTER_TERMINEE"
-        })
-
-        // Récupérer les dates de facturation depuis intervention_status_transitions
-        const allIds = allInterventions.map(i => i.id)
-        const dates = await comptaApi.getFacturationDates(allIds)
-        setFacturationDates(dates)
-
-        // Appliquer le filtre de date par date de facturation
-        let filtered = allInterventions
-        if (dateRange) {
-          filtered = allInterventions.filter((intervention) => {
-            const dateFacturation = dates.get(intervention.id)
-            if (!dateFacturation) return false
-            const date = new Date(dateFacturation)
-            const start = new Date(dateRange.start)
-            const end = new Date(dateRange.end)
-            return date >= start && date <= end
-          })
-        }
-
-        // Trier par date de facturation - plus récent en premier
-        filtered.sort((a, b) => {
-          const dateA = new Date(dates.get(a.id) || 0).getTime()
-          const dateB = new Date(dates.get(b.id) || 0).getTime()
-          return dateB - dateA
-        })
-
-        setInterventions(filtered as InterventionRecord[])
-
-        // Récupérer les checks compta
-        const ids = filtered.map(i => i.id)
-        const checks = await comptaApi.getCheckedInterventions(ids)
-        setCheckedInterventions(checks)
-      } catch (err: any) {
-        setError(err?.message || "Impossible de charger les interventions")
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    fetchInterventions()
-  }, [canAccessComptabilite, currentUser, dateRange])
+  // Hook TanStack Query pour les données comptabilité (cache, prefetch, optimistic updates)
+  const {
+    interventions: paginatedInterventions,
+    allInterventions,
+    facturationDates,
+    checkedInterventions,
+    totalCount,
+    totalPages,
+    loading,
+    error,
+    toggleComptaCheck,
+    bulkCheck,
+  } = useComptabiliteQuery({
+    dateRange,
+    enabled: canAccessComptabilite && !!currentUser,
+    page: currentPage,
+    itemsPerPage,
+  })
 
   const isLoading = loading || loadingUser || loadingPermissions
-
-  // Pagination
-  const totalPages = Math.ceil(interventions.length / itemsPerPage)
-  const startIndex = (currentPage - 1) * itemsPerPage
-  const endIndex = startIndex + itemsPerPage
-  const paginatedInterventions = interventions.slice(startIndex, endIndex)
 
   // Réinitialiser la page si on dépasse après un filtrage
   useEffect(() => {
@@ -314,116 +196,61 @@ export default function ComptabilitePage() {
     setCurrentPage(1)
   }, [dateRange])
 
-  // Gestion de la sélection (exclut les lignes déjà cochées en compta)
-  const selectableInterventions = paginatedInterventions.filter((i) => !checkedInterventions.has(i.id))
-  const allSelected = selectableInterventions.length > 0 && selectableInterventions.every((i) => selectedRows.has(i.id))
+  // ── Sélection mémoïsée ──
+
+  const selectableInterventions = useMemo(
+    () => paginatedInterventions.filter((i) => !checkedInterventions.has(i.id)),
+    [paginatedInterventions, checkedInterventions]
+  )
+
+  const allSelected = useMemo(
+    () => selectableInterventions.length > 0 && selectableInterventions.every((i) => selectedRows.has(i.id)),
+    [selectableInterventions, selectedRows]
+  )
+
   const someSelected = selectedRows.size > 0 && !allSelected
 
-  const toggleSelectAll = () => {
-    const newSelected = new Set(selectedRows)
-    if (allSelected) {
-      // Désélectionner toutes les lignes sélectionnables de la page actuelle
-      selectableInterventions.forEach((i) => newSelected.delete(i.id))
-    } else {
-      // Sélectionner toutes les lignes non-cochées en compta de la page actuelle
-      selectableInterventions.forEach((i) => newSelected.add(i.id))
-    }
-    setSelectedRows(newSelected)
-  }
+  // ── Handlers stabilisés avec useCallback ──
 
-  const toggleSelectRow = (id: string) => {
-    const newSelected = new Set(selectedRows)
-    if (newSelected.has(id)) {
-      newSelected.delete(id)
-    } else {
-      newSelected.add(id)
-    }
-    setSelectedRows(newSelected)
-  }
-
-  // Tâche #182 : Toggle le statut "géré" d'une intervention (optimistic update)
-  const toggleComptaCheck = async (interventionId: string) => {
-    const wasChecked = checkedInterventions.has(interventionId)
-    const newChecked = !wasChecked
-
-    // Mise à jour optimiste immédiate de l'UI
-    setCheckedInterventions(prev => {
+  const toggleSelectAll = useCallback(() => {
+    setSelectedRows((prev) => {
       const next = new Set(prev)
-      if (newChecked) {
-        next.add(interventionId)
+      const selectable = paginatedInterventions.filter((i) => !checkedInterventions.has(i.id))
+      const allChecked = selectable.length > 0 && selectable.every((i) => prev.has(i.id))
+      if (allChecked) {
+        selectable.forEach((i) => next.delete(i.id))
       } else {
-        next.delete(interventionId)
+        selectable.forEach((i) => next.add(i.id))
       }
       return next
     })
+  }, [paginatedInterventions, checkedInterventions])
 
-    // Appel API en arrière-plan
-    const success = newChecked
-      ? await comptaApi.check(interventionId)
-      : await comptaApi.uncheck(interventionId)
+  const toggleSelectRow = useCallback((id: string) => {
+    setSelectedRows((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) {
+        next.delete(id)
+      } else {
+        next.add(id)
+      }
+      return next
+    })
+  }, [])
 
-    // Rollback si échec
-    if (!success) {
-      setCheckedInterventions(prev => {
-        const next = new Set(prev)
-        if (wasChecked) {
-          next.add(interventionId)
-        } else {
-          next.delete(interventionId)
-        }
-        return next
-      })
-    }
-  }
-
-  // Fonction pour nettoyer les valeurs et éviter les retours à la ligne
-  const cleanValue = (value: string): string => {
-    return value
-      .replace(/[\r\n]+/g, " ") // Remplacer tous les retours à la ligne par des espaces
-      .replace(/\s+/g, " ") // Remplacer les espaces multiples par un seul espace
-      .trim() // Supprimer les espaces en début et fin
-  }
+  const handleOpenModal = useCallback((id: string) => {
+    openInterventionModal(id)
+  }, [openInterventionModal])
 
   // Fonction de copie au format Excel (TSV)
-  const copySelectedRows = async () => {
+  const copySelectedRows = useCallback(async () => {
     if (selectedRows.size === 0) return
 
-    const selectedInterventions = interventions.filter((i) => selectedRows.has(i.id))
-    
-    // En-têtes de colonnes (format compatible avec le tableau Excel existant)
-    const headers = [
-      "Date",
-      "Agence",
-      "GESTIONNAIRE",
-      "ID",
-      "Nom Prénom",
-      "ADRESSE",
-      "METIER",
-      "INTERVENTION",
-      "",  // colonne vide
-      "COUT MATÉRIEL",
-      "MONTANT HT",
-      "MONTANT TTC",
-      "COUT SST",
-      "",  // colonne vide 1
-      "",  // colonne vide 2
-      "SST",
-      "",  // colonne vide
-      "Acompte client",
-      "Date acompte client",
-      "Acompte sst",
-      "Date acompte SST",
-    ]
+    const selectedInterventions = allInterventions.filter((i) => selectedRows.has(i.id))
 
-    // Fonction pour remplacer "—" par vide pour la copie
-    const emptyIfDash = (value: string) => value === "—" ? "" : value
-
-    // Construire les lignes de données
     const rows = selectedInterventions.map((intervention) => {
       const acompteClient = getPaymentInfo(intervention, "acompte_client")
       const acompteArtisan = getPaymentInfo(intervention, "acompte_sst")
-
-      // Nettoyer toutes les valeurs pour éviter les retours à la ligne
       const inter = intervention as any
       return [
         emptyIfDash(cleanValue(formatDate(facturationDates.get(intervention.id)))),
@@ -434,15 +261,15 @@ export default function ComptabilitePage() {
         emptyIfDash(cleanValue(formatAddress(intervention))),
         emptyIfDash(cleanValue(getMetierLabel(intervention))),
         cleanValue(inter.contexteIntervention ?? intervention.contexte_intervention ?? ""),
-        "",  // colonne vide
+        "",
         emptyIfDash(cleanValue(formatCurrency(getCostAmountByType(intervention, "materiel")))),
         emptyIfDash(cleanValue(formatCurrency(getCostAmountByType(intervention, "intervention")))),
-        "",  // MONTANT TTC - colonne vide
+        "",
         emptyIfDash(cleanValue(formatCurrency(getCostAmountByType(intervention, "sst")))),
-        "",  // colonne vide 1
-        "",  // colonne vide 2
+        "",
+        "",
         emptyIfDash(cleanValue(getArtisanName(intervention))),
-        "",  // colonne vide
+        "",
         emptyIfDash(cleanValue(formatCurrency(acompteClient.amount))),
         emptyIfDash(cleanValue(formatDate(acompteClient.date))),
         emptyIfDash(cleanValue(formatCurrency(acompteArtisan.amount))),
@@ -450,7 +277,6 @@ export default function ComptabilitePage() {
       ]
     })
 
-    // Créer le contenu TSV (Tab Separated Values - compatible Excel) sans les en-têtes
     const tsvContent = rows.map((row) => row.join("\t")).join("\n")
 
     try {
@@ -460,47 +286,22 @@ export default function ComptabilitePage() {
     } catch (err) {
       console.error("Erreur lors de la copie:", err)
     }
-  }
+  }, [selectedRows, allInterventions, facturationDates])
 
   // Copier ET marquer comme gérées toutes les lignes sélectionnées
-  const copyAndCheckSelectedRows = async () => {
+  const copyAndCheckSelectedRows = useCallback(async () => {
     if (selectedRows.size === 0) return
 
-    // D'abord copier
     await copySelectedRows()
 
-    // Puis marquer toutes les lignes sélectionnées comme gérées
     const idsToCheck = Array.from(selectedRows)
+    await bulkCheck(idsToCheck)
 
-    // Mise à jour optimiste immédiate
-    setCheckedInterventions(prev => {
-      const next = new Set(prev)
-      idsToCheck.forEach(id => next.add(id))
-      return next
-    })
-
-    // Appels API en parallèle
-    const results = await Promise.all(
-      idsToCheck.map(id => comptaApi.check(id))
-    )
-
-    // Rollback des échecs
-    const failedIds = idsToCheck.filter((_, index) => !results[index])
-    if (failedIds.length > 0) {
-      setCheckedInterventions(prev => {
-        const next = new Set(prev)
-        failedIds.forEach(id => next.delete(id))
-        return next
-      })
-    }
-
-    // Désélectionner les lignes (elles sont maintenant gérées)
     setSelectedRows(new Set())
 
-    // Feedback visuel
     setCopiedAndChecked(true)
     setTimeout(() => setCopiedAndChecked(false), 2000)
-  }
+  }, [selectedRows, copySelectedRows, bulkCheck])
 
   if (!loadingUser && !loadingPermissions && (!currentUser || !canAccessComptabilite)) {
     return null
@@ -618,9 +419,9 @@ export default function ComptabilitePage() {
         </div>
 
         {/* Badge avec le nombre d'interventions */}
-        {!loading && (
+        {!isLoading && (
           <Badge variant="secondary" className="text-foreground font-medium whitespace-nowrap">
-            {interventions.length} intervention{interventions.length > 1 ? "s" : ""}
+            {totalCount} intervention{totalCount > 1 ? "s" : ""}
           </Badge>
         )}
 
@@ -720,17 +521,29 @@ export default function ComptabilitePage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {isLoading && (
-              <TableRow>
-                <TableCell colSpan={18} className="text-center text-sm text-muted-foreground">
-                  <div className="flex items-center justify-center gap-2 py-4">
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Chargement des interventions…
-                  </div>
-                </TableCell>
+            {isLoading && Array.from({ length: 12 }).map((_, i) => (
+              <TableRow key={`skeleton-${i}`}>
+                <TableCell><Skeleton className="h-4 w-4" /></TableCell>
+                <TableCell><Skeleton className="h-4 w-16" /></TableCell>
+                <TableCell><Skeleton className="h-4 w-14" /></TableCell>
+                <TableCell><Skeleton className="h-4 w-14" /></TableCell>
+                <TableCell><Skeleton className="h-4 w-12" /></TableCell>
+                <TableCell><Skeleton className="h-4 w-20" /></TableCell>
+                <TableCell><Skeleton className="h-4 w-24" /></TableCell>
+                <TableCell><Skeleton className="h-4 w-14" /></TableCell>
+                <TableCell><Skeleton className="h-4 w-28" /></TableCell>
+                <TableCell><Skeleton className="h-4 w-16" /></TableCell>
+                <TableCell><Skeleton className="h-4 w-14" /></TableCell>
+                <TableCell><Skeleton className="h-4 w-12" /></TableCell>
+                <TableCell><Skeleton className="h-4 w-16" /></TableCell>
+                <TableCell><Skeleton className="h-4 w-16" /></TableCell>
+                <TableCell><Skeleton className="h-4 w-18" /></TableCell>
+                <TableCell><Skeleton className="h-4 w-18" /></TableCell>
+                <TableCell><Skeleton className="h-4 w-20" /></TableCell>
+                <TableCell><Skeleton className="h-4 w-14" /></TableCell>
               </TableRow>
-            )}
-            {!isLoading && interventions.length === 0 && (
+            ))}
+            {!isLoading && totalCount === 0 && (
               <TableRow>
                 <TableCell colSpan={18} className="text-center text-sm text-muted-foreground py-8">
                   Aucune intervention terminée pour la période sélectionnée.
@@ -738,113 +551,29 @@ export default function ComptabilitePage() {
               </TableRow>
             )}
             {!isLoading &&
-              paginatedInterventions.map((intervention) => {
-                const acompteClient = getPaymentInfo(intervention, "acompte_client")
-                const acompteArtisan = getPaymentInfo(intervention, "acompte_sst")
-                const isSelected = selectedRows.has(intervention.id)
-                const isComptaChecked = checkedInterventions.has(intervention.id)
-                return (
-                  <TableRow
-                    key={intervention.id}
-                    className={cn(
-                      "transition-colors",
-                      isSelected && !isComptaChecked && "bg-muted/50",
-                      isComptaChecked && "compta-checked"
-                    )}
-                  >
-                    <TableCell>
-                      <Checkbox
-                        checked={isSelected}
-                        onCheckedChange={() => toggleSelectRow(intervention.id)}
-                        aria-label={`Sélectionner la ligne ${intervention.id_inter || intervention.id}`}
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <TruncatedCell content={formatDate(facturationDates.get(intervention.id))} maxWidth="80px" />
-                    </TableCell>
-                    <TableCell>
-                      <TruncatedCell content={(intervention as any).agenceLabel || (intervention as any).agence || "—"} maxWidth="70px" />
-                    </TableCell>
-                    <TableCell>
-                      <TruncatedCell content={(intervention as any).assignedUserName || (intervention as any).attribueA || "—"} maxWidth="70px" />
-                    </TableCell>
-                    <TableCell>
-                      <TruncatedCell content={intervention.id_inter || "—"} maxWidth="60px" />
-                    </TableCell>
-                    <TableCell>
-                      <TruncatedCell content={formatClientName(intervention)} maxWidth="90px" />
-                    </TableCell>
-                    <TableCell>
-                      <TruncatedCell content={formatAddress(intervention)} maxWidth="110px" />
-                    </TableCell>
-                    <TableCell>
-                      <TruncatedCell content={getMetierLabel(intervention)} maxWidth="65px" />
-                    </TableCell>
-                    <TableCell>
-                      <TruncatedCell
-                        content={(intervention as any).contexteIntervention ?? intervention.contexte_intervention ?? "—"}
-                        maxWidth="130px"
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <TruncatedCell content={formatCurrency(getCostAmountByType(intervention, "materiel"))} maxWidth="75px" />
-                    </TableCell>
-                    <TableCell>
-                      <TruncatedCell content={formatCurrency(getCostAmountByType(intervention, "intervention"))} maxWidth="65px" />
-                    </TableCell>
-                    <TableCell>
-                      <TruncatedCell content={formatCurrency(getCostAmountByType(intervention, "sst"))} maxWidth="60px" />
-                    </TableCell>
-                    <TableCell>
-                      <TruncatedCell content={getArtisanName(intervention)} maxWidth="80px" />
-                    </TableCell>
-                    <TableCell>
-                      <TruncatedCell content={formatCurrency(acompteClient.amount)} maxWidth="85px" />
-                    </TableCell>
-                    <TableCell>
-                      <TruncatedCell content={formatDate(acompteClient.date)} maxWidth="90px" />
-                    </TableCell>
-                    <TableCell>
-                      <TruncatedCell content={formatCurrency(acompteArtisan.amount)} maxWidth="90px" />
-                    </TableCell>
-                    <TableCell>
-                      <TruncatedCell content={formatDate(acompteArtisan.date)} maxWidth="100px" />
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-1">
-                        <Checkbox
-                          checked={isComptaChecked}
-                          onCheckedChange={() => toggleComptaCheck(intervention.id)}
-                          aria-label="Marquer comme géré"
-                          className="data-[state=checked]:bg-green-500 data-[state=checked]:border-green-500"
-                        />
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => {
-                            if (intervention.id) {
-                              openInterventionModal(intervention.id)
-                            }
-                          }}
-                        >
-                          <Eye className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                )
-              })}
+              paginatedInterventions.map((intervention) => (
+                <ComptabiliteTableRow
+                  key={intervention.id}
+                  intervention={intervention}
+                  facturationDate={facturationDates.get(intervention.id)}
+                  isSelected={selectedRows.has(intervention.id)}
+                  isComptaChecked={checkedInterventions.has(intervention.id)}
+                  onToggleSelect={toggleSelectRow}
+                  onToggleComptaCheck={toggleComptaCheck}
+                  onOpenModal={handleOpenModal}
+                />
+              ))}
           </TableBody>
         </Table>
         </div>
 
         {/* Pagination */}
-        {!isLoading && interventions.length > 0 && (
+        {!isLoading && totalCount > 0 && (
           <div className="border-t p-2">
             <Pagination
               currentPage={currentPage}
               totalPages={totalPages}
-              totalCount={interventions.length}
+              totalCount={totalCount}
               pageSize={itemsPerPage}
               onPageChange={setCurrentPage}
             />
