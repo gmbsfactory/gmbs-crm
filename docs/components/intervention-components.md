@@ -230,6 +230,37 @@ Menu "+" pour les actions de création rapide : nouvelle intervention, import, e
 
 ---
 
+## Page Comptabilite
+
+La page comptabilite (`app/comptabilite/page.tsx`) affiche les interventions terminees avec leurs couts, paiements et informations client/facturation.
+
+### Architecture
+
+```
+app/comptabilite/
+  page.tsx                          # Page principale avec filtres de periode
+  _components/
+    ComptabiliteTableRow.tsx        # Ligne de tableau memorisee (memo)
+src/hooks/useComptabiliteQuery.ts   # Hook TanStack Query dedie
+src/lib/comptabilite/formatters.ts  # Formatters (nom client, couts, paiements)
+```
+
+### Donnees affichees
+
+La colonne **Client** affiche les informations de facturation (owner/proprietaire) et non le locataire (tenant). L'ordre de priorite est :
+
+1. `nomPrenomFacturation` (champ `plain_nom_facturation` de la table `owners`)
+2. `prenomProprietaire` + `nomProprietaire` (champs `owner_firstname`/`owner_lastname`)
+3. Fallback : `prenomClient` + `nomClient` (tenant)
+
+Pour que ces donnees soient disponibles, `useComptabiliteQuery` passe `include: ["artisans", "costs", "payments", "owner"]` a l'API, ce qui force l'Edge Function a joindre la table `owners`.
+
+### Style des lignes cochees
+
+Les lignes marquees comme gerees (via "Copier + Check") s'affichent avec un fond vert defini dans `app/styles/tables.css` via la classe CSS `.compta-checked`.
+
+---
+
 ## Composants utilitaires
 
 | Composant | Description |

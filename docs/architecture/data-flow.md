@@ -172,11 +172,14 @@ graph TD
     B --> D[Extraction relations]
     D --> D1[intervention_artisans -> artisanIds + displayName]
     D --> D2[intervention_costs -> totaux CA/SST/materiel/marge]
+    D --> D3[tenants -> prenomClient, nomClient, nomPrenomClient]
+    D --> D4[owner -> prenomProprietaire, nomProprietaire, nomPrenomFacturation]
 
     B --> E[Normalisation champs]
     E --> E1[snake_case -> camelCase aliases]
     E --> E2[Chaines de fallback pour noms]
     E --> E3[Priorite costs_cache > calcule > legacy]
+    E --> E4[Priorite objet joint > champ plat > concatenation]
 
     B --> F[Objet Intervention enrichi - 50+ champs]
 ```

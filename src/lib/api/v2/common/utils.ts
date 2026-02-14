@@ -402,16 +402,16 @@ export const mapInterventionRecord = (item: any, refs: any): any => {
     ville: item.ville ?? null,
     dateIntervention:
       item.date_intervention ?? item.dateIntervention ?? item.date ?? null,
-    prenomClient: item.prenom_client ?? item.prenomClient ?? null,
-    nomClient: item.nom_client ?? item.nomClient ?? null,
+    prenomClient: item.tenants?.firstname ?? item.prenom_client ?? item.prenomClient ?? null,
+    nomClient: item.tenants?.lastname ?? item.nom_client ?? item.nomClient ?? null,
     nomPrenomClient:
+      item.tenants?.plain_nom_client ??
       item.plain_nom_client ??
       item.nomPrenomClient ??
-      (item.nom_client ||
-        item.nomClient ||
-        item.prenom_client ||
-        item.prenomClient
-        ? `${item.nom_client ?? item.nomClient ?? ""} ${item.prenom_client ?? item.prenomClient ?? ""}`.trim()
+      (item.tenants?.firstname || item.tenants?.lastname ||
+        item.nom_client || item.nomClient ||
+        item.prenom_client || item.prenomClient
+        ? `${item.tenants?.lastname ?? item.nom_client ?? item.nomClient ?? ""} ${item.tenants?.firstname ?? item.prenom_client ?? item.prenomClient ?? ""}`.trim()
         : null),
     attribueA: userInfo.code ?? userInfo.username ?? undefined,
     assignedUserName: userInfo.fullName ?? undefined,
@@ -444,25 +444,25 @@ export const mapInterventionRecord = (item: any, refs: any): any => {
     telLoc: item.tel_loc ?? item.telLoc ?? null,
     locataire: item.locataire ?? null,
     emailLocataire: item.email_locataire ?? item.emailLocataire ?? null,
-    telephoneClient: item.telephone_client ?? item.telephoneClient ?? null,
-    telephone2Client: item.telephone2_client ?? item.telephone2Client ?? null,
-    emailClient: item.email_client ?? item.emailClient ?? null,
+    telephoneClient: item.tenants?.telephone ?? item.telephone_client ?? item.telephoneClient ?? null,
+    telephone2Client: item.tenants?.telephone2 ?? item.telephone2_client ?? item.telephone2Client ?? null,
+    emailClient: item.tenants?.email ?? item.email_client ?? item.emailClient ?? null,
     prenomProprietaire:
-      item.prenom_proprietaire ?? item.prenomProprietaire ?? null,
-    nomProprietaire: item.nom_proprietaire ?? item.nomProprietaire ?? null,
+      item.owner?.owner_firstname ?? item.prenom_proprietaire ?? item.prenomProprietaire ?? null,
+    nomProprietaire: item.owner?.owner_lastname ?? item.nom_proprietaire ?? item.nomProprietaire ?? null,
     nomPrenomFacturation:
+      item.owner?.plain_nom_facturation ??
       item.plain_nom_facturation ??
       item.nomPrenomFacturation ??
-      (item.nom_proprietaire ||
-        item.nomProprietaire ||
-        item.prenom_proprietaire ||
-        item.prenomProprietaire
-        ? `${item.nom_proprietaire ?? item.nomProprietaire ?? ""} ${item.prenom_proprietaire ?? item.prenomProprietaire ?? ""}`.trim()
+      (item.owner?.owner_firstname || item.owner?.owner_lastname ||
+        item.nom_proprietaire || item.nomProprietaire ||
+        item.prenom_proprietaire || item.prenomProprietaire
+        ? `${item.owner?.owner_lastname ?? item.nom_proprietaire ?? item.nomProprietaire ?? ""} ${item.owner?.owner_firstname ?? item.prenom_proprietaire ?? item.prenomProprietaire ?? ""}`.trim()
         : null),
     telephoneProprietaire:
-      item.telephone_proprietaire ?? item.telephoneProprietaire ?? null,
+      item.owner?.telephone ?? item.telephone_proprietaire ?? item.telephoneProprietaire ?? null,
     emailProprietaire:
-      item.email_proprietaire ?? item.emailProprietaire ?? null,
+      item.owner?.email ?? item.email_proprietaire ?? item.emailProprietaire ?? null,
     pieceJointeIntervention:
       item.piece_jointe_intervention ?? item.pieceJointeIntervention ?? [],
     pieceJointeCout: item.piece_jointe_cout ?? item.pieceJointeCout ?? [],
