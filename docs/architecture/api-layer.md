@@ -303,6 +303,31 @@ Centralise toutes les constantes :
 | `MAX_BATCH_SIZE` | 100 (limite `.in()` pour eviter les URL trop longues) |
 | `REFERENCE_CACHE_DURATION` | 5 minutes |
 
+### Taches post-mutation (`post-mutation-tasks.ts`)
+
+Le module `src/lib/interventions/post-mutation-tasks.ts` centralise les taches secondaires executees apres une mutation d'intervention. Il est concu en **fire-and-forget** : la fonction retourne immediatement (`void`) pendant que les taches s'executent en arriere-plan.
+
+**Taches gerees :**
+
+| Tache | API appelee | Condition |
+|-------|------------|-----------|
+| Artisan primaire | `setPrimaryArtisan(id, artisanId)` | Si `current !== next` |
+| Artisan secondaire | `setSecondaryArtisan(id, artisanId)` | Si `current !== next` |
+| Couts (batch) | `upsertCostsBatch(id, costs)` | Si `costs.length > 0` |
+| Suppression couts 2eme artisan | `deleteCost(id, type, 2)` | Si `deleteSecondaryCosts` |
+| Paiements | `upsertPayment(id, payment)` | Pour chaque paiement |
+| Commentaire | `commentsApi.create(...)` | Si `comment` fourni |
+
+**Invalidation du cache apres completion :**
+
+Apres `Promise.allSettled(tasks)`, les caches suivants sont invalides :
+
+- `['interventions', 'detail', interventionId]` → **toujours** (garantit que couts/paiements sont visibles)
+- `['admin', 'dashboard']` + `['podium']` → si `invalidateDashboard: true`
+- `['comments', 'intervention', interventionId]` → si `invalidateComments: true`
+
+**Isolation des erreurs :** chaque tache individuelle catch ses propres erreurs pour eviter les cascades. Si une tache echoue, les autres continuent normalement.
+
 ---
 
 ## Edge Functions
