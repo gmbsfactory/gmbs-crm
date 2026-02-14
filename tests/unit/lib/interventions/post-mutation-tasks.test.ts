@@ -305,6 +305,7 @@ describe("runPostMutationTasks", () => {
       // Should always invalidate intervention detail after tasks
       expect(mockQueryClient.invalidateQueries).toHaveBeenCalledWith({
         queryKey: ["interventions", "detail", "int-1"],
+        refetchType: "all",
       })
       // But NOT dashboard or comments
       expect(mockQueryClient.invalidateQueries).not.toHaveBeenCalledWith({ queryKey: ["admin", "dashboard"] })
@@ -330,6 +331,7 @@ describe("runPostMutationTasks", () => {
       // to replace optimistic data (owner_id UUID) with enriched data (owner name)
       expect(mockQueryClient.invalidateQueries).toHaveBeenCalledWith({
         queryKey: ["interventions", "detail", "int-1"],
+        refetchType: "all",
       })
     })
   })

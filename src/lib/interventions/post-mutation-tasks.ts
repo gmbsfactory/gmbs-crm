@@ -124,7 +124,13 @@ export function runPostMutationTasks(config: PostMutationConfig): void {
     // enrichies (owner name, tenant name, coûts, paiements) soient visibles.
     // Les données optimistes de onMutate ne contiennent que les IDs (owner_id, tenant_id),
     // pas les noms résolus — ce refetch les récupère.
-    config.queryClient.invalidateQueries({ queryKey: ['interventions', 'detail', config.interventionId] })
+    // refetchType 'all' force le refetch même si la query est inactive (modal fermé),
+    // sinon les données stale restent en cache pendant staleTime (30s) et le modal
+    // ré-ouvert affiche les anciennes données.
+    config.queryClient.invalidateQueries({
+      queryKey: ['interventions', 'detail', config.interventionId],
+      refetchType: 'all',
+    })
 
     if (config.invalidateDashboard) {
       config.queryClient.invalidateQueries({ queryKey: ['admin', 'dashboard'] })

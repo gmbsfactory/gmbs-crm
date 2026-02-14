@@ -200,16 +200,18 @@ export function useInterventionsMutations() {
       const indicatorManager = getRemoteEditIndicatorManager()
       indicatorManager.recordLocalModification(variables.id, data?.updated_at || null)
 
-      // Invalider les listes et résumés (données tabulaires, pas le détail)
+      // Invalider les listes, résumés ET le détail
       invalidateLists()
       queryClient.invalidateQueries({ queryKey: interventionKeys.summaries() })
-
-      // NOTE: Le détail intervention n'est PAS invalidé ici volontairement.
-      // Les données optimistes de onMutate restent en cache le temps que
-      // runPostMutationTasks (fire-and-forget) sauvegarde les coûts/paiements/artisans.
-      // C'est runPostMutationTasks qui invalide le détail après completion,
-      // évitant un refetch intermédiaire qui écraserait le cache optimiste
-      // avec des données DB incomplètes (coûts pas encore sauvegardés).
+      // refetchType 'all' force le refetch même si la query est inactive (modal fermé)
+      // pour que le cache contienne les données enrichies (owner name, tenant name, etc.)
+      // avant la prochaine ouverture du modal (sinon staleTime 30s bloque).
+      // Note: les coûts ne seront peut-être pas encore sauvegardés à ce stade,
+      // mais runPostMutationTasks fera un second refetch après completion des coûts.
+      queryClient.invalidateQueries({
+        queryKey: interventionKeys.detail(variables.id),
+        refetchType: 'all',
+      })
 
       if (variables.data?.statut_id) {
         invalidateArtisanQueries(queryClient, (data as any)?.artisans)
