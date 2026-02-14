@@ -232,6 +232,33 @@ sequenceDiagram
     RT->>TQ: Mise a jour cache via cache-sync
 ```
 
+### Taches post-mutation (fire-and-forget)
+
+Apres le succes de la mutation principale, certaines donnees secondaires (couts, paiements, artisans) sont sauvegardees en arriere-plan via `runPostMutationTasks()` (`src/lib/interventions/post-mutation-tasks.ts`).
+
+Le pattern est le suivant :
+
+1. **Modal ferme immediatement** apres le `mutateAsync()` pour la fluidite UX
+2. **Toast loading** indique que l'enregistrement est en cours
+3. **Taches secondaires** (couts, paiements, artisans) s'executent en parallele en arriere-plan
+4. **Invalidation du cache** intervention detail apres completion des taches → TanStack Query refetch → l'UI se met a jour automatiquement
+
+```typescript
+// Apres le succes de la mutation principale
+runPostMutationTasks({
+  interventionId: id,
+  costs: allCosts,
+  payments: payments,
+  artisans: { primary, secondary },
+  queryClient,  // Pour l'invalidation du cache apres completion
+  invalidateDashboard: true,
+})
+// → fire-and-forget : ne bloque pas le thread
+// → invalide ['interventions', 'detail', id] apres completion
+```
+
+> **Important :** `runPostMutationTasks` invalide systematiquement le cache du detail intervention (`['interventions', 'detail', interventionId]`) apres la sauvegarde des couts/paiements. Cela garantit que l'UI affiche les donnees a jour sans que l'utilisateur ait besoin de recharger manuellement.
+
 ---
 
 ## Flux retour : temps reel

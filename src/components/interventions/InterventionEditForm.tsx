@@ -1048,7 +1048,7 @@ export const InterventionEditForm = memo(function InterventionEditForm({
         }
       })
 
-      // === NOUVEAU FLOW: Fermer le modal AVANT l'appel API ===
+      // Fermer le modal immédiatement pour la fluidité UX
       onSuccess?.(null)
       setIsSubmitting(false)
       onSubmittingChange?.(false)
@@ -1158,7 +1158,8 @@ export const InterventionEditForm = memo(function InterventionEditForm({
         if (currentPrimaryId !== nextPrimaryId) primaryArtisanIdRef.current = nextPrimaryId
         if (currentSecondaryId !== nextSecondaryId) secondaryArtisanIdRef.current = nextSecondaryId
 
-        // Lancer toutes les tâches secondaires en arrière-plan (fire-and-forget)
+        // Lancer coûts/paiements/artisans en arrière-plan (fire-and-forget)
+        // L'invalidation du cache intervention detail se fait après completion
         runPostMutationTasks({
           interventionId: intervention.id,
           artisans: {

@@ -55,7 +55,7 @@ export interface PostMutationConfig {
  *
  * This function is NOT awaited — it returns void immediately.
  * Each individual task catches its own errors to prevent cascading failures.
- * Cache invalidations run after all tasks settle.
+ * Cache invalidations (including intervention detail) run after all tasks settle.
  */
 export function runPostMutationTasks(config: PostMutationConfig): void {
   const tasks: Promise<unknown>[] = []
@@ -116,16 +116,36 @@ export function runPostMutationTasks(config: PostMutationConfig): void {
     )
   }
 
-  // After all tasks settle, run non-blocking cache invalidations
-  if (tasks.length > 0) {
-    Promise.allSettled(tasks).then(() => {
-      if (config.invalidateDashboard && config.queryClient) {
-        config.queryClient.invalidateQueries({ queryKey: ['admin', 'dashboard'] })
-        config.queryClient.invalidateQueries({ queryKey: ['podium'] })
-      }
-      if (config.invalidateComments && config.queryClient) {
-        config.queryClient.invalidateQueries({ queryKey: ['comments', 'intervention', config.interventionId] })
-      }
+  // After all tasks settle, run cache invalidations
+  const invalidateCache = () => {
+    if (!config.queryClient) return
+
+    // Toujours invalider le cache intervention detail pour que les données
+    // enrichies (owner name, tenant name, coûts, paiements) soient visibles.
+    // Les données optimistes de onMutate ne contiennent que les IDs (owner_id, tenant_id),
+    // pas les noms résolus — ce refetch les récupère.
+    // refetchType 'all' force le refetch même si la query est inactive (modal fermé),
+    // sinon les données stale restent en cache pendant staleTime (30s) et le modal
+    // ré-ouvert affiche les anciennes données.
+    config.queryClient.invalidateQueries({
+      queryKey: ['interventions', 'detail', config.interventionId],
+      refetchType: 'all',
     })
+
+    if (config.invalidateDashboard) {
+      config.queryClient.invalidateQueries({ queryKey: ['admin', 'dashboard'] })
+      config.queryClient.invalidateQueries({ queryKey: ['podium'] })
+    }
+    if (config.invalidateComments) {
+      config.queryClient.invalidateQueries({ queryKey: ['comments', 'intervention', config.interventionId] })
+    }
+  }
+
+  if (tasks.length > 0) {
+    // Attendre que toutes les tâches soient terminées avant d'invalider
+    Promise.allSettled(tasks).then(invalidateCache)
+  } else {
+    // Même sans tâches, invalider le detail pour rafraîchir les données enrichies
+    invalidateCache()
   }
 }

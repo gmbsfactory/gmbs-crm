@@ -462,6 +462,17 @@ const securityHeaders = [
 ];
 ```
 
+#### Directives CSP notables
+
+| Directive | Valeur | Raison |
+|-----------|--------|--------|
+| `default-src` | `'self'` | Restriction par defaut |
+| `connect-src` | `'self' https://*.supabase.co wss://*.supabase.co` | API et Realtime Supabase |
+| `img-src` | `'self' https: data: blob:` | Images externes et blobs |
+| `frame-src` | `'self' https://*.supabase.co blob:` | Iframes pour l'affichage des PDFs Supabase |
+
+> **Note :** La directive `frame-src` a ete ajoutee pour autoriser l'affichage des documents PDF heberges sur Supabase Storage dans des iframes. Sans cette directive, les iframes retombent sur `default-src 'self'` et les PDFs Supabase sont bloques par le navigateur. L'ouverture dans un nouvel onglet n'est pas affectee car c'est une navigation directe, non soumise au CSP.
+
 ### Multi-tab synchronisation
 
 Le logout est propage a tous les onglets via `BroadcastChannel` :
