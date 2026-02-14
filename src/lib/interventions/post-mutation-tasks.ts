@@ -117,20 +117,29 @@ export function runPostMutationTasks(config: PostMutationConfig): void {
   }
 
   // After all tasks settle, run cache invalidations
-  if (tasks.length > 0) {
-    Promise.allSettled(tasks).then(() => {
-      if (config.queryClient) {
-        // Toujours invalider le cache intervention detail pour que coûts/paiements soient visibles
-        config.queryClient.invalidateQueries({ queryKey: ['interventions', 'detail', config.interventionId] })
+  const invalidateCache = () => {
+    if (!config.queryClient) return
 
-        if (config.invalidateDashboard) {
-          config.queryClient.invalidateQueries({ queryKey: ['admin', 'dashboard'] })
-          config.queryClient.invalidateQueries({ queryKey: ['podium'] })
-        }
-        if (config.invalidateComments) {
-          config.queryClient.invalidateQueries({ queryKey: ['comments', 'intervention', config.interventionId] })
-        }
-      }
-    })
+    // Toujours invalider le cache intervention detail pour que les données
+    // enrichies (owner name, tenant name, coûts, paiements) soient visibles.
+    // Les données optimistes de onMutate ne contiennent que les IDs (owner_id, tenant_id),
+    // pas les noms résolus — ce refetch les récupère.
+    config.queryClient.invalidateQueries({ queryKey: ['interventions', 'detail', config.interventionId] })
+
+    if (config.invalidateDashboard) {
+      config.queryClient.invalidateQueries({ queryKey: ['admin', 'dashboard'] })
+      config.queryClient.invalidateQueries({ queryKey: ['podium'] })
+    }
+    if (config.invalidateComments) {
+      config.queryClient.invalidateQueries({ queryKey: ['comments', 'intervention', config.interventionId] })
+    }
+  }
+
+  if (tasks.length > 0) {
+    // Attendre que toutes les tâches soient terminées avant d'invalider
+    Promise.allSettled(tasks).then(invalidateCache)
+  } else {
+    // Même sans tâches, invalider le detail pour rafraîchir les données enrichies
+    invalidateCache()
   }
 }

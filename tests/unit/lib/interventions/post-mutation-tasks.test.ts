@@ -314,7 +314,7 @@ describe("runPostMutationTasks", () => {
       })
     })
 
-    it("should not run invalidations when no tasks are present", async () => {
+    it("should always invalidate intervention detail even when no tasks are present", async () => {
       const mockQueryClient = {
         invalidateQueries: vi.fn(),
       }
@@ -326,8 +326,11 @@ describe("runPostMutationTasks", () => {
       })
 
       await flushPromises()
-      // No tasks were created, so Promise.allSettled is not called, so invalidations don't run
-      expect(mockQueryClient.invalidateQueries).not.toHaveBeenCalled()
+      // Even without tasks, intervention detail must be invalidated
+      // to replace optimistic data (owner_id UUID) with enriched data (owner name)
+      expect(mockQueryClient.invalidateQueries).toHaveBeenCalledWith({
+        queryKey: ["interventions", "detail", "int-1"],
+      })
     })
   })
 
