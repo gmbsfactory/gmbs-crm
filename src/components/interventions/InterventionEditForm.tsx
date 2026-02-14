@@ -1048,11 +1048,6 @@ export const InterventionEditForm = memo(function InterventionEditForm({
         }
       })
 
-      // === NOUVEAU FLOW: Fermer le modal AVANT l'appel API ===
-      onSuccess?.(null)
-      setIsSubmitting(false)
-      onSubmittingChange?.(false)
-
       const toastId = toast.loading("Enregistrement en cours...")
 
       try {
@@ -1119,6 +1114,11 @@ export const InterventionEditForm = memo(function InterventionEditForm({
           },
         })
 
+        // Fermer le modal APRÈS le succès de l'appel API
+        onSuccess?.(null)
+        setIsSubmitting(false)
+        onSubmittingChange?.(false)
+
         // Préparer les coûts pour le batch
         const coutSSTValue = parseFloat(formData.coutSST) || 0
         const coutMaterielValue = parseFloat(formData.coutMateriel) || 0
@@ -1184,6 +1184,8 @@ export const InterventionEditForm = memo(function InterventionEditForm({
             onClick: () => openInterventionModal(intervention.id),
           },
         })
+        setIsSubmitting(false)
+        onSubmittingChange?.(false)
       }
 
     } catch (error) {
