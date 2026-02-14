@@ -36,10 +36,9 @@ describe("runPostMutationTasks", () => {
     vi.clearAllMocks()
   })
 
-  it("should return a promise that resolves", async () => {
+  it("should return void immediately (fire-and-forget)", () => {
     const result = runPostMutationTasks({ interventionId: "int-1" })
-    expect(result).toBeInstanceOf(Promise)
-    await expect(result).resolves.toBeUndefined()
+    expect(result).toBeUndefined()
   })
 
   describe("artisan assignments", () => {
@@ -293,13 +292,15 @@ describe("runPostMutationTasks", () => {
         invalidateQueries: vi.fn(),
       }
 
-      await runPostMutationTasks({
+      runPostMutationTasks({
         interventionId: "int-1",
         costs: [{ cost_type: "sst", amount: 100, artisan_order: 1 }],
         queryClient: mockQueryClient as any,
         invalidateDashboard: false,
         invalidateComments: false,
       })
+
+      await flushPromises()
 
       // Should always invalidate intervention detail after tasks
       expect(mockQueryClient.invalidateQueries).toHaveBeenCalledWith({

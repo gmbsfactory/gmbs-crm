@@ -1048,6 +1048,11 @@ export const InterventionEditForm = memo(function InterventionEditForm({
         }
       })
 
+      // Fermer le modal immédiatement pour la fluidité UX
+      onSuccess?.(null)
+      setIsSubmitting(false)
+      onSubmittingChange?.(false)
+
       const toastId = toast.loading("Enregistrement en cours...")
 
       try {
@@ -1153,8 +1158,9 @@ export const InterventionEditForm = memo(function InterventionEditForm({
         if (currentPrimaryId !== nextPrimaryId) primaryArtisanIdRef.current = nextPrimaryId
         if (currentSecondaryId !== nextSecondaryId) secondaryArtisanIdRef.current = nextSecondaryId
 
-        // Attendre la sauvegarde des coûts/paiements/artisans avant de fermer le modal
-        await runPostMutationTasks({
+        // Lancer coûts/paiements/artisans en arrière-plan (fire-and-forget)
+        // L'invalidation du cache intervention detail se fait après completion
+        runPostMutationTasks({
           interventionId: intervention.id,
           artisans: {
             primary: { current: currentPrimaryId, next: nextPrimaryId },
@@ -1167,11 +1173,6 @@ export const InterventionEditForm = memo(function InterventionEditForm({
           invalidateDashboard: allCosts.length > 0,
           invalidateComments: !!(options?.reason && options.reasonType),
         })
-
-        // Fermer le modal APRÈS que tout soit sauvegardé (intervention + coûts + paiements)
-        onSuccess?.(null)
-        setIsSubmitting(false)
-        onSubmittingChange?.(false)
       } catch (apiError) {
         console.error("Erreur lors de la mise à jour:", apiError)
         const description = extractErrorMessage(apiError)
@@ -1184,8 +1185,6 @@ export const InterventionEditForm = memo(function InterventionEditForm({
             onClick: () => openInterventionModal(intervention.id),
           },
         })
-        setIsSubmitting(false)
-        onSubmittingChange?.(false)
       }
 
     } catch (error) {

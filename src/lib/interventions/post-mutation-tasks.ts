@@ -51,13 +51,13 @@ export interface PostMutationConfig {
 }
 
 /**
- * Runs all non-critical post-mutation tasks in parallel.
+ * Runs all non-critical post-mutation tasks in parallel (fire-and-forget).
  *
+ * This function is NOT awaited — it returns void immediately.
  * Each individual task catches its own errors to prevent cascading failures.
- * Cache invalidations run after all tasks settle.
- * Returns a promise that resolves when all tasks and invalidations are done.
+ * Cache invalidations (including intervention detail) run after all tasks settle.
  */
-export async function runPostMutationTasks(config: PostMutationConfig): Promise<void> {
+export function runPostMutationTasks(config: PostMutationConfig): void {
   const tasks: Promise<unknown>[] = []
 
   // Artisan assignments (only if changed)
@@ -116,21 +116,21 @@ export async function runPostMutationTasks(config: PostMutationConfig): Promise<
     )
   }
 
-  // Wait for all tasks to settle, then run cache invalidations
+  // After all tasks settle, run cache invalidations
   if (tasks.length > 0) {
-    await Promise.allSettled(tasks)
+    Promise.allSettled(tasks).then(() => {
+      if (config.queryClient) {
+        // Toujours invalider le cache intervention detail pour que coûts/paiements soient visibles
+        config.queryClient.invalidateQueries({ queryKey: ['interventions', 'detail', config.interventionId] })
 
-    if (config.queryClient) {
-      // Always invalidate intervention detail so costs/payments are visible
-      config.queryClient.invalidateQueries({ queryKey: ['interventions', 'detail', config.interventionId] })
-
-      if (config.invalidateDashboard) {
-        config.queryClient.invalidateQueries({ queryKey: ['admin', 'dashboard'] })
-        config.queryClient.invalidateQueries({ queryKey: ['podium'] })
+        if (config.invalidateDashboard) {
+          config.queryClient.invalidateQueries({ queryKey: ['admin', 'dashboard'] })
+          config.queryClient.invalidateQueries({ queryKey: ['podium'] })
+        }
+        if (config.invalidateComments) {
+          config.queryClient.invalidateQueries({ queryKey: ['comments', 'intervention', config.interventionId] })
+        }
       }
-      if (config.invalidateComments) {
-        config.queryClient.invalidateQueries({ queryKey: ['comments', 'intervention', config.interventionId] })
-      }
-    }
+    })
   }
 }
