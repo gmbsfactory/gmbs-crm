@@ -51,13 +51,13 @@ export interface PostMutationConfig {
 }
 
 /**
- * Runs all non-critical post-mutation tasks in parallel (fire-and-forget).
+ * Runs all non-critical post-mutation tasks in parallel.
  *
- * This function is NOT awaited — it returns void immediately.
  * Each individual task catches its own errors to prevent cascading failures.
  * Cache invalidations run after all tasks settle.
+ * Returns a promise that resolves when all tasks and invalidations are done.
  */
-export function runPostMutationTasks(config: PostMutationConfig): void {
+export async function runPostMutationTasks(config: PostMutationConfig): Promise<void> {
   const tasks: Promise<unknown>[] = []
 
   // Artisan assignments (only if changed)
@@ -116,16 +116,21 @@ export function runPostMutationTasks(config: PostMutationConfig): void {
     )
   }
 
-  // After all tasks settle, run non-blocking cache invalidations
+  // Wait for all tasks to settle, then run cache invalidations
   if (tasks.length > 0) {
-    Promise.allSettled(tasks).then(() => {
-      if (config.invalidateDashboard && config.queryClient) {
+    await Promise.allSettled(tasks)
+
+    if (config.queryClient) {
+      // Always invalidate intervention detail so costs/payments are visible
+      config.queryClient.invalidateQueries({ queryKey: ['interventions', 'detail', config.interventionId] })
+
+      if (config.invalidateDashboard) {
         config.queryClient.invalidateQueries({ queryKey: ['admin', 'dashboard'] })
         config.queryClient.invalidateQueries({ queryKey: ['podium'] })
       }
-      if (config.invalidateComments && config.queryClient) {
+      if (config.invalidateComments) {
         config.queryClient.invalidateQueries({ queryKey: ['comments', 'intervention', config.interventionId] })
       }
-    })
+    }
   }
 }

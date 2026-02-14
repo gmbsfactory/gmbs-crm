@@ -1114,11 +1114,6 @@ export const InterventionEditForm = memo(function InterventionEditForm({
           },
         })
 
-        // Fermer le modal APRÈS le succès de l'appel API
-        onSuccess?.(null)
-        setIsSubmitting(false)
-        onSubmittingChange?.(false)
-
         // Préparer les coûts pour le batch
         const coutSSTValue = parseFloat(formData.coutSST) || 0
         const coutMaterielValue = parseFloat(formData.coutMateriel) || 0
@@ -1158,8 +1153,8 @@ export const InterventionEditForm = memo(function InterventionEditForm({
         if (currentPrimaryId !== nextPrimaryId) primaryArtisanIdRef.current = nextPrimaryId
         if (currentSecondaryId !== nextSecondaryId) secondaryArtisanIdRef.current = nextSecondaryId
 
-        // Lancer toutes les tâches secondaires en arrière-plan (fire-and-forget)
-        runPostMutationTasks({
+        // Attendre la sauvegarde des coûts/paiements/artisans avant de fermer le modal
+        await runPostMutationTasks({
           interventionId: intervention.id,
           artisans: {
             primary: { current: currentPrimaryId, next: nextPrimaryId },
@@ -1172,6 +1167,11 @@ export const InterventionEditForm = memo(function InterventionEditForm({
           invalidateDashboard: allCosts.length > 0,
           invalidateComments: !!(options?.reason && options.reasonType),
         })
+
+        // Fermer le modal APRÈS que tout soit sauvegardé (intervention + coûts + paiements)
+        onSuccess?.(null)
+        setIsSubmitting(false)
+        onSubmittingChange?.(false)
       } catch (apiError) {
         console.error("Erreur lors de la mise à jour:", apiError)
         const description = extractErrorMessage(apiError)

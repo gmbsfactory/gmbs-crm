@@ -36,9 +36,10 @@ describe("runPostMutationTasks", () => {
     vi.clearAllMocks()
   })
 
-  it("should return void immediately (fire-and-forget)", () => {
+  it("should return a promise that resolves", async () => {
     const result = runPostMutationTasks({ interventionId: "int-1" })
-    expect(result).toBeUndefined()
+    expect(result).toBeInstanceOf(Promise)
+    await expect(result).resolves.toBeUndefined()
   })
 
   describe("artisan assignments", () => {
@@ -287,12 +288,12 @@ describe("runPostMutationTasks", () => {
       })
     })
 
-    it("should NOT invalidate when flags are false", async () => {
+    it("should only invalidate intervention detail when dashboard/comments flags are false", async () => {
       const mockQueryClient = {
         invalidateQueries: vi.fn(),
       }
 
-      runPostMutationTasks({
+      await runPostMutationTasks({
         interventionId: "int-1",
         costs: [{ cost_type: "sst", amount: 100, artisan_order: 1 }],
         queryClient: mockQueryClient as any,
@@ -300,8 +301,16 @@ describe("runPostMutationTasks", () => {
         invalidateComments: false,
       })
 
-      await flushPromises()
-      expect(mockQueryClient.invalidateQueries).not.toHaveBeenCalled()
+      // Should always invalidate intervention detail after tasks
+      expect(mockQueryClient.invalidateQueries).toHaveBeenCalledWith({
+        queryKey: ["interventions", "detail", "int-1"],
+      })
+      // But NOT dashboard or comments
+      expect(mockQueryClient.invalidateQueries).not.toHaveBeenCalledWith({ queryKey: ["admin", "dashboard"] })
+      expect(mockQueryClient.invalidateQueries).not.toHaveBeenCalledWith({ queryKey: ["podium"] })
+      expect(mockQueryClient.invalidateQueries).not.toHaveBeenCalledWith({
+        queryKey: ["comments", "intervention", "int-1"],
+      })
     })
 
     it("should not run invalidations when no tasks are present", async () => {
