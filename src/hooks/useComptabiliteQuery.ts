@@ -111,7 +111,7 @@ export function useComptabiliteQuery(options: UseComptabiliteQueryOptions) {
   } = useQuery({
     queryKey: comptabiliteKeys.list(queryParams),
     queryFn: () => fetchComptabiliteData(dateRange),
-    enabled: enabled && !!dateRange,
+    enabled: enabled,
     staleTime: preloadConfig.staleTime,
     gcTime: preloadConfig.gcTime,
     refetchOnWindowFocus: false,
