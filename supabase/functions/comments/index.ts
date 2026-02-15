@@ -11,11 +11,12 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { getCorsHeaders } from '../_shared/cors.ts';
+import { requireAuth } from '../_shared/auth.ts';
 
 // Types de commentaires supportés (alignés avec la contrainte de la DB)
 const COMMENT_TYPES = [
   'internal',
-  'external', 
+  'external',
   'system'
 ];
 
@@ -68,6 +69,9 @@ serve(async (req: Request) => {
       Deno.env.get('SUPABASE_URL')!,
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     );
+
+    // Enforce authentication
+    const userId = await requireAuth(req, supabase);
 
     const url = new URL(req.url);
     const pathSegments = url.pathname.split('/').filter(Boolean);
@@ -140,7 +144,7 @@ serve(async (req: Request) => {
       }
 
       const responseTime = Date.now() - startTime;
-      
+
       console.log(JSON.stringify({
         level: 'info',
         requestId,
@@ -212,8 +216,8 @@ serve(async (req: Request) => {
       // Validation du type de commentaire
       if (body.comment_type && !COMMENT_TYPES.includes(body.comment_type)) {
         return new Response(
-          JSON.stringify({ 
-            error: `Invalid comment_type. Allowed: ${COMMENT_TYPES.join(', ')}` 
+          JSON.stringify({
+            error: `Invalid comment_type. Allowed: ${COMMENT_TYPES.join(', ')}`
           }),
           { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
@@ -236,7 +240,7 @@ serve(async (req: Request) => {
           content: body.content,
           comment_type: body.comment_type || 'internal',
           is_internal: body.is_internal ?? true,
-          author_id: body.author_id,
+          author_id: body.author_id || userId,
           reason_type: body.reason_type ?? null
         }])
         .select(`
@@ -282,8 +286,8 @@ serve(async (req: Request) => {
       // Validation du type de commentaire
       if (body.comment_type && !COMMENT_TYPES.includes(body.comment_type)) {
         return new Response(
-          JSON.stringify({ 
-            error: `Invalid comment_type. Allowed: ${COMMENT_TYPES.join(', ')}` 
+          JSON.stringify({
+            error: `Invalid comment_type. Allowed: ${COMMENT_TYPES.join(', ')}`
           }),
           { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
@@ -445,7 +449,7 @@ serve(async (req: Request) => {
 
   } catch (error) {
     const responseTime = Date.now() - startTime;
-    
+
     console.log(JSON.stringify({
       level: 'error',
       requestId,
@@ -457,7 +461,10 @@ serve(async (req: Request) => {
 
     return new Response(
       JSON.stringify({ error: error.message }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      {
+        status: error.message?.includes('Unauthorized') ? 401 : 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      }
     );
   }
 });

@@ -6,7 +6,7 @@
 'use client'
 
 import { Wifi, WifiOff, Loader2 } from 'lucide-react'
-import type { ConnectionStatus } from '@/hooks/useInterventionsRealtime'
+import type { ConnectionStatus } from '@/hooks/useCrmRealtime'
 
 interface ConnectionStatusIndicatorProps {
   status: ConnectionStatus

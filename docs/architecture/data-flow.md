@@ -266,21 +266,55 @@ runPostMutationTasks({
 
 ## Flux retour : temps reel
 
-### Canal Supabase Realtime
+### Canal Supabase Realtime (multiplexe)
 
-Le systeme ecoute les changements sur la table `interventions` via un canal Supabase Realtime :
+Le systeme ecoute 3 tables sur un seul canal Supabase Realtime (1 connexion WebSocket) :
 
 ```typescript
 // src/lib/realtime/realtime-client.ts
 const channel = supabase
-  .channel('interventions-changes')
+  .channel('crm-sync')
   .on('postgres_changes', {
-    event: '*',          // INSERT, UPDATE, DELETE
-    schema: 'public',
-    table: 'interventions',
-    filter: 'is_active=eq.true',  // Reduit le trafic de ~50%
-  }, onEvent)
+    event: '*', schema: 'public', table: 'interventions',
+    filter: 'is_active=eq.true',  // -50% trafic (soft deletes ignores)
+  }, handlers.onInterventionEvent)
+  .on('postgres_changes', {
+    event: '*', schema: 'public', table: 'artisans',
+    filter: 'is_active=eq.true',
+  }, handlers.onArtisanEvent)
+  .on('postgres_changes', {
+    event: '*', schema: 'public', table: 'intervention_artisans',
+  }, handlers.onJunctionEvent)
 ```
+
+### Leader Election (Web Locks API)
+
+Un seul onglet par navigateur maintient la connexion WebSocket. Les autres onglets (followers)
+recoivent les evenements via BroadcastChannel relay (gratuit, local-only) :
+
+```mermaid
+graph LR
+    subgraph "Navigateur (1 WebSocket)"
+        T1["Onglet 1 (Leader)"] -->|WebSocket| SB[Supabase Realtime]
+        T1 -->|BroadcastChannel relay| T2["Onglet 2 (Follower)"]
+        T1 -->|BroadcastChannel relay| T3["Onglet 3 (Follower)"]
+    end
+```
+
+| Composant | Connexions/utilisateur | Total (30 users) |
+| --------- | ---------------------- | ----------------- |
+| Realtime channel (leader uniquement) | 1 | 30 |
+| BroadcastChannel (API navigateur) | 0 | 0 |
+| Polling fallback (REST, pas WS) | 0 | 0 |
+| **Total** | **1** | **30** (15% du plan Free) |
+
+Fichiers cles :
+
+- `src/lib/realtime/leader-election.ts` — Election via Web Locks API
+- `src/lib/realtime/realtime-relay.ts` — Relay BroadcastChannel leader→followers
+- `src/hooks/useCrmRealtime.ts` — Orchestrateur (hook principal)
+
+Fallback : si Web Locks n'est pas disponible, chaque onglet souscrit independamment (comportement historique).
 
 ### Pipeline de traitement des evenements
 
@@ -327,28 +361,39 @@ Lors d'un UPDATE, le systeme determine l'action en fonction de la correspondance
 | Dans la liste + match toujours les filtres | Mise a jour du record |
 | Dans la liste + ne match plus les filtres | Retrait de la liste |
 
-### Synchronisation cross-tab
+### Synchronisation cross-tab (Leader Election)
 
-Le `BroadcastChannel` propage les evenements aux autres onglets du meme navigateur :
+Avec la leader election (Web Locks API), un seul onglet maintient la connexion WebSocket.
+Le leader relaie les payloads Realtime complets aux followers via un `BroadcastChannel` dedie (`crm-realtime-relay`).
+Les followers traitent les evenements a travers le meme pipeline cache-sync (updates optimistes, detection de conflits, indicateurs).
 
 ```mermaid
 sequenceDiagram
     participant DB as PostgreSQL
-    participant T1 as Onglet 1 (actif)
-    participant BC as BroadcastChannel
-    participant T2 as Onglet 2
-    participant T3 as Onglet 3
+    participant L as Onglet Leader
+    participant RC as Relay Channel
+    participant F1 as Onglet Follower 1
+    participant F2 as Onglet Follower 2
 
-    DB->>T1: Realtime event (postgres_changes)
-    T1->>T1: syncCacheWithRealtimeEvent()
-    T1->>BC: broadcastRealtimeEvent(queryKey, eventType, id)
-    BC->>T2: CacheSyncMessage
-    BC->>T3: CacheSyncMessage
-    T2->>T2: invalidateQueries()
-    T3->>T3: invalidateQueries()
+    DB->>L: Realtime event (postgres_changes)
+    L->>L: syncCacheWithRealtimeEvent()
+    L->>RC: relayPayload(table, fullPayload)
+    RC->>F1: PayloadMessage
+    RC->>F2: PayloadMessage
+    F1->>F1: syncCacheWithRealtimeEvent()
+    F2->>F2: syncCacheWithRealtimeEvent()
 
-    Note over BC: Anti-boucle via recentTimestamps Set
+    Note over L: Si WebSocket tombe
+    L->>RC: relayStatus('polling')
+    RC->>F1: StatusMessage
+    F1->>F1: startPolling() autonome
 ```
+
+Quand le leader ferme son onglet, le Web Lock est automatiquement libere
+et le prochain onglet en attente est promu leader (zero configuration, zero race condition).
+
+Fallback sans Web Locks : chaque onglet souscrit independamment et utilise
+`broadcast-sync.ts` pour propager les invalidations (comportement historique).
 
 ---
 
@@ -429,7 +474,9 @@ sequenceDiagram
 | API Modules | `src/lib/api/v2/interventions/*.ts` | Logique metier par domaine |
 | Transport | Edge Functions / Supabase Client | Communication avec la base |
 | Base de donnees | PostgreSQL (Supabase) | Stockage, RLS, triggers |
-| Realtime | `src/lib/realtime/realtime-client.ts` | Reception evenements |
+| Realtime | `src/lib/realtime/realtime-client.ts` | Reception evenements (channel multiplex) |
+| Leader Election | `src/lib/realtime/leader-election.ts` | 1 WebSocket par navigateur (Web Locks API) |
+| Realtime Relay | `src/lib/realtime/realtime-relay.ts` | Relay leader→followers (BroadcastChannel) |
 | Cache Sync | `src/lib/realtime/cache-sync.ts` | Orchestration mise a jour cache |
-| Cross-tab | `src/lib/realtime/broadcast-sync.ts` | Propagation inter-onglets |
+| Cross-tab | `src/lib/realtime/broadcast-sync.ts` | Propagation inter-onglets (fallback) |
 | Offline | `src/lib/realtime/sync-queue.ts` | File d'attente mode deconnecte |

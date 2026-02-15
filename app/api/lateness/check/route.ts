@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server'
-import { createServerSupabase, bearerFrom } from '@/lib/supabase/server'
-import { cookies } from 'next/headers'
+import { createSSRServerClient } from '@/lib/supabase/server-ssr'
 import { getLocalDateString } from '@/lib/date-utils'
 
 export const runtime = 'nodejs'
@@ -12,20 +11,10 @@ export const runtime = 'nodejs'
  * Automatically marks notification as shown if it should be displayed.
  * Used by dashboard to show toast notification.
  */
-export async function GET(req: Request) {
+export async function GET() {
   try {
-    // Get authentication token
-    let token = bearerFrom(req)
-    if (!token) {
-      const cookieStore = await cookies()
-      token = cookieStore.get('sb-access-token')?.value || null
-    }
-
-    if (!token) {
-      return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
-    }
-
-    const supabase = createServerSupabase(token)
+    // @supabase/ssr lit automatiquement les cookies de session
+    const supabase = await createSSRServerClient()
 
     // Get authenticated user
     const { data: authUser, error: authError } = await supabase.auth.getUser()

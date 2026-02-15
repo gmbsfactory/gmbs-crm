@@ -5,6 +5,10 @@ import { interventionsApi } from "@/lib/api/v2"
 import type { InterventionStatsByStatus, MarginStats, WeeklyStats, MonthlyStats, YearlyStats, StatsPeriod } from "@/lib/api/v2"
 import { dashboardKeys, type DashboardStatsParams, type DashboardMarginParams, type DashboardPeriodStatsParams } from "@/lib/react-query/queryKeys"
 import { useCurrentUser } from "@/hooks/useCurrentUser"
+import { getTierQueryOptions } from "@/config/freshness-tiers"
+
+// T3 Freshness: background polling 30s, refetch on window focus, device-adaptive
+const T3_OPTIONS = getTierQueryOptions('T3')
 
 /**
  * Hook pour récupérer les statistiques d'interventions par statut pour un utilisateur et une période
@@ -25,17 +29,17 @@ export function useDashboardStatsQuery(
 ) {
   return useQuery<InterventionStatsByStatus>({
     queryKey: params ? dashboardKeys.statsByUser(params) : ["dashboard", "stats", "disabled"],
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       if (!params) throw new Error("Params are required")
       return await interventionsApi.getStatsByUser(
         params.userId,
         params.startDate,
-        params.endDate
+        params.endDate,
+        signal
       )
     },
     enabled: params !== null && (options?.enabled !== false),
-    staleTime: 30 * 1000, // 30 secondes - les stats peuvent être mises à jour fréquemment
-    gcTime: 5 * 60 * 1000, // 5 minutes en cache
+    ...T3_OPTIONS,
   })
 }
 
@@ -58,17 +62,17 @@ export function useDashboardMarginQuery(
 ) {
   return useQuery<MarginStats>({
     queryKey: params ? dashboardKeys.marginByUser(params) : ["dashboard", "margin", "disabled"],
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       if (!params) throw new Error("Params are required")
       return await interventionsApi.getMarginStatsByUser(
         params.userId,
         params.startDate,
-        params.endDate
+        params.endDate,
+        signal
       )
     },
     enabled: params !== null && (options?.enabled !== false),
-    staleTime: 30 * 1000, // 30 secondes
-    gcTime: 5 * 60 * 1000, // 5 minutes en cache
+    ...T3_OPTIONS,
   })
 }
 
@@ -91,17 +95,17 @@ export function useDashboardPeriodStatsQuery(
 ) {
   return useQuery<WeeklyStats | MonthlyStats | YearlyStats>({
     queryKey: params ? dashboardKeys.periodStatsByUser(params) : ["dashboard", "period", "disabled"],
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       if (!params) throw new Error("Params are required")
       return await interventionsApi.getPeriodStatsByUser(
         params.userId,
         params.period,
-        params.startDate
+        params.startDate,
+        signal
       )
     },
     enabled: params !== null && (options?.enabled !== false),
-    staleTime: 30 * 1000, // 30 secondes
-    gcTime: 5 * 60 * 1000, // 5 minutes en cache
+    ...T3_OPTIONS,
   })
 }
 
@@ -206,14 +210,15 @@ export function useRecentInterventionsByStatus(
         endDate: params.endDate
       })
       : ["dashboard", "recent-interventions", "disabled"],
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       if (!params || !params.userId || !params.statusLabel) throw new Error("Params are required")
       return await interventionsApi.getRecentInterventionsByStatusAndUser(
         params.userId,
         params.statusLabel,
         params.limit,
         params.startDate,
-        params.endDate
+        params.endDate,
+        signal
       )
     },
     enabled: params !== null && params.userId !== null && params.statusLabel !== null && (options?.enabled !== false),

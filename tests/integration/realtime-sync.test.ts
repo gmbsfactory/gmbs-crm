@@ -3,7 +3,7 @@ import { QueryClient } from "@tanstack/react-query"
 import type { RealtimePostgresChangesPayload } from "@supabase/supabase-js"
 import type { Intervention, PaginatedResponse } from "@/lib/api/v2/common/types"
 import { interventionKeys } from "@/lib/react-query/queryKeys"
-import { syncCacheWithRealtimeEvent } from "@/lib/realtime/cache-sync"
+import { routeRealtimeEvent } from "@/lib/realtime/event-router/router"
 
 const mockedToasts = vi.hoisted(() => ({
   toastInfo: vi.fn(),
@@ -36,7 +36,7 @@ vi.mock("@/lib/api/v2/common/utils", () => ({
 
 const { toastInfo, toastWarning, toastError } = mockedToasts
 
-describe("syncCacheWithRealtimeEvent", () => {
+describe("routeRealtimeEvent (interventions)", () => {
   let queryClient: QueryClient
 
   beforeEach(() => {
@@ -64,7 +64,7 @@ describe("syncCacheWithRealtimeEvent", () => {
       new: makeIntervention({ id: "int-insert", assigned_user_id: "user-1", statut_id: "EN_COURS" }),
     })
 
-    await syncCacheWithRealtimeEvent(queryClient, payload, "user-1")
+    await routeRealtimeEvent("interventions", payload, { queryClient, currentUserId: "user-1", options: {} })
 
     const result = queryClient.getQueryData(listKey) as PaginatedResponse<Intervention>
     expect(result.data).toHaveLength(1)
@@ -82,7 +82,7 @@ describe("syncCacheWithRealtimeEvent", () => {
       new: { ...record, assigned_user_id: "user-9" },
     })
 
-    await syncCacheWithRealtimeEvent(queryClient, payload, "user-1")
+    await routeRealtimeEvent("interventions", payload, { queryClient, currentUserId: "user-1", options: {} })
 
     const result = queryClient.getQueryData(listKey) as PaginatedResponse<Intervention>
     expect(result.data).toHaveLength(0)
@@ -100,7 +100,7 @@ describe("syncCacheWithRealtimeEvent", () => {
       new: null,
     })
 
-    await syncCacheWithRealtimeEvent(queryClient, payload, "user-1")
+    await routeRealtimeEvent("interventions", payload, { queryClient, currentUserId: "user-1", options: {} })
 
     const listData = queryClient.getQueryData(listKey) as PaginatedResponse<Intervention>
     expect(listData.data).toHaveLength(0)

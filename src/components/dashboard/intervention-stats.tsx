@@ -18,7 +18,7 @@ export function InterventionStatsCards({ period }: InterventionStatsCardsProps) 
   const [stats, setStats] = useState<InterventionStatsByStatus | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  
+
   // Utiliser le hook centralisé useCurrentUser au lieu d'un fetch direct
   const { data: currentUser, isLoading: userLoading } = useCurrentUser()
   const userId = currentUser?.id ?? null
@@ -89,24 +89,24 @@ export function InterventionStatsCards({ period }: InterventionStatsCardsProps) 
     "Inter en cours",
     "INTER_EN_COURS",
   ])
-  
+
   const finishedInterventions = getStatusCount([
     "Terminé",
     "Inter terminée",
     "INTER_TERMINEE",
   ])
-  
+
   const pendingInterventions = getStatusCount([
     "Demandé",
     "DEMANDE",
   ])
-  
+
   const standByInterventions = getStatusCount([
     "Stand by",
     "Stand-by",
     "STAND_BY",
   ])
-  
+
   const totalInterventions = stats?.total || 0
 
   // Si en cours de chargement

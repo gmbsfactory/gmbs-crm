@@ -813,7 +813,7 @@ export function TableView({
     const firstId = interventions[0]?.id ?? 'none'
     const lastId = interventions[interventions.length - 1]?.id ?? 'none'
     return interventions;
-  }, [interventions, currentPage])
+  }, [interventions])
   const orderedIds = useMemo(() => dataset.map((item) => item.id), [dataset])
   const tableContainerRef = useRef<HTMLDivElement>(null)
   const [expandedRowId, setExpandedRowId] = useState<string | null>(null)

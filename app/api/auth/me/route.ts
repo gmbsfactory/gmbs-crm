@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server'
-import { createServerSupabase, bearerFrom } from '@/lib/supabase/server'
-import { cookies } from 'next/headers'
+import { createSSRServerClient } from '@/lib/supabase/server-ssr'
 
 export const runtime = 'nodejs'
 
@@ -80,53 +79,15 @@ function buildUserResponse(record: UserRecord, roles: string[], pagePermissions:
   }
 }
 
-export async function GET(req: Request) {
+export async function GET() {
   try {
-    // Lire le token depuis le header Authorization OU depuis les cookies HTTP-only
-    let token = bearerFrom(req)
-    
-    if (!token) {
-      try {
-        const cookieStore = await cookies()
-        token = cookieStore.get('sb-access-token')?.value || null
-      } catch (cookieError: any) {
-        console.error('[auth/me] Error reading cookies:', cookieError?.message || cookieError)
-        console.error('[auth/me] Cookie error stack:', cookieError?.stack)
-        return NextResponse.json({ 
-          error: 'Failed to read cookies',
-          message: cookieError?.message || 'Unknown cookie error',
-          details: process.env.NODE_ENV === 'development' ? {
-            message: cookieError?.message,
-            stack: cookieError?.stack,
-            name: cookieError?.name
-          } : undefined
-        }, { status: 500 })
-      }
-    }
-    
-    if (!token) {
-      return NextResponse.json({ user: null })
-    }
-    
-    // Vérifier que les variables d'environnement sont définies
-    if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
-      console.error('[auth/me] Missing Supabase environment variables')
-      return NextResponse.json({ 
-        error: 'Server configuration error',
-        message: 'Missing Supabase environment variables',
-        details: process.env.NODE_ENV === 'development' ? {
-          hasUrl: !!process.env.NEXT_PUBLIC_SUPABASE_URL,
-          hasKey: !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-        } : undefined
-      }, { status: 500 })
-    }
-    
-    const supabase = createServerSupabase(token)
+    // @supabase/ssr lit automatiquement les cookies de session
+    const supabase = await createSSRServerClient()
 
     const { data: authUser, error: authError } = await supabase.auth.getUser()
     if (authError) {
       console.error('[auth/me] Auth error:', authError.message, authError.status)
-      return NextResponse.json({ 
+      return NextResponse.json({
         error: authError.message,
         code: authError.status || 'AUTH_ERROR'
       }, { status: 401 })

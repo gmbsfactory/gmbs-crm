@@ -7,6 +7,10 @@ import type { Intervention } from '@/lib/api/v2/common/types'
 import { getRemoteEditIndicatorManager } from '@/lib/realtime/remote-edit-indicator'
 import { toast } from 'sonner'
 
+// ─── Throttle: max 1 conflict notification per intervention per 2s ──────────
+const CONFLICT_THROTTLE_MS = 2_000
+const lastConflictNotification = new Map<string, number>()
+
 /**
  * Detecte un conflit de modification simultanee
  * Un conflit existe si :
@@ -63,6 +67,14 @@ export function showConflictNotification(
   oldRecord: Intervention | null,
   newRecord: Intervention
 ): void {
+  // Throttle: skip if we already showed a conflict notification for this intervention within 2s
+  const now = Date.now()
+  const lastNotif = lastConflictNotification.get(newRecord.id)
+  if (lastNotif && now - lastNotif < CONFLICT_THROTTLE_MS) {
+    return
+  }
+  lastConflictNotification.set(newRecord.id, now)
+
   // Recuperer les valeurs pour le champ modifie
   let oldValue: string | null = null
   let newValue: string | null = null
@@ -84,16 +96,5 @@ export function showConflictNotification(
     }
   }
 
-  // Construire le message de notification
-  let message = `${remoteUser} a modifie cette intervention en premier.`
-  if (oldValue && newValue && oldValue !== newValue) {
-    message += ` Votre modification de "${field}" a ete remplacee.`
-  } else {
-    message += ` Vos modifications ont ete remplacees.`
-  }
-
-  toast.warning('Conflit de modification', {
-    description: message,
-    duration: 5000,
-  })
+  // Make message if needed
 }

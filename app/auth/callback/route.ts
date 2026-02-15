@@ -1,4 +1,4 @@
-import { createServerSupabase } from '@/lib/supabase/server'
+import { createSSRServerClient } from '@/lib/supabase/server-ssr'
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 
@@ -24,7 +24,7 @@ export async function GET(request: NextRequest) {
   // If we have a code, exchange it for a session
   if (code) {
     try {
-      const supabase = createServerSupabase()
+      const supabase = await createSSRServerClient()
       const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code)
 
       if (exchangeError) {

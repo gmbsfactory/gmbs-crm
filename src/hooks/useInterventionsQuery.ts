@@ -202,7 +202,7 @@ export function useInterventionsQuery(
     if (process.env.NODE_ENV !== 'production') {
     }
     return newArray
-  }, [data?.data, page, offset])
+  }, [data?.data])
   const totalCount = useMemo(() => data?.pagination?.total ?? 0, [data?.pagination?.total])
 
   // Calculer le nombre total de pages

@@ -402,6 +402,64 @@ export const dashboardKeys = {
   invalidateStats: () => [...dashboardKeys.all, "stats", "margin", "period"],
 } as const
 
+// ---------------------------------------------------------------------------
+// Comment query keys (centralisées — remplacent les clés manuelles ["comments", ...])
+// ---------------------------------------------------------------------------
+
+/**
+ * Factory pour les clés de requête des commentaires.
+ * Clés compatibles avec le format existant de CommentSection.tsx :
+ *   ["comments", entityType, entityId, limit]
+ *
+ * @example
+ * // Invalider tous les commentaires d'une intervention
+ * queryClient.invalidateQueries({ queryKey: commentKeys.invalidateByEntity('intervention', id) })
+ */
+export const commentKeys = {
+  all: ['comments'] as const,
+
+  /** Tous les commentaires d'une entité (préfixe — matche toutes les paginations) */
+  byEntity: (entityType: string, entityId: string) =>
+    [...commentKeys.all, entityType, entityId] as const,
+
+  /** Commentaires paginés (avec limit) — clé exacte compatible CommentSection */
+  byEntityPaginated: (entityType: string, entityId: string, limit: number) =>
+    [...commentKeys.all, entityType, entityId, limit] as const,
+
+  /** Invalider tous les commentaires d'une entité (toutes paginations) */
+  invalidateByEntity: (entityType: string, entityId: string) =>
+    commentKeys.byEntity(entityType, entityId),
+
+  /** Invalider tous les commentaires */
+  invalidateAll: () => commentKeys.all,
+} as const
+
+// ---------------------------------------------------------------------------
+// Document query keys
+// ---------------------------------------------------------------------------
+
+/**
+ * Factory pour les clés de requête des documents.
+ *
+ * @example
+ * queryClient.invalidateQueries({ queryKey: documentKeys.invalidateByEntity('intervention', id) })
+ */
+export const documentKeys = {
+  all: ['documents'] as const,
+
+  byEntity: (entityType: string, entityId: string) =>
+    [...documentKeys.all, entityType, entityId] as const,
+
+  invalidateByEntity: (entityType: string, entityId: string) =>
+    documentKeys.byEntity(entityType, entityId),
+
+  invalidateAll: () => documentKeys.all,
+} as const
+
+// ---------------------------------------------------------------------------
+// Reference query keys
+// ---------------------------------------------------------------------------
+
 /**
  * Type pour les paramètres de requête de la comptabilité
  */
@@ -441,7 +499,7 @@ export const comptabiliteKeys = {
 /**
  * Factory pour générer les clés de requête TanStack Query pour les données de référence
  * Centralise toutes les clés pour faciliter l'invalidation ciblée
- * 
+ *
  * @example
  * // Invalider toutes les données de référence après un import
  * queryClient.invalidateQueries({ queryKey: referenceKeys.invalidateAll() })
