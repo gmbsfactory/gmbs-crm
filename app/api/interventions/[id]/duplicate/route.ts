@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server"
 import { duplicateIntervention } from "@/lib/api/interventions"
-import { createServerSupabase, bearerFrom } from "@/lib/supabase/server"
-import { cookies } from "next/headers"
+import { createSSRServerClient } from "@/lib/supabase/server-ssr"
 import { requirePermission, isPermissionError } from "@/lib/api/permissions"
 
 type Params = {
@@ -17,19 +16,8 @@ export async function POST(request: Request, { params }: Params) {
 
     const { id } = await params
     
-    // Récupérer le token depuis les headers ou les cookies
-    let token = bearerFrom(request)
-    if (!token) {
-      const cookieStore = await cookies()
-      token = cookieStore.get('sb-access-token')?.value || null
-    }
-    
-    if (!token) {
-      return NextResponse.json({ error: "Non authentifié. Veuillez vous connecter." }, { status: 401 })
-    }
-    
-    // Récupérer l'utilisateur connecté avec le token
-    const supabase = createServerSupabase(token)
+    // @supabase/ssr lit automatiquement les cookies de session
+    const supabase = await createSSRServerClient()
     const { data: { user }, error: authError } = await supabase.auth.getUser()
     
     if (authError || !user) {
@@ -39,7 +27,7 @@ export async function POST(request: Request, { params }: Params) {
     // Dupliquer l'intervention avec le token d'authentification
     let original
     try {
-      original = await duplicateIntervention(id, user.id, token)
+      original = await duplicateIntervention(id, user.id)
     } catch (error) {
       // Gestion d'erreur améliorée pour le cas où l'intervention originale n'existe plus
       // (User Story 5, scénario 5)

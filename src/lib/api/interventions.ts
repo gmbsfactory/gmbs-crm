@@ -1,5 +1,4 @@
 import { addDays } from "date-fns"
-import { createServerSupabase } from "@/lib/supabase/server"
 import { INTERVENTION_STATUS_ORDER } from "@/config/interventions"
 import {
   CreateInterventionSchema,
@@ -24,6 +23,13 @@ import {
 import { listInterventionDocuments } from "@/lib/api/documents"
 import { interventionsApi } from "@/lib/api/v2"
 import type { InterventionStatus } from "@/types/intervention"
+
+// Dynamic import to avoid pulling next/headers into client bundles
+// (this file is also imported by client hooks for transitionStatus)
+async function getServerClient() {
+  const { createSSRServerClient } = await import("@/lib/supabase/server-ssr")
+  return createSSRServerClient()
+}
 
 const DEFAULT_LIMIT = 50
 
@@ -64,7 +70,7 @@ const isUUID = (value: string) => UUID_REGEX.test(value)
 const escapeIlike = (value: string) => value.replace(/[%_]/g, (match) => `\\${match}`)
 
 export async function listInterventions(params: ListParams = {}): Promise<ListResult> {
-  const supabase = createServerSupabase()
+  const supabase = await getServerClient()
   const take = params.take ?? DEFAULT_LIMIT
   const skip = params.skip ?? 0
 
@@ -106,7 +112,7 @@ type GetParams = {
 }
 
 export async function getIntervention({ id, includeDocuments = true }: GetParams) {
-  const supabase = createServerSupabase()
+  const supabase = await getServerClient()
   const { data, error } = await supabase.from("interventions").select("*").eq("id", id).maybeSingle()
 
   if (error) {
@@ -123,8 +129,8 @@ export async function getIntervention({ id, includeDocuments = true }: GetParams
   return { ...intervention, documents }
 }
 
-export async function findDuplicates(input: DuplicateCheckInput, supabaseClient?: ReturnType<typeof createServerSupabase>) {
-  const supabase = supabaseClient ?? createServerSupabase()
+export async function findDuplicates(input: DuplicateCheckInput, supabaseClient?: Awaited<ReturnType<typeof getServerClient>>) {
+  const supabase = supabaseClient ?? await getServerClient()
   const { name, address, agency } = DuplicateCheckSchema.parse(input)
   const results = new Map<string, ReturnType<typeof buildDuplicateSummary>[number]>()
 
@@ -174,7 +180,7 @@ export async function createIntervention(payload: CreateInterventionInput) {
   }
 
   const dueAt = computeDueDate(parsed)
-  const supabase = createServerSupabase()
+  const supabase = await getServerClient()
 
   const insertPayload = buildInsertPayload({ ...parsed, dueAt: dueAt ?? undefined })
 
@@ -197,7 +203,7 @@ export async function updateIntervention(id: string, payload: UpdateIntervention
   assertBusinessRules(parsed)
 
   const dueAt = computeDueDate(parsed)
-  const supabase = createServerSupabase()
+  const supabase = await getServerClient()
 
   const updatePayload = buildUpdatePayload({ ...parsed, dueAt: dueAt ?? undefined })
 
@@ -216,7 +222,7 @@ export async function updateIntervention(id: string, payload: UpdateIntervention
 }
 
 export async function deleteIntervention(id: string) {
-  const supabase = createServerSupabase()
+  const supabase = await getServerClient()
   const { error } = await supabase.from("interventions").delete().eq("id", id)
   if (error) {
     throw new Error(`Impossible de supprimer l'intervention: ${error.message}`)
@@ -293,9 +299,9 @@ export function getStatusSortIndex(status: InterventionStatusValue) {
  * @param authorId - ID de l'utilisateur qui effectue la duplication
  * @param token - Token d'authentification optionnel pour les opérations Supabase
  */
-export async function duplicateIntervention(originalId: string, authorId: string, token?: string) {
-  // Créer un client Supabase authentifié si un token est fourni
-  const supabase = token ? createServerSupabase(token) : createServerSupabase()
+export async function duplicateIntervention(originalId: string, authorId: string) {
+  // @supabase/ssr lit automatiquement les cookies de session
+  const supabase = await getServerClient()
   
   // Récupérer l'intervention originale avec le client authentifié
   const { data: originalData, error: fetchError } = await supabase

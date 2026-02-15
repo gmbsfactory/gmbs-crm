@@ -20,7 +20,7 @@ import { AuthGuard } from "@/components/layout/auth-guard"
 import StyledComponentsRegistry from "@/lib/styled-components-registry"
 import type { Metadata } from "next"
 import { Inter } from "next/font/google"
-import { cookies } from "next/headers"
+import { createSSRServerClient } from "@/lib/supabase/server-ssr"
 import Script from "next/script"
 import type React from "react"
 import "./globals.css"
@@ -39,8 +39,9 @@ export default async function RootLayout({
 }: {
   children: React.ReactNode
 }) {
-  const cookieStore = await cookies()
-  const isAuthed = Boolean(cookieStore.get('sb-access-token')?.value)
+  const supabase = await createSSRServerClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  const isAuthed = Boolean(user)
   return (
     <html lang="en" suppressHydrationWarning>
       <head>

@@ -1,10 +1,9 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase-admin';
-import { bearerFrom, createServerSupabase } from '@/lib/supabase/server';
+import { createSSRServerClient } from '@/lib/supabase/server-ssr';
 import { decryptPassword } from '@/lib/utils/encryption';
 import { sendEmailToArtisan, validateGmailEmail } from '@/lib/services/email-service';
 import { requirePermission, isPermissionError } from '@/lib/api/permissions';
-import { cookies } from 'next/headers';
 
 export const runtime = 'nodejs';
 
@@ -100,24 +99,8 @@ export async function POST(request: Request) {
 
     // If sendEmail is true, send the email
     if (sendEmail) {
-      // Get admin's token from Authorization header or cookies
-      let token = bearerFrom(request);
-      
-      if (!token) {
-        const cookieStore = await cookies();
-        token = cookieStore.get('sb-access-token')?.value || null;
-      }
-
-      if (!token) {
-        return NextResponse.json({ 
-          ok: true, 
-          resetLink,
-          emailSent: false,
-          message: 'Lien généré mais impossible d\'envoyer l\'email (non authentifié)'
-        });
-      }
-
-      const supabase = createServerSupabase(token);
+      // @supabase/ssr lit automatiquement les cookies de session
+      const supabase = await createSSRServerClient();
       const { data: auth } = await supabase.auth.getUser();
       const adminUserId = auth?.user?.id;
       const adminEmail = auth?.user?.email;

@@ -7,47 +7,26 @@ import { useInterventionModal } from "@/hooks/useInterventionModal"
 import { useModal } from "@/hooks/useModal"
 import { useCurrentUser } from "@/hooks/useCurrentUser"
 import { interventionKeys } from "@/lib/react-query/queryKeys"
-import { transitionStatus } from "@/lib/api/interventions"
 import { interventionsApi } from "@/lib/api/v2/interventionsApi"
 import type { InterventionStatusValue } from "@/types/interventions"
 import type { ContextMenuViewType } from "@/types/context-menu"
 
-// Types locaux pour les données en cache TanStack Query
-interface InterventionCacheItem {
-  id: string;
-  id_inter?: string | null;
-  assigned_user_id?: string | null;
-  assignedUserCode?: string | null;
-  assignedUserName?: string | null;
-  assignedUserColor?: string | null;
-  attribueA?: string | null;
-  statusValue?: string;
-  status?: { code?: string; label?: string; color?: string } | null;
-  statut?: string;
-  agence_id?: string;
-  reference_agence?: string;
-  metier_id?: string;
-  adresse?: string;
-  code_postal?: string;
-  ville?: string;
-  latitude?: number;
-  longitude?: number;
-  date_prevue?: string;
-  owner?: { plain_nom_facturation?: string; owner_lastname?: string; owner_firstname?: string; telephone?: string; email?: string } | Array<{ plain_nom_facturation?: string; owner_lastname?: string; owner_firstname?: string; telephone?: string; email?: string }>;
-  tenants?: { plain_nom_client?: string; lastname?: string; firstname?: string; telephone?: string; email?: string } | Array<{ plain_nom_client?: string; lastname?: string; firstname?: string; telephone?: string; email?: string }>;
-  intervention_artisans?: Array<{ is_primary?: boolean; artisan_id?: string; artisans?: { prenom?: string; nom?: string; telephone?: string; email?: string } }>;
-  intervention_costs?: Array<{ cost_type: string; amount?: number | null }>;
-  intervention_payments?: Array<{ payment_type: string; amount?: number | null; is_received?: boolean; payment_date?: string | null }>;
-  numero_sst?: string;
-  pourcentage_sst?: number;
-  consigne_second_artisan?: string;
-  [key: string]: unknown;
-}
-
-interface InterventionListCache {
-  data: InterventionCacheItem[];
-  count?: number;
-  pagination?: { total: number; limit: number; offset: number; hasMore: boolean };
+// Client-side wrapper: calls the API route instead of importing server-only transitionStatus
+async function transitionStatusViaApi(
+  interventionId: string,
+  payload: { status: InterventionStatusValue; dueAt?: Date | string | null; artisanId?: string | null }
+) {
+  const response = await fetch(`/api/interventions/${interventionId}/status`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify(payload),
+  })
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ message: 'Erreur lors du changement de statut' }))
+    throw new Error(error.message || 'Erreur lors du changement de statut')
+  }
+  return response.json()
 }
 
 // Type pour le callback d'animation
@@ -393,7 +372,7 @@ export function useInterventionContextMenu(
   // Mutation pour transition vers "Devis envoyé"
   const transitionToDevisEnvoyeMutation = useMutation({
     mutationFn: async () => {
-      return await transitionStatus(interventionId, {
+      return await transitionStatusViaApi(interventionId, {
         status: "DEVIS_ENVOYE",
       })
     },
@@ -496,7 +475,7 @@ export function useInterventionContextMenu(
   // Mutation pour transition vers "Accepté"
   const transitionToAccepteMutation = useMutation({
     mutationFn: async () => {
-      return await transitionStatus(interventionId, {
+      return await transitionStatusViaApi(interventionId, {
         status: "ACCEPTE",
       })
     },

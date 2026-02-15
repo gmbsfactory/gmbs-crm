@@ -1,10 +1,9 @@
 import { NextResponse } from 'next/server';
-import { bearerFrom, createServerSupabase } from '@/lib/supabase/server';
+import { createSSRServerClient } from '@/lib/supabase/server-ssr';
 import { decryptPassword } from '@/lib/utils/encryption';
 import { sendEmailToArtisan, validateGmailEmail } from '@/lib/services/email-service';
 import { generateInvitationEmailTemplate, generateInvitationEmailSubject } from '@/lib/email-templates/invitation-email';
-import { requirePermission, isPermissionError, getAuthenticatedUser } from '@/lib/api/permissions';
-import { cookies } from 'next/headers';
+import { requirePermission, isPermissionError } from '@/lib/api/permissions';
 
 export const runtime = 'nodejs';
 
@@ -25,19 +24,8 @@ export async function POST(request: Request) {
   if (isPermissionError(permCheck)) return permCheck.error;
 
   try {
-    // Get token from Authorization header or cookies
-    let token = bearerFrom(request);
-    
-    if (!token) {
-      const cookieStore = await cookies();
-      token = cookieStore.get('sb-access-token')?.value || null;
-    }
-
-    if (!token) {
-      return NextResponse.json({ error: 'Authentification requise' }, { status: 401 });
-    }
-
-    const supabase = createServerSupabase(token);
+    // @supabase/ssr lit automatiquement les cookies de session
+    const supabase = await createSSRServerClient();
     const { data: auth, error: authError } = await supabase.auth.getUser();
 
     if (authError || !auth?.user?.id) {

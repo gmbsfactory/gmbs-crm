@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server"
 import { artisansApi, commentsApi } from "@/lib/api/v2"
-import { createServerSupabase, bearerFrom } from "@/lib/supabase/server"
+import { createSSRServerClient } from "@/lib/supabase/server-ssr"
 import { referenceApi } from "@/lib/reference-api"
-import { cookies } from "next/headers"
 import { requirePermission, isPermissionError } from "@/lib/api/permissions"
 
 type Params = {
@@ -27,19 +26,8 @@ export async function POST(request: Request, { params }: Params) {
       return NextResponse.json({ error: "Le motif d'archivage est requis" }, { status: 400 })
     }
     
-    // Récupérer le token depuis les headers ou les cookies
-    let token = bearerFrom(request)
-    if (!token) {
-      const cookieStore = await cookies()
-      token = cookieStore.get('sb-access-token')?.value || null
-    }
-    
-    if (!token) {
-      return NextResponse.json({ error: "Non authentifié. Veuillez vous connecter." }, { status: 401 })
-    }
-    
-    // Récupérer l'utilisateur connecté avec le token
-    const supabase = createServerSupabase(token)
+    // @supabase/ssr lit automatiquement les cookies de session
+    const supabase = await createSSRServerClient()
     const { data: { user }, error: authError } = await supabase.auth.getUser()
     
     if (authError || !user) {
