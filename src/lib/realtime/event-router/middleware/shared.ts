@@ -5,7 +5,7 @@
  * - refreshCounts: debounced counter refresh
  */
 
-import type { CrmEvent, SyncContext } from '../types'
+import type { CrmEvent, SyncContext } from '@/lib/realtime/event-router/types'
 import { getBroadcastSync, debouncedRefreshCounts } from '@/lib/realtime/cache-sync/broadcasting'
 
 /**

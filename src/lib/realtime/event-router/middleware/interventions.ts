@@ -6,8 +6,8 @@
  */
 
 import type { Intervention } from '@/lib/api/v2/common/types'
-import type { CrmEvent, SyncContext, SyncMiddleware } from '../types'
-import { STOP } from '../types'
+import type { CrmEvent, SyncContext, SyncMiddleware } from '@/lib/realtime/event-router/types'
+import { STOP } from '@/lib/realtime/event-router/types'
 import { interventionKeys } from '@/lib/react-query/queryKeys'
 import { enrichRealtimeRecord, getReferenceCache } from '@/lib/realtime/cache-sync/enrichment'
 import {
@@ -26,7 +26,7 @@ import {
 } from '@/lib/realtime/remote-edit-indicator'
 import { isSoftDelete, shouldRefreshCounts } from '@/lib/realtime/cache-sync'
 import { debouncedRefreshCounts } from '@/lib/realtime/cache-sync/broadcasting'
-import { createPipeline } from '../pipeline'
+import { createPipeline } from '@/lib/realtime/event-router/pipeline'
 import { createBroadcastMiddleware } from './shared'
 
 // ─── Middleware 1: Enrich ──────────────────────────────────────────────────────

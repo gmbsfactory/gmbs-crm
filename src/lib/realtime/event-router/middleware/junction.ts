@@ -5,9 +5,9 @@
  */
 
 import type { InterventionArtisanRow } from '@/lib/realtime/realtime-client'
-import type { CrmEvent, SyncContext } from '../types'
+import type { CrmEvent, SyncContext } from '@/lib/realtime/event-router/types'
 import { interventionKeys } from '@/lib/react-query/queryKeys'
-import { createPipeline } from '../pipeline'
+import { createPipeline } from '@/lib/realtime/event-router/pipeline'
 import { refreshCounts } from './shared'
 
 /**

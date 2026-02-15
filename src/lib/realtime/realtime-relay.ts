@@ -27,11 +27,11 @@ export type RelayTable = 'interventions' | 'artisans' | 'intervention_artisans'
 /** Connection status — mirrors the hook's ConnectionStatus without creating circular imports */
 type RelayConnectionStatus = 'realtime' | 'polling' | 'connecting'
 
+// Supabase requires T extends { [key: string]: any }; Record<string, any> satisfies that and accepts any row type at call sites
 interface PayloadMessage {
   type: 'payload'
   table: RelayTable
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- transport layer, type safety enforced at handler boundaries
-  payload: RealtimePostgresChangesPayload<any>
+  payload: RealtimePostgresChangesPayload<Record<string, any>>
   timestamp: number
 }
 
@@ -54,8 +54,7 @@ export interface RelayHandlers {
 
 export interface RealtimeRelay {
   /** Leader sends a full Realtime payload to all follower tabs */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- transport layer, typed at handler boundaries
-  relayPayload: (table: RelayTable, payload: RealtimePostgresChangesPayload<any>) => void
+  relayPayload: (table: RelayTable, payload: RealtimePostgresChangesPayload<Record<string, any>>) => void
   /** Leader broadcasts its connection status to followers */
   relayStatus: (status: RelayConnectionStatus) => void
   /** Close the relay channel (cleanup) */
@@ -113,8 +112,7 @@ export function createRealtimeRelay(handlers: RelayHandlers): RealtimeRelay | nu
   }
 
   return {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    relayPayload(table: RelayTable, payload: RealtimePostgresChangesPayload<any>) {
+    relayPayload(table: RelayTable, payload: RealtimePostgresChangesPayload<Record<string, any>>) {
       const msg: PayloadMessage = {
         type: 'payload',
         table,

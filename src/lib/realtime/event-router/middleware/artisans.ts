@@ -4,9 +4,9 @@
  */
 
 import type { Artisan } from '@/lib/api/v2/common/types'
-import type { CrmEvent, SyncContext } from '../types'
+import type { CrmEvent, SyncContext } from '@/lib/realtime/event-router/types'
 import { artisanKeys } from '@/lib/react-query/queryKeys'
-import { createPipeline } from '../pipeline'
+import { createPipeline } from '@/lib/realtime/event-router/pipeline'
 import { createBroadcastMiddleware, refreshCounts } from './shared'
 
 /**

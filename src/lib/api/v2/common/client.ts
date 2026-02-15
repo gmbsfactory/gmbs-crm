@@ -23,7 +23,6 @@ export function getSupabaseClientForNode() {
     return supabase;
   }
 
-  // eslint-disable-next-line
   const { createClient } = require("@supabase/supabase-js");
   const supabaseUrl =
     process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;

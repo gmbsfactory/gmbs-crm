@@ -8,8 +8,24 @@ import { useModal } from "@/hooks/useModal"
 import { useCurrentUser } from "@/hooks/useCurrentUser"
 import { interventionKeys } from "@/lib/react-query/queryKeys"
 import { interventionsApi } from "@/lib/api/v2/interventionsApi"
+import type { InterventionWithStatus, PaginatedResponse } from "@/lib/api/v2/common/types"
 import type { InterventionStatusValue } from "@/types/interventions"
 import type { ContextMenuViewType } from "@/types/context-menu"
+
+/** Cache shape for intervention detail query (interventionKeys.detail) */
+type InterventionDetailCache = InterventionWithStatus | undefined
+/** Cache shape for intervention list queries (interventionKeys.lists / lightLists) */
+type InterventionListCache = PaginatedResponse<InterventionWithStatus> & { count?: number }
+/** Detail/list item may include relation payloads from API (owner, tenants, intervention_artisans, etc.) */
+type InterventionWithRelations = InterventionWithStatus & {
+  owner?: unknown
+  tenants?: unknown
+  intervention_artisans?: unknown
+  intervention_costs?: Array<{ cost_type?: string; amount?: number }>
+  intervention_payments?: Array<{ payment_type?: string; amount?: number; is_received?: boolean; payment_date?: string | null }>
+  numero_sst?: string | null
+  pourcentage_sst?: number | null
+}
 
 // Client-side wrapper: calls the API route instead of importing server-only transitionStatus
 async function transitionStatusViaApi(
@@ -73,7 +89,7 @@ export function useInterventionContextMenu(
   const duplicateDevisSupp = useCallback(async () => {
 
     // Récupérer les données de l'intervention depuis le cache ou les charger
-    let interventionData = queryClient.getQueryData(interventionKeys.detail(interventionId)) as InterventionCacheItem | undefined
+    let interventionData = queryClient.getQueryData(interventionKeys.detail(interventionId)) as InterventionDetailCache
 
     // Si les données ne sont pas en cache, essayer de les charger depuis les listes
     if (!interventionData) {
@@ -102,20 +118,28 @@ export function useInterventionContextMenu(
     // Mapper les données vers le format attendu par LegacyInterventionForm
     // Exclure: id_inter, contexte_intervention, consigne_intervention
     // Les données peuvent être dans différents formats selon la source (cache, API, etc.)
-    const owner = Array.isArray(interventionData.owner) ? interventionData.owner[0] : interventionData.owner
-    const tenant = Array.isArray(interventionData.tenants) ? interventionData.tenants[0] : interventionData.tenants
-    const artisans = Array.isArray(interventionData.intervention_artisans)
-      ? interventionData.intervention_artisans
-      : interventionData.intervention_artisans || []
-    const costs = Array.isArray(interventionData.intervention_costs)
-      ? interventionData.intervention_costs
-      : interventionData.intervention_costs || []
-    const payments = Array.isArray(interventionData.intervention_payments)
-      ? interventionData.intervention_payments
-      : interventionData.intervention_payments || []
+    const data = interventionData as InterventionWithRelations
+    const owner = Array.isArray(data.owner) ? data.owner[0] : data.owner
+    const tenant = Array.isArray(data.tenants) ? data.tenants[0] : data.tenants
+    type ArtisanRow = { is_primary?: boolean; artisan_id?: string; artisans?: unknown }
+    const artisans: ArtisanRow[] = Array.isArray(data.intervention_artisans)
+      ? (data.intervention_artisans as ArtisanRow[])
+      : data.intervention_artisans
+        ? [data.intervention_artisans as ArtisanRow]
+        : []
+    const costs: Array<{ cost_type?: string; amount?: number }> = Array.isArray(data.intervention_costs)
+      ? data.intervention_costs
+      : data.intervention_costs
+        ? [data.intervention_costs]
+        : []
+    const payments: Array<{ payment_type?: string; amount?: number; is_received?: boolean; payment_date?: string | null }> = Array.isArray(data.intervention_payments)
+      ? data.intervention_payments
+      : data.intervention_payments
+        ? [data.intervention_payments]
+        : []
 
     // Récupérer l'artisan principal (comme dans InterventionEditForm)
-    const primaryArtisan = artisans.find((ia) => ia.is_primary)?.artisans || artisans[0]?.artisans
+    const primaryArtisan = (artisans.find((ia) => ia.is_primary)?.artisans || artisans[0]?.artisans) as Record<string, unknown> | undefined
     const primaryArtisanId = artisans.find((ia) => ia.is_primary)?.artisan_id || artisans[0]?.artisan_id || null
 
     const defaultValues = {
@@ -145,16 +169,16 @@ export function useInterventionContextMenu(
       emailClient: tenant?.email || "",
       // Artisan principal - utiliser le nom complet comme dans InterventionEditForm
       artisan: primaryArtisan
-        ? `${primaryArtisan.prenom || ''} ${primaryArtisan.nom || ''}`.trim()
+        ? `${String(primaryArtisan.prenom ?? '')} ${String(primaryArtisan.nom ?? '')}`.trim()
         : "",
-      artisanTelephone: primaryArtisan?.telephone || "",
-      artisanEmail: primaryArtisan?.email || "",
+      artisanTelephone: String(primaryArtisan?.telephone ?? "") || "",
+      artisanEmail: String(primaryArtisan?.email ?? "") || "",
       // Coûts
       coutIntervention: costs.find((c) => c.cost_type === "intervention")?.amount?.toString() || "",
       coutSST: costs.find((c) => c.cost_type === "sst")?.amount?.toString() || "",
       coutMateriel: costs.find((c) => c.cost_type === "materiel")?.amount?.toString() || "",
-      numero_sst: interventionData.numero_sst || "",
-      pourcentage_sst: interventionData.pourcentage_sst || undefined,
+      numero_sst: data.numero_sst || "",
+      pourcentage_sst: data.pourcentage_sst ?? undefined,
       // Acomptes
       accompteSST: payments.find((p) => p.payment_type === "acompte_sst")?.amount?.toString() || "",
       accompteSSTRecu: payments.find((p) => p.payment_type === "acompte_sst")?.is_received || false,
@@ -385,7 +409,7 @@ export function useInterventionContextMenu(
       const previousIntervention = queryClient.getQueryData(interventionKeys.detail(interventionId))
 
       // Mise à jour optimiste du détail
-      queryClient.setQueryData(interventionKeys.detail(interventionId), (old: InterventionCacheItem | undefined) => {
+      queryClient.setQueryData(interventionKeys.detail(interventionId), (old: InterventionDetailCache) => {
         if (!old) return old
         return {
           ...old,
@@ -488,7 +512,7 @@ export function useInterventionContextMenu(
       const previousIntervention = queryClient.getQueryData(interventionKeys.detail(interventionId))
 
       // Mise à jour optimiste du détail
-      queryClient.setQueryData(interventionKeys.detail(interventionId), (old: InterventionCacheItem | undefined) => {
+      queryClient.setQueryData(interventionKeys.detail(interventionId), (old: InterventionDetailCache) => {
         if (!old) return old
         return {
           ...old,

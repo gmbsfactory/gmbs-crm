@@ -81,15 +81,16 @@ export const getHeaders = async () => {
 
   if (!isNodeJs) {
     try {
-      const { data: session } = await supabase.auth.getSession();
-      if (session?.session?.access_token) {
-        // ONLY add Authorization if we have a real JWT
-        headers.Authorization = `Bearer ${session.session.access_token}`;
+      // Use getUser() (server-validated) instead of getSession() (local cache only)
+      // We pass user ID via x-user-id header instead of sending the JWT as Authorization,
+      // because the Supabase Edge Runtime rejects ES256 user JWTs (CLI v2.76+ bug).
+      // The Edge Function uses a service role client internally, so user JWT is not needed.
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user?.id) {
+        headers["x-user-id"] = user.id;
       }
-      // If no token, don't add Authorization header
     } catch (error) {
-      console.warn("[getHeaders] Failed to get session:", error);
-      // If error, don't add Authorization header
+      console.warn("[getHeaders] Failed to get user:", error);
     }
   } else {
     const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || "";

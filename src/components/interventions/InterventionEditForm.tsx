@@ -436,7 +436,7 @@ export const InterventionEditForm = memo(function InterventionEditForm({
         return prev
       })
     }
-  }, [intervention.id_inter])
+  }, [intervention.id_inter, setFormData])
 
   // Synchroniser les champs d'adresse avec intervention quand l'intervention change
   // (par exemple quand on rouvre le modal avec de nouvelles données)
@@ -467,7 +467,7 @@ export const InterventionEditForm = memo(function InterventionEditForm({
       }
       return prev
     })
-  }, [intervention, setLocationQuery])
+  }, [intervention, setLocationQuery, setFormData])
 
   // Edit-specific: Update refs when artisans change
   useEffect(() => {

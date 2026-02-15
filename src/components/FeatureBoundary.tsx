@@ -8,15 +8,18 @@ export function FeatureBoundary({
   return (
     <ErrorBoundary
       key={boundaryKey}
-      fallbackRender={({ error, resetErrorBoundary }) => (
+      fallbackRender={({ error, resetErrorBoundary }) => {
+        const message = error instanceof Error ? error.message : String(error)
+        return (
         <div className="p-4 border rounded-md bg-red-50 text-sm">
           <div className="font-medium text-red-700 mb-2">Oups…</div>
-          <pre className="text-red-800 overflow-auto max-h-40">{String(error?.message ?? error)}</pre>
+          <pre className="text-red-800 overflow-auto max-h-40">{message}</pre>
           <button className="mt-3 px-3 py-1 border rounded" onClick={resetErrorBoundary}>
             Réessayer
           </button>
         </div>
-      )}
+        )
+      }}
     >
       {children}
     </ErrorBoundary>

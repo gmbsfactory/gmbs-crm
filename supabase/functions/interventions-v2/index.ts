@@ -99,6 +99,13 @@ interface CreateCommentRequest {
 }
 
 async function getAuthUserIdFromRequest(req: Request, supabase: SupabaseClient): Promise<string | null> {
+  // Prefer x-user-id header (set by the frontend, avoids ES256 JWT validation issues)
+  const userIdHeader = req.headers.get('x-user-id');
+  if (userIdHeader) {
+    return userIdHeader;
+  }
+
+  // Fallback: extract from Authorization JWT (for backward compatibility / scripts)
   const authHeader = req.headers.get('authorization');
   if (!authHeader) {
     return null;
