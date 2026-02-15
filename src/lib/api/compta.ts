@@ -1,10 +1,55 @@
 import { supabase } from "@/lib/supabase-client"
 
+export interface FacturationEntriesResult {
+  dateMap: Map<string, string>
+  sortedIds: string[]
+  total: number
+}
+
 /**
  * API pour la gestion des checks comptabilité
  * Permet de marquer les interventions comme "gérées" dans l'onglet compta
  */
 export const comptaApi = {
+  /**
+   * Récupère toutes les entrées de facturation (transitions vers INTER_TERMINEE).
+   * Query légère sur intervention_status_transitions, sans charger les interventions complètes.
+   * Dédoublonne par intervention (garde la plus récente) et trie par date DESC.
+   */
+  async getAllFacturationEntries(
+    dateRange?: { start: string; end: string } | null
+  ): Promise<FacturationEntriesResult> {
+    let query = supabase
+      .from("intervention_status_transitions")
+      .select("intervention_id, transition_date")
+      .eq("to_status_code", "INTER_TERMINEE")
+      .order("transition_date", { ascending: false })
+
+    if (dateRange) {
+      query = query.gte("transition_date", dateRange.start).lte("transition_date", dateRange.end)
+    }
+
+    const { data, error } = await query
+
+    if (error) {
+      console.error("Error fetching all facturation entries:", error)
+      throw error
+    }
+
+    // Dédoublonnage : garder la transition la plus récente par intervention
+    const dateMap = new Map<string, string>()
+    for (const row of data || []) {
+      if (!dateMap.has(row.intervention_id)) {
+        dateMap.set(row.intervention_id, row.transition_date)
+      }
+    }
+
+    // IDs triés par date de facturation DESC (l'ordre est déjà garanti par la query)
+    const sortedIds = Array.from(dateMap.keys())
+
+    return { dateMap, sortedIds, total: sortedIds.length }
+  },
+
   /**
    * Récupère les dates de facturation (date de passage à INTER_TERMINEE) pour les interventions
    * @returns Map intervention_id -> date de facturation

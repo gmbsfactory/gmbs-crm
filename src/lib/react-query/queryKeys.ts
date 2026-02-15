@@ -408,6 +408,8 @@ export const dashboardKeys = {
 export type ComptabiliteQueryParams = {
   dateStart?: string
   dateEnd?: string
+  page?: number
+  pageSize?: number
 }
 
 /**

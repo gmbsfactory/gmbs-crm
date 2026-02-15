@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo } from "react"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { interventionsApi } from "@/lib/api/v2"
-import { comptaApi } from "@/lib/api/compta"
+import { comptaApi, type FacturationEntriesResult } from "@/lib/api/compta"
 import { comptabiliteKeys, type ComptabiliteQueryParams } from "@/lib/react-query/queryKeys"
 import { getPreloadConfig } from "@/lib/device-capabilities"
 import type { InterventionWithStatus } from "@/types/intervention"
@@ -30,64 +30,73 @@ interface ComptabiliteData {
 }
 
 /**
- * Fonction de fetch partagée entre la query principale et le prefetch.
- * Récupère les interventions INTER_TERMINEE, les dates de facturation et les checks
- * en parallélisant les appels indépendants.
+ * Récupère les entrées de facturation (IDs + dates) depuis les transitions.
+ * Cette query est légère et séparée pour être réutilisée par le prefetch.
  */
-export async function fetchComptabiliteData(
+export async function fetchFacturationEntries(
   dateRange: { start: string; end: string } | null
+): Promise<FacturationEntriesResult> {
+  return comptaApi.getAllFacturationEntries(dateRange)
+}
+
+/**
+ * Charge les données complètes pour une page d'interventions comptabilité.
+ * Prend les IDs déjà triés et paginés, puis charge en parallèle :
+ * - les données complètes des interventions (getByIds)
+ * - les checks compta pour ces IDs
+ */
+export async function fetchComptabilitePageData(
+  pageIds: string[],
+  dateMap: Map<string, string>,
+  totalCount: number
 ): Promise<ComptabiliteData> {
-  // 1. Récupérer le statut INTER_TERMINEE
-  const status = await interventionsApi.getStatusByCode("INTER_TERMINEE")
-  if (!status?.id) {
-    throw new Error("Statut INTER_TERMINEE introuvable")
+  if (pageIds.length === 0) {
+    return {
+      interventions: [],
+      facturationDates: dateMap,
+      checkedIds: new Set(),
+      totalCount,
+    }
   }
 
-  // 2. Fetch toutes les interventions terminées
-  const { data } = await interventionsApi.getAll({
-    statut: status.id,
-    include: ["artisans", "costs", "payments", "owner"],
-    limit: 1000,
-  })
-
-  const allInterventions = (data || []).filter((intervention) => {
-    const statusCode = (intervention.status?.code || (intervention as any).statusValue || (intervention as any).statut || "").toUpperCase()
-    return statusCode === "INTER_TERMINEE"
-  })
-
-  // 3. PARALLÈLE : fetch dates de facturation ET checks compta simultanément
-  const allIds = allInterventions.map(i => i.id)
-  const [dates, checkedIds] = await Promise.all([
-    comptaApi.getFacturationDates(allIds),
-    comptaApi.getCheckedInterventions(allIds),
+  const [interventions, checkedIds] = await Promise.all([
+    interventionsApi.getByIds(pageIds),
+    comptaApi.getCheckedInterventions(pageIds),
   ])
 
-  // 4. Filtrer par plage de dates de facturation
-  let filtered = allInterventions
-  if (dateRange) {
-    const start = new Date(dateRange.start)
-    const end = new Date(dateRange.end)
-    filtered = allInterventions.filter((intervention) => {
-      const dateFacturation = dates.get(intervention.id)
-      if (!dateFacturation) return false
-      const date = new Date(dateFacturation)
-      return date >= start && date <= end
-    })
-  }
-
-  // 5. Trier par date de facturation (plus récent en premier)
-  filtered.sort((a, b) => {
-    const dateA = new Date(dates.get(a.id) || 0).getTime()
-    const dateB = new Date(dates.get(b.id) || 0).getTime()
-    return dateB - dateA
-  })
+  // Trier les interventions dans le même ordre que pageIds
+  const idOrderMap = new Map(pageIds.map((id, index) => [id, index]))
+  const sorted = [...interventions].sort(
+    (a, b) => (idOrderMap.get(a.id) ?? 0) - (idOrderMap.get(b.id) ?? 0)
+  )
 
   return {
-    interventions: filtered as InterventionRecord[],
-    facturationDates: dates,
+    interventions: sorted as InterventionRecord[],
+    facturationDates: dateMap,
     checkedIds,
-    totalCount: filtered.length,
+    totalCount,
   }
+}
+
+/**
+ * Fonction de fetch partagée entre la query principale et le prefetch.
+ * Étape 1 : récupère les entrées de facturation (IDs + dates)
+ * Étape 2 : charge les données complètes pour la page demandée
+ */
+export async function fetchComptabiliteData(
+  dateRange: { start: string; end: string } | null,
+  page: number = 1,
+  pageSize: number = 100
+): Promise<ComptabiliteData> {
+  // 1. Query légère : toutes les transitions INTER_TERMINEE (filtrées par date si demandé)
+  const entries = await fetchFacturationEntries(dateRange)
+
+  // 2. Pagination sur les IDs triés
+  const offset = (page - 1) * pageSize
+  const pageIds = entries.sortedIds.slice(offset, offset + pageSize)
+
+  // 3. Charger les données complètes pour cette page
+  return fetchComptabilitePageData(pageIds, entries.dateMap, entries.total)
 }
 
 export function useComptabiliteQuery(options: UseComptabiliteQueryOptions) {
@@ -99,9 +108,11 @@ export function useComptabiliteQuery(options: UseComptabiliteQueryOptions) {
   const queryParams = useMemo((): ComptabiliteQueryParams => ({
     dateStart: dateRange?.start,
     dateEnd: dateRange?.end,
-  }), [dateRange])
+    page,
+    pageSize: itemsPerPage,
+  }), [dateRange, page, itemsPerPage])
 
-  // Query principale unifiée : interventions + dates + checks en parallèle
+  // Query principale : interventions paginées + dates + checks
   const {
     data: comptaData,
     isLoading,
@@ -110,7 +121,7 @@ export function useComptabiliteQuery(options: UseComptabiliteQueryOptions) {
     refetch,
   } = useQuery({
     queryKey: comptabiliteKeys.list(queryParams),
-    queryFn: () => fetchComptabiliteData(dateRange),
+    queryFn: () => fetchComptabiliteData(dateRange, page, itemsPerPage),
     enabled: enabled,
     staleTime: preloadConfig.staleTime,
     gcTime: preloadConfig.gcTime,
@@ -120,80 +131,63 @@ export function useComptabiliteQuery(options: UseComptabiliteQueryOptions) {
     structuralSharing: false,
   })
 
-  // Données extraites du cache (stabilisées via useMemo)
-  const allInterventions = useMemo(
+  // Données extraites du cache
+  const paginatedInterventions = useMemo(
     () => comptaData?.interventions ?? [],
     [comptaData?.interventions]
   )
   const facturationDates = comptaData?.facturationDates ?? new Map<string, string>()
   const totalCount = comptaData?.totalCount ?? 0
 
-  // Checks extraits du cache, converti en Set stable
   const checkedInterventions = useMemo(
     () => comptaData?.checkedIds ?? new Set<string>(),
     [comptaData?.checkedIds]
   )
 
-  // Pagination client-side sur les données cachées
+  // Pagination
   const totalPages = Math.max(1, Math.ceil(totalCount / itemsPerPage))
-  const paginatedInterventions = useMemo(() => {
-    const startIndex = (page - 1) * itemsPerPage
-    return allInterventions.slice(startIndex, startIndex + itemsPerPage)
-  }, [allInterventions, page, itemsPerPage])
 
-  // ── Prefetch des périodes adjacentes ──
-  // Après le chargement de la période courante, précharger la période suivante
-  // pour que le changement de filtre soit instantané
+  // ── Prefetch page n+1 ──
   const isLowEnd = preloadConfig.isLowEnd
   const prefetchStaleTime = preloadConfig.staleTime
 
   useEffect(() => {
-    if (!enabled || !dateRange || !comptaData || isLowEnd) return
+    if (!enabled || !comptaData || isLowEnd) return
 
-    const prefetchAdjacentPeriod = (adjacentRange: { start: string; end: string }) => {
-      const adjacentParams: ComptabiliteQueryParams = {
-        dateStart: adjacentRange.start,
-        dateEnd: adjacentRange.end,
-      }
+    // Prefetch page suivante si elle existe
+    const hasNextPage = page < totalPages
+    if (!hasNextPage) return
 
+    const nextPage = page + 1
+    const nextParams: ComptabiliteQueryParams = {
+      dateStart: dateRange?.start,
+      dateEnd: dateRange?.end,
+      page: nextPage,
+      pageSize: itemsPerPage,
+    }
+
+    const timeoutId = setTimeout(() => {
       queryClient.prefetchQuery({
-        queryKey: comptabiliteKeys.list(adjacentParams),
-        queryFn: () => fetchComptabiliteData(adjacentRange),
+        queryKey: comptabiliteKeys.list(nextParams),
+        queryFn: () => fetchComptabiliteData(dateRange, nextPage, itemsPerPage),
         staleTime: prefetchStaleTime,
       }).catch(() => {
         // Ignorer silencieusement les erreurs de préchargement
       })
-    }
-
-    // Calculer la période suivante (mois ou année selon la taille de la plage)
-    const startDate = new Date(dateRange.start)
-    const endDate = new Date(dateRange.end)
-    const durationMs = endDate.getTime() - startDate.getTime()
-
-    // Prefetch avec un délai pour ne pas bloquer le rendu
-    const timeoutId = setTimeout(() => {
-      // Période suivante
-      const nextStart = new Date(endDate.getTime() + 1)
-      const nextEnd = new Date(nextStart.getTime() + durationMs)
-      prefetchAdjacentPeriod({
-        start: nextStart.toISOString(),
-        end: nextEnd.toISOString(),
-      })
-    }, 800)
+    }, 300)
 
     return () => clearTimeout(timeoutId)
-  }, [enabled, dateRange, comptaData, queryClient, isLowEnd, prefetchStaleTime])
+  }, [enabled, comptaData, queryClient, isLowEnd, prefetchStaleTime, page, totalPages, dateRange, itemsPerPage])
 
   // ── Optimistic updates ──
 
   const queryKey = comptabiliteKeys.list(queryParams)
 
-  // Toggle optimiste d'un check compta (mise à jour directe du cache unifié)
   const toggleComptaCheck = useCallback(async (interventionId: string) => {
     const wasChecked = checkedInterventions.has(interventionId)
     const newChecked = !wasChecked
 
-    // Mise à jour optimiste du cache unifié
+    // Mise à jour optimiste du cache
     queryClient.setQueryData<ComptabiliteData>(queryKey, (old) => {
       if (!old) return old
       const next = new Set(old.checkedIds)
@@ -226,7 +220,6 @@ export function useComptabiliteQuery(options: UseComptabiliteQueryOptions) {
     return success
   }, [checkedInterventions, queryKey, queryClient])
 
-  // Check en masse (copier + marquer comme gérées)
   const bulkCheck = useCallback(async (ids: string[]) => {
     if (ids.length === 0) return
 
@@ -261,9 +254,9 @@ export function useComptabiliteQuery(options: UseComptabiliteQueryOptions) {
   }, [refetch])
 
   return {
-    // Données
+    // Données (paginées côté serveur — plus de allInterventions séparé)
     interventions: paginatedInterventions,
-    allInterventions,
+    allInterventions: paginatedInterventions,
     facturationDates,
     checkedInterventions,
 
