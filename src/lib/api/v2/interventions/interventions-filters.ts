@@ -16,7 +16,8 @@ export const interventionsFilters = {
    * Obtient le nombre total d'interventions correspondant aux filtres
    */
   async getTotalCountWithFilters(
-    params?: Omit<InterventionQueryParams, "limit" | "offset" | "include">
+    params?: Omit<InterventionQueryParams, "limit" | "offset" | "include">,
+    signal?: AbortSignal
   ): Promise<number> {
     try {
       let query = supabase
@@ -81,9 +82,20 @@ export const interventionsFilters = {
         }
       }
 
+      if (signal) {
+        query = query.abortSignal(signal);
+      }
+
       const { count, error } = await query;
 
       if (error) {
+        // Gestion des erreurs d'annulation
+        if (error.message?.includes('aborted') || error.code === 'ABORT_ERR') {
+          const abortError = new Error(error.message);
+          abortError.name = 'AbortError';
+          throw abortError;
+        }
+
         const errorMessage = error.message || JSON.stringify(error, Object.getOwnPropertyNames(error));
         console.error(`[interventionsApi.getTotalCountWithFilters] Erreur Supabase:`, {
           error,

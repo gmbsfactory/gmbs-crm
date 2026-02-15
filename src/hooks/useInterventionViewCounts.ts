@@ -55,16 +55,20 @@ export function useInterventionViewCounts({
         const viewEnabled = enabled && Boolean(currentUserId)
         return {
           queryKey: dashboardKeys.statsByUser({ userId: currentUserId || "", startDate: undefined, endDate: undefined }),
-          queryFn: async () => {
+          queryFn: async ({ signal }) => {
             try {
               if (!currentUserId) {
                 console.warn(`[useInterventionViewCounts] Vue check ignorée car currentUserId n'est pas disponible`)
                 return { viewId: view.id, count: 0 }
               }
 
-              const stats = await interventionsApi.getStatsByUser(currentUserId, undefined, undefined)
+              const stats = await interventionsApi.getStatsByUser(currentUserId, undefined, undefined, signal)
               return { viewId: view.id, count: stats.interventions_a_checker || 0 }
             } catch (error) {
+              // Ne pas logger les annulations (unmount, changement de tab, etc.)
+              if (error instanceof Error && error.name === 'AbortError') {
+                return { viewId: view.id, count: 0 }
+              }
               console.error(`[useInterventionViewCounts] Erreur lors du comptage check pour la vue ${view.id}:`, error)
               return { viewId: view.id, count: 0 }
             }
@@ -83,7 +87,7 @@ export function useInterventionViewCounts({
 
       return {
         queryKey: interventionKeys.summary(apiParams as GetAllParams),
-        queryFn: async () => {
+        queryFn: async ({ signal }) => {
           try {
             // Valider les paramètres avant d'appeler l'API
             if (!apiParams || typeof apiParams !== 'object') {
@@ -97,22 +101,27 @@ export function useInterventionViewCounts({
               return { viewId: view.id, count: 0 }
             }
 
-            const count = await interventionsApi.getTotalCountWithFilters(apiParams)
+            const count = await interventionsApi.getTotalCountWithFilters(apiParams, signal)
             return { viewId: view.id, count }
           } catch (error) {
+            // Ne pas logger les annulations
+            if (error instanceof Error && error.name === 'AbortError') {
+              return { viewId: view.id, count: 0 }
+            }
+
             // Améliorer le logging des erreurs pour mieux diagnostiquer
             const errorMessage = error instanceof Error
               ? error.message
               : typeof error === 'object' && error !== null
-              ? JSON.stringify(error, Object.getOwnPropertyNames(error))
-              : String(error)
+                ? JSON.stringify(error, Object.getOwnPropertyNames(error))
+                : String(error)
 
             const errorDetails = error instanceof Error
               ? {
-                  message: safeErrorMessage(error, "le comptage des vues"),
-                  name: error.name,
-                  stack: error.stack,
-                }
+                message: safeErrorMessage(error, "le comptage des vues"),
+                name: error.name,
+                stack: error.stack,
+              }
               : error
 
             console.error(

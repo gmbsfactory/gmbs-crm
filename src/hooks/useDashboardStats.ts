@@ -29,12 +29,13 @@ export function useDashboardStatsQuery(
 ) {
   return useQuery<InterventionStatsByStatus>({
     queryKey: params ? dashboardKeys.statsByUser(params) : ["dashboard", "stats", "disabled"],
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       if (!params) throw new Error("Params are required")
       return await interventionsApi.getStatsByUser(
         params.userId,
         params.startDate,
-        params.endDate
+        params.endDate,
+        signal
       )
     },
     enabled: params !== null && (options?.enabled !== false),
@@ -61,12 +62,13 @@ export function useDashboardMarginQuery(
 ) {
   return useQuery<MarginStats>({
     queryKey: params ? dashboardKeys.marginByUser(params) : ["dashboard", "margin", "disabled"],
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       if (!params) throw new Error("Params are required")
       return await interventionsApi.getMarginStatsByUser(
         params.userId,
         params.startDate,
-        params.endDate
+        params.endDate,
+        signal
       )
     },
     enabled: params !== null && (options?.enabled !== false),
@@ -93,12 +95,13 @@ export function useDashboardPeriodStatsQuery(
 ) {
   return useQuery<WeeklyStats | MonthlyStats | YearlyStats>({
     queryKey: params ? dashboardKeys.periodStatsByUser(params) : ["dashboard", "period", "disabled"],
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       if (!params) throw new Error("Params are required")
       return await interventionsApi.getPeriodStatsByUser(
         params.userId,
         params.period,
-        params.startDate
+        params.startDate,
+        signal
       )
     },
     enabled: params !== null && (options?.enabled !== false),
@@ -207,14 +210,15 @@ export function useRecentInterventionsByStatus(
         endDate: params.endDate
       })
       : ["dashboard", "recent-interventions", "disabled"],
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       if (!params || !params.userId || !params.statusLabel) throw new Error("Params are required")
       return await interventionsApi.getRecentInterventionsByStatusAndUser(
         params.userId,
         params.statusLabel,
         params.limit,
         params.startDate,
-        params.endDate
+        params.endDate,
+        signal
       )
     },
     enabled: params !== null && params.userId !== null && params.statusLabel !== null && (options?.enabled !== false),

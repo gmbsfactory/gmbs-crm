@@ -96,16 +96,5 @@ export function showConflictNotification(
     }
   }
 
-  // Construire le message de notification
-  let message = `${remoteUser} a modifie cette intervention en premier.`
-  if (oldValue && newValue && oldValue !== newValue) {
-    message += ` Votre modification de "${field}" a ete remplacee.`
-  } else {
-    message += ` Vos modifications ont ete remplacees.`
-  }
-
-  toast.warning('Conflit de modification', {
-    description: message,
-    duration: 5000,
-  })
+  // Make message if needed
 }
