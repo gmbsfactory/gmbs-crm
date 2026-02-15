@@ -22,6 +22,7 @@ import { StatusReasonModal } from "@/components/shared/StatusReasonModal"
 import type { NearbyArtisan } from "@/hooks/useNearbyArtisans"
 import { documentsApi } from "@/lib/api/v2/documentsApi"
 import { interventionsApi } from "@/lib/api/v2"
+import { interventionKeys } from "@/lib/react-query/queryKeys"
 import { commentsApi } from "@/lib/api/v2/commentsApi"
 import type { Intervention, UpdateInterventionData } from "@/lib/api/v2/common/types"
 import type { InterventionWithStatus } from "@/types/intervention"
@@ -1157,6 +1158,40 @@ export const InterventionEditForm = memo(function InterventionEditForm({
 
         if (currentPrimaryId !== nextPrimaryId) primaryArtisanIdRef.current = nextPrimaryId
         if (currentSecondaryId !== nextSecondaryId) secondaryArtisanIdRef.current = nextSecondaryId
+
+        // Mise à jour optimiste des coûts dans le cache detail
+        // pour affichage instantané (les coûts sont sauvegardés en fire-and-forget après)
+        if (allCosts.length > 0) {
+          queryClient.setQueryData(
+            interventionKeys.detail(intervention.id),
+            (old: any) => {
+              if (!old) return old
+              const updatedCosts = allCosts.map(c => ({
+                ...((old.costs || old.intervention_costs || []).find(
+                  (existing: any) => existing.cost_type === c.cost_type && (existing.artisan_order ?? null) === (c.artisan_order ?? null)
+                ) || {}),
+                cost_type: c.cost_type,
+                amount: c.amount,
+                label: c.label,
+                artisan_order: c.artisan_order ?? null,
+              }))
+              // Garder les coûts existants non modifiés (ex: marge)
+              const existingCosts = old.costs || old.intervention_costs || []
+              const untouchedCosts = existingCosts.filter(
+                (e: any) => !allCosts.some(c => c.cost_type === e.cost_type && (c.artisan_order ?? null) === (e.artisan_order ?? null))
+              )
+              const newCosts = [...updatedCosts, ...untouchedCosts]
+              return {
+                ...old,
+                costs: newCosts,
+                intervention_costs: newCosts,
+                coutIntervention: allCosts.find(c => c.cost_type === 'intervention')?.amount ?? old.coutIntervention,
+                coutSST: allCosts.filter(c => c.cost_type === 'sst').reduce((sum, c) => sum + c.amount, 0) || old.coutSST,
+                coutMateriel: allCosts.filter(c => c.cost_type === 'materiel').reduce((sum, c) => sum + c.amount, 0) || old.coutMateriel,
+              }
+            }
+          )
+        }
 
         // Lancer coûts/paiements/artisans en arrière-plan (fire-and-forget)
         // L'invalidation du cache intervention detail se fait après completion
