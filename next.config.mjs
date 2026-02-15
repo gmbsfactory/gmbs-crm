@@ -78,7 +78,7 @@ const nextConfig = {
           {
             key: "Content-Security-Policy",
             value:
-              "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.maptiler.com; worker-src 'self' blob:; frame-ancestors 'none';",
+              "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: https://vercel.live; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.maptiler.com https://vercel.live wss://vercel.live; worker-src 'self' blob:; frame-src 'self' https://*.supabase.co blob: https://vercel.live; frame-ancestors 'none';",
           },
           {
             key: "Strict-Transport-Security",

@@ -284,8 +284,11 @@ La fonction `mapInterventionRecord(item, refs)` transforme un enregistrement bru
 1. **Resolution des cles etrangeres** via le ReferenceCacheManager (O(1) par lookup)
 2. **Extraction des artisans** depuis `intervention_artisans` (primaire/secondaire)
 3. **Calcul des couts** depuis `intervention_costs` avec priorite : `costs_cache` > calcule > champs legacy
-4. **Chaine de fallback pour les noms** : `prenom nom` > `plain_nom` > `raison_sociale`
-5. **Alias legacy** : snake_case -> camelCase pour compatibilite
+4. **Extraction des relations jointes** : aplatit les objets Supabase `item.tenants` et `item.owner` en champs plats (`prenomClient`, `nomClient`, `prenomProprietaire`, `nomProprietaire`, `nomPrenomFacturation`, etc.)
+5. **Chaine de fallback pour les noms** : objet joint > champs plats > `plain_nom` > concatenation prenom+nom
+6. **Alias legacy** : snake_case -> camelCase pour compatibilite
+
+> **Important :** Quand l'Edge Function retourne des relations jointes (ex: `tenants: {firstname, lastname}`), `mapInterventionRecord` extrait ces champs dans des proprietes plates. Par exemple `item.tenants.firstname` → `prenomClient`, `item.owner.owner_firstname` → `prenomProprietaire`, `item.owner.plain_nom_facturation` → `nomPrenomFacturation`.
 
 ### Constantes metier (`constants.ts`)
 
@@ -302,6 +305,31 @@ Centralise toutes les constantes :
 | `USER_STATUS` | 4 etats de presence |
 | `MAX_BATCH_SIZE` | 100 (limite `.in()` pour eviter les URL trop longues) |
 | `REFERENCE_CACHE_DURATION` | 5 minutes |
+
+### Taches post-mutation (`post-mutation-tasks.ts`)
+
+Le module `src/lib/interventions/post-mutation-tasks.ts` centralise les taches secondaires executees apres une mutation d'intervention. Il est concu en **fire-and-forget** : la fonction retourne immediatement (`void`) pendant que les taches s'executent en arriere-plan.
+
+**Taches gerees :**
+
+| Tache | API appelee | Condition |
+|-------|------------|-----------|
+| Artisan primaire | `setPrimaryArtisan(id, artisanId)` | Si `current !== next` |
+| Artisan secondaire | `setSecondaryArtisan(id, artisanId)` | Si `current !== next` |
+| Couts (batch) | `upsertCostsBatch(id, costs)` | Si `costs.length > 0` |
+| Suppression couts 2eme artisan | `deleteCost(id, type, 2)` | Si `deleteSecondaryCosts` |
+| Paiements | `upsertPayment(id, payment)` | Pour chaque paiement |
+| Commentaire | `commentsApi.create(...)` | Si `comment` fourni |
+
+**Invalidation du cache apres completion :**
+
+Apres `Promise.allSettled(tasks)`, les caches suivants sont invalides :
+
+- `['interventions', 'detail', interventionId]` → **toujours** (garantit que couts/paiements sont visibles)
+- `['admin', 'dashboard']` + `['podium']` → si `invalidateDashboard: true`
+- `['comments', 'intervention', interventionId]` → si `invalidateComments: true`
+
+**Isolation des erreurs :** chaque tache individuelle catch ses propres erreurs pour eviter les cascades. Si une tache echoue, les autres continuent normalement.
 
 ---
 

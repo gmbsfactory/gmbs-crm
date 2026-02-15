@@ -172,11 +172,14 @@ graph TD
     B --> D[Extraction relations]
     D --> D1[intervention_artisans -> artisanIds + displayName]
     D --> D2[intervention_costs -> totaux CA/SST/materiel/marge]
+    D --> D3[tenants -> prenomClient, nomClient, nomPrenomClient]
+    D --> D4[owner -> prenomProprietaire, nomProprietaire, nomPrenomFacturation]
 
     B --> E[Normalisation champs]
     E --> E1[snake_case -> camelCase aliases]
     E --> E2[Chaines de fallback pour noms]
     E --> E3[Priorite costs_cache > calcule > legacy]
+    E --> E4[Priorite objet joint > champ plat > concatenation]
 
     B --> F[Objet Intervention enrichi - 50+ champs]
 ```
@@ -231,6 +234,33 @@ sequenceDiagram
     DB->>RT: postgres_changes event
     RT->>TQ: Mise a jour cache via cache-sync
 ```
+
+### Taches post-mutation (fire-and-forget)
+
+Apres le succes de la mutation principale, certaines donnees secondaires (couts, paiements, artisans) sont sauvegardees en arriere-plan via `runPostMutationTasks()` (`src/lib/interventions/post-mutation-tasks.ts`).
+
+Le pattern est le suivant :
+
+1. **Modal ferme immediatement** apres le `mutateAsync()` pour la fluidite UX
+2. **Toast loading** indique que l'enregistrement est en cours
+3. **Taches secondaires** (couts, paiements, artisans) s'executent en parallele en arriere-plan
+4. **Invalidation du cache** intervention detail apres completion des taches → TanStack Query refetch → l'UI se met a jour automatiquement
+
+```typescript
+// Apres le succes de la mutation principale
+runPostMutationTasks({
+  interventionId: id,
+  costs: allCosts,
+  payments: payments,
+  artisans: { primary, secondary },
+  queryClient,  // Pour l'invalidation du cache apres completion
+  invalidateDashboard: true,
+})
+// → fire-and-forget : ne bloque pas le thread
+// → invalide ['interventions', 'detail', id] apres completion
+```
+
+> **Important :** `runPostMutationTasks` invalide systematiquement le cache du detail intervention (`['interventions', 'detail', interventionId]`) apres la sauvegarde des couts/paiements. Cela garantit que l'UI affiche les donnees a jour sans que l'utilisateur ait besoin de recharger manuellement.
 
 ---
 
