@@ -1,8 +1,9 @@
 "use client"
 
 import { QueryClient } from "@tanstack/react-query"
-import { interventionKeys, artisanKeys, dashboardKeys, type ArtisanGetAllParams } from "@/lib/react-query/queryKeys"
+import { interventionKeys, artisanKeys, dashboardKeys, comptabiliteKeys, type ArtisanGetAllParams, type ComptabiliteQueryParams } from "@/lib/react-query/queryKeys"
 import { interventionsApi, artisansApi, type InterventionQueryParams } from "@/lib/api/v2"
+import { fetchComptabiliteData } from "@/hooks/useComptabiliteQuery"
 
 // Alias pour compatibilité
 type GetAllParams = InterventionQueryParams
@@ -352,7 +353,10 @@ export async function preloadCriticalData(queryClient: QueryClient) {
     // 6. Précharger les vues par défaut des artisans
     await preloadArtisanViews(queryClient, currentUserId)
 
-    // 7. Précharger les statistiques du dashboard pour l'utilisateur courant et le mois en cours
+    // 7. Précharger les données comptabilité (dernière période utilisée depuis localStorage)
+    preloadComptabiliteData(queryClient)
+
+    // 8. Précharger les statistiques du dashboard pour l'utilisateur courant et le mois en cours
     if (currentUserId) {
       try {
         // Calculer la période par défaut (mois en cours)
@@ -521,6 +525,60 @@ async function preloadArtisanViews(queryClient: QueryClient, currentUserId?: str
     }
   } catch (error) {
     console.warn("[preloadArtisanViews] ⚠️ Erreur lors du préchargement des vues artisans:", error)
+  }
+}
+
+/**
+ * Précharge les données comptabilité pour la dernière période utilisée.
+ * Lit les filtres depuis localStorage pour déterminer la date range,
+ * et peuple le cache TanStack Query pour que l'affichage soit instantané.
+ */
+function preloadComptabiliteData(queryClient: QueryClient) {
+  if (typeof window === "undefined") return
+
+  try {
+    const periodType = localStorage.getItem("comptabilite-period-type") || "month"
+    const startYear = localStorage.getItem("comptabilite-start-year")
+    const startMonth = localStorage.getItem("comptabilite-start-month")
+    const endYear = localStorage.getItem("comptabilite-end-year")
+    const endMonth = localStorage.getItem("comptabilite-end-month")
+
+    // Si pas de filtres sauvegardés, précharger le mois courant
+    let dateRange: { start: string; end: string }
+
+    if (startYear && endYear) {
+      if (periodType === "month" && startMonth && endMonth) {
+        const startDate = new Date(parseInt(startYear), parseInt(startMonth) - 1, 1)
+        const endDate = new Date(parseInt(endYear), parseInt(endMonth), 0, 23, 59, 59, 999)
+        dateRange = { start: startDate.toISOString(), end: endDate.toISOString() }
+      } else {
+        const startDate = new Date(parseInt(startYear), 0, 1)
+        const endDate = new Date(parseInt(endYear), 11, 31, 23, 59, 59, 999)
+        dateRange = { start: startDate.toISOString(), end: endDate.toISOString() }
+      }
+    } else {
+      // Fallback : mois courant
+      const now = new Date()
+      const startDate = new Date(now.getFullYear(), now.getMonth(), 1)
+      const endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999)
+      dateRange = { start: startDate.toISOString(), end: endDate.toISOString() }
+    }
+
+    const queryParams: ComptabiliteQueryParams = {
+      dateStart: dateRange.start,
+      dateEnd: dateRange.end,
+      page: 1,
+      pageSize: 100,
+    }
+
+    queryClient.prefetchQuery({
+      queryKey: comptabiliteKeys.list(queryParams),
+      queryFn: () => fetchComptabiliteData(dateRange, 1, 100),
+      staleTime: 5 * 60 * 1000, // 5 minutes
+    })
+
+  } catch (err) {
+    console.warn("[preloadComptabiliteData] ⚠️ Erreur lors du préchargement comptabilité:", err)
   }
 }
 

@@ -360,6 +360,79 @@ export const interventionsCrud = {
     return mapInterventionRecord(data, refs) as InterventionWithStatus;
   },
 
+  // Récupérer plusieurs interventions par leurs IDs (pour la pagination comptabilité)
+  async getByIds(ids: string[]): Promise<InterventionWithStatus[]> {
+    if (ids.length === 0) return [];
+
+    const { data, error } = await supabase
+      .from("interventions")
+      .select(`
+        *,
+        status:intervention_statuses(id,code,label,color,sort_order),
+        tenants (
+          id,
+          firstname,
+          lastname,
+          plain_nom_client,
+          email,
+          telephone,
+          telephone2,
+          adresse,
+          ville,
+          code_postal
+        ),
+        owner (
+          id,
+          owner_firstname,
+          owner_lastname,
+          plain_nom_facturation,
+          telephone,
+          telephone2,
+          email,
+          adresse,
+          ville,
+          code_postal
+        ),
+        intervention_artisans (
+          artisan_id,
+          role,
+          is_primary,
+          artisans (
+            id,
+            prenom,
+            nom,
+            plain_nom,
+            raison_sociale,
+            telephone,
+            email
+          )
+        ),
+        intervention_costs (
+          id,
+          cost_type,
+          label,
+          amount,
+          currency,
+          metadata
+        ),
+        intervention_payments (
+          id,
+          payment_type,
+          amount,
+          currency,
+          is_received,
+          payment_date,
+          reference
+        )
+      `)
+      .in("id", ids);
+
+    if (error) throw error;
+
+    const refs = await getReferenceCache();
+    return (data || []).map((item) => mapInterventionRecord(item, refs) as InterventionWithStatus);
+  },
+
   // Créer une intervention
   async create(data: CreateInterventionData): Promise<Intervention> {
     // 1. Faire l'INSERT

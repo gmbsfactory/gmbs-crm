@@ -77,7 +77,21 @@ Fonctionnalités :
 
 ### InterventionEditForm.tsx
 
-Formulaire d'édition inline, utilisé dans la modal d'intervention pour modifier les champs directement.
+Formulaire d'edition inline, utilise dans la modal d'intervention pour modifier les champs directement.
+
+**Pattern de sauvegarde (fire-and-forget avec toast) :**
+
+1. Le modal ferme **immediatement** apres la soumission (`onSuccess?.(null)`)
+2. Un toast loading "Enregistrement en cours..." s'affiche
+3. La mutation principale (`updateMutation.mutateAsync`) sauvegarde statut, owner, tenant, date prevue, adresse, etc.
+4. En cas de succes, toast success avec bouton "Voir"
+5. Les taches secondaires (couts, paiements, artisans) s'executent en arriere-plan via `runPostMutationTasks()`
+6. Apres completion des taches, le cache intervention detail est invalide → l'UI se met a jour automatiquement
+
+**Gestion des erreurs :**
+- En cas d'echec de la mutation : toast error avec bouton "Reessayer"
+- Le modal est deja ferme → l'utilisateur est informe uniquement via le toast
+- Les erreurs des taches secondaires sont isolees (chaque tache catch ses propres erreurs)
 
 ---
 
@@ -213,6 +227,37 @@ Barre de filtrage rapide par statut, affichée au-dessus de la liste. Chaque sta
 ### InterventionsPlusMenu.tsx
 
 Menu "+" pour les actions de création rapide : nouvelle intervention, import, etc.
+
+---
+
+## Page Comptabilite
+
+La page comptabilite (`app/comptabilite/page.tsx`) affiche les interventions terminees avec leurs couts, paiements et informations client/facturation.
+
+### Architecture
+
+```
+app/comptabilite/
+  page.tsx                          # Page principale avec filtres de periode
+  _components/
+    ComptabiliteTableRow.tsx        # Ligne de tableau memorisee (memo)
+src/hooks/useComptabiliteQuery.ts   # Hook TanStack Query dedie
+src/lib/comptabilite/formatters.ts  # Formatters (nom client, couts, paiements)
+```
+
+### Donnees affichees
+
+La colonne **Client** affiche les informations de facturation (owner/proprietaire) et non le locataire (tenant). L'ordre de priorite est :
+
+1. `nomPrenomFacturation` (champ `plain_nom_facturation` de la table `owners`)
+2. `prenomProprietaire` + `nomProprietaire` (champs `owner_firstname`/`owner_lastname`)
+3. Fallback : `prenomClient` + `nomClient` (tenant)
+
+Pour que ces donnees soient disponibles, `useComptabiliteQuery` passe `include: ["artisans", "costs", "payments", "owner"]` a l'API, ce qui force l'Edge Function a joindre la table `owners`.
+
+### Style des lignes cochees
+
+Les lignes marquees comme gerees (via "Copier + Check") s'affichent avec un fond vert defini dans `app/styles/tables.css` via la classe CSS `.compta-checked`.
 
 ---
 

@@ -48,7 +48,7 @@ Retrieves all interventions via the Edge Function `interventions-v2`. Supports f
 | params.endDate | `string` | No | Filter by end date (ISO string) |
 | params.isCheck | `boolean` | No | Filter "check" interventions only |
 | params.search | `string` | No | Full-text search |
-| params.include | `string[]` | No | Relations to include (e.g. `["payments", "artisans", "costs"]`) |
+| params.include | `string[]` | No | Relations to include. Available: `artisans`, `costs`, `payments`, `owner`, `tenants`, `users`, `agencies`, `statuses`, `metiers`. Default includes: `artisans`, `costs`, `tenants`, `users`. |
 
 **Return:** `Promise<PaginatedResponse<InterventionWithStatus>>`
 

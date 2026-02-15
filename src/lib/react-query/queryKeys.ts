@@ -461,6 +461,42 @@ export const documentKeys = {
 // ---------------------------------------------------------------------------
 
 /**
+ * Type pour les paramètres de requête de la comptabilité
+ */
+export type ComptabiliteQueryParams = {
+  dateStart?: string
+  dateEnd?: string
+  page?: number
+  pageSize?: number
+}
+
+/**
+ * Factory pour générer les clés de requête TanStack Query pour la comptabilité
+ * Centralise toutes les clés pour faciliter l'invalidation ciblée
+ *
+ * @example
+ * // Invalider toutes les données compta après une modification
+ * queryClient.invalidateQueries({ queryKey: comptabiliteKeys.invalidateAll() })
+ */
+export const comptabiliteKeys = {
+  all: ["comptabilite"] as const,
+
+  lists: () => [...comptabiliteKeys.all, "list"] as const,
+
+  list: (params: ComptabiliteQueryParams) => [...comptabiliteKeys.lists(), params] as const,
+
+  checks: () => [...comptabiliteKeys.all, "checks"] as const,
+
+  checksByDateRange: (params: ComptabiliteQueryParams) => [...comptabiliteKeys.checks(), params] as const,
+
+  invalidateAll: () => comptabiliteKeys.all,
+
+  invalidateLists: () => comptabiliteKeys.lists(),
+
+  invalidateChecks: () => comptabiliteKeys.checks(),
+} as const
+
+/**
  * Factory pour générer les clés de requête TanStack Query pour les données de référence
  * Centralise toutes les clés pour faciliter l'invalidation ciblée
  *

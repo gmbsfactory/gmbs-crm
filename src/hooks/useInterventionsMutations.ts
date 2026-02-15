@@ -200,11 +200,11 @@ export function useInterventionsMutations() {
       const indicatorManager = getRemoteEditIndicatorManager()
       indicatorManager.recordLocalModification(variables.id, data?.updated_at || null)
 
-      // Invalider toutes les listes d'interventions
+      // Invalider les listes et résumés (PAS le detail ici !)
+      // Le detail est invalidé par runPostMutationTasks APRÈS que les coûts/paiements
+      // soient sauvegardés. Invalider ici causerait un refetch prématuré qui ramène
+      // les anciens coûts et écrase le cache avec des données stale.
       invalidateLists()
-      // Invalider aussi le détail de cette intervention spécifique
-      queryClient.invalidateQueries({ queryKey: interventionKeys.detail(variables.id) })
-      // Invalider les résumés
       queryClient.invalidateQueries({ queryKey: interventionKeys.summaries() })
 
       if (variables.data?.statut_id) {
