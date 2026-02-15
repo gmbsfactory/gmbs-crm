@@ -36,6 +36,8 @@ import { toast } from "sonner"
 import { useInterventionContextMenu } from "@/hooks/useInterventionContextMenu"
 import { useSubmitShortcut } from "@/hooks/useSubmitShortcut"
 import { usePermissions } from "@/hooks/usePermissions"
+import { useInterventionPresence } from "@/hooks/useInterventionPresence"
+import { PresenceAvatars } from "@/components/ui/intervention-modal/PresenceAvatars"
 
 type NoteDialogContentProps = React.ComponentPropsWithoutRef<typeof AlertDialogPrimitive.Content>
 
@@ -129,6 +131,9 @@ export function InterventionModalContent({
   const { can } = usePermissions()
   const canWriteInterventions = can("write_interventions")
   const canDeleteInterventions = can("delete_interventions")
+
+  // Présence — qui consulte actuellement cette intervention ?
+  const { viewers } = useInterventionPresence(interventionId)
 
   // Raccourci clavier Cmd/Ctrl+Enter pour enregistrer
   const { shortcutHint } = useSubmitShortcut({ formRef, isSubmitting })
@@ -731,6 +736,7 @@ GMBS`
                 </TooltipContent>
               </Tooltip>
             )}
+            <PresenceAvatars viewers={viewers} />
             {intervention?.updated_at && (
               <span className="text-xs text-muted-foreground">
                 Mis à jour le {new Date(intervention.updated_at).toLocaleDateString('fr-FR', {

@@ -69,45 +69,38 @@ export const getSupabaseFunctionsUrl = (): string => {
 export const SUPABASE_FUNCTIONS_URL = getSupabaseFunctionsUrl();
 
 // Headers communs pour toutes les requêtes
+// src/lib/api/v2/common/utils.ts
 export const getHeaders = async () => {
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
-
-  // Détecter si on est dans Node.js (pas de window)
   const isNodeJs = typeof window === "undefined";
 
-  // Pour l'apikey, toujours utiliser l'anon key (disponible côté client et serveur)
-  const apiKey = anonKey;
+  const headers: Record<string, string> = {
+    apikey: anonKey,
+    "Content-Type": "application/json",
+  };
 
-  // Pour le token Authorization
-  let token = anonKey; // Par défaut, utiliser l'anon key (valide pour les Edge Functions)
-
-  if (isNodeJs) {
-    // Côté serveur (Node.js), on peut utiliser serviceRoleKey si disponible
-    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
-    if (serviceRoleKey) {
-      token = serviceRoleKey;
-    }
-  } else {
-    // Côté client (browser), essayer d'obtenir la session utilisateur
+  if (!isNodeJs) {
     try {
       const { data: session } = await supabase.auth.getSession();
       if (session?.session?.access_token) {
-        // Utiliser le token de session si disponible
-        token = session.session.access_token;
+        // ONLY add Authorization if we have a real JWT
+        headers.Authorization = `Bearer ${session.session.access_token}`;
       }
-      // Sinon, token reste l'anon key (valide pour les Edge Functions)
+      // If no token, don't add Authorization header
     } catch (error) {
-      // En cas d'erreur, continuer avec l'anon key (qui est valide pour les Edge Functions)
-      console.warn("[getHeaders] Failed to get session, using anon key:", error);
+      console.warn("[getHeaders] Failed to get session:", error);
+      // If error, don't add Authorization header
+    }
+  } else {
+    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
+    if (serviceRoleKey) {
+      headers.Authorization = `Bearer ${serviceRoleKey}`;
     }
   }
 
-  return {
-    apikey: apiKey,
-    Authorization: `Bearer ${token}`,
-    "Content-Type": "application/json",
-  };
+  return headers;
 };
+
 
 // Gestionnaire d'erreurs centralisé
 export const handleResponse = async (response: Response) => {

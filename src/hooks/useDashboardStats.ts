@@ -5,6 +5,10 @@ import { interventionsApi } from "@/lib/api/v2"
 import type { InterventionStatsByStatus, MarginStats, WeeklyStats, MonthlyStats, YearlyStats, StatsPeriod } from "@/lib/api/v2"
 import { dashboardKeys, type DashboardStatsParams, type DashboardMarginParams, type DashboardPeriodStatsParams } from "@/lib/react-query/queryKeys"
 import { useCurrentUser } from "@/hooks/useCurrentUser"
+import { getTierQueryOptions } from "@/config/freshness-tiers"
+
+// T3 Freshness: background polling 30s, refetch on window focus, device-adaptive
+const T3_OPTIONS = getTierQueryOptions('T3')
 
 /**
  * Hook pour récupérer les statistiques d'interventions par statut pour un utilisateur et une période
@@ -34,8 +38,7 @@ export function useDashboardStatsQuery(
       )
     },
     enabled: params !== null && (options?.enabled !== false),
-    staleTime: 30 * 1000, // 30 secondes - les stats peuvent être mises à jour fréquemment
-    gcTime: 5 * 60 * 1000, // 5 minutes en cache
+    ...T3_OPTIONS,
   })
 }
 
@@ -67,8 +70,7 @@ export function useDashboardMarginQuery(
       )
     },
     enabled: params !== null && (options?.enabled !== false),
-    staleTime: 30 * 1000, // 30 secondes
-    gcTime: 5 * 60 * 1000, // 5 minutes en cache
+    ...T3_OPTIONS,
   })
 }
 
@@ -100,8 +102,7 @@ export function useDashboardPeriodStatsQuery(
       )
     },
     enabled: params !== null && (options?.enabled !== false),
-    staleTime: 30 * 1000, // 30 secondes
-    gcTime: 5 * 60 * 1000, // 5 minutes en cache
+    ...T3_OPTIONS,
   })
 }
 

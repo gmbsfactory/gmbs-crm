@@ -1,49 +1,107 @@
 /**
- * Client Realtime pour les interventions
- * Configure et gère la connexion Supabase Realtime pour la table interventions
+ * Client Realtime multiplexé pour le CRM
+ * Configure et gère un channel Supabase Realtime unique écoutant 3 tables :
+ * - interventions (filtre is_active=eq.true)
+ * - artisans (filtre is_active=eq.true)
+ * - intervention_artisans (table de jonction, pas de filtre)
+ *
+ * Un seul channel = un seul WebSocket = une seule connexion Supabase.
  */
 
 import { supabase } from '@/lib/supabase-client'
 import type { RealtimeChannel, RealtimePostgresChangesPayload } from '@supabase/supabase-js'
-import type { Intervention } from '@/lib/api/v2/common/types'
+import type { Intervention, Artisan } from '@/lib/api/v2/common/types'
 
-const CHANNEL_NAME = 'interventions-changes'
+const CHANNEL_NAME = 'crm-sync'
 
 /**
- * Crée et configure le channel Supabase Realtime pour la table interventions
+ * Ligne de la table de jonction intervention_artisans
+ */
+export interface InterventionArtisanRow {
+  id: string
+  intervention_id: string
+  artisan_id: string
+  role: 'primary' | 'secondary' | null
+  is_primary: boolean
+  assigned_at: string
+  created_at: string
+}
+
+/**
+ * Handlers pour chaque table écoutée par le channel multiplexé
+ */
+export interface RealtimeEventHandlers {
+  onInterventionEvent: (payload: RealtimePostgresChangesPayload<Intervention>) => void | Promise<void>
+  onArtisanEvent: (payload: RealtimePostgresChangesPayload<Artisan>) => void | Promise<void>
+  onJunctionEvent: (payload: RealtimePostgresChangesPayload<InterventionArtisanRow>) => void | Promise<void>
+}
+
+/**
+ * Crée un channel Supabase Realtime multiplexé écoutant 3 tables sur une seule connexion.
  * Ne souscrit PAS au channel — l'appelant (hook) gère le cycle de vie de la souscription.
  *
- * @param onEvent - Handler appelé lors de la réception d'un événement (peut être async)
+ * @param handlers - Handlers pour chaque table (interventions, artisans, intervention_artisans)
  * @returns Channel Realtime configuré (non souscrit)
  */
-export function createInterventionsChannel(
-  onEvent: (payload: RealtimePostgresChangesPayload<Intervention>) => void | Promise<void>
-): RealtimeChannel {
+export function createRealtimeChannel(handlers: RealtimeEventHandlers): RealtimeChannel {
   const channel = supabase
     .channel(CHANNEL_NAME)
+    // --- Interventions (filtre soft-delete : -50% trafic) ---
     .on<Intervention>(
       'postgres_changes',
       {
-        event: '*', // INSERT, UPDATE, DELETE
+        event: '*',
         schema: 'public',
         table: 'interventions',
-        // ⚠️ OPTIMISATION: Filtre pour ignorer les soft deletes (interventions inactives)
-        // Réduit le trafic de 50% en ne syncant que les interventions actives
-        // Note: Les soft deletes sont détectés quand is_active passe de true → false
         filter: 'is_active=eq.true',
       },
       (payload) => {
-        const newIntervention = payload.new && 'id' in payload.new ? payload.new : null
-        const oldIntervention = payload.old && 'id' in payload.old ? payload.old : null
-        console.log('[Realtime] Payload reçu:', {
-          eventType: payload.eventType,
-          newId: newIntervention?.id,
-          oldId: oldIntervention?.id,
-        })
+        const newRecord = payload.new && 'id' in payload.new ? payload.new : null
+        const oldRecord = payload.old && 'id' in payload.old ? payload.old : null
+        console.log('[Realtime] interventions:', payload.eventType, newRecord?.id || oldRecord?.id)
         try {
-          onEvent(payload)
+          handlers.onInterventionEvent(payload)
         } catch (error) {
-          console.error('[Realtime] Erreur lors du traitement de l\'événement:', error)
+          console.error('[Realtime] Erreur traitement intervention:', error)
+        }
+      }
+    )
+    // --- Artisans (filtre soft-delete) ---
+    .on<Artisan>(
+      'postgres_changes',
+      {
+        event: '*',
+        schema: 'public',
+        table: 'artisans',
+        filter: 'is_active=eq.true',
+      },
+      (payload) => {
+        const newRecord = payload.new && 'id' in payload.new ? payload.new : null
+        const oldRecord = payload.old && 'id' in payload.old ? payload.old : null
+        console.log('[Realtime] artisans:', payload.eventType, newRecord?.id || oldRecord?.id)
+        try {
+          handlers.onArtisanEvent(payload)
+        } catch (error) {
+          console.error('[Realtime] Erreur traitement artisan:', error)
+        }
+      }
+    )
+    // --- Intervention↔Artisan junction (pas de filtre, petite table) ---
+    .on<InterventionArtisanRow>(
+      'postgres_changes',
+      {
+        event: '*',
+        schema: 'public',
+        table: 'intervention_artisans',
+      },
+      (payload) => {
+        const newRecord = payload.new && 'id' in payload.new ? payload.new : null
+        const oldRecord = payload.old && 'id' in payload.old ? payload.old : null
+        console.log('[Realtime] intervention_artisans:', payload.eventType, newRecord?.intervention_id || oldRecord?.intervention_id)
+        try {
+          handlers.onJunctionEvent(payload)
+        } catch (error) {
+          console.error('[Realtime] Erreur traitement junction:', error)
         }
       }
     )
@@ -55,15 +113,31 @@ export function createInterventionsChannel(
  * Supprime proprement un channel Realtime via le client Supabase.
  * Préférer à channel.unsubscribe() qui ne nettoie pas les références internes.
  */
-export function removeInterventionsChannel(channel: RealtimeChannel): void {
+export function removeRealtimeChannel(channel: RealtimeChannel): void {
   supabase.removeChannel(channel)
 }
 
 /**
+ * @deprecated Utiliser createRealtimeChannel() avec les 3 handlers.
+ * Conservé pour la compatibilité avec les tests existants.
+ */
+export function createInterventionsChannel(
+  onEvent: (payload: RealtimePostgresChangesPayload<Intervention>) => void | Promise<void>
+): RealtimeChannel {
+  return createRealtimeChannel({
+    onInterventionEvent: onEvent,
+    onArtisanEvent: () => {},
+    onJunctionEvent: () => {},
+  })
+}
+
+/**
+ * @deprecated Utiliser removeRealtimeChannel().
+ */
+export const removeInterventionsChannel = removeRealtimeChannel
+
+/**
  * Vérifie si une erreur est une erreur réseau
- * 
- * @param error - Erreur à vérifier
- * @returns true si c'est une erreur réseau
  */
 export function isNetworkError(error: unknown): boolean {
   if (error instanceof Error) {
@@ -76,4 +150,3 @@ export function isNetworkError(error: unknown): boolean {
   }
   return false
 }
-

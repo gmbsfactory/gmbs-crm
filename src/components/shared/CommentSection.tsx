@@ -7,6 +7,8 @@ import { Button } from "@/components/ui/button"
 import { useToast } from "@/hooks/use-toast"
 import { commentsApi } from "@/lib/api/v2/commentsApi"
 import type { Comment } from "@/lib/api/v2/common/types"
+import { commentKeys } from "@/lib/react-query/queryKeys"
+import { useModalFreshness } from "@/hooks/useModalFreshness"
 import { cn } from "@/lib/utils"
 import { Send, Edit, Trash2 } from "lucide-react"
 import {
@@ -40,6 +42,8 @@ interface CommentSectionProps {
   disableScrollFades?: boolean
   /** Requête de recherche pour surligner les termes correspondants */
   searchQuery?: string
+  /** Active le polling T2 (5s) quand le modal parent est ouvert (défaut: true) */
+  isModalOpen?: boolean
 }
 
 const formatDateTime = (value: string | null | undefined) => {
@@ -180,6 +184,7 @@ export function CommentSection({
   scrollFadeInsetRight = 0,
   disableScrollFades = false,
   searchQuery = "",
+  isModalOpen = true,
 }: CommentSectionProps) {
   const [newComment, setNewComment] = useState("")
   const textareaId = useId()
@@ -234,18 +239,22 @@ export function CommentSection({
     return () => observer.disconnect()
   }, [entityId])
 
+  // T2 Freshness: poll comments at 5s only when modal is open and visible
+  const { queryOptions: freshnessOptions } = useModalFreshness(isModalOpen)
+
   const {
     data: comments = [],
     isLoading,
     isError,
     error,
   } = useQuery<Comment[]>({
-    queryKey: ["comments", entityType, entityId, limit],
+    queryKey: commentKeys.byEntityPaginated(entityType, entityId, limit),
     enabled: Boolean(entityId),
     queryFn: async () => {
       const items = await commentsApi.getByEntity(entityType, entityId, { limit })
       return items
     },
+    ...freshnessOptions,
   })
 
   const createComment = useMutation({
@@ -259,7 +268,7 @@ export function CommentSection({
         author_id: currentUserId ?? undefined,
       }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["comments", entityType, entityId, limit] })
+      queryClient.invalidateQueries({ queryKey: commentKeys.invalidateByEntity(entityType, entityId) })
       setNewComment("")
       toast({
         title: "Commentaire ajouté",
@@ -281,7 +290,7 @@ export function CommentSection({
     mutationFn: async ({ id, content }: { id: string; content: string }) =>
       commentsApi.update(id, { content }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["comments", entityType, entityId, limit] })
+      queryClient.invalidateQueries({ queryKey: commentKeys.invalidateByEntity(entityType, entityId) })
       setEditingCommentId(null)
       setEditingContent("")
       editingOriginalContentRef.current = ""
@@ -304,7 +313,7 @@ export function CommentSection({
   const deleteComment = useMutation({
     mutationFn: async (id: string) => commentsApi.delete(id),
     onSuccess: (_data, id) => {
-      queryClient.invalidateQueries({ queryKey: ["comments", entityType, entityId, limit] })
+      queryClient.invalidateQueries({ queryKey: commentKeys.invalidateByEntity(entityType, entityId) })
       toast({
         title: "Commentaire supprimé",
         description: "Votre commentaire a été supprimé avec succès.",

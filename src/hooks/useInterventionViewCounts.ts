@@ -4,6 +4,10 @@ import { interventionKeys, dashboardKeys } from "@/lib/react-query/queryKeys"
 import { safeErrorMessage } from "@/lib/api/v2/common/error-handler"
 import type { InterventionViewDefinition } from "@/types/intervention-views"
 import { interventionsApi, type InterventionQueryParams } from "@/lib/api/v2"
+import { getTierQueryOptions } from "@/config/freshness-tiers"
+
+// T3 Freshness: background polling 30s for view counters
+const T3_OPTIONS = getTierQueryOptions('T3')
 
 // Alias pour compatibilité
 type GetAllParams = InterventionQueryParams
@@ -66,8 +70,7 @@ export function useInterventionViewCounts({
             }
           },
           enabled: viewEnabled,
-          staleTime: 30000, // 30 secondes
-          gcTime: 5 * 60 * 1000, // 5 minutes
+          ...T3_OPTIONS,
         }
       }
 
@@ -127,8 +130,7 @@ export function useInterventionViewCounts({
           }
         },
         enabled: viewEnabled,
-        staleTime: 30000, // 30 secondes - les compteurs peuvent être mis en cache brièvement
-        gcTime: 5 * 60 * 1000, // 5 minutes avant garbage collection
+        ...T3_OPTIONS,
       }
     }),
   })

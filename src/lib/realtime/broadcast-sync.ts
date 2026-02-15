@@ -6,7 +6,7 @@
 import type { QueryClient } from '@tanstack/react-query'
 import type { QueryKey } from '@tanstack/react-query'
 
-const BROADCAST_CHANNEL_NAME = 'interventions-cache-sync'
+const BROADCAST_CHANNEL_NAME = 'crm-cache-sync'
 
 export interface CacheSyncMessage {
   type: 'cache-update' | 'invalidation' | 'realtime-event'

@@ -7,7 +7,7 @@
 'use client'
 
 import { createContext, useContext } from 'react'
-import { useInterventionsRealtime, type ConnectionStatus } from '@/hooks/useInterventionsRealtime'
+import { useCrmRealtime, type ConnectionStatus } from '@/hooks/useCrmRealtime'
 import { ConnectionStatusIndicator } from './ConnectionStatusIndicator'
 import type { ReactNode } from 'react'
 
@@ -37,7 +37,7 @@ export function InterventionRealtimeProvider({
   showIndicator = false,
 }: InterventionRealtimeProviderProps) {
   // Activer la synchronisation Realtime
-  const { connectionStatus } = useInterventionsRealtime()
+  const { connectionStatus } = useCrmRealtime()
 
   const value: RealtimeContextValue = {
     connectionStatus,
