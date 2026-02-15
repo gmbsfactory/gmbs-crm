@@ -17,6 +17,7 @@ import { InterfaceProvider } from "@/contexts/interface-context"
 import { UserStatusProvider } from "@/contexts/user-status-context"
 import { RemindersProvider } from "@/contexts/RemindersContext"
 import { AuthGuard } from "@/components/layout/auth-guard"
+import { DeveloperDashboardLoader } from "@/components/debug/DeveloperDashboardLoader"
 import StyledComponentsRegistry from "@/lib/styled-components-registry"
 import type { Metadata } from "next"
 import { Inter } from "next/font/google"
@@ -277,6 +278,7 @@ export default async function RootLayout({
                                   </ConditionalPadding>
                                 </div>
                               </SidebarProvider>
+                              <DeveloperDashboardLoader />
                             </AuthGuard>
                           </ThemeWrapper>
                         </RemindersProvider>

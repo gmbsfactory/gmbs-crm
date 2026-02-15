@@ -26,6 +26,24 @@ import { createRealtimeRelay } from '@/lib/realtime/realtime-relay'
 import type { RealtimeRelay } from '@/lib/realtime/realtime-relay'
 import { useCurrentUser } from '@/hooks/useCurrentUser'
 import { interventionKeys, artisanKeys } from '@/lib/react-query/queryKeys'
+import { getRealtimeDebugInfo } from '@/lib/realtime/realtime-client'
+
+/**
+ * Global Realtime stats for debugging (accessible via window.__REALTIME_STATS)
+ */
+export interface RealtimeStats {
+  connectionStatus: ConnectionStatus
+  leaderStatus: 'leader' | 'follower' | 'acquiring'
+  eventsReceived: { interventions: number; artisans: number; junctions: number }
+  lastEventTime: number | null
+  lastEventType: string | null
+  errorCount: number
+  lastError: string | null
+  lastErrorTime: number | null
+  relayActive: boolean
+  reconnectAttempts: number
+  uptime: number // milliseconds since hook mounted
+}
 
 export type ConnectionStatus = 'realtime' | 'polling' | 'connecting'
 
@@ -67,6 +85,36 @@ export function useCrmRealtime() {
   const { data: currentUser } = useCurrentUser()
   const currentUserId = currentUser?.id ?? null
 
+  // ─── Global stats for debugging ─────────────────────────────────────────────
+  const mountTimeRef = useRef<number>(Date.now())
+  const statsRef = useRef<RealtimeStats>({
+    connectionStatus: 'connecting',
+    leaderStatus: 'acquiring',
+    eventsReceived: { interventions: 0, artisans: 0, junctions: 0 },
+    lastEventTime: null,
+    lastEventType: null,
+    errorCount: 0,
+    lastError: null,
+    lastErrorTime: null,
+    relayActive: false,
+    reconnectAttempts: 0,
+    uptime: 0,
+  })
+
+  /**
+   * Update global stats and expose via window object
+   */
+  const updateStats = useCallback((updates: Partial<RealtimeStats>) => {
+    statsRef.current = {
+      ...statsRef.current,
+      ...updates,
+      uptime: Date.now() - mountTimeRef.current,
+    }
+    if (typeof window !== 'undefined') {
+      ;(window as any).__REALTIME_STATS = statsRef.current
+    }
+  }, [])
+
   // ─── Handlers for Supabase channel (leader only) ────────────────────────
 
   /**
@@ -82,19 +130,37 @@ export function useCrmRealtime() {
     }
     return {
       onInterventionEvent: async (payload) => {
+        statsRef.current.eventsReceived.interventions++
+        updateStats({
+          lastEventTime: Date.now(),
+          lastEventType: `interventions:${payload.eventType}`,
+          eventsReceived: { ...statsRef.current.eventsReceived },
+        })
         await routeRealtimeEvent('interventions', payload, leaderCtx)
         relayRef.current?.relayPayload('interventions', payload)
       },
       onArtisanEvent: async (payload) => {
+        statsRef.current.eventsReceived.artisans++
+        updateStats({
+          lastEventTime: Date.now(),
+          lastEventType: `artisans:${payload.eventType}`,
+          eventsReceived: { ...statsRef.current.eventsReceived },
+        })
         await routeRealtimeEvent('artisans', payload, leaderCtx)
         relayRef.current?.relayPayload('artisans', payload)
       },
       onJunctionEvent: async (payload) => {
+        statsRef.current.eventsReceived.junctions++
+        updateStats({
+          lastEventTime: Date.now(),
+          lastEventType: `junctions:${payload.eventType}`,
+          eventsReceived: { ...statsRef.current.eventsReceived },
+        })
         await routeRealtimeEvent('intervention_artisans', payload, leaderCtx)
         relayRef.current?.relayPayload('intervention_artisans', payload)
       },
     }
-  }, [queryClient, currentUserId])
+  }, [queryClient, currentUserId, updateStats])
 
   // ─── Polling fallback (used by both leader and follower) ────────────────
 
@@ -129,7 +195,15 @@ export function useCrmRealtime() {
   const attemptReconnect = useCallback(() => {
     if (reconnectTimeoutRef.current) return // Already scheduled
 
-    console.log('[Realtime] Reconnection attempt in 30s...')
+    const attemptNum = statsRef.current.reconnectAttempts + 1
+    updateStats({
+      reconnectAttempts: attemptNum,
+      lastError: `Reconnection scheduled (attempt #${attemptNum})`,
+      lastErrorTime: Date.now(),
+    })
+    console.log(
+      `[Realtime] Reconnection attempt in ${RECONNECT_INTERVAL / 1000}s... (attempt #${attemptNum})`
+    )
 
     reconnectTimeoutRef.current = setTimeout(() => {
       reconnectTimeoutRef.current = null
@@ -147,11 +221,21 @@ export function useCrmRealtime() {
       channel.subscribe((status) => {
         if (status === 'SUBSCRIBED') {
           console.log('[Realtime] Reconnection successful (crm-sync)')
+          updateStats({
+            connectionStatus: 'realtime',
+            lastError: null,
+          })
           stopPolling()
           setConnectionStatus('realtime')
           relayRef.current?.relayStatus('realtime')
         } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
-          console.warn('[Realtime] Reconnection failed, falling back to polling')
+          const errorMsg = `Reconnection failed (${status})`
+          console.warn(`[Realtime] ${errorMsg}, falling back to polling`)
+          updateStats({
+            errorCount: statsRef.current.errorCount + 1,
+            lastError: errorMsg,
+            lastErrorTime: Date.now(),
+          })
           // Null BEFORE remove to prevent infinite recursion
           const ch = channelRef.current
           channelRef.current = null
@@ -162,7 +246,7 @@ export function useCrmRealtime() {
         }
       })
     }, RECONNECT_INTERVAL)
-  }, [buildHandlers, startPolling, stopPolling])
+  }, [buildHandlers, startPolling, stopPolling, updateStats])
 
   // ─── Subscribe / Unsubscribe (leader only) ─────────────────────────────
 
@@ -173,13 +257,25 @@ export function useCrmRealtime() {
   const subscribeToRealtime = useCallback(() => {
     if (channelRef.current) return // Already subscribed
 
-    console.log('[Realtime] Subscribing to Supabase channel crm-sync')
+    console.log('[Realtime] Subscribing to Supabase channel crm-sync', {
+      supabaseUrl: typeof window !== 'undefined' ? (window as any).__SUPABASE_URL : 'unknown',
+      timestamp: new Date().toISOString(),
+    })
+    updateStats({ connectionStatus: 'connecting' })
+
     const channel = createRealtimeChannel(buildHandlers())
     channelRef.current = channel
 
     channel.subscribe((status) => {
+      console.log(`[Realtime] Channel status: ${status}`)
+
       if (status === 'SUBSCRIBED') {
-        console.log('[Realtime] Channel crm-sync subscribed successfully')
+        console.log('[Realtime] ✅ Channel crm-sync subscribed successfully')
+        console.log('[Realtime] Debug info:', getRealtimeDebugInfo())
+        updateStats({
+          connectionStatus: 'realtime',
+          lastError: null,
+        })
         stopPolling()
         setConnectionStatus('realtime')
         relayRef.current?.relayStatus('realtime')
@@ -198,7 +294,13 @@ export function useCrmRealtime() {
           refetchType: 'active',
         })
       } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
-        console.warn(`[Realtime] Connection issue (${status}), switching to polling`)
+        const errorMsg = `Connection issue (${status})`
+        console.warn(`[Realtime] ❌ ${errorMsg}, switching to polling`)
+        updateStats({
+          errorCount: statsRef.current.errorCount + 1,
+          lastError: errorMsg,
+          lastErrorTime: Date.now(),
+        })
         const ch = channelRef.current
         channelRef.current = null
         if (ch) removeRealtimeChannel(ch)
@@ -207,7 +309,7 @@ export function useCrmRealtime() {
         attemptReconnect()
       }
     })
-  }, [buildHandlers, queryClient, startPolling, stopPolling, attemptReconnect])
+  }, [buildHandlers, queryClient, startPolling, stopPolling, attemptReconnect, updateStats])
 
   /**
    * Unsubscribe from Supabase Realtime and clean up all timers.
@@ -275,14 +377,16 @@ export function useCrmRealtime() {
         // Guard against stale callbacks from a previous effect run
         if (leaderRef.current !== leader) return
 
-        console.log('[Realtime] This tab is now the leader — subscribing to Supabase')
+        console.log('[Realtime] 👑 This tab is now the leader — subscribing to Supabase')
+        updateStats({ leaderStatus: 'leader' })
         stopPolling() // Stop follower polling if it was active
         subscribeToRealtime()
       },
       onDemoted: () => {
         if (leaderRef.current !== leader) return
 
-        console.log('[Realtime] This tab is no longer the leader — unsubscribing')
+        console.log('[Realtime] 👥 This tab is no longer the leader — unsubscribing')
+        updateStats({ leaderStatus: 'follower' })
         unsubscribeFromRealtime()
         setConnectionStatus('connecting')
       },

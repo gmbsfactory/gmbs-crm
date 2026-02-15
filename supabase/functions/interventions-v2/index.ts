@@ -14,6 +14,7 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient, type SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { getCorsHeaders } from '../_shared/cors.ts';
+import { getAuthUserId } from '../_shared/auth.ts';
 
 // Types pour la validation
 interface CreateInterventionRequest {
@@ -98,6 +99,7 @@ interface CreateCommentRequest {
   is_internal?: boolean;
 }
 
+@deprecated
 async function getAuthUserIdFromRequest(req: Request, supabase: SupabaseClient): Promise<string | null> {
   // Prefer x-user-id header (set by the frontend, avoids ES256 JWT validation issues)
   const userIdHeader = req.headers.get('x-user-id');
@@ -1245,7 +1247,7 @@ serve(async (req: Request) => {
       Deno.env.get('SUPABASE_URL')!,
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     );
-    const authUserId = await getAuthUserIdFromRequest(req, supabase);
+    const authUserId = await getAuthUserId(req, supabase);
 
     const url = new URL(req.url);
     const pathSegments = url.pathname.split('/').filter(segment => segment);

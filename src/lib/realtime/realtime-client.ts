@@ -15,6 +15,57 @@ import type { Intervention, Artisan } from '@/lib/api/v2/common/types'
 const CHANNEL_NAME = 'crm-sync'
 
 /**
+ * Debug info exported for browser console inspection
+ */
+export interface RealtimeDebugInfo {
+  channelName: string
+  subscriptionTime: number | null
+  subscriptionPayload: {
+    tables: string[]
+    filters: Record<string, string>
+    events: string[]
+  }
+  lastError: string | null
+  errorCount: number
+  subscriptionAttempts: number
+}
+
+let debugInfo: RealtimeDebugInfo = {
+  channelName: CHANNEL_NAME,
+  subscriptionTime: null,
+  subscriptionPayload: {
+    tables: ['interventions', 'artisans', 'intervention_artisans'],
+    filters: {
+      interventions: 'is_active=eq.true',
+      artisans: 'is_active=eq.true',
+      intervention_artisans: 'none',
+    },
+    events: ['INSERT', 'UPDATE', 'DELETE'],
+  },
+  lastError: null,
+  errorCount: 0,
+  subscriptionAttempts: 0,
+}
+
+/**
+ * Export debug info for browser console access
+ */
+export function getRealtimeDebugInfo(): RealtimeDebugInfo {
+  return debugInfo
+}
+
+/**
+ * Update debug info (internal)
+ */
+function updateDebugInfo(updates: Partial<RealtimeDebugInfo>) {
+  debugInfo = { ...debugInfo, ...updates }
+  // Make it available globally for DevTools
+  if (typeof window !== 'undefined') {
+    ;(window as any).__REALTIME_DEBUG_INFO = debugInfo
+  }
+}
+
+/**
  * Ligne de la table de jonction intervention_artisans
  */
 export interface InterventionArtisanRow {
@@ -44,6 +95,15 @@ export interface RealtimeEventHandlers {
  * @returns Channel Realtime configuré (non souscrit)
  */
 export function createRealtimeChannel(handlers: RealtimeEventHandlers): RealtimeChannel {
+  updateDebugInfo({ subscriptionAttempts: debugInfo.subscriptionAttempts + 1 })
+  console.log(
+    `[Realtime] Creating channel "${CHANNEL_NAME}" (attempt #${debugInfo.subscriptionAttempts})`,
+    {
+      supabaseUrl: (window as any).__SUPABASE_URL || 'unknown',
+      timestamp: new Date().toISOString(),
+    }
+  )
+
   const channel = supabase
     .channel(CHANNEL_NAME)
     // --- Interventions (filtre soft-delete : -50% trafic) ---
