@@ -180,6 +180,58 @@ export const interventionsFilters = {
   },
 
   /**
+   * Obtient les comptages d'interventions groupés par propriété en 1 seule requête RPC.
+   * Remplace N appels getCountByPropertyValue par 1 seul appel SQL GROUP BY.
+   */
+  async getFilterCountsGrouped(
+    property: 'metier' | 'agence' | 'statut' | 'user',
+    baseFilters?: Omit<InterventionQueryParams, 'limit' | 'offset' | 'include'>
+  ): Promise<Record<string, number>> {
+    const columnMap: Record<string, string> = {
+      metier: 'metier_id',
+      agence: 'agence_id',
+      statut: 'statut_id',
+      user: 'assigned_user_id',
+    }
+    const p_group_column = columnMap[property]
+
+    // Résoudre le metier code → UUID si nécessaire (même pattern que getTotalCountWithFilters)
+    let p_metier_id: string | null = null
+    if (baseFilters?.metier && typeof baseFilters.metier === 'string') {
+      const refs = await getReferenceCache()
+      const metierObj = Array.from(refs.metiersById.values()).find(
+        (m: { code?: string; id?: string }) =>
+          m.code?.toUpperCase() === baseFilters.metier?.toUpperCase() ||
+          m.id === baseFilters.metier
+      )
+      p_metier_id = metierObj?.id || baseFilters.metier
+    }
+
+    const { data, error } = await supabase.rpc('get_intervention_filter_counts', {
+      p_group_column,
+      p_statut_id: baseFilters?.statut || null,
+      p_agence_id: baseFilters?.agence || null,
+      p_metier_id,
+      p_user_id: baseFilters?.user || null,
+      p_start_date: baseFilters?.startDate || null,
+      p_end_date: baseFilters?.endDate || null,
+    })
+
+    if (error) {
+      console.error(`[getFilterCountsGrouped] Erreur RPC pour ${property}:`, error)
+      throw new Error(`Erreur lors du comptage groupé: ${error.message}`)
+    }
+
+    const counts: Record<string, number> = {}
+    if (data) {
+      for (const row of data as Array<{ group_value: string; cnt: number }>) {
+        counts[row.group_value] = Number(row.cnt)
+      }
+    }
+    return counts
+  },
+
+  /**
    * Compte le nombre d'interventions pour une valeur spécifique d'une propriété
    */
   async getCountByPropertyValue(

@@ -103,10 +103,34 @@ export const interventionKeys = {
   detail: (id: string, include?: string[]) => [...interventionKeys.details(), id, include] as const,
   
   /**
+   * Préfixe pour les comptages groupés par filtre (métier, agence, etc.)
+   *
+   * @returns ["interventions", "filter-counts"]
+   */
+  filterCounts: () => [...interventionKeys.all, "filter-counts"] as const,
+
+  /**
+   * Clé pour les comptages groupés par propriété avec filtres
+   *
+   * @param property - Propriété de groupement (metier, agence, statut, user)
+   * @param filters - Filtres de base appliqués
+   * @returns ["interventions", "filter-counts", property, filters]
+   */
+  filterCountsByProperty: (property: string, filters?: object) =>
+    [...interventionKeys.all, "filter-counts", property, filters] as const,
+
+  /**
+   * Clé pour invalider tous les comptages de filtres
+   *
+   * @returns ["interventions", "filter-counts"]
+   */
+  invalidateFilterCounts: () => [...interventionKeys.all, "filter-counts"],
+
+  /**
    * Clé pour invalider toutes les queries d'interventions
-   * 
+   *
    * @returns ["interventions"]
-   * 
+   *
    * @example
    * queryClient.invalidateQueries({ queryKey: interventionKeys.invalidateAll() })
    */

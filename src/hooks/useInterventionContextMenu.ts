@@ -83,6 +83,7 @@ export function useInterventionContextMenu(
   const invalidateLists = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: interventionKeys.invalidateLists() })
     queryClient.invalidateQueries({ queryKey: interventionKeys.invalidateLightLists() })
+    queryClient.invalidateQueries({ queryKey: interventionKeys.invalidateFilterCounts() })
   }, [queryClient])
 
   // Fonction pour ouvrir le modal avec les données pré-remplies (devis supp)

@@ -502,6 +502,9 @@ GMBS`
           queryKey: interventionKeys.invalidateLightLists(),
           refetchType: 'active'
         })
+        queryClient.invalidateQueries({
+          queryKey: interventionKeys.invalidateFilterCounts(),
+        })
 
         // 4. Attendre la fin de l'animation et invalider les queries inactives
         await waitForExit()

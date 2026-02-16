@@ -130,6 +130,9 @@ export const invalidateActiveLists: SyncMiddleware<Intervention> = (event, ctx) 
       queryKey: interventionKeys.invalidateLightLists(),
       refetchType: 'active',
     })
+    ctx.queryClient.invalidateQueries({
+      queryKey: interventionKeys.invalidateFilterCounts(),
+    })
   }, 0)
 }
 
