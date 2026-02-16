@@ -423,25 +423,10 @@ export function RemindersProvider({ children }: { children: ReactNode }) {
 
     ensureSubscription()
 
-    const { data: authListener } = supabase.auth.onAuthStateChange((_event: string, session: { user?: { id?: string } } | null) => {
-      if (!mounted) return
-
-      if (session) {
-        // Seulement bind si pas déjà subscribed
-        if (!isSubscribed) {
-          bindChannel()
-        }
-        // Refresh des reminders (utilise currentUserIdRef via refreshReminders)
-        refreshReminders()
-      } else {
-        // Déconnexion: nettoyer
-        isSubscribed = false
-        if (channel) {
-          channel.unsubscribe()
-          channel = null
-        }
-      }
-    })
+    // Pas de onAuthStateChange ici — le useEffect dépend de [currentUser?.id]
+    // qui couvre déjà login (undefined → id), logout (id → undefined),
+    // et changement d'utilisateur (id1 → id2). Ajouter un listener
+    // onAuthStateChange causerait une double initialisation via INITIAL_SESSION.
 
     return () => {
       mounted = false
@@ -450,7 +435,6 @@ export function RemindersProvider({ children }: { children: ReactNode }) {
         clearTimeout(reconnectTimeout)
       }
       channel?.unsubscribe()
-      authListener.subscription.unsubscribe()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentUser?.id]) // Re-init quand le currentUser change (login/logout)
