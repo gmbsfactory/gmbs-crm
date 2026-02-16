@@ -244,7 +244,9 @@ Tables de statuts avec `code`, `label`, `color`, `sort_order`.
 | `intervention_id` | `uuid` FK | Intervention |
 | `cost_type` | `text` CHECK | 'sst', 'materiel', 'intervention', 'marge' |
 | `amount` | `numeric(12,2)` | Montant |
-| `artisan_order` | `int` | 1 (principal) ou 2 (secondaire) (migration 00028) |
+| `artisan_order` | `int` | 1 (principal) ou 2 (secondaire) (migration 00028). **NULL pour les types `intervention` et `marge`** (migration 00086) |
+
+**Contrainte d'unicite** : `UNIQUE(intervention_id, cost_type, COALESCE(artisan_order, 0))` — empeche les doublons pour un meme type de cout par intervention (migration 00086).
 
 #### intervention_payments
 
