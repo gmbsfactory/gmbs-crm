@@ -99,36 +99,6 @@ interface CreateCommentRequest {
   is_internal?: boolean;
 }
 
-@deprecated
-async function getAuthUserIdFromRequest(req: Request, supabase: SupabaseClient): Promise<string | null> {
-  // Prefer x-user-id header (set by the frontend, avoids ES256 JWT validation issues)
-  const userIdHeader = req.headers.get('x-user-id');
-  if (userIdHeader) {
-    return userIdHeader;
-  }
-
-  // Fallback: extract from Authorization JWT (for backward compatibility / scripts)
-  const authHeader = req.headers.get('authorization');
-  if (!authHeader) {
-    return null;
-  }
-
-  const token = authHeader.replace('Bearer ', '');
-  if (!token) {
-    return null;
-  }
-
-  try {
-    const { data: { user }, error } = await supabase.auth.getUser(token);
-    if (error) {
-      return null;
-    }
-    return user?.id ?? null;
-  } catch (_error) {
-    return null;
-  }
-}
-
 // Helper function pour créer les transitions automatiques lors de la création
 async function createAutomaticStatusTransitions(
   supabase: SupabaseClient,

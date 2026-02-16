@@ -81,18 +81,16 @@ export const getHeaders = async () => {
 
   if (!isNodeJs) {
     try {
-      // Prioritize standard JWT validation via Authorization header
       const { data: { session } } = await supabase.auth.getSession();
       if (session?.access_token) {
         headers.Authorization = `Bearer ${session.access_token}`;
-      }
-
-      // Also pass x-user-id for logging and as a fallback
-      if (session?.user?.id) {
-        headers["x-user-id"] = session.user.id;
+      } else {
+        // Fallback: use anon key so edge functions always receive an Authorization header
+        headers.Authorization = `Bearer ${anonKey}`;
       }
     } catch (error) {
       console.warn("[getHeaders] Failed to get session:", error);
+      headers.Authorization = `Bearer ${anonKey}`;
     }
   } else {
     const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
