@@ -30,6 +30,8 @@ function makeViewer(
     color,
     avatarUrl: null,
     joinedAt: new Date().toISOString(),
+    activeField: null,
+    fieldLockedAt: null,
   }
 }
 

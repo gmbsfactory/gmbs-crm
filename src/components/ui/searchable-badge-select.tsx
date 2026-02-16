@@ -36,6 +36,8 @@ export interface SearchableBadgeSelectProps {
   emptyText?: string
   onOpenChange?: (open: boolean) => void
   sortAlphabetically?: boolean
+  /** Field name for presence tracking (renders data-presence-field on root) */
+  presenceFieldName?: string
 }
 
 export function SearchableBadgeSelect({
@@ -51,6 +53,7 @@ export function SearchableBadgeSelect({
   emptyText = "Aucun résultat",
   onOpenChange,
   sortAlphabetically = true,
+  presenceFieldName,
 }: SearchableBadgeSelectProps) {
   const [open, setOpen] = React.useState(false)
 
@@ -93,7 +96,7 @@ export function SearchableBadgeSelect({
   }, [open])
 
   return (
-    <div className="flex flex-col gap-0.5">
+    <div className="flex flex-col gap-0.5" data-presence-field={presenceFieldName}>
       {!hideLabel && (
         <Label className="text-[10px] text-muted-foreground leading-none">
           {label}

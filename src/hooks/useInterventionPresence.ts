@@ -4,11 +4,17 @@ import { useEffect, useRef, useState, useCallback } from 'react'
 import type { RealtimeChannel } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase-client'
 import { useCurrentUser } from '@/hooks/useCurrentUser'
-import type { PresenceUser, PresencePayload } from '@/types/presence'
+import type { PresenceUser, PresencePayload, FieldLockMap } from '@/types/presence'
+
+/** Stale lock threshold: locks older than this are ignored (user walked away) */
+const STALE_LOCK_MS = 5 * 60 * 1000 // 5 minutes
+
+/** Throttle interval for channel.track() calls during rapid focus/blur */
+const TRACK_THROTTLE_MS = 300
 
 /**
  * Manages a Supabase Presence channel for real-time viewer tracking
- * on an intervention modal.
+ * on an intervention modal, including field-level soft locking.
  *
  * Architecture: each tab subscribes independently to 'presence:intervention-{id}'.
  * Completely separate from the crm-sync channel and leader election.
@@ -36,13 +42,24 @@ import type { PresenceUser, PresencePayload } from '@/types/presence'
  *    channel name ('presence:intervention-{id}'). Unlike postgres_changes (server push),
  *    Presence is a bidirectional protocol more sensitive to channel lifecycle issues.
  *
+ * 4. FIELD-LEVEL TRACKING (Feb 2025) — Extends the presence payload with activeField
+ *    and fieldLockedAt. trackField/clearField use a ref-based trailing throttle to
+ *    batch rapid focus/blur events. handleSync builds a fieldLockMap excluding stale
+ *    locks (>5 min) and the current user's own fields.
+ *
  * @param interventionId - ID of the intervention being viewed. Pass null to disable.
  */
 export function useInterventionPresence(
   interventionId: string | null
-): { viewers: PresenceUser[] } {
+): {
+  viewers: PresenceUser[]
+  fieldLockMap: FieldLockMap
+  trackField: (fieldName: string) => void
+  clearField: () => void
+} {
   const { data: currentUser } = useCurrentUser()
   const [viewers, setViewers] = useState<PresenceUser[]>([])
+  const [fieldLockMap, setFieldLockMap] = useState<FieldLockMap>({})
   const channelRef = useRef<RealtimeChannel | null>(null)
   const mountedRef = useRef(true)
 
@@ -55,6 +72,13 @@ export function useInterventionPresence(
     color?: string | null
     avatar_url?: string | null
   }>({})
+
+  // ─── Field tracking refs ─────────────────────────────────────────────────────
+  const activeFieldRef = useRef<string | null>(null)
+  const fieldLockedAtRef = useRef<string | null>(null)
+  const throttleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  /** Stored joinedAt to reuse in subsequent track() calls */
+  const joinedAtRef = useRef<string>(new Date().toISOString())
 
   // Keep refs in sync on every render — no effect dependency needed
   currentUserIdRef.current = currentUser?.id ?? null
@@ -69,6 +93,62 @@ export function useInterventionPresence(
   // ─── Stable current user ID (primitive string, referentially stable) ────────
   const currentUserId = currentUser?.id ?? null
 
+  // ─── Build payload from refs ──────────────────────────────────────────────────
+  const buildPayload = useCallback((): PresencePayload | null => {
+    const userData = currentUserDataRef.current
+    const userId = currentUserIdRef.current
+    if (!userId) return null
+
+    return {
+      userId,
+      name:
+        userData.surnom ||
+        `${userData.prenom ?? ''} ${userData.nom ?? ''}`.trim() ||
+        'Utilisateur',
+      color: userData.color ?? null,
+      avatarUrl: userData.avatar_url ?? null,
+      joinedAt: joinedAtRef.current,
+      activeField: activeFieldRef.current,
+      fieldLockedAt: fieldLockedAtRef.current,
+    }
+  }, [])
+
+  // ─── Throttled track: batches rapid focus/blur into a single track() call ────
+  const doTrack = useCallback(() => {
+    const channel = channelRef.current
+    if (!channel) return
+    const payload = buildPayload()
+    if (!payload) return
+    channel.track(payload).catch((err: unknown) => {
+      console.warn('[Presence] field track() failed:', err)
+    })
+  }, [buildPayload])
+
+  const scheduleTrack = useCallback((flush?: boolean) => {
+    if (throttleTimerRef.current) {
+      clearTimeout(throttleTimerRef.current)
+      throttleTimerRef.current = null
+    }
+    if (flush) {
+      doTrack()
+    } else {
+      throttleTimerRef.current = setTimeout(doTrack, TRACK_THROTTLE_MS)
+    }
+  }, [doTrack])
+
+  // ─── Public API: trackField / clearField ─────────────────────────────────────
+  const trackField = useCallback((fieldName: string) => {
+    activeFieldRef.current = fieldName
+    fieldLockedAtRef.current = new Date().toISOString()
+    scheduleTrack()
+  }, [scheduleTrack])
+
+  const clearField = useCallback(() => {
+    activeFieldRef.current = null
+    fieldLockedAtRef.current = null
+    scheduleTrack(true) // flush immediately so lock releases fast
+  }, [scheduleTrack])
+
   // ─── handleSync: reads from refs, zero deps ────────────────────────────────
   const handleSync = useCallback(() => {
     const channel = channelRef.current
@@ -76,6 +156,7 @@ export function useInterventionPresence(
     if (!channel || !userId) return
 
     const state = channel.presenceState<PresencePayload>()
+    const now = Date.now()
 
     // Flatten all presence metas, exclude self
     const allMetas = Object.values(state).flat()
@@ -89,7 +170,19 @@ export function useInterventionPresence(
       a.joinedAt.localeCompare(b.joinedAt)
     )
 
+    // Build field lock map (skip stale locks)
+    const locks: FieldLockMap = {}
+    for (const user of unique.values()) {
+      if (user.activeField && user.fieldLockedAt) {
+        const lockedAt = new Date(user.fieldLockedAt).getTime()
+        if (now - lockedAt < STALE_LOCK_MS) {
+          locks[user.activeField] = user
+        }
+      }
+    }
+
     setViewers(sorted)
+    setFieldLockMap(locks)
   }, []) // Stable — reads from refs
 
   // ─── Track mounted state for async callbacks ───────────────────────────────
@@ -104,6 +197,7 @@ export function useInterventionPresence(
   useEffect(() => {
     if (!interventionId || !currentUserId) {
       setViewers([])
+      setFieldLockMap({})
       return
     }
 
@@ -123,6 +217,11 @@ export function useInterventionPresence(
       const channel = supabase.channel(channelName)
       channelRef.current = channel
 
+      // Reset field tracking on new subscription
+      activeFieldRef.current = null
+      fieldLockedAtRef.current = null
+      joinedAtRef.current = new Date().toISOString()
+
       console.log(`[Presence] Subscribing to ${channelName}`)
 
       channel
@@ -141,22 +240,10 @@ export function useInterventionPresence(
           console.log(`[Presence] Channel ${channelName} status: ${status}`)
 
           if (status === 'SUBSCRIBED') {
-            // Read user data from ref at track()-time (always fresh, never stale)
-            const userData = currentUserDataRef.current
-            const userId = currentUserIdRef.current
-            if (!userId) return
+            const payload = buildPayload()
+            if (!payload) return
 
             try {
-              const payload: PresencePayload = {
-                userId,
-                name:
-                  userData.surnom ||
-                  `${userData.prenom ?? ''} ${userData.nom ?? ''}`.trim() ||
-                  'Utilisateur',
-                color: userData.color ?? null,
-                avatarUrl: userData.avatar_url ?? null,
-                joinedAt: new Date().toISOString(),
-              }
               console.log(`[Presence] Tracking user: ${payload.name}`)
               await channel.track(payload)
               console.log(`[Presence] Track successful for ${channelName}`)
@@ -177,6 +264,11 @@ export function useInterventionPresence(
     return () => {
       cancelled = true
       console.log(`[Presence] Cleaning up ${channelName}`)
+      // Cancel any pending throttled track
+      if (throttleTimerRef.current) {
+        clearTimeout(throttleTimerRef.current)
+        throttleTimerRef.current = null
+      }
       // Null ref FIRST to prevent re-entry (matches useCrmRealtime pattern)
       const ch = channelRef.current
       channelRef.current = null
@@ -185,12 +277,14 @@ export function useInterventionPresence(
         supabase.removeChannel(ch)
       }
       setViewers([])
+      setFieldLockMap({})
     }
   }, [
     interventionId,
     currentUserId, // Primitive string — stable across useCurrentUser refetches
     handleSync,    // Stable — no deps
+    buildPayload,  // Stable — no deps
   ])
 
-  return { viewers }
+  return { viewers, fieldLockMap, trackField, clearField }
 }

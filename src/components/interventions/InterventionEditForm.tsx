@@ -45,6 +45,9 @@ import { normalizeArtisanData, getDisplayName } from "@/lib/artisans"
 
 // Shared form state hook
 import { useInterventionFormState } from "@/hooks/useInterventionFormState"
+import { useFieldPresenceDelegation } from "@/hooks/useFieldPresenceDelegation"
+import { useFieldPresence } from "@/contexts/FieldPresenceContext"
+import { PresenceFieldIndicator } from "@/components/ui/intervention-modal/PresenceFieldIndicator"
 
 // Shared form utilities
 import { INTERVENTION_DOCUMENT_KINDS, STATUS_SORT_ORDER, MAX_RADIUS_KM } from "@/lib/interventions/form-constants"
@@ -93,6 +96,10 @@ export const InterventionEditForm = memo(function InterventionEditForm({
   const { update: updateMutation } = useInterventionsMutations()
   const { open: openInterventionModal } = useInterventionModal()
   const { can } = usePermissions()
+
+  // Field-level presence tracking (soft lock)
+  const { trackField, clearField } = useFieldPresence()
+  useFieldPresenceDelegation(formRef ?? { current: null }, trackField, clearField)
 
   // Edit-specific state
   const [pendingReasonType, setPendingReasonType] = useState<StatusReasonType | null>(null)
@@ -1507,6 +1514,7 @@ export const InterventionEditForm = memo(function InterventionEditForm({
                         </div>
 
                         {/* Statut - Badge coloré */}
+                        <PresenceFieldIndicator fieldName="statut_id">
                         <SearchableBadgeSelect
                           label="Statut"
                           required
@@ -1517,6 +1525,7 @@ export const InterventionEditForm = memo(function InterventionEditForm({
                           onOpenChange={onPopoverOpenChange}
                           searchPlaceholder="Rechercher un statut..."
                           sortAlphabetically={false}
+                          presenceFieldName="statut_id"
                           options={(refData?.interventionStatuses || [])
                             .map(s => ({
                               id: s.id,
@@ -1532,8 +1541,10 @@ export const InterventionEditForm = memo(function InterventionEditForm({
                             })
                           }
                         />
+                        </PresenceFieldIndicator>
 
                         {/* Agence - Badge coloré */}
+                        <PresenceFieldIndicator fieldName="agence_id">
                         <SearchableBadgeSelect
                           label="Agence"
                           hideLabel
@@ -1545,10 +1556,13 @@ export const InterventionEditForm = memo(function InterventionEditForm({
                           searchPlaceholder="Rechercher une agence..."
                           onOpenChange={onPopoverOpenChange}
                           emptyText="Aucune agence trouvée"
+                          presenceFieldName="agence_id"
                         />
+                        </PresenceFieldIndicator>
 
                         {/* Réf. agence - Input conditionnel */}
                         {showReferenceField && (
+                          <PresenceFieldIndicator fieldName="reference_agence">
                           <div className="flex items-center">
                             <Input
                               id="reference_agence"
@@ -1560,9 +1574,11 @@ export const InterventionEditForm = memo(function InterventionEditForm({
                               autoComplete="off"
                             />
                           </div>
+                          </PresenceFieldIndicator>
                         )}
 
                         {/* Métier - Badge coloré */}
+                        <PresenceFieldIndicator fieldName="metier_id">
                         <SearchableBadgeSelect
                           label="Métier"
                           hideLabel
@@ -1572,14 +1588,17 @@ export const InterventionEditForm = memo(function InterventionEditForm({
                           onOpenChange={onPopoverOpenChange}
                           searchPlaceholder="Rechercher un métier..."
                           minWidth="100px"
+                          presenceFieldName="metier_id"
                           options={(refData?.metiers || []).map(m => ({
                             id: m.id,
                             label: m.label,
                             color: m.color,
                           }))}
                         />
+                        </PresenceFieldIndicator>
 
                         {/* ID Intervention - Input */}
+                        <PresenceFieldIndicator fieldName="idIntervention">
                         <div className="flex items-center relative">
                           <Input
                             id="idIntervention"
@@ -1599,6 +1618,7 @@ export const InterventionEditForm = memo(function InterventionEditForm({
                             <span className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-orange-500 animate-pulse" title="ID définitif requis" />
                           )}
                         </div>
+                        </PresenceFieldIndicator>
                       </div>
                     </CardContent>
                   </Card>
@@ -1608,6 +1628,7 @@ export const InterventionEditForm = memo(function InterventionEditForm({
                     <CardContent className="py-2 px-3">
                       <div className="flex items-center gap-2">
                         <Label htmlFor="adresse" className="text-[10px] text-muted-foreground whitespace-nowrap">Adresse *</Label>
+                        <PresenceFieldIndicator fieldName="adresse">
                         <Input
                           id="adresse"
                           value={formData.adresse}
@@ -1616,6 +1637,7 @@ export const InterventionEditForm = memo(function InterventionEditForm({
                           className="h-7 text-xs flex-1"
                           required
                         />
+                        </PresenceFieldIndicator>
                       </div>
                     </CardContent>
                   </Card>
@@ -1966,6 +1988,7 @@ export const InterventionEditForm = memo(function InterventionEditForm({
                   <Card style={{ gridArea: "5 / 1 / 6 / 3" }}>
                     <CardContent className="p-4">
                       <Label htmlFor="contexteIntervention" className="text-xs font-medium mb-2 block">Contexte intervention *</Label>
+                      <PresenceFieldIndicator fieldName="contexteIntervention">
                       <Textarea
                         id="contexteIntervention"
                         value={formData.contexte_intervention}
@@ -1977,6 +2000,7 @@ export const InterventionEditForm = memo(function InterventionEditForm({
                         aria-readonly={!canEditContext}
                         required
                       />
+                      </PresenceFieldIndicator>
                       {!canEditContext && <p className="mt-1 text-[10px] text-muted-foreground">Admin uniquement</p>}
                     </CardContent>
                   </Card>
@@ -1987,6 +2011,7 @@ export const InterventionEditForm = memo(function InterventionEditForm({
                       <Label htmlFor="consigneIntervention" className="text-xs font-medium mb-2 block">
                         Consigne pour l&apos;artisan {requiresConsigneArtisan && <span className="text-orange-500">*</span>}
                       </Label>
+                      <PresenceFieldIndicator fieldName="consigneIntervention">
                       <Textarea
                         id="consigneIntervention"
                         value={formData.consigne_intervention}
@@ -1995,6 +2020,7 @@ export const InterventionEditForm = memo(function InterventionEditForm({
                         rows={4}
                         className={cn("text-sm resize-none", requiresConsigneArtisan && !formData.consigne_intervention?.trim() && "border-orange-400 focus-visible:ring-orange-400")}
                       />
+                      </PresenceFieldIndicator>
                     </CardContent>
                   </Card>
 
@@ -2002,6 +2028,7 @@ export const InterventionEditForm = memo(function InterventionEditForm({
                   <Card style={{ gridArea: "6 / 1 / 7 / 5" }} className={cn(requiresCouts && (!(parseFloat(formData.coutIntervention) > 0) || !(parseFloat(formData.coutSST) > 0)) && "ring-2 ring-orange-400/50")}>
                     <CardContent className="p-4">
                       <div className="grid grid-cols-5 gap-3 items-end">
+                        <PresenceFieldIndicator fieldName="coutIntervention">
                         <div>
                           <Label htmlFor="coutIntervention" className="text-xs">
                             Coût inter. {requiresCouts && <span className="text-orange-500">*</span>}
@@ -2017,6 +2044,8 @@ export const InterventionEditForm = memo(function InterventionEditForm({
                             className={cn("h-8 text-sm mt-1", requiresCouts && !(parseFloat(formData.coutIntervention) > 0) && "border-orange-400 focus-visible:ring-orange-400")}
                           />
                         </div>
+                        </PresenceFieldIndicator>
+                        <PresenceFieldIndicator fieldName="coutSST">
                         <div>
                           <Label htmlFor="coutSST" className="text-xs">
                             Coût SST {requiresCouts && <span className="text-orange-500">*</span>}
@@ -2032,10 +2061,13 @@ export const InterventionEditForm = memo(function InterventionEditForm({
                             className={cn("h-8 text-sm mt-1", requiresCouts && !(parseFloat(formData.coutSST) > 0) && "border-orange-400 focus-visible:ring-orange-400")}
                           />
                         </div>
+                        </PresenceFieldIndicator>
+                        <PresenceFieldIndicator fieldName="coutMateriel">
                         <div>
                           <Label htmlFor="coutMateriel" className="text-xs">Coût mat.</Label>
                           <Input id="coutMateriel" type="number" step="0.01" min="0" value={formData.coutMateriel} onChange={(e) => handleInputChange("coutMateriel", e.target.value)} placeholder="0.00 €" className="h-8 text-sm mt-1" />
                         </div>
+                        </PresenceFieldIndicator>
                         <div>
                           <Label className="text-xs">Marge</Label>
                           <div className="flex h-8 w-full rounded-md border border-input bg-muted px-3 py-1 text-sm shadow-sm items-center mt-1">
@@ -2048,6 +2080,7 @@ export const InterventionEditForm = memo(function InterventionEditForm({
                             )}
                           </div>
                         </div>
+                        <PresenceFieldIndicator fieldName="datePrevue">
                         <div className="relative">
                           <Label htmlFor="datePrevue" className="text-xs">
                             Date prévue {requiresDatePrevue && <span className="text-orange-500">*</span>}
@@ -2067,6 +2100,7 @@ export const InterventionEditForm = memo(function InterventionEditForm({
                             <span className="absolute top-0 -right-1 h-2 w-2 rounded-full bg-orange-500 animate-pulse" title="Date prévue requise" />
                           )}
                         </div>
+                        </PresenceFieldIndicator>
                       </div>
                     </CardContent>
                   </Card>
@@ -2118,6 +2152,7 @@ export const InterventionEditForm = memo(function InterventionEditForm({
                               <Label htmlFor="nomPrenomFacturation" className="text-[10px]">
                                 Nom Prénom {requiresNomFacturation && <span className="text-orange-500">*</span>}
                               </Label>
+                              <PresenceFieldIndicator fieldName="nomPrenomFacturation">
                               <Input
                                 id="nomPrenomFacturation"
                                 value={formData.nomPrenomFacturation}
@@ -2125,15 +2160,20 @@ export const InterventionEditForm = memo(function InterventionEditForm({
                                 placeholder="Nom Prénom"
                                 className={cn("h-7 text-xs mt-1", requiresNomFacturation && !formData.nomPrenomFacturation?.trim() && "border-orange-400 focus-visible:ring-orange-400")}
                               />
+                              </PresenceFieldIndicator>
                             </div>
                             <div className="grid grid-cols-2 gap-2">
                               <div>
                                 <Label htmlFor="telephoneProprietaire" className="text-[10px]">Téléphone</Label>
+                                <PresenceFieldIndicator fieldName="telephoneProprietaire">
                                 <Input id="telephoneProprietaire" value={formData.telephoneProprietaire} onChange={(e) => handleInputChange("telephoneProprietaire", e.target.value)} placeholder="06..." className="h-7 text-xs mt-1" />
+                                </PresenceFieldIndicator>
                               </div>
                               <div>
                                 <Label htmlFor="emailProprietaire" className="text-[10px]">Email</Label>
+                                <PresenceFieldIndicator fieldName="emailProprietaire">
                                 <Input id="emailProprietaire" type="email" value={formData.emailProprietaire} onChange={(e) => handleInputChange("emailProprietaire", e.target.value)} placeholder="email@..." className="h-7 text-xs mt-1" />
+                                </PresenceFieldIndicator>
                               </div>
                             </div>
                           </div>
@@ -2206,6 +2246,7 @@ export const InterventionEditForm = memo(function InterventionEditForm({
                                 <Label htmlFor="nomPrenomClient" className="text-[10px]">
                                   Nom Prénom {requiresClientInfo && <span className="text-orange-500">*</span>}
                                 </Label>
+                                <PresenceFieldIndicator fieldName="nomPrenomClient">
                                 <Input
                                   id="nomPrenomClient"
                                   value={formData.nomPrenomClient}
@@ -2213,12 +2254,14 @@ export const InterventionEditForm = memo(function InterventionEditForm({
                                   placeholder="Nom Prénom"
                                   className={cn("h-7 text-xs mt-1", requiresClientInfo && !formData.nomPrenomClient?.trim() && "border-orange-400 focus-visible:ring-orange-400")}
                                 />
+                                </PresenceFieldIndicator>
                               </div>
                               <div className="grid grid-cols-2 gap-2">
                                 <div>
                                   <Label htmlFor="telephoneClient" className="text-[10px]">
                                     Téléphone {requiresClientInfo && <span className="text-orange-500">*</span>}
                                   </Label>
+                                  <PresenceFieldIndicator fieldName="telephoneClient">
                                   <Input
                                     id="telephoneClient"
                                     value={formData.telephoneClient}
@@ -2226,10 +2269,13 @@ export const InterventionEditForm = memo(function InterventionEditForm({
                                     placeholder="06..."
                                     className={cn("h-7 text-xs mt-1", requiresClientInfo && !formData.telephoneClient?.trim() && "border-orange-400 focus-visible:ring-orange-400")}
                                   />
+                                  </PresenceFieldIndicator>
                                 </div>
                                 <div>
                                   <Label htmlFor="emailClient" className="text-[10px]">Email</Label>
+                                  <PresenceFieldIndicator fieldName="emailClient">
                                   <Input id="emailClient" type="email" value={formData.emailClient} onChange={(e) => handleInputChange("emailClient", e.target.value)} placeholder="email@..." className="h-7 text-xs mt-1" />
+                                  </PresenceFieldIndicator>
                                 </div>
                               </div>
                             </div>
@@ -2257,7 +2303,9 @@ export const InterventionEditForm = memo(function InterventionEditForm({
                           <div className="grid grid-cols-2 gap-2">
                             <div>
                               <Label htmlFor="accompteSST" className="text-[10px]">Acompte SST</Label>
+                              <PresenceFieldIndicator fieldName="accompteSST">
                               <Input id="accompteSST" value={formData.accompteSST} onChange={(e) => handleAccompteSSTChange(e.target.value)} onBlur={handleAccompteSSTBlur} placeholder="Montant" className="h-7 text-xs" disabled={!canEditAccomptes} type="number" step="0.01" min="0" />
+                              </PresenceFieldIndicator>
                             </div>
                             <div>
                               <Label className="text-[10px]">Reçu</Label>
@@ -2270,7 +2318,9 @@ export const InterventionEditForm = memo(function InterventionEditForm({
                           <div className="grid grid-cols-2 gap-2">
                             <div>
                               <Label htmlFor="accompteClient" className="text-[10px]">Acompte client</Label>
+                              <PresenceFieldIndicator fieldName="accompteClient">
                               <Input id="accompteClient" value={formData.accompteClient} onChange={(e) => handleAccompteClientChange(e.target.value)} onBlur={handleAccompteClientBlur} placeholder="Montant" className="h-7 text-xs" disabled={!canEditAccomptes} type="number" step="0.01" min="0" />
+                              </PresenceFieldIndicator>
                             </div>
                             <div>
                               <Label className="text-[10px]">Reçu</Label>
@@ -2335,6 +2385,7 @@ export const InterventionEditForm = memo(function InterventionEditForm({
                             {/* Header artisans - même style que colonne gauche */}
                             <div className="flex items-center justify-between gap-2 flex-shrink-0 pt-[13px] flex-wrap min-w-0">
                               <div className="flex items-center gap-2 min-w-0 overflow-hidden">
+                                <PresenceFieldIndicator fieldName="metierSecondArtisanId">
                                 <SearchableBadgeSelect
                                   label="Métier"
                                   value={formData.metierSecondArtisanId}
@@ -2350,7 +2401,9 @@ export const InterventionEditForm = memo(function InterventionEditForm({
                                   onOpenChange={onPopoverOpenChange}
                                   searchPlaceholder="Rechercher un métier..."
                                   emptyText="Aucun métier trouvé"
+                                  presenceFieldName="metierSecondArtisanId"
                                 />
+                                </PresenceFieldIndicator>
                                 <div className="flex gap-0.5 flex-shrink-0">
                                   <Button
                                     type="button"
@@ -2554,6 +2607,7 @@ export const InterventionEditForm = memo(function InterventionEditForm({
                             {/* Consigne pour le deuxième artisan */}
                             <div>
                               <Label htmlFor="consigne_second_artisan" className="text-[10px]">Consigne 2ème artisan</Label>
+                              <PresenceFieldIndicator fieldName="consigne_second_artisan">
                               <Textarea
                                 id="consigne_second_artisan"
                                 value={formData.consigne_second_artisan}
@@ -2561,12 +2615,14 @@ export const InterventionEditForm = memo(function InterventionEditForm({
                                 placeholder="Consignes spécifiques..."
                                 className="min-h-[50px] text-xs mt-1 resize-none"
                               />
+                              </PresenceFieldIndicator>
                             </div>
 
                             {/* Coûts du 2ème artisan */}
                             <div className="grid grid-cols-3 gap-2">
                               <div>
                                 <Label htmlFor="coutSSTSecondArtisan" className="text-[10px]">Coût SST</Label>
+                                <PresenceFieldIndicator fieldName="coutSSTSecondArtisan">
                                 <Input
                                   id="coutSSTSecondArtisan"
                                   type="number"
@@ -2577,9 +2633,11 @@ export const InterventionEditForm = memo(function InterventionEditForm({
                                   placeholder="0.00 €"
                                   className="h-7 text-xs mt-1"
                                 />
+                                </PresenceFieldIndicator>
                               </div>
                               <div>
                                 <Label htmlFor="coutMaterielSecondArtisan" className="text-[10px]">Coût mat.</Label>
+                                <PresenceFieldIndicator fieldName="coutMaterielSecondArtisan">
                                 <Input
                                   id="coutMaterielSecondArtisan"
                                   type="number"
@@ -2590,6 +2648,7 @@ export const InterventionEditForm = memo(function InterventionEditForm({
                                   placeholder="0.00 €"
                                   className="h-7 text-xs mt-1"
                                 />
+                                </PresenceFieldIndicator>
                               </div>
                               <div>
                                 <Label className="text-[10px]">Marge 2</Label>
@@ -2659,6 +2718,7 @@ export const InterventionEditForm = memo(function InterventionEditForm({
                             </p>
                             <div>
                               <Label htmlFor="sousStatutText" className="text-[10px]">Texte du sous-statut</Label>
+                              <PresenceFieldIndicator fieldName="sousStatutText">
                               <Input
                                 id="sousStatutText"
                                 value={formData.sousStatutText}
@@ -2667,6 +2727,7 @@ export const InterventionEditForm = memo(function InterventionEditForm({
                                 maxLength={25}
                                 className="h-7 text-xs mt-1"
                               />
+                              </PresenceFieldIndicator>
                             </div>
                             <div className="flex items-center gap-3">
                               <div className="flex-1">
