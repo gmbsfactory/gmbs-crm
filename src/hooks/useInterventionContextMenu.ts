@@ -128,17 +128,6 @@ export function useInterventionContextMenu(
       : data.intervention_artisans
         ? [data.intervention_artisans as ArtisanRow]
         : []
-    const costs: Array<{ cost_type?: string; amount?: number }> = Array.isArray(data.intervention_costs)
-      ? data.intervention_costs
-      : data.intervention_costs
-        ? [data.intervention_costs]
-        : []
-    const payments: Array<{ payment_type?: string; amount?: number; is_received?: boolean; payment_date?: string | null }> = Array.isArray(data.intervention_payments)
-      ? data.intervention_payments
-      : data.intervention_payments
-        ? [data.intervention_payments]
-        : []
-
     // Récupérer l'artisan principal (comme dans InterventionEditForm)
     const primaryArtisan = (artisans.find((ia) => ia.is_primary)?.artisans || artisans[0]?.artisans) as Record<string, unknown> | undefined
     const primaryArtisanId = artisans.find((ia) => ia.is_primary)?.artisan_id || artisans[0]?.artisan_id || null
@@ -174,27 +163,19 @@ export function useInterventionContextMenu(
         : "",
       artisanTelephone: String(primaryArtisan?.telephone ?? "") || "",
       artisanEmail: String(primaryArtisan?.email ?? "") || "",
-      // Coûts
-      coutIntervention: costs.find((c) => c.cost_type === "intervention")?.amount?.toString() || "",
-      coutSST: costs.find((c) => c.cost_type === "sst")?.amount?.toString() || "",
-      coutMateriel: costs.find((c) => c.cost_type === "materiel")?.amount?.toString() || "",
+      // Coûts — remis à zéro pour un devis supplémentaire (nouveau chiffrage)
+      coutIntervention: "",
+      coutSST: "",
+      coutMateriel: "",
       numero_sst: data.numero_sst || "",
       pourcentage_sst: data.pourcentage_sst ?? undefined,
-      // Acomptes
-      accompteSST: payments.find((p) => p.payment_type === "acompte_sst")?.amount?.toString() || "",
-      accompteSSTRecu: payments.find((p) => p.payment_type === "acompte_sst")?.is_received || false,
-      dateAccompteSSTRecu: (() => {
-        const d = payments.find((p) => p.payment_type === "acompte_sst")?.payment_date
-        if (!d) return ""
-        return typeof d === 'string' && d.includes('T') ? d.split('T')[0] : d
-      })(),
-      accompteClient: payments.find((p) => p.payment_type === "acompte_client")?.amount?.toString() || "",
-      accompteClientRecu: payments.find((p) => p.payment_type === "acompte_client")?.is_received || false,
-      dateAccompteClientRecu: (() => {
-        const d = payments.find((p) => p.payment_type === "acompte_client")?.payment_date
-        if (!d) return ""
-        return typeof d === 'string' && d.includes('T') ? d.split('T')[0] : d
-      })(),
+      // Acomptes — remis à zéro pour un devis supplémentaire
+      accompteSST: "",
+      accompteSSTRecu: false,
+      dateAccompteSSTRecu: "",
+      accompteClient: "",
+      accompteClientRecu: false,
+      dateAccompteClientRecu: "",
       commentairesIntervention: `devis supp avec l'ancien ID ${interventionData.id_inter || interventionId}`,
       // Consigne second artisan
       consigneSecondArtisan: interventionData.consigne_second_artisan || "",
