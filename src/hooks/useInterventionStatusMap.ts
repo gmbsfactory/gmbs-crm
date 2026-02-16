@@ -1,59 +1,46 @@
-import { useCallback, useEffect, useState } from "react"
-import { referenceApi } from "@/lib/reference-api"
+import { useCallback, useMemo } from "react"
+import { useReferenceDataQuery } from "@/hooks/useReferenceDataQuery"
 
 /**
  * Hook pour charger et cacher le mapping CODE → UUID des statuts
  * Utilisé pour convertir les codes de statut (EN_COURS, TERMINE, etc.) en UUIDs pour les requêtes SQL
+ *
+ * Dérive les données depuis useReferenceDataQuery (TanStack Query)
+ * pour bénéficier de la déduplication automatique des requêtes.
  */
 export function useInterventionStatusMap() {
-  const [statusMap, setStatusMap] = useState<Record<string, string>>({})
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<Error | null>(null)
+  const { data, loading, error: queryError } = useReferenceDataQuery()
 
-  useEffect(() => {
-    let mounted = true
+  const statusMap = useMemo(() => {
+    if (!data) return {}
+    const map: Record<string, string> = {}
+    const addMapping = (key: string | null | undefined, id: string) => {
+      if (!key) return
+      const original = key
+      const upper = key.toUpperCase()
+      const normalized = key
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/[^a-zA-Z0-9]+/g, "_")
+        .toUpperCase()
 
-    referenceApi
-      .getInterventionStatuses()
-      .then((statuses) => {
-        if (!mounted) return
-        const map: Record<string, string> = {}
-        const addMapping = (key: string | null | undefined, id: string) => {
-          if (!key) return
-          const original = key
-          const upper = key.toUpperCase()
-          const normalized = key
-            .normalize("NFD")
-            .replace(/[\u0300-\u036f]/g, "")
-            .replace(/[^a-zA-Z0-9]+/g, "_")
-            .toUpperCase()
-
-          map[original] = id
-          map[upper] = id
-          map[normalized] = id
-        }
-
-        for (const status of statuses) {
-          addMapping(status.code, status.id)
-          addMapping(status.label, status.id)
-        }
-
-        // Les codes BDD sont INTER_EN_COURS et INTER_TERMINEE
-        // Pas besoin d'alias legacy car le frontend utilise maintenant les codes réels
-        
-        setStatusMap(map)
-        setLoading(false)
-      })
-      .catch((err) => {
-        if (!mounted) return
-        setError(err)
-        setLoading(false)
-      })
-
-    return () => {
-      mounted = false
+      map[original] = id
+      map[upper] = id
+      map[normalized] = id
     }
-  }, [])
+
+    for (const status of data.interventionStatuses) {
+      addMapping(status.code, status.id)
+      addMapping(status.label, status.id)
+    }
+
+    return map
+  }, [data])
+
+  const error = useMemo(
+    () => (queryError ? new Error(queryError) : null),
+    [queryError]
+  )
 
   /**
    * Convertit un code de statut (ou array de codes) en UUID(s)

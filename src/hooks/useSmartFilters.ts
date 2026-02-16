@@ -2,7 +2,7 @@
 // Gère les filtres avec conversion automatique ID <-> Code
 
 import { useCallback, useMemo } from 'react';
-import { useReferenceData } from './useReferenceData';
+import { useReferenceDataQuery } from './useReferenceDataQuery';
 
 interface FilterOptions {
   statut?: string;
@@ -13,7 +13,7 @@ interface FilterOptions {
 }
 
 export function useSmartFilters() {
-  const { data: referenceData, getInterventionStatusLabel, getAgencyLabel, getUserCode } = useReferenceData();
+  const { data: referenceData, getInterventionStatusLabel, getAgencyLabel, getUserCode } = useReferenceDataQuery();
 
   // Convertir les filtres d'affichage en filtres API
   const convertFiltersToApi = useCallback((filters: FilterOptions) => {

@@ -4,7 +4,7 @@ import React, { useMemo } from "react"
 import { Bar, BarChart, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { TrendingUp } from "lucide-react"
-import { useReferenceData } from "@/hooks/useReferenceData"
+import { useReferenceDataQuery } from "@/hooks/useReferenceDataQuery"
 import type { Intervention } from "@/lib/api/v2/common/types"
 
 type ArtisanFinancesSectionProps = {
@@ -13,7 +13,7 @@ type ArtisanFinancesSectionProps = {
 }
 
 export function ArtisanFinancesSection({ interventions, artisanId }: ArtisanFinancesSectionProps) {
-  const { data: referenceData } = useReferenceData()
+  const { data: referenceData } = useReferenceDataQuery()
 
   // Calculer les statistiques
   const stats = useMemo(() => {

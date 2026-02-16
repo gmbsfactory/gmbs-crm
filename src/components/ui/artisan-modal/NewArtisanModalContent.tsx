@@ -55,7 +55,7 @@ import {
 import { ModeIcons } from "@/components/ui/mode-selector"
 import { DocumentManager } from "@/components/documents"
 import { CommentSection } from "@/components/shared/CommentSection"
-import { useReferenceData } from "@/hooks/useReferenceData"
+import { useReferenceDataQuery } from "@/hooks/useReferenceDataQuery"
 import { toast } from "sonner"
 import { useSiretVerification } from "@/hooks/useSiretVerification"
 import { validateSiret } from "@/lib/siret-validation"
@@ -258,7 +258,7 @@ type Props = {
 export function NewArtisanModalContent({ mode, onClose, onCycleMode, artisanId, onUnsavedChangesStateChange, onRegisterShowDialog, onStatusReasonModalOpenChange, onUnsavedDialogOpenChange }: Props) {
   const isEditMode = Boolean(artisanId)
   const ModeIcon = ModeIcons[mode]
-  const { data: referenceData, loading: referenceLoading } = useReferenceData()
+  const { data: referenceData, loading: referenceLoading } = useReferenceDataQuery()
   const queryClient = useQueryClient()
   const formRef = useRef<HTMLFormElement>(null)
   const suggestionBlurTimeoutRef = useRef<number | null>(null)

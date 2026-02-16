@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useCallback } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase-client";
 import { normalizeReminderIdentifier } from "@/contexts/RemindersContext";
 
@@ -53,79 +54,75 @@ const buildHandle = (params: {
   return "";
 };
 
+async function fetchMentionableUsers(): Promise<MentionableUser[]> {
+  // Exclude archived users - they are soft-deleted and should not be selectable
+  const { data, error: queryError } = await supabase
+    .from("users")
+    .select("id, firstname, lastname, username, email, code_gestionnaire")
+    .neq("status", "archived")
+    .order("firstname", { ascending: true, nullsFirst: true });
+
+  if (queryError) throw queryError;
+
+  return (
+    data?.map((user: { id: string; firstname?: string | null; lastname?: string | null; username?: string | null; email?: string | null; code_gestionnaire?: string | null; [key: string]: unknown }) => {
+      const displayParts = [user.firstname, user.lastname].filter(Boolean);
+      const displayName =
+        displayParts.length > 0
+          ? displayParts.join(" ")
+          : user.username ?? user.email ?? "Utilisateur";
+
+      const handleFromNames = buildHandle({
+        firstname: user.firstname,
+        lastname: user.lastname,
+        username: user.username,
+        email: user.email,
+      });
+
+      const handle =
+        handleFromNames || normalizeReminderIdentifier(user.code_gestionnaire ?? "") || user.id;
+
+      const searchText = [
+        displayName,
+        user.username ?? "",
+        user.email ?? "",
+        user.code_gestionnaire ?? "",
+        handle,
+      ]
+        .join(" ")
+        .toLowerCase();
+
+      return {
+        id: user.id,
+        displayName,
+        handle,
+        email: user.email ?? null,
+        searchText,
+      };
+    }) ?? []
+  );
+}
+
 export function useUsers(): UseUsersResult {
-  const [users, setUsers] = useState<MentionableUser[]>([]);
-  const [loading, setLoading] = useState<boolean>(true);
-  const [error, setError] = useState<string | null>(null);
+  const queryClient = useQueryClient();
 
-  const fetchUsers = async () => {
-    try {
-      setLoading(true);
-      setError(null);
+  const { data, isLoading, error } = useQuery({
+    queryKey: ["users", "mentionable"],
+    queryFn: fetchMentionableUsers,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 15 * 60 * 1000,
+    refetchOnWindowFocus: false,
+    refetchOnMount: false,
+  });
 
-      // Exclude archived users - they are soft-deleted and should not be selectable
-      const { data, error: queryError } = await supabase
-        .from("users")
-        .select("id, firstname, lastname, username, email, code_gestionnaire")
-        .neq("status", "archived")
-        .order("firstname", { ascending: true, nullsFirst: true });
-
-      if (queryError) throw queryError;
-
-      const mapped: MentionableUser[] =
-        data?.map((user: { id: string; firstname?: string | null; lastname?: string | null; username?: string | null; email?: string | null; code_gestionnaire?: string | null; [key: string]: unknown }) => {
-          const displayParts = [user.firstname, user.lastname].filter(Boolean);
-          const displayName =
-            displayParts.length > 0
-              ? displayParts.join(" ")
-              : user.username ?? user.email ?? "Utilisateur";
-
-          const handleFromNames = buildHandle({
-            firstname: user.firstname,
-            lastname: user.lastname,
-            username: user.username,
-            email: user.email,
-          });
-
-          const handle =
-            handleFromNames || normalizeReminderIdentifier(user.code_gestionnaire ?? "") || user.id;
-
-          const searchText = [
-            displayName,
-            user.username ?? "",
-            user.email ?? "",
-            user.code_gestionnaire ?? "",
-            handle,
-          ]
-            .join(" ")
-            .toLowerCase();
-
-          return {
-            id: user.id,
-            displayName,
-            handle,
-            email: user.email,
-            searchText,
-          };
-        }) ?? [];
-
-      setUsers(mapped);
-    } catch (err) {
-      console.error("Error fetching users:", err);
-      setError(err instanceof Error ? err.message : "Erreur inconnue");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchUsers();
-  }, []);
+  const refresh = useCallback(async () => {
+    await queryClient.invalidateQueries({ queryKey: ["users", "mentionable"] });
+  }, [queryClient]);
 
   return {
-    users,
-    loading,
-    error,
-    refresh: fetchUsers,
+    users: data ?? [],
+    loading: isLoading,
+    error: error ? (error instanceof Error ? error.message : String(error)) : null,
+    refresh,
   };
 }

@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet"
 import { cn } from "@/lib/utils"
 import { useCurrentUser } from "@/hooks/useCurrentUser"
-import { useReferenceData } from "@/hooks/useReferenceData"
+import { useReferenceDataQuery } from "@/hooks/useReferenceDataQuery"
 import { useInterventionHistory, type InterventionHistoryItem } from "@/hooks/useInterventionHistory"
 import { useBatchResolver } from "@/hooks/useBatchResolver"
 import { HistoryItem, type HistoryValueResolver } from "./HistoryItem"
@@ -218,7 +218,7 @@ export function InterventionHistoryPanel({ interventionId, isOpen, onClose }: In
   const loadMoreRef = useRef<HTMLDivElement | null>(null)
 
   const { data: currentUser } = useCurrentUser({ enabled: isOpen })
-  const { data: referenceData } = useReferenceData()
+  const { data: referenceData } = useReferenceDataQuery()
   const {
     data,
     isLoading,

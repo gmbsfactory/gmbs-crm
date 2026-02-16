@@ -15,7 +15,7 @@ import { CommentSection } from "@/components/shared/CommentSection"
 import { useCurrentUser } from "@/hooks/useCurrentUser"
 import { useGeocodeSearch } from "@/hooks/useGeocodeSearch"
 import type { GeocodeSuggestion } from "@/hooks/useGeocodeSearch"
-import { useReferenceData } from "@/hooks/useReferenceData"
+import { useReferenceDataQuery } from "@/hooks/useReferenceDataQuery"
 import { interventionsApi } from "@/lib/api/v2"
 import { commentsApi } from "@/lib/api/v2/commentsApi"
 import type { CreateInterventionData } from "@/lib/api/v2/common/types"
@@ -111,7 +111,7 @@ interface LegacyInterventionFormProps {
 }
 
 export function LegacyInterventionForm({ onSuccess, onCancel, mode = "centerpage", formRef, onSubmittingChange, defaultValues }: LegacyInterventionFormProps) {
-  const { data: refData, loading: refDataLoading } = useReferenceData()
+  const { data: refData, loading: refDataLoading } = useReferenceDataQuery()
 
   // Utiliser le hook centralisé useCurrentUser au lieu d'un fetch direct
   const { data: currentUserData } = useCurrentUser()

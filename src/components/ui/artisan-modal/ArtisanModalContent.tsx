@@ -46,7 +46,7 @@ import { Avatar } from "@/components/artisans/Avatar"
 import { GestionnaireBadge } from "@/components/ui/gestionnaire-badge"
 import { ArtisanFinancesSection } from "./ArtisanFinancesSection"
 import { ArtisanInterventionsTable } from "./ArtisanInterventionsTable"
-import { useReferenceData } from "@/hooks/useReferenceData"
+import { useReferenceDataQuery } from "@/hooks/useReferenceDataQuery"
 import { useGeocodeSearch, type GeocodeSuggestion } from "@/hooks/useGeocodeSearch"
 import { interventionsApi } from "@/lib/api/v2"
 import { toast } from "sonner"
@@ -431,7 +431,7 @@ export function ArtisanModalContent({
   const surfaceModeClass = `modal-config--${mode}`
   const ModeIcon = ModeIcons[mode]
 
-  const { data: referenceData } = useReferenceData()
+  const { data: referenceData } = useReferenceDataQuery()
   const queryClient = useQueryClient()
   const formRef = useRef<HTMLFormElement>(null)
 

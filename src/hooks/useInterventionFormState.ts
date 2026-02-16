@@ -2,7 +2,7 @@
 // Encapsule toute la logique commune entre NewInterventionForm et InterventionEditForm
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { useReferenceData } from "@/hooks/useReferenceData"
+import { useReferenceDataQuery } from "@/hooks/useReferenceDataQuery"
 import { useCurrentUser } from "@/hooks/useCurrentUser"
 import { useGeocodeSearch } from "@/hooks/useGeocodeSearch"
 import type { GeocodeSuggestion } from "@/hooks/useGeocodeSearch"
@@ -64,7 +64,7 @@ export function useInterventionFormState(options: UseInterventionFormStateOption
   } = options
 
   // ---- Données de référence ----
-  const { data: refData, loading: refDataLoading } = useReferenceData()
+  const { data: refData, loading: refDataLoading } = useReferenceDataQuery()
   const { data: currentUserData } = useCurrentUser()
   const { open: openArtisanModal } = useArtisanModal()
 
