@@ -28,6 +28,12 @@ const SETUP_DELAY_MS = 50
 /** Stale threshold: presence older than this is considered abandoned */
 const STALE_MS = 5 * 60 * 1000 // 5 minutes
 
+/** Heartbeat interval: re-track to refresh joinedAt and keep presence alive */
+const HEARTBEAT_MS = 2 * 60 * 1000 // 2 minutes (well under STALE_MS)
+
+/** Reconnection delay after channel error */
+const RECONNECT_DELAY_MS = 5000 // 5 seconds
+
 /**
  * Manages a Supabase Presence channel for real-time viewer tracking on a page.
  *
@@ -165,10 +171,12 @@ export function usePagePresence(
     activePagePresenceChannels++
 
     let cancelled = false
+    let heartbeatTimer: ReturnType<typeof setInterval> | null = null
+    let reconnectTimer: ReturnType<typeof setTimeout> | null = null
 
     const channelName = `presence:page-${pageName}`
 
-    const setup = async () => {
+    const subscribe = async () => {
       // Wait for any previous channel cleanup to complete
       await new Promise((resolve) => setTimeout(resolve, SETUP_DELAY_MS))
       if (cancelled || !mountedRef.current) return
@@ -180,48 +188,74 @@ export function usePagePresence(
       activeInterventionIdRef.current = null
       joinedAtRef.current = new Date().toISOString()
 
-      console.log(`[PagePresence] Subscribing to ${channelName}`)
-
       channel
         .on('presence', { event: 'sync' }, handleSync)
-        .on('presence', { event: 'join' }, ({ key, newPresences }: { key: string; newPresences: unknown[] }) => {
-          console.log(`[PagePresence] User joined:`, key, newPresences.length, 'presence(s)')
-          handleSync()
-        })
-        .on('presence', { event: 'leave' }, ({ key, leftPresences }: { key: string; leftPresences: unknown[] }) => {
-          console.log(`[PagePresence] User left:`, key, leftPresences.length, 'presence(s)')
-          handleSync()
-        })
+        .on('presence', { event: 'join' }, () => handleSync())
+        .on('presence', { event: 'leave' }, () => handleSync())
         .subscribe(async (status: string) => {
           if (cancelled || !mountedRef.current) return
-
-          console.log(`[PagePresence] Channel ${channelName} status: ${status}`)
 
           if (status === 'SUBSCRIBED') {
             const payload = buildPayload()
             if (!payload) return
 
             try {
-              console.log(`[PagePresence] Tracking user: ${payload.name}`)
               await channel.track(payload)
-              console.log(`[PagePresence] Track successful for ${channelName}`)
             } catch (error) {
               console.warn('[PagePresence] track() failed:', error)
             }
+
+            // Start heartbeat: re-track every HEARTBEAT_MS to refresh joinedAt
+            if (heartbeatTimer) clearInterval(heartbeatTimer)
+            heartbeatTimer = setInterval(() => {
+              if (cancelled || !mountedRef.current || !channelRef.current) {
+                if (heartbeatTimer) clearInterval(heartbeatTimer)
+                return
+              }
+              // Refresh joinedAt so the stale filter doesn't evict us
+              joinedAtRef.current = new Date().toISOString()
+              const freshPayload = buildPayload()
+              if (freshPayload) {
+                channelRef.current.track(freshPayload).catch(() => {})
+              }
+            }, HEARTBEAT_MS)
           } else if (
             status === 'CHANNEL_ERROR' ||
             status === 'TIMED_OUT'
           ) {
-            console.warn(`[PagePresence] Channel ${channelName} failed: ${status}`)
+            console.warn(`[PagePresence] Channel ${channelName} error: ${status}, reconnecting...`)
+
+            // Stop heartbeat
+            if (heartbeatTimer) { clearInterval(heartbeatTimer); heartbeatTimer = null }
+
+            // Cleanup broken channel
+            const brokenCh = channelRef.current
+            channelRef.current = null
+            if (brokenCh) {
+              brokenCh.untrack().catch(() => {})
+              supabase.removeChannel(brokenCh)
+            }
+
+            // Schedule reconnection
+            if (!reconnectTimer && !cancelled) {
+              reconnectTimer = setTimeout(() => {
+                reconnectTimer = null
+                if (!cancelled && mountedRef.current) {
+                  subscribe()
+                }
+              }, RECONNECT_DELAY_MS)
+            }
           }
         })
     }
 
-    setup()
+    subscribe()
 
     return () => {
       cancelled = true
-      console.log(`[PagePresence] Cleaning up ${channelName}`)
+      // Stop heartbeat and reconnection timers
+      if (heartbeatTimer) clearInterval(heartbeatTimer)
+      if (reconnectTimer) clearTimeout(reconnectTimer)
       // Release the concurrent channel slot
       activePagePresenceChannels = Math.max(0, activePagePresenceChannels - 1)
       // Null ref FIRST to prevent re-entry
