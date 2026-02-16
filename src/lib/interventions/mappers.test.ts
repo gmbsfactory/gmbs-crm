@@ -18,7 +18,7 @@ describe("Intervention Mappers", () => {
             const dto = mapRowToIntervention(row)
 
             expect(dto.address).toBe("123 Manual St")
-            expect(dto.geolocalizedAddress).toBe("123 Geolocalized St, 75001 Paris")
+            expect(dto.adresse_complete).toBe("123 Geolocalized St, 75001 Paris")
             expect(dto.latitude).toBe(48.8566)
             expect(dto.longitude).toBe(2.3522)
         })
@@ -35,7 +35,7 @@ describe("Intervention Mappers", () => {
 
             const dto = mapRowToIntervention(row)
 
-            expect(dto.geolocalizedAddress).toBeNull()
+            expect(dto.adresse_complete).toBeNull()
             expect(dto.latitude).toBeNull()
             expect(dto.longitude).toBeNull()
         })
@@ -46,7 +46,7 @@ describe("Intervention Mappers", () => {
             const input = {
                 name: "Test Intervention",
                 address: "123 Manual St",
-                geolocalizedAddress: "123 Geolocalized St, 75001 Paris",
+                adresse_complete: "123 Geolocalized St, 75001 Paris",
                 latitude: 48.8566,
                 longitude: 2.3522,
                 status: "POTENTIEL" as const,
@@ -68,7 +68,7 @@ describe("Intervention Mappers", () => {
         it("should correctly map geocoding fields to update payload", () => {
             const input = {
                 address: "Updated Manual St",
-                geolocalizedAddress: "Updated Geolocalized St, 75001 Paris",
+                adresse_complete: "Updated Geolocalized St, 75001 Paris",
                 latitude: 48.9,
                 longitude: 2.4,
             }
