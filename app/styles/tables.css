@@ -459,6 +459,116 @@
   }
 
   /* ═══════════════════════════════════════════════════════
+     COMPTABILITÉ : Colonne Action sticky + scroll
+     ═══════════════════════════════════════════════════════ */
+
+  /* Zone de scroll du tableau comptabilité */
+  .comptabilite-table-scroll {
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
+  }
+
+  .comptabilite-table-scroll::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  .comptabilite-table-scroll::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .comptabilite-table-scroll::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border-radius: 4px;
+    border: 2px solid transparent;
+    background-clip: padding-box;
+  }
+
+  .comptabilite-table-scroll::-webkit-scrollbar-thumb:hover {
+    background: color-mix(in oklab, var(--foreground), transparent 60%);
+    background-clip: padding-box;
+  }
+
+  /* Table comptabilité : padding compact */
+  .comptabilite-table th,
+  .comptabilite-table td {
+    padding: 8px 10px;
+    font-size: 0.8125rem;
+  }
+
+  /* Colonne sticky (Action) - cellules body */
+  .comptabilite-sticky-col {
+    position: sticky;
+    right: 0;
+    z-index: 10;
+    background-color: var(--cell-base-color, hsl(var(--background)));
+    box-shadow: -3px 0 6px -2px rgba(0, 0, 0, 0.08);
+  }
+
+  /* Colonne sticky header (intersection sticky top + sticky right) */
+  .comptabilite-sticky-header {
+    z-index: 30 !important;
+    background: hsl(var(--muted)) !important;
+  }
+
+  /* Background de la sticky col pour les lignes compta-checked */
+  .compta-checked-sticky {
+    background: #bbf7d0 !important;
+  }
+
+  :root[data-theme="dark"] .compta-checked-sticky {
+    background: #166534 !important;
+  }
+
+  /* Background de la sticky col pour les lignes sélectionnées */
+  .compta-selected-sticky {
+    background-color: hsl(var(--muted) / 0.5) !important;
+  }
+
+  /* Hover : la colonne sticky doit aussi refléter le hover */
+  .comptabilite-table tbody tr:hover .comptabilite-sticky-col {
+    background-color: hsl(var(--muted) / 0.3);
+  }
+
+  .comptabilite-table tbody tr:hover .compta-checked-sticky {
+    background: #a7f3d0 !important;
+  }
+
+  :root[data-theme="dark"] .comptabilite-table tbody tr:hover .compta-checked-sticky {
+    background: #15803d !important;
+  }
+
+  .comptabilite-table tbody tr:hover .compta-selected-sticky {
+    background-color: hsl(var(--muted) / 0.5) !important;
+  }
+
+  /* Séparateur visuel sur la colonne sticky (bordure gauche subtile) */
+  .comptabilite-sticky-col::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 1px;
+    background: hsl(var(--border));
+  }
+
+  /* Dark mode : ombres plus prononcées */
+  :root[data-theme="dark"] .comptabilite-sticky-col {
+    box-shadow: -4px 0 8px -2px rgba(0, 0, 0, 0.25);
+  }
+
+  :root[data-theme="dark"] .comptabilite-table-scroll::-webkit-scrollbar-thumb {
+    background: color-mix(in oklab, var(--border), white 10%);
+    background-clip: padding-box;
+  }
+
+  :root[data-theme="dark"] .comptabilite-table-scroll::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--foreground) / 0.4);
+    background-clip: padding-box;
+  }
+
+  /* ═══════════════════════════════════════════════════════
      MODE DENSE : Réduit tous les espacements
      ═══════════════════════════════════════════════════════ */
   
