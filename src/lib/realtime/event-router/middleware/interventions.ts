@@ -195,9 +195,19 @@ export const detectConflictsAndIndicators: SyncMiddleware<Intervention> = async 
     const userId = (enrichedRecord as any).updated_by || null
 
     let userColor: string
+    let userName: string | null = null
     try {
       const refs = await getReferenceCache()
       userColor = getUserColor(userId, refs)
+      // Resolve user name from reference cache for badge display
+      if (userId && refs.usersById) {
+        const remoteUser = refs.usersById.get(userId)
+        if (remoteUser) {
+          userName = remoteUser.surnom
+            || `${remoteUser.firstname || remoteUser.prenom || ''} ${remoteUser.lastname || remoteUser.nom || ''}`.trim()
+            || null
+        }
+      }
     } catch (error) {
       console.warn('[event-router] Erreur lors de la recuperation du cache de reference, utilisation du fallback:', error)
       userColor = getUserColor(userId)
@@ -206,7 +216,7 @@ export const detectConflictsAndIndicators: SyncMiddleware<Intervention> = async 
     indicatorManager.addIndicator({
       interventionId: enrichedRecord.id,
       userId,
-      userName: null,
+      userName,
       userColor,
       fields: changedFields,
       timestamp: Date.now(),

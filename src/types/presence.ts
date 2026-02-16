@@ -14,6 +14,10 @@ export interface PresencePayload {
   avatarUrl: string | null
   /** ISO timestamp — used for stable sort order (oldest first) */
   joinedAt: string
+  /** Form field currently focused by this user, or null */
+  activeField: string | null
+  /** ISO timestamp when the field was focused — used for stale lock detection */
+  fieldLockedAt: string | null
 }
 
 /** Processed viewer data consumed by the PresenceAvatars component */
@@ -23,4 +27,9 @@ export interface PresenceUser {
   color: string | null
   avatarUrl: string | null
   joinedAt: string
+  activeField: string | null
+  fieldLockedAt: string | null
 }
+
+/** Map of fieldName → the user who has it locked */
+export type FieldLockMap = Record<string, PresenceUser>
