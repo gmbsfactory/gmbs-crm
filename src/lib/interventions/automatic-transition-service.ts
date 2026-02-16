@@ -48,8 +48,8 @@ export class AutomaticTransitionService {
                 };
             }
 
-            const toStatusData = statuses.find((s) => s.id === toStatusId);
-            const fromStatusData = fromStatusId ? statuses.find((s) => s.id === fromStatusId) : null;
+            const toStatusData = statuses.find((s: { id: string; [key: string]: unknown }) => s.id === toStatusId);
+            const fromStatusData = fromStatusId ? statuses.find((s: { id: string; [key: string]: unknown }) => s.id === fromStatusId) : null;
 
             if (!toStatusData) {
                 return {
@@ -251,8 +251,8 @@ export class AutomaticTransitionService {
                 return null;
             }
 
-            const fromStatusData = fromStatus ? statuses.find((s) => s.code === fromStatus) : null;
-            const toStatusData = statuses.find((s) => s.code === toStatus);
+            const fromStatusData = fromStatus ? statuses.find((s: { id: string; [key: string]: unknown }) => s.code === fromStatus) : null;
+            const toStatusData = statuses.find((s: { id: string; [key: string]: unknown }) => s.code === toStatus);
 
             if (!toStatusData) {
                 console.error(`Statut cible "${toStatus}" introuvable`);

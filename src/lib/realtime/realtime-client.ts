@@ -107,7 +107,7 @@ export function createRealtimeChannel(handlers: RealtimeEventHandlers): Realtime
   const channel = supabase
     .channel(CHANNEL_NAME)
     // --- Interventions (filtre soft-delete : -50% trafic) ---
-    .on<Intervention>(
+    .on(
       'postgres_changes',
       {
         event: '*',
@@ -115,7 +115,7 @@ export function createRealtimeChannel(handlers: RealtimeEventHandlers): Realtime
         table: 'interventions',
         filter: 'is_active=eq.true',
       },
-      (payload) => {
+      (payload: any) => {
         const newRecord = payload.new && 'id' in payload.new ? payload.new : null
         const oldRecord = payload.old && 'id' in payload.old ? payload.old : null
         console.log('[Realtime] interventions:', payload.eventType, newRecord?.id || oldRecord?.id)
@@ -127,7 +127,7 @@ export function createRealtimeChannel(handlers: RealtimeEventHandlers): Realtime
       }
     )
     // --- Artisans (filtre soft-delete) ---
-    .on<Artisan>(
+    .on(
       'postgres_changes',
       {
         event: '*',
@@ -135,7 +135,7 @@ export function createRealtimeChannel(handlers: RealtimeEventHandlers): Realtime
         table: 'artisans',
         filter: 'is_active=eq.true',
       },
-      (payload) => {
+      (payload: any) => {
         const newRecord = payload.new && 'id' in payload.new ? payload.new : null
         const oldRecord = payload.old && 'id' in payload.old ? payload.old : null
         console.log('[Realtime] artisans:', payload.eventType, newRecord?.id || oldRecord?.id)
@@ -147,14 +147,14 @@ export function createRealtimeChannel(handlers: RealtimeEventHandlers): Realtime
       }
     )
     // --- Intervention↔Artisan junction (pas de filtre, petite table) ---
-    .on<InterventionArtisanRow>(
+    .on(
       'postgres_changes',
       {
         event: '*',
         schema: 'public',
         table: 'intervention_artisans',
       },
-      (payload) => {
+      (payload: any) => {
         const newRecord = payload.new && 'id' in payload.new ? payload.new : null
         const oldRecord = payload.old && 'id' in payload.old ? payload.old : null
         console.log('[Realtime] intervention_artisans:', payload.eventType, newRecord?.intervention_id || oldRecord?.intervention_id)

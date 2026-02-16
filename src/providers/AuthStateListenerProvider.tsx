@@ -32,7 +32,7 @@ export function AuthStateListenerProvider({ children }: { children: ReactNode })
   }, [])
 
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event: string) => {
       // Invalider le cache lors des événements critiques
       if (event === 'SIGNED_OUT') {
         // Déconnexion : vider complètement le cache pour éviter qu'un second utilisateur

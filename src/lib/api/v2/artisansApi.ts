@@ -58,7 +58,7 @@ async function filterArtisansByMetiers(
     }
 
     if (artisansWithMetiers) {
-      artisansWithMetiers.forEach((am) => {
+      artisansWithMetiers.forEach((am: any) => {
         if (am.artisan_id) {
           filteredIds.add(am.artisan_id);
         }
@@ -99,7 +99,7 @@ async function filterArtisansByMetier(
     }
 
     if (artisansWithMetier) {
-      artisansWithMetier.forEach((am) => {
+      artisansWithMetier.forEach((am: any) => {
         if (am.artisan_id) {
           filteredIds.add(am.artisan_id);
         }
@@ -219,7 +219,7 @@ export const artisansApi = {
           }
 
           // Réordonner selon l'ordre de pertinence de la recherche
-          const idToData = new Map((detailedData ?? []).map((item) => [item.id, item]));
+          const idToData = new Map((detailedData ?? []).map((item: any) => [item.id, item]));
           const orderedData = paginatedIds
             .map((id) => idToData.get(id))
             .filter((item): item is NonNullable<typeof item> => item !== undefined);
@@ -269,7 +269,7 @@ export const artisansApi = {
       const { data: artisansData, error: idsError } = await idsQuery;
       if (idsError) throw idsError;
 
-      const allArtisanIds = (artisansData || []).map((a) => a.id);
+      const allArtisanIds = (artisansData || []).map((a: any) => a.id);
 
       // 2. Filtrer par métiers
       const filteredIds = await filterArtisansByMetiers(allArtisanIds, params.metiers);
@@ -330,7 +330,7 @@ export const artisansApi = {
       if (detailedError) throw detailedError;
 
       const refs = await getReferenceCache();
-      const transformedData = (detailedData || []).map((item) => mapArtisanRecord(item, refs));
+      const transformedData = (detailedData || []).map((item: any) => mapArtisanRecord(item, refs));
 
       return {
         data: transformedData,
@@ -363,7 +363,7 @@ export const artisansApi = {
       const { data: artisansData, error: idsError } = await idsQuery;
       if (idsError) throw idsError;
 
-      const allArtisanIds = (artisansData || []).map((a) => a.id);
+      const allArtisanIds = (artisansData || []).map((a: any) => a.id);
 
       const filteredIds = await filterArtisansByMetier(allArtisanIds, params.metier);
       const filteredIdsArray = Array.from(filteredIds);
@@ -421,7 +421,7 @@ export const artisansApi = {
       if (detailedError) throw detailedError;
 
       const refs = await getReferenceCache();
-      const transformedData = (detailedData || []).map((item) => mapArtisanRecord(item, refs));
+      const transformedData = (detailedData || []).map((item: any) => mapArtisanRecord(item, refs));
 
       return {
         data: transformedData,
@@ -491,7 +491,7 @@ export const artisansApi = {
 
     const refs = await getReferenceCache();
 
-    const transformedData = (data || []).map((item) =>
+    const transformedData = (data || []).map((item: any) =>
       mapArtisanRecord(item, refs)
     );
 
@@ -946,7 +946,7 @@ export const artisansApi = {
 
     const refs = await getReferenceCache();
 
-    const transformedData = (data || []).map((item) =>
+    const transformedData = (data || []).map((item: any) =>
       mapArtisanRecord(item, refs)
     );
 
@@ -1005,7 +1005,7 @@ export const artisansApi = {
     let dossiersACompleter = 0;
 
     // Compter les artisans par statut et les dossiers à compléter
-    (data || []).forEach((item) => {
+    (data || []).forEach((item: any) => {
       const statusRaw = item.status;
       const status = Array.isArray(statusRaw) ? statusRaw[0] as { id?: string; code?: string; label?: string } | undefined : statusRaw as { id?: string; code?: string; label?: string } | null;
       if (status) {
@@ -1091,10 +1091,10 @@ export const artisansApi = {
       intervention_dates: string[];
     }>();
 
-    (artisansStats || []).forEach((artisan) => {
+    (artisansStats || []).forEach((artisan: any) => {
       const interventionArtisansList = artisan.intervention_artisans || [];
       const interventionDates = interventionArtisansList
-        .map((ia) => {
+        .map((ia: any) => {
           const interv = Array.isArray(ia.interventions) ? ia.interventions[0] : ia.interventions;
           return interv?.is_active ? interv?.date : null;
         })
@@ -1139,7 +1139,7 @@ export const artisansApi = {
 
     // Créer un map des absences par artisan
     const absenceMap = new Map<string, { reason: string | null; end_date: string }>();
-    (absences || []).forEach((absence) => {
+    (absences || []).forEach((absence: any) => {
       absenceMap.set(absence.artisan_id, {
         reason: absence.reason,
         end_date: absence.end_date,
@@ -1223,7 +1223,7 @@ export const artisansApi = {
 
     // Traiter les interventions et calculer les marges
     let interventionsWithMargins = interventionArtisans
-      .map((ia) => {
+      .map((ia: any) => {
         const interventionRaw = ia.interventions;
         const intervention = Array.isArray(interventionRaw) ? interventionRaw[0] : interventionRaw;
         if (!intervention || !intervention.is_active) {
@@ -1271,8 +1271,8 @@ export const artisansApi = {
           metier_label,
         };
       })
-      .filter((item): item is { id: string; id_inter: string | null; date: string; marge: number; status_label: string | null; status_color: string | null; due_date: string | null; metier_label: string | null; } => item !== null)
-      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+      .filter((item: any): item is { id: string; id_inter: string | null; date: string; marge: number; status_label: string | null; status_color: string | null; due_date: string | null; metier_label: string | null; } => item !== null)
+      .sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime())
       .slice(0, limit);
 
     return interventionsWithMargins;
@@ -1340,7 +1340,7 @@ export const artisansApi = {
     }
 
     // Filtrer les artisans par statut label
-    const artisansByStatus = artisans.filter((artisan) => {
+    const artisansByStatus = artisans.filter((artisan: any) => {
       const statusRaw = artisan.status;
       const status = Array.isArray(statusRaw) ? statusRaw[0] : statusRaw;
       return status && status.label === statusLabel;
@@ -1355,7 +1355,7 @@ export const artisansApi = {
 
     // Pour chaque artisan, récupérer ses maxInterventions dernières interventions avec marges (filtrées par période si fournie)
     const artisansWithInterventions = await Promise.all(
-      topArtisansByStatus.map(async (artisan) => {
+      topArtisansByStatus.map(async (artisan: any) => {
         const recentInterventions = await this.getRecentInterventionsByArtisanWithMargins(
           artisan.id,
           maxInterventions,
@@ -1406,7 +1406,7 @@ export const artisansApi = {
       throw new Error(`Erreur lors de la récupération des artisans: ${error.message}`);
     }
 
-    return (data || []).map((a) => ({
+    return (data || []).map((a: any) => ({
       artisan_id: a.id,
       artisan_nom: a.nom || "",
       artisan_prenom: a.prenom || "",
@@ -1439,7 +1439,7 @@ export const artisansApi = {
       throw new Error(`Erreur lors de la récupération des absences: ${error.message}`);
     }
 
-    return (data || []).map((absence) => ({
+    return (data || []).map((absence: any) => ({
       id: absence.id,
       start_date: absence.start_date,
       end_date: absence.end_date,
@@ -1827,7 +1827,7 @@ export const artisansApi = {
         return 0;
       }
 
-      const artisanIds = filteredArtisans.map((a) => a.id).filter(Boolean);
+      const artisanIds = filteredArtisans.map((a: any) => a.id).filter(Boolean);
       if (artisanIds.length === 0) {
         return 0;
       }
@@ -1871,7 +1871,7 @@ export const artisansApi = {
         return 0;
       }
 
-      const artisanIds = filteredArtisans.map((a) => a.id).filter(Boolean);
+      const artisanIds = filteredArtisans.map((a: any) => a.id).filter(Boolean);
       if (artisanIds.length === 0) {
         return 0;
       }
@@ -1950,7 +1950,7 @@ export const artisansApi = {
     }
 
     const archiveStatusIds =
-      archiveStatuses?.map((status) => status.id).filter(Boolean) || [];
+      archiveStatuses?.map((status: any) => status.id).filter(Boolean) || [];
 
     // Get artisan IDs with target metier if provided (for prioritization, not filtering)
     let artisanIdsWithTargetMetier: Set<string> = new Set();
@@ -1975,7 +1975,7 @@ export const artisansApi = {
         }
 
         const batchIds =
-          (metierData?.map((row) => row.artisan_id).filter(Boolean) as string[]) || [];
+          (metierData?.map((row: any) => row.artisan_id).filter(Boolean) as string[]) || [];
         batchIds.forEach((id) => artisanIdsWithTargetMetier.add(id));
 
         hasMore = batchIds.length === BATCH_SIZE;
@@ -2029,7 +2029,7 @@ export const artisansApi = {
 
     // Filter by archive status
     if (archiveStatusIds.length > 0) {
-      query = query.not("statut_id", "in", `(${archiveStatusIds.map((id) => `"${id}"`).join(",")})`);
+      query = query.not("statut_id", "in", `(${archiveStatusIds.map((id: string) => `"${id}"`).join(",")})`);
     }
 
     // Note: On ne filtre plus par métier, on priorise seulement dans le tri
@@ -2063,7 +2063,7 @@ export const artisansApi = {
     }
 
     const enriched: (EnrichedNearbyArtisan | null)[] =
-      data?.map((row) => {
+      data?.map((row: any) => {
         const lat = Number(row.intervention_latitude);
         const lng = Number(row.intervention_longitude);
 
@@ -2273,7 +2273,7 @@ export const artisansApi = {
     }
 
     const archiveStatusIds =
-      archiveStatuses?.map((status) => status.id).filter(Boolean) || [];
+      archiveStatuses?.map((status: any) => status.id).filter(Boolean) || [];
 
     // Get artisan IDs with target metier if provided (for prioritization)
     let artisanIdsWithTargetMetier: Set<string> = new Set();
@@ -2298,7 +2298,7 @@ export const artisansApi = {
         }
 
         const batchIds =
-          (metierData?.map((row) => row.artisan_id).filter(Boolean) as string[]) || [];
+          (metierData?.map((row: any) => row.artisan_id).filter(Boolean) as string[]) || [];
         batchIds.forEach((id) => artisanIdsWithTargetMetier.add(id));
 
         hasMore = batchIds.length === BATCH_SIZE;
@@ -2355,7 +2355,7 @@ export const artisansApi = {
       queryBuilder = queryBuilder.not(
         "statut_id",
         "in",
-        `(${archiveStatusIds.map((id) => `"${id}"`).join(",")})`
+        `(${archiveStatusIds.map((id: string) => `"${id}"`).join(",")})`
       );
     }
 
@@ -2366,7 +2366,7 @@ export const artisansApi = {
     }
 
     // Transformer les données et normaliser la structure status et metiers (PostgREST retourne les joins comme des tableaux)
-    let transformedData = (data || []).map((artisan) => {
+    let transformedData = (data || []).map((artisan: any) => {
       // Vérifier si l'artisan a le métier ciblé
       const hasTargetMetier = artisanIdsWithTargetMetier.has(artisan.id);
 
@@ -2402,7 +2402,7 @@ export const artisansApi = {
       Number.isFinite(longitude)
     ) {
       transformedData = transformedData
-        .map((artisan) => {
+        .map((artisan: any) => {
           const lat = Number(artisan.intervention_latitude);
           const lng = Number(artisan.intervention_longitude);
 
@@ -2415,7 +2415,7 @@ export const artisansApi = {
           // Artisans sans coordonnées : distance infinie (placés en dernier)
           return { ...artisan, distanceKm: Infinity };
         })
-        .sort((a, b) => {
+        .sort((a: any, b: any) => {
           // Priorité 1: Artisans avec le bon métier en premier
           if (a.hasTargetMetier && !b.hasTargetMetier) return -1;
           if (!a.hasTargetMetier && b.hasTargetMetier) return 1;
@@ -2429,7 +2429,7 @@ export const artisansApi = {
         });
     } else {
       // Pas de coordonnées : tri par métier puis numero_associe
-      transformedData = transformedData.sort((a, b) => {
+      transformedData = transformedData.sort((a: any, b: any) => {
         // Priorité 1: Artisans avec le bon métier en premier
         if (a.hasTargetMetier && !b.hasTargetMetier) return -1;
         if (!a.hasTargetMetier && b.hasTargetMetier) return 1;

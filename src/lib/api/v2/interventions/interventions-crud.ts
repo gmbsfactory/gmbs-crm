@@ -430,7 +430,7 @@ export const interventionsCrud = {
     if (error) throw error;
 
     const refs = await getReferenceCache();
-    return (data || []).map((item) => mapInterventionRecord(item, refs) as InterventionWithStatus);
+    return (data || []).map((item: any) => mapInterventionRecord(item, refs) as InterventionWithStatus);
   },
 
   // Créer une intervention
@@ -532,7 +532,7 @@ export const interventionsCrud = {
       return [];
     }
 
-    return data.map((match) => {
+    return data.map((match: any) => {
       const agencyData = match.agences as { label?: string } | null;
       const userData = match.users as { firstname?: string; lastname?: string } | null;
 
@@ -888,7 +888,7 @@ export const interventionsCrud = {
 
     if (joinError) throw joinError;
 
-    const interventionIds = (interventionArtisans || []).map((ia) => ia.intervention_id).filter(Boolean);
+    const interventionIds = (interventionArtisans || []).map((ia: any) => ia.intervention_id).filter(Boolean);
 
     if (interventionIds.length === 0) {
       return {
@@ -953,7 +953,7 @@ export const interventionsCrud = {
 
     const refs = await getReferenceCache();
 
-    const transformedData = (data || []).map((item) =>
+    const transformedData = (data || []).map((item: any) =>
       mapInterventionRecord(item, refs) as InterventionWithStatus
     );
 

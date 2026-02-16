@@ -73,7 +73,7 @@ export function useUsers(): UseUsersResult {
       if (queryError) throw queryError;
 
       const mapped: MentionableUser[] =
-        data?.map((user) => {
+        data?.map((user: { id: string; firstname?: string | null; lastname?: string | null; username?: string | null; email?: string | null; code_gestionnaire?: string | null; [key: string]: unknown }) => {
           const displayParts = [user.firstname, user.lastname].filter(Boolean);
           const displayName =
             displayParts.length > 0

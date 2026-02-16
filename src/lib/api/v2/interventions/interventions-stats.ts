@@ -430,8 +430,9 @@ export const interventionsStats = {
     }
 
     // Créer un map pour accéder rapidement aux infos utilisateur
-    const usersMap = new Map(
-      (users || []).map((u) => [u.id, u])
+    type UserInfo = { id: string; firstname?: string; lastname?: string; code_gestionnaire?: string; color?: string; avatar_url?: string | null };
+    const usersMap = new Map<string, UserInfo>(
+      (users || []).map((u: any) => [u.id, u as UserInfo])
     );
 
     // Mapper les résultats SQL avec les informations utilisateur
@@ -539,8 +540,9 @@ export const interventionsStats = {
     }
 
     // Créer un map pour accéder rapidement aux infos utilisateur
-    const usersMap = new Map(
-      (users || []).map((u) => [u.id, u])
+    type UserInfo = { id: string; firstname?: string; lastname?: string; code_gestionnaire?: string; color?: string; avatar_url?: string | null };
+    const usersMap = new Map<string, UserInfo>(
+      (users || []).map((u: any) => [u.id, u as UserInfo])
     );
 
     // Mapper les résultats SQL avec les informations utilisateur
@@ -1635,7 +1637,7 @@ export const interventionsStats = {
       .from('intervention_statuses')
       .select('id, code, label');
 
-    const statusMapByCode = new Map(statuses?.map((s) => [s.code, s]) || []);
+    const statusMapByCode = new Map(statuses?.map((s: any) => [s.code, s]) || []);
 
     // ========================================
     // 2. STATISTIQUES DES STATUTS (V3)

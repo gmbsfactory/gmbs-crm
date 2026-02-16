@@ -226,15 +226,15 @@ export function useInterventionPresence(
 
       channel
         .on('presence', { event: 'sync' }, handleSync)
-        .on('presence', { event: 'join' }, ({ key, newPresences }) => {
+        .on('presence', { event: 'join' }, ({ key, newPresences }: { key: string; newPresences: unknown[] }) => {
           console.log(`[Presence] User joined:`, key, newPresences.length, 'presence(s)')
           handleSync()
         })
-        .on('presence', { event: 'leave' }, ({ key, leftPresences }) => {
+        .on('presence', { event: 'leave' }, ({ key, leftPresences }: { key: string; leftPresences: unknown[] }) => {
           console.log(`[Presence] User left:`, key, leftPresences.length, 'presence(s)')
           handleSync()
         })
-        .subscribe(async (status) => {
+        .subscribe(async (status: string) => {
           if (cancelled || !mountedRef.current) return
 
           console.log(`[Presence] Channel ${channelName} status: ${status}`)
