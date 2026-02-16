@@ -79,6 +79,7 @@ export const interventionsApi = {
   getTotalCountWithFilters: interventionsFilters.getTotalCountWithFilters.bind(interventionsFilters),
   getCountsByStatus: interventionsFilters.getCountsByStatus.bind(interventionsFilters),
   getCountByPropertyValue: interventionsFilters.getCountByPropertyValue.bind(interventionsFilters),
+  getFilterCountsGrouped: interventionsFilters.getFilterCountsGrouped.bind(interventionsFilters),
   getDistinctValues: interventionsFilters.getDistinctValues.bind(interventionsFilters),
   getCountWithFilters: interventionsFilters.getCountWithFilters.bind(interventionsFilters),
 };

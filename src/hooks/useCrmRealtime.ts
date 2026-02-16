@@ -16,6 +16,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import type { RealtimeChannel } from '@supabase/supabase-js'
+import { supabase } from '@/lib/supabase-client'
 import { createRealtimeChannel, removeRealtimeChannel } from '@/lib/realtime/realtime-client'
 import type { RealtimeEventHandlers } from '@/lib/realtime/realtime-client'
 import { initializeCacheSync } from '@/lib/realtime/cache-sync'
@@ -27,6 +28,7 @@ import type { RealtimeRelay } from '@/lib/realtime/realtime-relay'
 import { useCurrentUser } from '@/hooks/useCurrentUser'
 import { interventionKeys, artisanKeys } from '@/lib/react-query/queryKeys'
 import { getRealtimeDebugInfo } from '@/lib/realtime/realtime-client'
+import { emitReminderRealtimeEvent } from '@/lib/realtime/reminder-events'
 
 /**
  * Global Realtime stats for debugging (accessible via window.__REALTIME_STATS)
@@ -34,7 +36,7 @@ import { getRealtimeDebugInfo } from '@/lib/realtime/realtime-client'
 export interface RealtimeStats {
   connectionStatus: ConnectionStatus
   leaderStatus: 'leader' | 'follower' | 'acquiring'
-  eventsReceived: { interventions: number; artisans: number; junctions: number }
+  eventsReceived: { interventions: number; artisans: number; junctions: number; reminders: number }
   lastEventTime: number | null
   lastEventType: string | null
   errorCount: number
@@ -48,7 +50,9 @@ export interface RealtimeStats {
 export type ConnectionStatus = 'realtime' | 'polling' | 'connecting'
 
 const POLLING_INTERVAL = 15000 // 15 secondes (suffisant pour un CRM)
-const RECONNECT_INTERVAL = 30000 // 30 secondes
+const MAX_RECONNECT_ATTEMPTS = 10
+const BASE_RECONNECT_INTERVAL = 5000 // 5s
+const MAX_RECONNECT_INTERVAL = 300000 // 5 minutes
 
 /**
  * Whether leader election is active (static — doesn't change during app lifecycle).
@@ -90,7 +94,7 @@ export function useCrmRealtime() {
   const statsRef = useRef<RealtimeStats>({
     connectionStatus: 'connecting',
     leaderStatus: 'acquiring',
-    eventsReceived: { interventions: 0, artisans: 0, junctions: 0 },
+    eventsReceived: { interventions: 0, artisans: 0, junctions: 0, reminders: 0 },
     lastEventTime: null,
     lastEventType: null,
     errorCount: 0,
@@ -159,6 +163,17 @@ export function useCrmRealtime() {
         await routeRealtimeEvent('intervention_artisans', payload, leaderCtx)
         relayRef.current?.relayPayload('intervention_artisans', payload)
       },
+      onReminderEvent: (payload) => {
+        statsRef.current.eventsReceived.reminders++
+        updateStats({
+          lastEventTime: Date.now(),
+          lastEventType: `reminders:${payload.eventType}`,
+          eventsReceived: { ...statsRef.current.eventsReceived },
+        })
+        // Emit to RemindersContext subscribers (no event-router — reminders have their own logic)
+        emitReminderRealtimeEvent(payload)
+        relayRef.current?.relayPayload('intervention_reminders', payload)
+      },
     }
   }, [queryClient, currentUserId, updateStats])
 
@@ -196,17 +211,38 @@ export function useCrmRealtime() {
     if (reconnectTimeoutRef.current) return // Already scheduled
 
     const attemptNum = statsRef.current.reconnectAttempts + 1
+
+    if (attemptNum > MAX_RECONNECT_ATTEMPTS) {
+      console.warn('[Realtime] Max reconnection attempts reached, staying in polling')
+      updateStats({ lastError: 'Max reconnect attempts reached' })
+      return // Rester en polling
+    }
+
+    // Backoff exponentiel : 5s, 10s, 20s, 40s, 80s, 160s, 300s, 300s...
+    const delay = Math.min(
+      BASE_RECONNECT_INTERVAL * Math.pow(2, attemptNum - 1),
+      MAX_RECONNECT_INTERVAL
+    )
+
     updateStats({
       reconnectAttempts: attemptNum,
       lastError: `Reconnection scheduled (attempt #${attemptNum})`,
       lastErrorTime: Date.now(),
     })
     console.log(
-      `[Realtime] Reconnection attempt in ${RECONNECT_INTERVAL / 1000}s... (attempt #${attemptNum})`
+      `[Realtime] Reconnection attempt #${attemptNum} in ${delay / 1000}s...`
     )
 
-    reconnectTimeoutRef.current = setTimeout(() => {
+    reconnectTimeoutRef.current = setTimeout(async () => {
       reconnectTimeoutRef.current = null
+
+      // Rafraîchir la session avant de reconnecter
+      try {
+        await supabase.auth.refreshSession()
+      } catch {
+        // Ignorer l'erreur, tenter la reconnexion quand même
+      }
+
       stopPolling()
 
       // Clean up old channel
@@ -221,8 +257,10 @@ export function useCrmRealtime() {
       channel.subscribe((status) => {
         if (status === 'SUBSCRIBED') {
           console.log('[Realtime] Reconnection successful (crm-sync)')
+          statsRef.current.reconnectAttempts = 0 // Reset le compteur après succès
           updateStats({
             connectionStatus: 'realtime',
+            reconnectAttempts: 0,
             lastError: null,
           })
           stopPolling()
@@ -245,7 +283,7 @@ export function useCrmRealtime() {
           attemptReconnect()
         }
       })
-    }, RECONNECT_INTERVAL)
+    }, delay)
   }, [buildHandlers, startPolling, stopPolling, updateStats])
 
   // ─── Subscribe / Unsubscribe (leader only) ─────────────────────────────
@@ -326,6 +364,19 @@ export function useCrmRealtime() {
     if (ch) removeRealtimeChannel(ch)
   }, [stopPolling])
 
+  // ─── TOKEN_REFRESHED listener ─────────────────────────────────────────
+  // Si le token est rafraîchi et qu'on n'a pas de channel actif (leader), retenter la connexion
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event: string) => {
+      if (event === 'TOKEN_REFRESHED' && leaderRef.current?.isLeader && channelRef.current === null) {
+        // Token rafraîchi et pas de channel actif → tenter de reconnecter
+        statsRef.current.reconnectAttempts = 0 // Reset le compteur
+        attemptReconnect()
+      }
+    })
+    return () => subscription.unsubscribe()
+  }, [attemptReconnect])
+
   // ─── Main effect ───────────────────────────────────────────────────────
 
   useEffect(() => {
@@ -350,6 +401,8 @@ export function useCrmRealtime() {
         routeRealtimeEvent('artisans', payload, followerCtx),
       onJunctionPayload: (payload) =>
         routeRealtimeEvent('intervention_artisans', payload, followerCtx),
+      onReminderPayload: (payload) =>
+        emitReminderRealtimeEvent(payload),
       onLeaderStatus: (status) => {
         // Follower mirrors the leader's connection status
         if (leaderRef.current?.isLeader) return // Leader ignores its own relayed status

@@ -1,13 +1,13 @@
 "use client"
 
 import { QueryClient } from "@tanstack/react-query"
-import { interventionKeys, artisanKeys, dashboardKeys, comptabiliteKeys, type ArtisanGetAllParams, type ComptabiliteQueryParams } from "@/lib/react-query/queryKeys"
+import { interventionKeys, artisanKeys, dashboardKeys, comptabiliteKeys, referenceKeys, type ArtisanGetAllParams, type ComptabiliteQueryParams } from "@/lib/react-query/queryKeys"
 import { interventionsApi, artisansApi, type InterventionQueryParams } from "@/lib/api/v2"
 import { fetchComptabiliteData } from "@/hooks/useComptabiliteQuery"
 
 // Alias pour compatibilité
 type GetAllParams = InterventionQueryParams
-import { referenceApi } from "@/lib/reference-api"
+import { referenceApi, type ReferenceData } from "@/lib/reference-api"
 import { convertViewFiltersToServerFilters, convertArtisanFiltersToServerFilters } from "@/lib/filter-converter"
 import type { InterventionViewDefinition } from "@/types/intervention-views"
 import type { ArtisanViewDefinition } from "@/hooks/useArtisanViews"
@@ -145,18 +145,19 @@ async function getDefaultViewsToPreload(currentUserId?: string): Promise<Interve
 
 /**
  * Crée les mappers nécessaires pour convertir les filtres
+ * Utilise le cache TanStack Query pour éviter les requêtes dupliquées
  */
-async function createMappers() {
-  // Vérifier l'authentification avant de faire les requêtes
-  const { data: auth } = await supabase.auth.getSession()
-  if (!auth?.session?.user) {
-    throw new Error("Not authenticated")
-  }
+async function createMappers(queryClient: QueryClient) {
+  // Utiliser fetchQuery avec la même clé que useReferenceDataQuery
+  // pour bénéficier du cache partagé et de la déduplication
+  const refData = await queryClient.fetchQuery({
+    queryKey: referenceKeys.allData(),
+    queryFn: () => referenceApi.getAll(),
+    staleTime: 5 * 60 * 1000,
+  }) as ReferenceData
 
-  const [statuses, users] = await Promise.all([
-    referenceApi.getInterventionStatuses(),
-    referenceApi.getUsers(),
-  ])
+  const statuses = refData.interventionStatuses
+  const users = refData.users
 
   // Créer le mapper statusCodeToId
   const statusMap: Record<string, string> = {}
@@ -257,7 +258,7 @@ export async function preloadCriticalData(queryClient: QueryClient) {
     const currentUserId = (currentUserData as { id: string } | null)?.id
 
     // 2. Créer les mappers en parallèle avec le chargement de currentUser
-    const mappersPromise = createMappers()
+    const mappersPromise = createMappers(queryClient)
 
     // 3. Obtenir les vues par défaut à précharger
     const defaultViewsPromise = getDefaultViewsToPreload(currentUserId)

@@ -241,6 +241,7 @@ export function handleAccessRevoked(
   setTimeout(() => {
     queryClient.invalidateQueries({ queryKey: interventionKeys.invalidateLists(), refetchType: 'active' })
     queryClient.invalidateQueries({ queryKey: interventionKeys.invalidateLightLists(), refetchType: 'active' })
+    queryClient.invalidateQueries({ queryKey: interventionKeys.invalidateFilterCounts() })
   }, 0)
 
   debouncedRefreshCounts(queryClient)

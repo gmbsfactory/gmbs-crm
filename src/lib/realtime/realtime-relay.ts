@@ -16,13 +16,14 @@
 
 import type { RealtimePostgresChangesPayload } from '@supabase/supabase-js'
 import type { Intervention, Artisan } from '@/lib/api/v2/common/types'
+import type { InterventionReminder } from '@/lib/api/v2'
 import type { InterventionArtisanRow } from './realtime-client'
 
 const RELAY_CHANNEL_NAME = 'crm-realtime-relay'
 
 // ─── Message Types ──────────────────────────────────────────────────────────
 
-export type RelayTable = 'interventions' | 'artisans' | 'intervention_artisans'
+export type RelayTable = 'interventions' | 'artisans' | 'intervention_artisans' | 'intervention_reminders'
 
 /** Connection status — mirrors the hook's ConnectionStatus without creating circular imports */
 type RelayConnectionStatus = 'realtime' | 'polling' | 'connecting'
@@ -49,6 +50,7 @@ export interface RelayHandlers {
   onInterventionPayload: (payload: RealtimePostgresChangesPayload<Intervention>) => void
   onArtisanPayload: (payload: RealtimePostgresChangesPayload<Artisan>) => void
   onJunctionPayload: (payload: RealtimePostgresChangesPayload<InterventionArtisanRow>) => void
+  onReminderPayload: (payload: RealtimePostgresChangesPayload<InterventionReminder>) => void
   onLeaderStatus: (status: RelayConnectionStatus) => void
 }
 
@@ -100,6 +102,11 @@ export function createRealtimeRelay(handlers: RelayHandlers): RealtimeRelay | nu
           case 'intervention_artisans':
             handlers.onJunctionPayload(
               msg.payload as RealtimePostgresChangesPayload<InterventionArtisanRow>
+            )
+            break
+          case 'intervention_reminders':
+            handlers.onReminderPayload(
+              msg.payload as RealtimePostgresChangesPayload<InterventionReminder>
             )
             break
         }

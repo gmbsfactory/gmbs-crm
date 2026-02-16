@@ -93,7 +93,7 @@ import type { InterventionPayment } from "@/lib/api/v2/common/types"
 import { Pagination } from "@/components/ui/pagination"
 import { GestionnaireBadge } from "@/components/ui/gestionnaire-badge"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { useReferenceData } from "@/hooks/useReferenceData"
+import { useReferenceDataQuery } from "@/hooks/useReferenceDataQuery"
 import type { ReferenceData } from "@/lib/reference-api"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { interventionsApi } from "@/lib/api/v2"
@@ -654,7 +654,7 @@ function GestionnaireSelector({
   dateIntervention?: string | null
   onUpdate?: (userId: string) => void
 }) {
-  const { data: referenceData } = useReferenceData()
+  const { data: referenceData } = useReferenceDataQuery()
   const queryClient = useQueryClient()
   const [open, setOpen] = useState(false)
 

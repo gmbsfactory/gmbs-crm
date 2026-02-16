@@ -26,6 +26,15 @@ export default function LoginPage() {
     router.prefetch('/dashboard')
   }, [router])
 
+  // Détecter l'expiration quotidienne et nettoyer la session Supabase
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    if (params.get('expired') === 'daily') {
+      supabase.auth.signOut().catch(() => {})
+      setError('Votre session a expiré. Veuillez vous reconnecter.')
+    }
+  }, [])
+
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError(null)
@@ -40,6 +49,10 @@ export default function LoginPage() {
       }
       const { error } = await supabase.auth.signInWithPassword({ email, password })
       if (error) throw new Error(error.message)
+
+      // Poser le cookie de session quotidienne
+      const today = new Date().toISOString().slice(0, 10)
+      document.cookie = `crm_session_date=${today}; path=/; max-age=86400; samesite=strict${window.location.protocol === 'https:' ? '; secure' : ''}`
 
       // @supabase/ssr gère automatiquement les cookies de session après signIn
       // Mettre le statut à "connected" (credentials: 'include' envoie les cookies automatiquement)

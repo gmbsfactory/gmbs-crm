@@ -32,6 +32,21 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(loginUrl)
   }
 
+  // Vérification session quotidienne : forcer reconnexion chaque jour
+  if (user) {
+    const sessionDate = req.cookies.get('crm_session_date')?.value
+    const today = new Date().toISOString().slice(0, 10) // UTC YYYY-MM-DD
+
+    if (!sessionDate || sessionDate !== today) {
+      const loginUrl = req.nextUrl.clone()
+      loginUrl.pathname = '/login'
+      loginUrl.searchParams.set('expired', 'daily')
+      const response = NextResponse.redirect(loginUrl)
+      response.cookies.delete('crm_session_date')
+      return response
+    }
+  }
+
   return supabaseResponse
 }
 

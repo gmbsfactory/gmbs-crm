@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
 import { supabase } from "@/lib/supabase-client"
 import { createPortal } from "react-dom"
-import { useReferenceData } from "@/hooks/useReferenceData"
+import { useReferenceDataQuery } from "@/hooks/useReferenceDataQuery"
 import { artisansApi } from "@/lib/api/v2"
 import type { NearbyArtisan } from "@/lib/api/v2/common/types"
 import {
@@ -97,7 +97,7 @@ export function ArtisanSearchModal({
   const popoverRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
-  const { data: refData } = useReferenceData()
+  const { data: refData } = useReferenceDataQuery()
 
   // Load nearby artisans
   const loadNearbyArtisans = useCallback(

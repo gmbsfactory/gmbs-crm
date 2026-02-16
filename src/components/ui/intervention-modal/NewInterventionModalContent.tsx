@@ -168,6 +168,9 @@ export function NewInterventionModalContent({
           queryKey: interventionKeys.invalidateLightLists(),
           refetchType: 'active',
         })
+        queryClient.invalidateQueries({
+          queryKey: interventionKeys.invalidateFilterCounts(),
+        })
 
         await waitForExit()
         queryClient.invalidateQueries({ queryKey: interventionKeys.invalidateLists(), refetchType: 'inactive' })

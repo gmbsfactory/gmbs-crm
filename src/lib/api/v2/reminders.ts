@@ -8,6 +8,34 @@ type ReminderRow = InterventionReminder & {
 const USER_FIELDS = "id, firstname, lastname, email";
 const REMINDER_SELECT = `*, user:users!intervention_reminders_user_id_fkey(${USER_FIELDS})`;
 
+// Cache module-level pour éviter les requêtes répétées auth → public.users.id
+let _cachedPublicUserId: string | null = null;
+
+async function resolvePublicUserId(): Promise<string | null> {
+  if (_cachedPublicUserId) return _cachedPublicUserId;
+
+  const { data: auth } = await supabase.auth.getUser();
+  const user = auth.user;
+  if (!user) return null;
+
+  const { data: publicUser } = await supabase
+    .from("users")
+    .select("id")
+    .or(`auth_user_id.eq.${user.id},email.ilike.${user.email}`)
+    .limit(1)
+    .maybeSingle();
+
+  _cachedPublicUserId = publicUser?.id ?? null;
+  return _cachedPublicUserId;
+}
+
+/**
+ * Reset le cache publicUserId — à appeler lors du sign out
+ */
+export function resetPublicUserIdCache() {
+  _cachedPublicUserId = null;
+}
+
 // Normaliser la note : nettoyer les valeurs pour l'affichage
 function normalizeNoteForDisplay(note: string | null | undefined): string | null {
   if (!note) return null;
@@ -56,33 +84,17 @@ async function enrichMentionedUsers(reminders: ReminderRow[]): Promise<Intervent
 // La contrainte CHECK a été supprimée pour permettre cette fonctionnalité
 
 export const remindersApi = {
-  async getMyReminders(): Promise<InterventionReminder[]> {
-    const { data: auth } = await supabase.auth.getUser();
-    const user = auth.user;
-    if (!user) {
-      throw new Error("Not authenticated");
-    }
-
-    // Récupérer le public.users.id correspondant à l'utilisateur auth
-    const { data: publicUser } = await supabase
-      .from("users")
-      .select("id")
-      .or(`auth_user_id.eq.${user.id},email.ilike.${user.email}`)
-      .limit(1)
-      .maybeSingle();
-
-    if (!publicUser) {
-      // Pas de profil utilisateur trouvé, retourner une liste vide
-      console.warn(`No public user profile found for auth user ${user.id}`);
+  async getMyReminders(publicUserId?: string): Promise<InterventionReminder[]> {
+    const userId = publicUserId ?? await resolvePublicUserId();
+    if (!userId) {
+      console.warn("[remindersApi] No public user ID available");
       return [];
     }
-
-    const publicUserId = publicUser.id;
 
     const { data, error } = await supabase
       .from("intervention_reminders")
       .select(REMINDER_SELECT)
-      .or(`user_id.eq.${publicUserId},mentioned_user_ids.cs.{${publicUserId}}`)
+      .or(`user_id.eq.${userId},mentioned_user_ids.cs.{${userId}}`)
       .eq("is_active", true)
       .order("created_at", { ascending: false });
 
@@ -97,38 +109,17 @@ export const remindersApi = {
     note?: string | null;
     due_date?: string | null;
     mentioned_user_ids?: string[];
-  }): Promise<InterventionReminder> {
-    const { data: auth } = await supabase.auth.getUser();
-    const user = auth.user;
-    if (!user) {
-      throw new Error("Not authenticated");
+  }, publicUserId?: string): Promise<InterventionReminder> {
+    const userId = publicUserId ?? await resolvePublicUserId();
+    if (!userId) {
+      throw new Error("User profile not found");
     }
-
-    // Récupérer le public.users.id correspondant à l'utilisateur auth
-    // On cherche d'abord par auth_user_id, sinon par email
-    const { data: publicUser, error: publicUserError } = await supabase
-      .from("users")
-      .select("id")
-      .or(`auth_user_id.eq.${user.id},email.ilike.${user.email}`)
-      .limit(1)
-      .maybeSingle();
-
-    if (publicUserError) {
-      console.error("Error fetching public user:", publicUserError);
-      throw new Error("Unable to find user profile");
-    }
-
-    if (!publicUser) {
-      throw new Error(`User profile not found for email ${user.email}. Please contact administrator.`);
-    }
-
-    const publicUserId = publicUser.id;
 
     const { data: existing, error: existingError } = await supabase
       .from("intervention_reminders")
       .select("id")
       .eq("intervention_id", params.intervention_id)
-      .eq("user_id", publicUserId)
+      .eq("user_id", userId)
       .maybeSingle();
 
     if (existingError && existingError.code !== "PGRST116") {
@@ -171,7 +162,7 @@ export const remindersApi = {
       .from("intervention_reminders")
       .insert({
         intervention_id: params.intervention_id,
-        user_id: publicUserId,
+        user_id: userId,
         ...payload,
       })
       .select(REMINDER_SELECT)
@@ -190,32 +181,17 @@ export const remindersApi = {
     if (error) throw error;
   },
 
-  async getReminderByIntervention(intervention_id: string): Promise<InterventionReminder | null> {
-    const { data: auth } = await supabase.auth.getUser();
-    const user = auth.user;
-    if (!user) {
-      throw new Error("Not authenticated");
-    }
-
-    // Récupérer le public.users.id correspondant à l'utilisateur auth
-    const { data: publicUser } = await supabase
-      .from("users")
-      .select("id")
-      .or(`auth_user_id.eq.${user.id},email.ilike.${user.email}`)
-      .limit(1)
-      .maybeSingle();
-
-    if (!publicUser) {
+  async getReminderByIntervention(intervention_id: string, publicUserId?: string): Promise<InterventionReminder | null> {
+    const userId = publicUserId ?? await resolvePublicUserId();
+    if (!userId) {
       return null;
     }
-
-    const publicUserId = publicUser.id;
 
     const { data, error } = await supabase
       .from("intervention_reminders")
       .select(REMINDER_SELECT)
       .eq("intervention_id", intervention_id)
-      .eq("user_id", publicUserId)
+      .eq("user_id", userId)
       .eq("is_active", true)
       .single();
 

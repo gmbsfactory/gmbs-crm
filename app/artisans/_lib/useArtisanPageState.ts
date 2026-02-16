@@ -3,7 +3,7 @@
 import { useState, useCallback, useEffect, useMemo } from "react"
 import { useArtisansQuery } from "@/hooks/useArtisansQuery"
 import type { ArtisanGetAllParams } from "@/lib/react-query/queryKeys"
-import { useReferenceData } from "@/hooks/useReferenceData"
+import { useReferenceDataQuery } from "@/hooks/useReferenceDataQuery"
 import { useArtisanModal } from "@/hooks/useArtisanModal"
 import { useArtisanViews } from "@/hooks/useArtisanViews"
 import { artisansApi } from "@/lib/api/v2"
@@ -60,7 +60,7 @@ export function useArtisanPageState() {
     data: referenceData,
     loading: referenceLoading,
     error: referenceError,
-  } = useReferenceData()
+  } = useReferenceDataQuery()
 
   // -----------------------------------------------------------------------
   // Server / client filters

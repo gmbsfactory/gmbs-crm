@@ -27,8 +27,8 @@ const mockRefData = {
   metiers: [],
 }
 
-vi.mock("@/hooks/useReferenceData", () => ({
-  useReferenceData: () => ({ data: mockRefData, loading: false }),
+vi.mock("@/hooks/useReferenceDataQuery", () => ({
+  useReferenceDataQuery: () => ({ data: mockRefData, loading: false, error: null, refresh: vi.fn(), getInterventionStatusLabel: (id: string) => id, getAgencyLabel: (id: string) => id, getUserCode: (id: string) => id }),
 }))
 
 vi.mock("@/hooks/useCurrentUser", () => ({

@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { interventionsApi } from "@/lib/api/v2"
-import { useReferenceData } from "@/hooks/useReferenceData"
+import { useReferenceDataQuery } from "@/hooks/useReferenceDataQuery"
 import { useInterventionModal } from "@/hooks/useInterventionModal"
 import { cn } from "@/lib/utils"
 import type { Intervention } from "@/lib/api/v2/common/types"
@@ -20,7 +20,7 @@ type ArtisanInterventionsTableProps = {
 
 export function ArtisanInterventionsTable({ artisanId, enableInternalScroll = false }: ArtisanInterventionsTableProps) {
   const { open: openInterventionModal } = useInterventionModal()
-  const { data: referenceData } = useReferenceData()
+  const { data: referenceData } = useReferenceDataQuery()
 
   // Charger les interventions de l'artisan via interventions_artisans
   const {

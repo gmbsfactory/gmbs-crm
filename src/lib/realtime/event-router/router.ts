@@ -11,6 +11,8 @@ import { normalizePayload } from './normalize'
 import { interventionPipeline } from './middleware/interventions'
 import { artisanPipeline } from './middleware/artisans'
 import { junctionPipeline } from './middleware/junction'
+import { referenceDataPipeline } from './middleware/reference-data'
+import { commentsPipeline } from './middleware/comments'
 
 // ─── Pipeline Registry ─────────────────────────────────────────────────────────
 
@@ -20,6 +22,11 @@ const PIPELINES: Record<string, Pipeline> = {
   interventions: interventionPipeline,
   artisans: artisanPipeline,
   intervention_artisans: junctionPipeline,
+  intervention_statuses: referenceDataPipeline,
+  artisan_statuses: referenceDataPipeline,
+  agencies: referenceDataPipeline,
+  metiers: referenceDataPipeline,
+  comments: commentsPipeline,
 }
 
 // ─── Public Entry Point ────────────────────────────────────────────────────────
@@ -27,7 +34,8 @@ const PIPELINES: Record<string, Pipeline> = {
 /**
  * Route a Realtime event through the appropriate pipeline.
  *
- * @param table - Source table name ('interventions', 'artisans', 'intervention_artisans')
+ * @param table - Source table name ('interventions', 'artisans', 'intervention_artisans',
+ *   'intervention_statuses', 'artisan_statuses', 'agencies', 'metiers', 'comments')
  * @param payload - Raw Supabase Realtime payload
  * @param ctx - Sync context (queryClient, currentUserId, options)
  *

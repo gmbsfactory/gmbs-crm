@@ -16,7 +16,7 @@ import { cn } from "@/lib/utils"
 import type { ColumnFilterProps, FilterOption } from "./types"
 import type { ViewFilter } from "@/types/intervention-views"
 import { GestionnaireBadge } from "@/components/ui/gestionnaire-badge"
-import { useReferenceData } from "@/hooks/useReferenceData"
+import { useReferenceDataQuery } from "@/hooks/useReferenceDataQuery"
 
 const makeValueKey = (value: unknown): string => {
   if (value === null || value === undefined) return "null"
@@ -62,7 +62,7 @@ export function UserColumnFilter({
   const [hasFetchedOptions, setHasFetchedOptions] = useState(false)
 
   // Récupérer les données de référence pour avoir accès aux utilisateurs avec leurs avatars
-  const { data: referenceData } = useReferenceData()
+  const { data: referenceData } = useReferenceDataQuery()
 
   // Fonction pour formater le label d'un utilisateur à partir d'une valeur brute
   const formatUserLabel = useCallback((raw: unknown): string => {

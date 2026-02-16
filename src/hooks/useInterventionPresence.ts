@@ -12,6 +12,12 @@ const STALE_LOCK_MS = 5 * 60 * 1000 // 5 minutes
 /** Throttle interval for channel.track() calls during rapid focus/blur */
 const TRACK_THROTTLE_MS = 300
 
+/** Maximum number of concurrent Presence channels allowed across all hook instances */
+const MAX_CONCURRENT_PRESENCE = 3
+
+/** Module-level counter tracking active Presence channels */
+let activePresenceChannels = 0
+
 /**
  * Manages a Supabase Presence channel for real-time viewer tracking
  * on an intervention modal, including field-level soft locking.
@@ -201,6 +207,20 @@ export function useInterventionPresence(
       return
     }
 
+    // Guard: reject if we've hit the concurrent channel limit
+    if (activePresenceChannels >= MAX_CONCURRENT_PRESENCE) {
+      console.warn(
+        `[Presence] Concurrent channel limit reached (${MAX_CONCURRENT_PRESENCE}). ` +
+        `Skipping subscription for intervention ${interventionId}.`
+      )
+      setViewers([])
+      setFieldLockMap({})
+      return
+    }
+
+    // Reserve a slot immediately (decremented in cleanup)
+    activePresenceChannels++
+
     // Small async gap allows Supabase internal cleanup from React Strict Mode
     // double-mount or fast dependency changes. Without this, supabase.channel()
     // may return a stale, closing channel object → immediate CLOSED status.
@@ -264,6 +284,8 @@ export function useInterventionPresence(
     return () => {
       cancelled = true
       console.log(`[Presence] Cleaning up ${channelName}`)
+      // Release the concurrent channel slot
+      activePresenceChannels = Math.max(0, activePresenceChannels - 1)
       // Cancel any pending throttled track
       if (throttleTimerRef.current) {
         clearTimeout(throttleTimerRef.current)

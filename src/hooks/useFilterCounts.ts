@@ -1,5 +1,7 @@
-import { useEffect, useState, useRef, useMemo } from 'react'
+import { useMemo } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { interventionsApi } from '@/lib/api/v2'
+import { interventionKeys } from '@/lib/react-query/queryKeys'
 import type { InterventionQueryParams } from '@/lib/api/v2/common/types'
 
 type FilterProperty = 'metier' | 'agence' | 'statut' | 'user'
@@ -10,80 +12,30 @@ export function useFilterCounts(
   baseFilters?: Omit<InterventionQueryParams, 'limit' | 'offset' | 'include'>,
   enabled: boolean = true
 ) {
-  const [counts, setCounts] = useState<Record<string, number>>({})
-  const [isLoading, setIsLoading] = useState(false)
-
-  // Utiliser useRef pour éviter les problèmes de closure avec cancelled
-  const cancelledRef = useRef(false)
-
-  // Mémoriser les clés pour éviter les re-renders inutiles
-  const possibleValuesKey = useMemo(
-    () => possibleValues.map(v => v.id).sort().join(','),
-    [possibleValues]
-  )
-  const baseFiltersKey = useMemo(
-    () => JSON.stringify(baseFilters || {}),
-    [baseFilters]
+  // Stabiliser les filtres pour la query key
+  const stableFilters = useMemo(
+    () => baseFilters || {},
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [JSON.stringify(baseFilters || {})]
   )
 
-  useEffect(() => {
+  const { data: groupedCounts, isLoading } = useQuery({
+    queryKey: interventionKeys.filterCountsByProperty(property, stableFilters),
+    queryFn: () => interventionsApi.getFilterCountsGrouped(property, baseFilters),
+    enabled: enabled && possibleValues.length > 0,
+    staleTime: 30_000,
+  })
 
-    if (!enabled || possibleValues.length === 0) {
-      return
+  // Construire le record final : pour chaque valeur possible,
+  // prendre le comptage du RPC ou 0 si absent
+  const counts = useMemo(() => {
+    if (!groupedCounts) return {}
+    const result: Record<string, number> = {}
+    for (const item of possibleValues) {
+      result[item.id] = groupedCounts[item.id] ?? 0
     }
-
-    // Reset cancelled flag au début de chaque effet
-    cancelledRef.current = false
-    setIsLoading(true)
-
-    const loadCounts = async () => {
-      // Double-check au début de la fonction async
-      if (cancelledRef.current) {
-        return
-      }
-
-      try {
-        // Charger tous les compteurs en parallèle
-        const countPromises = possibleValues.map(async (item) => {
-          if (cancelledRef.current) return { id: item.id, label: item.label, count: 0 }
-
-          const count = await interventionsApi.getCountByPropertyValue(
-            property,
-            item.id,
-            baseFilters
-          )
-          return { id: item.id, label: item.label, count }
-        })
-
-        const results = await Promise.all(countPromises)
-
-        if (!cancelledRef.current) {
-          const newCounts: Record<string, number> = {}
-          results.forEach(({ id, count }) => {
-            newCounts[id] = count
-          })
-
-          setCounts(newCounts)
-        }
-      } catch (error) {
-        console.error(`[useFilterCounts] Erreur pour ${property}:`, error)
-        if (!cancelledRef.current) {
-          setCounts({})
-        }
-      } finally {
-        if (!cancelledRef.current) {
-          setIsLoading(false)
-        }
-      }
-    }
-
-    // Appeler loadCounts immédiatement
-    loadCounts()
-
-    return () => {
-      cancelledRef.current = true
-    }
-  }, [property, possibleValuesKey, baseFiltersKey, enabled, possibleValues, baseFilters])
+    return result
+  }, [groupedCounts, possibleValues])
 
   return { counts, isLoading }
 }
