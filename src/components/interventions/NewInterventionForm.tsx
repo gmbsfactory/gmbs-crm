@@ -196,6 +196,11 @@ export function NewInterventionForm({
     requiresDatePrevue,
     requiresArtisan,
     requiresFacture,
+    requiresNomFacturation,
+    requiresAssignedUser,
+    requiresCouts,
+    requiresConsigneArtisan,
+    requiresClientInfo,
 
     // Handlers
     handleInputChange,
@@ -330,6 +335,47 @@ export function NewInterventionForm({
     if (requiresDatePrevue && datePrevueValue.length === 0) {
       form.reportValidity()
       return
+    }
+
+    // === VALIDATIONS CUMULATIVES (quand le statut sélectionné n'est pas DEMANDE) ===
+    if (requiresNomFacturation && !formData.nomPrenomFacturation?.trim()) {
+      toast.error("Le nom/prénom de facturation (propriétaire) est obligatoire pour ce statut")
+      return
+    }
+
+    if (requiresAssignedUser && !formData.assigned_user_id) {
+      toast.error("L'intervention doit être assignée à un gestionnaire pour ce statut")
+      return
+    }
+
+    if (requiresCouts) {
+      const coutInterValue = parseFloat(formData.coutIntervention) || 0
+      const coutSSTValue = parseFloat(formData.coutSST) || 0
+
+      if (coutInterValue <= 0) {
+        toast.error("Le coût d'intervention doit être renseigné pour ce statut")
+        return
+      }
+      if (coutSSTValue <= 0) {
+        toast.error("Le coût SST doit être renseigné pour ce statut")
+        return
+      }
+    }
+
+    if (requiresConsigneArtisan && !formData.consigne_intervention?.trim()) {
+      toast.error("La consigne pour l'artisan doit être renseignée pour ce statut")
+      return
+    }
+
+    if (requiresClientInfo) {
+      if (!formData.nomPrenomClient?.trim()) {
+        toast.error("Le nom/prénom du client doit être renseigné pour ce statut")
+        return
+      }
+      if (!formData.telephoneClient?.trim()) {
+        toast.error("Le téléphone du client doit être renseigné pour ce statut")
+        return
+      }
     }
 
     if (requiresArtisan && (!selectedArtisanId || !selectedArtisanData)) {

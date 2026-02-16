@@ -104,6 +104,7 @@ export const InterventionEditForm = memo(function InterventionEditForm({
   // Edit-specific state
   const [pendingReasonType, setPendingReasonType] = useState<StatusReasonType | null>(null)
   const [hasFactureGMBS, setHasFactureGMBS] = useState(false)
+  const [hasDevis, setHasDevis] = useState(false)
   const [secondArtisanDisplayMode, setSecondArtisanDisplayMode] = useState<"nom" | "rs" | "tel">("nom")
 
   // Extraire les coûts et paiements (needed for createEditFormData)
@@ -227,6 +228,9 @@ export const InterventionEditForm = memo(function InterventionEditForm({
     requiresCouts,
     requiresConsigneArtisan,
     requiresClientInfo,
+    requiresAgence,
+    requiresMetier,
+    requiresDevis,
 
     // Handlers (from shared hook)
     handleInputChange: baseHandleInputChange,
@@ -334,9 +338,25 @@ export const InterventionEditForm = memo(function InterventionEditForm({
     }
   }, [intervention.id])
 
+  const checkDevis = useCallback(async () => {
+    if (!intervention.id) return
+    try {
+      const docs = await documentsApi.getAll({
+        entity_id: intervention.id,
+        entity_type: "intervention",
+        kind: "devis"
+      })
+      const found = (docs?.data?.length ?? 0) > 0
+      setHasDevis(found)
+    } catch (error) {
+      console.error("[InterventionEditForm] Erreur checkDevis:", error)
+    }
+  }, [intervention.id])
+
   useEffect(() => {
     void checkFactureGMBS()
-  }, [checkFactureGMBS])
+    void checkDevis()
+  }, [checkFactureGMBS, checkDevis])
 
   // Edit-specific: Right column width management
   const DEFAULT_RIGHT_COLUMN_WIDTH = 320
@@ -1259,6 +1279,17 @@ export const InterventionEditForm = memo(function InterventionEditForm({
       return
     }
 
+    // === VALIDATIONS HÉRITÉES DE DEMANDE ===
+    if (requiresAgence && !formData.agence_id) {
+      toast.error("L'agence est obligatoire pour ce statut")
+      return
+    }
+
+    if (requiresMetier && !formData.metier_id) {
+      toast.error("Le métier est obligatoire pour ce statut")
+      return
+    }
+
     // === VALIDATIONS POUR DEVIS_ENVOYE ===
     if (requiresNomFacturation && !formData.nomPrenomFacturation?.trim()) {
       toast.error("Le nom/prénom de facturation (propriétaire) est obligatoire pour passer à Devis envoyé")
@@ -1297,6 +1328,26 @@ export const InterventionEditForm = memo(function InterventionEditForm({
       }
       if (!formData.telephoneClient?.trim()) {
         toast.error("Le téléphone du client doit être renseigné pour passer en cours")
+        return
+      }
+    }
+
+    // === VALIDATION DEVIS (hérité depuis ACCEPTE) ===
+    if (requiresDevis) {
+      try {
+        const docs = await documentsApi.getAll({
+          entity_id: intervention.id,
+          entity_type: "intervention",
+          kind: "devis"
+        })
+
+        if (!docs.data || docs.data.length === 0) {
+          toast.error("Un document devis est obligatoire pour ce statut")
+          return
+        }
+      } catch (error) {
+        console.error("Erreur lors de la vérification du devis:", error)
+        toast.error("Erreur lors de la vérification des documents obligatoires")
         return
       }
     }
@@ -2338,14 +2389,20 @@ export const InterventionEditForm = memo(function InterventionEditForm({
                 </SectionLock>
 
                 <Collapsible open={isDocumentsOpen} onOpenChange={setIsDocumentsOpen}>
-                  <Card className={cn(requiresFacture && !hasFactureGMBS && "ring-2 ring-orange-400/50")}>
+                  <Card className={cn(
+                    (requiresFacture && !hasFactureGMBS) && "ring-2 ring-orange-400/50",
+                    (requiresDevis && !hasDevis) && "ring-2 ring-orange-400/50",
+                  )}>
                     <CollapsibleTrigger asChild>
                       <CardHeader className="cursor-pointer py-2 px-3 hover:bg-muted/50">
                         <CardTitle className="flex items-center gap-2 text-xs">
                           <Upload className="h-3 w-3" />
-                          Documents {requiresFacture && <span className="text-orange-500">*</span>}
+                          Documents {(requiresFacture || requiresDevis) && <span className="text-orange-500">*</span>}
                           {requiresFacture && !hasFactureGMBS && (
                             <span className="h-2 w-2 rounded-full bg-orange-500 animate-pulse" title="Facture GMBS obligatoire" />
+                          )}
+                          {requiresDevis && !hasDevis && (
+                            <span className="h-2 w-2 rounded-full bg-orange-500 animate-pulse" title="Devis GMBS obligatoire" />
                           )}
                           {isDocumentsOpen ? <ChevronDown className="ml-auto h-3 w-3" /> : <ChevronRight className="ml-auto h-3 w-3" />}
                         </CardTitle>
@@ -2358,8 +2415,11 @@ export const InterventionEditForm = memo(function InterventionEditForm({
                           entityId={intervention.id}
                           kinds={DOCUMENT_KINDS}
                           currentUser={currentUser ?? undefined}
-                          onChange={() => void checkFactureGMBS()}
-                          highlightedKinds={requiresFacture && !hasFactureGMBS ? ["facturesGMBS"] : []}
+                          onChange={() => { void checkFactureGMBS(); void checkDevis() }}
+                          highlightedKinds={[
+                            ...(requiresFacture && !hasFactureGMBS ? ["facturesGMBS"] : []),
+                            ...(requiresDevis && !hasDevis ? ["devis"] : []),
+                          ]}
                         />
                       </CardContent>
                     </CollapsibleContent>

@@ -74,8 +74,9 @@ describe("form-constants", () => {
       expect(STATUSES_REQUIRING_DATE_PREVUE.has("INTER_EN_COURS")).toBe(true)
     })
 
-    it("should have exactly 2 entries", () => {
-      expect(STATUSES_REQUIRING_DATE_PREVUE.size).toBe(2)
+    it("should have exactly 3 entries (cumulative: VISITE_TECHNIQUE, INTER_EN_COURS, INTER_TERMINEE)", () => {
+      expect(STATUSES_REQUIRING_DATE_PREVUE.size).toBe(3)
+      expect(STATUSES_REQUIRING_DATE_PREVUE.has("INTER_TERMINEE")).toBe(true)
     })
 
     it("should not require date for DEMANDE", () => {
@@ -99,30 +100,39 @@ describe("form-constants", () => {
     })
   })
 
-  describe("Edit-form validation constants", () => {
-    it("STATUSES_REQUIRING_NOM_FACTURATION should contain DEVIS_ENVOYE", () => {
+  describe("Edit-form validation constants (cumulative)", () => {
+    it("STATUSES_REQUIRING_NOM_FACTURATION should be cumulative from DEVIS_ENVOYE", () => {
       expect(STATUSES_REQUIRING_NOM_FACTURATION.has("DEVIS_ENVOYE")).toBe(true)
-      expect(STATUSES_REQUIRING_NOM_FACTURATION.size).toBe(1)
+      expect(STATUSES_REQUIRING_NOM_FACTURATION.has("ACCEPTE")).toBe(true)
+      expect(STATUSES_REQUIRING_NOM_FACTURATION.has("INTER_EN_COURS")).toBe(true)
+      expect(STATUSES_REQUIRING_NOM_FACTURATION.has("INTER_TERMINEE")).toBe(true)
+      expect(STATUSES_REQUIRING_NOM_FACTURATION.size).toBe(4)
     })
 
-    it("STATUSES_REQUIRING_ASSIGNED_USER should contain DEVIS_ENVOYE", () => {
+    it("STATUSES_REQUIRING_ASSIGNED_USER should be cumulative from DEVIS_ENVOYE", () => {
       expect(STATUSES_REQUIRING_ASSIGNED_USER.has("DEVIS_ENVOYE")).toBe(true)
-      expect(STATUSES_REQUIRING_ASSIGNED_USER.size).toBe(1)
+      expect(STATUSES_REQUIRING_ASSIGNED_USER.has("ACCEPTE")).toBe(true)
+      expect(STATUSES_REQUIRING_ASSIGNED_USER.has("INTER_EN_COURS")).toBe(true)
+      expect(STATUSES_REQUIRING_ASSIGNED_USER.has("INTER_TERMINEE")).toBe(true)
+      expect(STATUSES_REQUIRING_ASSIGNED_USER.size).toBe(4)
     })
 
-    it("STATUSES_REQUIRING_COUTS should contain INTER_EN_COURS", () => {
+    it("STATUSES_REQUIRING_COUTS should be cumulative from INTER_EN_COURS", () => {
       expect(STATUSES_REQUIRING_COUTS.has("INTER_EN_COURS")).toBe(true)
-      expect(STATUSES_REQUIRING_COUTS.size).toBe(1)
+      expect(STATUSES_REQUIRING_COUTS.has("INTER_TERMINEE")).toBe(true)
+      expect(STATUSES_REQUIRING_COUTS.size).toBe(2)
     })
 
-    it("STATUSES_REQUIRING_CONSIGNE_ARTISAN should contain INTER_EN_COURS", () => {
+    it("STATUSES_REQUIRING_CONSIGNE_ARTISAN should be cumulative from INTER_EN_COURS", () => {
       expect(STATUSES_REQUIRING_CONSIGNE_ARTISAN.has("INTER_EN_COURS")).toBe(true)
-      expect(STATUSES_REQUIRING_CONSIGNE_ARTISAN.size).toBe(1)
+      expect(STATUSES_REQUIRING_CONSIGNE_ARTISAN.has("INTER_TERMINEE")).toBe(true)
+      expect(STATUSES_REQUIRING_CONSIGNE_ARTISAN.size).toBe(2)
     })
 
-    it("STATUSES_REQUIRING_CLIENT_INFO should contain INTER_EN_COURS", () => {
+    it("STATUSES_REQUIRING_CLIENT_INFO should be cumulative from INTER_EN_COURS", () => {
       expect(STATUSES_REQUIRING_CLIENT_INFO.has("INTER_EN_COURS")).toBe(true)
-      expect(STATUSES_REQUIRING_CLIENT_INFO.size).toBe(1)
+      expect(STATUSES_REQUIRING_CLIENT_INFO.has("INTER_TERMINEE")).toBe(true)
+      expect(STATUSES_REQUIRING_CLIENT_INFO.size).toBe(2)
     })
   })
 

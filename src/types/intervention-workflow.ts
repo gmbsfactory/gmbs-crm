@@ -72,6 +72,8 @@ export type WorkflowEntityContext = {
   // Champs pour validation création
   agenceId?: string | null
   metierId?: string | null
+  adresse?: string | null
+  contexteIntervention?: string | null
   // Champs pour validation DEVIS_ENVOYE
   nomPrenomFacturation?: string | null
   assignedUserId?: string | null

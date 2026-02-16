@@ -85,6 +85,17 @@ describe('cumulative-validation', () => {
   })
 
   describe('getEntryRulesForStatus', () => {
+    it('should return 4 rules for DEMANDE (agence, metier, adresse, contexte)', () => {
+      const rules = getEntryRulesForStatus('DEMANDE')
+      const ruleKeys = rules.map(r => r.key)
+
+      expect(ruleKeys).toContain('DEMANDE_AGENCE_REQUIRED')
+      expect(ruleKeys).toContain('DEMANDE_METIER_REQUIRED')
+      expect(ruleKeys).toContain('DEMANDE_ADRESSE_REQUIRED')
+      expect(ruleKeys).toContain('DEMANDE_CONTEXTE_REQUIRED')
+      expect(rules.length).toBe(4)
+    })
+
     it('should return rules with to=DEVIS_ENVOYE and no from', () => {
       const rules = getEntryRulesForStatus('DEVIS_ENVOYE')
       const ruleKeys = rules.map(r => r.key)
@@ -99,6 +110,13 @@ describe('cumulative-validation', () => {
 
       // INTERVENTION_ID_REQUIRED has statuses including DEVIS_ENVOYE
       expect(ruleKeys).toContain('INTERVENTION_ID_REQUIRED')
+    })
+
+    it('should return ACCEPTE_DEVIS_REQUIRED for ACCEPTE', () => {
+      const rules = getEntryRulesForStatus('ACCEPTE')
+      const ruleKeys = rules.map(r => r.key)
+
+      expect(ruleKeys).toContain('ACCEPTE_DEVIS_REQUIRED')
     })
 
     it('should NOT include rules with a from constraint', () => {
@@ -128,12 +146,6 @@ describe('cumulative-validation', () => {
       // ARTISAN_REQUIRED_FOR_STATUS has statuses including INTER_EN_COURS
       expect(ruleKeys).toContain('ARTISAN_REQUIRED_FOR_STATUS')
     })
-
-    it('should return empty for DEMANDE (no entry rules)', () => {
-      const rules = getEntryRulesForStatus('DEMANDE')
-      // DEMANDE has no specific to/statuses rules targeting it
-      expect(rules.length).toBe(0)
-    })
   })
 
   describe('getCumulativeEntryRules', () => {
@@ -155,32 +167,60 @@ describe('cumulative-validation', () => {
       }
     })
 
-    it('should include DEVIS_ENVOYE entry rules when target is ACCEPTE', () => {
+    it('should include DEMANDE entry rules when target is DEVIS_ENVOYE', () => {
+      const rules = getCumulativeEntryRules('DEVIS_ENVOYE')
+      const ruleKeys = rules.map(r => r.key)
+
+      expect(ruleKeys).toContain('DEMANDE_AGENCE_REQUIRED')
+      expect(ruleKeys).toContain('DEMANDE_METIER_REQUIRED')
+      expect(ruleKeys).toContain('DEMANDE_ADRESSE_REQUIRED')
+      expect(ruleKeys).toContain('DEMANDE_CONTEXTE_REQUIRED')
+    })
+
+    it('should include DEVIS_ENVOYE + DEMANDE rules when target is ACCEPTE', () => {
       const rules = getCumulativeEntryRules('ACCEPTE')
       const ruleKeys = rules.map(r => r.key)
 
+      // From DEMANDE
+      expect(ruleKeys).toContain('DEMANDE_AGENCE_REQUIRED')
+      expect(ruleKeys).toContain('DEMANDE_METIER_REQUIRED')
+      expect(ruleKeys).toContain('DEMANDE_ADRESSE_REQUIRED')
+      expect(ruleKeys).toContain('DEMANDE_CONTEXTE_REQUIRED')
+      // From DEVIS_ENVOYE
       expect(ruleKeys).toContain('DEVIS_ENVOYE_NOM_FACTURATION')
       expect(ruleKeys).toContain('DEVIS_ENVOYE_ASSIGNED_USER')
     })
 
-    it('should include DEVIS_ENVOYE + ACCEPTE rules when target is INTER_EN_COURS', () => {
+    it('should include DEVIS_ENVOYE + ACCEPTE + DEMANDE rules when target is INTER_EN_COURS', () => {
       const rules = getCumulativeEntryRules('INTER_EN_COURS')
       const ruleKeys = rules.map(r => r.key)
 
+      // From DEMANDE
+      expect(ruleKeys).toContain('DEMANDE_AGENCE_REQUIRED')
+      expect(ruleKeys).toContain('DEMANDE_METIER_REQUIRED')
       // From DEVIS_ENVOYE
       expect(ruleKeys).toContain('DEVIS_ENVOYE_NOM_FACTURATION')
       expect(ruleKeys).toContain('DEVIS_ENVOYE_ASSIGNED_USER')
       // INTERVENTION_ID_REQUIRED applies to DEVIS_ENVOYE via statuses
       expect(ruleKeys).toContain('INTERVENTION_ID_REQUIRED')
+      // From ACCEPTE
+      expect(ruleKeys).toContain('ACCEPTE_DEVIS_REQUIRED')
     })
 
     it('should include all predecessor rules when target is INTER_TERMINEE', () => {
       const rules = getCumulativeEntryRules('INTER_TERMINEE')
       const ruleKeys = rules.map(r => r.key)
 
+      // From DEMANDE
+      expect(ruleKeys).toContain('DEMANDE_AGENCE_REQUIRED')
+      expect(ruleKeys).toContain('DEMANDE_METIER_REQUIRED')
+      expect(ruleKeys).toContain('DEMANDE_ADRESSE_REQUIRED')
+      expect(ruleKeys).toContain('DEMANDE_CONTEXTE_REQUIRED')
       // From DEVIS_ENVOYE predecessors
       expect(ruleKeys).toContain('DEVIS_ENVOYE_NOM_FACTURATION')
       expect(ruleKeys).toContain('DEVIS_ENVOYE_ASSIGNED_USER')
+      // From ACCEPTE
+      expect(ruleKeys).toContain('ACCEPTE_DEVIS_REQUIRED')
       // From INTER_EN_COURS predecessors
       expect(ruleKeys).toContain('INTER_EN_COURS_COUT_INTERVENTION')
       expect(ruleKeys).toContain('INTER_EN_COURS_COUT_SST')

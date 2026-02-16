@@ -10,7 +10,12 @@ export type WorkflowRule = {
     proprietaire?: boolean
     commentaire?: boolean
     devisId?: boolean
-    // Nouveaux champs pour DEVIS_ENVOYE
+    // Champs pour DEMANDE
+    agence?: boolean
+    metier?: boolean
+    adresse?: boolean
+    contexte?: boolean
+    // Champs pour DEVIS_ENVOYE
     nomPrenomFacturation?: boolean
     assignedUser?: boolean
     // Nouveaux champs pour INTER_EN_COURS
@@ -32,7 +37,7 @@ export type WorkflowRule = {
 export const WORKFLOW_RULES: Record<InterventionStatusValue, WorkflowRule> = {
   DEMANDE: {
     isInitial: true,
-    requirements: {},
+    requirements: { agence: true, metier: true, adresse: true, contexte: true },
     autoActions: [],
   },
   DEVIS_ENVOYE: {
@@ -272,6 +277,43 @@ export const VALIDATION_RULES: ValidationRule[] = [
     message: "La date prévue doit être renseignée pour passer en cours",
     blockTransition: true,
     validate: (context) => Boolean(context.datePrevue),
+  },
+  // === RÈGLES POUR DEMANDE (cascadent via getCumulativeEntryRules) ===
+  {
+    key: "DEMANDE_AGENCE_REQUIRED",
+    to: "DEMANDE",
+    message: "L'agence doit être renseignée",
+    blockTransition: true,
+    validate: (context) => Boolean(context.agenceId),
+  },
+  {
+    key: "DEMANDE_METIER_REQUIRED",
+    to: "DEMANDE",
+    message: "Le métier doit être renseigné",
+    blockTransition: true,
+    validate: (context) => Boolean(context.metierId),
+  },
+  {
+    key: "DEMANDE_ADRESSE_REQUIRED",
+    to: "DEMANDE",
+    message: "L'adresse doit être renseignée",
+    blockTransition: true,
+    validate: (context) => Boolean(context.adresse && String(context.adresse).trim().length > 0),
+  },
+  {
+    key: "DEMANDE_CONTEXTE_REQUIRED",
+    to: "DEMANDE",
+    message: "Le contexte d'intervention doit être renseigné",
+    blockTransition: true,
+    validate: (context) => Boolean(context.contexteIntervention && String(context.contexteIntervention).trim().length > 0),
+  },
+  // === RÈGLE POUR ACCEPTE (cascade vers INTER_EN_COURS, INTER_TERMINEE) ===
+  {
+    key: "ACCEPTE_DEVIS_REQUIRED",
+    to: "ACCEPTE",
+    message: "Un document devis doit être présent pour passer à Accepté",
+    blockTransition: true,
+    validate: (context) => Boolean(context.devisId),
   },
 ]
 
