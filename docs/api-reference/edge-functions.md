@@ -2,18 +2,63 @@
 
 > Source: `supabase/functions/`
 
-Supabase Edge Functions running on the Deno runtime. All functions use CORS handling via `supabase/functions/_shared/cors.ts` and authenticate with `SUPABASE_SERVICE_ROLE_KEY`.
+13+ Supabase Edge Functions running on the Deno runtime. All functions use CORS handling via `supabase/functions/_shared/cors.ts`. L'authentification utilisateur passe par `_shared/auth.ts` (verification JWT). Les operations admin utilisent `SUPABASE_SERVICE_ROLE_KEY`.
 
 ---
 
 ## Table of Contents
 
+- [Shared Utilities](#shared-utilities)
+- [interventions-v2](#interventions-v2)
+- [interventions-v2-admin-dashboard-stats](#interventions-v2-admin-dashboard-stats)
+- [artisans-v2](#artisans-v2)
 - [check-inactive-users](#check-inactive-users)
 - [users](#users)
 - [comments](#comments)
+- [documents](#documents)
+- [cache](#cache)
 - [process-avatar](#process-avatar)
 - [pull (Google Sheets Sync)](#pull)
 - [push (Google Sheets Sync)](#push)
+
+---
+
+## interventions-v2
+
+> Source: `supabase/functions/interventions-v2/index.ts`
+
+Edge Function principale pour le CRUD complet des interventions. Gere les requetes paginables avec filtres avances, JOINs complexes (artisans, couts, paiements, tenants, owners), et logique metier (deduplication, transitions de statuts).
+
+**Methodes:** GET (liste paginee, detail, light), POST (creation, upsert import)
+
+**Authentification:** Via `_shared/auth.ts` — verification JWT stricte, plus de fallback `x-user-id`.
+
+**Fonctionnalites:**
+- Pagination serveur avec prefetch
+- Filtres multiples (statut, agence, gestionnaire, metier, date, recherche texte)
+- Include optionnel : `artisans`, `costs`, `payments`, `owner`, `tenant`
+- Mode `light` pour warm-up (champs reduits)
+- Upsert pour les imports Google Sheets
+
+---
+
+## interventions-v2-admin-dashboard-stats
+
+> Source: `supabase/functions/interventions-v2-admin-dashboard-stats/index.ts`
+
+Statistiques agregees pour le dashboard admin. Fournit les KPIs globaux (nombre d'interventions par statut, par agence, par periode, chiffre d'affaires, marge).
+
+**Methode:** GET
+
+---
+
+## artisans-v2
+
+> Source: `supabase/functions/artisans-v2/index.ts`
+
+CRUD complet des artisans avec gestion des metiers, zones d'intervention, absences, et statuts. Supporte les filtres avances et la pagination.
+
+**Methodes:** GET, POST, PUT, DELETE
 
 ---
 
@@ -401,7 +446,43 @@ Supabase to Google Sheets synchronization. Exports data from the database back t
 
 ---
 
+## documents
+
+> Source: `supabase/functions/documents/index.ts`
+
+Gestion des documents et pieces jointes. Upload vers Supabase Storage, listing par entite, et gestion des metadonnees.
+
+**Methodes:** GET (liste par entite), POST (upload), DELETE
+
+---
+
+## cache
+
+> Source: `supabase/functions/cache/index.ts`
+
+Gestion du cache de reference. Permet l'invalidation manuelle du cache de donnees de reference (agences, metiers, statuts, utilisateurs).
+
+**Methode:** POST (invalidation)
+
+---
+
 ## Shared Utilities
+
+### Authentication Helper
+
+> Source: `supabase/functions/_shared/auth.ts`
+
+Module partage pour la verification JWT dans les Edge Functions. Remplace l'ancien pattern `x-user-id` header par une verification stricte via `supabase.auth.getUser(token)`.
+
+```typescript
+import { getAuthUserId, requireAuth } from '../_shared/auth.ts'
+
+// Optionnel — retourne null si non authentifie
+const userId = await getAuthUserId(req, supabase)
+
+// Obligatoire — throw si non authentifie
+const userId = await requireAuth(req, supabase)
+```
 
 ### CORS Handling
 

@@ -497,6 +497,46 @@ De plus, chaque onglet emet des heartbeats dans `localStorage` pour permettre de
 
 ---
 
+## Migration @supabase/ssr (en cours)
+
+Le systeme d'authentification migre progressivement de cookies custom (`sb-access-token` / `sb-refresh-token` poses manuellement via `POST /api/auth/session`) vers `@supabase/ssr` qui gere automatiquement les cookies de session.
+
+### Nouveaux fichiers SSR
+
+| Fichier | Role |
+|---------|------|
+| `src/lib/supabase/client.ts` | Client navigateur via `createBrowserClient` (singleton) |
+| `src/lib/supabase/server-ssr.ts` | Client serveur via `createServerClient` (Route Handlers, Server Components) |
+| `src/lib/supabase/middleware.ts` | Helper middleware qui appelle `getUser()` pour rafraichir le token automatiquement |
+
+### Avantages
+
+- **Rafraichissement automatique** : le token JWT est rafraichi dans le middleware Next.js via `getUser()`, eliminant les erreurs 401 "token expired"
+- **Cookies chunkes** : `@supabase/ssr` gere automatiquement le chunking des gros tokens dans plusieurs cookies
+- **Plus de POST /api/auth/session** : les cookies sont geres par la librairie, eliminant la route custom
+
+### Etat de la migration
+
+La Phase 1 (installation + creation des utilitaires SSR) est terminee. Les phases suivantes (migration des routes API, simplification du client navigateur et du login, nettoyage) sont documentees dans [`docs/authentification/supabase_ssr_migration.md`](../authentification/supabase_ssr_migration.md).
+
+### Securisation des Edge Functions
+
+Les Edge Functions utilisent desormais un module partage `supabase/functions/_shared/auth.ts` pour la verification JWT :
+
+```typescript
+import { getAuthUserId, requireAuth } from '../_shared/auth.ts'
+
+// Optionnel — retourne null si non authentifie
+const userId = await getAuthUserId(req, supabase)
+
+// Obligatoire — throw si non authentifie
+const userId = await requireAuth(req, supabase)
+```
+
+Le fallback `x-user-id` header a ete supprime pour des raisons de securite — seule la verification JWT via `supabase.auth.getUser(token)` est utilisee.
+
+---
+
 ## Resume des couches de securite
 
 ```mermaid

@@ -8,7 +8,7 @@
 
 Le projet utilise le système de migrations de **Supabase CLI**. Les fichiers SQL se trouvent dans `supabase/migrations/` et sont exécutés séquentiellement par ordre de nom de fichier.
 
-**Total actuel : 82 migrations** (00001 a 00082, avec quelques numéros manquants).
+**Total actuel : 85 migrations** (00001 a 00085, avec quelques numéros manquants).
 
 ---
 
@@ -174,6 +174,16 @@ Les migrations sont appliquées automatiquement lors du déploiement via Supabas
 ### Features métier (00024-00082)
 
 Ajouts progressifs de fonctionnalités : champs artisan, audit, sous-statuts, comptabilité, etc.
+
+### Realtime et performance (00083-00085)
+
+| Migration | Description |
+|-----------|-------------|
+| `00083_fix_artisan_status_protected_list.sql` | Correction de la liste des statuts proteges artisan |
+| `00084_enable_interventions_realtime.sql` | Activation du Realtime Supabase sur la table interventions |
+| `00085_enable_artisans_realtime.sql` | Activation du Realtime Supabase sur la table artisans |
+
+> Les migrations 00084 et 00085 activent la publication Realtime PostgreSQL sur les tables interventions et artisans, permettant au systeme de synchronisation temps reel (cache-sync) de recevoir des evenements `INSERT`, `UPDATE` et `DELETE` via Supabase Realtime.
 
 ---
 

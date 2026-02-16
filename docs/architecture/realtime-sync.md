@@ -63,7 +63,7 @@ graph TB
 
 ```
 src/lib/realtime/
-├── realtime-client.ts           # Canal Supabase Realtime
+├── realtime-client.ts           # Canal Supabase Realtime (3 tables multiplexees)
 ├── cache-sync.ts                # Orchestrateur facade
 ├── cache-sync/
 │   ├── event-handlers.ts        # INSERT/UPDATE/DELETE handlers
@@ -72,43 +72,124 @@ src/lib/realtime/
 │   ├── remote-edit-indicator.ts # Badges "modifie par X"
 │   ├── filter-utils.ts          # Matching filtres pour cache
 │   └── broadcasting.ts          # Sync cross-tab (BroadcastChannel)
-├── broadcast-sync.ts            # Gestion BroadcastChannel
+├── event-router/                # Pipeline composable (normalize → route → middleware)
+│   ├── types.ts                 # CrmEvent, SyncContext, SyncMiddleware, STOP
+│   ├── normalize.ts             # Normalisation payload Supabase → CrmEvent
+│   ├── router.ts                # Routeur (table → pipeline)
+│   ├── pipeline.ts              # Executeur pipeline avec support STOP
+│   └── middleware/              # Middlewares par table
+│       ├── interventions.ts     # Pipeline interventions (enrichment, cache, broadcast)
+│       ├── artisans.ts          # Pipeline artisans
+│       ├── junction.ts          # Pipeline intervention_artisans (invalidation)
+│       └── shared.ts            # Middlewares reutilisables
+├── leader-election.ts           # Election leader via Web Locks API (1 WS/navigateur)
+├── realtime-relay.ts            # Relay BroadcastChannel leader→followers
+├── broadcast-sync.ts            # Gestion BroadcastChannel (fallback)
 └── sync-queue.ts                # File offline avec retry
+
+src/hooks/
+├── useCrmRealtime.ts            # Hook principal (leader election + event router)
+├── useInterventionPresence.ts   # Hook Supabase Presence (modal)
+├── useFieldPresenceDelegation.ts # Tracking focus champs
+├── useRealtimeStats.ts          # Stats debug Realtime
+└── useDeveloperDashboard.ts     # Toggle dashboard dev (Alt+R)
 ```
 
 ---
 
-## Canal Realtime
+## Canal Realtime (multiplexe)
 
-Le fichier `realtime-client.ts` configure un canal Supabase Realtime qui ecoute toutes les modifications sur la table `interventions` :
+Le fichier `realtime-client.ts` configure un canal Supabase Realtime unique (`crm-sync`) qui ecoute 3 tables sur une seule connexion WebSocket :
 
 ```typescript
 // src/lib/realtime/realtime-client.ts
-export function createInterventionsChannel(
-  onEvent: (payload: RealtimePostgresChangesPayload<Intervention>) => void | Promise<void>
-): RealtimeChannel {
-  const channel = supabase
-    .channel('interventions-changes')
-    .on('postgres_changes', {
-      event: '*',                    // INSERT, UPDATE, DELETE
-      schema: 'public',
-      table: 'interventions',
-      filter: 'is_active=eq.true',  // Ignore les soft deletes
-    }, onEvent);
+const channel = supabase
+  .channel('crm-sync')
+  .on('postgres_changes', {
+    event: '*', schema: 'public', table: 'interventions',
+    filter: 'is_active=eq.true',
+  }, handlers.onInterventionEvent)
+  .on('postgres_changes', {
+    event: '*', schema: 'public', table: 'artisans',
+    filter: 'is_active=eq.true',
+  }, handlers.onArtisanEvent)
+  .on('postgres_changes', {
+    event: '*', schema: 'public', table: 'intervention_artisans',
+  }, handlers.onJunctionEvent)
+```
 
-  channel.subscribe((status) => {
-    // Gestion des etats: SUBSCRIBED, CHANNEL_ERROR, TIMED_OUT, CLOSED
-  });
+Le filtre `is_active=eq.true` reduit le trafic d'environ 50% en ignorant les records desactives. Les soft deletes sont detectes quand `is_active` passe de `true` a `false` dans un UPDATE.
 
-  return channel;
+### Hook principal : useCrmRealtime
+
+Le hook `useCrmRealtime` (remplace l'ancien `useInterventionsRealtime`) orchestre :
+- **Leader election** via Web Locks API (1 WebSocket par navigateur)
+- **Event routing** via l'Event Router (table → pipeline)
+- **Fallback polling** toutes les 15 secondes si Realtime indisponible
+- **Reconnexion automatique** toutes les 30 secondes
+- **Stats debug** exposees via `window.__REALTIME_STATS`
+
+---
+
+## Event Router (Layer 3)
+
+Le Event Router remplace l'approche monolithique par un pipeline composable : **normalize → route → middleware**.
+
+### Architecture
+
+```mermaid
+graph LR
+    A[Supabase Realtime Event] --> B[normalizePayload]
+    B --> C[routeRealtimeEvent]
+    C --> D{Table?}
+    D -->|interventions| E[interventionPipeline]
+    D -->|artisans| F[artisanPipeline]
+    D -->|intervention_artisans| G[junctionPipeline]
+    E --> H[Middlewares: enrichment → cache → broadcast → counts]
+    F --> I[Middlewares: cache → broadcast]
+    G --> J[Middlewares: invalidation ciblee]
+```
+
+### Pipeline Registry
+
+```typescript
+// src/lib/realtime/event-router/router.ts
+const PIPELINES: Record<string, Pipeline> = {
+  interventions: interventionPipeline,
+  artisans: artisanPipeline,
+  intervention_artisans: junctionPipeline,
 }
 ```
 
-Le filtre `is_active=eq.true` reduit le trafic d'environ 50% en ignorant les interventions desactivees. Les soft deletes sont detectes quand `is_active` passe de `true` a `false` dans un UPDATE.
+Ajouter une nouvelle table = une pipeline + une ligne dans `PIPELINES`.
+
+### CrmEvent<T>
+
+Type normalise pour tous les evenements Realtime, independamment de la table source :
+
+```typescript
+interface CrmEvent<T> {
+  table: string
+  eventType: 'INSERT' | 'UPDATE' | 'DELETE'
+  record: T | null         // nouveau record (null sur DELETE ou acces revoque)
+  previousRecord: T | null // ancien record (null sur INSERT)
+  meta: {
+    isAccessRevoked: boolean  // UPDATE avec new vide → RLS revoque
+    isSoftDelete: boolean     // UPDATE is_active true→false
+    isRemote: boolean         // Modification d'un autre utilisateur
+  }
+}
+```
+
+### STOP Sentinel
+
+Un middleware peut retourner `STOP` pour interrompre le pipeline immediatement :
+- **Acces RLS revoque** → retirer du cache, notifier, STOP
+- **Soft delete** → retirer du cache, STOP
 
 ### Fallback polling
 
-En cas d'erreur du canal Realtime (erreur de channel, timeout, deconnexion), le hook `useInterventionsRealtime` bascule automatiquement vers un polling toutes les 15 secondes.
+En cas d'erreur du canal Realtime (erreur de channel, timeout, deconnexion), `useCrmRealtime` bascule automatiquement vers un polling toutes les 15 secondes.
 
 ---
 

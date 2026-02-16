@@ -379,7 +379,7 @@ export function FilterBar({
           <div>
             <label className="text-sm font-medium text-foreground mb-2 block">Agences</label>
             <MultiSelect
-              options={agences?.map((agence) => ({
+              options={agences?.map((agence: { id: string; label: string }) => ({
                 value: agence.id,
                 label: agence.label
               })) || []}
@@ -405,7 +405,7 @@ export function FilterBar({
           <div>
             <label className="text-sm font-medium text-foreground mb-2 block">Métiers</label>
             <MultiSelect
-              options={metiers?.map((metier) => ({
+              options={metiers?.map((metier: { id: string; label: string }) => ({
                 value: metier.id,
                 label: metier.label
               })) || []}
