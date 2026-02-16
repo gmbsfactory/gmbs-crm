@@ -100,6 +100,8 @@ import { interventionsApi } from "@/lib/api/v2"
 import { toast } from "sonner"
 import { useFilterMappers } from "@/contexts/FilterMappersContext"
 import { convertViewFiltersToServerFilters } from "@/lib/filter-converter"
+import { usePagePresenceContext } from "@/contexts/PagePresenceContext"
+import { InterventionPresenceIndicator } from "@/components/ui/InterventionPresenceIndicator"
 import {
   Tooltip,
   TooltipContent,
@@ -788,6 +790,10 @@ export function TableView({
   // Log pour debug pagination
   useEffect(() => {
   }, [currentPage, totalPages, totalCount, onPageChange])
+
+  // Page presence — qui consulte quoi sur cette page ?
+  const pagePresenceCtx = usePagePresenceContext()
+  const pageViewers = pagePresenceCtx?.viewers ?? []
 
   // Récupérer les fonctions de mapping depuis le Context
   const { statusCodeToId, userCodeToId, currentUserId } = useFilterMappers()
@@ -1807,6 +1813,13 @@ export function TableView({
                                           >
                                             <Eye className="h-4 w-4" />
                                           </Button>
+                                          {/* Présence — qui consulte cette intervention ? */}
+                                          <div onClick={(e) => e.stopPropagation()}>
+                                            <InterventionPresenceIndicator
+                                              interventionId={intervention.id}
+                                              viewers={pageViewers}
+                                            />
+                                          </div>
                                         </div>
                                       </td>
                                     </tr>

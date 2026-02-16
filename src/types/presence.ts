@@ -33,3 +33,13 @@ export interface PresenceUser {
 
 /** Map of fieldName → the user who has it locked */
 export type FieldLockMap = Record<string, PresenceUser>
+
+/** Processed viewer data for page-level presence (who's on the same page) */
+export interface PagePresenceUser {
+  userId: string
+  name: string
+  color: string | null
+  avatarUrl: string | null
+  joinedAt: string
+  activeInterventionId: string | null  // L'intervention ouverte dans le modal, ou null
+}

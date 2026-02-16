@@ -10,10 +10,22 @@ import { FilterMappersProvider } from "@/contexts/FilterMappersContext"
 import { GenieEffectProvider } from "@/contexts/GenieEffectContext"
 import { usePermissions } from "@/hooks/usePermissions"
 
+import { PagePresenceProvider, usePagePresenceContext } from "@/contexts/PagePresenceContext"
+import { PagePresenceAvatars } from "@/components/ui/PagePresenceAvatars"
+
 import { useInterventionPageState } from "./_lib/useInterventionPageState"
 import InterventionsPlusMenu from "./_components/InterventionsPlusMenu"
 import InterventionsStatusFilter from "./_components/InterventionsStatusFilter"
 import InterventionsViewRenderer from "./_components/InterventionsViewRenderer"
+
+// ---------------------------------------------------------------------------
+// Page presence helper (must be rendered inside PagePresenceProvider)
+// ---------------------------------------------------------------------------
+function PagePresenceSection() {
+  const ctx = usePagePresenceContext()
+  if (!ctx) return null
+  return <PagePresenceAvatars viewers={ctx.viewers} />
+}
 
 // ---------------------------------------------------------------------------
 // Page entry point: permissions check + providers
@@ -34,11 +46,13 @@ export default function Page() {
   }
 
   return (
-    <InterventionRealtimeProvider>
-      <GenieEffectProvider>
-        <PageContent />
-      </GenieEffectProvider>
-    </InterventionRealtimeProvider>
+    <PagePresenceProvider pageName="interventions">
+      <InterventionRealtimeProvider>
+        <GenieEffectProvider>
+          <PageContent />
+        </GenieEffectProvider>
+      </InterventionRealtimeProvider>
+    </PagePresenceProvider>
   )
 }
 
@@ -123,7 +137,7 @@ function PageContent() {
               </div>
             )}
             <div className="flex flex-wrap items-end gap-4 overflow-visible pt-3">
-              <div className="flex-1 min-w-0 overflow-visible">
+              <div className="flex-1 min-w-0 overflow-visible flex items-end gap-3">
                 <ViewTabs
                   views={views}
                   activeViewId={activeViewId ?? ""}
@@ -145,6 +159,7 @@ function PageContent() {
                   viewStatusColors={viewStatusColors}
                   isAdmin={isAdmin}
                 />
+                <PagePresenceSection />
               </div>
               {!isReorderMode && (
                 <div className="flex items-center gap-3">

@@ -39,6 +39,7 @@ import { usePermissions } from "@/hooks/usePermissions"
 import { useInterventionPresence } from "@/hooks/useInterventionPresence"
 import { PresenceAvatars } from "@/components/ui/intervention-modal/PresenceAvatars"
 import { FieldPresenceProvider } from "@/contexts/FieldPresenceContext"
+import { usePagePresenceContext } from "@/contexts/PagePresenceContext"
 
 type NoteDialogContentProps = React.ComponentPropsWithoutRef<typeof AlertDialogPrimitive.Content>
 
@@ -135,6 +136,17 @@ export function InterventionModalContent({
 
   // Présence — qui consulte actuellement cette intervention ?
   const { viewers, fieldLockMap, trackField, clearField } = useInterventionPresence(interventionId)
+
+  // Page presence — signaler au système de présence de la page que ce modal affiche une intervention
+  const pagePresenceCtx = usePagePresenceContext()
+
+  useEffect(() => {
+    if (!pagePresenceCtx?.updateActiveIntervention) return
+    pagePresenceCtx.updateActiveIntervention(interventionId)
+    return () => {
+      pagePresenceCtx.updateActiveIntervention(null)
+    }
+  }, [interventionId, pagePresenceCtx])
 
   // Raccourci clavier Cmd/Ctrl+Enter pour enregistrer
   const { shortcutHint } = useSubmitShortcut({ formRef, isSubmitting })
@@ -708,6 +720,7 @@ GMBS`
                 </TooltipContent>
               </Tooltip>
             )}
+            <PresenceAvatars viewers={viewers} />
           </div>
           <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none">
             <div className="modal-config-columns-title">
@@ -740,7 +753,6 @@ GMBS`
                 </TooltipContent>
               </Tooltip>
             )}
-            <PresenceAvatars viewers={viewers} />
             {intervention?.updated_at && (
               <span className="text-xs text-muted-foreground">
                 Mis à jour le {new Date(intervention.updated_at).toLocaleDateString('fr-FR', {
