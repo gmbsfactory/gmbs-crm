@@ -1,46 +1,34 @@
-import { useCallback, useEffect, useState } from "react"
-import { referenceApi } from "@/lib/reference-api"
+import { useCallback, useMemo } from "react"
+import { useReferenceDataQuery } from "@/hooks/useReferenceDataQuery"
 
 /**
  * Hook pour charger et cacher le mapping USERNAME → UUID des utilisateurs
  * Utilisé pour convertir les usernames en UUIDs pour les requêtes SQL
+ *
+ * Dérive les données depuis useReferenceDataQuery (TanStack Query)
+ * pour bénéficier de la déduplication automatique des requêtes.
  */
 export function useUserMap() {
-  const [userMap, setUserMap] = useState<Record<string, string>>({})
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<Error | null>(null)
+  const { data, loading, error: queryError } = useReferenceDataQuery()
 
-  useEffect(() => {
-    let mounted = true
-
-    referenceApi
-      .getUsers()
-      .then((users) => {
-        if (!mounted) return
-        const map: Record<string, string> = {}
-        for (const user of users) {
-          // Map à la fois username, firstname, lastname → id
-          if (user.username) map[user.username.toLowerCase()] = user.id
-          if (user.firstname) map[user.firstname.toLowerCase()] = user.id
-          if (user.lastname) map[user.lastname.toLowerCase()] = user.id
-          if (user.code_gestionnaire) map[user.code_gestionnaire.toLowerCase()] = user.id
-          // Map aussi le nom complet
-          const fullName = `${user.firstname || ""} ${user.lastname || ""}`.trim().toLowerCase()
-          if (fullName) map[fullName] = user.id
-        }
-        setUserMap(map)
-        setLoading(false)
-      })
-      .catch((err) => {
-        if (!mounted) return
-        setError(err)
-        setLoading(false)
-      })
-
-    return () => {
-      mounted = false
+  const userMap = useMemo(() => {
+    if (!data?.users) return {}
+    const map: Record<string, string> = {}
+    for (const user of data.users) {
+      if (user.username) map[user.username.toLowerCase()] = user.id
+      if (user.firstname) map[user.firstname.toLowerCase()] = user.id
+      if (user.lastname) map[user.lastname.toLowerCase()] = user.id
+      if (user.code_gestionnaire) map[user.code_gestionnaire.toLowerCase()] = user.id
+      const fullName = `${user.firstname || ""} ${user.lastname || ""}`.trim().toLowerCase()
+      if (fullName) map[fullName] = user.id
     }
-  }, [])
+    return map
+  }, [data])
+
+  const error = useMemo(
+    () => (queryError ? new Error(queryError) : null),
+    [queryError]
+  )
 
   /**
    * Convertit un username (ou array de usernames) en UUID(s)
@@ -57,6 +45,3 @@ export function useUserMap() {
 
   return { userMap, loading, error, nameToId }
 }
-
-
-
