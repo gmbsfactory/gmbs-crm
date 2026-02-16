@@ -5,6 +5,7 @@ import { useQueryClient } from "@tanstack/react-query"
 import { supabase } from "@/lib/supabase-client"
 import { preloadCriticalDataAsync } from "@/lib/preload-critical-data"
 import { resetPreloadFlag } from "@/lib/preload-flag"
+import { resetPublicUserIdCache } from "@/lib/api/v2/reminders"
 import { useCurrentUser } from "@/hooks/useCurrentUser"
 import { getLocalDateString } from "@/lib/date-utils"
 
@@ -40,6 +41,8 @@ export function AuthStateListenerProvider({ children }: { children: ReactNode })
         queryClient.clear()
         // Réinitialiser le flag de préchargement pour permettre un nouveau préchargement à la prochaine connexion
         resetPreloadFlag()
+        // Réinitialiser le cache publicUserId des reminders
+        resetPublicUserIdCache()
         // Nettoyer aussi sessionStorage pour l'animation
         if (typeof window !== 'undefined') {
           sessionStorage.removeItem('revealTransition')

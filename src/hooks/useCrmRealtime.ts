@@ -16,6 +16,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import type { RealtimeChannel } from '@supabase/supabase-js'
+import { supabase } from '@/lib/supabase-client'
 import { createRealtimeChannel, removeRealtimeChannel } from '@/lib/realtime/realtime-client'
 import type { RealtimeEventHandlers } from '@/lib/realtime/realtime-client'
 import { initializeCacheSync } from '@/lib/realtime/cache-sync'
@@ -48,7 +49,9 @@ export interface RealtimeStats {
 export type ConnectionStatus = 'realtime' | 'polling' | 'connecting'
 
 const POLLING_INTERVAL = 15000 // 15 secondes (suffisant pour un CRM)
-const RECONNECT_INTERVAL = 30000 // 30 secondes
+const MAX_RECONNECT_ATTEMPTS = 10
+const BASE_RECONNECT_INTERVAL = 5000 // 5s
+const MAX_RECONNECT_INTERVAL = 300000 // 5 minutes
 
 /**
  * Whether leader election is active (static — doesn't change during app lifecycle).
@@ -196,17 +199,38 @@ export function useCrmRealtime() {
     if (reconnectTimeoutRef.current) return // Already scheduled
 
     const attemptNum = statsRef.current.reconnectAttempts + 1
+
+    if (attemptNum > MAX_RECONNECT_ATTEMPTS) {
+      console.warn('[Realtime] Max reconnection attempts reached, staying in polling')
+      updateStats({ lastError: 'Max reconnect attempts reached' })
+      return // Rester en polling
+    }
+
+    // Backoff exponentiel : 5s, 10s, 20s, 40s, 80s, 160s, 300s, 300s...
+    const delay = Math.min(
+      BASE_RECONNECT_INTERVAL * Math.pow(2, attemptNum - 1),
+      MAX_RECONNECT_INTERVAL
+    )
+
     updateStats({
       reconnectAttempts: attemptNum,
       lastError: `Reconnection scheduled (attempt #${attemptNum})`,
       lastErrorTime: Date.now(),
     })
     console.log(
-      `[Realtime] Reconnection attempt in ${RECONNECT_INTERVAL / 1000}s... (attempt #${attemptNum})`
+      `[Realtime] Reconnection attempt #${attemptNum} in ${delay / 1000}s...`
     )
 
-    reconnectTimeoutRef.current = setTimeout(() => {
+    reconnectTimeoutRef.current = setTimeout(async () => {
       reconnectTimeoutRef.current = null
+
+      // Rafraîchir la session avant de reconnecter
+      try {
+        await supabase.auth.refreshSession()
+      } catch {
+        // Ignorer l'erreur, tenter la reconnexion quand même
+      }
+
       stopPolling()
 
       // Clean up old channel
@@ -221,8 +245,10 @@ export function useCrmRealtime() {
       channel.subscribe((status) => {
         if (status === 'SUBSCRIBED') {
           console.log('[Realtime] Reconnection successful (crm-sync)')
+          statsRef.current.reconnectAttempts = 0 // Reset le compteur après succès
           updateStats({
             connectionStatus: 'realtime',
+            reconnectAttempts: 0,
             lastError: null,
           })
           stopPolling()
@@ -245,7 +271,7 @@ export function useCrmRealtime() {
           attemptReconnect()
         }
       })
-    }, RECONNECT_INTERVAL)
+    }, delay)
   }, [buildHandlers, startPolling, stopPolling, updateStats])
 
   // ─── Subscribe / Unsubscribe (leader only) ─────────────────────────────
@@ -325,6 +351,19 @@ export function useCrmRealtime() {
     channelRef.current = null
     if (ch) removeRealtimeChannel(ch)
   }, [stopPolling])
+
+  // ─── TOKEN_REFRESHED listener ─────────────────────────────────────────
+  // Si le token est rafraîchi et qu'on n'a pas de channel actif (leader), retenter la connexion
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event: string) => {
+      if (event === 'TOKEN_REFRESHED' && leaderRef.current?.isLeader && channelRef.current === null) {
+        // Token rafraîchi et pas de channel actif → tenter de reconnecter
+        statsRef.current.reconnectAttempts = 0 // Reset le compteur
+        attemptReconnect()
+      }
+    })
+    return () => subscription.unsubscribe()
+  }, [attemptReconnect])
 
   // ─── Main effect ───────────────────────────────────────────────────────
 
