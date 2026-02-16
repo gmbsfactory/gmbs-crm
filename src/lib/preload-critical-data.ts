@@ -567,11 +567,13 @@ function preloadComptabiliteData(queryClient: QueryClient) {
     const queryParams: ComptabiliteQueryParams = {
       dateStart: dateRange.start,
       dateEnd: dateRange.end,
+      page: 1,
+      pageSize: 100,
     }
 
     queryClient.prefetchQuery({
       queryKey: comptabiliteKeys.list(queryParams),
-      queryFn: () => fetchComptabiliteData(dateRange),
+      queryFn: () => fetchComptabiliteData(dateRange, 1, 100),
       staleTime: 5 * 60 * 1000, // 5 minutes
     })
 

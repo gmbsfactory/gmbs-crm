@@ -204,6 +204,7 @@ Start-Sleep -Seconds 1
 # 3. Launch Git Bash terminal at project root
 Write-Host "`nLaunching Git Bash..." -ForegroundColor Yellow
 $gitBashPaths = @(
+    "${env:ProgramFiles}\Git\git-bash.exe",
     "${env:ProgramFiles}\Git\bin\git-bash.exe",
     "${env:ProgramFiles}\Git\bin\bash.exe",
     "${env:ProgramFiles(x86)}\Git\bin\bash.exe",
@@ -273,7 +274,7 @@ if (-not $codeFound) {
 # 1.5. Run fresh_start_db.ps1 to initialize/restart Supabase
 # $freshStartDbPath = Join-Path $PSScriptRoot "fresh_start_db.ps1"
 # if (Test-Path $freshStartDbPath) {
-#     Write-Host "`nInitializing Supabase database..." -ForegroundColor Yellow
+#     Write-Host "`nInitializing Supabase database..." -ForegroundColor Yellow 
 #     & $freshStartDbPath
 # }
 # else {

@@ -537,6 +537,8 @@ await interventionsApi.upsertCost("inter-uuid", {
 
 Batch version of `upsertCost`. Optimized with a single SELECT to find existing costs, then parallel updates/inserts.
 
+Uses `costMatchKey()` internally: for `intervention`/`marge` types, matches on `cost_type` alone (ignoring `artisan_order`). For `sst`/`materiel`, matches on `cost_type + artisan_order` to distinguish artisan 1 vs 2.
+
 **Parameters**
 
 | Name | Type | Required | Description |
@@ -593,7 +595,7 @@ Inserts a new cost record. Validates UUID format and amount.
 | data.label | `string` | No | Optional label |
 | data.currency | `string` | No | Currency (default: `"EUR"`) |
 | data.metadata | `Record<string, unknown> \| null` | No | Extra metadata |
-| data.artisan_order | `1 \| 2 \| null` | No | Artisan order (default: `1`) |
+| data.artisan_order | `1 \| 2 \| null` | No | Artisan order (default: `null` for intervention/marge, `1` for sst/materiel) |
 
 **Return:** `Promise<InterventionCost>`
 

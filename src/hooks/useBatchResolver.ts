@@ -74,7 +74,7 @@ export function useBatchResolver<T extends Record<string, any>>({
 
         if (data?.length) {
           const nextEntries: Record<string, BatchResolverMapValue> = {}
-          data.forEach((row) => {
+          data.forEach((row: { id: string; [key: string]: unknown }) => {
             const rowRecord = row as unknown as Record<string, unknown>
             const rowId = rowRecord[idField] as string | undefined
             if (!rowId) return

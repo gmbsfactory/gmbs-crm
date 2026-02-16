@@ -14,6 +14,7 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient, type SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { getCorsHeaders } from '../_shared/cors.ts';
+import { getAuthUserId } from '../_shared/auth.ts';
 
 // Types pour la validation
 interface CreateInterventionRequest {
@@ -96,28 +97,6 @@ interface CreateCommentRequest {
   content: string;
   comment_type?: string;
   is_internal?: boolean;
-}
-
-async function getAuthUserIdFromRequest(req: Request, supabase: SupabaseClient): Promise<string | null> {
-  const authHeader = req.headers.get('authorization');
-  if (!authHeader) {
-    return null;
-  }
-
-  const token = authHeader.replace('Bearer ', '');
-  if (!token) {
-    return null;
-  }
-
-  try {
-    const { data: { user }, error } = await supabase.auth.getUser(token);
-    if (error) {
-      return null;
-    }
-    return user?.id ?? null;
-  } catch (_error) {
-    return null;
-  }
 }
 
 // Helper function pour créer les transitions automatiques lors de la création
@@ -1238,7 +1217,7 @@ serve(async (req: Request) => {
       Deno.env.get('SUPABASE_URL')!,
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     );
-    const authUserId = await getAuthUserIdFromRequest(req, supabase);
+    const authUserId = await getAuthUserId(req, supabase);
 
     const url = new URL(req.url);
     const pathSegments = url.pathname.split('/').filter(segment => segment);

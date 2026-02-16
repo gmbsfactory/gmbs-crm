@@ -29,7 +29,7 @@ export const rolesApi = {
 
     if (error) throw error;
 
-    return (data || []).map((role) => ({
+    return (data || []).map((role: { id: string; name: string; role_permissions?: any[]; [key: string]: unknown }) => ({
       ...role,
       permissions: role.role_permissions?.map((rp: any) => rp.permissions) || [],
     }));
@@ -167,7 +167,7 @@ export const rolesApi = {
 
     if (permissionsError) throw permissionsError;
 
-    const permissionIds = permissions?.map(permission => permission.id) || [];
+    const permissionIds = permissions?.map((permission: { id: string; [key: string]: unknown }) => permission.id) || [];
 
     if (permissionIds.length === 0) {
       throw new Error("No valid permissions found");
@@ -180,7 +180,7 @@ export const rolesApi = {
       .eq("role_id", roleId);
 
     // Ajouter les nouvelles permissions
-    const rolePermissions = permissionIds.map(permissionId => ({
+    const rolePermissions = permissionIds.map((permissionId: string) => ({
       role_id: roleId,
       permission_id: permissionId,
     }));

@@ -294,21 +294,21 @@ export function RemindersProvider({ children }: { children: ReactNode }) {
 
       channel = supabase
         .channel("intervention_reminders_realtime")
-        .on<{
-          id: string
-          intervention_id: string
-          user_id: string
-          mentioned_user_ids: string[] | null
-          is_active: boolean | null
-          note: string | null
-        }>(
+        .on(
           "postgres_changes",
           {
             event: "*",
             schema: "public",
             table: "intervention_reminders",
           },
-          async (payload) => {
+          async (payload: RealtimePostgresChangesPayload<{
+            id: string
+            intervention_id: string
+            user_id: string
+            mentioned_user_ids: string[] | null
+            is_active: boolean | null
+            note: string | null
+          }>) => {
             if (!mounted) return
 
             // Filtrer les événements pour ne traiter que ceux qui concernent l'utilisateur
@@ -377,7 +377,7 @@ export function RemindersProvider({ children }: { children: ReactNode }) {
             }
           },
         )
-        .subscribe((status) => {
+        .subscribe((status: string) => {
           if (status === "SUBSCRIBED") {
             isSubscribed = true
           } else if (status === "CHANNEL_ERROR") {
@@ -438,7 +438,7 @@ export function RemindersProvider({ children }: { children: ReactNode }) {
 
     ensureSubscription()
 
-    const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: authListener } = supabase.auth.onAuthStateChange((_event: string, session: { user?: { id?: string } } | null) => {
       if (!mounted) return
 
       currentAuthUserId = session?.user?.id ?? null

@@ -146,7 +146,7 @@ export function ArtisanSearchModal({
           } else {
             setAbsentArtisanIds((prev) => {
               const newSet = new Set(prev)
-              absences?.forEach((absence) => {
+              absences?.forEach((absence: { artisan_id?: string }) => {
                 if (absence.artisan_id) {
                   newSet.add(absence.artisan_id)
                 }
@@ -210,7 +210,7 @@ export function ArtisanSearchModal({
         setAbsentArtisanIds(new Set())
       } else {
         setAbsentArtisanIds(
-          new Set((absences ?? []).map((absence) => absence.artisan_id).filter(Boolean)),
+          new Set((absences ?? []).map((absence: { artisan_id?: string }) => absence.artisan_id).filter(Boolean)),
         )
       }
     } catch (err) {

@@ -10,6 +10,18 @@ import type {
 } from "@/lib/api/v2/common/types";
 import { safeErrorMessage } from "@/lib/api/v2/common/error-handler";
 
+/**
+ * Build a consistent matching key for intervention costs.
+ * For intervention/marge types, artisan_order is irrelevant → match on cost_type alone.
+ * For sst/materiel types, artisan_order distinguishes artisan 1 vs 2.
+ */
+function costMatchKey(costType: string, artisanOrder: number | null | undefined): string {
+  if (costType === 'intervention' || costType === 'marge') {
+    return costType
+  }
+  return `${costType}|${artisanOrder ?? 'null'}`
+}
+
 export const interventionsCosts = {
   /**
    * Créer ou mettre à jour un coût d'intervention
@@ -103,7 +115,7 @@ export const interventionsCosts = {
 
     const existingMap = new Map<string, string>();
     for (const e of existingCosts || []) {
-      const key = `${e.cost_type}|${e.artisan_order ?? 'null'}`;
+      const key = costMatchKey(e.cost_type, e.artisan_order);
       existingMap.set(key, e.id);
     }
 
@@ -117,7 +129,7 @@ export const interventionsCosts = {
     }> = [];
 
     for (const cost of normalizedCosts) {
-      const key = `${cost.cost_type}|${cost.artisan_order ?? 'null'}`;
+      const key = costMatchKey(cost.cost_type, cost.artisan_order);
       const existingId = existingMap.get(key);
 
       if (existingId) {
@@ -245,7 +257,7 @@ export const interventionsCosts = {
 
     const artisanOrder = data.artisan_order !== undefined
       ? data.artisan_order
-      : 1;
+      : (data.cost_type === 'intervention' || data.cost_type === 'marge' ? null : 1);
 
     const insertData = {
       intervention_id: interventionId,

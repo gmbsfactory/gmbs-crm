@@ -83,9 +83,8 @@ class LogoutManager {
    * 2. Cancel all pending requests
    * 3. Broadcast to other tabs
    * 4. Clear React Query cache
-   * 5. Sign out from Supabase
-   * 6. Delete session cookies
-   * 7. Redirect to /login
+   * 5. Sign out from Supabase (cookies nettoyés automatiquement par @supabase/ssr)
+   * 6. Redirect to /login
    */
   async executeLogout(
     queryClient: QueryClient,
@@ -139,24 +138,12 @@ class LogoutManager {
         sessionStorage.removeItem('revealTransition')
       }
 
-      // STEP 6: Sign out from Supabase
+      // STEP 6: Sign out from Supabase (@supabase/ssr nettoie automatiquement les cookies)
+      console.log('[LogoutManager] Signing out from Supabase')
       await supabase.auth.signOut()
 
-      // STEP 7: Delete session cookies
-      try {
-        const deleteResponse = await fetch('/api/auth/session', {
-          method: 'DELETE',
-          credentials: 'include',
-        })
-
-        if (!deleteResponse.ok) {
-          console.warn('[LogoutManager] Failed to delete cookies:', deleteResponse.status)
-        }
-      } catch (error) {
-        console.warn('[LogoutManager] Error deleting cookies:', error)
-      }
-
-      // STEP 8: Redirect to login
+      // STEP 7: Redirect to login
+      console.log('[LogoutManager] Redirecting to /login')
       window.location.href = '/login'
 
     } catch (error) {

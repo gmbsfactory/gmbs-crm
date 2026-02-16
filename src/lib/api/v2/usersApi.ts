@@ -53,9 +53,9 @@ export const usersApi = {
 
     if (error) throw error;
 
-    const transformedData = (data || []).map((item) => ({
+    const transformedData = (data || []).map((item: { id: string; [key: string]: unknown }) => ({
       ...item,
-      roles: item.user_roles?.map((ur: any) => ur.roles?.name).filter(Boolean) || [],
+      roles: (item.user_roles as any[])?.map((ur: any) => ur.roles?.name).filter(Boolean) || [],
     }));
 
     return {
@@ -220,7 +220,7 @@ export const usersApi = {
 
     if (rolesError) throw rolesError;
 
-    const roleIds = roles?.map(role => role.id) || [];
+    const roleIds = roles?.map((role: { id: string; [key: string]: unknown }) => role.id) || [];
 
     if (roleIds.length === 0) {
       throw new Error("No valid roles found");
@@ -233,7 +233,7 @@ export const usersApi = {
       .eq("user_id", userId);
 
     // Ajouter les nouveaux rôles
-    const userRoles = roleIds.map(roleId => ({
+    const userRoles = roleIds.map((roleId: string) => ({
       user_id: userId,
       role_id: roleId,
     }));
@@ -304,9 +304,9 @@ export const usersApi = {
 
     if (error) throw error;
 
-    return (data || []).map((item) => ({
+    return (data || []).map((item: { id: string; [key: string]: unknown }) => ({
       ...item,
-      roles: item.user_roles?.map((ur: any) => ur.roles?.name).filter(Boolean) || [],
+      roles: (item.user_roles as any[])?.map((ur: any) => ur.roles?.name).filter(Boolean) || [],
     }));
   },
 

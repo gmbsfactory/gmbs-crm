@@ -123,9 +123,9 @@ export function useAnalyticsData() {
                 }
 
                 // Calculer les sommes
-                const caMonth = caMonthData?.reduce((sum, item) => sum + Number(item.amount || 0), 0) || 0
-                const caYear = caYearData?.reduce((sum, item) => sum + Number(item.amount || 0), 0) || 0
-                const caPreviousMonth = caPreviousMonthData?.reduce((sum, item) => sum + Number(item.amount || 0), 0) || 0
+                const caMonth = caMonthData?.reduce((sum: number, item: { amount?: number | string | null }) => sum + Number(item.amount || 0), 0) || 0
+                const caYear = caYearData?.reduce((sum: number, item: { amount?: number | string | null }) => sum + Number(item.amount || 0), 0) || 0
+                const caPreviousMonth = caPreviousMonthData?.reduce((sum: number, item: { amount?: number | string | null }) => sum + Number(item.amount || 0), 0) || 0
 
                 // Calculer la croissance en pourcentage
                 const revenueGrowth = caPreviousMonth > 0 

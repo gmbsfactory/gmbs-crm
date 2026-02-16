@@ -109,7 +109,7 @@ export function useNearbyArtisans(
             return
           }
 
-          const batchIds = metierData?.map((row) => row.artisan_id).filter(Boolean) as string[] || []
+          const batchIds = metierData?.map((row: { id: string; [key: string]: unknown }) => row.artisan_id).filter(Boolean) as string[] || []
           allArtisanIds.push(...batchIds)
 
           hasMore = batchIds.length === BATCH_SIZE
@@ -136,7 +136,7 @@ export function useNearbyArtisans(
       if (archiveStatusesError) {
         console.warn("[useNearbyArtisans] Impossible de charger les statuts archivés", archiveStatusesError)
       } else {
-        archiveStatusIds = archiveStatuses?.map((status) => status.id).filter(Boolean) || []
+        archiveStatusIds = archiveStatuses?.map((status: { id: string; [key: string]: unknown }) => status.id).filter(Boolean) || []
       }
 
       const archiveStatusFilter =

@@ -32,6 +32,7 @@ export const interventionsApi = {
   getByAgency: interventionsCrud.getByAgency.bind(interventionsCrud),
   getByArtisan: interventionsCrud.getByArtisan.bind(interventionsCrud),
   getByDateRange: interventionsCrud.getByDateRange.bind(interventionsCrud),
+  getByIds: interventionsCrud.getByIds.bind(interventionsCrud),
 
   // === STATUS & WORKFLOW ===
   updateStatus: interventionsStatus.updateStatus.bind(interventionsStatus),

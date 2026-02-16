@@ -529,8 +529,8 @@ const searchArtisans = async (
   })
 
   const filtered = scored
-    .filter((entry) => entry.score.score > 0)
-    .sort((a, b) => {
+    .filter((entry: any) => entry.score.score > 0)
+    .sort((a: any, b: any) => {
       if (b.score.score !== a.score.score) {
         return b.score.score - a.score.score
       }
@@ -540,10 +540,10 @@ const searchArtisans = async (
     })
     .slice(0, limit)
 
-  const artisanIds = filtered.map((entry) => entry.record.id)
+  const artisanIds = filtered.map((entry: any) => entry.record.id)
   const counts = await fetchActiveInterventionCounts(artisanIds)
 
-  const items: Array<SearchResult<ArtisanSearchRecord>> = filtered.map((entry) => {
+  const items: Array<SearchResult<ArtisanSearchRecord>> = filtered.map((entry: any) => {
     const activeCount = counts.get(entry.record.id) ?? 0
     return {
       type: "artisan",
@@ -730,7 +730,7 @@ const searchInterventions = async (
     throw error
   }
 
-  const scored = (data ?? []).map((record) => {
+  const scored = (data ?? []).map((record: any) => {
     const typedRecord: InterventionSearchRecord = {
       ...(record as unknown as InterventionSearchRecord),
     }
@@ -743,8 +743,8 @@ const searchInterventions = async (
   })
 
   const filtered = scored
-    .filter((entry) => entry.score.score > 0)
-    .sort((a, b) => {
+    .filter((entry: any) => entry.score.score > 0)
+    .sort((a: any, b: any) => {
       if (b.score.score !== a.score.score) {
         return b.score.score - a.score.score
       }
@@ -754,7 +754,7 @@ const searchInterventions = async (
     })
     .slice(0, limit)
 
-  const items: Array<SearchResult<InterventionSearchRecord>> = filtered.map((entry) => ({
+  const items: Array<SearchResult<InterventionSearchRecord>> = filtered.map((entry: any) => ({
     type: "intervention",
     data: entry.record,
     score: entry.score.score,

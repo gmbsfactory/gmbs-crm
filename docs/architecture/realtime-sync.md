@@ -63,7 +63,7 @@ graph TB
 
 ```
 src/lib/realtime/
-├── realtime-client.ts           # Canal Supabase Realtime
+├── realtime-client.ts           # Canal Supabase Realtime (3 tables multiplexees)
 ├── cache-sync.ts                # Orchestrateur facade
 ├── cache-sync/
 │   ├── event-handlers.ts        # INSERT/UPDATE/DELETE handlers
@@ -72,43 +72,124 @@ src/lib/realtime/
 │   ├── remote-edit-indicator.ts # Badges "modifie par X"
 │   ├── filter-utils.ts          # Matching filtres pour cache
 │   └── broadcasting.ts          # Sync cross-tab (BroadcastChannel)
-├── broadcast-sync.ts            # Gestion BroadcastChannel
+├── event-router/                # Pipeline composable (normalize → route → middleware)
+│   ├── types.ts                 # CrmEvent, SyncContext, SyncMiddleware, STOP
+│   ├── normalize.ts             # Normalisation payload Supabase → CrmEvent
+│   ├── router.ts                # Routeur (table → pipeline)
+│   ├── pipeline.ts              # Executeur pipeline avec support STOP
+│   └── middleware/              # Middlewares par table
+│       ├── interventions.ts     # Pipeline interventions (enrichment, cache, broadcast)
+│       ├── artisans.ts          # Pipeline artisans
+│       ├── junction.ts          # Pipeline intervention_artisans (invalidation)
+│       └── shared.ts            # Middlewares reutilisables
+├── leader-election.ts           # Election leader via Web Locks API (1 WS/navigateur)
+├── realtime-relay.ts            # Relay BroadcastChannel leader→followers
+├── broadcast-sync.ts            # Gestion BroadcastChannel (fallback)
 └── sync-queue.ts                # File offline avec retry
+
+src/hooks/
+├── useCrmRealtime.ts            # Hook principal (leader election + event router)
+├── useInterventionPresence.ts   # Hook Supabase Presence (modal)
+├── useFieldPresenceDelegation.ts # Tracking focus champs
+├── useRealtimeStats.ts          # Stats debug Realtime
+└── useDeveloperDashboard.ts     # Toggle dashboard dev (Alt+R)
 ```
 
 ---
 
-## Canal Realtime
+## Canal Realtime (multiplexe)
 
-Le fichier `realtime-client.ts` configure un canal Supabase Realtime qui ecoute toutes les modifications sur la table `interventions` :
+Le fichier `realtime-client.ts` configure un canal Supabase Realtime unique (`crm-sync`) qui ecoute 3 tables sur une seule connexion WebSocket :
 
 ```typescript
 // src/lib/realtime/realtime-client.ts
-export function createInterventionsChannel(
-  onEvent: (payload: RealtimePostgresChangesPayload<Intervention>) => void | Promise<void>
-): RealtimeChannel {
-  const channel = supabase
-    .channel('interventions-changes')
-    .on('postgres_changes', {
-      event: '*',                    // INSERT, UPDATE, DELETE
-      schema: 'public',
-      table: 'interventions',
-      filter: 'is_active=eq.true',  // Ignore les soft deletes
-    }, onEvent);
+const channel = supabase
+  .channel('crm-sync')
+  .on('postgres_changes', {
+    event: '*', schema: 'public', table: 'interventions',
+    filter: 'is_active=eq.true',
+  }, handlers.onInterventionEvent)
+  .on('postgres_changes', {
+    event: '*', schema: 'public', table: 'artisans',
+    filter: 'is_active=eq.true',
+  }, handlers.onArtisanEvent)
+  .on('postgres_changes', {
+    event: '*', schema: 'public', table: 'intervention_artisans',
+  }, handlers.onJunctionEvent)
+```
 
-  channel.subscribe((status) => {
-    // Gestion des etats: SUBSCRIBED, CHANNEL_ERROR, TIMED_OUT, CLOSED
-  });
+Le filtre `is_active=eq.true` reduit le trafic d'environ 50% en ignorant les records desactives. Les soft deletes sont detectes quand `is_active` passe de `true` a `false` dans un UPDATE.
 
-  return channel;
+### Hook principal : useCrmRealtime
+
+Le hook `useCrmRealtime` (remplace l'ancien `useInterventionsRealtime`) orchestre :
+- **Leader election** via Web Locks API (1 WebSocket par navigateur)
+- **Event routing** via l'Event Router (table → pipeline)
+- **Fallback polling** toutes les 15 secondes si Realtime indisponible
+- **Reconnexion automatique** toutes les 30 secondes
+- **Stats debug** exposees via `window.__REALTIME_STATS`
+
+---
+
+## Event Router (Layer 3)
+
+Le Event Router remplace l'approche monolithique par un pipeline composable : **normalize → route → middleware**.
+
+### Architecture
+
+```mermaid
+graph LR
+    A[Supabase Realtime Event] --> B[normalizePayload]
+    B --> C[routeRealtimeEvent]
+    C --> D{Table?}
+    D -->|interventions| E[interventionPipeline]
+    D -->|artisans| F[artisanPipeline]
+    D -->|intervention_artisans| G[junctionPipeline]
+    E --> H[Middlewares: enrichment → cache → broadcast → counts]
+    F --> I[Middlewares: cache → broadcast]
+    G --> J[Middlewares: invalidation ciblee]
+```
+
+### Pipeline Registry
+
+```typescript
+// src/lib/realtime/event-router/router.ts
+const PIPELINES: Record<string, Pipeline> = {
+  interventions: interventionPipeline,
+  artisans: artisanPipeline,
+  intervention_artisans: junctionPipeline,
 }
 ```
 
-Le filtre `is_active=eq.true` reduit le trafic d'environ 50% en ignorant les interventions desactivees. Les soft deletes sont detectes quand `is_active` passe de `true` a `false` dans un UPDATE.
+Ajouter une nouvelle table = une pipeline + une ligne dans `PIPELINES`.
+
+### CrmEvent<T>
+
+Type normalise pour tous les evenements Realtime, independamment de la table source :
+
+```typescript
+interface CrmEvent<T> {
+  table: string
+  eventType: 'INSERT' | 'UPDATE' | 'DELETE'
+  record: T | null         // nouveau record (null sur DELETE ou acces revoque)
+  previousRecord: T | null // ancien record (null sur INSERT)
+  meta: {
+    isAccessRevoked: boolean  // UPDATE avec new vide → RLS revoque
+    isSoftDelete: boolean     // UPDATE is_active true→false
+    isRemote: boolean         // Modification d'un autre utilisateur
+  }
+}
+```
+
+### STOP Sentinel
+
+Un middleware peut retourner `STOP` pour interrompre le pipeline immediatement :
+- **Acces RLS revoque** → retirer du cache, notifier, STOP
+- **Soft delete** → retirer du cache, STOP
 
 ### Fallback polling
 
-En cas d'erreur du canal Realtime (erreur de channel, timeout, deconnexion), le hook `useInterventionsRealtime` bascule automatiquement vers un polling toutes les 15 secondes.
+En cas d'erreur du canal Realtime (erreur de channel, timeout, deconnexion), `useCrmRealtime` bascule automatiquement vers un polling toutes les 15 secondes.
 
 ---
 
@@ -419,6 +500,79 @@ Quand une intervention est supprimee ou que l'acces RLS est revoque, les entrees
 
 ---
 
+## Freshness Tiers (Layer 4)
+
+Toutes les donnees du CRM ne necessitent pas la meme fraicheur. Le systeme de Freshness Tiers definit 4 niveaux de mise a jour, chacun avec son mecanisme et son budget de performance :
+
+| Tier | Latence | Mecanisme                    | Donnees                                   |
+|------|---------|------------------------------|-------------------------------------------|
+| T1   | <1s     | Realtime channel (WebSocket) | Interventions, Artisans, Junction         |
+| T2   | 5s      | Polling modal-scoped         | Comments, Costs, Documents (modal ouvert) |
+| T3   | 30s     | Polling background           | Dashboard stats, Summaries, Counters      |
+| T4   | Manuel  | Fetch on action              | Donnees de reference, Enums, Users        |
+
+### Principe fondamental
+
+Le tier n'est pas une propriete fixe du type de donnee : c'est une propriete du **contexte**.
+Les commentaires sont T4 (on-demand) quand aucun modal n'est ouvert, mais deviennent T2 (polling 5s) quand le modal est visible.
+
+### Source de verite
+
+Le fichier `src/config/freshness-tiers.ts` centralise toute la configuration :
+
+```typescript
+import { getTierQueryOptions } from '@/config/freshness-tiers'
+
+// Spread dans useQuery pour obtenir staleTime, gcTime, refetchInterval, etc.
+const { data } = useQuery({
+  queryKey: commentKeys.byEntityPaginated('intervention', id, 50),
+  queryFn: () => commentsApi.getByEntity('intervention', id, { limit: 50 }),
+  ...getTierQueryOptions('T2'),
+})
+```
+
+### Adaptation low-end
+
+Sur les appareils peu puissants (< 4GB RAM ou < 4 cores) :
+
+| Tier | Polling normal | Polling low-end |
+|------|----------------|-----------------|
+| T2   | 5s             | 8s              |
+| T3   | 30s            | 60s             |
+| T4   | —              | staleTime +50%  |
+
+### Hooks
+
+| Hook                       | Tier | Usage                                                |
+|----------------------------|------|------------------------------------------------------|
+| `useModalFreshness()`      | T2   | Active le polling conditionnel quand `isActive=true` |
+| `useDashboardFreshness()`  | T3   | Options pre-configurees pour les queries dashboard   |
+
+### Integration
+
+- **CommentSection** : utilise `useModalFreshness(isModalOpen)` pour activer le polling T2 quand le modal est ouvert
+- **useDashboardStats** : utilise `getTierQueryOptions('T3')` pour les 3 queries dashboard
+- **useInterventionViewCounts** : utilise `getTierQueryOptions('T3')` pour les compteurs de vues
+- **Intervention detail** : reste T1 (Realtime via cache-sync.ts invalidation)
+
+### Ce qui n'a PAS besoin de Realtime
+
+Les commentaires, documents et couts n'ont **pas** de canal Realtime dedie. Raison : ces donnees ne sont pas editees concurrentiellement. Un poll a 5s quand le modal est ouvert suffit largement. Economie : 0 connexion WebSocket supplementaire.
+
+### Fichiers
+
+```text
+src/config/freshness-tiers.ts          # Configuration des 4 tiers (source de verite)
+src/hooks/useModalFreshness.ts         # Hook T2 conditionnel (modal-scoped)
+src/hooks/useDashboardFreshness.ts     # Hook T3 pre-configure (dashboard)
+src/lib/react-query/queryKeys.ts       # commentKeys, documentKeys (centralises)
+tests/unit/config/freshness-tiers.test.ts       # 15 tests
+tests/unit/hooks/useModalFreshness.test.ts      # 10 tests
+tests/unit/lib/react-query/query-keys-freshness.test.ts  # 10 tests
+```
+
+---
+
 ## Resume des patterns
 
 | Pattern | Utilisation |
@@ -430,3 +584,49 @@ Quand une intervention est supprimee ou que l'acces RLS est revoque, les entrees
 | Exponential Backoff | Retry 1s -> 2s -> 4s dans SyncQueue |
 | Debounce | `debouncedRefreshCounts` pour les compteurs |
 | Anti-loop | `recentTimestamps` + `__lastBroadcastTimestamp` |
+| Freshness Tiers | 4 niveaux de fraicheur T1-T4 (config/freshness-tiers.ts) |
+| Presence | Supabase Presence API pour indicateurs de consultation simultanee |
+
+---
+
+## Supabase Presence — Indicateurs de consultation simultanee
+
+En complement du canal `crm-sync` (postgres_changes), un second mecanisme Realtime utilise l'API **Supabase Presence** pour afficher qui consulte actuellement la meme intervention — similaire aux indicateurs collaboratifs de Google Docs ou Notion.
+
+```mermaid
+sequenceDiagram
+    participant UserA as Gestionnaire A
+    participant ChP as Canal Presence<br/>presence:intervention-{id}
+    participant UserB as Gestionnaire B
+
+    UserA->>ChP: subscribe() + track({ userId, name, color })
+    UserB->>ChP: subscribe() + track({ userId, name, color })
+    ChP-->>UserA: sync event → viewers = [B]
+    ChP-->>UserB: sync event → viewers = [A]
+    UserA->>ChP: untrack() (fermeture modal)
+    ChP-->>UserB: sync event → viewers = []
+```
+
+### Architecture
+
+Contrairement au canal `crm-sync` qui passe par la leader election, les canaux de presence sont independants :
+
+- **Pas de leader election** — chaque onglet souscrit directement via `supabase.channel()`
+- **Canal par intervention** — `presence:intervention-{id}` cree a l'ouverture du modal
+- **Cycle de vie lie au modal** — souscription a l'ouverture, desinscription a la fermeture
+- **Deduplication** — un utilisateur avec plusieurs onglets sur la meme intervention n'apparait qu'une fois
+- **Degradation gracieuse** — si la presence echoue, le modal fonctionne normalement
+
+### Cout en connexions
+
+Borne par « nombre de modals ouverts simultanement × utilisateurs » — typiquement 5-10 connexions supplementaires, bien en dessous de la limite du plan Free (200 connexions, ~30 actuellement utilisees).
+
+### Fichiers Presence
+
+```text
+src/types/presence.ts                                        # Types PresenceUser et PresencePayload
+src/hooks/useInterventionPresence.ts                         # Gestion du canal Presence (subscribe/track/untrack)
+src/components/ui/intervention-modal/PresenceAvatars.tsx      # Affichage des avatars dans le header du modal
+tests/unit/hooks/useInterventionPresence.test.ts             # Tests du hook
+tests/unit/components/PresenceAvatars.test.tsx                # Tests du composant
+```

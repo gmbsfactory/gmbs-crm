@@ -160,7 +160,8 @@ export const interventionsStats = {
   async getStatsByUser(
     userId: string,
     startDate?: string,
-    endDate?: string
+    endDate?: string,
+    signal?: AbortSignal
   ): Promise<InterventionStatsByStatus> {
     if (!userId) {
       throw new Error("userId is required");
@@ -187,9 +188,19 @@ export const interventionsStats = {
       query = query.lte("created_at", endDate);
     }
 
+    if (signal) {
+      query = query.abortSignal(signal);
+    }
+
     const { data, error, count } = await query;
 
     if (error) {
+      // Si c'est une annulation intentionnelle, on relance une AbortError standard
+      if (error.message?.includes('aborted') || error.code === 'ABORT_ERR') {
+        const abortError = new Error(error.message);
+        abortError.name = 'AbortError';
+        throw abortError;
+      }
       throw new Error(`Erreur lors de la récupération des statistiques: ${error.message}`);
     }
 
@@ -249,7 +260,8 @@ export const interventionsStats = {
   async getMarginStatsByUser(
     userId: string,
     startDate?: string,
-    endDate?: string
+    endDate?: string,
+    signal?: AbortSignal
   ): Promise<MarginStats> {
     if (!userId) {
       throw new Error("userId is required");
@@ -281,9 +293,18 @@ export const interventionsStats = {
       query = query.lte("date", endDate);
     }
 
+    if (signal) {
+      query = query.abortSignal(signal);
+    }
+
     const { data, error } = await query;
 
     if (error) {
+      if (error.message?.includes('aborted') || error.code === 'ABORT_ERR') {
+        const abortError = new Error(error.message);
+        abortError.name = 'AbortError';
+        throw abortError;
+      }
       throw new Error(
         `Erreur lors de la récupération des statistiques de marge: ${error.message}`
       );
@@ -409,8 +430,9 @@ export const interventionsStats = {
     }
 
     // Créer un map pour accéder rapidement aux infos utilisateur
-    const usersMap = new Map(
-      (users || []).map((u) => [u.id, u])
+    type UserInfo = { id: string; firstname?: string; lastname?: string; code_gestionnaire?: string; color?: string; avatar_url?: string | null };
+    const usersMap = new Map<string, UserInfo>(
+      (users || []).map((u: any) => [u.id, u as UserInfo])
     );
 
     // Mapper les résultats SQL avec les informations utilisateur
@@ -518,8 +540,9 @@ export const interventionsStats = {
     }
 
     // Créer un map pour accéder rapidement aux infos utilisateur
-    const usersMap = new Map(
-      (users || []).map((u) => [u.id, u])
+    type UserInfo = { id: string; firstname?: string; lastname?: string; code_gestionnaire?: string; color?: string; avatar_url?: string | null };
+    const usersMap = new Map<string, UserInfo>(
+      (users || []).map((u: any) => [u.id, u as UserInfo])
     );
 
     // Mapper les résultats SQL avec les informations utilisateur
@@ -563,7 +586,8 @@ export const interventionsStats = {
    */
   async getWeeklyStatsByUser(
     userId: string,
-    weekStartDate?: string
+    weekStartDate?: string,
+    signal?: AbortSignal
   ): Promise<WeeklyStats> {
     if (!userId) {
       throw new Error("userId is required");
@@ -637,7 +661,7 @@ export const interventionsStats = {
     const interFactures = initDayStats();
     const nouveauxArtisans = initDayStats();
 
-    const { data: transitions, error: transitionsError } = await supabase
+    let query = supabase
       .from("intervention_status_transitions")
       .select(`
         id,
@@ -651,7 +675,18 @@ export const interventionsStats = {
       .gte("transition_date", mondayStr)
       .lt("transition_date", nextMondayStr);
 
+    if (signal) {
+      query = query.abortSignal(signal);
+    }
+
+    const { data: transitions, error: transitionsError } = await query;
+
     if (transitionsError) {
+      if (transitionsError.message?.includes('aborted') || transitionsError.code === 'ABORT_ERR') {
+        const abortError = new Error(transitionsError.message);
+        abortError.name = 'AbortError';
+        throw abortError;
+      }
       throw new Error(`Erreur lors de la récupération des transitions de statut: ${transitionsError.message}`);
     }
 
@@ -805,7 +840,8 @@ export const interventionsStats = {
   async getPeriodStatsByUser(
     userId: string,
     period: StatsPeriod,
-    startDate?: string
+    startDate?: string,
+    signal?: AbortSignal
   ): Promise<WeeklyStats | MonthlyStats | YearlyStats> {
     if (!userId) {
       throw new Error("userId is required");
@@ -819,7 +855,7 @@ export const interventionsStats = {
     };
 
     if (period === "week") {
-      return interventionsStats.getWeeklyStatsByUser(userId, startDate);
+      return interventionsStats.getWeeklyStatsByUser(userId, startDate, signal);
     }
 
     if (period === "month") {
@@ -1311,7 +1347,8 @@ export const interventionsStats = {
     statusLabel: string,
     limit: number = 5,
     startDate?: string,
-    endDate?: string
+    endDate?: string,
+    signal?: AbortSignal
   ): Promise<Array<{
     id: string;
     id_inter: string | null;
@@ -1382,9 +1419,18 @@ export const interventionsStats = {
       .order("date", { ascending: false })
       .limit(100); // Récupérer plus pour filtrer côté client si nécessaire
 
+    if (signal) {
+      query = query.abortSignal(signal);
+    }
+
     const { data, error } = await query;
 
     if (error) {
+      if (error.message?.includes('aborted') || error.code === 'ABORT_ERR') {
+        const abortError = new Error(error.message);
+        abortError.name = 'AbortError';
+        throw abortError;
+      }
       throw new Error(`Erreur lors de la récupération des interventions: ${error.message}`);
     }
 
@@ -1591,7 +1637,7 @@ export const interventionsStats = {
       .from('intervention_statuses')
       .select('id, code, label');
 
-    const statusMapByCode = new Map(statuses?.map((s) => [s.code, s]) || []);
+    const statusMapByCode = new Map(statuses?.map((s: any) => [s.code, s]) || []);
 
     // ========================================
     // 2. STATISTIQUES DES STATUTS (V3)

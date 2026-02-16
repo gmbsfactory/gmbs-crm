@@ -34,6 +34,16 @@ Conception technique du systeme, flux de donnees et patterns architecturaux.
 
 ---
 
+### Authentification
+
+Documentation de la migration et du systeme d'authentification.
+
+| Page | Description |
+|------|-------------|
+| [Migration SSR](authentification/supabase_ssr_migration.md) | Plan de migration de cookies custom vers @supabase/ssr (sessions cookie) |
+
+---
+
 ### Guides
 
 Guides pratiques pour les cas d'usage courants du developpement.
@@ -62,7 +72,7 @@ Reference technique des modules API, hooks et Edge Functions.
 | [Documents API](api-reference/documents.md) | Upload, stockage Supabase Storage, types supportes |
 | [Settings API](api-reference/settings.md) | Agencies, enums, metiers, roles |
 | [Query Keys Reference](api-reference/query-keys.md) | Reference complete des query keys TanStack Query |
-| [Edge Functions](api-reference/edge-functions.md) | 11 fonctions Deno, patterns, CORS, logging |
+| [Edge Functions](api-reference/edge-functions.md) | 13+ fonctions Deno, patterns, CORS, auth, logging |
 
 ---
 
@@ -86,7 +96,7 @@ Schema, migrations et modele de donnees.
 | Page | Description |
 |------|-------------|
 | [Schema de la base](database/schema.md) | Tables, relations, types, contraintes, diagramme ER |
-| [Migrations](database/migrations.md) | 82+ migrations SQL, conventions, bonnes pratiques |
+| [Migrations](database/migrations.md) | 85 migrations SQL, conventions, bonnes pratiques |
 | [Politiques RLS](database/rls-policies.md) | Row Level Security, policies par table |
 
 ---

@@ -1,0 +1,378 @@
+@startuml Architecture_Modal_Submission
+
+title Diagnostic : Délai de fermeture du Modal d'édition d'intervention
+caption Analyse de la chaîne d'appels bloquants dans executeSubmit()
+
+skinparam backgroundColor #FEFEFE
+skinparam sequenceArrowThickness 2
+skinparam sequenceParticipantBorderColor #333
+skinparam noteBorderColor #666
+skinparam noteBackgroundColor #FFFDE7
+
+' ============================================================
+' PARTICIPANTS
+' ============================================================
+
+actor "Utilisateur\n(local)" as User
+participant "InterventionEditForm\n(executeSubmit)" as Form #LightBlue
+participant "useInterventionsMutations\n(updateMutation)" as Mutation #LightGreen
+participant "InterventionModalContent\n(handleSuccess)" as Modal #LightCoral
+database "Supabase\n(PostgreSQL)" as DB #LightYellow
+participant "interventionsApi\n(API layer)" as API #Wheat
+participant "TanStack Query\n(QueryClient)" as TQ #Plum
+participant "Supabase Realtime\n(WebSocket)" as RT #Orange
+participant "cache-sync.ts\n(syncCacheWithRealtimeEvent)" as Sync #PaleGreen
+
+actor "Autre utilisateur\n(distant)" as OtherUser
+
+' ============================================================
+' SECTION 1 : FLUX ACTUEL (PROBLÉMATIQUE)
+' ============================================================
+
+== FLUX ACTUEL — Chaîne bloquante séquentielle ==
+
+User -> Form : Clic sur "Enregistrer"
+activate Form #LightBlue
+
+note right of Form
+  **setIsSubmitting(true)**
+  onSubmittingChange(true)
+  Bloque la fermeture du modal
+end note
+
+|||
+
+group #FFE0E0 Phase 1 — Contacts (séquentiel) [~200-600ms]
+  Form -> API : **await** findOrCreateOwner(...)
+  API -> DB : SELECT/INSERT owners
+  DB --> API : owner_id
+  API --> Form : owner_id
+
+  Form -> API : **await** findOrCreateTenant(...)
+  API -> DB : SELECT/INSERT tenants
+  DB --> API : tenant_id
+  API --> Form : tenant_id
+end
+
+|||
+
+group #FFE0E0 Phase 2 — Mutation principale [~500-800ms]
+  Form -> Mutation : **await** updateMutation.mutateAsync({id, data})
+  activate Mutation #LightGreen
+
+  note right of Mutation
+    **onMutate** (optimiste) :
+    - cancelQueries()
+    - setQueriesData (listes + détail)
+    → Cache local MAJ immédiatement
+  end note
+
+  Mutation -> API : interventionsApi.update(id, data)
+  API -> DB : UPDATE interventions SET ...
+  DB --> API : intervention mise à jour
+
+  note right of DB #Orange
+    **TRIGGER Realtime** :
+    Événement UPDATE envoyé
+    immédiatement au commit
+  end note
+
+  DB -[#Orange]-> RT : Événement UPDATE (WebSocket)
+
+  API --> Mutation : InterventionWithStatus
+
+  note right of Mutation
+    **onSuccess** :
+    - toast.success(...)
+    - recordLocalModification()
+    - invalidateLists() (fire & forget)
+    - invalidateQueries(detail)
+    - invalidateQueries(summaries)
+  end note
+
+  Mutation --> Form : updated (InterventionWithStatus)
+  deactivate Mutation
+end
+
+|||
+
+note over RT, OtherUser #FFEFD5
+  **Pendant ce temps** : les autres utilisateurs
+  reçoivent l'événement Realtime
+end note
+
+RT -[#Orange]-> Sync : payload UPDATE
+activate Sync #PaleGreen
+Sync -> Sync : enrichRealtimeRecord(rawRecord)
+Sync -> TQ : setQueryData (listes + détail)\nupdateInterventionQueries()
+Sync -> TQ : setTimeout(0) → invalidateQueries\n(fire & forget, non-bloquant)
+Sync --> OtherUser : **UI mise à jour < 500ms**
+deactivate Sync
+
+|||
+
+group #FFE0E0 Phase 3 — Coûts (batch + delete) [~300-600ms]
+  Form -> API : **await** upsertCostsBatch(id, allCosts)
+  API -> DB : SELECT existing + UPDATE/INSERT batch
+  DB --> API : ok
+  API --> Form : costsUpdated = true
+
+  alt Pas de 2ème artisan
+    Form -> API : **await** Promise.all([\n  deleteCost(id, "sst", 2),\n  deleteCost(id, "materiel", 2)\n])
+    API -> DB : DELETE costs artisan_order=2
+    DB --> API : ok
+    API --> Form : ok
+  end
+end
+
+|||
+
+group #FFE0E0 Phase 4 — Acomptes (séquentiel) [~200-600ms]
+  Form -> API : **await** upsertPayment(id, {type: 'acompte_sst', ...})
+  API -> DB : SELECT + UPDATE/INSERT payment
+  DB --> API : ok
+  API --> Form : ok
+
+  Form -> API : **await** upsertPayment(id, {type: 'acompte_client', ...})
+  API -> DB : SELECT + UPDATE/INSERT payment
+  DB --> API : ok
+  API --> Form : ok
+end
+
+|||
+
+group #FF8888 Phase 5 — Invalidation cache BLOQUANTE [~200-500ms]
+  note right of Form #FFCCCC
+    **PROBLÈME MAJEUR** :
+    await sur invalidateQueries
+    = attend le refetch complet du dashboard
+  end note
+
+  Form -> TQ : **await** invalidateQueries(\n  {queryKey: ["admin", "dashboard"]})
+  TQ -> DB : Refetch dashboard data
+  DB --> TQ : données dashboard
+  TQ --> Form : ok
+
+  Form -> TQ : **await** invalidateQueries(\n  {queryKey: ["podium"]})
+  TQ -> DB : Refetch podium data
+  DB --> TQ : données podium
+  TQ --> Form : ok
+end
+
+|||
+
+group #FFE0E0 Phase 6 — Artisans (séquentiel) [~200-600ms]
+  alt Changement artisan principal
+    Form -> API : **await** setPrimaryArtisan(id, artisanId)
+    API -> DB : SELECT + UPDATE/INSERT/DELETE
+    DB --> API : ok
+    API --> Form : ok
+  end
+
+  alt Changement artisan secondaire
+    Form -> API : **await** setSecondaryArtisan(id, artisanId)
+    API -> DB : SELECT + UPDATE/INSERT/DELETE
+    DB --> API : ok
+    API --> Form : ok
+  end
+end
+
+|||
+
+group #FF8888 Phase 7 — Refetch complet INUTILE [~500-1000ms]
+  note right of Form #FFCCCC
+    **PROBLÈME MAJEUR** :
+    Refetch complet de l'intervention
+    avec toutes les relations
+    (status, tenants, owner, artisans,
+    costs, payments)
+    → données déjà présentes localement
+  end note
+
+  Form -> API : **await** interventionsApi.getById(id)
+  API -> DB : SELECT * + JOIN status\n+ JOIN tenants + JOIN owners\n+ JOIN artisans + JOIN costs\n+ JOIN payments
+  DB --> API : intervention complète
+  API --> Form : payload (InterventionWithStatus)
+end
+
+|||
+
+group #FFE0E0 Phase 8 — Commentaire optionnel [~200-400ms]
+  alt Raison obligatoire fournie
+    Form -> API : **await** commentsApi.create({...})
+    API -> DB : INSERT comment
+    DB --> API : ok
+    API --> Form : ok
+
+    Form -> TQ : **await** invalidateQueries(\n  {queryKey: ["comments", id]})
+    TQ -> DB : Refetch comments
+    DB --> TQ : ok
+    TQ --> Form : ok
+  end
+end
+
+|||
+
+Form -> Form : setFormData(payload)\nSynchronise les champs
+
+Form -> Modal : **onSuccess(payload)**
+activate Modal #LightCoral
+
+note right of Modal
+  **handleSuccess** :
+  1. setQueryData(detail, data) — optimiste
+  2. setQueriesData(lists) — optimiste
+  3. invalidateQueries(active) — fire & forget
+  4. **onClose()** — FERME LE MODAL
+  5. await waitForExit() — animation
+  6. invalidateQueries(inactive)
+end note
+
+Modal -> User : **Modal se ferme ENFIN**
+deactivate Modal
+
+Form -> Form : setIsSubmitting(false)\nonSubmittingChange(false)
+deactivate Form
+
+note over User #FFCCCC
+  **Temps total perçu : 2-8 secondes**
+  L'utilisateur attend que TOUTE la chaîne
+  se termine avant de voir le modal se fermer
+end note
+
+|||
+== ============================================================ ==
+|||
+
+' ============================================================
+' SECTION 2 : FLUX OPTIMISÉ (RECOMMANDÉ)
+' ============================================================
+
+== FLUX RECOMMANDÉ — Fermeture immédiate + opérations en arrière-plan ==
+
+User -> Form : Clic sur "Enregistrer"
+activate Form #LightBlue
+
+group #E0FFE0 Phase 1 — Contacts parallélisés [~200-400ms]
+  Form -> API : **await** Promise.all([\n  findOrCreateOwner(...),\n  findOrCreateTenant(...)\n])
+  API -> DB : SELECT/INSERT (parallèle)
+  DB --> API : owner_id + tenant_id
+  API --> Form : {owner_id, tenant_id}
+end
+
+|||
+
+group #E0FFE0 Phase 2 — Mutation principale [~500-800ms]
+  Form -> Mutation : **await** updateMutation.mutateAsync({id, data})
+  activate Mutation #LightGreen
+
+  Mutation -> API : interventionsApi.update(id, data)
+  API -> DB : UPDATE interventions SET ...
+  DB --> API : intervention mise à jour
+  API --> Mutation : InterventionWithStatus
+
+  Mutation --> Form : updated
+  deactivate Mutation
+end
+
+|||
+
+note over Form, Modal #E8F5E9
+  **POINT CLEF** : Fermer le modal ICI
+  La mutation principale a réussi
+  → l'utilisateur peut continuer
+end note
+
+Form -> Modal : **onSuccess(updated)**
+activate Modal #LightCoral
+Modal -> User : **Modal se ferme immédiatement**
+deactivate Modal
+
+note over User #E8F5E9
+  **Temps perçu : < 1 seconde**
+  L'utilisateur peut travailler immédiatement
+end note
+
+|||
+
+group #E0F0FF Arrière-plan — Opérations secondaires (Promise.all, fire & forget)
+
+  note right of Form
+    Toutes les opérations restantes
+    s'exécutent en **arrière-plan**
+    sans bloquer l'UI
+  end note
+
+  Form ->> API : upsertCostsBatch(id, allCosts)
+  Form ->> API : upsertPayment(id, acompte_sst)
+  Form ->> API : upsertPayment(id, acompte_client)
+  Form ->> API : setPrimaryArtisan(id, artisanId)
+  Form ->> API : setSecondaryArtisan(id, artisanId)
+  Form ->> API : commentsApi.create({...})
+
+  note right of Form
+    Pas de **await** sur invalidateQueries :
+    fire & forget
+  end note
+
+  Form ->> TQ : invalidateQueries(["admin", "dashboard"])
+  Form ->> TQ : invalidateQueries(["podium"])
+  Form ->> TQ : invalidateQueries(["comments", id])
+
+  note right of Form #E8F5E9
+    **Supprimé** :
+    ~~interventionsApi.getById(id)~~
+    Le résultat de la mutation
+    est déjà suffisant
+  end note
+end
+
+deactivate Form
+
+|||
+== ============================================================ ==
+|||
+
+' ============================================================
+' SECTION 3 : COMPARAISON CÔTÉ SYSTÈME REALTIME
+' ============================================================
+
+== SYSTÈME REALTIME — Déjà optimisé (référence) ==
+
+note over RT, Sync #FFEFD5
+  Le système Realtime dans cache-sync.ts
+  applique déjà les bonnes pratiques :
+end note
+
+RT -> Sync : payload UPDATE (via WebSocket)
+activate Sync #PaleGreen
+
+Sync -> Sync : enrichRealtimeRecord()
+note right of Sync #E8F5E9
+  ✅ Mise à jour optimiste immédiate
+  via setQueryData() — synchrone
+end note
+
+Sync -> TQ : updateInterventionQueries()\n→ setQueryData pour chaque liste
+
+note right of Sync #E8F5E9
+  ✅ Invalidation non-bloquante
+  via setTimeout(0) — fire & forget
+end note
+
+Sync ->> TQ : setTimeout(0) →\ninvalidateQueries(active)
+
+note right of Sync #E8F5E9
+  ✅ Pas de refetch complet
+  Les données Realtime sont suffisantes
+end note
+
+Sync -> TQ : setQueryData(detail, enriched)
+Sync ->> TQ : debouncedRefreshCounts()
+Sync ->> RT : broadcastSync aux autres onglets
+
+deactivate Sync
+
+OtherUser -> OtherUser : UI mise à jour en < 500ms
+
+@enduml

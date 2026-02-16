@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server'
-import { createServerSupabase, createServerSupabaseAdmin, bearerFrom } from '@/lib/supabase/server'
+import { createSSRServerClient } from '@/lib/supabase/server-ssr'
+import { createServerSupabaseAdmin } from '@/lib/supabase/server'
 import { encryptPassword, decryptPassword } from '@/lib/utils/encryption'
 import { validateGmailEmail } from '@/lib/services/email-service'
-import { cookies } from 'next/headers'
 
 export const runtime = 'nodejs'
 
@@ -36,20 +36,11 @@ async function isAdmin(userId: string): Promise<boolean> {
  * Retrieves the lateness email configuration.
  * Admin only.
  */
-export async function GET(req: Request) {
+export async function GET() {
+  console.log('[lateness-email] GET request received')
   try {
-    // Get authentication token
-    let token = bearerFrom(req)
-    if (!token) {
-      const cookieStore = await cookies()
-      token = cookieStore.get('sb-access-token')?.value || null
-    }
-
-    if (!token) {
-      return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
-    }
-
-    const supabase = createServerSupabase(token)
+    // @supabase/ssr lit automatiquement les cookies de session
+    const supabase = await createSSRServerClient()
 
     // Get authenticated user
     const { data: authUser, error: authError } = await supabase.auth.getUser()
@@ -149,18 +140,8 @@ export async function GET(req: Request) {
  */
 export async function PATCH(req: Request) {
   try {
-    // Get authentication token
-    let token = bearerFrom(req)
-    if (!token) {
-      const cookieStore = await cookies()
-      token = cookieStore.get('sb-access-token')?.value || null
-    }
-
-    if (!token) {
-      return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
-    }
-
-    const supabase = createServerSupabase(token)
+    // @supabase/ssr lit automatiquement les cookies de session
+    const supabase = await createSSRServerClient()
 
     // Get authenticated user
     const { data: authUser, error: authError } = await supabase.auth.getUser()
@@ -319,20 +300,10 @@ export async function PATCH(req: Request) {
  * Sends a test email to verify the configuration works.
  * Admin only.
  */
-export async function POST(req: Request) {
+export async function POST() {
   try {
-    // Get authentication token
-    let token = bearerFrom(req)
-    if (!token) {
-      const cookieStore = await cookies()
-      token = cookieStore.get('sb-access-token')?.value || null
-    }
-
-    if (!token) {
-      return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
-    }
-
-    const supabase = createServerSupabase(token)
+    // @supabase/ssr lit automatiquement les cookies de session
+    const supabase = await createSSRServerClient()
 
     // Get authenticated user
     const { data: authUser, error: authError } = await supabase.auth.getUser()

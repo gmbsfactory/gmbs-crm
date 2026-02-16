@@ -1,41 +1,38 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
+import { updateSession } from '@/lib/supabase/middleware'
 
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl
-  const accessToken = req.cookies.get('sb-access-token')?.value || ''
+
+  // Rafraîchir la session (token JWT) à chaque requête via @supabase/ssr
+  const { user, supabaseResponse } = await updateSession(req)
+
+  // Ajouter le pathname aux headers pour le layout
+  supabaseResponse.headers.set('x-pathname', pathname)
 
   // Root redirect
   if (pathname === '/') {
     const url = req.nextUrl.clone()
-    url.pathname = accessToken ? '/dashboard' : '/login'
+    url.pathname = user ? '/dashboard' : '/login'
     return NextResponse.redirect(url)
   }
-
-  // Ajouter le pathname aux headers pour le layout
-  const response = NextResponse.next()
-  response.headers.set('x-pathname', pathname)
 
   // Pages publiques - pas de vérification nécessaire
   const publicPaths = ['/login', '/landingpage', '/set-password', '/auth/callback', '/portail']
   if (publicPaths.some(path => pathname.startsWith(path))) {
-    return response
+    return supabaseResponse
   }
 
-  // Si pas de token, rediriger vers login
-  // IMPORTANT: Ne pas rediriger si on est déjà sur /login pour éviter les boucles
-  if (!accessToken && pathname !== '/login') {
+  // Si pas d'utilisateur authentifié, rediriger vers login
+  if (!user && pathname !== '/login') {
     const loginUrl = req.nextUrl.clone()
     loginUrl.pathname = '/login'
     loginUrl.searchParams.set('redirect', pathname)
     return NextResponse.redirect(loginUrl)
   }
 
-  // Le middleware vérifie uniquement la présence du token
-  // La vérification de l'existence de l'utilisateur et des gestionnaires
-  // est gérée par AuthGuard côté client pour éviter les problèmes de timing
-  // et permettre une meilleure gestion des erreurs
-  return response
+  return supabaseResponse
 }
 
 // Exclude static assets, images, favicon, and public auth endpoints; allow /login and /landingpage

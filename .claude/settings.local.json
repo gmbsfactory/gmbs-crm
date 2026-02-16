@@ -10,7 +10,10 @@
       "Bash(find:*)",
       "Bash(npm run dev:*)",
       "Bash(dir:*)",
-      "Bash(findstr:*)"
+      "Bash(findstr:*)",
+      "Bash(docker exec:*)",
+      "Bash(npx tsc:*)",
+      "Bash(npx vitest run:*)"
     ],
     "deny": [],
     "ask": []

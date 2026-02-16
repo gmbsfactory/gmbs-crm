@@ -1,4 +1,4 @@
-/usr/bin/env node
+
 
 /**
  * Script pour recalculer les statuts des artisans selon les règles définies

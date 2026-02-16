@@ -4,7 +4,7 @@ const nextConfig = {
     styledComponents: true,
     // 🚀 OPTIMISATION: Supprimer tous les console.log en production
     // Garde uniquement console.error et console.warn pour le debugging
-    removeConsole: process.env.NODE_ENV === 'production' 
+    removeConsole: process.env.NODE_ENV === 'production'
       ? { exclude: ['error', 'warn'] }
       : false,
   },

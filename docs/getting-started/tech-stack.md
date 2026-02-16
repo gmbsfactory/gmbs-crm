@@ -23,9 +23,10 @@ Next.js fournit en un seul framework : le routing (App Router), le SSR, les API 
 
 | Technologie | Version | Role |
 |-------------|---------|------|
-| **Supabase JS** | 2.58.0 | Client principal pour interagir avec Supabase (Auth, Database, Realtime, Storage). Utilise en browser et en Node.js. |
+| **Supabase JS** | 2.95.3 | Client principal pour interagir avec Supabase (Auth, Database, Realtime, Storage). Utilise en browser et en Node.js. |
+| **@supabase/ssr** | 0.8.0 | Gestion des sessions via cookies HTTP. Remplace le stockage localStorage par des cookies cote serveur (middleware, server components, browser). Rafraichissement automatique du JWT dans le middleware Next.js. |
 | **Supabase CLI** | 2.40.7 | Outil CLI pour le developpement local, les migrations, le deploiement des Edge Functions, et la generation de types. |
-| **PostgreSQL** | via Supabase | Base de donnees relationnelle avec RLS (Row Level Security). 82 migrations SQL. |
+| **PostgreSQL** | via Supabase | Base de donnees relationnelle avec RLS (Row Level Security). 85 migrations SQL. |
 | **Edge Functions** | Deno | 13+ fonctions serverless deployees sur Supabase. CRUD complet, sync Google Sheets, gestion de presence. |
 
 ### Pourquoi Supabase ?

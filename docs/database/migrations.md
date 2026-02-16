@@ -8,7 +8,7 @@
 
 Le projet utilise le système de migrations de **Supabase CLI**. Les fichiers SQL se trouvent dans `supabase/migrations/` et sont exécutés séquentiellement par ordre de nom de fichier.
 
-**Total actuel : 82 migrations** (00001 a 00082, avec quelques numéros manquants).
+**Total actuel : 86 migrations** (00001 a 00086, avec quelques numéros manquants).
 
 ---
 
@@ -174,6 +174,24 @@ Les migrations sont appliquées automatiquement lors du déploiement via Supabas
 ### Features métier (00024-00082)
 
 Ajouts progressifs de fonctionnalités : champs artisan, audit, sous-statuts, comptabilité, etc.
+
+### Realtime et performance (00083-00085)
+
+| Migration | Description |
+|-----------|-------------|
+| `00083_fix_artisan_status_protected_list.sql` | Correction de la liste des statuts proteges artisan |
+| `00084_enable_interventions_realtime.sql` | Activation du Realtime Supabase sur la table interventions |
+| `00085_enable_artisans_realtime.sql` | Activation du Realtime Supabase sur la table artisans |
+
+> Les migrations 00084 et 00085 activent la publication Realtime PostgreSQL sur les tables interventions et artisans, permettant au systeme de synchronisation temps reel (cache-sync) de recevoir des evenements `INSERT`, `UPDATE` et `DELETE` via Supabase Realtime.
+
+### Fix data integrity (00086)
+
+| Migration | Description |
+|-----------|-------------|
+| `00086_fix_intervention_costs_duplicates.sql` | Correction des doublons dans `intervention_costs` + contrainte UNIQUE |
+
+> La migration 00086 corrige un bug ou `addCost()` utilisait `artisan_order=1` par defaut pour tous les types de couts, tandis que `upsertCostsBatch()` utilisait `artisan_order=NULL` pour les types `intervention` et `marge`. Ce mismatch creait des doublons silencieux qui faussaient les totaux dans `intervention_costs_cache` (SUM incluant les doublons). La migration normalise `artisan_order` a NULL pour les types `intervention`/`marge`, supprime les doublons (garde la ligne la plus recente), ajoute une contrainte UNIQUE `(intervention_id, cost_type, COALESCE(artisan_order, 0))`, et recalcule le cache.
 
 ---
 

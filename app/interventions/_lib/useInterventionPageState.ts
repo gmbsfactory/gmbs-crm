@@ -445,7 +445,7 @@ export function useInterventionPageState(): UseInterventionPageStateReturn {
         isCheck,
       } as NormalizedIntervention
     })
-  }, [fetchedInterventions, page, currentPage])
+  }, [fetchedInterventions])
 
   const loading = remoteLoading || (isViewChanging && normalizedInterventions.length > 0)
   const error = remoteError ?? statusError

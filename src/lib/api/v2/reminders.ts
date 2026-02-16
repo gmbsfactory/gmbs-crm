@@ -37,7 +37,7 @@ async function enrichMentionedUsers(reminders: ReminderRow[]): Promise<Intervent
 
   if (error) throw error;
 
-  const usersById = new Map(users?.map((user) => [user.id, user]));
+  const usersById = new Map(users?.map((user: { id: string; [key: string]: unknown }) => [user.id, user]));
 
   return reminders.map((reminder) => {
     const ids = reminder.mentioned_user_ids ?? [];

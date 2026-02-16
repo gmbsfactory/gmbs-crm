@@ -77,7 +77,7 @@ Fonctionnalités :
 
 ### InterventionEditForm.tsx
 
-Formulaire d'edition inline, utilise dans la modal d'intervention pour modifier les champs directement.
+Formulaire d'edition inline, utilise dans la modal d'intervention pour modifier les champs directement. Integre le tracking de presence au niveau des champs via `FieldPresenceContext` et `useFieldPresenceDelegation` — les autres utilisateurs voient en temps reel quel champ est en cours d'edition.
 
 **Pattern de sauvegarde (fire-and-forget avec toast) :**
 
@@ -211,6 +211,35 @@ Dialogue d'alerte affiché lors de la détection d'un doublon (même adresse + m
 ### UnsavedChangesDialog.tsx
 
 Dialogue de confirmation affiché quand l'utilisateur tente de quitter un formulaire avec des modifications non sauvegardées.
+
+---
+
+## Presence en temps reel (modal)
+
+Composants d'indicateurs de presence collaborative, affichant qui consulte ou edite la meme intervention.
+
+### PresenceAvatars.tsx
+
+> Source: `src/components/ui/intervention-modal/PresenceAvatars.tsx`
+
+Affiche les avatars des utilisateurs qui consultent actuellement la meme intervention dans le header du modal. Utilise le hook `useInterventionPresence` pour s'abonner au canal Supabase Presence `presence:intervention-{id}`.
+
+### PresenceFieldIndicator.tsx
+
+> Source: `src/components/ui/intervention-modal/PresenceFieldIndicator.tsx`
+
+Indicateur visuel au niveau d'un champ de formulaire, montrant qu'un autre utilisateur est en train d'editer ce champ specifique. Utilise le `FieldPresenceContext` et le hook `useFieldPresenceDelegation`.
+
+### Hooks de Presence
+
+| Hook | Fichier | Role |
+|------|---------|------|
+| `useInterventionPresence` | `src/hooks/useInterventionPresence.ts` | Gestion canal Presence (subscribe/track/untrack), deduplication multi-onglets |
+| `useFieldPresenceDelegation` | `src/hooks/useFieldPresenceDelegation.ts` | Tracking de focus sur les champs du formulaire, whitelist de champs (`TRACKED_FIELD_IDS`) |
+
+### Context
+
+Le `FieldPresenceContext` (`src/contexts/FieldPresenceContext.tsx`) fournit les informations de presence au niveau des champs aux composants enfants du modal.
 
 ---
 

@@ -127,16 +127,27 @@ src/
 │   ├── admin-dashboard/        # Dashboard admin (KPIs, charts, tables)
 │   ├── admin-analytics/        # Analytics (cartes, grilles KPI)
 │   ├── dashboard/              # Dashboard utilisateur
+│   ├── debug/                  # Dashboard developpeur (Alt+R)
+│   │   ├── DeveloperDashboard.tsx
+│   │   ├── DeveloperDashboardLoader.tsx
+│   │   └── panels/            # Panneaux (Realtime, Performance, Network, Auth, Config)
 │   ├── maps/                   # Carte MapLibre GL
 │   ├── virtual-components/     # Virtualisation (VirtualTable, VirtualList)
 │   ├── search/                 # Recherche universelle
 │   ├── documents/              # Gestion de documents
 │   └── auth/                   # PermissionGate
 │
-├── hooks/                      # 67 hooks custom
+├── hooks/                      # 75+ hooks custom
 │   ├── useInterventionsQuery.ts    # Fetching interventions pagine
 │   ├── useInterventionsMutations.ts # CRUD optimiste
-│   ├── useInterventionsRealtime.ts # Sync temps reel
+│   ├── useCrmRealtime.ts          # Sync temps reel (leader election + event router)
+│   ├── useInterventionPresence.ts  # Presence collaborative (qui consulte l'intervention)
+│   ├── useFieldPresenceDelegation.ts # Tracking focus champs formulaire
+│   ├── useModalFreshness.ts       # Polling T2 conditionnel (modal-scoped)
+│   ├── useDashboardFreshness.ts   # Options T3 pre-configurees (dashboard)
+│   ├── useComptabiliteQuery.ts    # Fetching comptabilite paginee
+│   ├── useRealtimeStats.ts        # Stats debug Realtime
+│   ├── useDeveloperDashboard.ts   # Toggle dashboard dev (Alt+R)
 │   ├── useCurrentUser.ts          # Utilisateur authentifie
 │   ├── usePermissions.ts          # Verification des permissions
 │   ├── useInterventionViews.ts    # Gestion des 8 layouts de vues
@@ -159,11 +170,23 @@ src/
 │   │   ├── documentsApi.ts
 │   │   ├── clientsApi.ts
 │   │   └── index.ts            # Facade principale (apiV2)
+│   ├── supabase/               # Clients Supabase SSR (@supabase/ssr)
+│   │   ├── client.ts           # Client navigateur (createBrowserClient, singleton)
+│   │   ├── server-ssr.ts       # Client serveur (Route Handlers, Server Components)
+│   │   └── middleware.ts       # Helper middleware (rafraichissement JWT via getUser)
 │   ├── realtime/               # Synchronisation temps reel
-│   │   ├── realtime-client.ts  # Channel Supabase Realtime
+│   │   ├── realtime-client.ts  # Channel Supabase Realtime (3 tables multiplexees)
 │   │   ├── cache-sync.ts       # Orchestration cache
 │   │   ├── cache-sync/         # Handlers, conflits, enrichissement
-│   │   ├── broadcast-sync.ts   # BroadcastChannel cross-tab
+│   │   ├── event-router/       # Pipeline d'evenements (normalize → route → middleware)
+│   │   │   ├── types.ts        # CrmEvent, SyncContext, SyncMiddleware, STOP
+│   │   │   ├── normalize.ts    # Normalisation payload Supabase → CrmEvent
+│   │   │   ├── router.ts       # Routeur (table → pipeline)
+│   │   │   ├── pipeline.ts     # Executeur pipeline avec support STOP sentinel
+│   │   │   └── middleware/     # Middlewares par table (interventions, artisans, junction, shared)
+│   │   ├── leader-election.ts  # Election leader via Web Locks API (1 WS/navigateur)
+│   │   ├── realtime-relay.ts   # Relay BroadcastChannel leader→followers
+│   │   ├── broadcast-sync.ts   # BroadcastChannel cross-tab (fallback)
 │   │   └── sync-queue.ts       # File offline avec retry
 │   ├── workflow/               # Moteur de workflow
 │   │   └── cumulative-validation.ts
@@ -178,10 +201,12 @@ src/
 │   ├── workflow-rules.ts       # 30 transitions autorisees
 │   ├── intervention-status-chains.ts # Chaines de statuts
 │   ├── status-colors.ts        # Couleurs par statut
+│   ├── freshness-tiers.ts      # 4 niveaux de fraicheur T1-T4 (Realtime/polling/on-demand)
 │   ├── navigation.ts           # Configuration de la navigation
 │   └── domain.ts               # Constantes metier
 │
-├── contexts/                   # 9 React Contexts
+├── contexts/                   # 10 React Contexts
+│   ├── FieldPresenceContext.tsx # Presence au niveau des champs formulaire
 │   ├── FilterMappersContext.tsx # Traduction Code→ID pour filtres
 │   ├── GenieEffectContext.tsx   # Animation de deplacement d'interventions
 │   ├── interface-context.tsx   # Theme et layout UI
@@ -198,12 +223,13 @@ src/
 ├── stores/                     # Zustand stores
 │   └── settings.ts             # Preferences UI (sidebar, theme)
 │
-├── types/                      # 12 fichiers de types TypeScript
+├── types/                      # 13 fichiers de types TypeScript
 │   ├── interventions.ts        # Schemas Zod + DTOs
 │   ├── intervention-generated.ts # Types generes depuis la DB
 │   ├── intervention-views.ts   # Configuration des vues
 │   ├── intervention-workflow.ts # Machine a etats
 │   ├── property-schema.ts      # 123 proprietes de colonnes
+│   ├── presence.ts             # Types PresenceUser et PresencePayload
 │   └── ...                     # modal, search, artisan, context-menu
 │
 └── utils/                      # Utilitaires generiques
@@ -215,7 +241,7 @@ src/
 
 ```
 supabase/
-├── functions/                  # 13+ Edge Functions (Deno)
+├── functions/                  # 13+ Edge Functions (Deno, deploiees via scripts/deploy-all-functions.js)
 │   ├── interventions-v2/       # CRUD interventions complet
 │   ├── artisans-v2/            # CRUD artisans complet
 │   ├── comments/               # CRUD commentaires
@@ -229,8 +255,8 @@ supabase/
 │   ├── owners/                 # CRUD proprietaires
 │   ├── enums/                  # Gestion des enums
 │   ├── process-avatar/         # Traitement d'avatars
-│   └── _shared/                # Code partage (CORS, etc.)
-├── migrations/                 # 82 migrations SQL
+│   └── _shared/                # Code partage (CORS, auth JWT)
+├── migrations/                 # 85 migrations SQL
 ├── seeds/                      # Donnees initiales (users, metiers, zones, statuts)
 ├── config.toml                 # Configuration Supabase locale
 └── BACKEND_DEPLOYMENT.md       # Guide de deploiement
@@ -250,16 +276,18 @@ tests/
 │       ├── supabase-mock-builder.ts
 │       └── fixtures/
 ├── setup.ts                    # Setup global (fetch, matchMedia, ResizeObserver)
-├── unit/                       # Tests unitaires (~48 fichiers)
+├── unit/                       # Tests unitaires (~60 fichiers)
 │   ├── components/             # Tests composants
 │   ├── config/                 # Tests configuration workflow
 │   ├── dashboard/              # Tests stats dashboard
 │   ├── hooks/                  # Tests hooks custom
-│   └── lib/                    # Tests logique metier (35+ fichiers)
-│       ├── interventions/      # API, CRUD, status
+│   └── lib/                    # Tests logique metier (40+ fichiers)
+│       ├── interventions/      # API, CRUD, status, mappers, post-mutation
 │       ├── workflow/           # Validation cumulative
-│       ├── react-query/        # Query keys
-│       └── realtime/           # Cache sync
+│       ├── react-query/        # Query keys, freshness
+│       ├── realtime/           # Cache sync, leader election, relay, event-router
+│       ├── comptabilite/       # Formatters comptabilite
+│       └── security-headers.test.ts
 ├── integration/                # Tests d'integration
 │   └── realtime-sync.test.ts
 ├── e2e/                        # Tests end-to-end (Playwright)
@@ -269,7 +297,7 @@ tests/
     └── intervention-card.playwright.ts
 ```
 
-Environ 59 fichiers de test, 400+ tests individuels, 10 900 lignes de code test.
+Environ 70+ fichiers de test, 500+ tests individuels.
 
 ---
 
