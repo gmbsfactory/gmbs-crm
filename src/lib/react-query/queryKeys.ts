@@ -572,12 +572,19 @@ export const referenceKeys = {
    * @returns ["references", "metiers"]
    */
   metiers: () => [...referenceKeys.all, "metiers"] as const,
-  
+
+  /**
+   * Préfixe pour les statuts d'artisans
+   *
+   * @returns ["references", "artisan-statuses"]
+   */
+  artisanStatuses: () => [...referenceKeys.all, "artisan-statuses"] as const,
+
   /**
    * Clé pour invalider toutes les queries de données de référence
-   * 
+   *
    * @returns ["references"]
-   * 
+   *
    * @example
    * // Après un import massif de données de référence
    * queryClient.invalidateQueries({ queryKey: referenceKeys.invalidateAll() })

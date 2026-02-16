@@ -1,9 +1,10 @@
 /**
  * Client Realtime multiplexé pour le CRM
- * Configure et gère un channel Supabase Realtime unique écoutant 3 tables :
+ * Configure et gère un channel Supabase Realtime unique écoutant 4 tables :
  * - interventions (filtre is_active=eq.true)
  * - artisans (filtre is_active=eq.true)
  * - intervention_artisans (table de jonction, pas de filtre)
+ * - intervention_reminders (pas de filtre, traité par RemindersContext)
  *
  * Un seul channel = un seul WebSocket = une seule connexion Supabase.
  */
@@ -11,6 +12,7 @@
 import { supabase } from '@/lib/supabase-client'
 import type { RealtimeChannel, RealtimePostgresChangesPayload } from '@supabase/supabase-js'
 import type { Intervention, Artisan } from '@/lib/api/v2/common/types'
+import type { InterventionReminder } from '@/lib/api/v2'
 
 const CHANNEL_NAME = 'crm-sync'
 
@@ -34,11 +36,12 @@ let debugInfo: RealtimeDebugInfo = {
   channelName: CHANNEL_NAME,
   subscriptionTime: null,
   subscriptionPayload: {
-    tables: ['interventions', 'artisans', 'intervention_artisans'],
+    tables: ['interventions', 'artisans', 'intervention_artisans', 'intervention_reminders'],
     filters: {
       interventions: 'is_active=eq.true',
       artisans: 'is_active=eq.true',
       intervention_artisans: 'none',
+      intervention_reminders: 'none',
     },
     events: ['INSERT', 'UPDATE', 'DELETE'],
   },
@@ -85,6 +88,7 @@ export interface RealtimeEventHandlers {
   onInterventionEvent: (payload: RealtimePostgresChangesPayload<Intervention>) => void | Promise<void>
   onArtisanEvent: (payload: RealtimePostgresChangesPayload<Artisan>) => void | Promise<void>
   onJunctionEvent: (payload: RealtimePostgresChangesPayload<InterventionArtisanRow>) => void | Promise<void>
+  onReminderEvent: (payload: RealtimePostgresChangesPayload<InterventionReminder>) => void | Promise<void>
 }
 
 /**
@@ -165,6 +169,25 @@ export function createRealtimeChannel(handlers: RealtimeEventHandlers): Realtime
         }
       }
     )
+    // --- Intervention reminders (pas de filtre, traité par RemindersContext) ---
+    .on(
+      'postgres_changes',
+      {
+        event: '*',
+        schema: 'public',
+        table: 'intervention_reminders',
+      },
+      (payload: any) => {
+        const newRecord = payload.new && 'id' in payload.new ? payload.new : null
+        const oldRecord = payload.old && 'id' in payload.old ? payload.old : null
+        console.log('[Realtime] intervention_reminders:', payload.eventType, newRecord?.intervention_id || oldRecord?.intervention_id)
+        try {
+          handlers.onReminderEvent(payload)
+        } catch (error) {
+          console.error('[Realtime] Erreur traitement reminder:', error)
+        }
+      }
+    )
 
   return channel
 }
@@ -188,6 +211,7 @@ export function createInterventionsChannel(
     onInterventionEvent: onEvent,
     onArtisanEvent: () => {},
     onJunctionEvent: () => {},
+    onReminderEvent: () => {},
   })
 }
 

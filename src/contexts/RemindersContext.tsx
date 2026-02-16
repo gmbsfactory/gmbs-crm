@@ -5,8 +5,8 @@ import { remindersApi } from "@/lib/api/v2/reminders"
 import type { InterventionReminder } from "@/lib/api/v2"
 import { useInterventionModal } from "@/hooks/useInterventionModal"
 import { useCurrentUser } from "@/hooks/useCurrentUser"
-import { supabase } from "@/lib/supabase-client"
 import type { RealtimePostgresChangesPayload } from "@supabase/supabase-js"
+import { onReminderRealtimeEvent } from "@/lib/realtime/reminder-events"
 import { toast } from "sonner"
 
 const normalizeIdentifier = (input: string): string => {
@@ -211,16 +211,13 @@ export function RemindersProvider({ children }: { children: ReactNode }) {
     }
   }, [updateState])
 
-  // Subscription realtime pour mettre à jour automatiquement tous les composants
-  // NOTE: Ce useEffect ne doit PAS avoir de dépendances qui changent fréquemment
-  // pour éviter de recréer la subscription à chaque render
+  // Subscribe to reminder Realtime events routed through the multiplexed crm-sync channel.
+  // Events arrive via the module-level callback registry in reminder-events.ts,
+  // fed by useCrmRealtime (leader path) or the BroadcastChannel relay (follower path).
   useEffect(() => {
     if (typeof window === "undefined") return
 
     let mounted = true
-    let channel: ReturnType<typeof supabase.channel> | null = null
-    let isSubscribed = false // Flag pour éviter les subscriptions multiples
-    let reconnectTimeout: ReturnType<typeof setTimeout> | null = null
 
     const checkIfEventConcernsUser = (
       payload: RealtimePostgresChangesPayload<{
@@ -234,7 +231,6 @@ export function RemindersProvider({ children }: { children: ReactNode }) {
       const publicUserId = currentUserIdRef.current
       if (!publicUserId) return false
 
-      // Vérifier si le nouveau reminder concerne l'utilisateur (via public.users.id)
       if (payload.new && 'user_id' in payload.new) {
         const newUserId = payload.new.user_id
         const newMentionedIds = payload.new.mentioned_user_ids ?? []
@@ -243,7 +239,6 @@ export function RemindersProvider({ children }: { children: ReactNode }) {
         }
       }
 
-      // Vérifier si l'ancien reminder concernait l'utilisateur (pour DELETE ou UPDATE)
       if (payload.old && 'user_id' in payload.old) {
         const oldUserId = payload.old.user_id
         const oldMentionedIds = payload.old.mentioned_user_ids ?? []
@@ -255,186 +250,110 @@ export function RemindersProvider({ children }: { children: ReactNode }) {
       return false
     }
 
-    const bindChannel = () => {
-      // Éviter les subscriptions multiples
-      if (isSubscribed && channel) {
-        return
-      }
-
-      // Nettoyer l'ancien channel s'il existe
-      if (channel) {
-        channel.unsubscribe()
-        channel = null
-      }
-
-      channel = supabase
-        .channel("intervention_reminders_realtime")
-        .on(
-          "postgres_changes",
-          {
-            event: "*",
-            schema: "public",
-            table: "intervention_reminders",
-          },
-          async (payload: RealtimePostgresChangesPayload<{
-            id: string
-            intervention_id: string
-            user_id: string
-            mentioned_user_ids: string[] | null
-            is_active: boolean | null
-            note: string | null
-          }>) => {
-            if (!mounted) return
-
-            const userId = currentUserIdRef.current
-            if (!userId) return
-
-            // Filtrer les événements pour ne traiter que ceux qui concernent l'utilisateur
-            const concernsUser = checkIfEventConcernsUser(payload)
-            if (concernsUser) {
-              const newReminder = payload.new && 'id' in payload.new ? payload.new : null
-
-              // Refresh les reminders en passant le userId connu
-              try {
-                const remote = await remindersApi.getMyReminders(userId)
-                if (mounted) {
-                  setState(() => {
-                    const next: ReminderState = {
-                      reminders: new Set<string>(),
-                      notes: new Map<string, string>(),
-                      mentions: new Map<string, string[]>(),
-                      dueDates: new Map<string, string | null>(),
-                      records: new Map<string, InterventionReminder>(),
-                    }
-
-                    remote.forEach((reminder) => {
-                      const interventionId = reminder.intervention_id
-                      next.reminders.add(interventionId)
-                      if (reminder.note) {
-                        next.notes.set(interventionId, reminder.note)
-                      }
-                      next.mentions.set(interventionId, reminder.mentioned_user_ids ?? [])
-                      next.dueDates.set(interventionId, reminder.due_date ?? null)
-                      next.records.set(interventionId, reminder)
-                    })
-
-                    return next
-                  })
-                }
-              } catch (error) {
-                console.warn("[RemindersContext] Unable to refresh reminders after realtime event", error)
-              }
-
-              // Si c'est un nouveau reminder qui concerne l'utilisateur
-              // et que ce n'est PAS l'utilisateur courant qui l'a créé (pour éviter le double toast)
-              const isCreator = newReminder?.user_id === userId
-
-              // Si on n'est pas le créateur, c'est qu'on a été identifié/mentionné
-              if (!isCreator && newReminder) {
-                const interventionId = newReminder.intervention_id
-                toast("Vous avez été identifié dans un reminder", {
-                  description: newReminder.note || "Aucune description",
-                  duration: Infinity,
-                  closeButton: true,
-                  action: {
-                    label: "Voir",
-                    onClick: () => {
-                      if (interventionId) {
-                        openInterventionModal(interventionId)
-                      }
-                    },
-                  },
-                })
-              }
-            }
-          },
-        )
-        .subscribe((status: string) => {
-          if (status === "SUBSCRIBED") {
-            isSubscribed = true
-          } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") {
-            isSubscribed = false
-            console.warn(`[RemindersContext] Channel error: ${status}, reconnecting in 10s...`)
-
-            // Cleanup l'ancien channel
-            if (channel) {
-              channel.unsubscribe()
-              channel = null
-            }
-
-            // Reconnexion après un délai
-            if (!reconnectTimeout) {
-              reconnectTimeout = setTimeout(() => {
-                reconnectTimeout = null
-                if (mounted && !isSubscribed && currentUserIdRef.current) {
-                  bindChannel()
-                }
-              }, 10000)
-            }
-          }
-        })
-    }
-
-    const ensureSubscription = async () => {
+    // Load initial reminders
+    const loadInitial = async () => {
       const userId = currentUserIdRef.current
-      if (!userId) {
-        // Pas encore de currentUser, attendre le prochain render
-        return
-      }
+      if (!userId) return
 
-      if (mounted) {
-        // Charger les reminders au démarrage si l'utilisateur est déjà connecté
-        try {
-          const remote = await remindersApi.getMyReminders(userId)
-          if (mounted) {
-            setState(() => {
-              const next: ReminderState = {
-                reminders: new Set<string>(),
-                notes: new Map<string, string>(),
-                mentions: new Map<string, string[]>(),
-                dueDates: new Map<string, string | null>(),
-                records: new Map<string, InterventionReminder>(),
+      try {
+        const remote = await remindersApi.getMyReminders(userId)
+        if (mounted) {
+          setState(() => {
+            const next: ReminderState = {
+              reminders: new Set<string>(),
+              notes: new Map<string, string>(),
+              mentions: new Map<string, string[]>(),
+              dueDates: new Map<string, string | null>(),
+              records: new Map<string, InterventionReminder>(),
+            }
+
+            remote.forEach((reminder) => {
+              const interventionId = reminder.intervention_id
+              next.reminders.add(interventionId)
+              if (reminder.note) {
+                next.notes.set(interventionId, reminder.note)
               }
-
-              remote.forEach((reminder) => {
-                const interventionId = reminder.intervention_id
-                next.reminders.add(interventionId)
-                if (reminder.note) {
-                  next.notes.set(interventionId, reminder.note)
-                }
-                next.mentions.set(interventionId, reminder.mentioned_user_ids ?? [])
-                next.dueDates.set(interventionId, reminder.due_date ?? null)
-                next.records.set(interventionId, reminder)
-              })
-
-              return next
+              next.mentions.set(interventionId, reminder.mentioned_user_ids ?? [])
+              next.dueDates.set(interventionId, reminder.due_date ?? null)
+              next.records.set(interventionId, reminder)
             })
-          }
-        } catch (error) {
-          console.warn("[RemindersContext] Unable to load initial reminders", error)
-        }
 
-        // Bind le channel realtime
-        if (!isSubscribed) {
-          bindChannel()
+            return next
+          })
         }
+      } catch (error) {
+        console.warn("[RemindersContext] Unable to load initial reminders", error)
       }
     }
 
-    ensureSubscription()
+    loadInitial()
 
-    // Pas de onAuthStateChange ici — le useEffect dépend de [currentUser?.id]
-    // qui couvre déjà login (undefined → id), logout (id → undefined),
-    // et changement d'utilisateur (id1 → id2). Ajouter un listener
-    // onAuthStateChange causerait une double initialisation via INITIAL_SESSION.
+    // Subscribe to Realtime events via the multiplexed crm-sync channel
+    const unsubscribe = onReminderRealtimeEvent(async (payload) => {
+      if (!mounted) return
+
+      const userId = currentUserIdRef.current
+      if (!userId) return
+
+      const concernsUser = checkIfEventConcernsUser(payload as any)
+      if (!concernsUser) return
+
+      const newReminder = payload.new && 'id' in payload.new ? payload.new : null
+
+      // Refresh reminders from server
+      try {
+        const remote = await remindersApi.getMyReminders(userId)
+        if (mounted) {
+          setState(() => {
+            const next: ReminderState = {
+              reminders: new Set<string>(),
+              notes: new Map<string, string>(),
+              mentions: new Map<string, string[]>(),
+              dueDates: new Map<string, string | null>(),
+              records: new Map<string, InterventionReminder>(),
+            }
+
+            remote.forEach((reminder) => {
+              const interventionId = reminder.intervention_id
+              next.reminders.add(interventionId)
+              if (reminder.note) {
+                next.notes.set(interventionId, reminder.note)
+              }
+              next.mentions.set(interventionId, reminder.mentioned_user_ids ?? [])
+              next.dueDates.set(interventionId, reminder.due_date ?? null)
+              next.records.set(interventionId, reminder)
+            })
+
+            return next
+          })
+        }
+      } catch (error) {
+        console.warn("[RemindersContext] Unable to refresh reminders after realtime event", error)
+      }
+
+      // Toast for mentions (only if user was mentioned by someone else)
+      const isCreator = newReminder?.user_id === userId
+      if (!isCreator && newReminder) {
+        const interventionId = newReminder.intervention_id
+        toast("Vous avez été identifié dans un reminder", {
+          description: newReminder.note || "Aucune description",
+          duration: Infinity,
+          closeButton: true,
+          action: {
+            label: "Voir",
+            onClick: () => {
+              if (interventionId) {
+                openInterventionModal(interventionId)
+              }
+            },
+          },
+        })
+      }
+    })
 
     return () => {
       mounted = false
-      isSubscribed = false
-      if (reconnectTimeout) {
-        clearTimeout(reconnectTimeout)
-      }
-      channel?.unsubscribe()
+      unsubscribe()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentUser?.id]) // Re-init quand le currentUser change (login/logout)

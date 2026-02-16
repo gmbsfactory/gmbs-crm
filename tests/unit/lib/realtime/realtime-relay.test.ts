@@ -69,6 +69,7 @@ describe('createRealtimeRelay', () => {
       onInterventionPayload: vi.fn(),
       onArtisanPayload: vi.fn(),
       onJunctionPayload: vi.fn(),
+      onReminderPayload: vi.fn(),
       onLeaderStatus: vi.fn(),
     }
   }
@@ -176,6 +177,36 @@ describe('createRealtimeRelay', () => {
       expect(followerHandlers.onJunctionPayload).toHaveBeenCalledOnce()
       expect(followerHandlers.onInterventionPayload).not.toHaveBeenCalled()
       expect(followerHandlers.onArtisanPayload).not.toHaveBeenCalled()
+      expect(followerHandlers.onReminderPayload).not.toHaveBeenCalled()
+
+      leader.close()
+      follower.close()
+    })
+
+    it('should relay reminder payloads to the correct handler', () => {
+      const leaderHandlers = createMockHandlers()
+      const followerHandlers = createMockHandlers()
+
+      const leader = createRealtimeRelay(leaderHandlers)!
+      const follower = createRealtimeRelay(followerHandlers)!
+
+      const mockPayload = {
+        eventType: 'INSERT' as const,
+        new: { id: 'rem-1', intervention_id: 'int-1', user_id: 'user-1' },
+        old: {},
+        schema: 'public',
+        table: 'intervention_reminders',
+        commit_timestamp: '2025-02-14T12:00:00Z',
+        errors: null,
+      }
+
+      leader.relayPayload('intervention_reminders', mockPayload as any)
+
+      expect(followerHandlers.onReminderPayload).toHaveBeenCalledOnce()
+      expect(followerHandlers.onReminderPayload).toHaveBeenCalledWith(mockPayload)
+      expect(followerHandlers.onInterventionPayload).not.toHaveBeenCalled()
+      expect(followerHandlers.onArtisanPayload).not.toHaveBeenCalled()
+      expect(followerHandlers.onJunctionPayload).not.toHaveBeenCalled()
 
       leader.close()
       follower.close()
@@ -317,6 +348,7 @@ describe('createRealtimeRelay', () => {
       expect(followerHandlers.onInterventionPayload).not.toHaveBeenCalled()
       expect(followerHandlers.onArtisanPayload).not.toHaveBeenCalled()
       expect(followerHandlers.onJunctionPayload).not.toHaveBeenCalled()
+      expect(followerHandlers.onReminderPayload).not.toHaveBeenCalled()
       expect(followerHandlers.onLeaderStatus).not.toHaveBeenCalled()
 
       leader.close()

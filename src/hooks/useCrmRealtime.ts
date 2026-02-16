@@ -28,6 +28,7 @@ import type { RealtimeRelay } from '@/lib/realtime/realtime-relay'
 import { useCurrentUser } from '@/hooks/useCurrentUser'
 import { interventionKeys, artisanKeys } from '@/lib/react-query/queryKeys'
 import { getRealtimeDebugInfo } from '@/lib/realtime/realtime-client'
+import { emitReminderRealtimeEvent } from '@/lib/realtime/reminder-events'
 
 /**
  * Global Realtime stats for debugging (accessible via window.__REALTIME_STATS)
@@ -35,7 +36,7 @@ import { getRealtimeDebugInfo } from '@/lib/realtime/realtime-client'
 export interface RealtimeStats {
   connectionStatus: ConnectionStatus
   leaderStatus: 'leader' | 'follower' | 'acquiring'
-  eventsReceived: { interventions: number; artisans: number; junctions: number }
+  eventsReceived: { interventions: number; artisans: number; junctions: number; reminders: number }
   lastEventTime: number | null
   lastEventType: string | null
   errorCount: number
@@ -93,7 +94,7 @@ export function useCrmRealtime() {
   const statsRef = useRef<RealtimeStats>({
     connectionStatus: 'connecting',
     leaderStatus: 'acquiring',
-    eventsReceived: { interventions: 0, artisans: 0, junctions: 0 },
+    eventsReceived: { interventions: 0, artisans: 0, junctions: 0, reminders: 0 },
     lastEventTime: null,
     lastEventType: null,
     errorCount: 0,
@@ -161,6 +162,17 @@ export function useCrmRealtime() {
         })
         await routeRealtimeEvent('intervention_artisans', payload, leaderCtx)
         relayRef.current?.relayPayload('intervention_artisans', payload)
+      },
+      onReminderEvent: (payload) => {
+        statsRef.current.eventsReceived.reminders++
+        updateStats({
+          lastEventTime: Date.now(),
+          lastEventType: `reminders:${payload.eventType}`,
+          eventsReceived: { ...statsRef.current.eventsReceived },
+        })
+        // Emit to RemindersContext subscribers (no event-router — reminders have their own logic)
+        emitReminderRealtimeEvent(payload)
+        relayRef.current?.relayPayload('intervention_reminders', payload)
       },
     }
   }, [queryClient, currentUserId, updateStats])
@@ -389,6 +401,8 @@ export function useCrmRealtime() {
         routeRealtimeEvent('artisans', payload, followerCtx),
       onJunctionPayload: (payload) =>
         routeRealtimeEvent('intervention_artisans', payload, followerCtx),
+      onReminderPayload: (payload) =>
+        emitReminderRealtimeEvent(payload),
       onLeaderStatus: (status) => {
         // Follower mirrors the leader's connection status
         if (leaderRef.current?.isLeader) return // Leader ignores its own relayed status
