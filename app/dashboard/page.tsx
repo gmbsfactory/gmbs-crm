@@ -28,8 +28,6 @@ import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
 import { motion } from "framer-motion"
 import { AppleBienvenueEffect } from "@/components/ui/shadcn-io/apple-hello-effect"
-import { PagePresenceProvider, usePagePresenceContext } from "@/contexts/PagePresenceContext"
-import { PagePresenceAvatars } from "@/components/ui/PagePresenceAvatars"
 import { useDashboardStats } from "@/hooks/useDashboardStats"
 import {
   addDays,
@@ -46,13 +44,6 @@ import {
 import { fr } from "date-fns/locale"
 
 // ---------------------------------------------------------------------------
-// Page presence helper (must be rendered inside PagePresenceProvider)
-// ---------------------------------------------------------------------------
-function PagePresenceSection() {
-  const ctx = usePagePresenceContext()
-  if (!ctx) return null
-  return <PagePresenceAvatars viewers={ctx.viewers} />
-}
 
 type PeriodType = "week" | "month" | "year"
 
@@ -467,7 +458,7 @@ export default function DashboardPage() {
   // (voir ligne 98-102) qui utilise React Query pour gérer le cache automatiquement
 
   return (
-    <PagePresenceProvider pageName="dashboard">
+    <>
       {/* Iframe login pour l'animation de transition */}
       {showTransition && (
         <iframe
@@ -609,7 +600,6 @@ export default function DashboardPage() {
                   </Badge>
                 )}
               </div>
-              <PagePresenceSection />
             </div>
 
             {/* Partie centrale : Bienvenue centré absolument */}
@@ -802,6 +792,6 @@ export default function DashboardPage() {
           </div>
         </div>
       </div>
-    </PagePresenceProvider>
+    </>
   )
 }

@@ -18,6 +18,7 @@ import { UserStatusProvider } from "@/contexts/user-status-context"
 import { RemindersProvider } from "@/contexts/RemindersContext"
 import { AuthGuard } from "@/components/layout/auth-guard"
 import { DeveloperDashboardLoader } from "@/components/debug/DeveloperDashboardLoader"
+import { PagePresenceGate } from "@/components/layout/page-presence-gate"
 import StyledComponentsRegistry from "@/lib/styled-components-registry"
 import type { Metadata } from "next"
 import { Inter } from "next/font/google"
@@ -261,6 +262,7 @@ export default async function RootLayout({
                           <ThemeWrapper>
                             <AuthGuard>
                               <SidebarProvider>
+                                <PagePresenceGate>
                                 <div className="flex min-h-screen w-full overflow-hidden flex-col">
                                   <TopbarGate />
                                   <ConditionalPadding>
@@ -277,6 +279,7 @@ export default async function RootLayout({
                                     </main>
                                   </ConditionalPadding>
                                 </div>
+                              </PagePresenceGate>
                               </SidebarProvider>
                               <DeveloperDashboardLoader />
                             </AuthGuard>

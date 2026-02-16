@@ -18,8 +18,6 @@ import { usePermissions } from "@/hooks/usePermissions"
 import { useInterventionModal } from "@/hooks/useInterventionModal"
 import { useComptabiliteQuery } from "@/hooks/useComptabiliteQuery"
 import { cn } from "@/lib/utils"
-import { PagePresenceProvider, usePagePresenceContext } from "@/contexts/PagePresenceContext"
-import { PagePresenceAvatars } from "@/components/ui/PagePresenceAvatars"
 import { ComptabiliteTableRow } from "./_components/ComptabiliteTableRow"
 import {
   formatCurrency,
@@ -31,15 +29,6 @@ import {
   getPaymentInfo,
   getArtisanName,
 } from "@/lib/comptabilite/formatters"
-
-// ---------------------------------------------------------------------------
-// Page presence helper (must be rendered inside PagePresenceProvider)
-// ---------------------------------------------------------------------------
-function PagePresenceSection() {
-  const ctx = usePagePresenceContext()
-  if (!ctx) return null
-  return <PagePresenceAvatars viewers={ctx.viewers} />
-}
 
 type PeriodType = "month" | "year"
 
@@ -369,7 +358,6 @@ export default function ComptabilitePage() {
   }
 
   return (
-    <PagePresenceProvider pageName="comptabilite">
     <div className="flex flex-col h-full p-4 sm:p-6 overflow-hidden gap-3">
       {/* Barre de filtres et actions */}
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-lg border bg-card/50 px-3 py-2.5">
@@ -463,8 +451,6 @@ export default function ComptabilitePage() {
             {totalCount} intervention{totalCount > 1 ? "s" : ""}
           </Badge>
         )}
-
-        <PagePresenceSection />
 
         <div className="flex-1" />
 
@@ -619,6 +605,5 @@ export default function ComptabilitePage() {
         )}
       </div>
     </div>
-    </PagePresenceProvider>
   )
 }

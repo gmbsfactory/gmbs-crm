@@ -5,21 +5,10 @@ import type { ReactElement } from "react"
 import { ArtisanViewTabs } from "@/components/artisans/ArtisanViewTabs"
 import { PageSearchBar } from "@/components/ui/page-search-bar"
 import Loader from "@/components/ui/Loader"
-import { PagePresenceProvider, usePagePresenceContext } from "@/contexts/PagePresenceContext"
-import { PagePresenceAvatars } from "@/components/ui/PagePresenceAvatars"
 import { useArtisanPageState } from "./_lib/useArtisanPageState"
 import { ArtisanTable } from "./_components/ArtisanTable"
 import { ArtisanFilterDropdown } from "./_components/ArtisanFilterDropdown"
 import { ArtisanDeleteDialog } from "./_components/ArtisanDeleteDialog"
-
-// ---------------------------------------------------------------------------
-// Page presence helper (must be rendered inside PagePresenceProvider)
-// ---------------------------------------------------------------------------
-function PagePresenceSection() {
-  const ctx = usePagePresenceContext()
-  if (!ctx) return null
-  return <PagePresenceAvatars viewers={ctx.viewers} />
-}
 
 // ---------------------------------------------------------------------------
 // Page component
@@ -96,26 +85,22 @@ export default function ArtisansPage(): ReactElement {
 
   // --- Main render ---
   return (
-    <PagePresenceProvider pageName="artisans">
     <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
       <div className="flex-1 space-y-0 px-6 pt-4 pb-2 overflow-hidden flex flex-col min-h-0">
         {/* View tabs + filters */}
         {state.isReady && (
           <div className="flex items-center justify-between gap-4 flex-shrink-0">
-            <div className="flex items-end gap-3">
-              <ArtisanViewTabs
-                views={state.views}
-                activeViewId={state.activeViewId}
-                onSelect={state.setActiveView}
-                artisanCounts={{
-                  ...state.viewCounts,
-                  ...(state.activeViewId && state.totalCount !== undefined
-                    ? { [state.activeViewId]: state.totalCount }
-                    : {}),
-                }}
-              />
-              <PagePresenceSection />
-            </div>
+            <ArtisanViewTabs
+              views={state.views}
+              activeViewId={state.activeViewId}
+              onSelect={state.setActiveView}
+              artisanCounts={{
+                ...state.viewCounts,
+                ...(state.activeViewId && state.totalCount !== undefined
+                  ? { [state.activeViewId]: state.totalCount }
+                  : {}),
+              }}
+            />
 
             <div className="flex items-center gap-3">
               {/* Status filter */}
@@ -190,7 +175,6 @@ export default function ArtisansPage(): ReactElement {
         onCancel={state.handleCancelDelete}
       />
     </div>
-    </PagePresenceProvider>
   )
 }
 
