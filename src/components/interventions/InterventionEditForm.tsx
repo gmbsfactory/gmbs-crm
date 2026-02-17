@@ -434,70 +434,56 @@ export const InterventionEditForm = memo(function InterventionEditForm({
     return getDisplayName(displayData, mode)
   }, [refData?.artisanStatuses])
 
-  // Référence pour tracker si l'utilisateur a modifié manuellement le champ id_inter
-  const userEditedIdInterRef = useRef(false)
+  // ---- Synchronisation complète lors d'un changement distant (Realtime) ----
+  // Quand updated_at change, cela signifie qu'un autre utilisateur a modifié l'intervention.
+  // On réinitialise entièrement le formData + artisans sélectionnés depuis les nouvelles données.
+  const lastSyncedUpdatedAtRef = useRef(intervention.updated_at)
 
-  // Réinitialiser le flag quand on change d'intervention
   useEffect(() => {
-    userEditedIdInterRef.current = false
-  }, [intervention.id])
+    // Skip le premier render (déjà initialisé par useState)
+    if (lastSyncedUpdatedAtRef.current === intervention.updated_at) return
 
-  // Synchroniser formData.id_inter avec intervention.id_inter quand il change
-  // (par exemple après une sauvegarde qui génère un nouvel ID)
-  // Ne PAS inclure formData.id_inter dans les dépendances pour éviter la boucle
-  useEffect(() => {
-    // Ne pas écraser si l'utilisateur a explicitement modifié le champ
-    if (userEditedIdInterRef.current) {
-      return
-    }
+    lastSyncedUpdatedAtRef.current = intervention.updated_at
 
-    if (intervention.id_inter) {
-      setFormData((prev) => {
-        const currentIdInter = prev.id_inter?.trim() || ""
-        const isProvisionalId = currentIdInter.length === 0 || currentIdInter.toLowerCase().includes("auto")
+    // Recalculer les données jointes (costs, payments, artisans) depuis l'intervention fraîche
+    const freshCosts = intervention.intervention_costs || []
+    const freshPayments = intervention.intervention_payments || []
+    const freshArtisans = intervention.intervention_artisans || []
+    const freshPrimaryArtisan = freshArtisans.find((a: any) => a.is_primary)?.artisans
+    const freshSecondaryArtisan = freshArtisans.find((a: any) => !a.is_primary)?.artisans
+    const freshSstCost = freshCosts.find((c: any) => c.cost_type === 'sst' && (c.artisan_order === 1 || c.artisan_order === undefined || c.artisan_order === null))
+    const freshMaterielCost = freshCosts.find((c: any) => c.cost_type === 'materiel' && (c.artisan_order === 1 || c.artisan_order === undefined || c.artisan_order === null))
+    const freshInterventionCost = freshCosts.find((c: any) => c.cost_type === 'intervention')
+    const freshSstCostSecondArtisan = freshCosts.find((c: any) => c.cost_type === 'sst' && c.artisan_order === 2)
+    const freshMaterielCostSecondArtisan = freshCosts.find((c: any) => c.cost_type === 'materiel' && c.artisan_order === 2)
+    const freshSstPayment = freshPayments.find((p: any) => p.payment_type === 'acompte_sst')
+    const freshClientPayment = freshPayments.find((p: any) => p.payment_type === 'acompte_client')
 
-        // Ne mettre à jour que si le champ est vide ou contient "AUTO" (ID provisoire)
-        if (isProvisionalId && intervention.id_inter !== currentIdInter) {
-          return {
-            ...prev,
-            id_inter: intervention.id_inter || "",
-          }
-        }
-        return prev
-      })
-    }
-  }, [intervention.id_inter, setFormData])
+    // Reset complet du formData depuis la source de vérité (Supabase)
+    const newFormData = createEditFormData(
+      intervention,
+      freshPrimaryArtisan,
+      freshSecondaryArtisan,
+      {
+        sstCost: freshSstCost,
+        materielCost: freshMaterielCost,
+        interventionCost: freshInterventionCost,
+        sstCostSecondArtisan: freshSstCostSecondArtisan,
+        materielCostSecondArtisan: freshMaterielCostSecondArtisan,
+      },
+      { sstPayment: freshSstPayment, clientPayment: freshClientPayment }
+    )
+    setFormData(newFormData)
 
-  // Synchroniser les champs d'adresse avec intervention quand l'intervention change
-  // (par exemple quand on rouvre le modal avec de nouvelles données)
-  useEffect(() => {
-    setFormData((prev) => {
-      // Ne mettre à jour que si les valeurs ont réellement changé pour éviter les re-renders inutiles
-      const hasAddressChanged =
-        intervention.adresse !== prev.adresse ||
-        intervention.code_postal !== prev.code_postal ||
-        intervention.ville !== prev.ville ||
-        intervention.latitude !== prev.latitude ||
-        intervention.longitude !== prev.longitude ||
-        intervention.adresse_complete !== prev.adresse_complete
+    // Sync artisan selections
+    setSelectedArtisanId(freshPrimaryArtisan?.id ?? null)
+    setSelectedSecondArtisanId(freshSecondaryArtisan?.id ?? null)
 
-      if (hasAddressChanged) {
-        // Synchroniser le champ de recherche d'adresse avec adresse_complete
-        setLocationQuery(intervention.adresse_complete || prev.adresse_complete || "")
+    // Sync location query
+    setLocationQuery(intervention.adresse_complete || intervention.adresse || "")
 
-        return {
-          ...prev,
-          adresse: intervention.adresse || prev.adresse || "",
-          code_postal: intervention.code_postal || prev.code_postal || "",
-          ville: intervention.ville || prev.ville || "",
-          latitude: intervention.latitude ?? prev.latitude ?? 48.8566,
-          longitude: intervention.longitude ?? prev.longitude ?? 2.3522,
-          adresse_complete: intervention.adresse_complete || prev.adresse_complete || "",
-        }
-      }
-      return prev
-    })
-  }, [intervention, setLocationQuery, setFormData])
+    console.debug("[InterventionEditForm] Realtime sync: formData reset from updated_at change", intervention.updated_at)
+  }, [intervention, setFormData, setSelectedArtisanId, setSelectedSecondArtisanId, setLocationQuery])
 
   // Edit-specific: Update refs when artisans change
   useEffect(() => {
@@ -553,11 +539,6 @@ export const InterventionEditForm = memo(function InterventionEditForm({
 
   // Edit-specific: Wrapper for handleInputChange with auto-open collapsible sections
   const handleInputChange = useCallback((field: string, value: any) => {
-    // Track manual id_inter edits
-    if (field === "id_inter") {
-      userEditedIdInterRef.current = true
-    }
-
     // Call the base handler from the hook
     baseHandleInputChange(field as any, value)
 
