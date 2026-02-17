@@ -170,6 +170,12 @@ export function useInterventionPresence(
     scheduleTrack(true) // flush immediately so lock releases fast
   }, [scheduleTrack])
 
+  // ─── Referential stability helpers ──────────────────────────────────────────
+  // Avoids re-renders on every Supabase Presence heartbeat (~30s) when data is unchanged.
+  const prevViewersKeyRef = useRef('')
+  const prevEditorKeyRef = useRef('')
+  const prevLocksKeyRef = useRef('')
+
   // ─── handleSync: reads from refs, zero deps ────────────────────────────────
   const handleSync = useCallback(() => {
     const channel = channelRef.current
@@ -203,7 +209,12 @@ export function useInterventionPresence(
         }
       : null
 
-    setActiveEditor(editorUser)
+    // Only update activeEditor state if it actually changed
+    const editorKey = editorUser ? `${editorUser.userId}:${editorUser.isEditing}` : ''
+    if (editorKey !== prevEditorKeyRef.current) {
+      prevEditorKeyRef.current = editorKey
+      setActiveEditor(editorUser)
+    }
 
     // ─── Auto-promotion: if no editor exists and we haven't claimed yet ──────
     if (!currentEditor && hasResolvedEditingRef.current) {
@@ -261,8 +272,18 @@ export function useInterventionPresence(
       }
     }
 
-    setViewers(sorted)
-    setFieldLockMap(locks)
+    // Only update state when data actually changed — prevents flash on heartbeat syncs
+    const viewersKey = sorted.map((v) => `${v.userId}:${v.activeField ?? ''}:${v.isEditing}`).join('|')
+    if (viewersKey !== prevViewersKeyRef.current) {
+      prevViewersKeyRef.current = viewersKey
+      setViewers(sorted)
+    }
+
+    const locksKey = Object.entries(locks).map(([k, v]) => `${k}:${v.userId}`).join('|')
+    if (locksKey !== prevLocksKeyRef.current) {
+      prevLocksKeyRef.current = locksKey
+      setFieldLockMap(locks)
+    }
   }, [buildPayload]) // buildPayload is stable (no deps)
 
   // ─── Track mounted state for async callbacks ───────────────────────────────
