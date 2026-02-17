@@ -12,7 +12,7 @@ const PAGE_LABELS: Record<string, string> = {
   interventions: "Interventions",
   artisans: "Artisans",
   comptabilite: "Comptabilite",
-  wheretheuser: "Suivi",
+  monitoring: "Suivi",
   settings: "Parametres",
 }
 

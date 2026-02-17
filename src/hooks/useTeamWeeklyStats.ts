@@ -3,6 +3,22 @@
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase-client'
 
+export interface DayPageStat {
+  page: string
+  duration_ms: number
+}
+
+export interface DailyBreakdown {
+  date: string
+  first_seen_at: string
+  screen_time_ms: number
+  created: number
+  completed: number
+  devis: number
+  actions: number
+  pages: DayPageStat[]
+}
+
 export interface TeamMemberWeeklyStat {
   user_id: string
   firstname: string | null
@@ -17,6 +33,7 @@ export interface TeamMemberWeeklyStat {
   interventions_completed: number
   devis_sent: number
   total_actions: number
+  daily_breakdown: DailyBreakdown[]
 }
 
 export function useTeamWeeklyStats(startDate: Date, endDate: Date) {

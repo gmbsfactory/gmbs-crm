@@ -29,7 +29,7 @@ function groupByPage(users: PagePresenceUser[]): Record<string, PagePresenceUser
   return groups
 }
 
-export default function WhereTheUserPage() {
+export default function MonitoringPage() {
   const presence = usePagePresenceContext()
   const { isAdmin, isLoading: isLoadingPerms } = usePermissions()
   const { connectionStatus } = useCrmRealtime()
@@ -86,34 +86,35 @@ export default function WhereTheUserPage() {
   return (
     <div className="flex flex-col gap-5 p-6 max-w-7xl mx-auto">
       {/* ─── Header ────────────────────────────────────────────────────────────── */}
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <div className="flex items-center gap-3">
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10">
-            <Monitor className="h-4.5 w-4.5 text-primary" />
-          </div>
-          <div>
-            <h1 className="text-lg font-bold leading-tight">Suivi en direct</h1>
-            <p className="text-xs text-muted-foreground">Vue temps reel de l&apos;equipe</p>
-          </div>
-          <RealtimeStatusDot status={connectionStatus} />
-        </div>
-        <div className="flex items-center gap-2 rounded-full bg-emerald-500/10 border border-emerald-500/20 px-3 py-1.5">
-          <span className="relative flex h-2.5 w-2.5">
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
-            <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500" />
-          </span>
-          <span className="text-sm font-semibold text-emerald-700 dark:text-emerald-300">
-            {allUsers.length} en ligne
-          </span>
-        </div>
-      </div>
-
-      {/* ─── Tabs ──────────────────────────────────────────────────────────────── */}
       <Tabs defaultValue="today" className="w-full">
-        <TabsList>
-          <TabsTrigger value="today">Aujourd&apos;hui</TabsTrigger>
-          <TabsTrigger value="week">Cette semaine</TabsTrigger>
-        </TabsList>
+        <div className="flex items-center justify-between flex-wrap gap-3">
+          <div className="flex items-center gap-3">
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10">
+              <Monitor className="h-4.5 w-4.5 text-primary" />
+            </div>
+            <div>
+              <h1 className="text-lg font-bold leading-tight">Suivi en direct</h1>
+              <p className="text-xs text-muted-foreground">Vue temps reel de l&apos;equipe</p>
+            </div>
+            <RealtimeStatusDot status={connectionStatus} />
+          </div>
+
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 rounded-full bg-emerald-500/10 border border-emerald-500/20 px-3 py-1.5">
+              <span className="relative flex h-2.5 w-2.5">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+                <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500" />
+              </span>
+              <span className="text-sm font-semibold text-emerald-700 dark:text-emerald-300">
+                {allUsers.length} en ligne
+              </span>
+            </div>
+            <TabsList>
+              <TabsTrigger value="today">Aujourd&apos;hui</TabsTrigger>
+              <TabsTrigger value="week">Cette semaine</TabsTrigger>
+            </TabsList>
+          </div>
+        </div>
 
         <TabsContent value="today" className="mt-4 space-y-5">
           {/* ─── Section 1: Online users as badges ─────────────────────────────── */}
@@ -134,7 +135,7 @@ export default function WhereTheUserPage() {
             </CardContent>
           </Card>
 
-          {/* ─── Section 2: Stats cards with badges ────────────────────────────── */}
+          {/* ─── Section 2: Stats cards — Creees / Devis / Terminees ──────────── */}
           <div className="grid gap-4 sm:grid-cols-3">
             {/* Interventions creees */}
             <Card className="border-l-4 border-l-blue-500">
@@ -158,28 +159,6 @@ export default function WhereTheUserPage() {
               </CardContent>
             </Card>
 
-            {/* Interventions terminees */}
-            <Card className="border-l-4 border-l-emerald-500">
-              <CardHeader className="pb-1 pt-4 px-5">
-                <CardTitle className="flex items-center justify-between text-sm font-medium">
-                  <span className="flex items-center gap-2">
-                    <CheckCircle2 className="h-4 w-4 text-emerald-500" />
-                    Terminees
-                  </span>
-                  <span className="text-xl font-bold text-emerald-600 dark:text-emerald-400">
-                    {totals.completed}
-                  </span>
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="px-5 pb-4 pt-0">
-                <StatBadgeGroup
-                  members={teamOverview ?? []}
-                  statKey="interventions_completed"
-                  emptyLabel="Aucune terminee aujourd'hui"
-                />
-              </CardContent>
-            </Card>
-
             {/* Devis envoyes */}
             <Card className="border-l-4 border-l-violet-500">
               <CardHeader className="pb-1 pt-4 px-5">
@@ -198,6 +177,28 @@ export default function WhereTheUserPage() {
                   members={teamOverview ?? []}
                   statKey="devis_sent"
                   emptyLabel="Aucun devis aujourd'hui"
+                />
+              </CardContent>
+            </Card>
+
+            {/* Interventions terminees */}
+            <Card className="border-l-4 border-l-emerald-500">
+              <CardHeader className="pb-1 pt-4 px-5">
+                <CardTitle className="flex items-center justify-between text-sm font-medium">
+                  <span className="flex items-center gap-2">
+                    <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                    Terminees
+                  </span>
+                  <span className="text-xl font-bold text-emerald-600 dark:text-emerald-400">
+                    {totals.completed}
+                  </span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="px-5 pb-4 pt-0">
+                <StatBadgeGroup
+                  members={teamOverview ?? []}
+                  statKey="interventions_completed"
+                  emptyLabel="Aucune terminee aujourd'hui"
                 />
               </CardContent>
             </Card>
