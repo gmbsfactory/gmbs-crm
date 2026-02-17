@@ -6,13 +6,15 @@ import type { PresenceUser } from '@/types/presence'
 
 interface ReadOnlyBannerProps {
   editor: PresenceUser
+  /** Label of the entity being edited. Defaults to "cette intervention". */
+  entityLabel?: string
 }
 
 /**
- * Banner shown at the top of the intervention modal when another user
+ * Banner shown at the top of a modal when another user
  * is currently editing. Displays the editor's avatar and name.
  */
-export function ReadOnlyBanner({ editor }: ReadOnlyBannerProps) {
+export function ReadOnlyBanner({ editor, entityLabel = 'cette intervention' }: ReadOnlyBannerProps) {
   return (
     <div className="flex items-center gap-2 px-4 py-2 bg-amber-50 dark:bg-amber-950/30 border-b border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-200 text-sm">
       <Lock className="h-3.5 w-3.5 shrink-0" />
@@ -24,7 +26,7 @@ export function ReadOnlyBanner({ editor }: ReadOnlyBannerProps) {
         size="xs"
       />
       <span className="truncate">
-        <strong>{editor.name}</strong> modifie cette intervention
+        <strong>{editor.name}</strong> modifie {entityLabel}
       </span>
     </div>
   )

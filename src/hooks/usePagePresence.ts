@@ -15,6 +15,7 @@ interface PagePresencePayload {
   joinedAt: string
   currentPage: string | null
   activeInterventionId: string | null
+  activeArtisanId: string | null
 }
 
 /** Small async gap allows Supabase internal cleanup from React Strict Mode double-mount */
@@ -50,10 +51,13 @@ export function usePagePresence(
   pageName: string | null
 ): {
   viewers: PagePresenceUser[]
+  allUsers: PagePresenceUser[]
   updateActiveIntervention: (id: string | null) => void
+  updateActiveArtisan: (id: string | null) => void
 } {
   const { data: currentUser } = useCurrentUser()
   const [viewers, setViewers] = useState<PagePresenceUser[]>([])
+  const [allUsers, setAllUsers] = useState<PagePresenceUser[]>([])
   const channelRef = useRef<RealtimeChannel | null>(null)
   const mountedRef = useRef(true)
 
@@ -67,13 +71,15 @@ export function usePagePresence(
     avatar_url?: string | null
   }>({})
 
-  // ─── Page & intervention tracking refs ────────────────────────────────────────
+  // ─── Page & entity tracking refs ──────────────────────────────────────────────
   const pageNameRef = useRef<string | null>(pageName)
   const activeInterventionIdRef = useRef<string | null>(null)
+  const activeArtisanIdRef = useRef<string | null>(null)
   const joinedAtRef = useRef<string>(new Date().toISOString())
 
   // ─── Referential stability for viewers (prevents re-renders on heartbeat) ────
   const prevViewersKeyRef = useRef('')
+  const prevAllUsersKeyRef = useRef('')
 
   // Keep refs in sync on every render — no effect dependency needed
   currentUserIdRef.current = currentUser?.id ?? null
@@ -105,6 +111,7 @@ export function usePagePresence(
       joinedAt: joinedAtRef.current,
       currentPage: pageNameRef.current,
       activeInterventionId: activeInterventionIdRef.current,
+      activeArtisanId: activeArtisanIdRef.current,
     }
   }, [])
 
@@ -119,9 +126,14 @@ export function usePagePresence(
     })
   }, [buildPayload])
 
-  // ─── Public API: updateActiveIntervention ───────────────────────────────────
+  // ─── Public API: updateActiveIntervention / updateActiveArtisan ──────────────
   const updateActiveIntervention = useCallback((id: string | null) => {
     activeInterventionIdRef.current = id
+    doTrack()
+  }, [doTrack])
+
+  const updateActiveArtisan = useCallback((id: string | null) => {
+    activeArtisanIdRef.current = id
     doTrack()
   }, [doTrack])
 
@@ -132,7 +144,37 @@ export function usePagePresence(
     const currentPage = pageNameRef.current
     if (!channel || !userId) return
 
-    // If not on a presence-enabled page, show empty
+    const state = channel.presenceState<PagePresencePayload>()
+    const now = Date.now()
+
+    // Flatten all presence metas
+    const allMetas = Object.values(state).flat()
+
+    // ─── allUsers: ALL connected users (including self), all pages ────────────
+    const allUnique = new Map(allMetas.map((u) => [u.userId, u]))
+    const allSorted: PagePresenceUser[] = Array.from(allUnique.values())
+      .filter((u) => now - new Date(u.joinedAt).getTime() < STALE_MS)
+      .sort((a, b) => a.joinedAt.localeCompare(b.joinedAt))
+      .map((u) => ({
+        userId: u.userId,
+        name: u.name,
+        color: u.color,
+        avatarUrl: u.avatarUrl,
+        joinedAt: u.joinedAt,
+        currentPage: u.currentPage,
+        activeInterventionId: u.activeInterventionId,
+        activeArtisanId: u.activeArtisanId ?? null,
+      }))
+
+    const allUsersKey = allSorted
+      .map((v) => `${v.userId}:${v.currentPage ?? ''}:${v.activeInterventionId ?? ''}:${v.activeArtisanId ?? ''}`)
+      .join('|')
+    if (allUsersKey !== prevAllUsersKeyRef.current) {
+      prevAllUsersKeyRef.current = allUsersKey
+      setAllUsers(allSorted)
+    }
+
+    // ─── viewers: same-page users excluding self ──────────────────────────────
     if (!currentPage) {
       if (prevViewersKeyRef.current !== '') {
         prevViewersKeyRef.current = ''
@@ -141,11 +183,6 @@ export function usePagePresence(
       return
     }
 
-    const state = channel.presenceState<PagePresencePayload>()
-    const now = Date.now()
-
-    // Flatten all presence metas, exclude self, filter by current page
-    const allMetas = Object.values(state).flat()
     const others = allMetas.filter(
       (p) => p.userId !== userId && p.currentPage === currentPage
     )
@@ -163,12 +200,14 @@ export function usePagePresence(
         color: u.color,
         avatarUrl: u.avatarUrl,
         joinedAt: u.joinedAt,
+        currentPage: u.currentPage,
         activeInterventionId: u.activeInterventionId,
+        activeArtisanId: u.activeArtisanId ?? null,
       }))
 
     // Only update state when data actually changed — prevents flash on heartbeat syncs
     const viewersKey = sorted
-      .map((v) => `${v.userId}:${v.activeInterventionId ?? ''}`)
+      .map((v) => `${v.userId}:${v.activeInterventionId ?? ''}:${v.activeArtisanId ?? ''}`)
       .join('|')
     if (viewersKey !== prevViewersKeyRef.current) {
       prevViewersKeyRef.current = viewersKey
@@ -197,6 +236,7 @@ export function usePagePresence(
   useEffect(() => {
     if (!currentUserId) {
       setViewers([])
+      setAllUsers([])
       return
     }
 
@@ -297,6 +337,7 @@ export function usePagePresence(
         supabase.removeChannel(ch)
       }
       setViewers([])
+      setAllUsers([])
     }
   }, [
     currentUserId, // Primitive string — channel lives as long as user is authed
@@ -304,5 +345,5 @@ export function usePagePresence(
     buildPayload,  // Stable — no deps
   ])
 
-  return { viewers, updateActiveIntervention }
+  return { viewers, allUsers, updateActiveIntervention, updateActiveArtisan }
 }
