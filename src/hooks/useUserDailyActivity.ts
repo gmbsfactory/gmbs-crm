@@ -14,13 +14,33 @@ interface ActionStat {
   count: number
 }
 
-interface RecentAction {
+export interface InterventionMeta {
+  id_inter: string | null
+  date: string | null
+  statut_code: string | null
+  statut_label: string | null
+  statut_color: string | null
+}
+
+export interface ArtisanMeta {
+  nom: string | null
+  prenom: string | null
+  raison_sociale: string | null
+  statut_code: string | null
+  statut_label: string | null
+  statut_color: string | null
+}
+
+export interface RecentAction {
   action_type: string
   entity_type: 'intervention' | 'artisan'
   entity_id: string
   entity_label: string | null
+  entity_meta: InterventionMeta | ArtisanMeta | null
   occurred_at: string
   changed_fields: string[] | null
+  old_values: Record<string, unknown> | null
+  new_values: Record<string, unknown> | null
 }
 
 export interface UserDailyActivity {

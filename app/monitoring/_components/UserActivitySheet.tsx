@@ -175,19 +175,22 @@ export function UserActivitySheet({ user, isOnline = true, onClose }: UserActivi
                     </Card>
                   )}
 
-                  {/* Section 3 : Dernieres actions */}
-                  {dailyActivity.recent_actions?.length > 0 && (
-                    <Card>
-                      <CardHeader className="pb-3 pt-4 px-4">
-                        <CardTitle className="text-sm font-medium">
-                          Dernieres actions
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent className="px-2 pb-4 pt-0">
-                        <ActivityTimeline actions={dailyActivity.recent_actions} />
-                      </CardContent>
-                    </Card>
-                  )}
+                  {/* Section 3 : Actions du jour */}
+                  <Card>
+                    <CardHeader className="pb-3 pt-4 px-4">
+                      <CardTitle className="text-sm font-medium">
+                        Actions du jour
+                        {dailyActivity.recent_actions?.length > 0 && (
+                          <span className="ml-2 text-xs font-normal text-muted-foreground">
+                            ({dailyActivity.recent_actions.length})
+                          </span>
+                        )}
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="px-2 pb-4 pt-0">
+                      <ActivityTimeline actions={dailyActivity.recent_actions ?? []} />
+                    </CardContent>
+                  </Card>
                 </>
               )}
             </div>
