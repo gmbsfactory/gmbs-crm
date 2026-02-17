@@ -14,6 +14,7 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { getCorsHeaders } from '../_shared/cors.ts';
+import { getAuthUserId } from '../_shared/auth.ts';
 
 // Types pour la validation
 interface CreateArtisanRequest {
@@ -308,6 +309,7 @@ serve(async (req: Request) => {
       Deno.env.get('SUPABASE_URL')!,
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     );
+    const authUserId = await getAuthUserId(req, supabase);
 
     const url = new URL(req.url);
     const pathSegments = url.pathname.split('/').filter(segment => segment);
@@ -585,7 +587,8 @@ serve(async (req: Request) => {
             intervention_longitude: body.intervention_longitude,
             numero_associe: body.numero_associe,
             suivi_relances_docs: body.suivi_relances_docs,
-            updated_at: new Date().toISOString()
+            updated_at: new Date().toISOString(),
+            ...(authUserId ? { updated_by: authUserId } : {}),
           })
           .eq('id', existingArtisan.id)
           .select()
@@ -681,7 +684,8 @@ serve(async (req: Request) => {
             numero_associe: body.numero_associe,
             suivi_relances_docs: body.suivi_relances_docs,
             is_active: true,
-            date_ajout: new Date().toISOString()
+            date_ajout: new Date().toISOString(),
+            ...(authUserId ? { created_by: authUserId, updated_by: authUserId } : {}),
           }])
           .select()
           .single();
@@ -743,6 +747,7 @@ serve(async (req: Request) => {
               .update({
                 intervention_latitude: geocodeResult.lat,
                 intervention_longitude: geocodeResult.lng,
+                ...(authUserId ? { updated_by: authUserId } : {}),
               })
               .eq('id', artisan.id)
               .select()
@@ -928,7 +933,8 @@ serve(async (req: Request) => {
           numero_associe: body.numero_associe,
           suivi_relances_docs: body.suivi_relances_docs,
           is_active: true,
-          date_ajout: new Date().toISOString()
+          date_ajout: new Date().toISOString(),
+          ...(authUserId ? { created_by: authUserId, updated_by: authUserId } : {}),
         }])
         .select()
         .single();
@@ -990,6 +996,7 @@ serve(async (req: Request) => {
             .update({
               intervention_latitude: geocodeResult.lat,
               intervention_longitude: geocodeResult.lng,
+              ...(authUserId ? { updated_by: authUserId } : {}),
             })
             .eq('id', artisan.id)
             .select()
@@ -1106,7 +1113,8 @@ serve(async (req: Request) => {
           numero_associe: body.numero_associe,
           suivi_relances_docs: body.suivi_relances_docs,
           is_active: body.is_active,
-          updated_at: new Date().toISOString()
+          updated_at: new Date().toISOString(),
+          ...(authUserId ? { updated_by: authUserId } : {}),
         })
         .eq('id', resourceId)
         .select()
@@ -1185,9 +1193,10 @@ serve(async (req: Request) => {
     if (req.method === 'DELETE' && resourceId && resource === 'artisans') {
       const { data, error } = await supabase
         .from('artisans')
-        .update({ 
+        .update({
           is_active: false,
-          updated_at: new Date().toISOString()
+          updated_at: new Date().toISOString(),
+          ...(authUserId ? { updated_by: authUserId } : {}),
         })
         .eq('id', resourceId)
         .select()
@@ -1636,6 +1645,7 @@ serve(async (req: Request) => {
       const updatePayload: Record<string, any> = {
         is_active: true,
         updated_at: new Date().toISOString(),
+        ...(authUserId ? { updated_by: authUserId } : {}),
       };
 
       // Appliquer les nouvelles données si fournies
