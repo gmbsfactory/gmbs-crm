@@ -73,6 +73,7 @@ interface InterventionEditFormProps {
   onEmailModalOpenChange?: (isOpen: boolean) => void
   onStatusReasonModalOpenChange?: (isOpen: boolean) => void
   onPopoverOpenChange?: (isOpen: boolean) => void
+  readOnly?: boolean
 }
 
 export const InterventionEditForm = memo(function InterventionEditForm({
@@ -90,7 +91,8 @@ export const InterventionEditForm = memo(function InterventionEditForm({
   onArtisanSearchOpenChange,
   onEmailModalOpenChange,
   onStatusReasonModalOpenChange,
-  onPopoverOpenChange
+  onPopoverOpenChange,
+  readOnly = false
 }: InterventionEditFormProps) {
   const queryClient = useQueryClient()
   const { update: updateMutation } = useInterventionsMutations()
@@ -1261,6 +1263,9 @@ export const InterventionEditForm = memo(function InterventionEditForm({
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
 
+    // Block submission in read-only mode
+    if (readOnly) return
+
     const form = event.currentTarget
     if (!form.checkValidity()) {
       form.reportValidity()
@@ -1462,13 +1467,13 @@ export const InterventionEditForm = memo(function InterventionEditForm({
   return (
     <>
       <form ref={formRef} onSubmit={handleSubmit} className="flex-1 min-h-0 flex flex-col">
-        {!canEditIntervention && (
+        {!canEditIntervention && !readOnly && (
           <div className="mb-3 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
             Cette intervention est en lecture seule. Permission requise :{" "}
             {isClosedStatus ? "edit_closed_interventions" : "write_interventions"}
           </div>
         )}
-        <fieldset className="flex-1 min-h-0 flex flex-col">
+        <fieldset className={cn("flex-1 min-h-0 flex flex-col", readOnly && "pointer-events-none select-none")} disabled={readOnly}>
           {/* LAYOUT DEUX COLONNES DISTINCTES - Chaque colonne a son propre scroll */}
           <div className="flex gap-3 flex-1 min-h-0">
             {/* COLONNE GAUCHE - Scroll indépendant avec scrollbar minimale à gauche */}

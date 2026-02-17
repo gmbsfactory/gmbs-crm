@@ -37,7 +37,9 @@ import { useInterventionContextMenu } from "@/hooks/useInterventionContextMenu"
 import { useSubmitShortcut } from "@/hooks/useSubmitShortcut"
 import { usePermissions } from "@/hooks/usePermissions"
 import { useInterventionPresence } from "@/hooks/useInterventionPresence"
+import { useCurrentUser } from "@/hooks/useCurrentUser"
 import { PresenceAvatars } from "@/components/ui/intervention-modal/PresenceAvatars"
+import { ReadOnlyBanner } from "@/components/ui/intervention-modal/ReadOnlyBanner"
 import { FieldPresenceProvider } from "@/contexts/FieldPresenceContext"
 import { usePagePresenceContext } from "@/contexts/PagePresenceContext"
 
@@ -135,7 +137,24 @@ export function InterventionModalContent({
   const canDeleteInterventions = can("delete_interventions")
 
   // Présence — qui consulte actuellement cette intervention ?
-  const { viewers, fieldLockMap, trackField, clearField } = useInterventionPresence(interventionId)
+  const { viewers, activeEditor, fieldLockMap, trackField, clearField } = useInterventionPresence(interventionId)
+  const { data: currentUser } = useCurrentUser()
+
+  // Read-only mode: another user is the active editor
+  const isReadOnly = Boolean(activeEditor && currentUser && activeEditor.userId !== currentUser.id)
+
+  // Ref to trigger refetch on promotion — set after query is declared
+  const refetchRef = useRef<(() => void) | null>(null)
+
+  // Auto-refetch when promoted from read-only to editor (previous editor left)
+  const prevReadOnlyRef = useRef(false)
+  useEffect(() => {
+    if (prevReadOnlyRef.current && !isReadOnly) {
+      // Promoted: read-only → editor — refetch to get latest data
+      refetchRef.current?.()
+    }
+    prevReadOnlyRef.current = isReadOnly
+  }, [isReadOnly])
 
   // Page presence — signaler au système de présence de la page que ce modal affiche une intervention
   const pagePresenceCtx = usePagePresenceContext()
@@ -312,6 +331,9 @@ GMBS`
     queryFn: () => interventionsApi.getById(interventionId),
     enabled: Boolean(interventionId),
   })
+
+  // Wire up refetch for promotion effect
+  refetchRef.current = refetch
 
   // Hook pour la suppression et duplication d'intervention
   const { deleteIntervention, duplicateDevisSupp, isLoading: contextMenuLoading } = useInterventionContextMenu(
@@ -768,6 +790,9 @@ GMBS`
         </header>
 
         <div className="modal-config-columns-body overflow-hidden flex flex-col">
+          {isReadOnly && activeEditor && (
+            <ReadOnlyBanner editor={activeEditor} />
+          )}
           <div className={`${bodyPadding} flex-1 min-h-0 flex flex-col`}>
             {isLoading ? (
               <div className="space-y-4">
@@ -788,6 +813,7 @@ GMBS`
                 <InterventionEditForm
                   intervention={intervention}
                   mode={mode}
+                  readOnly={isReadOnly}
                   onSuccess={handleSuccess}
                   onCancel={handleCancel}
                   formRef={formRef}
@@ -813,23 +839,25 @@ GMBS`
 
         <footer className="modal-config-columns-footer flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="modal-config-columns-icon-button"
-                  onClick={handleOpenSmsModal}
-                  disabled={!intervention || !clientName || isSubmitting}
-                >
-                  <MessageSquare className="h-4 w-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                {!clientName ? "Nom du client manquant" : "Générer un message SMS"}
-              </TooltipContent>
-            </Tooltip>
+            {!isReadOnly && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="modal-config-columns-icon-button"
+                    onClick={handleOpenSmsModal}
+                    disabled={!intervention || !clientName || isSubmitting}
+                  >
+                    <MessageSquare className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  {!clientName ? "Nom du client manquant" : "Générer un message SMS"}
+                </TooltipContent>
+              </Tooltip>
+            )}
           </div>
           <div className="flex items-center gap-2">
             <Button
@@ -839,23 +867,25 @@ GMBS`
               disabled={isSubmitting}
               className="legacy-form-button"
             >
-              Annuler
+              {isReadOnly ? "Fermer" : "Annuler"}
             </Button>
-            <Button
-              type="button"
-              onClick={handleSubmit}
-              disabled={isSubmitting || !intervention}
-              className="legacy-form-button bg-accent text-accent-foreground hover:bg-accent/90"
-            >
-              {isSubmitting ? "Enregistrement..." : (
-                <>
-                  Enregistrer les modifications
-                  <kbd className="ml-2 pointer-events-none hidden md:inline-flex h-5 select-none items-center gap-0.5 rounded border border-accent-foreground/30 bg-accent-foreground/10 px-1.5 font-mono text-[10px] font-medium text-accent-foreground/70">
-                    {shortcutHint}
-                  </kbd>
-                </>
-              )}
-            </Button>
+            {!isReadOnly && (
+              <Button
+                type="button"
+                onClick={handleSubmit}
+                disabled={isSubmitting || !intervention}
+                className="legacy-form-button bg-accent text-accent-foreground hover:bg-accent/90"
+              >
+                {isSubmitting ? "Enregistrement..." : (
+                  <>
+                    Enregistrer les modifications
+                    <kbd className="ml-2 pointer-events-none hidden md:inline-flex h-5 select-none items-center gap-0.5 rounded border border-accent-foreground/30 bg-accent-foreground/10 px-1.5 font-mono text-[10px] font-medium text-accent-foreground/70">
+                      {shortcutHint}
+                    </kbd>
+                  </>
+                )}
+              </Button>
+            )}
           </div>
         </footer>
       </div>

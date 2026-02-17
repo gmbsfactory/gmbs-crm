@@ -211,6 +211,8 @@ export function getChangedFields(
     'date',
     'date_prevue',
     'contexte_intervention',
+    'consigne_intervention',
+    'consigne_second_artisan',
     'adresse',
     'ville',
     'code_postal',

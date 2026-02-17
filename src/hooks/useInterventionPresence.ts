@@ -20,7 +20,8 @@ let activePresenceChannels = 0
 
 /**
  * Manages a Supabase Presence channel for real-time viewer tracking
- * on an intervention modal, including field-level soft locking.
+ * on an intervention modal, including field-level soft locking
+ * and exclusive editor lock.
  *
  * Architecture: each tab subscribes independently to 'presence:intervention-{id}'.
  * Completely separate from the crm-sync channel and leader election.
@@ -53,18 +54,25 @@ let activePresenceChannels = 0
  *    batch rapid focus/blur events. handleSync builds a fieldLockMap excluding stale
  *    locks (>5 min) and the current user's own fields.
  *
+ * 5. EXCLUSIVE EDITOR LOCK (Feb 2025) — First user to open the modal becomes the
+ *    editor (isEditing: true). Subsequent users open in read-only mode.
+ *    When the editor leaves, the oldest viewer is promoted to editor automatically.
+ *    The `activeEditor` return value lets the modal show a read-only banner.
+ *
  * @param interventionId - ID of the intervention being viewed. Pass null to disable.
  */
 export function useInterventionPresence(
   interventionId: string | null
 ): {
   viewers: PresenceUser[]
+  activeEditor: PresenceUser | null
   fieldLockMap: FieldLockMap
   trackField: (fieldName: string) => void
   clearField: () => void
 } {
   const { data: currentUser } = useCurrentUser()
   const [viewers, setViewers] = useState<PresenceUser[]>([])
+  const [activeEditor, setActiveEditor] = useState<PresenceUser | null>(null)
   const [fieldLockMap, setFieldLockMap] = useState<FieldLockMap>({})
   const channelRef = useRef<RealtimeChannel | null>(null)
   const mountedRef = useRef(true)
@@ -85,6 +93,12 @@ export function useInterventionPresence(
   const throttleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   /** Stored joinedAt to reuse in subsequent track() calls */
   const joinedAtRef = useRef<string>(new Date().toISOString())
+
+  // ─── Editor lock ref ─────────────────────────────────────────────────────────
+  /** Whether this user is the active editor. Stored as ref for stable buildPayload. */
+  const isEditingRef = useRef<boolean>(false)
+  /** Whether the initial sync has determined our editing status */
+  const hasResolvedEditingRef = useRef<boolean>(false)
 
   // Keep refs in sync on every render — no effect dependency needed
   currentUserIdRef.current = currentUser?.id ?? null
@@ -116,6 +130,7 @@ export function useInterventionPresence(
       joinedAt: joinedAtRef.current,
       activeField: activeFieldRef.current,
       fieldLockedAt: fieldLockedAtRef.current,
+      isEditing: isEditingRef.current,
     }
   }, [])
 
@@ -164,17 +179,67 @@ export function useInterventionPresence(
     const state = channel.presenceState<PresencePayload>()
     const now = Date.now()
 
-    // Flatten all presence metas, exclude self
+    // Flatten all presence metas
     const allMetas = Object.values(state).flat()
+
+    // ─── Determine active editor (across ALL users, including self) ──────────
+    // Find the user with isEditing: true. If multiple (race condition), pick oldest joinedAt.
+    const editors = allMetas
+      .filter((p) => p.isEditing)
+      .sort((a, b) => a.joinedAt.localeCompare(b.joinedAt))
+    const currentEditor = editors[0] ?? null
+
+    // Map to PresenceUser shape for the activeEditor return
+    const editorUser: PresenceUser | null = currentEditor
+      ? {
+          userId: currentEditor.userId,
+          name: currentEditor.name,
+          color: currentEditor.color,
+          avatarUrl: currentEditor.avatarUrl,
+          joinedAt: currentEditor.joinedAt,
+          activeField: currentEditor.activeField,
+          fieldLockedAt: currentEditor.fieldLockedAt,
+          isEditing: true,
+        }
+      : null
+
+    setActiveEditor(editorUser)
+
+    // ─── Auto-promotion: if no editor exists and we haven't claimed yet ──────
+    if (!currentEditor && hasResolvedEditingRef.current) {
+      // No editor — promote ourselves
+      if (!isEditingRef.current) {
+        isEditingRef.current = true
+        console.log('[Presence] Promoted to editor (previous editor left)')
+        // Re-track with isEditing: true
+        const payload = buildPayload()
+        if (payload) {
+          channel.track(payload).catch((err: unknown) => {
+            console.warn('[Presence] promotion track() failed:', err)
+          })
+        }
+      }
+    }
+
+    // ─── Viewers: exclude self ───────────────────────────────────────────────
     const others = allMetas.filter((p) => p.userId !== userId)
 
     // Dedup by userId (same user in multiple tabs shows once)
     const unique = new Map(others.map((u) => [u.userId, u]))
 
     // Sort by joinedAt ascending for stable render order
-    const sorted = Array.from(unique.values()).sort((a, b) =>
-      a.joinedAt.localeCompare(b.joinedAt)
-    )
+    const sorted: PresenceUser[] = Array.from(unique.values())
+      .sort((a, b) => a.joinedAt.localeCompare(b.joinedAt))
+      .map((u) => ({
+        userId: u.userId,
+        name: u.name,
+        color: u.color,
+        avatarUrl: u.avatarUrl,
+        joinedAt: u.joinedAt,
+        activeField: u.activeField,
+        fieldLockedAt: u.fieldLockedAt,
+        isEditing: u.isEditing,
+      }))
 
     // Build field lock map (skip stale locks)
     const locks: FieldLockMap = {}
@@ -182,14 +247,23 @@ export function useInterventionPresence(
       if (user.activeField && user.fieldLockedAt) {
         const lockedAt = new Date(user.fieldLockedAt).getTime()
         if (now - lockedAt < STALE_LOCK_MS) {
-          locks[user.activeField] = user
+          locks[user.activeField] = {
+            userId: user.userId,
+            name: user.name,
+            color: user.color,
+            avatarUrl: user.avatarUrl,
+            joinedAt: user.joinedAt,
+            activeField: user.activeField,
+            fieldLockedAt: user.fieldLockedAt,
+            isEditing: user.isEditing,
+          }
         }
       }
     }
 
     setViewers(sorted)
     setFieldLockMap(locks)
-  }, []) // Stable — reads from refs
+  }, [buildPayload]) // buildPayload is stable (no deps)
 
   // ─── Track mounted state for async callbacks ───────────────────────────────
   useEffect(() => {
@@ -203,6 +277,7 @@ export function useInterventionPresence(
   useEffect(() => {
     if (!interventionId || !currentUserId) {
       setViewers([])
+      setActiveEditor(null)
       setFieldLockMap({})
       return
     }
@@ -214,6 +289,7 @@ export function useInterventionPresence(
         `Skipping subscription for intervention ${interventionId}.`
       )
       setViewers([])
+      setActiveEditor(null)
       setFieldLockMap({})
       return
     }
@@ -241,6 +317,9 @@ export function useInterventionPresence(
       activeFieldRef.current = null
       fieldLockedAtRef.current = null
       joinedAtRef.current = new Date().toISOString()
+      // Reset editing state — will be resolved on first sync
+      isEditingRef.current = false
+      hasResolvedEditingRef.current = false
 
       console.log(`[Presence] Subscribing to ${channelName}`)
 
@@ -260,11 +339,27 @@ export function useInterventionPresence(
           console.log(`[Presence] Channel ${channelName} status: ${status}`)
 
           if (status === 'SUBSCRIBED') {
+            // Determine initial editing status: check if anyone is already editing
+            const state = channel.presenceState() as Record<string, PresencePayload[]>
+            const allMetas: PresencePayload[] = Object.values(state).flat()
+            const existingEditor = allMetas.find((p) => p.isEditing)
+
+            if (existingEditor) {
+              // Someone is already editing — we open in read-only
+              isEditingRef.current = false
+              console.log(`[Presence] Opening read-only (editor: ${existingEditor.name})`)
+            } else {
+              // No editor — we become the editor
+              isEditingRef.current = true
+              console.log(`[Presence] Opening as editor`)
+            }
+            hasResolvedEditingRef.current = true
+
             const payload = buildPayload()
             if (!payload) return
 
             try {
-              console.log(`[Presence] Tracking user: ${payload.name}`)
+              console.log(`[Presence] Tracking user: ${payload.name} (editing: ${payload.isEditing})`)
               await channel.track(payload)
               console.log(`[Presence] Track successful for ${channelName}`)
             } catch (error) {
@@ -298,15 +393,19 @@ export function useInterventionPresence(
         ch.untrack().catch(() => {})
         supabase.removeChannel(ch)
       }
+      // Reset editing state
+      isEditingRef.current = false
+      hasResolvedEditingRef.current = false
       setViewers([])
+      setActiveEditor(null)
       setFieldLockMap({})
     }
   }, [
     interventionId,
     currentUserId, // Primitive string — stable across useCurrentUser refetches
-    handleSync,    // Stable — no deps
+    handleSync,    // Stable — reads from refs + buildPayload (stable)
     buildPayload,  // Stable — no deps
   ])
 
-  return { viewers, fieldLockMap, trackField, clearField }
+  return { viewers, activeEditor, fieldLockMap, trackField, clearField }
 }

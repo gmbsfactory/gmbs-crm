@@ -18,6 +18,8 @@ export interface PresencePayload {
   activeField: string | null
   /** ISO timestamp when the field was focused — used for stale lock detection */
   fieldLockedAt: string | null
+  /** Whether this user has write access to the form (first opener = editor) */
+  isEditing: boolean
 }
 
 /** Processed viewer data consumed by the PresenceAvatars component */
@@ -29,6 +31,7 @@ export interface PresenceUser {
   joinedAt: string
   activeField: string | null
   fieldLockedAt: string | null
+  isEditing: boolean
 }
 
 /** Map of fieldName → the user who has it locked */
