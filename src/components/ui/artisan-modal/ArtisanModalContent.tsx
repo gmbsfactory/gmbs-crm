@@ -69,6 +69,10 @@ import {
   InputOTPSlot,
 } from "@/components/ui/input-otp"
 import { UnsavedChangesDialog } from "@/components/interventions/UnsavedChangesDialog"
+import { useArtisanPresence } from "@/hooks/useArtisanPresence"
+import { PresenceAvatars } from "@/components/ui/intervention-modal/PresenceAvatars"
+import { ReadOnlyBanner } from "@/components/ui/intervention-modal/ReadOnlyBanner"
+import { usePagePresenceContext } from "@/contexts/PagePresenceContext"
 
 // ===== HELPERS =====
 
@@ -592,6 +596,34 @@ export function ArtisanModalContent({
   }, [currentUserData])
   const { can } = usePermissions()
   const canWriteArtisans = can("write_artisans")
+
+  // ─── Presence: who is currently viewing/editing this artisan? ─────────────
+  const { viewers, activeEditor, fieldLockMap, trackField, clearField } = useArtisanPresence(artisanId)
+
+  // Read-only mode: another user is the active editor
+  const isReadOnly = Boolean(activeEditor && currentUserData && activeEditor.userId !== currentUserData.id)
+
+  // Ref for auto-refetch on editor promotion
+  const refetchRef = useRef<(() => void) | null>(null)
+  refetchRef.current = refetchArtisan
+
+  const prevReadOnlyRef = useRef(false)
+  useEffect(() => {
+    if (prevReadOnlyRef.current && !isReadOnly) {
+      refetchRef.current?.()
+    }
+    prevReadOnlyRef.current = isReadOnly
+  }, [isReadOnly])
+
+  // Page presence — signal that this modal is showing an artisan
+  const pagePresenceCtx = usePagePresenceContext()
+  useEffect(() => {
+    if (!pagePresenceCtx?.updateActiveArtisan) return
+    pagePresenceCtx.updateActiveArtisan(artisanId)
+    return () => {
+      pagePresenceCtx.updateActiveArtisan(null)
+    }
+  }, [artisanId, pagePresenceCtx])
 
   useEffect(() => {
     setPendingReason(null)
@@ -1217,6 +1249,7 @@ export function ArtisanModalContent({
                 {showStats ? "Informations" : "Statistiques"}
               </TooltipContent>
             </Tooltip>
+            <PresenceAvatars viewers={viewers} />
           </div>
 
           <div className="pointer-events-none absolute left-1/2 top-1/2 flex -translate-x-1/2 -translate-y-1/2 items-center gap-3">
@@ -1269,9 +1302,12 @@ export function ArtisanModalContent({
 
         <form ref={formRef} onSubmit={handleSubmit(onSubmit)} className="flex flex-1 min-h-0 flex-col">
           <fieldset
-            disabled={!canWriteArtisans}
-            className={cn("flex flex-col flex-1 min-h-0", !canWriteArtisans && "opacity-70")}
+            disabled={!canWriteArtisans || isReadOnly}
+            className={cn("flex flex-col flex-1 min-h-0", (!canWriteArtisans || isReadOnly) && "opacity-70")}
           >
+            {isReadOnly && activeEditor && (
+              <ReadOnlyBanner editor={activeEditor} entityLabel="cet artisan" />
+            )}
             <div className="modal-config-columns-body flex-1 min-h-0 h-full overflow-hidden bg-[#C6CEDC] dark:bg-transparent">
               {!canWriteArtisans ? (
                 <div className="px-4 py-3 md:px-6">
@@ -2059,7 +2095,7 @@ export function ArtisanModalContent({
           {/* Footer */}
           <footer className="modal-config-columns-footer flex items-center justify-between gap-2 px-4 py-3 md:px-6 bg-[#8DA5CE] dark:bg-transparent">
             <div>
-              {artisan && canWriteArtisans && (
+              {artisan && canWriteArtisans && !isReadOnly && (
                 getArtisanStatusCode(artisan.statut_id ?? null) === "ARCHIVE" ? (
                   <Button
                     type="button"
@@ -2086,18 +2122,20 @@ export function ArtisanModalContent({
             </div>
             <div className="flex items-center gap-2">
               <Button type="button" variant="outline" size="sm" onClick={handleCancel}>
-                Annuler
+                {isReadOnly ? "Fermer" : "Annuler"}
               </Button>
-              <Button type="submit" size="sm" disabled={isSaving || isLoading || !canWriteArtisans}>
-                {isSaving ? "Enregistrement..." : (
-                  <>
-                    Enregistrer
-                    <kbd className="ml-2 pointer-events-none hidden md:inline-flex h-5 select-none items-center gap-0.5 rounded border border-primary-foreground/30 bg-primary-foreground/10 px-1.5 font-mono text-[10px] font-medium text-primary-foreground/70">
-                      {shortcutHint}
-                    </kbd>
-                  </>
-                )}
-              </Button>
+              {!isReadOnly && (
+                <Button type="submit" size="sm" disabled={isSaving || isLoading || !canWriteArtisans}>
+                  {isSaving ? "Enregistrement..." : (
+                    <>
+                      Enregistrer
+                      <kbd className="ml-2 pointer-events-none hidden md:inline-flex h-5 select-none items-center gap-0.5 rounded border border-primary-foreground/30 bg-primary-foreground/10 px-1.5 font-mono text-[10px] font-medium text-primary-foreground/70">
+                        {shortcutHint}
+                      </kbd>
+                    </>
+                  )}
+                </Button>
+              )}
             </div>
           </footer>
         </form>

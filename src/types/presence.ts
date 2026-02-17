@@ -44,5 +44,7 @@ export interface PagePresenceUser {
   color: string | null
   avatarUrl: string | null
   joinedAt: string
+  currentPage: string | null
   activeInterventionId: string | null  // L'intervention ouverte dans le modal, ou null
+  activeArtisanId: string | null       // L'artisan ouvert dans le modal, ou null
 }
