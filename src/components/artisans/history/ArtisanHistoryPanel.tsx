@@ -12,7 +12,7 @@ import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet"
 import { cn } from "@/lib/utils"
 import { useCurrentUser } from "@/hooks/useCurrentUser"
 import { useReferenceDataQuery } from "@/hooks/useReferenceDataQuery"
-import { useInterventionHistory, type InterventionHistoryItem } from "@/hooks/useInterventionHistory"
+import { useArtisanHistory, type ArtisanHistoryItem } from "@/hooks/useArtisanHistory"
 import { useBatchResolver } from "@/hooks/useBatchResolver"
 import { HistoryEntry } from "@/components/shared/history/HistoryEntry"
 import type { HistoryValueResolver } from "@/components/shared/history/types"
@@ -23,9 +23,9 @@ type ActionFilter =
   | "creation"
   | "updates"
   | "status"
-  | "costs"
-  | "payments"
-  | "artisans"
+  | "metiers"
+  | "zones"
+  | "absences"
   | "documents"
   | "comments"
 
@@ -34,9 +34,9 @@ const ACTION_FILTER_MAP: Record<ActionFilter, string[]> = {
   creation: ["CREATE"],
   updates: ["UPDATE", "ARCHIVE", "RESTORE"],
   status: ["STATUS_CHANGE"],
-  costs: ["COST_ADD", "COST_UPDATE", "COST_DELETE"],
-  payments: ["PAYMENT_ADD", "PAYMENT_UPDATE", "PAYMENT_DELETE"],
-  artisans: ["ARTISAN_ASSIGN", "ARTISAN_UPDATE", "ARTISAN_UNASSIGN"],
+  metiers: ["METIER_ADD", "METIER_REMOVE"],
+  zones: ["ZONE_ADD", "ZONE_REMOVE"],
+  absences: ["ABSENCE_ADD", "ABSENCE_UPDATE", "ABSENCE_DELETE"],
   documents: ["DOCUMENT_ADD", "DOCUMENT_UPDATE", "DOCUMENT_DELETE"],
   comments: ["COMMENT_ADD", "COMMENT_UPDATE", "COMMENT_DELETE"],
 }
@@ -46,9 +46,9 @@ const ACTION_FILTER_LABELS: Record<ActionFilter, string> = {
   creation: "Création",
   updates: "Modifications",
   status: "Changements de statut",
-  costs: "Coûts",
-  payments: "Paiements",
-  artisans: "Artisans",
+  metiers: "Métiers",
+  zones: "Zones",
+  absences: "Absences",
   documents: "Documents",
   comments: "Commentaires",
 }
@@ -74,7 +74,7 @@ const getGroupLabel = (date: Date) => {
   return format(date, "EEEE d MMMM yyyy", { locale: fr })
 }
 
-const matchesCurrentUser = (item: InterventionHistoryItem, currentUser: ReturnType<typeof useCurrentUser>["data"]) => {
+const matchesCurrentUser = (item: ArtisanHistoryItem, currentUser: ReturnType<typeof useCurrentUser>["data"]) => {
   if (!currentUser) return false
   const actorCode = item.actor_code?.toLowerCase()
   const userCode = currentUser.code_gestionnaire?.toLowerCase()
@@ -96,7 +96,7 @@ const matchesCurrentUser = (item: InterventionHistoryItem, currentUser: ReturnTy
 }
 
 const collectIdsFromItems = (
-  items: InterventionHistoryItem[],
+  items: ArtisanHistoryItem[],
   keys: string[]
 ) => {
   const ids = new Set<string>()
@@ -117,100 +117,13 @@ const collectIdsFromItems = (
   return Array.from(ids)
 }
 
-const buildTenantLabel = (tenant: {
-  plain_nom_client?: string | null
-  firstname?: string | null
-  lastname?: string | null
-  email?: string | null
-  telephone?: string | null
-  id: string
-}) => {
-  const plain = tenant.plain_nom_client?.trim()
-  if (plain) return plain
-  const fullName = [tenant.firstname, tenant.lastname].filter(Boolean).join(" ").trim()
-  return fullName || tenant.email || tenant.telephone || tenant.id
-}
-
-const buildOwnerLabel = (owner: {
-  plain_nom_facturation?: string | null
-  owner_firstname?: string | null
-  owner_lastname?: string | null
-  email?: string | null
-  telephone?: string | null
-  id: string
-}) => {
-  const plain = owner.plain_nom_facturation?.trim()
-  if (plain) return plain
-  const fullName = [owner.owner_firstname, owner.owner_lastname].filter(Boolean).join(" ").trim()
-  return fullName || owner.email || owner.telephone || owner.id
-}
-
-const buildTenantMapValue = (tenant: {
-  plain_nom_client?: string | null
-  firstname?: string | null
-  lastname?: string | null
-  email?: string | null
-  telephone?: string | null
-  id: string
-}) => ({ label: buildTenantLabel(tenant) })
-
-const buildOwnerMapValue = (owner: {
-  plain_nom_facturation?: string | null
-  owner_firstname?: string | null
-  owner_lastname?: string | null
-  email?: string | null
-  telephone?: string | null
-  id: string
-}) => ({ label: buildOwnerLabel(owner) })
-
-const buildArtisanLabel = (artisan: {
-  plain_nom?: string | null
-  prenom?: string | null
-  nom?: string | null
-  raison_sociale?: string | null
-  email?: string | null
-  telephone?: string | null
-  id: string
-}) => {
-  const plain = artisan.plain_nom?.trim()
-  if (plain) return plain
-  const business = artisan.raison_sociale?.trim()
-  if (business) return business
-  const fullName = [artisan.prenom, artisan.nom].filter(Boolean).join(" ").trim()
-  return fullName || artisan.email || artisan.telephone || artisan.id
-}
-
-const buildArtisanMapValue = (artisan: {
-  plain_nom?: string | null
-  prenom?: string | null
-  nom?: string | null
-  raison_sociale?: string | null
-  email?: string | null
-  telephone?: string | null
-  id: string
-}) => ({ label: buildArtisanLabel(artisan) })
-
-const buildInterventionLabel = (intervention: {
-  id_inter?: string | null
-  contexte_intervention?: string | null
-  id: string
-}) => {
-  return intervention.id_inter || intervention.contexte_intervention || intervention.id
-}
-
-const buildInterventionMapValue = (intervention: {
-  id_inter?: string | null
-  contexte_intervention?: string | null
-  id: string
-}) => ({ label: buildInterventionLabel(intervention) })
-
-interface InterventionHistoryPanelProps {
-  interventionId: string
+interface ArtisanHistoryPanelProps {
+  artisanId: string
   isOpen: boolean
   onClose: () => void
 }
 
-export function InterventionHistoryPanel({ interventionId, isOpen, onClose }: InterventionHistoryPanelProps) {
+export function ArtisanHistoryPanel({ artisanId, isOpen, onClose }: ArtisanHistoryPanelProps) {
   const [dateFilter, setDateFilter] = useState<DateFilter>("all")
   const [actionFilter, setActionFilter] = useState<ActionFilter>("all")
   const [actorFilter, setActorFilter] = useState<"all" | "me">("all")
@@ -228,7 +141,7 @@ export function InterventionHistoryPanel({ interventionId, isOpen, onClose }: In
     hasNextPage,
     isFetchingNextPage,
     refetch,
-  } = useInterventionHistory(interventionId, { limit: 40, enabled: isOpen })
+  } = useArtisanHistory(artisanId, { limit: 40, enabled: isOpen })
 
   useEffect(() => {
     if (isOpen) {
@@ -259,39 +172,15 @@ export function InterventionHistoryPanel({ interventionId, isOpen, onClose }: In
     [data?.pages]
   )
 
-  const tenantIds = useMemo(() => collectIdsFromItems(items, ["tenant_id", "client_id"]), [items])
-  const ownerIds = useMemo(() => collectIdsFromItems(items, ["owner_id"]), [items])
-  const artisanIds = useMemo(() => collectIdsFromItems(items, ["artisan_id"]), [items])
-  const interventionIds = useMemo(() => collectIdsFromItems(items, ["intervention_id"]), [items])
-  const { map: tenantMap } = useBatchResolver({
-    ids: tenantIds,
-    table: "tenants",
-    select: "id, firstname, lastname, plain_nom_client, email, telephone",
-    buildLabel: buildTenantMapValue,
-    enabled: isOpen,
-  })
-
-  const { map: ownerMap } = useBatchResolver({
-    ids: ownerIds,
-    table: "owner",
-    select: "id, owner_firstname, owner_lastname, plain_nom_facturation, email, telephone",
-    buildLabel: buildOwnerMapValue,
-    enabled: isOpen,
-  })
-
-  const { map: artisanMap } = useBatchResolver({
-    ids: artisanIds,
-    table: "artisans",
-    select: "id, plain_nom, prenom, nom, raison_sociale, email, telephone",
-    buildLabel: buildArtisanMapValue,
-    enabled: isOpen,
-  })
-
-  const { map: interventionMap } = useBatchResolver({
-    ids: interventionIds,
-    table: "interventions",
-    select: "id, id_inter, contexte_intervention",
-    buildLabel: buildInterventionMapValue,
+  // Resolve zone IDs from audit log entries
+  const zoneIds = useMemo(() => collectIdsFromItems(items, ["zone_id"]), [items])
+  const { map: zoneMap } = useBatchResolver({
+    ids: zoneIds,
+    table: "zones",
+    select: "id, code, label",
+    buildLabel: (zone: { id: string; code?: string | null; label?: string | null }) => ({
+      label: zone.label || zone.code || zone.id,
+    }),
     enabled: isOpen,
   })
 
@@ -309,14 +198,6 @@ export function InterventionHistoryPanel({ interventionId, isOpen, onClose }: In
     return map
   }, [referenceData?.users])
 
-  const agencyMap = useMemo(() => {
-    const map = new Map<string, { label: string; color?: string | null }>()
-    referenceData?.agencies.forEach((agency) => {
-      map.set(agency.id, { label: agency.label || agency.code, color: agency.color ?? null })
-    })
-    return map
-  }, [referenceData?.agencies])
-
   const metierMap = useMemo(() => {
     const map = new Map<string, { label: string; color?: string | null }>()
     referenceData?.metiers.forEach((metier) => {
@@ -325,124 +206,44 @@ export function InterventionHistoryPanel({ interventionId, isOpen, onClose }: In
     return map
   }, [referenceData?.metiers])
 
-  const metierByCode = useMemo(() => {
+  const artisanStatusById = useMemo(() => {
     const map = new Map<string, { label: string; color?: string | null }>()
-    referenceData?.metiers.forEach((metier) => {
-      if (metier.code) {
-        map.set(metier.code, { label: metier.label || metier.code, color: metier.color ?? null })
-      }
-    })
-    return map
-  }, [referenceData?.metiers])
-
-  const agencyByCode = useMemo(() => {
-    const map = new Map<string, { label: string; color?: string | null }>()
-    referenceData?.agencies.forEach((agency) => {
-      if (agency.code) {
-        map.set(agency.code, { label: agency.label || agency.code, color: agency.color ?? null })
-      }
-    })
-    return map
-  }, [referenceData?.agencies])
-
-  const statusById = useMemo(() => {
-    const map = new Map<string, { label: string; color?: string | null }>()
-    referenceData?.interventionStatuses.forEach((status) => {
+    referenceData?.artisanStatuses.forEach((status) => {
       map.set(status.id, { label: status.label || status.code, color: status.color ?? null })
     })
     return map
-  }, [referenceData?.interventionStatuses])
-
-  const statusByCode = useMemo(() => {
-    const map = new Map<string, { label: string; color?: string | null }>()
-    referenceData?.interventionStatuses.forEach((status) => {
-      if (status.code) {
-        map.set(status.code, { label: status.label || status.code, color: status.color ?? null })
-      }
-    })
-    return map
-  }, [referenceData?.interventionStatuses])
+  }, [referenceData?.artisanStatuses])
 
   const valueResolver: HistoryValueResolver = useMemo(
     () => (field, value) => {
       if (!value || typeof value !== "string") return null
       const normalized = field.toLowerCase()
 
-      if (normalized === "agence_id" || normalized === "agency_id") {
-        return agencyMap.get(value) ?? null
-      }
-
-      if (normalized === "agence_code" || normalized === "agency_code") {
-        return agencyByCode.get(value) ?? null
+      if (normalized === "statut_id" || normalized === "status_id") {
+        return artisanStatusById.get(value) ?? null
       }
 
       if (normalized === "metier_id") {
         return metierMap.get(value) ?? null
       }
 
-      if (normalized === "metier_second_artisan_id") {
-        return metierMap.get(value) ?? null
-      }
-
-      if (normalized === "metier_code") {
-        return metierByCode.get(value) ?? null
-      }
-
-      if (normalized === "owner_id") {
-        return ownerMap[value] ?? null
-      }
-
-      if (normalized === "tenant_id" || normalized === "client_id") {
-        return tenantMap[value] ?? null
-      }
-
-      if (normalized === "artisan_id") {
-        return artisanMap[value] ?? null
-      }
-
-      if (normalized === "intervention_id") {
-        return interventionMap[value] ?? null
-      }
-
-      if (normalized === "status_id" || normalized === "statut_id") {
-        return statusById.get(value) ?? null
-      }
-
-      if (normalized === "status_code") {
-        return statusByCode.get(value) ?? null
-      }
-
-      if (normalized === "statut_code") {
-        return statusByCode.get(value) ?? null
+      if (normalized === "zone_id") {
+        return zoneMap[value] ?? null
       }
 
       if (
         normalized.endsWith("_user_id") ||
-        normalized === "assigned_user_id" ||
         normalized === "created_by" ||
         normalized === "updated_by" ||
-        normalized === "gestionnaire_id" ||
-        normalized === "author_id" ||
-        normalized === "changed_by_user_id"
+        normalized === "changed_by" ||
+        normalized === "author_id"
       ) {
         return userMap.get(value) ?? null
       }
 
       return null
     },
-    [
-      agencyMap,
-      agencyByCode,
-      metierMap,
-      metierByCode,
-      ownerMap,
-      tenantMap,
-      artisanMap,
-      interventionMap,
-      statusById,
-      statusByCode,
-      userMap,
-    ]
+    [artisanStatusById, metierMap, zoneMap, userMap]
   )
 
   const filteredItems = useMemo(() => {
@@ -492,7 +293,7 @@ export function InterventionHistoryPanel({ interventionId, isOpen, onClose }: In
   const groupedItems = useMemo(() => {
     const groups = new Map<
       string,
-      { key: string; date: Date; label: string; items: InterventionHistoryItem[] }
+      { key: string; date: Date; label: string; items: ArtisanHistoryItem[] }
     >()
     filteredItems.forEach((item) => {
       const date = safeParseDate(item.occurred_at)
@@ -534,7 +335,7 @@ export function InterventionHistoryPanel({ interventionId, isOpen, onClose }: In
               <p className="history-panel-subtitle">
                 {items.length > 0
                   ? `${items.length} action${items.length > 1 ? "s" : ""} enregistrée${items.length > 1 ? "s" : ""}`
-                  : "Toutes les modifications de cette intervention"}
+                  : "Toutes les modifications de cet artisan"}
               </p>
             </div>
           </div>
@@ -696,7 +497,7 @@ export function InterventionHistoryPanel({ interventionId, isOpen, onClose }: In
             )}
 
             <div ref={loadMoreRef} className="h-1" />
-            
+
             {hasNextPage && (
               <div className="flex justify-center py-4">
                 <Button
