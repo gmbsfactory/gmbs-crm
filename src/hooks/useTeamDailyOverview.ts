@@ -3,6 +3,11 @@
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase-client'
 
+export interface InterventionRef {
+  id: string
+  numero: string | null
+}
+
 export interface TeamMemberOverview {
   user_id: string
   firstname: string | null
@@ -17,6 +22,9 @@ export interface TeamMemberOverview {
   interventions_created: number
   interventions_completed: number
   devis_sent: number
+  created_ids: InterventionRef[]
+  completed_ids: InterventionRef[]
+  devis_ids: InterventionRef[]
 }
 
 export function useTeamDailyOverview(date?: Date) {
