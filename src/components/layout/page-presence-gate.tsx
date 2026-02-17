@@ -8,7 +8,10 @@ import { PagePresenceProvider } from "@/contexts/PagePresenceContext"
 const PRESENCE_PAGES = new Set(["interventions", "artisans", "comptabilite", "dashboard"])
 
 /**
- * Wraps children with PagePresenceProvider when on a presence-enabled page.
+ * Wraps children with PagePresenceProvider using a single global Presence channel.
+ * The provider is ALWAYS mounted so the WebSocket channel stays alive across navigations.
+ * pageName is null for non-presence pages (the hook tracks but shows empty viewers).
+ *
  * Must be placed above both TopbarGate and page content in the layout tree
  * so the context is accessible from both the topbar and the page components.
  */
@@ -21,13 +24,9 @@ export function PagePresenceGate({ children }: { children: ReactNode }) {
     return PRESENCE_PAGES.has(seg) ? seg : null
   }, [pathname])
 
-  if (pageName) {
-    return (
-      <PagePresenceProvider pageName={pageName}>
-        {children}
-      </PagePresenceProvider>
-    )
-  }
-
-  return <>{children}</>
+  return (
+    <PagePresenceProvider pageName={pageName}>
+      {children}
+    </PagePresenceProvider>
+  )
 }

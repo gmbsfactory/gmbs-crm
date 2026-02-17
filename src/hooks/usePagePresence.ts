@@ -13,14 +13,9 @@ interface PagePresencePayload {
   color: string | null
   avatarUrl: string | null
   joinedAt: string
+  currentPage: string | null
   activeInterventionId: string | null
 }
-
-/** Maximum number of concurrent page Presence channels allowed across all hook instances */
-const MAX_CONCURRENT_PAGE_PRESENCE = 5
-
-/** Module-level counter tracking active page Presence channels */
-let activePagePresenceChannels = 0
 
 /** Small async gap allows Supabase internal cleanup from React Strict Mode double-mount */
 const SETUP_DELAY_MS = 50
@@ -34,15 +29,22 @@ const HEARTBEAT_MS = 2 * 60 * 1000 // 2 minutes (well under STALE_MS)
 /** Reconnection delay after channel error */
 const RECONNECT_DELAY_MS = 5000 // 5 seconds
 
+/** Single global channel name — shared across all pages */
+const CHANNEL_NAME = 'presence:pages'
+
 /**
- * Manages a Supabase Presence channel for real-time viewer tracking on a page.
+ * Manages a single global Supabase Presence channel for real-time viewer tracking
+ * across all pages. Unlike the previous per-page approach, the channel stays alive
+ * when navigating between pages — only a lightweight track() call updates the
+ * current page, resulting in near-instant presence updates on navigation.
  *
- * Architecture: each tab subscribes independently to 'presence:page-{pageName}'.
- * Completely separate from the intervention-level presence channels.
+ * Architecture:
+ * - ONE channel `presence:pages` shared by all page instances
+ * - Each user tracks their `currentPage` in the payload
+ * - `handleSync` filters viewers by the current page
+ * - Page navigation = track() update, not unsubscribe/resubscribe
  *
- * Graceful degradation: if subscribe fails, returns empty viewers — page unaffected.
- *
- * @param pageName - Name of the page being viewed (e.g. 'interventions', 'artisans'). Pass null to disable.
+ * @param pageName - Name of the page being viewed. Pass null for non-presence pages.
  */
 export function usePagePresence(
   pageName: string | null
@@ -65,9 +67,13 @@ export function usePagePresence(
     avatar_url?: string | null
   }>({})
 
-  // ─── Active intervention ref ────────────────────────────────────────────────
+  // ─── Page & intervention tracking refs ────────────────────────────────────────
+  const pageNameRef = useRef<string | null>(pageName)
   const activeInterventionIdRef = useRef<string | null>(null)
   const joinedAtRef = useRef<string>(new Date().toISOString())
+
+  // ─── Referential stability for viewers (prevents re-renders on heartbeat) ────
+  const prevViewersKeyRef = useRef('')
 
   // Keep refs in sync on every render — no effect dependency needed
   currentUserIdRef.current = currentUser?.id ?? null
@@ -97,6 +103,7 @@ export function usePagePresence(
       color: userData.color ?? null,
       avatarUrl: userData.avatar_url ?? null,
       joinedAt: joinedAtRef.current,
+      currentPage: pageNameRef.current,
       activeInterventionId: activeInterventionIdRef.current,
     }
   }, [])
@@ -118,29 +125,65 @@ export function usePagePresence(
     doTrack()
   }, [doTrack])
 
-  // ─── handleSync: reads from refs, zero deps ────────────────────────────────
+  // ─── handleSync: reads from refs, filters by current page ─────────────────
   const handleSync = useCallback(() => {
     const channel = channelRef.current
     const userId = currentUserIdRef.current
+    const currentPage = pageNameRef.current
     if (!channel || !userId) return
+
+    // If not on a presence-enabled page, show empty
+    if (!currentPage) {
+      if (prevViewersKeyRef.current !== '') {
+        prevViewersKeyRef.current = ''
+        setViewers([])
+      }
+      return
+    }
 
     const state = channel.presenceState<PagePresencePayload>()
     const now = Date.now()
 
-    // Flatten all presence metas, exclude self
+    // Flatten all presence metas, exclude self, filter by current page
     const allMetas = Object.values(state).flat()
-    const others = allMetas.filter((p) => p.userId !== userId)
+    const others = allMetas.filter(
+      (p) => p.userId !== userId && p.currentPage === currentPage
+    )
 
     // Dedup by userId (same user in multiple tabs shows once)
     const unique = new Map(others.map((u) => [u.userId, u]))
 
     // Filter out stale entries and sort by joinedAt ascending for stable render order
-    const sorted = Array.from(unique.values())
+    const sorted: PagePresenceUser[] = Array.from(unique.values())
       .filter((u) => now - new Date(u.joinedAt).getTime() < STALE_MS)
       .sort((a, b) => a.joinedAt.localeCompare(b.joinedAt))
+      .map((u) => ({
+        userId: u.userId,
+        name: u.name,
+        color: u.color,
+        avatarUrl: u.avatarUrl,
+        joinedAt: u.joinedAt,
+        activeInterventionId: u.activeInterventionId,
+      }))
 
-    setViewers(sorted)
+    // Only update state when data actually changed — prevents flash on heartbeat syncs
+    const viewersKey = sorted
+      .map((v) => `${v.userId}:${v.activeInterventionId ?? ''}`)
+      .join('|')
+    if (viewersKey !== prevViewersKeyRef.current) {
+      prevViewersKeyRef.current = viewersKey
+      setViewers(sorted)
+    }
   }, []) // Stable — reads from refs
+
+  // ─── Re-track when pageName changes (near-instant, no channel re-creation) ──
+  useEffect(() => {
+    pageNameRef.current = pageName
+    // Re-track with new page + trigger sync to filter viewers by new page
+    doTrack()
+    // Also re-run handleSync to immediately filter existing presence data
+    handleSync()
+  }, [pageName, doTrack, handleSync])
 
   // ─── Track mounted state for async callbacks ───────────────────────────────
   useEffect(() => {
@@ -150,43 +193,29 @@ export function usePagePresence(
     }
   }, [])
 
-  // ─── Main Presence channel lifecycle ───────────────────────────────────────
+  // ─── Single global Presence channel lifecycle (tied to userId only) ────────
   useEffect(() => {
-    if (!pageName || !currentUserId) {
+    if (!currentUserId) {
       setViewers([])
       return
     }
-
-    // Guard: reject if we've hit the concurrent channel limit
-    if (activePagePresenceChannels >= MAX_CONCURRENT_PAGE_PRESENCE) {
-      console.warn(
-        `[PagePresence] Concurrent channel limit reached (${MAX_CONCURRENT_PAGE_PRESENCE}). ` +
-        `Skipping subscription for page ${pageName}.`
-      )
-      setViewers([])
-      return
-    }
-
-    // Reserve a slot immediately (decremented in cleanup)
-    activePagePresenceChannels++
 
     let cancelled = false
     let heartbeatTimer: ReturnType<typeof setInterval> | null = null
     let reconnectTimer: ReturnType<typeof setTimeout> | null = null
-
-    const channelName = `presence:page-${pageName}`
 
     const subscribe = async () => {
       // Wait for any previous channel cleanup to complete
       await new Promise((resolve) => setTimeout(resolve, SETUP_DELAY_MS))
       if (cancelled || !mountedRef.current) return
 
-      const channel = supabase.channel(channelName)
+      const channel = supabase.channel(CHANNEL_NAME)
       channelRef.current = channel
 
-      // Reset tracking on new subscription
-      activeInterventionIdRef.current = null
+      // Reset joinedAt on new subscription
       joinedAtRef.current = new Date().toISOString()
+
+      console.log(`[PagePresence] Subscribing to ${CHANNEL_NAME}`)
 
       channel
         .on('presence', { event: 'sync' }, handleSync)
@@ -195,12 +224,15 @@ export function usePagePresence(
         .subscribe(async (status: string) => {
           if (cancelled || !mountedRef.current) return
 
+          console.log(`[PagePresence] Channel status: ${status}`)
+
           if (status === 'SUBSCRIBED') {
             const payload = buildPayload()
             if (!payload) return
 
             try {
               await channel.track(payload)
+              console.log(`[PagePresence] Tracking on page: ${payload.currentPage}`)
             } catch (error) {
               console.warn('[PagePresence] track() failed:', error)
             }
@@ -223,7 +255,7 @@ export function usePagePresence(
             status === 'CHANNEL_ERROR' ||
             status === 'TIMED_OUT'
           ) {
-            console.warn(`[PagePresence] Channel ${channelName} error: ${status}, reconnecting...`)
+            console.warn(`[PagePresence] Channel error: ${status}, reconnecting...`)
 
             // Stop heartbeat
             if (heartbeatTimer) { clearInterval(heartbeatTimer); heartbeatTimer = null }
@@ -253,11 +285,10 @@ export function usePagePresence(
 
     return () => {
       cancelled = true
+      console.log(`[PagePresence] Cleaning up ${CHANNEL_NAME}`)
       // Stop heartbeat and reconnection timers
       if (heartbeatTimer) clearInterval(heartbeatTimer)
       if (reconnectTimer) clearTimeout(reconnectTimer)
-      // Release the concurrent channel slot
-      activePagePresenceChannels = Math.max(0, activePagePresenceChannels - 1)
       // Null ref FIRST to prevent re-entry
       const ch = channelRef.current
       channelRef.current = null
@@ -268,10 +299,9 @@ export function usePagePresence(
       setViewers([])
     }
   }, [
-    pageName,
-    currentUserId,  // Primitive string — stable across useCurrentUser refetches
-    handleSync,     // Stable — no deps
-    buildPayload,   // Stable — no deps
+    currentUserId, // Primitive string — channel lives as long as user is authed
+    handleSync,    // Stable — no deps
+    buildPayload,  // Stable — no deps
   ])
 
   return { viewers, updateActiveIntervention }
