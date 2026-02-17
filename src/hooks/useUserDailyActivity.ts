@@ -16,7 +16,9 @@ interface ActionStat {
 
 interface RecentAction {
   action_type: string
-  intervention_id: string
+  entity_type: 'intervention' | 'artisan'
+  entity_id: string
+  entity_label: string | null
   occurred_at: string
   changed_fields: string[] | null
 }

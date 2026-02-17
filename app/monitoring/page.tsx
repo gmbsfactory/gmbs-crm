@@ -40,8 +40,34 @@ export default function MonitoringPage() {
   const allUsers = useMemo(() => presence?.allUsers ?? [], [presence?.allUsers])
   const grouped = useMemo(() => groupByPage(allUsers), [allUsers])
 
+  // Users who connected today but are no longer online
+  const offlineUsers = useMemo(() => {
+    if (!teamOverview?.length) return []
+    const onlineIds = new Set(allUsers.map((u) => u.userId))
+    return teamOverview
+      .filter((m) => !onlineIds.has(m.user_id) && m.first_seen_at)
+      .map((m): PagePresenceUser => ({
+        userId: m.user_id,
+        name: [m.firstname, m.lastname].filter(Boolean).join(" ") || "Utilisateur",
+        color: m.color,
+        avatarUrl: m.avatar_url,
+        joinedAt: m.first_seen_at!,
+        currentPage: null,
+        activeInterventionId: null,
+        activeArtisanId: null,
+      }))
+  }, [teamOverview, allUsers])
+
   const selectedUser = useMemo(
-    () => allUsers.find((u) => u.userId === selectedUserId) ?? null,
+    () =>
+      allUsers.find((u) => u.userId === selectedUserId)
+      ?? offlineUsers.find((u) => u.userId === selectedUserId)
+      ?? null,
+    [allUsers, offlineUsers, selectedUserId]
+  )
+
+  const selectedIsOnline = useMemo(
+    () => allUsers.some((u) => u.userId === selectedUserId),
     [allUsers, selectedUserId]
   )
 
@@ -126,12 +152,12 @@ export default function MonitoringPage() {
                   Gestionnaires connectes
                 </CardTitle>
                 <span className="text-xs text-muted-foreground">
-                  {allUsers.length} actif{allUsers.length !== 1 ? "s" : ""}
+                  {allUsers.length} en ligne{offlineUsers.length > 0 ? ` · ${offlineUsers.length} deconnecte${offlineUsers.length !== 1 ? "s" : ""}` : ""}
                 </span>
               </div>
             </CardHeader>
             <CardContent className="px-5 pb-4 pt-0">
-              <OnlineUsersBar users={allUsers} onSelectUser={setSelectedUserId} />
+              <OnlineUsersBar users={allUsers} offlineUsers={offlineUsers} onSelectUser={setSelectedUserId} />
             </CardContent>
           </Card>
 
@@ -222,6 +248,7 @@ export default function MonitoringPage() {
       {/* ─── Sheet detail ──────────────────────────────────────────────────────── */}
       <UserActivitySheet
         user={selectedUser}
+        isOnline={selectedIsOnline}
         onClose={() => setSelectedUserId(null)}
       />
     </div>
