@@ -43,11 +43,19 @@ export interface RecentAction {
   new_values: Record<string, unknown> | null
 }
 
+export interface PageSession {
+  page_name: string
+  started_at: string
+  ended_at: string
+  duration_ms: number
+}
+
 export interface UserDailyActivity {
   first_seen_at: string | null
   last_seen_at: string | null
   total_screen_time_ms: number
   pages: PageStat[]
+  sessions: PageSession[]
   intervention_actions: ActionStat[]
   interventions_created: number
   interventions_completed: number
