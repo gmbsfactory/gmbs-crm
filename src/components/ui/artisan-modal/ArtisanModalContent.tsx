@@ -19,6 +19,7 @@ import {
   CheckCircle2,
   AlertCircle,
   BarChart3,
+  History,
   Info,
   MapPin,
   Loader2,
@@ -44,6 +45,7 @@ import { CommentSection } from "@/components/shared/CommentSection"
 import { StatusReasonModal } from "@/components/shared/StatusReasonModal"
 import { Avatar } from "@/components/artisans/Avatar"
 import { GestionnaireBadge } from "@/components/ui/gestionnaire-badge"
+import { ArtisanHistoryPanel } from "@/components/artisans/history/ArtisanHistoryPanel"
 import { ArtisanFinancesSection } from "./ArtisanFinancesSection"
 import { ArtisanInterventionsTable } from "./ArtisanInterventionsTable"
 import { useReferenceDataQuery } from "@/hooks/useReferenceDataQuery"
@@ -447,6 +449,7 @@ export function ArtisanModalContent({
   // Toggle entre vue Informations et vue Statistiques
   // Initialiser avec la vue par défaut si spécifiée
   const [showStats, setShowStats] = useState(defaultView === "statistics")
+  const [showHistoryPanel, setShowHistoryPanel] = useState(false)
 
   // Gestion des absences
   const [newAbsence, setNewAbsence] = useState({ start_date: "", end_date: "", reason: "" })
@@ -1065,7 +1068,7 @@ export function ArtisanModalContent({
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
-        if (showUnsavedDialog || isStatusReasonModalOpen) {
+        if (showUnsavedDialog || isStatusReasonModalOpen || showHistoryPanel) {
           // Laisser UnsavedChangesDialog ou StatusReasonModal gérer Escape
           return
         }
@@ -1079,7 +1082,7 @@ export function ArtisanModalContent({
     return () => {
       document.removeEventListener("keydown", handleKeyDown, true)
     }
-  }, [handleCancel, showUnsavedDialog, isStatusReasonModalOpen])
+  }, [handleCancel, showUnsavedDialog, isStatusReasonModalOpen, showHistoryPanel])
 
   // Raccourci clavier Cmd/Ctrl+Enter pour enregistrer
   const { shortcutHint } = useSubmitShortcut({ formRef, isSubmitting: isSaving })
@@ -1248,6 +1251,20 @@ export function ArtisanModalContent({
               <TooltipContent className="modal-config-columns-tooltip">
                 {showStats ? "Informations" : "Statistiques"}
               </TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="modal-config-columns-icon-button"
+                  onClick={() => setShowHistoryPanel(true)}
+                  aria-label="Voir l'historique"
+                >
+                  <History className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent className="modal-config-columns-tooltip">Historique des actions</TooltipContent>
             </Tooltip>
             <PresenceAvatars viewers={viewers} />
           </div>
@@ -2153,6 +2170,11 @@ export function ArtisanModalContent({
           onCancel={handleCancelClose}
           onConfirm={handleConfirmClose}
           onSaveAndConfirm={handleSaveAndClose}
+        />
+        <ArtisanHistoryPanel
+          artisanId={artisanId}
+          isOpen={showHistoryPanel}
+          onClose={() => setShowHistoryPanel(false)}
         />
       </div >
     </TooltipProvider >
