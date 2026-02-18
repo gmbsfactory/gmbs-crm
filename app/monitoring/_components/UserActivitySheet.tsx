@@ -19,6 +19,7 @@ import { ScreenTimeChart } from "./ScreenTimeChart"
 interface UserActivitySheetProps {
   user: PagePresenceUser | null
   isOnline?: boolean
+  isIdle?: boolean
   onClose: () => void
 }
 
@@ -36,7 +37,7 @@ function formatTime(isoDate: string): string {
   })
 }
 
-export function UserActivitySheet({ user, isOnline = true, onClose }: UserActivitySheetProps) {
+export function UserActivitySheet({ user, isOnline = true, isIdle = false, onClose }: UserActivitySheetProps) {
   const { data: dailyActivity, isLoading } = useUserDailyActivity(user?.userId ?? null)
 
   const nameParts = user?.name.split(" ") ?? []
@@ -66,9 +67,13 @@ export function UserActivitySheet({ user, isOnline = true, onClose }: UserActivi
                       <SheetTitle className="text-base font-semibold truncate">
                         {user.name}
                       </SheetTitle>
-                      {isOnline ? (
+                      {isOnline && !isIdle ? (
                         <Badge className="text-[10px] px-1.5 py-0 h-4 bg-emerald-500/15 text-emerald-700 border-emerald-500/25 hover:bg-emerald-500/15 shrink-0">
                           En ligne
+                        </Badge>
+                      ) : isOnline && isIdle ? (
+                        <Badge className="text-[10px] px-1.5 py-0 h-4 bg-amber-500/15 text-amber-700 border-amber-500/25 hover:bg-amber-500/15 shrink-0">
+                          Inactif
                         </Badge>
                       ) : (
                         <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4 bg-gray-500/15 text-gray-600 border-gray-500/25 hover:bg-gray-500/15 shrink-0">

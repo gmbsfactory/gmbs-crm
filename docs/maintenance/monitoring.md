@@ -113,6 +113,75 @@ Server: Edge Function check-inactive-users (cron toutes les 60s)
 
 L'appel `POST /api/auth/first-activity` est effectué une fois par jour pour suivre les horaires de première connexion.
 
+### Detection d'inactivite (Idle Detection)
+
+En complement du heartbeat, un systeme de detection d'inactivite cote client permet d'identifier les utilisateurs presents mais inactifs (partis manger, onglet oublie, etc.).
+
+#### Hook `useIdleDetector`
+
+Le hook `src/hooks/useIdleDetector.ts` combine deux mecanismes :
+
+| Mecanisme | Declencheur | Transition |
+|-----------|-------------|------------|
+| **Timeout 5 min** | Aucun `mousemove`, `keydown`, `click`, `scroll`, `touchstart` pendant 5 minutes | actif → inactif |
+| **Page Visibility API** | Onglet masque (`document.hidden = true`) | actif → inactif (immediat) |
+| **Retour activite** | Mouvement souris, frappe clavier, ou onglet redevient visible | inactif → actif (immediat) |
+
+Les events sont throttles a 1s via un `lastActivityRef` pour eviter les re-renders excessifs.
+
+```
+useIdleDetector(timeoutMs = 5 * 60 * 1000) → boolean (isIdle)
+```
+
+#### Impact sur la presence (`usePagePresence`)
+
+Quand `isIdle` change, le hook `usePagePresence` re-track immediatement le payload avec `isIdle: true/false`. Le heartbeat continue meme en idle (sinon le filtre stale de 5 min evincerait l'utilisateur).
+
+Le type `PagePresenceUser` inclut le champ `isIdle: boolean` depuis la v2.
+
+#### Impact sur le tracking de sessions (`useActivityTracker`)
+
+Quand l'utilisateur passe en idle :
+1. La session en cours est terminee (`ended_at` + `duration_ms`)
+2. Le timer de flush periodique (30s) est stoppe
+
+Quand l'utilisateur revient actif :
+1. Une **nouvelle session** est creee (nouveau row dans `user_page_sessions`)
+2. Le flush periodique reprend
+
+Resultat : les sessions sont decoupees proprement. Exemple : "session 1 (8h-12h05) + session 2 (13h02-17h30)" au lieu de "session 1 (8h-17h30)".
+
+#### 3 etats dans le monitoring
+
+La page monitoring (`/monitoring`) affiche 3 etats pour chaque utilisateur :
+
+| Etat | Pastille | Style | Tooltip |
+|------|----------|-------|---------|
+| **Actif** | Vert pulse (`bg-emerald-500` + `animate-ping`) | Opacite normale | "En ligne — {page}" |
+| **Inactif** | Orange pulse lent (`bg-amber-500` + `animate-pulse`) | Opacite 80% | "Inactif — {page}" |
+| **Deconnecte** | Gris statique (`bg-gray-400`) | Opacite 60% | "Hors ligne" |
+
+Le header affiche un compteur decompose : `"X en ligne · Y inactifs · Z deconnectes"`.
+
+#### Ecran de veille (Screensaver)
+
+Le composant `src/components/layout/IdleScreensaver.tsx` affiche un ecran de veille "DVD bouncing logo" quand l'utilisateur est inactif :
+
+- **Overlay** : `fixed inset-0 z-[9999] bg-black/30`
+- **Logo** : `/public/gmbs-logo.svg` (120x120px) qui se deplace en diagonale et rebondit sur les 4 bords
+- **Changement de couleur** : A chaque rebond, `filter: hue-rotate(Xdeg)` avec un angle aleatoire — seules les parties colorees du logo (le "G" bleu) changent de teinte, le texte noir/gris reste intact
+- **Coordination avec la topbar** : le logo de la topbar disparait quand le screensaver s'active (via `data-screensaver-active` sur `<html>`) et reapparait avec une animation zoom-bounce (400ms) apres la fin du screensaver
+- **Disparition** : des que `isIdle` repasse a `false`, l'overlay fade-out en 400ms
+
+#### Fichiers
+
+```
+src/hooks/useIdleDetector.ts                    # Hook de detection d'inactivite
+src/components/layout/IdleScreensaver.tsx        # Ecran de veille DVD bouncing
+src/components/layout/page-presence-gate.tsx     # Monte useIdleDetector + IdleScreensaver
+src/components/layout/activity-tracker-gate.tsx  # Passe isIdle au tracker de sessions
+```
+
 ---
 
 ## Audit Trail

@@ -423,7 +423,7 @@ export default function Topbar() {
             onMouseLeave={() => setLogoHovered(false)}
           >
             <Link href="/dashboard" className="cursor-pointer">
-              <div className="relative w-[100px] h-[100px] z-[60] -bottom-4">
+              <div data-topbar-logo className="relative w-[100px] h-[100px] z-[60] -bottom-4 transition-opacity duration-300">
                 <Image
                   src="/gmbs-logo.svg"
                   alt="GMBS Logo"

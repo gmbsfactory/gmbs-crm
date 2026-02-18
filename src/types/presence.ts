@@ -47,4 +47,5 @@ export interface PagePresenceUser {
   currentPage: string | null
   activeInterventionId: string | null  // L'intervention ouverte dans le modal, ou null
   activeArtisanId: string | null       // L'artisan ouvert dans le modal, ou null
+  isIdle: boolean                      // L'utilisateur est inactif (pas de mouvement/tab cache)
 }

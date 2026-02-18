@@ -13,8 +13,8 @@ interface PagePresenceContextValue {
 
 const PagePresenceContext = createContext<PagePresenceContextValue | undefined>(undefined)
 
-export function PagePresenceProvider({ pageName, children }: { pageName: string | null; children: ReactNode }) {
-  const { viewers, allUsers, updateActiveIntervention, updateActiveArtisan } = usePagePresence(pageName)
+export function PagePresenceProvider({ pageName, isIdle = false, children }: { pageName: string | null; isIdle?: boolean; children: ReactNode }) {
+  const { viewers, allUsers, updateActiveIntervention, updateActiveArtisan } = usePagePresence(pageName, isIdle)
   return (
     <PagePresenceContext.Provider value={{ viewers, allUsers, updateActiveIntervention, updateActiveArtisan }}>
       {children}

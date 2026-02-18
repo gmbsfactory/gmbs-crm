@@ -55,6 +55,7 @@ export default function MonitoringPage() {
         currentPage: null,
         activeInterventionId: null,
         activeArtisanId: null,
+        isIdle: false,
       }))
   }, [teamOverview, allUsers])
 
@@ -69,6 +70,21 @@ export default function MonitoringPage() {
   const selectedIsOnline = useMemo(
     () => allUsers.some((u) => u.userId === selectedUserId),
     [allUsers, selectedUserId]
+  )
+
+  const selectedIsIdle = useMemo(
+    () => allUsers.find((u) => u.userId === selectedUserId)?.isIdle ?? false,
+    [allUsers, selectedUserId]
+  )
+
+  // Active vs idle online users
+  const activeOnlineCount = useMemo(
+    () => allUsers.filter((u) => !u.isIdle).length,
+    [allUsers]
+  )
+  const idleOnlineCount = useMemo(
+    () => allUsers.filter((u) => u.isIdle).length,
+    [allUsers]
   )
 
   // Aggregate totals from team overview
@@ -132,7 +148,17 @@ export default function MonitoringPage() {
                 <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500" />
               </span>
               <span className="text-sm font-semibold text-emerald-700 dark:text-emerald-300">
-                {allUsers.length} en ligne
+                {activeOnlineCount} en ligne
+                {idleOnlineCount > 0 && (
+                  <span className="text-amber-600 dark:text-amber-400">
+                    {" "}· {idleOnlineCount} inactif{idleOnlineCount !== 1 ? "s" : ""}
+                  </span>
+                )}
+                {offlineUsers.length > 0 && (
+                  <span className="text-gray-500">
+                    {" "}· {offlineUsers.length} deconnecte{offlineUsers.length !== 1 ? "s" : ""}
+                  </span>
+                )}
               </span>
             </div>
             <TabsList>
@@ -152,7 +178,7 @@ export default function MonitoringPage() {
                   Gestionnaires connectes
                 </CardTitle>
                 <span className="text-xs text-muted-foreground">
-                  {allUsers.length} en ligne{offlineUsers.length > 0 ? ` · ${offlineUsers.length} deconnecte${offlineUsers.length !== 1 ? "s" : ""}` : ""}
+                  {activeOnlineCount} en ligne{idleOnlineCount > 0 ? ` · ${idleOnlineCount} inactif${idleOnlineCount !== 1 ? "s" : ""}` : ""}{offlineUsers.length > 0 ? ` · ${offlineUsers.length} deconnecte${offlineUsers.length !== 1 ? "s" : ""}` : ""}
                 </span>
               </div>
             </CardHeader>
@@ -249,6 +275,7 @@ export default function MonitoringPage() {
       <UserActivitySheet
         user={selectedUser}
         isOnline={selectedIsOnline}
+        isIdle={selectedIsIdle}
         onClose={() => setSelectedUserId(null)}
       />
     </div>

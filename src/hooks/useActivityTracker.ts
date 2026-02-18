@@ -11,9 +11,13 @@ const FLUSH_INTERVAL_MS = 30_000
  * Tracks page visit sessions in user_page_sessions table.
  * Runs at layout level — detects page changes and logs start/end of each session.
  *
+ * When `isIdle` is true, the current session is ended and the flush timer stops.
+ * When `isIdle` returns to false, a new session is started.
+ *
  * @param pageName - Current page name (e.g., 'interventions', 'dashboard')
+ * @param isIdle - Whether the user is currently idle
  */
-export function useActivityTracker(pageName: string | null): void {
+export function useActivityTracker(pageName: string | null, isIdle = false): void {
   const { data: currentUser } = useCurrentUser()
   const currentUserId = currentUser?.id ?? null
 
@@ -25,6 +29,7 @@ export function useActivityTracker(pageName: string | null): void {
   const flushTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const accessTokenRef = useRef<string | null>(null)
   const mountedRef = useRef(true)
+  const isIdleRef = useRef(isIdle)
 
   // Keep userId ref in sync on every render
   currentUserIdRef.current = currentUserId
@@ -95,6 +100,39 @@ export function useActivityTracker(pageName: string | null): void {
     }
   }, [])
 
+  // Start the periodic flush timer
+  const startFlushTimer = useCallback(() => {
+    if (flushTimerRef.current) clearInterval(flushTimerRef.current)
+    flushTimerRef.current = setInterval(flushSession, FLUSH_INTERVAL_MS)
+  }, [flushSession])
+
+  // Stop the periodic flush timer
+  const stopFlushTimer = useCallback(() => {
+    if (flushTimerRef.current) {
+      clearInterval(flushTimerRef.current)
+      flushTimerRef.current = null
+    }
+  }, [])
+
+  // ─── Handle idle state changes: pause/resume sessions ────────────────────
+  useEffect(() => {
+    const wasIdle = isIdleRef.current
+    isIdleRef.current = isIdle
+
+    if (!currentUserId || !pageName) return
+
+    if (isIdle && !wasIdle) {
+      // Went idle → end session + stop flush
+      endSession()
+      stopFlushTimer()
+    } else if (!isIdle && wasIdle) {
+      // Came back from idle → start new session + restart flush
+      startSession(pageName).then(() => {
+        if (mountedRef.current) startFlushTimer()
+      })
+    }
+  }, [isIdle, currentUserId, pageName, endSession, startSession, startFlushTimer, stopFlushTimer])
+
   // Handle page change: end old session, start new one
   useEffect(() => {
     const prevPage = pageNameRef.current
@@ -104,7 +142,7 @@ export function useActivityTracker(pageName: string | null): void {
 
     if (prevPage !== pageName) {
       endSession().then(() => {
-        if (pageName && mountedRef.current) {
+        if (pageName && mountedRef.current && !isIdleRef.current) {
           startSession(pageName)
         }
       })
@@ -115,17 +153,14 @@ export function useActivityTracker(pageName: string | null): void {
   useEffect(() => {
     if (!currentUserId || !pageName) return
 
-    // Start initial session
-    startSession(pageName)
-
-    // Setup periodic flush
-    flushTimerRef.current = setInterval(flushSession, FLUSH_INTERVAL_MS)
+    // Only start session if not idle
+    if (!isIdleRef.current) {
+      startSession(pageName)
+      startFlushTimer()
+    }
 
     return () => {
-      if (flushTimerRef.current) {
-        clearInterval(flushTimerRef.current)
-        flushTimerRef.current = null
-      }
+      stopFlushTimer()
       // End session on cleanup
       endSession()
     }

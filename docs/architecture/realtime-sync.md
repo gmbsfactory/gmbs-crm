@@ -621,12 +621,39 @@ Contrairement au canal `crm-sync` qui passe par la leader election, les canaux d
 
 Borne par « nombre de modals ouverts simultanement × utilisateurs » — typiquement 5-10 connexions supplementaires, bien en dessous de la limite du plan Free (200 connexions, ~30 actuellement utilisees).
 
+### Page-Level Presence et Idle Detection
+
+En complement de la presence par intervention (modale), un systeme de presence **page-level** (`presence:pages`) permet de voir qui est sur quelle page du CRM. Ce canal global est gere par `usePagePresence` et inclut le champ `isIdle` dans le payload.
+
+```mermaid
+graph LR
+    A[useIdleDetector] -->|isIdle| B[PagePresenceGate]
+    B --> C[PagePresenceProvider]
+    C --> D["usePagePresence(pageName, isIdle)"]
+    D -->|"track({ isIdle })"| E[Canal presence:pages]
+    B --> F[useActivityTracker]
+    F -->|"pause/resume sessions"| G[user_page_sessions]
+    B --> H[IdleScreensaver]
+```
+
+Le type `PagePresenceUser` inclut :
+- `currentPage` : page consultee actuellement
+- `activeInterventionId` / `activeArtisanId` : modale ouverte
+- `isIdle` : `true` si l'utilisateur est inactif (timeout 5 min ou onglet masque)
+
+Voir [docs/maintenance/monitoring.md](../maintenance/monitoring.md#detection-dinactivite-idle-detection) pour les details complets sur la detection d'inactivite, l'ecran de veille, et les 3 etats visuels dans le monitoring.
+
 ### Fichiers Presence
 
 ```text
-src/types/presence.ts                                        # Types PresenceUser et PresencePayload
-src/hooks/useInterventionPresence.ts                         # Gestion du canal Presence (subscribe/track/untrack)
-src/components/ui/intervention-modal/PresenceAvatars.tsx      # Affichage des avatars dans le header du modal
+src/types/presence.ts                                        # Types PresenceUser, PagePresenceUser (avec isIdle)
+src/hooks/useInterventionPresence.ts                         # Gestion du canal Presence par intervention (modal)
+src/hooks/usePagePresence.ts                                 # Gestion du canal Presence page-level (isIdle inclus)
+src/hooks/useIdleDetector.ts                                 # Detection d'inactivite (timeout + Page Visibility API)
+src/hooks/useActivityTracker.ts                              # Tracking sessions avec pause/resume idle
+src/components/layout/IdleScreensaver.tsx                    # Ecran de veille DVD bouncing
+src/components/layout/page-presence-gate.tsx                 # Orchestrateur (idle + presence + screensaver)
+src/components/ui/intervention-modal/PresenceAvatars.tsx     # Affichage des avatars dans le header du modal
 tests/unit/hooks/useInterventionPresence.test.ts             # Tests du hook
 tests/unit/components/PresenceAvatars.test.tsx                # Tests du composant
 ```

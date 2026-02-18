@@ -16,6 +16,7 @@ interface PagePresencePayload {
   currentPage: string | null
   activeInterventionId: string | null
   activeArtisanId: string | null
+  isIdle: boolean
 }
 
 /** Small async gap allows Supabase internal cleanup from React Strict Mode double-mount */
@@ -48,7 +49,8 @@ const CHANNEL_NAME = 'presence:pages'
  * @param pageName - Name of the page being viewed. Pass null for non-presence pages.
  */
 export function usePagePresence(
-  pageName: string | null
+  pageName: string | null,
+  isIdle = false
 ): {
   viewers: PagePresenceUser[]
   allUsers: PagePresenceUser[]
@@ -76,6 +78,7 @@ export function usePagePresence(
   const activeInterventionIdRef = useRef<string | null>(null)
   const activeArtisanIdRef = useRef<string | null>(null)
   const joinedAtRef = useRef<string>(new Date().toISOString())
+  const isIdleRef = useRef<boolean>(isIdle)
 
   // ─── Referential stability for viewers (prevents re-renders on heartbeat) ────
   const prevViewersKeyRef = useRef('')
@@ -112,6 +115,7 @@ export function usePagePresence(
       currentPage: pageNameRef.current,
       activeInterventionId: activeInterventionIdRef.current,
       activeArtisanId: activeArtisanIdRef.current,
+      isIdle: isIdleRef.current,
     }
   }, [])
 
@@ -164,10 +168,11 @@ export function usePagePresence(
         currentPage: u.currentPage,
         activeInterventionId: u.activeInterventionId,
         activeArtisanId: u.activeArtisanId ?? null,
+        isIdle: u.isIdle ?? false,
       }))
 
     const allUsersKey = allSorted
-      .map((v) => `${v.userId}:${v.currentPage ?? ''}:${v.activeInterventionId ?? ''}:${v.activeArtisanId ?? ''}`)
+      .map((v) => `${v.userId}:${v.currentPage ?? ''}:${v.activeInterventionId ?? ''}:${v.activeArtisanId ?? ''}:${v.isIdle ? '1' : '0'}`)
       .join('|')
     if (allUsersKey !== prevAllUsersKeyRef.current) {
       prevAllUsersKeyRef.current = allUsersKey
@@ -203,11 +208,12 @@ export function usePagePresence(
         currentPage: u.currentPage,
         activeInterventionId: u.activeInterventionId,
         activeArtisanId: u.activeArtisanId ?? null,
+        isIdle: u.isIdle ?? false,
       }))
 
     // Only update state when data actually changed — prevents flash on heartbeat syncs
     const viewersKey = sorted
-      .map((v) => `${v.userId}:${v.activeInterventionId ?? ''}:${v.activeArtisanId ?? ''}`)
+      .map((v) => `${v.userId}:${v.activeInterventionId ?? ''}:${v.activeArtisanId ?? ''}:${v.isIdle ? '1' : '0'}`)
       .join('|')
     if (viewersKey !== prevViewersKeyRef.current) {
       prevViewersKeyRef.current = viewersKey
@@ -223,6 +229,12 @@ export function usePagePresence(
     // Also re-run handleSync to immediately filter existing presence data
     handleSync()
   }, [pageName, doTrack, handleSync])
+
+  // ─── Re-track immediately when idle state changes ─────────────────────────
+  useEffect(() => {
+    isIdleRef.current = isIdle
+    doTrack()
+  }, [isIdle, doTrack])
 
   // ─── Track mounted state for async callbacks ───────────────────────────────
   useEffect(() => {

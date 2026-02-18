@@ -132,7 +132,10 @@ export function PagePresenceGrid({ grouped, onSelectUser }: PagePresenceGridProp
                         <button
                           type="button"
                           onClick={() => onSelectUser(user.userId)}
-                          className="relative rounded-full transition-transform hover:scale-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                          className={cn(
+                            "relative rounded-full transition-transform hover:scale-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                            user.isIdle && "opacity-80"
+                          )}
                         >
                           <GestionnaireBadge
                             prenom={firstName}
@@ -142,8 +145,20 @@ export function PagePresenceGrid({ grouped, onSelectUser }: PagePresenceGridProp
                             size="sm"
                             showBorder
                           />
+                          {/* Status dot: green=active, orange=idle */}
+                          {user.isIdle ? (
+                            <span className="absolute -bottom-0.5 -right-0.5 flex h-2.5 w-2.5">
+                              <span className="absolute inline-flex h-full w-full animate-pulse rounded-full bg-amber-400 opacity-75" />
+                              <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-amber-500 ring-1.5 ring-background" />
+                            </span>
+                          ) : (
+                            <span className="absolute -bottom-0.5 -right-0.5 flex h-2.5 w-2.5">
+                              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+                              <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500 ring-1.5 ring-background" />
+                            </span>
+                          )}
                           {(hasIntervention || hasArtisan) && (
-                            <span className="absolute -bottom-0.5 -right-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-amber-500 ring-2 ring-background">
+                            <span className="absolute -top-0.5 -left-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-amber-500 ring-2 ring-background">
                               <Eye className="h-2 w-2 text-white" />
                             </span>
                           )}
