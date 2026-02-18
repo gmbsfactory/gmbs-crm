@@ -28,7 +28,7 @@ export async function middleware(req: NextRequest) {
   if (!user && pathname !== '/login') {
     const loginUrl = req.nextUrl.clone()
     loginUrl.pathname = '/login'
-    loginUrl.searchParams.set('redirect', pathname)
+    loginUrl.searchParams.set('redirect', pathname + req.nextUrl.search)
     return NextResponse.redirect(loginUrl)
   }
 
@@ -41,6 +41,7 @@ export async function middleware(req: NextRequest) {
       const loginUrl = req.nextUrl.clone()
       loginUrl.pathname = '/login'
       loginUrl.searchParams.set('expired', 'daily')
+      loginUrl.searchParams.set('redirect', pathname + req.nextUrl.search)
       const response = NextResponse.redirect(loginUrl)
       response.cookies.delete('crm_session_date')
       return response

@@ -31,8 +31,8 @@ export const STATUS_SORT_ORDER: Record<string, number> = {
 /** Rayon de recherche maximum en km */
 export const MAX_RADIUS_KM = 10000
 
-/** Statuts nécessitant une date prévue */
-export const STATUSES_REQUIRING_DATE_PREVUE = new Set(["VISITE_TECHNIQUE", "INTER_EN_COURS"])
+/** Statuts nécessitant une date prévue (cumulatif : INTER_EN_COURS → INTER_TERMINEE) */
+export const STATUSES_REQUIRING_DATE_PREVUE = new Set(["VISITE_TECHNIQUE", "INTER_EN_COURS", "INTER_TERMINEE"])
 
 /** Statuts nécessitant un ID définitif (pas "AUTO-xxx") */
 export const STATUSES_REQUIRING_DEFINITIVE_ID = new Set([
@@ -44,20 +44,29 @@ export const STATUSES_REQUIRING_DEFINITIVE_ID = new Set([
   "STAND_BY",
 ])
 
-/** Statuts nécessitant un nom de facturation (propriétaire) */
-export const STATUSES_REQUIRING_NOM_FACTURATION = new Set(["DEVIS_ENVOYE"])
+/** Statuts nécessitant un nom de facturation — cumulatif depuis DEVIS_ENVOYE */
+export const STATUSES_REQUIRING_NOM_FACTURATION = new Set(["DEVIS_ENVOYE", "ACCEPTE", "INTER_EN_COURS", "INTER_TERMINEE"])
 
-/** Statuts nécessitant un gestionnaire assigné */
-export const STATUSES_REQUIRING_ASSIGNED_USER = new Set(["DEVIS_ENVOYE"])
+/** Statuts nécessitant un gestionnaire assigné — cumulatif depuis DEVIS_ENVOYE */
+export const STATUSES_REQUIRING_ASSIGNED_USER = new Set(["DEVIS_ENVOYE", "ACCEPTE", "INTER_EN_COURS", "INTER_TERMINEE"])
 
-/** Statuts nécessitant des coûts renseignés */
-export const STATUSES_REQUIRING_COUTS = new Set(["INTER_EN_COURS"])
+/** Statuts nécessitant des coûts renseignés — cumulatif depuis INTER_EN_COURS */
+export const STATUSES_REQUIRING_COUTS = new Set(["INTER_EN_COURS", "INTER_TERMINEE"])
 
-/** Statuts nécessitant une consigne artisan */
-export const STATUSES_REQUIRING_CONSIGNE_ARTISAN = new Set(["INTER_EN_COURS"])
+/** Statuts nécessitant une consigne artisan — cumulatif depuis INTER_EN_COURS */
+export const STATUSES_REQUIRING_CONSIGNE_ARTISAN = new Set(["INTER_EN_COURS", "INTER_TERMINEE"])
 
-/** Statuts nécessitant les infos client */
-export const STATUSES_REQUIRING_CLIENT_INFO = new Set(["INTER_EN_COURS"])
+/** Statuts nécessitant les infos client — cumulatif depuis INTER_EN_COURS */
+export const STATUSES_REQUIRING_CLIENT_INFO = new Set(["INTER_EN_COURS", "INTER_TERMINEE"])
+
+/** Statuts nécessitant une agence — cumulatif depuis DEMANDE */
+export const STATUSES_REQUIRING_AGENCE = new Set(["DEMANDE", "DEVIS_ENVOYE", "ACCEPTE", "INTER_EN_COURS", "INTER_TERMINEE"])
+
+/** Statuts nécessitant un métier — cumulatif depuis DEMANDE */
+export const STATUSES_REQUIRING_METIER = new Set(["DEMANDE", "DEVIS_ENVOYE", "ACCEPTE", "INTER_EN_COURS", "INTER_TERMINEE"])
+
+/** Statuts nécessitant un devis (document kind "devis") — cumulatif depuis ACCEPTE */
+export const STATUSES_REQUIRING_DEVIS = new Set(["ACCEPTE", "INTER_EN_COURS", "INTER_TERMINEE"])
 
 /** Codes de statuts nécessitant un artisan assigné */
 export const ARTISAN_REQUIRED_STATUS_CODES = [

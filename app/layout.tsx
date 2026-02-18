@@ -18,6 +18,8 @@ import { UserStatusProvider } from "@/contexts/user-status-context"
 import { RemindersProvider } from "@/contexts/RemindersContext"
 import { AuthGuard } from "@/components/layout/auth-guard"
 import { DeveloperDashboardLoader } from "@/components/debug/DeveloperDashboardLoader"
+import { PagePresenceGate } from "@/components/layout/page-presence-gate"
+import { ActivityTrackerGate } from "@/components/layout/activity-tracker-gate"
 import StyledComponentsRegistry from "@/lib/styled-components-registry"
 import type { Metadata } from "next"
 import { Inter } from "next/font/google"
@@ -261,12 +263,14 @@ export default async function RootLayout({
                           <ThemeWrapper>
                             <AuthGuard>
                               <SidebarProvider>
+                                <PagePresenceGate>
                                 <div className="flex min-h-screen w-full overflow-hidden flex-col">
                                   <TopbarGate />
                                   <ConditionalPadding>
                                     <SidebarGate isAuthed={isAuthed} />
                                     <main id="main" className="flex flex-1 h-[calc(100vh-4rem)] flex-col overflow-hidden">
                                       <LowPowerModeDetector />
+                                      <ActivityTrackerGate />
                                       <GlobalShortcuts />
                                       <GlobalModalHost />
                                       <div className="flex-1 flex flex-col min-h-0 overflow-auto">
@@ -277,6 +281,7 @@ export default async function RootLayout({
                                     </main>
                                   </ConditionalPadding>
                                 </div>
+                              </PagePresenceGate>
                               </SidebarProvider>
                               <DeveloperDashboardLoader />
                             </AuthGuard>

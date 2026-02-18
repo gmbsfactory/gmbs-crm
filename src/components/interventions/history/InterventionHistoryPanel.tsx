@@ -14,7 +14,8 @@ import { useCurrentUser } from "@/hooks/useCurrentUser"
 import { useReferenceDataQuery } from "@/hooks/useReferenceDataQuery"
 import { useInterventionHistory, type InterventionHistoryItem } from "@/hooks/useInterventionHistory"
 import { useBatchResolver } from "@/hooks/useBatchResolver"
-import { HistoryItem, type HistoryValueResolver } from "./HistoryItem"
+import { HistoryEntry } from "@/components/shared/history/HistoryEntry"
+import type { HistoryValueResolver } from "@/components/shared/history/types"
 
 type DateFilter = "all" | "today" | "week" | "month"
 type ActionFilter =
@@ -680,7 +681,7 @@ export function InterventionHistoryPanel({ interventionId, isOpen, onClose }: In
                     </div>
                     <div className="history-group-items">
                       {group.items.map((item, index) => (
-                        <HistoryItem
+                        <HistoryEntry
                           key={item.id}
                           item={item}
                           isFirst={index === 0}

@@ -264,6 +264,8 @@ Tracking de la presence utilisateur avec throttle :
 // Check: toutes les 60s
 ```
 
+> **Note :** En complement de UserStatusContext (statut volontaire), le hook `useIdleDetector` detecte l'inactivite reelle (5 min sans interaction ou onglet masque). Ce signal `isIdle` est utilise par `usePagePresence` (presence page-level), `useActivityTracker` (sessions decoupees), et `IdleScreensaver` (ecran de veille DVD bouncing). Voir [docs/maintenance/monitoring.md](../maintenance/monitoring.md#detection-dinactivite-idle-detection).
+
 ### 5. RemindersContext
 
 Rappels d'intervention avec sync Realtime :

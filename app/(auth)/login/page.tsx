@@ -52,7 +52,7 @@ export default function LoginPage() {
 
       // Poser le cookie de session quotidienne
       const today = new Date().toISOString().slice(0, 10)
-      document.cookie = `crm_session_date=${today}; path=/; max-age=86400; samesite=strict${window.location.protocol === 'https:' ? '; secure' : ''}`
+      document.cookie = `crm_session_date=${today}; path=/; max-age=86400; samesite=lax${window.location.protocol === 'https:' ? '; secure' : ''}`
 
       // @supabase/ssr gère automatiquement les cookies de session après signIn
       // Mettre le statut à "connected" (credentials: 'include' envoie les cookies automatiquement)

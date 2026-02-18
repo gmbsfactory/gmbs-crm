@@ -45,6 +45,7 @@ import {
 } from "@/components/ui/context-menu"
 import { InterventionContextMenuContent } from "@/components/interventions/InterventionContextMenu"
 import { useInterventionModal } from "@/hooks/useInterventionModal"
+import { useTableKeyboardNavigation } from "@/hooks/useTableKeyboardNavigation"
 import { RemoteEditBadge } from "@/components/interventions/RemoteEditBadge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Input } from "@/components/ui/input"
@@ -100,6 +101,8 @@ import { interventionsApi } from "@/lib/api/v2"
 import { toast } from "sonner"
 import { useFilterMappers } from "@/contexts/FilterMappersContext"
 import { convertViewFiltersToServerFilters } from "@/lib/filter-converter"
+import { usePagePresenceContext } from "@/contexts/PagePresenceContext"
+import { InterventionPresenceIndicator } from "@/components/ui/InterventionPresenceIndicator"
 import {
   Tooltip,
   TooltipContent,
@@ -789,6 +792,10 @@ export function TableView({
   useEffect(() => {
   }, [currentPage, totalPages, totalCount, onPageChange])
 
+  // Page presence — qui consulte quoi sur cette page ?
+  const pagePresenceCtx = usePagePresenceContext()
+  const pageViewers = pagePresenceCtx?.viewers ?? []
+
   // Récupérer les fonctions de mapping depuis le Context
   const { statusCodeToId, userCodeToId, currentUserId } = useFilterMappers()
 
@@ -897,6 +904,18 @@ export function TableView({
       // Utiliser une clé unique qui inclut l'ID et l'index pour éviter les collisions entre pages
       return item?.id ? `${item.id}-${index}` : `index-${index}`
     },
+  })
+
+  const { highlightedIndex } = useTableKeyboardNavigation({
+    dataset,
+    rowVirtualizer,
+    expandedRowId,
+    setExpandedRowId,
+    onInterventionClick,
+    orderedIds,
+    enabled: true,
+    onNextPage,
+    onPreviousPage,
   })
 
   // Réinitialiser le scroll en haut SEULEMENT quand la page change (pas à chaque changement de dataset)
@@ -1631,6 +1650,8 @@ export function TableView({
                                       data-index={virtualRow.index}
                                       data-intervention-id={intervention.id}
                                       data-row-index={rowIndex}
+                                      aria-selected={highlightedIndex === rowIndex}
+                                      data-kb-highlighted={highlightedIndex === rowIndex ? "" : undefined}
                                       className={cn(
                                         "group relative cursor-pointer border-b border-border/30 transition-colors duration-150 hover:bg-accent/10 data-[state=selected]:hover:bg-muted",
                                         statusBorderEnabled && "table-row-status-border",
@@ -1807,6 +1828,13 @@ export function TableView({
                                           >
                                             <Eye className="h-4 w-4" />
                                           </Button>
+                                          {/* Présence — qui consulte cette intervention ? */}
+                                          <div onClick={(e) => e.stopPropagation()}>
+                                            <InterventionPresenceIndicator
+                                              interventionId={intervention.id}
+                                              viewers={pageViewers}
+                                            />
+                                          </div>
                                         </div>
                                       </td>
                                     </tr>

@@ -26,6 +26,14 @@ import { usePermissions } from "@/hooks/usePermissions"
 import { usePlatformKey } from "@/hooks/usePlatformKey"
 import { useCurrentUser } from "@/hooks/useCurrentUser"
 import { buildNavigation, type NavItem } from "@/config/navigation"
+import { usePagePresenceContext } from "@/contexts/PagePresenceContext"
+import { PagePresenceAvatars } from "@/components/ui/PagePresenceAvatars"
+
+function TopbarPresenceAvatars() {
+  const ctx = usePagePresenceContext()
+  if (!ctx) return null
+  return <PagePresenceAvatars viewers={ctx.viewers} />
+}
 
 type ReminderFilter = "all" | "my_reminders" | "mentions"
 
@@ -415,7 +423,7 @@ export default function Topbar() {
             onMouseLeave={() => setLogoHovered(false)}
           >
             <Link href="/dashboard" className="cursor-pointer">
-              <div className="relative w-[100px] h-[100px] z-[60] -bottom-4">
+              <div data-topbar-logo className="relative w-[100px] h-[100px] z-[60] -bottom-4 transition-opacity duration-300">
                 <Image
                   src="/gmbs-logo.svg"
                   alt="GMBS Logo"
@@ -550,9 +558,10 @@ export default function Topbar() {
           ) : null}
         </div>
 
-        {/* Center: Titre centré */}
-        <div className="absolute left-1/2 transform -translate-x-1/2">
+        {/* Center: Titre centré + présence */}
+        <div className="absolute left-1/2 transform -translate-x-1/2 flex items-center gap-3">
           <div className="text-2xl font-semibold tracking-tight select-none">{title}</div>
+          <TopbarPresenceAvatars />
         </div>
 
         {/* Right: search (hover reveal) + notifications + avatar */}

@@ -101,6 +101,17 @@ Schema, migrations et modele de donnees.
 
 ---
 
+### Navigation Clavier
+
+Raccourcis clavier et navigation sans souris dans le CRM.
+
+| Page | Description |
+|------|-------------|
+| [Vue d'ensemble](keyboard-navigation/README.md) | Tous les raccourcis, resume par page, architecture |
+| [Guide developpeur](keyboard-navigation/developer-guide.md) | Reference des hooks, styles CSS, guide d'integration |
+
+---
+
 ### Conventions
 
 Regles et standards du projet.

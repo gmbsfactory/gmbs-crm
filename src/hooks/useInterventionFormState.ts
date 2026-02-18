@@ -24,6 +24,9 @@ import {
   STATUSES_REQUIRING_COUTS,
   STATUSES_REQUIRING_CONSIGNE_ARTISAN,
   STATUSES_REQUIRING_CLIENT_INFO,
+  STATUSES_REQUIRING_AGENCE,
+  STATUSES_REQUIRING_METIER,
+  STATUSES_REQUIRING_DEVIS,
   ARTISAN_REQUIRED_STATUS_CODES,
 } from "@/lib/interventions/form-constants"
 import { formatDistanceKm, parseAddress, getArtisanDisplayName, artisanSearchResultToNearbyArtisan } from "@/lib/interventions/form-utils"
@@ -339,6 +342,24 @@ export function useInterventionFormState(options: UseInterventionFormStateOption
     return STATUSES_REQUIRING_CLIENT_INFO.has(code) ||
       (selectedStatus.label ?? "").toLowerCase().includes("inter en cours") ||
       (selectedStatus.label ?? "").toLowerCase().includes("intervention en cours")
+  }, [selectedStatus])
+
+  const requiresAgence = useMemo(() => {
+    if (!selectedStatus) return false
+    const code = (selectedStatus.code ?? "").toUpperCase()
+    return STATUSES_REQUIRING_AGENCE.has(code)
+  }, [selectedStatus])
+
+  const requiresMetier = useMemo(() => {
+    if (!selectedStatus) return false
+    const code = (selectedStatus.code ?? "").toUpperCase()
+    return STATUSES_REQUIRING_METIER.has(code)
+  }, [selectedStatus])
+
+  const requiresDevis = useMemo(() => {
+    if (!selectedStatus) return false
+    const code = (selectedStatus.code ?? "").toUpperCase()
+    return STATUSES_REQUIRING_DEVIS.has(code)
   }, [selectedStatus])
 
   // ---- Memos: email ----
@@ -775,6 +796,9 @@ export function useInterventionFormState(options: UseInterventionFormStateOption
     requiresCouts,
     requiresConsigneArtisan,
     requiresClientInfo,
+    requiresAgence,
+    requiresMetier,
+    requiresDevis,
 
     // Handlers
     handleInputChange,

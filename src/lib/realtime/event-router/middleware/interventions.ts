@@ -238,9 +238,12 @@ export const bridgeDetailCache: SyncMiddleware<Intervention> = (event, ctx) => {
   if (!event.record) return
   if (event.eventType !== 'INSERT' && event.eventType !== 'UPDATE') return
 
+  // Use refetchType 'all' to ensure the detail cache is always invalidated,
+  // even if the query is briefly inactive (e.g. during read-only → editor promotion).
+  // This guarantees the next mount gets fresh data from the server.
   ctx.queryClient.invalidateQueries({
     queryKey: interventionKeys.detail(event.record.id),
-    refetchType: 'active',
+    refetchType: 'all',
   })
 }
 

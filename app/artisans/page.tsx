@@ -1,10 +1,12 @@
 "use client"
 
-import React from "react"
+import React, { useCallback, useMemo } from "react"
 import type { ReactElement } from "react"
 import { ArtisanViewTabs } from "@/components/artisans/ArtisanViewTabs"
 import { PageSearchBar } from "@/components/ui/page-search-bar"
 import Loader from "@/components/ui/Loader"
+import { usePageKeyboardShortcuts } from "@/hooks/usePageKeyboardShortcuts"
+import { useSimpleTableNavigation } from "@/hooks/useSimpleTableNavigation"
 import { useArtisanPageState } from "./_lib/useArtisanPageState"
 import { ArtisanTable } from "./_components/ArtisanTable"
 import { ArtisanFilterDropdown } from "./_components/ArtisanFilterDropdown"
@@ -16,6 +18,29 @@ import { ArtisanDeleteDialog } from "./_components/ArtisanDeleteDialog"
 
 export default function ArtisansPage(): ReactElement {
   const state = useArtisanPageState()
+
+  const viewIds = useMemo(() => state.views.map((v) => v.id), [state.views])
+
+  usePageKeyboardShortcuts({
+    viewIds,
+    activeViewId: state.activeViewId,
+    onViewChange: state.setActiveView,
+    onNextPage: state.nextPage,
+    onPreviousPage: state.previousPage,
+  })
+
+  const handleArtisanEnter = useCallback(
+    (index: number) => {
+      const contact = state.viewFilteredContacts[index]
+      if (contact) state.handleViewDetails(contact)
+    },
+    [state.viewFilteredContacts, state.handleViewDetails],
+  )
+
+  const { highlightedIndex: artisanHighlightedIndex } = useSimpleTableNavigation({
+    rowCount: state.viewFilteredContacts.length,
+    onEnter: handleArtisanEnter,
+  })
 
   // --- Permission loading ---
   if (state.permissionsLoading) {
@@ -157,6 +182,7 @@ export default function ArtisansPage(): ReactElement {
           canDeleteArtisans={state.canDeleteArtisans}
           onViewDetails={state.handleViewDetails}
           onDelete={state.handleDeleteContact}
+          highlightedIndex={artisanHighlightedIndex}
           totalCount={state.totalCount}
           totalPages={state.totalPages}
           currentPage={state.currentPage}

@@ -43,6 +43,8 @@ import {
 } from "date-fns"
 import { fr } from "date-fns/locale"
 
+// ---------------------------------------------------------------------------
+
 type PeriodType = "week" | "month" | "year"
 
 const STORAGE_KEY = "dashboard-period-type"

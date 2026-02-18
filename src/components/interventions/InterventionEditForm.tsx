@@ -73,6 +73,7 @@ interface InterventionEditFormProps {
   onEmailModalOpenChange?: (isOpen: boolean) => void
   onStatusReasonModalOpenChange?: (isOpen: boolean) => void
   onPopoverOpenChange?: (isOpen: boolean) => void
+  readOnly?: boolean
 }
 
 export const InterventionEditForm = memo(function InterventionEditForm({
@@ -90,7 +91,8 @@ export const InterventionEditForm = memo(function InterventionEditForm({
   onArtisanSearchOpenChange,
   onEmailModalOpenChange,
   onStatusReasonModalOpenChange,
-  onPopoverOpenChange
+  onPopoverOpenChange,
+  readOnly = false
 }: InterventionEditFormProps) {
   const queryClient = useQueryClient()
   const { update: updateMutation } = useInterventionsMutations()
@@ -104,6 +106,7 @@ export const InterventionEditForm = memo(function InterventionEditForm({
   // Edit-specific state
   const [pendingReasonType, setPendingReasonType] = useState<StatusReasonType | null>(null)
   const [hasFactureGMBS, setHasFactureGMBS] = useState(false)
+  const [hasDevis, setHasDevis] = useState(false)
   const [secondArtisanDisplayMode, setSecondArtisanDisplayMode] = useState<"nom" | "rs" | "tel">("nom")
 
   // Extraire les coûts et paiements (needed for createEditFormData)
@@ -227,6 +230,9 @@ export const InterventionEditForm = memo(function InterventionEditForm({
     requiresCouts,
     requiresConsigneArtisan,
     requiresClientInfo,
+    requiresAgence,
+    requiresMetier,
+    requiresDevis,
 
     // Handlers (from shared hook)
     handleInputChange: baseHandleInputChange,
@@ -334,9 +340,25 @@ export const InterventionEditForm = memo(function InterventionEditForm({
     }
   }, [intervention.id])
 
+  const checkDevis = useCallback(async () => {
+    if (!intervention.id) return
+    try {
+      const docs = await documentsApi.getAll({
+        entity_id: intervention.id,
+        entity_type: "intervention",
+        kind: "devis"
+      })
+      const found = (docs?.data?.length ?? 0) > 0
+      setHasDevis(found)
+    } catch (error) {
+      console.error("[InterventionEditForm] Erreur checkDevis:", error)
+    }
+  }, [intervention.id])
+
   useEffect(() => {
     void checkFactureGMBS()
-  }, [checkFactureGMBS])
+    void checkDevis()
+  }, [checkFactureGMBS, checkDevis])
 
   // Edit-specific: Right column width management
   const DEFAULT_RIGHT_COLUMN_WIDTH = 320
@@ -412,70 +434,56 @@ export const InterventionEditForm = memo(function InterventionEditForm({
     return getDisplayName(displayData, mode)
   }, [refData?.artisanStatuses])
 
-  // Référence pour tracker si l'utilisateur a modifié manuellement le champ id_inter
-  const userEditedIdInterRef = useRef(false)
+  // ---- Synchronisation complète lors d'un changement distant (Realtime) ----
+  // Quand updated_at change, cela signifie qu'un autre utilisateur a modifié l'intervention.
+  // On réinitialise entièrement le formData + artisans sélectionnés depuis les nouvelles données.
+  const lastSyncedUpdatedAtRef = useRef(intervention.updated_at)
 
-  // Réinitialiser le flag quand on change d'intervention
   useEffect(() => {
-    userEditedIdInterRef.current = false
-  }, [intervention.id])
+    // Skip le premier render (déjà initialisé par useState)
+    if (lastSyncedUpdatedAtRef.current === intervention.updated_at) return
 
-  // Synchroniser formData.id_inter avec intervention.id_inter quand il change
-  // (par exemple après une sauvegarde qui génère un nouvel ID)
-  // Ne PAS inclure formData.id_inter dans les dépendances pour éviter la boucle
-  useEffect(() => {
-    // Ne pas écraser si l'utilisateur a explicitement modifié le champ
-    if (userEditedIdInterRef.current) {
-      return
-    }
+    lastSyncedUpdatedAtRef.current = intervention.updated_at
 
-    if (intervention.id_inter) {
-      setFormData((prev) => {
-        const currentIdInter = prev.id_inter?.trim() || ""
-        const isProvisionalId = currentIdInter.length === 0 || currentIdInter.toLowerCase().includes("auto")
+    // Recalculer les données jointes (costs, payments, artisans) depuis l'intervention fraîche
+    const freshCosts = intervention.intervention_costs || []
+    const freshPayments = intervention.intervention_payments || []
+    const freshArtisans = intervention.intervention_artisans || []
+    const freshPrimaryArtisan = freshArtisans.find((a: any) => a.is_primary)?.artisans
+    const freshSecondaryArtisan = freshArtisans.find((a: any) => !a.is_primary)?.artisans
+    const freshSstCost = freshCosts.find((c: any) => c.cost_type === 'sst' && (c.artisan_order === 1 || c.artisan_order === undefined || c.artisan_order === null))
+    const freshMaterielCost = freshCosts.find((c: any) => c.cost_type === 'materiel' && (c.artisan_order === 1 || c.artisan_order === undefined || c.artisan_order === null))
+    const freshInterventionCost = freshCosts.find((c: any) => c.cost_type === 'intervention')
+    const freshSstCostSecondArtisan = freshCosts.find((c: any) => c.cost_type === 'sst' && c.artisan_order === 2)
+    const freshMaterielCostSecondArtisan = freshCosts.find((c: any) => c.cost_type === 'materiel' && c.artisan_order === 2)
+    const freshSstPayment = freshPayments.find((p: any) => p.payment_type === 'acompte_sst')
+    const freshClientPayment = freshPayments.find((p: any) => p.payment_type === 'acompte_client')
 
-        // Ne mettre à jour que si le champ est vide ou contient "AUTO" (ID provisoire)
-        if (isProvisionalId && intervention.id_inter !== currentIdInter) {
-          return {
-            ...prev,
-            id_inter: intervention.id_inter || "",
-          }
-        }
-        return prev
-      })
-    }
-  }, [intervention.id_inter, setFormData])
+    // Reset complet du formData depuis la source de vérité (Supabase)
+    const newFormData = createEditFormData(
+      intervention,
+      freshPrimaryArtisan,
+      freshSecondaryArtisan,
+      {
+        sstCost: freshSstCost,
+        materielCost: freshMaterielCost,
+        interventionCost: freshInterventionCost,
+        sstCostSecondArtisan: freshSstCostSecondArtisan,
+        materielCostSecondArtisan: freshMaterielCostSecondArtisan,
+      },
+      { sstPayment: freshSstPayment, clientPayment: freshClientPayment }
+    )
+    setFormData(newFormData)
 
-  // Synchroniser les champs d'adresse avec intervention quand l'intervention change
-  // (par exemple quand on rouvre le modal avec de nouvelles données)
-  useEffect(() => {
-    setFormData((prev) => {
-      // Ne mettre à jour que si les valeurs ont réellement changé pour éviter les re-renders inutiles
-      const hasAddressChanged =
-        intervention.adresse !== prev.adresse ||
-        intervention.code_postal !== prev.code_postal ||
-        intervention.ville !== prev.ville ||
-        intervention.latitude !== prev.latitude ||
-        intervention.longitude !== prev.longitude ||
-        intervention.adresse_complete !== prev.adresse_complete
+    // Sync artisan selections
+    setSelectedArtisanId(freshPrimaryArtisan?.id ?? null)
+    setSelectedSecondArtisanId(freshSecondaryArtisan?.id ?? null)
 
-      if (hasAddressChanged) {
-        // Synchroniser le champ de recherche d'adresse avec adresse_complete
-        setLocationQuery(intervention.adresse_complete || prev.adresse_complete || "")
+    // Sync location query
+    setLocationQuery(intervention.adresse_complete || intervention.adresse || "")
 
-        return {
-          ...prev,
-          adresse: intervention.adresse || prev.adresse || "",
-          code_postal: intervention.code_postal || prev.code_postal || "",
-          ville: intervention.ville || prev.ville || "",
-          latitude: intervention.latitude ?? prev.latitude ?? 48.8566,
-          longitude: intervention.longitude ?? prev.longitude ?? 2.3522,
-          adresse_complete: intervention.adresse_complete || prev.adresse_complete || "",
-        }
-      }
-      return prev
-    })
-  }, [intervention, setLocationQuery, setFormData])
+    console.debug("[InterventionEditForm] Realtime sync: formData reset from updated_at change", intervention.updated_at)
+  }, [intervention, setFormData, setSelectedArtisanId, setSelectedSecondArtisanId, setLocationQuery])
 
   // Edit-specific: Update refs when artisans change
   useEffect(() => {
@@ -531,11 +539,6 @@ export const InterventionEditForm = memo(function InterventionEditForm({
 
   // Edit-specific: Wrapper for handleInputChange with auto-open collapsible sections
   const handleInputChange = useCallback((field: string, value: any) => {
-    // Track manual id_inter edits
-    if (field === "id_inter") {
-      userEditedIdInterRef.current = true
-    }
-
     // Call the base handler from the hook
     baseHandleInputChange(field as any, value)
 
@@ -1241,6 +1244,9 @@ export const InterventionEditForm = memo(function InterventionEditForm({
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
 
+    // Block submission in read-only mode
+    if (readOnly) return
+
     const form = event.currentTarget
     if (!form.checkValidity()) {
       form.reportValidity()
@@ -1256,6 +1262,17 @@ export const InterventionEditForm = memo(function InterventionEditForm({
     const datePrevueValue = formData.date_prevue?.trim() ?? ""
     if (requiresDatePrevue && datePrevueValue.length === 0) {
       form.reportValidity()
+      return
+    }
+
+    // === VALIDATIONS HÉRITÉES DE DEMANDE ===
+    if (requiresAgence && !formData.agence_id) {
+      toast.error("L'agence est obligatoire pour ce statut")
+      return
+    }
+
+    if (requiresMetier && !formData.metier_id) {
+      toast.error("Le métier est obligatoire pour ce statut")
       return
     }
 
@@ -1297,6 +1314,26 @@ export const InterventionEditForm = memo(function InterventionEditForm({
       }
       if (!formData.telephoneClient?.trim()) {
         toast.error("Le téléphone du client doit être renseigné pour passer en cours")
+        return
+      }
+    }
+
+    // === VALIDATION DEVIS (hérité depuis ACCEPTE) ===
+    if (requiresDevis) {
+      try {
+        const docs = await documentsApi.getAll({
+          entity_id: intervention.id,
+          entity_type: "intervention",
+          kind: "devis"
+        })
+
+        if (!docs.data || docs.data.length === 0) {
+          toast.error("Un document devis est obligatoire pour ce statut")
+          return
+        }
+      } catch (error) {
+        console.error("Erreur lors de la vérification du devis:", error)
+        toast.error("Erreur lors de la vérification des documents obligatoires")
         return
       }
     }
@@ -1411,13 +1448,13 @@ export const InterventionEditForm = memo(function InterventionEditForm({
   return (
     <>
       <form ref={formRef} onSubmit={handleSubmit} className="flex-1 min-h-0 flex flex-col">
-        {!canEditIntervention && (
+        {!canEditIntervention && !readOnly && (
           <div className="mb-3 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
             Cette intervention est en lecture seule. Permission requise :{" "}
             {isClosedStatus ? "edit_closed_interventions" : "write_interventions"}
           </div>
         )}
-        <fieldset className="flex-1 min-h-0 flex flex-col">
+        <fieldset className={cn("flex-1 min-h-0 flex flex-col", readOnly && "pointer-events-none select-none")} disabled={readOnly}>
           {/* LAYOUT DEUX COLONNES DISTINCTES - Chaque colonne a son propre scroll */}
           <div className="flex gap-3 flex-1 min-h-0">
             {/* COLONNE GAUCHE - Scroll indépendant avec scrollbar minimale à gauche */}
@@ -2338,14 +2375,20 @@ export const InterventionEditForm = memo(function InterventionEditForm({
                 </SectionLock>
 
                 <Collapsible open={isDocumentsOpen} onOpenChange={setIsDocumentsOpen}>
-                  <Card className={cn(requiresFacture && !hasFactureGMBS && "ring-2 ring-orange-400/50")}>
+                  <Card className={cn(
+                    (requiresFacture && !hasFactureGMBS) && "ring-2 ring-orange-400/50",
+                    (requiresDevis && !hasDevis) && "ring-2 ring-orange-400/50",
+                  )}>
                     <CollapsibleTrigger asChild>
                       <CardHeader className="cursor-pointer py-2 px-3 hover:bg-muted/50">
                         <CardTitle className="flex items-center gap-2 text-xs">
                           <Upload className="h-3 w-3" />
-                          Documents {requiresFacture && <span className="text-orange-500">*</span>}
+                          Documents {(requiresFacture || requiresDevis) && <span className="text-orange-500">*</span>}
                           {requiresFacture && !hasFactureGMBS && (
                             <span className="h-2 w-2 rounded-full bg-orange-500 animate-pulse" title="Facture GMBS obligatoire" />
+                          )}
+                          {requiresDevis && !hasDevis && (
+                            <span className="h-2 w-2 rounded-full bg-orange-500 animate-pulse" title="Devis GMBS obligatoire" />
                           )}
                           {isDocumentsOpen ? <ChevronDown className="ml-auto h-3 w-3" /> : <ChevronRight className="ml-auto h-3 w-3" />}
                         </CardTitle>
@@ -2358,8 +2401,11 @@ export const InterventionEditForm = memo(function InterventionEditForm({
                           entityId={intervention.id}
                           kinds={DOCUMENT_KINDS}
                           currentUser={currentUser ?? undefined}
-                          onChange={() => void checkFactureGMBS()}
-                          highlightedKinds={requiresFacture && !hasFactureGMBS ? ["facturesGMBS"] : []}
+                          onChange={() => { void checkFactureGMBS(); void checkDevis() }}
+                          highlightedKinds={[
+                            ...(requiresFacture && !hasFactureGMBS ? ["facturesGMBS"] : []),
+                            ...(requiresDevis && !hasDevis ? ["devis"] : []),
+                          ]}
                         />
                       </CardContent>
                     </CollapsibleContent>

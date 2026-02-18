@@ -19,6 +19,7 @@ import {
   CheckCircle2,
   AlertCircle,
   BarChart3,
+  History,
   Info,
   MapPin,
   Loader2,
@@ -44,6 +45,7 @@ import { CommentSection } from "@/components/shared/CommentSection"
 import { StatusReasonModal } from "@/components/shared/StatusReasonModal"
 import { Avatar } from "@/components/artisans/Avatar"
 import { GestionnaireBadge } from "@/components/ui/gestionnaire-badge"
+import { ArtisanHistoryPanel } from "@/components/artisans/history/ArtisanHistoryPanel"
 import { ArtisanFinancesSection } from "./ArtisanFinancesSection"
 import { ArtisanInterventionsTable } from "./ArtisanInterventionsTable"
 import { useReferenceDataQuery } from "@/hooks/useReferenceDataQuery"
@@ -69,6 +71,10 @@ import {
   InputOTPSlot,
 } from "@/components/ui/input-otp"
 import { UnsavedChangesDialog } from "@/components/interventions/UnsavedChangesDialog"
+import { useArtisanPresence } from "@/hooks/useArtisanPresence"
+import { PresenceAvatars } from "@/components/ui/intervention-modal/PresenceAvatars"
+import { ReadOnlyBanner } from "@/components/ui/intervention-modal/ReadOnlyBanner"
+import { usePagePresenceContext } from "@/contexts/PagePresenceContext"
 
 // ===== HELPERS =====
 
@@ -443,6 +449,7 @@ export function ArtisanModalContent({
   // Toggle entre vue Informations et vue Statistiques
   // Initialiser avec la vue par défaut si spécifiée
   const [showStats, setShowStats] = useState(defaultView === "statistics")
+  const [showHistoryPanel, setShowHistoryPanel] = useState(false)
 
   // Gestion des absences
   const [newAbsence, setNewAbsence] = useState({ start_date: "", end_date: "", reason: "" })
@@ -592,6 +599,34 @@ export function ArtisanModalContent({
   }, [currentUserData])
   const { can } = usePermissions()
   const canWriteArtisans = can("write_artisans")
+
+  // ─── Presence: who is currently viewing/editing this artisan? ─────────────
+  const { viewers, activeEditor, fieldLockMap, trackField, clearField } = useArtisanPresence(artisanId)
+
+  // Read-only mode: another user is the active editor
+  const isReadOnly = Boolean(activeEditor && currentUserData && activeEditor.userId !== currentUserData.id)
+
+  // Ref for auto-refetch on editor promotion
+  const refetchRef = useRef<(() => void) | null>(null)
+  refetchRef.current = refetchArtisan
+
+  const prevReadOnlyRef = useRef(false)
+  useEffect(() => {
+    if (prevReadOnlyRef.current && !isReadOnly) {
+      refetchRef.current?.()
+    }
+    prevReadOnlyRef.current = isReadOnly
+  }, [isReadOnly])
+
+  // Page presence — signal that this modal is showing an artisan
+  const pagePresenceCtx = usePagePresenceContext()
+  useEffect(() => {
+    if (!pagePresenceCtx?.updateActiveArtisan) return
+    pagePresenceCtx.updateActiveArtisan(artisanId)
+    return () => {
+      pagePresenceCtx.updateActiveArtisan(null)
+    }
+  }, [artisanId, pagePresenceCtx])
 
   useEffect(() => {
     setPendingReason(null)
@@ -1033,7 +1068,7 @@ export function ArtisanModalContent({
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
-        if (showUnsavedDialog || isStatusReasonModalOpen) {
+        if (showUnsavedDialog || isStatusReasonModalOpen || showHistoryPanel) {
           // Laisser UnsavedChangesDialog ou StatusReasonModal gérer Escape
           return
         }
@@ -1047,7 +1082,7 @@ export function ArtisanModalContent({
     return () => {
       document.removeEventListener("keydown", handleKeyDown, true)
     }
-  }, [handleCancel, showUnsavedDialog, isStatusReasonModalOpen])
+  }, [handleCancel, showUnsavedDialog, isStatusReasonModalOpen, showHistoryPanel])
 
   // Raccourci clavier Cmd/Ctrl+Enter pour enregistrer
   const { shortcutHint } = useSubmitShortcut({ formRef, isSubmitting: isSaving })
@@ -1217,6 +1252,21 @@ export function ArtisanModalContent({
                 {showStats ? "Informations" : "Statistiques"}
               </TooltipContent>
             </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="modal-config-columns-icon-button"
+                  onClick={() => setShowHistoryPanel(true)}
+                  aria-label="Voir l'historique"
+                >
+                  <History className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent className="modal-config-columns-tooltip">Historique des actions</TooltipContent>
+            </Tooltip>
+            <PresenceAvatars viewers={viewers} />
           </div>
 
           <div className="pointer-events-none absolute left-1/2 top-1/2 flex -translate-x-1/2 -translate-y-1/2 items-center gap-3">
@@ -1269,9 +1319,12 @@ export function ArtisanModalContent({
 
         <form ref={formRef} onSubmit={handleSubmit(onSubmit)} className="flex flex-1 min-h-0 flex-col">
           <fieldset
-            disabled={!canWriteArtisans}
-            className={cn("flex flex-col flex-1 min-h-0", !canWriteArtisans && "opacity-70")}
+            disabled={!canWriteArtisans || isReadOnly}
+            className={cn("flex flex-col flex-1 min-h-0", (!canWriteArtisans || isReadOnly) && "opacity-70")}
           >
+            {isReadOnly && activeEditor && (
+              <ReadOnlyBanner editor={activeEditor} entityLabel="cet artisan" />
+            )}
             <div className="modal-config-columns-body flex-1 min-h-0 h-full overflow-hidden bg-[#C6CEDC] dark:bg-transparent">
               {!canWriteArtisans ? (
                 <div className="px-4 py-3 md:px-6">
@@ -2059,7 +2112,7 @@ export function ArtisanModalContent({
           {/* Footer */}
           <footer className="modal-config-columns-footer flex items-center justify-between gap-2 px-4 py-3 md:px-6 bg-[#8DA5CE] dark:bg-transparent">
             <div>
-              {artisan && canWriteArtisans && (
+              {artisan && canWriteArtisans && !isReadOnly && (
                 getArtisanStatusCode(artisan.statut_id ?? null) === "ARCHIVE" ? (
                   <Button
                     type="button"
@@ -2086,18 +2139,20 @@ export function ArtisanModalContent({
             </div>
             <div className="flex items-center gap-2">
               <Button type="button" variant="outline" size="sm" onClick={handleCancel}>
-                Annuler
+                {isReadOnly ? "Fermer" : "Annuler"}
               </Button>
-              <Button type="submit" size="sm" disabled={isSaving || isLoading || !canWriteArtisans}>
-                {isSaving ? "Enregistrement..." : (
-                  <>
-                    Enregistrer
-                    <kbd className="ml-2 pointer-events-none hidden md:inline-flex h-5 select-none items-center gap-0.5 rounded border border-primary-foreground/30 bg-primary-foreground/10 px-1.5 font-mono text-[10px] font-medium text-primary-foreground/70">
-                      {shortcutHint}
-                    </kbd>
-                  </>
-                )}
-              </Button>
+              {!isReadOnly && (
+                <Button type="submit" size="sm" disabled={isSaving || isLoading || !canWriteArtisans}>
+                  {isSaving ? "Enregistrement..." : (
+                    <>
+                      Enregistrer
+                      <kbd className="ml-2 pointer-events-none hidden md:inline-flex h-5 select-none items-center gap-0.5 rounded border border-primary-foreground/30 bg-primary-foreground/10 px-1.5 font-mono text-[10px] font-medium text-primary-foreground/70">
+                        {shortcutHint}
+                      </kbd>
+                    </>
+                  )}
+                </Button>
+              )}
             </div>
           </footer>
         </form>
@@ -2115,6 +2170,11 @@ export function ArtisanModalContent({
           onCancel={handleCancelClose}
           onConfirm={handleConfirmClose}
           onSaveAndConfirm={handleSaveAndClose}
+        />
+        <ArtisanHistoryPanel
+          artisanId={artisanId}
+          isOpen={showHistoryPanel}
+          onClose={() => setShowHistoryPanel(false)}
         />
       </div >
     </TooltipProvider >

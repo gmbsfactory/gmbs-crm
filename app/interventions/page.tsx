@@ -1,5 +1,6 @@
 "use client"
 
+import { useMemo } from "react"
 import { Button } from "@/components/ui/button"
 import Loader from "@/components/ui/Loader"
 import { ViewTabs } from "@/components/interventions/views/ViewTabs"
@@ -9,6 +10,8 @@ import { InterventionRealtimeProvider } from "@/components/interventions/Interve
 import { FilterMappersProvider } from "@/contexts/FilterMappersContext"
 import { GenieEffectProvider } from "@/contexts/GenieEffectContext"
 import { usePermissions } from "@/hooks/usePermissions"
+import { usePageKeyboardShortcuts } from "@/hooks/usePageKeyboardShortcuts"
+import { VISIBLE_VIEW_LAYOUTS } from "./_lib/constants"
 
 import { useInterventionPageState } from "./_lib/useInterventionPageState"
 import InterventionsPlusMenu from "./_components/InterventionsPlusMenu"
@@ -102,6 +105,19 @@ function PageContent() {
     getCheckCount,
     loadDistinctValues,
   } = state
+
+  // ←/→ entre pastilles de vue (le hook gère aussi Shift+←/→ pour la pagination,
+  // mais la pagination effective est dans useTableKeyboardNavigation via le composant TableView)
+  const visibleViewIds = useMemo(
+    () => views.filter((v) => VISIBLE_VIEW_LAYOUTS.includes(v.layout)).map((v) => v.id),
+    [views],
+  )
+
+  usePageKeyboardShortcuts({
+    viewIds: visibleViewIds,
+    activeViewId,
+    onViewChange: setActiveView,
+  })
 
   return (
     <FilterMappersProvider>

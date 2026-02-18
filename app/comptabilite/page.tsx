@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useMemo, useState, type CSSProperties } from "react"
 import { useRouter } from "next/navigation"
 import { Copy, Check } from "lucide-react"
+import { usePageKeyboardShortcuts } from "@/hooks/usePageKeyboardShortcuts"
+import { useSimpleTableNavigation } from "@/hooks/useSimpleTableNavigation"
 import { format, getYear, startOfMonth, endOfMonth, startOfYear, endOfYear, eachMonthOfInterval } from "date-fns"
 import { fr } from "date-fns/locale"
 
@@ -231,6 +233,19 @@ export default function ComptabilitePage() {
 
   const isLoading = loading || loadingUser || loadingPermissions
 
+  // Raccourcis clavier : Shift+←/→ pour la pagination
+  const handleComptaNextPage = useCallback(() => {
+    setCurrentPage((p) => Math.min(p + 1, totalPages || 1))
+  }, [totalPages])
+  const handleComptaPreviousPage = useCallback(() => {
+    setCurrentPage((p) => Math.max(p - 1, 1))
+  }, [])
+
+  usePageKeyboardShortcuts({
+    onNextPage: handleComptaNextPage,
+    onPreviousPage: handleComptaPreviousPage,
+  })
+
   useEffect(() => {
     if (currentPage > totalPages && totalPages > 0) {
       setCurrentPage(1)
@@ -288,6 +303,19 @@ export default function ComptabilitePage() {
     openInterventionModal(id)
   }, [openInterventionModal])
 
+  const handleComptaEnter = useCallback(
+    (index: number) => {
+      const intervention = paginatedInterventions[index]
+      if (intervention) handleOpenModal(intervention.id)
+    },
+    [paginatedInterventions, handleOpenModal],
+  )
+
+  const { highlightedIndex: comptaHighlightedIndex } = useSimpleTableNavigation({
+    rowCount: paginatedInterventions.length,
+    onEnter: handleComptaEnter,
+  })
+
   const copySelectedRows = useCallback(async () => {
     if (selectedRows.size === 0) return
 
@@ -319,6 +347,7 @@ export default function ComptabilitePage() {
         emptyIfDash(cleanValue(formatDate(acompteClient.date))),
         emptyIfDash(cleanValue(formatCurrency(acompteArtisan.amount))),
         emptyIfDash(cleanValue(formatDate(acompteArtisan.date))),
+        `${window.location.origin}/interventions?i=${intervention.id}`,
       ]
     })
 
@@ -574,7 +603,7 @@ export default function ComptabilitePage() {
                   </tr>
                 )}
                 {!isLoading &&
-                  paginatedInterventions.map((intervention) => (
+                  paginatedInterventions.map((intervention, idx) => (
                     <ComptabiliteTableRow
                       key={intervention.id}
                       intervention={intervention}
@@ -585,6 +614,8 @@ export default function ComptabilitePage() {
                       onToggleComptaCheck={toggleComptaCheck}
                       onOpenModal={handleOpenModal}
                       columnWidths={columnWidths}
+                      rowIndex={idx}
+                      isHighlighted={comptaHighlightedIndex === idx}
                     />
                   ))}
               </tbody>
