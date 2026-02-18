@@ -54,6 +54,8 @@ interface ComptabiliteTableRowProps {
   onToggleSelect: (id: string) => void
   onToggleComptaCheck: (id: string) => void
   onOpenModal: (id: string) => void
+  rowIndex?: number
+  isHighlighted?: boolean
 }
 
 // ── Helper : style inline par colonne ──
@@ -74,6 +76,8 @@ export const ComptabiliteTableRow = memo(function ComptabiliteTableRow({
   onToggleSelect,
   onToggleComptaCheck,
   onOpenModal,
+  rowIndex,
+  isHighlighted = false,
 }: ComptabiliteTableRowProps) {
   const acompteClient = getPaymentInfo(intervention, "acompte_client")
   const acompteArtisan = getPaymentInfo(intervention, "acompte_sst")
@@ -85,10 +89,13 @@ export const ComptabiliteTableRow = memo(function ComptabiliteTableRow({
 
   return (
     <tr
+      data-kb-row={rowIndex}
+      data-kb-highlighted={isHighlighted ? "" : undefined}
+      aria-selected={isHighlighted}
       className={cn(
         "border-b border-border/40 transition-colors",
         isSelected && !isComptaChecked && "bg-muted/50",
-        isComptaChecked && "compta-checked"
+        isComptaChecked && "compta-checked",
       )}
       aria-label={rowLabel}
     >
@@ -173,8 +180,9 @@ export const ComptabiliteTableRow = memo(function ComptabiliteTableRow({
         className={cn(
           cellBase,
           "comptabilite-sticky-col",
-          isComptaChecked && "compta-checked-sticky",
-          isSelected && !isComptaChecked && "compta-selected-sticky"
+          isComptaChecked && !isHighlighted && "compta-checked-sticky",
+          isHighlighted && "compta-highlighted-sticky",
+          isSelected && !isComptaChecked && !isHighlighted && "compta-selected-sticky"
         )}
       >
         <div className="flex items-center gap-1">

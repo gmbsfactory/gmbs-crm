@@ -48,16 +48,16 @@ const ROUTE_CONFIG: (RouteConfig | { type: "spacer" })[] = [
     permission: { type: "simple", key: "read_interventions" },
   },
   {
-    name: "Comptabilité",
-    href: "/comptabilite",
-    icon: Calculator,
-    permission: { type: "simple", key: "view_comptabilite" },
-  },
-  {
     name: () => t("contacts"),
     href: "/artisans",
     icon: HardHat,
     permission: { type: "simple", key: "read_artisans" },
+  },
+  {
+    name: "Comptabilité",
+    href: "/comptabilite",
+    icon: Calculator,
+    permission: { type: "simple", key: "view_comptabilite" },
   },
   { type: "spacer" },
   {

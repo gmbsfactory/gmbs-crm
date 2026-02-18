@@ -17,6 +17,7 @@ interface ArtisanTableProps {
   canDeleteArtisans: boolean
   onViewDetails: (contact: Contact) => void
   onDelete: (contact: Contact) => void
+  highlightedIndex?: number
   // pagination
   totalCount: number | undefined
   totalPages: number
@@ -37,6 +38,7 @@ export function ArtisanTable({
   canDeleteArtisans,
   onViewDetails,
   onDelete,
+  highlightedIndex = -1,
   totalCount,
   totalPages,
   currentPage,
@@ -89,6 +91,7 @@ export function ArtisanTable({
                     canDeleteArtisans={canDeleteArtisans}
                     onViewDetails={onViewDetails}
                     onDelete={onDelete}
+                    isHighlighted={highlightedIndex === index}
                   />
                 ))}
               </tbody>

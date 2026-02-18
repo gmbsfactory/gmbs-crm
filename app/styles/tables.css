@@ -459,6 +459,61 @@
   }
 
   /* ═══════════════════════════════════════════════════════
+     Keyboard Navigation Highlight
+     ═══════════════════════════════════════════════════════ */
+
+  .data-table tbody tr[data-kb-highlighted] td,
+  .shadcn-table tbody tr[data-kb-highlighted] td {
+    --cell-base-color: hsl(var(--primary) / 0.08) !important;
+    background-color: hsl(var(--primary) / 0.08) !important;
+  }
+
+  .data-table tbody tr[data-kb-highlighted] td:first-child,
+  .shadcn-table tbody tr[data-kb-highlighted] td:first-child {
+    box-shadow: inset 3px 0 0 0 hsl(var(--primary) / 0.6);
+  }
+
+  .data-table tbody tr[data-kb-highlighted] td:last-child,
+  .shadcn-table tbody tr[data-kb-highlighted] td:last-child {
+    box-shadow: inset -3px 0 0 0 hsl(var(--primary) / 0.6);
+  }
+
+  .data-table tbody tr[data-kb-highlighted],
+  .shadcn-table tbody tr[data-kb-highlighted] {
+    outline: 2px solid hsl(var(--primary) / 0.4);
+    outline-offset: -2px;
+  }
+
+  /* Keyboard highlight OVER compta-checked green rows */
+  .data-table tbody tr.compta-checked[data-kb-highlighted] td,
+  .shadcn-table tbody tr.compta-checked[data-kb-highlighted] td {
+    background: hsl(var(--primary) / 0.12) !important;
+  }
+
+  :root[data-theme="dark"] .data-table tbody tr.compta-checked[data-kb-highlighted] td,
+  :root[data-theme="dark"] .shadcn-table tbody tr.compta-checked[data-kb-highlighted] td {
+    background: hsl(var(--primary) / 0.18) !important;
+  }
+
+  /* Sticky column when row is keyboard-highlighted */
+  .compta-highlighted-sticky {
+    background: hsl(var(--primary) / 0.12) !important;
+  }
+
+  :root[data-theme="dark"] .compta-highlighted-sticky {
+    background: hsl(var(--primary) / 0.18) !important;
+  }
+
+  /* Hover on highlighted sticky col */
+  .comptabilite-table tbody tr:hover .compta-highlighted-sticky {
+    background: hsl(var(--primary) / 0.16) !important;
+  }
+
+  :root[data-theme="dark"] .comptabilite-table tbody tr:hover .compta-highlighted-sticky {
+    background: hsl(var(--primary) / 0.22) !important;
+  }
+
+  /* ═══════════════════════════════════════════════════════
      COMPTABILITÉ : Colonne Action sticky + scroll
      ═══════════════════════════════════════════════════════ */
 

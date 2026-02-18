@@ -45,6 +45,7 @@ import {
 } from "@/components/ui/context-menu"
 import { InterventionContextMenuContent } from "@/components/interventions/InterventionContextMenu"
 import { useInterventionModal } from "@/hooks/useInterventionModal"
+import { useTableKeyboardNavigation } from "@/hooks/useTableKeyboardNavigation"
 import { RemoteEditBadge } from "@/components/interventions/RemoteEditBadge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Input } from "@/components/ui/input"
@@ -905,6 +906,18 @@ export function TableView({
     },
   })
 
+  const { highlightedIndex } = useTableKeyboardNavigation({
+    dataset,
+    rowVirtualizer,
+    expandedRowId,
+    setExpandedRowId,
+    onInterventionClick,
+    orderedIds,
+    enabled: true,
+    onNextPage,
+    onPreviousPage,
+  })
+
   // Réinitialiser le scroll en haut SEULEMENT quand la page change (pas à chaque changement de dataset)
   const previousPageRef = useRef(currentPage)
   useEffect(() => {
@@ -1637,6 +1650,8 @@ export function TableView({
                                       data-index={virtualRow.index}
                                       data-intervention-id={intervention.id}
                                       data-row-index={rowIndex}
+                                      aria-selected={highlightedIndex === rowIndex}
+                                      data-kb-highlighted={highlightedIndex === rowIndex ? "" : undefined}
                                       className={cn(
                                         "group relative cursor-pointer border-b border-border/30 transition-colors duration-150 hover:bg-accent/10 data-[state=selected]:hover:bg-muted",
                                         statusBorderEnabled && "table-row-status-border",

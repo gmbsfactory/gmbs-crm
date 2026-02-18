@@ -27,6 +27,7 @@ interface ArtisanTableRowProps {
   canDeleteArtisans: boolean
   onViewDetails: (contact: Contact) => void
   onDelete: (contact: Contact) => void
+  isHighlighted?: boolean
 }
 
 // ---------------------------------------------------------------------------
@@ -71,14 +72,17 @@ export const ArtisanTableRow = memo(function ArtisanTableRow({
   canDeleteArtisans,
   onViewDetails,
   onDelete,
+  isHighlighted = false,
 }: ArtisanTableRowProps) {
   return (
     <ContextMenu>
       <ContextMenuTrigger asChild>
         <tr
+          data-kb-row={index}
+          aria-selected={isHighlighted}
           className={`hover:bg-slate-100/60 dark:hover:bg-muted/30 transition-colors ${
             index % 2 === 0 ? "bg-white dark:bg-background" : "bg-slate-50 dark:bg-muted/10"
-          }`}
+          } ${isHighlighted ? "!bg-primary/8 outline outline-2 outline-primary/40 -outline-offset-2" : ""}`}
         >
           {/* Artisan */}
           <td className="px-2.5 py-1.5">
