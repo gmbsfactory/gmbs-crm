@@ -49,19 +49,19 @@ const backdropVariants = {
 
 const containerVariants: Record<ModalDisplayMode, Variants> = {
   halfpage: {
-    initial: { x: "100%" },
-    animate: { x: "0%" },
-    exit: { x: "100%" },
+    initial: { x: "100%", y: 0, scale: 1, opacity: 1 },
+    animate: { x: "0%", y: 0, scale: 1, opacity: 1 },
+    exit: { x: "100%", y: 0, scale: 1, opacity: 1 },
   },
   centerpage: {
-    initial: { scale: 0.9, opacity: 0 },
-    animate: { scale: 1, opacity: 1 },
-    exit: { scale: 0.9, opacity: 0 },
+    initial: { scale: 0.9, opacity: 0, x: 0, y: 0 },
+    animate: { scale: 1, opacity: 1, x: 0, y: 0 },
+    exit: { scale: 0.9, opacity: 0, x: 0, y: 0 },
   },
   fullpage: {
-    initial: { y: "100%" },
-    animate: { y: "0%" },
-    exit: { y: "100%" },
+    initial: { y: "100%", x: 0, scale: 1, opacity: 1 },
+    animate: { y: "0%", x: 0, scale: 1, opacity: 1 },
+    exit: { y: "100%", x: 0, scale: 1, opacity: 1 },
   },
 }
 
