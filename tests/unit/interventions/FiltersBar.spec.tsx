@@ -1,8 +1,15 @@
 import { render, screen } from '@testing-library/react'
 import React from 'react'
-import { FiltersBar } from '@/components/interventions/FiltersBar'
 import type { WorkflowConfig } from '@/types/intervention-workflow'
 import { vi, describe, it, expect } from 'vitest'
+
+// Mock supabase-client to prevent @supabase/ssr env var error
+vi.mock('@/lib/supabase-client', () => ({
+  supabase: {
+    from: vi.fn(),
+    auth: { getSession: vi.fn().mockResolvedValue({ data: { session: null }, error: null }) },
+  },
+}))
 
 // Mock du hook useWorkflowConfig
 vi.mock('@/hooks/useWorkflowConfig', () => ({
@@ -11,6 +18,8 @@ vi.mock('@/hooks/useWorkflowConfig', () => ({
     updateStatus: vi.fn(),
   }),
 }))
+
+import { FiltersBar } from '@/components/interventions/FiltersBar'
 
 const mockWorkflow: WorkflowConfig = {
   statuses: [
