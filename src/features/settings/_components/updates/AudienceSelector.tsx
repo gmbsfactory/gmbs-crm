@@ -11,6 +11,7 @@ const ROLES = [
   { key: "admin", label: "Admin" },
   { key: "manager", label: "Manager" },
   { key: "gestionnaire", label: "Gestionnaire" },
+  { key: "dev", label: "Dev" },
 ] as const
 
 interface AudienceSelectorProps {
