@@ -14,15 +14,6 @@ import type { AppUpdateSeverity } from "@/types/app-updates"
 import { cn } from "@/lib/utils"
 import { ChevronRight, X, ScrollText } from "lucide-react"
 
-/* ── Dot accent couleur par severity ── */
-const severityDot: Record<AppUpdateSeverity, string> = {
-  info: "bg-blue-500",
-  important: "bg-amber-500",
-  breaking: "bg-red-500",
-  feature: "bg-emerald-500",
-  fix: "bg-violet-500",
-}
-
 /* ── Entrée individuelle ── */
 function JournalEntry({
   update,
@@ -35,6 +26,7 @@ function JournalEntry({
 }) {
   const severity = getSeverityConfig(update.severity as AppUpdateSeverity)
   const SeverityIcon = severity.icon
+  const isRead = update.is_acknowledged
   const date = update.published_at
     ? new Date(update.published_at).toLocaleDateString("fr-FR", {
         day: "numeric",
@@ -44,12 +36,11 @@ function JournalEntry({
 
   return (
     <div className="relative pl-6">
-      {/* Timeline dot */}
+      {/* Timeline dot : vert = non lu, bleu = lu */}
       <div
         className={cn(
-          "absolute left-0 top-[18px] h-2.5 w-2.5 rounded-full ring-2 ring-background",
-          severityDot[update.severity as AppUpdateSeverity] || severityDot.info,
-          !update.is_acknowledged && "ring-primary/30"
+          "absolute left-0 top-[18px] h-2.5 w-2.5 rounded-full ring-2 ring-background transition-colors",
+          isRead ? "bg-blue-400" : "bg-emerald-500"
         )}
       />
 
@@ -63,23 +54,29 @@ function JournalEntry({
             : "hover:bg-muted/40"
         )}
       >
-        {/* Ligne 1 : version + date + badge nouveau */}
-        <div className="flex items-center gap-2 mb-1">
+        {/* Ligne 1 : version + date + pastille severity + badge nouveau */}
+        <div className="flex items-center gap-1.5 mb-1 flex-wrap">
           <span className="text-[11px] font-mono font-medium text-muted-foreground">
             v{update.version}
           </span>
           <span className="text-[11px] text-muted-foreground/70">{date}</span>
-          {!update.is_acknowledged && (
-            <span className="ml-auto inline-flex items-center rounded-full bg-primary/10 text-primary px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide">
+          <span className={cn("inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-medium", severity.color)}>
+            <SeverityIcon className="h-2.5 w-2.5" />
+            {severity.label}
+          </span>
+          {!isRead && (
+            <span className="ml-auto inline-flex items-center rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide">
               Nouveau
             </span>
           )}
         </div>
 
-        {/* Ligne 2 : icône severity + titre + chevron */}
+        {/* Ligne 2 : titre + chevron */}
         <div className="flex items-center gap-2">
-          <SeverityIcon className={cn("h-3.5 w-3.5 shrink-0", severity.color.split(" ").find(c => c.startsWith("text-")))} />
-          <span className="text-sm font-medium text-foreground truncate flex-1 leading-tight">
+          <span className={cn(
+            "text-sm font-medium truncate flex-1 leading-tight",
+            isRead ? "text-muted-foreground" : "text-foreground"
+          )}>
             {update.title}
           </span>
           <ChevronRight
