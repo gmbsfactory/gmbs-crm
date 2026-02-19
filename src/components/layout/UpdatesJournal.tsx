@@ -35,15 +35,7 @@ function JournalEntry({
     : ""
 
   return (
-    <div className="relative pl-6">
-      {/* Timeline dot : vert = non lu, bleu = lu */}
-      <div
-        className={cn(
-          "absolute left-0 top-[18px] h-2.5 w-2.5 rounded-full ring-2 ring-background transition-colors",
-          isRead ? "bg-blue-400" : "bg-emerald-500"
-        )}
-      />
-
+    <div>
       <button
         type="button"
         onClick={onToggle}
@@ -54,8 +46,14 @@ function JournalEntry({
             : "hover:bg-muted/40"
         )}
       >
-        {/* Ligne 1 : pastille severity + titre + chevron */}
+        {/* Ligne 1 : dot + pastille severity (gauche) — version + date (droite) */}
         <div className="flex items-center gap-1.5 mb-1">
+          <div
+            className={cn(
+              "h-2 w-2 rounded-full shrink-0 transition-colors",
+              isRead ? "bg-blue-400" : "bg-emerald-500"
+            )}
+          />
           <span className={cn("inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-medium shrink-0", severity.color)}>
             <SeverityIcon className="h-2.5 w-2.5" />
             {severity.label}
@@ -65,6 +63,15 @@ function JournalEntry({
               Nouveau
             </span>
           )}
+          <span className="flex-1" />
+          <span className="text-[11px] font-mono text-muted-foreground/60 shrink-0">
+            v{update.version}
+          </span>
+          <span className="text-[11px] text-muted-foreground/50 shrink-0">{date}</span>
+        </div>
+
+        {/* Ligne 2 : titre en gras + chevron */}
+        <div className="flex items-center gap-2">
           <span className={cn(
             "text-sm font-semibold truncate flex-1 leading-tight",
             isRead ? "text-muted-foreground" : "text-foreground"
@@ -77,14 +84,6 @@ function JournalEntry({
               isExpanded && "rotate-90"
             )}
           />
-        </div>
-
-        {/* Ligne 2 : version + date alignés à droite */}
-        <div className="flex items-center justify-end gap-2">
-          <span className="text-[11px] font-mono text-muted-foreground/60">
-            v{update.version}
-          </span>
-          <span className="text-[11px] text-muted-foreground/50">{date}</span>
         </div>
       </button>
 
@@ -236,20 +235,15 @@ export default function UpdatesJournal({ isOpen, onClose }: UpdatesJournalProps)
                   <span className="text-sm">Aucune mise à jour</span>
                 </div>
               ) : (
-                <div className="relative">
-                  {/* Timeline line */}
-                  <div className="absolute left-[4.5px] top-3 bottom-3 w-px bg-border" />
-
-                  <div className="space-y-1">
-                    {journal.map(update => (
-                      <JournalEntry
-                        key={update.id}
-                        update={update}
-                        isExpanded={expandedId === update.id}
-                        onToggle={() => handleToggle(update.id)}
-                      />
-                    ))}
-                  </div>
+                <div className="space-y-1">
+                  {journal.map(update => (
+                    <JournalEntry
+                      key={update.id}
+                      update={update}
+                      isExpanded={expandedId === update.id}
+                      onToggle={() => handleToggle(update.id)}
+                    />
+                  ))}
                 </div>
               )}
             </div>
