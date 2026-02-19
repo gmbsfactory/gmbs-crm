@@ -54,27 +54,19 @@ function JournalEntry({
             : "hover:bg-muted/40"
         )}
       >
-        {/* Ligne 1 : version + date + pastille severity + badge nouveau */}
-        <div className="flex items-center gap-1.5 mb-1 flex-wrap">
-          <span className="text-[11px] font-mono font-medium text-muted-foreground">
-            v{update.version}
-          </span>
-          <span className="text-[11px] text-muted-foreground/70">{date}</span>
-          <span className={cn("inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-medium", severity.color)}>
+        {/* Ligne 1 : pastille severity + titre + chevron */}
+        <div className="flex items-center gap-1.5 mb-1">
+          <span className={cn("inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-medium shrink-0", severity.color)}>
             <SeverityIcon className="h-2.5 w-2.5" />
             {severity.label}
           </span>
           {!isRead && (
-            <span className="ml-auto inline-flex items-center rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide">
+            <span className="inline-flex items-center rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide shrink-0">
               Nouveau
             </span>
           )}
-        </div>
-
-        {/* Ligne 2 : titre + chevron */}
-        <div className="flex items-center gap-2">
           <span className={cn(
-            "text-sm font-medium truncate flex-1 leading-tight",
+            "text-sm font-semibold truncate flex-1 leading-tight",
             isRead ? "text-muted-foreground" : "text-foreground"
           )}>
             {update.title}
@@ -85,6 +77,14 @@ function JournalEntry({
               isExpanded && "rotate-90"
             )}
           />
+        </div>
+
+        {/* Ligne 2 : version + date alignés à droite */}
+        <div className="flex items-center justify-end gap-2">
+          <span className="text-[11px] font-mono text-muted-foreground/60">
+            v{update.version}
+          </span>
+          <span className="text-[11px] text-muted-foreground/50">{date}</span>
         </div>
       </button>
 
