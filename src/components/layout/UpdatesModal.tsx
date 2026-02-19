@@ -50,12 +50,17 @@ export default function UpdatesModal() {
   const pathname = usePathname()
   const isPublicPage = PUBLIC_PATHS.some(p => pathname?.startsWith(p))
 
-  // Realtime subscription — invalidates unseen + journal on app_updates changes
+  // Realtime subscription — invalide unseen + journal pour la pastille/badge
   useUpdatesRealtime()
 
   const { data: currentUser } = useCurrentUser({ enabled: !isPublicPage })
   const { data: unseenUpdates, isLoading } = useUnseenUpdates()
   const acknowledgeMutation = useAcknowledgeUpdates()
+
+  // --- Modal uniquement au login (snapshot initial) ---
+  const sessionCheckedRef = React.useRef(false)
+  const [showModal, setShowModal] = React.useState(false)
+  const [loginUpdates, setLoginUpdates] = React.useState<AppUpdateWithViewStatus[] | null>(null)
 
   const scrollRef = React.useRef<HTMLDivElement>(null)
   const [hasScrolledToBottom, setHasScrolledToBottom] = React.useState(false)
@@ -65,6 +70,19 @@ export default function UpdatesModal() {
     setMounted(true)
   }, [])
 
+  // Capturer les unseen updates au premier chargement (login/reconnexion)
+  // Les updates arrivant via realtime en cours de session ne déclenchent PAS le modal
+  React.useEffect(() => {
+    if (sessionCheckedRef.current) return
+    if (isLoading || !unseenUpdates) return
+
+    sessionCheckedRef.current = true
+    if (unseenUpdates.length > 0) {
+      setLoginUpdates(unseenUpdates)
+      setShowModal(true)
+    }
+  }, [isLoading, unseenUpdates])
+
   // Vérifier si le contenu ne dépasse pas (bouton immédiatement actif)
   React.useEffect(() => {
     const el = scrollRef.current
@@ -72,7 +90,7 @@ export default function UpdatesModal() {
     if (el.scrollHeight <= el.clientHeight) {
       setHasScrolledToBottom(true)
     }
-  }, [unseenUpdates])
+  }, [loginUpdates])
 
   const handleScroll = React.useCallback(() => {
     const el = scrollRef.current
@@ -83,15 +101,20 @@ export default function UpdatesModal() {
   }, [])
 
   const handleAcknowledge = React.useCallback(() => {
-    if (!currentUser?.id || !unseenUpdates?.length) return
-    acknowledgeMutation.mutate({
-      userId: currentUser.id,
-      updateIds: unseenUpdates.map(u => u.id),
-    })
-  }, [currentUser?.id, unseenUpdates, acknowledgeMutation])
+    if (!currentUser?.id || !loginUpdates?.length) return
+    acknowledgeMutation.mutate(
+      {
+        userId: currentUser.id,
+        updateIds: loginUpdates.map(u => u.id),
+      },
+      {
+        onSuccess: () => setShowModal(false),
+      }
+    )
+  }, [currentUser?.id, loginUpdates, acknowledgeMutation])
 
-  // Ne rien rendre sur les pages publiques, pendant le chargement, ou si pas d'updates
-  if (isPublicPage || !mounted || isLoading || !currentUser || !unseenUpdates || unseenUpdates.length === 0) {
+  // Ne rien rendre sur les pages publiques, ou si le modal ne doit pas s'afficher
+  if (isPublicPage || !mounted || !showModal || !loginUpdates || !currentUser) {
     return null
   }
 
@@ -114,10 +137,10 @@ export default function UpdatesModal() {
           onScroll={handleScroll}
           className="flex-1 overflow-y-auto px-6 py-4 min-h-0"
         >
-          {unseenUpdates.map((update, idx) => (
+          {loginUpdates.map((update, idx) => (
             <React.Fragment key={update.id}>
               <UpdateEntry update={update} />
-              {idx < unseenUpdates.length - 1 && (
+              {idx < loginUpdates.length - 1 && (
                 <hr className="my-4 border-border" />
               )}
             </React.Fragment>

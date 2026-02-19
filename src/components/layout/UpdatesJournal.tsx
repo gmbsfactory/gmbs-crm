@@ -5,6 +5,8 @@ import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
 import { GenericModal } from "@/components/ui/modal"
 import { useUpdatesJournal } from "@/hooks/useUpdatesJournal"
+import { useAcknowledgeUpdates } from "@/hooks/useAcknowledgeUpdates"
+import { useCurrentUser } from "@/hooks/useCurrentUser"
 import type { AppUpdateWithViewStatus } from "@/types/app-updates"
 import { cn } from "@/lib/utils"
 import { ChevronDown, X } from "lucide-react"
@@ -84,11 +86,31 @@ interface UpdatesJournalProps {
 
 export default function UpdatesJournal({ isOpen, onClose }: UpdatesJournalProps) {
   const { data: journal, isLoading } = useUpdatesJournal()
+  const { data: currentUser } = useCurrentUser()
+  const acknowledgeMutation = useAcknowledgeUpdates()
   const [expandedId, setExpandedId] = React.useState<string | null>(null)
+
+  // Tracker les updates déjà acquittées dans cette session (évite les appels en double)
+  const acknowledgedInSessionRef = React.useRef(new Set<string>())
 
   const handleToggle = React.useCallback((id: string) => {
     setExpandedId(prev => (prev === id ? null : id))
-  }, [])
+
+    // Auto-acquitter quand l'utilisateur expand une entrée non lue
+    if (!currentUser?.id) return
+    const update = journal?.find(u => u.id === id)
+    if (
+      update &&
+      !update.is_acknowledged &&
+      !acknowledgedInSessionRef.current.has(id)
+    ) {
+      acknowledgedInSessionRef.current.add(id)
+      acknowledgeMutation.mutate({
+        userId: currentUser.id,
+        updateIds: [id],
+      })
+    }
+  }, [journal, currentUser?.id, acknowledgeMutation])
 
   return (
     <GenericModal isOpen={isOpen} onClose={onClose} mode="centerpage">
