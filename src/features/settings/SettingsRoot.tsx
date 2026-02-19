@@ -1,14 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar"
-import { Badge } from "@/components/ui/badge"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
-import { Switch } from "@/components/ui/switch"
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import {
     User,
     Users,
@@ -23,7 +15,6 @@ import { EnumManager } from "./EnumManager"
 import { ProfileSettings } from "./ProfileSettings"
 import { InterfaceSettings } from "./InterfaceSettings"
 import { TeamSettings } from "./TeamSettings"
-
 export type SettingsTab = "profile" | "interface" | "team" | "enums" | "targets"
 
 export default function SettingsPage({ activeTab = "profile", embedHeader = true }: { activeTab?: SettingsTab; embedHeader?: boolean }) {
@@ -120,6 +111,7 @@ export default function SettingsPage({ activeTab = "profile", embedHeader = true
               <TargetsSettings />
             </TabsContent>
           )}
+
         </Tabs>
       </div>
     )

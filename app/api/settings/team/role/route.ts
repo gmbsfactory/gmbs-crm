@@ -24,9 +24,24 @@ export async function POST(req: Request) {
       roleId = ins.data.id
     }
 
-    // Remove previous roles and assign the new one (single-role policy)
-    const del = await supabaseAdmin.from('user_roles').delete().eq('user_id', userId)
-    if (del.error) return NextResponse.json({ error: del.error.message }, { status: 500 })
+    // Get IDs of base roles (not dev) to only delete those, preserving dev role
+    const { data: baseRoles } = await supabaseAdmin
+      .from('roles')
+      .select('id')
+      .in('name', ['admin', 'manager', 'gestionnaire'])
+    const baseRoleIds = (baseRoles || []).map((r: any) => r.id)
+
+    // Remove previous base roles only (preserve dev role)
+    if (baseRoleIds.length > 0) {
+      const del = await supabaseAdmin
+        .from('user_roles')
+        .delete()
+        .eq('user_id', userId)
+        .in('role_id', baseRoleIds)
+      if (del.error) return NextResponse.json({ error: del.error.message }, { status: 500 })
+    }
+
+    // Assign the new base role
     const add = await supabaseAdmin.from('user_roles').insert({ user_id: userId, role_id: roleId })
     if (add.error) return NextResponse.json({ error: add.error.message }, { status: 500 })
     return NextResponse.json({ ok: true })

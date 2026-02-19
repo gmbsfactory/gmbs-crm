@@ -18,6 +18,7 @@ import { UserStatusProvider } from "@/contexts/user-status-context"
 import { RemindersProvider } from "@/contexts/RemindersContext"
 import { AuthGuard } from "@/components/layout/auth-guard"
 import { DeveloperDashboardLoader } from "@/components/debug/DeveloperDashboardLoader"
+import UpdatesModal from "@/components/layout/UpdatesModal"
 import { PagePresenceGate } from "@/components/layout/page-presence-gate"
 import { ActivityTrackerGate } from "@/components/layout/activity-tracker-gate"
 import StyledComponentsRegistry from "@/lib/styled-components-registry"
@@ -273,6 +274,7 @@ export default async function RootLayout({
                                       <ActivityTrackerGate />
                                       <GlobalShortcuts />
                                       <GlobalModalHost />
+                                      <UpdatesModal />
                                       <div className="flex-1 flex flex-col min-h-0 overflow-auto">
                                         <ErrorBoundary section="page-content">
                                           {children}

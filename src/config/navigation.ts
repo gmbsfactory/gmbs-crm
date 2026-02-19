@@ -4,6 +4,8 @@ import {
   Settings,
   Calculator,
   Wrench,
+  Megaphone,
+  Activity,
 } from "lucide-react"
 import { t } from "./domain"
 import type { PermissionKey } from "@/hooks/usePermissions"
@@ -64,6 +66,18 @@ const ROUTE_CONFIG: (RouteConfig | { type: "spacer" })[] = [
     name: "Paramètres",
     href: "/settings",
     icon: Settings,
+  },
+  {
+    name: "Updates",
+    href: "/updates",
+    icon: Megaphone,
+    permission: { type: "simple", key: "manage_updates" },
+  },
+  {
+    name: "Monitoring",
+    href: "/monitoring",
+    icon: Activity,
+    permission: { type: "simple", key: "manage_updates" },
   },
 ]
 

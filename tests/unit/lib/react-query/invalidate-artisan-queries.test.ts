@@ -14,6 +14,10 @@ describe("invalidateArtisanQueries", () => {
     })
   })
 
+  afterEach(() => {
+    queryClient.clear()
+  })
+
   it("invalidates artisan detail queries for unique IDs", () => {
     const spy = vi.spyOn(queryClient, "invalidateQueries")
 

@@ -15,9 +15,7 @@ interface TeamMemberRowProps {
 }
 
 export function TeamMemberRow({ user, index, onEdit, onDelete }: TeamMemberRowProps) {
-  const roleConfig = getRoleConfig(user.role)
   const statusConfig = getStatusConfig(user.status)
-  const RoleIcon = roleConfig.icon
 
   return (
     <motion.div
@@ -68,15 +66,23 @@ export function TeamMemberRow({ user, index, onEdit, onDelete }: TeamMemberRowPr
         </div>
 
         <div className="flex items-center gap-4">
-          {/* Role */}
-          <div className={cn(
-            "flex items-center gap-2 px-3 py-1.5 rounded-lg",
-            roleConfig.bg
-          )}>
-            <RoleIcon className={cn("h-4 w-4", roleConfig.color)} />
-            <span className={cn("text-sm font-medium", roleConfig.color)}>
-              {roleConfig.label}
-            </span>
+          {/* Roles */}
+          <div className="flex items-center gap-1.5">
+            {(user.roles && user.roles.length > 0 ? user.roles : [user.role].filter(Boolean)).map((r) => {
+              const cfg = getRoleConfig(r)
+              const Icon = cfg.icon
+              return (
+                <div key={r} className={cn(
+                  "flex items-center gap-1.5 px-2.5 py-1 rounded-lg",
+                  cfg.bg
+                )}>
+                  <Icon className={cn("h-3.5 w-3.5", cfg.color)} />
+                  <span className={cn("text-xs font-medium", cfg.color)}>
+                    {cfg.label}
+                  </span>
+                </div>
+              )
+            })}
           </div>
 
           {/* Statut */}

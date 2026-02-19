@@ -33,7 +33,9 @@ global.IntersectionObserver = vi.fn().mockImplementation(() => ({
   disconnect: vi.fn(),
 }))
 
-// Reset mocks after each test
+// Reset mocks and cleanup after each test
 afterEach(() => {
   vi.clearAllMocks()
+  vi.restoreAllMocks()
+  vi.useRealTimers()
 })

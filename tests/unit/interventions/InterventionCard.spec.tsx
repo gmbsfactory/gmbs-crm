@@ -59,18 +59,22 @@ const base = {
 } as any
 
 // Wrapper avec QueryClientProvider
+let testQueryClient: QueryClient
 const createWrapper = () => {
-  const queryClient = new QueryClient({
+  testQueryClient = new QueryClient({
     defaultOptions: {
       queries: { retry: false },
     },
   })
   return function Wrapper({ children }: { children: React.ReactNode }) {
-    return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    return <QueryClientProvider client={testQueryClient}>{children}</QueryClientProvider>
   }
 }
 
 describe('InterventionCard', () => {
+  afterEach(() => {
+    testQueryClient?.clear()
+  })
   it('renders the intervention card without crashing', () => {
     const { container } = render(
       <InterventionCard intervention={base} />,

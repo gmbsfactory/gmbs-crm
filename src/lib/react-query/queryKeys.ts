@@ -591,3 +591,15 @@ export const referenceKeys = {
    */
   invalidateAll: () => referenceKeys.all,
 } as const
+
+// ---------------------------------------------------------------------------
+// App Updates query keys
+// ---------------------------------------------------------------------------
+
+export const updateKeys = {
+  all: ['app-updates'] as const,
+  unseen: () => [...updateKeys.all, 'unseen'] as const,
+  journal: () => [...updateKeys.all, 'journal'] as const,
+  admin: () => [...updateKeys.all, 'admin'] as const,
+  adminWithViews: () => [...updateKeys.admin(), 'with-views'] as const,
+} as const
