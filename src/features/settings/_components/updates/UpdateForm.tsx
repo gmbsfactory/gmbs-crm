@@ -66,28 +66,58 @@ export function UpdateForm({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-5">
-      {/* Version */}
-      <div>
-        <label className="text-xs font-medium text-muted-foreground mb-1 block">Version</label>
-        <div className="flex items-center gap-2">
-          <input
-            type="text"
-            value={form.version}
-            onChange={e => set("version", e.target.value)}
-            placeholder="1.00"
-            required
-            className="w-28 rounded-md border bg-background px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-ring"
-          />
-          {form.version !== suggested && (
-            <button
-              type="button"
-              onClick={() => set("version", suggested)}
-              className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
-            >
-              <Lightbulb className="h-3 w-3" />
-              {suggested}
-            </button>
-          )}
+      {/* Ligne 1 : Sévérité + Version */}
+      <div className="flex items-end gap-4">
+        <div className="flex-1">
+          <label className="text-xs font-medium text-muted-foreground mb-1 block">Sévérité</label>
+          <div className="flex flex-wrap gap-1.5">
+            {ALL_SEVERITIES.map(sev => {
+              const cfg = getSeverityConfig(sev)
+              const Icon = cfg.icon
+              const isActive = form.severity === sev
+              return (
+                <button
+                  key={sev}
+                  type="button"
+                  onClick={() => set("severity", sev)}
+                  className={cn(
+                    "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-all",
+                    isActive
+                      ? cn(cfg.color, "ring-1 ring-current/20")
+                      : "bg-muted text-muted-foreground hover:bg-muted/80"
+                  )}
+                >
+                  <Icon className="h-3.5 w-3.5" />
+                  {cfg.label}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+
+        <div className="shrink-0">
+          <label className="text-xs font-medium text-muted-foreground mb-1 block">Version</label>
+          <div className="flex items-center gap-2">
+            <input
+              type="text"
+              value={form.version}
+              onChange={e => set("version", e.target.value)}
+              placeholder="1.00"
+              required
+              className="w-24 rounded-md border bg-background px-3 py-1.5 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-ring"
+            />
+            {form.version !== suggested && (
+              <button
+                type="button"
+                onClick={() => set("version", suggested)}
+                className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                title={`Suggestion : ${suggested}`}
+              >
+                <Lightbulb className="h-3 w-3" />
+                {suggested}
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
@@ -102,34 +132,6 @@ export function UpdateForm({
           required
           className="w-full rounded-md border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
         />
-      </div>
-
-      {/* Severite */}
-      <div>
-        <label className="text-xs font-medium text-muted-foreground mb-1 block">Sévérité</label>
-        <div className="flex flex-wrap gap-1.5">
-          {ALL_SEVERITIES.map(sev => {
-            const cfg = getSeverityConfig(sev)
-            const Icon = cfg.icon
-            const isActive = form.severity === sev
-            return (
-              <button
-                key={sev}
-                type="button"
-                onClick={() => set("severity", sev)}
-                className={cn(
-                  "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-all",
-                  isActive
-                    ? cn(cfg.color, "ring-1 ring-current/20")
-                    : "bg-muted text-muted-foreground hover:bg-muted/80"
-                )}
-              >
-                <Icon className="h-3.5 w-3.5" />
-                {cfg.label}
-              </button>
-            )
-          })}
-        </div>
       </div>
 
       {/* Contenu Markdown */}
@@ -161,7 +163,7 @@ export function UpdateForm({
         )}
       </div>
 
-      {/* Audience */}
+      {/* Ciblage unifié */}
       <AudienceSelector
         audience={form.audience}
         targetUserIds={form.target_user_ids}
