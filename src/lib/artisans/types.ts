@@ -6,7 +6,45 @@
  */
 
 import type { NearbyArtisan } from "@/lib/api/v2/common/types"
-import type { ArtisanSearchResult } from "@/components/artisans/ArtisanSearchModal"
+
+/**
+ * Résultat de recherche d'artisan (défini ici pour éviter un import circulaire
+ * depuis le composant lourd ArtisanSearchModal qui charge tous les modules API)
+ */
+export interface ArtisanSearchResult {
+  id: string
+  prenom?: string | null
+  nom?: string | null
+  plain_nom?: string | null
+  raison_sociale?: string | null
+  email?: string | null
+  telephone?: string | null
+  telephone2?: string | null
+  numero_associe?: string | null
+  adresse_intervention?: string | null
+  ville_intervention?: string | null
+  code_postal_intervention?: string | null
+  adresse_siege_social?: string | null
+  ville_siege_social?: string | null
+  code_postal_siege_social?: string | null
+  statut_id?: string | null
+  is_active?: boolean | null
+  status?: {
+    id: string
+    code: string
+    label: string
+    color?: string | null
+  } | null
+  metiers?: Array<{
+    is_primary: boolean
+    metier: {
+      id: string
+      code: string
+      label: string
+    }
+  }> | null
+  distanceKm?: number
+}
 
 /**
  * Avatar metadata for artisan profile picture

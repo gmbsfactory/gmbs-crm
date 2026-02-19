@@ -8,12 +8,10 @@ export default defineConfig({
     pool: "forks",
     poolOptions: {
       forks: {
-        maxForks: 2,
+        maxForks: 3,
         minForks: 1,
-        execArgv: ["--max-old-space-size=4096"],
       },
     },
-    fileParallelism: false,
     include: ["tests/**/*.{test,spec}.{ts,tsx}"],
     exclude: ["node_modules", ".next", "out", "**/tests/visual/**", "**/tests/e2e/**"],
     coverage: {

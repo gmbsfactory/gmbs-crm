@@ -3,10 +3,14 @@ import { describe, it, expect, vi, beforeEach } from "vitest"
 import { useInterventionFormState } from "@/hooks/useInterventionFormState"
 import { createNewFormData } from "@/lib/interventions/form-types"
 import type { NearbyArtisan } from "@/hooks/useNearbyArtisans"
-import type { ArtisanSearchResult } from "@/components/artisans/ArtisanSearchModal"
+import type { ArtisanSearchResult } from "@/lib/artisans/types"
 import { toast } from "sonner"
 
 // ---- Mocks ----
+// IMPORTANT : les valeurs de retour des mocks DOIVENT être des références stables
+// (déclarées en dehors de la factory) pour éviter des boucles infinies de re-render.
+// Chaque appel de hook retourne le même objet → pas de changement de référence
+// → les useEffect ne se déclenchent pas en boucle.
 
 const mockRefData = {
   interventionStatuses: [
@@ -27,62 +31,68 @@ const mockRefData = {
   metiers: [],
 }
 
+const mockRefreshFn = vi.fn()
+const mockRefDataResult = { data: mockRefData, loading: false, error: null, refresh: mockRefreshFn, getInterventionStatusLabel: (id: string) => id, getAgencyLabel: (id: string) => id, getUserCode: (id: string) => id }
 vi.mock("@/hooks/useReferenceDataQuery", () => ({
-  useReferenceDataQuery: () => ({ data: mockRefData, loading: false, error: null, refresh: vi.fn(), getInterventionStatusLabel: (id: string) => id, getAgencyLabel: (id: string) => id, getUserCode: (id: string) => id }),
+  useReferenceDataQuery: () => mockRefDataResult,
 }))
 
+const mockCurrentUserData = {
+  id: "user-1",
+  firstname: "Jean",
+  lastname: "Dupont",
+  username: "jdupont",
+  email: "jean@example.com",
+  code_gestionnaire: "JD",
+  color: "#ff0000",
+  avatar_url: null,
+  roles: [{ name: "admin" }],
+}
+const mockCurrentUserResult = { data: mockCurrentUserData }
 vi.mock("@/hooks/useCurrentUser", () => ({
-  useCurrentUser: () => ({
-    data: {
-      id: "user-1",
-      firstname: "Jean",
-      lastname: "Dupont",
-      username: "jdupont",
-      email: "jean@example.com",
-      code_gestionnaire: "JD",
-      color: "#ff0000",
-      avatar_url: null,
-      roles: [{ name: "admin" }],
-    },
-  }),
+  useCurrentUser: () => mockCurrentUserResult,
 }))
 
+const mockSetQuery = vi.fn()
+const mockClearSuggestions = vi.fn()
+const mockGeocode = vi.fn()
+const EMPTY_SUGGESTIONS: never[] = []
+const mockGeocodeSearchResult = {
+  query: "",
+  setQuery: mockSetQuery,
+  suggestions: EMPTY_SUGGESTIONS,
+  isSuggesting: false,
+  clearSuggestions: mockClearSuggestions,
+  geocode: mockGeocode,
+}
 vi.mock("@/hooks/useGeocodeSearch", () => ({
-  useGeocodeSearch: () => ({
-    query: "",
-    setQuery: vi.fn(),
-    suggestions: [],
-    isSuggesting: false,
-    clearSuggestions: vi.fn(),
-    geocode: vi.fn(),
-  }),
+  useGeocodeSearch: () => mockGeocodeSearchResult,
 }))
 
+const EMPTY_ARTISANS: never[] = []
+const mockNearbyArtisansResult = { artisans: EMPTY_ARTISANS, loading: false, error: null }
 vi.mock("@/hooks/useNearbyArtisans", () => ({
-  useNearbyArtisans: () => ({
-    artisans: [],
-    loading: false,
-    error: null,
-  }),
+  useNearbyArtisans: () => mockNearbyArtisansResult,
 }))
 
 vi.mock("@/hooks/useFormDataChanges", () => ({
   useFormDataChanges: () => false,
 }))
 
+const mockOpenArtisanModal = vi.fn()
+const mockArtisanModalResult = { open: mockOpenArtisanModal }
 vi.mock("@/hooks/useArtisanModal", () => ({
-  useArtisanModal: () => ({
-    open: vi.fn(),
-  }),
+  useArtisanModal: () => mockArtisanModalResult,
 }))
 
+const mockSupabaseResult = Promise.resolve({ data: [], error: null })
 vi.mock("@/lib/supabase-client", () => ({
   supabase: {
     from: () => ({
       select: () => ({
         in: () => ({
           lte: () => ({
-            gte: () => Promise.resolve({ data: [], error: null }),
+            gte: () => mockSupabaseResult,
           }),
         }),
       }),
