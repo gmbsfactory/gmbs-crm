@@ -924,6 +924,21 @@ export const InterventionEditForm = memo(function InterventionEditForm({
     }
   }, [generateEmailTemplateData, formatPhoneForWhatsApp])
 
+  // Conditions de blocage des boutons Mail/WhatsApp
+  // Devis → lié aux requirements de VISITE_TECHNIQUE (artisan requis)
+  const isDevisButtonDisabled = !selectedArtisanId
+  // Inter. → lié aux requirements de INTER_EN_COURS
+  const isInterButtonDisabled = useMemo(() => {
+    if (!selectedArtisanId) return true
+    if (!(parseFloat(formData.coutIntervention) > 0)) return true
+    if (!(parseFloat(formData.coutSST) > 0)) return true
+    if (!formData.consigne_intervention?.trim()) return true
+    if (!formData.nomPrenomClient?.trim()) return true
+    if (!formData.telephoneClient?.trim()) return true
+    if (!formData.date_prevue?.trim()) return true
+    return false
+  }, [selectedArtisanId, formData.coutIntervention, formData.coutSST, formData.consigne_intervention, formData.nomPrenomClient, formData.telephoneClient, formData.date_prevue])
+
   // Hook pour gérer le redimensionnement de la colonne droite
   const handleResizeStart = useCallback((e: React.MouseEvent | React.TouchEvent) => {
     e.preventDefault()
@@ -1914,7 +1929,7 @@ export const InterventionEditForm = memo(function InterventionEditForm({
                                     variant="outline"
                                     size="sm"
                                     onClick={() => handleOpenDevisEmailModal()}
-                                    disabled={!selectedArtisanId}
+                                    disabled={isDevisButtonDisabled}
                                     className="flex-1 text-[10px] h-7 px-2 border-primary/30 hover:bg-primary/10 dark:border-primary/40 dark:hover:bg-primary/20"
                                   >
                                     <Mail className="h-3 w-3 mr-1" />
@@ -1925,7 +1940,7 @@ export const InterventionEditForm = memo(function InterventionEditForm({
                                     variant="outline"
                                     size="sm"
                                     onClick={() => handleOpenInterventionEmailModal()}
-                                    disabled={!selectedArtisanId}
+                                    disabled={isInterButtonDisabled}
                                     className="flex-1 text-[10px] h-7 px-2 border-primary/30 hover:bg-primary/10 dark:border-primary/40 dark:hover:bg-primary/20"
                                   >
                                     <Mail className="h-3 w-3 mr-1" />
@@ -1940,6 +1955,7 @@ export const InterventionEditForm = memo(function InterventionEditForm({
                                       variant="outline"
                                       size="sm"
                                       onClick={() => handleOpenWhatsApp('devis', selectedArtisanId, selectedArtisanData.telephone || '')}
+                                      disabled={isDevisButtonDisabled}
                                       className="flex-1 text-[10px] h-7 px-2 bg-[#25D366]/10 hover:bg-[#25D366]/20 border-[#25D366]/30 text-[#25D366]"
                                     >
                                       <MessageCircle className="h-3 w-3 mr-1" />
@@ -1950,6 +1966,7 @@ export const InterventionEditForm = memo(function InterventionEditForm({
                                       variant="outline"
                                       size="sm"
                                       onClick={() => handleOpenWhatsApp('intervention', selectedArtisanId, selectedArtisanData.telephone || '')}
+                                      disabled={isInterButtonDisabled}
                                       className="flex-1 text-[10px] h-7 px-2 bg-[#25D366]/10 hover:bg-[#25D366]/20 border-[#25D366]/30 text-[#25D366]"
                                     >
                                       <MessageCircle className="h-3 w-3 mr-1" />
@@ -2559,6 +2576,7 @@ export const InterventionEditForm = memo(function InterventionEditForm({
                                     variant="outline"
                                     size="sm"
                                     onClick={() => handleOpenDevisEmailModal(selectedSecondArtisanId)}
+                                    disabled={!selectedSecondArtisanId}
                                     className="flex-1 text-[10px] h-7 px-2 border-orange-300 hover:bg-orange-100 dark:border-orange-700 dark:hover:bg-orange-900/30"
                                   >
                                     <Mail className="h-3 w-3 mr-1" />
@@ -2569,6 +2587,7 @@ export const InterventionEditForm = memo(function InterventionEditForm({
                                     variant="outline"
                                     size="sm"
                                     onClick={() => handleOpenInterventionEmailModal(selectedSecondArtisanId)}
+                                    disabled={isInterButtonDisabled}
                                     className="flex-1 text-[10px] h-7 px-2 border-orange-300 hover:bg-orange-100 dark:border-orange-700 dark:hover:bg-orange-900/30"
                                   >
                                     <Mail className="h-3 w-3 mr-1" />
@@ -2583,6 +2602,7 @@ export const InterventionEditForm = memo(function InterventionEditForm({
                                       variant="outline"
                                       size="sm"
                                       onClick={() => handleOpenWhatsApp('devis', selectedSecondArtisanId, selectedSecondArtisanData.telephone || '')}
+                                      disabled={!selectedSecondArtisanId}
                                       className="flex-1 text-[10px] h-7 px-2 bg-[#25D366]/10 hover:bg-[#25D366]/20 border-[#25D366]/30 text-[#25D366]"
                                     >
                                       <MessageCircle className="h-3 w-3 mr-1" />
@@ -2593,6 +2613,7 @@ export const InterventionEditForm = memo(function InterventionEditForm({
                                       variant="outline"
                                       size="sm"
                                       onClick={() => handleOpenWhatsApp('intervention', selectedSecondArtisanId, selectedSecondArtisanData.telephone || '')}
+                                      disabled={isInterButtonDisabled}
                                       className="flex-1 text-[10px] h-7 px-2 bg-[#25D366]/10 hover:bg-[#25D366]/20 border-[#25D366]/30 text-[#25D366]"
                                     >
                                       <MessageCircle className="h-3 w-3 mr-1" />
