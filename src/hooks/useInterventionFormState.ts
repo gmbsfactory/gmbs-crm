@@ -214,7 +214,7 @@ export function useInterventionFormState(options: UseInterventionFormStateOption
     }
 
     const archiveStatuses = refData.artisanStatuses.filter(
-      (s: any) => s.code === "ARCHIVE" || s.code === "ARCHIVER"
+      (s: any) => s.code === "ARCHIVE"
     )
     const archiveStatusIds = new Set(archiveStatuses.map((s: any) => s.id))
     const visibleArtisans =

@@ -55,6 +55,7 @@ export function EmailEditModal({
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
   const previewContainerRef = useRef<HTMLDivElement>(null);
   const previewContentRef = useRef<HTMLDivElement>(null);
+  const hasInitializedRef = useRef(false);
 
   // Zoom controls
   const handleZoomIn = useCallback(() => {
@@ -84,15 +85,19 @@ export function EmailEditModal({
     return `Demande d'intervention - Intervention #${interventionRef}`;
   }, [emailType, templateData.idIntervention, interventionId]);
 
-  // Update editable data when templateData changes
+  // Initialize editable data only when modal opens (not on every templateData reference change)
   useEffect(() => {
-    if (isOpen) {
+    if (isOpen && !hasInitializedRef.current) {
+      hasInitializedRef.current = true;
       setEditableData({
         commentaire: templateData.commentaire || '',
         coutSST: templateData.coutSST || '',
       });
       setSubject(getDefaultSubject());
       setAttachments([]);
+    }
+    if (!isOpen) {
+      hasInitializedRef.current = false;
     }
   }, [isOpen, templateData, getDefaultSubject]);
 
@@ -122,33 +127,8 @@ export function EmailEditModal({
     }
   }, [editableData.commentaire, editableData.coutSST, isOpen, artisanId, emailType, templateData]);
 
-  // Initialize template data when modal opens
-  useEffect(() => {
-    if (isOpen && artisanId) {
-      // Set default subject
-      setSubject(getDefaultSubject());
-
-      // Generate HTML content from template with editable data
-      const initialTemplateData: EmailTemplateData = {
-        ...templateData,
-        ...editableData,
-      };
-
-      try {
-        const htmlContent = emailType === 'devis'
-          ? generateDevisEmailTemplate(initialTemplateData)
-          : generateInterventionEmailTemplate(initialTemplateData);
-        setHtmlContent(htmlContent);
-      } catch (error) {
-        console.error('[EmailEditModal] Failed to generate template:', error);
-        toast.error('Erreur lors de la génération du template');
-        setHtmlContent('');
-      }
-
-      // Reset attachments
-      setAttachments([]);
-    }
-  }, [isOpen, emailType, interventionId, artisanId, getDefaultSubject, editableData, templateData]);
+  // Note: Initial HTML generation is handled by the "Regenerate HTML" effect above
+  // when editableData is first set on modal open.
 
   // Cleanup timeout on unmount
   useEffect(() => {
