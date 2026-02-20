@@ -129,7 +129,7 @@ export function useNearbyArtisans(
       const { data: archiveStatuses, error: archiveStatusesError } = await supabase
         .from("artisan_statuses")
         .select("id")
-        .in("code", ["ARCHIVE", "ARCHIVER"])
+        .eq("code", "ARCHIVE")
 
       if (cancelled) return
 

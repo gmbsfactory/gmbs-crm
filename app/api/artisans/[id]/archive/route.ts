@@ -37,7 +37,7 @@ export async function POST(request: Request, { params }: Params) {
     // Récupérer les statuts d'artisan pour trouver le statut ARCHIVE
     const refs = await referenceApi.getAll()
     const archiveStatus = refs.artisanStatuses.find(
-      (s: any) => s.code === "ARCHIVE" || s.code === "ARCHIVER"
+      (s: any) => s.code === "ARCHIVE"
     )
     
     if (!archiveStatus) {

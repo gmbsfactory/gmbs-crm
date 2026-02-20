@@ -1940,7 +1940,7 @@ export const artisansApi = {
     const { data: archiveStatuses, error: archiveStatusesError } = await supabase
       .from("artisan_statuses")
       .select("id")
-      .in("code", ["ARCHIVE", "ARCHIVER"]);
+      .eq("code", "ARCHIVE");
 
     if (archiveStatusesError) {
       console.warn(
@@ -2263,7 +2263,7 @@ export const artisansApi = {
     const { data: archiveStatuses, error: archiveStatusesError } = await supabase
       .from("artisan_statuses")
       .select("id")
-      .in("code", ["ARCHIVE", "ARCHIVER"]);
+      .eq("code", "ARCHIVE");
 
     if (archiveStatusesError) {
       console.warn(
