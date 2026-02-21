@@ -2,10 +2,11 @@
 
 import React, { useCallback, useEffect, useRef, useState } from "react"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
-import { Bell, X, MessageSquare, Copy, MessageCircle, Trash2, Plus, Info } from "lucide-react"
+import { Bell, X, MessageSquare, Copy, MessageCircle, Trash2, Plus, Info, Mail } from "lucide-react"
 import { InterventionEditForm } from "@/components/interventions/InterventionEditForm"
 import { UnsavedChangesDialog } from "@/components/interventions/UnsavedChangesDialog"
 import { InterventionHistoryPanel } from "@/components/interventions/history/InterventionHistoryPanel"
+import { EmailHistoryPanel } from "@/components/interventions/email/EmailHistoryPanel"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import type { ModalDisplayMode } from "@/types/modal-display"
@@ -225,6 +226,7 @@ export function InterventionModalContent({
   const [agencyName, setAgencyName] = useState("")
   const [clientPhone, setClientPhone] = useState("")
   const [showHistoryPanel, setShowHistoryPanel] = useState(false)
+  const [showEmailHistoryPanel, setShowEmailHistoryPanel] = useState(false)
   const [isEmailModalOpen, setIsEmailModalOpen] = useState(false)
   const [isArtisanSearchOpen, setIsArtisanSearchOpen] = useState(false)
   const [isStatusReasonModalOpen, setIsStatusReasonModalOpen] = useState(false)
@@ -409,6 +411,7 @@ GMBS`
           showSmsModal ||
           showDeleteDialog ||
           showHistoryPanel ||
+          showEmailHistoryPanel ||
           isEmailModalOpen ||
           isArtisanSearchOpen ||
           isStatusReasonModalOpen ||
@@ -433,6 +436,7 @@ GMBS`
     showSmsModal,
     showDeleteDialog,
     showHistoryPanel,
+    showEmailHistoryPanel,
     isEmailModalOpen,
     isArtisanSearchOpen,
     isStatusReasonModalOpen,
@@ -703,6 +707,20 @@ GMBS`
               </TooltipTrigger>
               <TooltipContent className="modal-config-columns-tooltip">Historique des actions</TooltipContent>
             </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="modal-config-columns-icon-button"
+                  onClick={() => setShowEmailHistoryPanel(true)}
+                  aria-label="Historique des emails"
+                >
+                  <Mail className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent className="modal-config-columns-tooltip">Historique des emails</TooltipContent>
+            </Tooltip>
             {onCycleMode ? (
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -894,6 +912,12 @@ GMBS`
         interventionId={interventionId}
         isOpen={showHistoryPanel}
         onClose={() => setShowHistoryPanel(false)}
+      />
+
+      <EmailHistoryPanel
+        interventionId={interventionId}
+        isOpen={showEmailHistoryPanel}
+        onClose={() => setShowEmailHistoryPanel(false)}
       />
 
       <AlertDialog open={showSmsModal} onOpenChange={setShowSmsModal}>
