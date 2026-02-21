@@ -85,18 +85,18 @@ describe("form-constants", () => {
   })
 
   describe("STATUSES_REQUIRING_DEFINITIVE_ID", () => {
-    it("should contain the 6 expected status codes", () => {
-      expect(STATUSES_REQUIRING_DEFINITIVE_ID.size).toBe(6)
+    it("should contain the 5 expected status codes", () => {
+      expect(STATUSES_REQUIRING_DEFINITIVE_ID.size).toBe(5)
       expect(STATUSES_REQUIRING_DEFINITIVE_ID.has("DEVIS_ENVOYE")).toBe(true)
-      expect(STATUSES_REQUIRING_DEFINITIVE_ID.has("VISITE_TECHNIQUE")).toBe(true)
       expect(STATUSES_REQUIRING_DEFINITIVE_ID.has("ACCEPTE")).toBe(true)
       expect(STATUSES_REQUIRING_DEFINITIVE_ID.has("INTER_EN_COURS")).toBe(true)
       expect(STATUSES_REQUIRING_DEFINITIVE_ID.has("INTER_TERMINEE")).toBe(true)
       expect(STATUSES_REQUIRING_DEFINITIVE_ID.has("STAND_BY")).toBe(true)
     })
 
-    it("should not require definitive ID for DEMANDE", () => {
+    it("should not require definitive ID for DEMANDE or VISITE_TECHNIQUE", () => {
       expect(STATUSES_REQUIRING_DEFINITIVE_ID.has("DEMANDE")).toBe(false)
+      expect(STATUSES_REQUIRING_DEFINITIVE_ID.has("VISITE_TECHNIQUE")).toBe(false)
     })
   })
 

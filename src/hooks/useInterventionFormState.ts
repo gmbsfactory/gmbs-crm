@@ -255,7 +255,6 @@ export function useInterventionFormState(options: UseInterventionFormStateOption
     const normalizedLabel = (selectedStatus.label ?? "").trim().toLowerCase()
     return (
       normalizedLabel === "devis envoyé" ||
-      normalizedLabel === "visite technique" ||
       normalizedLabel === "accepté" ||
       normalizedLabel === "accepte" ||
       normalizedLabel === "en cours" ||

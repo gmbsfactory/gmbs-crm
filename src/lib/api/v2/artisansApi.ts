@@ -2007,6 +2007,7 @@ export const artisansApi = {
         prenom,
         nom,
         raison_sociale,
+        numero_associe,
         telephone,
         telephone2,
         email,
@@ -2057,6 +2058,7 @@ export const artisansApi = {
       prenom: string | null;
       nom: string | null;
       raison_sociale: string | null;
+      numero_associe: string | null;
       statut_id: string | null;
       photoProfilMetadata: { hash: string | null; sizes: Record<string, string>; mime_preferred: string; baseUrl: string | null } | null;
       hasTargetMetier: boolean;
@@ -2117,6 +2119,7 @@ export const artisansApi = {
           prenom: row.prenom ?? null,
           nom: row.nom ?? null,
           raison_sociale: row.raison_sociale ?? null,
+          numero_associe: row.numero_associe ?? null,
           statut_id: row.statut_id ?? null,
           photoProfilMetadata,
           hasTargetMetier,

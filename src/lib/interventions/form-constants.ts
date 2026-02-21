@@ -37,7 +37,6 @@ export const STATUSES_REQUIRING_DATE_PREVUE = new Set(["VISITE_TECHNIQUE", "INTE
 /** Statuts nécessitant un ID définitif (pas "AUTO-xxx") */
 export const STATUSES_REQUIRING_DEFINITIVE_ID = new Set([
   "DEVIS_ENVOYE",
-  "VISITE_TECHNIQUE",
   "ACCEPTE",
   "INTER_EN_COURS",
   "INTER_TERMINEE",

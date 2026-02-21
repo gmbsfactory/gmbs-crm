@@ -174,8 +174,8 @@ export function normalizeArtisanData(
 
   // ===== Extraction du numero_associe =====
   let numero_associe: string | null = null
-  if (isArtisanSearchResult(artisan)) {
-    numero_associe = artisan.numero_associe ?? null
+  if ('numero_associe' in artisan) {
+    numero_associe = (artisan as any).numero_associe ?? null
   }
 
   // ===== Extraction des métadonnées de photo =====
