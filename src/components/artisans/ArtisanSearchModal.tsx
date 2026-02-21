@@ -499,11 +499,6 @@ export function ArtisanSearchModal({
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex flex-col">
                         <div className="flex items-center gap-2 text-sm font-medium text-foreground">
-                          {numeroAssocie && (
-                            <span className="rounded border px-2 py-0.5 font-mono text-xs uppercase tracking-wide">
-                              {numeroAssocie}
-                            </span>
-                          )}
                           <span>{displayName}</span>
                           {statusInfo && (
                             <Badge
@@ -516,6 +511,11 @@ export function ArtisanSearchModal({
                             >
                               {statusInfo.label}
                             </Badge>
+                          )}
+                          {numeroAssocie && (
+                            <span className="rounded border px-2 py-0.5 font-mono text-xs uppercase tracking-wide text-muted-foreground">
+                              {numeroAssocie}
+                            </span>
                           )}
                           {absentArtisanIds.has(artisan.id) && (
                             <Badge

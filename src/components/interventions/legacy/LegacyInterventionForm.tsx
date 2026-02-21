@@ -563,7 +563,6 @@ export function LegacyInterventionForm({ onSuccess, onCancel, mode = "centerpage
     const normalizedLabel = (selectedStatus.label ?? "").trim().toLowerCase()
     return (
       normalizedLabel === "devis envoyé" ||
-      normalizedLabel === "visite technique" ||
       normalizedLabel === "accepté" ||
       normalizedLabel === "accepte" ||
       normalizedLabel === "en cours" ||

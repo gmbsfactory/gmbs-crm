@@ -1124,6 +1124,7 @@ export interface NearbyArtisan {
   prenom: string | null;
   nom: string | null;
   raison_sociale: string | null;
+  numero_associe: string | null;
   statut_id: string | null;
   photoProfilMetadata: AvatarMetadata | null;
 }
