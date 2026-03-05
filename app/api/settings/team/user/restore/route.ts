@@ -140,7 +140,7 @@ export async function POST(req: Request) {
             type: 'recovery',
             email: archivedUser.email,
             options: {
-              redirectTo: `${siteUrl}/set-password`,
+              redirectTo: `${siteUrl}/auth/callback?next=/set-password`,
             },
           })
 

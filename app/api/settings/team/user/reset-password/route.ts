@@ -67,7 +67,7 @@ export async function POST(request: Request) {
           type: 'recovery',
           email: userData.email,
           options: {
-            redirectTo: `${siteUrl}/set-password`,
+            redirectTo: `${siteUrl}/auth/callback?next=/set-password`,
           },
         });
 

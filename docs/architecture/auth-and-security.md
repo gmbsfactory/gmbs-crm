@@ -515,6 +515,40 @@ Le systeme d'authentification migre progressivement de cookies custom (`sb-acces
 - **Cookies chunkes** : `@supabase/ssr` gere automatiquement le chunking des gros tokens dans plusieurs cookies
 - **Plus de POST /api/auth/session** : les cookies sont geres par la librairie, eliminant la route custom
 
+### Recovery links et PKCE
+
+Les liens de recovery (reset password, invitation, restauration) **doivent** rediriger vers `/auth/callback?next=/set-password` et non directement vers `/set-password`.
+
+**Pourquoi** : Avec `@supabase/ssr`, les cookies de session sont geres cote serveur. Un lien pointant directement vers `/set-password` ne fonctionne que pour l'admin qui l'a genere (car il a deja des cookies). Les autres utilisateurs obtiennent "Lien expire" car le hash fragment `#access_token=...` n'est pas persiste en cookies.
+
+**Flow correct** :
+
+```mermaid
+sequenceDiagram
+    participant A as Admin
+    participant S as Supabase Auth
+    participant U as Utilisateur
+    participant CB as /auth/callback
+    participant SP as /set-password
+
+    A->>S: generateLink({ type: 'recovery', redirectTo: /auth/callback?next=/set-password })
+    S-->>A: action_link (verify URL)
+    A->>U: Envoi du lien (email ou copie)
+    U->>S: Clic sur le lien
+    S->>CB: Redirect avec ?code=xxx&next=/set-password
+    CB->>CB: exchangeCodeForSession(code) - cookies crees
+    CB->>SP: Redirect vers /set-password
+    SP->>U: Formulaire de mot de passe (session valide)
+```
+
+**Routes concernees** (toutes utilisent `redirectTo: /auth/callback?next=/set-password`) :
+
+| Route API | Cas d'usage |
+|-----------|-------------|
+| `POST /api/settings/team/user` | Creation d'un nouvel utilisateur (lien d'invitation) |
+| `POST /api/settings/team/user/reset-password` | Reset mot de passe d'un utilisateur existant |
+| `POST /api/settings/team/user/restore` | Restauration d'un utilisateur archive |
+
 ### Etat de la migration
 
 La Phase 1 (installation + creation des utilitaires SSR) est terminee. Les phases suivantes (migration des routes API, simplification du client navigateur et du login, nettoyage) sont documentees dans [`docs/authentification/supabase_ssr_migration.md`](../authentification/supabase_ssr_migration.md).
