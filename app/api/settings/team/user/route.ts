@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { supabaseAdmin } from "@/lib/supabase-admin"
 import { requirePermission, isPermissionError } from "@/lib/api/permissions"
+import { createPasswordResetToken, getSiteUrlFromRequest } from '@/lib/password-reset-tokens'
 
 export const runtime = "nodejs"
 
@@ -125,30 +126,17 @@ export async function POST(req: Request) {
         } else {
           userId = authUser.user.id
 
-          // Generate password recovery link
-          // Use request host header for accurate URL (works for all environments including preview)
-          const host = req.headers.get('host') || req.headers.get('x-forwarded-host')
-          const protocol = host?.includes('localhost') ? 'http' : 'https'
-          const siteUrl = host 
-            ? `${protocol}://${host}` 
-            : (process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000')
+          // Créer un token custom réutilisable (24h)
+          const siteUrl = getSiteUrlFromRequest(req)
           try {
-            const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
-              type: 'recovery',
-              email,
-              options: {
-                redirectTo: `${siteUrl}/auth/callback?next=/set-password`,
-              },
-            })
-
-            if (linkError) {
-              console.error('[create-user] Link generation failed:', linkError.message)
-              // Continue without invite link - user can use "forgot password" later
+            const tokenResult = await createPasswordResetToken(userId, siteUrl)
+            if (tokenResult) {
+              inviteLink = tokenResult.resetLink
             } else {
-              inviteLink = linkData?.properties?.action_link || ''
+              console.error('[create-user] Token creation failed')
             }
           } catch (linkGenError: any) {
-            console.error('[create-user] Link generation exception:', linkGenError?.message)
+            console.error('[create-user] Token creation exception:', linkGenError?.message)
           }
         }
       } catch (authException: any) {
