@@ -13,6 +13,8 @@ export interface Gestionnaire {
   email: string | null
   username: string | null
   avatar_url?: string | null
+  role?: string | null
+  roles?: string[]
 }
 
 export function useGestionnaires() {
@@ -36,6 +38,8 @@ export function useGestionnaires() {
         email: u.email,
         username: u.username,
         avatar_url: u.avatar_url || null,
+        role: u.role || null,
+        roles: u.roles || [],
       }))
       return users
     },

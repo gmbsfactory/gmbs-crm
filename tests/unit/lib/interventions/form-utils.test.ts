@@ -7,7 +7,7 @@ import {
   getArtisanDisplayName,
   artisanSearchResultToNearbyArtisan,
 } from "@/lib/interventions/form-utils"
-import type { ArtisanSearchResult } from "@/components/artisans/ArtisanSearchModal"
+import type { ArtisanSearchResult } from "@/lib/artisans/types"
 
 describe("form-utils", () => {
   describe("formatDistanceKm", () => {

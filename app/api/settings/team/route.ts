@@ -21,7 +21,10 @@ export async function GET(req: Request) {
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
     const users = (data || []).map((u: any) => {
-      const roleName = u?.user_roles?.[0]?.roles?.name || null
+      const allRoles: string[] = (u?.user_roles || [])
+        .map((entry: any) => entry?.roles?.name)
+        .filter((n: any): n is string => typeof n === 'string')
+      const roleName = allRoles.filter(r => r !== 'dev')[0] || allRoles[0] || null
       const pagePermissions = Array.isArray(u?.user_page_permissions)
         ? u.user_page_permissions.reduce((acc: Record<string, boolean>, perm: any) => {
             if (perm?.page_key) {
@@ -43,6 +46,7 @@ export async function GET(req: Request) {
         surnom: u.code_gestionnaire,
         code_gestionnaire: u.code_gestionnaire,
         role: roleName,
+        roles: allRoles,
         username: u.username,
         last_seen_at: u.last_seen_at,
         avatar_url: u.avatar_url,

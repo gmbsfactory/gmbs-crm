@@ -1,4 +1,14 @@
-import { describe, it, expect, beforeAll } from "vitest";
+import { describe, it, expect, beforeAll, vi } from "vitest";
+
+// Mock supabase-client to prevent @supabase/ssr env var error in unit test environment
+vi.mock('@/lib/supabase-client', () => ({
+  supabase: {
+    from: vi.fn(),
+    rpc: vi.fn(),
+    auth: { getSession: vi.fn().mockResolvedValue({ data: { session: null }, error: null }) },
+  },
+}))
+
 import { interventionsApi } from "@/lib/api/v2";
 import { supabase } from "@/lib/supabase-client";
 

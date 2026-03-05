@@ -131,7 +131,7 @@ describe('GDPR Anonymization on Soft Delete (CODE-009)', () => {
       expect(capturedUpdatePayload!.email).toBe(`deleted_${TEST_USER_ID}@anonymized.local`)
     })
 
-    it('should replace firstname with "Utilisateur"', async () => {
+    it('should preserve firstname (not anonymized, kept for intervention history)', async () => {
       const req = createDeleteRequest({
         userId: TEST_USER_ID,
         emailConfirm: 'jean.dupont@example.com',
@@ -139,10 +139,12 @@ describe('GDPR Anonymization on Soft Delete (CODE-009)', () => {
 
       await DELETE(req)
 
-      expect(capturedUpdatePayload!.firstname).toBe('Utilisateur')
+      // firstname is intentionally NOT in the update payload
+      // it is preserved for historical display in interventions table
+      expect(capturedUpdatePayload).not.toHaveProperty('firstname')
     })
 
-    it('should replace lastname with "Supprimé"', async () => {
+    it('should preserve lastname (not anonymized, kept for intervention history)', async () => {
       const req = createDeleteRequest({
         userId: TEST_USER_ID,
         emailConfirm: 'jean.dupont@example.com',
@@ -150,7 +152,9 @@ describe('GDPR Anonymization on Soft Delete (CODE-009)', () => {
 
       await DELETE(req)
 
-      expect(capturedUpdatePayload!.lastname).toBe('Supprimé')
+      // lastname is intentionally NOT in the update payload
+      // it is preserved for historical display in interventions table
+      expect(capturedUpdatePayload).not.toHaveProperty('lastname')
     })
 
     it('should anonymize username with format deleted_{userId}', async () => {
@@ -164,7 +168,7 @@ describe('GDPR Anonymization on Soft Delete (CODE-009)', () => {
       expect(capturedUpdatePayload!.username).toBe(`deleted_${TEST_USER_ID}`)
     })
 
-    it('should set optional personal fields to null', async () => {
+    it('should set avatar_url to null and preserve code_gestionnaire and color for history', async () => {
       const req = createDeleteRequest({
         userId: TEST_USER_ID,
         emailConfirm: 'jean.dupont@example.com',
@@ -172,9 +176,10 @@ describe('GDPR Anonymization on Soft Delete (CODE-009)', () => {
 
       await DELETE(req)
 
-      expect(capturedUpdatePayload!.code_gestionnaire).toBeNull()
       expect(capturedUpdatePayload!.avatar_url).toBeNull()
-      expect(capturedUpdatePayload!.color).toBeNull()
+      // code_gestionnaire and color are preserved for historical display
+      expect(capturedUpdatePayload).not.toHaveProperty('code_gestionnaire')
+      expect(capturedUpdatePayload).not.toHaveProperty('color')
     })
   })
 
@@ -317,12 +322,8 @@ describe('GDPR Anonymization on Soft Delete (CODE-009)', () => {
         'status',
         'archived_at',
         'email',
-        'firstname',
-        'lastname',
         'username',
-        'code_gestionnaire',
         'avatar_url',
-        'color',
       ]
 
       expect(Object.keys(capturedUpdatePayload!).sort()).toEqual(expectedKeys.sort())

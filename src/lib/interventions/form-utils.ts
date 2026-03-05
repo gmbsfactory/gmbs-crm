@@ -1,7 +1,7 @@
 // ===== UTILITAIRES PARTAGÉS PAR LES FORMULAIRES D'INTERVENTION =====
 
 import type { NearbyArtisan } from "@/hooks/useNearbyArtisans"
-import type { ArtisanSearchResult } from "@/components/artisans/ArtisanSearchModal"
+import type { ArtisanSearchResult } from "@/lib/artisans/types"
 
 /**
  * Formate une distance en km pour l'affichage

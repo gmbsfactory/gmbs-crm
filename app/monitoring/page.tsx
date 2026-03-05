@@ -31,7 +31,7 @@ function groupByPage(users: PagePresenceUser[]): Record<string, PagePresenceUser
 
 export default function MonitoringPage() {
   const presence = usePagePresenceContext()
-  const { isAdmin, isLoading: isLoadingPerms } = usePermissions()
+  const { isAdmin, hasRole, isLoading: isLoadingPerms } = usePermissions()
   const { connectionStatus } = useCrmRealtime()
   const { data: teamOverview } = useTeamDailyOverview()
 
@@ -116,7 +116,7 @@ export default function MonitoringPage() {
   }
 
   // Gate: admin only
-  if (!isAdmin) {
+  if (!isAdmin && !hasRole("dev")) {
     return (
       <div className="flex flex-col items-center justify-center h-full gap-4 text-muted-foreground">
         <ShieldAlert className="h-12 w-12 opacity-40" />

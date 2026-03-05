@@ -1,4 +1,13 @@
-import { describe, expect, it } from "vitest"
+import { describe, expect, it, vi } from "vitest"
+
+// Mock supabase-client to prevent @supabase/ssr env var error
+vi.mock('@/lib/supabase-client', () => ({
+  supabase: {
+    from: vi.fn(),
+    auth: { getSession: vi.fn().mockResolvedValue({ data: { session: null }, error: null }) },
+  },
+}))
+
 import { utilsApi } from "@/lib/api/v2/utilsApi"
 
 describe("mapInterventionRecord - assigned user display", () => {

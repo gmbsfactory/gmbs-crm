@@ -43,9 +43,8 @@ const {
 
 // ===== MODULE MOCKS =====
 
-vi.mock('@/lib/supabase/server', () => ({
-  createServerSupabase: mockCreateServerSupabase,
-  bearerFrom: mockBearerFrom,
+vi.mock('@/lib/supabase/server-ssr', () => ({
+  createSSRServerClient: mockCreateServerSupabase,
 }))
 
 vi.mock('@/lib/supabase-admin', () => ({
@@ -396,9 +395,9 @@ describe('permissions - requirePermission', () => {
   })
 
   it('retourne erreur 401 quand non authentifié', async () => {
-    mockBearerFrom.mockReturnValue(null)
-    mockCookies.mockResolvedValue({
-      get: vi.fn().mockReturnValue(undefined),
+    mockGetUser.mockResolvedValue({
+      data: { user: null },
+      error: { message: 'Not authenticated' },
     })
 
     const result = await requirePermission(createRequest(), 'read_interventions')

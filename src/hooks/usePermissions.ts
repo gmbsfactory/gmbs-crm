@@ -24,6 +24,7 @@ export type PermissionKey =
   | "manage_settings"
   | "view_admin"
   | "view_comptabilite"
+  | "manage_updates"
 
 interface PermissionResponse {
   success: boolean

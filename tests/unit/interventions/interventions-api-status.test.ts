@@ -27,6 +27,7 @@ const mockReferenceData = {
   agencies: [],
   metiers: [],
   users: [],
+  allUsers: [],
 };
 
 describe("interventionsApi - status handling", () => {

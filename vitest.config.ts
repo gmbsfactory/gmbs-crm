@@ -5,6 +5,13 @@ export default defineConfig({
   test: {
     globals: true,
     environment: "jsdom",
+    pool: "forks",
+    poolOptions: {
+      forks: {
+        maxForks: 3,
+        minForks: 1,
+      },
+    },
     include: ["tests/**/*.{test,spec}.{ts,tsx}"],
     exclude: ["node_modules", ".next", "out", "**/tests/visual/**", "**/tests/e2e/**"],
     coverage: {

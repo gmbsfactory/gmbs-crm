@@ -225,8 +225,8 @@ describe('bridgeDetailCache', () => {
 
     expect(invalidateSpy).toHaveBeenCalledWith(
       expect.objectContaining({
-        queryKey: expect.arrayContaining(['interventions', 'detail', 'detail-test']),
-        refetchType: 'active',
+        queryKey: ['interventions', 'detail', 'detail-test', undefined],
+        refetchType: 'all',
       })
     )
   })

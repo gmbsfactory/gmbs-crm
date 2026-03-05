@@ -24,8 +24,10 @@ vi.mock("@/lib/react-query/queryKeys", () => ({
   },
 }));
 
+let testQueryClient: QueryClient;
+
 function createWrapper() {
-  const queryClient = new QueryClient({
+  testQueryClient = new QueryClient({
     defaultOptions: {
       queries: {
         retry: false,
@@ -35,7 +37,7 @@ function createWrapper() {
   });
   return function Wrapper({ children }: { children: React.ReactNode }) {
     return (
-      <QueryClientProvider client={queryClient}>
+      <QueryClientProvider client={testQueryClient}>
         {children}
       </QueryClientProvider>
     );
@@ -45,6 +47,10 @@ function createWrapper() {
 describe("useInterventionStatuses", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    testQueryClient?.clear();
   });
 
   it("loads statuses on mount and builds lookup maps", async () => {

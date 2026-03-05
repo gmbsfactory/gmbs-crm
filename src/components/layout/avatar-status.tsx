@@ -4,11 +4,13 @@ import * as React from "react"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar"
 import Link from "next/link"
-import { LogOut, Settings as SettingsIcon, User as UserIcon } from "lucide-react"
+import { LogOut, ScrollText, Settings as SettingsIcon, User as UserIcon } from "lucide-react"
 import { supabase } from '@/lib/supabase-client'
 import { useQueryClient } from "@tanstack/react-query"
 import { useCurrentUser } from "@/hooks/useCurrentUser"
+import { useUnseenUpdates } from "@/hooks/useUnseenUpdates"
 import { getLogoutManager } from '@/lib/auth/logout-manager'
+import UpdatesJournal from "@/components/layout/UpdatesJournal"
 
 type Me = {
   id: string
@@ -26,7 +28,10 @@ type Me = {
 export function AvatarStatus() {
   const queryClient = useQueryClient()
   const [isMounted, setIsMounted] = React.useState(false)
-  
+  const [isJournalOpen, setIsJournalOpen] = React.useState(false)
+  const { data: unseenUpdates } = useUnseenUpdates()
+  const unseenCount = unseenUpdates?.length ?? 0
+
   // Utiliser useCurrentUser pour consommer la query partagée
   // Cela évite les fetchs parallèles et profite du cache TanStack Query
   const { data: currentUser, isLoading } = useCurrentUser()
@@ -148,6 +153,11 @@ export function AvatarStatus() {
               aria-label={`Status ${label}`}
               className={`absolute -bottom-0 -right-0 h-2.5 w-2.5 rounded-full ring-2 ring-background z-50 ${statusColorClass}`}
             />
+            {unseenCount > 0 && (
+              <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-primary text-[9px] font-bold text-primary-foreground ring-2 ring-background z-[51]">
+                {unseenCount > 9 ? "9+" : unseenCount}
+              </span>
+            )}
           </button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-64">
@@ -199,6 +209,15 @@ export function AvatarStatus() {
               Paramètres
             </Link>
           </DropdownMenuItem>
+          <DropdownMenuItem onSelect={() => setIsJournalOpen(true)}>
+            <ScrollText className="h-4 w-4 mr-2" />
+            Journal des mises à jour
+            {unseenCount > 0 && (
+              <span className="ml-auto inline-flex items-center justify-center rounded-full bg-primary px-1.5 py-0.5 text-[10px] font-semibold text-primary-foreground">
+                {unseenCount}
+              </span>
+            )}
+          </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem className="text-red-600 focus:bg-red-50" onSelect={logout}>
             <LogOut className="h-4 w-4 mr-2" />
@@ -206,6 +225,7 @@ export function AvatarStatus() {
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
+      <UpdatesJournal isOpen={isJournalOpen} onClose={() => setIsJournalOpen(false)} />
     </div>
   )
 }

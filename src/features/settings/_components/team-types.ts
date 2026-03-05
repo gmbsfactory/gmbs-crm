@@ -1,4 +1,4 @@
-import { Crown, Briefcase, UserCog } from "lucide-react"
+import { Crown, Briefcase, UserCog, Code } from "lucide-react"
 
 export type TeamUser = {
   id: string
@@ -8,6 +8,7 @@ export type TeamUser = {
   name?: string | null
   email: string | null
   role: string | null
+  roles?: string[]
   status: string | null
   code_gestionnaire: string | null
   surnom?: string | null
@@ -34,6 +35,7 @@ export type ArchivedUserData = {
 }
 
 export const TEAM_ROLE_CONFIG = {
+  dev: { icon: Code, color: "text-violet-500", bg: "bg-violet-500/10", label: "Dev" },
   admin: { icon: Crown, color: "text-amber-500", bg: "bg-amber-500/10", label: "Admin" },
   manager: { icon: Briefcase, color: "text-blue-500", bg: "bg-blue-500/10", label: "Manager" },
   gestionnaire: { icon: UserCog, color: "text-emerald-500", bg: "bg-emerald-500/10", label: "Gestionnaire" },
@@ -42,9 +44,20 @@ export const TEAM_ROLE_CONFIG = {
 export function getRoleConfig(role: string | null) {
   if (!role) return TEAM_ROLE_CONFIG.gestionnaire
   const key = role.toLowerCase()
+  if (key === 'dev') return TEAM_ROLE_CONFIG.dev
   if (key.includes('admin')) return TEAM_ROLE_CONFIG.admin
   if (key.includes('manager')) return TEAM_ROLE_CONFIG.manager
   return TEAM_ROLE_CONFIG.gestionnaire
+}
+
+export function getAllRoleConfigs(roles: string[]) {
+  return roles
+    .map(r => {
+      const key = r.toLowerCase()
+      const config = TEAM_ROLE_CONFIG[key as keyof typeof TEAM_ROLE_CONFIG]
+      return config ? { ...config, key } : null
+    })
+    .filter((c): c is NonNullable<typeof c> => c !== null)
 }
 
 export function getStatusConfig(status: string | null) {

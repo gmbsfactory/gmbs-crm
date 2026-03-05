@@ -38,6 +38,7 @@
 
 // ===== TYPES =====
 export type {
+  ArtisanSearchResult,
   ArtisanDisplaySource,
   ArtisanDisplayData,
   DisplayMode,

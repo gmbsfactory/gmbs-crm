@@ -1,5 +1,6 @@
 import { vi } from "vitest"
 import "@testing-library/jest-dom"
+import { cleanup } from "@testing-library/react"
 
 // Mock global fetch
 global.fetch = vi.fn()
@@ -33,7 +34,10 @@ global.IntersectionObserver = vi.fn().mockImplementation(() => ({
   disconnect: vi.fn(),
 }))
 
-// Reset mocks after each test
+// Reset mocks and cleanup after each test
+// NOTE: ne PAS utiliser vi.restoreAllMocks() ici — il supprime les .mockImplementation()
+// définies au scope module dans les fichiers de test (ex: ResizeObserver stubs)
 afterEach(() => {
+  cleanup()
   vi.clearAllMocks()
 })

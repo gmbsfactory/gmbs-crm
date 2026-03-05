@@ -11,7 +11,7 @@ import type {
   AvatarMetadata,
 } from "./types"
 import type { NearbyArtisan } from "@/lib/api/v2/common/types"
-import type { ArtisanSearchResult } from "@/components/artisans/ArtisanSearchModal"
+import type { ArtisanSearchResult } from "./types"
 
 /**
  * Type guard pour vérifier si l'artisan est un NearbyArtisan

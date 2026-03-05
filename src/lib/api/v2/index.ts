@@ -78,6 +78,7 @@ import { permissionsApi, rolesApi } from "./rolesApi";
 import { tenantsApi } from "./tenantsApi";
 import { usersApi } from "./usersApi";
 import { utilsApi } from "./utilsApi";
+import { updatesApi } from "./updatesApi";
 
 // ===== EXPORTS DES APIs =====
 export {
@@ -93,6 +94,7 @@ export {
   remindersApi,
   rolesApi,
   tenantsApi,
+  updatesApi,
   usersApi,
   utilsApi,
 };
@@ -113,6 +115,7 @@ export const ownersApiV2 = ownersApi;
 export const enumsApiV2 = enumsApi;
 export const remindersApiV2 = remindersApi;
 export const utilsApiV2 = utilsApi;
+export const updatesApiV2 = updatesApi;
 
 // ===== EXPORT PAR DÉFAUT =====
 // Permet d'accéder à toutes les APIs via un objet unique
@@ -132,6 +135,7 @@ const apiV2 = {
   reminders: remindersApi,
   enums: enumsApi,
   utils: utilsApi,
+  updates: updatesApi,
 };
 
 export default apiV2;

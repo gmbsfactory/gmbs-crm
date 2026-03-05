@@ -22,6 +22,7 @@ export type PermissionKey =
   | "manage_settings"
   | "view_admin"
   | "view_comptabilite"
+  | "manage_updates"
 
 const ALL_PERMISSIONS: PermissionKey[] = [
   "read_interventions",
@@ -39,6 +40,7 @@ const ALL_PERMISSIONS: PermissionKey[] = [
   "manage_settings",
   "view_admin",
   "view_comptabilite",
+  "manage_updates",
 ]
 
 const PERMISSION_KEYS = new Set(ALL_PERMISSIONS)
@@ -80,6 +82,24 @@ const ROLE_PERMISSIONS: Record<string, PermissionKey[]> = {
     "read_artisans",
     "write_artisans",
     "read_users",
+  ],
+  dev: [
+    "read_interventions",
+    "write_interventions",
+    "delete_interventions",
+    "edit_closed_interventions",
+    "read_artisans",
+    "write_artisans",
+    "delete_artisans",
+    "export_artisans",
+    "read_users",
+    "write_users",
+    "delete_users",
+    "manage_roles",
+    "manage_settings",
+    "view_admin",
+    "view_comptabilite",
+    "manage_updates",
   ],
 }
 

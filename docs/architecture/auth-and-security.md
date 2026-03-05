@@ -22,7 +22,6 @@ graph TB
 
     subgraph "API Routes"
         G["/api/auth/resolve"]
-        H["/api/auth/session"]
         I["/api/auth/me"]
         J["/api/auth/status"]
         K["/api/auth/heartbeat"]
@@ -37,8 +36,7 @@ graph TB
 
     A --> G
     A --> M
-    M --> H
-    H --> F
+    M --> F
     F --> N
     C --> I
     D --> I
@@ -59,7 +57,6 @@ sequenceDiagram
     participant L as Page Login
     participant R as /api/auth/resolve
     participant SA as Supabase Auth
-    participant S as /api/auth/session
     participant ST as /api/auth/status
     participant QC as QueryClient
     participant D as /dashboard
@@ -72,11 +69,7 @@ sequenceDiagram
 
     L->>SA: signInWithPassword({ email, password })
     SA-->>L: { session: { access_token, refresh_token } }
-
-    L->>S: POST { access_token, refresh_token }
-    Note over S: Set cookies HTTP-only
-    S-->>L: sb-access-token (1h, httpOnly, sameSite=strict)
-    S-->>L: sb-refresh-token (7j, httpOnly, sameSite=strict)
+    Note over SA: @supabase/ssr set automatiquement les cookies HTTP-only
 
     L->>ST: PATCH { status: 'connected' }
     L->>QC: invalidateQueries("currentUser")
@@ -147,8 +140,6 @@ Le matcher du middleware exclut automatiquement :
 
 | Route | Methode | Responsabilite |
 |-------|---------|----------------|
-| `/api/auth/session` | POST | Set cookies HTTP-only pour la session |
-| `/api/auth/session` | DELETE | Clear cookies (logout) |
 | `/api/auth/me` | GET | Profil utilisateur + roles + permissions |
 | `/api/auth/resolve` | POST | Conversion username -> email (timing-safe) |
 | `/api/auth/status` | PATCH | Mise a jour presence (connected/busy/dnd/offline) |
@@ -485,7 +476,7 @@ sequenceDiagram
     participant T3 as Onglet 3
 
     T1->>T1: Utilisateur clique Logout
-    T1->>T1: DELETE /api/auth/session (clear cookies)
+    T1->>T1: supabase.auth.signOut() (cookies cleared par @supabase/ssr)
     T1->>BC: { type: 'logout' }
     BC->>T2: { type: 'logout' }
     BC->>T3: { type: 'logout' }
@@ -497,11 +488,11 @@ De plus, chaque onglet emet des heartbeats dans `localStorage` pour permettre de
 
 ---
 
-## Migration @supabase/ssr (en cours)
+## @supabase/ssr — Gestion automatique des sessions
 
-Le systeme d'authentification migre progressivement de cookies custom (`sb-access-token` / `sb-refresh-token` poses manuellement via `POST /api/auth/session`) vers `@supabase/ssr` qui gere automatiquement les cookies de session.
+Le systeme d'authentification utilise `@supabase/ssr` qui gere automatiquement les cookies de session. L'ancienne route manuelle `POST /api/auth/session` a ete supprimee.
 
-### Nouveaux fichiers SSR
+### Fichiers SSR
 
 | Fichier | Role |
 |---------|------|

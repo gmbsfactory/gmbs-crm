@@ -24,17 +24,17 @@ vi.mock('@/lib/supabase-client', () => ({
   },
 }))
 
+const mockCurrentUserData = {
+  id: 'user-self',
+  surnom: 'JD',
+  prenom: 'Jean',
+  nom: 'Dupont',
+  color: '#3b82f6',
+  avatar_url: null,
+}
+const mockCurrentUserResult = { data: mockCurrentUserData }
 vi.mock('@/hooks/useCurrentUser', () => ({
-  useCurrentUser: vi.fn(() => ({
-    data: {
-      id: 'user-self',
-      surnom: 'JD',
-      prenom: 'Jean',
-      nom: 'Dupont',
-      color: '#3b82f6',
-      avatar_url: null,
-    },
-  })),
+  useCurrentUser: vi.fn(() => mockCurrentUserResult),
 }))
 
 import { useInterventionPresence } from '@/hooks/useInterventionPresence'
