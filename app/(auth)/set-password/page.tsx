@@ -67,21 +67,21 @@ export default function SetPasswordPage() {
 
         // Get the hash fragment (Supabase adds token info after #)
         const hash = window.location.hash
-        
+
         if (hash && hash.includes('access_token')) {
           // Parse the hash
           const params = new URLSearchParams(hash.substring(1))
           const accessToken = params.get('access_token')
           const refreshToken = params.get('refresh_token')
           const type = params.get('type')
-          
+
           if (accessToken && refreshToken && type === 'recovery') {
             // Set the session
             const { error } = await supabase.auth.setSession({
               access_token: accessToken,
               refresh_token: refreshToken,
             })
-            
+
             if (error) throw error
             setTokenValid(true)
           } else {
@@ -90,14 +90,21 @@ export default function SetPasswordPage() {
         } else {
           // Check if there's a code parameter for PKCE flow
           const code = searchParams.get('code')
-          
+
           if (code) {
             // Exchange code for session
             const { error } = await supabase.auth.exchangeCodeForSession(code)
             if (error) throw error
             setTokenValid(true)
           } else {
-            throw new Error('Missing authentication token')
+            // Pas de code ni hash : vérifier si une session recovery existe déjà
+            // (posée par /auth/callback après échange PKCE)
+            const { data: { user }, error: sessionError } = await supabase.auth.getUser()
+            if (sessionError || !user) {
+              throw new Error('Missing authentication token')
+            }
+            // Session valide trouvée dans les cookies
+            setTokenValid(true)
           }
         }
       } catch (e: any) {
