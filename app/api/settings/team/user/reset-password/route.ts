@@ -4,6 +4,7 @@ import { createSSRServerClient } from '@/lib/supabase/server-ssr';
 import { decryptPassword } from '@/lib/utils/encryption';
 import { sendEmailToArtisan, validateGmailEmail } from '@/lib/services/email-service';
 import { requirePermission, isPermissionError } from '@/lib/api/permissions';
+import { createPasswordResetToken, getSiteUrlFromRequest } from '@/lib/password-reset-tokens';
 
 export const runtime = 'nodejs';
 
@@ -50,52 +51,17 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'L\'utilisateur n\'a pas d\'email configuré' }, { status: 400 });
     }
 
-    // Generate password recovery link
-    // Use request host header for accurate URL (works for all environments including preview)
-    const host = request.headers.get('host') || request.headers.get('x-forwarded-host');
-    const protocol = host?.includes('localhost') ? 'http' : 'https';
-    const siteUrl = host 
-      ? `${protocol}://${host}` 
-      : (process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000');
-    
-    let resetLink = '';
-    
-    try {
-      // Check if auth admin API is available
-      if (supabaseAdmin.auth?.admin?.generateLink) {
-        const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
-          type: 'recovery',
-          email: userData.email,
-          options: {
-            redirectTo: `${siteUrl}/auth/callback?next=/set-password`,
-          },
-        });
+    // Créer un token custom réutilisable (24h) au lieu d'un lien Supabase à usage unique
+    const siteUrl = getSiteUrlFromRequest(request);
+    const tokenResult = await createPasswordResetToken(userData.id, siteUrl);
 
-        if (linkError) {
-          console.error('[reset-password] Link generation failed:', linkError.message);
-          return NextResponse.json({ 
-            error: 'Impossible de générer le lien de réinitialisation: ' + linkError.message 
-          }, { status: 500 });
-        }
-
-        resetLink = linkData?.properties?.action_link || '';
-      } else {
-        return NextResponse.json({ 
-          error: 'API d\'authentification non disponible' 
-        }, { status: 500 });
-      }
-    } catch (e: any) {
-      console.error('[reset-password] Exception generating link:', e?.message);
-      return NextResponse.json({ 
-        error: 'Erreur lors de la génération du lien: ' + (e?.message || 'Erreur inconnue')
+    if (!tokenResult) {
+      return NextResponse.json({
+        error: 'Le lien de réinitialisation n\'a pas pu être généré'
       }, { status: 500 });
     }
 
-    if (!resetLink) {
-      return NextResponse.json({ 
-        error: 'Le lien de réinitialisation n\'a pas pu être généré' 
-      }, { status: 500 });
-    }
+    const resetLink = tokenResult.resetLink;
 
     // If sendEmail is true, send the email
     if (sendEmail) {

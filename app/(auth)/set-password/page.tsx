@@ -59,6 +59,12 @@ export default function SetPasswordPage() {
   useEffect(() => {
     async function verifyToken() {
       try {
+        // Vérifier si on arrive avec une erreur du token custom
+        const errorParam = searchParams.get('error')
+        if (errorParam === 'expired') {
+          throw new Error('Ce lien a expiré ou a déjà été utilisé.')
+        }
+
         // Get the hash fragment (Supabase adds token info after #)
         const hash = window.location.hash
         
@@ -119,9 +125,16 @@ export default function SetPasswordPage() {
       const { error } = await supabase.auth.updateUser({
         password: password,
       })
-      
+
       if (error) throw error
-      
+
+      // Invalider tous les tokens de reset pour cet utilisateur
+      try {
+        await fetch('/api/auth/mark-token-used', { method: 'POST' })
+      } catch (markError) {
+        console.warn('[set-password] Failed to mark tokens as used:', markError)
+      }
+
       // Sign out to clear the recovery session
       await supabase.auth.signOut()
       
