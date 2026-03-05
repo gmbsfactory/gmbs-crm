@@ -104,40 +104,45 @@ export async function POST(request: Request, { params }: Params) {
 
     // Fetch user email credentials via auth_user_mapping
     let user: { email_smtp: string | null; email_password_encrypted: string | null } | null = null;
+    let publicUserId: string | null = null;
     const authEmail = auth?.user?.email;
-    
-    
+
+
     // 1. Chercher via le mapping
     const { data: mapping, error: mappingError } = await supabase
       .from('auth_user_mapping')
       .select('public_user_id')
       .eq('auth_user_id', userId)
       .maybeSingle();
-    
-    
+
+
     if (mapping?.public_user_id) {
+      publicUserId = mapping.public_user_id;
       const { data: userData, error: userError } = await supabase
         .from('users')
-        .select('email_smtp, email_password_encrypted')
+        .select('id, email_smtp, email_password_encrypted')
         .eq('id', mapping.public_user_id)
         .single();
-      
-      
+
+
       if (!userError) {
         user = userData;
       }
     }
-    
+
     // 2. Fallback: chercher par email
     if (!user && authEmail) {
       const { data: userData, error: emailError } = await supabase
         .from('users')
-        .select('email_smtp, email_password_encrypted')
+        .select('id, email_smtp, email_password_encrypted')
         .eq('email', authEmail)
         .maybeSingle();
-      
-      
-      user = userData;
+
+
+      if (userData) {
+        user = userData;
+        publicUserId = userData.id;
+      }
     }
 
     if (!user) {
@@ -206,12 +211,12 @@ export async function POST(request: Request, { params }: Params) {
       attachments,
     });
 
-    // Create log entry (async, non-blocking)
+    // Create log entry (synchronous to capture logId)
     const logStatus = emailResult.success ? 'sent' : 'failed';
     const logData = {
       intervention_id: interventionId,
       artisan_id: body.artisanId,
-      sent_by: userId,
+      sent_by: publicUserId,
       recipient_email: artisanEmail,
       subject: body.subject,
       message_html: body.htmlContent,
@@ -219,22 +224,25 @@ export async function POST(request: Request, { params }: Params) {
       attachments_count: attachments.length + 1, // +1 for logo GMBS
       status: logStatus,
       error_message: emailResult.error || null,
+      smtp_message_id: emailResult.messageId || null,
     };
 
-    // Don't await - log asynchronously
-    Promise.resolve(
-      supabase
+    let logId: string | null = null;
+    try {
+      const { data: logResult, error: logError } = await supabase
         .from('email_logs')
         .insert(logData)
-    )
-      .then((result) => {
-        if (result.error) {
-          console.error('[send-email] Failed to create email log:', result.error);
-        }
-      })
-      .catch((error) => {
-        console.error('[send-email] Error creating email log:', error);
-      });
+        .select('id')
+        .single();
+
+      if (logError) {
+        console.error('[send-email] Failed to create email log:', logError);
+      } else {
+        logId = logResult?.id ?? null;
+      }
+    } catch (logErr) {
+      console.error('[send-email] Error creating email log:', logErr);
+    }
 
     if (!emailResult.success) {
       return NextResponse.json(
@@ -243,10 +251,16 @@ export async function POST(request: Request, { params }: Params) {
       );
     }
 
-    // Return success response
+    // Return enriched success response
     return NextResponse.json({
       success: true,
       message: 'Email envoyé avec succès',
+      data: {
+        messageId: emailResult.messageId ?? null,
+        accepted: emailResult.accepted ?? [],
+        rejected: emailResult.rejected ?? [],
+        logId,
+      },
     });
   } catch (error) {
     console.error('[send-email] Unexpected error:', error);

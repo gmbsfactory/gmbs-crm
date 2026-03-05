@@ -36,6 +36,10 @@ export interface SendEmailParams {
 export interface SendEmailResult {
   success: boolean;
   error?: string;
+  messageId?: string;
+  smtpResponse?: string;
+  accepted?: string[];
+  rejected?: string[];
 }
 
 /**
@@ -148,10 +152,14 @@ export async function sendEmailToArtisan(params: SendEmailParams): Promise<SendE
       
       // Send email
       const info = await transporter.sendMail(mailOptions);
-      
-      // Success
+
+      // Success — capture SMTP feedback
       return {
         success: true,
+        messageId: info.messageId,
+        smtpResponse: info.response,
+        accepted: Array.isArray(info.accepted) ? info.accepted.map(String) : [],
+        rejected: Array.isArray(info.rejected) ? info.rejected.map(String) : [],
       };
     } catch (error) {
       lastError = error instanceof Error ? error : new Error(String(error));

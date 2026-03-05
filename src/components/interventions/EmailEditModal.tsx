@@ -7,9 +7,13 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
-import { X, Paperclip, Mail, Loader2, ZoomIn, ZoomOut, RotateCcw } from 'lucide-react';
+import { X, Paperclip, Mail, Loader2, ZoomIn, ZoomOut, RotateCcw, CheckCircle2, AlertCircle, ChevronDown, ChevronUp, Clock } from 'lucide-react';
 import { toast } from 'sonner';
+import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase-client';
+import { emailLogKeys } from '@/lib/react-query/queryKeys';
+import { useEmailLogsByType, type EmailLog } from '@/hooks/useEmailLogs';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import type { EmailTemplateData } from '@/lib/email-templates/intervention-emails';
 import { generateDevisEmailTemplate, generateInterventionEmailTemplate } from '@/lib/email-templates/intervention-emails';
 import DOMPurify from 'dompurify';
@@ -35,6 +39,66 @@ interface AttachmentFile {
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
 const MAX_ATTACHMENTS = 5;
 
+function formatRelativeTime(dateStr: string): string {
+  const date = new Date(dateStr);
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffMin = Math.floor(diffMs / 60000);
+  if (diffMin < 1) return "à l'instant";
+  if (diffMin < 60) return `il y a ${diffMin}min`;
+  const diffH = Math.floor(diffMin / 60);
+  if (diffH < 24) return `il y a ${diffH}h`;
+  const diffD = Math.floor(diffH / 24);
+  if (diffD === 1) return 'hier';
+  if (diffD < 7) return `il y a ${diffD}j`;
+  return date.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: '2-digit' });
+}
+
+function EmailHistoryEntry({ log }: { log: EmailLog }) {
+  const isSent = log.status === 'sent';
+  const senderName = [log.sender_firstname, log.sender_lastname].filter(Boolean).join(' ') || 'Inconnu';
+  const fullDate = new Date(log.sent_at).toLocaleString('fr-FR', {
+    day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit',
+  });
+
+  return (
+    <div className="flex items-start gap-2 px-3 py-2 border-b last:border-b-0 text-xs">
+      {isSent ? (
+        <CheckCircle2 className="h-3.5 w-3.5 text-green-600 mt-0.5 flex-shrink-0" />
+      ) : (
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <AlertCircle className="h-3.5 w-3.5 text-red-500 mt-0.5 flex-shrink-0 cursor-default" />
+            </TooltipTrigger>
+            <TooltipContent side="left" className="max-w-xs text-xs">
+              {log.error_message || 'Envoi échoué'}
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      )}
+      <div className="flex-1 min-w-0 space-y-0.5">
+        <div className="flex items-center gap-1.5">
+          <span className="font-medium truncate">{log.recipient_email}</span>
+        </div>
+        <p className="text-muted-foreground truncate" title={log.subject}>{log.subject}</p>
+        <div className="flex items-center gap-1.5 text-muted-foreground/70">
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="cursor-default">{formatRelativeTime(log.sent_at)}</span>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" className="text-xs">{fullDate}</TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+          <span>·</span>
+          <span className="truncate">{senderName}</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function EmailEditModal({
   isOpen,
   onClose,
@@ -45,6 +109,13 @@ export function EmailEditModal({
   templateData,
   selectedArtisanForEmail: _selectedArtisanForEmail,
 }: EmailEditModalProps) {
+  const queryClient = useQueryClient();
+  const { data: emailHistory, isLoading: isHistoryLoading } = useEmailLogsByType(
+    interventionId,
+    emailType,
+    { enabled: isOpen }
+  );
+  const [showHistory, setShowHistory] = useState(false);
   const [subject, setSubject] = useState('');
   const [htmlContent, setHtmlContent] = useState('');
   const [attachments, setAttachments] = useState<AttachmentFile[]>([]);
@@ -375,9 +446,32 @@ export function EmailEditModal({
         throw new Error(data.error || 'Erreur lors de l\'envoi de l\'email');
       }
 
-      // Success
+      // Parse enriched response
+      const responseData = data.data as {
+        messageId?: string | null;
+        accepted?: string[];
+        rejected?: string[];
+        logId?: string | null;
+      } | undefined;
+
       toast.dismiss(sendingToast);
-      toast.success('Email envoyé avec succès');
+
+      // Warn if some recipients were rejected
+      if (responseData?.rejected && responseData.rejected.length > 0) {
+        toast.warning(`Email rejeté pour : ${responseData.rejected.join(', ')}`, {
+          description: `Sujet : ${subject.trim()}`,
+        });
+      } else {
+        toast.success(`Email envoyé à ${artisanEmail}`, {
+          description: `Sujet : ${subject.trim()}`,
+        });
+      }
+
+      // Invalidate email logs cache
+      queryClient.invalidateQueries({
+        queryKey: emailLogKeys.byIntervention(interventionId),
+      });
+
       onClose();
     } catch (error) {
       // Clear timeout
@@ -532,6 +626,42 @@ export function EmailEditModal({
                 <p className="text-xs text-muted-foreground">
                   Commentaires additionnels qui apparaîtront dans l&apos;email
                 </p>
+              </div>
+
+              {/* Email History for this type */}
+              <div className="rounded-lg border bg-muted/30">
+                <button
+                  type="button"
+                  onClick={() => setShowHistory(!showHistory)}
+                  disabled={isHistoryLoading || !emailHistory || emailHistory.length === 0}
+                  className="flex items-center justify-between w-full px-3 py-2 text-left hover:bg-muted/50 rounded-lg transition-colors disabled:opacity-60 disabled:cursor-default disabled:hover:bg-transparent"
+                >
+                  <div className="flex items-center gap-2">
+                    <Clock className="h-3.5 w-3.5 text-muted-foreground" />
+                    <span className="text-xs font-medium">
+                      {isHistoryLoading
+                        ? 'Chargement historique...'
+                        : emailHistory && emailHistory.length > 0
+                          ? `Historique (${emailHistory.length} email${emailHistory.length > 1 ? 's' : ''} ${emailType === 'devis' ? 'devis' : 'intervention'})`
+                          : `Aucun email ${emailType === 'devis' ? 'devis' : 'intervention'} envoyé`
+                      }
+                    </span>
+                  </div>
+                  {emailHistory && emailHistory.length > 0 && (
+                    showHistory ? (
+                      <ChevronUp className="h-3.5 w-3.5 text-muted-foreground" />
+                    ) : (
+                      <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+                    )
+                  )}
+                </button>
+                {showHistory && emailHistory && emailHistory.length > 0 && (
+                  <div className="border-t max-h-[180px] overflow-y-auto">
+                    {emailHistory.map((log) => (
+                      <EmailHistoryEntry key={log.id} log={log} />
+                    ))}
+                  </div>
+                )}
               </div>
 
               {/* Attachments */}

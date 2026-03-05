@@ -427,6 +427,36 @@ export const dashboardKeys = {
 } as const
 
 // ---------------------------------------------------------------------------
+// Email log query keys
+// ---------------------------------------------------------------------------
+
+/**
+ * Factory pour les clés de requête des logs email.
+ *
+ * @example
+ * // Invalider les logs email d'une intervention après envoi
+ * queryClient.invalidateQueries({ queryKey: emailLogKeys.byIntervention(interventionId) })
+ */
+export const emailLogKeys = {
+  all: ['email-logs'] as const,
+
+  /** Tous les logs email d'une intervention */
+  byIntervention: (interventionId: string) =>
+    [...emailLogKeys.all, 'intervention', interventionId] as const,
+
+  /** Logs email d'une intervention filtrés par type (devis | intervention) */
+  byInterventionAndType: (interventionId: string, emailType: 'devis' | 'intervention') =>
+    [...emailLogKeys.all, 'intervention', interventionId, 'type', emailType] as const,
+
+  /** Invalider tous les logs email */
+  invalidateAll: () => emailLogKeys.all,
+
+  /** Invalider les logs d'une intervention (tous types) */
+  invalidateByIntervention: (interventionId: string) =>
+    emailLogKeys.byIntervention(interventionId),
+} as const
+
+// ---------------------------------------------------------------------------
 // Comment query keys (centralisées — remplacent les clés manuelles ["comments", ...])
 // ---------------------------------------------------------------------------
 
