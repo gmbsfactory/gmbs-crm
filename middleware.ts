@@ -19,7 +19,7 @@ export async function middleware(req: NextRequest) {
   }
 
   // Pages publiques - pas de vérification nécessaire
-  const publicPaths = ['/login', '/landingpage', '/set-password', '/auth/callback', '/portail']
+  const publicPaths = ['/login', '/landingpage', '/set-password', '/auth/callback', '/portail', '/reset']
   if (publicPaths.some(path => pathname.startsWith(path))) {
     return supabaseResponse
   }
