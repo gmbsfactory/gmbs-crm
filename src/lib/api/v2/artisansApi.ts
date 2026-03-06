@@ -209,7 +209,7 @@ export const artisansApi = {
             detailedQuery = detailedQuery.eq("gestionnaire_id", params.gestionnaire);
           }
           if (params?.statut_dossier) {
-            detailedQuery = detailedQuery.in("statut_dossier", ["À compléter", "incomplet"]);
+            detailedQuery = detailedQuery.in("statut_dossier", ["À compléter", "incomplet", "INCOMPLET"]);
           }
 
           const { data: detailedData, error: detailedError } = await detailedQuery;
@@ -263,7 +263,7 @@ export const artisansApi = {
         idsQuery = idsQuery.eq("gestionnaire_id", params.gestionnaire);
       }
       if (params?.statut_dossier) {
-        idsQuery = idsQuery.in("statut_dossier", ["À compléter", "incomplet"]);
+        idsQuery = idsQuery.in("statut_dossier", ["À compléter", "incomplet", "INCOMPLET"]);
       }
 
       const { data: artisansData, error: idsError } = await idsQuery;
@@ -357,7 +357,7 @@ export const artisansApi = {
         idsQuery = idsQuery.eq("gestionnaire_id", params.gestionnaire);
       }
       if (params?.statut_dossier) {
-        idsQuery = idsQuery.in("statut_dossier", ["À compléter", "incomplet"]);
+        idsQuery = idsQuery.in("statut_dossier", ["À compléter", "incomplet", "INCOMPLET"]);
       }
 
       const { data: artisansData, error: idsError } = await idsQuery;
@@ -479,7 +479,7 @@ export const artisansApi = {
       query = query.eq("gestionnaire_id", params.gestionnaire);
     }
     if (params?.statut_dossier) {
-      query = query.in("statut_dossier", ["À compléter", "incomplet"]);
+      query = query.in("statut_dossier", ["À compléter", "incomplet", "INCOMPLET"]);
     }
 
     // Pagination
@@ -1021,7 +1021,7 @@ export const artisansApi = {
       }
 
       // Compter les dossiers à compléter
-      if (item.statut_dossier === "À compléter" || item.statut_dossier === "incomplet") {
+      if (item.statut_dossier === "À compléter" || item.statut_dossier === "incomplet" || item.statut_dossier === "INCOMPLET") {
         dossiersACompleter++;
       }
     });
@@ -1399,7 +1399,7 @@ export const artisansApi = {
       .select("id, nom, prenom, statut_id, artisan_statuses!inner(code)")
       .eq("gestionnaire_id", gestionnaireId)
       .eq("is_active", true)
-      .in("statut_dossier", ["À compléter", "incomplet"])
+      .in("statut_dossier", ["À compléter", "incomplet", "INCOMPLET"])
       .neq("artisan_statuses.code", "ARCHIVE");
 
     if (error) {
@@ -1765,7 +1765,7 @@ export const artisansApi = {
     }
 
     if (params?.statut_dossier) {
-      query = query.in("statut_dossier", ["À compléter", "incomplet"]);
+      query = query.in("statut_dossier", ["À compléter", "incomplet", "INCOMPLET"]);
     }
 
     if (params?.search && params.search.trim()) {
@@ -1803,7 +1803,7 @@ export const artisansApi = {
       }
 
       if (params?.statut_dossier) {
-        idsQuery = idsQuery.in("statut_dossier", ["À compléter", "incomplet"]);
+        idsQuery = idsQuery.in("statut_dossier", ["À compléter", "incomplet", "INCOMPLET"]);
       }
 
       if (params?.search && params.search.trim()) {
