@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useMemo } from "react"
+import { useCallback, useEffect, useMemo, useRef } from "react"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { interventionsApi } from "@/lib/api/v2"
 import { comptaApi, type FacturationEntriesResult } from "@/lib/api/compta"
 import { comptabiliteKeys, type ComptabiliteQueryParams } from "@/lib/react-query/queryKeys"
 import { getPreloadConfig } from "@/lib/device-capabilities"
+import { supabase } from "@/lib/supabase-client"
 import type { InterventionWithStatus } from "@/types/intervention"
 
 type InterventionRecord = InterventionWithStatus & {
@@ -178,6 +179,54 @@ export function useComptabiliteQuery(options: UseComptabiliteQueryOptions) {
 
     return () => clearTimeout(timeoutId)
   }, [enabled, comptaData, queryClient, isLowEnd, prefetchStaleTime, page, totalPages, dateRange, itemsPerPage])
+
+  // ── Realtime: sync compta checks across users ──
+  const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null)
+
+  useEffect(() => {
+    if (!enabled) return
+
+    const channel = supabase
+      .channel("compta-checks-sync")
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "intervention_compta_checks",
+        },
+        (payload: any) => {
+          const interventionId =
+            (payload.new && "intervention_id" in payload.new ? payload.new.intervention_id : null) ||
+            (payload.old && "intervention_id" in payload.old ? payload.old.intervention_id : null)
+
+          if (!interventionId) return
+
+          // Mettre à jour le cache directement sans refetch
+          queryClient.setQueriesData<ComptabiliteData>(
+            { queryKey: comptabiliteKeys.all },
+            (old) => {
+              if (!old) return old
+              const next = new Set(old.checkedIds)
+              if (payload.eventType === "INSERT") {
+                next.add(interventionId as string)
+              } else if (payload.eventType === "DELETE") {
+                next.delete(interventionId as string)
+              }
+              return { ...old, checkedIds: next }
+            }
+          )
+        }
+      )
+      .subscribe()
+
+    channelRef.current = channel
+
+    return () => {
+      supabase.removeChannel(channel)
+      channelRef.current = null
+    }
+  }, [enabled, queryClient])
 
   // ── Optimistic updates ──
 
