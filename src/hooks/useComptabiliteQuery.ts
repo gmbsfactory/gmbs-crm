@@ -182,6 +182,7 @@ export function useComptabiliteQuery(options: UseComptabiliteQueryOptions) {
 
   // ── Realtime: sync compta checks across users ──
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null)
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
     if (!enabled) return
@@ -195,27 +196,13 @@ export function useComptabiliteQuery(options: UseComptabiliteQueryOptions) {
           schema: "public",
           table: "intervention_compta_checks",
         },
-        (payload: any) => {
-          const interventionId =
-            (payload.new && "intervention_id" in payload.new ? payload.new.intervention_id : null) ||
-            (payload.old && "intervention_id" in payload.old ? payload.old.intervention_id : null)
-
-          if (!interventionId) return
-
-          // Mettre à jour le cache directement sans refetch
-          queryClient.setQueriesData<ComptabiliteData>(
-            { queryKey: comptabiliteKeys.all },
-            (old) => {
-              if (!old) return old
-              const next = new Set(old.checkedIds)
-              if (payload.eventType === "INSERT") {
-                next.add(interventionId as string)
-              } else if (payload.eventType === "DELETE") {
-                next.delete(interventionId as string)
-              }
-              return { ...old, checkedIds: next }
-            }
-          )
+        () => {
+          // Debounce : regrouper les événements rapides (ex: bulk check)
+          // en une seule invalidation
+          if (debounceRef.current) clearTimeout(debounceRef.current)
+          debounceRef.current = setTimeout(() => {
+            queryClient.invalidateQueries({ queryKey: comptabiliteKeys.all })
+          }, 300)
         }
       )
       .subscribe()
@@ -223,6 +210,7 @@ export function useComptabiliteQuery(options: UseComptabiliteQueryOptions) {
     channelRef.current = channel
 
     return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current)
       supabase.removeChannel(channel)
       channelRef.current = null
     }
