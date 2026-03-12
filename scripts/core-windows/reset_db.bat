@@ -24,5 +24,5 @@ REM If you want to keep the window open after the command completes, uncomment t
 REM pause
 
 cd ../..
-supabase db reset && npm run import:artisans && npm run import:interventions -- --date-start=01/09/2025 --date-end=01/03/2026
+supabase db reset && npm run import:artisans && npm run import:interventions -- --date-start=01/01/2026 --date-end=01/04/2026
 pause
