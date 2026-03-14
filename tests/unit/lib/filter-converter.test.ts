@@ -110,6 +110,54 @@ describe('filter-converter', () => {
         expect(clientFilters).toHaveLength(1)
       })
 
+      it('should resolve currentUserId directly when filter value matches UUID (P0 fix)', () => {
+        // After P0 fix, applyUserScopedFilters injects the UUID directly into the filter.
+        // The filter-converter should recognize it via the `filter.value === context.currentUserId` check.
+        const badrUUID = '00000000-0000-0000-0000-000000000013'
+        const filters = [{ property: 'attribueA', operator: 'eq', value: badrUUID }]
+        const { serverFilters } = convertViewFiltersToServerFilters(filters as any, createContext({
+          currentUserId: badrUUID,
+        }))
+        expect(serverFilters.user).toBe(badrUUID)
+      })
+
+      it('should NOT collide when two users share lastname and code_gestionnaire values (Badr/Soufian bug)', () => {
+        // Reproduce the exact scenario: Badr (code_gestionnaire="B", lastname="B")
+        // and Soufian (code_gestionnaire="SB", lastname="B").
+        // With P1 fix, userMap only contains code_gestionnaire and username — no lastname.
+        const badrId = '00000000-0000-0000-0000-000000000013'
+        const soufianId = '00000000-0000-0000-0000-000000000011'
+
+        // Simulate cleaned userMap (P1: only code_gestionnaire + username, no lastname)
+        const userCodeToId = (code: string | string[]) => {
+          const map: Record<string, string> = {
+            b: badrId,       // Badr's code_gestionnaire
+            sb: soufianId,   // Soufian's code_gestionnaire
+            badr: badrId,    // Badr's username
+            soufian: soufianId, // Soufian's username
+            // NO "b" → soufianId from lastname — that was the collision!
+          }
+          if (Array.isArray(code)) return code.map(c => map[c.toLowerCase()]).filter(Boolean)
+          return map[code.toLowerCase()]
+        }
+
+        // Badr's filter should resolve to Badr's ID, not Soufian's
+        const filtersB = [{ property: 'attribueA', operator: 'eq', value: 'B' }]
+        const resultB = convertViewFiltersToServerFilters(filtersB as any, createContext({
+          userCodeToId,
+          currentUserId: badrId,
+        }))
+        expect(resultB.serverFilters.user).toBe(badrId)
+
+        // Soufian's filter should resolve to Soufian's ID
+        const filtersSB = [{ property: 'attribueA', operator: 'eq', value: 'SB' }]
+        const resultSB = convertViewFiltersToServerFilters(filtersSB as any, createContext({
+          userCodeToId,
+          currentUserId: soufianId,
+        }))
+        expect(resultSB.serverFilters.user).toBe(soufianId)
+      })
+
       it('should convert in operator with CURRENT_USER', () => {
         const filters = [{ property: 'attribueA', operator: 'in', value: ['CURRENT_USER'] }]
         const { serverFilters } = convertViewFiltersToServerFilters(filters as any, createContext())

@@ -641,18 +641,18 @@ const LEGACY_DEFAULT_VIEW_IDS = new Set(["table", "cards", "timeline", "ma-liste
 
 const layoutTemplatesByLayout: Record<ViewLayout, InterventionViewDefinition> = VIEW_TEMPLATES
 
-function applyUserScopedFilters(view: InterventionViewDefinition, username: string | null): InterventionViewDefinition {
+function applyUserScopedFilters(view: InterventionViewDefinition, userId: string | null): InterventionViewDefinition {
   if (!USER_SCOPED_VIEW_IDS.has(view.id)) {
     return view
   }
 
-  // Ne pas appliquer le filtre si le username n'est pas connu
-  // Cela évite d'injecter __NO_USER_USERNAME__ qui ne peut pas être converti en ID utilisateur
-  if (username === null) {
+  // Ne pas appliquer le filtre si le userId n'est pas connu
+  // Cela évite d'injecter un placeholder qui ne peut pas être converti en ID utilisateur
+  if (userId === null) {
     return view
   }
 
-  const targetValue = username
+  const targetValue = userId
   let changed = false
   let hasAssignmentFilter = false
 
@@ -852,6 +852,7 @@ export function useInterventionViews(): UseInterventionViewsResult {
   // Utiliser le hook centralisé useCurrentUser au lieu d'un fetch direct
   const { data: currentUser } = useCurrentUser()
   const currentUsername = currentUser?.code_gestionnaire ?? currentUser?.username ?? currentUser?.surnom ?? null
+  const currentUserId = currentUser?.id ?? null
 
   useEffect(() => {
     if (typeof window === "undefined") return
@@ -901,7 +902,7 @@ export function useInterventionViews(): UseInterventionViewsResult {
     setViews((prev) => {
       let changed = false
       const next = prev.map((view) => {
-        const updated = applyUserScopedFilters(view, currentUsername)
+        const updated = applyUserScopedFilters(view, currentUserId)
         if (updated !== view) {
           changed = true
           return updated
@@ -910,7 +911,7 @@ export function useInterventionViews(): UseInterventionViewsResult {
       })
       return changed ? next : prev
     })
-  }, [currentUsername])
+  }, [currentUserId])
 
   useEffect(() => {
     if (!views.length) return
@@ -1100,17 +1101,17 @@ export function useInterventionViews(): UseInterventionViewsResult {
     // Réinitialiser avec les vues par défaut
     const refreshedDefaults = DEFAULT_VIEWS.map((view) => {
       if (USER_SCOPED_VIEW_IDS.has(view.id)) {
-        return applyUserScopedFilters(cloneViewDefinition(view), currentUsername)
+        return applyUserScopedFilters(cloneViewDefinition(view), currentUserId)
       }
       return cloneViewDefinition(view)
     })
-    
+
     setViews(refreshedDefaults)
-    
+
     // Réinitialiser la vue active à la première vue par défaut
     const defaultView = DEFAULT_VIEWS.find((view) => view.isDefault) ?? DEFAULT_VIEWS[0]
     setActiveViewId(defaultView.id)
-  }, [currentUsername])
+  }, [currentUserId])
 
   const registerExternalView = useCallback(
     (incoming: InterventionViewDefinition, activate = false) => {
