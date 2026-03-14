@@ -11,18 +11,25 @@ import { useReferenceDataQuery } from "@/hooks/useReferenceDataQuery"
 export function useUserMap() {
   const { data, loading, error: queryError } = useReferenceDataQuery()
 
-  const userMap = useMemo(() => {
-    if (!data?.users) return {}
-    const map: Record<string, string> = {}
+  const { userMap, byCodeGestionnaire, byUsername } = useMemo(() => {
+    if (!data?.users) return { userMap: {}, byCodeGestionnaire: new Map<string, string>(), byUsername: new Map<string, string>() }
+    const combinedMap: Record<string, string> = {}
+    const cgMap = new Map<string, string>()
+    const unMap = new Map<string, string>()
     for (const user of data.users) {
-      if (user.username) map[user.username.toLowerCase()] = user.id
-      if (user.firstname) map[user.firstname.toLowerCase()] = user.id
-      if (user.lastname) map[user.lastname.toLowerCase()] = user.id
-      if (user.code_gestionnaire) map[user.code_gestionnaire.toLowerCase()] = user.id
-      const fullName = `${user.firstname || ""} ${user.lastname || ""}`.trim().toLowerCase()
-      if (fullName) map[fullName] = user.id
+      // Only use UNIQUE fields (guaranteed by DB constraints) to avoid collisions
+      if (user.code_gestionnaire) {
+        const key = user.code_gestionnaire.toLowerCase()
+        cgMap.set(key, user.id)
+        combinedMap[key] = user.id
+      }
+      if (user.username) {
+        const key = user.username.toLowerCase()
+        unMap.set(key, user.id)
+        combinedMap[key] = user.id
+      }
     }
-    return map
+    return { userMap: combinedMap, byCodeGestionnaire: cgMap, byUsername: unMap }
   }, [data])
 
   const error = useMemo(
@@ -43,5 +50,5 @@ export function useUserMap() {
     return userMap[name.toLowerCase()]
   }, [userMap])
 
-  return { userMap, loading, error, nameToId }
+  return { userMap, byCodeGestionnaire, byUsername, loading, error, nameToId }
 }

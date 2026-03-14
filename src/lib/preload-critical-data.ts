@@ -193,15 +193,12 @@ async function createMappers(queryClient: QueryClient) {
     return statusMap[code]
   }
 
-  // Créer le mapper userCodeToId
+  // Créer le mapper userCodeToId — uniquement les champs UNIQUE (code_gestionnaire, username)
+  // Les champs non-uniques (firstname, lastname, fullName) sont exclus pour éviter les collisions
   const userMap: Record<string, string> = {}
   for (const user of users) {
-    if (user.username) userMap[user.username.toLowerCase()] = user.id
-    if (user.firstname) userMap[user.firstname.toLowerCase()] = user.id
-    if (user.lastname) userMap[user.lastname.toLowerCase()] = user.id
     if (user.code_gestionnaire) userMap[user.code_gestionnaire.toLowerCase()] = user.id
-    const fullName = `${user.firstname || ""} ${user.lastname || ""}`.trim().toLowerCase()
-    if (fullName) userMap[fullName] = user.id
+    if (user.username) userMap[user.username.toLowerCase()] = user.id
   }
 
   const userCodeToId = (name: string | string[] | undefined): string | string[] | undefined => {
