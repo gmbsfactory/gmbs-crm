@@ -155,7 +155,7 @@ export function useNearbyArtisans(
 
       const archiveStatusFilter =
         archiveStatusIds.length > 0
-          ? `(${archiveStatusIds.map((id) => `"${id}"`).join(",")})`
+          ? `(${archiveStatusIds.join(",")})`
           : null
 
       // Récupérer les artisans par lots si nécessaire pour éviter les URLs trop longues
