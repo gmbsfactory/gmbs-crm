@@ -146,6 +146,14 @@ export default function DashboardPage() {
     }
   }, [])
 
+  // Verify that the user has permission for the current period type
+  useEffect(() => {
+    if (isMounted && !isLoadingUser && !isAdmin && periodType === "year") {
+      setPeriodType("month")
+      localStorage.setItem(STORAGE_KEY, "month")
+    }
+  }, [isMounted, isLoadingUser, isAdmin, periodType])
+
   // Détecter la transition depuis login et démarrer l'animation
   useEffect(() => {
     if (!isMounted) return
@@ -503,7 +511,7 @@ export default function DashboardPage() {
                     <SelectContent>
                       <SelectItem value="week">Semaine</SelectItem>
                       <SelectItem value="month">Mois</SelectItem>
-                      <SelectItem value="year">Année</SelectItem>
+                      {isAdmin && <SelectItem value="year">Année</SelectItem>}
                     </SelectContent>
                   </Select>
                 ) : (

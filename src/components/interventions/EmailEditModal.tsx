@@ -149,7 +149,7 @@ export function EmailEditModal({
 
   // Generate default subject based on email type
   const getDefaultSubject = useCallback(() => {
-    const interventionRef = templateData.idIntervention || interventionId.slice(0, 8);
+    const interventionRef = templateData.idIntervention || 'XXXX';
     if (emailType === 'devis') {
       return `Demande de devis - Intervention #${interventionRef}`;
     }

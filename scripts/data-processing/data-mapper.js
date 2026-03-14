@@ -242,16 +242,16 @@ class DataMapper {
     const errors = [];
     const idInter = mappedIntervention.id_inter || "N/A";
 
-    // Champs obligatoires 
+    // Champs obligatoires
     // Note: id_inter est obligatoire pour éviter les doublons (peut être réel ou synthétique SYNTH-xxx)
     // Note: contexte_intervention est optionnel (peut être vide dans certains cas)
+    // Note: metier_id est optionnel - si absent, sera assigné à 'AUTRES' par défaut
+    // Note: agence_id est optionnel - si absent, sera assigné à 'DEFAUT' par défaut
     const requiredFields = {
       id_inter: 'Champ id_inter invalide (requis pour éviter les doublons, généré automatiquement si absent)',
       date: 'Champ date invalide ',
       adresse: 'Champ adresse invalide',
-      metier_id: 'Champ metier_id invalide ',
-      statut_id: 'Champ statut_id invalide ',
-      agence_id: 'Champ agence_id invalide '
+      statut_id: 'Champ statut_id invalide '
     };
 
     // Vérifier chaque champ obligatoire
@@ -787,10 +787,34 @@ class DataMapper {
     // (gestion des métiers multiples, filtrage des dates aberrantes, normalisation)
     const metiers = await this.mapMetiersFromCSV(csvRow);
     // Prendre le premier métier (principal) pour metier_id
-    const metierId = metiers.length > 0 ? metiers[0].metier_id : null;
+    let metierId = metiers.length > 0 ? metiers[0].metier_id : null;
+
+    // Si aucun métier trouvé, assigner le métier par défaut "AUTRES"
+    if (!metierId) {
+      if (verbose) {
+        console.log(`⚠️ Aucun métier trouvé, assignation du métier par défaut "AUTRES"`);
+      }
+      metierId = await this.getMetierId('AUTRES');
+      if (metierId && verbose) {
+        console.log(`✅ Métier par défaut assigné: AUTRES (ID: ${metierId})`);
+      }
+    }
 
     // ===== RÉCUPÉRER LES DONNÉES NÉCESSAIRES POUR ID SYNTHÉTIQUE =====
-    const agenceId = await this.getAgencyId(csvRow["Agence"]);
+    let agenceId = await this.getAgencyId(csvRow["Agence"]);
+
+    // Si aucune agence trouvée, assigner l'agence par défaut "DEFAUT"
+    // Cela évite de rejeter les interventions valides juste parce que l'agence manque
+    if (!agenceId) {
+      if (verbose) {
+        console.log(`⚠️ Aucune agence trouvée, assignation de l'agence par défaut "DEFAUT"`);
+      }
+      agenceId = await this.getAgencyId('DEFAUT');
+      if (agenceId && verbose) {
+        console.log(`✅ Agence par défaut assignée: DEFAUT (ID: ${agenceId})`);
+      }
+    }
+
     // Chercher la date dans plusieurs colonnes possibles (FErn est un nom alternatif utilisé dans certains sheets)
     const rawDate = csvRow["Date "] || csvRow["Date"] || csvRow["FErn"] || csvRow["745"] || csvRow["Date d'intervention"];
     const dateValue = this.parseDate(rawDate);
@@ -2508,6 +2532,12 @@ class DataMapper {
     }
   }
 
+  /**
+   * Récupère ou crée un métier par son nom
+   * Gère la normalisation et la mise en cache
+   * @param {string} metierName - Nom du métier à chercher/créer
+   * @returns {string|null} - ID du métier ou null en cas d'erreur
+   */
   async getMetierId(metierName) {
     if (!metierName || metierName.trim() === "") return null;
 

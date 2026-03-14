@@ -66,9 +66,6 @@ next-env.d.ts
 .cursorrules
 .cursorfile
 
-# Scripts tracked (uncomment next line to ignore)
-# /scripts
-
 # Never commit credentials files
 /supabase/functions/credentials.json
 credentials.json
@@ -100,7 +97,6 @@ docs/archive/prompts/
 
 # Todo notes
 docs/todo/*
-data/
 
 # Exports
 exports/*.csv

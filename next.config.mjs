@@ -66,6 +66,8 @@ const nextConfig = {
     return config;
   },
   async headers() {
+    const isDev = process.env.NODE_ENV === 'development'
+    const devSupabase = isDev ? ' http://127.0.0.1:54321 http://localhost:54321 ws://127.0.0.1:54321 ws://localhost:54321' : ''
     return [
       {
         source: "/(.*)",
@@ -78,7 +80,7 @@ const nextConfig = {
           {
             key: "Content-Security-Policy",
             value:
-              "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: https://vercel.live; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.maptiler.com https://vercel.live wss://vercel.live; worker-src 'self' blob:; frame-src 'self' https://*.supabase.co blob: https://vercel.live; frame-ancestors 'none';",
+              `default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: https://vercel.live; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.maptiler.com https://vercel.live wss://vercel.live${devSupabase}; worker-src 'self' blob:; frame-src 'self' https://*.supabase.co blob: https://vercel.live; frame-ancestors 'none';`,
           },
           {
             key: "Strict-Transport-Security",

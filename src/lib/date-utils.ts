@@ -57,3 +57,15 @@ export function getLocalDateString(date: Date = new Date()): string {
   const day = String(date.getDate()).padStart(2, '0')
   return `${year}-${month}-${day}`
 }
+
+// Re-export CSV parser functions for convenient access
+export {
+  parseCSVDate,
+  parseCSVDateRange,
+  isValidDate,
+  stripTimeComponent,
+  isInRange,
+  createDateRangeFromStrings,
+  getDateParseDebugInfo,
+} from './dates/csv-parser'
+export type { DateRange, DateFormat, DateFormatOptions, DateValidationContext } from '@/types/dates'

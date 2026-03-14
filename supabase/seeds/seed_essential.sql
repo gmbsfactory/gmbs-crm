@@ -73,7 +73,15 @@ INSERT INTO public.metiers (code, label, description, color) VALUES
 ON CONFLICT (code) DO NOTHING;
 
 -- ========================================
--- 3️⃣ ZONES (REFERENCE DATA)
+-- 3️⃣ AGENCIES (REFERENCE DATA)
+-- ========================================
+
+INSERT INTO public.agencies (code, label, region) VALUES
+('DEFAUT', 'Défaut', 'Non spécifié')
+ON CONFLICT (code) DO NOTHING;
+
+-- ========================================
+-- 4️⃣ ZONES (REFERENCE DATA)
 -- ========================================
 
 INSERT INTO public.zones (code, label, region) VALUES 
@@ -90,7 +98,7 @@ INSERT INTO public.zones (code, label, region) VALUES
 ON CONFLICT (code) DO NOTHING;
 
 -- ========================================
--- 4️⃣ STATUTS ARTISANS (REFERENCE DATA)
+-- 5️⃣ STATUTS ARTISANS (REFERENCE DATA)
 -- ========================================
 
 INSERT INTO public.artisan_statuses (code, label, color, sort_order) VALUES 
@@ -106,7 +114,7 @@ INSERT INTO public.artisan_statuses (code, label, color, sort_order) VALUES
 ON CONFLICT (code) DO NOTHING;
 
 -- ========================================
--- 5️⃣ STATUTS INTERVENTIONS (REFERENCE DATA)
+-- 6️⃣ STATUTS INTERVENTIONS (REFERENCE DATA)
 -- ========================================
 
 INSERT INTO public.intervention_statuses (code, label, color, sort_order) VALUES 
