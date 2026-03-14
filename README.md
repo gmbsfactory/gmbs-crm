@@ -2,6 +2,8 @@
 
 CRM pour la gestion des interventions, artisans et clients dans le secteur du bâtiment.
 
+> Dernière mise à jour : 2026-03-13 - branche feat00001
+
 ## Stack technique
 
 | Catégorie | Technologies |
