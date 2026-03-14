@@ -38,7 +38,7 @@ import { toast } from "sonner"
 import { extractErrorMessage } from "@/lib/toast-helpers"
 import { EmailEditModal } from "@/components/interventions/EmailEditModal"
 import { SectionLock } from "@/components/ui/SectionLock"
-import { generateDevisWhatsAppText, generateInterventionWhatsAppText, type EmailTemplateData } from "@/lib/email-templates/intervention-emails"
+import { generateDevisWhatsAppText, generateInterventionWhatsAppText, encodeWhatsAppUrl, type EmailTemplateData } from "@/lib/email-templates/intervention-emails"
 import { findOrCreateOwner, findOrCreateTenant } from "@/lib/interventions/owner-tenant-helpers"
 import { runPostMutationTasks } from "@/lib/interventions/post-mutation-tasks"
 import { normalizeArtisanData, getDisplayName } from "@/lib/artisans"
@@ -896,24 +896,19 @@ export const InterventionEditForm = memo(function InterventionEditForm({
     // Formater le numéro de téléphone
     const formattedPhone = formatPhoneForWhatsApp(artisanPhone)
 
-    // Encoder le message pour l'URL
-    const encodedMessage = encodeURIComponent(whatsappMessage)
-
     // Détecter si on est sur mobile
     const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent)
 
     // Ouvrir WhatsApp avec le numéro et le message
     if (isMobile) {
       // Sur mobile : utiliser le protocole whatsapp:// pour ouvrir directement l'app
-      const whatsappUrl = `whatsapp://send?phone=${formattedPhone}&text=${encodedMessage}`
+      const whatsappUrl = `whatsapp://send?phone=${formattedPhone}&text=${encodeURIComponent(whatsappMessage)}`
       window.location.href = whatsappUrl
     } else {
       // Sur desktop : ouvrir dans une nouvelle fenêtre centrée et de taille confortable
-      const whatsappUrl = `https://wa.me/${formattedPhone}?text=${encodedMessage}`
-      // Taille de la fenêtre (30% plus grande que standard)
+      const whatsappUrl = encodeWhatsAppUrl(formattedPhone, whatsappMessage)
       const popupWidth = 780
       const popupHeight = 910
-      // Centrer la fenêtre sur l'écran
       const left = Math.round((window.screen.width - popupWidth) / 2)
       const top = Math.round((window.screen.height - popupHeight) / 2)
       window.open(
@@ -928,16 +923,18 @@ export const InterventionEditForm = memo(function InterventionEditForm({
   // Devis → lié aux requirements de VISITE_TECHNIQUE (artisan requis)
   const isDevisButtonDisabled = !selectedArtisanId
   // Inter. → lié aux requirements de INTER_EN_COURS
+  // Note: Champs client optionnels pour les logements vacants (pas de locataire)
   const isInterButtonDisabled = useMemo(() => {
     if (!selectedArtisanId) return true
     if (!(parseFloat(formData.coutIntervention) > 0)) return true
     if (!(parseFloat(formData.coutSST) > 0)) return true
     if (!formData.consigne_intervention?.trim()) return true
-    if (!formData.nomPrenomClient?.trim()) return true
-    if (!formData.telephoneClient?.trim()) return true
+    // Champs client optionnels si logement vacant
+    if (!formData.is_vacant && !formData.nomPrenomClient?.trim()) return true
+    if (!formData.is_vacant && !formData.telephoneClient?.trim()) return true
     if (!formData.date_prevue?.trim()) return true
     return false
-  }, [selectedArtisanId, formData.coutIntervention, formData.coutSST, formData.consigne_intervention, formData.nomPrenomClient, formData.telephoneClient, formData.date_prevue])
+  }, [selectedArtisanId, formData.coutIntervention, formData.coutSST, formData.consigne_intervention, formData.nomPrenomClient, formData.telephoneClient, formData.date_prevue, formData.is_vacant])
 
   // Hook pour gérer le redimensionnement de la colonne droite
   const handleResizeStart = useCallback((e: React.MouseEvent | React.TouchEvent) => {
@@ -1154,13 +1151,14 @@ export const InterventionEditForm = memo(function InterventionEditForm({
 
         const allCosts: Array<{ cost_type: 'sst' | 'materiel' | 'intervention' | 'marge'; amount: number; artisan_order?: 1 | 2 | null; label?: string | null }> = []
 
-        if (coutSSTValue >= 0) allCosts.push({ cost_type: "sst", label: "Coût SST", amount: coutSSTValue, artisan_order: 1 })
-        if (coutMaterielValue >= 0) allCosts.push({ cost_type: "materiel", label: "Coût Matériel", amount: coutMaterielValue, artisan_order: 1 })
-        if (coutInterventionValue >= 0) allCosts.push({ cost_type: "intervention", label: "Coût Intervention", amount: coutInterventionValue, artisan_order: null })
+        // N'ajouter que les coûts > 0 (ignorer les champs vides/zéro)
+        if (coutSSTValue > 0) allCosts.push({ cost_type: "sst", label: "Coût SST", amount: coutSSTValue, artisan_order: 1 })
+        if (coutMaterielValue > 0) allCosts.push({ cost_type: "materiel", label: "Coût Matériel", amount: coutMaterielValue, artisan_order: 1 })
+        if (coutInterventionValue > 0) allCosts.push({ cost_type: "intervention", label: "Coût Intervention", amount: coutInterventionValue, artisan_order: null })
 
         if (selectedSecondArtisanId) {
-          allCosts.push({ cost_type: "sst", label: "Coût SST 2ème artisan", amount: coutSST2Value, artisan_order: 2 })
-          allCosts.push({ cost_type: "materiel", label: "Coût Matériel 2ème artisan", amount: coutMateriel2Value, artisan_order: 2 })
+          if (coutSST2Value > 0) allCosts.push({ cost_type: "sst", label: "Coût SST 2ème artisan", amount: coutSST2Value, artisan_order: 2 })
+          if (coutMateriel2Value > 0) allCosts.push({ cost_type: "materiel", label: "Coût Matériel 2ème artisan", amount: coutMateriel2Value, artisan_order: 2 })
         }
 
         // Préparer les paiements
@@ -1322,7 +1320,7 @@ export const InterventionEditForm = memo(function InterventionEditForm({
       return
     }
 
-    if (requiresClientInfo) {
+    if (requiresClientInfo && !formData.is_vacant) {
       if (!formData.nomPrenomClient?.trim()) {
         toast.error("Le nom/prénom du client doit être renseigné pour passer en cours")
         return
@@ -2240,12 +2238,12 @@ export const InterventionEditForm = memo(function InterventionEditForm({
                 {/* Détails client */}
                 <SectionLock isLocked={!canEditIntervention}>
                   <Collapsible open={isClientOpen} onOpenChange={setIsClientOpen}>
-                    <Card className={cn(requiresClientInfo && (!formData.nomPrenomClient?.trim() || !formData.telephoneClient?.trim()) && "ring-2 ring-orange-400/50")}>
+                    <Card className={cn(requiresClientInfo && !formData.is_vacant && (!formData.nomPrenomClient?.trim() || !formData.telephoneClient?.trim()) && "ring-2 ring-orange-400/50")}>
                       <CollapsibleTrigger asChild>
                         <CardHeader className="cursor-pointer py-2 px-3 hover:bg-muted/50">
                           <CardTitle className="flex items-center gap-2 text-xs">
                             Détails client
-                            {requiresClientInfo && (!formData.nomPrenomClient?.trim() || !formData.telephoneClient?.trim()) && (
+                            {requiresClientInfo && !formData.is_vacant && (!formData.nomPrenomClient?.trim() || !formData.telephoneClient?.trim()) && (
                               <span className="h-2 w-2 rounded-full bg-orange-500 animate-pulse" title="Champs obligatoires manquants" />
                             )}
                             {isClientOpen ? <ChevronDown className="ml-auto h-3 w-3" /> : <ChevronRight className="ml-auto h-3 w-3" />}
@@ -2298,7 +2296,7 @@ export const InterventionEditForm = memo(function InterventionEditForm({
                             <div className="space-y-2">
                               <div>
                                 <Label htmlFor="nomPrenomClient" className="text-[10px]">
-                                  Nom Prénom {requiresClientInfo && <span className="text-orange-500">*</span>}
+                                  Nom Prénom {requiresClientInfo && !formData.is_vacant && <span className="text-orange-500">*</span>}
                                 </Label>
                                 <PresenceFieldIndicator fieldName="nomPrenomClient">
                                 <Input
@@ -2306,14 +2304,14 @@ export const InterventionEditForm = memo(function InterventionEditForm({
                                   value={formData.nomPrenomClient}
                                   onChange={(e) => handleInputChange("nomPrenomClient", e.target.value)}
                                   placeholder="Nom Prénom"
-                                  className={cn("h-7 text-xs mt-1", requiresClientInfo && !formData.nomPrenomClient?.trim() && "border-orange-400 focus-visible:ring-orange-400")}
+                                  className={cn("h-7 text-xs mt-1", requiresClientInfo && !formData.is_vacant && !formData.nomPrenomClient?.trim() && "border-orange-400 focus-visible:ring-orange-400")}
                                 />
                                 </PresenceFieldIndicator>
                               </div>
                               <div className="grid grid-cols-2 gap-2">
                                 <div>
                                   <Label htmlFor="telephoneClient" className="text-[10px]">
-                                    Téléphone {requiresClientInfo && <span className="text-orange-500">*</span>}
+                                    Téléphone {requiresClientInfo && !formData.is_vacant && <span className="text-orange-500">*</span>}
                                   </Label>
                                   <PresenceFieldIndicator fieldName="telephoneClient">
                                   <Input
@@ -2321,7 +2319,7 @@ export const InterventionEditForm = memo(function InterventionEditForm({
                                     value={formData.telephoneClient}
                                     onChange={(e) => handleInputChange("telephoneClient", e.target.value)}
                                     placeholder="06..."
-                                    className={cn("h-7 text-xs mt-1", requiresClientInfo && !formData.telephoneClient?.trim() && "border-orange-400 focus-visible:ring-orange-400")}
+                                    className={cn("h-7 text-xs mt-1", requiresClientInfo && !formData.is_vacant && !formData.telephoneClient?.trim() && "border-orange-400 focus-visible:ring-orange-400")}
                                   />
                                   </PresenceFieldIndicator>
                                 </div>

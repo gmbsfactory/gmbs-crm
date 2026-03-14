@@ -355,18 +355,14 @@ class DatabaseManager {
           // Nettoyer les données temporaires avant l'upsert
           delete artisan.metiers;
 
-          // Utiliser l'API V2 avec upsertDirect en passant le client authentifié
-          const upsertedArtisan = await artisansApi.upsertDirect(
-            artisan,
-            this.authenticatedClient || supabaseClient
-          );
+          // Utiliser l'API V2 avec upsertDirect (service role via getSupabaseClientForNode)
+          const upsertedArtisan = await artisansApi.upsertDirect(artisan);
 
           // Assigner les métiers après l'upsert
           if (metiersData.length > 0 && upsertedArtisan.id) {
             try {
-              // Insérer directement dans la table artisan_metiers (évite les Edge Functions)
-              // Utiliser le client authentifié si disponible
-              const clientToUse = this.authenticatedClient || supabaseClient;
+              // Insérer directement dans la table artisan_metiers (service role via supabaseClient)
+              const clientToUse = supabaseClient;
               
               if (clientToUse) {
                 const metierInserts = metiersData.map(metier => ({

@@ -1,9 +1,34 @@
 /**
  * Email templates for intervention emails (devis and intervention requests)
- * 
+ *
  * These templates generate HTML emails with inline styles for maximum email client compatibility.
  * The logo GMBS is referenced via CID (Content-ID) and must be included as an inline attachment.
  */
+
+/**
+ * WhatsApp emoji constants using Unicode escape sequences.
+ * Using escapes instead of literal emoji characters prevents file-encoding corruption
+ * through the build pipeline — the emoji is constructed at runtime from its codepoint.
+ */
+const WA = {
+  TOOLS:    '\u{1F6E0}',  // 🛠
+  SPEECH:   '\u{1F4AC}',  // 💬
+  PIN:      '\u{1F4CD}',  // 📍
+  EMAIL:    '\u{1F4E7}',  // 📧
+  WARNING:  '\u26A0',     // ⚠
+} as const;
+
+/**
+ * Encodes a WhatsApp message for use in a wa.me or whatsapp:// URL.
+ * - Emojis are handled correctly by encodeURIComponent (UTF-8 percent-encoding)
+ * - Asterisks (*) are left unencoded by encodeURIComponent, so WhatsApp bold is preserved
+ */
+export function encodeWhatsAppUrl(phone: string, message: string): string {
+  const encoded = encodeURIComponent(message);
+  return phone
+    ? `https://wa.me/${phone}?text=${encoded}`
+    : `https://wa.me/?text=${encoded}`;
+}
 
 export interface EmailTemplateData {
   nomClient: string;
@@ -354,31 +379,31 @@ export function generateDevisWhatsAppText(data: EmailTemplateData): string {
   message += `Merci d'effectuer une visite technique avant le ${d.datePrevue} :\n\n`;
 
   // Client Information
-  message += `*Client :* ${d.nomClient}\n`;
-  message += `*Téléphone :* ${d.telephoneClient}`;
+  message += `Client : ${d.nomClient}\n`;
+  message += `Telephone : ${d.telephoneClient}`;
   if (d.telephoneClient2) {
-    message += `\n*Téléphone 2 :* ${d.telephoneClient2}`;
+    message += `\nTelephone 2 : ${d.telephoneClient2}`;
   }
-  message += `\n*Adresse :* ${d.adresse}\n\n`;
+  message += `\nAdresse : ${d.adresse}\n\n`;
 
   // Consignes de visite technique
-  message += `🛠 *CONSIGNES DE VISITE TECHNIQUE :*\n`;
-  message += `Devis à effectuer : ${d.consigneArtisan}\n`;
-  message += `Se présenter en tant que technicien GMBS, mandaté par l'agence du client\n`;
+  message += `--- CONSIGNES DE VISITE TECHNIQUE ---\n`;
+  message += `Devis a effectuer : ${d.consigneArtisan}\n`;
+  message += `Se presenter en tant que technicien GMBS, mandate par l'agence du client\n`;
   message += `Ne pas parler de prix avec le client\n\n`;
 
   // Commentaire
   if (d.commentaire) {
-    message += `💬 *COMMENTAIRE :*\n${d.commentaire}\n\n`;
+    message += `--- COMMENTAIRE ---\n${d.commentaire}\n\n`;
   }
 
   // À faire après la visite technique
-  message += `*À FAIRE APRÈS LA VISITE TECHNIQUE*\n`;
-  message += `1️⃣ Envoyer le devis en réponse à ce mail\n`;
-  message += `2️⃣ Envoyer les photos de la visite technique\n\n`;
+  message += `--- A FAIRE APRES LA VISITE TECHNIQUE ---\n`;
+  message += `1. Envoyer le devis en reponse a ce mail\n`;
+  message += `2. Envoyer les photos de la visite technique\n\n`;
 
   // Coordonnées GMBS
-  message += `📍 *Coordonnées GMBS*\n`;
+  message += `--- Coordonnees GMBS ---\n`;
   message += `GMBS\n`;
   message += `44 rue de la Faisanderie\n`;
   message += `75116 Paris\n`;
@@ -401,37 +426,37 @@ export function generateInterventionWhatsAppText(data: EmailTemplateData): strin
   message += `Merci d'intervenir dès que possible, avant le ${d.datePrevue}, pour le client suivant :\n\n`;
 
   // Client Information
-  message += `*Client :* ${d.nomClient}\n`;
-  message += `*Téléphone :* ${d.telephoneClient}`;
+  message += `Client : ${d.nomClient}\n`;
+  message += `Telephone : ${d.telephoneClient}`;
   if (d.telephoneClient2) {
-    message += `\n*Téléphone 2 :* ${d.telephoneClient2}`;
+    message += `\nTelephone 2 : ${d.telephoneClient2}`;
   }
-  message += `\n*Adresse :* ${d.adresse}\n\n`;
+  message += `\nAdresse : ${d.adresse}\n\n`;
 
   // Consignes d'intervention
-  message += `🛠 *CONSIGNES D'INTERVENTION :*\n`;
-  message += `Intervention à réaliser : ${d.consigneArtisan}\n`;
-  message += `Budget maximum autorisé : *${d.coutSST}*\n`;
-  message += `Se présenter en tant que technicien GMBS, mandaté par l'agence du client\n`;
+  message += `--- CONSIGNES D'INTERVENTION ---\n`;
+  message += `Intervention a realiser : ${d.consigneArtisan}\n`;
+  message += `Budget maximum autorise : ${d.coutSST}\n`;
+  message += `Se presenter en tant que technicien GMBS, mandate par l'agence du client\n`;
   message += `Ne pas discuter le prix avec le client\n`;
-  message += `En cas de dépassement du budget, avertir GMBS avant toute action supplémentaire\n\n`;
+  message += `En cas de depassement du budget, avertir GMBS avant toute action supplementaire\n\n`;
 
   // Commentaire
   if (d.commentaire) {
-    message += `💬 *COMMENTAIRE :*\n${d.commentaire}\n\n`;
+    message += `--- COMMENTAIRE ---\n${d.commentaire}\n\n`;
   }
 
   // À faire après l'intervention
-  message += `*À FAIRE APRÈS L'INTERVENTION*\n`;
-  message += `1️⃣ Faire apparaître la référence GMBS (ID ${interventionId}) dans l'objet du mail et dans le corps de la facture\n`;
-  message += `2️⃣ Photos de l'intervention : avant et après obligatoires\n`;
-  message += `3️⃣ Envoyer la facture en autoliquidation\n`;
-  message += `4️⃣ RIB : à joindre avec la facture\n`;
-  message += `5️⃣ Envoyer l'ensemble des documents à : 📧 gmbs.compta@gmail.com\n`;
-  message += `⚠️ Tous les documents (photos, facture et RIB) doivent être envoyés dans le même mail\n\n`;
+  message += `--- A FAIRE APRES L'INTERVENTION ---\n`;
+  message += `1. Faire apparaitre la reference GMBS (ID ${interventionId}) dans l'objet du mail et dans le corps de la facture\n`;
+  message += `2. Photos de l'intervention : avant et apres obligatoires\n`;
+  message += `3. Envoyer la facture en autoliquidation\n`;
+  message += `4. RIB : a joindre avec la facture\n`;
+  message += `5. Envoyer l'ensemble des documents a : gmbs.compta@gmail.com\n`;
+  message += `IMPORTANT : Tous les documents (photos, facture et RIB) doivent etre envoyes dans le meme mail\n\n`;
 
   // Coordonnées de facturation GMBS
-  message += `📍 *Coordonnées de facturation GMBS*\n`;
+  message += `--- Coordonnees de facturation GMBS ---\n`;
   message += `GMBS\n`;
   message += `44 rue de la Faisanderie\n`;
   message += `75116 Paris\n`;

@@ -87,6 +87,20 @@ export function useNearbyArtisans(
 
       setState((prev) => ({ ...prev, loading: true, error: null }))
 
+      try {
+        await fetchArtisansInner()
+      } catch (err) {
+        if (cancelled) return
+        if (err instanceof DOMException && err.name === 'AbortError') return
+        setState({ artisans: [], loading: false, error: safeErrorMessage(err, "la recherche d'artisans à proximité") })
+      }
+    }
+
+    async function fetchArtisansInner() {
+      const lat0 = latitude
+      const lng0 = longitude
+      if (lat0 == null || lng0 == null) return
+
       // Si un metier_id est fourni, récupérer les IDs des artisans par lots pour éviter les URLs trop longues
       let artisanIdsWithMetier: string[] | null = null
       if (metier_id) {
@@ -228,7 +242,7 @@ export function useNearbyArtisans(
             return null
           }
 
-          const distanceKm = haversineDistanceKm(latitude, longitude, lat, lng)
+          const distanceKm = haversineDistanceKm(lat0, lng0, lat, lng)
 
           // Récupérer la photo de profil depuis les attachments
           const attachments = Array.isArray(row.artisan_attachments) 
@@ -280,6 +294,7 @@ export function useNearbyArtisans(
     }
 
     fetchArtisans()
+
 
     return () => {
       cancelled = true

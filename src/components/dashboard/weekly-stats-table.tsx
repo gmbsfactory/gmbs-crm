@@ -7,6 +7,7 @@ import { supabase } from "@/lib/supabase-client"
 import type { WeeklyStats, MonthlyStats, YearlyStats, StatsPeriod } from "@/lib/api/v2"
 import Loader from "@/components/ui/Loader"
 import { useCurrentUser } from "@/hooks/useCurrentUser"
+import { useUserRoles } from "@/hooks/useUserRoles"
 import { useDashboardPeriodStats } from "@/hooks/useDashboardStats"
 import { INTERVENTION_STATUS } from "@/config/interventions"
 
@@ -68,6 +69,7 @@ export function WeeklyStatsTable({ weekStartDate, period: externalPeriod, userId
   }, [externalPeriod])
   // Utiliser le hook React Query pour charger l'utilisateur (cache partagé)
   const { data: currentUser, isLoading: isLoadingUser } = useCurrentUser()
+  const { isAdmin } = useUserRoles()
   // Utiliser le prop userId s'il est fourni, sinon utiliser currentUser
   const userId = propUserId ?? currentUser?.id ?? null
 
@@ -262,6 +264,15 @@ export function WeeklyStatsTable({ weekStartDate, period: externalPeriod, userId
 
   // Rendu pour l'année
   if (period === "year" && "year_start" in stats) {
+    if (!isAdmin) {
+      return (
+        <div className="rounded-xl bg-background border border-border/40 shadow-lg p-6">
+          <p className="text-sm text-muted-foreground">
+            L&apos;affichage annuel est réservé aux administrateurs.
+          </p>
+        </div>
+      )
+    }
     const yearStats = stats as YearlyStats
     const rows = [
       { label: "Devis envoyé", data: yearStats.devis_envoye },

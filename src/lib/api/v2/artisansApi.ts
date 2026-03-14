@@ -643,7 +643,7 @@ export const artisansApi = {
   // Upsert direct via Supabase (pour import en masse)
   async upsertDirect(data: CreateArtisanData, customClient?: typeof supabase): Promise<Artisan> {
     // Utiliser le client personnalisé si fourni, sinon utiliser le client par défaut
-    const client = customClient || supabase;
+    const client = customClient || supabaseClient;
 
     // Déterminer la contrainte unique à utiliser
     let onConflict = 'email';

@@ -662,6 +662,7 @@ class GoogleSheetsImportCleanV2 {
           // Chercher la date dans plusieurs colonnes possibles (FErn est le nom utilisé dans certains sheets)
           const dateValue = interventionObj["745"] || interventionObj["FErn"] || interventionObj["Date "] || interventionObj["Date"] || interventionObj["Date d'intervention"];
           if (!this.isDateInRange(dateValue, this.options.dateStart, this.options.dateEnd)) {
+            // console.log(`   ⚠️  Intervention à la ligne ${i} hors période définie, elle sera ignorée (date trouvée: "${dateValue}")`);
             // Ignorer cette intervention (ne pas compter comme traitée)
             continue;
           }
@@ -926,6 +927,9 @@ class GoogleSheetsImportCleanV2 {
 
     const date = new Date(parsedDate);
 
+    // Valider que la date a été parsée correctement
+    if (Number.isNaN(date.getTime())) return false;
+
     // Parser les dates de filtrage
     const startDate = dateStart ? this.parseDateFilter(dateStart) : null;
     const endDate = dateEnd ? this.parseDateFilter(dateEnd) : null;
@@ -935,6 +939,19 @@ class GoogleSheetsImportCleanV2 {
       endDate.setHours(23, 59, 59, 999);
     }
 
+    // Debug logging - afficher les dates réelles, pas les booléens
+    if (process.env.VERBOSE || process.argv.includes('--verbose')) {
+      console.log(`   🔍🔍  Date parsée: ${date.toISOString()}`);
+      if (startDate) {
+        console.log(`   🔍🔍  Date de début: ${startDate.toISOString()}`);
+        console.log(`   🔍🔍  Date >= début?: ${date >= startDate}`);
+      }
+      if (endDate) {
+        console.log(`   🔍🔍  Date de fin: ${endDate.toISOString()}`);
+        console.log(`   🔍🔍  Date <= fin?: ${date <= endDate}`);
+      }
+    }
+
     if (startDate && date < startDate) return false;
     if (endDate && date > endDate) return false;
 
@@ -942,8 +959,9 @@ class GoogleSheetsImportCleanV2 {
   }
 
   /**
-   * Parse une date depuis le CSV (format DD/MM/YYYY)
-   * @param {string} dateValue - Date au format CSV
+   * Parse une date depuis le CSV (format DD/MM/YYYY ou avec heure)
+   * Supporte: DD/MM/YYYY, DD/MM/YYYY HH:mm:ss, YYYY-MM-DD, YYYY-MM-DD HH:mm:ss
+   * @param {string|number} dateValue - Date au format CSV
    * @returns {string|null} - Date au format ISO ou null
    */
   parseDateFromCSV(dateValue) {
@@ -951,20 +969,65 @@ class GoogleSheetsImportCleanV2 {
 
     const strValue = String(dateValue).trim();
 
-    // Format DD/MM/YYYY
-    if (/^\d{2}\/\d{2}\/\d{4}/.test(strValue)) {
-      const parts = strValue.split("/");
-      if (parts.length >= 3) {
-        const day = parts[0].padStart(2, "0");
-        const month = parts[1].padStart(2, "0");
-        const year = parts[2];
-        return `${year}-${month}-${day}T00:00:00Z`;
+    // Format DD/MM/YYYY avec ou sans heure (HH:mm:ss)
+    // Matches: 30/12/1899 ou 30/12/1899 14:30:45
+    const euMatch = strValue.match(/^(\d{2})\/(\d{2})\/(\d{4})(?:\s+(\d{2}):(\d{2}):(\d{2}))?/);
+    if (euMatch) {
+      const day = euMatch[1];
+      const month = euMatch[2];
+      const year = euMatch[3];
+      const hour = euMatch[4] ?? '00';
+      const minute = euMatch[5] ?? '00';
+      const second = euMatch[6] ?? '00';
+
+      const isoString = `${year}-${month}-${day}T${hour}:${minute}:${second}Z`;
+
+      // Valider que la date parsée est valide
+      const parsed = new Date(isoString);
+      if (Number.isNaN(parsed.getTime())) {
+        console.warn(`   ⚠️  Date invalide: "${strValue}" -> "${isoString}"`);
+        return null;
       }
+
+      return isoString;
     }
 
-    // Format YYYY-MM-DD
-    if (/^\d{4}-\d{2}-\d{2}/.test(strValue)) {
-      return `${strValue}T00:00:00Z`;
+    // Format YYYY-MM-DD avec ou sans heure (HH:mm:ss)
+    // Matches: 1899-12-30 ou 1899-12-30 14:30:45
+    const isoMatch = strValue.match(/^(\d{4})-(\d{2})-(\d{2})(?:\s+(\d{2}):(\d{2}):(\d{2}))?/);
+    if (isoMatch) {
+      const year = isoMatch[1];
+      const month = isoMatch[2];
+      const day = isoMatch[3];
+      const hour = isoMatch[4] ?? '00';
+      const minute = isoMatch[5] ?? '00';
+      const second = isoMatch[6] ?? '00';
+
+      const isoString = `${year}-${month}-${day}T${hour}:${minute}:${second}Z`;
+
+      // Valider que la date parsée est valide
+      const parsed = new Date(isoString);
+      if (Number.isNaN(parsed.getTime())) {
+        console.warn(`   ⚠️  Date invalide: "${strValue}" -> "${isoString}"`);
+        return null;
+      }
+
+      return isoString;
+    }
+
+    // Excel serial numbers (numeric value)
+    // Excel epoch: 1899-12-30, serial 1 = 1899-12-31
+    if (/^\d+$/.test(strValue) || typeof dateValue === 'number') {
+      const serial = Number(strValue);
+      if (Number.isFinite(serial) && serial > 0) {
+        const excelEpoch = new Date('1899-12-30T00:00:00Z').getTime();
+        const milliseconds = (serial - 1) * 24 * 60 * 60 * 1000;
+        const date = new Date(excelEpoch + milliseconds);
+
+        if (!Number.isNaN(date.getTime())) {
+          return date.toISOString();
+        }
+      }
     }
 
     return null;
@@ -972,6 +1035,7 @@ class GoogleSheetsImportCleanV2 {
 
   /**
    * Parse une date de filtre (accepte DD/MM/YYYY ou YYYY-MM-DD)
+   * Supporte dates avec composants temps (HH:mm:ss)
    * @param {string} dateStr - Date au format DD/MM/YYYY ou YYYY-MM-DD
    * @returns {Date|null} - Objet Date ou null
    */
@@ -980,17 +1044,44 @@ class GoogleSheetsImportCleanV2 {
 
     const str = String(dateStr).trim();
 
-    // Format DD/MM/YYYY
+    // Format DD/MM/YYYY avec ou sans heure
     if (/^\d{2}\/\d{2}\/\d{4}/.test(str)) {
-      const parts = str.split("/");
-      if (parts.length >= 3) {
-        return new Date(`${parts[2]}-${parts[1]}-${parts[0]}T00:00:00Z`);
+      const euMatch = str.match(/^(\d{2})\/(\d{2})\/(\d{4})(?:\s+(\d{2}):(\d{2}):(\d{2}))?/);
+      if (euMatch) {
+        const day = euMatch[1];
+        const month = euMatch[2];
+        const year = euMatch[3];
+        const hour = euMatch[4] ?? '00';
+        const minute = euMatch[5] ?? '00';
+        const second = euMatch[6] ?? '00';
+
+        const isoString = `${year}-${month}-${day}T${hour}:${minute}:${second}Z`;
+        const date = new Date(isoString);
+
+        if (!Number.isNaN(date.getTime())) {
+          return date;
+        }
       }
     }
 
-    // Format YYYY-MM-DD
+    // Format YYYY-MM-DD avec ou sans heure
     if (/^\d{4}-\d{2}-\d{2}/.test(str)) {
-      return new Date(`${str}T00:00:00Z`);
+      const isoMatch = str.match(/^(\d{4})-(\d{2})-(\d{2})(?:\s+(\d{2}):(\d{2}):(\d{2}))?/);
+      if (isoMatch) {
+        const year = isoMatch[1];
+        const month = isoMatch[2];
+        const day = isoMatch[3];
+        const hour = isoMatch[4] ?? '00';
+        const minute = isoMatch[5] ?? '00';
+        const second = isoMatch[6] ?? '00';
+
+        const isoString = `${year}-${month}-${day}T${hour}:${minute}:${second}Z`;
+        const date = new Date(isoString);
+
+        if (!Number.isNaN(date.getTime())) {
+          return date;
+        }
+      }
     }
 
     return null;

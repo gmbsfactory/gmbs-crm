@@ -137,9 +137,7 @@ export function createNewFormData(
     ville: dv.ville || "",
     latitude: dv.latitude || 48.8566,
     longitude: dv.longitude || 2.3522,
-    adresse_complete: dv.adresse && dv.ville
-      ? `${dv.adresse}, ${dv.ville}`
-      : "",
+    adresse_complete: "",
 
     // Dates
     date: new Date().toISOString().split('T')[0],
@@ -248,7 +246,7 @@ export function createEditFormData(
     ville: intervention.ville || "",
     latitude: intervention.latitude || 48.8566,
     longitude: intervention.longitude || 2.3522,
-    adresse_complete: (intervention as any).adresse_complete || intervention.adresse || "",
+    adresse_complete: (intervention as any).adresse_complete || "",
 
     // Dates
     date: intervention.date?.split('T')[0] || "",
@@ -287,16 +285,16 @@ export function createEditFormData(
     artisanTelephone: primaryArtisan?.telephone || "",
     artisanEmail: primaryArtisan?.email || "",
 
-    // Coûts
-    coutSST: sstCost?.amount?.toString() || "",
-    coutMateriel: materielCost?.amount?.toString() || "",
-    coutIntervention: interventionCost?.amount?.toString() || "",
+    // Coûts (traiter 0 comme vide, ne pas afficher "0")
+    coutSST: (sstCost?.amount ?? null) !== null && (sstCost?.amount ?? 0) !== 0 ? String(sstCost?.amount ?? 0) : "",
+    coutMateriel: (materielCost?.amount ?? null) !== null && (materielCost?.amount ?? 0) !== 0 ? String(materielCost?.amount ?? 0) : "",
+    coutIntervention: (interventionCost?.amount ?? null) !== null && (interventionCost?.amount ?? 0) !== 0 ? String(interventionCost?.amount ?? 0) : "",
 
     // Acomptes
-    accompteSST: sstPayment?.amount?.toString() || "",
+    accompteSST: (sstPayment?.amount ?? null) !== null && (sstPayment?.amount ?? 0) !== 0 ? String(sstPayment?.amount ?? 0) : "",
     accompteSSTRecu: sstPayment?.is_received || false,
     dateAccompteSSTRecu: sstPayment?.payment_date?.split('T')[0] || "",
-    accompteClient: clientPayment?.amount?.toString() || "",
+    accompteClient: (clientPayment?.amount ?? null) !== null && (clientPayment?.amount ?? 0) !== 0 ? String(clientPayment?.amount ?? 0) : "",
     accompteClientRecu: clientPayment?.is_received || false,
     dateAccompteClientRecu: clientPayment?.payment_date?.split('T')[0] || "",
 
@@ -310,7 +308,7 @@ export function createEditFormData(
     secondArtisanTelephone: secondaryArtisan?.telephone || "",
     secondArtisanEmail: secondaryArtisan?.email || "",
     metierSecondArtisanId: (intervention as any).metier_second_artisan_id || "",
-    coutSSTSecondArtisan: sstCostSecondArtisan?.amount?.toString() || "",
-    coutMaterielSecondArtisan: materielCostSecondArtisan?.amount?.toString() || "",
+    coutSSTSecondArtisan: (sstCostSecondArtisan?.amount ?? null) !== null && (sstCostSecondArtisan?.amount ?? 0) !== 0 ? String(sstCostSecondArtisan?.amount ?? 0) : "",
+    coutMaterielSecondArtisan: (materielCostSecondArtisan?.amount ?? null) !== null && (materielCostSecondArtisan?.amount ?? 0) !== 0 ? String(materielCostSecondArtisan?.amount ?? 0) : "",
   }
 }

@@ -99,7 +99,14 @@ REM Executer l'import avec NODE_ENV=production
 REM Les variables NEXT_PUBLIC_* sont maintenant disponibles dans l'environnement
 REM Note: --verbose est passe via npm pour avoir plus de details sur les erreurs
 set NODE_ENV=production
-npx tsx scripts/imports/google-sheets-import-clean-v2.js --verbose
+echo "Import des artisans..."
+npm run import:artisans
+if !ERRORLEVEL! NEQ 0 (
+    echo "Echec de l'import"
+    pause
+)
+echo "Import des interventions..."
+npm run import:interventions -- --date-start=01/01/2026 --date-end=01/04/2026
 if !ERRORLEVEL! NEQ 0 (
     echo "Echec de l'import"
     pause

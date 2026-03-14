@@ -1,0 +1,1 @@
+DROP TRIGGER IF EXISTS artisan_status_change_trigger ON artisans;
