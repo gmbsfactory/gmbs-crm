@@ -205,6 +205,9 @@ export const artisansApi = {
           } else if (params?.statut) {
             detailedQuery = detailedQuery.eq("statut_id", params.statut);
           }
+          if (params?.exclude_statuts && params.exclude_statuts.length > 0) {
+            detailedQuery = detailedQuery.not("statut_id", "in", `(${params.exclude_statuts.map((id) => `"${id}"`).join(",")})`);
+          }
           if (params?.gestionnaire) {
             detailedQuery = detailedQuery.eq("gestionnaire_id", params.gestionnaire);
           }
@@ -258,6 +261,9 @@ export const artisansApi = {
         idsQuery = idsQuery.in("statut_id", params.statuts);
       } else if (params?.statut) {
         idsQuery = idsQuery.eq("statut_id", params.statut);
+      }
+      if (params?.exclude_statuts && params.exclude_statuts.length > 0) {
+        idsQuery = idsQuery.not("statut_id", "in", `(${params.exclude_statuts.map((id) => `"${id}"`).join(",")})`);
       }
       if (params?.gestionnaire) {
         idsQuery = idsQuery.eq("gestionnaire_id", params.gestionnaire);
@@ -352,6 +358,9 @@ export const artisansApi = {
         idsQuery = idsQuery.in("statut_id", params.statuts);
       } else if (params?.statut) {
         idsQuery = idsQuery.eq("statut_id", params.statut);
+      }
+      if (params?.exclude_statuts && params.exclude_statuts.length > 0) {
+        idsQuery = idsQuery.not("statut_id", "in", `(${params.exclude_statuts.map((id) => `"${id}"`).join(",")})`);
       }
       if (params?.gestionnaire) {
         idsQuery = idsQuery.eq("gestionnaire_id", params.gestionnaire);
@@ -474,6 +483,9 @@ export const artisansApi = {
       query = query.in("statut_id", params.statuts);
     } else if (params?.statut) {
       query = query.eq("statut_id", params.statut);
+    }
+    if (params?.exclude_statuts && params.exclude_statuts.length > 0) {
+      query = query.not("statut_id", "in", `(${params.exclude_statuts.map((id) => `"${id}"`).join(",")})`);
     }
     if (params?.gestionnaire) {
       query = query.eq("gestionnaire_id", params.gestionnaire);
@@ -1743,6 +1755,7 @@ export const artisansApi = {
       gestionnaire?: string;
       statut?: string;
       statuts?: string[];
+      exclude_statuts?: string[];
       metier?: string;
       metiers?: string[];
       search?: string;
@@ -1762,6 +1775,10 @@ export const artisansApi = {
       query = query.in("statut_id", params.statuts);
     } else if (params?.statut) {
       query = query.eq("statut_id", params.statut);
+    }
+
+    if (params?.exclude_statuts && params.exclude_statuts.length > 0) {
+      query = query.not("statut_id", "in", `(${params.exclude_statuts.map((id) => `"${id}"`).join(",")})`);
     }
 
     if (params?.statut_dossier) {
@@ -1800,6 +1817,10 @@ export const artisansApi = {
         idsQuery = idsQuery.in("statut_id", params.statuts);
       } else if (params?.statut) {
         idsQuery = idsQuery.eq("statut_id", params.statut);
+      }
+
+      if (params?.exclude_statuts && params.exclude_statuts.length > 0) {
+        idsQuery = idsQuery.not("statut_id", "in", `(${params.exclude_statuts.map((id) => `"${id}"`).join(",")})`);
       }
 
       if (params?.statut_dossier) {

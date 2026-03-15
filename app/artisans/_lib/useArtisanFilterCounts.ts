@@ -51,6 +51,8 @@ export function useArtisanFilterCounts({
   const [viewCounts, setViewCounts] = useState<Record<string, number>>({})
   const [viewCountsLoading, setViewCountsLoading] = useState(false)
 
+  const EXCLUDED_STATUT_LABELS = ["Candidat", "Archivé"]
+
   const convertFiltersToApiParams = useCallback(
     (
       filters: Array<{ property: string; operator: string; value?: string | null }>,
@@ -58,12 +60,14 @@ export function useArtisanFilterCounts({
       gestionnaire?: string
       statut?: string
       statuts?: string[]
+      exclude_statuts?: string[]
       statut_dossier?: string
     } => {
       const params: {
         gestionnaire?: string
         statut?: string
         statuts?: string[]
+        exclude_statuts?: string[]
         statut_dossier?: string
       } = {}
 
@@ -100,9 +104,20 @@ export function useArtisanFilterCounts({
         }
       }
 
+      // Exclure les artisans "Candidat" et "Archivé" des vues "à compléter"
+      if (params.statut_dossier) {
+        const excludedIds = artisanStatuses
+          .filter((s) => EXCLUDED_STATUT_LABELS.includes(s.label))
+          .map((s) => s.id)
+          .filter((id): id is string => Boolean(id))
+        if (excludedIds.length > 0) {
+          params.exclude_statuts = excludedIds
+        }
+      }
+
       return params
     },
-    [currentUserId],
+    [currentUserId, artisanStatuses],
   )
 
   const viewsSignature = useMemo(() => {

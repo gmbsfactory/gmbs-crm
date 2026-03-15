@@ -183,6 +183,7 @@ export type ArtisanGetAllParams = {
   offset?: number
   statut?: string
   statuts?: string[]
+  exclude_statuts?: string[]
   metier?: string
   metiers?: string[]
   zone?: string

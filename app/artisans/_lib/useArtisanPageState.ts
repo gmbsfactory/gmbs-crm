@@ -102,6 +102,18 @@ export function useArtisanPageState() {
       combinedServerFilters.statut_dossier = "À compléter"
     }
 
+    // Exclure les artisans "Candidat" et "Archivé" des vues "à compléter"
+    if (combinedServerFilters.statut_dossier) {
+      const EXCLUDED_STATUT_LABELS = ["Candidat", "Archivé"]
+      const excludedIds = artisanStatuses
+        .filter((s) => EXCLUDED_STATUT_LABELS.includes(s.label))
+        .map((s) => s.id)
+        .filter((id): id is string => Boolean(id))
+      if (excludedIds.length > 0) {
+        combinedServerFilters.exclude_statuts = excludedIds
+      }
+    }
+
     if (selectedMetiers.length > 0 && metiers.length > 0) {
       const metierIds = metiers
         .filter((metier) => metier.label && selectedMetiers.includes(metier.label))
