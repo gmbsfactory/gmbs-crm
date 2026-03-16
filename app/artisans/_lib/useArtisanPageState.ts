@@ -24,6 +24,7 @@ import {
   VIRTUAL_STATUS_DOSSIER_A_COMPLETER,
 } from "@/types/artisan-page"
 import { useArtisanFilterCounts } from "./useArtisanFilterCounts"
+import { ARTISAN_DOSSIER_VIEW_EXCLUDED_STATUTS } from "@/config/artisans"
 
 // ---------------------------------------------------------------------------
 // Hook
@@ -102,11 +103,10 @@ export function useArtisanPageState() {
       combinedServerFilters.statut_dossier = "À compléter"
     }
 
-    // Exclure les artisans "Candidat" et "Archivé" des vues "à compléter"
+    // Exclure certains statuts des vues "Dossier à compléter"
     if (combinedServerFilters.statut_dossier) {
-      const EXCLUDED_STATUT_LABELS = ["Candidat", "Archivé"]
       const excludedIds = artisanStatuses
-        .filter((s) => EXCLUDED_STATUT_LABELS.includes(s.label))
+        .filter((s) => ARTISAN_DOSSIER_VIEW_EXCLUDED_STATUTS.includes(s.code as typeof ARTISAN_DOSSIER_VIEW_EXCLUDED_STATUTS[number]))
         .map((s) => s.id)
         .filter((id): id is string => Boolean(id))
       if (excludedIds.length > 0) {

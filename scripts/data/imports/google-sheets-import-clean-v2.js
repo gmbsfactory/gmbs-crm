@@ -406,7 +406,7 @@ class GoogleSheetsImportCleanV2 {
           // Mapper les données avec le DataMapper
           const mappedArtisan = await this.dataMapper.mapArtisanFromCSV(artisanObj, i);
 
-          if (mappedArtisan) {
+          if (mappedArtisan && !mappedArtisan._invalid) {
             // Afficher le résultat du mapping pour les premières lignes
             if (this.options.verbose && validArtisans.length < 3) {
               console.log(`\n✅ Ligne ${i + 2} - Artisan mappé avec succès:`);
@@ -418,13 +418,14 @@ class GoogleSheetsImportCleanV2 {
             validArtisans.push(mappedArtisan);
             this.results.artisans.valid++;
           } else {
-            // Afficher pourquoi la ligne est considérée comme invalide
-            if (this.options.verbose && invalidArtisans.length < 3) {
-              console.log(`\n⚠️  Ligne ${i + 2} - Rejetée (ligne vide ou invalide)`);
-              const nomPrenom = artisanObj["Nom"] || artisanObj["Nom Prénom"];
-              console.log(`   Nom/Prénom trouvé: ${nomPrenom || '(aucun)'}`);
+            const rejectReason = mappedArtisan?._invalid
+              ? mappedArtisan.reason
+              : 'Ligne vide ou invalide';
+            const rejectIdentifier = mappedArtisan?.identifier || artisanObj["Nom Prénom"] || artisanObj["Nom"] || '(inconnu)';
+            if (this.options.verbose) {
+              console.log(`\n⚠️  Ligne ${i + 2} - Rejetée [${rejectIdentifier}]: ${rejectReason}`);
             }
-            invalidArtisans.push({ row: i + 2, reason: 'Ligne vide ou invalide' });
+            invalidArtisans.push({ row: i + 2, identifier: rejectIdentifier, reason: rejectReason });
             this.results.artisans.invalid++;
           }
         } catch (error) {
@@ -448,6 +449,15 @@ class GoogleSheetsImportCleanV2 {
       console.log(`   ✅ Artisans valides mappés: ${validArtisans.length}`);
       console.log(`   ❌ Artisans invalides: ${invalidArtisans.length}`);
 
+      // Alimenter le reportGenerator avec les résultats du mapping
+      this.reportGenerator.collectArtisanResults({
+        processed: this.results.artisans.processed,
+        valid: this.results.artisans.valid,
+        invalid: this.results.artisans.invalid,
+        errors: invalidArtisans,
+        warnings: []
+      });
+
       // Insertion en base de données
       if (validArtisans.length > 0) {
         console.log(`\n💾 Insertion de ${validArtisans.length} artisans en base de données...`);
@@ -457,10 +467,11 @@ class GoogleSheetsImportCleanV2 {
         // Stocker les artisans sans nom détectés (rejetés)
         if (insertResults.withoutName && insertResults.withoutName.length > 0) {
           this.results.artisans.withoutName = insertResults.withoutName;
-          // Ajuster les compteurs : les artisans rejetés sont comptés dans errors
-          // mais doivent aussi être retirés des valid car ils n'ont pas été insérés
           this.results.artisans.valid -= insertResults.withoutName.length;
         }
+
+        // Alimenter le reportGenerator avec les résultats d'insertion
+        this.reportGenerator.collectInsertionResults({ artisans: insertResults });
 
         // Afficher les détails des erreurs si présentes
         if (insertResults.errors > 0 && insertResults.details) {
@@ -516,6 +527,7 @@ class GoogleSheetsImportCleanV2 {
 
       let headers;
       let dataRows;
+      let dataRowOffset = 1; // Numéro de ligne de la première ligne de dataRows dans le fichier source
 
       if (rangeStartsAtA2) {
         // Le range commence à A2, il faut lire les headers séparément depuis A1
@@ -537,6 +549,7 @@ class GoogleSheetsImportCleanV2 {
         });
 
         dataRows = dataResponse.data.values || [];
+        dataRowOffset = 2; // headers en ligne 1, données à partir de la ligne 2
       } else {
         // Le range commence à A1, les headers sont dans la première ligne
         const response = await this.sheets.spreadsheets.values.get({
@@ -552,6 +565,7 @@ class GoogleSheetsImportCleanV2 {
 
         headers = rows[0];
         dataRows = rows.slice(1);
+        dataRowOffset = 2; // headers en ligne 1, données à partir de la ligne 2
       }
 
       if (!headers || headers.length === 0) {
@@ -577,6 +591,7 @@ class GoogleSheetsImportCleanV2 {
         if (isHeaderRow && firstRow.some(cell => cell && String(cell).trim() !== '')) {
           console.log('⚠️ Première ligne détectée comme doublon des headers, elle sera ignorée');
           dataRows = dataRows.slice(1);
+          dataRowOffset++; // La première ligne de données a été sautée
         }
       }
 
@@ -615,6 +630,7 @@ class GoogleSheetsImportCleanV2 {
       // Conversion des données en objets
       const validInterventions = [];
       const invalidInterventions = [];
+      const interventionWarnings = [];
 
       // Afficher le filtre de date si activé
       if (this.options.dateStart || this.options.dateEnd) {
@@ -672,28 +688,58 @@ class GoogleSheetsImportCleanV2 {
           // Mapper les données avec le DataMapper
           const mappedIntervention = await this.dataMapper.mapInterventionFromCSV(interventionObj, this.options.verbose, i);
 
-          if (mappedIntervention) {
+          if (mappedIntervention && !mappedIntervention._invalid) {
+            // Extraire les warnings non-bloquants pour le rapport
+            if (mappedIntervention._warnings?.length > 0) {
+              interventionWarnings.push(...mappedIntervention._warnings.map(w => ({
+                ...w,
+                row: i + dataRowOffset,
+                idInter: mappedIntervention.id_inter || `ligne ${i + dataRowOffset}`
+              })));
+            }
+            delete mappedIntervention._warnings;
             // Stocker la ligne CSV originale pour l'extraction des coûts après insertion
             mappedIntervention._originalCSVRow = interventionObj;
             validInterventions.push(mappedIntervention);
             this.results.interventions.valid++;
           } else {
-            invalidInterventions.push({ row: i + 2, reason: 'Ligne vide ou invalide' });
+            const rejectReason = mappedIntervention?._invalid
+              ? mappedIntervention.reason
+              : 'Ligne vide ou invalide';
+            const rejectIdentifier = mappedIntervention?.idInter || `ligne ${i + dataRowOffset}`;
+            invalidInterventions.push({
+              row: i + dataRowOffset,
+              identifier: rejectIdentifier,
+              reason: rejectReason,
+              csvSample: mappedIntervention?.csvSample || null
+            });
             this.results.interventions.invalid++;
           }
         } catch (error) {
-          invalidInterventions.push({ row: i + 2, error: error.message });
+          invalidInterventions.push({ row: i + dataRowOffset, error: error.message });
           this.results.interventions.invalid++;
         }
 
         this.results.interventions.processed++;
       }
 
+      // Alimenter le reportGenerator avec les résultats du mapping
+      this.reportGenerator.collectInterventionResults({
+        processed: this.results.interventions.processed,
+        valid: this.results.interventions.valid,
+        invalid: this.results.interventions.invalid,
+        errors: invalidInterventions,
+        warnings: interventionWarnings
+      });
+
       // Insertion en base de données
       if (validInterventions.length > 0) {
         const insertResults = await this.databaseManager.insertInterventions(validInterventions);
         this.results.interventions.inserted += insertResults.success;
         this.results.interventions.errors += insertResults.errors;
+
+        // Alimenter le reportGenerator avec les résultats d'insertion
+        this.reportGenerator.collectInsertionResults({ interventions: insertResults });
       }
 
       console.log(`✅ Interventions importées: ${this.results.interventions.inserted} succès, ${this.results.interventions.errors} erreurs`);
@@ -790,18 +836,20 @@ class GoogleSheetsImportCleanV2 {
         }
       }
 
-      // Générer le rapport détaillé si demandé
-      if (this.options.test || this.options.verbose) {
-        try {
-          // Vérifier si la méthode existe avant de l'appeler
-          if (this.reportGenerator && typeof this.reportGenerator.generateDetailedReport === 'function') {
-            await this.reportGenerator.generateDetailedReport(this.results);
-          } else {
-            console.log('ℹ️ Rapport détaillé non disponible (méthode non implémentée)');
-          }
-        } catch (reportError) {
-          console.log('⚠️ Impossible de générer le rapport détaillé:', reportError.message);
+      // Générer et sauvegarder le rapport fichier (toujours, pas seulement en mode test/verbose)
+      try {
+        const reportPaths = await this.reportGenerator.generateAndSaveReports();
+        if (reportPaths?.mainReport) {
+          console.log(`\n📄 Rapport texte : ${reportPaths.mainReport}`);
         }
+        if (reportPaths?.jsonReport) {
+          console.log(`📊 Rapport JSON  : ${reportPaths.jsonReport}`);
+        }
+        if (reportPaths?.addressIssues) {
+          console.log(`🏠 Adresses      : ${reportPaths.addressIssues}`);
+        }
+      } catch (reportError) {
+        console.log('⚠️ Impossible de générer le rapport fichier:', reportError.message);
       }
 
     } catch (error) {

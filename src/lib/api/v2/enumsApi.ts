@@ -533,6 +533,125 @@ export const findOrCreateInterventionStatusByCode = async (
 };
 
 /**
+ * Recherche une agence par son nom (label ou code). Ne crée rien.
+ */
+export const getAgencyByName = async (name: string, customClient?: any) => {
+  const normalizedName = name?.trim();
+  if (!normalizedName) {
+    return { data: null, error: new Error('Le nom de l\'agence ne peut pas être vide') };
+  }
+
+  const client = customClient || supabase;
+  const code = normalizedName.substring(0, 10).toUpperCase().replace(/[^A-Z0-9]/g, '');
+
+  const { data: byLabel, error: labelError } = await client
+    .from('agencies')
+    .select('id')
+    .ilike('label', normalizedName)
+    .maybeSingle();
+
+  if (labelError) return { data: null, error: labelError };
+  if (byLabel) return { data: byLabel, error: null };
+
+  const { data: byCode, error: codeError } = await client
+    .from('agencies')
+    .select('id')
+    .eq('code', code)
+    .maybeSingle();
+
+  return { data: byCode ?? null, error: codeError ?? null };
+};
+
+/**
+ * Recherche un métier par son nom (label ou code). Ne crée rien.
+ */
+export const getMetierByName = async (name: string, customClient?: any) => {
+  const normalizedName = name?.trim();
+  if (!normalizedName) {
+    return { data: null, error: new Error('Le nom du métier ne peut pas être vide') };
+  }
+
+  const client = customClient || supabase;
+  const code = normalizedName.substring(0, 10).toUpperCase().replace(/[^A-Z0-9]/g, '');
+
+  const { data: byLabel, error: labelError } = await client
+    .from('metiers')
+    .select('id')
+    .ilike('label', normalizedName)
+    .maybeSingle();
+
+  if (labelError) return { data: null, error: labelError };
+  if (byLabel) return { data: byLabel, error: null };
+
+  const { data: byCode, error: codeError } = await client
+    .from('metiers')
+    .select('id')
+    .eq('code', code)
+    .maybeSingle();
+
+  return { data: byCode ?? null, error: codeError ?? null };
+};
+
+/**
+ * Recherche une zone par son nom (label ou code). Ne crée rien.
+ */
+export const getZoneByName = async (name: string, customClient?: any) => {
+  const normalizedName = name?.trim();
+  if (!normalizedName) {
+    return { data: null, error: new Error('Le nom de la zone ne peut pas être vide') };
+  }
+
+  const client = customClient || supabase;
+  const code = normalizedName.substring(0, 10).toUpperCase().replace(/[^A-Z0-9]/g, '');
+
+  const { data: byLabel, error: labelError } = await client
+    .from('zones')
+    .select('id')
+    .ilike('label', normalizedName)
+    .maybeSingle();
+
+  if (labelError) return { data: null, error: labelError };
+  if (byLabel) return { data: byLabel, error: null };
+
+  const { data: byCode, error: codeError } = await client
+    .from('zones')
+    .select('id')
+    .eq('code', code)
+    .maybeSingle();
+
+  return { data: byCode ?? null, error: codeError ?? null };
+};
+
+/**
+ * Recherche un statut artisan par son code ou label. Ne crée rien.
+ */
+export const getArtisanStatusByCode = async (code: string, customClient?: any) => {
+  const normalizedCode = code?.trim();
+  if (!normalizedCode) {
+    return { data: null, error: new Error('Le code du statut artisan ne peut pas être vide') };
+  }
+
+  const client = customClient || supabase;
+
+  const { data: byCode, error: codeError } = await client
+    .from('artisan_statuses')
+    .select('id, code, label')
+    .eq('code', normalizedCode)
+    .maybeSingle();
+
+  if (codeError) return { data: null, error: codeError };
+  if (byCode) return { data: byCode, error: null };
+
+  const { data: byLabel, error: labelError } = await client
+    .from('artisan_statuses')
+    .select('id, code, label')
+    .ilike('label', normalizedCode)
+    .maybeSingle();
+
+  return { data: byLabel ?? null, error: labelError ?? null };
+};
+
+/**
  * Récupère un utilisateur via son username canonique.
  */
 export const getUserByUsername = async (username: string, customClient?: any) => {
@@ -564,4 +683,8 @@ export const enumsApi = {
   findOrCreateInterventionStatusByCode,
   getInterventionStatusByCode,
   getUserByUsername,
+  getAgencyByName,
+  getMetierByName,
+  getZoneByName,
+  getArtisanStatusByCode,
 };

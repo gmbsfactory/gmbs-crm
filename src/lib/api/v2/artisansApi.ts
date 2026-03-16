@@ -654,23 +654,49 @@ export const artisansApi = {
 
   // Upsert direct via Supabase (pour import en masse)
   async upsertDirect(data: CreateArtisanData, customClient?: typeof supabase): Promise<Artisan> {
-    // Utiliser le client personnalisé si fourni, sinon utiliser le client par défaut
     const client = customClient || supabaseClient;
 
-    // Déterminer la contrainte unique à utiliser
-    let onConflict = 'email';
-    if (!data.email && data.siret) {
-      onConflict = 'siret';
+    // Chercher un artisan existant par siret OU email (les deux sont des contraintes uniques)
+    // On privilégie le siret car plus fiable métier, puis l'email en fallback
+    let existingId: string | null = null;
+
+    if (data.siret) {
+      const { data: bySiret } = await client
+        .from('artisans')
+        .select('id')
+        .eq('siret', data.siret)
+        .maybeSingle();
+      if (bySiret) existingId = bySiret.id;
     }
 
-    const { data: result, error } = await client
-      .from('artisans')
-      .upsert(data, {
-        onConflict,
-        ignoreDuplicates: false
-      })
-      .select()
-      .single();
+    if (!existingId && data.email) {
+      const { data: byEmail } = await client
+        .from('artisans')
+        .select('id')
+        .eq('email', data.email)
+        .maybeSingle();
+      if (byEmail) existingId = byEmail.id;
+    }
+
+    let result;
+    let error;
+
+    if (existingId) {
+      // UPDATE : artisan déjà présent, on met à jour sans toucher aux contraintes uniques
+      ({ data: result, error } = await client
+        .from('artisans')
+        .update(data)
+        .eq('id', existingId)
+        .select()
+        .single());
+    } else {
+      // INSERT : nouvel artisan
+      ({ data: result, error } = await client
+        .from('artisans')
+        .insert(data)
+        .select()
+        .single());
+    }
 
     if (error) throw new Error(`Erreur lors de l'upsert de l'artisan: ${error.message}`);
 

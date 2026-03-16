@@ -4,6 +4,7 @@ import { useState, useCallback, useEffect, useMemo } from "react"
 import { artisansApi } from "@/lib/api/v2"
 import { convertArtisanFiltersToServerFilters } from "@/lib/filter-converter"
 import type { ArtisanViewFilter } from "@/hooks/useArtisanViews"
+import { ARTISAN_DOSSIER_VIEW_EXCLUDED_STATUTS } from "@/config/artisans"
 import type { ArtisanStatus, MetierRef } from "@/types/artisan-page"
 import { VIRTUAL_STATUS_DOSSIER_A_COMPLETER } from "@/types/artisan-page"
 
@@ -50,8 +51,6 @@ export function useArtisanFilterCounts({
   // -----------------------------------------------------------------------
   const [viewCounts, setViewCounts] = useState<Record<string, number>>({})
   const [viewCountsLoading, setViewCountsLoading] = useState(false)
-
-  const EXCLUDED_STATUT_LABELS = ["Candidat", "Archivé"]
 
   const convertFiltersToApiParams = useCallback(
     (
@@ -104,10 +103,10 @@ export function useArtisanFilterCounts({
         }
       }
 
-      // Exclure les artisans "Candidat" et "Archivé" des vues "à compléter"
+      // Exclure certains statuts des vues "Dossier à compléter"
       if (params.statut_dossier) {
         const excludedIds = artisanStatuses
-          .filter((s) => EXCLUDED_STATUT_LABELS.includes(s.label))
+          .filter((s) => ARTISAN_DOSSIER_VIEW_EXCLUDED_STATUTS.includes(s.code as typeof ARTISAN_DOSSIER_VIEW_EXCLUDED_STATUTS[number]))
           .map((s) => s.id)
           .filter((id): id is string => Boolean(id))
         if (excludedIds.length > 0) {

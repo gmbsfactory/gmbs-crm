@@ -18,6 +18,7 @@ const {
   enumsApi,
 } = require("../../src/lib/api/v2");
 const {
+  ARTISAN_STATUS_LABEL_TO_CODE,
   STATUS_LABEL_TO_CODE,
   GESTIONNAIRE_CODE_MAP,
   AGENCE_NORMALIZATION_MAP,
@@ -35,6 +36,17 @@ const normalizeSheetKey = (value) =>
     .trim()
     .toUpperCase();
 
+const ARTISAN_STATUS_LOOKUP = Object.entries(ARTISAN_STATUS_LABEL_TO_CODE).reduce(
+  (acc, [key, code]) => {
+    const normalizedKey = normalizeSheetKey(key);
+    if (!acc[normalizedKey]) {
+      acc[normalizedKey] = code;
+    }
+    return acc;
+  },
+  {}
+);
+
 const STATUS_LOOKUP = Object.entries(STATUS_LABEL_TO_CODE).reduce(
   (acc, [key, code]) => {
     const normalizedKey = normalizeSheetKey(key);
@@ -46,16 +58,6 @@ const STATUS_LOOKUP = Object.entries(STATUS_LABEL_TO_CODE).reduce(
   {}
 );
 
-const GESTIONNAIRE_LOOKUP = Object.entries(GESTIONNAIRE_CODE_MAP).reduce(
-  (acc, [key, username]) => {
-    const normalizedKey = normalizeSheetKey(key);
-    if (!acc[normalizedKey]) {
-      acc[normalizedKey] = username;
-    }
-    return acc;
-  },
-  {}
-);
 
 class DataMapper {
   constructor(options = {}) {
@@ -365,7 +367,7 @@ class DataMapper {
       (val) => val && String(val).trim() !== ""
     );
     if (!hasAnyData) {
-      return null; // Ignorer uniquement les lignes 100% vides
+      return { _invalid: true, reason: 'Ligne vide (tous les champs sont vides)' };
     }
 
     // Vérifier si la ligne contient des informations valides
@@ -376,8 +378,9 @@ class DataMapper {
 
     const mapped = {
       // Informations personnelles (selon le schéma artisans)
-      prenom: prenom,
-      nom: nom,
+      // stripDigitsFromName : retire les chiffres isolés (ex: "Jean 2 DUPONT" → "Jean DUPONT")
+      prenom: this.stripDigitsFromName(prenom),
+      nom: this.stripDigitsFromName(nom),
       plain_nom: nomPrenom ? nomPrenom.trim() : null, // Sauvegarder la colonne originale "Nom Prénom"
 
       // Contact
@@ -388,9 +391,9 @@ class DataMapper {
       ),
 
       // Informations entreprise
-      raison_sociale: this.cleanString(
+      raison_sociale: this.stripDigitsFromName(this.cleanString(
         this.getCSVValue(csvRow, "Raison Social")
-      ),
+      )),
       siret: this.cleanSiret(this.getCSVValue(csvRow, "Siret")),
       statut_juridique: this.cleanString(
         this.getCSVValue(csvRow, "STATUT JURIDIQUE")
@@ -416,10 +419,13 @@ class DataMapper {
       intervention_longitude: null,
 
       // Références (IDs vers autres tables)
-      gestionnaire_id: await this.getUserId(
+      gestionnaire_id: await this.getUserIdNormalized(
         this.getCSVValue(csvRow, "Gestionnaire")
-      ),
-      statut_id: await this.getArtisanStatusId(
+      ).catch(err => {
+        console.warn(`⚠️  Gestionnaire ignoré pour cet artisan: ${err.message}`);
+        return null;
+      }),
+      statut_id: await this.getArtisanStatusIdNormalized(
         this.getCSVValue(csvRow, "STATUT")
       ),
 
@@ -428,7 +434,11 @@ class DataMapper {
       suivi_relances_docs: this.cleanString(
         this.getCSVValue(csvRow, "SUIVI DES RELANCES DOCS")
       ),
-      date_ajout: this.parseDate(this.getCSVValue(csvRow, "DATE D'AJOUT")),
+
+      // date_ajout depuis le Google Sheets est utilisée comme created_at
+      // pour que le tri naturel par created_at reflète l'ancienneté métier.
+      // Si date_ajout est absente, created_at sera géré par PostgreSQL (now()).
+      created_at: this.parseDate(this.getCSVValue(csvRow, "DATE D'AJOUT")) || undefined,
 
       // Champs par défaut
       is_active: true,
@@ -452,7 +462,8 @@ class DataMapper {
         );
       });
 
-      return null;
+      const errorSummary = validation.errors.map(e => `${e.field}: ${e.reason}`).join(', ');
+      return { _invalid: true, reason: `Validation échouée — ${errorSummary}`, identifier: validation.identifier };
     }
 
     return mapped;
@@ -743,6 +754,10 @@ class DataMapper {
    * @returns {Object} - Objet mappé avec données brutes pour l'insertion
    */
   async mapInterventionFromCSV(csvRow, verbose = false, lineNumber = null) {
+    // Accumulateur de warnings non-bloquants pour ce mapping
+    // (artisan SST non trouvé, gestionnaire inconnu, etc.)
+    this._currentMappingWarnings = [];
+
     // Nettoyer les clés CSV (trim les espaces)
     csvRow = this.cleanCSVKeys(csvRow);
 
@@ -763,7 +778,8 @@ class DataMapper {
       (csvRow["Contexte d'intervention"] && String(csvRow["Contexte d'intervention"]).trim() !== "") ||
       (csvRow["Contexte d'intervention "] && String(csvRow["Contexte d'intervention "]).trim() !== "") ||
       (csvRow["Technicien"] && String(csvRow["Technicien"]).trim() !== "") ||
-      (csvRow["Technicien "] && String(csvRow["Technicien "]).trim() !== "");
+      (csvRow["Technicien "] && String(csvRow["Technicien "]).trim() !== "") ||
+      (csvRow["Artisan"] && String(csvRow["Artisan"]).trim() !== "");
 
     if (!hasEssentialData) {
       if (verbose) console.log("⚠️ Ligne sans données essentielles ignorée");
@@ -779,8 +795,8 @@ class DataMapper {
         csvRow,
         lineNumber
       );
-      if (verbose) console.log("⚠️ Ligne avec mauvais formatag)");
-      return null;
+      if (verbose) console.log("⚠️ Ligne avec mauvais formatage");
+      return { _invalid: true, reason: 'Ligne avec mauvais formatage', idInter: idInter || 'N/A', csvSample: csvRow };
     }
 
     // Mapper les métiers avec la même logique que pour les artisans
@@ -818,7 +834,7 @@ class DataMapper {
     // Chercher la date dans plusieurs colonnes possibles (FErn est un nom alternatif utilisé dans certains sheets)
     const rawDate = csvRow["Date "] || csvRow["Date"] || csvRow["FErn"] || csvRow["745"] || csvRow["Date d'intervention"];
     const dateValue = this.parseDate(rawDate);
-    const adresseValue = this.extractInterventionAddress(csvRow["Adresse d'intervention"]).adresse;
+    const adresseValue = this.extractInterventionAddress(csvRow["Adresse d'intervention"] || csvRow["Adresse"]).adresse;
     let contexteValue = this.cleanString(csvRow["Contexte d'intervention "]) || this.cleanString(csvRow["Contexte d'intervention"]);
 
     // Si le contexte est vide mais que "COUT SST" contient du texte (pas un nombre),
@@ -870,7 +886,7 @@ class DataMapper {
     }
 
     // Extraire l'adresse une seule fois (optimisation)
-    const adresseExtracted = this.extractInterventionAddress(csvRow["Adresse d'intervention"]);
+    const adresseExtracted = this.extractInterventionAddress(csvRow["Adresse d'intervention"] || csvRow["Adresse"]);
 
     const mapped = {
       // Identifiant externe - peut être réel (du CSV) ou synthétique (généré)
@@ -912,12 +928,15 @@ class DataMapper {
       artisanSST: await this.findArtisanSST(
         // Chercher "Technicien" (gère automatiquement "Technicien " avec espace via getCSVValue)
         // Si non trouvé, chercher "SST" (ancien nom pour compatibilité)
-        this.getCSVValue(csvRow, "Technicien") || this.getCSVValue(csvRow, "SST") || null,
+        this.getCSVValue(csvRow, "Artisan") || this.getCSVValue(csvRow, "Technicien") || this.getCSVValue(csvRow, "SST") || null,
         idInter,
         csvRow,
         lineNumber
       ),
     };
+
+    // Attacher les warnings non-bloquants accumulés pendant le mapping
+    mapped._warnings = [...this._currentMappingWarnings];
 
     // Extraire les coûts bruts pour la validation
     const extractedCosts = this.extractCostsData(csvRow);
@@ -944,7 +963,8 @@ class DataMapper {
         );
       });
 
-      return null;
+      const errorSummary = validation.errors.map(e => `${e.field}: ${e.reason}`).join(', ');
+      return { _invalid: true, reason: `Validation échouée — ${errorSummary}`, idInter: validation.idInter, csvSample: csvRow };
     }
 
     // Formater les coûts pour insertion (sans intervention_id, sera ajouté après insertion)
@@ -2056,6 +2076,22 @@ class DataMapper {
     return cleaned === "" ? null : cleaned;
   }
 
+  /**
+   * Supprime les chiffres isolés d'un champ nom/prénom/raison sociale.
+   * Ex: "Jean 2 DUPONT 3" → "Jean DUPONT"
+   * Ex: "123 PLOMBERIE" → "PLOMBERIE"
+   * Conserve les chiffres intégrés dans un mot (ex: "B2B Services" reste intact).
+   */
+  stripDigitsFromName(value) {
+    if (!value) return value;
+    return value
+      // Supprimer les séquences de chiffres entourées d'espaces (ou en début/fin)
+      .replace(/(?<!\S)\d+(?!\S)/g, '')
+      // Nettoyer les espaces multiples résultants
+      .replace(/\s{2,}/g, ' ')
+      .trim() || null;
+  }
+
   truncateString(value, maxLength) {
     if (!value) return null;
     const cleaned = this.cleanString(value);
@@ -2327,6 +2363,16 @@ class DataMapper {
     // Exemple: "06/02/2025 00:00:00" -> "06/02/2025"
     const dateOnly = strValue.split(/\s+/)[0];
 
+    // Format partiel M/YYYY ou MM/YYYY (ex: "2/2025", "02/2025") -> 1er du mois
+    const monthYearMatch = dateOnly.match(/^(\d{1,2})\/(\d{4})$/);
+    if (monthYearMatch) {
+      const month = monthYearMatch[1].padStart(2, "0");
+      const year = monthYearMatch[2];
+      const yearNum = parseInt(year);
+      if (yearNum >= 1900 && yearNum <= 2100) {
+        return new Date(`${year}-${month}-01T00:00:00Z`).toISOString();
+      }
+    }
 
     // Formats de date courants
     const dateFormats = [
@@ -2392,9 +2438,10 @@ class DataMapper {
 
     let name = agenceName.trim();
 
-    // Normaliser le nom de l'agence (gérer les variations de casse)
-    if (AGENCE_NORMALIZATION_MAP.hasOwnProperty(name)) {
-      const normalizedName = AGENCE_NORMALIZATION_MAP[name];
+    // Normaliser le nom de l'agence : lowercase + suppression des accents
+    const normalizedKey = name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    if (AGENCE_NORMALIZATION_MAP.hasOwnProperty(normalizedKey)) {
+      const normalizedName = AGENCE_NORMALIZATION_MAP[normalizedKey];
 
       // Si la valeur normalisée est null, ignorer cette agence
       if (normalizedName === null) {
@@ -2412,23 +2459,17 @@ class DataMapper {
       return this.cache.agencies.get(name);
     }
 
-    try {
-      // Utiliser l'API v2 pour trouver ou créer l'agence
-      // Passer le client authentifié si disponible
-      const result = await enumsApi.findOrCreateAgency(name, this.authenticatedClient);
+    const { data, error } = await enumsApi.getAgencyByName(name, this.authenticatedClient);
 
-      this.cache.agencies.set(name, result.id);
-      const action = result.created ? "🆕 créée" : "✅ trouvée";
-      console.log(`${action} Agence: ${name} (ID: ${result.id})`);
-
-      return result.id;
-    } catch (error) {
-      console.error(
-        `Erreur lors de la recherche/création de l'agence ${name}:`,
-        error
+    if (error || !data || !data.id) {
+      throw new Error(
+        `Agence introuvable en base: "${name}". Vérifiez que cette agence existe.`
       );
-      return null;
     }
+
+    this.cache.agencies.set(name, data.id);
+    console.log(`✅ Agence trouvée: ${name} (ID: ${data.id})`);
+    return data.id;
   }
 
   async getUserId(gestionnaireName) {
@@ -2441,23 +2482,17 @@ class DataMapper {
       return this.cache.users.get(name);
     }
 
-    try {
-      // Utiliser l'API v2 pour trouver ou créer l'utilisateur
-      // Passer le client authentifié si disponible
-      const result = await enumsApi.findOrCreateUser(name, this.authenticatedClient);
+    const { data, error } = await enumsApi.getUserByUsername(name, this.authenticatedClient);
 
-      this.cache.users.set(name, result.id);
-      const action = result.created ? "🆕 créé" : "✅ trouvé";
-      console.log(`${action} Utilisateur: ${name} (ID: ${result.id})`);
-
-      return result.id;
-    } catch (error) {
-      console.error(
-        `Erreur lors de la recherche/création de l'utilisateur ${name}:`,
-        error
+    if (error || !data || !data.id) {
+      throw new Error(
+        `Utilisateur introuvable en base: "${name}". Vérifiez que cet utilisateur existe ou ajoutez son code dans GESTIONNAIRE_CODE_MAP.`
       );
-      return null;
     }
+
+    this.cache.users.set(name, data.id);
+    console.log(`✅ Utilisateur trouvé: ${name} (ID: ${data.id})`);
+    return data.id;
   }
 
   /**
@@ -2469,20 +2504,14 @@ class DataMapper {
       return null;
     }
 
-    // Normaliser en supprimant les espaces avant et après
-    const trimmedCode = gestionnaireCode.trim();
-    const normalizedKey = normalizeSheetKey(trimmedCode);
-    const username =
-      GESTIONNAIRE_LOOKUP[normalizedKey] ||
-      GESTIONNAIRE_CODE_MAP[trimmedCode] ||
-      GESTIONNAIRE_CODE_MAP[trimmedCode.toUpperCase()] ||
-      GESTIONNAIRE_CODE_MAP[trimmedCode.toLowerCase()];
+    // Normaliser en lowercase avant le lookup (les clés de la map sont en lowercase)
+    const trimmedCode = gestionnaireCode.trim().toLowerCase();
+    const username = GESTIONNAIRE_CODE_MAP[trimmedCode];
 
     if (!username) {
-      console.warn(
-        `⚠️ Gestionnaire non mappé: "${gestionnaireCode}".`
+      throw new Error(
+        `Gestionnaire non mappé: "${gestionnaireCode}". Ajoutez ce code dans GESTIONNAIRE_CODE_MAP (mapping-constants.js).`
       );
-      return this.getUserId(gestionnaireCode);
     }
 
     if (this.cache.users.has(username)) {
@@ -2512,9 +2541,11 @@ class DataMapper {
       }
 
       if (!data || !data.id) {
-        console.error(
-          `❌ Username canonique introuvable en base: ${username} (depuis "${gestionnaireCode}")`
-        );
+        const warnMsg = `Username canonique introuvable en base: ${username} (depuis "${gestionnaireCode}")`;
+        console.error(`❌ ${warnMsg}`);
+        if (this._currentMappingWarnings) {
+          this._currentMappingWarnings.push({ type: 'gestionnaire', reason: warnMsg });
+        }
         return null;
       }
 
@@ -2543,9 +2574,10 @@ class DataMapper {
 
     let name = metierName.trim();
 
-    // Normaliser le nom du métier (gérer les variations de casse et accents)
-    if (METIER_NORMALIZATION_MAP.hasOwnProperty(name)) {
-      const normalizedName = METIER_NORMALIZATION_MAP[name];
+    // Normaliser le nom du métier : lowercase + suppression des accents
+    const normalizedKey = name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    if (METIER_NORMALIZATION_MAP.hasOwnProperty(normalizedKey)) {
+      const normalizedName = METIER_NORMALIZATION_MAP[normalizedKey];
 
       // Si la valeur normalisée est null, ignorer ce métier
       if (normalizedName === null) {
@@ -2565,30 +2597,17 @@ class DataMapper {
       return this.cache.metiers.get(normalized);
     }
 
-    try {
-      // Utiliser l'API v2 pour trouver ou créer le métier
-      // Passer le client authentifié si disponible
-      const result = await enumsApi.findOrCreateMetier(name, this.authenticatedClient);
+    const { data, error } = await enumsApi.getMetierByName(name, this.authenticatedClient);
 
-      // Stocker dans le cache avec le nom normalisé comme clé
-      this.cache.metiers.set(normalized, result.id);
-      if (result.created) {
-        this.stats.metiersCreated++;
-        this.stats.newMetiers.push(name);
-      }
-      const action = result.created ? "🆕 créé" : "✅ trouvé";
-      console.log(
-        `${action} Métier: ${name} (normalisé: ${normalized}) (ID: ${result.id})`
+    if (error || !data || !data.id) {
+      throw new Error(
+        `Métier introuvable en base: "${name}". Vérifiez que ce métier existe.`
       );
-
-      return result.id;
-    } catch (error) {
-      console.error(
-        `Erreur lors de la recherche/création du métier ${name}:`,
-        error
-      );
-      return null;
     }
+
+    this.cache.metiers.set(normalized, data.id);
+    console.log(`✅ Métier trouvé: ${name} (normalisé: ${normalized}) (ID: ${data.id})`);
+    return data.id;
   }
 
   async getZoneId(zoneName) {
@@ -2602,33 +2621,63 @@ class DataMapper {
       return this.cache.zones.get(normalized);
     }
 
-    try {
-      // Utiliser l'API v2 pour trouver ou créer la zone
-      // Passer le client authentifié si disponible
-      const result = await enumsApi.findOrCreateZone(name, this.authenticatedClient);
+    const { data, error } = await enumsApi.getZoneByName(name, this.authenticatedClient);
 
-      if (!this.cache.zones) this.cache.zones = new Map();
-      // Stocker dans le cache avec le nom normalisé comme clé
-      this.cache.zones.set(normalized, result.id);
-      if (result.created) {
-        this.stats.zonesCreated++;
-      }
-      const action = result.created ? "🆕 créée" : "✅ trouvée";
-      console.log(
-        `${action} Zone: ${name} (normalisé: ${normalized}) (ID: ${result.id})`
+    if (error || !data || !data.id) {
+      throw new Error(
+        `Zone introuvable en base: "${name}". Vérifiez que cette zone existe.`
       );
-      if (result.created) {
-        this.stats.newZones.push(name);
-      }
+    }
 
-      return result.id;
-    } catch (error) {
-      console.error(
-        `Erreur lors de la recherche/création de la zone ${name}:`,
-        error
-      );
+    if (!this.cache.zones) this.cache.zones = new Map();
+    this.cache.zones.set(normalized, data.id);
+    console.log(`✅ Zone trouvée: ${name} (normalisé: ${normalized}) (ID: ${data.id})`);
+    return data.id;
+  }
+
+  /**
+   * Normalise un libellé de statut artisan avant de rechercher l'ID correspondant.
+   * Permet d'éviter la création de doublons lors des imports (ex: ARCHIVER → ARCHIVE).
+   * @param {string} statusLabel - Libellé du statut (ex: "Archivé", "archiver", "ARCHIVE")
+   * @returns {string|null} - UUID du statut ou null
+   */
+  async getArtisanStatusIdNormalized(statusLabel) {
+    if (!statusLabel || statusLabel.trim() === "") {
+      console.log("⚠️ Statut artisan vide ou null");
       return null;
     }
+
+    // Normaliser le libellé: uppercase + suppression des accents
+    const normalizedKey = normalizeSheetKey(statusLabel);
+    const canonicalCode =
+      ARTISAN_STATUS_LOOKUP[normalizedKey] ||
+      ARTISAN_STATUS_LABEL_TO_CODE[statusLabel.trim().toUpperCase()];
+
+    if (!canonicalCode) {
+      console.warn(
+        `⚠️ Statut artisan non mappé: "${statusLabel}".`
+      );
+      throw new Error(
+        `Statut artisan non mappé: "${statusLabel}". Ajoutez ce statut dans ARTISAN_STATUS_LOOKUP (mapping-constants.js).`
+      );
+    }
+
+    // Vérifier le cache avec le code canonique
+    if (this.cache.artisanStatuses.has(canonicalCode)) {
+      return this.cache.artisanStatuses.get(canonicalCode);
+    }
+
+    const { data, error } = await enumsApi.getArtisanStatusByCode(canonicalCode, this.authenticatedClient);
+
+    if (error || !data || !data.id) {
+      throw new Error(
+        `Statut artisan introuvable en base: "${statusLabel}" → "${canonicalCode}". Vérifiez que ce statut existe.`
+      );
+    }
+
+    this.cache.artisanStatuses.set(canonicalCode, data.id);
+    console.log(`✅ Statut artisan: "${statusLabel}" → ${canonicalCode} (ID: ${data.id})`);
+    return data.id;
   }
 
   async getArtisanStatusId(statusName) {
@@ -2641,29 +2690,17 @@ class DataMapper {
       return this.cache.artisanStatuses.get(name);
     }
 
-    try {
-      // Utiliser l'API v2 pour trouver ou créer le statut artisan
-      // Passer le client authentifié si disponible
-      const result = await enumsApi.findOrCreateArtisanStatus(name, this.authenticatedClient);
+    const { data, error } = await enumsApi.getArtisanStatusByCode(name, this.authenticatedClient);
 
-      this.cache.artisanStatuses.set(name, result.id);
-      if (result.created) {
-        this.stats.artisanStatusesCreated =
-          (this.stats.artisanStatusesCreated || 0) + 1;
-        this.stats.newArtisanStatuses = this.stats.newArtisanStatuses || [];
-        this.stats.newArtisanStatuses.push(name);
-      }
-      const action = result.created ? "🆕 créé" : "✅ trouvé";
-      console.log(`${action} Statut artisan: ${name} (ID: ${result.id})`);
-
-      return result.id;
-    } catch (error) {
-      console.error(
-        `Erreur lors de la recherche/création du statut artisan ${name}:`,
-        error
+    if (error || !data || !data.id) {
+      throw new Error(
+        `Statut artisan introuvable en base: "${name}". Vérifiez que ce statut existe.`
       );
-      return null;
     }
+
+    this.cache.artisanStatuses.set(name, data.id);
+    console.log(`✅ Statut artisan trouvé: ${name} (ID: ${data.id})`);
+    return data.id;
   }
 
   async getInterventionStatusId(statusName) {
@@ -2679,30 +2716,17 @@ class DataMapper {
       return this.cache.interventionStatuses.get(name);
     }
 
-    try {
-      // Utiliser l'API v2 pour trouver ou créer le statut intervention
-      // Passer le client authentifié si disponible
-      const result = await enumsApi.findOrCreateInterventionStatus(name, this.authenticatedClient);
+    const { data, error } = await enumsApi.getInterventionStatusByCode(name, this.authenticatedClient);
 
-      this.cache.interventionStatuses.set(name, result.id);
-      if (result.created) {
-        this.stats.interventionStatusesCreated =
-          (this.stats.interventionStatusesCreated || 0) + 1;
-        this.stats.newInterventionStatuses =
-          this.stats.newInterventionStatuses || [];
-        this.stats.newInterventionStatuses.push(name);
-      }
-      const action = result.created ? "🆕 créé" : "✅ trouvé";
-      console.log(`${action} Statut intervention: ${name} (ID: ${result.id})`);
-
-      return result.id;
-    } catch (error) {
-      console.error(
-        `Erreur lors de la recherche/création du statut intervention ${name}:`,
-        error
+    if (error || !data || !data.id) {
+      throw new Error(
+        `Statut intervention introuvable en base: "${name}". Vérifiez que ce statut existe.`
       );
-      return null;
     }
+
+    this.cache.interventionStatuses.set(name, data.id);
+    console.log(`✅ Statut intervention trouvé: ${name} (ID: ${data.id})`);
+    return data.id;
   }
 
   /**
@@ -2723,93 +2747,26 @@ class DataMapper {
       STATUS_LABEL_TO_CODE[statusLabel.trim().toLowerCase()];
 
     if (!canonicalCode) {
-      console.warn(
-        `⚠️ Statut non mappé: "${statusLabel}". Utilisation du comportement legacy.`
+      throw new Error(
+        `Statut intervention non mappé: "${statusLabel}". Ajoutez ce statut dans STATUS_LOOKUP (mapping-constants.js).`
       );
-      return this.getInterventionStatusId(statusLabel);
     }
 
     if (this.cache.interventionStatuses.has(canonicalCode)) {
       return this.cache.interventionStatuses.get(canonicalCode);
     }
 
-    if (typeof enumsApi.getInterventionStatusByCode !== "function") {
-      console.warn(
-        "⚠️ enumsApi.getInterventionStatusByCode indisponible, fallback legacy."
+    const { data, error } = await enumsApi.getInterventionStatusByCode(canonicalCode, this.authenticatedClient);
+
+    if (error || !data || !data.id) {
+      throw new Error(
+        `Statut intervention introuvable en base: "${statusLabel}" → "${canonicalCode}". Vérifiez que ce statut existe.`
       );
-      return this.getInterventionStatusId(canonicalCode);
     }
 
-    try {
-      // Passer le client authentifié si disponible
-      const { data, error } = await enumsApi.getInterventionStatusByCode(
-        canonicalCode,
-        this.authenticatedClient
-      );
-
-      if (error) {
-        // Ignorer l'erreur PGRST116 (aucun résultat) - c'est normal si le statut n'existe pas
-        if (error.code === 'PGRST116') {
-          console.log(
-            `ℹ️ Statut "${canonicalCode}" non trouvé en base (depuis "${statusLabel}")`
-          );
-          return null;
-        }
-        throw error;
-      }
-
-      if (!data || !data.id) {
-        // Le statut n'existe pas, le créer avec le code canonique et le label original
-        console.warn(
-          `⚠️ Statut canonique introuvable en base: ${canonicalCode} (depuis "${statusLabel}"). Tentative de création...`
-        );
-
-        try {
-          // Utiliser le label original normalisé comme label
-          const normalizedLabel = statusLabel.trim();
-          const result = await enumsApi.findOrCreateInterventionStatusByCode(
-            canonicalCode,
-            normalizedLabel
-          );
-
-          if (result.created) {
-            this.stats.interventionStatusesCreated =
-              (this.stats.interventionStatusesCreated || 0) + 1;
-            this.stats.newInterventionStatuses =
-              this.stats.newInterventionStatuses || [];
-            this.stats.newInterventionStatuses.push(`${canonicalCode} (${normalizedLabel})`);
-            console.log(
-              `🆕 Statut créé: "${normalizedLabel}" → ${canonicalCode} (ID: ${result.id})`
-            );
-          } else {
-            console.log(
-              `✅ Statut trouvé après création: "${normalizedLabel}" → ${canonicalCode} (ID: ${result.id})`
-            );
-          }
-
-          this.cache.interventionStatuses.set(canonicalCode, result.id);
-          return result.id;
-        } catch (createError) {
-          console.error(
-            `❌ Erreur lors de la création du statut "${statusLabel}" → ${canonicalCode}:`,
-            createError
-          );
-          return null;
-        }
-      }
-
-      this.cache.interventionStatuses.set(canonicalCode, data.id);
-      console.log(
-        `✅ Statut normalisé: "${statusLabel}" → ${canonicalCode} (ID: ${data.id})`
-      );
-      return data.id;
-    } catch (error) {
-      console.error(
-        `Erreur lors de la résolution du statut "${statusLabel}" → ${canonicalCode}:`,
-        error
-      );
-      return null;
-    }
+    this.cache.interventionStatuses.set(canonicalCode, data.id);
+    console.log(`✅ Statut intervention: "${statusLabel}" → ${canonicalCode} (ID: ${data.id})`);
+    return data.id;
   }
 
   // ===== MÉTHODES POUR TENANTS, OWNERS ET ARTISANS =====
@@ -3110,6 +3067,9 @@ class DataMapper {
       const reason = `Artisan SST non trouvé: "${sstName}"`;
       this.logParsingError(logId, reason, csvRow, lineNumber);
       console.log(`❌ [ARTISAN-SST] Aucun artisan trouvé pour "${sstName}" (id_inter: ${logId})`);
+      if (this._currentMappingWarnings) {
+        this._currentMappingWarnings.push({ type: 'artisan_sst', reason: `Artisan SST non trouvé: "${sstName}" (id_inter: ${logId})` });
+      }
       return null;
     } catch (error) {
       // Gérer spécifiquement les erreurs réseau avec retry simple
@@ -3377,7 +3337,7 @@ class DataMapper {
    */
   parseTenantInfo(csvRow, verbose = false) {
     const locataireCol = this.getCSVValue(csvRow, "Locataire") || "";
-    const emailCol = this.getCSVValue(csvRow, "Em@ail Locataire") || "";
+    const emailCol = this.getCSVValue(csvRow, "Em@il Locataire") || "";
     const telCol = this.getCSVValue(csvRow, "TEL LOC") || "";
 
     // Logging désactivé pour éviter le spam en verbose

@@ -214,159 +214,109 @@ class ReportGenerator {
   }
 
   /**
-   * Génère le rapport textuel complet
+   * Génère le rapport textuel — uniquement les échecs
    */
   generateTextReport() {
     this.generateExecutiveSummary();
-    
-    let report = `\n📊 RAPPORT D'IMPORT GOOGLE SHEETS - VERSION AMÉLIORÉE\n`;
-    report += `========================================================\n`;
-    report += `📅 Date: ${new Date(this.reportData.timestamp).toLocaleString('fr-FR')}\n`;
-    report += `🔍 Mode: ${this.options.dryRun ? 'DRY-RUN' : 'PRODUCTION'}\n\n`;
-    
-    // Résumé exécutif
-    report += this.generateExecutiveSummarySection();
-    
-    // Détails par type
-    report += this.generateDetailsSection();
-    
-    // Erreurs et warnings
+
+    const s = this.reportData.summary;
+    let report = `RAPPORT D'IMPORT GOOGLE SHEETS\n`;
+    report += `==============================\n`;
+    report += `Date : ${new Date(this.reportData.timestamp).toLocaleString('fr-FR')}\n`;
+    report += `Mode : ${this.options.dryRun ? 'DRY-RUN' : 'PRODUCTION'}\n\n`;
+
+    report += `RÉSUMÉ\n`;
+    report += `------\n`;
+    report += `Traités   : ${s.totalProcessed}\n`;
+    report += `Erreurs   : ${s.totalErrors}\n`;
+    report += `Warnings  : ${s.totalWarnings}\n\n`;
+
     report += this.generateErrorsSection();
-    
-    // Adresses difficiles à parser
     report += this.generateAddressIssuesSection();
-    
-    // Recommandations
-    report += this.generateRecommendationsSection();
-    
+
     return report;
   }
 
   /**
-   * Génère la section résumé exécutif
-   */
-  generateExecutiveSummarySection() {
-    const s = this.reportData.summary;
-    
-    let section = `🎯 RÉSUMÉ EXÉCUTIF\n`;
-    section += `==================\n`;
-    section += `📋 Total traité: ${s.totalProcessed}\n`;
-    section += `✅ Données valides: ${s.totalValid} (${s.validationRate}%)\n`;
-    section += `💾 Données insérées: ${s.totalInserted} (${s.insertionRate}%)\n`;
-    section += `❌ Erreurs: ${s.totalErrors}\n`;
-    section += `⚠️  Warnings: ${s.totalWarnings}\n`;
-    section += `📊 Taux de succès global: ${s.successRate}%\n\n`;
-    
-    // Statut global
-    if (s.successRate >= 95) {
-      section += `🟢 STATUT: EXCELLENT - Import très réussi\n\n`;
-    } else if (s.successRate >= 85) {
-      section += `🟡 STATUT: BON - Import réussi avec quelques problèmes mineurs\n\n`;
-    } else if (s.successRate >= 70) {
-      section += `🟠 STATUT: MOYEN - Import partiellement réussi, attention requise\n\n`;
-    } else {
-      section += `🔴 STATUT: PROBLÉMATIQUE - Import avec de nombreux problèmes\n\n`;
-    }
-    
-    return section;
-  }
-
-  /**
-   * Génère la section détails par type
-   */
-  generateDetailsSection() {
-    let section = `📋 DÉTAILS PAR TYPE\n`;
-    section += `===================\n`;
-    
-    // Artisans
-    const artisans = this.reportData.details.artisans;
-    section += `\n👷 ARTISANS:\n`;
-    section += `  📊 Traités: ${artisans.processed}\n`;
-    section += `  ✅ Valides: ${artisans.valid} (${artisans.processed > 0 ? ((artisans.valid / artisans.processed) * 100).toFixed(1) : 0}%)\n`;
-    section += `  💾 Insérés: ${artisans.inserted} (${artisans.valid > 0 ? ((artisans.inserted / artisans.valid) * 100).toFixed(1) : 0}%)\n`;
-    section += `  ❌ Erreurs: ${artisans.errors}\n`;
-    section += `  ⚠️  Warnings: ${artisans.warnings}\n`;
-    
-    // Interventions
-    const interventions = this.reportData.details.interventions;
-    section += `\n🔧 INTERVENTIONS:\n`;
-    section += `  📊 Traitées: ${interventions.processed}\n`;
-    section += `  ✅ Valides: ${interventions.valid} (${interventions.processed > 0 ? ((interventions.valid / interventions.processed) * 100).toFixed(1) : 0}%)\n`;
-    section += `  💾 Insérées: ${interventions.inserted} (${interventions.valid > 0 ? ((interventions.inserted / interventions.valid) * 100).toFixed(1) : 0}%)\n`;
-    section += `  ❌ Erreurs: ${interventions.errors}\n`;
-    section += `  ⚠️  Warnings: ${interventions.warnings}\n`;
-    
-    // Clients
-    const clients = this.reportData.details.clients;
-    if (clients.inserted > 0) {
-      section += `\n👥 CLIENTS:\n`;
-      section += `  💾 Insérés: ${clients.inserted}\n`;
-      section += `  ❌ Erreurs: ${clients.errors}\n`;
-    }
-    
-    // Coûts
-    const costs = this.reportData.details.costs;
-    if (costs.inserted > 0) {
-      section += `\n💰 COÛTS:\n`;
-      section += `  💾 Insérés: ${costs.inserted}\n`;
-      section += `  ❌ Erreurs: ${costs.errors}\n`;
-    }
-    
-    section += `\n`;
-    return section;
-  }
-
-  /**
-   * Génère la section erreurs et warnings
+   * Génère la section erreurs et warnings — toutes les lignes en échec
    */
   generateErrorsSection() {
-    let section = `❌ ERREURS ET WARNINGS\n`;
-    section += `======================\n`;
-    
-    // Erreurs d'insertion
-    const insertionErrors = this.reportData.errors.artisans.filter(e => e.type === 'insertion').length +
-                           this.reportData.errors.interventions.filter(e => e.type === 'insertion').length +
-                           this.reportData.errors.clients.filter(e => e.type === 'insertion').length +
-                           this.reportData.errors.costs.filter(e => e.type === 'insertion').length;
-    
-    if (insertionErrors > 0) {
-      section += `\n💾 ERREURS D'INSERTION EN BASE: ${insertionErrors}\n`;
-      
-      // Erreurs d'insertion des artisans
-      const artisanInsertionErrors = this.reportData.errors.artisans.filter(e => e.type === 'insertion');
-      if (artisanInsertionErrors.length > 0) {
-        section += `  👷 Artisans (${artisanInsertionErrors.length}):\n`;
-        artisanInsertionErrors.slice(0, 5).forEach((error, index) => {
-          section += `    ${index + 1}. Ligne ${error.index + 1}: ${error.error}\n`;
-        });
-        if (artisanInsertionErrors.length > 5) {
-          section += `    ... et ${artisanInsertionErrors.length - 5} autres erreurs\n`;
-        }
-      }
-      
-      // Erreurs d'insertion des interventions
-      const interventionInsertionErrors = this.reportData.errors.interventions.filter(e => e.type === 'insertion');
-      if (interventionInsertionErrors.length > 0) {
-        section += `  🔧 Interventions (${interventionInsertionErrors.length}):\n`;
-        interventionInsertionErrors.slice(0, 5).forEach((error, index) => {
-          section += `    ${index + 1}. Ligne ${error.index + 1}: ${error.error}\n`;
-        });
-        if (interventionInsertionErrors.length > 5) {
-          section += `    ... et ${interventionInsertionErrors.length - 5} autres erreurs\n`;
-        }
-      }
+    const artisanErrors = this.reportData.errors.artisans;
+    const interventionErrors = this.reportData.errors.interventions;
+    const warnings = [
+      ...this.reportData.warnings.artisans,
+      ...this.reportData.warnings.interventions
+    ];
+
+    const hasErrors = artisanErrors.length > 0 || interventionErrors.length > 0;
+    const hasWarnings = warnings.length > 0;
+
+    if (!hasErrors && !hasWarnings) {
+      return `ERREURS\n-------\nAucune erreur.\n\n`;
     }
-    
-    // Warnings
-    const totalWarnings = this.reportData.warnings.artisans.length + this.reportData.warnings.interventions.length;
-    if (totalWarnings > 0) {
-      section += `\n⚠️  WARNINGS: ${totalWarnings}\n`;
-      section += `  👷 Artisans: ${this.reportData.warnings.artisans.length}\n`;
-      section += `  🔧 Interventions: ${this.reportData.warnings.interventions.length}\n`;
+
+    let section = '';
+
+    if (artisanErrors.length > 0) {
+      section += `ERREURS ARTISANS (${artisanErrors.length})\n`;
+      section += `-`.repeat(30) + `\n`;
+      artisanErrors.forEach((error, i) => {
+        const lineRef = error.row ? `ligne ${error.row}` : `ligne ${(error.index ?? i) + 1}`;
+        const label = error.data
+          ? `${error.data.prenom || ''} ${error.data.nom || error.data.raison_sociale || ''}`.trim() || lineRef
+          : lineRef;
+        section += `${i + 1}. [${label}] ${error.error || error.reason || JSON.stringify(error)}\n`;
+      });
+      section += `\n`;
     }
-    
-    section += `\n`;
+
+    if (interventionErrors.length > 0) {
+      section += `ERREURS INTERVENTIONS (${interventionErrors.length})\n`;
+      section += `-`.repeat(30) + `\n`;
+      interventionErrors.forEach((error, i) => {
+        const lineRef = error.row ? `ligne ${error.row}` : `ligne ${(error.index ?? i) + 1}`;
+        const label = error.identifier
+          ? error.identifier
+          : error.data?.id_inter
+            ? `id_inter=${error.data.id_inter}`
+            : lineRef;
+        section += `${i + 1}. [${label}] ${error.error || error.reason || JSON.stringify(error)}\n`;
+        // Inclure un extrait CSV pour les erreurs de validation
+        if (error.csvSample) {
+          const sample = this._formatCsvSample(error.csvSample);
+          section += `     CSV: ${sample}\n`;
+        }
+      });
+      section += `\n`;
+    }
+
+    if (hasWarnings) {
+      section += `WARNINGS (${warnings.length})\n`;
+      section += `-`.repeat(30) + `\n`;
+      warnings.forEach((w, i) => {
+        const context = w.idInter ? `[${w.idInter}]` : w.row ? `[ligne ${w.row}]` : '';
+        const typeTag = w.type ? `(${w.type}) ` : '';
+        section += `${i + 1}. ${context} ${typeTag}${w.error || w.reason || JSON.stringify(w)}\n`;
+      });
+      section += `\n`;
+    }
+
     return section;
+  }
+
+  /**
+   * Formate un extrait CSV lisible pour le rapport (champs clés uniquement)
+   */
+  _formatCsvSample(csvRow) {
+    const keyFields = ['ID', 'Date', 'Agence', 'Adresse', 'Statut', 'Contexte d\'intervention', 'Métier', 'Gest.', 'Artisan', 'Locataire'];
+    const parts = [];
+    for (const key of keyFields) {
+      const val = csvRow[key];
+      if (val && String(val).trim()) {
+        parts.push(`${key}="${String(val).trim().substring(0, 50)}"`);
+      }
+    }
+    return parts.length > 0 ? `{ ${parts.join(', ')} }` : '(données CSV vides)';
   }
 
   /**
@@ -418,38 +368,6 @@ class ReportGenerator {
   /**
    * Génère la section recommandations
    */
-  generateRecommendationsSection() {
-    let section = `💡 RECOMMANDATIONS\n`;
-    section += `==================\n`;
-    
-    const s = this.reportData.summary;
-    
-    if (s.successRate < 95) {
-      section += `🔧 ACTIONS RECOMMANDÉES:\n`;
-      
-      if (s.validationRate < 90) {
-        section += `  • Améliorer la qualité des données source (${s.validationRate}% de validation)\n`;
-      }
-      
-      if (s.insertionRate < 95) {
-        section += `  • Vérifier les erreurs d'insertion en base (${s.insertionRate}% d'insertion)\n`;
-      }
-      
-      if (this.reportData.errors.addressParsing.length > 0) {
-        section += `  • Revoir le format des adresses (${this.reportData.errors.addressParsing.length} problèmes détectés)\n`;
-      }
-      
-      if (s.totalWarnings > 100) {
-        section += `  • Corriger les warnings récurrents (${s.totalWarnings} warnings)\n`;
-      }
-    } else {
-      section += `✅ Import très réussi ! Aucune action particulière requise.\n`;
-    }
-    
-    section += `\n`;
-    return section;
-  }
-
   // ===== SAUVEGARDE DES FICHIERS =====
 
   /**
@@ -504,16 +422,27 @@ class ReportGenerator {
   }
 
   /**
-   * Sauvegarde le rapport JSON complet
+   * Sauvegarde le rapport JSON — uniquement les échecs
    */
   async saveJsonReport() {
     try {
       const filename = `import-report-${this.timestamp}.json`;
       const filepath = path.join(this.options.outputDir, filename);
-      
-      fs.writeFileSync(filepath, JSON.stringify(this.reportData, null, 2), 'utf8');
-      console.log(`📊 Rapport JSON complet sauvegardé: ${filepath}`);
-      
+
+      const failuresOnly = {
+        timestamp: this.reportData.timestamp,
+        summary: {
+          totalProcessed: this.reportData.summary.totalProcessed,
+          totalErrors: this.reportData.summary.totalErrors,
+          totalWarnings: this.reportData.summary.totalWarnings,
+        },
+        errors: this.reportData.errors,
+        warnings: this.reportData.warnings,
+      };
+
+      fs.writeFileSync(filepath, JSON.stringify(failuresOnly, null, 2), 'utf8');
+      console.log(`📊 Rapport JSON sauvegardé: ${filepath}`);
+
       return filepath;
     } catch (error) {
       console.error(`❌ Erreur sauvegarde JSON: ${error.message}`);
