@@ -287,11 +287,11 @@ class DatabaseManager {
         let result;
         
         // Si mode upsert et id_inter présent, utiliser la méthode upsert
-        if (this.options.upsert && intervention.id_inter && !intervention.id_inter.startsWith('AUTO-')) {
+        if (this.options.upsert && intervention.id_inter) {
           this.log(`🔄 Intervention ${currentGlobalIndex + 1}: Mode upsert pour ${intervention.id_inter}`, 'verbose');
           result = await interventionsApiV2.upsert(intervention);
         } else {
-          // Mode normal ou ID auto-généré
+          // Mode normal (id_inter absent ou upsert désactivé)
           result = await interventionsApiV2.create(intervention);
         }
         

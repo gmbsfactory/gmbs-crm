@@ -20,6 +20,9 @@ CREATE TABLE IF NOT EXISTS public.app_updates (
 
 -- Contraintes de validation
 ALTER TABLE public.app_updates
+  DROP CONSTRAINT IF EXISTS app_updates_severity_check,
+  DROP CONSTRAINT IF EXISTS app_updates_status_check;
+ALTER TABLE public.app_updates
   ADD CONSTRAINT app_updates_severity_check CHECK (severity IN ('info', 'important', 'breaking')),
   ADD CONSTRAINT app_updates_status_check CHECK (status IN ('draft', 'published'));
 
@@ -34,8 +37,8 @@ CREATE TABLE IF NOT EXISTS public.app_update_views (
 );
 
 -- Index
-CREATE INDEX idx_app_updates_status_published ON public.app_updates(status, published_at DESC);
-CREATE INDEX idx_app_update_views_user ON public.app_update_views(user_id, update_id);
+CREATE INDEX IF NOT EXISTS idx_app_updates_status_published ON public.app_updates(status, published_at DESC);
+CREATE INDEX IF NOT EXISTS idx_app_update_views_user ON public.app_update_views(user_id, update_id);
 
 -- ============================================================
 -- RLS
@@ -44,50 +47,52 @@ CREATE INDEX idx_app_update_views_user ON public.app_update_views(user_id, updat
 ALTER TABLE public.app_updates ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.app_update_views ENABLE ROW LEVEL SECURITY;
 
--- app_updates : tous les authentifiés peuvent lire les updates publiées
+-- app_updates policies
+DROP POLICY IF EXISTS "app_updates_select_published" ON public.app_updates;
 CREATE POLICY "app_updates_select_published"
   ON public.app_updates FOR SELECT
   TO authenticated
   USING (status = 'published');
 
--- app_updates : seuls les admins peuvent insérer
+DROP POLICY IF EXISTS "app_updates_insert_admin" ON public.app_updates;
 CREATE POLICY "app_updates_insert_admin"
   ON public.app_updates FOR INSERT
   TO authenticated
   WITH CHECK (public.user_has_role('admin'));
 
--- app_updates : seuls les admins peuvent modifier
+DROP POLICY IF EXISTS "app_updates_update_admin" ON public.app_updates;
 CREATE POLICY "app_updates_update_admin"
   ON public.app_updates FOR UPDATE
   TO authenticated
   USING (public.user_has_role('admin'))
   WITH CHECK (public.user_has_role('admin'));
 
--- app_updates : seuls les admins peuvent supprimer
+DROP POLICY IF EXISTS "app_updates_delete_admin" ON public.app_updates;
 CREATE POLICY "app_updates_delete_admin"
   ON public.app_updates FOR DELETE
   TO authenticated
   USING (public.user_has_role('admin'));
 
--- app_update_views : un utilisateur peut voir ses propres vues
+-- app_update_views policies
+DROP POLICY IF EXISTS "app_update_views_select_own" ON public.app_update_views;
 CREATE POLICY "app_update_views_select_own"
   ON public.app_update_views FOR SELECT
   TO authenticated
   USING (user_id = public.get_public_user_id());
 
--- app_update_views : un admin peut voir toutes les vues
+DROP POLICY IF EXISTS "app_update_views_select_admin" ON public.app_update_views;
 CREATE POLICY "app_update_views_select_admin"
   ON public.app_update_views FOR SELECT
   TO authenticated
   USING (public.user_has_role('admin'));
 
--- app_update_views : un utilisateur peut insérer ses propres vues
+DROP POLICY IF EXISTS "app_update_views_insert_own" ON public.app_update_views;
 CREATE POLICY "app_update_views_insert_own"
   ON public.app_update_views FOR INSERT
   TO authenticated
   WITH CHECK (user_id = public.get_public_user_id());
 
--- app_update_views : un utilisateur peut mettre à jour ses propres vues
+DROP POLICY IF EXISTS "app_update_views_update_own" ON public.app_update_views;
 CREATE POLICY "app_update_views_update_own"
   ON public.app_update_views FOR UPDATE
   TO authenticated
@@ -134,4 +139,5 @@ INSERT INTO public.app_updates (version, title, content, audience, severity, sta
   'info',
   'published',
   now()
-);
+)
+ON CONFLICT DO NOTHING;

@@ -19,17 +19,8 @@ const envFile = process.env.NODE_ENV === 'production' ? '.env.production' : '.en
 require('dotenv').config({ path: envFile });
 console.log(`📁 Variables chargées depuis ${envFile}`);
 
-// Utiliser l'API v2 centralisée
+// Utiliser l'API v2 centralisée via import() dynamique (compatible tsx v4+)
 let interventionsApi, documentsApi;
-try {
-  const apiV2 = require('../../../src/lib/api/v2');
-  interventionsApi = apiV2.interventionsApi;
-  documentsApi = apiV2.documentsApi;
-} catch (error) {
-  console.error('❌ Erreur lors du chargement de l\'API v2:', error.message);
-  console.error('   Assurez-vous d\'utiliser tsx pour exécuter ce script');
-  process.exit(1);
-}
 
 // Configuration Google Drive
 const { googleDriveConfig } = require('../config/google-drive-config');
@@ -90,7 +81,7 @@ async function findRootFolder(drive, rootFolderId = null) {
 async function findInterventionsFolder(drive, rootFolderId) {
   try {
     // Chercher "Interventions 2025 GMBS" dans le dossier racine
-    const query = `'${rootFolderId}' in parents and (name='Interventions 2025 GMBS' or name contains 'Interventions 2025') and mimeType='application/vnd.google-apps.folder' and trashed=false`;
+    const query = `'${rootFolderId}' in parents and (name='Interventions 2026' or name contains 'Interventions 2026') and mimeType='application/vnd.google-apps.folder' and trashed=false`;
     const response = await drive.files.list({
       q: query,
       fields: 'files(id, name, mimeType)',
@@ -782,6 +773,25 @@ async function insertInterventionDocuments(interventionId, documents, drive, dry
  * Fonction principale
  */
 async function main() {
+  // Charger l'API v2 via import() dynamique (compatible tsx v4+)
+  try {
+    const { pathToFileURL } = await import('url');
+    const apiV2Path = pathToFileURL(path.resolve(__dirname, '../../../../src/lib/api/v2/index.ts'));
+    const apiV2Raw = await import(apiV2Path);
+    // Gestion interop ESM/CJS : tsx peut wrapper les named exports sous .default en mode CJS
+    const apiV2 = apiV2Raw.default || apiV2Raw;
+    interventionsApi = apiV2.interventionsApi;
+    documentsApi = apiV2.documentsApi;
+
+    if (!interventionsApi) {
+      throw new Error('interventionsApi non trouvé dans le module API v2 (vérifier interop ESM/CJS)');
+    }
+  } catch (error) {
+    console.error('❌ Erreur lors du chargement de l\'API v2:', error.message);
+    console.error('   Assurez-vous d\'utiliser tsx pour exécuter ce script');
+    process.exit(1);
+  }
+
   // Vérifier les arguments de ligne de commande
   const args = process.argv.slice(2);
   

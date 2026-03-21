@@ -1,39 +1,45 @@
 /**
  * Script complet d'import des documents depuis Google Drive
- * 
+ *
  * Ce script :
  * 1. Extrait les noms de dossiers depuis Google Drive (dossier "Artisans")
  * 2. Fait le matching avec les artisans en base de données
  * 3. Classe les documents par type
  * 4. Insère les documents en base de données
- * 
+ *
  * Tout en un seul script pour simplifier l'utilisation
  */
 
-const fs = require('fs');
-const path = require('path');
-const { google } = require('googleapis');
+import fs from 'fs';
+import path from 'path';
+import dotenv from 'dotenv';
+import { google } from 'googleapis';
 
-// Charger les variables d'environnement selon l'environnement
+// Charger les variables d'environnement AVANT tout import API
 const envFile = process.env.NODE_ENV === 'production' ? '.env.production' : '.env.local';
-require('dotenv').config({ path: envFile });
+dotenv.config({ path: envFile });
 console.log(`📁 Variables chargées depuis ${envFile}`);
 
-// Utiliser l'API v2 centralisée via import() dynamique (compatible tsx v4+)
-// require() ne fonctionne pas avec les fichiers TypeScript en tsx v4
-let artisansApi, documentsApi;
+// API v2 chargée dynamiquement (après dotenv) pour que les env vars soient disponibles
+const { artisansApi, documentsApi } = await import('@/lib/api/v2');
 
 // Importer le module de classification des documents
-const { classifyDocument, getDocumentTypeLabel, isValidDocumentType } = require('./document-classifier');
+// @ts-ignore - JS module without types
+import { classifyDocument, getDocumentTypeLabel, isValidDocumentType } from './document-classifier.js';
 
 // Configuration Google Drive
-const { googleDriveConfig } = require('../config/google-drive-config');
+// @ts-ignore - JS module without types
+import { googleDriveConfig } from '../config/google-drive-config.js';
 googleDriveConfig.reloadConfig();
+
+// Importer la fonction utilitaire pour télécharger depuis Google Drive
+// @ts-ignore - JS module without types
+import { downloadFileFromDrive } from '../lib/google-drive-utils.js';
 
 /**
  * Normalise un nom pour la comparaison
  */
-function normalizeName(name) {
+function normalizeName(name: string | null | undefined): string {
   if (!name) return '';
   return name
     .toLowerCase()
@@ -47,7 +53,7 @@ function normalizeName(name) {
  * Nettoie un nom en enlevant les numéros à la fin
  * Ex: "ABBAS Virginie 34" -> "ABBAS Virginie"
  */
-function cleanName(name) {
+function cleanName(name: string | null | undefined): string {
   if (!name) return '';
   // Enlever les numéros à la fin (espaces + chiffres)
   return name.replace(/\s+\d+$/, '').trim();
@@ -58,7 +64,7 @@ function cleanName(name) {
  * Ex: "Virginie ABBAS" -> "ABBAS Virginie"
  * Ex: "ABBAS Virginie" -> "Virginie ABBAS"
  */
-function invertNameOrder(name) {
+function invertNameOrder(name: string | null | undefined): string {
   if (!name) return '';
   const parts = name.trim().split(/\s+/);
   if (parts.length >= 2) {
@@ -72,12 +78,12 @@ function invertNameOrder(name) {
  * Extrait les parties d'un nom (premier mot, deuxième mot, reste)
  * Utile pour faire des recherches flexibles
  */
-function extractNameParts(name) {
-  if (!name) return { first: '', second: '', rest: '', full: '' };
+function extractNameParts(name: string | null | undefined) {
+  if (!name) return { first: '', second: '', rest: '', full: '', cleaned: '' };
   const cleaned = cleanName(name);
   const normalized = normalizeName(cleaned);
   const parts = normalized.split(/\s+/).filter(p => p.length > 0);
-  
+
   return {
     first: parts[0] || '',
     second: parts[1] || '',
@@ -90,7 +96,7 @@ function extractNameParts(name) {
 /**
  * Trouve le dossier "Artisans" dans Google Drive
  */
-async function findArtisansFolder(drive, rootFolderId = null) {
+async function findArtisansFolder(drive: any, rootFolderId: string | null = null) {
   try {
     // Si un ID de dossier racine est fourni, l'utiliser
     if (rootFolderId) {
@@ -98,7 +104,7 @@ async function findArtisansFolder(drive, rootFolderId = null) {
         fileId: rootFolderId,
         fields: 'id, name, mimeType'
       });
-      
+
       if (response.data.mimeType === 'application/vnd.google-apps.folder') {
         return response.data;
       }
@@ -117,7 +123,7 @@ async function findArtisansFolder(drive, rootFolderId = null) {
     }
 
     return null;
-  } catch (error) {
+  } catch (error: any) {
     console.error('❌ Erreur lors de la recherche du dossier artisans:', error.message);
     throw error;
   }
@@ -126,14 +132,14 @@ async function findArtisansFolder(drive, rootFolderId = null) {
 /**
  * Liste tous les sous-dossiers dans un dossier donné
  */
-async function listArtisanFolders(drive, folderId) {
+async function listArtisanFolders(drive: any, folderId: string) {
   try {
-    const folders = [];
-    let nextPageToken = null;
+    const folders: any[] = [];
+    let nextPageToken: string | null = null;
 
     do {
       const query = `'${folderId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`;
-      
+
       const response = await drive.files.list({
         q: query,
         fields: 'nextPageToken, files(id, name, createdTime, modifiedTime)',
@@ -149,7 +155,7 @@ async function listArtisanFolders(drive, folderId) {
     } while (nextPageToken);
 
     return folders;
-  } catch (error) {
+  } catch (error: any) {
     console.error(`❌ Erreur lors de la liste des dossiers dans ${folderId}:`, error.message);
     throw error;
   }
@@ -158,10 +164,10 @@ async function listArtisanFolders(drive, folderId) {
 /**
  * Compte les documents dans un dossier
  */
-async function countDocumentsInFolder(drive, folderId) {
+async function countDocumentsInFolder(drive: any, folderId: string) {
   try {
     const query = `'${folderId}' in parents and trashed=false and mimeType!='application/vnd.google-apps.folder'`;
-    
+
     const response = await drive.files.list({
       q: query,
       fields: 'files(id, name, mimeType, size)',
@@ -169,7 +175,7 @@ async function countDocumentsInFolder(drive, folderId) {
     });
 
     return response.data.files || [];
-  } catch (error) {
+  } catch (error: any) {
     console.error(`❌ Erreur lors du comptage des documents dans ${folderId}:`, error.message);
     return [];
   }
@@ -178,14 +184,14 @@ async function countDocumentsInFolder(drive, folderId) {
 /**
  * Extrait les dossiers depuis Google Drive et les sauvegarde
  */
-async function extractFoldersFromDrive(drive) {
+async function extractFoldersFromDrive(drive: any) {
   console.log('📁 Extraction des noms de dossiers depuis Google Drive...\n');
 
   try {
     // 1. Récupérer directement le dossier Artisans depuis la variable d'environnement
     console.log('🔍 Recherche du dossier Artisans...');
     const artisansRootFolderId = googleDriveConfig.getArtisansRootFolderId();
-    
+
     if (!artisansRootFolderId) {
       console.error('❌ GOOGLE_DRIVE_GMBS_ARTISANS_ROOT_FOLDER non défini dans les variables d\'environnement');
       console.log('\n💡 Suggestions:');
@@ -195,34 +201,34 @@ async function extractFoldersFromDrive(drive) {
     }
 
     // Vérifier que le dossier existe et récupérer ses infos
-    let artisansFolder;
+    let artisansFolder: any;
     try {
       const response = await drive.files.get({
         fileId: artisansRootFolderId,
         fields: 'id, name, mimeType'
       });
-      
+
       if (response.data.mimeType !== 'application/vnd.google-apps.folder') {
         throw new Error('L\'ID fourni ne correspond pas à un dossier');
       }
-      
+
       artisansFolder = response.data;
-    } catch (error) {
+    } catch (error: any) {
       console.error(`❌ Erreur lors de l'accès au dossier Artisans (ID: ${artisansRootFolderId}):`, error.message);
       throw new Error('Impossible d\'accéder au dossier Artisans');
     }
 
     console.log(`✅ Dossier Artisans trouvé: ${artisansFolder.name} (ID: ${artisansFolder.id})\n`);
 
-    // 2. Lister directement les sous-dossiers dans "Artisans" (plus besoin de chercher un sous-dossier)
+    // 2. Lister directement les sous-dossiers dans "Artisans"
     console.log('📂 Liste des sous-dossiers dans "Artisans"...');
     const artisansSubFolders = await listArtisanFolders(drive, artisansFolder.id);
     console.log(`✅ ${artisansSubFolders.length} sous-dossiers trouvés dans "Artisans"\n`);
 
     // 3. Extraire les informations pour chaque sous-dossier d'Artisans
     console.log('📊 Extraction des informations des sous-dossiers d\'Artisans...');
-    const artisansSubFolderData = [];
-    
+    const artisansSubFolderData: any[] = [];
+
     for (let i = 0; i < artisansSubFolders.length; i++) {
       const folder = artisansSubFolders[i];
       const documents = await countDocumentsInFolder(drive, folder.id);
@@ -240,7 +246,7 @@ async function extractFoldersFromDrive(drive) {
         console.log(`  Traité ${i + 1}/${artisansSubFolders.length} sous-dossiers...`);
       }
     }
-    
+
     console.log(`✅ Extraction des sous-dossiers d'Artisans terminée\n`);
 
     // 4. Préparer les données pour export
@@ -262,11 +268,11 @@ async function extractFoldersFromDrive(drive) {
     };
 
     // 5. Sauvegarder dans le fichier JSON
-    const outputDir = path.join(__dirname, '../../../data/docs_imports/');
+    const outputDir = path.join(import.meta.dirname, '../../../data/docs_imports/');
     if (!fs.existsSync(outputDir)) {
       fs.mkdirSync(outputDir, { recursive: true });
     }
-    
+
     const jsonPath = path.join(outputDir, 'artisans-subfolders.json');
     fs.writeFileSync(jsonPath, JSON.stringify(exportData, null, 2));
     console.log(`💾 Données sauvegardées dans: ${jsonPath}\n`);
@@ -281,14 +287,14 @@ async function extractFoldersFromDrive(drive) {
 /**
  * Liste tous les documents dans un dossier Google Drive
  */
-async function listDocumentsInFolder(drive, folderId) {
+async function listDocumentsInFolder(drive: any, folderId: string) {
   try {
-    const documents = [];
-    let nextPageToken = null;
+    const documents: any[] = [];
+    let nextPageToken: string | null = null;
 
     do {
       const query = `'${folderId}' in parents and trashed=false and mimeType!='application/vnd.google-apps.folder'`;
-      
+
       const response = await drive.files.list({
         q: query,
         fields: 'nextPageToken, files(id, name, mimeType, size, createdTime, modifiedTime, webViewLink)',
@@ -304,7 +310,7 @@ async function listDocumentsInFolder(drive, folderId) {
     } while (nextPageToken);
 
     return documents;
-  } catch (error) {
+  } catch (error: any) {
     console.error(`❌ Erreur lors de la liste des documents dans ${folderId}:`, error.message);
     return [];
   }
@@ -312,33 +318,28 @@ async function listDocumentsInFolder(drive, folderId) {
 
 /**
  * Mappe le type de document classifié vers le kind pour la base de données
- * Si le document n'est pas classifié (type "autre"), retourne "a_classe"
  */
-function mapDocumentTypeToKind(documentType) {
-  // Si le type est valide et différent de "autre", utiliser le type directement
+function mapDocumentTypeToKind(documentType: string): string {
   if (isValidDocumentType(documentType) && documentType !== 'autre') {
     return documentType;
   }
-  // Sinon, marquer comme "a_classe"
   return 'a_classe';
 }
 
 /**
  * Construit l'URL Google Drive pour un document
  */
-function buildGoogleDriveUrl(fileId, webViewLink = null) {
-  // Si on a déjà un webViewLink, l'utiliser
+function buildGoogleDriveUrl(fileId: string, webViewLink: string | null = null): string {
   if (webViewLink) {
     return webViewLink;
   }
-  // Sinon, construire l'URL depuis l'ID
   return `https://drive.google.com/file/d/${fileId}/view`;
 }
 
 /**
  * Classe les documents d'un dossier et retourne les statistiques
  */
-function classifyDocuments(documents) {
+function classifyDocuments(documents: any[]) {
   const classified = documents.map(doc => {
     const docType = classifyDocument(doc.name);
     const kind = mapDocumentTypeToKind(docType);
@@ -353,26 +354,26 @@ function classifyDocuments(documents) {
       driveUrl: buildGoogleDriveUrl(doc.id, doc.webViewLink),
       type: docType,
       typeLabel: getDocumentTypeLabel(docType),
-      kind: kind // Kind pour la base de données
+      kind: kind
     };
   });
 
   // Compter par type
-  const statsByType = {};
+  const statsByType: Record<string, number> = {};
   classified.forEach(doc => {
     statsByType[doc.type] = (statsByType[doc.type] || 0) + 1;
   });
 
   // Compter par kind
-  const statsByKind = {};
+  const statsByKind: Record<string, number> = {};
   classified.forEach(doc => {
     statsByKind[doc.kind] = (statsByKind[doc.kind] || 0) + 1;
   });
 
   return {
     documents: classified,
-    statsByType: statsByType,
-    statsByKind: statsByKind,
+    statsByType,
+    statsByKind,
     total: classified.length
   };
 }
@@ -383,23 +384,21 @@ function classifyDocuments(documents) {
  */
 async function getAllArtisans() {
   console.log('📊 Récupération de tous les artisans depuis la base de données (API v2)...');
-  
+
   try {
-    // Récupérer tous les artisans par lots (l'API v2 limite à 100 par défaut)
-    let allArtisans = [];
+    let allArtisans: any[] = [];
     let offset = 0;
     const limit = 100;
     let hasMore = true;
 
     while (hasMore) {
-      const result = await artisansApi.getAll({ 
-        limit, 
-        offset 
+      const result = await artisansApi.getAll({
+        limit,
+        offset
       });
 
       if (result.data && result.data.length > 0) {
-        // Filtrer uniquement ceux qui ont un plain_nom
-        const artisansWithPlainNom = result.data.filter(a => a.plain_nom);
+        const artisansWithPlainNom = result.data.filter((a: any) => a.plain_nom);
         allArtisans = allArtisans.concat(artisansWithPlainNom);
       }
 
@@ -413,65 +412,61 @@ async function getAllArtisans() {
 
     console.log(`✅ ${allArtisans.length} artisans récupérés avec plain_nom\n`);
     return allArtisans;
-  } catch (error) {
+  } catch (error: any) {
     throw new Error(`Erreur lors de la récupération des artisans: ${error.message}`);
   }
 }
 
 /**
  * Trouve l'artisan correspondant à un nom de dossier
- * Utilise l'API v2 pour les recherches (centralisé et optimisé)
  */
-async function findMatchingArtisan(folderName, artisansCache = null) {
-  // Nettoyer le nom du dossier dès le début (enlever les numéros)
+async function findMatchingArtisan(folderName: string, artisansCache: any[] | null = null) {
   const cleanedFolderName = cleanName(folderName);
   const normalizedFolderName = normalizeName(cleanedFolderName);
-  
+
   if (!normalizedFolderName) {
     return { artisan: null, matchType: 'none', reason: 'Nom de dossier vide' };
   }
-  
+
   try {
-    // 1. Recherche par nom via l'API v2 (cherche dans nom, prénom, raison_sociale, plain_nom)
-    // Cette méthode utilise ilike donc fonctionne avec les noms partiels/normalisés
+    // 1. Recherche par nom via l'API v2
     try {
       const nameResult = await artisansApi.searchByName(normalizedFolderName, { limit: 20 });
       if (nameResult.data && nameResult.data.length > 0) {
-        // Chercher le meilleur match parmi les résultats (priorité au match exact)
-        let exactMatch = null;
-        let partialMatch = null;
-        let raisonSocialeMatch = null;
-        let nomPrenomMatch = null;
+        let exactMatch: any = null;
+        let partialMatch: any = null;
+        let raisonSocialeMatch: any = null;
+        let nomPrenomMatch: any = null;
 
         for (const candidate of nameResult.data) {
-          // Match exact avec plain_nom (priorité maximale) - nettoyer les numéros avant comparaison
+          // Match exact avec plain_nom
           if (candidate.plain_nom) {
             const cleanedPlainNom = cleanName(candidate.plain_nom);
             const normalizedPlainNom = normalizeName(cleanedPlainNom);
             if (normalizedPlainNom === normalizedFolderName) {
               exactMatch = { artisan: candidate, matchType: 'exact', reason: 'Match exact avec plain_nom nettoyé (API v2)' };
-              break; // Match exact trouvé, on s'arrête
-            } else if (!partialMatch && (normalizedFolderName.includes(normalizedPlainNom) || 
+              break;
+            } else if (!partialMatch && (normalizedFolderName.includes(normalizedPlainNom) ||
                        normalizedPlainNom.includes(normalizedFolderName))) {
               partialMatch = { artisan: candidate, matchType: 'partial', reason: 'Match partiel avec plain_nom nettoyé (API v2)' };
             }
           }
-          
+
           // Match avec raison sociale
           if (!raisonSocialeMatch && candidate.raison_sociale) {
             const normalizedRaisonSociale = normalizeName(candidate.raison_sociale);
-            if (normalizedFolderName.includes(normalizedRaisonSociale) || 
+            if (normalizedFolderName.includes(normalizedRaisonSociale) ||
                 normalizedRaisonSociale.includes(normalizedFolderName)) {
               raisonSocialeMatch = { artisan: candidate, matchType: 'raison_sociale', reason: 'Match avec raison_sociale (API v2)' };
             }
           }
-          
+
           // Match avec nom + prénom
           if (!nomPrenomMatch) {
             const fullName = `${candidate.prenom || ''} ${candidate.nom || ''}`.trim();
             if (fullName) {
               const normalizedFullName = normalizeName(fullName);
-              if (normalizedFolderName.includes(normalizedFullName) || 
+              if (normalizedFolderName.includes(normalizedFullName) ||
                   normalizedFullName.includes(normalizedFolderName)) {
                 nomPrenomMatch = { artisan: candidate, matchType: 'nom_prenom', reason: 'Match avec nom + prénom (API v2)' };
               }
@@ -479,20 +474,17 @@ async function findMatchingArtisan(folderName, artisansCache = null) {
           }
         }
 
-        // Retourner le meilleur match trouvé (priorité: exact > partial > raison_sociale > nom_prenom)
         if (exactMatch) return exactMatch;
         if (partialMatch) return partialMatch;
         if (raisonSocialeMatch) return raisonSocialeMatch;
         if (nomPrenomMatch) return nomPrenomMatch;
       }
-    } catch (error) {
-      // Si l'API v2 échoue, continuer avec le cache si disponible
+    } catch (error: any) {
       console.warn(`  ⚠️ Erreur API v2 pour "${folderName}": ${error.message}`);
     }
 
-    // 3. Fallback : recherche dans le cache si fourni (pour compatibilité)
+    // 3. Fallback : recherche dans le cache
     if (artisansCache && Array.isArray(artisansCache)) {
-      // Recherche exacte par plain_nom normalisé (avec nettoyage des numéros)
       let match = artisansCache.find(a => {
         if (!a.plain_nom) return false;
         const cleanedPlainNom = cleanName(a.plain_nom);
@@ -503,12 +495,11 @@ async function findMatchingArtisan(folderName, artisansCache = null) {
         return { artisan: match, matchType: 'exact', reason: 'Match exact avec plain_nom nettoyé (cache)' };
       }
 
-      // Recherche partielle (avec nettoyage des numéros)
       match = artisansCache.find(a => {
         if (!a.plain_nom) return false;
         const cleanedPlainNom = cleanName(a.plain_nom);
         const normalizedPlainNom = normalizeName(cleanedPlainNom);
-        return normalizedFolderName.includes(normalizedPlainNom) || 
+        return normalizedFolderName.includes(normalizedPlainNom) ||
                normalizedPlainNom.includes(normalizedFolderName);
       });
       if (match) {
@@ -516,38 +507,32 @@ async function findMatchingArtisan(folderName, artisansCache = null) {
       }
     }
 
-    // 4. Stratégie avancée : inversion nom/prénom et nettoyage des numéros
+    // 4. Stratégie avancée : inversion nom/prénom
     try {
       const folderParts = extractNameParts(folderName);
-      
-      // Si on a au moins deux mots, essayer l'inversion
+
       if (folderParts.first && folderParts.second) {
-        // Inverser le nom : "Virginie ABBAS" -> "ABBAS Virginie"
         const invertedName = invertNameOrder(folderName);
         const normalizedInverted = normalizeName(cleanName(invertedName));
-        
-        // Rechercher avec le nom inversé via l'API v2
+
         try {
           const invertedResult = await artisansApi.searchByName(normalizedInverted, { limit: 20 });
           if (invertedResult.data && invertedResult.data.length > 0) {
             for (const candidate of invertedResult.data) {
-              // Nettoyer et normaliser le plain_nom du candidat
               const cleanedPlainNom = cleanName(candidate.plain_nom || '');
               const normalizedCleanedPlainNom = normalizeName(cleanedPlainNom);
-              
-              // Comparer avec le nom inversé nettoyé
+
               if (normalizedCleanedPlainNom === normalizedInverted) {
                 return { artisan: candidate, matchType: 'inverted_exact', reason: 'Match exact avec nom inversé (API v2)' };
               }
-              
-              // Match partiel avec nom inversé
-              if (normalizedInverted.includes(normalizedCleanedPlainNom) || 
+
+              if (normalizedInverted.includes(normalizedCleanedPlainNom) ||
                   normalizedCleanedPlainNom.includes(normalizedInverted)) {
                 return { artisan: candidate, matchType: 'inverted_partial', reason: 'Match partiel avec nom inversé (API v2)' };
               }
             }
           }
-        } catch (error) {
+        } catch {
           // Continuer avec le cache si l'API échoue
         }
 
@@ -557,13 +542,12 @@ async function findMatchingArtisan(folderName, artisansCache = null) {
             if (!a.plain_nom) return false;
             const cleanedPlainNom = cleanName(a.plain_nom);
             const normalizedCleanedPlainNom = normalizeName(cleanedPlainNom);
-            
-            // Comparer avec le nom inversé nettoyé
+
             return normalizedCleanedPlainNom === normalizedInverted ||
                    normalizedInverted.includes(normalizedCleanedPlainNom) ||
                    normalizedCleanedPlainNom.includes(normalizedInverted);
           });
-          
+
           if (match) {
             return { artisan: match, matchType: 'inverted_partial', reason: 'Match avec nom inversé (cache)' };
           }
@@ -571,29 +555,28 @@ async function findMatchingArtisan(folderName, artisansCache = null) {
       }
 
       // 5. Stratégie : nettoyer les numéros et réessayer
-      const cleanedFolderName = cleanName(folderName);
-      if (cleanedFolderName !== folderName) {
-        const normalizedCleaned = normalizeName(cleanedFolderName);
-        
-        // Rechercher avec le nom nettoyé via l'API v2
+      const cleanedFolder = cleanName(folderName);
+      if (cleanedFolder !== folderName) {
+        const normalizedCleaned = normalizeName(cleanedFolder);
+
         try {
           const cleanedResult = await artisansApi.searchByName(normalizedCleaned, { limit: 20 });
           if (cleanedResult.data && cleanedResult.data.length > 0) {
             for (const candidate of cleanedResult.data) {
               const cleanedPlainNom = cleanName(candidate.plain_nom || '');
               const normalizedCleanedPlainNom = normalizeName(cleanedPlainNom);
-              
+
               if (normalizedCleanedPlainNom === normalizedCleaned) {
                 return { artisan: candidate, matchType: 'cleaned_exact', reason: 'Match exact avec nom nettoyé (API v2)' };
               }
-              
-              if (normalizedCleaned.includes(normalizedCleanedPlainNom) || 
+
+              if (normalizedCleaned.includes(normalizedCleanedPlainNom) ||
                   normalizedCleanedPlainNom.includes(normalizedCleaned)) {
                 return { artisan: candidate, matchType: 'cleaned_partial', reason: 'Match partiel avec nom nettoyé (API v2)' };
               }
             }
           }
-        } catch (error) {
+        } catch {
           // Continuer avec le cache
         }
 
@@ -603,43 +586,37 @@ async function findMatchingArtisan(folderName, artisansCache = null) {
             if (!a.plain_nom) return false;
             const cleanedPlainNom = cleanName(a.plain_nom);
             const normalizedCleanedPlainNom = normalizeName(cleanedPlainNom);
-            
+
             return normalizedCleanedPlainNom === normalizedCleaned ||
                    normalizedCleaned.includes(normalizedCleanedPlainNom) ||
                    normalizedCleanedPlainNom.includes(normalizedCleaned);
           });
-          
+
           if (match) {
             return { artisan: match, matchType: 'cleaned_partial', reason: 'Match avec nom nettoyé (cache)' };
           }
         }
       }
-    } catch (error) {
+    } catch {
       // Ignorer les erreurs de stratégie avancée
     }
 
     return { artisan: null, matchType: 'none', reason: 'Aucun match trouvé' };
-  } catch (error) {
+  } catch (error: any) {
     return { artisan: null, matchType: 'none', reason: `Erreur lors de la recherche: ${error.message}` };
   }
 }
 
-// Importer la fonction utilitaire pour télécharger depuis Google Drive
-const { downloadFileFromDrive } = require('../lib/google-drive-utils');
-
 /**
  * Insère un document en base de données en téléchargeant depuis Google Drive
- * et en l'uploadant dans Supabase Storage via l'API v2
  */
-async function insertDocumentToDatabase(artisanId, document, drive) {
+async function insertDocumentToDatabase(artisanId: string, document: any, drive: any) {
   try {
-    // Normaliser le kind : utiliser "a_classe" (avec underscore) pour compatibilité avec la contrainte DB
     let kind = document.kind;
     if (kind === 'à classifier' || kind === 'a classifier') {
-      kind = 'a_classe'; // La DB utilise "a_classe" (avec underscore)
+      kind = 'a_classe';
     }
 
-    // Télécharger le fichier depuis Google Drive
     if (!document.id) {
       throw new Error('ID du fichier Google Drive manquant');
     }
@@ -655,20 +632,18 @@ async function insertDocumentToDatabase(artisanId, document, drive) {
       console.log(`    📤 Upload vers Supabase Storage...`);
     }
 
-    // Upload vers Supabase Storage via l'API v2
     const result = await documentsApi.upload({
       entity_id: artisanId,
       entity_type: 'artisan',
       kind: kind,
       filename: document.name,
       mime_type: document.mimeType || 'application/octet-stream',
-      file_size: document.size || fileContentBase64.length * 3 / 4, // Approximation si size manquant
+      file_size: document.size || fileContentBase64.length * 3 / 4,
       content: fileContentBase64
     });
 
     return { success: true, data: result };
-  } catch (error) {
-    // Améliorer le logging des erreurs pour debug
+  } catch (error: any) {
     const errorDetails = {
       message: error.message,
       code: error.code,
@@ -680,12 +655,11 @@ async function insertDocumentToDatabase(artisanId, document, drive) {
         fileId: document.id
       }
     };
-    
-    // Afficher l'erreur complète en mode debug
+
     if (process.argv.includes('--debug') || process.argv.includes('-v')) {
       console.error('    ❌ Erreur détaillée:', JSON.stringify(errorDetails, null, 2));
     }
-    
+
     return { success: false, error: error.message, details: errorDetails };
   }
 }
@@ -693,13 +667,13 @@ async function insertDocumentToDatabase(artisanId, document, drive) {
 /**
  * Insère tous les documents d'un artisan en base de données
  */
-async function insertArtisanDocuments(artisanId, documents, drive, dryRun = false) {
+async function insertArtisanDocuments(artisanId: string, documents: any[], drive: any, dryRun = false) {
   const results = {
     total: documents.length,
     inserted: 0,
     errors: 0,
     skipped: 0,
-    details: []
+    details: [] as any[]
   };
 
   if (dryRun) {
@@ -709,7 +683,7 @@ async function insertArtisanDocuments(artisanId, documents, drive, dryRun = fals
 
   for (const doc of documents) {
     const result = await insertDocumentToDatabase(artisanId, doc, drive);
-    
+
     if (result.success) {
       results.inserted++;
       results.details.push({
@@ -719,21 +693,19 @@ async function insertArtisanDocuments(artisanId, documents, drive, dryRun = fals
       });
     } else {
       results.errors++;
-      const errorInfo = {
+      const errorInfo: any = {
         filename: doc.name,
         kind: doc.kind,
         success: false,
         error: result.error
       };
-      
-      // Ajouter les détails si disponibles
+
       if (result.details) {
         errorInfo.details = result.details;
       }
-      
+
       results.details.push(errorInfo);
-      
-      // Afficher l'erreur pour les premiers documents (pour debug)
+
       if (results.errors <= 3) {
         console.warn(`      ⚠️ Erreur pour "${doc.name}": ${result.error}`);
       }
@@ -748,7 +720,7 @@ async function insertArtisanDocuments(artisanId, documents, drive, dryRun = fals
  */
 function showHelp() {
   console.log(`
-Usage: npm run drive:match-artisans [options]
+Usage: npm run drive:match-artisans [-- options]
 
 Options:
   --dry-run, -d          Mode simulation (aucune insertion en base)
@@ -757,10 +729,10 @@ Options:
   --help, -h            Afficher cette aide
 
 Exemples:
-  npm run drive:import-documents                  # Extraction + Matching + Classification + Insertion
-  npm run drive:import-documents --dry-run        # Simulation complète
-  npm run drive:import-documents --skip-insert    # Extraction + Matching sans insertion
-  npm run drive:import-documents-artisans --insert-only   # Insertion depuis JSON existant
+  npm run drive:match-artisans                     # Extraction + Matching + Classification + Insertion
+  npm run drive:match-artisans -- --dry-run        # Simulation complète
+  npm run drive:match-artisans -- --skip-insert    # Extraction + Matching sans insertion
+  npm run drive:match-artisans -- --insert-only    # Insertion depuis JSON existant
 `);
 }
 
@@ -768,27 +740,21 @@ Exemples:
  * Fonction principale
  */
 async function main() {
-  // Charger l'API v2 via import() dynamique (compatible tsx v4+)
-  try {
-    const { pathToFileURL } = await import('url');
-    const apiV2Path = pathToFileURL(path.resolve(__dirname, '../../../../src/lib/api/v2/index.ts'));
-    const apiV2 = await import(apiV2Path);
-    artisansApi = apiV2.artisansApi;
-    documentsApi = apiV2.documentsApi;
-  } catch (error) {
-    console.error('❌ Erreur lors du chargement de l\'API v2:', error.message);
-    console.error('   Assurez-vous d\'utiliser tsx pour exécuter ce script (npm run drive:match-artisans)');
+  // Vérifier que les APIs sont chargées
+  if (!artisansApi || !documentsApi) {
+    console.error('❌ Erreur: Les APIs v2 (artisansApi, documentsApi) ne sont pas disponibles.');
+    console.error('   Vérifiez que le module @/lib/api/v2 est correctement importé.');
     process.exit(1);
   }
 
   // Vérifier les arguments de ligne de commande
   const args = process.argv.slice(2);
-  
+
   if (args.includes('--help') || args.includes('-h')) {
     showHelp();
     process.exit(0);
   }
-  
+
   const dryRun = args.includes('--dry-run') || args.includes('-d');
   const skipInsert = args.includes('--skip-insert') || args.includes('-s');
   const insertOnly = args.includes('--insert-only') || args.includes('-i');
@@ -804,9 +770,9 @@ async function main() {
 
   // Vérifier la configuration Supabase pour debug
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
-  const explicitFunctionsUrl = process.env.NEXT_PUBLIC_SUPABASE_FUNCTIONS_URL || 
+  const explicitFunctionsUrl = process.env.NEXT_PUBLIC_SUPABASE_FUNCTIONS_URL ||
                                process.env.SUPABASE_FUNCTIONS_URL;
-  
+
   if (dryRun || process.argv.includes('--debug') || process.argv.includes('-v')) {
     console.log('🔧 Configuration Supabase:');
     if (explicitFunctionsUrl) {
@@ -826,9 +792,9 @@ async function main() {
 
   // Initialiser Google Drive API
   console.log('🔐 Initialisation de l\'authentification Google Drive...');
-  
+
   const credentials = googleDriveConfig.getCredentials();
-  
+
   if (!credentials || !credentials.client_email || !credentials.private_key) {
     console.error('\n❌ Configuration Google Drive incomplète.');
     console.error('   Vérifiez que les variables d\'environnement sont correctement définies dans .env.local');
@@ -836,7 +802,6 @@ async function main() {
     process.exit(1);
   }
 
-  // Créer l'authentification JWT avec la syntaxe correcte (comme dans google-sheets-import-clean-v2.js)
   const auth = new google.auth.JWT({
     email: credentials.client_email,
     key: credentials.private_key,
@@ -848,18 +813,18 @@ async function main() {
 
   try {
     // 1. Extraire les dossiers depuis Google Drive
-    let folderData;
-    let subFolders;
-    
+    let folderData: any;
+    let subFolders: any[];
+
     console.log('📁 Extraction des dossiers d\'artisans depuis Google Drive...\n');
     folderData = await extractFoldersFromDrive(drive);
     subFolders = folderData.subFolders || [];
-    
+
     // Afficher quelques exemples pour confirmer l'utilisation
     if (subFolders.length > 0) {
       console.log(`📋 ${subFolders.length} dossiers à traiter`);
       console.log(`   Exemples de dossiers à matcher:`);
-      subFolders.slice(0, 3).forEach((f, idx) => {
+      subFolders.slice(0, 3).forEach((f: any, idx: number) => {
         console.log(`     ${idx + 1}. "${f.name}" (${f.documentCount || 0} doc(s))`);
       });
       if (subFolders.length > 3) {
@@ -867,41 +832,37 @@ async function main() {
       }
       console.log('');
     }
-    
-    // S'assurer que folderId est disponible (utiliser subFoldersWithDetails si nécessaire)
+
+    // S'assurer que folderId est disponible
     const subFoldersWithDetails = folderData.subFoldersWithDetails || [];
-    const folderIdMap = new Map();
-    subFoldersWithDetails.forEach(f => {
+    const folderIdMap = new Map<string, string>();
+    subFoldersWithDetails.forEach((f: any) => {
       if (f.folderId) {
         folderIdMap.set(f.name, f.folderId);
       }
     });
-    
-    // Enrichir les subFolders avec folderId si manquant
-    subFolders.forEach(folder => {
+
+    subFolders.forEach((folder: any) => {
       if (!folder.folderId && folderIdMap.has(folder.name)) {
         folder.folderId = folderIdMap.get(folder.name);
       }
     });
 
-    // 2. Récupérer tous les artisans via l'API v2 (pour le cache optionnel)
-    // Note: On peut aussi faire des recherches individuelles via l'API v2 sans charger tout
+    // 2. Récupérer tous les artisans via l'API v2
     const artisansCache = await getAllArtisans();
 
     // 3. Faire le matching pour chaque dossier
-    const matches = [];
-    const unmatched = [];
-    
+    const matches: any[] = [];
+    const unmatched: any[] = [];
+
     if (insertOnly) {
       console.log('💾 Mode INSERT ONLY - Insertion des documents déjà matchés...\n');
-      // Charger les matches existants
-      const existingMatchesPath = path.join(__dirname, '../../../data/docs_imports/folder-artisan-matches.json');
+      const existingMatchesPath = path.join(import.meta.dirname, '../../../data/docs_imports/folder-artisan-matches.json');
       if (fs.existsSync(existingMatchesPath)) {
         const existingData = JSON.parse(fs.readFileSync(existingMatchesPath, 'utf8'));
         matches.push(...(existingData.matches || []));
         console.log(`✅ ${matches.length} match(s) chargé(s) depuis le fichier existant\n`);
-        
-        // Insérer les documents pour chaque match chargé
+
         for (let i = 0; i < matches.length; i++) {
           const match = matches[i];
           if (match.artisan && match.documents && match.documents.length > 0) {
@@ -912,15 +873,14 @@ async function main() {
               dryRun
             );
             match.insertResults = insertResults;
-            
+
             if ((i + 1) % 10 === 0) {
               console.log(`  Traité ${i + 1}/${matches.length} artisans...`);
             }
           }
         }
-        
+
         console.log(`✅ Insertion terminée\n`);
-        // Sortir de la fonction après l'insertion
         return;
       } else {
         console.error('❌ Fichier de matches non trouvé. Exécutez d\'abord le matching complet.');
@@ -929,7 +889,8 @@ async function main() {
     } else {
       console.log('🔗 Matching des dossiers avec les artisans...\n');
     }
-    const stats = {
+
+    const stats: Record<string, number> = {
       total: subFolders.length,
       exact: 0,
       partial: 0,
@@ -944,10 +905,9 @@ async function main() {
 
     for (let i = 0; i < subFolders.length; i++) {
       const folder = subFolders[i];
-      // Utiliser l'API v2 pour chaque recherche (centralisé et optimisé)
       const matchResult = await findMatchingArtisan(folder.name, artisansCache);
 
-      const matchInfo = {
+      const matchInfo: any = {
         folderName: folder.name,
         normalizedFolderName: folder.normalizedName,
         folderId: folder.folderId || null,
@@ -963,15 +923,14 @@ async function main() {
           email: matchResult.artisan.email,
           numero_associe: matchResult.artisan.numero_associe
         } : null,
-        documents: null, // Sera rempli si match trouvé
+        documents: null,
         documentsClassification: null
       };
 
       // Si match trouvé, récupérer et classifier les documents
       if (matchResult.artisan) {
-        // Utiliser folderId depuis folder.folderId ou depuis la map créée
         const folderId = folder.folderId || folderIdMap.get(folder.name);
-        
+
         if (folderId) {
           try {
             if (i % 10 === 0 || (i + 1) % 10 === 0) {
@@ -979,15 +938,15 @@ async function main() {
             }
             const documents = await listDocumentsInFolder(drive, folderId);
             const classification = classifyDocuments(documents);
-            
-            matchInfo.folderId = folderId; // S'assurer que folderId est sauvegardé
+
+            matchInfo.folderId = folderId;
             matchInfo.documents = classification.documents;
             matchInfo.documentsClassification = {
               statsByType: classification.statsByType,
               statsByKind: classification.statsByKind,
               total: classification.total
             };
-            
+
             if (classification.total > 0 && (i % 10 === 0 || (i + 1) % 10 === 0)) {
               console.log(`    ✅ ${classification.total} document(s) trouvé(s) et classifié(s)`);
               Object.entries(classification.statsByType).forEach(([type, count]) => {
@@ -1003,31 +962,27 @@ async function main() {
                 drive,
                 dryRun
               );
-              
+
               matchInfo.insertResults = insertResults;
-              
+
               if (insertResults.inserted > 0 || insertResults.errors > 0) {
                 if (i % 10 === 0 || (i + 1) % 10 === 0 || insertResults.errors > 0) {
                   console.log(`    💾 ${insertResults.inserted} document(s) inséré(s) en base${insertResults.errors > 0 ? `, ${insertResults.errors} erreur(s)` : ''}`);
-                  
-                  // Afficher les erreurs détaillées si mode debug
+
                   if (insertResults.errors > 0 && (process.argv.includes('--debug') || process.argv.includes('-v'))) {
                     insertResults.details
-                      .filter(d => !d.success)
+                      .filter((d: any) => !d.success)
                       .slice(0, 3)
-                      .forEach(d => {
+                      .forEach((d: any) => {
                         console.log(`      ❌ "${d.filename}" (${d.kind}): ${d.error}`);
                       });
                   }
                 }
               }
             }
-          } catch (error) {
+          } catch (error: any) {
             console.warn(`    ⚠️ Erreur lors de la récupération des documents pour "${folder.name}": ${error.message}`);
           }
-        } else {
-          // Pas de folderId disponible, on ne peut pas récupérer les documents
-          // (Pas de log pour éviter le spam, mais l'info sera dans le JSON)
         }
       }
 
@@ -1061,8 +1016,8 @@ async function main() {
     };
 
     // 5. Sauvegarder les résultats
-    const outputDir = path.join(__dirname, '../../../data/docs_imports/');
-    
+    const outputDir = path.join(import.meta.dirname, '../../../data/docs_imports/');
+
     if (!fs.existsSync(outputDir)) {
       fs.mkdirSync(outputDir, { recursive: true });
     }
@@ -1076,7 +1031,7 @@ async function main() {
     const csvMatchesPath = path.join(outputDir, 'folder-artisan-matches.csv');
     const csvHeader = 'Nom dossier,Nom normalisé,Type match,ID artisan,Nom,Prénom,Plain nom,Raison sociale,Email,Numéro associé,Nombre documents,Documents classifiés\n';
     const csvRows = matches.map(m => {
-      const docStats = m.documentsClassification ? 
+      const docStats = m.documentsClassification ?
         Object.entries(m.documentsClassification.statsByType)
           .map(([type, count]) => `${getDocumentTypeLabel(type)}:${count}`)
           .join('; ') : 'Aucun';
@@ -1090,13 +1045,13 @@ async function main() {
     fs.writeFileSync(detailedJsonPath, JSON.stringify(outputData, null, 2));
     console.log(`💾 JSON détaillé avec documents sauvegardé dans: ${detailedJsonPath}`);
 
-    // CSV des documents classifiés (un document par ligne)
+    // CSV des documents classifiés
     const documentsCsvPath = path.join(outputDir, 'documents-classified.csv');
     const documentsCsvHeader = 'Nom dossier,ID artisan,Plain nom,Nom fichier,Type document,Label type,Taille,Date création,Date modification,ID fichier Drive\n';
-    const documentsCsvRows = [];
-    matches.forEach(match => {
+    const documentsCsvRows: string[] = [];
+    matches.forEach((match: any) => {
       if (match.documents && match.documents.length > 0) {
-        match.documents.forEach(doc => {
+        match.documents.forEach((doc: any) => {
           documentsCsvRows.push(
             `"${match.folderName}","${match.artisan?.id || ''}","${match.artisan?.plain_nom || ''}","${doc.name}","${doc.type}","${doc.typeLabel}",${doc.size || 0},"${doc.createdTime || ''}","${doc.modifiedTime || ''}","${doc.id}"`
           );
@@ -1109,7 +1064,7 @@ async function main() {
     // CSV des non-matchés
     const csvUnmatchedPath = path.join(outputDir, 'folder-artisan-unmatched.csv');
     const csvUnmatchedHeader = 'Nom dossier,Nom normalisé,Nombre documents\n';
-    const csvUnmatchedRows = unmatched.map(m => 
+    const csvUnmatchedRows = unmatched.map(m =>
       `"${m.folderName}","${m.normalizedFolderName}",${m.documentCount}`
     ).join('\n');
     fs.writeFileSync(csvUnmatchedPath, csvUnmatchedHeader + csvUnmatchedRows);
@@ -1130,14 +1085,14 @@ async function main() {
     console.log(`   - Match nom nettoyé (exact): ${stats.cleaned_exact}`);
     console.log(`   - Match nom nettoyé (partiel): ${stats.cleaned_partial}`);
     console.log(`❌ Non matchés: ${unmatched.length}`);
-    
+
     // Statistiques des documents classifiés
-    const totalDocuments = matches.reduce((sum, m) => sum + (m.documentsClassification?.total || 0), 0);
-    const documentsByType = {};
-    matches.forEach(m => {
+    const totalDocuments = matches.reduce((sum: number, m: any) => sum + (m.documentsClassification?.total || 0), 0);
+    const documentsByType: Record<string, number> = {};
+    matches.forEach((m: any) => {
       if (m.documentsClassification?.statsByType) {
         Object.entries(m.documentsClassification.statsByType).forEach(([type, count]) => {
-          documentsByType[type] = (documentsByType[type] || 0) + count;
+          documentsByType[type] = (documentsByType[type] || 0) + (count as number);
         });
       }
     });
@@ -1150,19 +1105,19 @@ async function main() {
     }
 
     // Statistiques d'insertion
-    const totalInserted = matches.reduce((sum, m) => sum + (m.insertResults?.inserted || 0), 0);
-    const totalInsertErrors = matches.reduce((sum, m) => sum + (m.insertResults?.errors || 0), 0);
-    
+    const totalInserted = matches.reduce((sum: number, m: any) => sum + (m.insertResults?.inserted || 0), 0);
+    const totalInsertErrors = matches.reduce((sum: number, m: any) => sum + (m.insertResults?.errors || 0), 0);
+
     if (!skipInsert && (totalInserted > 0 || totalInsertErrors > 0)) {
       console.log(`\n💾 Documents insérés en base: ${totalInserted} document(s)`);
       if (totalInsertErrors > 0) {
         console.log(`   ⚠️ Erreurs lors de l'insertion: ${totalInsertErrors}`);
       }
     }
-    
+
     if (unmatched.length > 0) {
       console.log(`\nPremiers 10 dossiers non matchés:`);
-      unmatched.slice(0, 10).forEach((m, i) => {
+      unmatched.slice(0, 10).forEach((m: any, i: number) => {
         console.log(`  ${i + 1}. ${m.folderName}`);
       });
       if (unmatched.length > 10) {
@@ -1184,12 +1139,11 @@ async function main() {
   }
 }
 
-// Exécuter si appelé directement
-if (require.main === module) {
-  main().catch(console.error);
-}
+// Exécuter
+main().catch(console.error);
 
-module.exports = {
+// Exports pour réutilisation
+export {
   normalizeName,
   cleanName,
   invertNameOrder,
@@ -1205,4 +1159,3 @@ module.exports = {
   insertDocumentToDatabase,
   insertArtisanDocuments
 };
-

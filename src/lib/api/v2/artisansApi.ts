@@ -678,6 +678,15 @@ export const artisansApi = {
       if (byEmail) existingId = byEmail.id;
     }
 
+    if (!existingId && data.telephone) {
+      const { data: byPhone } = await client
+        .from('artisans')
+        .select('id')
+        .eq('telephone', data.telephone)
+        .maybeSingle();
+      if (byPhone) existingId = byPhone.id;
+    }
+
     let result;
     let error;
 
@@ -920,7 +929,7 @@ export const artisansApi = {
     let query = client
       .from("artisans")
       .select("*", { count: "exact" })
-      .eq("plain_nom", searchTerm) // Recherche exacte d'abord
+      .ilike("plain_nom", `${searchTerm}%`) // Recherche insensible à la casse, préfixe
       .order("created_at", { ascending: false });
 
     // Appliquer les autres filtres

@@ -92,11 +92,13 @@ const GESTIONNAIRE_CODE_MAP = {
   "metehan": "metehan",
   "badr": "badr",
   "clement": "clement",
+  "clément": "clement",
   "dimitri": "dimitri",
   "andrea": "andrea",
   "lucien": "soufian",
   "olivier": "yazid",
   "adam": "adam",
+  "admin": "admin",
 
 
   // === VALEURS ABERRANTES (ignorer) ===

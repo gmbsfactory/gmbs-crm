@@ -72,6 +72,7 @@ const { DatabaseManager } = require('./database/database-manager-v2');
 const { DataMapper } = require('../../data-processing/data-mapper');
 const { dataValidator } = require('../../data-processing/data-validator');
 const { googleSheetsConfig } = require('./config/google-sheets-config');
+const { ColumnMapper } = require('../../data-processing/column-mapper');
 const { ReportGenerator } = require('./reporting/report-generator');
 
 class GoogleSheetsImportCleanV2 {
@@ -83,7 +84,7 @@ class GoogleSheetsImportCleanV2 {
       dryRun: options.dryRun || false,
       verbose: options.verbose || false,
       limit: options.limit || null, // Limite pour debug
-      batchSize: options.batchSize || 100,
+      batchSize: options.batchSize || 20,
       credentialsPath: options.credentialsPath || './credentials.json',
       spreadsheetId: options.spreadsheetId || null,
       upsert: options.upsert || false,
@@ -382,6 +383,7 @@ class GoogleSheetsImportCleanV2 {
       // Conversion des données en objets
       const validArtisans = [];
       const invalidArtisans = [];
+      const artisanWarnings = [];
 
       for (let i = 0; i < dataRows.length; i++) {
         const row = dataRows[i];
@@ -415,6 +417,15 @@ class GoogleSheetsImportCleanV2 {
               console.log(`   Email: ${mappedArtisan.email || '(vide)'}`);
               console.log(`   Téléphone: ${mappedArtisan.telephone || '(vide)'}`);
             }
+            // Collecter les warnings non-bloquants (ex: statut_id manquant)
+            if (mappedArtisan._warnings && mappedArtisan._warnings.length > 0) {
+              artisanWarnings.push(...mappedArtisan._warnings.map(w => ({
+                ...w,
+                row: i + 2,
+                identifier: mappedArtisan.plain_nom || `${mappedArtisan.prenom || ''} ${mappedArtisan.nom || ''}`.trim() || `ligne ${i + 2}`
+              })));
+            }
+            delete mappedArtisan._warnings;
             validArtisans.push(mappedArtisan);
             this.results.artisans.valid++;
           } else {
@@ -455,7 +466,7 @@ class GoogleSheetsImportCleanV2 {
         valid: this.results.artisans.valid,
         invalid: this.results.artisans.invalid,
         errors: invalidArtisans,
-        warnings: []
+        warnings: artisanWarnings
       });
 
       // Insertion en base de données
@@ -595,28 +606,30 @@ class GoogleSheetsImportCleanV2 {
         }
       }
 
-      // DEBUG: Afficher les headers pour voir le nom exact de la colonne Statut
+      // DEBUG: Afficher les headers et les colonnes importantes
       if (this.options.verbose) {
         console.log(`\n📋 Headers bruts depuis Google Sheets (${headers.length} colonnes):`);
         headers.forEach((header, index) => {
-          const hasStatut = header && header.toLowerCase().includes('statut');
-          const marker = hasStatut ? ' 👈 STATUT' : '';
-          console.log(`   [${index}] "${header}"${marker}`);
+          console.log(`   [${index}] "${header}"`);
         });
 
-        // Chercher spécifiquement la colonne Statut
-        const statutHeaderIndex = headers.findIndex(h => h && h.toLowerCase().includes('statut'));
-        if (statutHeaderIndex >= 0) {
-          console.log(`\n✅ Colonne Statut trouvée à l'index ${statutHeaderIndex}: "${headers[statutHeaderIndex]}"`);
-          // Afficher quelques valeurs de cette colonne
-          console.log(`   Valeurs de la colonne Statut (5 premières lignes):`);
-          dataRows.slice(0, 5).forEach((row, i) => {
-            const value = row[statutHeaderIndex] || '(vide)';
-            console.log(`     Ligne ${i + 2}: "${value}"`);
-          });
-        } else {
-          console.log(`\n❌ Aucune colonne contenant "statut" trouvée dans les headers !`);
-        }
+        // Chercher les colonnes importantes (statut, date, etc.)
+        const importantColumns = ['statut', 'date', 'artisan', 'client'];
+        console.log(`\n🔍 Colonnes importantes détectées:`);
+        importantColumns.forEach(colKey => {
+          const result = googleSheetsConfig.constructor.findColumnIndex(headers, colKey);
+          if (result) {
+            console.log(`   ✅ ${colKey}: index ${result.index} ("${result.headerName}")`);
+            // Afficher quelques valeurs
+            console.log(`      Valeurs (5 premières lignes):`);
+            dataRows.slice(0, 5).forEach((row, i) => {
+              const value = row[result.index] || '(vide)';
+              console.log(`        Ligne ${i + 2}: "${value}"`);
+            });
+          } else {
+            console.log(`   ❌ ${colKey}: aucune colonne trouvée`);
+          }
+        });
       }
 
       // Appliquer la limite si spécifiée (pour debug)
@@ -673,20 +686,22 @@ class GoogleSheetsImportCleanV2 {
           interventionObj[header] = row[index] || '';
         });
 
+        // ✨ Normaliser l'objet avec le ColumnMapper (remplace les noms de colonnes variables par des clés standardisées)
+        const normalizedObj = ColumnMapper.normalizeInterventionObject(interventionObj, headers);
+
         // Filtrer par période si les options sont définies
         if (this.options.dateStart || this.options.dateEnd) {
-          // Chercher la date dans plusieurs colonnes possibles (FErn est le nom utilisé dans certains sheets)
-          const dateValue = interventionObj["745"] || interventionObj["FErn"] || interventionObj["Date "] || interventionObj["Date"] || interventionObj["Date d'intervention"];
+          // Utiliser le ColumnMapper pour extraire la date de manière flexible
+          const dateValue = ColumnMapper.extractColumnValue(row, headers, 'date');
           if (!this.isDateInRange(dateValue, this.options.dateStart, this.options.dateEnd)) {
-            // console.log(`   ⚠️  Intervention à la ligne ${i} hors période définie, elle sera ignorée (date trouvée: "${dateValue}")`);
             // Ignorer cette intervention (ne pas compter comme traitée)
             continue;
           }
         }
 
         try {
-          // Mapper les données avec le DataMapper
-          const mappedIntervention = await this.dataMapper.mapInterventionFromCSV(interventionObj, this.options.verbose, i);
+          // Mapper les données avec le DataMapper (reçoit l'objet normalisé)
+          const mappedIntervention = await this.dataMapper.mapInterventionFromCSV(normalizedObj, this.options.verbose, i);
 
           if (mappedIntervention && !mappedIntervention._invalid) {
             // Extraire les warnings non-bloquants pour le rapport
@@ -781,14 +796,15 @@ class GoogleSheetsImportCleanV2 {
         await this.importInterventions();
       }
 
-      // Génération du rapport
-      await this.generateReport();
-
       console.log('✅ Import terminé avec succès!');
 
     } catch (error) {
       console.error('❌ Erreur lors de l\'import:', error.message);
       throw error;
+      
+    } finally {
+         // Génération du rapport
+      await this.generateReport();
     }
   }
 
