@@ -88,7 +88,7 @@ class EnumResolver {
       }
       const originalName = name;
       name = normalizedName;
-      console.log(`🔄 Agence normalisée: "${originalName}" → "${name}"`);
+      // console.log(`🔄 Agence normalisée: "${originalName}" → "${name}"`);
     }
 
     if (this.cache.agencies.has(name)) return this.cache.agencies.get(name);
@@ -99,7 +99,7 @@ class EnumResolver {
     }
 
     this.cache.agencies.set(name, data.id);
-    console.log(`✅ Agence trouvée: ${name} (ID: ${data.id})`);
+    // console.log(`✅ Agence trouvée: ${name} (ID: ${data.id})`);
     return data.id;
   }
 
@@ -117,7 +117,7 @@ class EnumResolver {
     }
 
     this.cache.users.set(name, data.id);
-    console.log(`✅ Utilisateur trouvé: ${name} (ID: ${data.id})`);
+    // console.log(`✅ Utilisateur trouvé: ${name} (ID: ${data.id})`);
     return data.id;
   }
 
@@ -161,7 +161,7 @@ class EnumResolver {
       }
 
       this.cache.users.set(username, data.id);
-      console.log(`✅ Gestionnaire normalisé: "${gestionnaireCode}" → ${username} (ID: ${data.id})`);
+      // console.log(`✅ Gestionnaire normalisé: "${gestionnaireCode}" → ${username} (ID: ${data.id})`);
       return data.id;
     } catch (error) {
       console.error(`Erreur lors de la résolution du gestionnaire "${gestionnaireCode}" → ${username}:`, error);
@@ -194,7 +194,7 @@ class EnumResolver {
     }
 
     this.cache.metiers.set(normalized, data.id);
-    console.log(`✅ Métier trouvé: ${name} (normalisé: ${normalized}) (ID: ${data.id})`);
+    // console.log(`✅ Métier trouvé: ${name} (normalisé: ${normalized}) (ID: ${data.id})`);
     return data.id;
   }
 
@@ -212,7 +212,7 @@ class EnumResolver {
 
     if (!this.cache.zones) this.cache.zones = new Map();
     this.cache.zones.set(normalized, data.id);
-    console.log(`✅ Zone trouvée: ${name} (normalisé: ${normalized}) (ID: ${data.id})`);
+    // console.log(`✅ Zone trouvée: ${name} (normalisé: ${normalized}) (ID: ${data.id})`);
     return data.id;
   }
 
@@ -244,7 +244,7 @@ class EnumResolver {
     }
 
     this.cache.artisanStatuses.set(canonicalCode, data.id);
-    console.log(`✅ Statut artisan: "${statusLabel}" → ${canonicalCode} (ID: ${data.id})`);
+    // console.log(`✅ Statut artisan: "${statusLabel}" → ${canonicalCode} (ID: ${data.id})`);
     return data.id;
   }
 
@@ -260,7 +260,7 @@ class EnumResolver {
     }
 
     this.cache.artisanStatuses.set(name, data.id);
-    console.log(`✅ Statut artisan trouvé: ${name} (ID: ${data.id})`);
+    // console.log(`✅ Statut artisan trouvé: ${name} (ID: ${data.id})`);
     return data.id;
   }
 
@@ -279,7 +279,7 @@ class EnumResolver {
     }
 
     this.cache.interventionStatuses.set(name, data.id);
-    console.log(`✅ Statut intervention trouvé: ${name} (ID: ${data.id})`);
+    // console.log(`✅ Statut intervention trouvé: ${name} (ID: ${data.id})`);
     return data.id;
   }
 
@@ -312,7 +312,7 @@ class EnumResolver {
     }
 
     this.cache.interventionStatuses.set(canonicalCode, data.id);
-    console.log(`✅ Statut intervention: "${statusLabel}" → ${canonicalCode} (ID: ${data.id})`);
+    // console.log(`✅ Statut intervention: "${statusLabel}" → ${canonicalCode} (ID: ${data.id})`);
     return data.id;
   }
 

@@ -294,6 +294,10 @@ class DatabaseManager {
     const results = {
       success: 0,
       errors: 0,
+      created: 0,
+      updated: 0,
+      skippedNoName: 0,
+      deduplication: { siret: 0, email: 0, telephone: 0 },
       details: [],
       withoutName: [], // Liste des artisans sans nom
     };
@@ -314,6 +318,7 @@ class DatabaseManager {
           raison_sociale: artisan.raison_sociale || '',
         });
         results.errors++;
+        results.skippedNoName++;
         results.details.push({
           index: currentGlobalIndex,
           artisan: artisan,
@@ -322,7 +327,7 @@ class DatabaseManager {
           withoutName: true,
         });
         this.log(
-          `❌ Artisan ${currentGlobalIndex + 1} rejeté (sans nom): ${artisan.prenom || 'N/A'} (tél: ${artisan.telephone || 'N/A'})`,
+          `⚠️ Artisan ${currentGlobalIndex + 1} rejeté (sans nom): ${artisan.prenom || 'N/A'} (tél: ${artisan.telephone || 'N/A'})`,
           "warning"
         );
         continue; // Ne pas insérer cet artisan
@@ -448,13 +453,32 @@ class DatabaseManager {
           }
 
           results.success++;
+
+          // Track created vs updated + deduplication reason
+          const operation = upsertedArtisan._operation || 'created';
+          const matchedBy = upsertedArtisan._matchedBy;
+          if (operation === 'created') {
+            results.created++;
+          } else {
+            results.updated++;
+            if (matchedBy) {
+              results.deduplication[matchedBy] = (results.deduplication[matchedBy] || 0) + 1;
+            }
+          }
+
           results.details.push({
             index: currentGlobalIndex,
             artisan: upsertedArtisan,
             success: true,
+            operation,
+            matchedBy,
           });
+
+          const opLabel = operation === 'updated'
+            ? `🔄 (mis à jour via ${matchedBy || '?'})`
+            : '🆕 (créé)';
           this.log(
-            `✅ Artisan ${currentGlobalIndex + 1}: ${artisan.prenom} ${artisan.nom}`,
+            `✅ Artisan ${currentGlobalIndex + 1}: ${artisan.prenom} ${artisan.nom} ${opLabel}`,
             "verbose"
           );
         } catch (error) {
@@ -483,6 +507,10 @@ class DatabaseManager {
     const results = {
       success: 0,
       errors: 0,
+      created: 0,
+      updated: 0,
+      skippedValidation: 0,
+      invalidDates: 0,
       details: [],
     };
 
@@ -517,6 +545,7 @@ class DatabaseManager {
           );
 
           results.errors++;
+          results.skippedValidation++;
           results.details.push({
             index: currentGlobalIndex,
             intervention: intervention,
@@ -595,6 +624,7 @@ class DatabaseManager {
           if (!isDateValid) {
             // Utiliser la date du jour si la date du CSV n'est pas valide
             intervention.date = new Date().toISOString();
+            results.invalidDates++;
             this.log(`  ⚠️ Date invalide, utilisation de la date du jour`, "verbose");
           }
 
@@ -656,15 +686,29 @@ class DatabaseManager {
           }
 
           results.success++;
+
+          // Track created vs updated
+          const opType = upsertedIntervention._operation || 'created';
+          if (opType === 'created') {
+            results.created++;
+          } else {
+            results.updated++;
+          }
+
           results.details.push({
             index: currentGlobalIndex,
             intervention: upsertedIntervention,
             success: true,
+            operation: opType,
           });
+
+          const opLabel = opType === 'updated'
+            ? `🔄 (mis à jour via id_inter)`
+            : '🆕 (créée)';
           this.log(
             `✅ Intervention ${currentGlobalIndex + 1}: ${
               intervention.id_inter
-            }`,
+            } ${opLabel}`,
             "verbose"
           );
         } catch (error) {
@@ -693,9 +737,17 @@ class DatabaseManager {
   async insertArtisans(artisans) {
     this.log(`📥 Insertion de ${artisans.length} artisans...`, "info");
 
+    // Track distinct DB records touched (detects CSV duplicates hitting the same record)
+    const touchedIds = new Set();
+
     const results = {
       success: 0,
       errors: 0,
+      created: 0,
+      updated: 0,
+      skippedNoName: 0,
+      csvDuplicates: 0, // Lines that updated an already-touched record in this run
+      deduplication: { siret: 0, email: 0, telephone: 0 },
       details: [],
       withoutName: [], // Liste consolidée des artisans sans nom
     };
@@ -707,27 +759,62 @@ class DatabaseManager {
 
       results.success += batchResults.success;
       results.errors += batchResults.errors;
+      results.created += batchResults.created;
+      results.updated += batchResults.updated;
+      results.skippedNoName += batchResults.skippedNoName;
+      results.deduplication.siret += batchResults.deduplication.siret;
+      results.deduplication.email += batchResults.deduplication.email;
+      results.deduplication.telephone += batchResults.deduplication.telephone;
       results.details.push(...batchResults.details);
       results.withoutName.push(...(batchResults.withoutName || []));
+
+      // Detect CSV duplicates (multiple lines hitting the same DB record)
+      for (const detail of batchResults.details) {
+        if (detail.success && detail.artisan?.id) {
+          if (touchedIds.has(detail.artisan.id)) {
+            results.csvDuplicates++;
+          }
+          touchedIds.add(detail.artisan.id);
+        }
+      }
 
       this.log(
         `📊 Lot ${Math.floor(i / this.options.batchSize) + 1}: ${
           batchResults.success
-        } succès, ${batchResults.errors} erreurs`,
+        } succès (${batchResults.created} créés, ${batchResults.updated} mis à jour), ${batchResults.errors} erreurs`,
         "info"
       );
     }
 
-    // Afficher le rapport des artisans sans nom
-    if (results.withoutName.length > 0) {
-      this.log(
-        `⚠️ ${results.withoutName.length} artisan(s) rejeté(s) car sans nom`,
-        "warning"
-      );
+    // Compute unique DB records touched
+    const uniqueRecords = touchedIds.size;
+
+    // Afficher le rapport détaillé
+    this.log(`\n📊 Bilan artisans:`, "info");
+    this.log(`   📋 Lignes CSV traitées: ${artisans.length}`, "info");
+    this.log(`   🆕 Créés (nouveaux):    ${results.created}`, "info");
+    this.log(`   🔄 Mis à jour:          ${results.updated}`, "info");
+    if (results.updated > 0) {
+      const d = results.deduplication;
+      this.log(`      ↳ par SIRET:     ${d.siret}`, "info");
+      this.log(`      ↳ par email:     ${d.email}`, "info");
+      this.log(`      ↳ par téléphone: ${d.telephone}`, "info");
+    }
+    if (results.csvDuplicates > 0) {
+      this.log(`   ⚠️  Doublons CSV:       ${results.csvDuplicates} lignes ont écrasé un artisan déjà traité dans ce run`, "warning");
+    }
+    this.log(`   📊 Records uniques en DB: ${uniqueRecords}`, "info");
+    if (results.skippedNoName > 0) {
+      this.log(`   ⛔ Rejetés (sans nom): ${results.skippedNoName}`, "warning");
+    }
+    if (results.errors - results.skippedNoName > 0) {
+      this.log(`   ❌ Autres erreurs:     ${results.errors - results.skippedNoName}`, "error");
     }
 
+    results.uniqueRecords = uniqueRecords;
+
     this.log(
-      `✅ Insertion artisans terminée: ${results.success} succès, ${results.errors} erreurs`,
+      `✅ Insertion artisans terminée: ${results.success} opérations (${results.created} créés + ${results.updated} mis à jour), ${uniqueRecords} records uniques en DB, ${results.errors} erreurs`,
       "success"
     );
     return results;
@@ -739,9 +826,17 @@ class DatabaseManager {
       "info"
     );
 
+    // Track distinct DB records touched (detects CSV duplicates)
+    const touchedIds = new Set();
+
     const results = {
       success: 0,
       errors: 0,
+      created: 0,
+      updated: 0,
+      skippedValidation: 0,
+      invalidDates: 0,
+      csvDuplicates: 0,
       details: [],
     };
 
@@ -752,18 +847,55 @@ class DatabaseManager {
 
       results.success += batchResults.success;
       results.errors += batchResults.errors;
+      results.created += batchResults.created;
+      results.updated += batchResults.updated;
+      results.skippedValidation += batchResults.skippedValidation;
+      results.invalidDates += batchResults.invalidDates;
       results.details.push(...batchResults.details);
+
+      // Detect CSV duplicates
+      for (const detail of batchResults.details) {
+        if (detail.success && detail.intervention?.id) {
+          if (touchedIds.has(detail.intervention.id)) {
+            results.csvDuplicates++;
+          }
+          touchedIds.add(detail.intervention.id);
+        }
+      }
 
       this.log(
         `📊 Lot ${Math.floor(i / this.options.batchSize) + 1}: ${
           batchResults.success
-        } succès, ${batchResults.errors} erreurs`,
+        } succès (${batchResults.created} créées, ${batchResults.updated} mises à jour), ${batchResults.errors} erreurs`,
         "info"
       );
     }
 
+    const uniqueRecords = touchedIds.size;
+
+    // Afficher le rapport détaillé
+    this.log(`\n📊 Bilan interventions:`, "info");
+    this.log(`   📋 Lignes CSV traitées:  ${interventions.length}`, "info");
+    this.log(`   🆕 Créées (nouvelles):   ${results.created}`, "info");
+    this.log(`   🔄 Mises à jour:         ${results.updated}`, "info");
+    if (results.csvDuplicates > 0) {
+      this.log(`   ⚠️  Doublons CSV:        ${results.csvDuplicates} lignes ont écrasé une intervention déjà traitée`, "warning");
+    }
+    this.log(`   📊 Records uniques en DB: ${uniqueRecords}`, "info");
+    if (results.skippedValidation > 0) {
+      this.log(`   ⛔ Rejetées (validation): ${results.skippedValidation}`, "warning");
+    }
+    if (results.invalidDates > 0) {
+      this.log(`   📅 Dates invalides corrigées: ${results.invalidDates}`, "warning");
+    }
+    if (results.errors - results.skippedValidation > 0) {
+      this.log(`   ❌ Autres erreurs:        ${results.errors - results.skippedValidation}`, "error");
+    }
+
+    results.uniqueRecords = uniqueRecords;
+
     this.log(
-      `✅ Insertion interventions terminée: ${results.success} succès, ${results.errors} erreurs`,
+      `✅ Insertion interventions terminée: ${results.success} opérations (${results.created} créées + ${results.updated} mises à jour), ${uniqueRecords} records uniques en DB, ${results.errors} erreurs`,
       "success"
     );
     return results;

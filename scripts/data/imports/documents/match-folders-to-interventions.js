@@ -834,9 +834,9 @@ Exemples:
   console.log('📌 Note: Tous les documents seront classifiés avec kind = "a_classe"\n');
 
   try {
-    // Initialiser Google Drive API (nécessaire pour extraction et insertion de documents)
+    // Initialiser Google Drive API (nécessaire pour extraction ET matching)
     let drive = null;
-    if (!skipInsert && !dryRun) {
+    if (!insertOnly) {
       console.log('🔐 Initialisation de l\'authentification Google Drive...');
       
       const credentials = googleDriveConfig.getCredentials();

@@ -24,7 +24,7 @@ class EntityFinder {
       if (tenantInfo.email) {
         const existingByEmail = await tenantsApi.searchByEmail(tenantInfo.email);
         if (existingByEmail && existingByEmail.length > 0) {
-          console.log(`✅ Tenant trouvé par email: ${tenantInfo.email} (ID: ${existingByEmail[0].id})`);
+          // console.log(`✅ Tenant trouvé par email: ${tenantInfo.email} (ID: ${existingByEmail[0].id})`);
           return existingByEmail[0].id;
         }
       }
@@ -32,7 +32,7 @@ class EntityFinder {
       if (tenantInfo.telephone) {
         const existingByPhone = await tenantsApi.searchByPhone(tenantInfo.telephone);
         if (existingByPhone && existingByPhone.length > 0) {
-          console.log(`✅ Tenant trouvé par téléphone: ${tenantInfo.telephone} (ID: ${existingByPhone[0].id})`);
+          // console.log(`✅ Tenant trouvé par téléphone: ${tenantInfo.telephone} (ID: ${existingByPhone[0].id})`);
           return existingByPhone[0].id;
         }
       }
@@ -47,7 +47,7 @@ class EntityFinder {
 
       const created = await tenantsApi.create(tenantData);
       const name = [tenantInfo.firstname, tenantInfo.lastname].filter(Boolean).join(' ') || 'Sans nom';
-      console.log(`🆕 Tenant créé: ${name} (ID: ${created.id})`);
+      // console.log(`🆕 Tenant créé: ${name} (ID: ${created.id})`);
       return created.id;
     } catch (error) {
       console.error('Erreur lors de la recherche/création du tenant:', error);
@@ -66,7 +66,7 @@ class EntityFinder {
     try {
       const existingByPhone = await ownersApi.searchByPhone(ownerInfo.telephone);
       if (existingByPhone && existingByPhone.length > 0) {
-        console.log(`✅ Owner trouvé par téléphone: ${ownerInfo.telephone} (ID: ${existingByPhone[0].id})`);
+        // console.log(`✅ Owner trouvé par téléphone: ${ownerInfo.telephone} (ID: ${existingByPhone[0].id})`);
         return existingByPhone[0].id;
       }
 
@@ -78,7 +78,7 @@ class EntityFinder {
 
       const created = await ownersApi.create(ownerData);
       const name = [ownerInfo.firstname, ownerInfo.lastname].filter(Boolean).join(' ') || 'Sans nom';
-      console.log(`🆕 Owner créé: ${name} (ID: ${created.id})`);
+      // console.log(`🆕 Owner créé: ${name} (ID: ${created.id})`);
       return created.id;
     } catch (error) {
       console.error('Erreur lors de la recherche/création du owner:', error);
@@ -152,7 +152,7 @@ class EntityFinder {
 
         if (found && bestScore >= 60) {
           if (bestScore < 100) {
-            console.log(`✅ [ARTISAN-SST] Trouvé (score: ${bestScore.toFixed(0)}): ${found.prenom} ${found.nom} (ID: ${found.id})`);
+            // console.log(`✅ [ARTISAN-SST] Trouvé (score: ${bestScore.toFixed(0)}): ${found.prenom} ${found.nom} (ID: ${found.id})`);
           }
           return found.id;
         }
@@ -180,7 +180,7 @@ class EntityFinder {
                       break;
                     }
                   }
-                  console.log(`✅ [ARTISAN-SST] Trouvé (composite "${cleanPart}"): ${found.prenom} ${found.nom} (ID: ${found.id})`);
+                  // console.log(`✅ [ARTISAN-SST] Trouvé (composite "${cleanPart}"): ${found.prenom} ${found.nom} (ID: ${found.id})`);
                   return found.id;
                 }
               } catch (searchError) {

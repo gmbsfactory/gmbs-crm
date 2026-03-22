@@ -470,9 +470,10 @@ class GoogleSheetsImportCleanV2 {
       });
 
       // Insertion en base de données
+      let insertResults = null;
       if (validArtisans.length > 0) {
         console.log(`\n💾 Insertion de ${validArtisans.length} artisans en base de données...`);
-        const insertResults = await this.databaseManager.insertArtisans(validArtisans);
+        insertResults = await this.databaseManager.insertArtisans(validArtisans);
         this.results.artisans.inserted += insertResults.success;
         this.results.artisans.errors += insertResults.errors;
         // Stocker les artisans sans nom détectés (rejetés)
@@ -509,11 +510,19 @@ class GoogleSheetsImportCleanV2 {
         }
       }
 
-      console.log(`\n✅ Artisans importés: ${this.results.artisans.inserted} succès, ${this.results.artisans.errors} erreurs`);
+      // Afficher le résumé détaillé
+      const created = insertResults?.created || 0;
+      const updated = insertResults?.updated || 0;
+      const skippedNoName = insertResults?.skippedNoName || 0;
+      console.log(`\n✅ Artisans importés: ${this.results.artisans.inserted} succès (${created} créés, ${updated} mis à jour), ${this.results.artisans.errors} erreurs${skippedNoName > 0 ? ` (dont ${skippedNoName} sans nom)` : ''}`);
 
       return {
         success: this.results.artisans.inserted,
         errors: this.results.artisans.errors,
+        created,
+        updated,
+        skippedNoName,
+        deduplication: insertResults?.deduplication || { siret: 0, email: 0, telephone: 0 },
         invalid: invalidArtisans
       };
 
@@ -644,6 +653,7 @@ class GoogleSheetsImportCleanV2 {
       const validInterventions = [];
       const invalidInterventions = [];
       const interventionWarnings = [];
+      let filteredByDateCount = 0;
 
       // Afficher le filtre de date si activé
       if (this.options.dateStart || this.options.dateEnd) {
@@ -694,7 +704,7 @@ class GoogleSheetsImportCleanV2 {
           // Utiliser le ColumnMapper pour extraire la date de manière flexible
           const dateValue = ColumnMapper.extractColumnValue(row, headers, 'date');
           if (!this.isDateInRange(dateValue, this.options.dateStart, this.options.dateEnd)) {
-            // Ignorer cette intervention (ne pas compter comme traitée)
+            filteredByDateCount++;
             continue;
           }
         }
@@ -733,9 +743,14 @@ class GoogleSheetsImportCleanV2 {
         } catch (error) {
           invalidInterventions.push({ row: i + dataRowOffset, error: error.message });
           this.results.interventions.invalid++;
+          console.error(`❌ Erreur mapping intervention ligne ${i + dataRowOffset}: ${error.message}`);
         }
 
         this.results.interventions.processed++;
+      }
+
+      if (filteredByDateCount > 0) {
+        console.log(`📅 Filtre période: ${filteredByDateCount} lignes exclues (hors plage ${this.options.dateStart || '∞'} → ${this.options.dateEnd || '∞'})`);
       }
 
       // Alimenter le reportGenerator avec les résultats du mapping
@@ -743,13 +758,15 @@ class GoogleSheetsImportCleanV2 {
         processed: this.results.interventions.processed,
         valid: this.results.interventions.valid,
         invalid: this.results.interventions.invalid,
+        filteredByDate: filteredByDateCount,
         errors: invalidInterventions,
         warnings: interventionWarnings
       });
 
       // Insertion en base de données
+      let insertResults = null;
       if (validInterventions.length > 0) {
-        const insertResults = await this.databaseManager.insertInterventions(validInterventions);
+        insertResults = await this.databaseManager.insertInterventions(validInterventions);
         this.results.interventions.inserted += insertResults.success;
         this.results.interventions.errors += insertResults.errors;
 
@@ -757,11 +774,20 @@ class GoogleSheetsImportCleanV2 {
         this.reportGenerator.collectInsertionResults({ interventions: insertResults });
       }
 
-      console.log(`✅ Interventions importées: ${this.results.interventions.inserted} succès, ${this.results.interventions.errors} erreurs`);
+      const created = insertResults?.created || 0;
+      const updated = insertResults?.updated || 0;
+      const invalidDates = insertResults?.invalidDates || 0;
+      console.log(`✅ Interventions importées: ${this.results.interventions.inserted} succès (${created} créées, ${updated} mises à jour), ${this.results.interventions.errors} erreurs${invalidDates > 0 ? ` (${invalidDates} dates corrigées)` : ''}`);
 
       return {
         success: this.results.interventions.inserted,
         errors: this.results.interventions.errors,
+        created,
+        updated,
+        invalidDates,
+        filteredByDate: filteredByDateCount,
+        csvDuplicates: insertResults?.csvDuplicates || 0,
+        uniqueRecords: insertResults?.uniqueRecords || 0,
         invalid: invalidInterventions
       };
 

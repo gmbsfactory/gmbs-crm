@@ -107,3 +107,7 @@ exports/*.csv
 
 # Test coverage
 /coverage
+
+supabase/snippets/
+scripts/geocode-failed-artisans.txt
+scripts/data/docs_imports/

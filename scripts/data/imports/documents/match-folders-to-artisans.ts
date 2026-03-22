@@ -21,7 +21,8 @@ dotenv.config({ path: envFile });
 console.log(`📁 Variables chargées depuis ${envFile}`);
 
 // API v2 chargée dynamiquement (après dotenv) pour que les env vars soient disponibles
-const { artisansApi, documentsApi } = await import('@/lib/api/v2');
+// Note: using require() instead of top-level await to support CJS output format
+const { artisansApi, documentsApi } = require('@/lib/api/v2');
 
 // Importer le module de classification des documents
 // @ts-ignore - JS module without types
@@ -268,7 +269,7 @@ async function extractFoldersFromDrive(drive: any) {
     };
 
     // 5. Sauvegarder dans le fichier JSON
-    const outputDir = path.join(import.meta.dirname, '../../../data/docs_imports/');
+    const outputDir = path.join(__dirname, '../../../data/docs_imports/');
     if (!fs.existsSync(outputDir)) {
       fs.mkdirSync(outputDir, { recursive: true });
     }
@@ -857,7 +858,7 @@ async function main() {
 
     if (insertOnly) {
       console.log('💾 Mode INSERT ONLY - Insertion des documents déjà matchés...\n');
-      const existingMatchesPath = path.join(import.meta.dirname, '../../../data/docs_imports/folder-artisan-matches.json');
+      const existingMatchesPath = path.join(__dirname, '../../../data/docs_imports/folder-artisan-matches.json');
       if (fs.existsSync(existingMatchesPath)) {
         const existingData = JSON.parse(fs.readFileSync(existingMatchesPath, 'utf8'));
         matches.push(...(existingData.matches || []));
@@ -1016,7 +1017,7 @@ async function main() {
     };
 
     // 5. Sauvegarder les résultats
-    const outputDir = path.join(import.meta.dirname, '../../../data/docs_imports/');
+    const outputDir = path.join(__dirname, '../../../data/docs_imports/');
 
     if (!fs.existsSync(outputDir)) {
       fs.mkdirSync(outputDir, { recursive: true });

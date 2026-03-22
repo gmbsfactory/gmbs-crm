@@ -16,8 +16,7 @@ async function mapInterventionFromCSV(csvRow, verbose = false, lineNumber = null
 
   const hasData = Object.values(csvRow).some((val) => val && String(val).trim() !== '');
   if (!hasData) {
-    if (verbose) console.log('⚠️ Ligne vide ignorée');
-    return null;
+    return { _invalid: true, reason: 'Ligne vide (toutes les cellules sont vides)', idInter: 'N/A' };
   }
 
   const hasEssentialData =
@@ -30,8 +29,7 @@ async function mapInterventionFromCSV(csvRow, verbose = false, lineNumber = null
     (csvRow['Artisan'] && String(csvRow['Artisan']).trim() !== '');
 
   if (!hasEssentialData) {
-    if (verbose) console.log('⚠️ Ligne sans données essentielles ignorée');
-    return null;
+    return { _invalid: true, reason: 'Ligne sans données essentielles (ID, adresse, contexte, technicien ou artisan manquants)', idInter: 'N/A' };
   }
 
   let idInter = extractInterventionId(csvRow['ID']);

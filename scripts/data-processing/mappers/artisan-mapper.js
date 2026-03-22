@@ -148,6 +148,7 @@ async function mapZonesFromCSV(csvRow, enumResolver, authenticatedClient) {
   return zones;
 }
 
+
 async function mapArtisanFromCSV(csvRow, lineNumber = null, enumResolver, errorLogger, authenticatedClient) {
   csvRow = cleanCSVKeys(csvRow);
 
