@@ -55,7 +55,7 @@ import { toast } from "sonner"
 import { artisansApi } from "@/lib/api/v2"
 import type { Artisan } from "@/lib/api/v2/common/types"
 import { commentsApi } from "@/lib/api/v2/commentsApi"
-import { artisanKeys } from "@/lib/react-query/queryKeys"
+import { artisanKeys, commentKeys, interventionKeys } from "@/lib/react-query/queryKeys"
 import { useCurrentUser } from "@/hooks/useCurrentUser"
 import { usePermissions } from "@/hooks/usePermissions"
 import { getReasonTypeForTransition, type StatusReasonType } from "@/lib/comments/statusReason"
@@ -556,7 +556,7 @@ export function ArtisanModalContent({
     error,
     refetch: refetchArtisan,
   } = useQuery({
-    queryKey: ["artisan", artisanId],
+    queryKey: artisanKeys.detail(artisanId),
     enabled: Boolean(artisanId),
     queryFn: () => artisansApi.getById(artisanId),
   })
@@ -565,7 +565,7 @@ export function ArtisanModalContent({
   const {
     data: interventionsResponse,
   } = useQuery({
-    queryKey: ["interventions", "artisan", artisanId],
+    queryKey: interventionKeys.byArtisan(artisanId),
     enabled: Boolean(artisanId),
     queryFn: async () => {
       const result = await interventionsApi.getByArtisan(artisanId, {
@@ -705,7 +705,7 @@ export function ArtisanModalContent({
   const updateArtisan = useMutation({
     mutationFn: (payload: ReturnType<typeof buildUpdatePayload>) => artisansApi.update(artisanId, payload),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ["artisan", artisanId] })
+      void queryClient.invalidateQueries({ queryKey: artisanKeys.detail(artisanId) })
       void queryClient.invalidateQueries({ queryKey: artisanKeys.invalidateLists() })
     },
   })
@@ -729,7 +729,7 @@ export function ArtisanModalContent({
             author_id: currentUser?.id ?? undefined,
             reason_type: reasonPayload.type,
           })
-          await queryClient.invalidateQueries({ queryKey: ["comments", "artisan", artisanId] })
+          await queryClient.invalidateQueries({ queryKey: commentKeys.invalidateByEntity("artisan", artisanId) })
         } catch (commentError) {
           console.error("[ArtisanModalContent] Impossible d'ajouter le commentaire obligatoire", commentError)
           throw new Error("Le commentaire obligatoire n'a pas pu être enregistré. Merci de réessayer.")
@@ -923,7 +923,7 @@ export function ArtisanModalContent({
   }, [artisan?.artisan_attachments])
 
   const handleDocumentsChange = useCallback(() => {
-    void queryClient.invalidateQueries({ queryKey: ["artisan", artisanId] })
+    void queryClient.invalidateQueries({ queryKey: artisanKeys.detail(artisanId) })
   }, [artisanId, queryClient])
 
   // Gestion des absences
@@ -941,7 +941,7 @@ export function ArtisanModalContent({
         is_confirmed: false,
       })
       setNewAbsence({ start_date: "", end_date: "", reason: "" })
-      queryClient.invalidateQueries({ queryKey: ["artisan", artisanId] })
+      queryClient.invalidateQueries({ queryKey: artisanKeys.detail(artisanId) })
       toast.success("Absence ajoutée")
     } catch (error) {
       toast.error("Erreur lors de l'ajout de l'absence")
@@ -951,7 +951,7 @@ export function ArtisanModalContent({
   const handleDeleteAbsence = useCallback(async (id: string) => {
     try {
       await artisansApi.deleteAbsence(id)
-      queryClient.invalidateQueries({ queryKey: ["artisan", artisanId] })
+      queryClient.invalidateQueries({ queryKey: artisanKeys.detail(artisanId) })
       toast.success("Absence supprimée")
     } catch (error) {
       toast.error("Erreur lors de la suppression de l'absence")

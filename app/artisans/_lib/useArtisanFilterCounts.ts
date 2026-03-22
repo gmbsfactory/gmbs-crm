@@ -4,6 +4,7 @@ import { useState, useCallback, useEffect, useMemo } from "react"
 import { artisansApi } from "@/lib/api/v2"
 import { convertArtisanFiltersToServerFilters } from "@/lib/filter-converter"
 import type { ArtisanViewFilter } from "@/hooks/useArtisanViews"
+import { ARTISAN_DOSSIER_VIEW_EXCLUDED_STATUTS } from "@/config/artisans"
 import type { ArtisanStatus, MetierRef } from "@/types/artisan-page"
 import { VIRTUAL_STATUS_DOSSIER_A_COMPLETER } from "@/types/artisan-page"
 
@@ -58,12 +59,14 @@ export function useArtisanFilterCounts({
       gestionnaire?: string
       statut?: string
       statuts?: string[]
+      exclude_statuts?: string[]
       statut_dossier?: string
     } => {
       const params: {
         gestionnaire?: string
         statut?: string
         statuts?: string[]
+        exclude_statuts?: string[]
         statut_dossier?: string
       } = {}
 
@@ -100,9 +103,20 @@ export function useArtisanFilterCounts({
         }
       }
 
+      // Exclure certains statuts des vues "Dossier à compléter"
+      if (params.statut_dossier) {
+        const excludedIds = artisanStatuses
+          .filter((s) => ARTISAN_DOSSIER_VIEW_EXCLUDED_STATUTS.includes(s.code as typeof ARTISAN_DOSSIER_VIEW_EXCLUDED_STATUTS[number]))
+          .map((s) => s.id)
+          .filter((id): id is string => Boolean(id))
+        if (excludedIds.length > 0) {
+          params.exclude_statuts = excludedIds
+        }
+      }
+
       return params
     },
-    [currentUserId],
+    [currentUserId, artisanStatuses],
   )
 
   const viewsSignature = useMemo(() => {

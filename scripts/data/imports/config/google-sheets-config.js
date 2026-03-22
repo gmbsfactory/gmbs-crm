@@ -267,6 +267,41 @@ GOOGLE_SHEETS_INTERVENTIONS_RANGE=SUIVI_INTER_GMBS_2025!A1:Z
     console.log(`  Spreadsheet ID: ${this.spreadsheetId || 'Non défini'}`);
     console.log(`  Configuration valide: ${this.isValid() ? '✅ Oui' : '❌ Non'}`);
   }
+
+  /**
+   * Retourne les noms de colonnes possibles pour une donnée
+   * Permet de supporter les changements de noms de colonnes
+   */
+  static getColumnAliases() {
+    return {
+      statut: ['statut', 'diag fenetr', 'diagnostic fenetre', 'status'],
+      date: ['Date', 'Date d\'intervention', 'Date d\'inter', '745', 'FErn', 'Date '],
+      artisan: ['Artisan', 'Nom Artisan', 'artisan_name'],
+      client: ['Client', 'Nom Client', 'client_name'],
+      // Ajouter d'autres colonnes au besoin
+    };
+  }
+
+  /**
+   * Trouve l'index d'une colonne parmi plusieurs noms possibles
+   * @param {string[]} headers - Liste des headers du sheet
+   * @param {string} columnKey - Clé du type de colonne (ex: 'statut', 'date')
+   * @returns {object|null} - {index, headerName} ou null
+   */
+  static findColumnIndex(headers, columnKey) {
+    const aliases = this.getColumnAliases()[columnKey];
+    if (!aliases) return null;
+
+    for (const alias of aliases) {
+      const index = headers.findIndex(h =>
+        h && h.toLowerCase() === alias.toLowerCase()
+      );
+      if (index >= 0) {
+        return { index, headerName: headers[index] };
+      }
+    }
+    return null;
+  }
 }
 
 // Instance singleton

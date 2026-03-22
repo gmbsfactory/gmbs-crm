@@ -773,7 +773,10 @@ export const interventionsCrud = {
   },
 
   // Upsert direct via Supabase (pour import en masse)
-  async upsertDirect(data: CreateInterventionData & { id_inter?: string }, customClient?: typeof supabase): Promise<Intervention> {
+  async upsertDirect(
+    data: CreateInterventionData & { id_inter?: string },
+    customClient?: typeof supabase
+  ): Promise<Intervention & { _operation: 'created' | 'updated'; _matchedBy?: 'id_inter' }> {
     // Utiliser le client personnalisé si fourni, sinon utiliser supabaseClient (qui utilise getSupabaseClientForNode() dans Node.js)
     const client = customClient || supabaseClient;
 
@@ -791,6 +794,9 @@ export const interventionsCrud = {
       existingIntervention = existing;
       oldStatusId = existing?.statut_id || null;
     }
+
+    const operation: 'created' | 'updated' = existingIntervention ? 'updated' : 'created';
+    const matchedBy: 'id_inter' | undefined = existingIntervention ? 'id_inter' : undefined;
 
     // 2. Faire l'upsert
     const { data: result, error } = await client
@@ -843,7 +849,8 @@ export const interventionsCrud = {
     }
 
     const refs = await getReferenceCache();
-    return mapInterventionRecord(result, refs);
+    const intervention = mapInterventionRecord(result, refs);
+    return Object.assign(intervention, { _operation: operation, _matchedBy: matchedBy });
   },
 
   // Créer plusieurs interventions en lot

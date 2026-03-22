@@ -99,7 +99,7 @@ class DatabaseManager {
           success: true,
           dryRun: true
         });
-        this.log(`[DRY-RUN] Intervention ${currentGlobalIndex + 1}: ${intervention.id_inter || 'AUTO-ID'}`, 'verbose');
+        this.log(`[DRY-RUN] Intervention ${currentGlobalIndex + 1}: ${intervention.id_inter || '(no id_inter)'}`, 'verbose');
       } else {
         try {
           // Utiliser upsert pour gérer création et mise à jour

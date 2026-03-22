@@ -926,6 +926,7 @@ export const InterventionEditForm = memo(function InterventionEditForm({
   // Note: Champs client optionnels pour les logements vacants (pas de locataire)
   const isInterButtonDisabled = useMemo(() => {
     if (!selectedArtisanId) return true
+    if (!formData.id_inter?.trim()) return true
     if (!(parseFloat(formData.coutIntervention) > 0)) return true
     if (!(parseFloat(formData.coutSST) > 0)) return true
     if (!formData.consigne_intervention?.trim()) return true
@@ -934,7 +935,7 @@ export const InterventionEditForm = memo(function InterventionEditForm({
     if (!formData.is_vacant && !formData.telephoneClient?.trim()) return true
     if (!formData.date_prevue?.trim()) return true
     return false
-  }, [selectedArtisanId, formData.coutIntervention, formData.coutSST, formData.consigne_intervention, formData.nomPrenomClient, formData.telephoneClient, formData.date_prevue, formData.is_vacant])
+  }, [selectedArtisanId, formData.id_inter, formData.coutIntervention, formData.coutSST, formData.consigne_intervention, formData.nomPrenomClient, formData.telephoneClient, formData.date_prevue, formData.is_vacant])
 
   // Hook pour gérer le redimensionnement de la colonne droite
   const handleResizeStart = useCallback((e: React.MouseEvent | React.TouchEvent) => {

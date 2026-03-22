@@ -19,19 +19,9 @@ const envFile = process.env.NODE_ENV === 'production' ? '.env.production' : '.en
 require('dotenv').config({ path: envFile });
 console.log(`📁 Variables chargées depuis ${envFile}`);
 
-// Utiliser l'API v2 centralisée (comme dans database-manager-v2.js)
-// Note: Le chemin est relatif depuis scripts/imports/documents/ (3 niveaux vers la racine)
-// Note: Les modules TypeScript nécessitent tsx pour être exécutés
+// Utiliser l'API v2 centralisée via import() dynamique (compatible tsx v4+)
+// require() ne fonctionne pas avec les fichiers TypeScript en tsx v4
 let artisansApi, documentsApi;
-try {
-  const apiV2 = require('../../../src/lib/api/v2');
-  artisansApi = apiV2.artisansApi;
-  documentsApi = apiV2.documentsApi;
-} catch (error) {
-  console.error('❌ Erreur lors du chargement de l\'API v2:', error.message);
-  console.error('   Assurez-vous d\'utiliser tsx pour exécuter ce script (npm run drive:match-artisans)');
-  process.exit(1);
-}
 
 // Importer le module de classification des documents
 const { classifyDocument, getDocumentTypeLabel, isValidDocumentType } = require('./document-classifier');
@@ -778,6 +768,19 @@ Exemples:
  * Fonction principale
  */
 async function main() {
+  // Charger l'API v2 via import() dynamique (compatible tsx v4+)
+  try {
+    const { pathToFileURL } = await import('url');
+    const apiV2Path = pathToFileURL(path.resolve(__dirname, '../../../../src/lib/api/v2/index.ts'));
+    const apiV2 = await import(apiV2Path);
+    artisansApi = apiV2.artisansApi;
+    documentsApi = apiV2.documentsApi;
+  } catch (error) {
+    console.error('❌ Erreur lors du chargement de l\'API v2:', error.message);
+    console.error('   Assurez-vous d\'utiliser tsx pour exécuter ce script (npm run drive:match-artisans)');
+    process.exit(1);
+  }
+
   // Vérifier les arguments de ligne de commande
   const args = process.argv.slice(2);
   

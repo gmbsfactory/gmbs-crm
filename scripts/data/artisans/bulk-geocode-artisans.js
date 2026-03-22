@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 /**
+ * ** Was done before seeing the script geocode-artisan.ts which is more complete and robust**
  * Script de Géocodage en Masse pour les Artisans
  *
  * Récupère tous les artisans qui ont une adresse mais pas de coordonnées,

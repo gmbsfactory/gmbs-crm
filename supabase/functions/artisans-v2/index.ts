@@ -866,6 +866,42 @@ serve(async (req: Request) => {
             }
           }
         }
+
+        // Vérifier par téléphone
+        if (body.telephone) {
+          const { data: existingByTelephone } = await supabase
+            .from('artisans')
+            .select('id, prenom, nom, telephone, raison_sociale, is_active, updated_at')
+            .eq('telephone', body.telephone)
+            .maybeSingle();
+
+          if (existingByTelephone) {
+            if (!existingByTelephone.is_active) {
+              // Artisan supprimé trouvé
+              return new Response(
+                JSON.stringify({
+                  error: 'DELETED_ARTISAN_EXISTS',
+                  message: 'Un artisan supprimé existe déjà avec ce numéro de téléphone',
+                  artisan: {
+                    id: existingByTelephone.id,
+                    prenom: existingByTelephone.prenom,
+                    nom: existingByTelephone.nom,
+                    telephone: existingByTelephone.telephone,
+                    raison_sociale: existingByTelephone.raison_sociale,
+                  },
+                  deleted_at: existingByTelephone.updated_at,
+                }),
+                { status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+              );
+            } else {
+              // Artisan actif trouvé
+              return new Response(
+                JSON.stringify({ error: `Un artisan actif existe déjà avec le numéro de téléphone ${body.telephone}` }),
+                { status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+              );
+            }
+          }
+        }
       }
 
       // Règle : À la création, l'artisan doit être soit CANDIDAT (par défaut) soit POTENTIEL

@@ -173,6 +173,18 @@ export const interventionKeys = {
     interventionKeys.lightList(params),
     interventionKeys.summary(params),
   ],
+
+  /**
+   * Clé pour les interventions d'un artisan spécifique
+   *
+   * @param artisanId - UUID de l'artisan
+   * @returns ["interventions", "by-artisan", artisanId]
+   *
+   * @example
+   * queryKey: interventionKeys.byArtisan(artisanId)
+   */
+  byArtisan: (artisanId: string) =>
+    [...interventionKeys.all, "by-artisan", artisanId] as const,
 } as const
 
 /**
@@ -183,6 +195,7 @@ export type ArtisanGetAllParams = {
   offset?: number
   statut?: string
   statuts?: string[]
+  exclude_statuts?: string[]
   metier?: string
   metiers?: string[]
   zone?: string

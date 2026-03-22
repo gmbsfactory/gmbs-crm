@@ -46,7 +46,7 @@ async function filterArtisansByMetiers(
 
   // Pour chaque lot d'artisanIds, faire une requête
   for (const artisanIdChunk of artisanIdChunks) {
-    const { data: artisansWithMetiers, error: metierError } = await supabase
+    const { data: artisansWithMetiers, error: metierError } = await supabaseClient
       .from("artisan_metiers")
       .select("artisan_id")
       .in("metier_id", metierIds)
@@ -87,7 +87,7 @@ async function filterArtisansByMetier(
 
   // Pour chaque lot d'artisanIds, faire une requête
   for (const artisanIdChunk of artisanIdChunks) {
-    const { data: artisansWithMetier, error: metierError } = await supabase
+    const { data: artisansWithMetier, error: metierError } = await supabaseClient
       .from("artisan_metiers")
       .select("artisan_id")
       .eq("metier_id", metierId)
@@ -124,7 +124,7 @@ export const artisansApi = {
     if (hasSearch) {
       try {
         // Appeler la fonction RPC search_artisans
-        const { data: searchResults, error: searchError } = await supabase.rpc("search_artisans", {
+        const { data: searchResults, error: searchError } = await supabaseClient.rpc("search_artisans", {
           p_query: searchQuery,
           p_limit: 10000, // Récupérer tous les résultats pour gérer la pagination correctement
           p_offset: 0,
@@ -165,7 +165,7 @@ export const artisansApi = {
           }
 
           // Récupérer les données complètes avec relations pour les IDs paginés
-          let detailedQuery = supabase
+          let detailedQuery = supabaseClient
             .from("artisans")
             .select(`
               *,
@@ -204,6 +204,9 @@ export const artisansApi = {
             detailedQuery = detailedQuery.in("statut_id", params.statuts);
           } else if (params?.statut) {
             detailedQuery = detailedQuery.eq("statut_id", params.statut);
+          }
+          if (params?.exclude_statuts && params.exclude_statuts.length > 0) {
+            detailedQuery = detailedQuery.not("statut_id", "in", `(${params.exclude_statuts.map((id) => `"${id}"`).join(",")})`);
           }
           if (params?.gestionnaire) {
             detailedQuery = detailedQuery.eq("gestionnaire_id", params.gestionnaire);
@@ -249,7 +252,7 @@ export const artisansApi = {
     // Stratégie : Si filtrage par métiers, on récupère d'abord les IDs filtrés puis on pagine
     if (params?.metiers && params.metiers.length > 0) {
       // 1. Récupérer tous les IDs d'artisans correspondant aux filtres de base
-      let idsQuery = supabase
+      let idsQuery = supabaseClient
         .from("artisans")
         .select("id")
         .eq("is_active", true);
@@ -258,6 +261,9 @@ export const artisansApi = {
         idsQuery = idsQuery.in("statut_id", params.statuts);
       } else if (params?.statut) {
         idsQuery = idsQuery.eq("statut_id", params.statut);
+      }
+      if (params?.exclude_statuts && params.exclude_statuts.length > 0) {
+        idsQuery = idsQuery.not("statut_id", "in", `(${params.exclude_statuts.map((id) => `"${id}"`).join(",")})`);
       }
       if (params?.gestionnaire) {
         idsQuery = idsQuery.eq("gestionnaire_id", params.gestionnaire);
@@ -293,7 +299,7 @@ export const artisansApi = {
       }
 
       // 4. Récupérer les données complètes pour les IDs paginés
-      const { data: detailedData, error: detailedError } = await supabase
+      const { data: detailedData, error: detailedError } = await supabaseClient
         .from("artisans")
         .select(`
           *,
@@ -343,7 +349,7 @@ export const artisansApi = {
       };
     } else if (params?.metier) {
       // Même logique pour un seul métier
-      let idsQuery = supabase
+      let idsQuery = supabaseClient
         .from("artisans")
         .select("id")
         .eq("is_active", true);
@@ -352,6 +358,9 @@ export const artisansApi = {
         idsQuery = idsQuery.in("statut_id", params.statuts);
       } else if (params?.statut) {
         idsQuery = idsQuery.eq("statut_id", params.statut);
+      }
+      if (params?.exclude_statuts && params.exclude_statuts.length > 0) {
+        idsQuery = idsQuery.not("statut_id", "in", `(${params.exclude_statuts.map((id) => `"${id}"`).join(",")})`);
       }
       if (params?.gestionnaire) {
         idsQuery = idsQuery.eq("gestionnaire_id", params.gestionnaire);
@@ -384,7 +393,7 @@ export const artisansApi = {
         };
       }
 
-      const { data: detailedData, error: detailedError } = await supabase
+      const { data: detailedData, error: detailedError } = await supabaseClient
         .from("artisans")
         .select(`
           *,
@@ -435,7 +444,7 @@ export const artisansApi = {
     }
 
     // Cas standard : pas de filtrage métier
-    let query = supabase
+    let query = supabaseClient
       .from("artisans")
       .select(`
         *,
@@ -474,6 +483,9 @@ export const artisansApi = {
       query = query.in("statut_id", params.statuts);
     } else if (params?.statut) {
       query = query.eq("statut_id", params.statut);
+    }
+    if (params?.exclude_statuts && params.exclude_statuts.length > 0) {
+      query = query.not("statut_id", "in", `(${params.exclude_statuts.map((id) => `"${id}"`).join(",")})`);
     }
     if (params?.gestionnaire) {
       query = query.eq("gestionnaire_id", params.gestionnaire);
@@ -539,7 +551,7 @@ export const artisansApi = {
     gestionnaire?: { id: string; firstname: string | null; lastname: string | null; username: string; code_gestionnaire: string | null; color: string | null } | null
     statutDossier?: string | null
   }> {
-    const { data, error } = await supabase
+    const { data, error } = await supabaseClient
       .from("artisans")
       .select(`
         *,
@@ -641,29 +653,70 @@ export const artisansApi = {
   },
 
   // Upsert direct via Supabase (pour import en masse)
-  async upsertDirect(data: CreateArtisanData, customClient?: typeof supabase): Promise<Artisan> {
-    // Utiliser le client personnalisé si fourni, sinon utiliser le client par défaut
+  async upsertDirect(
+    data: CreateArtisanData,
+    customClient?: typeof supabaseClient
+  ): Promise<Artisan & { _operation: 'created' | 'updated'; _matchedBy?: 'siret' | 'email' | 'telephone' }> {
     const client = customClient || supabaseClient;
 
-    // Déterminer la contrainte unique à utiliser
-    let onConflict = 'email';
-    if (!data.email && data.siret) {
-      onConflict = 'siret';
+    // Chercher un artisan existant par siret OU email OU telephone
+    // On privilégie le siret car plus fiable métier, puis l'email, puis le téléphone
+    let existingId: string | null = null;
+    let matchedBy: 'siret' | 'email' | 'telephone' | undefined;
+
+    if (data.siret) {
+      const { data: bySiret } = await client
+        .from('artisans')
+        .select('id')
+        .eq('siret', data.siret)
+        .maybeSingle();
+      if (bySiret) { existingId = bySiret.id; matchedBy = 'siret'; }
     }
 
-    const { data: result, error } = await client
-      .from('artisans')
-      .upsert(data, {
-        onConflict,
-        ignoreDuplicates: false
-      })
-      .select()
-      .single();
+    if (!existingId && data.email) {
+      const { data: byEmail } = await client
+        .from('artisans')
+        .select('id')
+        .eq('email', data.email)
+        .maybeSingle();
+      if (byEmail) { existingId = byEmail.id; matchedBy = 'email'; }
+    }
+
+    if (!existingId && data.telephone) {
+      const { data: byPhone } = await client
+        .from('artisans')
+        .select('id')
+        .eq('telephone', data.telephone)
+        .maybeSingle();
+      if (byPhone) { existingId = byPhone.id; matchedBy = 'telephone'; }
+    }
+
+    let result;
+    let error;
+    const operation: 'created' | 'updated' = existingId ? 'updated' : 'created';
+
+    if (existingId) {
+      // UPDATE : artisan déjà présent, on met à jour sans toucher aux contraintes uniques
+      ({ data: result, error } = await client
+        .from('artisans')
+        .update(data)
+        .eq('id', existingId)
+        .select()
+        .single());
+    } else {
+      // INSERT : nouvel artisan
+      ({ data: result, error } = await client
+        .from('artisans')
+        .insert(data)
+        .select()
+        .single());
+    }
 
     if (error) throw new Error(`Erreur lors de l'upsert de l'artisan: ${error.message}`);
 
     const refs = await getReferenceCache();
-    return mapArtisanRecord(result, refs);
+    const artisan = mapArtisanRecord(result, refs);
+    return Object.assign(artisan, { _operation: operation, _matchedBy: matchedBy });
   },
 
   // Modifier un artisan
@@ -882,7 +935,7 @@ export const artisansApi = {
     let query = client
       .from("artisans")
       .select("*", { count: "exact" })
-      .eq("plain_nom", searchTerm) // Recherche exacte d'abord
+      .ilike("plain_nom", `${searchTerm}%`) // Recherche insensible à la casse, préfixe
       .order("created_at", { ascending: false });
 
     // Appliquer les autres filtres
@@ -921,10 +974,10 @@ export const artisansApi = {
 
   // Rechercher des artisans par nom/prénom
   async searchByName(searchTerm: string, params?: ArtisanQueryParams): Promise<PaginatedResponse<Artisan>> {
-    let query = supabase
+    let query = supabaseClient
       .from("artisans")
       .select("*", { count: "exact" })
-      .or(`prenom.ilike.%${searchTerm}%,nom.ilike.%${searchTerm}%,raison_sociale.ilike.%${searchTerm}%`)
+      .or(`prenom.ilike.%${searchTerm}%,nom.ilike.%${searchTerm}%,raison_sociale.ilike.%${searchTerm}%,plain_nom.ilike.%${searchTerm}%`)
       .order("created_at", { ascending: false });
 
     // Appliquer les autres filtres
@@ -978,7 +1031,7 @@ export const artisansApi = {
     }
 
     // Construire la requête avec join sur artisan_statuses
-    let query = supabase
+    let query = supabaseClient
       .from("artisans")
       .select(
         `
@@ -1060,7 +1113,7 @@ export const artisansApi = {
     }
 
     // Récupérer les artisans du gestionnaire avec leur nombre d'interventions
-    const { data: artisansStats, error: statsError } = await supabase
+    const { data: artisansStats, error: statsError } = await supabaseClient
       .from("artisans")
       .select(
         `
@@ -1125,7 +1178,7 @@ export const artisansApi = {
     const artisanIds = topArtisans.map(a => a.artisan_id);
     const now = new Date().toISOString();
 
-    const { data: absences, error: absencesError } = await supabase
+    const { data: absences, error: absencesError } = await supabaseClient
       .from("artisan_absences")
       .select("artisan_id, start_date, end_date, reason, is_confirmed")
       .in("artisan_id", artisanIds)
@@ -1190,7 +1243,7 @@ export const artisansApi = {
     }
 
     // Récupérer les interventions de l'artisan via intervention_artisans
-    const { data: interventionArtisans, error: joinError } = await supabase
+    const { data: interventionArtisans, error: joinError } = await supabaseClient
       .from("intervention_artisans")
       .select(
         `
@@ -1316,7 +1369,7 @@ export const artisansApi = {
     }
 
     // Récupérer les artisans du gestionnaire avec le statut correspondant
-    const { data: artisans, error: artisansError } = await supabase
+    const { data: artisans, error: artisansError } = await supabaseClient
       .from("artisans")
       .select(
         `
@@ -1394,7 +1447,7 @@ export const artisansApi = {
       throw new Error("gestionnaireId is required");
     }
 
-    const { data, error } = await supabase
+    const { data, error } = await supabaseClient
       .from("artisans")
       .select("id, nom, prenom, statut_id, artisan_statuses!inner(code)")
       .eq("gestionnaire_id", gestionnaireId)
@@ -1429,7 +1482,7 @@ export const artisansApi = {
       throw new Error("artisanId is required");
     }
 
-    const { data, error } = await supabase
+    const { data, error } = await supabaseClient
       .from("artisan_absences")
       .select("id, start_date, end_date, reason, is_confirmed")
       .eq("artisan_id", artisanId)
@@ -1470,7 +1523,7 @@ export const artisansApi = {
       throw new Error("start_date and end_date are required");
     }
 
-    const { data, error } = await supabase
+    const { data, error } = await supabaseClient
       .from("artisan_absences")
       .insert({
         artisan_id: artisanId,
@@ -1503,7 +1556,7 @@ export const artisansApi = {
       throw new Error("absenceId is required");
     }
 
-    const { error } = await supabase
+    const { error } = await supabaseClient
       .from("artisan_absences")
       .delete()
       .eq("id", absenceId);
@@ -1597,7 +1650,7 @@ export const artisansApi = {
       throw new Error("absenceId is required");
     }
 
-    const { data, error } = await supabase
+    const { data, error } = await supabaseClient
       .from("artisan_absences")
       .update(updates)
       .eq("id", absenceId)
@@ -1639,7 +1692,7 @@ export const artisansApi = {
     }
 
     // Construire la requête de base
-    let query = supabase
+    let query = supabaseClient
       .from("artisan_status_history")
       .select(`
         old_status_id,
@@ -1658,7 +1711,7 @@ export const artisansApi = {
     // (pour trouver le statut juste avant de passer à ONE_SHOT par exemple)
     if (beforeStatusCode) {
       // On doit d'abord trouver l'ID du statut
-      const { data: statusData } = await supabase
+      const { data: statusData } = await supabaseClient
         .from("artisan_statuses")
         .select("id")
         .eq("code", beforeStatusCode.toUpperCase())
@@ -1713,7 +1766,7 @@ export const artisansApi = {
       statut?: string;
     }
   ): Promise<number> {
-    let query = supabase
+    let query = supabaseClient
       .from("artisans")
       .select("id", { count: "exact", head: true })
       .eq("is_active", true);
@@ -1743,13 +1796,14 @@ export const artisansApi = {
       gestionnaire?: string;
       statut?: string;
       statuts?: string[];
+      exclude_statuts?: string[];
       metier?: string;
       metiers?: string[];
       search?: string;
       statut_dossier?: string;
     }
   ): Promise<number> {
-    let query = supabase
+    let query = supabaseClient
       .from("artisans")
       .select("id", { count: "exact", head: true })
       .eq("is_active", true);
@@ -1762,6 +1816,10 @@ export const artisansApi = {
       query = query.in("statut_id", params.statuts);
     } else if (params?.statut) {
       query = query.eq("statut_id", params.statut);
+    }
+
+    if (params?.exclude_statuts && params.exclude_statuts.length > 0) {
+      query = query.not("statut_id", "in", `(${params.exclude_statuts.map((id) => `"${id}"`).join(",")})`);
     }
 
     if (params?.statut_dossier) {
@@ -1787,7 +1845,7 @@ export const artisansApi = {
 
     // Filtrage par métiers (relation many-to-many)
     if (params?.metiers && params.metiers.length > 0) {
-      let idsQuery = supabase
+      let idsQuery = supabaseClient
         .from("artisans")
         .select("id")
         .eq("is_active", true);
@@ -1800,6 +1858,10 @@ export const artisansApi = {
         idsQuery = idsQuery.in("statut_id", params.statuts);
       } else if (params?.statut) {
         idsQuery = idsQuery.eq("statut_id", params.statut);
+      }
+
+      if (params?.exclude_statuts && params.exclude_statuts.length > 0) {
+        idsQuery = idsQuery.not("statut_id", "in", `(${params.exclude_statuts.map((id) => `"${id}"`).join(",")})`);
       }
 
       if (params?.statut_dossier) {
@@ -1835,7 +1897,7 @@ export const artisansApi = {
       const filteredIds = await filterArtisansByMetiers(artisanIds, params.metiers);
       return filteredIds.size;
     } else if (params?.metier) {
-      let idsQuery = supabase
+      let idsQuery = supabaseClient
         .from("artisans")
         .select("id")
         .eq("is_active", true);
@@ -1937,7 +1999,7 @@ export const artisansApi = {
     }
 
     // Get archive status IDs to filter out
-    const { data: archiveStatuses, error: archiveStatusesError } = await supabase
+    const { data: archiveStatuses, error: archiveStatusesError } = await supabaseClient
       .from("artisan_statuses")
       .select("id")
       .eq("code", "ARCHIVE");
@@ -1960,7 +2022,7 @@ export const artisansApi = {
       let hasMore = true;
 
       while (hasMore) {
-        const { data: metierData, error: metierError } = await supabase
+        const { data: metierData, error: metierError } = await supabaseClient
           .from("artisan_metiers")
           .select("artisan_id")
           .eq("metier_id", metier_id)
@@ -1999,7 +2061,7 @@ export const artisansApi = {
 
     // Fetch artisans with coordinates within the bounding box
     // No need for SAMPLE_SIZE limit since we're using geographic filtering
-    let query = supabase
+    let query = supabaseClient
       .from("artisans")
       .select(
         `
@@ -2263,7 +2325,7 @@ export const artisansApi = {
     }
 
     // Récupérer les IDs des statuts archivés
-    const { data: archiveStatuses, error: archiveStatusesError } = await supabase
+    const { data: archiveStatuses, error: archiveStatusesError } = await supabaseClient
       .from("artisan_statuses")
       .select("id")
       .eq("code", "ARCHIVE");
@@ -2286,7 +2348,7 @@ export const artisansApi = {
       let hasMore = true;
 
       while (hasMore) {
-        const { data: metierData, error: metierError } = await supabase
+        const { data: metierData, error: metierError } = await supabaseClient
           .from("artisan_metiers")
           .select("artisan_id")
           .eq("metier_id", metier_id)
@@ -2311,7 +2373,7 @@ export const artisansApi = {
     }
 
     // Construire la requête Supabase
-    let queryBuilder = supabase
+    let queryBuilder = supabaseClient
       .from("artisans")
       .select(
         `

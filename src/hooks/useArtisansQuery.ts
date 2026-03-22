@@ -11,6 +11,7 @@ export interface UseArtisansQueryOptions {
     gestionnaire?: string
     statut?: string
     statuts?: string[]
+    exclude_statuts?: string[]
     metier?: string
     metiers?: string[]
     search?: string
@@ -66,6 +67,9 @@ export function useArtisansQuery(
     }
     if (serverFilters.statuts && serverFilters.statuts.length > 0) {
       result.statuts = serverFilters.statuts
+    }
+    if (serverFilters.exclude_statuts && serverFilters.exclude_statuts.length > 0) {
+      result.exclude_statuts = serverFilters.exclude_statuts
     }
     if (serverFilters.metier) {
       result.metier = serverFilters.metier

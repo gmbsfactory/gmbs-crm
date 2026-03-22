@@ -231,6 +231,7 @@ export interface InterventionQueryParams extends BaseQueryParams {
 export interface ArtisanQueryParams extends BaseQueryParams {
   statut?: string;
   statuts?: string[];
+  exclude_statuts?: string[];
   metier?: string;
   metiers?: string[];
   zone?: string;

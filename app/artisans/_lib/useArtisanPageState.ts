@@ -24,6 +24,7 @@ import {
   VIRTUAL_STATUS_DOSSIER_A_COMPLETER,
 } from "@/types/artisan-page"
 import { useArtisanFilterCounts } from "./useArtisanFilterCounts"
+import { ARTISAN_DOSSIER_VIEW_EXCLUDED_STATUTS } from "@/config/artisans"
 
 // ---------------------------------------------------------------------------
 // Hook
@@ -100,6 +101,31 @@ export function useArtisanPageState() {
 
     if (hasDossierFilter) {
       combinedServerFilters.statut_dossier = "À compléter"
+    }
+
+    // Exclure certains statuts des vues "Dossier à compléter"
+    if (combinedServerFilters.statut_dossier) {
+      const excludedIds = artisanStatuses
+        .filter((s) => ARTISAN_DOSSIER_VIEW_EXCLUDED_STATUTS.includes(s.code as typeof ARTISAN_DOSSIER_VIEW_EXCLUDED_STATUTS[number]))
+        .map((s) => s.id)
+        .filter((id): id is string => Boolean(id))
+      if (excludedIds.length > 0) {
+        combinedServerFilters.exclude_statuts = excludedIds
+      }
+    }
+
+    // Par défaut, exclure les artisans archivés.
+    // Si l'utilisateur filtre explicitement par statut (ex: sélectionne "Archivé"),
+    // ce filtre est ignoré — il verra exactement ce qu'il a demandé.
+    if (!combinedServerFilters.statuts && !combinedServerFilters.statut) {
+      const archiveIds = artisanStatuses
+        .filter((s) => s.code === "ARCHIVE")
+        .map((s) => s.id)
+        .filter((id): id is string => Boolean(id))
+      if (archiveIds.length > 0) {
+        const existing = combinedServerFilters.exclude_statuts ?? []
+        combinedServerFilters.exclude_statuts = [...new Set([...existing, ...archiveIds])]
+      }
     }
 
     if (selectedMetiers.length > 0 && metiers.length > 0) {
