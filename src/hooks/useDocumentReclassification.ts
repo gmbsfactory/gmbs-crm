@@ -2,16 +2,11 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { documentsApi } from "@/lib/api/v2/documentsApi"
+import type { InterventionAttachment, ArtisanAttachment } from "@/lib/api/v2/common/types"
 import { documentKeys } from "@/lib/react-query/queryKeys"
 import { toast } from "sonner"
 
-export interface DocumentToReclassify {
-  id: string
-  name: string
-  kind: string
-  mimeType?: string
-  createdAt?: string
-}
+export type DocumentToReclassify = InterventionAttachment | ArtisanAttachment
 
 type DocumentEntityType = "intervention" | "artisan"
 
@@ -46,8 +41,8 @@ export function useDocumentReclassification({
   })
 
   // Filtrer les documents à classer (kind === 'a_classe')
-  const documentsToReclassify = allDocuments.filter(
-    (doc: any) => doc.kind === "a_classe"
+  const documentsToReclassify = (allDocuments as DocumentToReclassify[]).filter(
+    (doc) => doc.kind === "a_classe"
   )
 
   // Mutation pour reclassifier un document

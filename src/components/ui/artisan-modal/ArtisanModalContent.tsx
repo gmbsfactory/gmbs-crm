@@ -77,6 +77,7 @@ import { useArtisanPresence } from "@/hooks/useArtisanPresence"
 import { PresenceAvatars } from "@/components/ui/intervention-modal/PresenceAvatars"
 import { ReadOnlyBanner } from "@/components/ui/intervention-modal/ReadOnlyBanner"
 import { usePagePresenceContext } from "@/contexts/PagePresenceContext"
+import { useDocumentReclassification } from "@/hooks/useDocumentReclassification"
 
 // ===== HELPERS =====
 
@@ -250,6 +251,7 @@ type Props = {
   onRegisterShowDialog?: (showDialog: () => void) => void
   onStatusReasonModalOpenChange?: (isOpen: boolean) => void
   onUnsavedDialogOpenChange?: (isOpen: boolean) => void
+  onReclassifyModalOpenChange?: (isOpen: boolean) => void
 }
 
 const formatDate = (value: string | null | undefined, withTime = false) => {
@@ -434,6 +436,7 @@ export function ArtisanModalContent({
   onRegisterShowDialog,
   onStatusReasonModalOpenChange,
   onUnsavedDialogOpenChange,
+  onReclassifyModalOpenChange,
 }: Props) {
   const surfaceVariantClass = mode === "fullpage" ? "modal-config-surface-full" : undefined
   const surfaceModeClass = `modal-config--${mode}`
@@ -448,6 +451,17 @@ export function ArtisanModalContent({
   const [isDocumentsOpen, setIsDocumentsOpen] = useState(false)
   const [isReclassifyModalOpen, setIsReclassifyModalOpen] = useState(false)
   const [isCommentsOpen, setIsCommentsOpen] = useState(true) // Toujours déplié par défaut
+
+  const handleReclassifyModalOpenChange = useCallback((open: boolean) => {
+    setIsReclassifyModalOpen(open)
+    onReclassifyModalOpenChange?.(open)
+  }, [onReclassifyModalOpenChange])
+
+  const { documentsToReclassify } = useDocumentReclassification({
+    entityType: "artisan",
+    entityId: artisanId,
+    enabled: !!artisanId,
+  })
 
   // Toggle entre vue Informations et vue Statistiques
   // Initialiser avec la vue par défaut si spécifiée
@@ -2059,18 +2073,24 @@ export function ArtisanModalContent({
                                   )}
                                 </div>
                                 <div className="flex items-center gap-2">
-                                  <Button
-                                    size="sm"
-                                    variant="ghost"
-                                    className="h-7 px-2 opacity-0 group-hover:opacity-100 transition-opacity"
-                                    onClick={(e) => {
-                                      e.stopPropagation()
-                                      setIsReclassifyModalOpen(true)
-                                    }}
-                                  >
-                                    <Wand2 className="h-4 w-4 mr-1" />
-                                    <span className="text-xs hidden sm:inline">Reclassifier</span>
-                                  </Button>
+                                  {documentsToReclassify.length > 0 && (
+                                    <Button
+                                      type="button"
+                                      size="sm"
+                                      variant="ghost"
+                                      className="h-7 px-2 transition-opacity"
+                                      onClick={(e) => {
+                                        e.stopPropagation()
+                                        handleReclassifyModalOpenChange(true)
+                                      }}
+                                    >
+                                      <Wand2 className="h-4 w-4 mr-1" />
+                                      <span className="text-xs hidden sm:inline">Reclassifier</span>
+                                      <Badge variant="destructive" className="ml-1 h-4 px-1 text-xs">
+                                        {documentsToReclassify.length}
+                                      </Badge>
+                                    </Button>
+                                  )}
                                   {isDocumentsOpen ? (
                                     <ChevronDown className="h-4 w-4" />
                                   ) : (
@@ -2097,9 +2117,9 @@ export function ArtisanModalContent({
                       {/* Modal de reclassification */}
                       <DocumentReclassificationModal
                         open={isReclassifyModalOpen}
-                        onOpenChange={setIsReclassifyModalOpen}
+                        onOpenChange={handleReclassifyModalOpenChange}
                         entityType="artisan"
-                        entityId={artisan?.id ?? artisanId}
+                        entityId={artisanId}
                         documentKinds={ARTISAN_DOCUMENT_KINDS}
                       />
 

@@ -100,6 +100,7 @@ type Props = {
   onPopoverOpenChange?: (isOpen: boolean) => void
   onUnsavedDialogOpenChange?: (isOpen: boolean) => void
   onDeleteDialogOpenChange?: (isOpen: boolean) => void
+  onReclassifyModalOpenChange?: (isOpen: boolean) => void
 }
 
 export function InterventionModalContent({
@@ -123,6 +124,7 @@ export function InterventionModalContent({
   onPopoverOpenChange,
   onUnsavedDialogOpenChange,
   onDeleteDialogOpenChange,
+  onReclassifyModalOpenChange,
 }: Props) {
   const bodyPadding = mode === "fullpage" ? "px-8 py-6 md:px-12" : "px-5 py-4 md:px-8"
   const surfaceVariantClass = mode === "fullpage" ? "modal-config-surface-full" : undefined
@@ -321,6 +323,10 @@ GMBS`
     setIsPopoverOpen(isOpen)
     onPopoverOpenChange?.(isOpen)
   }, [onPopoverOpenChange])
+
+  const handleReclassifyModalOpenChange = useCallback((isOpen: boolean) => {
+    onReclassifyModalOpenChange?.(isOpen)
+  }, [onReclassifyModalOpenChange])
 
   // Récupérer les données de l'intervention
   const {
@@ -845,6 +851,7 @@ GMBS`
                   onEmailModalOpenChange={handleEmailModalOpenChange}
                   onStatusReasonModalOpenChange={handleStatusReasonModalOpenChange}
                   onPopoverOpenChange={handlePopoverOpenChange}
+                  onReclassifyModalOpenChange={handleReclassifyModalOpenChange}
                 />
               </FieldPresenceProvider>
             ) : (

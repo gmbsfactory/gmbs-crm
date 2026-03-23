@@ -51,6 +51,7 @@ export function ArtisanModal({
   const showUnsavedDialogRef = useRef<(() => void) | null>(null)
   const [isStatusReasonModalOpen, setIsStatusReasonModalOpen] = useState(false)
   const [isUnsavedDialogOpen, setIsUnsavedDialogOpen] = useState(false)
+  const [isReclassifyModalOpen, setIsReclassifyModalOpen] = useState(false)
 
   // Callbacks pour recevoir les informations de ArtisanModalContent
   const handleUnsavedChangesStateChange = useCallback((hasChanges: boolean, submitting: boolean) => {
@@ -73,6 +74,7 @@ export function ArtisanModal({
     if (!isOpen) {
       setIsStatusReasonModalOpen(false)
       setIsUnsavedDialogOpen(false)
+      setIsReclassifyModalOpen(false)
     }
   }, [isOpen])
 
@@ -126,6 +128,7 @@ export function ArtisanModal({
         onRegisterShowDialog={handleRegisterShowDialog}
         onStatusReasonModalOpenChange={setIsStatusReasonModalOpen}
         onUnsavedDialogOpenChange={setIsUnsavedDialogOpen}
+        onReclassifyModalOpenChange={setIsReclassifyModalOpen}
       />
     )
   })()
@@ -143,7 +146,7 @@ export function ArtisanModal({
       hasUnsavedChanges={hasUnsavedChanges}
       isSubmitting={isSubmitting}
       onShowUnsavedDialog={() => showUnsavedDialogRef.current?.()}
-      pauseFocusTrap={isStatusReasonModalOpen || isUnsavedDialogOpen}
+      pauseFocusTrap={isStatusReasonModalOpen || isUnsavedDialogOpen || isReclassifyModalOpen}
     >
       {renderedContent}
     </GenericModal>

@@ -47,6 +47,7 @@ import { normalizeArtisanData, getDisplayName } from "@/lib/artisans"
 // Shared form state hook
 import { useInterventionFormState } from "@/hooks/useInterventionFormState"
 import { useFieldPresenceDelegation } from "@/hooks/useFieldPresenceDelegation"
+import { useDocumentReclassification } from "@/hooks/useDocumentReclassification"
 import { useFieldPresence } from "@/contexts/FieldPresenceContext"
 import { PresenceFieldIndicator } from "@/components/ui/intervention-modal/PresenceFieldIndicator"
 
@@ -74,6 +75,7 @@ interface InterventionEditFormProps {
   onEmailModalOpenChange?: (isOpen: boolean) => void
   onStatusReasonModalOpenChange?: (isOpen: boolean) => void
   onPopoverOpenChange?: (isOpen: boolean) => void
+  onReclassifyModalOpenChange?: (isOpen: boolean) => void
   readOnly?: boolean
 }
 
@@ -93,6 +95,7 @@ export const InterventionEditForm = memo(function InterventionEditForm({
   onEmailModalOpenChange,
   onStatusReasonModalOpenChange,
   onPopoverOpenChange,
+  onReclassifyModalOpenChange,
   readOnly = false
 }: InterventionEditFormProps) {
   const queryClient = useQueryClient()
@@ -110,6 +113,16 @@ export const InterventionEditForm = memo(function InterventionEditForm({
   const [hasDevis, setHasDevis] = useState(false)
   const [secondArtisanDisplayMode, setSecondArtisanDisplayMode] = useState<"nom" | "rs" | "tel">("nom")
   const [isReclassifyModalOpen, setIsReclassifyModalOpen] = useState(false)
+
+  const handleReclassifyModalOpenChange = useCallback((open: boolean) => {
+    setIsReclassifyModalOpen(open)
+    onReclassifyModalOpenChange?.(open)
+  }, [onReclassifyModalOpenChange])
+
+  const { documentsToReclassify } = useDocumentReclassification({
+    entityType: "intervention",
+    entityId: intervention.id,
+  })
 
   // Extraire les coûts et paiements (needed for createEditFormData)
   const costs = intervention.intervention_costs || []
@@ -2411,18 +2424,24 @@ export const InterventionEditForm = memo(function InterventionEditForm({
                             )}
                           </div>
                           <div className="flex items-center gap-2">
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              className="h-6 px-2 opacity-0 group-hover:opacity-100 transition-opacity"
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                setIsReclassifyModalOpen(true)
-                              }}
-                            >
-                              <Wand2 className="h-3 w-3 mr-1" />
-                              <span className="text-xs hidden sm:inline">Reclassifier</span>
-                            </Button>
+                            {documentsToReclassify.length > 0 && (
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="ghost"
+                                className="h-6 px-2 transition-opacity"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  handleReclassifyModalOpenChange(true)
+                                }}
+                              >
+                                <Wand2 className="h-3 w-3 mr-1" />
+                                <span className="text-xs hidden sm:inline">Reclassifier</span>
+                                <Badge variant="destructive" className="ml-1 h-4 px-1 text-xs">
+                                  {documentsToReclassify.length}
+                                </Badge>
+                              </Button>
+                            )}
                             {isDocumentsOpen ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
                           </div>
                         </CardTitle>
@@ -2449,7 +2468,7 @@ export const InterventionEditForm = memo(function InterventionEditForm({
                 {/* Modal de reclassification */}
                 <DocumentReclassificationModal
                   open={isReclassifyModalOpen}
-                  onOpenChange={setIsReclassifyModalOpen}
+                  onOpenChange={handleReclassifyModalOpenChange}
                   entityType="intervention"
                   entityId={intervention.id}
                   documentKinds={DOCUMENT_KINDS}
