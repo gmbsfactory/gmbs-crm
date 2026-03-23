@@ -1,8 +1,15 @@
 /**
  * Module de classification des documents
- * 
+ *
  * Classifie automatiquement les documents basés sur leur nom de fichier
- * Types supportés: KBIS, Carte d'identité, Décharge paternelle, Attestation assurance, IBAN, Autre
+ * Types supportés:
+ *   - facturesGMBS (pattern: "FACTURE NUM INTER ID")
+ *   - KBIS
+ *   - Carte d'identité (CNI)
+ *   - Décharge paternelle
+ *   - Attestation assurance
+ *   - IBAN
+ *   - Autre
  */
 
 /**
@@ -28,14 +35,81 @@ function matchesPattern(filename, patterns) {
 }
 
 /**
- * Classifie un document basé sur son nom de fichier
- * 
+ * Détecte une facture GMBS et extrait les métadonnées
+ *
+ * Pattern: "FACTURE NUM_X INTER ID_INTER"
+ * Exemples:
+ *   - "FACTURE 1234 INTER 5678"
+ *   - "FACTURE 1234 INTER ID 5678"
+ *   - "FRACTURE 1234 INTER ID_5678" (typo commune)
+ *   - "FACRTURE 1234 INTER 5678" (typo)
+ *   - "FACTURE_1234_INTER_5678" (avec underscores)
+ *   - "FACTURE-1234-INTER-5678" (avec tirets)
+ *
  * @param {string} filename - Nom du fichier
- * @returns {string} - Type de document: 'kbis', 'cni_recto_verso', 'decharge_partenariat', 'assurance', 'iban', 'autre'
+ * @returns {Object|null} - { type: 'facturesGMBS', numeroFacture, interventionId, confidence } ou null
+ */
+function extractFactureGmbs(filename) {
+  if (!filename || typeof filename !== 'string') {
+    return null;
+  }
+
+  // Patterns pour détecter les factures GMBS (ordre de priorité)
+  const patterns = [
+    // Format strict avec regex: "FACTURE NUM INTER ID" avec variantes
+    // Gère les variantes: FACTURE, FRACTURE, FACRTURE, etc.
+    /(?:facture|fracture|facrture)\s+(\d+)\s+inter\s+(?:id\s+)?(\d+)/i,
+    // Variante avec séparateurs alternatifs (tirets, underscores)
+    /(?:facture|fracture|facrture)[-_](\d+)[-_]inter[-_](?:id[-_])?(\d+)/i,
+    // Format: "INTER ID FACTURE NUM" (ordre inverse)
+    /inter\s+(?:id\s+)?(\d+).*?(?:facture|fracture|facrture)\s+(\d+)/i,
+  ];
+
+  for (const pattern of patterns) {
+    const match = filename.match(pattern);
+    if (match && match[1] && match[2]) {
+      // Distinguer l'ordre: pattern normal ou inversé
+      let numeroFacture, interventionId;
+
+      if (pattern.source.includes('inter')) {
+        // Format "FACTURE NUM INTER ID"
+        numeroFacture = parseInt(match[1], 10);
+        interventionId = parseInt(match[2], 10);
+      } else {
+        // Format "INTER ID FACTURE NUM"
+        interventionId = parseInt(match[1], 10);
+        numeroFacture = parseInt(match[2], 10);
+      }
+
+      if (!isNaN(numeroFacture) && !isNaN(interventionId)) {
+        return {
+          type: 'facturesGMBS',
+          numeroFacture,
+          interventionId,
+          confidence: 0.95 // Haute confiance si pattern matché
+        };
+      }
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Classifie un document basé sur son nom de fichier
+ *
+ * @param {string} filename - Nom du fichier
+ * @returns {string} - Type de document: 'facturesGMBS', 'kbis', 'cni_recto_verso', 'decharge_partenariat', 'assurance', 'iban', 'autre'
  */
 function classifyDocument(filename) {
   if (!filename || typeof filename !== 'string') {
     return 'autre';
+  }
+
+  // 0. Facture GMBS (priorité haute - spécifique aux interventions)
+  const factureGmbs = extractFactureGmbs(filename);
+  if (factureGmbs) {
+    return factureGmbs.type; // 'facturesGMBS'
   }
 
   const normalizedFilename = normalizeString(filename);
@@ -160,6 +234,7 @@ function classifyDocument(filename) {
  */
 function getDocumentTypeLabel(type) {
   const labels = {
+    'facturesGMBS': 'Facture GMBS',
     'kbis': 'KBIS',
     'cni_recto_verso': 'Carte d\'identité',
     'decharge_partenariat': 'Décharge paternelle',
@@ -175,6 +250,7 @@ function getDocumentTypeLabel(type) {
  */
 function isValidDocumentType(type) {
   const validTypes = [
+    'facturesGMBS',
     'kbis',
     'cni_recto_verso',
     'decharge_partenariat',
@@ -189,6 +265,7 @@ module.exports = {
   classifyDocument,
   getDocumentTypeLabel,
   isValidDocumentType,
-  normalizeString
+  normalizeString,
+  extractFactureGmbs
 };
 

@@ -23,6 +23,7 @@ import {
   Info,
   MapPin,
   Loader2,
+  Wand2,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -40,6 +41,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { DocumentManager } from "@/components/documents"
+import { DocumentReclassificationModal } from "@/components/documents/DocumentReclassificationModal"
 import { ModeIcons } from "@/components/ui/mode-selector"
 import { CommentSection } from "@/components/shared/CommentSection"
 import { StatusReasonModal } from "@/components/shared/StatusReasonModal"
@@ -444,6 +446,7 @@ export function ArtisanModalContent({
   // États pour les sections collapsibles
   const [isAbsencesOpen, setIsAbsencesOpen] = useState(false)
   const [isDocumentsOpen, setIsDocumentsOpen] = useState(false)
+  const [isReclassifyModalOpen, setIsReclassifyModalOpen] = useState(false)
   const [isCommentsOpen, setIsCommentsOpen] = useState(true) // Toujours déplié par défaut
 
   // Toggle entre vue Informations et vue Statistiques
@@ -2044,20 +2047,36 @@ export function ArtisanModalContent({
                       <Collapsible open={isDocumentsOpen} onOpenChange={setIsDocumentsOpen}>
                         <Card>
                           <CollapsibleTrigger asChild>
-                            <CardHeader className="cursor-pointer py-3 px-4 hover:bg-muted/50">
-                              <CardTitle className="flex items-center gap-2 text-sm">
-                                <Upload className="h-4 w-4" />
-                                Documents de l&apos;entreprise
-                                {isDocumentsOpen ? (
-                                  <ChevronDown className="ml-auto h-4 w-4" />
-                                ) : (
-                                  <ChevronRight className="ml-auto h-4 w-4" />
-                                )}
-                                {attachmentCount > 0 && (
-                                  <Badge variant="secondary" className="ml-2 text-xs">
-                                    {attachmentCount}
-                                  </Badge>
-                                )}
+                            <CardHeader className="cursor-pointer py-3 px-4 hover:bg-muted/50 group">
+                              <CardTitle className="flex items-center gap-2 text-sm justify-between">
+                                <div className="flex items-center gap-2">
+                                  <Upload className="h-4 w-4" />
+                                  Documents de l&apos;entreprise
+                                  {attachmentCount > 0 && (
+                                    <Badge variant="secondary" className="text-xs">
+                                      {attachmentCount}
+                                    </Badge>
+                                  )}
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    className="h-7 px-2 opacity-0 group-hover:opacity-100 transition-opacity"
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      setIsReclassifyModalOpen(true)
+                                    }}
+                                  >
+                                    <Wand2 className="h-4 w-4 mr-1" />
+                                    <span className="text-xs hidden sm:inline">Reclassifier</span>
+                                  </Button>
+                                  {isDocumentsOpen ? (
+                                    <ChevronDown className="h-4 w-4" />
+                                  ) : (
+                                    <ChevronRight className="h-4 w-4" />
+                                  )}
+                                </div>
                               </CardTitle>
                             </CardHeader>
                           </CollapsibleTrigger>
@@ -2074,6 +2093,15 @@ export function ArtisanModalContent({
                           </CollapsibleContent>
                         </Card>
                       </Collapsible>
+
+                      {/* Modal de reclassification */}
+                      <DocumentReclassificationModal
+                        open={isReclassifyModalOpen}
+                        onOpenChange={setIsReclassifyModalOpen}
+                        entityType="artisan"
+                        entityId={artisan?.id ?? artisanId}
+                        documentKinds={ARTISAN_DOCUMENT_KINDS}
+                      />
 
                       {/* Commentaires (collapsible) */}
                       <Collapsible open={isCommentsOpen} onOpenChange={setIsCommentsOpen}>
