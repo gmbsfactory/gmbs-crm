@@ -2,7 +2,7 @@
 
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useQueryClient } from "@tanstack/react-query"
-import { Building, ChevronDown, ChevronRight, FileText, MessageSquare, Upload, X, Search, Eye, Mail, MessageCircle, Users, Palette } from "lucide-react"
+import { Building, ChevronDown, ChevronRight, FileText, MessageSquare, Upload, X, Search, Eye, Mail, MessageCircle, Users, Palette, Wand2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -17,6 +17,7 @@ import { SearchableBadgeSelect } from "@/components/ui/searchable-badge-select"
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable"
 import { MapLibreMap } from "@/components/maps/MapLibreMap"
 import { DocumentManager } from "@/components/documents"
+import { DocumentReclassificationModal } from "@/components/documents/DocumentReclassificationModal"
 import { CommentSection } from "@/components/shared/CommentSection"
 import { StatusReasonModal } from "@/components/shared/StatusReasonModal"
 import type { NearbyArtisan } from "@/hooks/useNearbyArtisans"
@@ -46,6 +47,7 @@ import { normalizeArtisanData, getDisplayName } from "@/lib/artisans"
 // Shared form state hook
 import { useInterventionFormState } from "@/hooks/useInterventionFormState"
 import { useFieldPresenceDelegation } from "@/hooks/useFieldPresenceDelegation"
+import { useDocumentReclassification } from "@/hooks/useDocumentReclassification"
 import { useFieldPresence } from "@/contexts/FieldPresenceContext"
 import { PresenceFieldIndicator } from "@/components/ui/intervention-modal/PresenceFieldIndicator"
 
@@ -73,6 +75,7 @@ interface InterventionEditFormProps {
   onEmailModalOpenChange?: (isOpen: boolean) => void
   onStatusReasonModalOpenChange?: (isOpen: boolean) => void
   onPopoverOpenChange?: (isOpen: boolean) => void
+  onReclassifyModalOpenChange?: (isOpen: boolean) => void
   readOnly?: boolean
 }
 
@@ -92,6 +95,7 @@ export const InterventionEditForm = memo(function InterventionEditForm({
   onEmailModalOpenChange,
   onStatusReasonModalOpenChange,
   onPopoverOpenChange,
+  onReclassifyModalOpenChange,
   readOnly = false
 }: InterventionEditFormProps) {
   const queryClient = useQueryClient()
@@ -108,6 +112,17 @@ export const InterventionEditForm = memo(function InterventionEditForm({
   const [hasFactureGMBS, setHasFactureGMBS] = useState(false)
   const [hasDevis, setHasDevis] = useState(false)
   const [secondArtisanDisplayMode, setSecondArtisanDisplayMode] = useState<"nom" | "rs" | "tel">("nom")
+  const [isReclassifyModalOpen, setIsReclassifyModalOpen] = useState(false)
+
+  const handleReclassifyModalOpenChange = useCallback((open: boolean) => {
+    setIsReclassifyModalOpen(open)
+    onReclassifyModalOpenChange?.(open)
+  }, [onReclassifyModalOpenChange])
+
+  const { documentsToReclassify } = useDocumentReclassification({
+    entityType: "intervention",
+    entityId: intervention.id,
+  })
 
   // Extraire les coûts et paiements (needed for createEditFormData)
   const costs = intervention.intervention_costs || []
@@ -2396,17 +2411,39 @@ export const InterventionEditForm = memo(function InterventionEditForm({
                     (requiresDevis && !hasDevis) && "ring-2 ring-orange-400/50",
                   )}>
                     <CollapsibleTrigger asChild>
-                      <CardHeader className="cursor-pointer py-2 px-3 hover:bg-muted/50">
-                        <CardTitle className="flex items-center gap-2 text-xs">
-                          <Upload className="h-3 w-3" />
-                          Documents {(requiresFacture || requiresDevis) && <span className="text-orange-500">*</span>}
-                          {requiresFacture && !hasFactureGMBS && (
-                            <span className="h-2 w-2 rounded-full bg-orange-500 animate-pulse" title="Facture GMBS obligatoire" />
-                          )}
-                          {requiresDevis && !hasDevis && (
-                            <span className="h-2 w-2 rounded-full bg-orange-500 animate-pulse" title="Devis GMBS obligatoire" />
-                          )}
-                          {isDocumentsOpen ? <ChevronDown className="ml-auto h-3 w-3" /> : <ChevronRight className="ml-auto h-3 w-3" />}
+                      <CardHeader className="cursor-pointer py-2 px-3 hover:bg-muted/50 group">
+                        <CardTitle className="flex items-center gap-2 text-xs justify-between">
+                          <div className="flex items-center gap-2">
+                            <Upload className="h-3 w-3" />
+                            Documents {(requiresFacture || requiresDevis) && <span className="text-orange-500">*</span>}
+                            {requiresFacture && !hasFactureGMBS && (
+                              <span className="h-2 w-2 rounded-full bg-orange-500 animate-pulse" title="Facture GMBS obligatoire" />
+                            )}
+                            {requiresDevis && !hasDevis && (
+                              <span className="h-2 w-2 rounded-full bg-orange-500 animate-pulse" title="Devis GMBS obligatoire" />
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2">
+                            {documentsToReclassify.length > 0 && (
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="ghost"
+                                className="h-6 px-2 transition-opacity"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  handleReclassifyModalOpenChange(true)
+                                }}
+                              >
+                                <Wand2 className="h-3 w-3 mr-1" />
+                                <span className="text-xs hidden sm:inline">Reclassifier</span>
+                                <Badge variant="destructive" className="ml-1 h-4 px-1 text-xs">
+                                  {documentsToReclassify.length}
+                                </Badge>
+                              </Button>
+                            )}
+                            {isDocumentsOpen ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+                          </div>
                         </CardTitle>
                       </CardHeader>
                     </CollapsibleTrigger>
@@ -2427,6 +2464,15 @@ export const InterventionEditForm = memo(function InterventionEditForm({
                     </CollapsibleContent>
                   </Card>
                 </Collapsible>
+
+                {/* Modal de reclassification */}
+                <DocumentReclassificationModal
+                  open={isReclassifyModalOpen}
+                  onOpenChange={handleReclassifyModalOpenChange}
+                  entityType="intervention"
+                  entityId={intervention.id}
+                  documentKinds={DOCUMENT_KINDS}
+                />
 
                 {/* Deuxième artisan */}
                 <SectionLock isLocked={!canEditIntervention}>

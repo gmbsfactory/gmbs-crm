@@ -23,6 +23,7 @@ console.log(`📁 Variables chargées depuis ${envFile}`);
 // API v2 chargée dynamiquement (après dotenv) pour que les env vars soient disponibles
 // Note: using require() instead of top-level await to support CJS output format
 const { artisansApi, documentsApi } = require('@/lib/api/v2');
+const { getSupabaseClientForNode } = require('@/lib/api/v2/common/client');
 
 // Importer le module de classification des documents
 // @ts-ignore - JS module without types
@@ -609,6 +610,21 @@ async function findMatchingArtisan(folderName: string, artisansCache: any[] | nu
 }
 
 /**
+ * Vérifie si un document existe déjà en base de données
+ */
+async function documentExistsInDatabase(artisanId: string, filename: string): Promise<boolean> {
+  const client = getSupabaseClientForNode();
+  const { data, error } = await client
+    .from('artisan_attachments')
+    .select('id')
+    .eq('artisan_id', artisanId)
+    .eq('filename', filename)
+    .maybeSingle();
+  if (error) throw new Error(`Failed to check existing document: ${error.message}`);
+  return data !== null;
+}
+
+/**
  * Insère un document en base de données en téléchargeant depuis Google Drive
  */
 async function insertDocumentToDatabase(artisanId: string, document: any, drive: any) {
@@ -620,6 +636,13 @@ async function insertDocumentToDatabase(artisanId: string, document: any, drive:
 
     if (!document.id) {
       throw new Error('ID du fichier Google Drive manquant');
+    }
+
+    // Vérifier si le document existe déjà en base
+    const exists = await documentExistsInDatabase(artisanId, document.name);
+    if (exists) {
+      console.log(`⏭️  Document already exists, skipping: "${document.name}"`);
+      return { success: true, skipped: true };
     }
 
     if (process.argv.includes('--debug') || process.argv.includes('-v')) {
@@ -685,7 +708,15 @@ async function insertArtisanDocuments(artisanId: string, documents: any[], drive
   for (const doc of documents) {
     const result = await insertDocumentToDatabase(artisanId, doc, drive);
 
-    if (result.success) {
+    if (result.skipped) {
+      results.skipped++;
+      results.details.push({
+        filename: doc.name,
+        kind: doc.kind,
+        success: true,
+        skipped: true
+      });
+    } else if (result.success) {
       results.inserted++;
       results.details.push({
         filename: doc.name,

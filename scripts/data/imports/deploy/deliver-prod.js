@@ -18,6 +18,7 @@
  *   node scripts/data/imports/deploy/deliver-prod.js --dry-run                         (import sans écriture, skip cleanup)
  *   node scripts/data/imports/deploy/deliver-prod.js --skip-cleanup                    (import seul, sans suppression)
  *   node scripts/data/imports/deploy/deliver-prod.js --skip-geocoding                  (import seul, sans géocodage)
+ *   node scripts/data/imports/deploy/deliver-prod.js --skip-documents                  (import seul, sans import des documents)
  *   node scripts/data/imports/deploy/deliver-prod.js --import-start-date=01/01/2025    (filtrer à partir de cette date)
  *   node scripts/data/imports/deploy/deliver-prod.js --import-end-date=31/12/2025      (filtrer jusqu'à cette date)
  *
@@ -56,6 +57,7 @@ const args = process.argv.slice(2);
 const isDryRun          = args.includes('--dry-run');
 const skipCleanup       = args.includes('--skip-cleanup') || isDryRun;
 const skipGeocoding     = args.includes('--skip-geocoding');
+const skipDocuments     = args.includes('--skip-documents');
 const artisansOnly      = args.includes('--artisans-only');
 const interventionsOnly = args.includes('--interventions-only');
 const verbose           = args.includes('--verbose');
@@ -242,11 +244,44 @@ async function runGeocoding() {
   }
 }
 
-// ── Étape 7 : Rapport final ───────────────────────────────────────────────────
+// ── Étape 7 : Import des documents Google Drive ───────────────────────────────
+
+async function runDocumentImport() {
+  sep();
+  log('ÉTAPE 7 — Import des documents depuis Google Drive');
+  sep();
+
+  const docScript = path.join(__dirname, '..', 'documents', 'match-all-documents.js');
+
+  if (!fs.existsSync(docScript)) {
+    err(`Script d'import des documents introuvable : ${docScript}`);
+    process.exit(1);
+  }
+
+  const docArgs = [];
+  if (isDryRun)          docArgs.push('--dry-run');
+  if (artisansOnly)      docArgs.push('--artisans-only');
+  if (interventionsOnly) docArgs.push('--interventions-only');
+  if (verbose)           docArgs.push('--verbose');
+
+  const cmd = `node "${docScript}" ${docArgs.join(' ')}`;
+  log(`  Commande : ${cmd}\n`);
+
+  try {
+    execSync(cmd, { stdio: 'inherit', cwd: ROOT });
+    log('\n✅ Import des documents terminé.');
+  } catch (e) {
+    err(`\nL'import des documents a retourné une erreur (code ${e.status}).`);
+    const cont = await ask('  Continuer quand même ? (oui / non) : ');
+    if (cont !== 'oui') process.exit(e.status ?? 1);
+  }
+}
+
+// ── Étape 8 : Rapport final ───────────────────────────────────────────────────
 
 function showReportLocation() {
   sep();
-  log('ÉTAPE 7 — Rapport');
+  log('ÉTAPE 8 — Rapport');
   sep();
 
   const reportsDir = path.join(ROOT, 'data', 'imports', 'processed');
@@ -275,9 +310,10 @@ function showReportLocation() {
 async function main() {
   console.log('\n' + '═'.repeat(60));
   console.log('  GMBS CRM — Orchestrateur de livraison production');
-  if (isDryRun)      console.log('  MODE : DRY-RUN (aucune écriture en base)');
-  if (skipCleanup)   console.log('  MODE : SKIP-CLEANUP (import seul)');
-  if (skipGeocoding) console.log('  MODE : SKIP-GEOCODING (pas de géocodage)');
+  if (isDryRun)        console.log('  MODE : DRY-RUN (aucune écriture en base)');
+  if (skipCleanup)     console.log('  MODE : SKIP-CLEANUP (import seul)');
+  if (skipGeocoding)   console.log('  MODE : SKIP-GEOCODING (pas de géocodage)');
+  if (skipDocuments)   console.log('  MODE : SKIP-DOCUMENTS (pas d\'import des documents)');
   console.log('═'.repeat(60) + '\n');
 
   // Étape 1 — Environnement
@@ -319,7 +355,16 @@ async function main() {
     await runGeocoding();
   }
 
-  // Étape 7 — Rapport
+  // Étape 7 — Import documents
+  if (skipDocuments) {
+    log('⏭️  Import des documents ignoré (--skip-documents)');
+  } else if (isDryRun) {
+    log('⏭️  Import des documents ignoré (--dry-run)');
+  } else {
+    await runDocumentImport();
+  }
+
+  // Étape 8 — Rapport
   showReportLocation();
 
   sep();

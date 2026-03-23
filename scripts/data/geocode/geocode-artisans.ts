@@ -94,7 +94,7 @@ function parseArgs(): { email: string | null; force: boolean } {
 type GeocodeResult = {
   lat: number;
   lng: number;
-  provider: "opencage" | "nominatim";
+  provider: "french-api" | "opencage" | "nominatim";
 };
 
 const SUPABASE_URL =
@@ -210,6 +210,61 @@ function buildAddressCandidates(artisan: ArtisanRow): string[] {
   return candidates;
 }
 
+async function geocodeWithFrenchApi(
+  address: string,
+): Promise<GeocodeResult | null> {
+  const endpoint = new URL("https://api-adresse.data.gouv.fr/search/");
+  endpoint.searchParams.set("q", address);
+  endpoint.searchParams.set("limit", "1");
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 5000);
+
+  let response: Response;
+  try {
+    response = await fetch(endpoint, {
+      headers: { Accept: "application/json" },
+      signal: controller.signal,
+    });
+  } catch (err) {
+    if ((err as Error).name === "AbortError") {
+      console.warn(`[geocode] French API timed out for: ${address}`);
+    }
+    return null;
+  } finally {
+    clearTimeout(timeout);
+  }
+
+  if (!response.ok) {
+    const body = await response.text();
+    console.warn(
+      `[geocode] French API failed (${response.status}): ${body.slice(0, 200)}`,
+    );
+    return null;
+  }
+
+  const payload: {
+    features?: Array<{
+      geometry?: { coordinates?: [number, number] };
+      properties?: { score?: number };
+    }>;
+  } = await response.json();
+
+  const match = payload.features?.[0];
+  const coords = match?.geometry?.coordinates;
+  if (!coords || coords.length < 2) {
+    return null;
+  }
+
+  // Only trust results with a reasonable confidence score
+  const score = match?.properties?.score ?? 0;
+  if (score < 0.4) {
+    return null;
+  }
+
+  return { lat: coords[1], lng: coords[0], provider: "french-api" };
+}
+
 async function geocodeWithOpenCage(
   address: string,
 ): Promise<GeocodeResult | null> {
@@ -288,6 +343,11 @@ async function geocodeAddress(address: string): Promise<GeocodeResult | null> {
   const trimmed = address.trim();
   if (!trimmed) {
     return null;
+  }
+
+  const withFrenchApi = await geocodeWithFrenchApi(trimmed);
+  if (withFrenchApi) {
+    return withFrenchApi;
   }
 
   const withOpenCage = await geocodeWithOpenCage(trimmed);

@@ -20,7 +20,7 @@ require('dotenv').config({ path: envFile });
 console.log(`📁 Variables chargées depuis ${envFile}`);
 
 // Utiliser l'API v2 centralisée via import() dynamique (compatible tsx v4+)
-let interventionsApi, documentsApi;
+let interventionsApi, documentsApi, getSupabaseClientForNode;
 
 // Configuration Google Drive
 const { googleDriveConfig } = require('../config/google-drive-config');
@@ -657,6 +657,21 @@ function prepareDocumentsForInsertion(documents) {
 const { downloadFileFromDrive } = require('../lib/google-drive-utils');
 
 /**
+ * Vérifie si un document existe déjà en base de données
+ */
+async function documentExistsInDatabase(interventionId, filename) {
+  const client = getSupabaseClientForNode();
+  const { data, error } = await client
+    .from('intervention_attachments')
+    .select('id')
+    .eq('intervention_id', interventionId)
+    .eq('filename', filename)
+    .maybeSingle();
+  if (error) throw new Error(`Failed to check existing document: ${error.message}`);
+  return data !== null;
+}
+
+/**
  * Insère un document en base de données en téléchargeant depuis Google Drive
  * et en l'uploadant dans Supabase Storage via l'API v2
  */
@@ -665,6 +680,13 @@ async function insertDocumentToDatabase(interventionId, document, drive) {
     // Télécharger le fichier depuis Google Drive
     if (!document.id) {
       throw new Error('ID du fichier Google Drive manquant');
+    }
+
+    // Vérifier si le document existe déjà en base
+    const exists = await documentExistsInDatabase(interventionId, document.name);
+    if (exists) {
+      console.log(`⏭️  Document already exists, skipping: "${document.name}"`);
+      return { success: true, skipped: true };
     }
 
     if (process.argv.includes('--debug') || process.argv.includes('-v')) {
@@ -717,6 +739,7 @@ async function insertInterventionDocuments(interventionId, documents, drive, dry
     total: documents.length,
     inserted: 0,
     errors: 0,
+    skipped: 0,
     details: []
   };
 
@@ -736,8 +759,16 @@ async function insertInterventionDocuments(interventionId, documents, drive, dry
     }
     
     const result = await insertDocumentToDatabase(interventionId, doc, drive);
-    
-    if (result.success) {
+
+    if (result.skipped) {
+      results.skipped++;
+      results.details.push({
+        filename: doc.name,
+        kind: doc.kind,
+        success: true,
+        skipped: true
+      });
+    } else if (result.success) {
       results.inserted++;
       results.details.push({
         filename: doc.name,
@@ -752,7 +783,7 @@ async function insertInterventionDocuments(interventionId, documents, drive, dry
         success: false,
         error: result.error
       };
-      
+
       if (result.details) {
         errorInfo.details = result.details;
       }
@@ -786,6 +817,12 @@ async function main() {
     if (!interventionsApi) {
       throw new Error('interventionsApi non trouvé dans le module API v2 (vérifier interop ESM/CJS)');
     }
+
+    // Charger le module client Supabase pour la déduplication
+    const clientPath = pathToFileURL(path.resolve(__dirname, '../../../../src/lib/api/v2/common/client.ts'));
+    const clientModule = await import(clientPath);
+    const clientExports = clientModule.default || clientModule;
+    getSupabaseClientForNode = clientExports.getSupabaseClientForNode;
   } catch (error) {
     console.error('❌ Erreur lors du chargement de l\'API v2:', error.message);
     console.error('   Assurez-vous d\'utiliser tsx pour exécuter ce script');
