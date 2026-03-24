@@ -51,6 +51,9 @@ const cleanupPath = path.join(__dirname, 'cleanup-data');
 console.log('🔍 Chemin cleanup:', cleanupPath);
 const { preCleanupReport, runCleanup, validateCoverage } = require(cleanupPath);
 
+const backfillPath = path.join(__dirname, 'backfill-status-transitions');
+const { runBackfillStatusTransitions } = require(backfillPath);
+
 // ── Options CLI ───────────────────────────────────────────────────────────────
 
 const args = process.argv.slice(2);
@@ -277,7 +280,24 @@ async function runDocumentImport() {
   }
 }
 
-// ── Étape 8 : Rapport final ───────────────────────────────────────────────────
+// ── Étape 8 : Backfill intervention_status_transitions ────────────────────────
+
+async function runBackfillTransitions(client) {
+  sep();
+  log('ÉTAPE 8 — Backfill des transitions de statut');
+  sep();
+
+  try {
+    const results = await runBackfillStatusTransitions(client, { verbose, dryRun: isDryRun });
+    log(`\n✅ Backfill terminé — initial: ${results.initial}, terminee: ${results.terminee}`);
+  } catch (e) {
+    err(`\nErreur lors du backfill des transitions : ${e.message}`);
+    const cont = await ask('  Continuer quand même ? (oui / non) : ');
+    if (cont !== 'oui') process.exit(1);
+  }
+}
+
+// ── Étape 9 : Rapport final ───────────────────────────────────────────────────
 
 function showReportLocation() {
   sep();
@@ -364,7 +384,14 @@ async function main() {
     await runDocumentImport();
   }
 
-  // Étape 8 — Rapport
+  // Étape 8 — Backfill transitions de statut (ignoré si artisans seulement)
+  if (artisansOnly) {
+    log('⏭️  Backfill transitions ignoré (--artisans-only)');
+  } else {
+    await runBackfillTransitions(client);
+  }
+
+  // Étape 9 — Rapport
   showReportLocation();
 
   sep();
