@@ -1,1 +1,0 @@
-SELECT artisans From public.artisans WHERE artisan.name=Etinne

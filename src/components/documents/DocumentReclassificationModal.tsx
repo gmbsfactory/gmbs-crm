@@ -21,6 +21,7 @@ import {
   CheckCircle2,
   Loader2,
   Eye,
+  ExternalLink,
   FileText,
   FileImage,
   Wand2,
@@ -170,25 +171,40 @@ export function DocumentReclassificationModal({
                         )}
                       </div>
 
-                      {/* Bouton aperçu */}
+                      {/* Bouton aperçu + ouvrir */}
                       {doc.url && (
-                        <Button
-                          type="button"
-                          size="icon"
-                          variant="ghost"
-                          className="h-7 w-7 shrink-0 text-muted-foreground hover:text-foreground"
-                          title="Voir le document"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            setPreviewDoc({
-                              url: doc.url,
-                              mimeType: doc.mime_type,
-                              name: doc.filename,
-                            })
-                          }}
-                        >
-                          <Eye className="h-3.5 w-3.5" />
-                        </Button>
+                        <>
+                          <Button
+                            type="button"
+                            size="icon"
+                            variant="ghost"
+                            className="h-7 w-7 shrink-0 text-muted-foreground hover:text-foreground"
+                            title="Voir le document"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              setPreviewDoc({
+                                url: doc.url,
+                                mimeType: doc.mime_type,
+                                name: doc.filename,
+                              })
+                            }}
+                          >
+                            <Eye className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button
+                            type="button"
+                            size="icon"
+                            variant="ghost"
+                            className="h-7 w-7 shrink-0 text-muted-foreground hover:text-foreground"
+                            title="Ouvrir dans un nouvel onglet"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              window.open(doc.url, "_blank")
+                            }}
+                          >
+                            <ExternalLink className="h-3.5 w-3.5" />
+                          </Button>
+                        </>
                       )}
 
                       {/* Dropdown classification */}
