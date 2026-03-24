@@ -1,1 +1,0 @@
-SELECT * FROM pg_extension WHERE extname = 'walsender' OR extname LIKE '%logical%';
