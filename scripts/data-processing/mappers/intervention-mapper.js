@@ -58,7 +58,8 @@ async function mapInterventionFromCSV(csvRow, verbose = false, lineNumber = null
 
   const rawDate = csvRow['Date '] || csvRow['Date'] || csvRow['FErn'] || csvRow['745'] || csvRow["Date d'intervention"];
   const dateValue = parseDate(rawDate);
-  const adresseExtracted = extractInterventionAddress(csvRow["Adresse d'intervention"] || csvRow['Adresse']);
+  const rawAdresse = csvRow["Adresse d'intervention"] || csvRow['Adresse'] || null;
+  const adresseExtracted = extractInterventionAddress(rawAdresse);
 
   let contexteValue = cleanString(csvRow["Contexte d'intervention "]) || cleanString(csvRow["Contexte d'intervention"]);
 
@@ -89,6 +90,7 @@ async function mapInterventionFromCSV(csvRow, verbose = false, lineNumber = null
     contexte_intervention: truncateString(contexteValue || 'Intervention sans contexte détaillé', 10000),
     commentaire_agent: cleanString(csvRow['COMMENTAIRE']),
     adresse: adresseExtracted.adresse,
+    adresse_complete: rawAdresse ? rawAdresse.trim() : null,
     code_postal: adresseExtracted.codePostal,
     ville: adresseExtracted.ville,
     latitude: null,

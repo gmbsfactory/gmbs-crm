@@ -192,6 +192,7 @@ async function mapArtisanFromCSV(csvRow, lineNumber = null, enumResolver, errorL
       getCSVValue(csvRow, 'STATUT'),
       authenticatedClient
     ),
+    statut_dossier: 'INCOMPLET',
     numero_associe: lineNumber != null ? String(lineNumber + 2) : null,
     suivi_relances_docs: cleanString(getCSVValue(csvRow, 'SUIVI DES RELANCES DOCS')),
     created_at: parseDate(getCSVValue(csvRow, "DATE D'AJOUT")) || undefined,

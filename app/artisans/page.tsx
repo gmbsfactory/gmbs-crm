@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useCallback, useMemo } from "react"
+import React, { useCallback, useMemo, useRef } from "react"
 import type { ReactElement } from "react"
 import { ArtisanViewTabs } from "@/components/artisans/ArtisanViewTabs"
 import { PageSearchBar } from "@/components/ui/page-search-bar"
@@ -18,6 +18,11 @@ import { ArtisanDeleteDialog } from "./_components/ArtisanDeleteDialog"
 
 export default function ArtisansPage(): ReactElement {
   const state = useArtisanPageState()
+
+  const lastActiveCountByView = useRef<Record<string, number>>({})
+  if (state.activeViewId && state.totalCount !== undefined) {
+    lastActiveCountByView.current[state.activeViewId] = state.totalCount
+  }
 
   const viewIds = useMemo(() => state.views.map((v) => v.id), [state.views])
 
@@ -121,9 +126,7 @@ export default function ArtisansPage(): ReactElement {
               onSelect={state.setActiveView}
               artisanCounts={{
                 ...state.viewCounts,
-                ...(state.activeViewId && state.totalCount !== undefined
-                  ? { [state.activeViewId]: state.totalCount }
-                  : {}),
+                ...lastActiveCountByView.current,
               }}
             />
 
