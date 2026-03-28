@@ -157,7 +157,6 @@ export function NewInterventionForm({
 
     // Margins
     margePrimaryArtisan,
-    margeSecondArtisan,
 
     // Map
     mapMarkers,
@@ -1610,7 +1609,7 @@ export function NewInterventionForm({
                     </div>
 
                     {/* Coûts 2ème artisan */}
-                    <div className="grid grid-cols-3 gap-2">
+                    <div className="grid grid-cols-2 gap-2">
                       <div>
                         <Label htmlFor="coutSSTSecondArtisan" className="text-[10px]">Coût SST</Label>
                         <Input
@@ -1636,14 +1635,6 @@ export function NewInterventionForm({
                           placeholder="0.00 €"
                           className="h-7 text-xs mt-1"
                         />
-                      </div>
-                      <div>
-                        <Label className="text-[10px]">Marge</Label>
-                        <div className="flex h-7 w-full rounded-md border border-input bg-muted px-2 py-1 text-xs shadow-sm items-center mt-1">
-                          <span className={cn("font-medium", getMarginColorClass(margeSecondArtisan.marginPercentage))}>
-                            {formatMarginPercentage(margeSecondArtisan.marginPercentage)}
-                          </span>
-                        </div>
                       </div>
                     </div>
                   </CardContent>

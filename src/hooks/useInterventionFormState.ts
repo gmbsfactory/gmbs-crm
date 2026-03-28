@@ -12,7 +12,7 @@ import { useArtisanModal } from "@/hooks/useArtisanModal"
 import type { ArtisanSearchResult } from "@/lib/artisans/types"
 import type { EmailTemplateData } from "@/lib/email-templates/intervention-emails"
 import { supabase } from "@/lib/supabase-client"
-import { calculatePrimaryArtisanMargin, calculateSecondaryArtisanMargin } from "@/lib/utils/margin-calculator"
+import { calculatePrimaryArtisanMargin } from "@/lib/utils/margin-calculator"
 import { toast } from "sonner"
 
 import {
@@ -184,20 +184,14 @@ export function useInterventionFormState(options: UseInterventionFormStateOption
 
   // ---- Memos: marges ----
   const margePrimaryArtisan = useMemo(() => {
+    const sst1 = parseFloat(String(formData.coutSST)) || 0
+    const mat1 = parseFloat(String(formData.coutMateriel)) || 0
+    const sst2 = parseFloat(String(formData.coutSSTSecondArtisan)) || 0
+    const mat2 = parseFloat(String(formData.coutMaterielSecondArtisan)) || 0
     return calculatePrimaryArtisanMargin(
       formData.coutIntervention,
-      formData.coutSST,
-      formData.coutMateriel
-    )
-  }, [formData.coutIntervention, formData.coutSST, formData.coutMateriel])
-
-  const margeSecondArtisan = useMemo(() => {
-    return calculateSecondaryArtisanMargin(
-      formData.coutIntervention,
-      formData.coutSST,
-      formData.coutMateriel,
-      formData.coutSSTSecondArtisan,
-      formData.coutMaterielSecondArtisan
+      sst1 + sst2,
+      mat1 + mat2
     )
   }, [formData.coutIntervention, formData.coutSST, formData.coutMateriel, formData.coutSSTSecondArtisan, formData.coutMaterielSecondArtisan])
 
@@ -751,7 +745,6 @@ export function useInterventionFormState(options: UseInterventionFormStateOption
 
     // Marges
     margePrimaryArtisan,
-    margeSecondArtisan,
 
     // Carte
     mapMarkers,
