@@ -42,6 +42,7 @@ function parseTenantInfo(csvRow, verbose = false) {
   const telCol = getCSVValue(csvRow, 'TEL LOC') || '';
 
   const result = {
+    plain_nom_client: locataireCol.trim() || null,
     firstname: null,
     lastname: null,
     email: null,
@@ -92,6 +93,7 @@ function parseOwnerInfo(csvRow, verbose = false) {
   const parsedName = parsePersonName(nameText);
 
   return {
+    plain_nom_facturation: proprioCol.trim() || null,
     firstname: parsedName.firstname,
     lastname: parsedName.lastname,
     telephone: telephones.length > 0 ? telephones[0] : null,

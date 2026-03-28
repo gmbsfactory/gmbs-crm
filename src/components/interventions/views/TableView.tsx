@@ -162,6 +162,7 @@ type TableViewProps = {
 
 type CellRender = {
   content: ReactNode
+  tooltipText?: string
   backgroundColor?: string
   defaultTextColor?: string
   cellClassName?: string
@@ -533,6 +534,7 @@ const renderCell = (
     const textColor = getReadableTextColor(statusColor)
 
     return {
+      tooltipText: `${artisanName}${artisanStatus ? ` — ${statusLabel}` : ""}`,
       content: (
         <div className="flex items-center gap-2 max-w-full">
           <span className="truncate flex-1">{artisanName}</span>
@@ -1674,7 +1676,7 @@ export function TableView({
                                     >
                                       {view.visibleProperties.map((property, propertyIndex) => {
                                         const styleEntry = columnStyles[property]
-                                        const { content, backgroundColor, defaultTextColor, cellClassName, statusGradient } =
+                                        const { content, tooltipText, backgroundColor, defaultTextColor, cellClassName, statusGradient } =
                                           renderCell(intervention, property, styleEntry, themeMode)
                                         const alignment = (columnAlignment[property] ?? "center") as TableColumnAlignment
                                         const alignmentClass =
@@ -1774,7 +1776,7 @@ export function TableView({
                                                 {content}
                                               </div>
                                             ) : (
-                                              <TruncatedCell content={content} searchQuery={searchQuery} />
+                                              <TruncatedCell content={content} searchQuery={searchQuery} tooltipText={tooltipText} />
                                             )}
                                           </td>
                                         )
@@ -2027,14 +2029,14 @@ function HighlightedText({ text, searchQuery }: { text: string; searchQuery: str
   )
 }
 
-function TruncatedCell({ content, className, searchQuery }: { content: ReactNode; className?: string; searchQuery?: string }) {
+function TruncatedCell({ content, className, searchQuery, tooltipText }: { content: ReactNode; className?: string; searchQuery?: string; tooltipText?: string }) {
   const [tooltipPos, setTooltipPos] = useState<{ x: number; y: number } | null>(null)
   const cellRef = useRef<HTMLDivElement>(null)
   const [isOverflowing, setIsOverflowing] = useState(false)
   const [portalElement, setPortalElement] = useState<HTMLElement | null>(null)
 
-  const contentStr = typeof content === "string" ? content :
-    typeof content === "number" ? String(content) : ""
+  const contentStr = tooltipText ?? (typeof content === "string" ? content :
+    typeof content === "number" ? String(content) : "")
 
   // Appliquer le surlignage si le contenu est une string et qu'il y a une query
   const displayContent = useMemo(() => {

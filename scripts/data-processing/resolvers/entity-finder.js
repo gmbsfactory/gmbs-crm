@@ -38,6 +38,7 @@ class EntityFinder {
       }
 
       const tenantData = {
+        plain_nom_client: tenantInfo.plain_nom_client,
         firstname: tenantInfo.firstname,
         lastname: tenantInfo.lastname,
         email: tenantInfo.email,
@@ -71,6 +72,7 @@ class EntityFinder {
       }
 
       const ownerData = {
+        plain_nom_facturation: ownerInfo.plain_nom_facturation,
         owner_firstname: ownerInfo.firstname,
         owner_lastname: ownerInfo.lastname,
         telephone: ownerInfo.telephone,
