@@ -1585,6 +1585,9 @@ export function NewInterventionForm({
                                     </Badge>
                                   )}
                                   <Badge variant="secondary" className="text-[8px] px-1 py-0">{formatDistanceKm(artisan.distanceKm)}</Badge>
+                                  <Button type="button" variant="ghost" size="icon" className="h-5 w-5 text-muted-foreground hover:text-foreground flex-shrink-0" onClick={(e) => handleOpenArtisanModal(artisan.id, e)}>
+                                    <Eye className="h-3 w-3" />
+                                  </Button>
                                 </div>
                               </div>
                             )

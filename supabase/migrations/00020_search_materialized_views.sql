@@ -99,6 +99,7 @@ SELECT
   -- ===== TENANT/CLIENT (dénormalisé) =====
   t.firstname as tenant_firstname,
   t.lastname as tenant_lastname,
+  t.plain_nom_client as tenant_plain_nom_client,
   t.email as tenant_email,
   t.telephone as tenant_telephone,
   t.telephone2 as tenant_telephone2,
@@ -109,6 +110,7 @@ SELECT
   -- ===== OWNER/PROPRIETAIRE (dénormalisé) =====
   o.owner_firstname,
   o.owner_lastname,
+  o.plain_nom_facturation as owner_plain_nom_facturation,
   o.email as owner_email,
   o.telephone as owner_telephone,
   o.telephone2 as owner_telephone2,
@@ -171,7 +173,10 @@ SELECT
   setweight(to_tsvector('french', unaccent(coalesce(a.label, ''))), 'B') ||
   setweight(to_tsvector('french', unaccent(coalesce(pa.plain_nom, ''))), 'B') ||
   setweight(to_tsvector('french', unaccent(coalesce(pa.raison_sociale, ''))), 'B') ||
+  setweight(to_tsvector('french', unaccent(coalesce(t.plain_nom_client, ''))), 'B') ||
   setweight(to_tsvector('french', unaccent(coalesce(t.firstname || ' ' || t.lastname, ''))), 'B') ||
+  setweight(to_tsvector('french', unaccent(coalesce(o.plain_nom_facturation, ''))), 'B') ||
+  setweight(to_tsvector('french', unaccent(coalesce(o.owner_firstname || ' ' || o.owner_lastname, ''))), 'B') ||
   setweight(to_tsvector('french', unaccent(coalesce(m.label, ''))), 'B') ||
 
   -- POIDS C: Informations secondaires

@@ -149,6 +149,8 @@ async function mapZonesFromCSV(csvRow, enumResolver, authenticatedClient) {
 }
 
 
+const DEBUG_ARTISAN_EMAIL = 'daniel.travaux76210@gmail.com';
+
 async function mapArtisanFromCSV(csvRow, lineNumber = null, enumResolver, errorLogger, authenticatedClient) {
   csvRow = cleanCSVKeys(csvRow);
 
@@ -161,11 +163,45 @@ async function mapArtisanFromCSV(csvRow, lineNumber = null, enumResolver, errorL
   const nomPrenom = originalNomPrenom;
   const { prenom, nom } = extractNomPrenomStrict(nomPrenom);
 
+  const rawEmail = getCSVValue(csvRow, 'Adresse Mail');
+  const isDebugArtisan = cleanEmail(rawEmail) === DEBUG_ARTISAN_EMAIL;
+
+  if (isDebugArtisan) {
+    console.log('\n' + '█'.repeat(60));
+    console.log(`🔍 [DEBUG] Artisan trouvé : ${DEBUG_ARTISAN_EMAIL} (ligne ${lineNumber != null ? lineNumber + 2 : '?'})`);
+    console.log('█'.repeat(60));
+    console.log('📋 Valeurs brutes du sheet :');
+    console.log(`   Nom Prénom     : "${getCSVValue(csvRow, 'Nom Prénom')}"`);
+    console.log(`   Adresse Mail   : "${rawEmail}"`);
+    console.log(`   STATUT         : "${getCSVValue(csvRow, 'STATUT')}"`);
+    console.log(`   Gestionnaire   : "${getCSVValue(csvRow, 'Gestionnaire')}"`);
+    console.log(`   Adresse Postale: "${getCSVValue(csvRow, 'Adresse Postale')}"`);
+    console.log(`   Numéro Tél     : "${getCSVValue(csvRow, 'Numéro Téléphone')}"`);
+    console.log(`   DATE D'AJOUT   : "${getCSVValue(csvRow, "DATE D'AJOUT")}"`);
+  }
+
+  const rawStatut = getCSVValue(csvRow, 'STATUT');
+  let resolvedStatutId;
+  try {
+    resolvedStatutId = await enumResolver.getArtisanStatusIdNormalized(rawStatut, authenticatedClient);
+  } catch (e) {
+    if (isDebugArtisan) {
+      console.log(`❌ [DEBUG] Erreur résolution STATUT "${rawStatut}" : ${e.message}`);
+    }
+    throw e;
+  }
+
+  if (isDebugArtisan) {
+    console.log(`\n🔄 [DEBUG] Résolution STATUT :`);
+    console.log(`   Valeur brute   : "${rawStatut}"`);
+    console.log(`   statut_id résolu : ${resolvedStatutId}`);
+  }
+
   const mapped = {
     prenom: stripDigitsFromName(prenom),
     nom: stripDigitsFromName(nom),
     plain_nom: nomPrenom ? nomPrenom.trim() : null,
-    email: cleanEmail(getCSVValue(csvRow, 'Adresse Mail')),
+    email: cleanEmail(rawEmail),
     telephone: cleanPhone(getCSVValue(csvRow, 'Numéro Téléphone')),
     telephone2: extractSecondPhone(getCSVValue(csvRow, 'Numéro Téléphone')),
     raison_sociale: stripDigitsFromName(cleanString(getCSVValue(csvRow, 'Raison Social'))),
@@ -188,10 +224,7 @@ async function mapArtisanFromCSV(csvRow, lineNumber = null, enumResolver, errorL
       console.warn(`⚠️  Gestionnaire ignoré pour cet artisan: ${err.message}`);
       return null;
     }),
-    statut_id: await enumResolver.getArtisanStatusIdNormalized(
-      getCSVValue(csvRow, 'STATUT'),
-      authenticatedClient
-    ),
+    statut_id: resolvedStatutId,
     statut_dossier: 'INCOMPLET',
     numero_associe: lineNumber != null ? String(lineNumber + 2) : null,
     suivi_relances_docs: cleanString(getCSVValue(csvRow, 'SUIVI DES RELANCES DOCS')),
@@ -200,7 +233,30 @@ async function mapArtisanFromCSV(csvRow, lineNumber = null, enumResolver, errorL
     metiers: await mapMetiersFromCSV(csvRow, enumResolver, authenticatedClient),
   };
 
+  if (isDebugArtisan) {
+    console.log(`\n📦 [DEBUG] Objet mappé :`);
+    console.log(`   prenom         : "${mapped.prenom}"`);
+    console.log(`   nom            : "${mapped.nom}"`);
+    console.log(`   email          : "${mapped.email}"`);
+    console.log(`   statut_id      : ${mapped.statut_id}`);
+    console.log(`   statut_dossier : "${mapped.statut_dossier}"`);
+    console.log(`   gestionnaire_id: ${mapped.gestionnaire_id}`);
+    console.log(`   departement    : "${mapped.departement}"`);
+    console.log(`   metiers        : ${JSON.stringify(mapped.metiers)}`);
+  }
+
   const validation = validateArtisan(mapped);
+
+  if (isDebugArtisan) {
+    console.log(`\n✅ [DEBUG] Validation : isValid=${validation.isValid}`);
+    if (validation.errors?.length) {
+      console.log(`   Erreurs : ${JSON.stringify(validation.errors)}`);
+    }
+    if (validation.warnings?.length) {
+      console.log(`   Warnings : ${JSON.stringify(validation.warnings)}`);
+    }
+    console.log('█'.repeat(60) + '\n');
+  }
 
   if (!validation.isValid) {
     validation.errors.forEach(({ field, reason }) => {
