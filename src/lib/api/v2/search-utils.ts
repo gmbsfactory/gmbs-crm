@@ -29,6 +29,7 @@ export function convertInterventionToSearchRecord(intervention: any): Interventi
           id: intervention.tenant.id,
           firstname: intervention.tenant.firstname,
           lastname: intervention.tenant.lastname,
+          plain_nom: intervention.tenant.plain_nom_client ?? null,
           telephone: intervention.tenant.telephone,
           telephone2: intervention.tenant.telephone2,
           email: intervention.tenant.email,
@@ -36,12 +37,26 @@ export function convertInterventionToSearchRecord(intervention: any): Interventi
           code_postal: intervention.tenant.code_postal,
           ville: intervention.tenant.ville,
         }
-      : null,
+      : (intervention.nomPrenomClient || intervention.prenomClient || intervention.nomClient || intervention.emailClient || intervention.telephoneClient)
+        ? {
+            id: intervention.tenant_id ?? intervention.client_id ?? null,
+            firstname: intervention.prenomClient ?? null,
+            lastname: intervention.nomClient ?? null,
+            plain_nom: intervention.nomPrenomClient ?? null,
+            telephone: intervention.telephoneClient ?? null,
+            telephone2: intervention.telephone2Client ?? null,
+            email: intervention.emailClient ?? null,
+            adresse: null,
+            code_postal: null,
+            ville: null,
+          }
+        : null,
     owner: intervention.owner
       ? {
           id: intervention.owner.id,
           owner_firstname: intervention.owner.owner_firstname,
           owner_lastname: intervention.owner.owner_lastname,
+          plain_nom: intervention.owner.plain_nom_facturation ?? null,
           telephone: intervention.owner.telephone,
           telephone2: intervention.owner.telephone2,
           email: intervention.owner.email,
@@ -49,7 +64,20 @@ export function convertInterventionToSearchRecord(intervention: any): Interventi
           code_postal: intervention.owner.code_postal,
           ville: intervention.owner.ville,
         }
-      : null,
+      : (intervention.nomPrenomFacturation || intervention.prenomProprietaire || intervention.nomProprietaire || intervention.emailProprietaire || intervention.telephoneProprietaire)
+        ? {
+            id: intervention.owner_id ?? null,
+            owner_firstname: intervention.prenomProprietaire ?? null,
+            owner_lastname: intervention.nomProprietaire ?? null,
+            plain_nom: intervention.nomPrenomFacturation ?? null,
+            telephone: intervention.telephoneProprietaire ?? null,
+            telephone2: null,
+            email: intervention.emailProprietaire ?? null,
+            adresse: null,
+            code_postal: null,
+            ville: null,
+          }
+        : null,
     status: intervention.status,
     assigned_user: intervention.assigned_user
       ? {

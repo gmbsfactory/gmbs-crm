@@ -201,7 +201,6 @@ export const InterventionEditForm = memo(function InterventionEditForm({
 
     // Margins
     margePrimaryArtisan,
-    margeSecondArtisan,
 
     // Map
     mapMarkers,
@@ -2708,6 +2707,9 @@ export const InterventionEditForm = memo(function InterventionEditForm({
                                               </Badge>
                                             )}
                                             <Badge variant="secondary" className="text-[9px] px-1 py-0 flex-shrink-0">{formatDistanceKm(artisan.distanceKm)}</Badge>
+                                            <Button type="button" variant="ghost" size="icon" className="h-5 w-5 text-muted-foreground hover:text-foreground flex-shrink-0" onClick={(e) => handleOpenArtisanModal(artisan.id, e)}>
+                                              <Eye className="h-3 w-3" />
+                                            </Button>
                                           </div>
                                         </div>
                                       </div>
@@ -2731,7 +2733,7 @@ export const InterventionEditForm = memo(function InterventionEditForm({
                             </div>
 
                             {/* Coûts du 2ème artisan */}
-                            <div className="grid grid-cols-3 gap-2">
+                            <div className="grid grid-cols-2 gap-2">
                               <div>
                                 <Label htmlFor="coutSSTSecondArtisan" className="text-[10px]">Coût SST</Label>
                                 <PresenceFieldIndicator fieldName="coutSSTSecondArtisan">
@@ -2761,14 +2763,6 @@ export const InterventionEditForm = memo(function InterventionEditForm({
                                   className="h-7 text-xs mt-1"
                                 />
                                 </PresenceFieldIndicator>
-                              </div>
-                              <div>
-                                <Label className="text-[10px]">Marge 2</Label>
-                                <div className="flex h-7 w-full rounded-md border border-input bg-muted px-2 py-1 text-xs shadow-sm items-center mt-1">
-                                  <span className={cn("font-medium", getMarginColorClass(margeSecondArtisan.marginPercentage))}>
-                                    {formatMarginPercentage(margeSecondArtisan.marginPercentage)}
-                                  </span>
-                                </div>
                               </div>
                             </div>
                           </div>

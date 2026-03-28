@@ -258,14 +258,13 @@ export function scoreIntervention(intervention: InterventionSearchRecord, query:
     }
   }
 
-  const clientNameParts = [
+  const clientPlainNom = (contact as any)?.plain_nom
+  const clientNameFallback = [
     (contact as any)?.firstname ?? (contact as any)?.owner_firstname,
-    (contact as any)?.lastname ?? (contact as any)?.owner_lastname
-  ].filter(
-    (part) => Boolean(part),
-  ) as string[]
-  if (clientNameParts.length > 0) {
-    const clientFullName = normalizeString(clientNameParts.join(" "))
+    (contact as any)?.lastname ?? (contact as any)?.owner_lastname,
+  ].filter(Boolean).join(" ") || null
+  const clientFullName = normalizeString(clientPlainNom || clientNameFallback)
+  if (clientFullName) {
     if (clientFullName === normalizedQuery && normalizedQuery.length > 0) {
       score = incrementScore(score, 85)
       matchedFields.add("client")
@@ -275,6 +274,15 @@ export function scoreIntervention(intervention: InterventionSearchRecord, query:
     } else if (clientFullName.includes(normalizedQuery) && normalizedQuery.length > 0) {
       score = incrementScore(score, 65)
       matchedFields.add("client")
+    }
+  }
+
+  const clientEmail = (contact as any)?.email
+  if (clientEmail) {
+    const normalizedEmail = normalizeString(clientEmail)
+    if (normalizedEmail.includes(normalizedQuery) && normalizedQuery.length > 1) {
+      score = incrementScore(score, 65)
+      matchedFields.add("clientEmail")
     }
   }
 
@@ -644,6 +652,7 @@ const searchInterventions = async (
           id,
           firstname,
           lastname,
+          plain_nom_client,
           telephone,
           telephone2,
           email,
@@ -655,6 +664,7 @@ const searchInterventions = async (
           id,
           owner_firstname,
           owner_lastname,
+          plain_nom_facturation,
           telephone,
           telephone2,
           email,

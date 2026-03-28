@@ -1,22 +1,17 @@
 -- ========================================
--- GMBS CRM - Ajout Numéros de Téléphone à la Recherche
+-- GMBS CRM - Ajout email owner + plain_nom_client/plain_nom_facturation à la recherche
 -- ========================================
--- Date: 2025-12-XX
--- Description: Ajoute les numéros de téléphone (tenant et owner) au search_vector
---              de la vue matérialisée interventions_search_mv pour permettre
---              la recherche par numéro de téléphone
--- ========================================
-
--- ========================================
--- 1️⃣ RECRÉER LA VUE MATÉRIALISÉE INTERVENTIONS
---    avec numéros de téléphone dans search_vector
+-- Champs manquants dans le tsvector :
+--   - o.email (owner email)
+--   - t.plain_nom_client (nom locataire tel que saisi dans le modal)
+--   - o.plain_nom_facturation (nom propriétaire tel que saisi dans le modal)
 -- ========================================
 
+DROP MATERIALIZED VIEW IF EXISTS global_search_mv CASCADE;
 DROP MATERIALIZED VIEW IF EXISTS interventions_search_mv CASCADE;
 
 CREATE MATERIALIZED VIEW interventions_search_mv AS
 WITH intervention_comments AS (
-  -- Sous-requête pour agréger les commentaires par intervention
   SELECT
     entity_id as intervention_id,
     string_agg(content, ' | ') as commentaires_aggreges
@@ -25,7 +20,6 @@ WITH intervention_comments AS (
   GROUP BY entity_id
 ),
 primary_artisans AS (
-  -- Sous-requête pour récupérer l'artisan principal (un seul par intervention)
   SELECT DISTINCT ON (ia.intervention_id)
     ia.intervention_id,
     ia.artisan_id,
@@ -54,14 +48,12 @@ primary_artisans AS (
   ORDER BY ia.intervention_id, ia.created_at ASC
 )
 SELECT
-  -- ===== ID & Métadonnées principales =====
   i.id,
   i.id_inter,
   i.created_at,
   i.updated_at,
   i.is_active,
 
-  -- ===== Champs directs de l'intervention (TEXT) =====
   i.contexte_intervention,
   i.consigne_intervention,
   i.consigne_second_artisan,
@@ -75,18 +67,15 @@ SELECT
   i.apartment_number,
   i.vacant_housing_instructions,
 
-  -- ===== Dates converties en TEXT pour recherche =====
   to_char(i.date, 'DD/MM/YYYY HH24:MI') as date_formatted,
   to_char(i.date_termine, 'DD/MM/YYYY HH24:MI') as date_termine_formatted,
   to_char(i.date_prevue, 'DD/MM/YYYY HH24:MI') as date_prevue_formatted,
   to_char(i.due_date, 'DD/MM/YYYY') as due_date_formatted,
 
-  -- ===== AGENCE (dénormalisée) =====
   a.code as agence_code,
   a.label as agence_label,
   a.region as agence_region,
 
-  -- ===== TENANT/CLIENT (dénormalisé) =====
   t.firstname as tenant_firstname,
   t.lastname as tenant_lastname,
   t.plain_nom_client as tenant_plain_nom_client,
@@ -97,7 +86,6 @@ SELECT
   t.ville as tenant_ville,
   t.code_postal as tenant_code_postal,
 
-  -- ===== OWNER/PROPRIETAIRE (dénormalisé) =====
   o.owner_firstname,
   o.owner_lastname,
   o.plain_nom_facturation as owner_plain_nom_facturation,
@@ -108,23 +96,19 @@ SELECT
   o.ville as owner_ville,
   o.code_postal as owner_code_postal,
 
-  -- ===== USER ASSIGNÉ (dénormalisé) =====
   u.firstname as assigned_user_firstname,
   u.lastname as assigned_user_lastname,
   u.username as assigned_user_username,
   u.code_gestionnaire as assigned_user_code,
 
-  -- ===== STATUT (dénormalisé) =====
   s.code as statut_code,
   s.label as statut_label,
   s.color as statut_color,
 
-  -- ===== MÉTIER (dénormalisé) =====
   m.code as metier_code,
   m.label as metier_label,
   m.description as metier_description,
 
-  -- ===== ARTISAN PRINCIPAL (dénormalisé - TOUS les champs text) =====
   pa.prenom as artisan_prenom,
   pa.nom as artisan_nom,
   pa.plain_nom as artisan_plain_nom,
@@ -145,12 +129,7 @@ SELECT
   pa.suivi_relances_docs as artisan_suivi_relances,
   to_char(pa.date_ajout, 'DD/MM/YYYY') as artisan_date_ajout,
 
-  -- ===== COMMENTAIRES (agrégés en un seul champ) =====
   ic.commentaires_aggreges,
-
-  -- ===== VECTEUR DE RECHERCHE FULL-TEXT =====
-  -- Pondération: A (poids fort) > B (poids moyen) > C (poids faible) > D (poids très faible)
-  -- La pondération influence le score de pertinence (ts_rank)
 
   -- POIDS A: Identifiants critiques
   setweight(to_tsvector('french', unaccent(coalesce(i.id_inter, ''))), 'A') ||
@@ -163,7 +142,10 @@ SELECT
   setweight(to_tsvector('french', unaccent(coalesce(a.label, ''))), 'B') ||
   setweight(to_tsvector('french', unaccent(coalesce(pa.plain_nom, ''))), 'B') ||
   setweight(to_tsvector('french', unaccent(coalesce(pa.raison_sociale, ''))), 'B') ||
+  setweight(to_tsvector('french', unaccent(coalesce(t.plain_nom_client, ''))), 'B') ||
   setweight(to_tsvector('french', unaccent(coalesce(t.firstname || ' ' || t.lastname, ''))), 'B') ||
+  setweight(to_tsvector('french', unaccent(coalesce(o.plain_nom_facturation, ''))), 'B') ||
+  setweight(to_tsvector('french', unaccent(coalesce(o.owner_firstname || ' ' || o.owner_lastname, ''))), 'B') ||
   setweight(to_tsvector('french', unaccent(coalesce(m.label, ''))), 'B') ||
 
   -- POIDS C: Informations secondaires
@@ -174,10 +156,9 @@ SELECT
   setweight(to_tsvector('french', unaccent(coalesce(i.code_postal, ''))), 'C') ||
   setweight(to_tsvector('french', unaccent(coalesce(pa.email, ''))), 'C') ||
   setweight(to_tsvector('french', unaccent(coalesce(t.email, ''))), 'C') ||
+  setweight(to_tsvector('french', unaccent(coalesce(o.email, ''))), 'C') ||
   setweight(to_tsvector('french', unaccent(coalesce(u.username, ''))), 'C') ||
-  -- ⭐ COMMENTAIRES UPGRADÉS DE D À C ⭐
   setweight(to_tsvector('french', unaccent(coalesce(ic.commentaires_aggreges, ''))), 'C') ||
-  -- ⭐ NUMÉROS DE TÉLÉPHONE AJOUTÉS (normalisés: espaces/tirets/points supprimés) ⭐
   setweight(to_tsvector('french', unaccent(coalesce(regexp_replace(t.telephone, '[^0-9]', '', 'g'), ''))), 'C') ||
   setweight(to_tsvector('french', unaccent(coalesce(regexp_replace(t.telephone2, '[^0-9]', '', 'g'), ''))), 'C') ||
   setweight(to_tsvector('french', unaccent(coalesce(regexp_replace(o.telephone, '[^0-9]', '', 'g'), ''))), 'C') ||
@@ -193,7 +174,6 @@ SELECT
   setweight(to_tsvector('french', unaccent(coalesce(m.description, ''))), 'D')
   AS search_vector,
 
-  -- ===== Champs pour tri et filtrage rapide =====
   i.statut_id,
   i.agence_id,
   i.metier_id,
@@ -214,34 +194,15 @@ LEFT JOIN intervention_comments ic ON i.id = ic.intervention_id
 
 WHERE i.is_active = true;
 
--- Index GIN sur le vecteur de recherche (critical pour performance)
 CREATE INDEX idx_interventions_search_vector ON interventions_search_mv USING gin(search_vector);
-
--- Index B-tree sur les colonnes de filtrage fréquent
 CREATE INDEX idx_interventions_search_statut ON interventions_search_mv(statut_id);
 CREATE INDEX idx_interventions_search_agence ON interventions_search_mv(agence_id);
 CREATE INDEX idx_interventions_search_assigned_user ON interventions_search_mv(assigned_user_id);
 CREATE INDEX idx_interventions_search_date ON interventions_search_mv(date DESC);
-
--- Index unique sur l'ID pour les jointures rapides
 CREATE UNIQUE INDEX idx_interventions_search_id ON interventions_search_mv(id);
 
-COMMENT ON MATERIALIZED VIEW interventions_search_mv IS
-'Vue matérialisée pour recherche full-text optimisée sur les interventions.
-Inclut toutes les données textuelles des interventions et relations (agence, tenant, artisan, etc.).
-⭐ MISE À JOUR: Numéros de téléphone (tenant, owner, artisan) ajoutés au search_vector avec normalisation.
-Rafraîchissement automatique via triggers sur tables sources.';
-
-
--- ========================================
--- 2️⃣ RECRÉER LA VUE MATÉRIALISÉE GLOBALE
---    (dépend de interventions_search_mv)
--- ========================================
-
-DROP MATERIALIZED VIEW IF EXISTS global_search_mv CASCADE;
-
+-- Recréer global_search_mv qui dépend de interventions_search_mv
 CREATE MATERIALIZED VIEW global_search_mv AS
--- Interventions
 SELECT
   'intervention'::text as entity_type,
   id as entity_id,
@@ -264,7 +225,6 @@ FROM interventions_search_mv
 
 UNION ALL
 
--- Artisans
 SELECT
   'artisan'::text as entity_type,
   id as entity_id,
@@ -285,37 +245,10 @@ SELECT
   updated_at
 FROM artisans_search_mv;
 
--- Index GIN sur le vecteur de recherche global
 CREATE INDEX idx_global_search_vector ON global_search_mv USING gin(search_vector);
-
--- Index sur le type d'entité pour filtrage rapide
 CREATE INDEX idx_global_search_entity_type ON global_search_mv(entity_type);
-
--- Index composite pour pagination
 CREATE INDEX idx_global_search_created_at ON global_search_mv(created_at DESC, entity_id);
-
--- Index unique requis pour REFRESH MATERIALIZED VIEW CONCURRENTLY
 CREATE UNIQUE INDEX idx_global_search_unique ON global_search_mv(entity_type, entity_id);
 
-COMMENT ON MATERIALIZED VIEW global_search_mv IS
-'Vue matérialisée pour recherche globale (cmd+k style) sur interventions ET artisans.
-UNION des vues interventions_search_mv et artisans_search_mv.
-⭐ MISE À JOUR: Recherche par numéro de téléphone maintenant disponible.
-Utilisé pour la barre de recherche universelle de l''application.';
-
-
--- ========================================
--- 3️⃣ RAFRAÎCHISSEMENT INITIAL DES VUES
--- ========================================
-
--- Rafraîchir les vues pour appliquer les nouveaux champs
 REFRESH MATERIALIZED VIEW interventions_search_mv;
 REFRESH MATERIALIZED VIEW global_search_mv;
-
--- ========================================
--- FIN DE LA MIGRATION
--- ========================================
--- Les numéros de téléphone (tenant, owner, artisan) sont maintenant
--- inclus dans le search_vector avec normalisation (suppression des
--- espaces, tirets, points) pour permettre la recherche même si le
--- format d'entrée diffère du format stocké.
