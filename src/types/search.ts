@@ -72,6 +72,7 @@ export interface InterventionSearchRecord {
     id: string
     owner_firstname: string | null
     owner_lastname: string | null
+    plain_nom: string | null
     telephone: string | null
     telephone2: string | null
     email: string | null
@@ -83,6 +84,7 @@ export interface InterventionSearchRecord {
     id: string
     firstname: string | null
     lastname: string | null
+    plain_nom: string | null
     telephone: string | null
     telephone2: string | null
     email: string | null
