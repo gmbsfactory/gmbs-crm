@@ -29,6 +29,7 @@ import { extractErrorMessage } from "@/lib/toast-helpers"
 import { findOrCreateOwner, findOrCreateTenant } from "@/lib/interventions/owner-tenant-helpers"
 import { runPostMutationTasks } from "@/lib/interventions/post-mutation-tasks"
 import { useInterventionModal } from "@/hooks/useInterventionModal"
+import { useModal } from "@/hooks/useModal"
 import { EmailEditModal } from "@/components/interventions/EmailEditModal"
 import { DuplicateInterventionDialog } from "@/components/interventions/DuplicateInterventionDialog"
 import { SearchableBadgeSelect } from "@/components/ui/searchable-badge-select"
@@ -99,6 +100,7 @@ export function NewInterventionForm({
 }: NewInterventionFormProps) {
   const queryClient = useQueryClient()
   const { open: openInterventionModal } = useInterventionModal()
+  const { open: openModal } = useModal()
 
   // Use the shared form state hook
   const {
@@ -114,6 +116,8 @@ export function NewInterventionForm({
     setIsSubmitting,
     isFormReady,
     hasUnsavedChanges,
+    clearDraft,
+    saveNewDraft,
 
     // Geocoding
     locationQuery,
@@ -219,6 +223,7 @@ export function NewInterventionForm({
     handleOpenArtisanModal,
   } = useInterventionFormState({
     mode: "create",
+    restoreNewDraft: !defaultValues,
     initialFormData: createNewFormData(defaultValues),
     initialLocationQuery: defaultValues?.adresse && defaultValues?.ville
       ? `${defaultValues.adresse}, ${defaultValues.ville}`
@@ -485,6 +490,8 @@ export function NewInterventionForm({
       skipDuplicateCheckRef.current = false
 
       // === NOUVEAU FLOW: Fermer le modal AVANT l'appel API ===
+      // Sauvegarder le draft avant fermeture pour récupération en cas d'erreur
+      saveNewDraft()
       onSuccess?.(null)
       setIsSubmitting(false)
       onSubmittingChange?.(false)
@@ -494,6 +501,9 @@ export function NewInterventionForm({
       try {
         const created = await interventionsApi.create(createData)
         setCreatedInterventionId(created.id)
+
+        // Succès : effacer le draft de création
+        clearDraft()
 
         toast.success("Intervention créée avec succès", {
           id: toastId,
@@ -540,11 +550,26 @@ export function NewInterventionForm({
       } catch (apiError) {
         console.error("Erreur lors de la création:", apiError)
         const description = extractErrorMessage(apiError)
-        toast.error("Erreur lors de la création de l'intervention", {
-          id: toastId,
-          duration: Infinity,
-          description,
-        })
+        const isDuplicateKey = description?.toLowerCase().includes("duplicate key") || description?.toLowerCase().includes("unique constraint")
+
+        if (isDuplicateKey) {
+          // Capturer la référence openModal avant que le composant soit démonté
+          const openNewModal = () => openModal("new", { content: "new-intervention" })
+          toast.error("Erreur : ID d'intervention déjà utilisé", {
+            id: toastId,
+            duration: Infinity,
+            action: {
+              label: "Re-ouvrir",
+              onClick: openNewModal,
+            },
+          })
+        } else {
+          toast.error("Erreur lors de la création de l'intervention", {
+            id: toastId,
+            duration: Infinity,
+            description,
+          })
+        }
       }
 
     } catch (error) {

@@ -2,7 +2,7 @@
 // Encapsule toute la logique commune entre NewInterventionForm et InterventionEditForm
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { useInterventionDraftStore } from "@/stores/interventionDraft"
+import { useInterventionDraftStore, NEW_INTERVENTION_DRAFT_KEY } from "@/stores/interventionDraft"
 import { useReferenceDataQuery } from "@/hooks/useReferenceDataQuery"
 import { useCurrentUser } from "@/hooks/useCurrentUser"
 import { useGeocodeSearch } from "@/hooks/useGeocodeSearch"
@@ -44,6 +44,8 @@ export interface UseInterventionFormStateOptions {
   initialSelectedSecondArtisanId?: string | null
   /** ID de l'intervention (edit mode) — active la persistance du draft */
   interventionId?: string
+  /** Activer la restauration du draft de création (mode create uniquement — désactiver si defaultValues fournis) */
+  restoreNewDraft?: boolean
 
   // Callbacks de notification vers le parent
   onClientNameChange?: (name: string) => void
@@ -63,6 +65,7 @@ export function useInterventionFormState(options: UseInterventionFormStateOption
     initialSelectedArtisanId = null,
     initialSelectedSecondArtisanId = null,
     interventionId,
+    restoreNewDraft = false,
     onClientNameChange,
     onAgencyNameChange,
     onClientPhoneChange,
@@ -70,9 +73,13 @@ export function useInterventionFormState(options: UseInterventionFormStateOption
     onSubmittingChange,
   } = options
 
-  // ---- Draft store (edit mode uniquement) ----
+  // ---- Draft store ----
   const { getDraft, saveDraft, clearDraft: clearDraftStore } = useInterventionDraftStore()
-  const existingDraft = mode === "edit" && interventionId ? getDraft(interventionId) : null
+  const existingDraft = mode === "edit" && interventionId
+    ? getDraft(interventionId)
+    : mode === "create" && restoreNewDraft
+      ? getDraft(NEW_INTERVENTION_DRAFT_KEY)
+      : null
 
   // ---- Données de référence ----
   const { data: refData, loading: refDataLoading } = useReferenceDataQuery()
@@ -417,8 +424,24 @@ export function useInterventionFormState(options: UseInterventionFormStateOption
   }, [mode, interventionId, isFormReady, formData, locationQuery, selectedArtisanId, selectedSecondArtisanId, collapsibleState, saveDraft])
 
   const clearDraft = useCallback(() => {
-    if (interventionId) clearDraftStore(interventionId)
-  }, [interventionId, clearDraftStore])
+    if (mode === "edit" && interventionId) {
+      clearDraftStore(interventionId)
+    } else if (mode === "create") {
+      clearDraftStore(NEW_INTERVENTION_DRAFT_KEY)
+    }
+  }, [mode, interventionId, clearDraftStore])
+
+  /** Sauvegarde l'état courant du formulaire comme draft de création (clé __new__) */
+  const saveNewDraft = useCallback(() => {
+    if (mode !== "create") return
+    saveDraft(NEW_INTERVENTION_DRAFT_KEY, {
+      formData,
+      locationQuery,
+      selectedArtisanId,
+      selectedSecondArtisanId,
+      collapsibleState,
+    })
+  }, [mode, saveDraft, formData, locationQuery, selectedArtisanId, selectedSecondArtisanId, collapsibleState])
 
   // Absences artisans
   useEffect(() => {
@@ -729,6 +752,7 @@ export function useInterventionFormState(options: UseInterventionFormStateOption
     isFormReady,
     hasUnsavedChanges,
     clearDraft,
+    saveNewDraft,
 
     // Géocodage
     locationQuery,
