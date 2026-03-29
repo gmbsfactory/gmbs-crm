@@ -64,8 +64,8 @@ export const STATUSES_REQUIRING_AGENCE = new Set(["DEMANDE", "DEVIS_ENVOYE", "AC
 /** Statuts nécessitant un métier — cumulatif depuis DEMANDE */
 export const STATUSES_REQUIRING_METIER = new Set(["DEMANDE", "DEVIS_ENVOYE", "ACCEPTE", "INTER_EN_COURS", "INTER_TERMINEE"])
 
-/** Statuts nécessitant un devis (document kind "devis") — cumulatif depuis ACCEPTE */
-export const STATUSES_REQUIRING_DEVIS = new Set(["ACCEPTE", "INTER_EN_COURS", "INTER_TERMINEE"])
+/** Statuts nécessitant un devis (document kind "devis") */
+export const STATUSES_REQUIRING_DEVIS = new Set(["INTER_EN_COURS", "INTER_TERMINEE"])
 
 /** Codes de statuts nécessitant un artisan assigné */
 export const ARTISAN_REQUIRED_STATUS_CODES = [
