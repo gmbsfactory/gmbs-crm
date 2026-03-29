@@ -46,6 +46,7 @@ import { normalizeArtisanData, getDisplayName } from "@/lib/artisans"
 
 // Shared form state hook
 import { useInterventionFormState } from "@/hooks/useInterventionFormState"
+import { useInterventionAccomptes } from "@/hooks/useInterventionAccomptes"
 import { useFieldPresenceDelegation } from "@/hooks/useFieldPresenceDelegation"
 import { useDocumentReclassification } from "@/hooks/useDocumentReclassification"
 import { useFieldPresence } from "@/contexts/FieldPresenceContext"
@@ -552,12 +553,6 @@ export const InterventionEditForm = memo(function InterventionEditForm({
     [intervention.statut_id, getInterventionStatusCode],
   )
 
-  // --- Gestion des acomptes (edit-specific) ---
-  const canEditAccomptes = useMemo(() => {
-    const currentStatusCode = getInterventionStatusCode(formData.statut_id)
-    return currentStatusCode === 'ACCEPTE' || currentStatusCode === 'ATT_ACOMPTE'
-  }, [formData.statut_id, getInterventionStatusCode])
-
   // Edit-specific: Wrapper for handleInputChange with auto-open collapsible sections
   const handleInputChange = useCallback((field: string, value: any) => {
     // Call the base handler from the hook
@@ -593,207 +588,25 @@ export const InterventionEditForm = memo(function InterventionEditForm({
     }
   }, [baseHandleInputChange, refData?.interventionStatuses, setFormData, setIsProprietaireOpen, setIsClientOpen])
 
-  const handleAccompteSSTChange = async (value: string) => {
-    handleInputChange('accompteSST', value)
-  }
-
-  const handleAccompteSSTBlur = async () => {
-    const value = formData.accompteSST
-    const amount = parseFloat(value) || 0
-
-    // Mettre à jour le paiement
-    if (amount > 0) {
-      try {
-        await interventionsApi.upsertPayment(intervention.id, {
-          payment_type: 'acompte_sst',
-          amount: amount,
-          currency: 'EUR'
-        })
-
-        // Si statut actuel est ACCEPTE, passer à ATT_ACOMPTE
-        const currentStatusCode = getInterventionStatusCode(formData.statut_id)
-        if (currentStatusCode === 'ACCEPTE') {
-          const attAcompteStatus = refData?.interventionStatuses.find(s => s.code === 'ATT_ACOMPTE')
-          if (attAcompteStatus) {
-            handleInputChange('statut_id', attAcompteStatus.id)
-            toast.success("Statut passé à 'Attente acompte'")
-          }
-        }
-      } catch (error) {
-        console.error('Erreur lors de la mise à jour de l\'acompte SST:', error)
-        toast.error('Erreur lors de la sauvegarde de l\'acompte SST')
-      }
-    }
-  }
-
-  const handleAccompteClientChange = async (value: string) => {
-    // Mettre à jour le formData local
-    handleInputChange('accompteClient', value)
-  }
-
-  const handleAccompteClientBlur = async () => {
-    const value = formData.accompteClient
-    const amount = parseFloat(value) || 0
-
-    // Mettre à jour le paiement
-    if (amount > 0) {
-      try {
-        await interventionsApi.upsertPayment(intervention.id, {
-          payment_type: 'acompte_client',
-          amount: amount,
-          currency: 'EUR'
-        })
-
-        // Si statut actuel est ACCEPTE, passer à ATT_ACOMPTE
-        const currentStatusCode = getInterventionStatusCode(formData.statut_id)
-        if (currentStatusCode === 'ACCEPTE') {
-          const attAcompteStatus = refData?.interventionStatuses.find(s => s.code === 'ATT_ACOMPTE')
-          if (attAcompteStatus) {
-            handleInputChange('statut_id', attAcompteStatus.id)
-            toast.success("Statut passé à 'Attente acompte'")
-          }
-        }
-      } catch (error) {
-        console.error('Erreur lors de la mise à jour de l\'acompte client:', error)
-        toast.error('Erreur lors de la sauvegarde de l\'acompte client')
-      }
-    }
-  }
-
-  const handleAccompteSSTRecuChange = async (checked: boolean) => {
-    try {
-      await interventionsApi.upsertPayment(intervention.id, {
-        payment_type: 'acompte_sst',
-        is_received: checked,
-        payment_date: checked ? (formData.dateAccompteSSTRecu || null) : null
-      })
-
-      // Mettre à jour le formData local
-      handleInputChange('accompteSSTRecu', checked)
-
-      // Si date saisie ET case cochée, passer à ACCEPTE
-      if (checked && formData.dateAccompteSSTRecu) {
-        const accepteStatus = refData?.interventionStatuses.find(s => s.code === 'ACCEPTE')
-        if (accepteStatus) {
-          handleInputChange('statut_id', accepteStatus.id)
-          toast.success("Acompte reçu : Statut passé à 'Accepté'")
-        }
-      } else if (!checked) {
-        // Si on décoche, vérifier si l'autre acompte est reçu, sinon remettre à ATT_ACOMPTE
-        // Note: on utilise les valeurs du hook useMemo qui sont basées sur intervention.intervention_payments
-        // Mais attention, intervention.intervention_payments n'est pas mis à jour en temps réel ici sauf si on invalide la query
-        // Pour l'instant on fait confiance à la logique locale ou on vérifie l'autre acompte via formData si possible
-        // Le mieux est de vérifier l'autre acompte via les props ou une refetch, mais ici on va simplifier
-
-        const hasClientDepositReceived = clientPayment?.is_received && clientPayment?.payment_date
-
-        if (!hasClientDepositReceived) {
-          const currentStatusCode = getInterventionStatusCode(formData.statut_id)
-          if (currentStatusCode === 'ACCEPTE') {
-            const attAcompteStatus = refData?.interventionStatuses.find(s => s.code === 'ATT_ACOMPTE')
-            if (attAcompteStatus) {
-              handleInputChange('statut_id', attAcompteStatus.id)
-              toast.info("Aucun acompte reçu : Statut passé à 'Attente acompte'")
-            }
-          }
-        }
-      }
-    } catch (error) {
-      console.error('Erreur lors de la mise à jour de l\'acompte SST:', error)
-      toast.error('Erreur lors de la sauvegarde')
-    }
-  }
-
-  const handleDateAccompteSSTRecuChange = async (date: string) => {
-    try {
-      await interventionsApi.upsertPayment(intervention.id, {
-        payment_type: 'acompte_sst',
-        is_received: formData.accompteSSTRecu,
-        payment_date: date || null
-      })
-
-      // Mettre à jour le formData local
-      handleInputChange('dateAccompteSSTRecu', date)
-
-      // Si case cochée ET date saisie, passer à ACCEPTE
-      if (formData.accompteSSTRecu && date) {
-        const accepteStatus = refData?.interventionStatuses.find(s => s.code === 'ACCEPTE')
-        if (accepteStatus) {
-          handleInputChange('statut_id', accepteStatus.id)
-          toast.success("Acompte reçu : Statut passé à 'Accepté'")
-        }
-      }
-    } catch (error) {
-      console.error('Erreur lors de la mise à jour de la date SST:', error)
-      toast.error('Erreur lors de la sauvegarde')
-    }
-  }
-
-  const handleAccompteClientRecuChange = async (checked: boolean) => {
-    try {
-      await interventionsApi.upsertPayment(intervention.id, {
-        payment_type: 'acompte_client',
-        is_received: checked,
-        payment_date: checked ? (formData.dateAccompteClientRecu || null) : null
-      })
-
-      // Mettre à jour le formData local
-      handleInputChange('accompteClientRecu', checked)
-
-      // Si date saisie ET case cochée, passer à ACCEPTE
-      if (checked && formData.dateAccompteClientRecu) {
-        const accepteStatus = refData?.interventionStatuses.find(s => s.code === 'ACCEPTE')
-        if (accepteStatus) {
-          handleInputChange('statut_id', accepteStatus.id)
-          toast.success("Acompte reçu : Statut passé à 'Accepté'")
-        }
-      } else if (!checked) {
-        // Si on décoche, vérifier si l'autre acompte est reçu, sinon remettre à ATT_ACOMPTE
-        const hasSSTDepositReceived = sstPayment?.is_received && sstPayment?.payment_date
-
-        if (!hasSSTDepositReceived) {
-          const currentStatusCode = getInterventionStatusCode(formData.statut_id)
-          if (currentStatusCode === 'ACCEPTE') {
-            const attAcompteStatus = refData?.interventionStatuses.find(s => s.code === 'ATT_ACOMPTE')
-            if (attAcompteStatus) {
-              handleInputChange('statut_id', attAcompteStatus.id)
-              toast.info("Aucun acompte reçu : Statut passé à 'Attente acompte'")
-            }
-          }
-        }
-      }
-    } catch (error) {
-      console.error('Erreur lors de la mise à jour de l\'acompte client:', error)
-      toast.error('Erreur lors de la sauvegarde')
-    }
-  }
-
-  const handleDateAccompteClientRecuChange = async (date: string) => {
-    try {
-      await interventionsApi.upsertPayment(intervention.id, {
-        payment_type: 'acompte_client',
-        is_received: formData.accompteClientRecu,
-        payment_date: date || null
-      })
-
-      // Mettre à jour le formData local
-      handleInputChange('dateAccompteClientRecu', date)
-
-      // Si case cochée ET date saisie, passer à ACCEPTE
-      if (formData.accompteClientRecu && date) {
-        const accepteStatus = refData?.interventionStatuses.find(s => s.code === 'ACCEPTE')
-        if (accepteStatus) {
-          handleInputChange('statut_id', accepteStatus.id)
-          toast.success("Acompte reçu : Statut passé à 'Accepté'")
-        }
-      }
-    } catch (error) {
-      console.error('Erreur lors de la mise à jour de la date client:', error)
-      toast.error('Erreur lors de la sauvegarde')
-    }
-  }
-
-  // --- Fin Gestion des acomptes ---
+  // --- Gestion des acomptes ---
+  const {
+    canEditAccomptes,
+    handleAccompteSSTChange,
+    handleAccompteClientChange,
+    handleAccompteSSTBlur,
+    handleAccompteClientBlur,
+    handleAccompteSSTRecuChange,
+    handleAccompteClientRecuChange,
+    handleDateAccompteSSTRecuChange,
+    handleDateAccompteClientRecuChange,
+  } = useInterventionAccomptes({
+    interventionId: intervention.id,
+    formData,
+    interventionStatuses: refData?.interventionStatuses,
+    sstPayment,
+    clientPayment,
+    handleInputChange,
+  })
 
   // Get artisans with valid email from intervention_artisans AND from selected artisan in form
   const artisansWithEmail = useMemo(() => {
