@@ -636,7 +636,11 @@ export function NewInterventionForm({
                         <div className="space-y-1">
                           <p className="text-xs font-medium text-muted-foreground mb-2">Attribuer à</p>
                           <div className="space-y-1 max-h-64 overflow-y-auto scrollbar-minimal pr-1">
-                            {refData?.users.map((user) => {
+                            {[...(refData?.users ?? [])].sort((a, b) => {
+                              if (a.id === currentUser?.id) return -1
+                              if (b.id === currentUser?.id) return 1
+                              return 0
+                            }).map((user) => {
                               const displayName = [user.firstname, user.lastname].filter(Boolean).join(" ").trim() || user.username
                               const isSelected = user.id === formData.assigned_user_id
                               return (
@@ -847,7 +851,7 @@ export function NewInterventionForm({
                       setPerimeterKmInput(String(clamped))
                     }}
                     placeholder="km"
-                    className="h-7 w-14 text-xs"
+                    className="h-7 w-18 text-xs"
                   />
                   <span className="text-[10px] text-muted-foreground">km</span>
                   <Button type="button" variant="secondary" size="sm" className="h-7 text-xs px-2" onClick={handleGeocodeAddress} disabled={isGeocoding}>

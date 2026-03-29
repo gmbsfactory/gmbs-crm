@@ -158,6 +158,7 @@ export const InterventionEditForm = memo(function InterventionEditForm({
     setIsSubmitting,
     isFormReady,
     hasUnsavedChanges,
+    clearDraft,
 
     // Geocoding
     locationQuery,
@@ -269,6 +270,7 @@ export const InterventionEditForm = memo(function InterventionEditForm({
     openArtisanModal,
   } = useInterventionFormState({
     mode: "edit",
+    interventionId: intervention.id,
     initialFormData: createEditFormData(
       intervention,
       primaryArtisan,
@@ -300,8 +302,13 @@ export const InterventionEditForm = memo(function InterventionEditForm({
     const archivedEligible = allUsers.filter(
       u => u.status === "archived" && u.archived_at && !activeIds.has(u.id) && new Date(u.archived_at) > d
     )
-    return [...active, ...archivedEligible]
-  }, [refData?.users, refData?.allUsers, intervention, formData?.date])
+    const merged = [...active, ...archivedEligible]
+    return merged.sort((a, b) => {
+      if (a.id === currentUser?.id) return -1
+      if (b.id === currentUser?.id) return 1
+      return 0
+    })
+  }, [refData?.users, refData?.allUsers, intervention, formData?.date, currentUser?.id])
 
   // Destructure collapsible state for easier access
   const {
@@ -1087,6 +1094,7 @@ export const InterventionEditForm = memo(function InterventionEditForm({
       })
 
       // Fermer le modal immédiatement pour la fluidité UX
+      clearDraft()
       onSuccess?.(null)
       setIsSubmitting(false)
       onSubmittingChange?.(false)

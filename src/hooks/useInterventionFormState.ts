@@ -2,6 +2,7 @@
 // Encapsule toute la logique commune entre NewInterventionForm et InterventionEditForm
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useInterventionDraftStore } from "@/stores/interventionDraft"
 import { useReferenceDataQuery } from "@/hooks/useReferenceDataQuery"
 import { useCurrentUser } from "@/hooks/useCurrentUser"
 import { useGeocodeSearch } from "@/hooks/useGeocodeSearch"
@@ -41,6 +42,8 @@ export interface UseInterventionFormStateOptions {
   initialLocationQuery?: string
   initialSelectedArtisanId?: string | null
   initialSelectedSecondArtisanId?: string | null
+  /** ID de l'intervention (edit mode) — active la persistance du draft */
+  interventionId?: string
 
   // Callbacks de notification vers le parent
   onClientNameChange?: (name: string) => void
@@ -59,12 +62,17 @@ export function useInterventionFormState(options: UseInterventionFormStateOption
     initialLocationQuery = "",
     initialSelectedArtisanId = null,
     initialSelectedSecondArtisanId = null,
+    interventionId,
     onClientNameChange,
     onAgencyNameChange,
     onClientPhoneChange,
     onHasUnsavedChanges,
     onSubmittingChange,
   } = options
+
+  // ---- Draft store (edit mode uniquement) ----
+  const { getDraft, saveDraft, clearDraft: clearDraftStore } = useInterventionDraftStore()
+  const existingDraft = mode === "edit" && interventionId ? getDraft(interventionId) : null
 
   // ---- Données de référence ----
   const { data: refData, loading: refDataLoading } = useReferenceDataQuery()
@@ -88,7 +96,8 @@ export function useInterventionFormState(options: UseInterventionFormStateOption
   }, [currentUserData])
 
   // ---- État principal du formulaire ----
-  const [formData, setFormData] = useState<InterventionFormData>(initialFormData)
+  // Si un draft existe (navigation artisan / transition Realtime), on le restaure
+  const [formData, setFormData] = useState<InterventionFormData>(existingDraft?.formData ?? initialFormData)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isFormReady, setIsFormReady] = useState(false)
 
@@ -102,7 +111,7 @@ export function useInterventionFormState(options: UseInterventionFormStateOption
     isSuggesting,
     clearSuggestions,
     geocode: geocodeQuery,
-  } = useGeocodeSearch({ initialQuery: initialLocationQuery })
+  } = useGeocodeSearch({ initialQuery: existingDraft?.locationQuery ?? initialLocationQuery })
   const suggestionBlurTimeoutRef = useRef<number | null>(null)
   const [showLocationSuggestions, setShowLocationSuggestions] = useState(false)
 
@@ -115,14 +124,16 @@ export function useInterventionFormState(options: UseInterventionFormStateOption
   }, [perimeterKmInput])
 
   // ---- Sélection artisan ----
-  const [selectedArtisanId, setSelectedArtisanId] = useState<string | null>(initialSelectedArtisanId)
-  const [selectedSecondArtisanId, setSelectedSecondArtisanId] = useState<string | null>(initialSelectedSecondArtisanId)
+  const [selectedArtisanId, setSelectedArtisanId] = useState<string | null>(existingDraft?.selectedArtisanId ?? initialSelectedArtisanId)
+  const [selectedSecondArtisanId, setSelectedSecondArtisanId] = useState<string | null>(existingDraft?.selectedSecondArtisanId ?? initialSelectedSecondArtisanId)
   const [searchSelectedArtisan, setSearchSelectedArtisan] = useState<NearbyArtisan | null>(null)
   const [searchSelectedSecondArtisan, setSearchSelectedSecondArtisan] = useState<NearbyArtisan | null>(null)
   const [absentArtisanIds, setAbsentArtisanIds] = useState<Set<string>>(new Set())
 
   // ---- Sections collapsibles ----
-  const [collapsibleState, setCollapsibleState] = useState<CollapsibleSectionsState>(getDefaultCollapsibleState)
+  const [collapsibleState, setCollapsibleState] = useState<CollapsibleSectionsState>(
+    existingDraft?.collapsibleState ?? getDefaultCollapsibleState
+  )
 
   // ---- Modales de recherche artisan ----
   const [showArtisanSearch, setShowArtisanSearch] = useState(false)
@@ -392,6 +403,22 @@ export function useInterventionFormState(options: UseInterventionFormStateOption
   useEffect(() => {
     onHasUnsavedChanges?.(hasUnsavedChanges)
   }, [hasUnsavedChanges, onHasUnsavedChanges])
+
+  // Persistance du draft (edit mode uniquement — survit aux cycles fermeture/réouverture du modal)
+  useEffect(() => {
+    if (mode !== "edit" || !interventionId || !isFormReady) return
+    saveDraft(interventionId, {
+      formData,
+      locationQuery,
+      selectedArtisanId,
+      selectedSecondArtisanId,
+      collapsibleState,
+    })
+  }, [mode, interventionId, isFormReady, formData, locationQuery, selectedArtisanId, selectedSecondArtisanId, collapsibleState, saveDraft])
+
+  const clearDraft = useCallback(() => {
+    if (interventionId) clearDraftStore(interventionId)
+  }, [interventionId, clearDraftStore])
 
   // Absences artisans
   useEffect(() => {
@@ -701,6 +728,7 @@ export function useInterventionFormState(options: UseInterventionFormStateOption
     setIsSubmitting,
     isFormReady,
     hasUnsavedChanges,
+    clearDraft,
 
     // Géocodage
     locationQuery,

@@ -660,14 +660,19 @@ function GestionnaireSelector({
   onUpdate?: (userId: string) => void
 }) {
   const { data: referenceData } = useReferenceDataQuery()
+  const { data: loggedInUser } = useCurrentUser()
   const queryClient = useQueryClient()
   const [open, setOpen] = useState(false)
 
-  // Liste fusionnée : actifs + archivés éligibles selon la date de l'intervention
-  const selectableUsers = useMemo(
-    () => getSelectableUsers(referenceData?.users, referenceData?.allUsers, dateIntervention),
-    [referenceData?.users, referenceData?.allUsers, dateIntervention]
-  )
+  // Liste fusionnée : actifs + archivés éligibles selon la date de l'intervention, utilisateur connecté en premier
+  const selectableUsers = useMemo(() => {
+    const users = getSelectableUsers(referenceData?.users, referenceData?.allUsers, dateIntervention)
+    return users.sort((a, b) => {
+      if (a.id === loggedInUser?.id) return -1
+      if (b.id === loggedInUser?.id) return 1
+      return 0
+    })
+  }, [referenceData?.users, referenceData?.allUsers, dateIntervention, loggedInUser?.id])
 
   const updateMutation = useMutation({
     mutationFn: async (newUserId: string) => {
@@ -1776,7 +1781,7 @@ export function TableView({
                                                 {content}
                                               </div>
                                             ) : (
-                                              <TruncatedCell content={content} searchQuery={searchQuery} tooltipText={tooltipText} />
+                                              <TruncatedCell content={content} searchQuery={searchQuery} tooltipText={tooltipText} alwaysShowTooltip={property === "artisan"} />
                                             )}
                                           </td>
                                         )
@@ -2029,7 +2034,7 @@ function HighlightedText({ text, searchQuery }: { text: string; searchQuery: str
   )
 }
 
-function TruncatedCell({ content, className, searchQuery, tooltipText }: { content: ReactNode; className?: string; searchQuery?: string; tooltipText?: string }) {
+function TruncatedCell({ content, className, searchQuery, tooltipText, alwaysShowTooltip }: { content: ReactNode; className?: string; searchQuery?: string; tooltipText?: string; alwaysShowTooltip?: boolean }) {
   const [tooltipPos, setTooltipPos] = useState<{ x: number; y: number } | null>(null)
   const cellRef = useRef<HTMLDivElement>(null)
   const [isOverflowing, setIsOverflowing] = useState(false)
@@ -2068,7 +2073,7 @@ function TruncatedCell({ content, className, searchQuery, tooltipText }: { conte
     const element = cellRef.current
     if (!element) return
 
-    const overflowing = element.scrollWidth > element.clientWidth
+    const overflowing = alwaysShowTooltip || element.scrollWidth > element.clientWidth
     setIsOverflowing(overflowing)
 
     if (overflowing) {
@@ -2087,7 +2092,7 @@ function TruncatedCell({ content, className, searchQuery, tooltipText }: { conte
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
         onMouseMove={(event) => {
-          if (!isOverflowing || !tooltipPos) return
+          if (!isOverflowing) return
           updateTooltipPosition(event)
         }}
       >
