@@ -7,6 +7,9 @@ import type { InterventionFormData, CollapsibleSectionsState } from "@/lib/inter
 
 const DRAFT_MAX_AGE_MS = 30 * 60 * 1000 // 30 minutes
 
+/** Clé spéciale pour sauvegarder le draft d'une nouvelle intervention (mode create) */
+export const NEW_INTERVENTION_DRAFT_KEY = "__new__"
+
 export interface InterventionDraft {
   formData: InterventionFormData
   locationQuery: string
