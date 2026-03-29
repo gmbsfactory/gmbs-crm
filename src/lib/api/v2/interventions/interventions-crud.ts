@@ -275,7 +275,7 @@ export const interventionsCrud = {
    * Obtient le nombre total d'interventions (sans les charger)
    */
   async getTotalCount(): Promise<number> {
-    const { count, error } = await supabase
+    const { count, error } = await supabaseClient
       .from("interventions")
       .select("*", { count: "exact", head: true });
 
@@ -289,7 +289,7 @@ export const interventionsCrud = {
 
   // Récupérer une intervention par ID
   async getById(id: string, include?: string[]): Promise<InterventionWithStatus> {
-    const { data, error } = await supabase
+    const { data, error } = await supabaseClient
       .from("interventions")
       .select(`
         *,
@@ -364,7 +364,7 @@ export const interventionsCrud = {
   async getByIds(ids: string[]): Promise<InterventionWithStatus[]> {
     if (ids.length === 0) return [];
 
-    const { data, error } = await supabase
+    const { data, error } = await supabaseClient
       .from("interventions")
       .select(`
         *,
@@ -436,7 +436,7 @@ export const interventionsCrud = {
   // Créer une intervention
   async create(data: CreateInterventionData): Promise<Intervention> {
     // 1. Faire l'INSERT
-    const { data: result, error } = await supabase
+    const { data: result, error } = await supabaseClient
       .from('interventions')
       .insert(data)
       .select()
@@ -449,7 +449,7 @@ export const interventionsCrud = {
       try {
         // Le trigger a créé une transition NULL → statut_actuel lors de l'INSERT
         // On la supprime pour la remplacer par la chaîne complète
-        await supabase
+        await supabaseClient
           .from('intervention_status_transitions')
           .delete()
           .eq('intervention_id', result.id)
@@ -482,7 +482,7 @@ export const interventionsCrud = {
 
   // Vérifier si une intervention avec la même adresse et agence existe
   async checkDuplicate(address: string, agencyId: string): Promise<boolean> {
-    const { data, error } = await supabase
+    const { data, error } = await supabaseClient
       .from("interventions")
       .select("id")
       .eq("adresse", address)
@@ -507,7 +507,7 @@ export const interventionsCrud = {
     managerName: string | null;
     createdAt: string | null;
   }>> {
-    const { data, error } = await supabase
+    const { data, error } = await supabaseClient
       .from("interventions")
       .select(`
         id,
@@ -588,7 +588,7 @@ export const interventionsCrud = {
     let currentIntervention: { statut_id: string | null; status?: { code?: string } | null } | null = null;
 
     if (payload.statut_id) {
-      const { data } = await supabase
+      const { data } = await supabaseClient
         .from("interventions")
         .select(`
           statut_id,
@@ -649,7 +649,7 @@ export const interventionsCrud = {
           console.warn('[interventionsApi] Impossible de récupérer les codes de statut pour la transition', { oldStatutId, newStatutId: payload.statut_id });
 
           // Fallback: Enregistrer la transition directe si on n'a pas les codes
-          const { error: transitionError } = await supabase.rpc(
+          const { error: transitionError } = await supabaseClient.rpc(
             'log_status_transition_from_api',
             {
               p_intervention_id: id,
@@ -674,7 +674,7 @@ export const interventionsCrud = {
       }
     }
 
-    const { data: updated, error } = await supabase
+    const { data: updated, error } = await supabaseClient
       .from("interventions")
       .update({
         ...payload,
@@ -723,7 +723,7 @@ export const interventionsCrud = {
         for (const artisanId of artisanIds) {
           try {
             console.log(`[interventionsApi] 📞 Appel RPC recalculate_artisan_status pour artisan ${artisanId}...`);
-            const { data: rpcResult, error: rpcError } = await supabase.rpc('recalculate_artisan_status', {
+            const { data: rpcResult, error: rpcError } = await supabaseClient.rpc('recalculate_artisan_status', {
               artisan_uuid: artisanId
             });
             if (rpcError) {
@@ -888,7 +888,7 @@ export const interventionsCrud = {
 
   // Récupérer les interventions par artisan via interventions_artisans
   async getByArtisan(artisanId: string, params?: Omit<InterventionQueryParams, "artisan">): Promise<PaginatedResponse<InterventionWithStatus>> {
-    const { data: interventionArtisans, error: joinError } = await supabase
+    const { data: interventionArtisans, error: joinError } = await supabaseClient
       .from("intervention_artisans")
       .select("intervention_id")
       .eq("artisan_id", artisanId);

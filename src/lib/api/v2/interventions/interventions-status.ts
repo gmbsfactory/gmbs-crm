@@ -36,7 +36,7 @@ export const interventionsStatus = {
       throw new Error("interventionId is required");
     }
 
-    const { data: existingPrimary, error: primaryError } = await supabase
+    const { data: existingPrimary, error: primaryError } = await supabaseClient
       .from('intervention_artisans')
       .select('id, artisan_id, role')
       .eq('intervention_id', interventionId)
@@ -50,7 +50,7 @@ export const interventionsStatus = {
     // Aucun artisan sélectionné => supprimer le primaire courant
     if (!artisanId) {
       if (existingPrimary?.id) {
-        const { error: deleteError } = await supabase
+        const { error: deleteError } = await supabaseClient
           .from('intervention_artisans')
           .delete()
           .eq('id', existingPrimary.id);
@@ -64,7 +64,7 @@ export const interventionsStatus = {
 
     // Rien à faire, c'est déjà le bon artisan
     if (existingPrimary?.artisan_id === artisanId) {
-      const { error: ensurePrimaryError } = await supabase
+      const { error: ensurePrimaryError } = await supabaseClient
         .from('intervention_artisans')
         .update({
           role: 'primary',
@@ -79,7 +79,7 @@ export const interventionsStatus = {
     }
 
     // Récupérer un éventuel lien existant avec cet artisan
-    const { data: existingLink, error: linkError } = await supabase
+    const { data: existingLink, error: linkError } = await supabaseClient
       .from('intervention_artisans')
       .select('id')
       .eq('intervention_id', interventionId)
@@ -92,7 +92,7 @@ export const interventionsStatus = {
 
     // Rétrograder l'artisan primaire actuel (le garder comme secondaire)
     if (existingPrimary?.id) {
-      const { error: demoteError } = await supabase
+      const { error: demoteError } = await supabaseClient
         .from('intervention_artisans')
         .update({
           is_primary: false,
@@ -106,7 +106,7 @@ export const interventionsStatus = {
     }
 
     if (existingLink?.id) {
-      const { error: promoteError } = await supabase
+      const { error: promoteError } = await supabaseClient
         .from('intervention_artisans')
         .update({
           role: 'primary',
@@ -120,7 +120,7 @@ export const interventionsStatus = {
       return;
     }
 
-    const { error: insertError } = await supabase
+    const { error: insertError } = await supabaseClient
       .from('intervention_artisans')
       .insert({
         intervention_id: interventionId,
@@ -140,7 +140,7 @@ export const interventionsStatus = {
     }
 
     // Récupérer l'artisan secondaire actuel
-    const { data: existingSecondary, error: secondaryError } = await supabase
+    const { data: existingSecondary, error: secondaryError } = await supabaseClient
       .from('intervention_artisans')
       .select('id, artisan_id, role')
       .eq('intervention_id', interventionId)
@@ -154,7 +154,7 @@ export const interventionsStatus = {
     // Aucun artisan sélectionné => supprimer le secondaire courant
     if (!artisanId) {
       if (existingSecondary?.id) {
-        const { error: deleteError } = await supabase
+        const { error: deleteError } = await supabaseClient
           .from('intervention_artisans')
           .delete()
           .eq('id', existingSecondary.id);
@@ -172,7 +172,7 @@ export const interventionsStatus = {
     }
 
     // Vérifier si l'artisan est déjà lié (peut-être comme primaire)
-    const { data: existingLink, error: linkError } = await supabase
+    const { data: existingLink, error: linkError } = await supabaseClient
       .from('intervention_artisans')
       .select('id, is_primary')
       .eq('intervention_id', interventionId)
@@ -190,7 +190,7 @@ export const interventionsStatus = {
 
     // Supprimer l'ancien artisan secondaire s'il existe
     if (existingSecondary?.id) {
-      const { error: deleteError } = await supabase
+      const { error: deleteError } = await supabaseClient
         .from('intervention_artisans')
         .delete()
         .eq('id', existingSecondary.id);
@@ -202,7 +202,7 @@ export const interventionsStatus = {
 
     // Si un lien existe déjà avec cet artisan (mais pas comme primaire), le mettre à jour
     if (existingLink?.id) {
-      const { error: updateError } = await supabase
+      const { error: updateError } = await supabaseClient
         .from('intervention_artisans')
         .update({
           role: 'secondary',
@@ -217,7 +217,7 @@ export const interventionsStatus = {
     }
 
     // Insérer le nouvel artisan secondaire
-    const { error: insertError } = await supabase
+    const { error: insertError } = await supabaseClient
       .from('intervention_artisans')
       .insert({
         intervention_id: interventionId,
@@ -262,7 +262,7 @@ export const interventionsStatus = {
    * Récupère tous les statuts d'intervention disponibles
    */
   async getAllStatuses(): Promise<InterventionStatus[]> {
-    const { data, error } = await supabase
+    const { data, error } = await supabaseClient
       .from('intervention_statuses')
       .select('id, code, label, color, sort_order')
       .order('sort_order', { ascending: true });
@@ -276,7 +276,7 @@ export const interventionsStatus = {
    */
   async getStatusByCode(code: string): Promise<InterventionStatus | null> {
     if (!code) return null;
-    const { data, error } = await supabase
+    const { data, error } = await supabaseClient
       .from('intervention_statuses')
       .select('id, code, label, color, sort_order')
       .eq('code', code)
@@ -295,7 +295,7 @@ export const interventionsStatus = {
    */
   async getStatusByLabel(label: string): Promise<InterventionStatus | null> {
     if (!label) return null;
-    const { data, error } = await supabase
+    const { data, error } = await supabaseClient
       .from('intervention_statuses')
       .select('id, code, label, color, sort_order')
       .ilike('label', label)
@@ -315,7 +315,7 @@ export const interventionsStatus = {
   async getStatusTransitions(
     interventionId: string
   ): Promise<InterventionStatusTransition[]> {
-    const { data, error } = await supabase
+    const { data, error } = await supabaseClient
       .from('intervention_status_transitions')
       .select('*')
       .eq('intervention_id', interventionId)

@@ -1,6 +1,7 @@
 "use client"
 
 import React, { useCallback, useEffect, useRef, useState } from "react"
+import { useInterventionDraftStore } from "@/stores/interventionDraft"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { Bell, X, MessageSquare, Copy, MessageCircle, Trash2, Plus, Info, Mail } from "lucide-react"
 import { InterventionEditForm } from "@/components/interventions/InterventionEditForm"
@@ -177,6 +178,7 @@ export function InterventionModalContent({
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
   const [showUnsavedDialog, setShowUnsavedDialog] = useState(false)
   const pendingCloseAction = useRef<(() => void) | null>(null)
+  const clearDraft = useInterventionDraftStore((s) => s.clearDraft)
   const shouldCloseAfterSaveRef = useRef(false)
 
   // Log pour suivre les changements de showUnsavedDialog
@@ -353,11 +355,13 @@ GMBS`
   // Fonction pour confirmer la fermeture après l'alerte
   const handleConfirmClose = useCallback(() => {
     setShowUnsavedDialog(false)
+    // L'utilisateur confirme vouloir jeter ses modifications : on vide le draft
+    clearDraft(interventionId)
     if (pendingCloseAction.current) {
       pendingCloseAction.current()
       pendingCloseAction.current = null
     }
-  }, [])
+  }, [clearDraft, interventionId])
 
   // Fonction pour annuler la fermeture
   const handleCancelClose = useCallback(() => {
