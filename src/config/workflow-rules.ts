@@ -146,17 +146,6 @@ type ValidationRule = {
 
 export const VALIDATION_RULES: ValidationRule[] = [
   {
-    key: "DEVIS_ENVOYE_TO_ACCEPTE",
-    from: "DEVIS_ENVOYE",
-    to: "ACCEPTE",
-    message: "Un ID de devis doit être renseigné pour accepter le devis",
-    blockTransition: true,
-    validate: (context) => {
-      if (!context.devisId) return false
-      return String(context.devisId).trim().length > 0
-    },
-  },
-  {
     key: "INTERVENTION_ID_REQUIRED",
     statuses: ["DEVIS_ENVOYE", "VISITE_TECHNIQUE", "ACCEPTE", "INTER_EN_COURS", "INTER_TERMINEE", "STAND_BY"],
     message: 'Un ID intervention définitif (sans la chaîne "AUTO") est requis pour ce statut',
