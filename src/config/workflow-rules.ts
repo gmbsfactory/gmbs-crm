@@ -68,7 +68,7 @@ export const WORKFLOW_RULES: Record<InterventionStatusValue, WorkflowRule> = {
     autoActions: [],
   },
   ACCEPTE: {
-    requirements: { devisId: true },
+    requirements: {},
     autoActions: [],
   },
   INTER_EN_COURS: {
@@ -297,13 +297,6 @@ export const VALIDATION_RULES: ValidationRule[] = [
     validate: (context) => Boolean(context.contexteIntervention && String(context.contexteIntervention).trim().length > 0),
   },
   // === RÈGLE POUR ACCEPTE (cascade vers INTER_EN_COURS, INTER_TERMINEE) ===
-  {
-    key: "ACCEPTE_DEVIS_REQUIRED",
-    to: "ACCEPTE",
-    message: "Un document devis doit être présent pour passer à Accepté",
-    blockTransition: true,
-    validate: (context) => Boolean(context.devisId),
-  },
 ]
 
 export const AUTO_ACTIONS: Record<string, AutoAction> = {
