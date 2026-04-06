@@ -16,6 +16,7 @@ export interface InterventionDraft {
   selectedArtisanId: string | null
   selectedSecondArtisanId: string | null
   collapsibleState: CollapsibleSectionsState
+  hasPendingChanges: boolean
   savedAt: number
 }
 

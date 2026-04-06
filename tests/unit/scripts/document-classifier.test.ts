@@ -50,6 +50,16 @@ describe('extractFactureGmbs', () => {
       expect(result).toMatchObject({ type: 'facturesGMBS', numeroFacture: 1234, interventionId: 5678 })
     })
 
+    it('should detect "FACTURE NUM ID {id_inter}" (format sans mot-clé INTER)', () => {
+      const result = extractFactureGmbs('FACTURE 774 ID 16220')
+      expect(result).toEqual({
+        type: 'facturesGMBS',
+        numeroFacture: 774,
+        interventionId: 16220,
+        confidence: 0.95,
+      })
+    })
+
     it('should detect with underscores', () => {
       const result = extractFactureGmbs('FACTURE_1234_INTER_5678')
       expect(result).toMatchObject({ type: 'facturesGMBS', numeroFacture: 1234, interventionId: 5678 })
@@ -78,7 +88,7 @@ describe('extractFactureGmbs', () => {
       expect(extractFactureGmbs('photo_chantier.jpg')).toBeNull()
     })
 
-    it('should return null for FACTURE without INTER', () => {
+    it('should return null for FACTURE without INTER or ID', () => {
       expect(extractFactureGmbs('FACTURE 1234')).toBeNull()
     })
 
@@ -101,6 +111,10 @@ describe('classifyDocument', () => {
 
     it('should classify typo FRACTURE as facturesGMBS', () => {
       expect(classifyDocument('FRACTURE 99 INTER ID 100')).toBe('facturesGMBS')
+    })
+
+    it('should classify "FACTURE NUM ID {id_inter}" as facturesGMBS', () => {
+      expect(classifyDocument('FACTURE 774 ID 16220')).toBe('facturesGMBS')
     })
   })
 

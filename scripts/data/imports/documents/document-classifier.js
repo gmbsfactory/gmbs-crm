@@ -37,10 +37,11 @@ function matchesPattern(filename, patterns) {
 /**
  * Détecte une facture GMBS et extrait les métadonnées
  *
- * Pattern: "FACTURE NUM_X INTER ID_INTER"
+ * Pattern: "FACTURE NUM_X INTER ID_INTER" ou "FACTURE NUM_X ID ID_INTER"
  * Exemples:
  *   - "FACTURE 1234 INTER 5678"
  *   - "FACTURE 1234 INTER ID 5678"
+ *   - "FACTURE 774 ID 16220" (format sans mot-clé INTER)
  *   - "FRACTURE 1234 INTER ID_5678" (typo commune)
  *   - "FACRTURE 1234 INTER 5678" (typo)
  *   - "FACTURE_1234_INTER_5678" (avec underscores)
@@ -61,6 +62,9 @@ function extractFactureGmbs(filename) {
     /(?:facture|fracture|facrture)\s+(\d+)\s+inter\s+(?:id\s+)?(\d+)/i,
     // Variante avec séparateurs alternatifs (tirets, underscores)
     /(?:facture|fracture|facrture)[-_](\d+)[-_]inter[-_](?:id[-_])?(\d+)/i,
+    // Format: "FACTURE NUM ID {id_inter}" (sans mot-clé INTER)
+    // Exemple: "FACTURE 774 ID 16220"
+    /(?:facture|fracture|facrture)\s+(\d+)\s+id\s+(\d+)/i,
     // Format: "INTER ID FACTURE NUM" (ordre inverse)
     /inter\s+(?:id\s+)?(\d+).*?(?:facture|fracture|facrture)\s+(\d+)/i,
   ];
@@ -71,14 +75,14 @@ function extractFactureGmbs(filename) {
       // Distinguer l'ordre: pattern normal ou inversé
       let numeroFacture, interventionId;
 
-      if (pattern.source.includes('inter')) {
-        // Format "FACTURE NUM INTER ID"
-        numeroFacture = parseInt(match[1], 10);
-        interventionId = parseInt(match[2], 10);
-      } else {
-        // Format "INTER ID FACTURE NUM"
+      if (pattern.source.startsWith('inter')) {
+        // Format "INTER ID FACTURE NUM" (ordre inverse)
         interventionId = parseInt(match[1], 10);
         numeroFacture = parseInt(match[2], 10);
+      } else {
+        // Format "FACTURE NUM ..." — FACTURE en premier, interventionId en second groupe
+        numeroFacture = parseInt(match[1], 10);
+        interventionId = parseInt(match[2], 10);
       }
 
       if (!isNaN(numeroFacture) && !isNaN(interventionId)) {

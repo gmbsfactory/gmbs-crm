@@ -11,9 +11,10 @@ import { useEffect, useState, useRef } from "react"
 export function useFormDataChanges<T extends Record<string, any>>(
   formData: T,
   isSubmitting: boolean = false,
-  isReady: boolean = true
+  isReady: boolean = true,
+  initialDirty: boolean = false
 ) {
-  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(initialDirty)
   const initialValuesRef = useRef<T | null>(null)
 
   // Capturer les valeurs initiales uniquement quand le formulaire est prêt

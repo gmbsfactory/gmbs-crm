@@ -405,7 +405,7 @@ export function useInterventionFormState(options: UseInterventionFormStateOption
   }, [])
 
   // Unsaved changes
-  const hasUnsavedChanges = useFormDataChanges(formData, isSubmitting, isFormReady)
+  const hasUnsavedChanges = useFormDataChanges(formData, isSubmitting, isFormReady, existingDraft?.hasPendingChanges ?? false)
 
   useEffect(() => {
     onHasUnsavedChanges?.(hasUnsavedChanges)
@@ -420,8 +420,9 @@ export function useInterventionFormState(options: UseInterventionFormStateOption
       selectedArtisanId,
       selectedSecondArtisanId,
       collapsibleState,
+      hasPendingChanges: hasUnsavedChanges,
     })
-  }, [mode, interventionId, isFormReady, formData, locationQuery, selectedArtisanId, selectedSecondArtisanId, collapsibleState, saveDraft])
+  }, [mode, interventionId, isFormReady, formData, locationQuery, selectedArtisanId, selectedSecondArtisanId, collapsibleState, hasUnsavedChanges, saveDraft])
 
   const clearDraft = useCallback(() => {
     if (mode === "edit" && interventionId) {
@@ -440,8 +441,9 @@ export function useInterventionFormState(options: UseInterventionFormStateOption
       selectedArtisanId,
       selectedSecondArtisanId,
       collapsibleState,
+      hasPendingChanges: hasUnsavedChanges,
     })
-  }, [mode, saveDraft, formData, locationQuery, selectedArtisanId, selectedSecondArtisanId, collapsibleState])
+  }, [mode, saveDraft, formData, locationQuery, selectedArtisanId, selectedSecondArtisanId, collapsibleState, hasUnsavedChanges])
 
   // Absences artisans
   useEffect(() => {

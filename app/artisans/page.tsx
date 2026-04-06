@@ -145,6 +145,7 @@ export default function ArtisansPage(): ReactElement {
                 hasFilter={state.hasStatusFilter}
                 onToggle={state.handleToggleStatus}
                 onClear={state.handleClearStatus}
+                onSelectAll={state.handleSelectAllStatuses}
                 getCount={state.getContactCountByStatus}
               />
 

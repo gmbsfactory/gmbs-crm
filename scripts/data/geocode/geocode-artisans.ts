@@ -418,15 +418,24 @@ async function updateArtisanLocation(
   artisanId: string,
   result: GeocodeResult,
 ): Promise<void> {
-  const { error } = await supabase
-    .from("artisans")
-    .update({
-      intervention_latitude: result.lat,
-      intervention_longitude: result.lng,
-    })
-    .eq("id", artisanId);
+  const maxRetries = 3;
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    const { error } = await supabase
+      .from("artisans")
+      .update({
+        intervention_latitude: result.lat,
+        intervention_longitude: result.lng,
+      })
+      .eq("id", artisanId);
 
-  if (error) {
+    if (!error) return;
+
+    if (error.message.includes("deadlock") && attempt < maxRetries) {
+      console.warn(`⚠️  Deadlock on ${artisanId}, retrying (${attempt}/${maxRetries})…`);
+      await sleep(1000 * attempt);
+      continue;
+    }
+
     throw new Error(
       `Failed to update artisan ${artisanId}: ${error.message}`,
     );
@@ -437,17 +446,26 @@ async function markArtisanAsFailed(
   artisanId: string,
   reason: string,
 ): Promise<void> {
-  // Mark with special coordinates (0, 0) to indicate "tried but failed"
-  const { error } = await supabase
-    .from("artisans")
-    .update({
-      intervention_latitude: 0,
-      intervention_longitude: 0,
-    })
-    .eq("id", artisanId);
+  const maxRetries = 3;
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    const { error } = await supabase
+      .from("artisans")
+      .update({
+        intervention_latitude: 0,
+        intervention_longitude: 0,
+      })
+      .eq("id", artisanId);
 
-  if (error) {
+    if (!error) return;
+
+    if (error.message.includes("deadlock") && attempt < maxRetries) {
+      console.warn(`⚠️  Deadlock marking ${artisanId} as failed, retrying (${attempt}/${maxRetries})…`);
+      await sleep(1000 * attempt);
+      continue;
+    }
+
     console.error(`Failed to mark artisan ${artisanId} as failed: ${error.message}`);
+    return;
   }
 }
 
@@ -537,8 +555,13 @@ async function processArtisan(artisan: ArtisanRow, force: boolean = false): Prom
 }
 
 async function processBatch(batch: ArtisanRow[]): Promise<number> {
-  const results = await Promise.all(batch.map((artisan) => processArtisan(artisan)));
-  return results.filter((success) => success).length;
+  let successCount = 0;
+  // Process sequentially to avoid deadlocks from concurrent DB updates
+  for (const artisan of batch) {
+    const success = await processArtisan(artisan);
+    if (success) successCount++;
+  }
+  return successCount;
 }
 
 async function runSingleArtisan(email: string, force: boolean) {

@@ -48,6 +48,8 @@ interface ArtisanFilterDropdownProps {
   onToggle: (key: string, checked: boolean) => void
   /** Clear all selections */
   onClear: () => void
+  /** Select all visible items */
+  onSelectAll?: () => void
   /** Get count for a specific item key */
   getCount: (key: string) => number
 }
@@ -69,8 +71,10 @@ export function ArtisanFilterDropdown({
   hasFilter,
   onToggle,
   onClear,
+  onSelectAll,
   getCount,
 }: ArtisanFilterDropdownProps) {
+  const allSelected = items.length > 0 && items.every((item) => selectedKeys.includes(item.key))
   return (
     <DropdownMenu open={open} onOpenChange={onOpenChange}>
       <DropdownMenuTrigger asChild>
@@ -102,6 +106,24 @@ export function ArtisanFilterDropdown({
                 className="pl-8"
               />
             </div>
+
+            {/* Select all / clear row */}
+            {onSelectAll && items.length > 0 && (
+              <div className="flex items-center justify-between">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-auto px-1 text-xs"
+                  onClick={allSelected ? onClear : onSelectAll}
+                >
+                  {allSelected ? "Tout désélectionner" : "Tout sélectionner"}
+                </Button>
+                <span className="text-xs text-muted-foreground">
+                  {selectedKeys.length}/{items.length}
+                </span>
+              </div>
+            )}
 
             {/* List */}
             <ScrollArea className="h-[400px] w-full rounded-md border">
