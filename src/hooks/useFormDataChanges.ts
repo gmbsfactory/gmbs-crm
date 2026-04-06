@@ -11,10 +11,12 @@ import { useEffect, useState, useRef } from "react"
 export function useFormDataChanges<T extends Record<string, any>>(
   formData: T,
   isSubmitting: boolean = false,
-  isReady: boolean = true
+  isReady: boolean = true,
+  initialDirty: boolean = false
 ) {
-  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(initialDirty)
   const initialValuesRef = useRef<T | null>(null)
+  const restoredDirtyRef = useRef(initialDirty)
 
   // Capturer les valeurs initiales uniquement quand le formulaire est prêt
   useEffect(() => {
@@ -25,8 +27,14 @@ export function useFormDataChanges<T extends Record<string, any>>(
 
   // Détecter les changements par rapport aux valeurs initiales
   useEffect(() => {
-    if (isSubmitting || !initialValuesRef.current) {
+    if (isSubmitting) {
       setHasUnsavedChanges(false)
+      restoredDirtyRef.current = false
+      return
+    }
+
+    // Tant que le formulaire n'a pas capturé ses valeurs initiales, préserver le flag du draft
+    if (!initialValuesRef.current) {
       return
     }
 
@@ -43,7 +51,10 @@ export function useFormDataChanges<T extends Record<string, any>>(
       return currentValue !== initialValue
     })
 
-    setHasUnsavedChanges(hasChanges)
+    // Si le draft a été restauré avec des changements en attente et que
+    // la comparaison ne détecte pas de diff (car initialValuesRef = draft data),
+    // on préserve le flag dirty du draft
+    setHasUnsavedChanges(hasChanges || restoredDirtyRef.current)
   }, [formData, isSubmitting])
 
   return hasUnsavedChanges

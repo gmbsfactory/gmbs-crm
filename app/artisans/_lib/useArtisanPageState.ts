@@ -407,6 +407,10 @@ export function useArtisanPageState() {
     setSelectedStatuses([])
   }, [])
 
+  const handleSelectAllStatuses = useCallback(() => {
+    setSelectedStatuses(filteredStatuses.map((s) => s.label))
+  }, [filteredStatuses])
+
   const handleToggleMetier = useCallback((metier: string, checked: boolean) => {
     setSelectedMetiers((prev) => {
       if (checked) return [...prev, metier]
@@ -473,6 +477,7 @@ export function useArtisanPageState() {
     selectedStatuses,
     handleToggleStatus,
     handleClearStatus,
+    handleSelectAllStatuses,
     getContactCountByStatus,
 
     // filter dropdowns: metier
