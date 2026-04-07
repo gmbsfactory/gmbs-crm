@@ -24,6 +24,7 @@ let interventionsApi, documentsApi, getSupabaseClientForNode;
 
 // Configuration Google Drive
 const { googleDriveConfig } = require('../config/google-drive-config');
+const { classifyDocument } = require('./document-classifier');
 googleDriveConfig.reloadConfig();
 
 /**
@@ -637,20 +638,23 @@ function buildGoogleDriveUrl(fileId, webViewLink = null) {
 }
 
 /**
- * Prépare les documents pour l'insertion (tous avec kind = "a_classe")
+ * Prépare les documents pour l'insertion avec classification automatique
  */
 function prepareDocumentsForInsertion(documents) {
-  return documents.map(doc => ({
-    id: doc.id,
-    name: doc.name,
-    mimeType: doc.mimeType,
-    size: doc.size ? parseInt(doc.size) : null,
-    createdTime: doc.createdTime,
-    modifiedTime: doc.modifiedTime,
-    webViewLink: doc.webViewLink,
-    driveUrl: buildGoogleDriveUrl(doc.id, doc.webViewLink),
-    kind: 'a_classe' // Tous les documents sont classifiés comme "a_classe" (non classifiés)
-  }));
+  return documents.map(doc => {
+    const classifiedKind = classifyDocument(doc.name);
+    return {
+      id: doc.id,
+      name: doc.name,
+      mimeType: doc.mimeType,
+      size: doc.size ? parseInt(doc.size) : null,
+      createdTime: doc.createdTime,
+      modifiedTime: doc.modifiedTime,
+      webViewLink: doc.webViewLink,
+      driveUrl: buildGoogleDriveUrl(doc.id, doc.webViewLink),
+      kind: classifiedKind === 'autre' ? 'a_classe' : classifiedKind
+    };
+  });
 }
 
 // Importer la fonction utilitaire pour télécharger depuis Google Drive
@@ -704,7 +708,7 @@ async function insertDocumentToDatabase(interventionId, document, drive) {
     const result = await documentsApi.upload({
       entity_id: interventionId,
       entity_type: 'intervention',
-      kind: document.kind, // "a_classe"
+      kind: document.kind,
       filename: document.name,
       mime_type: document.mimeType || 'application/octet-stream',
       file_size: document.size || fileContentBase64.length * 3 / 4, // Approximation si size manquant
@@ -868,7 +872,7 @@ Exemples:
 
   console.log('🔍 Matching des dossiers Google Drive avec les interventions en base (API v2)...\n');
   console.log('📌 Note: Le matching se fait entre interventionId (du nom du dossier) et id_inter (de la BDD)');
-  console.log('📌 Note: Tous les documents seront classifiés avec kind = "a_classe"\n');
+  console.log('📌 Note: Les documents sont classifiés automatiquement selon leur nom de fichier\n');
 
   try {
     // Initialiser Google Drive API (nécessaire pour extraction ET matching)

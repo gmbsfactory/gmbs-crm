@@ -58,8 +58,10 @@ export function useTeamApi() {
         }
         if (j?.error === 'email_taken') {
           toast({ title: 'Utilisateur existant', description: 'Cette adresse email est deja utilisee.', variant: 'destructive' as const })
+        } else if (j?.error === 'duplicate_field') {
+          toast({ title: 'Doublon detecte', description: j?.message || 'Un utilisateur avec ces informations existe deja.', variant: 'destructive' as const })
         } else {
-          toast({ title: 'Erreur', description: j?.error || "Impossible de creer l'utilisateur", variant: 'destructive' as const })
+          toast({ title: 'Erreur', description: j?.message || j?.error || "Impossible de creer l'utilisateur", variant: 'destructive' as const })
         }
         return false
       }

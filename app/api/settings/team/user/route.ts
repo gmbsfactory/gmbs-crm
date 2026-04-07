@@ -180,6 +180,18 @@ export async function POST(req: Request) {
           console.error('[create-user] Rollback failed:', rollbackError?.message)
         }
       }
+      // Detect unique constraint violations (PostgreSQL code 23505)
+      if (ins.error.code === '23505') {
+        const detail = ins.error.details || ins.error.message || ''
+        let field = 'un champ'
+        if (/email/i.test(detail)) field = 'email'
+        else if (/username/i.test(detail)) field = 'nom d\'utilisateur'
+        else if (/code_gestionnaire/i.test(detail)) field = 'code gestionnaire'
+        return NextResponse.json(
+          { error: 'duplicate_field', message: `Un utilisateur avec ce ${field} existe déjà.` },
+          { status: 409 }
+        )
+      }
       return NextResponse.json({ error: 'Une erreur interne est survenue' }, { status: 500 })
     }
 
