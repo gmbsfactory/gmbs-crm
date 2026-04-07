@@ -31,6 +31,9 @@ const HEARTBEAT_MS = 2 * 60 * 1000 // 2 minutes (well under STALE_MS)
 /** Reconnection delay after channel error */
 const RECONNECT_DELAY_MS = 5000 // 5 seconds
 
+/** Throttle interval for track() calls to avoid ClientPresenceRateLimitReached */
+const TRACK_THROTTLE_MS = 500
+
 /** Single global channel name — shared across all pages */
 const CHANNEL_NAME = 'presence:pages'
 
@@ -80,6 +83,9 @@ export function usePagePresence(
   const joinedAtRef = useRef<string>(new Date().toISOString())
   const isIdleRef = useRef<boolean>(isIdle)
 
+  // ─── Throttle ref for track() calls ──────────────────────────────────────────
+  const trackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
   // ─── Referential stability for viewers (prevents re-renders on heartbeat) ────
   const prevViewersKeyRef = useRef('')
   const prevAllUsersKeyRef = useRef('')
@@ -119,15 +125,19 @@ export function usePagePresence(
     }
   }, [])
 
-  // ─── doTrack: sends current payload to channel ──────────────────────────────
+  // ─── doTrack: throttled — sends current payload to channel ─────────────────
   const doTrack = useCallback(() => {
-    const channel = channelRef.current
-    if (!channel) return
-    const payload = buildPayload()
-    if (!payload) return
-    channel.track(payload).catch((err: unknown) => {
-      console.warn('[PagePresence] track() failed:', err)
-    })
+    if (trackTimerRef.current) return // Already scheduled
+    trackTimerRef.current = setTimeout(() => {
+      trackTimerRef.current = null
+      const channel = channelRef.current
+      if (!channel) return
+      const payload = buildPayload()
+      if (!payload) return
+      channel.track(payload).catch((err: unknown) => {
+        console.warn('[PagePresence] track() failed:', err)
+      })
+    }, TRACK_THROTTLE_MS)
   }, [buildPayload])
 
   // ─── Public API: updateActiveIntervention / updateActiveArtisan ──────────────
@@ -338,9 +348,10 @@ export function usePagePresence(
     return () => {
       cancelled = true
       console.log(`[PagePresence] Cleaning up ${CHANNEL_NAME}`)
-      // Stop heartbeat and reconnection timers
+      // Stop heartbeat, reconnection and throttle timers
       if (heartbeatTimer) clearInterval(heartbeatTimer)
       if (reconnectTimer) clearTimeout(reconnectTimer)
+      if (trackTimerRef.current) { clearTimeout(trackTimerRef.current); trackTimerRef.current = null }
       // Null ref FIRST to prevent re-entry
       const ch = channelRef.current
       channelRef.current = null
