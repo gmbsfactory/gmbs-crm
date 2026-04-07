@@ -16,6 +16,12 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { getCorsHeaders } from '../_shared/cors.ts';
 import { getAuthUserId } from '../_shared/auth.ts';
 
+// Normalise un numéro de téléphone en supprimant tout sauf chiffres et +
+function normalizePhone(phone: string | undefined | null): string | undefined | null {
+  if (!phone) return phone;
+  return phone.replace(/[^0-9+]/g, '');
+}
+
 // Types pour la validation
 interface CreateArtisanRequest {
   prenom?: string;
@@ -532,6 +538,8 @@ serve(async (req: Request) => {
     // ===== POST /artisans/upsert - Upsert un artisan =====
     if (req.method === 'POST' && resource === 'artisans' && isUpsert) {
       const body: CreateArtisanRequest = await req.json();
+      body.telephone = normalizePhone(body.telephone) as string | undefined;
+      body.telephone2 = normalizePhone(body.telephone2) as string | undefined;
 
       // Validation des données requises pour l'upsert
       if (!body.email && !body.siret) {
@@ -789,6 +797,8 @@ serve(async (req: Request) => {
     // ===== POST /artisans - Créer un artisan =====
     if (req.method === 'POST' && resource === 'artisans' && !isUpsert) {
       const body: CreateArtisanRequest = await req.json();
+      body.telephone = normalizePhone(body.telephone) as string | undefined;
+      body.telephone2 = normalizePhone(body.telephone2) as string | undefined;
 
       // ===== VÉRIFICATION DES DOUBLONS (email/siret) =====
       // Vérifier si un artisan existe déjà avec cet email ou SIRET (actif OU supprimé)
@@ -1073,6 +1083,8 @@ serve(async (req: Request) => {
     // ===== PUT /artisans/{id} - Modifier un artisan =====
     if (req.method === 'PUT' && resourceId && resource === 'artisans') {
       const body: UpdateArtisanRequest = await req.json();
+      if (body.telephone !== undefined) body.telephone = normalizePhone(body.telephone) as string | undefined;
+      if (body.telephone2 !== undefined) body.telephone2 = normalizePhone(body.telephone2) as string | undefined;
 
       // Validation des transitions de statut selon les règles métier
       if (body.statut_id !== undefined) {

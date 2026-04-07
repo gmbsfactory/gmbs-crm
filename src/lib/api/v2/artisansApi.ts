@@ -683,10 +683,11 @@ export const artisansApi = {
     }
 
     if (!existingId && data.telephone) {
+      const normalizedPhone = data.telephone.replace(/[^0-9+]/g, '');
       const { data: byPhone } = await client
         .from('artisans')
         .select('id')
-        .eq('telephone', data.telephone)
+        .eq('telephone', normalizedPhone)
         .maybeSingle();
       if (byPhone) { existingId = byPhone.id; matchedBy = 'telephone'; }
     }
