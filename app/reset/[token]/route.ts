@@ -81,8 +81,11 @@ export async function GET(
       return NextResponse.redirect(errorRedirect)
     }
 
-    // Rediriger vers le lien Supabase (qui ira vers /auth/callback puis /set-password)
-    return NextResponse.redirect(linkData.properties.action_link)
+    // Force le redirect_to dans l'action_link (Supabase admin API l'ignore souvent)
+    const actionUrl = new URL(linkData.properties.action_link)
+    actionUrl.searchParams.set('redirect_to', `${siteUrl}/auth/callback?next=/set-password`)
+
+    return NextResponse.redirect(actionUrl.toString())
   } catch (error: any) {
     console.error('[reset-token] Unexpected error:', error?.message)
     return NextResponse.redirect(errorRedirect)
