@@ -338,7 +338,8 @@ export const interventionsCrud = {
           label,
           amount,
           currency,
-          metadata
+          metadata,
+          artisan_order
         ),
         intervention_payments (
           id,
@@ -413,7 +414,8 @@ export const interventionsCrud = {
           label,
           amount,
           currency,
-          metadata
+          metadata,
+          artisan_order
         ),
         intervention_payments (
           id,
@@ -926,7 +928,8 @@ export const interventionsCrud = {
             label,
             amount,
             currency,
-            metadata
+            metadata,
+            artisan_order
           )
         `,
         { count: "exact" }

@@ -79,9 +79,13 @@ export function runPostMutationTasks(config: PostMutationConfig): void {
 
   // Costs batch upsert
   if (config.costs && config.costs.length > 0) {
+    console.log('[PostMutation] costs to save:', JSON.stringify(config.costs))
     tasks.push(
       interventionsApi.upsertCostsBatch(config.interventionId, config.costs)
-        .catch(e => console.error('[PostMutation] upsertCostsBatch failed:', e))
+        .catch(e => {
+          console.error('[PostMutation] upsertCostsBatch failed:', e)
+          toast.error(`Erreur sauvegarde coûts: ${e instanceof Error ? e.message : String(e)}`)
+        })
     )
   }
 

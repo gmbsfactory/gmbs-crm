@@ -4,7 +4,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { createPortal } from "react-dom"
 import { useVirtualizer } from "@tanstack/react-virtual"
 import type { ChangeEvent, ReactNode, CSSProperties } from "react"
-import { AlignCenter, AlignLeft, AlignRight, Bell, Bold, ChevronDown, Eye, Filter, Italic, Send, X } from "lucide-react"
+import { AlignCenter, AlignLeft, AlignRight, ArrowDown, ArrowUp, Bell, Bold, ChevronDown, Eye, Filter, Italic, Send, X } from "lucide-react"
 import Loader from "@/components/ui/Loader"
 
 import { useColumnResize } from "@/hooks/useColumnResize"
@@ -29,7 +29,7 @@ import type {
   TableRowDensity,
 } from "@/types/intervention-views"
 import { TABLE_STATUS_BORDER_WIDTHS, TABLE_SHADOW_INTENSITIES } from "@/types/intervention-views"
-import type { ViewFilter } from "@/types/intervention-views"
+import type { ViewFilter, ViewSort } from "@/types/intervention-views"
 import type { PropertySchema } from "@/types/property-schema"
 import { ColumnFilter } from "@/components/interventions/filters/ColumnFilter"
 import {
@@ -158,6 +158,8 @@ type TableViewProps = {
   searchQuery?: string
   /** Couleur du header (provenant de l'onglet de vue actif) */
   headerColor?: string | null
+  /** Callback pour changer le tri (colonnes triables) */
+  onSortChange?: (sorts: ViewSort[]) => void
 }
 
 type CellRender = {
@@ -794,6 +796,7 @@ export function TableView({
   onPreviousPage,
   searchQuery = "",
   headerColor,
+  onSortChange,
 }: TableViewProps) {
   // Log pour debug pagination
   useEffect(() => {
@@ -1436,6 +1439,70 @@ export function TableView({
                 ))}
               </SelectContent>
             </Select>
+          {getPropertySchema(propertyKey)?.sortable && onSortChange && (() => {
+            const activeSort = view.sorts?.find((s) => s.property === propertyKey)
+            const currentDir = activeSort?.direction ?? null
+            return (
+              <div className="flex items-center gap-1">
+                <span className="text-muted-foreground">Tri</span>
+                <div className="flex items-center gap-1">
+                  <Button
+                    type="button"
+                    size="icon"
+                    variant="ghost"
+                    className={cn(
+                      "h-7 w-7 text-muted-foreground",
+                      currentDir === "asc" && "border border-primary/60 bg-primary/10 text-primary",
+                    )}
+                    onClick={() => {
+                      if (currentDir === "asc") {
+                        onSortChange([])
+                      } else {
+                        onSortChange([{ property: propertyKey, direction: "asc" }])
+                      }
+                    }}
+                    aria-label={`Tri croissant (${propertyLabel})`}
+                    title="Croissant"
+                  >
+                    <ArrowUp className="h-3 w-3" />
+                  </Button>
+                  <Button
+                    type="button"
+                    size="icon"
+                    variant="ghost"
+                    className={cn(
+                      "h-7 w-7 text-muted-foreground",
+                      currentDir === "desc" && "border border-primary/60 bg-primary/10 text-primary",
+                    )}
+                    onClick={() => {
+                      if (currentDir === "desc") {
+                        onSortChange([])
+                      } else {
+                        onSortChange([{ property: propertyKey, direction: "desc" }])
+                      }
+                    }}
+                    aria-label={`Tri décroissant (${propertyLabel})`}
+                    title="Décroissant"
+                  >
+                    <ArrowDown className="h-3 w-3" />
+                  </Button>
+                  {currentDir && (
+                    <Button
+                      type="button"
+                      size="icon"
+                      variant="ghost"
+                      className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                      onClick={() => onSortChange([])}
+                      aria-label={`Supprimer le tri (${propertyLabel})`}
+                      title="Supprimer le tri"
+                    >
+                      <X className="h-3 w-3" />
+                    </Button>
+                  )}
+                </div>
+              </div>
+            )
+          })()}
           </div>
         </div>
       </div>
