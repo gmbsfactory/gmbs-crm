@@ -50,6 +50,7 @@ export default function InterventionsViewRenderer({
   handleStatusChange,
   handleSelectStatus,
   getCountByStatus,
+  updateSorts,
 }: InterventionsViewRendererProps) {
   // Loading state (no existing data)
   if (loading && normalizedInterventions.length === 0) {
@@ -86,6 +87,9 @@ export default function InterventionsViewRenderer({
           onPreviousPage={handlePreviousPage}
           searchQuery={search}
           headerColor={activeViewColor}
+          onSortChange={(sorts) => {
+            if (activeView) updateSorts(activeView.id, sorts)
+          }}
         />
       )
     case "kanban":

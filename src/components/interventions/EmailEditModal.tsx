@@ -26,7 +26,6 @@ export interface EmailEditModalProps {
   artisanEmail: string;
   interventionId: string;
   templateData: EmailTemplateData;
-  selectedArtisanForEmail?: string; // For internal use
 }
 
 interface AttachmentFile {
@@ -107,7 +106,6 @@ export function EmailEditModal({
   artisanEmail,
   interventionId,
   templateData,
-  selectedArtisanForEmail: _selectedArtisanForEmail,
 }: EmailEditModalProps) {
   const queryClient = useQueryClient();
   const { data: emailHistory, isLoading: isHistoryLoading } = useEmailLogsByType(

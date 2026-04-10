@@ -18,6 +18,7 @@ import type {
   TableRowDensity,
   ViewFilter,
   ViewLayout,
+  ViewSort,
 } from "@/types/intervention-views"
 import type { WorkflowConfig } from "@/types/intervention-workflow"
 import type { ModalDisplayMode } from "@/types/modal-display"
@@ -92,6 +93,7 @@ export interface InterventionsViewRendererProps {
   handleStatusChange: (id: string, status: InterventionStatusValue) => Promise<void>
   handleSelectStatus: (status: InterventionStatusValue | null) => void
   getCountByStatus: (status: InterventionStatusValue | null) => number
+  updateSorts: (viewId: string, sorts: ViewSort[]) => void
 }
 
 // Re-export types that are frequently used
@@ -106,6 +108,7 @@ export type {
   TableRowDensity,
   ViewFilter,
   ViewLayout,
+  ViewSort,
   WorkflowConfig,
   DateRange,
   SortDir,

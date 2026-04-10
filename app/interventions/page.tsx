@@ -101,6 +101,7 @@ function PageContent() {
     handleDeleteView,
     handleLayoutOptionsPatch,
     updateFilterForProperty,
+    updateSorts,
     getCountByStatus,
     getCheckCount,
     loadDistinctValues,
@@ -230,6 +231,7 @@ function PageContent() {
               handleStatusChange={handleStatusChange}
               handleSelectStatus={handleSelectStatus}
               getCountByStatus={getCountByStatus}
+              updateSorts={updateSorts}
             />
           </div>
         </div>

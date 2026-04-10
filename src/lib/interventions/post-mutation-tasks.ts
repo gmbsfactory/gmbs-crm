@@ -77,21 +77,32 @@ export function runPostMutationTasks(config: PostMutationConfig): void {
     )
   }
 
-  // Costs batch upsert
-  if (config.costs && config.costs.length > 0) {
+  // Delete secondary artisan costs first (if 2nd artisan was removed), then upsert remaining costs
+  // Sequential order prevents race condition between delete and upsert
+  if (config.deleteSecondaryCosts) {
+    const deleteAndUpsert = Promise.all([
+      interventionsApi.deleteCost(config.interventionId, 'sst', 2),
+      interventionsApi.deleteCost(config.interventionId, 'materiel', 2),
+    ]).catch(() => { /* cost may not exist, safe to ignore */ })
+      .then(() => {
+        if (config.costs && config.costs.length > 0) {
+          console.log('[PostMutation] costs to save (after delete):', JSON.stringify(config.costs))
+          return interventionsApi.upsertCostsBatch(config.interventionId, config.costs)
+            .catch(e => {
+              console.error('[PostMutation] upsertCostsBatch failed:', e)
+              toast.error(`Erreur sauvegarde coûts: ${e instanceof Error ? e.message : String(e)}`)
+            })
+        }
+      })
+    tasks.push(deleteAndUpsert)
+  } else if (config.costs && config.costs.length > 0) {
+    console.log('[PostMutation] costs to save:', JSON.stringify(config.costs))
     tasks.push(
       interventionsApi.upsertCostsBatch(config.interventionId, config.costs)
-        .catch(e => console.error('[PostMutation] upsertCostsBatch failed:', e))
-    )
-  }
-
-  // Delete secondary artisan costs
-  if (config.deleteSecondaryCosts) {
-    tasks.push(
-      Promise.all([
-        interventionsApi.deleteCost(config.interventionId, 'sst', 2),
-        interventionsApi.deleteCost(config.interventionId, 'materiel', 2),
-      ]).catch(() => { /* cost may not exist, safe to ignore */ })
+        .catch(e => {
+          console.error('[PostMutation] upsertCostsBatch failed:', e)
+          toast.error(`Erreur sauvegarde coûts: ${e instanceof Error ? e.message : String(e)}`)
+        })
     )
   }
 

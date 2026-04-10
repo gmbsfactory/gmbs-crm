@@ -183,13 +183,8 @@ export function NewInterventionForm({
     artisanDisplayMode,
     setArtisanDisplayMode,
 
-    // Email modals
-    isDevisEmailModalOpen,
-    setIsDevisEmailModalOpen,
-    isInterventionEmailModalOpen,
-    setIsInterventionEmailModalOpen,
-    selectedArtisanForEmail,
-    setSelectedArtisanForEmail,
+    // Email modal
+    emailModalState,
     effectiveSelectedArtisanId,
     selectedArtisanEmail,
 
@@ -217,8 +212,8 @@ export function NewInterventionForm({
     handleArtisanSearchSelect,
     handleSuggestionSelect,
     handleGeocodeAddress,
-    handleOpenDevisEmailModal,
-    handleOpenInterventionEmailModal,
+    openEmailModal,
+    closeEmailModal,
     generateEmailTemplateData,
     handleOpenArtisanModal,
   } = useInterventionFormState({
@@ -525,6 +520,7 @@ export function NewInterventionForm({
         if (coutSSTValue > 0) costs.push({ cost_type: "sst", label: "Coût SST", amount: coutSSTValue, artisan_order: 1 })
         if (coutMaterielValue > 0) costs.push({ cost_type: "materiel", label: "Coût Matériel", amount: coutMaterielValue, artisan_order: 1 })
         if (coutInterventionValue > 0) costs.push({ cost_type: "intervention", label: "Coût Intervention", amount: coutInterventionValue, artisan_order: null })
+        console.log('[DEBUG NewForm] selectedSecondArtisanId:', selectedSecondArtisanId, 'coutSST2Value:', coutSST2Value, 'coutMateriel2Value:', coutMateriel2Value)
         if (selectedSecondArtisanId && coutSST2Value > 0) costs.push({ cost_type: "sst", label: "Coût SST 2ème artisan", amount: coutSST2Value, artisan_order: 2 })
         if (selectedSecondArtisanId && coutMateriel2Value > 0) costs.push({ cost_type: "materiel", label: "Coût Matériel 2ème artisan", amount: coutMateriel2Value, artisan_order: 2 })
 
@@ -1846,35 +1842,16 @@ export function NewInterventionForm({
         metier_id={formData.metier_id}
       />
 
-      {/* Modal Email Devis */}
-      {isDevisEmailModalOpen && effectiveSelectedArtisanId && (
+      {/* Modal Email */}
+      {emailModalState && (
         <EmailEditModal
-          isOpen={isDevisEmailModalOpen}
-          onClose={() => {
-            setIsDevisEmailModalOpen(false)
-            setSelectedArtisanForEmail(null)
-          }}
-          emailType="devis"
-          artisanId={effectiveSelectedArtisanId}
+          isOpen
+          onClose={closeEmailModal}
+          emailType={emailModalState.type}
+          artisanId={emailModalState.artisanId}
           artisanEmail={selectedArtisanEmail}
           interventionId={createdInterventionId || `temp-${Date.now()}`}
-          templateData={generateEmailTemplateData(effectiveSelectedArtisanId)}
-        />
-      )}
-
-      {/* Modal Email Intervention */}
-      {isInterventionEmailModalOpen && effectiveSelectedArtisanId && (
-        <EmailEditModal
-          isOpen={isInterventionEmailModalOpen}
-          onClose={() => {
-            setIsInterventionEmailModalOpen(false)
-            setSelectedArtisanForEmail(null)
-          }}
-          emailType="intervention"
-          artisanId={effectiveSelectedArtisanId}
-          artisanEmail={selectedArtisanEmail}
-          interventionId={createdInterventionId || `temp-${Date.now()}`}
-          templateData={generateEmailTemplateData(effectiveSelectedArtisanId)}
+          templateData={generateEmailTemplateData(emailModalState.artisanId)}
         />
       )}
 

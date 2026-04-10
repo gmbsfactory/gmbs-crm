@@ -46,6 +46,7 @@ import type {
   TableRowDensity,
   ViewFilter,
   ViewLayout,
+  ViewSort,
 } from "@/types/intervention-views"
 import type { DateRange, SortField, SortDir } from "@/components/interventions/FiltersBar"
 import type { ModalDisplayMode } from "@/types/modal-display"
@@ -192,6 +193,7 @@ export interface UseInterventionPageStateReturn {
   handlePinStatus: (status: InterventionStatusValue) => void
   handleUnpinStatus: (status: InterventionStatusValue) => void
   updateFilterForProperty: (property: string, filter: ViewFilter | null) => void
+  updateSorts: (id: string, sorts: ViewSort[]) => void
   getCountByStatus: (status: InterventionStatusValue | null) => number
   getCheckCount: () => number
   loadDistinctValues: (property: string) => Promise<string[]>
@@ -453,8 +455,9 @@ export function useInterventionPageState(): UseInterventionPageStateReturn {
   // ---- Client-side filtering ----
   const filteredInterventions = useMemo(() => {
     if (!activeView) return normalizedInterventions
-    if (clientFilters.length === 0) return normalizedInterventions
-    return runQuery(normalizedInterventions, clientFilters, activeView.sorts) as NormalizedIntervention[]
+    const sorts = activeView.sorts ?? []
+    if (clientFilters.length === 0 && sorts.length === 0) return normalizedInterventions
+    return runQuery(normalizedInterventions, clientFilters, sorts) as NormalizedIntervention[]
   }, [activeView, normalizedInterventions, clientFilters])
 
   const viewInterventions = filteredInterventions
@@ -1009,6 +1012,7 @@ export function useInterventionPageState(): UseInterventionPageStateReturn {
     handlePinStatus,
     handleUnpinStatus,
     updateFilterForProperty,
+    updateSorts,
     getCountByStatus,
     getCheckCount,
     loadDistinctValues,

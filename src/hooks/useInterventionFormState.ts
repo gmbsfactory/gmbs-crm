@@ -42,6 +42,20 @@ export interface UseInterventionFormStateOptions {
   initialLocationQuery?: string
   initialSelectedArtisanId?: string | null
   initialSelectedSecondArtisanId?: string | null
+  /** Données artisan assigné depuis la DB (edit mode) — fallback d'affichage quand pas dans nearby */
+  initialPrimaryArtisanData?: NearbyArtisan | null
+  initialSecondaryArtisanData?: NearbyArtisan | null
+  /** Données de fallback pour l'email template (edit mode — enrichit le template avec données intervention) */
+  interventionFallbackData?: {
+    tenants?: { plain_nom_client?: string; lastname?: string; firstname?: string; telephone?: string; telephone2?: string } | null
+    consigne_intervention?: string | null
+    consigne_second_artisan?: string | null
+    adresse?: string | null
+    date_prevue?: string | null
+    commentaire_agent?: string | null
+    id_inter?: string | null
+    artisans?: Array<{ artisan_id: string; is_primary: boolean }>
+  }
   /** ID de l'intervention (edit mode) — active la persistance du draft */
   interventionId?: string
   /** Activer la restauration du draft de création (mode create uniquement — désactiver si defaultValues fournis) */
@@ -64,6 +78,9 @@ export function useInterventionFormState(options: UseInterventionFormStateOption
     initialLocationQuery = "",
     initialSelectedArtisanId = null,
     initialSelectedSecondArtisanId = null,
+    initialPrimaryArtisanData = null,
+    initialSecondaryArtisanData = null,
+    interventionFallbackData,
     interventionId,
     restoreNewDraft = false,
     onClientNameChange,
@@ -135,6 +152,9 @@ export function useInterventionFormState(options: UseInterventionFormStateOption
   const [selectedSecondArtisanId, setSelectedSecondArtisanId] = useState<string | null>(existingDraft?.selectedSecondArtisanId ?? initialSelectedSecondArtisanId)
   const [searchSelectedArtisan, setSearchSelectedArtisan] = useState<NearbyArtisan | null>(null)
   const [searchSelectedSecondArtisan, setSearchSelectedSecondArtisan] = useState<NearbyArtisan | null>(null)
+  // Artisans assignés depuis la DB (source de vérité) — fallback quand pas dans nearby ni search
+  const [assignedPrimaryArtisan, setAssignedPrimaryArtisan] = useState<NearbyArtisan | null>(initialPrimaryArtisanData)
+  const [assignedSecondaryArtisan, setAssignedSecondaryArtisan] = useState<NearbyArtisan | null>(initialSecondaryArtisanData)
   const [absentArtisanIds, setAbsentArtisanIds] = useState<Set<string>>(new Set())
 
   // ---- Sections collapsibles ----
@@ -150,10 +170,11 @@ export function useInterventionFormState(options: UseInterventionFormStateOption
   const artisanSearchContainerRef = useRef<HTMLDivElement>(null)
   const [artisanDisplayMode, setArtisanDisplayMode] = useState<"nom" | "rs" | "tel">("nom")
 
-  // ---- Modales email ----
-  const [isDevisEmailModalOpen, setIsDevisEmailModalOpen] = useState(false)
-  const [isInterventionEmailModalOpen, setIsInterventionEmailModalOpen] = useState(false)
-  const [selectedArtisanForEmail, setSelectedArtisanForEmail] = useState<string | null>(null)
+  // ---- Modale email (état discriminé unique) ----
+  const [emailModalState, setEmailModalState] = useState<{
+    type: 'devis' | 'intervention'
+    artisanId: string
+  } | null>(null)
 
   // ---- Hooks artisans à proximité ----
   const {
@@ -186,19 +207,22 @@ export function useInterventionFormState(options: UseInterventionFormStateOption
   )
 
   // ---- Memos: artisan sélectionné ----
+  // Priorité : nearby (données fraîches + distance) > search (session) > assigned (DB, toujours dispo)
   const selectedArtisanData = useMemo(() => {
     if (!selectedArtisanId) return null
     const nearbyArtisan = nearbyArtisans.find((artisan) => artisan.id === selectedArtisanId)
     if (nearbyArtisan) return nearbyArtisan
-    return searchSelectedArtisan
-  }, [selectedArtisanId, nearbyArtisans, searchSelectedArtisan])
+    if (searchSelectedArtisan) return searchSelectedArtisan
+    return assignedPrimaryArtisan?.id === selectedArtisanId ? assignedPrimaryArtisan : null
+  }, [selectedArtisanId, nearbyArtisans, searchSelectedArtisan, assignedPrimaryArtisan])
 
   const selectedSecondArtisanData = useMemo(() => {
     if (!selectedSecondArtisanId) return null
     const nearbyArtisan = nearbyArtisansSecondMetier.find((artisan) => artisan.id === selectedSecondArtisanId)
     if (nearbyArtisan) return nearbyArtisan
-    return searchSelectedSecondArtisan
-  }, [selectedSecondArtisanId, nearbyArtisansSecondMetier, searchSelectedSecondArtisan])
+    if (searchSelectedSecondArtisan) return searchSelectedSecondArtisan
+    return assignedSecondaryArtisan?.id === selectedSecondArtisanId ? assignedSecondaryArtisan : null
+  }, [selectedSecondArtisanId, nearbyArtisansSecondMetier, searchSelectedSecondArtisan, assignedSecondaryArtisan])
 
   // ---- Memos: marges ----
   const margePrimaryArtisan = useMemo(() => {
@@ -375,8 +399,8 @@ export function useInterventionFormState(options: UseInterventionFormStateOption
 
   // ---- Memos: email ----
   const effectiveSelectedArtisanId = useMemo(() => {
-    return selectedArtisanForEmail || selectedArtisanId || null
-  }, [selectedArtisanForEmail, selectedArtisanId])
+    return emailModalState?.artisanId || selectedArtisanId || null
+  }, [emailModalState, selectedArtisanId])
 
   const selectedArtisanEmail = useMemo(() => {
     const artisanId = effectiveSelectedArtisanId
@@ -551,10 +575,6 @@ export function useInterventionFormState(options: UseInterventionFormStateOption
     (artisan: NearbyArtisan) => {
       setSelectedArtisanId(artisan.id)
       handleInputChange("artisan", `${artisan.prenom || ""} ${artisan.nom || ""}`.trim())
-      // Auto-select artisan for email if they have an email
-      if (artisan.email) {
-        setSelectedArtisanForEmail(artisan.id)
-      }
     },
     [handleInputChange],
   )
@@ -682,54 +702,55 @@ export function useInterventionFormState(options: UseInterventionFormStateOption
     }
   }, [locationQuery, geocodeQuery, clearSuggestions, setLocationQuery])
 
-  const handleOpenDevisEmailModal = useCallback((artisanId?: string) => {
-    const targetArtisanId = artisanId || effectiveSelectedArtisanId
+  const openEmailModal = useCallback((type: 'devis' | 'intervention', artisanId?: string) => {
+    const targetArtisanId = artisanId || selectedArtisanId || null
     if (!targetArtisanId) {
       toast.error('Veuillez sélectionner un artisan')
       return
     }
-    if (artisanId) {
-      setSelectedArtisanForEmail(artisanId)
-    }
-    setIsDevisEmailModalOpen(true)
-  }, [effectiveSelectedArtisanId])
+    setEmailModalState({ type, artisanId: targetArtisanId })
+  }, [selectedArtisanId])
 
-  const handleOpenInterventionEmailModal = useCallback((artisanId?: string) => {
-    const targetArtisanId = artisanId || effectiveSelectedArtisanId
-    if (!targetArtisanId) {
-      toast.error('Veuillez sélectionner un artisan')
-      return
-    }
-    if (artisanId) {
-      setSelectedArtisanForEmail(artisanId)
-    }
-    setIsInterventionEmailModalOpen(true)
-  }, [effectiveSelectedArtisanId])
+  const closeEmailModal = useCallback(() => {
+    setEmailModalState(null)
+  }, [])
 
   const generateEmailTemplateData = useCallback((artisanId: string): EmailTemplateData => {
-    const nomClient = formData.nomPrenomClient || ''
-    const telephoneClient = formData.telephoneClient || ''
-    const adresse = formData.adresse
-      ? `${formData.adresse}, ${formData.code_postal || ''} ${formData.ville || ''}`.trim()
-      : ''
-    const isPrimary = artisanId === selectedArtisanId
+    const fb = interventionFallbackData
+    const tenant = fb?.tenants
+
+    // Résoudre isPrimary : en edit mode, utiliser la DB ; sinon comparer à l'ID sélectionné
+    const dbArtisan = fb?.artisans?.find(a => a.artisan_id === artisanId)
+    const isPrimary = dbArtisan ? dbArtisan.is_primary : (artisanId === selectedArtisanId)
+
+    const nomClient = formData.nomPrenomClient
+      || (tenant?.plain_nom_client || `${tenant?.lastname || ''} ${tenant?.firstname || ''}`.trim())
+      || ''
+    const telephoneClient = formData.telephoneClient || tenant?.telephone || ''
+    const telephoneClient2 = tenant?.telephone2 || ''
+
+    const adresse = formData.adresse || fb?.adresse || ''
+
     const consigneArtisan = isPrimary
-      ? (formData.consigne_intervention || '')
-      : (formData.consigne_second_artisan || '')
-    const coutSST = formData.coutSST || ''
+      ? (formData.consigne_intervention || fb?.consigne_intervention || '')
+      : (formData.consigne_second_artisan || fb?.consigne_second_artisan || '')
+
+    const coutSST = isPrimary
+      ? (formData.coutSST || '')
+      : (formData.coutSSTSecondArtisan || '')
 
     return {
       nomClient,
       telephoneClient,
-      telephoneClient2: '',
+      telephoneClient2,
       adresse,
-      datePrevue: formData.date_prevue || undefined,
+      datePrevue: formData.date_prevue || fb?.date_prevue || undefined,
       consigneArtisan: consigneArtisan || undefined,
       coutSST,
-      commentaire: undefined,
-      idIntervention: formData.id_inter || undefined,
+      commentaire: formData.commentaire_agent || fb?.commentaire_agent || undefined,
+      idIntervention: formData.id_inter || fb?.id_inter || undefined,
     }
-  }, [formData, selectedArtisanId])
+  }, [formData, selectedArtisanId, interventionFallbackData])
 
   const handleOpenArtisanModal = useCallback((artisanId: string, event: React.MouseEvent) => {
     event.stopPropagation()
@@ -784,6 +805,9 @@ export function useInterventionFormState(options: UseInterventionFormStateOption
     nearbyArtisans,
     isLoadingNearbyArtisans,
     nearbyArtisansError,
+    // Artisans assignés (DB) — pour sync Realtime
+    setAssignedPrimaryArtisan,
+    setAssignedSecondaryArtisan,
 
     // Second artisan
     selectedSecondArtisanId,
@@ -821,13 +845,8 @@ export function useInterventionFormState(options: UseInterventionFormStateOption
     artisanDisplayMode,
     setArtisanDisplayMode,
 
-    // Modales email
-    isDevisEmailModalOpen,
-    setIsDevisEmailModalOpen,
-    isInterventionEmailModalOpen,
-    setIsInterventionEmailModalOpen,
-    selectedArtisanForEmail,
-    setSelectedArtisanForEmail,
+    // Modale email
+    emailModalState,
     effectiveSelectedArtisanId,
     selectedArtisanEmail,
 
@@ -858,8 +877,8 @@ export function useInterventionFormState(options: UseInterventionFormStateOption
     handleArtisanSearchSelect,
     handleSuggestionSelect,
     handleGeocodeAddress,
-    handleOpenDevisEmailModal,
-    handleOpenInterventionEmailModal,
+    openEmailModal,
+    closeEmailModal,
     generateEmailTemplateData,
     handleOpenArtisanModal,
 
