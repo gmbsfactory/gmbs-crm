@@ -183,13 +183,8 @@ export function NewInterventionForm({
     artisanDisplayMode,
     setArtisanDisplayMode,
 
-    // Email modals
-    isDevisEmailModalOpen,
-    setIsDevisEmailModalOpen,
-    isInterventionEmailModalOpen,
-    setIsInterventionEmailModalOpen,
-    selectedArtisanForEmail,
-    setSelectedArtisanForEmail,
+    // Email modal
+    emailModalState,
     effectiveSelectedArtisanId,
     selectedArtisanEmail,
 
@@ -217,8 +212,8 @@ export function NewInterventionForm({
     handleArtisanSearchSelect,
     handleSuggestionSelect,
     handleGeocodeAddress,
-    handleOpenDevisEmailModal,
-    handleOpenInterventionEmailModal,
+    openEmailModal,
+    closeEmailModal,
     generateEmailTemplateData,
     handleOpenArtisanModal,
   } = useInterventionFormState({
@@ -1847,35 +1842,16 @@ export function NewInterventionForm({
         metier_id={formData.metier_id}
       />
 
-      {/* Modal Email Devis */}
-      {isDevisEmailModalOpen && effectiveSelectedArtisanId && (
+      {/* Modal Email */}
+      {emailModalState && (
         <EmailEditModal
-          isOpen={isDevisEmailModalOpen}
-          onClose={() => {
-            setIsDevisEmailModalOpen(false)
-            setSelectedArtisanForEmail(null)
-          }}
-          emailType="devis"
-          artisanId={effectiveSelectedArtisanId}
+          isOpen
+          onClose={closeEmailModal}
+          emailType={emailModalState.type}
+          artisanId={emailModalState.artisanId}
           artisanEmail={selectedArtisanEmail}
           interventionId={createdInterventionId || `temp-${Date.now()}`}
-          templateData={generateEmailTemplateData(effectiveSelectedArtisanId)}
-        />
-      )}
-
-      {/* Modal Email Intervention */}
-      {isInterventionEmailModalOpen && effectiveSelectedArtisanId && (
-        <EmailEditModal
-          isOpen={isInterventionEmailModalOpen}
-          onClose={() => {
-            setIsInterventionEmailModalOpen(false)
-            setSelectedArtisanForEmail(null)
-          }}
-          emailType="intervention"
-          artisanId={effectiveSelectedArtisanId}
-          artisanEmail={selectedArtisanEmail}
-          interventionId={createdInterventionId || `temp-${Date.now()}`}
-          templateData={generateEmailTemplateData(effectiveSelectedArtisanId)}
+          templateData={generateEmailTemplateData(emailModalState.artisanId)}
         />
       )}
 

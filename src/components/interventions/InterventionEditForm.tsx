@@ -39,7 +39,7 @@ import { toast } from "sonner"
 import { extractErrorMessage } from "@/lib/toast-helpers"
 import { EmailEditModal } from "@/components/interventions/EmailEditModal"
 import { SectionLock } from "@/components/ui/SectionLock"
-import { generateDevisWhatsAppText, generateInterventionWhatsAppText, encodeWhatsAppUrl, type EmailTemplateData } from "@/lib/email-templates/intervention-emails"
+import { generateDevisWhatsAppText, generateInterventionWhatsAppText, encodeWhatsAppUrl } from "@/lib/email-templates/intervention-emails"
 import { findOrCreateOwner, findOrCreateTenant } from "@/lib/interventions/owner-tenant-helpers"
 import { runPostMutationTasks } from "@/lib/interventions/post-mutation-tasks"
 import { normalizeArtisanData, getDisplayName } from "@/lib/artisans"
@@ -227,13 +227,8 @@ export const InterventionEditForm = memo(function InterventionEditForm({
     artisanDisplayMode,
     setArtisanDisplayMode,
 
-    // Email modals
-    isDevisEmailModalOpen,
-    setIsDevisEmailModalOpen,
-    isInterventionEmailModalOpen,
-    setIsInterventionEmailModalOpen,
-    selectedArtisanForEmail,
-    setSelectedArtisanForEmail,
+    // Email modal
+    emailModalState,
     effectiveSelectedArtisanId,
     selectedArtisanEmail,
 
@@ -264,9 +259,9 @@ export const InterventionEditForm = memo(function InterventionEditForm({
     handleArtisanSearchSelect,
     handleSuggestionSelect,
     handleGeocodeAddress,
-    handleOpenDevisEmailModal,
-    handleOpenInterventionEmailModal,
-    generateEmailTemplateData: baseGenerateEmailTemplateData,
+    openEmailModal,
+    closeEmailModal,
+    generateEmailTemplateData,
     handleOpenArtisanModal: baseHandleOpenArtisanModal,
 
     // For edit-specific wrappers
@@ -286,6 +281,16 @@ export const InterventionEditForm = memo(function InterventionEditForm({
     initialSelectedSecondArtisanId: secondaryArtisan?.id ?? null,
     initialPrimaryArtisanData: dbArtisanToNearbyArtisan(primaryArtisan),
     initialSecondaryArtisanData: dbArtisanToNearbyArtisan(secondaryArtisan),
+    interventionFallbackData: {
+      tenants: intervention.tenants,
+      consigne_intervention: intervention.consigne_intervention,
+      consigne_second_artisan: intervention.consigne_second_artisan,
+      adresse: intervention.adresse,
+      date_prevue: intervention.date_prevue,
+      commentaire_agent: intervention.commentaire_agent,
+      id_inter: intervention.id_inter,
+      artisans: artisans.map(a => ({ artisan_id: a.artisan_id, is_primary: a.is_primary })),
+    },
     onClientNameChange,
     onAgencyNameChange,
     onClientPhoneChange,
@@ -340,8 +345,8 @@ export const InterventionEditForm = memo(function InterventionEditForm({
 
   // Edit-specific effects
   useEffect(() => {
-    onEmailModalOpenChange?.(isDevisEmailModalOpen || isInterventionEmailModalOpen)
-  }, [isDevisEmailModalOpen, isInterventionEmailModalOpen, onEmailModalOpenChange])
+    onEmailModalOpenChange?.(emailModalState !== null)
+  }, [emailModalState, onEmailModalOpenChange])
 
   useEffect(() => {
     onStatusReasonModalOpenChange?.(isStatusReasonModalOpen)
@@ -609,41 +614,6 @@ export const InterventionEditForm = memo(function InterventionEditForm({
     return artisansFromIntervention
   }, [artisans, selectedArtisanData])
 
-  // Edit-specific: Generate email template data from intervention (more comprehensive than hook version)
-  const generateEmailTemplateData = useCallback((artisanId: string): EmailTemplateData => {
-    const selectedArtisan = artisans.find((ia: any) => ia.artisan_id === artisanId)
-    const isFromIntervention = !!selectedArtisan
-    const isPrimary = selectedArtisan?.is_primary || false
-
-    const tenant = intervention.tenants
-    const nomClient = formData.nomPrenomClient ||
-      (tenant?.plain_nom_client || `${tenant?.lastname || ''} ${tenant?.firstname || ''}`.trim() || '')
-    const telephoneClient = formData.telephoneClient || tenant?.telephone || ''
-    const telephoneClient2 = tenant?.telephone2 || ''
-    const adresse = formData.adresse || intervention.adresse || ''
-
-    const consigneArtisan = isFromIntervention
-      ? (isPrimary
-        ? (formData.consigne_intervention || intervention.consigne_intervention || '')
-        : (formData.consigne_second_artisan || intervention.consigne_second_artisan || ''))
-      : (formData.consigne_intervention || intervention.consigne_intervention || '')
-
-    const coutSST = isPrimary
-      ? (formData.coutSST || '')
-      : (formData.coutSSTSecondArtisan || '')
-
-    return {
-      nomClient,
-      telephoneClient,
-      telephoneClient2,
-      adresse,
-      datePrevue: formData.date_prevue || intervention.date_prevue || undefined,
-      consigneArtisan: consigneArtisan || undefined,
-      coutSST,
-      commentaire: formData.commentaire_agent || intervention.commentaire_agent || undefined,
-      idIntervention: formData.id_inter || intervention.id_inter || undefined,
-    }
-  }, [intervention, artisans, formData])
 
   // Edit-specific: Get selected artisan email (includes check for artisansWithEmail)
   const editSelectedArtisanEmail = useMemo(() => {
@@ -1737,7 +1707,7 @@ export const InterventionEditForm = memo(function InterventionEditForm({
                                     type="button"
                                     variant="outline"
                                     size="sm"
-                                    onClick={() => handleOpenDevisEmailModal()}
+                                    onClick={() => openEmailModal('devis')}
                                     disabled={isDevisButtonDisabled}
                                     className="flex-1 text-[10px] h-7 px-2 border-primary/30 hover:bg-primary/10 dark:border-primary/40 dark:hover:bg-primary/20"
                                   >
@@ -1748,7 +1718,7 @@ export const InterventionEditForm = memo(function InterventionEditForm({
                                     type="button"
                                     variant="outline"
                                     size="sm"
-                                    onClick={() => handleOpenInterventionEmailModal()}
+                                    onClick={() => openEmailModal('intervention')}
                                     disabled={isInterButtonDisabled}
                                     className="flex-1 text-[10px] h-7 px-2 border-primary/30 hover:bg-primary/10 dark:border-primary/40 dark:hover:bg-primary/20"
                                   >
@@ -2415,7 +2385,7 @@ export const InterventionEditForm = memo(function InterventionEditForm({
                                     type="button"
                                     variant="outline"
                                     size="sm"
-                                    onClick={() => handleOpenDevisEmailModal(selectedSecondArtisanId)}
+                                    onClick={() => openEmailModal('devis', selectedSecondArtisanId)}
                                     disabled={!selectedSecondArtisanId}
                                     className="flex-1 text-[10px] h-7 px-2 border-orange-300 hover:bg-orange-100 dark:border-orange-700 dark:hover:bg-orange-900/30"
                                   >
@@ -2426,7 +2396,7 @@ export const InterventionEditForm = memo(function InterventionEditForm({
                                     type="button"
                                     variant="outline"
                                     size="sm"
-                                    onClick={() => handleOpenInterventionEmailModal(selectedSecondArtisanId)}
+                                    onClick={() => openEmailModal('intervention', selectedSecondArtisanId)}
                                     disabled={isInterButtonDisabled}
                                     className="flex-1 text-[10px] h-7 px-2 border-orange-300 hover:bg-orange-100 dark:border-orange-700 dark:hover:bg-orange-900/30"
                                   >
@@ -2720,35 +2690,18 @@ export const InterventionEditForm = memo(function InterventionEditForm({
             isSubmitting={isSubmitting}
           />
 
-          {effectiveSelectedArtisanId && (
-            <>
-              <EmailEditModal
-                isOpen={isDevisEmailModalOpen}
-                onClose={() => setIsDevisEmailModalOpen(false)}
-                emailType="devis"
-                artisanId={selectedArtisanForEmail || effectiveSelectedArtisanId}
-                artisanEmail={
-                  selectedArtisanForEmail
-                    ? (artisansWithEmail.find(a => a.id === selectedArtisanForEmail)?.email || selectedArtisanEmail)
-                    : selectedArtisanEmail
-                }
-                interventionId={intervention.id}
-                templateData={generateEmailTemplateData(selectedArtisanForEmail || effectiveSelectedArtisanId)}
-              />
-              <EmailEditModal
-                isOpen={isInterventionEmailModalOpen}
-                onClose={() => setIsInterventionEmailModalOpen(false)}
-                emailType="intervention"
-                artisanId={selectedArtisanForEmail || effectiveSelectedArtisanId}
-                artisanEmail={
-                  selectedArtisanForEmail
-                    ? (artisansWithEmail.find(a => a.id === selectedArtisanForEmail)?.email || selectedArtisanEmail)
-                    : selectedArtisanEmail
-                }
-                interventionId={intervention.id}
-                templateData={generateEmailTemplateData(selectedArtisanForEmail || effectiveSelectedArtisanId)}
-              />
-            </>
+          {emailModalState && (
+            <EmailEditModal
+              isOpen
+              onClose={closeEmailModal}
+              emailType={emailModalState.type}
+              artisanId={emailModalState.artisanId}
+              artisanEmail={
+                artisansWithEmail.find(a => a.id === emailModalState.artisanId)?.email || selectedArtisanEmail
+              }
+              interventionId={intervention.id}
+              templateData={generateEmailTemplateData(emailModalState.artisanId)}
+            />
           )}
         </fieldset>
         <div ref={artisanSearchContainerRef} />
