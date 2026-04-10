@@ -1,4 +1,4 @@
-import { supabase } from "@/lib/supabase-client";
+import { supabase } from "./common/client";
 import type { InterventionReminder } from "./common/types";
 
 type ReminderRow = InterventionReminder & {
@@ -9,14 +9,26 @@ const USER_FIELDS = "id, firstname, lastname, email";
 const REMINDER_SELECT = `*, user:users!intervention_reminders_user_id_fkey(${USER_FIELDS})`;
 
 // Cache module-level pour éviter les requêtes répétées auth → public.users.id
+// TTL de 5 minutes + invalidation par auth user ID pour éviter les stale cross-session
 let _cachedPublicUserId: string | null = null;
+let _cachedAuthUserId: string | null = null;
+let _cachedAt = 0;
+const USER_ID_CACHE_TTL = 5 * 60 * 1000;
 
 async function resolvePublicUserId(): Promise<string | null> {
-  if (_cachedPublicUserId) return _cachedPublicUserId;
-
   const { data: auth } = await supabase.auth.getUser();
   const user = auth.user;
-  if (!user) return null;
+  if (!user) {
+    _cachedPublicUserId = null;
+    _cachedAuthUserId = null;
+    return null;
+  }
+
+  const now = Date.now();
+  const sameUser = _cachedAuthUserId === user.id;
+  if (_cachedPublicUserId && sameUser && now - _cachedAt < USER_ID_CACHE_TTL) {
+    return _cachedPublicUserId;
+  }
 
   const { data: publicUser } = await supabase
     .from("users")
@@ -26,6 +38,8 @@ async function resolvePublicUserId(): Promise<string | null> {
     .maybeSingle();
 
   _cachedPublicUserId = publicUser?.id ?? null;
+  _cachedAuthUserId = user.id;
+  _cachedAt = now;
   return _cachedPublicUserId;
 }
 
@@ -34,6 +48,8 @@ async function resolvePublicUserId(): Promise<string | null> {
  */
 export function resetPublicUserIdCache() {
   _cachedPublicUserId = null;
+  _cachedAuthUserId = null;
+  _cachedAt = 0;
 }
 
 // Normaliser la note : nettoyer les valeurs pour l'affichage

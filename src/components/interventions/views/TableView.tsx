@@ -1606,6 +1606,8 @@ export function TableView({
                                         loadDistinctValues={loadDistinctValues}
                                         onFilterChange={onPropertyFilterChange}
                                         baseFilters={baseFilters}
+                                        sorts={view.sorts}
+                                        onSortChange={onSortChange}
                                       />
                                     ) : (
                                       <span>{getPropertyLabel(property)}</span>

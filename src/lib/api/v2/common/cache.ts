@@ -18,8 +18,7 @@ export type ReferenceCache = {
   metiersById: Map<string, ReferenceData["metiers"][number]>;
 };
 
-// Durée de validité du cache : 5 minutes
-const REFERENCE_CACHE_DURATION = 5 * 60 * 1000;
+import { REFERENCE_CACHE_DURATION } from "./constants";
 
 /**
  * Gestionnaire centralisé du cache des données de référence

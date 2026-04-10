@@ -1,4 +1,4 @@
-import { supabase } from "@/lib/supabase-client"
+import { supabase } from "./common/client"
 import type { InterventionPayment } from "@/lib/api/v2/common/types"
 import type {
   ArtisanSearchRecord,

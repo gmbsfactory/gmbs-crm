@@ -1,7 +1,7 @@
 // ===== UTILITAIRES COMMUNS POUR L'API V2 =====
 // Fonctions partagées entre toutes les APIs
 
-import { supabase } from "@/lib/supabase-client";
+import { supabase } from "./client";
 
 // Ré-exporter le cache centralisé
 export {

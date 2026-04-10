@@ -203,8 +203,8 @@ export const DEFAULT_WORKFLOW_CONFIG: WorkflowConfig = {
   description: "Workflow standard des statuts d'interventions",
   version: "1.0.0",
   isActive: true,
-  createdAt: new Date().toISOString(),
-  updatedAt: new Date().toISOString(),
+  createdAt: "2024-01-01T00:00:00.000Z",
+  updatedAt: "2024-01-01T00:00:00.000Z",
   statuses: STATUS_KEYS.map((key) => {
     const rule = WORKFLOW_RULES[key]
     const isPinned = PINNED_DEFAULT_STATUSES.includes(key)

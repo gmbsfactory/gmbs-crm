@@ -1,7 +1,7 @@
 // ===== API UPDATES V2 =====
 // Gestion des mises à jour de l'application (app_updates)
 
-import { supabase } from "@/lib/supabase-client"
+import { supabase } from "./common/client"
 import type { AppUpdate, AppUpdateView, AppUpdateWithViewStatus, AppUpdateWithAcknowledgments } from "@/types/app-updates"
 
 /**

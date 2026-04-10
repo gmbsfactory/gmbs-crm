@@ -1,7 +1,7 @@
 // ===== API ARTISAN STATUSES V2 =====
 // Gestion des statuts d'artisan
 
-import { supabase } from "@/lib/supabase-client";
+import { supabase } from "./common/client";
 
 // Types
 export interface ArtisanStatus {

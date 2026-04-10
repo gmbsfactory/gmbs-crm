@@ -2,7 +2,7 @@
 // Gestion des statuts d'intervention (ÉDITION UNIQUEMENT)
 // Pas de création ni suppression pour préserver les règles de workflow
 
-import { supabase } from "@/lib/supabase-client";
+import { supabase } from "./common/client";
 
 // Types
 export interface InterventionStatus {

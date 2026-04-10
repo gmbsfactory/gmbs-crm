@@ -1,3 +1,4 @@
+import type { QueryClient } from "@tanstack/react-query"
 import type { InterventionQueryParams } from "@/lib/api/v2"
 
 // Alias pour compatibilité avec le code existant
@@ -100,7 +101,7 @@ export const interventionKeys = {
    * @example
    * const key = interventionKeys.detail("123", ["documents"])
    */
-  detail: (id: string, include?: string[]) => [...interventionKeys.details(), id, include] as const,
+  detail: (id: string, include?: string[]) => [...interventionKeys.details(), id, ...(include ? [include] : [])] as const,
   
   /**
    * Préfixe pour les comptages groupés par filtre (métier, agence, etc.)
@@ -261,7 +262,7 @@ export const artisanKeys = {
    * @example
    * const key = artisanKeys.detail("123", ["metiers", "zones"])
    */
-  detail: (id: string, include?: string[]) => [...artisanKeys.details(), id, include] as const,
+  detail: (id: string, include?: string[]) => [...artisanKeys.details(), id, ...(include ? [include] : [])] as const,
   
   /**
    * Clé pour invalider toutes les queries d'artisans
@@ -427,16 +428,16 @@ export const dashboardKeys = {
   invalidateAll: () => dashboardKeys.all,
   
   /**
-   * Clé pour invalider toutes les statistiques (stats, margin, period)
-   * Utilisée après une modification d'intervention qui affecte les stats
-   * 
-   * @returns ["dashboard", "stats", "margin", "period"]
-   * 
+   * Invalide les 3 sous-arbres de statistiques (stats, margin, period).
+   *
    * @example
-   * // Après modification d'une intervention
-   * queryClient.invalidateQueries({ queryKey: dashboardKeys.invalidateStats() })
+   * dashboardKeys.invalidateStats(queryClient)
    */
-  invalidateStats: () => [...dashboardKeys.all, "stats", "margin", "period"],
+  invalidateStats: (queryClient: QueryClient) => {
+    queryClient.invalidateQueries({ queryKey: dashboardKeys.stats() })
+    queryClient.invalidateQueries({ queryKey: dashboardKeys.margin() })
+    queryClient.invalidateQueries({ queryKey: dashboardKeys.period() })
+  },
 } as const
 
 // ---------------------------------------------------------------------------

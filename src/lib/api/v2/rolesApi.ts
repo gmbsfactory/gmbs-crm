@@ -1,7 +1,7 @@
 // ===== API ROLES & PERMISSIONS V2 =====
 // Gestion complète des rôles et permissions
 
-import { supabase } from "@/lib/supabase-client";
+import { supabase } from "./common/client";
 import type {
     CreatePermissionData,
     CreateRoleData,

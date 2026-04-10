@@ -1,7 +1,7 @@
 // ===== API AGENCIES V2 =====
 // Gestion complète des agences
 
-import { supabase } from "@/lib/supabase-client";
+import { supabase } from "./common/client";
 
 // Types
 export interface Agency {

@@ -458,7 +458,7 @@ export const interventionsCrud = {
           .eq('source', 'trigger');
 
         // Récupérer l'utilisateur actuel
-        const { data: { user } } = await supabase.auth.getUser();
+        const { data: { user } } = await supabaseClient.auth.getUser();
         const userId = user?.id;
 
         // Créer les transitions automatiques
@@ -558,7 +558,7 @@ export const interventionsCrud = {
 
     if (Object.prototype.hasOwnProperty.call(payload, "contexte_intervention")) {
       try {
-        const { data: session } = await supabase.auth.getSession()
+        const { data: session } = await supabaseClient.auth.getSession()
         const token = session?.session?.access_token
         const response = await fetch("/api/auth/me", {
           cache: "no-store",
@@ -614,7 +614,7 @@ export const interventionsCrud = {
     if (payload.statut_id && oldStatutId !== payload.statut_id) {
       try {
         // Récupérer l'utilisateur actuel
-        const { data: { user } } = await supabase.auth.getUser();
+        const { data: { user } } = await supabaseClient.auth.getUser();
         const userId = user?.id || null;
 
         // Récupérer les codes de statut pour le service de transition
@@ -698,50 +698,33 @@ export const interventionsCrud = {
 
     // Recalculer le statut des artisans si le statut de l'intervention a changé
     // Le trigger SQL ne fonctionne pas de manière fiable, donc on appelle explicitement la RPC
-    console.log(`[interventionsApi] 🔍 Vérification recalcul artisan: payload.statut_id=${payload.statut_id}, oldStatutId=${oldStatutId}`);
-
     if (payload.statut_id && oldStatutId !== payload.statut_id) {
       const terminatedCodes = ['TERMINE', 'INTER_TERMINEE'];
       const oldStatusCode = oldStatutId ? refs.interventionStatusesById.get(oldStatutId)?.code : null;
       const newStatusCode = refs.interventionStatusesById.get(payload.statut_id)?.code;
 
-      console.log(`[interventionsApi] 🔍 Codes statut: oldStatusCode=${oldStatusCode}, newStatusCode=${newStatusCode}`);
-
       // Recalculer seulement si on entre ou sort d'un statut terminé
       const wasTerminated = oldStatusCode && terminatedCodes.includes(oldStatusCode);
       const isNowTerminated = newStatusCode && terminatedCodes.includes(newStatusCode);
 
-      console.log(`[interventionsApi] 🔍 Condition terminée: wasTerminated=${wasTerminated}, isNowTerminated=${isNowTerminated}`);
-
       if (wasTerminated || isNowTerminated) {
-        // Récupérer les artisans liés à cette intervention
         const artisanIds = ((updated as unknown as { intervention_artisans?: Array<{ artisan_id: string | null }> }).intervention_artisans ?? [])
           .map((ia) => ia.artisan_id)
           .filter((id): id is string => !!id);
 
-        console.log(`[interventionsApi] 🔍 Artisans liés à recalculer:`, artisanIds);
-
-        // Recalculer le statut de chaque artisan
         for (const artisanId of artisanIds) {
           try {
-            console.log(`[interventionsApi] 📞 Appel RPC recalculate_artisan_status pour artisan ${artisanId}...`);
-            const { data: rpcResult, error: rpcError } = await supabaseClient.rpc('recalculate_artisan_status', {
+            const { error: rpcError } = await supabaseClient.rpc('recalculate_artisan_status', {
               artisan_uuid: artisanId
             });
             if (rpcError) {
-              console.warn(`[interventionsApi] ❌ Erreur RPC artisan ${artisanId}:`, rpcError);
-            } else {
-              console.log(`[interventionsApi] ✅ Statut artisan ${artisanId} recalculé: ${rpcResult}`);
+              console.warn(`[interventionsApi] Erreur RPC artisan ${artisanId}:`, rpcError);
             }
           } catch (err) {
-            console.warn(`[interventionsApi] ❌ Exception artisan ${artisanId}:`, err);
+            console.warn(`[interventionsApi] Exception artisan ${artisanId}:`, err);
           }
         }
-      } else {
-        console.log(`[interventionsApi] ⏭️ Pas de recalcul: le changement de statut n'implique pas un statut terminé`);
       }
-    } else {
-      console.log(`[interventionsApi] ⏭️ Pas de recalcul: statut_id non changé ou non fourni`);
     }
 
     return mapped;
@@ -831,7 +814,7 @@ export const interventionsCrud = {
             .eq('source', 'trigger');
         }
 
-        const { data: { user } } = await supabase.auth.getUser();
+        const { data: { user } } = await supabaseClient.auth.getUser();
         const userId = user?.id;
 
         await automaticTransitionService.createAutomaticTransitions(
@@ -911,7 +894,7 @@ export const interventionsCrud = {
       };
     }
 
-    let query = supabase
+    let query = supabaseClient
       .from("interventions")
       .select(
         `

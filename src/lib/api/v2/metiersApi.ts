@@ -1,7 +1,7 @@
 // ===== API METIERS V2 =====
 // Gestion complète des métiers
 
-import { supabase } from "@/lib/supabase-client";
+import { supabase } from "./common/client";
 
 // Types
 export interface Metier {

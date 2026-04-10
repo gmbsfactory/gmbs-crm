@@ -12,24 +12,12 @@ import { useFormDataChanges } from "@/hooks/useFormDataChanges"
 import { useArtisanModal } from "@/hooks/useArtisanModal"
 import type { ArtisanSearchResult } from "@/lib/artisans/types"
 import type { EmailTemplateData } from "@/lib/email-templates/intervention-emails"
-import { supabase } from "@/lib/supabase-client"
+import { useArtisanAbsences } from "@/hooks/useArtisanAbsences"
 import { calculatePrimaryArtisanMargin } from "@/lib/utils/margin-calculator"
 import { toast } from "sonner"
 
-import {
-  MAX_RADIUS_KM,
-  STATUSES_REQUIRING_DATE_PREVUE,
-  STATUSES_REQUIRING_DEFINITIVE_ID,
-  STATUSES_REQUIRING_NOM_FACTURATION,
-  STATUSES_REQUIRING_ASSIGNED_USER,
-  STATUSES_REQUIRING_COUTS,
-  STATUSES_REQUIRING_CONSIGNE_ARTISAN,
-  STATUSES_REQUIRING_CLIENT_INFO,
-  STATUSES_REQUIRING_AGENCE,
-  STATUSES_REQUIRING_METIER,
-  STATUSES_REQUIRING_DEVIS,
-  ARTISAN_REQUIRED_STATUS_CODES,
-} from "@/lib/interventions/form-constants"
+import { MAX_RADIUS_KM } from "@/lib/interventions/form-constants"
+import { useInterventionValidation } from "@/hooks/useInterventionValidation"
 import { formatDistanceKm, parseAddress, getArtisanDisplayName, artisanSearchResultToNearbyArtisan } from "@/lib/interventions/form-utils"
 import type { InterventionFormData, CollapsibleSectionsState } from "@/lib/interventions/form-types"
 import { getDefaultCollapsibleState } from "@/lib/interventions/form-types"
@@ -155,7 +143,6 @@ export function useInterventionFormState(options: UseInterventionFormStateOption
   // Artisans assignés depuis la DB (source de vérité) — fallback quand pas dans nearby ni search
   const [assignedPrimaryArtisan, setAssignedPrimaryArtisan] = useState<NearbyArtisan | null>(initialPrimaryArtisanData)
   const [assignedSecondaryArtisan, setAssignedSecondaryArtisan] = useState<NearbyArtisan | null>(initialSecondaryArtisanData)
-  const [absentArtisanIds, setAbsentArtisanIds] = useState<Set<string>>(new Set())
 
   // ---- Sections collapsibles ----
   const [collapsibleState, setCollapsibleState] = useState<CollapsibleSectionsState>(
@@ -278,124 +265,38 @@ export function useInterventionFormState(options: UseInterventionFormStateOption
     }
   }, [selectedArtisanData])
 
+  // ---- Absences artisans ----
+  const allArtisanIds = useMemo(() => {
+    const ids = new Set<string>()
+    nearbyArtisans.forEach((a) => ids.add(a.id))
+    nearbyArtisansSecondMetier.forEach((a) => ids.add(a.id))
+    if (searchSelectedArtisan?.id) ids.add(searchSelectedArtisan.id)
+    if (searchSelectedSecondArtisan?.id) ids.add(searchSelectedSecondArtisan.id)
+    return Array.from(ids)
+  }, [nearbyArtisans, nearbyArtisansSecondMetier, searchSelectedArtisan?.id, searchSelectedSecondArtisan?.id])
+
+  const absentArtisanIds = useArtisanAbsences(allArtisanIds)
+
   // ---- Memos: validation ----
   const selectedStatus = useMemo(() => {
     if (!formData.statut_id || !refData?.interventionStatuses) return undefined
     return refData.interventionStatuses.find((status: any) => status.id === formData.statut_id)
   }, [formData.statut_id, refData])
 
-  const requiresDefinitiveId = useMemo(() => {
-    if (!selectedStatus) return false
-    const code = (selectedStatus.code ?? "").toUpperCase()
-    if (STATUSES_REQUIRING_DEFINITIVE_ID.has(code)) return true
-    const normalizedLabel = (selectedStatus.label ?? "").trim().toLowerCase()
-    return (
-      normalizedLabel === "devis envoyé" ||
-      normalizedLabel === "accepté" ||
-      normalizedLabel === "accepte" ||
-      normalizedLabel === "en cours" ||
-      normalizedLabel === "intervention en cours" ||
-      normalizedLabel === "inter en cours" ||
-      normalizedLabel === "terminé" ||
-      normalizedLabel === "termine" ||
-      normalizedLabel === "stand-by" ||
-      normalizedLabel === "stand by"
-    )
-  }, [selectedStatus])
-
-  const requiresDatePrevue = useMemo(() => {
-    if (!selectedStatus) return false
-    const code = (selectedStatus.code ?? "").toUpperCase()
-    if (STATUSES_REQUIRING_DATE_PREVUE.has(code)) return true
-    const normalizedLabel = (selectedStatus.label ?? "").trim().toLowerCase()
-    return (
-      normalizedLabel === "visite technique" ||
-      normalizedLabel === "intervention en cours" ||
-      normalizedLabel === "inter en cours"
-    )
-  }, [selectedStatus])
-
-  const requiresArtisan = useMemo(() => {
-    if (!selectedStatus) return false
-    const code = (selectedStatus.code ?? "").toUpperCase()
-    if ((ARTISAN_REQUIRED_STATUS_CODES as readonly string[]).includes(code)) return true
-    const normalizedLabel = (selectedStatus.label ?? "").trim().toLowerCase()
-    return (
-      normalizedLabel === "visite technique" ||
-      normalizedLabel === "en cours" ||
-      normalizedLabel === "intervention en cours" ||
-      normalizedLabel === "inter en cours" ||
-      normalizedLabel === "terminé" ||
-      normalizedLabel === "termine" ||
-      normalizedLabel === "attente acompte" ||
-      normalizedLabel === "att acompte"
-    )
-  }, [selectedStatus])
-
-  const requiresFacture = useMemo(() => {
-    if (!selectedStatus) return false
-    const code = (selectedStatus.code ?? "").toUpperCase()
-    if (code === "INTER_TERMINEE") return true
-    const normalizedLabel = (selectedStatus.label ?? "").trim().toLowerCase()
-    return normalizedLabel === "terminé" || normalizedLabel === "termine"
-  }, [selectedStatus])
-
-  // ---- Memos: validation (edit-specific rules) ----
-  const requiresNomFacturation = useMemo(() => {
-    if (!selectedStatus) return false
-    const code = (selectedStatus.code ?? "").toUpperCase()
-    return STATUSES_REQUIRING_NOM_FACTURATION.has(code) ||
-      (selectedStatus.label ?? "").toLowerCase().includes("devis envoyé")
-  }, [selectedStatus])
-
-  const requiresAssignedUser = useMemo(() => {
-    if (!selectedStatus) return false
-    const code = (selectedStatus.code ?? "").toUpperCase()
-    return STATUSES_REQUIRING_ASSIGNED_USER.has(code) ||
-      (selectedStatus.label ?? "").toLowerCase().includes("devis envoyé")
-  }, [selectedStatus])
-
-  const requiresCouts = useMemo(() => {
-    if (!selectedStatus) return false
-    const code = (selectedStatus.code ?? "").toUpperCase()
-    return STATUSES_REQUIRING_COUTS.has(code) ||
-      (selectedStatus.label ?? "").toLowerCase().includes("inter en cours") ||
-      (selectedStatus.label ?? "").toLowerCase().includes("intervention en cours")
-  }, [selectedStatus])
-
-  const requiresConsigneArtisan = useMemo(() => {
-    if (!selectedStatus) return false
-    const code = (selectedStatus.code ?? "").toUpperCase()
-    return STATUSES_REQUIRING_CONSIGNE_ARTISAN.has(code) ||
-      (selectedStatus.label ?? "").toLowerCase().includes("inter en cours") ||
-      (selectedStatus.label ?? "").toLowerCase().includes("intervention en cours")
-  }, [selectedStatus])
-
-  const requiresClientInfo = useMemo(() => {
-    if (!selectedStatus) return false
-    const code = (selectedStatus.code ?? "").toUpperCase()
-    return STATUSES_REQUIRING_CLIENT_INFO.has(code) ||
-      (selectedStatus.label ?? "").toLowerCase().includes("inter en cours") ||
-      (selectedStatus.label ?? "").toLowerCase().includes("intervention en cours")
-  }, [selectedStatus])
-
-  const requiresAgence = useMemo(() => {
-    if (!selectedStatus) return false
-    const code = (selectedStatus.code ?? "").toUpperCase()
-    return STATUSES_REQUIRING_AGENCE.has(code)
-  }, [selectedStatus])
-
-  const requiresMetier = useMemo(() => {
-    if (!selectedStatus) return false
-    const code = (selectedStatus.code ?? "").toUpperCase()
-    return STATUSES_REQUIRING_METIER.has(code)
-  }, [selectedStatus])
-
-  const requiresDevis = useMemo(() => {
-    if (!selectedStatus) return false
-    const code = (selectedStatus.code ?? "").toUpperCase()
-    return STATUSES_REQUIRING_DEVIS.has(code)
-  }, [selectedStatus])
+  const {
+    requiresDefinitiveId,
+    requiresDatePrevue,
+    requiresArtisan,
+    requiresFacture,
+    requiresNomFacturation,
+    requiresAssignedUser,
+    requiresCouts,
+    requiresConsigneArtisan,
+    requiresClientInfo,
+    requiresAgence,
+    requiresMetier,
+    requiresDevis,
+  } = useInterventionValidation(selectedStatus)
 
   // ---- Memos: email ----
   const effectiveSelectedArtisanId = useMemo(() => {
@@ -469,51 +370,6 @@ export function useInterventionFormState(options: UseInterventionFormStateOption
     })
   }, [mode, saveDraft, formData, locationQuery, selectedArtisanId, selectedSecondArtisanId, collapsibleState, hasUnsavedChanges])
 
-  // Absences artisans
-  useEffect(() => {
-    let cancelled = false
-    const artisanIds = new Set<string>()
-
-    nearbyArtisans.forEach((artisan) => artisanIds.add(artisan.id))
-    nearbyArtisansSecondMetier.forEach((artisan) => artisanIds.add(artisan.id))
-    if (searchSelectedArtisan?.id) artisanIds.add(searchSelectedArtisan.id)
-    if (searchSelectedSecondArtisan?.id) artisanIds.add(searchSelectedSecondArtisan.id)
-
-    if (artisanIds.size === 0) {
-      setAbsentArtisanIds(new Set())
-      return
-    }
-
-    setAbsentArtisanIds(new Set())
-    const nowIso = new Date().toISOString()
-
-    const loadAbsences = async () => {
-      const { data, error } = await supabase
-        .from("artisan_absences")
-        .select("artisan_id")
-        .in("artisan_id", Array.from(artisanIds))
-        .lte("start_date", nowIso)
-        .gte("end_date", nowIso)
-
-      if (cancelled) return
-
-      if (error) {
-        console.warn(`[useInterventionFormState] Erreur lors du chargement des absences:`, error)
-        setAbsentArtisanIds(new Set())
-        return
-      }
-
-      setAbsentArtisanIds(
-        new Set((data ?? []).map((absence: any) => absence.artisan_id).filter(Boolean)),
-      )
-    }
-
-    loadAbsences()
-
-    return () => {
-      cancelled = true
-    }
-  }, [nearbyArtisans, nearbyArtisansSecondMetier, searchSelectedArtisan?.id, searchSelectedSecondArtisan?.id])
 
   // Cleanup suggestion blur timeout
   useEffect(() => {

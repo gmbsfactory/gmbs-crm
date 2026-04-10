@@ -705,15 +705,6 @@ export interface YearlyStats {
   description?: string;
 }
 
-// Types pour les statistiques
-
-export interface CommentStats {
-  total: number;
-  by_type: Record<string, number>;
-  by_internal: { internal: number; external: number };
-  recent_count: number;
-}
-
 export interface Tenant {
   id: string;
   firstname: string | null;

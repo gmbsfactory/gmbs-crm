@@ -28,10 +28,20 @@ function applyFilters(
   )
 }
 
+function isNullish(v: unknown): boolean {
+  return v === null || v === undefined || v === ""
+}
+
 function compareWithSorts(a: InterventionEntity, b: InterventionEntity, sorts: ViewSort[]) {
   for (const sort of sorts) {
     const aValue = getPropertyValue(a, sort.property)
     const bValue = getPropertyValue(b, sort.property)
+    // Nullish values always sort last, regardless of direction
+    const aN = isNullish(aValue)
+    const bN = isNullish(bValue)
+    if (aN && bN) continue
+    if (aN) return 1
+    if (bN) return -1
     const comparison = compareValues(aValue, bValue)
     if (comparison !== 0) {
       return sort.direction === "asc" ? comparison : -comparison
@@ -127,11 +137,11 @@ function compareValues(a: unknown, b: unknown): number {
   }
 
   if (typeof a === "number" || typeof b === "number") {
-    return Number(a ?? 0) - Number(b ?? 0)
+    return Number(a) - Number(b)
   }
 
-  const aString = String(a ?? "").toLocaleLowerCase()
-  const bString = String(b ?? "").toLocaleLowerCase()
+  const aString = String(a).toLocaleLowerCase()
+  const bString = String(b).toLocaleLowerCase()
   if (aString === bString) return 0
   return aString > bString ? 1 : -1
 }

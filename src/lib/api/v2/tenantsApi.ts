@@ -1,7 +1,7 @@
 // ===== API TENANTS V2 =====
 // Gestion des locataires (tenants)
 
-import { supabase } from "@/lib/supabase-client";
+import { supabase } from "./common/client";
 import type { CreateTenantData, PaginatedResponse, Tenant, TenantQueryParams, UpdateTenantData } from "./common/types";
 
 // ===== FONCTIONS DE LECTURE =====

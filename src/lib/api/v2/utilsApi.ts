@@ -2,62 +2,10 @@
 // Fonctions utilitaires pour toutes les APIs
 
 import type { ReferenceData } from "@/lib/reference-api";
-import { referenceApi } from "@/lib/reference-api";
-import { supabase } from "@/lib/supabase-client";
+import { supabase } from "./common/client";
+import { getReferenceCache, invalidateReferenceCache, type ReferenceCache } from "./common/cache";
 
-// Cache pour les données de référence
-type ReferenceCache = {
-  data: ReferenceData;
-  fetchedAt: number;
-  usersById: Map<string, ReferenceData["users"][number]>;
-  agenciesById: Map<string, ReferenceData["agencies"][number]>;
-  interventionStatusesById: Map<string, ReferenceData["interventionStatuses"][number]>;
-  artisanStatusesById: Map<string, ReferenceData["artisanStatuses"][number]>;
-  metiersById: Map<string, ReferenceData["metiers"][number]>;
-};
-
-const REFERENCE_CACHE_DURATION = 5 * 60 * 1000;
-let referenceCache: ReferenceCache | null = null;
-let referenceCachePromise: Promise<ReferenceCache> | null = null;
-
-export const invalidateReferenceCache = () => {
-  referenceCache = null;
-  referenceCachePromise = null;
-};
-
-async function getReferenceCache(): Promise<ReferenceCache> {
-  const now = Date.now();
-  if (referenceCache && now - referenceCache.fetchedAt < REFERENCE_CACHE_DURATION) {
-    return referenceCache;
-  }
-
-  if (referenceCachePromise) {
-    return referenceCachePromise;
-  }
-
-  referenceCachePromise = (async () => {
-    const data = await referenceApi.getAll();
-    const cache: ReferenceCache = {
-      data,
-      fetchedAt: Date.now(),
-      usersById: new Map(data.users.map((user) => [user.id, user])),
-      agenciesById: new Map(data.agencies.map((agency) => [agency.id, agency])),
-      interventionStatusesById: new Map(data.interventionStatuses.map((status) => [status.id, status])),
-      artisanStatusesById: new Map(data.artisanStatuses.map((status) => [status.id, status])),
-      metiersById: new Map(data.metiers.map((metier) => [metier.id, metier])),
-    };
-    referenceCache = cache;
-    referenceCachePromise = null;
-    return cache;
-  })();
-
-  try {
-    return await referenceCachePromise;
-  } catch (error) {
-    referenceCachePromise = null;
-    throw error;
-  }
-}
+export { invalidateReferenceCache };
 
 export const utilsApi = {
   // Fonction pour convertir un fichier en base64
