@@ -97,6 +97,46 @@ export function getArtisanDisplayName(artisan: ArtisanSearchResult): string {
  * Convertit un ArtisanSearchResult en NearbyArtisan format
  * Utilisé quand un artisan sélectionné via la recherche n'est pas dans la liste de proximité
  */
+/**
+ * Convertit un artisan issu du join intervention_artisans (DB) en NearbyArtisan format
+ * Utilisé pour afficher un artisan assigné même s'il n'est pas dans la liste de proximité
+ */
+export function dbArtisanToNearbyArtisan(
+  artisan: {
+    id: string
+    prenom?: string | null
+    nom?: string | null
+    plain_nom?: string | null
+    raison_sociale?: string | null
+    telephone?: string | null
+    telephone2?: string | null
+    email?: string | null
+  } | null | undefined
+): NearbyArtisan | null {
+  if (!artisan) return null
+  const displayName = artisan.plain_nom
+    || [artisan.prenom, artisan.nom].filter(Boolean).join(" ")
+    || "Artisan sans nom"
+  return {
+    id: artisan.id,
+    displayName,
+    distanceKm: 0,
+    telephone: artisan.telephone || null,
+    telephone2: artisan.telephone2 || null,
+    email: artisan.email || null,
+    adresse: null,
+    ville: null,
+    codePostal: null,
+    lat: 0,
+    lng: 0,
+    prenom: artisan.prenom || null,
+    nom: artisan.nom || null,
+    raison_sociale: artisan.raison_sociale || null,
+    statut_id: null,
+    photoProfilMetadata: null,
+  }
+}
+
 export function artisanSearchResultToNearbyArtisan(
   artisan: ArtisanSearchResult,
   displayName: string

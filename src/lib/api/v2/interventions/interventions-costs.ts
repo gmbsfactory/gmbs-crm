@@ -429,10 +429,10 @@ export const interventionsCosts = {
           coutIntervention = cost.amount || 0;
           break;
         case "sst":
-          coutSST = cost.amount || 0;
+          coutSST += cost.amount || 0;
           break;
         case "materiel":
-          coutMateriel = cost.amount || 0;
+          coutMateriel += cost.amount || 0;
           break;
       }
     });

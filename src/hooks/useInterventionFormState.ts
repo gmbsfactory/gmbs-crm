@@ -42,6 +42,9 @@ export interface UseInterventionFormStateOptions {
   initialLocationQuery?: string
   initialSelectedArtisanId?: string | null
   initialSelectedSecondArtisanId?: string | null
+  /** Données artisan assigné depuis la DB (edit mode) — fallback d'affichage quand pas dans nearby */
+  initialPrimaryArtisanData?: NearbyArtisan | null
+  initialSecondaryArtisanData?: NearbyArtisan | null
   /** ID de l'intervention (edit mode) — active la persistance du draft */
   interventionId?: string
   /** Activer la restauration du draft de création (mode create uniquement — désactiver si defaultValues fournis) */
@@ -64,6 +67,8 @@ export function useInterventionFormState(options: UseInterventionFormStateOption
     initialLocationQuery = "",
     initialSelectedArtisanId = null,
     initialSelectedSecondArtisanId = null,
+    initialPrimaryArtisanData = null,
+    initialSecondaryArtisanData = null,
     interventionId,
     restoreNewDraft = false,
     onClientNameChange,
@@ -135,6 +140,9 @@ export function useInterventionFormState(options: UseInterventionFormStateOption
   const [selectedSecondArtisanId, setSelectedSecondArtisanId] = useState<string | null>(existingDraft?.selectedSecondArtisanId ?? initialSelectedSecondArtisanId)
   const [searchSelectedArtisan, setSearchSelectedArtisan] = useState<NearbyArtisan | null>(null)
   const [searchSelectedSecondArtisan, setSearchSelectedSecondArtisan] = useState<NearbyArtisan | null>(null)
+  // Artisans assignés depuis la DB (source de vérité) — fallback quand pas dans nearby ni search
+  const [assignedPrimaryArtisan, setAssignedPrimaryArtisan] = useState<NearbyArtisan | null>(initialPrimaryArtisanData)
+  const [assignedSecondaryArtisan, setAssignedSecondaryArtisan] = useState<NearbyArtisan | null>(initialSecondaryArtisanData)
   const [absentArtisanIds, setAbsentArtisanIds] = useState<Set<string>>(new Set())
 
   // ---- Sections collapsibles ----
@@ -186,19 +194,22 @@ export function useInterventionFormState(options: UseInterventionFormStateOption
   )
 
   // ---- Memos: artisan sélectionné ----
+  // Priorité : nearby (données fraîches + distance) > search (session) > assigned (DB, toujours dispo)
   const selectedArtisanData = useMemo(() => {
     if (!selectedArtisanId) return null
     const nearbyArtisan = nearbyArtisans.find((artisan) => artisan.id === selectedArtisanId)
     if (nearbyArtisan) return nearbyArtisan
-    return searchSelectedArtisan
-  }, [selectedArtisanId, nearbyArtisans, searchSelectedArtisan])
+    if (searchSelectedArtisan) return searchSelectedArtisan
+    return assignedPrimaryArtisan?.id === selectedArtisanId ? assignedPrimaryArtisan : null
+  }, [selectedArtisanId, nearbyArtisans, searchSelectedArtisan, assignedPrimaryArtisan])
 
   const selectedSecondArtisanData = useMemo(() => {
     if (!selectedSecondArtisanId) return null
     const nearbyArtisan = nearbyArtisansSecondMetier.find((artisan) => artisan.id === selectedSecondArtisanId)
     if (nearbyArtisan) return nearbyArtisan
-    return searchSelectedSecondArtisan
-  }, [selectedSecondArtisanId, nearbyArtisansSecondMetier, searchSelectedSecondArtisan])
+    if (searchSelectedSecondArtisan) return searchSelectedSecondArtisan
+    return assignedSecondaryArtisan?.id === selectedSecondArtisanId ? assignedSecondaryArtisan : null
+  }, [selectedSecondArtisanId, nearbyArtisansSecondMetier, searchSelectedSecondArtisan, assignedSecondaryArtisan])
 
   // ---- Memos: marges ----
   const margePrimaryArtisan = useMemo(() => {
@@ -716,7 +727,9 @@ export function useInterventionFormState(options: UseInterventionFormStateOption
     const consigneArtisan = isPrimary
       ? (formData.consigne_intervention || '')
       : (formData.consigne_second_artisan || '')
-    const coutSST = formData.coutSST || ''
+    const coutSST = isPrimary
+      ? (formData.coutSST || '')
+      : (formData.coutSSTSecondArtisan || '')
 
     return {
       nomClient,
@@ -784,6 +797,9 @@ export function useInterventionFormState(options: UseInterventionFormStateOption
     nearbyArtisans,
     isLoadingNearbyArtisans,
     nearbyArtisansError,
+    // Artisans assignés (DB) — pour sync Realtime
+    setAssignedPrimaryArtisan,
+    setAssignedSecondaryArtisan,
 
     // Second artisan
     selectedSecondArtisanId,
