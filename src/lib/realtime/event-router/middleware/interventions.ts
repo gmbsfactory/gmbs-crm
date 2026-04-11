@@ -206,9 +206,7 @@ export const detectConflictsAndIndicators: SyncMiddleware<Intervention> = async 
       if (userId && refs.usersById) {
         const remoteUser = refs.usersById.get(userId)
         if (remoteUser) {
-          userName = remoteUser.surnom
-            || `${remoteUser.firstname || remoteUser.prenom || ''} ${remoteUser.lastname || remoteUser.nom || ''}`.trim()
-            || null
+          userName = `${remoteUser.firstname || ''} ${remoteUser.lastname || ''}`.trim() || null
         }
       }
     } catch (error) {

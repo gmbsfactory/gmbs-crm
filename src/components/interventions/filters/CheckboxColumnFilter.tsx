@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { cn } from "@/lib/utils"
 import type { ColumnFilterProps } from "./types"
+import { SortControls } from "./SortControls"
 import type { ViewFilter } from "@/types/intervention-views"
 import { formatFilterSummary } from "./filter-utils"
 
@@ -21,6 +22,8 @@ export function CheckboxColumnFilter({
   schema,
   activeFilter,
   onFilterChange,
+  sorts,
+  onSortChange,
 }: ColumnFilterProps) {
   const [open, setOpen] = useState(false)
 
@@ -78,6 +81,7 @@ export function CheckboxColumnFilter({
       <DropdownMenuContent side="bottom" align="start" className="w-64">
         <div className="space-y-3">
           <div className="text-sm font-semibold text-foreground">Filtrer par {schema.label}</div>
+          <SortControls property={property} label={schema.label} sortable={schema.sortable} sorts={sorts} onSortChange={onSortChange} />
           <div className="space-y-2">
             <div className="flex flex-col gap-1">
               <Button

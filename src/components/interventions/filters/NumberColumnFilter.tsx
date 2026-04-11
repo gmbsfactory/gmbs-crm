@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useState } from "react"
-import { ArrowDown, ArrowUp, Filter, X } from "lucide-react"
+import { Filter, X } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -20,6 +20,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { cn } from "@/lib/utils"
 import type { ColumnFilterProps } from "./types"
+import { SortControls } from "./SortControls"
 import type { ViewFilter } from "@/types/intervention-views"
 import { formatFilterSummary } from "./filter-utils"
 
@@ -179,70 +180,7 @@ export function NumberColumnFilter({
       <DropdownMenuContent side="bottom" align="start" className="w-72">
         <div className="space-y-3 p-4">
           <div className="text-sm font-semibold text-foreground">Filtrer par {schema.label}</div>
-          {schema.sortable && onSortChange && (() => {
-            const activeSort = sorts?.find((s) => s.property === property)
-            const currentDir = activeSort?.direction ?? null
-            return (
-              <div className="flex items-center justify-between pb-2 border-b">
-                <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Tri</span>
-                <div className="flex items-center gap-1">
-                  <Button
-                    type="button"
-                    size="icon"
-                    variant="ghost"
-                    className={cn(
-                      "h-7 w-7 text-muted-foreground",
-                      currentDir === "asc" && "border border-primary/60 bg-primary/10 text-primary",
-                    )}
-                    onClick={() => {
-                      if (currentDir === "asc") {
-                        onSortChange([])
-                      } else {
-                        onSortChange([{ property, direction: "asc" }])
-                      }
-                    }}
-                    aria-label={`Tri croissant (${schema.label})`}
-                    title="Croissant"
-                  >
-                    <ArrowUp className="h-3 w-3" />
-                  </Button>
-                  <Button
-                    type="button"
-                    size="icon"
-                    variant="ghost"
-                    className={cn(
-                      "h-7 w-7 text-muted-foreground",
-                      currentDir === "desc" && "border border-primary/60 bg-primary/10 text-primary",
-                    )}
-                    onClick={() => {
-                      if (currentDir === "desc") {
-                        onSortChange([])
-                      } else {
-                        onSortChange([{ property, direction: "desc" }])
-                      }
-                    }}
-                    aria-label={`Tri décroissant (${schema.label})`}
-                    title="Décroissant"
-                  >
-                    <ArrowDown className="h-3 w-3" />
-                  </Button>
-                  {currentDir && (
-                    <Button
-                      type="button"
-                      size="icon"
-                      variant="ghost"
-                      className="h-7 w-7 text-muted-foreground hover:text-destructive"
-                      onClick={() => onSortChange([])}
-                      aria-label={`Supprimer le tri (${schema.label})`}
-                      title="Supprimer le tri"
-                    >
-                      <X className="h-3 w-3" />
-                    </Button>
-                  )}
-                </div>
-              </div>
-            )
-          })()}
+          <SortControls property={property} label={schema.label} sortable={schema.sortable} sorts={sorts} onSortChange={onSortChange} />
           <Tabs value={mode} onValueChange={(v) => setMode(v as "simple" | "range")} className="w-full">
             <TabsList className="grid w-full grid-cols-2">
               <TabsTrigger value="simple">Simple</TabsTrigger>

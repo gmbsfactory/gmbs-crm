@@ -573,3 +573,232 @@ Non implemente dans cette version car le cas d'usage de pagination profonde est 
 3. **pg_cron reste a 1 min** : Le cron pourrait etre reduit a 30s si necessaire, mais le buffer live rend cela non urgent.
 
 4. **Pagination profonde instable** : Voir section 12. Non bloquant pour le cas d'usage actuel.
+
+---
+
+## 14. Evolution future : approche trigger-based (architecture cible)
+
+### Probleme avec l'approche actuelle (GENERATED columns)
+
+Les colonnes `GENERATED ALWAYS AS` ne peuvent referencer que les colonnes de la meme table. Le `search_vector` du buffer live est donc **appauvri** par rapport a celui de la MV :
+
+| Champs manquants dans le buffer live (interventions) | Table source | Poids MV |
+|-------------------------------------------------------|-------------|----------|
+| `agence.label` | agencies | B |
+| `tenant.firstname/lastname`, `plain_nom_client` | tenants | B |
+| `owner.owner_firstname/lastname`, `plain_nom_facturation` | owner | B |
+| `metier.label` | metiers | B |
+| `assigned_user.username` | users | C |
+| Emails tenant/owner/artisan | tenants/owner/artisans | C |
+| Telephones tenant/owner/artisan (6 champs) | tenants/owner/artisans | C |
+| `artisan.plain_nom`, `raison_sociale`, `siret`, `numero_associe` | artisans (via junction) | A-B |
+| `commentaires_aggreges` | comments | C |
+| `statut.label`, `metier.description` | intervention_statuses/metiers | D |
+
+**Impact** : pendant la fenetre de 0-60s, une recherche par nom de tenant, nom d'artisan lie, ou nom d'agence ne trouvera pas une intervention fraichement creee.
+
+### Architecture cible : triggers au lieu de GENERATED columns
+
+Remplacer les colonnes `GENERATED ALWAYS AS` par des colonnes `tsvector` classiques maintenues par des triggers. Le trigger peut faire des JOINs et construire un vecteur aussi riche que celui de la MV.
+
+#### Principe
+
+```
+INSERT/UPDATE intervention
+  → trigger trg_interventions_search_vector()
+    → JOIN agencies, tenants, owner, users, metiers, intervention_artisans, comments
+    → SET NEW.search_vector = <tsvector complet avec tous les poids>
+
+UPDATE tenant (nom change)
+  → trigger trg_cascade_tenant_search()
+    → UPDATE interventions SET updated_at = now() WHERE tenant_id = OLD.id
+    → (ce qui re-declenche trg_interventions_search_vector)
+```
+
+#### Schema des triggers necessaires
+
+```sql
+-- 1. Trigger principal sur interventions (INSERT/UPDATE)
+--    Construit le search_vector complet avec JOINs
+CREATE OR REPLACE FUNCTION trg_interventions_search_vector()
+RETURNS trigger LANGUAGE plpgsql AS $$
+DECLARE
+  v_vector tsvector;
+BEGIN
+  SELECT
+    -- POIDS A: Identifiants critiques
+    setweight(to_tsvector('french', f_unaccent(coalesce(NEW.id_inter, ''))), 'A') ||
+    setweight(to_tsvector('french', f_unaccent(coalesce(NEW.reference_agence, ''))), 'A') ||
+    setweight(to_tsvector('french', f_unaccent(coalesce(pa.numero_associe, ''))), 'A') ||
+    setweight(to_tsvector('french', f_unaccent(coalesce(pa.siret, ''))), 'A') ||
+    -- POIDS B: Informations principales (avec JOINS)
+    setweight(to_tsvector('french', f_unaccent(coalesce(NEW.contexte_intervention, ''))), 'B') ||
+    setweight(to_tsvector('french', f_unaccent(coalesce(a.label, ''))), 'B') ||
+    setweight(to_tsvector('french', f_unaccent(coalesce(pa.plain_nom, ''))), 'B') ||
+    setweight(to_tsvector('french', f_unaccent(coalesce(pa.raison_sociale, ''))), 'B') ||
+    setweight(to_tsvector('french', f_unaccent(coalesce(t.plain_nom_client, ''))), 'B') ||
+    setweight(to_tsvector('french', f_unaccent(coalesce(t.firstname || ' ' || t.lastname, ''))), 'B') ||
+    setweight(to_tsvector('french', f_unaccent(coalesce(o.plain_nom_facturation, ''))), 'B') ||
+    setweight(to_tsvector('french', f_unaccent(coalesce(o.owner_firstname || ' ' || o.owner_lastname, ''))), 'B') ||
+    setweight(to_tsvector('french', f_unaccent(coalesce(m.label, ''))), 'B') ||
+    -- POIDS C: Informations secondaires
+    setweight(to_tsvector('french', f_unaccent(coalesce(NEW.consigne_intervention, ''))), 'C') ||
+    setweight(to_tsvector('french', f_unaccent(coalesce(NEW.commentaire_agent, ''))), 'C') ||
+    setweight(to_tsvector('french', f_unaccent(coalesce(NEW.adresse, ''))), 'C') ||
+    setweight(to_tsvector('french', f_unaccent(coalesce(NEW.ville, ''))), 'C') ||
+    setweight(to_tsvector('french', f_unaccent(coalesce(NEW.code_postal, ''))), 'C') ||
+    setweight(to_tsvector('french', f_unaccent(coalesce(pa.email, ''))), 'C') ||
+    setweight(to_tsvector('french', f_unaccent(coalesce(t.email, ''))), 'C') ||
+    setweight(to_tsvector('french', f_unaccent(coalesce(o.email, ''))), 'C') ||
+    setweight(to_tsvector('french', f_unaccent(coalesce(u.username, ''))), 'C') ||
+    setweight(to_tsvector('french', f_unaccent(coalesce(ic.commentaires, ''))), 'C') ||
+    -- POIDS D: Details
+    setweight(to_tsvector('french', f_unaccent(coalesce(NEW.consigne_second_artisan, ''))), 'D') ||
+    setweight(to_tsvector('french', f_unaccent(coalesce(NEW.key_code, ''))), 'D') ||
+    setweight(to_tsvector('french', f_unaccent(coalesce(NEW.floor, ''))), 'D') ||
+    setweight(to_tsvector('french', f_unaccent(coalesce(NEW.apartment_number, ''))), 'D') ||
+    setweight(to_tsvector('french', f_unaccent(coalesce(NEW.vacant_housing_instructions, ''))), 'D') ||
+    setweight(to_tsvector('french', f_unaccent(coalesce(s.label, ''))), 'D') ||
+    setweight(to_tsvector('french', f_unaccent(coalesce(m.description, ''))), 'D')
+  INTO v_vector
+  FROM (SELECT 1) _dummy
+  LEFT JOIN agencies a ON a.id = NEW.agence_id
+  LEFT JOIN tenants t ON t.id = NEW.tenant_id
+  LEFT JOIN owner o ON o.id = NEW.owner_id
+  LEFT JOIN users u ON u.id = NEW.assigned_user_id
+  LEFT JOIN intervention_statuses s ON s.id = NEW.statut_id
+  LEFT JOIN metiers m ON m.id = NEW.metier_id
+  LEFT JOIN LATERAL (
+    SELECT art.* FROM intervention_artisans ia
+    JOIN artisans art ON ia.artisan_id = art.id
+    WHERE ia.intervention_id = NEW.id AND ia.is_primary = true
+    LIMIT 1
+  ) pa ON true
+  LEFT JOIN LATERAL (
+    SELECT string_agg(content, ' | ') AS commentaires
+    FROM comments WHERE entity_id = NEW.id AND entity_type = 'intervention'
+  ) ic ON true;
+
+  NEW.search_vector := v_vector;
+  RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER trg_interventions_search_vector
+  BEFORE INSERT OR UPDATE ON interventions
+  FOR EACH ROW EXECUTE FUNCTION trg_interventions_search_vector();
+
+-- 2. Triggers cascade sur tables liees
+--    Quand une table liee change, on "touche" les interventions concernees
+--    pour re-declencher le trigger principal.
+
+-- Cascade: tenant name/email change → re-index interventions liees
+CREATE OR REPLACE FUNCTION trg_cascade_tenant_search()
+RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  UPDATE interventions SET updated_at = now()
+  WHERE tenant_id = NEW.id AND is_active = true;
+  RETURN NEW;
+END;
+$$;
+CREATE TRIGGER trg_cascade_tenant_search
+  AFTER UPDATE OF firstname, lastname, plain_nom_client, email, telephone, telephone2
+  ON tenants FOR EACH ROW EXECUTE FUNCTION trg_cascade_tenant_search();
+
+-- Cascade: owner change → re-index interventions liees
+CREATE OR REPLACE FUNCTION trg_cascade_owner_search()
+RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  UPDATE interventions SET updated_at = now()
+  WHERE owner_id = NEW.id AND is_active = true;
+  RETURN NEW;
+END;
+$$;
+CREATE TRIGGER trg_cascade_owner_search
+  AFTER UPDATE OF owner_firstname, owner_lastname, plain_nom_facturation, email, telephone, telephone2
+  ON owner FOR EACH ROW EXECUTE FUNCTION trg_cascade_owner_search();
+
+-- Cascade: agency label change → re-index interventions liees
+CREATE OR REPLACE FUNCTION trg_cascade_agency_search()
+RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  UPDATE interventions SET updated_at = now()
+  WHERE agence_id = NEW.id AND is_active = true;
+  RETURN NEW;
+END;
+$$;
+CREATE TRIGGER trg_cascade_agency_search
+  AFTER UPDATE OF label ON agencies
+  FOR EACH ROW EXECUTE FUNCTION trg_cascade_agency_search();
+
+-- Cascade: comment added/updated → re-index intervention liee
+CREATE OR REPLACE FUNCTION trg_cascade_comment_search()
+RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  IF NEW.entity_type = 'intervention' THEN
+    UPDATE interventions SET updated_at = now()
+    WHERE id = NEW.entity_id AND is_active = true;
+  END IF;
+  RETURN NEW;
+END;
+$$;
+CREATE TRIGGER trg_cascade_comment_search
+  AFTER INSERT OR UPDATE OF content ON comments
+  FOR EACH ROW EXECUTE FUNCTION trg_cascade_comment_search();
+
+-- Cascade: artisan assigned/changed → re-index intervention liee
+CREATE OR REPLACE FUNCTION trg_cascade_artisan_assignment_search()
+RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  UPDATE interventions SET updated_at = now()
+  WHERE id = COALESCE(NEW.intervention_id, OLD.intervention_id) AND is_active = true;
+  RETURN NEW;
+END;
+$$;
+CREATE TRIGGER trg_cascade_artisan_assignment_search
+  AFTER INSERT OR UPDATE OR DELETE ON intervention_artisans
+  FOR EACH ROW EXECUTE FUNCTION trg_cascade_artisan_assignment_search();
+```
+
+#### Impact performance
+
+| Metrique | GENERATED (actuel) | Trigger-based (cible) |
+|----------|--------------------|-----------------------|
+| Cout INSERT intervention | ~0.1ms (expression locale) | ~2-5ms (7 JOINs sur 1 row) |
+| Cout UPDATE intervention | ~0.1ms | ~2-5ms |
+| Cout UPDATE tenant | 0 (pas de cascade) | ~5-20ms (UPDATE N interventions liees) |
+| Cout UPDATE agency label | 0 | ~10-50ms (UPDATE toutes interventions de l'agence) |
+| Cout ajout commentaire | 0 | ~2-5ms (UPDATE 1 intervention) |
+| Recherche buffer live | Identique | Identique (meme GIN index) |
+| Qualite recherche buffer | ~12 champs (same-table) | **~30+ champs (pareil que MV)** |
+
+**Verdict** : cout negligeable pour un CRM (dizaines d'ecritures/heure, pas des milliers/seconde). Le seul cas a surveiller serait un renommage d'agence qui cascade sur des centaines d'interventions — mais c'est un evenement exceptionnel.
+
+#### Migration depuis l'approche actuelle
+
+```sql
+-- 1. Supprimer la colonne GENERATED
+ALTER TABLE interventions DROP COLUMN search_vector;
+
+-- 2. Ajouter une colonne tsvector classique
+ALTER TABLE interventions ADD COLUMN search_vector tsvector;
+
+-- 3. Creer les triggers (cf. ci-dessus)
+
+-- 4. Backfill: re-calculer le search_vector pour toutes les lignes existantes
+UPDATE interventions SET updated_at = updated_at WHERE is_active = true;
+-- (le trigger se declenche et recalcule search_vector)
+
+-- 5. Meme chose pour artisans
+```
+
+#### Effort estime
+
+| Tache | Temps |
+|-------|-------|
+| Drop GENERATED, ajouter colonne classique | 10 min |
+| Trigger principal interventions (avec JOINs) | 30-40 min |
+| Trigger principal artisans (avec JOINs) | 20-30 min |
+| Triggers cascade (tenants, owner, agencies, users, comments, intervention_artisans) | 1-2h |
+| Tests SQL + non-regression | 1h |
+| **Total** | **~3-4h** |

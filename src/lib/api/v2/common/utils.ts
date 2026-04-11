@@ -187,9 +187,10 @@ export const generateUniqueCodeGestionnaire = async (
   const baseCode = `${firstname.charAt(0).toUpperCase()}${lastname.charAt(0).toUpperCase()}`;
   let code = baseCode;
   let counter = 1;
+  const MAX_RETRIES = 100;
 
-  while (true) {
-    const { data, error } = await supabase
+  while (counter <= MAX_RETRIES) {
+    const { error } = await supabase
       .from("users")
       .select("code_gestionnaire")
       .eq("code_gestionnaire", code)
@@ -205,6 +206,10 @@ export const generateUniqueCodeGestionnaire = async (
     // Code existe, essayer avec un numéro
     code = `${baseCode}${counter}`;
     counter++;
+  }
+
+  if (counter > MAX_RETRIES) {
+    throw new Error(`Impossible de générer un code gestionnaire unique après ${MAX_RETRIES} tentatives`);
   }
 
   return code;

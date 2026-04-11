@@ -13,9 +13,6 @@ const CONTENT_PARAM = "mc"
 const LEGACY_MODAL_PARAM = "modal"
 const LEGACY_CONTENT_PARAM = "modalContent"
 
-let closingGuardId: string | null = null
-let pendingModalId: string | null = null
-
 const isValidContent = (value: string | null): value is ModalContent => {
   if (!value) return false
   return (VALID_CONTENT as string[]).includes(value)
@@ -31,7 +28,7 @@ export function useModal() {
   const searchParams = useSearchParams()
   const fullpageSetForCurrentModalRef = useRef<string | null>(null)
 
-  const { isOpen, activeId, activeIndex, orderedIds, sourceLayoutId, overrideMode, content, context, metadata } =
+  const { isOpen, activeId, activeIndex, orderedIds, sourceLayoutId, overrideMode, content, context, metadata, closingGuardId, pendingModalId } =
     useModalState(useShallow((state) => ({
       isOpen: state.isOpen,
       activeId: state.activeId,
@@ -42,9 +39,11 @@ export function useModal() {
       content: state.content,
       context: state.context,
       metadata: state.metadata,
+      closingGuardId: state.closingGuardId,
+      pendingModalId: state.pendingModalId,
     })))
 
-  const { setIsOpen, setActiveId, setActiveIndex, setOrderedIds, setSourceLayoutId, setOverrideMode, setContent, setContext, setMetadata, reset } =
+  const { setIsOpen, setActiveId, setActiveIndex, setOrderedIds, setSourceLayoutId, setOverrideMode, setContent, setContext, setMetadata, setClosingGuardId, setPendingModalId, reset } =
     useModalState(useShallow((state) => ({
       setIsOpen: state.setIsOpen,
       setActiveId: state.setActiveId,
@@ -55,12 +54,14 @@ export function useModal() {
       setContent: state.setContent,
       setContext: state.setContext,
       setMetadata: state.setMetadata,
+      setClosingGuardId: state.setClosingGuardId,
+      setPendingModalId: state.setPendingModalId,
       reset: state.reset,
     })))
 
   const open = useCallback(
     (id: string, options?: ModalOpenOptions) => {
-      closingGuardId = null
+      setClosingGuardId(null)
       const params = new URLSearchParams(searchParams?.toString() ?? "")
       const modalContent: ModalContent = options?.content && isValidContent(options.content) ? options.content : "intervention"
 
@@ -99,7 +100,7 @@ export function useModal() {
       }
       setMetadata(Object.keys(metadataToSet).length > 0 ? metadataToSet : null)
       setIsOpen(true)
-      pendingModalId = id
+      setPendingModalId(id)
 
       if (typeof window !== "undefined") {
         const url = buildUrl(params)
@@ -111,12 +112,14 @@ export function useModal() {
       searchParams,
       setActiveId,
       setActiveIndex,
+      setClosingGuardId,
       setContent,
       setContext,
       setIsOpen,
       setMetadata,
       setOrderedIds,
       setOverrideMode,
+      setPendingModalId,
       setSourceLayoutId,
     ],
   )
@@ -130,8 +133,8 @@ export function useModal() {
       searchParams?.get(LEGACY_MODAL_PARAM) ??
       activeId ??
       null
-    closingGuardId = closingId
-    pendingModalId = null
+    setClosingGuardId(closingId)
+    setPendingModalId(null)
     fullpageSetForCurrentModalRef.current = null
 
     reset()
@@ -145,7 +148,7 @@ export function useModal() {
       const url = buildUrl(params)
       router.replace(url, { scroll: false })
     }
-  }, [activeId, isOpen, reset, router, searchParams])
+  }, [activeId, isOpen, reset, router, searchParams, setClosingGuardId, setPendingModalId])
 
   useEffect(() => {
     if (typeof window === "undefined") return
@@ -173,7 +176,7 @@ export function useModal() {
 
     if (!modalId) {
       if (closingGuardId) {
-        closingGuardId = null
+        setClosingGuardId(null)
       }
       if (!pendingModalId && isOpen) {
         reset()
@@ -192,7 +195,7 @@ export function useModal() {
     if (isAlreadyOpen) {
       // Réinitialiser pendingModalId pour éviter les problèmes futurs
       if (pendingModalId === modalId) {
-        pendingModalId = null
+        setPendingModalId(null)
       }
       return
     }
@@ -206,11 +209,11 @@ export function useModal() {
     }
 
     if (closingGuardId) {
-      closingGuardId = null
+      setClosingGuardId(null)
     }
 
     if (pendingModalId) {
-      pendingModalId = null
+      setPendingModalId(null)
     }
 
     // Forcer le mode fullpage uniquement si le modal est ouvert depuis un nouvel onglet ou un chargement direct
@@ -243,42 +246,21 @@ export function useModal() {
     }
   }, [
     activeId,
+    closingGuardId,
     content,
     isOpen,
     overrideMode,
+    pendingModalId,
     reset,
     router,
     searchParams,
     setActiveId,
+    setClosingGuardId,
     setContent,
     setIsOpen,
     setOverrideMode,
+    setPendingModalId,
   ])
-
-  // Supprimer cet effet car il force aussi le fullpage de manière incorrecte
-  // Le mode fullpage doit être forcé uniquement lors du chargement initial de la page
-  // useEffect(() => {
-  //   if (typeof window === "undefined") return
-  //   if (!isOpen) return
-  //   
-  //   const modalId = searchParams?.get(MODAL_PARAM)
-  //   if (!modalId) return
-  //   
-  //   // Vérifier que le modal actif correspond à celui dans l'URL
-  //   if (activeId !== modalId) return
-  //   
-  //   // Vérifier que c'est bien une intervention
-  //   const rawContent = searchParams?.get(CONTENT_PARAM) ?? searchParams?.get(LEGACY_CONTENT_PARAM)
-  //   const nextContent: ModalContent = isValidContent(rawContent) ? rawContent : "intervention"
-  //   if (nextContent !== "intervention" || content !== "intervention") return
-  //   
-  //   // Si le modal vient d'être ouvert depuis l'URL (pas de pendingModalId) 
-  //   // et qu'on n'a pas encore défini le mode fullpage pour ce modal, le définir maintenant
-  //   if (!pendingModalId && fullpageSetForCurrentModalRef.current !== modalId) {
-  //     setOverrideMode("fullpage")
-  //     fullpageSetForCurrentModalRef.current = modalId
-  //   }
-  // }, [isOpen, activeId, content, searchParams, setOverrideMode])
 
   return {
     isOpen,

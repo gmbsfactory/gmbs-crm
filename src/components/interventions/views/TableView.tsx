@@ -4,7 +4,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { createPortal } from "react-dom"
 import { useVirtualizer } from "@tanstack/react-virtual"
 import type { ChangeEvent, ReactNode, CSSProperties } from "react"
-import { AlignCenter, AlignLeft, AlignRight, ArrowDown, ArrowUp, Bell, Bold, ChevronDown, Eye, Filter, Italic, Send, X } from "lucide-react"
+import { AlignCenter, AlignLeft, AlignRight, ArrowDown, ArrowUp, Bell, Bold, ChevronDown, Eye, Filter, Italic, Search, Send, X } from "lucide-react"
 import Loader from "@/components/ui/Loader"
 
 import { useColumnResize } from "@/hooks/useColumnResize"
@@ -665,6 +665,7 @@ function GestionnaireSelector({
   const { data: loggedInUser } = useCurrentUser()
   const queryClient = useQueryClient()
   const [open, setOpen] = useState(false)
+  const [searchQuery, setSearchQuery] = useState("")
 
   // Liste fusionnée : actifs + archivés éligibles selon la date de l'intervention, utilisateur connecté en premier
   const selectableUsers = useMemo(() => {
@@ -705,7 +706,7 @@ function GestionnaireSelector({
   }
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover open={open} onOpenChange={(v) => { setOpen(v); if (!v) setSearchQuery("") }}>
       <PopoverTrigger asChild>
         <button
           type="button"
@@ -725,18 +726,56 @@ function GestionnaireSelector({
         </button>
       </PopoverTrigger>
       <PopoverContent
-        className="w-56 p-2 z-[100]"
+        className="w-64 p-2 z-[100]"
         align="start"
         onClick={(e) => e.stopPropagation()}
         onPointerDown={(e) => e.stopPropagation()}
       >
-        <div className="space-y-1">
-          <p className="text-xs font-medium text-muted-foreground mb-2">
-            Attribuer à ({selectableUsers.length} utilisateurs)
+        <div className="space-y-2">
+          <p className="text-xs font-medium text-muted-foreground">
+            Attribuer à
           </p>
-          <div className="space-y-1">
-            {selectableUsers.length > 0 ? (
-              selectableUsers.map((user) => {
+          <div className="relative">
+            <Search className="absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Rechercher..."
+              className="pl-7 h-7 text-xs"
+              onClick={(e) => e.stopPropagation()}
+            />
+          </div>
+          <div className="space-y-1 max-h-56 overflow-y-auto">
+            {/* Bouton "Non attribué" */}
+            <button
+              type="button"
+              className={cn(
+                "w-full flex items-center gap-1.5 px-2 py-1 rounded-md text-left transition-colors",
+                currentUserId === null ? "bg-primary/10 text-primary" : "hover:bg-muted"
+              )}
+              onClick={(e) => {
+                e.stopPropagation()
+                handleSelect("")
+              }}
+            >
+              <GestionnaireBadge
+                firstname="?"
+                color="#9ca3af"
+                size="sm"
+                showBorder={false}
+              />
+              <span className="text-xs truncate flex-1 italic text-muted-foreground">Non attribué</span>
+            </button>
+            {/* Liste filtrée des utilisateurs */}
+            {selectableUsers
+              .filter((user) => {
+                if (!searchQuery.trim()) return true
+                const q = searchQuery.toLowerCase()
+                const displayName = [user.firstname, user.lastname].filter(Boolean).join(" ").toLowerCase()
+                const code = (user.code_gestionnaire || "").toLowerCase()
+                return displayName.includes(q) || code.includes(q)
+              })
+              .map((user) => {
                 const displayName = [user.firstname, user.lastname].filter(Boolean).join(" ").trim() || user.username
                 const isSelected = user.id === currentUserId
                 const isArchived = "status" in user && user.status === "archived"
@@ -767,9 +806,9 @@ function GestionnaireSelector({
                     </span>
                   </button>
                 )
-              })
-            ) : (
-              <p className="text-xs text-muted-foreground">Aucun utilisateur disponible</p>
+              })}
+            {selectableUsers.length === 0 && (
+              <p className="text-xs text-muted-foreground px-2 py-1">Aucun utilisateur disponible</p>
             )}
           </div>
         </div>
@@ -2216,14 +2255,16 @@ function ExpandedRowContent({
       consigne: intervAny.consigneIntervention || "—",
       coutSST: intervAny.coutSST,
       adresse: intervAny.adresse || "—",
-      ville: intervAny.ville || "",
-      codePostal: intervAny.codePostal || "",
       prenomClient: intervAny.prenomClient || "",
       nomClient: intervAny.nomClient || "",
-      telephoneClient: intervAny.telephoneClient || "—",
+      telephoneClient: intervAny.telephoneClient || "",
       telephone2Client: intervAny.telephone2Client || "",
       agenceName: intervAny.agenceLabel || intervAny.agence || intervAny.agency || "",
       referenceAgence: intervAny.referenceAgence || intervAny.reference_agence || "",
+      secondArtisan: intervAny.secondArtisan || "",
+      secondArtisanTelephone: intervAny.secondArtisanTelephone || "",
+      acompteSST: intervAny.acompteSST != null ? intervAny.acompteSST : null,
+      acompteClient: intervAny.acompteClient != null ? intervAny.acompteClient : null,
     }
   }, [intervention])
 
@@ -2256,19 +2297,19 @@ function ExpandedRowContent({
     >
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4">
         {/* Colonne 1 - Informations Générales */}
-        <div className="space-y-1">
+        <div className="space-y-3">
           <div>
-            <p className="text-xs font-semibold text-muted-foreground uppercase mb-1">Contexte</p>
-            <p className="text-sm">{renderText(interventionData.contexte)}</p>
+            <p className="text-[10px] font-semibold text-muted-foreground/70 uppercase tracking-wide mb-0.5">Contexte</p>
+            <p className="text-sm font-medium text-foreground">{renderText(interventionData.contexte)}</p>
           </div>
           <div>
-            <p className="text-xs font-semibold text-muted-foreground uppercase mb-1">Consigne</p>
-            <p className="text-sm">{renderText(interventionData.consigne)}</p>
+            <p className="text-[10px] font-semibold text-muted-foreground/70 uppercase tracking-wide mb-0.5">Consigne</p>
+            <p className="text-sm font-medium text-foreground">{renderText(interventionData.consigne)}</p>
           </div>
           {interventionData.coutSST != null && (
             <div>
-              <p className="text-xs font-semibold text-muted-foreground uppercase mb-1">Coût Artisan</p>
-              <p className="text-sm font-medium">{numberFormatter.format(interventionData.coutSST)} €</p>
+              <p className="text-[10px] font-semibold text-muted-foreground/70 uppercase tracking-wide mb-0.5">Coût Artisan</p>
+              <p className="text-sm font-semibold text-foreground">{numberFormatter.format(interventionData.coutSST)} €</p>
             </div>
           )}
         </div>
@@ -2277,47 +2318,62 @@ function ExpandedRowContent({
         <div className="space-y-3">
           {showReferenceAgence && (
             <div>
-              <p className="text-xs font-semibold text-muted-foreground uppercase mb-1">Référence agence</p>
-              <p className="text-sm">{renderText(interventionData.referenceAgence || "—")}</p>
+              <p className="text-[10px] font-semibold text-muted-foreground/70 uppercase tracking-wide mb-0.5">Référence agence</p>
+              <p className="text-sm font-medium text-foreground">{renderText(interventionData.referenceAgence || "—")}</p>
             </div>
           )}
           <div>
-            <p className="text-xs font-semibold text-muted-foreground uppercase mb-1">Adresse</p>
-            <p className="text-sm">
-              {renderText(interventionData.adresse)}
-              {(interventionData.ville || interventionData.codePostal) && (
-                <>
-                  <br />
-                  {renderText(`${interventionData.codePostal} ${interventionData.ville}`.trim())}
-                </>
-              )}
-            </p>
+            <p className="text-[10px] font-semibold text-muted-foreground/70 uppercase tracking-wide mb-0.5">Adresse</p>
+            <p className="text-sm font-medium text-foreground">{renderText(interventionData.adresse)}</p>
           </div>
-          {(interventionData.prenomClient || interventionData.nomClient) && (
+          {(interventionData.prenomClient || interventionData.nomClient || interventionData.telephoneClient) && (
             <div>
-              <p className="text-xs font-semibold text-muted-foreground uppercase mb-1">Client</p>
-              <p className="text-sm">
-                {renderText(`${interventionData.prenomClient} ${interventionData.nomClient}`.trim())}
+              <p className="text-[10px] font-semibold text-muted-foreground/70 uppercase tracking-wide mb-0.5">Info client</p>
+              <p className="text-sm font-medium text-foreground">
+                {(interventionData.prenomClient || interventionData.nomClient) && (
+                  <span>{renderText(`${interventionData.prenomClient} ${interventionData.nomClient}`.trim())}</span>
+                )}
+                {(interventionData.prenomClient || interventionData.nomClient) && interventionData.telephoneClient && (
+                  <span className="text-muted-foreground"> — </span>
+                )}
+                {interventionData.telephoneClient && (
+                  <span>{renderText(interventionData.telephoneClient)}</span>
+                )}
+                {interventionData.telephone2Client && (
+                  <span className="text-muted-foreground"> | <span className="text-foreground">{renderText(interventionData.telephone2Client)}</span></span>
+                )}
               </p>
             </div>
           )}
-          <div>
-            <p className="text-xs font-semibold text-muted-foreground uppercase mb-1">Téléphone</p>
-            <p className="text-sm">
-              {renderText(interventionData.telephoneClient)}
-              {interventionData.telephone2Client && (
-                <>
-                  {" | "}
-                  {renderText(interventionData.telephone2Client)}
-                </>
-              )}
-            </p>
-          </div>
+          {interventionData.secondArtisan && (
+            <div>
+              <p className="text-[10px] font-semibold text-muted-foreground/70 uppercase tracking-wide mb-0.5">2ème artisan</p>
+              <p className="text-sm font-medium text-foreground">
+                {renderText(interventionData.secondArtisan)}
+                {interventionData.secondArtisanTelephone && (
+                  <span className="text-muted-foreground"> — <span className="text-foreground">{renderText(interventionData.secondArtisanTelephone)}</span></span>
+                )}
+              </p>
+            </div>
+          )}
+          {(interventionData.acompteSST != null || interventionData.acompteClient != null) && (
+            <div>
+              <p className="text-[10px] font-semibold text-muted-foreground/70 uppercase tracking-wide mb-0.5">Acomptes</p>
+              <p className="text-sm font-medium text-foreground space-x-3">
+                {interventionData.acompteSST != null && (
+                  <span>SST : <span className="font-semibold">{numberFormatter.format(interventionData.acompteSST)} €</span></span>
+                )}
+                {interventionData.acompteClient != null && (
+                  <span>Client : <span className="font-semibold">{numberFormatter.format(interventionData.acompteClient)} €</span></span>
+                )}
+              </p>
+            </div>
+          )}
         </div>
 
         {/* Colonne 3 - Commentaires */}
         <div className="space-y-3">
-          <p className="text-xs font-semibold text-muted-foreground uppercase mb-2">Commentaires</p>
+          <p className="text-[10px] font-semibold text-muted-foreground/70 uppercase tracking-wide mb-0.5">Commentaires</p>
           <CommentSection
             entityType="intervention"
             entityId={intervention.id}

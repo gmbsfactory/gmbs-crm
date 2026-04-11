@@ -12,7 +12,6 @@ import { AuthStateListenerProvider } from "@/providers/AuthStateListenerProvider
 import { SidebarProvider } from "@/components/ui/sidebar"
 import { Toaster } from "@/components/ui/toaster"
 import { ModalDisplayProvider } from "@/contexts/ModalDisplayContext"
-import { SimpleOptimizedProvider } from "@/contexts/SimpleOptimizedContext"
 import { InterfaceProvider } from "@/contexts/interface-context"
 import { UserStatusProvider } from "@/contexts/user-status-context"
 import { RemindersProvider } from "@/contexts/RemindersContext"
@@ -253,7 +252,6 @@ export default async function RootLayout({
           Aller au contenu
         </a>
         <StyledComponentsRegistry>
-          <SimpleOptimizedProvider>
             <SettingsProvider>
               <ReactQueryProvider>
                 <AuthStateListenerProvider>
@@ -295,7 +293,6 @@ export default async function RootLayout({
                 </AuthStateListenerProvider>
               </ReactQueryProvider>
             </SettingsProvider>
-          </SimpleOptimizedProvider>
         </StyledComponentsRegistry>
         <Toaster position="bottom-right" duration={10000} />
       </body>

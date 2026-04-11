@@ -36,6 +36,7 @@ export const INTERVENTION_STATUS_COLORS: Record<string, string> = {
   "SAV": "#EC4899",                // rose
   "Att Acompte": "#F97316",        // orange (ATT_ACOMPTE)
   "Att. acompte": "#F97316",       // variante
+  "Potentiel": "#FACC15",           // jaune (POTENTIEL)
 }
 
 /**
@@ -54,6 +55,7 @@ export const INTERVENTION_STATUS_COLORS_BY_CODE: Record<string, string> = {
   "STAND_BY": "#6B7280",
   "SAV": "#EC4899",
   "ATT_ACOMPTE": "#F97316",
+  "POTENTIEL": "#FACC15",
 }
 
 // ========================================

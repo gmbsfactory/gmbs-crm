@@ -14,6 +14,8 @@ type ModalState = {
   content: ModalContent | null
   context: ModalContextData | null
   metadata: Record<string, unknown> | null
+  closingGuardId: string | null
+  pendingModalId: string | null
   setIsOpen: (value: boolean) => void
   setActiveId: (id: string | null) => void
   setActiveIndex: (index: number) => void
@@ -23,12 +25,14 @@ type ModalState = {
   setContent: (content: ModalContent | null) => void
   setContext: (context: ModalContextData | null) => void
   setMetadata: (metadata: Record<string, unknown> | null) => void
+  setClosingGuardId: (id: string | null) => void
+  setPendingModalId: (id: string | null) => void
   reset: () => void
 }
 
 const initialState: Omit<
   ModalState,
-  "setIsOpen" | "setActiveId" | "setActiveIndex" | "setOrderedIds" | "setSourceLayoutId" | "setOverrideMode" | "setContent" | "setContext" | "setMetadata" | "reset"
+  "setIsOpen" | "setActiveId" | "setActiveIndex" | "setOrderedIds" | "setSourceLayoutId" | "setOverrideMode" | "setContent" | "setContext" | "setMetadata" | "setClosingGuardId" | "setPendingModalId" | "reset"
 > = {
   isOpen: false,
   activeId: null,
@@ -39,6 +43,8 @@ const initialState: Omit<
   content: null,
   context: null,
   metadata: null,
+  closingGuardId: null,
+  pendingModalId: null,
 }
 
 export const useModalState = create<ModalState>((set) => ({
@@ -52,5 +58,7 @@ export const useModalState = create<ModalState>((set) => ({
   setContent: (content) => set({ content }),
   setContext: (context) => set({ context }),
   setMetadata: (metadata) => set({ metadata }),
+  setClosingGuardId: (id) => set({ closingGuardId: id }),
+  setPendingModalId: (id) => set({ pendingModalId: id }),
   reset: () => set({ ...initialState }),
 }))

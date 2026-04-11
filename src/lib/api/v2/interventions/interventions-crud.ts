@@ -30,6 +30,144 @@ const supabaseClient = typeof window !== 'undefined' ? supabase : getSupabaseCli
 // Ré-exporter la fonction d'invalidation du cache centralisé pour compatibilité
 export const invalidateReferenceCache = invalidateCentralCache;
 
+// ===== HELPERS POUR update() =====
+
+/** Vérifie le rôle admin et retire contexte_intervention si non-admin */
+async function stripAdminOnlyFields(payload: UpdateInterventionData): Promise<UpdateInterventionData> {
+  if (!Object.prototype.hasOwnProperty.call(payload, "contexte_intervention")) {
+    return payload;
+  }
+
+  try {
+    const { data: session } = await supabaseClient.auth.getSession();
+    const token = session?.session?.access_token;
+    const response = await fetch("/api/auth/me", {
+      cache: "no-store",
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+
+    let isAdmin = false;
+    if (response.ok) {
+      const current = await response.json();
+      const roles: string[] = Array.isArray(current?.user?.roles) ? current.user.roles : [];
+      isAdmin = roles.some(
+        (role) => typeof role === "string" && role.toLowerCase().includes("admin"),
+      );
+    }
+
+    if (!isAdmin) {
+      const { contexte_intervention: _ignored, ...rest } = payload;
+      return rest as UpdateInterventionData;
+    }
+    return payload;
+  } catch (error) {
+    console.warn("[interventionsApi.update] Unable to verify user role, dropping context update", error);
+    const { contexte_intervention: _ignored, ...rest } = payload;
+    return rest as UpdateInterventionData;
+  }
+}
+
+/** Récupère le statut actuel d'une intervention avant mise à jour */
+async function fetchCurrentStatus(id: string): Promise<{ statut_id: string | null; statusCode: string | null }> {
+  const { data } = await supabaseClient
+    .from("interventions")
+    .select(`statut_id, status:intervention_statuses(code)`)
+    .eq("id", id)
+    .single();
+
+  if (!data) return { statut_id: null, statusCode: null };
+
+  const statusRaw = data.status;
+  const statusObj = Array.isArray(statusRaw) ? statusRaw[0] : statusRaw;
+  return {
+    statut_id: data.statut_id,
+    statusCode: statusObj?.code ?? null,
+  };
+}
+
+/** Enregistre une transition de statut via le service automatique ou fallback RPC */
+async function handleStatusTransition(
+  interventionId: string,
+  oldStatutId: string | null,
+  newStatutId: string,
+  oldStatusCode: string | null,
+) {
+  try {
+    const { data: { user } } = await supabaseClient.auth.getUser();
+    const userId = user?.id || null;
+    const refs = await getReferenceCache();
+
+    const newStatusObj = refs.interventionStatusesById.get(newStatutId);
+    const newStatusCode = newStatusObj?.code as InterventionStatusKey;
+
+    const resolvedOldCode = oldStatusCode
+      ?? (oldStatutId ? (refs.interventionStatusesById.get(oldStatutId)?.code as InterventionStatusKey) : undefined);
+
+    if (newStatusCode && resolvedOldCode) {
+      await automaticTransitionService.executeTransition(
+        interventionId,
+        resolvedOldCode as InterventionStatusKey,
+        newStatusCode,
+        userId || undefined,
+        { updated_via: 'api_v2', updated_at: new Date().toISOString() },
+      );
+    } else {
+      console.warn('[interventionsApi] Impossible de récupérer les codes de statut pour la transition', { oldStatutId, newStatutId });
+
+      const { error: transitionError } = await supabaseClient.rpc(
+        'log_status_transition_from_api',
+        {
+          p_intervention_id: interventionId,
+          p_from_status_id: oldStatutId || null,
+          p_to_status_id: newStatutId,
+          p_changed_by_user_id: userId,
+          p_metadata: { updated_via: 'api_v2', updated_at: new Date().toISOString(), fallback: true },
+        },
+      );
+
+      if (transitionError) {
+        console.warn('[interventionsApi] Erreur lors de l\'enregistrement de la transition (fallback):', transitionError);
+      }
+    }
+  } catch (error) {
+    console.warn('[interventionsApi] Erreur lors de l\'enregistrement de la transition:', error);
+  }
+}
+
+/** Recalcule le statut des artisans liés quand l'intervention entre/sort d'un statut terminal */
+async function recalculateArtisanStatuses(
+  updatedRow: Record<string, unknown>,
+  oldStatutId: string | null,
+  newStatutId: string,
+) {
+  const refs = await getReferenceCache();
+  const terminatedCodes = ['TERMINE', 'INTER_TERMINEE'];
+  const oldStatusCode = oldStatutId ? refs.interventionStatusesById.get(oldStatutId)?.code : null;
+  const newStatusCode = refs.interventionStatusesById.get(newStatutId)?.code;
+
+  const wasTerminated = oldStatusCode && terminatedCodes.includes(oldStatusCode);
+  const isNowTerminated = newStatusCode && terminatedCodes.includes(newStatusCode);
+
+  if (!wasTerminated && !isNowTerminated) return;
+
+  const artisanIds = ((updatedRow as { intervention_artisans?: Array<{ artisan_id: string | null }> }).intervention_artisans ?? [])
+    .map((ia) => ia.artisan_id)
+    .filter((id): id is string => !!id);
+
+  for (const artisanId of artisanIds) {
+    try {
+      const { error: rpcError } = await supabaseClient.rpc('recalculate_artisan_status', {
+        artisan_uuid: artisanId,
+      });
+      if (rpcError) {
+        console.warn(`[interventionsApi] Erreur RPC artisan ${artisanId}:`, rpcError);
+      }
+    } catch (err) {
+      console.warn(`[interventionsApi] Exception artisan ${artisanId}:`, err);
+    }
+  }
+}
+
 export const interventionsCrud = {
   // Récupérer toutes les interventions (via Edge Function)
   async getAll(params?: InterventionQueryParams): Promise<PaginatedResponse<InterventionWithStatus>> {
@@ -120,6 +258,14 @@ export const interventionsCrud = {
       params.include.forEach((relation) => {
         searchParams.append("include", relation);
       });
+    }
+
+    // Tri serveur
+    if (params?.sortBy) {
+      searchParams.set("sort_by", params.sortBy);
+    }
+    if (params?.sortDir) {
+      searchParams.set("sort_dir", params.sortDir);
     }
 
     if (process.env.NODE_ENV === "production") {
@@ -541,134 +687,27 @@ export const interventionsCrud = {
 
   // Modifier une intervention
   async update(id: string, data: UpdateInterventionData): Promise<InterventionWithStatus> {
-    let payload: UpdateInterventionData = { ...data }
+    const payload = await stripAdminOnlyFields({ ...data });
 
-    if (Object.prototype.hasOwnProperty.call(payload, "contexte_intervention")) {
-      try {
-        const { data: session } = await supabaseClient.auth.getSession()
-        const token = session?.session?.access_token
-        const response = await fetch("/api/auth/me", {
-          cache: "no-store",
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
-        })
-
-        let isAdmin = false
-        if (response.ok) {
-          const current = await response.json()
-          const roles: string[] = Array.isArray(current?.user?.roles) ? current.user.roles : []
-          isAdmin = roles.some(
-            (role) => typeof role === "string" && role.toLowerCase().includes("admin"),
-          )
-        }
-
-        if (!isAdmin) {
-          const { contexte_intervention: _ignored, ...rest } = payload
-          payload = rest as UpdateInterventionData
-        }
-      } catch (error) {
-        console.warn("[interventionsApi.update] Unable to verify user role, dropping context update", error)
-        const { contexte_intervention: _ignored, ...rest } = payload
-        payload = rest as UpdateInterventionData
-      }
-    }
-
-    // Récupérer le statut actuel avant la mise à jour pour la transition
+    // Pré-fetch du statut actuel si on change de statut
     let oldStatutId: string | null = null;
-    let currentIntervention: { statut_id: string | null; status?: { code?: string } | null } | null = null;
-
+    let oldStatusCode: string | null = null;
     if (payload.statut_id) {
-      const { data } = await supabaseClient
-        .from("interventions")
-        .select(`
-          statut_id,
-          status:intervention_statuses(code)
-        `)
-        .eq("id", id)
-        .single();
-
-      if (data) {
-        const statusRaw = data.status;
-        const statusObj = Array.isArray(statusRaw) ? statusRaw[0] : statusRaw;
-        currentIntervention = {
-          statut_id: data.statut_id,
-          status: statusObj ? { code: statusObj.code } : null,
-        };
-        oldStatutId = currentIntervention.statut_id;
-      }
+      const current = await fetchCurrentStatus(id);
+      oldStatutId = current.statut_id;
+      oldStatusCode = current.statusCode;
     }
 
-    // Si on change le statut, enregistrer la transition AVANT la mise à jour
-    if (payload.statut_id && oldStatutId !== payload.statut_id) {
-      try {
-        // Récupérer l'utilisateur actuel
-        const { data: { user } } = await supabaseClient.auth.getUser();
-        const userId = user?.id || null;
-
-        // Récupérer les codes de statut pour le service de transition
-        // On utilise le cache de référence pour éviter une requête supplémentaire
-        const refs = await getReferenceCache();
-
-        // Récupérer le code du nouveau statut
-        const newStatusObj = refs.interventionStatusesById.get(payload.statut_id);
-        const newStatusCode = newStatusObj?.code as InterventionStatusKey;
-
-        // Récupérer le code de l'ancien statut
-        // On essaie d'abord via currentIntervention, sinon via le cache
-        let oldStatusCode: InterventionStatusKey | undefined;
-        if (currentIntervention && currentIntervention.status?.code) {
-          oldStatusCode = currentIntervention.status.code as InterventionStatusKey;
-        } else if (oldStatutId) {
-          const oldStatusObj = refs.interventionStatusesById.get(oldStatutId);
-          oldStatusCode = oldStatusObj?.code as InterventionStatusKey;
-        }
-
-        if (newStatusCode && oldStatusCode) {
-          // Utiliser le service de transition automatique
-          await automaticTransitionService.executeTransition(
-            id,
-            oldStatusCode,
-            newStatusCode,
-            userId || undefined,
-            {
-              updated_via: 'api_v2',
-              updated_at: new Date().toISOString(),
-            }
-          );
-        } else {
-          console.warn('[interventionsApi] Impossible de récupérer les codes de statut pour la transition', { oldStatutId, newStatutId: payload.statut_id });
-
-          // Fallback: Enregistrer la transition directe si on n'a pas les codes
-          const { error: transitionError } = await supabaseClient.rpc(
-            'log_status_transition_from_api',
-            {
-              p_intervention_id: id,
-              p_from_status_id: oldStatutId || null,
-              p_to_status_id: payload.statut_id,
-              p_changed_by_user_id: userId,
-              p_metadata: {
-                updated_via: 'api_v2',
-                updated_at: new Date().toISOString(),
-                fallback: true
-              }
-            }
-          );
-
-          if (transitionError) {
-            console.warn('[interventionsApi] Erreur lors de l\'enregistrement de la transition (fallback):', transitionError);
-          }
-        }
-      } catch (error) {
-        console.warn('[interventionsApi] Erreur lors de l\'enregistrement de la transition:', error);
-        // Continuer quand même, le trigger de sécurité enregistrera
-      }
+    // Enregistrer la transition AVANT la mise à jour
+    const statusChanged = payload.statut_id && oldStatutId !== payload.statut_id;
+    if (statusChanged) {
+      await handleStatusTransition(id, oldStatutId, payload.statut_id!, oldStatusCode);
     }
 
+    // Mise à jour en base
     const { data: updated, error } = await supabaseClient
       .from("interventions")
-      .update({
-        ...payload,
-        updated_at: new Date().toISOString(),
-      })
+      .update({ ...payload, updated_at: new Date().toISOString() })
       .eq("id", id)
       .select(`
         *,
@@ -683,35 +722,9 @@ export const interventionsCrud = {
     const refs = await getReferenceCache();
     const mapped = mapInterventionRecord(updated, refs) as InterventionWithStatus;
 
-    // Recalculer le statut des artisans si le statut de l'intervention a changé
-    // Le trigger SQL ne fonctionne pas de manière fiable, donc on appelle explicitement la RPC
-    if (payload.statut_id && oldStatutId !== payload.statut_id) {
-      const terminatedCodes = ['TERMINE', 'INTER_TERMINEE'];
-      const oldStatusCode = oldStatutId ? refs.interventionStatusesById.get(oldStatutId)?.code : null;
-      const newStatusCode = refs.interventionStatusesById.get(payload.statut_id)?.code;
-
-      // Recalculer seulement si on entre ou sort d'un statut terminé
-      const wasTerminated = oldStatusCode && terminatedCodes.includes(oldStatusCode);
-      const isNowTerminated = newStatusCode && terminatedCodes.includes(newStatusCode);
-
-      if (wasTerminated || isNowTerminated) {
-        const artisanIds = ((updated as unknown as { intervention_artisans?: Array<{ artisan_id: string | null }> }).intervention_artisans ?? [])
-          .map((ia) => ia.artisan_id)
-          .filter((id): id is string => !!id);
-
-        for (const artisanId of artisanIds) {
-          try {
-            const { error: rpcError } = await supabaseClient.rpc('recalculate_artisan_status', {
-              artisan_uuid: artisanId
-            });
-            if (rpcError) {
-              console.warn(`[interventionsApi] Erreur RPC artisan ${artisanId}:`, rpcError);
-            }
-          } catch (err) {
-            console.warn(`[interventionsApi] Exception artisan ${artisanId}:`, err);
-          }
-        }
-      }
+    // Recalculer le statut des artisans si nécessaire
+    if (statusChanged) {
+      await recalculateArtisanStatuses(updated as unknown as Record<string, unknown>, oldStatutId, payload.statut_id!);
     }
 
     return mapped;

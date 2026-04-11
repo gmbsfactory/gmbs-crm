@@ -1,3 +1,4 @@
+import { useCallback } from "react"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { interventionsApi, type Intervention, type InterventionCost, type InterventionPayment } from "@/lib/api/v2"
 import { useInterventionModal } from "@/hooks/useInterventionModal"
@@ -15,7 +16,7 @@ export function useInterventionsMutations() {
   const queryClient = useQueryClient()
   const { open: openInterventionModal } = useInterventionModal()
   const syncQueue = getSyncQueue()
-  const invalidateLists = () => {
+  const invalidateLists = useCallback(() => {
     queryClient.invalidateQueries({
       queryKey: interventionKeys.invalidateLists(),
       refetchType: 'active'
@@ -27,7 +28,7 @@ export function useInterventionsMutations() {
     queryClient.invalidateQueries({
       queryKey: interventionKeys.invalidateFilterCounts(),
     })
-  }
+  }, [queryClient])
 
   // Mutation pour créer une intervention
   const createMutation = useMutation({

@@ -31,6 +31,7 @@ import { validateTransition } from "@/lib/workflow-engine"
 import { loadWorkflowConfig, persistWorkflowConfig } from "@/lib/workflow-persistence"
 import { WORKFLOW_EVENT_KEY } from "@/hooks/useWorkflowConfig"
 import { convertViewFiltersToServerFilters } from "@/lib/filter-converter"
+import { isServerSortable } from "@/lib/interventions/server-sortable-properties"
 import { mapStatusFromDb, mapStatusToDb } from "@/lib/interventions/mappers"
 import { isCheckStatus } from "@/lib/interventions/checkStatus"
 import { getAccentHexColor } from "@/lib/themes"
@@ -48,7 +49,7 @@ import type {
   ViewLayout,
   ViewSort,
 } from "@/types/intervention-views"
-import type { DateRange, SortField, SortDir } from "@/components/interventions/FiltersBar"
+import type { DateRange } from "@/components/interventions/FiltersBar"
 import type { ModalDisplayMode } from "@/types/modal-display"
 
 import {
@@ -57,8 +58,6 @@ import {
   VIEW_LAYOUT_LABELS,
   CREATABLE_VIEW_LAYOUTS,
   DEFAULT_STATUS_VALUES,
-  SORT_FIELD_TO_PROPERTY,
-  PROPERTY_TO_SORT_FIELD,
   managedFilterKeys,
   WORKFLOW_STORAGE_KEY,
   toISODate,
@@ -132,11 +131,6 @@ export interface UseInterventionPageStateReturn {
   selectedStatuses: InterventionStatusValue[]
   selectedUser: string
   dateRange: DateRange
-  sortField: SortField
-  sortDir: SortDir
-  setSortField: (field: SortField) => void
-  setSortDir: (dir: SortDir) => void
-
   // Reorder mode
   isReorderMode: boolean
   setIsReorderMode: (value: boolean) => void
@@ -257,8 +251,6 @@ export function useInterventionPageState(): UseInterventionPageStateReturn {
   const [search, setSearch] = useState("")
   const [selectedUser, setSelectedUser] = useState<string>("")
   const [dateRange, setDateRange] = useState<DateRange>({ from: null, to: null })
-  const [sortField, setSortField] = useState<SortField>("cree")
-  const [sortDir, setSortDir] = useState<SortDir>("desc")
   const [selectedStatuses, setSelectedStatuses] = useState<InterventionStatusValue[]>([])
   const [isReorderMode, setIsReorderMode] = useState(false)
   const [workflowConfig, setWorkflowConfig] = useState<WorkflowConfig>(DEFAULT_WORKFLOW_CONFIG)
@@ -337,6 +329,13 @@ export function useInterventionPageState(): UseInterventionPageStateReturn {
     const normalizedSearch = search.trim()
     if (normalizedSearch) {
       combinedServerFilters.search = normalizedSearch
+    }
+
+    // Tri serveur : injecter le sort de la vue si la propriété est server-sortable
+    const primarySort = activeView?.sorts?.[0]
+    if (primarySort && isServerSortable(primarySort.property)) {
+      combinedServerFilters.sortBy = primarySort.property
+      combinedServerFilters.sortDir = primarySort.direction
     }
 
     const hasServerFilters = Object.keys(combinedServerFilters).length > 0
@@ -452,12 +451,13 @@ export function useInterventionPageState(): UseInterventionPageStateReturn {
   const loading = remoteLoading || (isViewChanging && normalizedInterventions.length > 0)
   const error = remoteError ?? statusError
 
-  // ---- Client-side filtering ----
+  // ---- Client-side filtering (+ tri fallback pour propriétés non server-sortable) ----
   const filteredInterventions = useMemo(() => {
     if (!activeView) return normalizedInterventions
-    const sorts = activeView.sorts ?? []
-    if (clientFilters.length === 0 && sorts.length === 0) return normalizedInterventions
-    return runQuery(normalizedInterventions, clientFilters, sorts) as NormalizedIntervention[]
+    // Ne garder que les sorts non gérés côté serveur
+    const clientSorts = (activeView.sorts ?? []).filter(s => !isServerSortable(s.property))
+    if (clientFilters.length === 0 && clientSorts.length === 0) return normalizedInterventions
+    return runQuery(normalizedInterventions, clientFilters, clientSorts) as NormalizedIntervention[]
   }, [activeView, normalizedInterventions, clientFilters])
 
   const viewInterventions = filteredInterventions
@@ -529,41 +529,6 @@ export function useInterventionPageState(): UseInterventionPageStateReturn {
     },
     [],
   )
-
-  // ---- Sort sync (view <-> local) ----
-  const isSyncingFromViewRef = useRef(false)
-  const activeViewSorts = activeView?.sorts
-  const firstSort = activeViewSorts?.[0]
-  const activeViewSortKey = useMemo(() => {
-    if (!firstSort) return null
-    return `${firstSort.property}:${firstSort.direction}`
-  }, [firstSort])
-
-  useEffect(() => {
-    if (!activeView || !activeViewSortKey || isSyncingFromViewRef.current) return
-    const primarySort = activeView.sorts[0]
-    if (primarySort) {
-      const mappedField = PROPERTY_TO_SORT_FIELD[primarySort.property]
-      if (mappedField) {
-        setSortField((prev) => (prev !== mappedField ? mappedField : prev))
-      }
-      const direction = primarySort.direction === "asc" ? "asc" : "desc"
-      setSortDir((prev) => (prev !== direction ? direction : prev))
-    }
-  }, [activeView, activeViewSortKey])
-
-  useEffect(() => {
-    if (!isReady || !activeView || isSyncingFromViewRef.current) return
-    const property = SORT_FIELD_TO_PROPERTY[sortField]
-    if (!property) return
-    const currentSort = activeView.sorts[0]
-    if (currentSort && currentSort.property === property && currentSort.direction === sortDir) return
-    isSyncingFromViewRef.current = true
-    updateSorts(activeView.id, [{ property, direction: sortDir }])
-    requestAnimationFrame(() => {
-      isSyncingFromViewRef.current = false
-    })
-  }, [sortField, sortDir, activeView, isReady, updateSorts])
 
   // ---- Filter property update ----
   const updateFilterForProperty = useCallback(
@@ -969,10 +934,6 @@ export function useInterventionPageState(): UseInterventionPageStateReturn {
     selectedStatuses,
     selectedUser,
     dateRange,
-    sortField,
-    sortDir,
-    setSortField,
-    setSortDir,
     isReorderMode,
     setIsReorderMode,
     columnConfigViewId,

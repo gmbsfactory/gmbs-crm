@@ -10,7 +10,7 @@ type GetAllParams = InterventionQueryParams
 
 type ServerFilters = Pick<
   GetAllParams,
-  "statut" | "agence" | "artisan" | "metier" | "user" | "startDate" | "endDate" | "isCheck" | "search"
+  "statut" | "agence" | "artisan" | "metier" | "user" | "startDate" | "endDate" | "isCheck" | "search" | "sortBy" | "sortDir"
 >
 
 export interface UseInterventionsQueryOptions {
@@ -39,9 +39,6 @@ export interface UseInterventionsQueryReturn {
   currentPage: number
   totalPages: number
   refresh: () => Promise<void>
-  goToPage: (page: number) => void
-  nextPage: () => void
-  previousPage: () => void
   updateInterventionOptimistic: (id: string, updates: Partial<InterventionView>) => void
 }
 
@@ -208,20 +205,6 @@ export function useInterventionsQuery(
     await refetch()
   }, [refetch])
 
-  // Navigation de pagination (sera gérée par le composant parent via le paramètre page)
-  const goToPage = useCallback((newPage: number) => {
-    // Cette fonction sera gérée par le composant parent qui contrôle le paramètre page
-    console.warn("[useInterventionsQuery] goToPage doit être géré par le composant parent via le paramètre page")
-  }, [])
-
-  const nextPage = useCallback(() => {
-    console.warn("[useInterventionsQuery] nextPage doit être géré par le composant parent via le paramètre page")
-  }, [])
-
-  const previousPage = useCallback(() => {
-    console.warn("[useInterventionsQuery] previousPage doit être géré par le composant parent via le paramètre page")
-  }, [])
-
   // Extraire les valeurs primitives pour des dépendances stables
   const isLowEnd = preloadConfig.isLowEnd
   const prefetchStaleTime = preloadConfig.staleTime
@@ -315,9 +298,6 @@ export function useInterventionsQuery(
     currentPage: page,
     totalPages,
     refresh,
-    goToPage,
-    nextPage,
-    previousPage,
     updateInterventionOptimistic,
   }
 }

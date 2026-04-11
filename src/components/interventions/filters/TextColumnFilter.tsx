@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { cn } from "@/lib/utils"
 import type { ColumnFilterProps } from "./types"
+import { SortControls } from "./SortControls"
 import type { ViewFilter } from "@/types/intervention-views"
 import { formatFilterSummary } from "./filter-utils"
 
@@ -20,6 +21,8 @@ export function TextColumnFilter({
   schema,
   activeFilter,
   onFilterChange,
+  sorts,
+  onSortChange,
 }: ColumnFilterProps) {
   const [open, setOpen] = useState(false)
   const [searchValue, setSearchValue] = useState("")
@@ -117,6 +120,7 @@ export function TextColumnFilter({
       <DropdownMenuContent side="bottom" align="start" className="w-72">
         <div className="space-y-3">
           <div className="text-sm font-semibold text-foreground">Filtrer par {schema.label}</div>
+          <SortControls property={property} label={schema.label} sortable={schema.sortable} sorts={sorts} onSortChange={onSortChange} />
           <div className="space-y-2">
             <Input
               value={searchValue}

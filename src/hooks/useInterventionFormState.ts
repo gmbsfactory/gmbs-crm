@@ -145,9 +145,14 @@ export function useInterventionFormState(options: UseInterventionFormStateOption
   const [assignedSecondaryArtisan, setAssignedSecondaryArtisan] = useState<NearbyArtisan | null>(initialSecondaryArtisanData)
 
   // ---- Sections collapsibles ----
-  const [collapsibleState, setCollapsibleState] = useState<CollapsibleSectionsState>(
-    existingDraft?.collapsibleState ?? getDefaultCollapsibleState
-  )
+  const [collapsibleState, setCollapsibleState] = useState<CollapsibleSectionsState>(() => {
+    if (existingDraft?.collapsibleState) return existingDraft.collapsibleState
+    const defaults = getDefaultCollapsibleState()
+    return {
+      ...defaults,
+      isSecondArtisanOpen: initialSelectedSecondArtisanId != null || initialSecondaryArtisanData != null,
+    }
+  })
 
   // ---- Modales de recherche artisan ----
   const [showArtisanSearch, setShowArtisanSearch] = useState(false)
