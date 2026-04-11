@@ -25,6 +25,7 @@ interface InterventionDraftState {
   saveDraft: (id: string, draft: Omit<InterventionDraft, "savedAt">) => void
   clearDraft: (id: string) => void
   getDraft: (id: string) => InterventionDraft | null
+  purgeExpiredDrafts: () => void
 }
 
 export const useInterventionDraftStore = create<InterventionDraftState>((set, get) => ({
@@ -44,16 +45,20 @@ export const useInterventionDraftStore = create<InterventionDraftState>((set, ge
   getDraft: (id) => {
     const draft = get().drafts[id]
     if (!draft) return null
-
-    // Auto-expiration silencieuse des drafts trop anciens
-    if (Date.now() - draft.savedAt > DRAFT_MAX_AGE_MS) {
-      set((state) => {
-        const { [id]: _, ...rest } = state.drafts
-        return { drafts: rest }
-      })
-      return null
-    }
-
+    // Retourne null si expiré, sans mutation — la purge est faite par purgeExpiredDrafts
+    if (Date.now() - draft.savedAt > DRAFT_MAX_AGE_MS) return null
     return draft
   },
+
+  purgeExpiredDrafts: () =>
+    set((state) => {
+      const now = Date.now()
+      const remaining: Record<string, InterventionDraft> = {}
+      for (const [id, draft] of Object.entries(state.drafts)) {
+        if (now - draft.savedAt <= DRAFT_MAX_AGE_MS) {
+          remaining[id] = draft
+        }
+      }
+      return { drafts: remaining }
+    }),
 }))

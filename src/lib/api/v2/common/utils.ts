@@ -561,3 +561,19 @@ export function chunkArray<T>(array: T[], chunkSize: number): T[][] {
 
 // Export managedFetch for automatic request cancellation on logout
 export { managedFetch } from "@/lib/api/abort-controller-manager";
+
+/**
+ * Résout un code métier (ex: "PLOMBERIE") ou un UUID en ID métier.
+ * Recherche insensible à la casse sur le code, puis match exact sur l'id.
+ */
+export function resolveMetierToId(
+  codeOrId: string,
+  metiersById: Map<string, { code?: string; id?: string }>
+): string {
+  const metierObj = Array.from(metiersById.values()).find(
+    (m) =>
+      m.code?.toUpperCase() === codeOrId.toUpperCase() ||
+      m.id === codeOrId
+  );
+  return metierObj?.id ?? codeOrId;
+}

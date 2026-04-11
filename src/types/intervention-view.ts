@@ -4,7 +4,7 @@
  */
 import type { InterventionView as GeneratedInterventionView } from "@/types/intervention-generated"
 import type { InterventionStatusValue } from "@/types/interventions"
-import type { InterventionStatus, InterventionPayment } from "@/types/intervention-generated"
+import type { InterventionStatus, InterventionPayment, InterventionAttachment } from "@/types/intervention-generated"
 
 // Ré-export du type généré avec les extensions existantes
 export type InterventionView = GeneratedInterventionView & {
@@ -109,11 +109,11 @@ export type InterventionView = GeneratedInterventionView & {
   demandeTrustPilot?: string | null
 
   // Pièces jointes
-  pieceJointeIntervention?: any[]
-  pieceJointeCout?: any[]
-  pieceJointeDevis?: any[]
-  pieceJointePhotos?: any[]
-  pieceJointeFactureGMBS?: any[]
+  pieceJointeIntervention?: InterventionAttachment[]
+  pieceJointeCout?: InterventionAttachment[]
+  pieceJointeDevis?: InterventionAttachment[]
+  pieceJointePhotos?: InterventionAttachment[]
+  pieceJointeFactureGMBS?: InterventionAttachment[]
   pieceJointeFactureArtisan?: string[]
   pieceJointeFactureMateriel?: string[]
   payments?: InterventionPayment[]

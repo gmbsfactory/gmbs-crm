@@ -88,6 +88,11 @@ const GESTIONNAIRE_CODE_MAP = {
   "b": "badr",  
   "n": "metehan",
 
+  // default affected to this user
+  "p": "harold",
+  "t": "harold",
+  "s": "harold",
+
   // from artisan sheet
   "metehan": "metehan",
   "badr": "badr",

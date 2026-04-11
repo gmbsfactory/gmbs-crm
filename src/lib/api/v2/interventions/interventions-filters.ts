@@ -7,6 +7,7 @@ import type {
 } from "@/lib/api/v2/common/types";
 import {
   getReferenceCache,
+  resolveMetierToId,
 } from "@/lib/api/v2/common/utils";
 import { isCheckStatus } from "@/lib/interventions/checkStatus";
 import type { InterventionStatusKey } from "@/config/interventions";
@@ -36,25 +37,11 @@ export const interventionsFilters = {
       }
       if (params?.metier && typeof params.metier === 'string') {
         const refs = await getReferenceCache();
-        const metierObj = Array.from(refs.metiersById.values()).find(
-          (m: { code?: string; id?: string }) =>
-            m.code?.toUpperCase() === params.metier?.toUpperCase() ||
-            m.id === params.metier
-        );
-        const metierId = metierObj?.id || params.metier;
-        query = query.eq("metier_id", metierId);
+        query = query.eq("metier_id", resolveMetierToId(params.metier, refs.metiersById));
       }
       if (params?.metiers && params.metiers.length > 0) {
         const refs = await getReferenceCache();
-        const metierIds = params.metiers.map((metierCodeOrId) => {
-          const metierObj = Array.from(refs.metiersById.values()).find(
-            (m: { code?: string; id?: string }) =>
-              m.code?.toUpperCase() === metierCodeOrId?.toUpperCase() ||
-              m.id === metierCodeOrId
-          );
-          return metierObj?.id || metierCodeOrId;
-        });
-        query = query.in("metier_id", metierIds);
+        query = query.in("metier_id", params.metiers.map((c) => resolveMetierToId(c, refs.metiersById)));
       }
       if (params?.user !== undefined) {
         if (params.user === null) {
@@ -130,25 +117,11 @@ export const interventionsFilters = {
     }
     if (params?.metier && typeof params.metier === 'string') {
       const refs = await getReferenceCache();
-      const metierObj = Array.from(refs.metiersById.values()).find(
-        (m: { code?: string; id?: string }) =>
-          m.code?.toUpperCase() === params.metier?.toUpperCase() ||
-          m.id === params.metier
-      );
-      const metierId = metierObj?.id || params.metier;
-      query = query.eq("metier_id", metierId);
+      query = query.eq("metier_id", resolveMetierToId(params.metier, refs.metiersById));
     }
     if (params?.metiers && params.metiers.length > 0) {
       const refs = await getReferenceCache();
-      const metierIds = params.metiers.map((metierCodeOrId) => {
-        const metierObj = Array.from(refs.metiersById.values()).find(
-          (m: { code?: string; id?: string }) =>
-            m.code?.toUpperCase() === metierCodeOrId?.toUpperCase() ||
-            m.id === metierCodeOrId
-        );
-        return metierObj?.id || metierCodeOrId;
-      });
-      query = query.in("metier_id", metierIds);
+      query = query.in("metier_id", params.metiers.map((c) => resolveMetierToId(c, refs.metiersById)));
     }
     if (params?.user !== undefined) {
       if (params.user === null) {
@@ -199,12 +172,7 @@ export const interventionsFilters = {
     let p_metier_id: string | null = null
     if (baseFilters?.metier && typeof baseFilters.metier === 'string') {
       const refs = await getReferenceCache()
-      const metierObj = Array.from(refs.metiersById.values()).find(
-        (m: { code?: string; id?: string }) =>
-          m.code?.toUpperCase() === baseFilters.metier?.toUpperCase() ||
-          m.id === baseFilters.metier
-      )
-      p_metier_id = metierObj?.id || baseFilters.metier
+      p_metier_id = resolveMetierToId(baseFilters.metier, refs.metiersById)
     }
 
     const { data, error } = await supabase.rpc('get_intervention_filter_counts', {
@@ -323,13 +291,7 @@ export const interventionsFilters = {
       query = query.eq("agence_id", params.agence);
     }
     if (params?.metier && typeof params.metier === 'string') {
-      const metierObj = Array.from(refs.metiersById.values()).find(
-        (m: { code?: string; id?: string }) =>
-          m.code?.toUpperCase() === params.metier?.toUpperCase() ||
-          m.id === params.metier
-      );
-      const metierId = metierObj?.id || params.metier;
-      query = query.eq("metier_id", metierId);
+      query = query.eq("metier_id", resolveMetierToId(params.metier, refs.metiersById));
     }
     if (params?.user !== undefined) {
       if (params.user === null) {

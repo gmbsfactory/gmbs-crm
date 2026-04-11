@@ -17,6 +17,7 @@ import {
   mapInterventionRecord,
   getReferenceCache,
   invalidateReferenceCache as invalidateCentralCache,
+  resolveMetierToId,
 } from "@/lib/api/v2/common/utils";
 import { safeErrorMessage } from "@/lib/api/v2/common/error-handler";
 import type { InterventionWithStatus } from "@/types/intervention";
@@ -43,26 +44,12 @@ export const interventionsCrud = {
     if (params?.metier || params?.metiers) {
       const refs = await getReferenceCache();
 
-      // Convertir un seul métier (code → ID) - insensible à la casse
       if (params?.metier && typeof params.metier === 'string') {
-        const metierObj = Array.from(refs.metiersById.values()).find(
-          (m: { code?: string; id?: string }) =>
-            m.code?.toUpperCase() === params.metier?.toUpperCase() ||
-            m.id === params.metier
-        );
-        metierParam = metierObj?.id || params.metier;
+        metierParam = resolveMetierToId(params.metier, refs.metiersById);
       }
 
-      // Convertir plusieurs métiers (codes → IDs) - insensible à la casse
       if (params?.metiers && params.metiers.length > 0) {
-        metiersParam = params.metiers.map((metierCodeOrId) => {
-          const metierObj = Array.from(refs.metiersById.values()).find(
-            (m: { code?: string; id?: string }) =>
-              m.code?.toUpperCase() === metierCodeOrId?.toUpperCase() ||
-              m.id === metierCodeOrId
-          );
-          return metierObj?.id || metierCodeOrId;
-        });
+        metiersParam = params.metiers.map((code) => resolveMetierToId(code, refs.metiersById));
       }
     }
 

@@ -80,8 +80,9 @@ export const utilsApi = {
     let code = baseCode;
     let counter = 1;
 
-    while (true) {
-      const { data, error } = await supabase
+    const MAX_RETRIES = 100;
+    while (counter <= MAX_RETRIES) {
+      const { error } = await supabase
         .from("users")
         .select("code_gestionnaire")
         .eq("code_gestionnaire", code)
@@ -97,6 +98,10 @@ export const utilsApi = {
       // Code existe, essayer avec un numéro
       code = `${baseCode}${counter}`;
       counter++;
+    }
+
+    if (counter > MAX_RETRIES) {
+      throw new Error(`Impossible de générer un code gestionnaire unique après ${MAX_RETRIES} tentatives`)
     }
 
     return code;

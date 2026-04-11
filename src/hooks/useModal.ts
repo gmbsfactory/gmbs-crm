@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
+import { useShallow } from "zustand/react/shallow"
 import { useModalState } from "./useModalState"
 import type { ModalContent, ModalOpenOptions } from "@/types/modal"
 
@@ -30,26 +31,32 @@ export function useModal() {
   const searchParams = useSearchParams()
   const fullpageSetForCurrentModalRef = useRef<string | null>(null)
 
-  const isOpen = useModalState((state) => state.isOpen)
-  const activeId = useModalState((state) => state.activeId)
-  const activeIndex = useModalState((state) => state.activeIndex)
-  const orderedIds = useModalState((state) => state.orderedIds)
-  const sourceLayoutId = useModalState((state) => state.sourceLayoutId)
-  const overrideMode = useModalState((state) => state.overrideMode)
-  const content = useModalState((state) => state.content)
-  const context = useModalState((state) => state.context)
-  const metadata = useModalState((state) => state.metadata)
+  const { isOpen, activeId, activeIndex, orderedIds, sourceLayoutId, overrideMode, content, context, metadata } =
+    useModalState(useShallow((state) => ({
+      isOpen: state.isOpen,
+      activeId: state.activeId,
+      activeIndex: state.activeIndex,
+      orderedIds: state.orderedIds,
+      sourceLayoutId: state.sourceLayoutId,
+      overrideMode: state.overrideMode,
+      content: state.content,
+      context: state.context,
+      metadata: state.metadata,
+    })))
 
-  const setIsOpen = useModalState((state) => state.setIsOpen)
-  const setActiveId = useModalState((state) => state.setActiveId)
-  const setActiveIndex = useModalState((state) => state.setActiveIndex)
-  const setOrderedIds = useModalState((state) => state.setOrderedIds)
-  const setSourceLayoutId = useModalState((state) => state.setSourceLayoutId)
-  const setOverrideMode = useModalState((state) => state.setOverrideMode)
-  const setContent = useModalState((state) => state.setContent)
-  const setContext = useModalState((state) => state.setContext)
-  const setMetadata = useModalState((state) => state.setMetadata)
-  const reset = useModalState((state) => state.reset)
+  const { setIsOpen, setActiveId, setActiveIndex, setOrderedIds, setSourceLayoutId, setOverrideMode, setContent, setContext, setMetadata, reset } =
+    useModalState(useShallow((state) => ({
+      setIsOpen: state.setIsOpen,
+      setActiveId: state.setActiveId,
+      setActiveIndex: state.setActiveIndex,
+      setOrderedIds: state.setOrderedIds,
+      setSourceLayoutId: state.setSourceLayoutId,
+      setOverrideMode: state.setOverrideMode,
+      setContent: state.setContent,
+      setContext: state.setContext,
+      setMetadata: state.setMetadata,
+      reset: state.reset,
+    })))
 
   const open = useCallback(
     (id: string, options?: ModalOpenOptions) => {
