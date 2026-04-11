@@ -10,13 +10,18 @@ import type { PresenceUser, PresencePayload, FieldLockMap } from '@/types/presen
 const STALE_LOCK_MS = 5 * 60 * 1000 // 5 minutes
 
 /** Throttle interval for channel.track() calls during rapid focus/blur */
-const TRACK_THROTTLE_MS = 300
+const TRACK_THROTTLE_MS = 1000
 
 /** Maximum number of concurrent Presence channels allowed across all hook instances */
 const MAX_CONCURRENT_PRESENCE = 3
 
-/** Module-level counter tracking active Presence channels */
-let activePresenceChannels = 0
+/**
+ * Shared module-level counter tracking active Presence channels.
+ * Imported by useArtisanPresence to enforce a GLOBAL cap across both hooks.
+ */
+export let activePresenceChannels = 0
+export function incrementPresenceChannels() { activePresenceChannels++ }
+export function decrementPresenceChannels() { activePresenceChannels = Math.max(0, activePresenceChannels - 1) }
 
 /**
  * Manages a Supabase Presence channel for real-time viewer tracking
@@ -134,12 +139,16 @@ export function useInterventionPresence(
     }
   }, [])
 
-  // ─── Throttled track: batches rapid focus/blur into a single track() call ────
+  // ─── Throttled track: ALL track() calls go through this to respect rate limits ─
+  /** Timestamp of last actual track() call — enforces minimum interval even for flushes */
+  const lastTrackTimeRef = useRef<number>(0)
+
   const doTrack = useCallback(() => {
     const channel = channelRef.current
     if (!channel) return
     const payload = buildPayload()
     if (!payload) return
+    lastTrackTimeRef.current = Date.now()
     channel.track(payload).catch((err: unknown) => {
       console.warn('[Presence] field track() failed:', err)
     })
@@ -151,7 +160,13 @@ export function useInterventionPresence(
       throttleTimerRef.current = null
     }
     if (flush) {
-      doTrack()
+      // Even flushes respect a minimum interval to avoid rate limits
+      const elapsed = Date.now() - lastTrackTimeRef.current
+      if (elapsed >= TRACK_THROTTLE_MS) {
+        doTrack()
+      } else {
+        throttleTimerRef.current = setTimeout(doTrack, TRACK_THROTTLE_MS - elapsed)
+      }
     } else {
       throttleTimerRef.current = setTimeout(doTrack, TRACK_THROTTLE_MS)
     }
@@ -216,19 +231,18 @@ export function useInterventionPresence(
       setActiveEditor(editorUser)
     }
 
-    // ─── Auto-promotion: if no editor exists and we haven't claimed yet ──────
-    if (!currentEditor && hasResolvedEditingRef.current) {
-      // No editor — promote ourselves
-      if (!isEditingRef.current) {
+    // ─── Auto-promotion: only the OLDEST viewer promotes to avoid race ────────
+    if (!currentEditor && hasResolvedEditingRef.current && !isEditingRef.current) {
+      // Find the oldest non-editing user — only they should promote
+      const candidates = allMetas
+        .filter((p) => !p.isEditing)
+        .sort((a, b) => a.joinedAt.localeCompare(b.joinedAt))
+      const oldest = candidates[0]
+
+      if (oldest?.userId === userId) {
         isEditingRef.current = true
-        console.log('[Presence] Promoted to editor (previous editor left)')
-        // Re-track with isEditing: true
-        const payload = buildPayload()
-        if (payload) {
-          channel.track(payload).catch((err: unknown) => {
-            console.warn('[Presence] promotion track() failed:', err)
-          })
-        }
+        console.log('[Presence] Promoted to editor (oldest viewer, previous editor left)')
+        scheduleTrack()
       }
     }
 
@@ -284,7 +298,7 @@ export function useInterventionPresence(
       prevLocksKeyRef.current = locksKey
       setFieldLockMap(locks)
     }
-  }, [buildPayload]) // buildPayload is stable (no deps)
+  }, [buildPayload, scheduleTrack]) // buildPayload + scheduleTrack are stable
 
   // ─── Track mounted state for async callbacks ───────────────────────────────
   useEffect(() => {
@@ -316,17 +330,19 @@ export function useInterventionPresence(
     }
 
     // Reserve a slot immediately (decremented in cleanup)
-    activePresenceChannels++
+    incrementPresenceChannels()
 
     // Small async gap allows Supabase internal cleanup from React Strict Mode
     // double-mount or fast dependency changes. Without this, supabase.channel()
     // may return a stale, closing channel object → immediate CLOSED status.
     let cancelled = false
+    let reconnectTimer: ReturnType<typeof setTimeout> | null = null
     const SETUP_DELAY_MS = 50
+    const RECONNECT_DELAY_MS = 5000
 
     const channelName = `presence:intervention-${interventionId}`
 
-    const setup = async () => {
+    const subscribe = async () => {
       // Wait for any previous channel cleanup to complete
       await new Promise((resolve) => setTimeout(resolve, SETUP_DELAY_MS))
       if (cancelled || !mountedRef.current) return
@@ -390,19 +406,38 @@ export function useInterventionPresence(
             status === 'CHANNEL_ERROR' ||
             status === 'TIMED_OUT'
           ) {
-            console.warn(`[Presence] Channel ${channelName} failed: ${status}`)
+            console.warn(`[Presence] Channel ${channelName} error: ${status}, reconnecting...`)
+
+            // Cleanup broken channel
+            const brokenCh = channelRef.current
+            channelRef.current = null
+            if (brokenCh) {
+              brokenCh.untrack().catch(() => {})
+              supabase.removeChannel(brokenCh)
+            }
+
+            // Schedule reconnection
+            if (!reconnectTimer && !cancelled) {
+              reconnectTimer = setTimeout(() => {
+                reconnectTimer = null
+                if (!cancelled && mountedRef.current) {
+                  subscribe()
+                }
+              }, RECONNECT_DELAY_MS)
+            }
           }
         })
     }
 
-    setup()
+    subscribe()
 
     return () => {
       cancelled = true
       console.log(`[Presence] Cleaning up ${channelName}`)
       // Release the concurrent channel slot
-      activePresenceChannels = Math.max(0, activePresenceChannels - 1)
-      // Cancel any pending throttled track
+      decrementPresenceChannels()
+      // Cancel any pending reconnection or throttled track
+      if (reconnectTimer) clearTimeout(reconnectTimer)
       if (throttleTimerRef.current) {
         clearTimeout(throttleTimerRef.current)
         throttleTimerRef.current = null

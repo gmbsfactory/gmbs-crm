@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/badge"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { GestionnaireBadge } from "@/components/ui/gestionnaire-badge"
+import { GestionnairePopover } from "@/components/ui/gestionnaire-popover"
 import { SearchableBadgeSelect } from "@/components/ui/searchable-badge-select"
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable"
 import { MapLibreMap } from "@/components/maps/MapLibreMap"
@@ -1065,6 +1066,11 @@ export const InterventionEditForm = memo(function InterventionEditForm({
       return
     }
 
+    if (showReferenceField && !formData.reference_agence?.trim()) {
+      toast.error("La référence agence est obligatoire pour cette agence")
+      return
+    }
+
     if (requiresMetier && !formData.metier_id) {
       toast.error("Le métier est obligatoire pour ce statut")
       return
@@ -1274,71 +1280,37 @@ export const InterventionEditForm = memo(function InterventionEditForm({
                       >
                         {/* Badge utilisateur assigné - Largeur fixe à gauche */}
                         <div className="flex items-center relative">
-                          <Popover>
-                            <PopoverTrigger asChild>
-                              <button
-                                type="button"
-                                className={cn(
-                                  "flex items-center justify-center h-7 w-7 cursor-pointer group rounded-full",
-                                  requiresAssignedUser && !formData.assigned_user_id && "ring-2 ring-orange-400 ring-offset-1"
-                                )}
-                                title={requiresAssignedUser && !formData.assigned_user_id ? "Attribution obligatoire pour ce statut" : undefined}
-                              >
-                                {(() => {
-                                  const assignedUser = selectableUsers.find(u => u.id === formData.assigned_user_id)
-                                    ?? refData?.allUsers?.find(u => u.id === formData.assigned_user_id)
-                                  return (
-                                    <GestionnaireBadge
-                                      firstname={assignedUser?.firstname}
-                                      lastname={assignedUser?.lastname}
-                                      color={assignedUser?.color}
-                                      avatarUrl={assignedUser?.avatar_url}
-                                      size="sm"
-                                      className="transition-transform group-hover:scale-110 h-7 w-7"
-                                    />
-                                  )
-                                })()}
-                              </button>
-                            </PopoverTrigger>
-                            <PopoverContent className="w-56 p-2 z-[100]" align="start">
-                              <div className="space-y-1">
-                                <p className="text-xs font-medium text-muted-foreground mb-2">Attribuer à ({selectableUsers.length} utilisateurs)</p>
-                                <div className="space-y-1 max-h-64 overflow-y-auto scrollbar-minimal pr-1">
-                                  {selectableUsers.length > 0 ? (
-                                    selectableUsers.map((user) => {
-                                      const displayName = [user.firstname, user.lastname].filter(Boolean).join(" ").trim() || user.username
-                                      const isSelected = user.id === formData.assigned_user_id
-                                      return (
-                                        <button
-                                          key={user.id}
-                                          type="button"
-                                          className={cn(
-                                            "w-full flex items-center gap-1.5 px-2 py-1 rounded-md text-left transition-colors",
-                                            isSelected ? "bg-primary/10 text-primary" : "hover:bg-muted"
-                                          )}
-                                          onClick={() => handleInputChange("assigned_user_id", user.id)}
-                                        >
-                                          <GestionnaireBadge
-                                            firstname={user.firstname}
-                                            lastname={user.lastname}
-                                            color={user.color}
-                                            avatarUrl={user.avatar_url}
-                                            size="sm"
-                                            showBorder={false}
-                                          />
-                                          <span className="text-xs truncate flex-1">
-                                            {user.code_gestionnaire ? `${user.code_gestionnaire} - ${displayName}` : displayName}
-                                          </span>
-                                        </button>
-                                      )
-                                    })
-                                  ) : (
-                                    <p className="text-xs text-muted-foreground">Aucun utilisateur disponible</p>
-                                  )}
-                                </div>
-                              </div>
-                            </PopoverContent>
-                          </Popover>
+                          {(() => {
+                            const assignedUser = selectableUsers.find(u => u.id === formData.assigned_user_id)
+                              ?? refData?.allUsers?.find(u => u.id === formData.assigned_user_id)
+                            return (
+                              <GestionnairePopover
+                                users={selectableUsers}
+                                currentUserId={formData.assigned_user_id ?? null}
+                                onSelect={(userId) => handleInputChange("assigned_user_id", userId || null)}
+                                onOpenChange={onPopoverOpenChange}
+                                triggerProps={{
+                                  className: cn(
+                                    "flex items-center justify-center h-7 w-7 cursor-pointer group rounded-full",
+                                    requiresAssignedUser && !formData.assigned_user_id && "ring-2 ring-orange-400 ring-offset-1"
+                                  ),
+                                  title: requiresAssignedUser && !formData.assigned_user_id
+                                    ? "Attribution obligatoire pour ce statut"
+                                    : undefined,
+                                }}
+                                trigger={
+                                  <GestionnaireBadge
+                                    firstname={assignedUser?.firstname}
+                                    lastname={assignedUser?.lastname}
+                                    color={assignedUser?.color}
+                                    avatarUrl={assignedUser?.avatar_url}
+                                    size="sm"
+                                    className="transition-transform group-hover:scale-110 h-7 w-7"
+                                  />
+                                }
+                              />
+                            )
+                          })()}
                           {requiresAssignedUser && !formData.assigned_user_id && (
                             <span className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-orange-500 animate-pulse" />
                           )}
@@ -1400,9 +1372,10 @@ export const InterventionEditForm = memo(function InterventionEditForm({
                               name="reference_agence"
                               value={formData.reference_agence}
                               onChange={(event) => handleInputChange("reference_agence", event.target.value)}
-                              placeholder="Réf. agence"
+                              placeholder="Réf. agence *"
                               className="h-7 text-xs rounded-full px-3"
                               autoComplete="off"
+                              required
                             />
                           </div>
                           </PresenceFieldIndicator>

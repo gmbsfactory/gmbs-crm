@@ -86,6 +86,7 @@ import {
   normalizeColumnStyle,
 } from "@/lib/interventions/column-style"
 import { TABLE_ALIGNMENT_OPTIONS } from "./column-alignment-options"
+import { ExpandedRowContent } from "./ExpandedRowContent"
 import type { InterventionModalOpenOptions } from "@/hooks/useInterventionModal"
 import { iconForStatus } from "@/lib/interventions/status-icons"
 import { getStatusDisplay } from "@/lib/interventions/status-display"
@@ -94,6 +95,7 @@ import type { InterventionPayment } from "@/lib/api/v2/common/types"
 import { Pagination } from "@/components/ui/pagination"
 import { GestionnaireBadge } from "@/components/ui/gestionnaire-badge"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { GestionnairePopover } from "@/components/ui/gestionnaire-popover"
 import { useReferenceDataQuery } from "@/hooks/useReferenceDataQuery"
 import type { ReferenceData } from "@/lib/reference-api"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
@@ -664,10 +666,7 @@ function GestionnaireSelector({
   const { data: referenceData } = useReferenceDataQuery()
   const { data: loggedInUser } = useCurrentUser()
   const queryClient = useQueryClient()
-  const [open, setOpen] = useState(false)
-  const [searchQuery, setSearchQuery] = useState("")
 
-  // Liste fusionnée : actifs + archivés éligibles selon la date de l'intervention, utilisateur connecté en premier
   const selectableUsers = useMemo(() => {
     const users = getSelectableUsers(referenceData?.users, referenceData?.allUsers, dateIntervention)
     return users.sort((a, b) => {
@@ -679,141 +678,42 @@ function GestionnaireSelector({
 
   const updateMutation = useMutation({
     mutationFn: async (newUserId: string) => {
-      const updateData = { assigned_user_id: newUserId || undefined }
-      return interventionsApi.update(interventionId, updateData)
+      return interventionsApi.update(interventionId, { assigned_user_id: newUserId || undefined })
     },
-    onSuccess: (data, newUserId) => {
-      // Invalider le cache pour rafraîchir les données
+    onSuccess: (_, newUserId) => {
       queryClient.invalidateQueries({ queryKey: ['interventions'] })
-
       const user = selectableUsers.find(u => u.id === newUserId)
       const userName = user
         ? [user.firstname, user.lastname].filter(Boolean).join(" ").trim() || user.username
         : "Non assigné"
-
       toast.success(`Intervention assignée à ${userName}`)
-      setOpen(false)
       onUpdate?.(newUserId)
     },
-    onError: (error) => {
-      console.error("Erreur lors de la mise à jour de l'assignation:", error)
+    onError: () => {
       toast.error("Erreur lors de la mise à jour de l'assignation")
     },
   })
 
-  const handleSelect = (userId: string) => {
-    updateMutation.mutate(userId)
-  }
-
   return (
-    <Popover open={open} onOpenChange={(v) => { setOpen(v); if (!v) setSearchQuery("") }}>
-      <PopoverTrigger asChild>
-        <button
-          type="button"
-          className="flex items-center justify-center h-7 w-7 cursor-pointer group rounded-full"
-          onClick={(e) => {
-            e.stopPropagation()
-          }}
-        >
-          <GestionnaireBadge
-            firstname={currentUserFirstname}
-            lastname={currentUserLastname}
-            color={currentUserColor}
-            avatarUrl={currentUserAvatarUrl}
-            size="sm"
-            className="transition-transform group-hover:scale-110 h-7 w-7"
-          />
-        </button>
-      </PopoverTrigger>
-      <PopoverContent
-        className="w-64 p-2 z-[100]"
-        align="start"
-        onClick={(e) => e.stopPropagation()}
-        onPointerDown={(e) => e.stopPropagation()}
-      >
-        <div className="space-y-2">
-          <p className="text-xs font-medium text-muted-foreground">
-            Attribuer à
-          </p>
-          <div className="relative">
-            <Search className="absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Rechercher..."
-              className="pl-7 h-7 text-xs"
-              onClick={(e) => e.stopPropagation()}
-            />
-          </div>
-          <div className="space-y-1 max-h-56 overflow-y-auto">
-            {/* Bouton "Non attribué" */}
-            <button
-              type="button"
-              className={cn(
-                "w-full flex items-center gap-1.5 px-2 py-1 rounded-md text-left transition-colors",
-                currentUserId === null ? "bg-primary/10 text-primary" : "hover:bg-muted"
-              )}
-              onClick={(e) => {
-                e.stopPropagation()
-                handleSelect("")
-              }}
-            >
-              <GestionnaireBadge
-                firstname="?"
-                color="#9ca3af"
-                size="sm"
-                showBorder={false}
-              />
-              <span className="text-xs truncate flex-1 italic text-muted-foreground">Non attribué</span>
-            </button>
-            {/* Liste filtrée des utilisateurs */}
-            {selectableUsers
-              .filter((user) => {
-                if (!searchQuery.trim()) return true
-                const q = searchQuery.toLowerCase()
-                const displayName = [user.firstname, user.lastname].filter(Boolean).join(" ").toLowerCase()
-                const code = (user.code_gestionnaire || "").toLowerCase()
-                return displayName.includes(q) || code.includes(q)
-              })
-              .map((user) => {
-                const displayName = [user.firstname, user.lastname].filter(Boolean).join(" ").trim() || user.username
-                const isSelected = user.id === currentUserId
-                const isArchived = "status" in user && user.status === "archived"
-                return (
-                  <button
-                    key={user.id}
-                    type="button"
-                    className={cn(
-                      "w-full flex items-center gap-1.5 px-2 py-1 rounded-md text-left transition-colors",
-                      isSelected ? "bg-primary/10 text-primary" : "hover:bg-muted",
-                      isArchived && "opacity-60"
-                    )}
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      handleSelect(user.id)
-                    }}
-                  >
-                    <GestionnaireBadge
-                      firstname={user.firstname}
-                      lastname={user.lastname}
-                      color={user.color}
-                      avatarUrl={user.avatar_url}
-                      size="sm"
-                      showBorder={false}
-                    />
-                    <span className="text-xs truncate flex-1">
-                      {user.code_gestionnaire ? `${user.code_gestionnaire} - ${displayName}` : displayName}
-                    </span>
-                  </button>
-                )
-              })}
-            {selectableUsers.length === 0 && (
-              <p className="text-xs text-muted-foreground px-2 py-1">Aucun utilisateur disponible</p>
-            )}
-          </div>
-        </div>
-      </PopoverContent>
-    </Popover>
+    <GestionnairePopover
+      users={selectableUsers}
+      currentUserId={currentUserId}
+      onSelect={(userId) => updateMutation.mutate(userId)}
+      triggerProps={{
+        className: "flex items-center justify-center h-7 w-7 cursor-pointer group rounded-full",
+        onClick: (e) => e.stopPropagation(),
+      }}
+      trigger={
+        <GestionnaireBadge
+          firstname={currentUserFirstname}
+          lastname={currentUserLastname}
+          color={currentUserColor}
+          avatarUrl={currentUserAvatarUrl}
+          size="sm"
+          className="transition-transform group-hover:scale-110 h-7 w-7"
+        />
+      }
+    />
   )
 }
 
@@ -2232,157 +2132,3 @@ function TruncatedCell({ content, className, searchQuery, tooltipText, alwaysSho
   )
 }
 
-function ExpandedRowContent({
-  intervention,
-  statusColor,
-  showStatusBorder,
-  statusBorderWidth,
-  currentUserId,
-  searchQuery = "",
-}: {
-  intervention: InterventionEntity
-  statusColor: string
-  showStatusBorder: boolean
-  statusBorderWidth: string
-  currentUserId?: string | null
-  searchQuery?: string
-}) {
-  // Récupération des données de l'intervention avec useMemo pour réactivité
-  const interventionData = useMemo(() => {
-    const intervAny = intervention as any
-    return {
-      contexte: intervAny.contexteIntervention || "—",
-      consigne: intervAny.consigneIntervention || "—",
-      coutSST: intervAny.coutSST,
-      adresse: intervAny.adresse || "—",
-      prenomClient: intervAny.prenomClient || "",
-      nomClient: intervAny.nomClient || "",
-      telephoneClient: intervAny.telephoneClient || "",
-      telephone2Client: intervAny.telephone2Client || "",
-      agenceName: intervAny.agenceLabel || intervAny.agence || intervAny.agency || "",
-      referenceAgence: intervAny.referenceAgence || intervAny.reference_agence || "",
-      secondArtisan: intervAny.secondArtisan || "",
-      secondArtisanTelephone: intervAny.secondArtisanTelephone || "",
-      acompteSST: intervAny.acompteSST != null ? intervAny.acompteSST : null,
-      acompteClient: intervAny.acompteClient != null ? intervAny.acompteClient : null,
-    }
-  }, [intervention])
-
-  // Afficher la référence agence si elle existe (plus simple que de vérifier la config)
-  const showReferenceAgence = useMemo(
-    () => !!interventionData.referenceAgence && interventionData.referenceAgence !== "—",
-    [interventionData.referenceAgence]
-  )
-
-  // Helper pour rendre du texte avec surlignage optionnel
-  const renderText = (text: string) => {
-    if (searchQuery && searchQuery.trim().length > 0 && text !== "—") {
-      return <HighlightedText text={text} searchQuery={searchQuery} />
-    }
-    return text
-  }
-
-  return (
-    <div
-      className={cn(
-        "w-full bg-accent/10 dark:bg-accent/15",
-        showStatusBorder && "border-l"
-      )}
-      style={{
-        ...(showStatusBorder ? {
-          borderLeftColor: statusColor,
-          borderLeftWidth: statusBorderWidth,
-        } : {}),
-      }}
-    >
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4">
-        {/* Colonne 1 - Informations Générales */}
-        <div className="space-y-3">
-          <div>
-            <p className="text-[10px] font-semibold text-muted-foreground/70 uppercase tracking-wide mb-0.5">Contexte</p>
-            <p className="text-sm font-medium text-foreground">{renderText(interventionData.contexte)}</p>
-          </div>
-          <div>
-            <p className="text-[10px] font-semibold text-muted-foreground/70 uppercase tracking-wide mb-0.5">Consigne</p>
-            <p className="text-sm font-medium text-foreground">{renderText(interventionData.consigne)}</p>
-          </div>
-          {interventionData.coutSST != null && (
-            <div>
-              <p className="text-[10px] font-semibold text-muted-foreground/70 uppercase tracking-wide mb-0.5">Coût Artisan</p>
-              <p className="text-sm font-semibold text-foreground">{numberFormatter.format(interventionData.coutSST)} €</p>
-            </div>
-          )}
-        </div>
-
-        {/* Colonne 2 - Informations Client */}
-        <div className="space-y-3">
-          {showReferenceAgence && (
-            <div>
-              <p className="text-[10px] font-semibold text-muted-foreground/70 uppercase tracking-wide mb-0.5">Référence agence</p>
-              <p className="text-sm font-medium text-foreground">{renderText(interventionData.referenceAgence || "—")}</p>
-            </div>
-          )}
-          <div>
-            <p className="text-[10px] font-semibold text-muted-foreground/70 uppercase tracking-wide mb-0.5">Adresse</p>
-            <p className="text-sm font-medium text-foreground">{renderText(interventionData.adresse)}</p>
-          </div>
-          {(interventionData.prenomClient || interventionData.nomClient || interventionData.telephoneClient) && (
-            <div>
-              <p className="text-[10px] font-semibold text-muted-foreground/70 uppercase tracking-wide mb-0.5">Info client</p>
-              <p className="text-sm font-medium text-foreground">
-                {(interventionData.prenomClient || interventionData.nomClient) && (
-                  <span>{renderText(`${interventionData.prenomClient} ${interventionData.nomClient}`.trim())}</span>
-                )}
-                {(interventionData.prenomClient || interventionData.nomClient) && interventionData.telephoneClient && (
-                  <span className="text-muted-foreground"> — </span>
-                )}
-                {interventionData.telephoneClient && (
-                  <span>{renderText(interventionData.telephoneClient)}</span>
-                )}
-                {interventionData.telephone2Client && (
-                  <span className="text-muted-foreground"> | <span className="text-foreground">{renderText(interventionData.telephone2Client)}</span></span>
-                )}
-              </p>
-            </div>
-          )}
-          {interventionData.secondArtisan && (
-            <div>
-              <p className="text-[10px] font-semibold text-muted-foreground/70 uppercase tracking-wide mb-0.5">2ème artisan</p>
-              <p className="text-sm font-medium text-foreground">
-                {renderText(interventionData.secondArtisan)}
-                {interventionData.secondArtisanTelephone && (
-                  <span className="text-muted-foreground"> — <span className="text-foreground">{renderText(interventionData.secondArtisanTelephone)}</span></span>
-                )}
-              </p>
-            </div>
-          )}
-          {(interventionData.acompteSST != null || interventionData.acompteClient != null) && (
-            <div>
-              <p className="text-[10px] font-semibold text-muted-foreground/70 uppercase tracking-wide mb-0.5">Acomptes</p>
-              <p className="text-sm font-medium text-foreground space-x-3">
-                {interventionData.acompteSST != null && (
-                  <span>SST : <span className="font-semibold">{numberFormatter.format(interventionData.acompteSST)} €</span></span>
-                )}
-                {interventionData.acompteClient != null && (
-                  <span>Client : <span className="font-semibold">{numberFormatter.format(interventionData.acompteClient)} €</span></span>
-                )}
-              </p>
-            </div>
-          )}
-        </div>
-
-        {/* Colonne 3 - Commentaires */}
-        <div className="space-y-3">
-          <p className="text-[10px] font-semibold text-muted-foreground/70 uppercase tracking-wide mb-0.5">Commentaires</p>
-          <CommentSection
-            entityType="intervention"
-            entityId={intervention.id}
-            currentUserId={currentUserId}
-            disableScrollFades
-            searchQuery={searchQuery}
-          />
-        </div>
-      </div>
-    </div>
-  )
-}

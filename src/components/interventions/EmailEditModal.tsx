@@ -183,6 +183,11 @@ export function EmailEditModal({
         commentaire: editableData.commentaire,
         datePrevue: templateData.datePrevue,
         coutSST: editableData.coutSST,
+        isVacant: templateData.isVacant,
+        keyCode: templateData.keyCode,
+        floor: templateData.floor,
+        apartmentNumber: templateData.apartmentNumber,
+        vacantHousingInstructions: templateData.vacantHousingInstructions,
       };
 
       try {
@@ -355,6 +360,11 @@ export function EmailEditModal({
         commentaire: editableData.commentaire || templateData.commentaire,
         datePrevue: templateData.datePrevue,
         coutSST: editableData.coutSST || templateData.coutSST,
+        isVacant: templateData.isVacant,
+        keyCode: templateData.keyCode,
+        floor: templateData.floor,
+        apartmentNumber: templateData.apartmentNumber,
+        vacantHousingInstructions: templateData.vacantHousingInstructions,
       };
 
       // Generate final HTML content with editable data

@@ -375,210 +375,72 @@ export function useInterventionContextMenu(
     }
   }, [interventionId, onAssignToMeWithAnimation, assignToMeMutation])
 
-  // Mutation pour transition vers "Devis envoyé"
+  // Shared optimistic transition logic (DRY for DEVIS_ENVOYE / ACCEPTE / future statuses)
+  type TransitionTarget = { code: InterventionStatusValue; label: string; color: string }
+
+  const applyOptimisticTransition = useCallback(async (target: TransitionTarget) => {
+    await queryClient.cancelQueries({ queryKey: interventionKeys.detail(interventionId) })
+    await cancelListQueries()
+
+    const previousIntervention = queryClient.getQueryData(interventionKeys.detail(interventionId))
+
+    queryClient.setQueryData(interventionKeys.detail(interventionId), (old: InterventionDetailCache) => {
+      if (!old) return old
+      return { ...old, status: target.code, statusValue: target.code }
+    })
+
+    const optimisticStatus = { code: target.code, label: target.label, color: target.color }
+    const updateList = (oldData: InterventionListCache | undefined) => {
+      if (!oldData?.data || !Array.isArray(oldData.data)) return oldData
+      const updatedData = oldData.data.map((intervention) =>
+        intervention.id === interventionId
+          ? { ...intervention, statusValue: target.code, status: optimisticStatus, statut: target.code }
+          : intervention,
+      )
+      return { ...oldData, data: updatedData }
+    }
+    queryClient.setQueriesData({ queryKey: interventionKeys.lists() }, updateList)
+    queryClient.setQueriesData({ queryKey: interventionKeys.lightLists() }, updateList)
+
+    return { previousIntervention }
+  }, [queryClient, interventionId, cancelListQueries])
+
+  const onTransitionError = useCallback((error: Error, context: { previousIntervention?: unknown } | undefined) => {
+    if (context?.previousIntervention) {
+      queryClient.setQueryData(interventionKeys.detail(interventionId), context.previousIntervention)
+    }
+    invalidateLists()
+    queryClient.invalidateQueries({ queryKey: interventionKeys.detail(interventionId) })
+    toast.error("Erreur de transition", {
+      description: error.message || "Une erreur est survenue lors du changement de statut.",
+    })
+  }, [queryClient, interventionId, invalidateLists])
+
+  const onTransitionSuccess = useCallback((data: unknown, label: string) => {
+    invalidateLists()
+    queryClient.invalidateQueries({ queryKey: interventionKeys.detail(interventionId) })
+    queryClient.invalidateQueries({ queryKey: interventionKeys.summaries() })
+    toast.success(`Intervention (${idInter || (data as Record<string, unknown>).id_inter || interventionId}) modifiée vers ${label} avec succès`, {
+      description: new Date().toLocaleString(),
+      action: { label: "Voir", onClick: () => openInterventionModal(interventionId) },
+    })
+  }, [queryClient, interventionId, idInter, invalidateLists, openInterventionModal])
+
+  const DEVIS_ENVOYE_TARGET: TransitionTarget = { code: "DEVIS_ENVOYE", label: "Devis Envoyé", color: "#8B5CF6" }
+  const ACCEPTE_TARGET: TransitionTarget = { code: "ACCEPTE", label: "Accepté", color: "#10B981" }
+
   const transitionToDevisEnvoyeMutation = useMutation({
-    mutationFn: async () => {
-      return await transitionStatusViaApi(interventionId, {
-        status: "DEVIS_ENVOYE",
-      })
-    },
-    onMutate: async () => {
-      // Annuler les requêtes en cours pour éviter les conflits
-      await queryClient.cancelQueries({ queryKey: interventionKeys.detail(interventionId) })
-      await cancelListQueries()
-
-      // Snapshot de la valeur précédente pour rollback en cas d'erreur
-      const previousIntervention = queryClient.getQueryData(interventionKeys.detail(interventionId))
-
-      // Mise à jour optimiste du détail
-      queryClient.setQueryData(interventionKeys.detail(interventionId), (old: InterventionDetailCache) => {
-        if (!old) return old
-        return {
-          ...old,
-          status: "DEVIS_ENVOYE",
-          statusValue: "DEVIS_ENVOYE",
-        }
-      })
-
-      // Mise à jour optimiste immédiate dans toutes les listes (complètes et légères)
-      // Utiliser les préfixes séparément pour matcher toutes les queries
-      // Mettre à jour l'objet status complet avec le label formaté pour l'affichage
-      const devisEnvoyeStatus = {
-        code: "DEVIS_ENVOYE",
-        label: "Devis Envoyé", // Correspond exactement au label en BDD (seed_essential.sql ligne 115)
-        color: "#8B5CF6", // Couleur depuis la BDD (seed_essential.sql ligne 115) et status-colors.ts
-      }
-      queryClient.setQueriesData(
-        { queryKey: interventionKeys.lists() },
-        (oldData: InterventionListCache | undefined) => {
-          if (!oldData?.data || !Array.isArray(oldData.data)) {
-            return oldData
-          }
-          const updatedData = oldData.data.map((intervention) =>
-            intervention.id === interventionId
-              ? {
-                ...intervention,
-                statusValue: "DEVIS_ENVOYE",
-                status: devisEnvoyeStatus,
-                statut: "DEVIS_ENVOYE", // Pour compatibilité
-              }
-              : intervention
-          )
-          return { ...oldData, data: updatedData }
-        }
-      )
-      queryClient.setQueriesData(
-        { queryKey: interventionKeys.lightLists() },
-        (oldData: InterventionListCache | undefined) => {
-          if (!oldData?.data || !Array.isArray(oldData.data)) {
-            return oldData
-          }
-          const updatedData = oldData.data.map((intervention) =>
-            intervention.id === interventionId
-              ? {
-                ...intervention,
-                statusValue: "DEVIS_ENVOYE",
-                status: devisEnvoyeStatus,
-                statut: "DEVIS_ENVOYE", // Pour compatibilité
-              }
-              : intervention
-          )
-          return { ...oldData, data: updatedData }
-        }
-      )
-
-      return { previousIntervention }
-    },
-    onError: (error: Error, _variables, context) => {
-      // Rollback en cas d'erreur
-      if (context?.previousIntervention) {
-        queryClient.setQueryData(interventionKeys.detail(interventionId), context.previousIntervention)
-      }
-      invalidateLists()
-      queryClient.invalidateQueries({ queryKey: interventionKeys.detail(interventionId) })
-
-      toast.error("Erreur de transition", {
-        description: error.message || "Une erreur est survenue lors du changement de statut.",
-      })
-    },
-    onSuccess: (data) => {
-      // Invalider les queries en arrière-plan pour récupérer les données complètes du serveur
-      // La mise à jour optimiste dans onMutate assure une mise à jour immédiate de l'UI
-      invalidateLists()
-      queryClient.invalidateQueries({ queryKey: interventionKeys.detail(interventionId) })
-      queryClient.invalidateQueries({ queryKey: interventionKeys.summaries() })
-
-      toast.success(`Intervention (${idInter || (data as Record<string, unknown>).id_inter || interventionId}) modifiée vers Devis Envoyé avec succès`, {
-        description: new Date().toLocaleString(),
-        action: {
-          label: "Voir",
-          onClick: () => openInterventionModal(interventionId),
-        },
-      })
-    },
+    mutationFn: () => transitionStatusViaApi(interventionId, { status: "DEVIS_ENVOYE" }),
+    onMutate: () => applyOptimisticTransition(DEVIS_ENVOYE_TARGET),
+    onError: (error: Error, _v, ctx) => onTransitionError(error, ctx),
+    onSuccess: (data) => onTransitionSuccess(data, DEVIS_ENVOYE_TARGET.label),
   })
 
-  // Mutation pour transition vers "Accepté"
   const transitionToAccepteMutation = useMutation({
-    mutationFn: async () => {
-      return await transitionStatusViaApi(interventionId, {
-        status: "ACCEPTE",
-      })
-    },
-    onMutate: async () => {
-      // Annuler les requêtes en cours pour éviter les conflits
-      await queryClient.cancelQueries({ queryKey: interventionKeys.detail(interventionId) })
-      await cancelListQueries()
-
-      // Snapshot de la valeur précédente pour rollback en cas d'erreur
-      const previousIntervention = queryClient.getQueryData(interventionKeys.detail(interventionId))
-
-      // Mise à jour optimiste du détail
-      queryClient.setQueryData(interventionKeys.detail(interventionId), (old: InterventionDetailCache) => {
-        if (!old) return old
-        return {
-          ...old,
-          status: "ACCEPTE",
-          statusValue: "ACCEPTE",
-        }
-      })
-
-      // Mise à jour optimiste immédiate dans toutes les listes (complètes et légères)
-      // Utiliser les préfixes séparément pour matcher toutes les queries
-      // Mettre à jour l'objet status complet avec le label formaté pour l'affichage
-      const accepteStatus = {
-        code: "ACCEPTE",
-        label: "Accepté",
-        color: "#10B981", // Couleur depuis INTERVENTION_STATUS.ACCEPTE
-      }
-      queryClient.setQueriesData(
-        { queryKey: interventionKeys.lists() },
-        (oldData: InterventionListCache | undefined) => {
-          if (!oldData?.data || !Array.isArray(oldData.data)) {
-            return oldData
-          }
-          const updatedData = oldData.data.map((intervention) =>
-            intervention.id === interventionId
-              ? {
-                ...intervention,
-                statusValue: "ACCEPTE",
-                status: accepteStatus,
-                statut: "ACCEPTE", // Pour compatibilité
-              }
-              : intervention
-          )
-          return { ...oldData, data: updatedData }
-        }
-      )
-      queryClient.setQueriesData(
-        { queryKey: interventionKeys.lightLists() },
-        (oldData: InterventionListCache | undefined) => {
-          if (!oldData?.data || !Array.isArray(oldData.data)) {
-            return oldData
-          }
-          const updatedData = oldData.data.map((intervention) =>
-            intervention.id === interventionId
-              ? {
-                ...intervention,
-                statusValue: "ACCEPTE",
-                status: accepteStatus,
-                statut: "ACCEPTE", // Pour compatibilité
-              }
-              : intervention
-          )
-          return { ...oldData, data: updatedData }
-        }
-      )
-
-      return { previousIntervention }
-    },
-    onError: (error: Error, _variables, context) => {
-      // Rollback en cas d'erreur
-      if (context?.previousIntervention) {
-        queryClient.setQueryData(interventionKeys.detail(interventionId), context.previousIntervention)
-      }
-      invalidateLists()
-      queryClient.invalidateQueries({ queryKey: interventionKeys.detail(interventionId) })
-
-      toast.error("Erreur de transition", {
-        description: error.message || "Une erreur est survenue lors du changement de statut.",
-      })
-    },
-    onSuccess: (data) => {
-      // Invalider les queries en arrière-plan pour récupérer les données complètes du serveur
-      // La mise à jour optimiste dans onMutate assure une mise à jour immédiate de l'UI
-      invalidateLists()
-      queryClient.invalidateQueries({ queryKey: interventionKeys.detail(interventionId) })
-      queryClient.invalidateQueries({ queryKey: interventionKeys.summaries() })
-
-      toast.success(`Intervention (${idInter || (data as Record<string, unknown>).id_inter || interventionId}) modifiée vers Accepté avec succès`, {
-        description: new Date().toLocaleString(),
-        action: {
-          label: "Voir",
-          onClick: () => openInterventionModal(interventionId),
-        },
-      })
-    },
+    mutationFn: () => transitionStatusViaApi(interventionId, { status: "ACCEPTE" }),
+    onMutate: () => applyOptimisticTransition(ACCEPTE_TARGET),
+    onError: (error: Error, _v, ctx) => onTransitionError(error, ctx),
+    onSuccess: (data) => onTransitionSuccess(data, ACCEPTE_TARGET.label),
   })
 
   // Mutation pour supprimer une intervention

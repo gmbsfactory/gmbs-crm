@@ -640,6 +640,20 @@ export const referenceKeys = {
 // App Updates query keys
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// Analytics query keys
+// ---------------------------------------------------------------------------
+
+export const analyticsKeys = {
+  all: ["analytics"] as const,
+  dashboard: () => [...analyticsKeys.all, "dashboard"] as const,
+  invalidateAll: () => analyticsKeys.all,
+} as const
+
+// ---------------------------------------------------------------------------
+// App Updates query keys
+// ---------------------------------------------------------------------------
+
 export const updateKeys = {
   all: ['app-updates'] as const,
   unseen: () => [...updateKeys.all, 'unseen'] as const,

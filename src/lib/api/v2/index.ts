@@ -65,6 +65,7 @@ export {
 } from "./common/utils";
 
 // ===== IMPORTS DES APIs SPÉCIALISÉES =====
+import { analyticsApi } from "./analyticsApi";
 import { agenciesApi } from "./agenciesApi";
 import { artisansApi } from "./artisansApi";
 import { clientsApi } from "./clientsApi";
@@ -82,6 +83,7 @@ import { updatesApi } from "./updatesApi";
 
 // ===== EXPORTS DES APIs =====
 export {
+  analyticsApi,
   agenciesApi,
   artisansApi,
   clientsApi,
@@ -121,6 +123,7 @@ export const updatesApiV2 = updatesApi;
 // Permet d'accéder à toutes les APIs via un objet unique
 const apiV2 = {
   // APIs principales (nouveau nommage)
+  analytics: analyticsApi,
   agencies: agenciesApi,
   users: usersApi,
   interventions: interventionsApi,

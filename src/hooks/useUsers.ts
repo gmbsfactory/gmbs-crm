@@ -1,7 +1,7 @@
 import { useCallback } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase-client";
-import { normalizeReminderIdentifier } from "@/contexts/RemindersContext";
+import { normalizeReminderIdentifier } from "@/lib/reminders/utils";
 
 export interface MentionableUser {
   id: string;

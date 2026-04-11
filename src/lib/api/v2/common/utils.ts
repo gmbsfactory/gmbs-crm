@@ -307,6 +307,24 @@ export const mapInterventionRecord = (item: any, refs: any): any => {
     }
   }
 
+  // Extraction de l'artisan secondaire pour l'affichage
+  const secondaryArtisanEntry = interventionArtisans.find((ia: any) => !ia.is_primary && ia !== primaryArtisanEntry);
+  const secondaryArtisanData = secondaryArtisanEntry?.artisans ?? secondaryArtisanEntry?.artisan ?? null;
+  let secondaryArtisanDisplayName: string | null = null;
+  if (secondaryArtisanData) {
+    const prenom = secondaryArtisanData.prenom?.trim();
+    const nom = secondaryArtisanData.nom?.trim();
+    const plainNom = secondaryArtisanData.plain_nom?.trim();
+    const raisonSociale = secondaryArtisanData.raison_sociale?.trim();
+    if (prenom || nom) {
+      secondaryArtisanDisplayName = `${prenom ?? ""} ${nom ?? ""}`.trim() || null;
+    } else if (plainNom && plainNom.length > 0) {
+      secondaryArtisanDisplayName = plainNom;
+    } else if (raisonSociale && raisonSociale.length > 0) {
+      secondaryArtisanDisplayName = raisonSociale;
+    }
+  }
+
   // Extraction des coûts depuis intervention_costs
   const interventionCosts = Array.isArray(item.intervention_costs)
     ? item.intervention_costs
@@ -342,6 +360,7 @@ export const mapInterventionRecord = (item: any, refs: any): any => {
     artisans: artisanIds, // Liste des IDs d'artisans
     artisan: artisanDisplayName, // Nom d'affichage de l'artisan principal (raison_sociale > plain_nom > prenom nom)
     primaryArtisan: primaryArtisanData, // Données complètes de l'artisan principal
+    deuxiemeArtisan: secondaryArtisanDisplayName, // Nom d'affichage de l'artisan secondaire
     costs: interventionCosts, // Liste des coûts avec leurs labels
     payments: Array.isArray(item.payments) && item.payments.length > 0
       ? item.payments

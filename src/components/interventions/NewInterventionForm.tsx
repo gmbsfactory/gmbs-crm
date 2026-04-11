@@ -315,6 +315,10 @@ export function NewInterventionForm({
       toast.error("L'agence est obligatoire pour créer une intervention")
       return
     }
+    if (showReferenceField && !formData.reference_agence?.trim()) {
+      toast.error("La référence agence est obligatoire pour cette agence")
+      return
+    }
     if (!formData.metier_id) {
       toast.error("Le métier est obligatoire pour créer une intervention")
       return
@@ -746,9 +750,10 @@ export function NewInterventionForm({
                         name="reference_agence"
                         value={formData.reference_agence}
                         onChange={(event) => handleInputChange("reference_agence", event.target.value)}
-                        placeholder="Réf. agence"
+                        placeholder="Réf. agence *"
                         className="h-7 text-xs rounded-full px-3"
                         autoComplete="off"
+                        required
                       />
                     </div>
                   )}

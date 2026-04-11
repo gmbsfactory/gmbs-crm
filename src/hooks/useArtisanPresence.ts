@@ -10,13 +10,17 @@ import type { PresenceUser, PresencePayload, FieldLockMap } from '@/types/presen
 const STALE_LOCK_MS = 5 * 60 * 1000 // 5 minutes
 
 /** Throttle interval for channel.track() calls during rapid focus/blur */
-const TRACK_THROTTLE_MS = 300
+const TRACK_THROTTLE_MS = 1000
 
 /** Maximum number of concurrent Presence channels allowed across all hook instances */
 const MAX_CONCURRENT_PRESENCE = 3
 
-/** Module-level counter tracking active Presence channels */
-let activePresenceChannels = 0
+/** Shared counter from useInterventionPresence — enforces a GLOBAL cap across both hooks */
+import {
+  activePresenceChannels,
+  incrementPresenceChannels,
+  decrementPresenceChannels,
+} from './useInterventionPresence'
 
 /**
  * Manages a Supabase Presence channel for real-time viewer tracking
@@ -97,12 +101,15 @@ export function useArtisanPresence(
     }
   }, [])
 
-  // ─── Throttled track ──────────────────────────────────────────────────────────
+  // ─── Throttled track: ALL track() calls go through this to respect rate limits ─
+  const lastTrackTimeRef = useRef<number>(0)
+
   const doTrack = useCallback(() => {
     const channel = channelRef.current
     if (!channel) return
     const payload = buildPayload()
     if (!payload) return
+    lastTrackTimeRef.current = Date.now()
     channel.track(payload).catch((err: unknown) => {
       console.warn('[ArtisanPresence] field track() failed:', err)
     })
@@ -114,7 +121,12 @@ export function useArtisanPresence(
       throttleTimerRef.current = null
     }
     if (flush) {
-      doTrack()
+      const elapsed = Date.now() - lastTrackTimeRef.current
+      if (elapsed >= TRACK_THROTTLE_MS) {
+        doTrack()
+      } else {
+        throttleTimerRef.current = setTimeout(doTrack, TRACK_THROTTLE_MS - elapsed)
+      }
     } else {
       throttleTimerRef.current = setTimeout(doTrack, TRACK_THROTTLE_MS)
     }
@@ -173,17 +185,17 @@ export function useArtisanPresence(
       setActiveEditor(editorUser)
     }
 
-    // ─── Auto-promotion ───────────────────────────────────────────────────────
-    if (!currentEditor && hasResolvedEditingRef.current) {
-      if (!isEditingRef.current) {
+    // ─── Auto-promotion: only the OLDEST viewer promotes to avoid race ────────
+    if (!currentEditor && hasResolvedEditingRef.current && !isEditingRef.current) {
+      const candidates = allMetas
+        .filter((p) => !p.isEditing)
+        .sort((a, b) => a.joinedAt.localeCompare(b.joinedAt))
+      const oldest = candidates[0]
+
+      if (oldest?.userId === userId) {
         isEditingRef.current = true
-        console.log('[ArtisanPresence] Promoted to editor (previous editor left)')
-        const payload = buildPayload()
-        if (payload) {
-          channel.track(payload).catch((err: unknown) => {
-            console.warn('[ArtisanPresence] promotion track() failed:', err)
-          })
-        }
+        console.log('[ArtisanPresence] Promoted to editor (oldest viewer, previous editor left)')
+        scheduleTrack()
       }
     }
 
@@ -235,7 +247,7 @@ export function useArtisanPresence(
       prevLocksKeyRef.current = locksKey
       setFieldLockMap(locks)
     }
-  }, [buildPayload])
+  }, [buildPayload, scheduleTrack])
 
   // ─── Track mounted state ─────────────────────────────────────────────────────
   useEffect(() => {
@@ -265,13 +277,16 @@ export function useArtisanPresence(
       return
     }
 
-    activePresenceChannels++
+    incrementPresenceChannels()
 
     let cancelled = false
+    let reconnectTimer: ReturnType<typeof setTimeout> | null = null
     const SETUP_DELAY_MS = 50
+    const RECONNECT_DELAY_MS = 5000
+
     const channelName = `presence:artisan-${artisanId}`
 
-    const setup = async () => {
+    const subscribe = async () => {
       await new Promise((resolve) => setTimeout(resolve, SETUP_DELAY_MS))
       if (cancelled || !mountedRef.current) return
 
@@ -329,17 +344,37 @@ export function useArtisanPresence(
             status === 'CHANNEL_ERROR' ||
             status === 'TIMED_OUT'
           ) {
-            console.warn(`[ArtisanPresence] Channel ${channelName} failed: ${status}`)
+            console.warn(`[ArtisanPresence] Channel ${channelName} error: ${status}, reconnecting...`)
+
+            // Cleanup broken channel
+            const brokenCh = channelRef.current
+            channelRef.current = null
+            if (brokenCh) {
+              brokenCh.untrack().catch(() => {})
+              supabase.removeChannel(brokenCh)
+            }
+
+            // Schedule reconnection
+            if (!reconnectTimer && !cancelled) {
+              reconnectTimer = setTimeout(() => {
+                reconnectTimer = null
+                if (!cancelled && mountedRef.current) {
+                  subscribe()
+                }
+              }, RECONNECT_DELAY_MS)
+            }
           }
         })
     }
 
-    setup()
+    subscribe()
 
     return () => {
       cancelled = true
       console.log(`[ArtisanPresence] Cleaning up ${channelName}`)
-      activePresenceChannels = Math.max(0, activePresenceChannels - 1)
+      decrementPresenceChannels()
+      // Cancel any pending reconnection or throttled track
+      if (reconnectTimer) clearTimeout(reconnectTimer)
       if (throttleTimerRef.current) {
         clearTimeout(throttleTimerRef.current)
         throttleTimerRef.current = null
