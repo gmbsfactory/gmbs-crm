@@ -16,32 +16,9 @@
  * Couleurs pour les statuts d'interventions (par label)
  * Utilisé dans le dashboard et la page interventions
  */
-export const INTERVENTION_STATUS_COLORS: Record<string, string> = {
-  "Demandé": "#3B82F6",           // bleu
-  "Devis envoyé": "#8B5CF6",      // violet (DEVIS_ENVOYE)
-  "Devis Envoyé": "#8B5CF6",      // violet (variante)
-  "Visite technique": "#06B6D4",   // cyan (VISITE_TECHNIQUE)
-  "Visite Technique": "#06B6D4",  // cyan (variante)
-  "Accepté": "#10B981",           // vert émeraude
-  "Inter en cours": "#F59E0B",     // orange/ambre
-  "Inter terminée": "#10B981",     // vert (INTER_TERMINEE)
-  "Inter Terminée": "#10B981",     // vert (variante)
-  "En cours": "#F59E0B",           // orange
-  "Terminé": "#10B981",            // vert
-  "Check": "#EF4444",              // rouge
-  "Annulé": "#EF4444",             // rouge
-  "Refusé": "#EF4444",             // rouge
-  "Stand-by": "#6B7280",           // gris (STAND_BY)
-  "Stand by": "#6B7280",           // gris (variante)
-  "SAV": "#EC4899",                // rose
-  "Att Acompte": "#F97316",        // orange (ATT_ACOMPTE)
-  "Att. acompte": "#F97316",       // variante
-  "Potentiel": "#FACC15",           // jaune (POTENTIEL)
-}
-
 /**
- * Couleurs pour les statuts d'interventions (par code)
- * Utilisé pour mapper les codes de statut aux couleurs
+ * Couleurs par défaut pour les statuts d'interventions (par code)
+ * Source de vérité pour les fallbacks — les couleurs réelles viennent de la DB (Settings)
  */
 export const INTERVENTION_STATUS_COLORS_BY_CODE: Record<string, string> = {
   "DEMANDE": "#3B82F6",
@@ -58,6 +35,33 @@ export const INTERVENTION_STATUS_COLORS_BY_CODE: Record<string, string> = {
   "POTENTIEL": "#FACC15",
 }
 
+/**
+ * Couleurs pour les statuts d'interventions (par label)
+ * Référence INTERVENTION_STATUS_COLORS_BY_CODE comme source de vérité
+ */
+export const INTERVENTION_STATUS_COLORS: Record<string, string> = {
+  "Demandé": INTERVENTION_STATUS_COLORS_BY_CODE["DEMANDE"],
+  "Devis envoyé": INTERVENTION_STATUS_COLORS_BY_CODE["DEVIS_ENVOYE"],
+  "Devis Envoyé": INTERVENTION_STATUS_COLORS_BY_CODE["DEVIS_ENVOYE"],
+  "Visite technique": INTERVENTION_STATUS_COLORS_BY_CODE["VISITE_TECHNIQUE"],
+  "Visite Technique": INTERVENTION_STATUS_COLORS_BY_CODE["VISITE_TECHNIQUE"],
+  "Accepté": INTERVENTION_STATUS_COLORS_BY_CODE["ACCEPTE"],
+  "Inter en cours": INTERVENTION_STATUS_COLORS_BY_CODE["INTER_EN_COURS"],
+  "Inter terminée": INTERVENTION_STATUS_COLORS_BY_CODE["INTER_TERMINEE"],
+  "Inter Terminée": INTERVENTION_STATUS_COLORS_BY_CODE["INTER_TERMINEE"],
+  "En cours": INTERVENTION_STATUS_COLORS_BY_CODE["INTER_EN_COURS"],
+  "Terminé": INTERVENTION_STATUS_COLORS_BY_CODE["INTER_TERMINEE"],
+  "Check": INTERVENTION_STATUS_COLORS_BY_CODE["ANNULE"],
+  "Annulé": INTERVENTION_STATUS_COLORS_BY_CODE["ANNULE"],
+  "Refusé": INTERVENTION_STATUS_COLORS_BY_CODE["REFUSE"],
+  "Stand-by": INTERVENTION_STATUS_COLORS_BY_CODE["STAND_BY"],
+  "Stand by": INTERVENTION_STATUS_COLORS_BY_CODE["STAND_BY"],
+  "SAV": INTERVENTION_STATUS_COLORS_BY_CODE["SAV"],
+  "Att Acompte": INTERVENTION_STATUS_COLORS_BY_CODE["ATT_ACOMPTE"],
+  "Att. acompte": INTERVENTION_STATUS_COLORS_BY_CODE["ATT_ACOMPTE"],
+  "Potentiel": INTERVENTION_STATUS_COLORS_BY_CODE["POTENTIEL"],
+}
+
 // ========================================
 // STATUTS D'ARTISANS
 // ========================================
@@ -66,33 +70,38 @@ export const INTERVENTION_STATUS_COLORS_BY_CODE: Record<string, string> = {
  * Couleurs pour les statuts d'artisans (par label)
  * Utilisé dans le dashboard et la page artisans
  */
-export const ARTISAN_STATUS_COLORS: Record<string, string> = {
-  "Candidat": "#A855F7",           // violet (CANDIDAT)
-  "Potentiel": "#FACC15",           // jaune (POTENTIEL)
-  "Novice": "#60A5FA",              // bleu clair (NOVICE)
-  "Formation": "#38BDF8",           // cyan (FORMATION)
-  "Confirmé": "#22C55E",            // vert (CONFIRME) ✓ Confirmé est vert
-  "Expert": "#6366F1",              // indigo/violet (EXPERT)
-  "One Shot": "#F97316",             // orange (ONE_SHOT)
-  "OneShot": "#F97316",              // orange (variante)
-  "Inactif": "#EF4444",              // rouge (INACTIF)
-  "Archivé": "#6B7280",             // gris (ARCHIVE)
-  "Actif": "#22C55E",                // vert (pour compatibilité)
-}
-
 /**
- * Couleurs pour les statuts d'artisans (par code)
+ * Couleurs par défaut pour les statuts d'artisans (par code)
+ * Source de vérité pour les fallbacks — les couleurs réelles viennent de la DB (Settings)
  */
 export const ARTISAN_STATUS_COLORS_BY_CODE: Record<string, string> = {
   "CANDIDAT": "#A855F7",
   "POTENTIEL": "#FACC15",
   "NOVICE": "#60A5FA",
   "FORMATION": "#38BDF8",
-  "CONFIRME": "#22C55E",  // ✓ Confirmé est vert
+  "CONFIRME": "#22C55E",
   "EXPERT": "#6366F1",
   "ONE_SHOT": "#F97316",
   "INACTIF": "#EF4444",
   "ARCHIVE": "#6B7280",
+}
+
+/**
+ * Couleurs pour les statuts d'artisans (par label)
+ * Référence ARTISAN_STATUS_COLORS_BY_CODE comme source de vérité
+ */
+export const ARTISAN_STATUS_COLORS: Record<string, string> = {
+  "Candidat": ARTISAN_STATUS_COLORS_BY_CODE["CANDIDAT"],
+  "Potentiel": ARTISAN_STATUS_COLORS_BY_CODE["POTENTIEL"],
+  "Novice": ARTISAN_STATUS_COLORS_BY_CODE["NOVICE"],
+  "Formation": ARTISAN_STATUS_COLORS_BY_CODE["FORMATION"],
+  "Confirmé": ARTISAN_STATUS_COLORS_BY_CODE["CONFIRME"],
+  "Expert": ARTISAN_STATUS_COLORS_BY_CODE["EXPERT"],
+  "One Shot": ARTISAN_STATUS_COLORS_BY_CODE["ONE_SHOT"],
+  "OneShot": ARTISAN_STATUS_COLORS_BY_CODE["ONE_SHOT"],
+  "Inactif": ARTISAN_STATUS_COLORS_BY_CODE["INACTIF"],
+  "Archivé": ARTISAN_STATUS_COLORS_BY_CODE["ARCHIVE"],
+  "Actif": ARTISAN_STATUS_COLORS_BY_CODE["CONFIRME"],
 }
 
 /**

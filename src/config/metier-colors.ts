@@ -22,8 +22,8 @@ export const METIER_COLORS: Record<string, string> = {
   "CHAUFFAGE": "#EF4444",        // rouge
   "CLIMATISATION": "#06B6D4",    // cyan
   "PEINTURE": "#8B5CF6",         // violet
-  "MENUISIER": "#10B981",        // vert
-  "MENUISERIE": "#10B981",       // vert (variante)
+  "MENUISERIE": "#10B981",       // vert
+  "MENUISIER": "#10B981",        // vert (alias legacy)
   "SERRURERIE": "#F97316",       // orange foncé
   "VITRERIE": "#EC4899",         // rose
   "JARDINAGE": "#22C55E",        // vert clair
@@ -46,31 +46,32 @@ export const METIER_COLORS: Record<string, string> = {
  * Utilisé pour mapper les labels de métier aux couleurs (fallback)
  */
 export const METIER_COLORS_BY_LABEL: Record<string, string> = {
-  "Plomberie": "#3B82F6",
-  "Électricité": "#F59E0B",
-  "Electricite": "#F59E0B",
-  "Chauffage": "#EF4444",
-  "Climatisation": "#06B6D4",
-  "Peinture": "#8B5CF6",
-  "Menuiserie": "#10B981",
-  "Serrurerie": "#F97316",
-  "Vitrerie": "#EC4899",
-  "Jardinage": "#22C55E",
-  "Bricolage": "#6366F1",
-  "Autres": "#6B7280",
-  "Camion": "#84CC16",
-  "Électroménager": "#FBBF24",
-  "Electroménager": "#FBBF24",
-  "Entretien général": "#14B8A6",
-  "Multi-Service": "#A855F7",
-  "Ménage": "#FB7185",
-  "Menage": "#FB7185",
-  "Nettoyage": "#34D399",
-  "Nuisible": "#F87171",
-  "RDF": "#60A5FA",
-  "Rénovation": "#C084FC",
-  "Renovation": "#C084FC",
-  "Volet/Store": "#818CF8",
+  "Plomberie": METIER_COLORS["PLOMBERIE"],
+  "Électricité": METIER_COLORS["ELECTRICITE"],
+  "Electricite": METIER_COLORS["ELECTRICITE"],
+  "Chauffage": METIER_COLORS["CHAUFFAGE"],
+  "Climatisation": METIER_COLORS["CLIMATISATION"],
+  "Peinture": METIER_COLORS["PEINTURE"],
+  "Menuiserie": METIER_COLORS["MENUISERIE"],
+  "Menuisier": METIER_COLORS["MENUISIER"],
+  "Serrurerie": METIER_COLORS["SERRURERIE"],
+  "Vitrerie": METIER_COLORS["VITRERIE"],
+  "Jardinage": METIER_COLORS["JARDINAGE"],
+  "Bricolage": METIER_COLORS["BRICOLAGE"],
+  "Autres": METIER_COLORS["AUTRES"],
+  "Camion": METIER_COLORS["CAMION"],
+  "Électroménager": METIER_COLORS["ELECTROMENAGER"],
+  "Electroménager": METIER_COLORS["ELECTROMENAGER"],
+  "Entretien général": METIER_COLORS["ENTRETIEN_GENERAL"],
+  "Multi-Service": METIER_COLORS["MULTI-SERVICE"],
+  "Ménage": METIER_COLORS["MENAGE"],
+  "Menage": METIER_COLORS["MENAGE"],
+  "Nettoyage": METIER_COLORS["NETTOYAGE"],
+  "Nuisible": METIER_COLORS["NUISIBLE"],
+  "RDF": METIER_COLORS["RDF"],
+  "Rénovation": METIER_COLORS["RENOVATION"],
+  "Renovation": METIER_COLORS["RENOVATION"],
+  "Volet/Store": METIER_COLORS["VOLET-STORE"],
 }
 
 /**

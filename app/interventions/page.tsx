@@ -7,7 +7,6 @@ import { ViewTabs } from "@/components/interventions/views/ViewTabs"
 import ColumnConfigurationModal from "@/components/interventions/views/ColumnConfigurationModal"
 import { PageSearchBar } from "@/components/ui/page-search-bar"
 import { InterventionRealtimeProvider } from "@/components/interventions/InterventionRealtimeProvider"
-import { FilterMappersProvider } from "@/contexts/FilterMappersContext"
 import { GenieEffectProvider } from "@/contexts/GenieEffectContext"
 import { usePermissions } from "@/hooks/usePermissions"
 import { usePageKeyboardShortcuts } from "@/hooks/usePageKeyboardShortcuts"
@@ -121,7 +120,6 @@ function PageContent() {
   })
 
   return (
-    <FilterMappersProvider>
       <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
         <div className="flex-1 space-y-0 px-6 pt-4 pb-2 overflow-hidden flex flex-col min-h-0">
           {/* View tabs + action bar */}
@@ -250,7 +248,6 @@ function PageContent() {
           onClose={() => setColumnConfigViewId(null)}
         />
       </div>
-    </FilterMappersProvider>
   )
 }
 

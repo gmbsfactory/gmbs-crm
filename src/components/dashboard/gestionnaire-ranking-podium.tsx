@@ -1,11 +1,11 @@
 "use client"
 
-import { useEffect, useState, useMemo } from "react"
+import { useState, useMemo } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { StyledSwitch } from "@/components/ui/styled-switch"
 import { Label } from "@/components/ui/label"
-import { interventionsApi } from "@/lib/api/v2"
 import type { MarginRankingResult } from "@/lib/api/v2"
+import { useMarginRankingQuery } from "@/hooks/useDashboardStats"
 import { Trophy } from "lucide-react"
 import Loader from "@/components/ui/Loader"
 import { PodiumCard } from "@/components/dashboard/leaderboard/PodiumCard"
@@ -25,9 +25,6 @@ interface GestionnaireRankingPodiumProps {
 }
 
 export function GestionnaireRankingPodium({ period, useAutoPeriod = false }: GestionnaireRankingPodiumProps) {
-  const [ranking, setRanking] = useState<MarginRankingResult | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
   const [sortBy, setSortBy] = useState<'margin' | 'revenue'>('margin')
 
   // Charger la période automatique du podium si activé
@@ -38,77 +35,26 @@ export function GestionnaireRankingPodium({ period, useAutoPeriod = false }: Ges
     error: periodError
   } = usePodiumPeriod()
 
-  useEffect(() => {
-    let cancelled = false
-
-    const loadRanking = async () => {
-      try {
-        setLoading(true)
-        setError(null)
-
-        // Déterminer quelle période utiliser
-        let startDate: string | undefined
-        let endDate: string | undefined
-
-        if (useAutoPeriod) {
-          // Mode auto: attendre que la période soit chargée
-          if (isPeriodLoading) {
-            return
-          }
-
-          if (periodError) {
-            throw new Error(`Erreur de période: ${periodError}`)
-          }
-
-          if (!autoPeriodStart || !autoPeriodEnd) {
-            throw new Error("Période automatique non disponible")
-          }
-
-          startDate = autoPeriodStart
-          endDate = autoPeriodEnd
-        } else {
-          // Mode manuel: utiliser la période fournie ou le mois en cours
-          startDate = period?.startDate
-          endDate = period?.endDate
-
-          if (!startDate || !endDate) {
-            const now = new Date()
-            const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
-            const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59)
-
-            startDate = startDate || startOfMonth.toISOString()
-            endDate = endDate || endOfMonth.toISOString()
-          }
-        }
-
-        const rankingData = await interventionsApi.getMarginRankingByPeriodV3(startDate, endDate)
-
-        if (!cancelled) {
-          setRanking(rankingData)
-          setLoading(false)
-        }
-      } catch (err: any) {
-        if (!cancelled) {
-          setError(err.message || "Erreur lors du chargement du classement")
-          setLoading(false)
-        }
-      }
+  // Résoudre la période à utiliser
+  const resolvedPeriod = useMemo(() => {
+    if (useAutoPeriod) {
+      if (isPeriodLoading || !autoPeriodStart || !autoPeriodEnd) return null
+      return { startDate: autoPeriodStart, endDate: autoPeriodEnd }
     }
-
-    loadRanking()
-
-    return () => {
-      cancelled = true
+    const startDate = period?.startDate
+    const endDate = period?.endDate
+    if (startDate && endDate) return { startDate, endDate }
+    const now = new Date()
+    return {
+      startDate: startDate || new Date(now.getFullYear(), now.getMonth(), 1).toISOString(),
+      endDate: endDate || new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59).toISOString(),
     }
-  }, [
-    period?.startDate,
-    period?.endDate,
-    useAutoPeriod,
-    autoPeriodStart,
-    autoPeriodEnd,
-    isPeriodLoading,
-    periodError
-  ])
+  }, [period?.startDate, period?.endDate, useAutoPeriod, autoPeriodStart, autoPeriodEnd, isPeriodLoading])
+
+  const { data: ranking, isLoading: loading, error: queryError } = useMarginRankingQuery(resolvedPeriod)
+  const error = periodError
+    ? `Erreur de période: ${periodError}`
+    : queryError ? (queryError as Error).message || "Erreur lors du chargement du classement" : null
 
   // IMPORTANT: useMemo doit être appelé AVANT les early returns pour respecter les règles des Hooks
   const sortedRankings = useMemo(() => {

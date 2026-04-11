@@ -3,18 +3,10 @@ import { toast } from "sonner"
 import { interventionsApi } from "@/lib/api/v2"
 import type { InterventionFormData } from "@/lib/interventions/form-types"
 
-interface InterventionPayment {
-  payment_type: string
-  is_received?: boolean
-  payment_date?: string | null
-}
-
 interface UseInterventionAccomptesOptions {
   interventionId: string
   formData: InterventionFormData
   interventionStatuses: Array<{ id: string; code: string; label: string }> | undefined
-  sstPayment: InterventionPayment | undefined
-  clientPayment: InterventionPayment | undefined
   handleInputChange: (field: keyof InterventionFormData, value: any) => void
 }
 
@@ -22,8 +14,6 @@ export function useInterventionAccomptes({
   interventionId,
   formData,
   interventionStatuses,
-  sstPayment,
-  clientPayment,
   handleInputChange,
 }: UseInterventionAccomptesOptions) {
   const getStatusCode = useCallback(
@@ -87,12 +77,6 @@ export function useInterventionAccomptes({
     if (amount <= 0) return
 
     try {
-      // Persister le statut EN PREMIER pour que le Realtime (déclenché par upsertPayment)
-      // trouve déjà le bon statut en base et ne l'écrase pas
-      if (getStatusCode(formData.statut_id) === "ACCEPTE") {
-        await transitionToAttAcompte()
-      }
-
       await interventionsApi.upsertPayment(interventionId, {
         payment_type: "acompte_sst",
         amount,
@@ -102,7 +86,7 @@ export function useInterventionAccomptes({
       console.error("[useInterventionAccomptes] Erreur acompte SST:", error)
       toast.error("Erreur lors de la sauvegarde de l'acompte SST")
     }
-  }, [formData.accompteSST, formData.statut_id, interventionId, getStatusCode, transitionToAttAcompte])
+  }, [formData.accompteSST, interventionId])
 
   const handleAccompteClientBlur = useCallback(async () => {
     const amount = parseFloat(formData.accompteClient) || 0
@@ -130,15 +114,6 @@ export function useInterventionAccomptes({
   const handleAccompteSSTRecuChange = useCallback(
     async (checked: boolean) => {
       try {
-        if (checked && formData.dateAccompteSSTRecu) {
-          await transitionToAccepte()
-        } else if (!checked) {
-          const hasClientReceived = clientPayment?.is_received && clientPayment?.payment_date
-          if (!hasClientReceived && getStatusCode(formData.statut_id) === "ACCEPTE") {
-            await transitionToAttAcompte()
-          }
-        }
-
         await interventionsApi.upsertPayment(interventionId, {
           payment_type: "acompte_sst",
           is_received: checked,
@@ -151,16 +126,7 @@ export function useInterventionAccomptes({
         toast.error("Erreur lors de la sauvegarde")
       }
     },
-    [
-      interventionId,
-      formData.dateAccompteSSTRecu,
-      formData.statut_id,
-      clientPayment,
-      handleInputChange,
-      getStatusCode,
-      transitionToAccepte,
-      transitionToAttAcompte,
-    ],
+    [interventionId, formData.dateAccompteSSTRecu, handleInputChange],
   )
 
   const handleAccompteClientRecuChange = useCallback(
@@ -168,11 +134,8 @@ export function useInterventionAccomptes({
       try {
         if (checked && formData.dateAccompteClientRecu) {
           await transitionToAccepte()
-        } else if (!checked) {
-          const hasSSTReceived = sstPayment?.is_received && sstPayment?.payment_date
-          if (!hasSSTReceived && getStatusCode(formData.statut_id) === "ACCEPTE") {
-            await transitionToAttAcompte()
-          }
+        } else if (!checked && getStatusCode(formData.statut_id) === "ACCEPTE") {
+          await transitionToAttAcompte()
         }
 
         await interventionsApi.upsertPayment(interventionId, {
@@ -191,7 +154,6 @@ export function useInterventionAccomptes({
       interventionId,
       formData.dateAccompteClientRecu,
       formData.statut_id,
-      sstPayment,
       handleInputChange,
       getStatusCode,
       transitionToAccepte,
@@ -204,10 +166,6 @@ export function useInterventionAccomptes({
   const handleDateAccompteSSTRecuChange = useCallback(
     async (date: string) => {
       try {
-        if (formData.accompteSSTRecu && date) {
-          await transitionToAccepte()
-        }
-
         await interventionsApi.upsertPayment(interventionId, {
           payment_type: "acompte_sst",
           is_received: formData.accompteSSTRecu,
@@ -220,7 +178,7 @@ export function useInterventionAccomptes({
         toast.error("Erreur lors de la sauvegarde")
       }
     },
-    [interventionId, formData.accompteSSTRecu, handleInputChange, transitionToAccepte],
+    [interventionId, formData.accompteSSTRecu, handleInputChange],
   )
 
   const handleDateAccompteClientRecuChange = useCallback(

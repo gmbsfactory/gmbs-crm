@@ -11,6 +11,7 @@ import { interventionsApi } from "@/lib/api/v2/interventionsApi"
 import type { InterventionWithStatus, PaginatedResponse } from "@/lib/api/v2/common/types"
 import type { InterventionStatusValue } from "@/types/interventions"
 import type { ContextMenuViewType } from "@/types/context-menu"
+import { getUserDisplayName } from "@/utils/user-display-name"
 
 /** Cache shape for intervention detail query (interventionKeys.detail) */
 type InterventionDetailCache = InterventionWithStatus | undefined
@@ -63,12 +64,9 @@ export function useInterventionContextMenu(
   const { data: currentUserData } = useCurrentUser()
   const currentUserInfo = useMemo(() => {
     if (!currentUserData) return null
-    const first = currentUserData.firstname ?? currentUserData.prenom ?? ""
-    const last = currentUserData.lastname ?? currentUserData.nom ?? ""
-    const displayName = [first, last].filter(Boolean).join(" ").trim() || currentUserData.username || currentUserData.email || "Vous"
     return {
       id: currentUserData.id,
-      name: displayName,
+      name: getUserDisplayName(currentUserData),
       code: currentUserData.code_gestionnaire ?? null,
       color: currentUserData.color ?? null,
     }
@@ -116,8 +114,7 @@ export function useInterventionContextMenu(
       return
     }
 
-    // Mapper les données vers le format attendu par LegacyInterventionForm
-    // Exclure: id_inter, contexte_intervention, consigne_intervention
+    // Mapper les données vers le format attendu par le formulaire
     // Les données peuvent être dans différents formats selon la source (cache, API, etc.)
     const data = interventionData as InterventionWithRelations
     const owner = Array.isArray(data.owner) ? data.owner[0] : data.owner

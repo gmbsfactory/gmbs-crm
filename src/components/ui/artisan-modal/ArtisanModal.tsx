@@ -6,6 +6,7 @@ import { useModalDisplay } from "@/contexts/ModalDisplayContext"
 import { useModalState } from "@/hooks/useModalState"
 import type { ModalContent } from "@/types/modal"
 import type { ModalDisplayMode } from "@/types/modal-display"
+import { ErrorBoundary } from "@/components/ErrorBoundary"
 import { ArtisanModalContent } from "./ArtisanModalContent"
 import { NewArtisanModalContent } from "./NewArtisanModalContent"
 
@@ -148,7 +149,9 @@ export function ArtisanModal({
       onShowUnsavedDialog={() => showUnsavedDialogRef.current?.()}
       pauseFocusTrap={isStatusReasonModalOpen || isUnsavedDialogOpen || isReclassifyModalOpen}
     >
-      {renderedContent}
+      <ErrorBoundary section="artisan-modal">
+        {renderedContent}
+      </ErrorBoundary>
     </GenericModal>
   )
 }

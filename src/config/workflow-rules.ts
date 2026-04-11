@@ -92,7 +92,7 @@ export const WORKFLOW_RULES: Record<InterventionStatusValue, WorkflowRule> = {
     autoActions: [],
   },
   ATT_ACOMPTE: {
-    requirements: { devisId: true, artisan: true },
+    requirements: { devisId: true },
     autoActions: [],
   },
   POTENTIEL: {

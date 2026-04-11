@@ -20,6 +20,7 @@ import { formatDistanceKm, parseAddress } from "@/lib/interventions/form-utils"
 import type { InterventionFormData, CollapsibleSectionsState } from "@/lib/interventions/form-types"
 import { getDefaultCollapsibleState } from "@/lib/interventions/form-types"
 import { useArtisanSelection } from "@/hooks/useArtisanSelection"
+import { getUserDisplayName } from "@/utils/user-display-name"
 
 // ---- Types ----
 
@@ -77,7 +78,9 @@ export function useInterventionFormState(options: UseInterventionFormStateOption
   } = options
 
   // ---- Draft store ----
-  const { getDraft, saveDraft, clearDraft: clearDraftStore } = useInterventionDraftStore()
+  const getDraft = useInterventionDraftStore((s) => s.getDraft)
+  const saveDraft = useInterventionDraftStore((s) => s.saveDraft)
+  const clearDraftStore = useInterventionDraftStore((s) => s.clearDraft)
   const existingDraft = mode === "edit" && interventionId
     ? getDraft(interventionId)
     : mode === "create" && restoreNewDraft
@@ -91,13 +94,9 @@ export function useInterventionFormState(options: UseInterventionFormStateOption
 
   const currentUser = useMemo(() => {
     if (!currentUserData) return null
-    const first = currentUserData.firstname ?? currentUserData.prenom ?? ""
-    const last = currentUserData.lastname ?? currentUserData.nom ?? ""
-    const displayNameCandidate = [first, last].filter(Boolean).join(" ").trim()
-    const displayName = displayNameCandidate || currentUserData.username || currentUserData.email || "Vous"
     return {
       id: currentUserData.id,
-      displayName,
+      displayName: getUserDisplayName(currentUserData),
       code: currentUserData.code_gestionnaire ?? null,
       color: currentUserData.color ?? null,
       avatarUrl: currentUserData.avatar_url ?? null,

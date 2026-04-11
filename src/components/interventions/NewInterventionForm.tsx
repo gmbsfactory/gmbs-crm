@@ -33,6 +33,7 @@ import { useModal } from "@/hooks/useModal"
 import { EmailEditModal } from "@/components/interventions/EmailEditModal"
 import { DuplicateInterventionDialog } from "@/components/interventions/DuplicateInterventionDialog"
 import { SearchableBadgeSelect } from "@/components/ui/searchable-badge-select"
+import { InterventionHeaderFields, InterventionOwnerSection, InterventionClientSection, InterventionDetailsSection } from "@/components/interventions/form-sections"
 
 // Shared form utilities
 import { useInterventionFormState } from "@/hooks/useInterventionFormState"
@@ -627,172 +628,75 @@ export function NewInterventionForm({
             }}
           >
             {/* DIV1: HEADER PRINCIPAL - Row 1, Cols 1-4 */}
-            <Card className="legacy-form-card" style={{ gridArea: "1 / 1 / 2 / 5" }}>
-              <CardContent className="py-0.5 px-3">
-                <div
-                  className="grid gap-2 items-end"
-                  style={{
-                    gridTemplateColumns: showReferenceField
-                      ? "auto 1fr 1fr 1fr 1fr 1fr"
-                      : "auto 1fr 1fr 1fr 1fr"
-                  }}
-                >
-                  {/* Badge utilisateur assigné - Largeur fixe à gauche */}
-                  <div className="flex items-center">
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <button type="button" className="flex items-center justify-center h-7 w-7 cursor-pointer group rounded-full">
-                          {(() => {
-                            const assignedUser = refData?.users.find(u => u.id === formData.assigned_user_id)
+            <InterventionHeaderFields
+              formData={formData}
+              onChange={handleInputChange}
+              refData={refData}
+              showReferenceField={showReferenceField}
+              requiresDefinitiveId={requiresDefinitiveId}
+              onPopoverOpenChange={onPopoverOpenChange}
+              renderUserBadge={() => (
+                <div className="flex items-center">
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <button type="button" className="flex items-center justify-center h-7 w-7 cursor-pointer group rounded-full">
+                        {(() => {
+                          const assignedUser = refData?.users.find(u => u.id === formData.assigned_user_id)
+                          return (
+                            <GestionnaireBadge
+                              firstname={assignedUser?.firstname}
+                              lastname={assignedUser?.lastname}
+                              color={assignedUser?.color}
+                              avatarUrl={assignedUser?.avatar_url}
+                              size="sm"
+                              className="transition-transform group-hover:scale-110 h-7 w-7"
+                            />
+                          )
+                        })()}
+                      </button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-56 p-2" align="start">
+                      <div className="space-y-1">
+                        <p className="text-xs font-medium text-muted-foreground mb-2">Attribuer à</p>
+                        <div className="space-y-1 max-h-64 overflow-y-auto scrollbar-minimal pr-1">
+                          {[...(refData?.users ?? [])].sort((a, b) => {
+                            if (a.id === currentUser?.id) return -1
+                            if (b.id === currentUser?.id) return 1
+                            return 0
+                          }).map((user) => {
+                            const displayName = [user.firstname, user.lastname].filter(Boolean).join(" ").trim() || user.username
+                            const isSelected = user.id === formData.assigned_user_id
                             return (
-                              <GestionnaireBadge
-                                firstname={assignedUser?.firstname}
-                                lastname={assignedUser?.lastname}
-                                color={assignedUser?.color}
-                                avatarUrl={assignedUser?.avatar_url}
-                                size="sm"
-                                className="transition-transform group-hover:scale-110 h-7 w-7"
-                              />
+                              <button
+                                key={user.id}
+                                type="button"
+                                className={cn(
+                                  "w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-left transition-colors",
+                                  isSelected ? "bg-primary/10 text-primary" : "hover:bg-muted"
+                                )}
+                                onClick={() => handleInputChange("assigned_user_id", user.id)}
+                              >
+                                <GestionnaireBadge
+                                  firstname={user.firstname}
+                                  lastname={user.lastname}
+                                  color={user.color}
+                                  avatarUrl={user.avatar_url}
+                                  size="sm"
+                                  showBorder={false}
+                                />
+                                <span className="text-xs truncate flex-1">
+                                  {user.code_gestionnaire ? `${user.code_gestionnaire} - ${displayName}` : displayName}
+                                </span>
+                              </button>
                             )
-                          })()}
-                        </button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-56 p-2" align="start">
-                        <div className="space-y-1">
-                          <p className="text-xs font-medium text-muted-foreground mb-2">Attribuer à</p>
-                          <div className="space-y-1 max-h-64 overflow-y-auto scrollbar-minimal pr-1">
-                            {[...(refData?.users ?? [])].sort((a, b) => {
-                              if (a.id === currentUser?.id) return -1
-                              if (b.id === currentUser?.id) return 1
-                              return 0
-                            }).map((user) => {
-                              const displayName = [user.firstname, user.lastname].filter(Boolean).join(" ").trim() || user.username
-                              const isSelected = user.id === formData.assigned_user_id
-                              return (
-                                <button
-                                  key={user.id}
-                                  type="button"
-                                  className={cn(
-                                    "w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-left transition-colors",
-                                    isSelected ? "bg-primary/10 text-primary" : "hover:bg-muted"
-                                  )}
-                                  onClick={() => handleInputChange("assigned_user_id", user.id)}
-                                >
-                                  <GestionnaireBadge
-                                    firstname={user.firstname}
-                                    lastname={user.lastname}
-                                    color={user.color}
-                                    avatarUrl={user.avatar_url}
-                                    size="sm"
-                                    showBorder={false}
-                                  />
-                                  <span className="text-xs truncate flex-1">
-                                    {user.code_gestionnaire ? `${user.code_gestionnaire} - ${displayName}` : displayName}
-                                  </span>
-                                </button>
-                              )
-                            })}
-                          </div>
+                          })}
                         </div>
-                      </PopoverContent>
-                    </Popover>
-                  </div>
-
-                  {/* Statut - Badge coloré */}
-                  <SearchableBadgeSelect
-                    label="Statut"
-                    required
-                    hideLabel
-                    value={formData.statut_id}
-                    onChange={(value) => handleInputChange("statut_id", value)}
-                    placeholder="Statut"
-                    onOpenChange={onPopoverOpenChange}
-                    searchPlaceholder="Rechercher un statut..."
-                    sortAlphabetically={false}
-                    options={(refData?.interventionStatuses || [])
-                      .map(s => ({
-                        id: s.id,
-                        label: s.label,
-                        color: s.color,
-                        code: s.code || ""
-                      }))
-                      .sort((a, b) => {
-                        const orderA = STATUS_SORT_ORDER[a.code] || 999
-                        const orderB = STATUS_SORT_ORDER[b.code] || 999
-                        if (orderA !== orderB) return orderA - orderB
-                        return (a.label || "").localeCompare(b.label || "", "fr")
-                      })
-                    }
-                  />
-
-                  {/* Agence - Badge coloré (obligatoire) */}
-                  <SearchableBadgeSelect
-                    label="Agence"
-                    required
-                    hideLabel
-                    value={formData.agence_id}
-                    onChange={(value) => handleInputChange("agence_id", value)}
-                    placeholder="Agence *"
-                    onOpenChange={onPopoverOpenChange}
-                    searchPlaceholder="Rechercher une agence..."
-                    options={(refData?.agencies || []).map(a => ({
-                      id: a.id,
-                      label: a.label,
-                      color: a.color,
-                    }))}
-                  />
-
-                  {/* Réf. agence - Input conditionnel */}
-                  {showReferenceField && (
-                    <div className="flex items-center">
-                      <Input
-                        id="reference_agence"
-                        name="reference_agence"
-                        value={formData.reference_agence}
-                        onChange={(event) => handleInputChange("reference_agence", event.target.value)}
-                        placeholder="Réf. agence *"
-                        className="h-7 text-xs rounded-full px-3"
-                        autoComplete="off"
-                        required
-                      />
-                    </div>
-                  )}
-
-                  {/* Métier - Badge coloré (obligatoire) */}
-                  <SearchableBadgeSelect
-                    label="Métier"
-                    required
-                    hideLabel
-                    value={formData.metier_id}
-                    onChange={(value) => handleInputChange("metier_id", value)}
-                    placeholder="Métier *"
-                    minWidth="100px"
-                    onOpenChange={onPopoverOpenChange}
-                    searchPlaceholder="Rechercher un métier..."
-                    options={(refData?.metiers || []).map(m => ({
-                      id: m.id,
-                      label: m.label,
-                      color: m.color,
-                    }))}
-                  />
-
-                  {/* ID Intervention - Input */}
-                  <div className="flex items-center">
-                    <Input
-                      id="idIntervention"
-                      value={formData.id_inter}
-                      onChange={(event) => handleInputChange("id_inter", event.target.value)}
-                      placeholder="ID Inter. (Auto)"
-                      className="h-7 text-xs rounded-full px-3"
-                      required={requiresDefinitiveId}
-                      pattern={requiresDefinitiveId ? "^(?!.*(?:[Aa][Uu][Tt][Oo])).+$" : undefined}
-                      title={requiresDefinitiveId ? "ID définitif requis" : undefined}
-                      autoComplete="off"
-                    />
-                  </div>
+                      </div>
+                    </PopoverContent>
+                  </Popover>
                 </div>
-              </CardContent>
-            </Card>
+              )}
+            />
 
             {/* DIV2: ADRESSE - Row 2, Cols 1-4 */}
             <Card style={{ gridArea: "2 / 1 / 3 / 5" }}>
@@ -1147,72 +1051,13 @@ export function NewInterventionForm({
               </ResizablePanelGroup>
             </div>
 
-            {/* DIV5: CONTEXTE INTERVENTION - Row 5, Cols 1-2 */}
-            <Card style={{ gridArea: "5 / 1 / 6 / 3" }}>
-              <CardContent className="p-4">
-                <Label htmlFor="contexteIntervention" className="text-xs font-medium mb-2 block">Contexte intervention *</Label>
-                <Textarea
-                  id="contexteIntervention"
-                  value={formData.contexte_intervention}
-                  onChange={(event) => handleInputChange("contexte_intervention", event.target.value)}
-                  placeholder="Décrivez le contexte..."
-                  rows={4}
-                  className="text-sm resize-none"
-                  required
-                />
-              </CardContent>
-            </Card>
-
-            {/* DIV6: CONSIGNE INTERVENTION - Row 5, Cols 3-4 */}
-            <Card style={{ gridArea: "5 / 3 / 6 / 5" }}>
-              <CardContent className="p-4">
-                <Label htmlFor="consigneIntervention" className="text-xs font-medium mb-2 block">Consigne pour l&apos;artisan</Label>
-                <Textarea
-                  id="consigneIntervention"
-                  value={formData.consigne_intervention}
-                  onChange={(event) => handleInputChange("consigne_intervention", event.target.value)}
-                  placeholder="Consignes spécifiques..."
-                  rows={4}
-                  className="text-sm resize-none"
-                />
-              </CardContent>
-            </Card>
-
-            {/* DIV4: FINANCES & PLANIFICATION - Row 6, Cols 1-4 */}
-            <Card style={{ gridArea: "6 / 1 / 7 / 5" }}>
-              <CardContent className="p-4">
-                <div className="grid grid-cols-5 gap-3 items-end">
-                  <div>
-                    <Label htmlFor="coutIntervention" className="text-xs">Coût inter.</Label>
-                    <Input id="coutIntervention" type="number" step="0.01" min="0" value={formData.coutIntervention} onChange={(e) => handleInputChange("coutIntervention", e.target.value)} placeholder="0.00 €" className="h-8 text-sm mt-1" />
-                  </div>
-                  <div>
-                    <Label htmlFor="coutSST" className="text-xs">Coût SST</Label>
-                    <Input id="coutSST" type="number" step="0.01" min="0" value={formData.coutSST} onChange={(e) => handleInputChange("coutSST", e.target.value)} placeholder="0.00 €" className="h-8 text-sm mt-1" />
-                  </div>
-                  <div>
-                    <Label htmlFor="coutMateriel" className="text-xs">Coût mat.</Label>
-                    <Input id="coutMateriel" type="number" step="0.01" min="0" value={formData.coutMateriel} onChange={(e) => handleInputChange("coutMateriel", e.target.value)} placeholder="0.00 €" className="h-8 text-sm mt-1" />
-                  </div>
-                  <div>
-                    <Label className="text-xs">Marge</Label>
-                    <div className="flex h-8 w-full rounded-md border border-input bg-muted px-3 py-1 text-sm shadow-sm items-center mt-1">
-                      {margePrimaryArtisan.isValid ? (
-                        <span className={cn("font-medium", getMarginColorClass(margePrimaryArtisan.marginPercentage))}>
-                          {formatMarginPercentage(margePrimaryArtisan.marginPercentage)}
-                        </span>
-                      ) : (
-                        <span className="text-muted-foreground">-- %</span>
-                      )}
-                    </div>
-                  </div>
-                  <div>
-                    <Label htmlFor="datePrevue" className="text-xs">Date prévue {requiresDatePrevue && "*"}</Label>
-                    <Input id="datePrevue" type="date" value={formData.date_prevue} onChange={(e) => handleInputChange("date_prevue", e.target.value)} className="h-8 text-sm mt-1" required={requiresDatePrevue} />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+            {/* DIV5+6+4: CONTEXTE + CONSIGNE + FINANCES */}
+            <InterventionDetailsSection
+              formData={formData}
+              onChange={handleInputChange}
+              margePrimaryArtisan={margePrimaryArtisan}
+              requiresDatePrevue={requiresDatePrevue}
+            />
           </div>
         </div>
 
@@ -1220,114 +1065,21 @@ export function NewInterventionForm({
         <div className="w-[320px] flex-shrink-0 overflow-y-auto min-h-0 scrollbar-minimal">
           <div className="flex flex-col gap-2 pb-4">
             {/* Détails facturation */}
-            <Collapsible open={isProprietaireOpen} onOpenChange={setIsProprietaireOpen}>
-              <Card>
-                <CollapsibleTrigger asChild>
-                  <CardHeader className="cursor-pointer py-2 px-3 hover:bg-muted/50">
-                    <CardTitle className="flex items-center gap-2 text-xs">
-                      Détails facturation
-                      {isProprietaireOpen ? <ChevronDown className="ml-auto h-3 w-3" /> : <ChevronRight className="ml-auto h-3 w-3" />}
-                    </CardTitle>
-                  </CardHeader>
-                </CollapsibleTrigger>
-                <CollapsibleContent>
-                  <CardContent className="pt-0 px-3 pb-3">
-                    <div className="space-y-2">
-                      <div>
-                        <Label htmlFor="nomPrenomFacturation" className="text-[10px]">Nom Prénom</Label>
-                        <Input id="nomPrenomFacturation" value={formData.nomPrenomFacturation} onChange={(e) => handleInputChange("nomPrenomFacturation", e.target.value)} placeholder="Nom Prénom" className="h-7 text-xs mt-1" />
-                      </div>
-                      <div className="grid grid-cols-2 gap-2">
-                        <div>
-                          <Label htmlFor="telephoneProprietaire" className="text-[10px]">Téléphone</Label>
-                          <Input id="telephoneProprietaire" value={formData.telephoneProprietaire} onChange={(e) => handleInputChange("telephoneProprietaire", e.target.value)} placeholder="06..." className="h-7 text-xs mt-1" />
-                        </div>
-                        <div>
-                          <Label htmlFor="emailProprietaire" className="text-[10px]">Email</Label>
-                          <Input id="emailProprietaire" type="email" value={formData.emailProprietaire} onChange={(e) => handleInputChange("emailProprietaire", e.target.value)} placeholder="email@..." className="h-7 text-xs mt-1" />
-                        </div>
-                      </div>
-                    </div>
-                  </CardContent>
-                </CollapsibleContent>
-              </Card>
-            </Collapsible>
+            <InterventionOwnerSection
+              formData={formData}
+              onChange={handleInputChange}
+              isOpen={isProprietaireOpen}
+              onOpenChange={setIsProprietaireOpen}
+            />
 
             {/* Détails client */}
-            <Collapsible open={isClientOpen} onOpenChange={setIsClientOpen}>
-              <Card>
-                <CollapsibleTrigger asChild>
-                  <CardHeader className="cursor-pointer py-2 px-3 hover:bg-muted/50">
-                    <CardTitle className="flex items-center gap-2 text-xs">
-                      Détails client
-                      {isClientOpen ? <ChevronDown className="ml-auto h-3 w-3" /> : <ChevronRight className="ml-auto h-3 w-3" />}
-                    </CardTitle>
-                  </CardHeader>
-                </CollapsibleTrigger>
-                <CollapsibleContent>
-                  <CardContent className="pt-0 px-3 pb-3">
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center space-x-2">
-                        <input type="checkbox" id="is_vacant" className="h-3 w-3 rounded border-gray-300" checked={formData.is_vacant} onChange={(e) => handleInputChange("is_vacant", e.target.checked)} />
-                        <Label htmlFor="is_vacant" className="text-[10px] font-normal cursor-pointer">logement vacant</Label>
-                      </div>
-                      {!formData.is_vacant && onOpenSmsModal && (
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          className="h-6 px-2 text-[10px] flex items-center gap-1"
-                          onClick={onOpenSmsModal}
-                          disabled={!formData.nomPrenomClient || !formData.telephoneClient}
-                        >
-                          <MessageSquare className="h-3 w-3" />
-                          SMS
-                        </Button>
-                      )}
-                    </div>
-                    {formData.is_vacant ? (
-                      <div className="space-y-2">
-                        <div className="grid grid-cols-3 gap-2">
-                          <div>
-                            <Label htmlFor="key_code" className="text-[10px]">CODE CLÉ</Label>
-                            <Input id="key_code" value={formData.key_code} onChange={(e) => handleInputChange("key_code", e.target.value)} className="h-7 text-xs mt-1" />
-                          </div>
-                          <div>
-                            <Label htmlFor="floor" className="text-[10px]">Étage</Label>
-                            <Input id="floor" value={formData.floor} onChange={(e) => handleInputChange("floor", e.target.value)} className="h-7 text-xs mt-1" />
-                          </div>
-                          <div>
-                            <Label htmlFor="apartment_number" className="text-[10px]">N° appart.</Label>
-                            <Input id="apartment_number" value={formData.apartment_number} onChange={(e) => handleInputChange("apartment_number", e.target.value)} className="h-7 text-xs mt-1" />
-                          </div>
-                        </div>
-                        <div>
-                          <Label htmlFor="vacant_housing_instructions" className="text-[10px]">Consigne</Label>
-                          <Textarea id="vacant_housing_instructions" value={formData.vacant_housing_instructions} onChange={(e) => handleInputChange("vacant_housing_instructions", e.target.value)} placeholder="Consignes..." className="min-h-[60px] text-xs mt-1 resize-none" />
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="space-y-2">
-                        <div>
-                          <Label htmlFor="nomPrenomClient" className="text-[10px]">Nom Prénom</Label>
-                          <Input id="nomPrenomClient" value={formData.nomPrenomClient} onChange={(e) => handleInputChange("nomPrenomClient", e.target.value)} placeholder="Nom Prénom" className="h-7 text-xs mt-1" />
-                        </div>
-                        <div className="grid grid-cols-2 gap-2">
-                          <div>
-                            <Label htmlFor="telephoneClient" className="text-[10px]">Téléphone</Label>
-                            <Input id="telephoneClient" value={formData.telephoneClient} onChange={(e) => handleInputChange("telephoneClient", e.target.value)} placeholder="06..." className="h-7 text-xs mt-1" />
-                          </div>
-                          <div>
-                            <Label htmlFor="emailClient" className="text-[10px]">Email</Label>
-                            <Input id="emailClient" type="email" value={formData.emailClient} onChange={(e) => handleInputChange("emailClient", e.target.value)} placeholder="email@..." className="h-7 text-xs mt-1" />
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                  </CardContent>
-                </CollapsibleContent>
-              </Card>
-            </Collapsible>
+            <InterventionClientSection
+              formData={formData}
+              onChange={handleInputChange}
+              isOpen={isClientOpen}
+              onOpenChange={setIsClientOpen}
+              onOpenSmsModal={onOpenSmsModal}
+            />
 
             {/* Acomptes */}
             <Collapsible open={isAccompteOpen} onOpenChange={setIsAccompteOpen}>
@@ -1369,7 +1121,7 @@ export function NewInterventionForm({
                               checked={formData.accompteSSTRecu}
                               onChange={(e) => handleInputChange("accompteSSTRecu", e.target.checked)}
                             />
-                            <Label htmlFor="accompteSSTRecu" className="text-[10px] font-normal cursor-pointer">Reçu</Label>
+                            <Label htmlFor="accompteSSTRecu" className="text-[10px] font-normal cursor-pointer">Envoyé</Label>
                           </div>
                         </div>
                       </div>

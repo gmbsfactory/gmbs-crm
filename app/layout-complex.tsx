@@ -7,7 +7,6 @@ import { SidebarProvider } from "@/components/ui/sidebar"
 import SidebarGate from "@/components/layout/sidebar-gate"
 import { Toaster } from "@/components/ui/toaster"
 import { InterfaceProvider } from "@/contexts/interface-context"
-import { UserStatusProvider } from "@/contexts/user-status-context"
 import ThemeWrapper from "@/components/layout/theme-wrapper"
 import TopbarGate from "@/components/layout/topbar-gate"
 import { SettingsProvider } from "@/components/layout/settings-provider"
@@ -153,7 +152,6 @@ export default async function RootLayout({
         <SettingsProvider>
           <ReactQueryProvider>
             <AuthStateListenerProvider>
-              <UserStatusProvider>
               <InterfaceProvider>
                 <ThemeWrapper>
                   <SidebarProvider>
@@ -176,7 +174,6 @@ export default async function RootLayout({
                   </SidebarProvider>
                 </ThemeWrapper>
               </InterfaceProvider>
-            </UserStatusProvider>
             </AuthStateListenerProvider>
           </ReactQueryProvider>
         </SettingsProvider>

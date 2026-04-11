@@ -6,7 +6,7 @@ import { supabase } from './supabase-client';
 export interface ReferenceData {
   interventionStatuses: Array<{ id: string; code: string; label: string; color: string; sort_order: number | null }>;
   artisanStatuses: Array<{ id: string; code: string; label: string; color: string; abbreviation: string | null }>;
-  agencies: Array<{ id: string; code: string; label: string; color: string | null; requires_reference?: boolean }>;
+  agencies: Array<{ id: string; code: string; label: string; color: string | null; is_active: boolean; requires_reference?: boolean }>;
   metiers: Array<{ id: string; code: string; label: string; color: string | null }>;
   users: Array<{
     id: string;
@@ -39,7 +39,7 @@ export const referenceApi = {
     const [interventionStatuses, artisanStatuses, agencies, metiers, users, allUsersQuery] = await Promise.all([
       supabase.from('intervention_statuses').select('id, code, label, color, sort_order').eq('is_active', true).order('sort_order'),
       supabase.from('artisan_statuses').select('id, code, label, color, abbreviation').eq('is_active', true).order('sort_order'),
-      supabase.from('agencies').select('id, code, label, color, agency_config!left(requires_reference)').eq('is_active', true).order('label'),
+      supabase.from('agencies').select('id, code, label, color, is_active, agency_config!left(requires_reference)').order('label'),
       supabase.from('metiers').select('id, code, label, color').eq('is_active', true).order('label'),
       supabase.from('users').select('id, username, firstname, lastname, code_gestionnaire, color, avatar_url').neq('status', 'archived').order('username', { ascending: true }),
       // Tous les utilisateurs (y compris archivés) pour l'affichage historique dans la table des interventions
@@ -54,6 +54,7 @@ export const referenceApi = {
       code: item.code,
       label: item.label,
       color: item.color,
+      is_active: item.is_active ?? true,
       requires_reference: item.agency_config?.requires_reference ?? false,
     }));
 

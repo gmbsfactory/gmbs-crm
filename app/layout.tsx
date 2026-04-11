@@ -13,7 +13,6 @@ import { SidebarProvider } from "@/components/ui/sidebar"
 import { Toaster } from "@/components/ui/toaster"
 import { ModalDisplayProvider } from "@/contexts/ModalDisplayContext"
 import { InterfaceProvider } from "@/contexts/interface-context"
-import { UserStatusProvider } from "@/contexts/user-status-context"
 import { AuthGuard } from "@/components/layout/auth-guard"
 import { DeveloperDashboardLoader } from "@/components/debug/DeveloperDashboardLoader"
 import UpdatesModal from "@/components/layout/UpdatesModal"
@@ -255,7 +254,6 @@ export default async function RootLayout({
               <ReactQueryProvider>
                 <AuthStateListenerProvider>
                   <ModalDisplayProvider>
-                    <UserStatusProvider>
                       <InterfaceProvider>
                           <ThemeWrapper>
                             <AuthGuard>
@@ -285,7 +283,6 @@ export default async function RootLayout({
                             </AuthGuard>
                           </ThemeWrapper>
                       </InterfaceProvider>
-                    </UserStatusProvider>
                   </ModalDisplayProvider>
                 </AuthStateListenerProvider>
               </ReactQueryProvider>

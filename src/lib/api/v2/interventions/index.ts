@@ -1,7 +1,7 @@
 // ===== INTERVENTIONS API - INDEX =====
 // Réexporte l'API unifiée depuis les sous-modules
 
-import { interventionsCrud, invalidateReferenceCache } from "./interventions-crud";
+import { interventionsCrud } from "./interventions-crud";
 import { interventionsStatus, _setCrudRef } from "./interventions-status";
 import { interventionsCosts } from "./interventions-costs";
 import { interventionsStats, _setCostsRef } from "./interventions-stats";
@@ -84,5 +84,3 @@ export const interventionsApi = {
   getCountWithFilters: interventionsFilters.getCountWithFilters.bind(interventionsFilters),
 };
 
-// Réexporter pour compatibilité
-export { invalidateReferenceCache };

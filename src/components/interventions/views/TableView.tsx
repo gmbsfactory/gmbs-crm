@@ -101,7 +101,8 @@ import type { ReferenceData } from "@/lib/reference-api"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { interventionsApi } from "@/lib/api/v2"
 import { toast } from "sonner"
-import { useFilterMappers } from "@/contexts/FilterMappersContext"
+import { useInterventionStatusMap } from "@/hooks/useInterventionStatusMap"
+import { useUserMap } from "@/hooks/useUserMap"
 import { convertViewFiltersToServerFilters } from "@/lib/filter-converter"
 import { usePagePresenceContext } from "@/contexts/PagePresenceContext"
 import { InterventionPresenceIndicator } from "@/components/ui/InterventionPresenceIndicator"
@@ -746,7 +747,10 @@ export function TableView({
   const pageViewers = pagePresenceCtx?.viewers ?? []
 
   // Récupérer les fonctions de mapping depuis le Context
-  const { statusCodeToId, userCodeToId, currentUserId } = useFilterMappers()
+  const { codeToId: statusCodeToId } = useInterventionStatusMap()
+  const { nameToId: userCodeToId } = useUserMap()
+  const { data: filterUserData } = useCurrentUser()
+  const currentUserId = filterUserData?.id
 
   // Convertir les filtres de la vue en baseFilters pour les compteurs
   // Utilise la fonction centralisée pour garantir la cohérence avec le reste de l'application

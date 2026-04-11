@@ -425,6 +425,14 @@ export const dashboardKeys = {
    * @example
    * queryClient.invalidateQueries({ queryKey: dashboardKeys.invalidateAll() })
    */
+  /**
+   * Clé pour le classement de marge par période
+   */
+  marginRanking: () => [...dashboardKeys.all, "margin-ranking"] as const,
+
+  marginRankingByPeriod: (params: { startDate: string; endDate: string }) =>
+    [...dashboardKeys.marginRanking(), params] as const,
+
   invalidateAll: () => dashboardKeys.all,
   
   /**

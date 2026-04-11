@@ -16,7 +16,6 @@ import {
   handleResponse,
   mapInterventionRecord,
   getReferenceCache,
-  invalidateReferenceCache as invalidateCentralCache,
   resolveMetierToId,
 } from "@/lib/api/v2/common/utils";
 import { safeErrorMessage } from "@/lib/api/v2/common/error-handler";
@@ -27,8 +26,15 @@ import type { InterventionStatusKey } from "@/config/interventions";
 // Utiliser le client admin dans Node.js, le client standard dans le navigateur
 const supabaseClient = typeof window !== 'undefined' ? supabase : getSupabaseClientForNode();
 
-// Ré-exporter la fonction d'invalidation du cache centralisé pour compatibilité
-export const invalidateReferenceCache = invalidateCentralCache;
+/** Safely get current user ID — returns null in SSR or when no session exists */
+async function getCurrentUserId(): Promise<string | undefined> {
+  try {
+    const { data: { user } } = await supabaseClient.auth.getUser();
+    return user?.id ?? undefined;
+  } catch {
+    return undefined;
+  }
+}
 
 // ===== HELPERS POUR update() =====
 
@@ -93,8 +99,7 @@ async function handleStatusTransition(
   oldStatusCode: string | null,
 ) {
   try {
-    const { data: { user } } = await supabaseClient.auth.getUser();
-    const userId = user?.id || null;
+    const userId = await getCurrentUserId();
     const refs = await getReferenceCache();
 
     const newStatusObj = refs.interventionStatusesById.get(newStatutId);
@@ -168,106 +173,88 @@ async function recalculateArtisanStatuses(
   }
 }
 
+// ---------------------------------------------------------------------------
+// Shared URLSearchParams builder for getAll / getAllLight
+// ---------------------------------------------------------------------------
+
+type FilterValue = string | string[] | null | undefined;
+
+function appendFilterParam(searchParams: URLSearchParams, key: string, value?: FilterValue) {
+  if (key === "user" && value === null) {
+    searchParams.append(key, "null");
+    return;
+  }
+  if (value === undefined || value === null) return;
+  if (Array.isArray(value)) {
+    value.forEach((entry) => {
+      if (entry !== null && typeof entry === "string" && entry.length > 0) {
+        searchParams.append(key, entry);
+      }
+    });
+    return;
+  }
+  if (typeof value === "string" && value.length > 0) {
+    searchParams.append(key, value);
+  }
+}
+
+function buildBaseSearchParams(
+  params: InterventionQueryParams | undefined,
+  metierValue?: FilterValue,
+): URLSearchParams {
+  const limit = Math.max(1, params?.limit ?? 100);
+  const searchParams = new URLSearchParams();
+  searchParams.set("limit", limit.toString());
+  if (params?.offset !== undefined) {
+    searchParams.set("offset", params.offset.toString());
+  }
+
+  // Statut(s)
+  if (params?.statuts && params.statuts.length > 0) {
+    appendFilterParam(searchParams, "statut", params.statuts);
+  } else {
+    appendFilterParam(searchParams, "statut", params?.statut);
+  }
+
+  appendFilterParam(searchParams, "agence", params?.agence);
+  appendFilterParam(searchParams, "artisan", params?.artisan);
+  appendFilterParam(searchParams, "metier", metierValue);
+  appendFilterParam(searchParams, "user", params?.user);
+
+  if (params?.startDate) searchParams.set("startDate", params.startDate);
+  if (params?.endDate) searchParams.set("endDate", params.endDate);
+  if (params?.isCheck !== undefined) searchParams.set("isCheck", params.isCheck.toString());
+  if (params?.search) searchParams.set("search", params.search);
+
+  return searchParams;
+}
+
 export const interventionsCrud = {
   // Récupérer toutes les interventions (via Edge Function)
   async getAll(params?: InterventionQueryParams): Promise<PaginatedResponse<InterventionWithStatus>> {
-    type FilterValue = string | string[] | null | undefined;
-
-    const limit = Math.max(1, params?.limit ?? 100);
-
     // Convertir les codes métier en IDs si nécessaire
-    let metierParam = params?.metier;
-    let metiersParam = params?.metiers;
+    let metierValue: FilterValue = params?.metier;
 
     if (params?.metier || params?.metiers) {
       const refs = await getReferenceCache();
 
-      if (params?.metier && typeof params.metier === 'string') {
-        metierParam = resolveMetierToId(params.metier, refs.metiersById);
-      }
-
       if (params?.metiers && params.metiers.length > 0) {
-        metiersParam = params.metiers.map((code) => resolveMetierToId(code, refs.metiersById));
+        metierValue = params.metiers.map((code) => resolveMetierToId(code, refs.metiersById));
+      } else if (params?.metier && typeof params.metier === 'string') {
+        metierValue = resolveMetierToId(params.metier, refs.metiersById);
       }
     }
 
-    const searchParams = new URLSearchParams();
-    searchParams.set("limit", limit.toString());
-    if (params?.offset !== undefined) {
-      searchParams.set("offset", params.offset.toString());
-    }
+    const searchParams = buildBaseSearchParams(params, metierValue);
 
-    const appendFilterParam = (key: string, value?: FilterValue) => {
-      // Cas spécial pour user === null (vue Market) : envoyer "null" comme chaîne
-      if (key === "user" && value === null) {
-        searchParams.append(key, "null");
-        return;
-      }
-
-      if (value === undefined || value === null) {
-        // Ne pas envoyer le paramètre si la valeur est undefined ou null
-        return;
-      }
-      if (Array.isArray(value)) {
-        value.forEach((entry) => {
-          // Ignorer les valeurs null dans les tableaux
-          if (entry !== null && typeof entry === "string" && entry.length > 0) {
-            searchParams.append(key, entry);
-          }
-        });
-        return;
-      }
-      if (typeof value === "string" && value.length > 0) {
-        searchParams.append(key, value);
-      }
-    };
-
-    // Gérer statut et statuts (comme metier et metiers)
-    if (params?.statuts && params.statuts.length > 0) {
-      appendFilterParam("statut", params.statuts);
-    } else {
-      appendFilterParam("statut", params?.statut);
-    }
-    appendFilterParam("agence", params?.agence);
-    appendFilterParam("artisan", params?.artisan);
-
-    // Gérer metier et metiers
-    if (metiersParam && Array.isArray(metiersParam) && metiersParam.length > 0) {
-      appendFilterParam("metier", metiersParam);
-    } else if (metierParam) {
-      appendFilterParam("metier", metierParam);
-    }
-
-    appendFilterParam("user", params?.user);
-
-    if (params?.startDate) {
-      searchParams.set("startDate", params.startDate);
-    }
-    if (params?.endDate) {
-      searchParams.set("endDate", params.endDate);
-    }
-    if (params?.isCheck !== undefined) {
-      searchParams.set("isCheck", params.isCheck.toString());
-    }
-    if (params?.search) {
-      searchParams.set("search", params.search);
-    }
-
-    // Ajouter les relations à inclure (payments, artisans, costs, etc.)
+    // getAll-specific params: include, sort, cache-buster
     if (params?.include && Array.isArray(params.include) && params.include.length > 0) {
       params.include.forEach((relation) => {
         searchParams.append("include", relation);
       });
     }
-
-    // Tri serveur
-    if (params?.sortBy) {
-      searchParams.set("sort_by", params.sortBy);
-    }
-    if (params?.sortDir) {
-      searchParams.set("sort_dir", params.sortDir);
-    }
-
+    if (params?.sortBy) searchParams.set("sort_by", params.sortBy);
+    if (params?.sortDir) searchParams.set("sort_dir", params.sortDir);
     if (process.env.NODE_ENV === "production") {
       searchParams.set("_ts", Date.now().toString());
     }
@@ -298,6 +285,7 @@ export const interventionsCrud = {
         ? raw.pagination.total
         : transformedData.length;
 
+    const limit = Math.max(1, params?.limit ?? 100);
     const offset = params?.offset ?? 0;
 
     return {
@@ -316,60 +304,7 @@ export const interventionsCrud = {
    * Version optimisée pour le warm-up avec moins de données
    */
   async getAllLight(params?: InterventionQueryParams): Promise<PaginatedResponse<InterventionWithStatus>> {
-    type FilterValue = string | string[] | null | undefined;
-
-    const limit = Math.max(1, params?.limit ?? 100);
-
-    const searchParams = new URLSearchParams();
-    searchParams.set("limit", limit.toString());
-    if (params?.offset !== undefined) {
-      searchParams.set("offset", params.offset.toString());
-    }
-
-    const appendFilterParam = (key: string, value?: FilterValue) => {
-      if (key === "user" && value === null) {
-        searchParams.append(key, "null");
-        return;
-      }
-
-      if (value === undefined || value === null) {
-        return;
-      }
-      if (Array.isArray(value)) {
-        value.forEach((entry) => {
-          if (entry !== null && typeof entry === "string" && entry.length > 0) {
-            searchParams.append(key, entry);
-          }
-        });
-        return;
-      }
-      if (typeof value === "string" && value.length > 0) {
-        searchParams.append(key, value);
-      }
-    };
-
-    if (params?.statuts && params.statuts.length > 0) {
-      appendFilterParam("statut", params.statuts);
-    } else {
-      appendFilterParam("statut", params?.statut);
-    }
-    appendFilterParam("agence", params?.agence);
-    appendFilterParam("artisan", params?.artisan);
-    appendFilterParam("metier", params?.metier);
-    appendFilterParam("user", params?.user);
-
-    if (params?.startDate) {
-      searchParams.set("startDate", params.startDate);
-    }
-    if (params?.endDate) {
-      searchParams.set("endDate", params.endDate);
-    }
-    if (params?.isCheck !== undefined) {
-      searchParams.set("isCheck", params.isCheck.toString());
-    }
-    if (params?.search) {
-      searchParams.set("search", params.search);
-    }
+    const searchParams = buildBaseSearchParams(params, params?.metier);
 
     const queryString = searchParams.toString();
     const functionsUrl = getSupabaseFunctionsUrl();
@@ -391,15 +326,16 @@ export const interventionsCrud = {
         ? raw.pagination.total
         : transformedData.length;
 
+    const lightLimit = Math.max(1, params?.limit ?? 100);
     const offset = params?.offset ?? 0;
 
     return {
       data: transformedData,
       pagination: {
         total,
-        limit,
+        limit: lightLimit,
         offset,
-        hasMore: offset + limit < total,
+        hasMore: offset + lightLimit < total,
       },
     };
   },
@@ -590,9 +526,7 @@ export const interventionsCrud = {
           .eq('intervention_id', result.id)
           .eq('source', 'trigger');
 
-        // Récupérer l'utilisateur actuel
-        const { data: { user } } = await supabaseClient.auth.getUser();
-        const userId = user?.id;
+        const userId = await getCurrentUserId();
 
         // Créer les transitions automatiques
         await automaticTransitionService.createAutomaticTransitions(
@@ -814,8 +748,7 @@ export const interventionsCrud = {
             .eq('source', 'trigger');
         }
 
-        const { data: { user } } = await supabaseClient.auth.getUser();
-        const userId = user?.id;
+        const userId = await getCurrentUserId();
 
         await automaticTransitionService.createAutomaticTransitions(
           result.id,

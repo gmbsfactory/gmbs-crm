@@ -258,7 +258,7 @@ export const interventionsFilters = {
         });
       case "agence":
       case "agence_id":
-        return refs.data.agencies.map((a) => a.label || a.code);
+        return refs.data.agencies.filter((a) => a.is_active).map((a) => a.label || a.code);
       case "metier":
       case "metier_id":
         return refs.data.metiers.map((m) => m.code || m.label);

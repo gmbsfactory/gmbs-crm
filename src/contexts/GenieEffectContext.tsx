@@ -14,9 +14,6 @@ interface GenieEffectContextValue {
   isAnimating: boolean
   animatingInterventionId: string | null
   
-  // Référence vers les éléments des pastilles (viewId -> HTMLElement)
-  badgeRefs: Map<string, HTMLElement>
-  
   // Enregistrer une référence de pastille
   registerBadgeRef: (viewId: string, element: HTMLElement | null) => void
   
@@ -385,7 +382,6 @@ const keyframes = [
       value={{
         isAnimating,
         animatingInterventionId,
-        badgeRefs: badgeRefs.current,
         registerBadgeRef,
         triggerAnimation,
         bouncingViewId,
@@ -406,7 +402,6 @@ export function useGenieEffectContext() {
     return {
       isAnimating: false,
       animatingInterventionId: null,
-      badgeRefs: new Map(),
       registerBadgeRef: () => {},
       triggerAnimation: (_: string, __: HTMLElement, ___: string, onComplete: () => void) => {
         onComplete()

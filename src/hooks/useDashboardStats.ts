@@ -2,7 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query"
 import { interventionsApi } from "@/lib/api/v2"
-import type { InterventionStatsByStatus, MarginStats, WeeklyStats, MonthlyStats, YearlyStats, StatsPeriod } from "@/lib/api/v2"
+import type { InterventionStatsByStatus, MarginStats, MarginRankingResult, WeeklyStats, MonthlyStats, YearlyStats, StatsPeriod } from "@/lib/api/v2"
 import { dashboardKeys, type DashboardStatsParams, type DashboardMarginParams, type DashboardPeriodStatsParams } from "@/lib/react-query/queryKeys"
 import { useCurrentUser } from "@/hooks/useCurrentUser"
 import { getTierQueryOptions } from "@/config/freshness-tiers"
@@ -227,9 +227,26 @@ export function useRecentInterventionsByStatus(
   })
 }
 
-
-
-
+/**
+ * Hook pour récupérer le classement de marge des gestionnaires par période
+ */
+export function useMarginRankingQuery(
+  params: { startDate: string; endDate: string } | null,
+  options?: { enabled?: boolean }
+) {
+  return useQuery<MarginRankingResult>({
+    queryKey: params ? dashboardKeys.marginRankingByPeriod(params) : ["dashboard", "margin-ranking", "disabled"],
+    queryFn: async () => {
+      if (!params) throw new Error("Params are required")
+      return await interventionsApi.getMarginRankingByPeriodV3(
+        params.startDate,
+        params.endDate,
+      )
+    },
+    enabled: params !== null && (options?.enabled !== false),
+    ...T3_OPTIONS,
+  })
+}
 
 
 

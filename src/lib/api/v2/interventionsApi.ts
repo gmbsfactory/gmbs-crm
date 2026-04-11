@@ -2,4 +2,4 @@
 // Ce fichier réexporte l'API interventions depuis les sous-modules.
 // Tous les imports existants (import { interventionsApi } from ...) continuent de fonctionner.
 
-export { interventionsApi, invalidateReferenceCache } from "./interventions/index";
+export { interventionsApi } from "./interventions/index";

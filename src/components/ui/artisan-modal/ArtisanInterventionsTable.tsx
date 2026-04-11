@@ -10,6 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { interventionsApi } from "@/lib/api/v2"
 import { useReferenceDataQuery } from "@/hooks/useReferenceDataQuery"
 import { useInterventionModal } from "@/hooks/useInterventionModal"
+import { useArtisanModal } from "@/hooks/useArtisanModal"
 import { cn } from "@/lib/utils"
 import type { Intervention } from "@/lib/api/v2/common/types"
 
@@ -20,6 +21,7 @@ type ArtisanInterventionsTableProps = {
 
 export function ArtisanInterventionsTable({ artisanId, enableInternalScroll = false }: ArtisanInterventionsTableProps) {
   const { open: openInterventionModal } = useInterventionModal()
+  const { open: openArtisanModal } = useArtisanModal()
   const { data: referenceData } = useReferenceDataQuery()
 
   // Charger les interventions de l'artisan via interventions_artisans
@@ -63,6 +65,9 @@ export function ArtisanInterventionsTable({ artisanId, enableInternalScroll = fa
     // Ouvrir le modal d'intervention en stockant l'artisan d'origine dans les métadonnées
     openInterventionModal(interventionId, {
       origin: `artisan:${artisanId}`,
+      metadata: {
+        onReturnToOrigin: () => openArtisanModal(artisanId, { defaultView: "statistics" }),
+      },
     })
   }
 

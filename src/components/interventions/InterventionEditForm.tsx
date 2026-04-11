@@ -52,6 +52,7 @@ import { useFieldPresenceDelegation } from "@/hooks/useFieldPresenceDelegation"
 import { useDocumentReclassification } from "@/hooks/useDocumentReclassification"
 import { useFieldPresence } from "@/contexts/FieldPresenceContext"
 import { PresenceFieldIndicator } from "@/components/ui/intervention-modal/PresenceFieldIndicator"
+import { InterventionHeaderFields, InterventionOwnerSection, InterventionClientSection, InterventionDetailsSection } from "@/components/interventions/form-sections"
 
 // Shared form utilities
 import { INTERVENTION_DOCUMENT_KINDS, STATUS_SORT_ORDER, MAX_RADIUS_KM } from "@/lib/interventions/form-constants"
@@ -581,8 +582,6 @@ export const InterventionEditForm = memo(function InterventionEditForm({
     interventionId: intervention.id,
     formData,
     interventionStatuses: refData?.interventionStatuses,
-    sstPayment,
-    clientPayment,
     handleInputChange,
   })
 
@@ -1140,7 +1139,7 @@ export const InterventionEditForm = memo(function InterventionEditForm({
 
     // === VALIDATIONS POUR ARTISAN ===
     const nextStatusCode = getInterventionStatusCode(formData.statut_id)
-    const ARTISAN_REQUIRED_STATUSES = ["VISITE_TECHNIQUE", "INTER_EN_COURS", "INTER_TERMINEE", "ATT_ACOMPTE"]
+    const ARTISAN_REQUIRED_STATUSES = ["VISITE_TECHNIQUE", "INTER_EN_COURS", "INTER_TERMINEE"]
 
     if (ARTISAN_REQUIRED_STATUSES.includes(nextStatusCode) && (!selectedArtisanId || !selectedArtisanData)) {
       toast.error(`Un artisan est obligatoire pour passer au statut ${nextStatusCode}`)
@@ -1268,164 +1267,53 @@ export const InterventionEditForm = memo(function InterventionEditForm({
                   }}
                 >
                   {/* DIV1: HEADER PRINCIPAL - Row 1, Cols 1-4 */}
-                  <Card className="legacy-form-card" style={{ gridArea: "1 / 1 / 2 / 5" }}>
-                    <CardContent className="py-0.5 px-3">
-                      <div
-                        className="grid gap-2 items-end"
-                        style={{
-                          gridTemplateColumns: showReferenceField
-                            ? "auto 1fr 1fr 1fr 1fr 1fr"
-                            : "auto 1fr 1fr 1fr 1fr"
-                        }}
-                      >
-                        {/* Badge utilisateur assigné - Largeur fixe à gauche */}
-                        <div className="flex items-center relative">
-                          {(() => {
-                            const assignedUser = selectableUsers.find(u => u.id === formData.assigned_user_id)
-                              ?? refData?.allUsers?.find(u => u.id === formData.assigned_user_id)
-                            return (
-                              <GestionnairePopover
-                                users={selectableUsers}
-                                currentUserId={formData.assigned_user_id ?? null}
-                                onSelect={(userId) => handleInputChange("assigned_user_id", userId || null)}
-                                onOpenChange={onPopoverOpenChange}
-                                triggerProps={{
-                                  className: cn(
-                                    "flex items-center justify-center h-7 w-7 cursor-pointer group rounded-full",
-                                    requiresAssignedUser && !formData.assigned_user_id && "ring-2 ring-orange-400 ring-offset-1"
-                                  ),
-                                  title: requiresAssignedUser && !formData.assigned_user_id
-                                    ? "Attribution obligatoire pour ce statut"
-                                    : undefined,
-                                }}
-                                trigger={
-                                  <GestionnaireBadge
-                                    firstname={assignedUser?.firstname}
-                                    lastname={assignedUser?.lastname}
-                                    color={assignedUser?.color}
-                                    avatarUrl={assignedUser?.avatar_url}
-                                    size="sm"
-                                    className="transition-transform group-hover:scale-110 h-7 w-7"
-                                  />
-                                }
-                              />
-                            )
-                          })()}
-                          {requiresAssignedUser && !formData.assigned_user_id && (
-                            <span className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-orange-500 animate-pulse" />
-                          )}
-                        </div>
-
-                        {/* Statut - Badge coloré */}
-                        <PresenceFieldIndicator fieldName="statut_id">
-                        <SearchableBadgeSelect
-                          label="Statut"
-                          required
-                          hideLabel
-                          value={formData.statut_id}
-                          onChange={(value) => handleInputChange("statut_id", value)}
-                          placeholder="Statut"
-                          onOpenChange={onPopoverOpenChange}
-                          searchPlaceholder="Rechercher un statut..."
-                          sortAlphabetically={false}
-                          presenceFieldName="statut_id"
-                          options={(refData?.interventionStatuses || [])
-                            .map(s => ({
-                              id: s.id,
-                              label: s.label,
-                              color: s.color,
-                              code: s.code || ""
-                            }))
-                            .sort((a, b) => {
-                              const orderA = STATUS_SORT_ORDER[a.code] || 999
-                              const orderB = STATUS_SORT_ORDER[b.code] || 999
-                              if (orderA !== orderB) return orderA - orderB
-                              return (a.label || "").localeCompare(b.label || "", "fr")
-                            })
-                          }
-                        />
-                        </PresenceFieldIndicator>
-
-                        {/* Agence - Badge coloré */}
-                        <PresenceFieldIndicator fieldName="agence_id">
-                        <SearchableBadgeSelect
-                          label="Agence"
-                          hideLabel
-                          value={formData.agence_id}
-                          options={refData?.agencies || []}
-                          onChange={(value) => handleInputChange("agence_id", value)}
-                          placeholder="Agence"
-                          minWidth="70px"
-                          searchPlaceholder="Rechercher une agence..."
-                          onOpenChange={onPopoverOpenChange}
-                          emptyText="Aucune agence trouvée"
-                          presenceFieldName="agence_id"
-                        />
-                        </PresenceFieldIndicator>
-
-                        {/* Réf. agence - Input conditionnel */}
-                        {showReferenceField && (
-                          <PresenceFieldIndicator fieldName="reference_agence">
-                          <div className="flex items-center">
-                            <Input
-                              id="reference_agence"
-                              name="reference_agence"
-                              value={formData.reference_agence}
-                              onChange={(event) => handleInputChange("reference_agence", event.target.value)}
-                              placeholder="Réf. agence *"
-                              className="h-7 text-xs rounded-full px-3"
-                              autoComplete="off"
-                              required
+                  <InterventionHeaderFields
+                    formData={formData}
+                    onChange={handleInputChange}
+                    refData={refData}
+                    showReferenceField={showReferenceField}
+                    requiresDefinitiveId={requiresDefinitiveId}
+                    withPresence
+                    onPopoverOpenChange={onPopoverOpenChange}
+                    renderUserBadge={() => (
+                      <div className="flex items-center relative">
+                        {(() => {
+                          const assignedUser = selectableUsers.find(u => u.id === formData.assigned_user_id)
+                            ?? refData?.allUsers?.find(u => u.id === formData.assigned_user_id)
+                          return (
+                            <GestionnairePopover
+                              users={selectableUsers}
+                              currentUserId={formData.assigned_user_id ?? null}
+                              onSelect={(userId) => handleInputChange("assigned_user_id", userId || null)}
+                              onOpenChange={onPopoverOpenChange}
+                              triggerProps={{
+                                className: cn(
+                                  "flex items-center justify-center h-7 w-7 cursor-pointer group rounded-full",
+                                  requiresAssignedUser && !formData.assigned_user_id && "ring-2 ring-orange-400 ring-offset-1"
+                                ),
+                                title: requiresAssignedUser && !formData.assigned_user_id
+                                  ? "Attribution obligatoire pour ce statut"
+                                  : undefined,
+                              }}
+                              trigger={
+                                <GestionnaireBadge
+                                  firstname={assignedUser?.firstname}
+                                  lastname={assignedUser?.lastname}
+                                  color={assignedUser?.color}
+                                  avatarUrl={assignedUser?.avatar_url}
+                                  size="sm"
+                                  className="transition-transform group-hover:scale-110 h-7 w-7"
+                                />
+                              }
                             />
-                          </div>
-                          </PresenceFieldIndicator>
+                          )
+                        })()}
+                        {requiresAssignedUser && !formData.assigned_user_id && (
+                          <span className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-orange-500 animate-pulse" />
                         )}
-
-                        {/* Métier - Badge coloré */}
-                        <PresenceFieldIndicator fieldName="metier_id">
-                        <SearchableBadgeSelect
-                          label="Métier"
-                          hideLabel
-                          value={formData.metier_id}
-                          onChange={(value) => handleInputChange("metier_id", value)}
-                          placeholder="Métier"
-                          onOpenChange={onPopoverOpenChange}
-                          searchPlaceholder="Rechercher un métier..."
-                          minWidth="100px"
-                          presenceFieldName="metier_id"
-                          options={(refData?.metiers || []).map(m => ({
-                            id: m.id,
-                            label: m.label,
-                            color: m.color,
-                          }))}
-                        />
-                        </PresenceFieldIndicator>
-
-                        {/* ID Intervention - Input */}
-                        <PresenceFieldIndicator fieldName="idIntervention">
-                        <div className="flex items-center relative">
-                          <Input
-                            id="idIntervention"
-                            value={formData.id_inter}
-                            onChange={(event) => handleInputChange("id_inter", event.target.value)}
-                            placeholder={requiresDefinitiveId ? "ID Inter. *" : "ID Inter."}
-                            className={cn(
-                              "h-7 text-xs rounded-full px-3",
-                              requiresDefinitiveId && (!formData.id_inter?.trim() || formData.id_inter.toLowerCase().includes("auto")) && "border-orange-400 focus-visible:ring-orange-400"
-                            )}
-                            required={requiresDefinitiveId}
-                            pattern={requiresDefinitiveId ? "^(?!.*(?:[Aa][Uu][Tt][Oo])).+$" : undefined}
-                            title={requiresDefinitiveId ? "ID définitif requis (sans 'AUTO')" : undefined}
-                            autoComplete="off"
-                          />
-                          {requiresDefinitiveId && (!formData.id_inter?.trim() || formData.id_inter.toLowerCase().includes("auto")) && (
-                            <span className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-orange-500 animate-pulse" title="ID définitif requis" />
-                          )}
-                        </div>
-                        </PresenceFieldIndicator>
                       </div>
-                    </CardContent>
-                  </Card>
+                    )}
+                  />
 
                   {/* DIV2: ADRESSE - Row 2, Cols 1-4 */}
                   <Card style={{ gridArea: "2 / 1 / 3 / 5" }}>
@@ -1790,126 +1678,18 @@ export const InterventionEditForm = memo(function InterventionEditForm({
                     </ResizablePanelGroup>
                   </div>
 
-                  {/* DIV5: CONTEXTE INTERVENTION - Row 5, Cols 1-2 */}
-                  <Card style={{ gridArea: "5 / 1 / 6 / 3" }}>
-                    <CardContent className="p-4">
-                      <Label htmlFor="contexteIntervention" className="text-xs font-medium mb-2 block">Contexte intervention *</Label>
-                      <PresenceFieldIndicator fieldName="contexteIntervention">
-                      <Textarea
-                        id="contexteIntervention"
-                        value={formData.contexte_intervention}
-                        onChange={canEditContext ? (event) => handleInputChange("contexte_intervention", event.target.value) : undefined}
-                        placeholder="Décrivez le contexte..."
-                        rows={4}
-                        className={cn("text-sm resize-none", !canEditContext && "cursor-not-allowed bg-muted/50 text-muted-foreground")}
-                        readOnly={!canEditContext}
-                        aria-readonly={!canEditContext}
-                        required
-                      />
-                      </PresenceFieldIndicator>
-                      {!canEditContext && <p className="mt-1 text-[10px] text-muted-foreground">Admin uniquement</p>}
-                    </CardContent>
-                  </Card>
-
-                  {/* DIV6: CONSIGNE INTERVENTION - Row 5, Cols 3-4 */}
-                  <Card style={{ gridArea: "5 / 3 / 6 / 5" }} className={cn(requiresConsigneArtisan && !formData.consigne_intervention?.trim() && "ring-2 ring-orange-400/50")}>
-                    <CardContent className="p-4">
-                      <Label htmlFor="consigneIntervention" className="text-xs font-medium mb-2 block">
-                        Consigne pour l&apos;artisan {requiresConsigneArtisan && <span className="text-orange-500">*</span>}
-                      </Label>
-                      <PresenceFieldIndicator fieldName="consigneIntervention">
-                      <Textarea
-                        id="consigneIntervention"
-                        value={formData.consigne_intervention}
-                        onChange={(event) => handleInputChange("consigne_intervention", event.target.value)}
-                        placeholder="Consignes spécifiques..."
-                        rows={4}
-                        className={cn("text-sm resize-none", requiresConsigneArtisan && !formData.consigne_intervention?.trim() && "border-orange-400 focus-visible:ring-orange-400")}
-                      />
-                      </PresenceFieldIndicator>
-                    </CardContent>
-                  </Card>
-
-                  {/* DIV4: FINANCES & PLANIFICATION - Row 6, Cols 1-4 */}
-                  <Card style={{ gridArea: "6 / 1 / 7 / 5" }} className={cn(requiresCouts && (!(parseFloat(formData.coutIntervention) > 0) || !(parseFloat(formData.coutSST) > 0)) && "ring-2 ring-orange-400/50")}>
-                    <CardContent className="p-4">
-                      <div className="grid grid-cols-5 gap-3 items-end">
-                        <PresenceFieldIndicator fieldName="coutIntervention">
-                        <div>
-                          <Label htmlFor="coutIntervention" className="text-xs">
-                            Coût inter. {requiresCouts && <span className="text-orange-500">*</span>}
-                          </Label>
-                          <Input
-                            id="coutIntervention"
-                            type="number"
-                            step="0.01"
-                            min="0"
-                            value={formData.coutIntervention}
-                            onChange={(e) => handleInputChange("coutIntervention", e.target.value)}
-                            placeholder="0.00 €"
-                            className={cn("h-8 text-sm mt-1", requiresCouts && !(parseFloat(formData.coutIntervention) > 0) && "border-orange-400 focus-visible:ring-orange-400")}
-                          />
-                        </div>
-                        </PresenceFieldIndicator>
-                        <PresenceFieldIndicator fieldName="coutSST">
-                        <div>
-                          <Label htmlFor="coutSST" className="text-xs">
-                            Coût SST {requiresCouts && <span className="text-orange-500">*</span>}
-                          </Label>
-                          <Input
-                            id="coutSST"
-                            type="number"
-                            step="0.01"
-                            min="0"
-                            value={formData.coutSST}
-                            onChange={(e) => handleInputChange("coutSST", e.target.value)}
-                            placeholder="0.00 €"
-                            className={cn("h-8 text-sm mt-1", requiresCouts && !(parseFloat(formData.coutSST) > 0) && "border-orange-400 focus-visible:ring-orange-400")}
-                          />
-                        </div>
-                        </PresenceFieldIndicator>
-                        <PresenceFieldIndicator fieldName="coutMateriel">
-                        <div>
-                          <Label htmlFor="coutMateriel" className="text-xs">Coût mat.</Label>
-                          <Input id="coutMateriel" type="number" step="0.01" min="0" value={formData.coutMateriel} onChange={(e) => handleInputChange("coutMateriel", e.target.value)} placeholder="0.00 €" className="h-8 text-sm mt-1" />
-                        </div>
-                        </PresenceFieldIndicator>
-                        <div>
-                          <Label className="text-xs">Marge</Label>
-                          <div className="flex h-8 w-full rounded-md border border-input bg-muted px-3 py-1 text-sm shadow-sm items-center mt-1">
-                            {margePrimaryArtisan.isValid ? (
-                              <span className={cn("font-medium", getMarginColorClass(margePrimaryArtisan.marginPercentage))}>
-                                {formatMarginPercentage(margePrimaryArtisan.marginPercentage)}
-                              </span>
-                            ) : (
-                              <span className="text-muted-foreground">-- %</span>
-                            )}
-                          </div>
-                        </div>
-                        <PresenceFieldIndicator fieldName="datePrevue">
-                        <div className="relative">
-                          <Label htmlFor="datePrevue" className="text-xs">
-                            Date prévue {requiresDatePrevue && <span className="text-orange-500">*</span>}
-                          </Label>
-                          <Input
-                            id="datePrevue"
-                            type="date"
-                            value={formData.date_prevue}
-                            onChange={(e) => handleInputChange("date_prevue", e.target.value)}
-                            className={cn(
-                              "h-8 text-sm mt-1",
-                              requiresDatePrevue && !formData.date_prevue?.trim() && "border-orange-400 focus-visible:ring-orange-400"
-                            )}
-                            required={requiresDatePrevue}
-                          />
-                          {requiresDatePrevue && !formData.date_prevue?.trim() && (
-                            <span className="absolute top-0 -right-1 h-2 w-2 rounded-full bg-orange-500 animate-pulse" title="Date prévue requise" />
-                          )}
-                        </div>
-                        </PresenceFieldIndicator>
-                      </div>
-                    </CardContent>
-                  </Card>
+                  {/* DIV5+6+4: CONTEXTE + CONSIGNE + FINANCES */}
+                  <InterventionDetailsSection
+                    formData={formData}
+                    onChange={handleInputChange}
+                    margePrimaryArtisan={margePrimaryArtisan}
+                    requiresDatePrevue={requiresDatePrevue}
+                    canEditContext={canEditContext}
+                    requiresConsigneArtisan={requiresConsigneArtisan}
+                    requiresCouts={requiresCouts}
+                    withPresence
+                  />
+                  {/* END DIV5+6+4 — replaced inline sections */}
                 </div>
               </SectionLock>
             </div>
@@ -1938,158 +1718,27 @@ export const InterventionEditForm = memo(function InterventionEditForm({
               <div className="flex flex-col gap-2 pb-4">
                 {/* Détails facturation */}
                 <SectionLock isLocked={!canEditIntervention}>
-                  <Collapsible open={isProprietaireOpen} onOpenChange={setIsProprietaireOpen}>
-                    <Card className={cn(requiresNomFacturation && !formData.nomPrenomFacturation?.trim() && "ring-2 ring-orange-400/50")}>
-                      <CollapsibleTrigger asChild>
-                        <CardHeader className="cursor-pointer py-2 px-3 hover:bg-muted/50">
-                          <CardTitle className="flex items-center gap-2 text-xs">
-                            Détails facturation
-                            {requiresNomFacturation && !formData.nomPrenomFacturation?.trim() && (
-                              <span className="h-2 w-2 rounded-full bg-orange-500 animate-pulse" title="Champ obligatoire manquant" />
-                            )}
-                            {isProprietaireOpen ? <ChevronDown className="ml-auto h-3 w-3" /> : <ChevronRight className="ml-auto h-3 w-3" />}
-                          </CardTitle>
-                        </CardHeader>
-                      </CollapsibleTrigger>
-                      <CollapsibleContent>
-                        <CardContent className="pt-0 px-3 pb-3">
-                          <div className="space-y-2">
-                            <div>
-                              <Label htmlFor="nomPrenomFacturation" className="text-[10px]">
-                                Nom Prénom {requiresNomFacturation && <span className="text-orange-500">*</span>}
-                              </Label>
-                              <PresenceFieldIndicator fieldName="nomPrenomFacturation">
-                              <Input
-                                id="nomPrenomFacturation"
-                                value={formData.nomPrenomFacturation}
-                                onChange={(e) => handleInputChange("nomPrenomFacturation", e.target.value)}
-                                placeholder="Nom Prénom"
-                                className={cn("h-7 text-xs mt-1", requiresNomFacturation && !formData.nomPrenomFacturation?.trim() && "border-orange-400 focus-visible:ring-orange-400")}
-                              />
-                              </PresenceFieldIndicator>
-                            </div>
-                            <div className="grid grid-cols-2 gap-2">
-                              <div>
-                                <Label htmlFor="telephoneProprietaire" className="text-[10px]">Téléphone</Label>
-                                <PresenceFieldIndicator fieldName="telephoneProprietaire">
-                                <Input id="telephoneProprietaire" value={formData.telephoneProprietaire} onChange={(e) => handleInputChange("telephoneProprietaire", e.target.value)} placeholder="06..." className="h-7 text-xs mt-1" />
-                                </PresenceFieldIndicator>
-                              </div>
-                              <div>
-                                <Label htmlFor="emailProprietaire" className="text-[10px]">Email</Label>
-                                <PresenceFieldIndicator fieldName="emailProprietaire">
-                                <Input id="emailProprietaire" type="email" value={formData.emailProprietaire} onChange={(e) => handleInputChange("emailProprietaire", e.target.value)} placeholder="email@..." className="h-7 text-xs mt-1" />
-                                </PresenceFieldIndicator>
-                              </div>
-                            </div>
-                          </div>
-                        </CardContent>
-                      </CollapsibleContent>
-                    </Card>
-                  </Collapsible>
+                  <InterventionOwnerSection
+                    formData={formData}
+                    onChange={handleInputChange}
+                    isOpen={isProprietaireOpen}
+                    onOpenChange={setIsProprietaireOpen}
+                    requiresNomFacturation={requiresNomFacturation}
+                    withPresence
+                  />
                 </SectionLock>
 
                 {/* Détails client */}
                 <SectionLock isLocked={!canEditIntervention}>
-                  <Collapsible open={isClientOpen} onOpenChange={setIsClientOpen}>
-                    <Card className={cn(requiresClientInfo && !formData.is_vacant && (!formData.nomPrenomClient?.trim() || !formData.telephoneClient?.trim()) && "ring-2 ring-orange-400/50")}>
-                      <CollapsibleTrigger asChild>
-                        <CardHeader className="cursor-pointer py-2 px-3 hover:bg-muted/50">
-                          <CardTitle className="flex items-center gap-2 text-xs">
-                            Détails client
-                            {requiresClientInfo && !formData.is_vacant && (!formData.nomPrenomClient?.trim() || !formData.telephoneClient?.trim()) && (
-                              <span className="h-2 w-2 rounded-full bg-orange-500 animate-pulse" title="Champs obligatoires manquants" />
-                            )}
-                            {isClientOpen ? <ChevronDown className="ml-auto h-3 w-3" /> : <ChevronRight className="ml-auto h-3 w-3" />}
-                          </CardTitle>
-                        </CardHeader>
-                      </CollapsibleTrigger>
-                      <CollapsibleContent>
-                        <CardContent className="pt-0 px-3 pb-3">
-                          <div className="flex items-center justify-between mb-2">
-                            <div className="flex items-center space-x-2">
-                              <input type="checkbox" id="is_vacant" className="h-3 w-3 rounded border-gray-300" checked={formData.is_vacant} onChange={(e) => handleInputChange("is_vacant", e.target.checked)} />
-                              <Label htmlFor="is_vacant" className="text-[10px] font-normal cursor-pointer">logement vacant</Label>
-                            </div>
-                            {!formData.is_vacant && onOpenSmsModal && (
-                              <Button
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                                className="h-6 px-2 text-[10px] flex items-center gap-1"
-                                onClick={onOpenSmsModal}
-                                disabled={!formData.nomPrenomClient || !formData.telephoneClient}
-                              >
-                                <MessageSquare className="h-3 w-3" />
-                                SMS
-                              </Button>
-                            )}
-                          </div>
-                          {formData.is_vacant ? (
-                            <div className="space-y-2">
-                              <div className="grid grid-cols-3 gap-2">
-                                <div>
-                                  <Label htmlFor="key_code" className="text-[10px]">CODE CLÉ</Label>
-                                  <Input id="key_code" value={formData.key_code} onChange={(e) => handleInputChange("key_code", e.target.value)} className="h-7 text-xs mt-1" />
-                                </div>
-                                <div>
-                                  <Label htmlFor="floor" className="text-[10px]">Étage</Label>
-                                  <Input id="floor" value={formData.floor} onChange={(e) => handleInputChange("floor", e.target.value)} className="h-7 text-xs mt-1" />
-                                </div>
-                                <div>
-                                  <Label htmlFor="apartment_number" className="text-[10px]">N° appart.</Label>
-                                  <Input id="apartment_number" value={formData.apartment_number} onChange={(e) => handleInputChange("apartment_number", e.target.value)} className="h-7 text-xs mt-1" />
-                                </div>
-                              </div>
-                              <div>
-                                <Label htmlFor="vacant_housing_instructions" className="text-[10px]">Consigne</Label>
-                                <Textarea id="vacant_housing_instructions" value={formData.vacant_housing_instructions} onChange={(e) => handleInputChange("vacant_housing_instructions", e.target.value)} placeholder="Consignes..." className="min-h-[60px] text-xs mt-1 resize-none" />
-                              </div>
-                            </div>
-                          ) : (
-                            <div className="space-y-2">
-                              <div>
-                                <Label htmlFor="nomPrenomClient" className="text-[10px]">
-                                  Nom Prénom {requiresClientInfo && !formData.is_vacant && <span className="text-orange-500">*</span>}
-                                </Label>
-                                <PresenceFieldIndicator fieldName="nomPrenomClient">
-                                <Input
-                                  id="nomPrenomClient"
-                                  value={formData.nomPrenomClient}
-                                  onChange={(e) => handleInputChange("nomPrenomClient", e.target.value)}
-                                  placeholder="Nom Prénom"
-                                  className={cn("h-7 text-xs mt-1", requiresClientInfo && !formData.is_vacant && !formData.nomPrenomClient?.trim() && "border-orange-400 focus-visible:ring-orange-400")}
-                                />
-                                </PresenceFieldIndicator>
-                              </div>
-                              <div className="grid grid-cols-2 gap-2">
-                                <div>
-                                  <Label htmlFor="telephoneClient" className="text-[10px]">
-                                    Téléphone {requiresClientInfo && !formData.is_vacant && <span className="text-orange-500">*</span>}
-                                  </Label>
-                                  <PresenceFieldIndicator fieldName="telephoneClient">
-                                  <Input
-                                    id="telephoneClient"
-                                    value={formData.telephoneClient}
-                                    onChange={(e) => handleInputChange("telephoneClient", e.target.value)}
-                                    placeholder="06..."
-                                    className={cn("h-7 text-xs mt-1", requiresClientInfo && !formData.is_vacant && !formData.telephoneClient?.trim() && "border-orange-400 focus-visible:ring-orange-400")}
-                                  />
-                                  </PresenceFieldIndicator>
-                                </div>
-                                <div>
-                                  <Label htmlFor="emailClient" className="text-[10px]">Email</Label>
-                                  <PresenceFieldIndicator fieldName="emailClient">
-                                  <Input id="emailClient" type="email" value={formData.emailClient} onChange={(e) => handleInputChange("emailClient", e.target.value)} placeholder="email@..." className="h-7 text-xs mt-1" />
-                                  </PresenceFieldIndicator>
-                                </div>
-                              </div>
-                            </div>
-                          )}
-                        </CardContent>
-                      </CollapsibleContent>
-                    </Card>
-                  </Collapsible>
+                  <InterventionClientSection
+                    formData={formData}
+                    onChange={handleInputChange}
+                    isOpen={isClientOpen}
+                    onOpenChange={setIsClientOpen}
+                    requiresClientInfo={requiresClientInfo}
+                    withPresence
+                    onOpenSmsModal={onOpenSmsModal}
+                  />
                 </SectionLock>
 
                 {/* Gestion des acomptes */}
@@ -2114,7 +1763,7 @@ export const InterventionEditForm = memo(function InterventionEditForm({
                               </PresenceFieldIndicator>
                             </div>
                             <div>
-                              <Label className="text-[10px]">Reçu</Label>
+                              <Label className="text-[10px]">Envoyé</Label>
                               <div className="flex items-center gap-1">
                                 <input type="checkbox" checked={formData.accompteSSTRecu} onChange={(e) => handleAccompteSSTRecuChange(e.target.checked)} className="h-3 w-3" />
                                 <Input type="date" value={formData.dateAccompteSSTRecu} onChange={(e) => handleDateAccompteSSTRecuChange(e.target.value)} className="h-7 text-xs flex-1" />

@@ -6,6 +6,7 @@ import { useModalDisplay } from "@/contexts/ModalDisplayContext"
 import { useModalState } from "@/hooks/useModalState"
 import type { ModalContent } from "@/types/modal"
 import type { ModalDisplayMode } from "@/types/modal-display"
+import { ErrorBoundary } from "@/components/ErrorBoundary"
 import { InterventionModalContent } from "./InterventionModalContent"
 import { NewInterventionModalContent } from "./NewInterventionModalContent"
 
@@ -204,7 +205,9 @@ export function InterventionModal({
         isReclassifyModalOpen
       }
     >
-      {renderedContent}
+      <ErrorBoundary section="intervention-modal">
+        {renderedContent}
+      </ErrorBoundary>
     </GenericModal>
   )
 }

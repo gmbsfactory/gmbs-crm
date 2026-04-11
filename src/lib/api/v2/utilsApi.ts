@@ -3,9 +3,7 @@
 
 import type { ReferenceData } from "@/lib/reference-api";
 import { supabase } from "./common/client";
-import { getReferenceCache, invalidateReferenceCache, type ReferenceCache } from "./common/cache";
-
-export { invalidateReferenceCache };
+import { getReferenceCache, type ReferenceCache } from "./common/cache";
 
 export const utilsApi = {
   // Fonction pour convertir un fichier en base64
