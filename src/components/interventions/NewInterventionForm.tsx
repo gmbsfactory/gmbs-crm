@@ -10,9 +10,8 @@ import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { Badge } from "@/components/ui/badge"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
-import { GestionnaireBadge } from "@/components/ui/gestionnaire-badge"
+import { GestionnaireField } from "@/components/interventions/GestionnaireField"
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable"
 import { MapLibreMap } from "@/components/maps/MapLibreMap"
 import { DocumentManager } from "@/components/documents"
@@ -694,65 +693,13 @@ export function NewInterventionForm({
               requiresDefinitiveId={requiresDefinitiveId}
               onPopoverOpenChange={onPopoverOpenChange}
               renderUserBadge={() => (
-                <div className="flex items-center">
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <button type="button" className="flex items-center justify-center h-7 w-7 cursor-pointer group rounded-full">
-                        {(() => {
-                          const assignedUser = refData?.users.find(u => u.id === formData.assigned_user_id)
-                          return (
-                            <GestionnaireBadge
-                              firstname={assignedUser?.firstname}
-                              lastname={assignedUser?.lastname}
-                              color={assignedUser?.color}
-                              avatarUrl={assignedUser?.avatar_url}
-                              size="sm"
-                              className="transition-transform group-hover:scale-110 h-7 w-7"
-                            />
-                          )
-                        })()}
-                      </button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-56 p-2" align="start">
-                      <div className="space-y-1">
-                        <p className="text-xs font-medium text-muted-foreground mb-2">Attribuer à</p>
-                        <div className="space-y-1 max-h-64 overflow-y-auto scrollbar-minimal pr-1">
-                          {[...(refData?.users ?? [])].sort((a, b) => {
-                            if (a.id === currentUser?.id) return -1
-                            if (b.id === currentUser?.id) return 1
-                            return 0
-                          }).map((user) => {
-                            const displayName = [user.firstname, user.lastname].filter(Boolean).join(" ").trim() || user.username
-                            const isSelected = user.id === formData.assigned_user_id
-                            return (
-                              <button
-                                key={user.id}
-                                type="button"
-                                className={cn(
-                                  "w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-left transition-colors",
-                                  isSelected ? "bg-primary/10 text-primary" : "hover:bg-muted"
-                                )}
-                                onClick={() => handleInputChange("assigned_user_id", user.id)}
-                              >
-                                <GestionnaireBadge
-                                  firstname={user.firstname}
-                                  lastname={user.lastname}
-                                  color={user.color}
-                                  avatarUrl={user.avatar_url}
-                                  size="sm"
-                                  showBorder={false}
-                                />
-                                <span className="text-xs truncate flex-1">
-                                  {user.code_gestionnaire ? `${user.code_gestionnaire} - ${displayName}` : displayName}
-                                </span>
-                              </button>
-                            )
-                          })}
-                        </div>
-                      </div>
-                    </PopoverContent>
-                  </Popover>
-                </div>
+                <GestionnaireField
+                  value={formData.assigned_user_id}
+                  onChange={(userId) => handleInputChange("assigned_user_id", userId)}
+                  interventionDate={formData.date}
+                  required={requiresAssignedUser}
+                  onOpenChange={onPopoverOpenChange}
+                />
               )}
             />
 

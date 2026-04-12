@@ -7,8 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
-import { GestionnaireBadge } from "@/components/ui/gestionnaire-badge"
-import { GestionnairePopover } from "@/components/ui/gestionnaire-popover"
+import { GestionnaireField } from "@/components/interventions/GestionnaireField"
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable"
 import { MapLibreMap } from "@/components/maps/MapLibreMap"
 import { CommentSection } from "@/components/shared/CommentSection"
@@ -46,7 +45,6 @@ import { dbArtisanToNearbyArtisan } from "@/lib/interventions/form-utils"
 import { createEditFormData } from "@/lib/interventions/form-types"
 import {
   getArtisansWithEmail,
-  getSelectableUsers,
   isInterventionEmailButtonDisabled,
 } from "@/lib/interventions/derivations"
 
@@ -273,21 +271,6 @@ export const InterventionEditForm = memo(function InterventionEditForm({
     onSubmittingChange,
   })
 
-  // Liste des utilisateurs sélectionnables : actifs + archivés éligibles selon date intervention
-  const selectableUsers = useMemo(
-    () =>
-      getSelectableUsers({
-        activeUsers: refData?.users ?? [],
-        allUsers: refData?.allUsers,
-        interventionDate:
-          (intervention as any).date ??
-          (intervention as any).date_intervention ??
-          formData?.date,
-        currentUserId: currentUser?.id,
-      }),
-    [refData?.users, refData?.allUsers, intervention, formData?.date, currentUser?.id],
-  )
-
   // Destructure collapsible state for easier access
   const {
     isProprietaireOpen,
@@ -350,7 +333,6 @@ export const InterventionEditForm = memo(function InterventionEditForm({
     setSelectedSecondArtisanId,
     setAssignedPrimaryArtisan,
     setAssignedSecondaryArtisan,
-    setLocationQuery,
   })
 
   // Edit-specific: Permission checks
@@ -613,42 +595,13 @@ export const InterventionEditForm = memo(function InterventionEditForm({
                     withPresence
                     onPopoverOpenChange={onPopoverOpenChange}
                     renderUserBadge={() => (
-                      <div className="flex items-center relative">
-                        {(() => {
-                          const assignedUser = selectableUsers.find(u => u.id === formData.assigned_user_id)
-                            ?? refData?.allUsers?.find(u => u.id === formData.assigned_user_id)
-                          return (
-                            <GestionnairePopover
-                              users={selectableUsers}
-                              currentUserId={formData.assigned_user_id ?? null}
-                              onSelect={(userId) => handleInputChange("assigned_user_id", userId || null)}
-                              onOpenChange={onPopoverOpenChange}
-                              triggerProps={{
-                                className: cn(
-                                  "flex items-center justify-center h-7 w-7 cursor-pointer group rounded-full",
-                                  requiresAssignedUser && !formData.assigned_user_id && "ring-2 ring-orange-400 ring-offset-1"
-                                ),
-                                title: requiresAssignedUser && !formData.assigned_user_id
-                                  ? "Attribution obligatoire pour ce statut"
-                                  : undefined,
-                              }}
-                              trigger={
-                                <GestionnaireBadge
-                                  firstname={assignedUser?.firstname}
-                                  lastname={assignedUser?.lastname}
-                                  color={assignedUser?.color}
-                                  avatarUrl={assignedUser?.avatar_url}
-                                  size="sm"
-                                  className="transition-transform group-hover:scale-110 h-7 w-7"
-                                />
-                              }
-                            />
-                          )
-                        })()}
-                        {requiresAssignedUser && !formData.assigned_user_id && (
-                          <span className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-orange-500 animate-pulse" />
-                        )}
-                      </div>
+                      <GestionnaireField
+                        value={formData.assigned_user_id}
+                        onChange={(userId) => handleInputChange("assigned_user_id", userId || null)}
+                        interventionDate={(intervention as any).date ?? (intervention as any).date_intervention ?? formData?.date}
+                        required={requiresAssignedUser}
+                        onOpenChange={onPopoverOpenChange}
+                      />
                     )}
                   />
 

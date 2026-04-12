@@ -12,7 +12,6 @@ interface UseInterventionRealtimeParams {
   setSelectedSecondArtisanId: (id: string | null) => void
   setAssignedPrimaryArtisan: (data: any) => void
   setAssignedSecondaryArtisan: (data: any) => void
-  setLocationQuery: (query: string) => void
 }
 
 /**
@@ -26,7 +25,6 @@ export function useInterventionRealtime({
   setSelectedSecondArtisanId,
   setAssignedPrimaryArtisan,
   setAssignedSecondaryArtisan,
-  setLocationQuery,
 }: UseInterventionRealtimeParams) {
   const lastSyncedUpdatedAtRef = useRef(intervention.updated_at)
 
@@ -68,8 +66,6 @@ export function useInterventionRealtime({
     setAssignedPrimaryArtisan(dbArtisanToNearbyArtisan(freshPrimaryArtisan))
     setAssignedSecondaryArtisan(dbArtisanToNearbyArtisan(freshSecondaryArtisan))
 
-    setLocationQuery((intervention as any).adresse_complete || (intervention as any).adresse || "")
-
     console.debug("[useInterventionRealtime] formData reset from updated_at change", intervention.updated_at)
-  }, [intervention, setFormData, setSelectedArtisanId, setSelectedSecondArtisanId, setAssignedPrimaryArtisan, setAssignedSecondaryArtisan, setLocationQuery])
+  }, [intervention, setFormData, setSelectedArtisanId, setSelectedSecondArtisanId, setAssignedPrimaryArtisan, setAssignedSecondaryArtisan])
 }
