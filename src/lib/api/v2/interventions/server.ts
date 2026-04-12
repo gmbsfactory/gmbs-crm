@@ -21,14 +21,8 @@ import {
   mapStatusToDb,
 } from "@/lib/interventions/mappers"
 import { interventionsApi } from "@/lib/api/v2"
+import { createSSRServerClient } from "@/lib/supabase/server-ssr"
 import type { InterventionStatus } from "@/types/intervention"
-
-// Dynamic import to avoid pulling next/headers into client bundles
-// (this file is also imported by client hooks for transitionStatus)
-async function getServerClient() {
-  const { createSSRServerClient } = await import("@/lib/supabase/server-ssr")
-  return createSSRServerClient()
-}
 
 const DEFAULT_LIMIT = 50
 
@@ -69,7 +63,7 @@ const isUUID = (value: string) => UUID_REGEX.test(value)
 const escapeIlike = (value: string) => value.replace(/[%_]/g, (match) => `\\${match}`)
 
 export async function listInterventions(params: ListParams = {}): Promise<ListResult> {
-  const supabase = await getServerClient()
+  const supabase = await createSSRServerClient()
   const take = params.take ?? DEFAULT_LIMIT
   const skip = params.skip ?? 0
 
@@ -111,7 +105,7 @@ type GetParams = {
 }
 
 export async function getIntervention({ id, includeDocuments = true }: GetParams) {
-  const supabase = await getServerClient()
+  const supabase = await createSSRServerClient()
   const { data, error } = await supabase.from("interventions").select("*").eq("id", id).maybeSingle()
 
   if (error) {
@@ -127,8 +121,11 @@ export async function getIntervention({ id, includeDocuments = true }: GetParams
   return { ...intervention, documents: [] }
 }
 
-export async function findDuplicates(input: DuplicateCheckInput, supabaseClient?: Awaited<ReturnType<typeof getServerClient>>) {
-  const supabase = supabaseClient ?? await getServerClient()
+export async function findDuplicates(
+  input: DuplicateCheckInput,
+  supabaseClient?: Awaited<ReturnType<typeof createSSRServerClient>>,
+) {
+  const supabase = supabaseClient ?? (await createSSRServerClient())
   const { name, address, agency } = DuplicateCheckSchema.parse(input)
   const results = new Map<string, ReturnType<typeof buildDuplicateSummary>[number]>()
 
@@ -180,7 +177,7 @@ export async function createIntervention(payload: CreateInterventionInput) {
   }
 
   const dueAt = computeDueDate(parsed)
-  const supabase = await getServerClient()
+  const supabase = await createSSRServerClient()
 
   const insertPayload = buildInsertPayload({ ...parsed, dueAt: dueAt ?? undefined })
 
@@ -203,7 +200,7 @@ export async function updateIntervention(id: string, payload: UpdateIntervention
   assertBusinessRules(parsed)
 
   const dueAt = computeDueDate(parsed)
-  const supabase = await getServerClient()
+  const supabase = await createSSRServerClient()
 
   const updatePayload = buildUpdatePayload({ ...parsed, dueAt: dueAt ?? undefined })
 
@@ -222,7 +219,7 @@ export async function updateIntervention(id: string, payload: UpdateIntervention
 }
 
 export async function deleteIntervention(id: string) {
-  const supabase = await getServerClient()
+  const supabase = await createSSRServerClient()
   const { error } = await supabase.from("interventions").delete().eq("id", id)
   if (error) {
     throw new Error(`Impossible de supprimer l'intervention: ${error.message}`)
@@ -290,20 +287,9 @@ export function getStatusSortIndex(status: InterventionStatusValue) {
   return INTERVENTION_STATUS_ORDER.indexOf(status) ?? 0
 }
 
-/**
- * Duplique une intervention pour créer un "devis supp"
- * - Récupère l'intervention originale
- * - Crée une nouvelle intervention avec les mêmes données sauf contexte et consignes (null)
- * - Crée un commentaire système avec l'ID de l'intervention originale
- * @param originalId - ID de l'intervention à dupliquer
- * @param authorId - ID de l'utilisateur qui effectue la duplication
- * @param token - Token d'authentification optionnel pour les opérations Supabase
- */
 export async function duplicateIntervention(originalId: string, authorId: string) {
-  // @supabase/ssr lit automatiquement les cookies de session
-  const supabase = await getServerClient()
-  
-  // Récupérer l'intervention originale avec le client authentifié
+  const supabase = await createSSRServerClient()
+
   const { data: originalData, error: fetchError } = await supabase
     .from("interventions")
     .select("*")
@@ -317,31 +303,21 @@ export async function duplicateIntervention(originalId: string, authorId: string
     throw new Error(`Intervention originale introuvable: ${originalId}`)
   }
 
-  // Utiliser les données brutes de la base de données pour créer le payload de duplication
-  // Créer le payload de duplication en excluant contexte et consignes
-  // Mapper les données de la base vers le format CreateInterventionInput
   const duplicatePayload: CreateInterventionInput = {
     name: originalData.commentaire_agent ?? originalData.contexte_intervention ?? originalData.adresse ?? "Intervention",
     address: originalData.adresse ?? "",
-    context: "Devis supplémentaire", // Valeur par défaut pour devis supp (le contexte original est exclu)
+    context: "Devis supplémentaire",
     agency: originalData.agence ?? originalData.agence_id ?? "",
     metier: originalData.metier_id ?? "",
-    consigne: undefined, // Forcer consigne à undefined pour devis supp
+    consigne: undefined,
     status: originalData.statut ? mapStatusFromDb(originalData.statut) : "DEMANDE",
     dueAt: originalData.date_prevue ? new Date(originalData.date_prevue) : undefined,
     artisanId: originalData.artisan_id ?? null,
     managerId: originalData.attribue_a ?? null,
   }
 
-  // Clarification FR-006 : Ignorer la vérification de doublons pour permettre plusieurs devis supplémentaires
-  // La vérification de doublons est désactivée lors de la duplication "Devis supp" pour permettre
-  // la création de plusieurs devis supplémentaires pour une même demande
-  // const duplicates = await findDuplicates(duplicatePayload, supabase)
-  // if (duplicates.length > 0) {
-  //   throw new Error("Des doublons ont été détectés lors de la duplication")
-  // }
+  // FR-006 : duplicate check intentionally skipped to allow multiple "devis supp" per request
 
-  // Créer la nouvelle intervention avec le client authentifié
   const parsed = CreateInterventionSchema.parse(duplicatePayload)
   assertBusinessRules(parsed)
   const dueAt = computeDueDate(parsed)
@@ -357,10 +333,5 @@ export async function duplicateIntervention(originalId: string, authorId: string
     throw new Error(`Échec de la création de l'intervention: ${createError?.message ?? "unknown"}`)
   }
 
-  const newIntervention = mapRowToInterventionWithDocuments(newData)
-
-  // Note: Le commentaire système est créé dans la route API avec le client Supabase authentifié
-  // pour éviter les problèmes d'authentification côté serveur
-
-  return newIntervention
+  return mapRowToInterventionWithDocuments(newData)
 }

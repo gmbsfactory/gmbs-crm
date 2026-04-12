@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { findDuplicates } from "@/lib/api/interventions"
+import { findDuplicates } from "@/lib/api/v2/interventions/server"
 
 export async function POST(request: Request) {
   try {

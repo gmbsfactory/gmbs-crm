@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { deleteIntervention, getIntervention, updateIntervention } from "@/lib/api/interventions"
+import { deleteIntervention, getIntervention, updateIntervention } from "@/lib/api/v2/interventions/server"
 import { mapStatusFromDb } from "@/lib/interventions/mappers"
 import { isTerminalStatus } from "@/config/interventions"
 import { requirePermission, isPermissionError } from "@/lib/auth/permissions"

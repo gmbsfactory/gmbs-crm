@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { duplicateIntervention } from "@/lib/api/interventions"
+import { duplicateIntervention } from "@/lib/api/v2/interventions/server"
 import { createSSRServerClient } from "@/lib/supabase/server-ssr"
 import { requirePermission, isPermissionError } from "@/lib/auth/permissions"
 
