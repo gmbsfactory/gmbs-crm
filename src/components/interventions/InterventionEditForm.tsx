@@ -44,6 +44,11 @@ import {
 import { INTERVENTION_DOCUMENT_KINDS, MAX_RADIUS_KM } from "@/lib/interventions/form-constants"
 import { dbArtisanToNearbyArtisan } from "@/lib/interventions/form-utils"
 import { createEditFormData } from "@/lib/interventions/form-types"
+import {
+  getArtisansWithEmail,
+  getSelectableUsers,
+  isInterventionEmailButtonDisabled,
+} from "@/lib/interventions/derivations"
 
 // Convert readonly INTERVENTION_DOCUMENT_KINDS to mutable for DocumentManager
 const DOCUMENT_KINDS = [...INTERVENTION_DOCUMENT_KINDS] as { kind: string; label: string }[]
@@ -269,26 +274,19 @@ export const InterventionEditForm = memo(function InterventionEditForm({
   })
 
   // Liste des utilisateurs sélectionnables : actifs + archivés éligibles selon date intervention
-  const selectableUsers = useMemo(() => {
-    const active = refData?.users ?? []
-    const allUsers = refData?.allUsers
-    const interventionDate = (intervention as any).date ?? (intervention as any).date_intervention ?? formData?.date
-    if (!allUsers || !interventionDate) return active
-
-    const d = new Date(interventionDate)
-    if (Number.isNaN(d.getTime())) return active
-
-    const activeIds = new Set(active.map(u => u.id))
-    const archivedEligible = allUsers.filter(
-      u => u.status === "archived" && u.archived_at && !activeIds.has(u.id) && new Date(u.archived_at) > d
-    )
-    const merged = [...active, ...archivedEligible]
-    return merged.sort((a, b) => {
-      if (a.id === currentUser?.id) return -1
-      if (b.id === currentUser?.id) return 1
-      return 0
-    })
-  }, [refData?.users, refData?.allUsers, intervention, formData?.date, currentUser?.id])
+  const selectableUsers = useMemo(
+    () =>
+      getSelectableUsers({
+        activeUsers: refData?.users ?? [],
+        allUsers: refData?.allUsers,
+        interventionDate:
+          (intervention as any).date ??
+          (intervention as any).date_intervention ??
+          formData?.date,
+        currentUserId: currentUser?.id,
+      }),
+    [refData?.users, refData?.allUsers, intervention, formData?.date, currentUser?.id],
+  )
 
   // Destructure collapsible state for easier access
   const {
@@ -445,34 +443,11 @@ export const InterventionEditForm = memo(function InterventionEditForm({
     handleInputChange,
   })
 
-  // Get artisans with valid email from intervention_artisans AND from selected artisan in form
-  const artisansWithEmail = useMemo(() => {
-    const artisansFromIntervention = artisans
-      .filter((ia: any) => ia.artisans?.email && ia.artisans.email.trim().length > 0)
-      .map((ia: any) => ({
-        id: ia.artisan_id,
-        email: ia.artisans.email,
-        telephone: ia.artisans.telephone || '',
-        name: `${ia.artisans.prenom || ''} ${ia.artisans.nom || ''}`.trim() || ia.artisans.plain_nom || 'Artisan',
-        is_primary: ia.is_primary,
-      }))
-
-    // Add selected artisan from form if it has an email and is not already in the list
-    const selectedArtisanIds = new Set(artisansFromIntervention.map((a) => a.id))
-    if (selectedArtisanData && selectedArtisanData.email && selectedArtisanData.email.trim().length > 0) {
-      if (!selectedArtisanIds.has(selectedArtisanData.id)) {
-        artisansFromIntervention.push({
-          id: selectedArtisanData.id,
-          email: selectedArtisanData.email,
-          telephone: selectedArtisanData.telephone || '',
-          name: selectedArtisanData.displayName || 'Artisan',
-          is_primary: false, // Will be determined when saved
-        })
-      }
-    }
-
-    return artisansFromIntervention
-  }, [artisans, selectedArtisanData])
+  // Artisans with valid email (from intervention_artisans + currently-selected)
+  const artisansWithEmail = useMemo(
+    () => getArtisansWithEmail(artisans, selectedArtisanData),
+    [artisans, selectedArtisanData],
+  )
 
 
   // WhatsApp handler using extracted utility
@@ -487,20 +462,21 @@ export const InterventionEditForm = memo(function InterventionEditForm({
   // Conditions de blocage des boutons Mail/WhatsApp
   // Devis → lié aux requirements de VISITE_TECHNIQUE (artisan requis)
   const isDevisButtonDisabled = !selectedArtisanId
-  // Inter. → lié aux requirements de INTER_EN_COURS
-  // Note: Champs client optionnels pour les logements vacants (pas de locataire)
-  const isInterButtonDisabled = useMemo(() => {
-    if (!selectedArtisanId) return true
-    if (!formData.id_inter?.trim()) return true
-    if (!(parseFloat(formData.coutIntervention) > 0)) return true
-    if (!(parseFloat(formData.coutSST) > 0)) return true
-    if (!formData.consigne_intervention?.trim()) return true
-    // Champs client optionnels si logement vacant
-    if (!formData.is_vacant && !formData.nomPrenomClient?.trim()) return true
-    if (!formData.is_vacant && !formData.telephoneClient?.trim()) return true
-    if (!formData.date_prevue?.trim()) return true
-    return false
-  }, [selectedArtisanId, formData.id_inter, formData.coutIntervention, formData.coutSST, formData.consigne_intervention, formData.nomPrenomClient, formData.telephoneClient, formData.date_prevue, formData.is_vacant])
+  // Inter. → lié aux requirements de INTER_EN_COURS (client fields optional if vacant)
+  const isInterButtonDisabled = useMemo(
+    () => isInterventionEmailButtonDisabled({ selectedArtisanId, formData }),
+    [
+      selectedArtisanId,
+      formData.id_inter,
+      formData.coutIntervention,
+      formData.coutSST,
+      formData.consigne_intervention,
+      formData.nomPrenomClient,
+      formData.telephoneClient,
+      formData.date_prevue,
+      formData.is_vacant,
+    ],
+  )
 
   // Edit-specific: handleOpenArtisanModal with intervention context
   const handleOpenArtisanModal = useCallback((artisanId: string, event: React.MouseEvent) => {

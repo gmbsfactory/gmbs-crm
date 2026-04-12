@@ -8,29 +8,42 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
 import { ColorPicker } from './ColorPicker';
-import { EnumConfig } from '@/features/settings/config/enumConfigs';
+import {
+  EnumConfig,
+  EnumFormData,
+  EnumItem,
+} from '@/features/settings/config/enumConfigs';
 import { agenciesApi } from '@/lib/api/v2/agenciesApi';
 
 interface EnumEditDialogProps {
   config: EnumConfig;
-  item: any | null; // null si création
+  item: EnumItem | null; // null si création
   isCreating: boolean;
   onClose: () => void;
   onSave: () => void;
 }
 
+const fieldString = (data: EnumFormData, name: string): string => {
+  const value = data[name];
+  return typeof value === 'string' ? value : '';
+};
+
+const fieldBoolean = (data: EnumFormData, name: string): boolean => {
+  return data[name] === true;
+};
+
 export function EnumEditDialog({ config, item, isCreating, onClose, onSave }: EnumEditDialogProps) {
-  const [formData, setFormData] = useState<any>({});
+  const [formData, setFormData] = useState<EnumFormData>({});
   const [saving, setSaving] = useState(false);
 
   // Initialiser le formulaire
   useEffect(() => {
     if (item) {
       // Mode édition : copier les données
-      setFormData({ ...item });
+      setFormData({ ...(item as unknown as EnumFormData) });
     } else {
       // Mode création : initialiser avec des valeurs par défaut
-      const initialData: any = {};
+      const initialData: EnumFormData = {};
       config.fields.forEach(field => {
         if (field.editable) {
           if (field.type === 'color') {
@@ -51,28 +64,29 @@ export function EnumEditDialog({ config, item, isCreating, onClose, onSave }: En
       setSaving(true);
 
       // Préparer les données à sauvegarder (seulement les champs éditables, sauf checkbox inlineToggle)
-      const dataToSave: any = {};
+      const dataToSave: EnumFormData = {};
       const checkboxFields: { name: string; value: boolean }[] = [];
-      
+
       config.fields
         .filter(f => f.editable)
         .forEach(field => {
           // Les checkbox avec inlineToggle sont gérées séparément (table agency_config)
           if (field.type === 'checkbox' && field.inlineToggle) {
-            checkboxFields.push({ name: field.name, value: formData[field.name] || false });
+            checkboxFields.push({ name: field.name, value: fieldBoolean(formData, field.name) });
           } else {
             dataToSave[field.name] = formData[field.name];
           }
         });
 
       let createdId: string | null = null;
-      
+
       if (isCreating) {
-        // Création
+        if (!config.api.create) {
+          throw new Error(`La création n'est pas supportée pour ${config.title}`);
+        }
         const created = await config.api.create(dataToSave);
         createdId = created.id;
-      } else {
-        // Édition
+      } else if (item) {
         await config.api.update(item.id, dataToSave);
       }
 
@@ -86,12 +100,13 @@ export function EnumEditDialog({ config, item, isCreating, onClose, onSave }: En
       }
 
       onSave();
-    } catch (error: any) {
+    } catch (error) {
       console.error('Erreur lors de la sauvegarde:', error);
-      if (error.message === 'duplicate_code') {
+      const message = error instanceof Error ? error.message : String(error);
+      if (message === 'duplicate_code') {
         alert('Ce code existe déjà. Veuillez choisir un autre label.');
       } else {
-        alert(`Erreur: ${error.message}`);
+        alert(`Erreur: ${message}`);
       }
     } finally {
       setSaving(false);
@@ -102,7 +117,7 @@ export function EnumEditDialog({ config, item, isCreating, onClose, onSave }: En
   const isFormValid = () => {
     return config.fields
       .filter(f => f.editable && f.required)
-      .every(field => formData[field.name] && formData[field.name].trim() !== '');
+      .every(field => fieldString(formData, field.name).trim() !== '');
   };
 
   return (
@@ -122,7 +137,7 @@ export function EnumEditDialog({ config, item, isCreating, onClose, onSave }: En
                   <div key={field.name}>
                     <Label>{field.label}</Label>
                     <Input
-                      value={formData[field.name] || ''}
+                      value={fieldString(formData, field.name)}
                       disabled
                       className="font-mono bg-muted"
                     />
@@ -137,7 +152,7 @@ export function EnumEditDialog({ config, item, isCreating, onClose, onSave }: En
                   <div key={field.name}>
                     <Label>{field.label}</Label>
                     <Input
-                      value={formData[field.name] || ''}
+                      value={fieldString(formData, field.name)}
                       disabled
                       className="font-mono bg-muted"
                     />
@@ -154,7 +169,7 @@ export function EnumEditDialog({ config, item, isCreating, onClose, onSave }: En
                   <div className="flex items-center gap-3 py-2">
                     <Checkbox
                       id={field.name}
-                      checked={formData[field.name] || false}
+                      checked={fieldBoolean(formData, field.name)}
                       onCheckedChange={(checked) => setFormData({ ...formData, [field.name]: !!checked })}
                     />
                     <Label htmlFor={field.name} className="cursor-pointer">
@@ -169,18 +184,18 @@ export function EnumEditDialog({ config, item, isCreating, onClose, onSave }: En
                     </Label>
                     {field.type === 'color' ? (
                       <ColorPicker
-                        value={formData[field.name] || '#6366f1'}
+                        value={fieldString(formData, field.name) || '#6366f1'}
                         onChange={(color) => setFormData({ ...formData, [field.name]: color })}
                       />
                     ) : field.type === 'textarea' ? (
                       <Textarea
-                        value={formData[field.name] || ''}
+                        value={fieldString(formData, field.name)}
                         onChange={(e) => setFormData({ ...formData, [field.name]: e.target.value })}
                         placeholder={field.label}
                       />
                     ) : (
                       <Input
-                        value={formData[field.name] || ''}
+                        value={fieldString(formData, field.name)}
                         onChange={(e) => setFormData({ ...formData, [field.name]: e.target.value })}
                         placeholder={field.label}
                         required={field.required}

@@ -54,21 +54,6 @@ export function PaymentSection({
           <CardContent className="pt-0 px-3 pb-3 space-y-2">
             <div className="grid grid-cols-2 gap-2">
               <div>
-                <Label htmlFor="accompteSST" className="text-[10px]">Acompte SST</Label>
-                <PresenceFieldIndicator fieldName="accompteSST">
-                <Input id="accompteSST" value={formData.accompteSST} onChange={(e) => handleAccompteSSTChange(e.target.value)} onBlur={handleAccompteSSTBlur} placeholder="Montant" className="h-7 text-xs" disabled={!canEditAccomptes} type="number" step="0.01" min="0" />
-                </PresenceFieldIndicator>
-              </div>
-              <div>
-                <Label className="text-[10px]">Envoyé</Label>
-                <div className="flex items-center gap-1">
-                  <input type="checkbox" checked={formData.accompteSSTRecu} onChange={(e) => handleAccompteSSTRecuChange(e.target.checked)} className="h-3 w-3" />
-                  <Input type="date" value={formData.dateAccompteSSTRecu} onChange={(e) => handleDateAccompteSSTRecuChange(e.target.value)} className="h-7 text-xs flex-1" />
-                </div>
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              <div>
                 <Label htmlFor="accompteClient" className="text-[10px]">Acompte client</Label>
                 <PresenceFieldIndicator fieldName="accompteClient">
                 <Input id="accompteClient" value={formData.accompteClient} onChange={(e) => handleAccompteClientChange(e.target.value)} onBlur={handleAccompteClientBlur} placeholder="Montant" className="h-7 text-xs" disabled={!canEditAccomptes} type="number" step="0.01" min="0" />
@@ -79,6 +64,21 @@ export function PaymentSection({
                 <div className="flex items-center gap-1">
                   <input type="checkbox" checked={formData.accompteClientRecu} onChange={(e) => handleAccompteClientRecuChange(e.target.checked)} className="h-3 w-3" />
                   <Input type="date" value={formData.dateAccompteClientRecu} onChange={(e) => handleDateAccompteClientRecuChange(e.target.value)} className="h-7 text-xs flex-1" />
+                </div>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <Label htmlFor="accompteSST" className="text-[10px]">Acompte SST</Label>
+                <PresenceFieldIndicator fieldName="accompteSST">
+                <Input id="accompteSST" value={formData.accompteSST} onChange={(e) => handleAccompteSSTChange(e.target.value)} onBlur={handleAccompteSSTBlur} placeholder="Montant" className="h-7 text-xs" disabled={!canEditAccomptes} type="number" step="0.01" min="0" />
+                </PresenceFieldIndicator>
+              </div>
+              <div>
+                <Label className="text-[10px]">Envoyé</Label>
+                <div className="flex items-center gap-1">
+                  <input type="checkbox" checked={formData.accompteSSTRecu} onChange={(e) => handleAccompteSSTRecuChange(e.target.checked)} className="h-3 w-3" />
+                  <Input type="date" value={formData.dateAccompteSSTRecu} onChange={(e) => handleDateAccompteSSTRecuChange(e.target.value)} className="h-7 text-xs flex-1" />
                 </div>
               </div>
             </div>

@@ -1,7 +1,15 @@
 // ===== API DONNÉES DE RÉFÉRENCE =====
-// Pour récupérer les statuts, agences, métiers, etc.
+// Façade par-dessus l'API v2 pour récupérer les statuts, agences, métiers, utilisateurs.
+// Ne fait PAS d'appel direct à Supabase : délègue à src/lib/api/v2/.
+// Voir CLAUDE.md : "Toujours passer par API v2".
 
-import { supabase } from './supabase-client';
+import {
+  interventionStatusesApi,
+  artisanStatusesApi,
+  agenciesApi,
+  metiersApi,
+  usersApi,
+} from './api/v2';
 
 export interface ReferenceData {
   interventionStatuses: Array<{ id: string; code: string; label: string; color: string; sort_order: number | null }>;
@@ -31,93 +39,93 @@ export interface ReferenceData {
 }
 
 export const referenceApi = {
-  // Récupérer toutes les données de référence
   async getAll(): Promise<ReferenceData> {
-    // Debug: vérifier si l'utilisateur est authentifié
-    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-
-    const [interventionStatuses, artisanStatuses, agencies, metiers, users, allUsersQuery] = await Promise.all([
-      supabase.from('intervention_statuses').select('id, code, label, color, sort_order').eq('is_active', true).order('sort_order'),
-      supabase.from('artisan_statuses').select('id, code, label, color, abbreviation').eq('is_active', true).order('sort_order'),
-      supabase.from('agencies').select('id, code, label, color, is_active, agency_config!left(requires_reference)').order('label'),
-      supabase.from('metiers').select('id, code, label, color').eq('is_active', true).order('label'),
-      supabase.from('users').select('id, username, firstname, lastname, code_gestionnaire, color, avatar_url').neq('status', 'archived').order('username', { ascending: true }),
-      // Tous les utilisateurs (y compris archivés) pour l'affichage historique dans la table des interventions
-      supabase.from('users').select('id, username, firstname, lastname, code_gestionnaire, color, avatar_url, status, archived_at').order('username', { ascending: true })
+    const [
+      interventionStatuses,
+      artisanStatuses,
+      agencies,
+      metiers,
+      users,
+      allUsers,
+    ] = await Promise.all([
+      interventionStatusesApi.getAll(),
+      artisanStatusesApi.getAll(),
+      // includeInactive pour préserver le comportement historique de cette façade
+      agenciesApi.getAll({ includeInactive: true }),
+      metiersApi.getAll(),
+      usersApi.listLight(),
+      usersApi.listLightAll(),
     ]);
 
-    // Debug: afficher les erreurs détaillées
-
-    // Mapper les agences pour extraire requires_reference depuis agency_config
-    const mappedAgencies = (agencies.data || []).map((item: any) => ({
-      id: item.id,
-      code: item.code,
-      label: item.label,
-      color: item.color,
-      is_active: item.is_active ?? true,
-      requires_reference: item.agency_config?.requires_reference ?? false,
-    }));
-
     return {
-      interventionStatuses: interventionStatuses.data || [],
-      artisanStatuses: artisanStatuses.data || [],
-      agencies: mappedAgencies,
-      metiers: metiers.data || [],
-      users: users.data || [],
-      allUsers: allUsersQuery.data || []
+      interventionStatuses: interventionStatuses.map((s) => ({
+        id: s.id,
+        code: s.code,
+        label: s.label,
+        color: s.color,
+        sort_order: s.sort_order,
+      })),
+      artisanStatuses: artisanStatuses
+        .filter((s) => s.is_active)
+        .map((s) => ({
+          id: s.id,
+          code: s.code,
+          label: s.label,
+          color: s.color ?? '',
+          abbreviation: s.abbreviation,
+        })),
+      agencies: agencies.map((a) => ({
+        id: a.id,
+        code: a.code,
+        label: a.label,
+        color: a.color ?? null,
+        is_active: a.is_active ?? true,
+        requires_reference: a.requires_reference ?? false,
+      })),
+      metiers: metiers.map((m) => ({
+        id: m.id,
+        code: m.code,
+        label: m.label,
+        color: m.color ?? null,
+      })),
+      users,
+      allUsers,
     };
   },
 
-  // Récupérer les statuts d'intervention
   async getInterventionStatuses() {
-    const { data, error } = await supabase
-      .from('intervention_statuses')
-      .select('id, code, label, color, sort_order')
-      .order('sort_order');
-
-    if (error) throw error;
-    return data || [];
-  },
-
-  // Récupérer les agences
-  async getAgencies() {
-    const { data, error } = await supabase
-      .from('agencies')
-      .select('id, code, label, color, agency_config!left(requires_reference)')
-      .order('label');
-
-    if (error) throw error;
-
-    // Mapper pour extraire requires_reference depuis agency_config
-    return (data || []).map((item: any) => ({
-      id: item.id,
-      code: item.code,
-      label: item.label,
-      color: item.color,
-      requires_reference: item.agency_config?.requires_reference ?? false,
+    const data = await interventionStatusesApi.getAll();
+    return data.map((s) => ({
+      id: s.id,
+      code: s.code,
+      label: s.label,
+      color: s.color,
+      sort_order: s.sort_order,
     }));
   },
 
-  // Récupérer les métiers
-  async getMetiers() {
-    const { data, error } = await supabase
-      .from('metiers')
-      .select('id, code, label, color')
-      .order('label');
-
-    if (error) throw error;
-    return data || [];
+  async getAgencies() {
+    const data = await agenciesApi.getAll({ includeInactive: true });
+    return data.map((a) => ({
+      id: a.id,
+      code: a.code,
+      label: a.label,
+      color: a.color ?? null,
+      requires_reference: a.requires_reference ?? false,
+    }));
   },
 
-  // Récupérer les utilisateurs (exclut les archivés)
-  async getUsers() {
-    const { data, error } = await supabase
-      .from('users')
-      .select('id, username, firstname, lastname, code_gestionnaire, color, avatar_url')
-      .neq('status', 'archived')
-      .order('username', { ascending: true });
+  async getMetiers() {
+    const data = await metiersApi.getAll();
+    return data.map((m) => ({
+      id: m.id,
+      code: m.code,
+      label: m.label,
+      color: m.color ?? null,
+    }));
+  },
 
-    if (error) throw error;
-    return data || [];
-  }
+  async getUsers() {
+    return usersApi.listLight();
+  },
 };

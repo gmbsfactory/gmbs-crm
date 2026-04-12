@@ -310,6 +310,51 @@ export const usersApi = {
     }));
   },
 
+  // Récupérer une liste légère des utilisateurs actifs (sans rôles, sans pagination)
+  // Utilisé pour les données de référence (selects, filtres, affichage gestionnaire)
+  async listLight(): Promise<Array<{
+    id: string;
+    username: string;
+    firstname: string;
+    lastname: string;
+    code_gestionnaire: string;
+    color: string | null;
+    avatar_url: string | null;
+  }>> {
+    const { data, error } = await supabase
+      .from("users")
+      .select("id, username, firstname, lastname, code_gestionnaire, color, avatar_url")
+      .neq("status", "archived")
+      .order("username", { ascending: true });
+
+    if (error) throw new Error(`Erreur lors de la récupération des utilisateurs: ${error.message}`);
+
+    return data || [];
+  },
+
+  // Récupérer une liste légère de TOUS les utilisateurs (y compris archivés)
+  // Utilisé pour l'affichage historique (tables d'interventions, etc.)
+  async listLightAll(): Promise<Array<{
+    id: string;
+    username: string;
+    firstname: string;
+    lastname: string;
+    code_gestionnaire: string;
+    color: string | null;
+    avatar_url: string | null;
+    status: string;
+    archived_at: string | null;
+  }>> {
+    const { data, error } = await supabase
+      .from("users")
+      .select("id, username, firstname, lastname, code_gestionnaire, color, avatar_url, status, archived_at")
+      .order("username", { ascending: true });
+
+    if (error) throw new Error(`Erreur lors de la récupération des utilisateurs: ${error.message}`);
+
+    return data || [];
+  },
+
   // Synchroniser un utilisateur existant (pour migration)
   async syncUser(authUserId: string, profileData: {
     username: string;

@@ -73,6 +73,9 @@ import { commentsApi } from "./commentsApi";
 import { documentsApi } from "./documentsApi";
 import { enumsApi } from "./enumsApi";
 import { interventionsApi } from "./interventionsApi";
+import { interventionStatusesApi } from "./interventionStatusesApi";
+import { artisanStatusesApi } from "./artisanStatusesApi";
+import { metiersApi } from "./metiersApi";
 import { ownersApi } from "./ownersApi";
 import { remindersApi } from "./reminders";
 import { permissionsApi, rolesApi } from "./rolesApi";
@@ -91,6 +94,9 @@ export {
   documentsApi,
   enumsApi,
   interventionsApi,
+  interventionStatusesApi,
+  artisanStatusesApi,
+  metiersApi,
   ownersApi,
   permissionsApi,
   remindersApi,
