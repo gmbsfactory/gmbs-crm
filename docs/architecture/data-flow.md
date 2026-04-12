@@ -312,7 +312,8 @@ Fichiers cles :
 
 - `src/lib/realtime/leader-election.ts` — Election via Web Locks API
 - `src/lib/realtime/realtime-relay.ts` — Relay BroadcastChannel leader→followers
-- `src/hooks/useCrmRealtime.ts` — Orchestrateur (hook principal)
+- `src/hooks/useCrmRealtime.ts` — Orchestrateur global (hook principal, monte une fois en racine)
+- `src/hooks/useInterventionRealtime.ts` — Hook **scoped** consomme par les formulaires d'intervention pour reagir aux mises a jour distantes du record courant (refacto avril 2026). Ne souscrit pas a un canal supplementaire : il s'abonne aux invalidations cache emises par `useCrmRealtime` et expose un signal "remoteUpdated" aux composants form-sections.
 
 Fallback : si Web Locks n'est pas disponible, chaque onglet souscrit independamment (comportement historique).
 

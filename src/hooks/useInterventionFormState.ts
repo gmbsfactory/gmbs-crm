@@ -81,11 +81,17 @@ export function useInterventionFormState(options: UseInterventionFormStateOption
   const getDraft = useInterventionDraftStore((s) => s.getDraft)
   const saveDraft = useInterventionDraftStore((s) => s.saveDraft)
   const clearDraftStore = useInterventionDraftStore((s) => s.clearDraft)
-  const existingDraft = mode === "edit" && interventionId
-    ? getDraft(interventionId)
-    : mode === "create" && restoreNewDraft
-      ? getDraft(NEW_INTERVENTION_DRAFT_KEY)
-      : null
+  // Lire le draft UNE SEULE FOIS au montage. Si on relit à chaque render,
+  // le draft persisté à chaque keystroke retournerait un nouvel objet et
+  // ferait basculer les valeurs initiales (ex: locationQuery), provoquant
+  // des glitches dans les inputs contrôlés (cursor jump, lettres écrasées).
+  const [existingDraft] = useState(() =>
+    mode === "edit" && interventionId
+      ? getDraft(interventionId)
+      : mode === "create" && restoreNewDraft
+        ? getDraft(NEW_INTERVENTION_DRAFT_KEY)
+        : null
+  )
 
   // ---- Données de référence ----
   const { data: refData, loading: refDataLoading } = useReferenceDataQuery()

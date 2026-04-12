@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { requirePermission, isPermissionError } from "@/lib/api/permissions"
+import { requirePermission, isPermissionError } from "@/lib/auth/permissions"
 import { createServerSupabaseAdmin } from "@/lib/supabase/server"
 
 type Params = {

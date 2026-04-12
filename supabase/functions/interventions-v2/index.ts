@@ -439,7 +439,7 @@ const buildSelectClause = (extraSelect: string | null, include: string[], hasSea
   // ⚠️ TOUJOURS inclure les artisans, coûts, tenants et users par défaut
   // Les tenants sont nécessaires pour l'affichage des informations client dans ExpandedRowContent
   // Les users sont nécessaires pour l'affichage des badges des gestionnaires dans TableView
-  const defaultRelations = ['artisans', 'costs', 'tenants', 'users'];
+  const defaultRelations = ['artisans', 'costs', 'payments', 'tenants', 'users'];
 
   // Si recherche active, inclure aussi agencies pour le filtrage client
   const searchRelations = hasSearch ? ['agencies'] : [];

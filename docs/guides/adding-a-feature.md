@@ -313,6 +313,18 @@ app/interventions/
 
 Les fichiers prefixes `_` ne sont pas exposes comme routes par Next.js App Router.
 
+### Composer plutot qu'inflater
+
+Si la feature ajoute un champ ou une section au formulaire d'intervention, **ne pas modifier `InterventionEditForm.tsx` ou `NewInterventionForm.tsx` directement**. Depuis le refacto d'avril 2026, ces composants sont des coquilles fines qui composent des sections de `src/components/interventions/form-sections/`. Le bon reflexe est :
+
+1. Creer une nouvelle section (ex: `MyNewSection.tsx`) dans `form-sections/`, qui consomme l'etat partage via les props du parent
+2. L'exporter depuis `form-sections/index.ts`
+3. Brancher l'etat dans `useInterventionFormState` (et non dans le composant) si la section a besoin de state partage
+4. Si la section persiste des donnees, etendre `useInterventionSubmit` plutot que d'ajouter une mutation isolee
+5. Si la section ajoute des regles de champs requis, les declarer dans `src/lib/interventions/form-constants.ts` et les consommer via `useInterventionValidation`
+
+**Regle de pouce :** toute logique metier (derivation, calcul, regle de validation) doit etre une fonction pure dans `src/lib/interventions/derivations.ts` (ou un fichier voisin), **pas** un `useMemo` enfoui dans le composant. Cela permet de la tester en isolation et de la reutiliser.
+
 ---
 
 ## Etape 6 : Ajouter la route / page

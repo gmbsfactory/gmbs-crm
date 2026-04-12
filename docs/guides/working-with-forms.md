@@ -73,71 +73,53 @@ const InterventionStatusValues = [
 
 ## 3. Hook de formulaire
 
-Le projet utilise `useInterventionForm` (`src/hooks/useInterventionForm.ts`) comme reference. Voici le pattern :
+> **Refacto avril 2026** : le hook historique `useInterventionForm` a été supprimé. Le formulaire d'intervention est désormais piloté par **trois hooks complémentaires** :
+> - `useInterventionFormState` — état partagé (valeurs, dirty, géocodage, brouillon Zustand, sélection artisan)
+> - `useInterventionSubmit` — pipeline de soumission (mutation, owner/tenant find-or-create, post-mutation tasks)
+> - `useInterventionValidation` — calcul dynamique des champs requis selon le statut sélectionné
+>
+> Si vous ajoutez une nouvelle saisie au formulaire d'intervention, **étendre ces hooks** plutôt que créer un hook concurrent. Pour vos propres entités, suivez le même découpage : **état** / **submit** / **validation**.
 
-### Structure du hook
+Pour une entité simple, un hook unique reste acceptable. Voici le pattern de référence :
+
+### Pattern actuel — formulaire d'intervention
 
 ```typescript
-// src/hooks/useInterventionForm.ts (simplifie)
-import { useForm } from "react-hook-form"
-import { zodResolver } from "@hookform/resolvers/zod"
-import { CreateInterventionSchema, UpdateInterventionSchema } from "@/types/interventions"
+// Composant : NewInterventionForm.tsx ou InterventionEditForm.tsx
+import { useInterventionFormState } from "@/hooks/useInterventionFormState"
+import { useInterventionSubmit } from "@/hooks/useInterventionSubmit"
+import { useInterventionValidation } from "@/hooks/useInterventionValidation"
 
-type UseInterventionFormParams = {
-  mode: "create" | "edit"
-  interventionId?: string
-  defaultValues?: Partial<CreateInterventionInput & UpdateInterventionInput>
-  onSuccess?: (payload: unknown) => void
-}
+function NewInterventionForm({ onSuccess }: Props) {
+  // 1. État partagé (valeurs, dirty, géocodage, brouillon, sélection artisan…)
+  const state = useInterventionFormState({ mode: "create" })
 
-export function useInterventionForm({
-  mode,
-  interventionId,
-  defaultValues,
-  onSuccess,
-}: UseInterventionFormParams) {
-  // 1. Choisir le schema selon le mode
-  const resolver = useMemo(
-    () => mode === "create"
-      ? zodResolver(CreateInterventionSchema)
-      : zodResolver(UpdateInterventionSchema),
-    [mode]
-  )
-
-  // 2. Initialiser React Hook Form
-  const form = useForm({
-    resolver,
-    defaultValues: {
-      status: "POTENTIEL",
-      ...defaultValues,
-    },
+  // 2. Champs requis dynamiques selon le statut sélectionné
+  const validation = useInterventionValidation({
+    status: state.formData.statut,
   })
 
-  // 3. Logique de soumission
-  const onSubmit = useCallback(async (data) => {
-    if (mode === "create") {
-      // Verifier les doublons avant creation
-      const duplicates = await checkDuplicates(data.address)
-      if (duplicates.length > 0) {
-        // Demander confirmation
-        return
-      }
-      const result = await createIntervention(data)
-      onSuccess?.(result)
-    } else {
-      const result = await updateIntervention(interventionId!, data)
-      onSuccess?.(result)
-    }
-  }, [mode, interventionId, onSuccess])
+  // 3. Pipeline de soumission (owner/tenant find-or-create, post-mutation tasks…)
+  const { submit, isSubmitting } = useInterventionSubmit({
+    interventionId: "",            // vide en mode create
+    formData: state.formData,
+    currentUser: state.currentUser,
+    selectedArtisanId: state.selectedArtisanId,
+    // …
+    onSuccess,
+  })
 
-  return {
-    form,               // Instance React Hook Form
-    onSubmit,           // Handler de soumission
-    isSubmitting: form.formState.isSubmitting,
-    errors: form.formState.errors,
-  }
+  return (
+    <form onSubmit={(e) => { e.preventDefault(); submit() }}>
+      <InterventionHeaderFields state={state} validation={validation} />
+      <InterventionClientSection state={state} validation={validation} />
+      {/* …autres sections issues de form-sections/ */}
+    </form>
+  )
 }
 ```
+
+> Les sections (`InterventionHeaderFields`, `InterventionClientSection`, etc.) sont importées depuis `@/components/interventions/form-sections`. Voir [intervention-components.md](../components/intervention-components.md#sections-de-formulaire-form-sections) pour la liste complète et la règle de composition.
 
 ### Creer votre propre hook de formulaire
 
@@ -209,10 +191,13 @@ export function useMyEntityForm({
 
 ## 4. Hook d'etat formulaire
 
-Pour les formulaires complexes (comme le formulaire d'intervention), le projet separe la logique de formulaire en deux hooks :
+Pour les formulaires complexes (comme le formulaire d'intervention), le projet sépare la logique en **trois** hooks :
 
-- `useInterventionForm` : Gestion React Hook Form + validation + soumission
-- `useInterventionFormState` : Etat UI (geocodage, artisans proches, sections collapsibles, changements non sauvegardes)
+- `useInterventionFormState` : valeurs des champs, dirty tracking, géocodage, artisans proches, sections collapsibles, brouillon Zustand (`useInterventionDraftStore`), sélection artisan
+- `useInterventionSubmit` : pipeline de soumission (mutation principale, find-or-create owner/tenant, `runPostMutationTasks`, gestion d'erreur avec toast)
+- `useInterventionValidation` : calcule à partir de `form-constants.ts` quels champs sont requis selon le statut sélectionné
+
+> ⚠️ Toute règle "ce champ devient requis quand le statut passe à X" doit être déclarée dans `src/lib/interventions/form-constants.ts` (ex: `STATUSES_REQUIRING_DATE_PREVUE`) et consommée via `useInterventionValidation`. Ne pas la coder en dur dans un composant.
 
 ### `useInterventionFormState` (simplifie)
 
@@ -374,7 +359,7 @@ export function MyEntityForm({ mode, entityId, defaultValues, onClose }) {
 
 ### Detection de doublons (avant creation)
 
-Le hook `useInterventionForm` verifie les doublons avant la creation :
+`useInterventionFormState` expose la detection de doublons pour la creation. Le pattern sous-jacent :
 
 ```typescript
 const checkDuplicates = useCallback(async (address: string, agencyId: string) => {
@@ -391,19 +376,26 @@ const checkDuplicates = useCallback(async (address: string, agencyId: string) =>
 
 ### Regles metier conditionnelles
 
-Certains statuts d'intervention exigent des champs specifiques :
+Certains statuts d'intervention exigent des champs specifiques. Ces règles sont **centralisées** dans `src/lib/interventions/form-constants.ts` sous forme de listes :
 
 ```typescript
-const REQUIRES_ARTISAN_STATUSES = [
+// src/lib/interventions/form-constants.ts
+export const ARTISAN_REQUIRED_STATUS_CODES = [
   "VISITE_TECHNIQUE", "INTER_EN_COURS", "INTER_TERMINEE", "ATT_ACOMPTE",
 ]
-
-const ensureBusinessRules = (status?: string, artisanId?: string | null) => {
-  if (status && REQUIRES_ARTISAN_STATUSES.includes(status) && !artisanId) {
-    throw new Error("Un artisan assigne est requis pour ce statut")
-  }
-}
+export const STATUSES_REQUIRING_DATE_PREVUE = [/* … */]
+export const STATUSES_REQUIRING_NOM_FACTURATION = [/* … */]
+// etc.
 ```
+
+Et consommées via `useInterventionValidation` :
+
+```typescript
+const validation = useInterventionValidation({ status: formData.statut })
+// validation.requiresArtisan, validation.requiresDatePrevue, …
+```
+
+> **Règle :** ne **jamais** dupliquer ces listes dans un composant ou un autre hook. Pour ajouter une règle, étendre `form-constants.ts` puis exposer le flag dans `useInterventionValidation`. Les fonctions de dérivation pures (calculs annexes basés sur ces règles) vont dans `src/lib/interventions/derivations.ts`.
 
 ### Changements non sauvegardes
 

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
-import { requireAnyPermission, isPermissionError } from '@/lib/api/permissions'
+import { requireAnyPermission, isPermissionError } from '@/lib/auth/permissions'
 
 export const runtime = 'nodejs'
 

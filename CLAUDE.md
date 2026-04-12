@@ -33,10 +33,10 @@ graph LR
     G --> A
 ```
 
-- **29 modules API** dans `src/lib/api/v2/`
-- **67 hooks custom** dans `src/hooks/`
+- **~22 modules API** dans `src/lib/api/v2/`
+- **99 hooks custom** dans `src/hooks/`
 - **13 Edge Functions** dans `supabase/functions/`
-- **200+ composants** dans `src/components/`
+- **290+ composants** dans `src/components/`
 
 Pour le detail complet : [docs/architecture/data-flow.md](docs/architecture/data-flow.md)
 

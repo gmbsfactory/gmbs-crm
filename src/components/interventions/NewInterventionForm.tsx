@@ -27,6 +27,7 @@ import { toast } from "sonner"
 import { extractErrorMessage } from "@/lib/toast-helpers"
 import { findOrCreateOwner, findOrCreateTenant } from "@/lib/interventions/owner-tenant-helpers"
 import { runPostMutationTasks } from "@/lib/interventions/post-mutation-tasks"
+import { applyRecuToggle } from "@/lib/interventions/deposit-helpers"
 import { useInterventionModal } from "@/hooks/useInterventionModal"
 import { useModal } from "@/hooks/useModal"
 import { EmailEditModal } from "@/components/interventions/EmailEditModal"
@@ -287,12 +288,22 @@ export function NewInterventionForm({
 
   // Acompte handler shims — NewInterventionForm has no status-based gating,
   // so we delegate to the generic handleInputChange and mark the section as always editable.
+  // Invariant partagé avec l'édition : cocher Reçu/Envoyé auto-remplit la date à aujourd'hui ;
+  // décocher la vide. Logique centralisée dans applyRecuToggle.
   const handleAccompteSSTChange = useCallback((value: string) => handleInputChange("accompteSST", value), [handleInputChange])
   const handleAccompteClientChange = useCallback((value: string) => handleInputChange("accompteClient", value), [handleInputChange])
   const handleAccompteSSTBlur = useCallback(() => { /* no-op on create: no prefill-on-blur logic */ }, [])
   const handleAccompteClientBlur = useCallback(() => { /* no-op on create */ }, [])
-  const handleAccompteSSTRecuChange = useCallback((checked: boolean) => handleInputChange("accompteSSTRecu", checked), [handleInputChange])
-  const handleAccompteClientRecuChange = useCallback((checked: boolean) => handleInputChange("accompteClientRecu", checked), [handleInputChange])
+  const handleAccompteSSTRecuChange = useCallback((checked: boolean) => {
+    const { recu, date } = applyRecuToggle(checked, formData.dateAccompteSSTRecu)
+    handleInputChange("accompteSSTRecu", recu)
+    handleInputChange("dateAccompteSSTRecu", date)
+  }, [handleInputChange, formData.dateAccompteSSTRecu])
+  const handleAccompteClientRecuChange = useCallback((checked: boolean) => {
+    const { recu, date } = applyRecuToggle(checked, formData.dateAccompteClientRecu)
+    handleInputChange("accompteClientRecu", recu)
+    handleInputChange("dateAccompteClientRecu", date)
+  }, [handleInputChange, formData.dateAccompteClientRecu])
   const handleDateAccompteSSTRecuChange = useCallback((value: string) => handleInputChange("dateAccompteSSTRecu", value), [handleInputChange])
   const handleDateAccompteClientRecuChange = useCallback((value: string) => handleInputChange("dateAccompteClientRecu", value), [handleInputChange])
 
@@ -695,7 +706,7 @@ export function NewInterventionForm({
               renderUserBadge={() => (
                 <GestionnaireField
                   value={formData.assigned_user_id}
-                  onChange={(userId) => handleInputChange("assigned_user_id", userId)}
+                  onChange={(userId) => handleInputChange("assigned_user_id", userId || null)}
                   interventionDate={formData.date}
                   required={requiresAssignedUser}
                   onOpenChange={onPopoverOpenChange}

@@ -584,7 +584,7 @@ export function chunkArray<T>(array: T[], chunkSize: number): T[][] {
 }
 
 // Export managedFetch for automatic request cancellation on logout
-export { managedFetch } from "@/lib/api/abort-controller-manager";
+export { managedFetch } from "./abort-controller-manager";
 
 /**
  * Résout un code métier (ex: "PLOMBERIE") ou un UUID en ID métier.

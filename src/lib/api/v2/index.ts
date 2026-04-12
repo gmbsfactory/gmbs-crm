@@ -70,6 +70,8 @@ import { agenciesApi } from "./agenciesApi";
 import { artisansApi } from "./artisansApi";
 import { clientsApi } from "./clientsApi";
 import { commentsApi } from "./commentsApi";
+import { comptaApi } from "./comptaApi";
+export type { FacturationEntriesResult } from "./comptaApi";
 import { documentsApi } from "./documentsApi";
 import { enumsApi } from "./enumsApi";
 import { interventionsApi } from "./interventionsApi";
@@ -91,6 +93,7 @@ export {
   artisansApi,
   clientsApi,
   commentsApi,
+  comptaApi,
   documentsApi,
   enumsApi,
   interventionsApi,

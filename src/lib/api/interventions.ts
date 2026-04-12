@@ -20,7 +20,6 @@ import {
   mapStatusFromDb,
   mapStatusToDb,
 } from "@/lib/interventions/mappers"
-import { listInterventionDocuments } from "@/lib/api/documents"
 import { interventionsApi } from "@/lib/api/v2"
 import type { InterventionStatus } from "@/types/intervention"
 
@@ -125,8 +124,7 @@ export async function getIntervention({ id, includeDocuments = true }: GetParams
     return intervention
   }
 
-  const documents = await listInterventionDocuments(id)
-  return { ...intervention, documents }
+  return { ...intervention, documents: [] }
 }
 
 export async function findDuplicates(input: DuplicateCheckInput, supabaseClient?: Awaited<ReturnType<typeof getServerClient>>) {

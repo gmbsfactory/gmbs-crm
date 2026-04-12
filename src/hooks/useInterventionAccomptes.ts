@@ -1,6 +1,7 @@
 import { useCallback, useMemo } from "react"
 import { toast } from "sonner"
 import { interventionsApi } from "@/lib/api/v2"
+import { applyRecuToggle } from "@/lib/interventions/deposit-helpers"
 import type { InterventionFormData } from "@/lib/interventions/form-types"
 
 interface UseInterventionAccomptesOptions {
@@ -113,14 +114,19 @@ export function useInterventionAccomptes({
 
   const handleAccompteSSTRecuChange = useCallback(
     async (checked: boolean) => {
+      const { recu, date } = applyRecuToggle(checked, formData.dateAccompteSSTRecu)
+
       try {
         await interventionsApi.upsertPayment(interventionId, {
           payment_type: "acompte_sst",
-          is_received: checked,
-          payment_date: checked ? (formData.dateAccompteSSTRecu || null) : null,
+          is_received: recu,
+          payment_date: date || null,
         })
 
-        handleInputChange("accompteSSTRecu", checked)
+        handleInputChange("accompteSSTRecu", recu)
+        if (date !== formData.dateAccompteSSTRecu) {
+          handleInputChange("dateAccompteSSTRecu", date)
+        }
       } catch (error) {
         console.error("[useInterventionAccomptes] Erreur reçu SST:", error)
         toast.error("Erreur lors de la sauvegarde")
@@ -131,20 +137,26 @@ export function useInterventionAccomptes({
 
   const handleAccompteClientRecuChange = useCallback(
     async (checked: boolean) => {
+      const { recu, date } = applyRecuToggle(checked, formData.dateAccompteClientRecu)
+
       try {
-        if (checked && formData.dateAccompteClientRecu) {
+        // Transition statut basée sur l'état EFFECTIF (auto-fill déjà appliqué).
+        if (recu && date) {
           await transitionToAccepte()
-        } else if (!checked && getStatusCode(formData.statut_id) === "ACCEPTE") {
+        } else if (!recu && getStatusCode(formData.statut_id) === "ACCEPTE") {
           await transitionToAttAcompte()
         }
 
         await interventionsApi.upsertPayment(interventionId, {
           payment_type: "acompte_client",
-          is_received: checked,
-          payment_date: checked ? (formData.dateAccompteClientRecu || null) : null,
+          is_received: recu,
+          payment_date: date || null,
         })
 
-        handleInputChange("accompteClientRecu", checked)
+        handleInputChange("accompteClientRecu", recu)
+        if (date !== formData.dateAccompteClientRecu) {
+          handleInputChange("dateAccompteClientRecu", date)
+        }
       } catch (error) {
         console.error("[useInterventionAccomptes] Erreur reçu client:", error)
         toast.error("Erreur lors de la sauvegarde")

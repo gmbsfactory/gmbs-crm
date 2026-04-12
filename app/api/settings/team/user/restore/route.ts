@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import { supabaseAdmin } from "@/lib/supabase-admin"
-import { requirePermission, isPermissionError } from "@/lib/api/permissions"
+import { requirePermission, isPermissionError } from "@/lib/auth/permissions"
 import { createPasswordResetToken, getSiteUrlFromRequest } from '@/lib/password-reset-tokens'
 
 export const runtime = "nodejs"

@@ -12,6 +12,12 @@ import {
   artisanKeys,
   dashboardKeys,
   referenceKeys,
+  comptabiliteKeys,
+  emailLogKeys,
+  commentKeys,
+  documentKeys,
+  analyticsKeys,
+  updateKeys,
 } from "@/lib/react-query/queryKeys";
 ```
 
@@ -23,6 +29,12 @@ import {
 - [artisanKeys](#artisankeys)
 - [dashboardKeys](#dashboardkeys)
 - [referenceKeys](#referencekeys)
+- [comptabiliteKeys](#comptabilitekeys)
+- [emailLogKeys](#emaillogkeys)
+- [commentKeys](#commentkeys)
+- [documentKeys](#documentkeys)
+- [analyticsKeys](#analyticskeys)
+- [updateKeys](#updatekeys)
 - [Types](#types)
 
 ---
@@ -58,6 +70,9 @@ Query keys for the interventions domain. Supports full lists, light lists (warm-
 | `summary(params)` | `(params: InterventionQueryParams) => readonly [...]` | `["interventions", "summary", params]` | Key for a specific summary |
 | `details()` | `() => readonly [...]` | `["interventions", "detail"]` | Prefix for detail queries |
 | `detail(id, include?)` | `(id: string, include?: string[]) => readonly [...]` | `["interventions", "detail", id, include]` | Key for a specific intervention detail |
+| `filterCounts()` | `() => readonly [...]` | `["interventions", "filter-counts"]` | Prefix for grouped filter counts |
+| `filterCountsByProperty(property, filters?)` | `(property: string, filters?: object) => readonly [...]` | `["interventions", "filter-counts", property, filters]` | Counts grouped by metier/agence/statut/user |
+| `byArtisan(artisanId)` | `(artisanId: string) => readonly [...]` | `["interventions", "by-artisan", artisanId]` | Interventions assigned to a specific artisan |
 
 ### Invalidation Helpers
 
@@ -67,6 +82,7 @@ Query keys for the interventions domain. Supports full lists, light lists (warm-
 | `invalidateLists()` | `["interventions", "list"]` | After create/update/delete |
 | `invalidateLightLists()` | `["interventions", "light"]` | After data changes affecting light lists |
 | `invalidateView(params)` | `[list, lightList, summary]` | Invalidate a specific view (3 keys) |
+| `invalidateFilterCounts()` | `["interventions", "filter-counts"]` | After mutations that change grouped counts |
 
 **Example: Invalidate after creation**
 
@@ -178,13 +194,15 @@ Query keys for dashboard statistics and analytics.
 | `periodStatsByUser(params)` | `(params: DashboardPeriodStatsParams) => readonly [...]` | `["dashboard", "period", params]` | Period stats for a user |
 | `recentInterventions()` | `() => readonly [...]` | `["dashboard", "recent-interventions"]` | Prefix for recent interventions |
 | `recentInterventionsByStatus(params)` | `(params: { userId, statusLabel, limit?, startDate?, endDate? }) => readonly [...]` | `["dashboard", "recent-interventions", params]` | Recent by status |
+| `marginRanking()` | `() => readonly [...]` | `["dashboard", "margin-ranking"]` | Prefix for margin ranking |
+| `marginRankingByPeriod(params)` | `(params: { startDate, endDate }) => readonly [...]` | `["dashboard", "margin-ranking", params]` | Margin ranking for a period |
 
 ### Invalidation Helpers
 
 | Method | Output | Use Case |
 |--------|--------|----------|
 | `invalidateAll()` | `["dashboard"]` | Invalidate all dashboard data |
-| `invalidateStats()` | `["dashboard", "stats", "margin", "period"]` | After intervention modification |
+| `invalidateStats(queryClient)` | (executes 3 invalidations) | Invalidates stats + margin + period sub-trees. **Note:** unlike other invalidate helpers, this takes a `QueryClient` and runs the invalidations itself. |
 
 **Example**
 
@@ -227,6 +245,7 @@ Query keys for reference/settings data (statuses, users, agencies, metiers).
 | `users()` | `() => readonly [...]` | `["references", "users"]` | Key for users reference |
 | `agencies()` | `() => readonly [...]` | `["references", "agencies"]` | Key for agencies reference |
 | `metiers()` | `() => readonly [...]` | `["references", "metiers"]` | Key for metiers reference |
+| `artisanStatuses()` | `() => readonly [...]` | `["references", "artisan-statuses"]` | Key for artisan statuses reference |
 
 ### Invalidation Helpers
 
@@ -240,6 +259,138 @@ Query keys for reference/settings data (statuses, users, agencies, metiers).
 // Invalidate all reference data after an import
 queryClient.invalidateQueries({ queryKey: referenceKeys.invalidateAll() });
 ```
+
+---
+
+## comptabiliteKeys
+
+Query keys for the comptabilité (accounting) page — interventions filtered by date range with cost/payment data.
+
+### Key Hierarchy
+
+```
+["comptabilite"]                               -- all
+["comptabilite", "list"]                       -- lists()
+["comptabilite", "list", params]               -- list(params)
+["comptabilite", "checks"]                     -- checks()
+["comptabilite", "checks", params]             -- checksByDateRange(params)
+```
+
+### Properties and Methods
+
+| Key | Signature | Output | Description |
+|-----|-----------|--------|-------------|
+| `all` | (property) | `["comptabilite"]` | Root key |
+| `lists()` | `() => readonly [...]` | `["comptabilite", "list"]` | Prefix for list queries |
+| `list(params)` | `(params: ComptabiliteQueryParams) => readonly [...]` | `["comptabilite", "list", params]` | Filtered list (date range + pagination) |
+| `checks()` | `() => readonly [...]` | `["comptabilite", "checks"]` | Prefix for check-state queries |
+| `checksByDateRange(params)` | `(params: ComptabiliteQueryParams) => readonly [...]` | `["comptabilite", "checks", params]` | Check states for a date range |
+
+### Invalidation Helpers
+
+| Method | Output | Use Case |
+|--------|--------|----------|
+| `invalidateAll()` | `["comptabilite"]` | Nuclear option |
+| `invalidateLists()` | `["comptabilite", "list"]` | After cost/payment change |
+| `invalidateChecks()` | `["comptabilite", "checks"]` | After "Copier + Check" toggle |
+
+> Consumed by `useComptabiliteQuery`.
+
+---
+
+## emailLogKeys
+
+Query keys for email send logs (devis / convocation visite technique).
+
+```
+["email-logs"]                                                       -- all
+["email-logs", "intervention", interventionId]                       -- byIntervention(id)
+["email-logs", "intervention", interventionId, "type", emailType]    -- byInterventionAndType(id, type)
+```
+
+| Method | Description |
+|--------|-------------|
+| `byIntervention(interventionId)` | All email logs for an intervention |
+| `byInterventionAndType(interventionId, "devis" \| "intervention")` | Logs filtered by email type |
+| `invalidateByIntervention(interventionId)` | Invalidate all logs for an intervention |
+| `invalidateAll()` | Invalidate all email logs |
+
+---
+
+## commentKeys
+
+Query keys for entity comments. Compatible with the existing `["comments", entityType, entityId, limit]` shape used by `CommentSection`.
+
+```
+["comments"]                                                  -- all
+["comments", entityType, entityId]                            -- byEntity(...)
+["comments", entityType, entityId, limit]                     -- byEntityPaginated(...)
+```
+
+| Method | Description |
+|--------|-------------|
+| `byEntity(entityType, entityId)` | Prefix matching all paginations for an entity |
+| `byEntityPaginated(entityType, entityId, limit)` | Exact key for a specific page size |
+| `invalidateByEntity(entityType, entityId)` | Invalidate all comments for an entity |
+| `invalidateAll()` | Invalidate every comment query |
+
+> The `entityType` is typically `'intervention'` or `'artisan'`.
+
+---
+
+## documentKeys
+
+Query keys for entity-attached documents.
+
+```
+["documents"]                              -- all
+["documents", entityType, entityId]        -- byEntity(...)
+```
+
+| Method | Description |
+|--------|-------------|
+| `byEntity(entityType, entityId)` | Documents for a given entity |
+| `invalidateByEntity(entityType, entityId)` | Invalidate after upload/delete |
+| `invalidateAll()` | Invalidate every document query |
+
+---
+
+## analyticsKeys
+
+Query keys for the analytics dashboard (separate from the operational dashboard).
+
+```
+["analytics"]                              -- all
+["analytics", "dashboard"]                 -- dashboard()
+```
+
+| Method | Description |
+|--------|-------------|
+| `dashboard()` | Key for the analytics dashboard payload |
+| `invalidateAll()` | Invalidate every analytics query |
+
+> Consumed by `analyticsApi` (`src/lib/api/v2/analyticsApi.ts`).
+
+---
+
+## updateKeys
+
+Query keys for in-app update notifications (the changelog / "what's new" feature).
+
+```
+["app-updates"]                            -- all
+["app-updates", "unseen"]                  -- unseen()
+["app-updates", "journal"]                 -- journal()
+["app-updates", "admin"]                   -- admin()
+["app-updates", "admin", "with-views"]     -- adminWithViews()
+```
+
+| Method | Description |
+|--------|-------------|
+| `unseen()` | Updates the current user has not yet seen |
+| `journal()` | Full changelog journal |
+| `admin()` | Admin view of all updates |
+| `adminWithViews()` | Admin view enriched with view counts per update |
 
 ---
 
@@ -310,5 +461,16 @@ type DashboardPeriodStatsParams = {
   userId: string;
   period: "week" | "month" | "year";
   startDate?: string;
+};
+```
+
+### ComptabiliteQueryParams
+
+```typescript
+type ComptabiliteQueryParams = {
+  dateStart?: string;
+  dateEnd?: string;
+  page?: number;
+  pageSize?: number;
 };
 ```

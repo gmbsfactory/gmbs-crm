@@ -11,7 +11,7 @@ La base de données utilise PostgreSQL via Supabase avec les extensions suivante
 - `pgcrypto` : fonctions cryptographiques (gen_random_uuid)
 - `pg_trgm` : recherche par trigrammes (ILIKE performant)
 
-**82 migrations SQL** dans `supabase/migrations/` définissent l'intégralité du schéma.
+**115 migrations SQL** dans `supabase/migrations/` définissent l'intégralité du schéma.
 
 ---
 

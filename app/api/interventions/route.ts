@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 import { createIntervention, listInterventions } from "@/lib/api/interventions"
 import type { InterventionStatusValue } from "@/types/interventions"
-import { requirePermission, isPermissionError } from "@/lib/api/permissions"
+import { requirePermission, isPermissionError } from "@/lib/auth/permissions"
 
 export async function GET(request: Request) {
   const permCheck = await requirePermission(request, "read_interventions")

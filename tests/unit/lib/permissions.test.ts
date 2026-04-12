@@ -68,7 +68,7 @@ vi.mock('next/server', () => ({
 
 // ===== IMPORT AFTER MOCKS =====
 
-import { getAuthenticatedUser, requirePermission, requireAnyPermission } from '@/lib/api/permissions'
+import { getAuthenticatedUser, requirePermission, requireAnyPermission } from '@/lib/auth/permissions'
 
 // ===== HELPERS =====
 

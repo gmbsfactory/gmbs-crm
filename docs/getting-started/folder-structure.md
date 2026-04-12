@@ -101,7 +101,7 @@ Les dossiers prefixes `_` ne sont pas consideres comme des routes par Next.js. C
 
 ```
 src/
-├── components/                 # Composants React (200+)
+├── components/                 # Composants React (290+)
 │   ├── ui/                     # Composants shadcn/ui + custom (80+)
 │   │   ├── intervention-modal/ # Systeme modal intervention (detail, creation)
 │   │   ├── artisan-modal/      # Systeme modal artisan
@@ -137,7 +137,7 @@ src/
 │   ├── documents/              # Gestion de documents
 │   └── auth/                   # PermissionGate
 │
-├── hooks/                      # 75+ hooks custom
+├── hooks/                      # 99 hooks custom
 │   ├── useInterventionsQuery.ts    # Fetching interventions pagine
 │   ├── useInterventionsMutations.ts # CRUD optimiste
 │   ├── useCrmRealtime.ts          # Sync temps reel (leader election + event router)
@@ -155,7 +155,7 @@ src/
 │   └── ...                        # 60+ autres hooks
 │
 ├── lib/                        # Logique metier et services
-│   ├── api/v2/                 # API Layer V2 (29 modules)
+│   ├── api/v2/                 # API Layer V2 (~22 modules)
 │   │   ├── common/             # Types centraux, client, cache, error handler
 │   │   │   ├── types.ts        # Intervention, Artisan, User, etc.
 │   │   │   ├── client.ts       # Client Supabase (browser/Node)

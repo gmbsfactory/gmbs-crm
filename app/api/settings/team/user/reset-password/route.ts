@@ -3,7 +3,7 @@ import { supabaseAdmin } from '@/lib/supabase-admin';
 import { createSSRServerClient } from '@/lib/supabase/server-ssr';
 import { decryptPassword } from '@/lib/utils/encryption';
 import { sendEmailToArtisan, validateGmailEmail } from '@/lib/services/email-service';
-import { requirePermission, isPermissionError } from '@/lib/api/permissions';
+import { requirePermission, isPermissionError } from '@/lib/auth/permissions';
 import { createPasswordResetToken, getSiteUrlFromRequest } from '@/lib/password-reset-tokens';
 
 export const runtime = 'nodejs';

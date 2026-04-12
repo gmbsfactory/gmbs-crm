@@ -92,6 +92,7 @@ import { Label } from "@/components/ui/label"
 | `AlertDialog` | `alert-dialog.tsx` | Dialogue de confirmation |
 | `Sheet` | `sheet.tsx` | Panneau latéral glissant |
 | `Popover` | `popover.tsx` | Popover positionnée |
+| `GestionnairePopover` | `gestionnaire-popover.tsx` | Popover dédiée à la sélection inline d'un gestionnaire (réutilisée par `GestionnaireField`, cellules de table et modales). Encapsule la liste des utilisateurs assignables avec recherche. |
 | `Tooltip` | `tooltip.tsx` | Info-bulle au survol |
 | `HoverCard` | `hover-card.tsx` | Carte d'aperçu au survol |
 | `DropdownMenu` | `dropdown-menu.tsx` | Menu déroulant Radix |

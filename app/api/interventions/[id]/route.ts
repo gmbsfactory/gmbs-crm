@@ -2,7 +2,7 @@ import { NextResponse } from "next/server"
 import { deleteIntervention, getIntervention, updateIntervention } from "@/lib/api/interventions"
 import { mapStatusFromDb } from "@/lib/interventions/mappers"
 import { isTerminalStatus } from "@/config/interventions"
-import { requirePermission, isPermissionError } from "@/lib/api/permissions"
+import { requirePermission, isPermissionError } from "@/lib/auth/permissions"
 import { supabaseAdmin } from "@/lib/supabase-admin"
 
 type Params = {

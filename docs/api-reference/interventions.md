@@ -135,6 +135,32 @@ const intervention = await interventionsApi.getById("uuid-123");
 
 ---
 
+### getByIds(ids)
+
+Récupère plusieurs interventions par leurs IDs en une seule requête. Utilisé par la pagination de la page Comptabilité après résolution des IDs triés via le RPC `get_sorted_intervention_ids` (migration `99022`).
+
+**Signature**
+
+```typescript
+getByIds(ids: string[]): Promise<InterventionWithStatus[]>
+```
+
+**Behavior**
+
+- Retourne `[]` si `ids` est vide (court-circuit, aucun appel réseau)
+- L'ordre de retour suit l'ordre Postgres et **n'est pas garanti** identique à `ids` — re-trier côté appelant si nécessaire
+- Inclut joins : `status`, `tenants`, `owner`
+
+**Example**
+
+```typescript
+const sortedIds = await rpc.getSortedInterventionIds(filters);
+const page = sortedIds.slice(offset, offset + pageSize);
+const interventions = await interventionsApi.getByIds(page);
+```
+
+---
+
 ### create(data)
 
 Creates a new intervention. After insertion, automatically creates a status transition chain via `automaticTransitionService`.
@@ -1057,6 +1083,27 @@ Counts interventions for a specific property value. Wraps `getTotalCountWithFilt
 | baseFilters | `Omit<InterventionQueryParams, 'limit' \| 'offset' \| 'include'>` | No | Additional base filters |
 
 **Return:** `Promise<number>`
+
+---
+
+### getFilterCountsGrouped(property, baseFilters?)
+
+Renvoie en **une seule requête RPC** (`get_intervention_filter_counts`) tous les comptages d'interventions groupés par valeur pour une propriété donnée. Remplace N appels successifs à `getCountByPropertyValue` — gain de performance significatif sur les pages avec filtres latéraux.
+
+**Parameters**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| property | `'metier' \| 'agence' \| 'statut' \| 'user'` | Yes | Propriété de groupement |
+| baseFilters | `Omit<InterventionQueryParams, 'limit' \| 'offset' \| 'include'>` | No | Filtres de base appliqués avant le `GROUP BY` |
+
+**Return:** `Promise<Record<string, number>>` — clé = ID de la valeur (UUID statut/agence/métier/user), valeur = nombre d'interventions.
+
+**Notes**
+
+- Le `metier` passé en `baseFilters` est résolu en UUID via le cache de référence avant l'appel RPC
+- Côté DB, le RPC respecte la RLS (le comptage tient compte de l'utilisateur courant)
+- Consommé via la query key `interventionKeys.filterCountsByProperty(property, filters)`
 
 ---
 
