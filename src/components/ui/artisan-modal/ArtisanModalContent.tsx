@@ -81,18 +81,7 @@ import { useDocumentReclassification } from "@/hooks/useDocumentReclassification
 
 // ===== HELPERS =====
 
-// Fonction pour calculer la couleur de texte lisible (blanc ou noir)
-function getReadableTextColor(bgColor: string | null | undefined): string {
-  if (!bgColor) return "#1f2937"
-  const hex = bgColor.replace("#", "")
-  if (hex.length !== 6) return "#1f2937"
-  const r = parseInt(hex.slice(0, 2), 16)
-  const g = parseInt(hex.slice(2, 4), 16)
-  const b = parseInt(hex.slice(4, 6), 16)
-  // Formule de luminance relative
-  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255
-  return luminance > 0.5 ? "#1f2937" : "#ffffff"
-}
+import { getReadableTextColor } from "@/utils/color"
 
 // Helpers pour les badges de statut
 const FALLBACK_STATUS_COLOR = "#4B5563"

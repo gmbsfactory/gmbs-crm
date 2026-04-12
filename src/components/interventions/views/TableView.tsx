@@ -9,12 +9,10 @@ import Loader from "@/components/ui/Loader"
 
 import { useColumnResize } from "@/hooks/useColumnResize"
 import { useInterventionReminders } from "@/hooks/useInterventionReminders"
-import { isCheckStatus } from "@/lib/interventions/checkStatus"
 import { runQuery, getPropertyValue } from "@/lib/query-engine"
 import { SCROLL_CONFIG } from "@/config/interventions"
 import { toDate } from "@/lib/date-utils"
 import { getPropertyLabel, getPropertySchema } from "@/types/property-schema"
-import { getArtisanStatusAbbreviation } from "@/config/status-colors"
 import type { InterventionView as InterventionEntity } from "@/types/intervention-view"
 import type {
   InterventionViewByLayout,
@@ -89,29 +87,16 @@ import { TABLE_ALIGNMENT_OPTIONS } from "./column-alignment-options"
 import { ExpandedRowContent } from "./ExpandedRowContent"
 import type { InterventionModalOpenOptions } from "@/hooks/useInterventionModal"
 import { iconForStatus } from "@/lib/interventions/status-icons"
-import { getStatusDisplay } from "@/lib/interventions/status-display"
-import { getStatusDisplayLabel } from "@/lib/interventions/deposit-helpers"
-import type { InterventionPayment } from "@/lib/api/v2/common/types"
 import { Pagination } from "@/components/ui/pagination"
-import { GestionnaireBadge } from "@/components/ui/gestionnaire-badge"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { GestionnairePopover } from "@/components/ui/gestionnaire-popover"
-import { useReferenceDataQuery } from "@/hooks/useReferenceDataQuery"
-import type { ReferenceData } from "@/lib/reference-api"
-import { useMutation, useQueryClient } from "@tanstack/react-query"
-import { interventionsApi } from "@/lib/api/v2"
-import { toast } from "sonner"
+import { GestionnaireBadge } from "@/components/ui/gestionnaire-badge"
+import { GestionnaireSelector } from "@/components/interventions/GestionnaireSelector"
+import { getReadableTextColor } from "@/utils/color"
 import { useInterventionStatusMap } from "@/hooks/useInterventionStatusMap"
 import { useUserMap } from "@/hooks/useUserMap"
 import { convertViewFiltersToServerFilters } from "@/lib/filter-converter"
 import { usePagePresenceContext } from "@/contexts/PagePresenceContext"
 import { InterventionPresenceIndicator } from "@/components/ui/InterventionPresenceIndicator"
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip"
 
 const numberFormatter = new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 2 })
 const dateFormatter = new Intl.DateTimeFormat("fr-FR", { dateStyle: "medium" })
@@ -165,45 +150,15 @@ type TableViewProps = {
   onSortChange?: (sorts: ViewSort[]) => void
 }
 
-type CellRender = {
-  content: ReactNode
-  tooltipText?: string
-  backgroundColor?: string
-  defaultTextColor?: string
-  cellClassName?: string
-  statusGradient?: string  // 🆕 Pour remplacer le gradient général par la couleur du statut
-}
+import {
+  type CellRender,
+  renderStatusCell,
+  renderAssigneeCell,
+  renderUnderstatementCell,
+  renderColorBadgeCell,
+  renderArtisanCell,
+} from "./cells"
 
-const resolveThemeMode = (): "dark" | "light" => {
-  if (typeof document === "undefined") return "light"
-  return document.documentElement.classList.contains("dark") ? "dark" : "light"
-}
-
-const toSoftColor = (hex: string | undefined, mode: "light" | "dark", fallback = "#cbd5f5") => {
-  if (!hex) return fallback
-  const sanitized = hex.replace("#", "")
-  if (sanitized.length !== 6) return fallback
-  const numeric = Number.parseInt(sanitized, 16)
-  const r = (numeric >> 16) & 255
-  const g = (numeric >> 8) & 255
-  const b = numeric & 255
-  const mixTarget = mode === "dark" ? 0 : 255
-  const factor = mode === "dark" ? 0.45 : 0.7
-  const mixChannel = (channel: number) => Math.round(channel + (mixTarget - channel) * factor)
-  const color = `rgb(${mixChannel(r)}, ${mixChannel(g)}, ${mixChannel(b)})`
-  return color
-}
-
-const getReadableTextColor = (hex: string | undefined, fallback = "#ffffff") => {
-  if (!hex) return fallback
-  const sanitized = hex.replace("#", "")
-  if (sanitized.length !== 6) return fallback
-  const r = Number.parseInt(sanitized.slice(0, 2), 16)
-  const g = Number.parseInt(sanitized.slice(2, 4), 16)
-  const b = Number.parseInt(sanitized.slice(4, 6), 16)
-  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255
-  return luminance > 0.6 ? "#111827" : "#FFFFFF"
-}
 
 const getRowHeight = (density: TableRowDensity): number => {
   switch (density) {
@@ -219,351 +174,45 @@ const getRowHeight = (density: TableRowDensity): number => {
   }
 }
 
+const resolveThemeMode = (): "dark" | "light" => {
+  if (typeof document === "undefined") return "light"
+  return document.documentElement.classList.contains("dark") ? "dark" : "light"
+}
+
 const renderCell = (
   intervention: InterventionEntity,
   property: string,
   style: TableColumnStyle | undefined,
   themeMode: "light" | "dark",
 ): CellRender => {
+  // Specialized column renderers
+  if (property === "statusValue") return renderStatusCell({ intervention, style, themeMode })
+  if (property === "attribueA") return renderAssigneeCell({ intervention, property, style, themeMode })
+  if (property === "understatement") return renderUnderstatementCell({ intervention })
+  if (property === "agence") {
+    return renderColorBadgeCell(
+      (intervention as any).agenceLabel ?? getPropertyValue(intervention, property),
+      (intervention as any).agenceColor,
+      style,
+      themeMode,
+    )
+  }
+  if (property === "metier") {
+    return renderColorBadgeCell(
+      (intervention as any).metierLabel ?? getPropertyValue(intervention, property),
+      (intervention as any).metierColor,
+      style,
+      themeMode,
+    )
+  }
+  if (property === "artisan") return renderArtisanCell({ intervention })
+
+  // Generic renderers based on schema type
   const schema = getPropertySchema(property)
   const value = getPropertyValue(intervention, property)
 
   if (!schema) {
     return { content: value == null || value === "" ? "—" : String(value) }
-  }
-
-  if (property === "statusValue") {
-    if (!value) return { content: "—" }
-    const statusInfo = (intervention as any).status as { code?: string; color?: string; label?: string } | undefined
-    const statusCode = (statusInfo?.code ?? value ?? "") as string
-
-    // Utiliser getStatusDisplay pour obtenir label, color et icon de manière centralisée
-    const statusDisplay = getStatusDisplay(statusCode, {
-      statusFromDb: statusInfo ? {
-        code: statusInfo.code ?? statusCode,
-        label: statusInfo.label ?? String(value),
-        color: statusInfo.color ?? null,
-      } : undefined,
-    })
-
-    // Récupérer les paiements pour vérifier si l'accompte est validé
-    const payments = (intervention as any).payments as Array<{ payment_type?: string; is_received?: boolean; payment_date?: string | null }> | undefined
-    const sstPayment = payments?.find(p => p.payment_type === 'acompte_sst') as InterventionPayment | undefined
-    const clientPayment = payments?.find(p => p.payment_type === 'acompte_client') as InterventionPayment | undefined
-
-    // Utiliser getStatusDisplayLabel pour obtenir le label avec "$" si l'accompte est validé
-    const baseLabel = statusDisplay.label
-    const statusLabelWithDeposit = getStatusDisplayLabel(
-      statusCode,
-      baseLabel,
-      sstPayment,
-      clientPayment
-    )
-
-    // DAT-001 : Vérifier si l'intervention doit afficher le statut "Check"
-    const datePrevue = (intervention as any).date_prevue ?? (intervention as any).datePrevue ?? null
-    const isCheck = isCheckStatus(statusCode, datePrevue)
-
-    // Si Check, remplacer complètement le label par "CHECK"
-    const displayLabel = isCheck ? "CHECK" : statusLabelWithDeposit
-    const displayColor = isCheck ? "#EF4444" : statusDisplay.color // Rouge pour Check
-
-    const appearance: TableColumnAppearance = style?.appearance ?? "solid"
-    const statusIcon = !isCheck ? statusDisplay.icon : null
-
-    if (appearance === "none") {
-      return {
-        content: isCheck ? (
-          <span className="check-status-badge inline-flex items-center justify-center rounded-full px-2 py-0.5 text-xs font-semibold text-white bg-red-500">
-            CHECK
-          </span>
-        ) : (
-          <span className="inline-flex items-center gap-1.5">
-            {statusIcon}
-            {displayLabel}
-          </span>
-        )
-      }
-    }
-    if (appearance === "badge") {
-      const textColor = style?.textColor ?? getReadableTextColor(displayColor)
-      return {
-        content: (
-          <span
-            className={cn(
-              "inline-flex items-center justify-center gap-1.5 rounded-full px-2 py-0.5 leading-tight",
-              isCheck && "check-status-badge"
-            )}
-            style={{ backgroundColor: displayColor, color: textColor }}
-          >
-            {statusIcon}
-            {displayLabel}
-          </span>
-        ),
-        cellClassName: "font-medium",
-      }
-    }
-    const pastel = toSoftColor(displayColor, themeMode)
-    return {
-      content: isCheck ? (
-        <span className="check-status-badge inline-flex items-center justify-center rounded-full px-2 py-0.5 text-xs font-semibold text-white bg-red-500">
-          CHECK
-        </span>
-      ) : (
-        <span className="inline-flex items-center gap-1.5">
-          {statusIcon}
-          {displayLabel}
-        </span>
-      ),
-      backgroundColor: isCheck ? "#FEE2E2" : pastel, // Fond rouge clair si Check
-      defaultTextColor: themeMode === "dark" ? "#F3F4F6" : "#111827",
-      cellClassName: "font-medium",
-      // 🆕 En mode gradient, utiliser la couleur du statut (rouge si Check)
-      statusGradient: isCheck
-        ? `linear-gradient(
-          to bottom,
-          color-mix(in oklab, #EF4444, white 20%) 0%,
-          #EF4444 50%,
-          color-mix(in oklab, #EF4444, black 20%) 100%
-        )`
-        : `linear-gradient(
-        to bottom,
-        color-mix(in oklab, ${statusDisplay.color}, white 20%) 0%,
-        ${statusDisplay.color} 50%,
-        color-mix(in oklab, ${statusDisplay.color}, black 20%) 100%
-      )`,
-    }
-  }
-
-  if (property === "attribueA") {
-    const assignedCode =
-      (intervention as any).assignedUserCode ??
-      (typeof value === "string" ? value : value == null ? "" : String(value))
-    if (!assignedCode) return { content: "—" }
-    const color = (intervention as any).assignedUserColor as string | undefined
-    const assignedUserName = (intervention as any).assignedUserName as string | undefined
-    const avatarUrl = (intervention as any).assignedUserAvatarUrl as string | undefined
-
-    // Extraire prénom et nom pour GestionnaireBadge
-    const nameParts = assignedUserName?.trim().split(/\s+/) ?? []
-    const firstname = nameParts[0] ?? assignedCode
-    const lastname = nameParts.length > 1 ? nameParts[nameParts.length - 1] : undefined
-
-    const appearance: TableColumnAppearance = style?.appearance ?? "solid"
-
-    if (!color || appearance === "none") {
-      // Même sans couleur, afficher le badge avec avatar
-      return {
-        content: (
-          <GestionnaireBadge
-            firstname={firstname}
-            lastname={lastname}
-            color={color}
-            avatarUrl={avatarUrl}
-            size="sm"
-            showBorder={!!color}
-          />
-        ),
-      }
-    }
-
-    if (appearance === "badge") {
-      // Mode badge : afficher le badge avec avatar
-      return {
-        content: (
-          <GestionnaireBadge
-            firstname={firstname}
-            lastname={lastname}
-            color={color}
-            avatarUrl={avatarUrl}
-            size="sm"
-          />
-        ),
-        cellClassName: "font-medium",
-      }
-    }
-
-    // Mode solid : afficher le badge avec fond pastel
-    const pastel = toSoftColor(color, themeMode, themeMode === "dark" ? "#1f2937" : "#e2e8f0")
-    return {
-      content: (
-        <GestionnaireBadge
-          firstname={firstname}
-          lastname={lastname}
-          color={color}
-          avatarUrl={avatarUrl}
-          size="sm"
-        />
-      ),
-      backgroundColor: pastel,
-      defaultTextColor: themeMode === "dark" ? "#E5E7EB" : "#111827",
-      cellClassName: "font-medium",
-      // 🆕 En mode gradient, utiliser la couleur de l'utilisateur
-      statusGradient: `linear-gradient(
-        to bottom,
-        color-mix(in oklab, ${color}, white 20%) 0%,
-        ${color} 50%,
-        color-mix(in oklab, ${color}, black 20%) 100%
-      )`,
-    }
-  }
-
-  // Rendu personnalisé pour le sous-statut avec couleurs personnalisées
-  if (property === "understatement") {
-    const sousStatutText = value as string | null
-    if (!sousStatutText) return { content: "—" }
-
-    const textColor = (intervention as any).sousStatutTextColor ?? '#000000'
-    const bgColor = (intervention as any).sousStatutBgColor ?? 'transparent'
-
-    return {
-      content: (
-        <span
-          className="inline-flex items-center justify-center rounded px-1.5 py-0.5 text-xs font-medium leading-tight"
-          style={{
-            color: textColor,
-            backgroundColor: bgColor !== 'transparent' ? bgColor : undefined,
-          }}
-        >
-          {sousStatutText}
-        </span>
-      ),
-      cellClassName: "font-medium",
-    }
-  }
-
-  // Rendu personnalisé pour la colonne Agence avec badge coloré
-  if (property === "agence") {
-    const agenceLabel = (intervention as any).agenceLabel ?? value
-    if (!agenceLabel) return { content: "—" }
-
-    const agenceColor = (intervention as any).agenceColor as string | undefined
-    const appearance: TableColumnAppearance = style?.appearance ?? "badge"
-
-    if (!agenceColor || appearance === "none") {
-      return { content: String(agenceLabel) }
-    }
-
-    if (appearance === "badge") {
-      const textColor = style?.textColor ?? getReadableTextColor(agenceColor)
-      return {
-        content: (
-          <span
-            className="inline-flex items-center justify-center gap-1.5 rounded-full px-2 py-0.5 leading-tight text-xs font-semibold"
-            style={{ backgroundColor: agenceColor, color: textColor }}
-          >
-            {agenceLabel}
-          </span>
-        ),
-        cellClassName: "font-medium",
-      }
-    }
-
-    // Mode solid : fond pastel
-    const pastel = toSoftColor(agenceColor, themeMode)
-    return {
-      content: (
-        <span className="inline-flex items-center gap-1.5">
-          {agenceLabel}
-        </span>
-      ),
-      backgroundColor: pastel,
-      defaultTextColor: themeMode === "dark" ? "#F3F4F6" : "#111827",
-      cellClassName: "font-medium",
-      statusGradient: `linear-gradient(
-        to bottom,
-        color-mix(in oklab, ${agenceColor}, white 20%) 0%,
-        ${agenceColor} 50%,
-        color-mix(in oklab, ${agenceColor}, black 20%) 100%
-      )`,
-    }
-  }
-
-  // Rendu personnalisé pour la colonne Métier avec badge coloré
-  if (property === "metier") {
-    const metierLabel = (intervention as any).metierLabel ?? value
-    if (!metierLabel) return { content: "—" }
-
-    const metierColor = (intervention as any).metierColor as string | undefined
-    const appearance: TableColumnAppearance = style?.appearance ?? "badge"
-
-    if (!metierColor || appearance === "none") {
-      return { content: String(metierLabel) }
-    }
-
-    if (appearance === "badge") {
-      const textColor = style?.textColor ?? getReadableTextColor(metierColor)
-      return {
-        content: (
-          <span
-            className="inline-flex items-center justify-center gap-1.5 rounded-full px-2 py-0.5 leading-tight text-xs font-semibold"
-            style={{ backgroundColor: metierColor, color: textColor }}
-          >
-            {metierLabel}
-          </span>
-        ),
-        cellClassName: "font-medium",
-      }
-    }
-
-    // Mode solid : fond pastel
-    const pastel = toSoftColor(metierColor, themeMode)
-    return {
-      content: (
-        <span className="inline-flex items-center gap-1.5">
-          {metierLabel}
-        </span>
-      ),
-      backgroundColor: pastel,
-      defaultTextColor: themeMode === "dark" ? "#F3F4F6" : "#111827",
-      cellClassName: "font-medium",
-      statusGradient: `linear-gradient(
-        to bottom,
-        color-mix(in oklab, ${metierColor}, white 20%) 0%,
-        ${metierColor} 50%,
-        color-mix(in oklab, ${metierColor}, black 20%) 100%
-      )`,
-    }
-  }
-
-  // Rendu personnalisé pour l'artisan principal avec son statut
-  if (property === "artisan") {
-    const artisanName = value as string | null
-    if (!artisanName) return { content: "—" }
-
-    const primaryArtisan = (intervention as any).primaryArtisan
-    const artisanStatus = primaryArtisan?.status
-    const statusColor = artisanStatus?.color || "#6B7280"
-    const statusLabel = artisanStatus?.label || "Statut inconnu"
-    const statusAbbr = getArtisanStatusAbbreviation(statusLabel, artisanStatus?.code, artisanStatus?.abbreviation)
-    const textColor = getReadableTextColor(statusColor)
-
-    return {
-      tooltipText: `${artisanName}${artisanStatus ? ` — ${statusLabel}` : ""}`,
-      content: (
-        <div className="flex items-center gap-2 max-w-full">
-          <span className="truncate flex-1">{artisanName}</span>
-          {artisanStatus && (
-            <TooltipProvider delayDuration={300}>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <span
-                    className="inline-flex items-center justify-center rounded-full px-2 py-0.5 text-xs font-bold leading-none shrink-0"
-                    style={{ backgroundColor: statusColor, color: textColor }}
-                  >
-                    {statusAbbr}
-                  </span>
-                </TooltipTrigger>
-                <TooltipContent side="top" className="px-2 py-1">
-                  <span className="text-xs font-medium">{statusLabel}</span>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          )}
-        </div>
-      ),
-      cellClassName: "font-medium max-w-[200px]",
-    }
   }
 
   switch (schema.type) {
@@ -596,6 +245,7 @@ const renderCell = (
   }
 }
 
+
 const sizeClassMap: Record<TableColumnTextSize, string> = {
   xl: "text-xl",
   lg: "text-lg",
@@ -613,109 +263,6 @@ const buildTypographyClasses = (style: TableColumnStyle | undefined) => {
     classes.push("italic")
   }
   return classes.join(" ")
-}
-
-/**
- * Composant pour sélectionner un gestionnaire avec un Popover éditable
- * Structure identique au menu dans InterventionEditForm
- */
-/**
- * Retourne la liste des utilisateurs sélectionnables pour une intervention :
- * - Tous les utilisateurs actifs
- * - + les utilisateurs archivés dont archived_at > dateIntervention
- *   (ils étaient encore actifs au moment de l'intervention)
- */
-function getSelectableUsers(
-  activeUsers: ReferenceData["users"] | undefined,
-  allUsers: ReferenceData["allUsers"] | undefined,
-  dateIntervention?: string | null,
-) {
-  const active = activeUsers ?? []
-  if (!allUsers || !dateIntervention) return active
-
-  const interventionDate = new Date(dateIntervention)
-  if (Number.isNaN(interventionDate.getTime())) return active
-
-  const activeIds = new Set(active.map(u => u.id))
-
-  const archivedEligible = allUsers.filter(
-    u => u.status === "archived" && u.archived_at && !activeIds.has(u.id) && new Date(u.archived_at) > interventionDate
-  )
-
-  return [...active, ...archivedEligible]
-}
-
-function GestionnaireSelector({
-  interventionId,
-  currentUserId,
-  currentUserFirstname,
-  currentUserLastname,
-  currentUserColor,
-  currentUserAvatarUrl,
-  dateIntervention,
-  onUpdate,
-}: {
-  interventionId: string
-  currentUserId: string | null
-  currentUserFirstname: string
-  currentUserLastname?: string
-  currentUserColor?: string
-  currentUserAvatarUrl?: string
-  dateIntervention?: string | null
-  onUpdate?: (userId: string) => void
-}) {
-  const { data: referenceData } = useReferenceDataQuery()
-  const { data: loggedInUser } = useCurrentUser()
-  const queryClient = useQueryClient()
-
-  const selectableUsers = useMemo(() => {
-    const users = getSelectableUsers(referenceData?.users, referenceData?.allUsers, dateIntervention)
-    return users.sort((a, b) => {
-      if (a.id === loggedInUser?.id) return -1
-      if (b.id === loggedInUser?.id) return 1
-      return 0
-    })
-  }, [referenceData?.users, referenceData?.allUsers, dateIntervention, loggedInUser?.id])
-
-  const updateMutation = useMutation({
-    mutationFn: async (newUserId: string) => {
-      return interventionsApi.update(interventionId, { assigned_user_id: newUserId || undefined })
-    },
-    onSuccess: (_, newUserId) => {
-      queryClient.invalidateQueries({ queryKey: ['interventions'] })
-      const user = selectableUsers.find(u => u.id === newUserId)
-      const userName = user
-        ? [user.firstname, user.lastname].filter(Boolean).join(" ").trim() || user.username
-        : "Non assigné"
-      toast.success(`Intervention assignée à ${userName}`)
-      onUpdate?.(newUserId)
-    },
-    onError: () => {
-      toast.error("Erreur lors de la mise à jour de l'assignation")
-    },
-  })
-
-  return (
-    <GestionnairePopover
-      users={selectableUsers}
-      currentUserId={currentUserId}
-      onSelect={(userId) => updateMutation.mutate(userId)}
-      triggerProps={{
-        className: "flex items-center justify-center h-7 w-7 cursor-pointer group rounded-full",
-        onClick: (e) => e.stopPropagation(),
-      }}
-      trigger={
-        <GestionnaireBadge
-          firstname={currentUserFirstname}
-          lastname={currentUserLastname}
-          color={currentUserColor}
-          avatarUrl={currentUserAvatarUrl}
-          size="sm"
-          className="transition-transform group-hover:scale-110 h-7 w-7"
-        />
-      }
-    />
-  )
 }
 
 export function TableView({

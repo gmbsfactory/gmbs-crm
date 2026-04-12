@@ -5,17 +5,7 @@ import { Check, Search } from "lucide-react"
 import { Label } from "@/components/ui/label"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 
-// Calcul de la couleur de texte lisible basé sur la luminance
-function getReadableTextColor(bgColor: string): string {
-  if (!bgColor) return "#1f2937"
-  const hex = bgColor.replace("#", "")
-  if (hex.length !== 6) return "#1f2937"
-  const r = parseInt(hex.substring(0, 2), 16)
-  const g = parseInt(hex.substring(2, 4), 16)
-  const b = parseInt(hex.substring(4, 6), 16)
-  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255
-  return luminance > 0.5 ? "#1f2937" : "#ffffff"
-}
+import { getReadableTextColor } from "@/utils/color"
 
 export interface SearchableBadgeOption {
   id: string

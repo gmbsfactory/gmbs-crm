@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState, type CSSProperties } from "react"
 import { useRouter } from "next/navigation"
-import { Copy, Check } from "lucide-react"
+import { Copy, Check, Trash2 } from "lucide-react"
 import { usePageKeyboardShortcuts } from "@/hooks/usePageKeyboardShortcuts"
 import { useSimpleTableNavigation } from "@/hooks/useSimpleTableNavigation"
 import { format, getYear, startOfMonth, endOfMonth, startOfYear, endOfYear, eachMonthOfInterval } from "date-fns"
@@ -13,6 +13,16 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Pagination } from "@/components/ui/pagination"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useColumnResize, type ColumnWidths } from "@/hooks/useColumnResize"
 import { useCurrentUser } from "@/hooks/useCurrentUser"
@@ -94,6 +104,7 @@ export default function ComptabilitePage() {
   const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set())
   const [copied, setCopied] = useState(false)
   const [copiedAndChecked, setCopiedAndChecked] = useState(false)
+  const [excludeConfirm, setExcludeConfirm] = useState<{ ids: string[] } | null>(null)
 
   // États pour la pagination
   const [currentPage, setCurrentPage] = useState(1)
@@ -224,6 +235,8 @@ export default function ComptabilitePage() {
     error,
     toggleComptaCheck,
     bulkCheck,
+    excludeFromCompta,
+    bulkExclude,
   } = useComptabiliteQuery({
     dateRange,
     enabled: canAccessComptabilite && !!currentUser,
@@ -376,6 +389,34 @@ export default function ComptabilitePage() {
     setTimeout(() => setCopiedAndChecked(false), 2000)
   }, [selectedRows, copySelectedRows, bulkCheck])
 
+  const handleExcludeRow = useCallback((id: string) => {
+    setExcludeConfirm({ ids: [id] })
+  }, [])
+
+  const handleBulkExclude = useCallback(() => {
+    if (selectedRows.size === 0) return
+    setExcludeConfirm({ ids: Array.from(selectedRows) })
+  }, [selectedRows])
+
+  const confirmExclude = useCallback(async () => {
+    if (!excludeConfirm) return
+    const { ids } = excludeConfirm
+    setExcludeConfirm(null)
+
+    if (ids.length === 1) {
+      await excludeFromCompta(ids[0])
+    } else {
+      await bulkExclude(ids)
+    }
+
+    // Retirer les IDs exclus de la sélection
+    setSelectedRows((prev) => {
+      const next = new Set(prev)
+      ids.forEach((id) => next.delete(id))
+      return next
+    })
+  }, [excludeConfirm, excludeFromCompta, bulkExclude])
+
   if (!loadingUser && !loadingPermissions && (!currentUser || !canAccessComptabilite)) {
     return null
   }
@@ -518,6 +559,17 @@ export default function ComptabilitePage() {
             {copiedAndChecked ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
             {copiedAndChecked ? "Copié + Géré !" : "Copier + Check"}
           </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleBulkExclude}
+            disabled={selectedRows.size === 0}
+            className="h-8 text-xs gap-1.5 text-destructive hover:bg-destructive/10 hover:text-destructive border-destructive/30"
+            aria-label={selectedRows.size === 0 ? "Sélectionnez des lignes pour supprimer" : `Retirer ${selectedRows.size} lignes de la compta`}
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+            Supprimer
+          </Button>
         </div>
       </div>
 
@@ -613,6 +665,7 @@ export default function ComptabilitePage() {
                       onToggleSelect={toggleSelectRow}
                       onToggleComptaCheck={toggleComptaCheck}
                       onOpenModal={handleOpenModal}
+                      onExclude={handleExcludeRow}
                       columnWidths={columnWidths}
                       rowIndex={idx}
                       isHighlighted={comptaHighlightedIndex === idx}
@@ -635,6 +688,29 @@ export default function ComptabilitePage() {
           </div>
         )}
       </div>
+
+      {/* Dialog de confirmation de suppression */}
+      <AlertDialog open={!!excludeConfirm} onOpenChange={(open) => !open && setExcludeConfirm(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Retirer de la comptabilité</AlertDialogTitle>
+            <AlertDialogDescription>
+              {excludeConfirm?.ids.length === 1
+                ? "Cette intervention sera retirée de la vue comptabilité. Elle pourra être restaurée ultérieurement."
+                : `${excludeConfirm?.ids.length} interventions seront retirées de la vue comptabilité. Elles pourront être restaurées ultérieurement.`}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annuler</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmExclude}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Supprimer
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { validateSiretLuhn, validateSiret } from '@/lib/siret-validation'
+import { validateSiretLuhn, validateSiret, siretFormRule } from '@/lib/siret-validation'
 
 describe('siret-validation', () => {
   describe('validateSiretLuhn', () => {
@@ -87,6 +87,26 @@ describe('siret-validation', () => {
       const result = validateSiret('123-456-789-01')
       expect(result.isValid).toBe(false)
       expect(result.errorMessage).toBe('Le SIRET doit contenir uniquement des chiffres')
+    })
+  })
+
+  describe('siretFormRule', () => {
+    it('should return true for empty/undefined', () => {
+      expect(siretFormRule(undefined)).toBe(true)
+      expect(siretFormRule('')).toBe(true)
+      expect(siretFormRule('  ')).toBe(true)
+    })
+
+    it('should return true for valid 14-digit SIRET', () => {
+      expect(siretFormRule('12345678901234')).toBe(true)
+    })
+
+    it('should return error string for wrong length', () => {
+      expect(siretFormRule('1234')).toBe('14 chiffres requis')
+    })
+
+    it('should return error string for non-digit characters', () => {
+      expect(siretFormRule('1234567890123A')).toBe('14 chiffres requis')
     })
   })
 })

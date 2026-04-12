@@ -1,30 +1,20 @@
 "use client"
 
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { Controller, useForm } from "react-hook-form"
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { useMutation, useQueryClient } from "@tanstack/react-query"
 import {
   ChevronRight,
   ChevronDown,
   X,
   Loader2,
   CheckCircle2,
-  AlertCircle,
   MapPin,
   User,
   Building2,
-  Landmark,
-  Calendar,
   Upload,
   MessageSquare,
-  Trash2,
-  Plus,
   UserCheck,
-  Pencil,
-  RefreshCw,
-  AlertTriangle,
-  BarChart3,
-  Info
 } from "lucide-react"
 import { useGeocodeSearch, type GeocodeSuggestion } from "@/hooks/useGeocodeSearch"
 import { Button } from "@/components/ui/button"
@@ -44,55 +34,28 @@ import {
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { GestionnaireBadge } from "@/components/ui/gestionnaire-badge"
-import {
-  AlertDialog,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog"
 import { ModeIcons } from "@/components/ui/mode-selector"
-import { DocumentManager } from "@/components/documents"
-import { CommentSection } from "@/components/shared/CommentSection"
 import { useReferenceDataQuery } from "@/hooks/useReferenceDataQuery"
 import { toast } from "sonner"
 import { useSiretVerification } from "@/hooks/useSiretVerification"
-import { validateSiret } from "@/lib/siret-validation"
-import { artisansApi, interventionsApi } from "@/lib/api/v2"
+import { normalizeIban } from "@/lib/iban-validation"
+import { SiretField } from "./_components/SiretField"
+import { IbanField } from "./_components/IbanField"
+import { PendingAbsencesSection, type PendingAbsence } from "./_components/PendingAbsencesSection"
+import { DeletedArtisanDialog, type DeletedArtisanInfo } from "./_components/DeletedArtisanDialog"
+import { artisansApi } from "@/lib/api/v2"
 import { commentsApi } from "@/lib/api/v2/commentsApi"
 import { artisanKeys } from "@/lib/react-query/queryKeys"
 import { useCurrentUser } from "@/hooks/useCurrentUser"
 import { usePermissions } from "@/hooks/usePermissions"
 import { cn } from "@/lib/utils"
-import { calculateNewArtisanStatus, type ArtisanStatusCode } from "@/lib/artisans/statusRules"
 import type { ModalDisplayMode } from "@/types/modal-display"
 import { useSubmitShortcut } from "@/hooks/useSubmitShortcut"
-import { REGEXP_ONLY_DIGITS, REGEXP_ONLY_DIGITS_AND_CHARS } from "input-otp"
-import {
-  InputOTP,
-  InputOTPGroup,
-  InputOTPSeparator,
-  InputOTPSlot,
-} from "@/components/ui/input-otp"
 import { UnsavedChangesDialog } from "@/components/interventions/UnsavedChangesDialog"
-import { StatusReasonModal } from "@/components/shared/StatusReasonModal"
-import { getReasonTypeForTransition, type StatusReasonType } from "@/lib/comments/statusReason"
 
 // ===== HELPERS =====
 
-// Fonction pour calculer la couleur de texte lisible (blanc ou noir)
-function getReadableTextColor(bgColor: string | null | undefined): string {
-  if (!bgColor) return "#1f2937"
-  const hex = bgColor.replace("#", "")
-  if (hex.length !== 6) return "#1f2937"
-  const r = parseInt(hex.slice(0, 2), 16)
-  const g = parseInt(hex.slice(2, 4), 16)
-  const b = parseInt(hex.slice(4, 6), 16)
-  // Formule de luminance relative
-  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255
-  return luminance > 0.5 ? "#1f2937" : "#ffffff"
-}
+import { getReadableTextColor } from "@/utils/color"
 
 const formatDate = (value: string | null | undefined, withTime = false) => {
   if (!value) return "—"
@@ -126,9 +89,6 @@ const ZONE_INTERVENTION_OPTIONS = [
   { value: "50", label: "35 à 50 km" },
   { value: "150", label: "50 et + km" },
 ]
-
-const IBAN_LENGTH = 27
-const IBAN_GROUPS = [4, 4, 4, 4, 4, 4, 3]
 
 const ARTISAN_DOCUMENT_KINDS = [
   { kind: "kbis", label: "Extrait Kbis" },
@@ -165,21 +125,6 @@ type ArtisanFormValues = {
   commentaire_initial: string
 }
 
-type PendingAbsence = {
-  id: string
-  start_date: string
-  end_date: string
-  reason: string
-}
-
-type ExistingAbsence = {
-  id: string
-  start_date: string
-  end_date: string
-  reason: string | null
-  is_confirmed: boolean
-}
-
 // ===== HELPERS =====
 
 const buildDefaultFormValues = (): ArtisanFormValues => ({
@@ -204,14 +149,6 @@ const buildDefaultFormValues = (): ArtisanFormValues => ({
   intervention_longitude: null,
   commentaire_initial: "",
 })
-
-const normalizeIban = (value: string) => {
-  const iban = value?.replace(/\s/g, "").toUpperCase() || ""
-  if (iban.length === 0) return undefined
-  if (iban.length !== IBAN_LENGTH) return undefined
-  if (!/^[A-Z0-9]+$/.test(iban)) return undefined
-  return iban
-}
 
 const buildCreatePayload = (values: ArtisanFormValues) => {
   // S'assurer que les métiers et zones sont toujours des tableaux (même vides)
@@ -248,15 +185,13 @@ type Props = {
   mode: ModalDisplayMode
   onClose: () => void
   onCycleMode?: () => void
-  artisanId?: string // Si fourni, mode édition
   onUnsavedChangesStateChange?: (hasChanges: boolean, submitting: boolean) => void
   onRegisterShowDialog?: (showDialog: () => void) => void
   onStatusReasonModalOpenChange?: (isOpen: boolean) => void
   onUnsavedDialogOpenChange?: (isOpen: boolean) => void
 }
 
-export function NewArtisanModalContent({ mode, onClose, onCycleMode, artisanId, onUnsavedChangesStateChange, onRegisterShowDialog, onStatusReasonModalOpenChange, onUnsavedDialogOpenChange }: Props) {
-  const isEditMode = Boolean(artisanId)
+export function NewArtisanModalContent({ mode, onClose, onCycleMode, onUnsavedChangesStateChange, onRegisterShowDialog, onUnsavedDialogOpenChange }: Props) {
   const ModeIcon = ModeIcons[mode]
   const { data: referenceData, loading: referenceLoading } = useReferenceDataQuery()
   const queryClient = useQueryClient()
@@ -266,16 +201,8 @@ export function NewArtisanModalContent({ mode, onClose, onCycleMode, artisanId, 
   const canWriteArtisans = can("write_artisans")
 
   // États pour les sections collapsibles
-  const [isAbsencesOpen, setIsAbsencesOpen] = useState(false)
   const [isDocumentsOpen, setIsDocumentsOpen] = useState(false)
   const [isCommentsOpen, setIsCommentsOpen] = useState(false)
-
-  // Toggle entre vue Informations et vue Statistiques
-  const [showStats, setShowStats] = useState(false)
-
-  // États pour l'archivage
-  const [pendingArchive, setPendingArchive] = useState<boolean>(false)
-  const isStatusReasonModalOpen = pendingArchive
 
   // Hook géocodage pour l'adresse du siège social
   const {
@@ -288,24 +215,14 @@ export function NewArtisanModalContent({ mode, onClose, onCycleMode, artisanId, 
   const [showSuggestions, setShowSuggestions] = useState(false)
   const [generatedNumeroAssocie, setGeneratedNumeroAssocie] = useState<string>("")
 
-  // Gestion des absences
+  // Gestion des absences (création uniquement — les absences réelles sont créées après l'enregistrement)
   const [pendingAbsences, setPendingAbsences] = useState<PendingAbsence[]>([])
-  const [existingAbsences, setExistingAbsences] = useState<ExistingAbsence[]>([])
-  const [newAbsence, setNewAbsence] = useState({ start_date: "", end_date: "", reason: "" })
-  // État pour suivre si les données ont été chargées et réinitialisées
-  const [isFormInitialized, setIsFormInitialized] = useState(false)
+  const [isRestoringOrDeleting, setIsRestoringOrDeleting] = useState(false)
 
   // État pour le dialogue de confirmation d'artisan supprimé
   const [deletedArtisanDialog, setDeletedArtisanDialog] = useState<{
     isOpen: boolean
-    artisan: {
-      id: string
-      prenom: string | null
-      nom: string | null
-      email: string | null
-      siret: string | null
-      raison_sociale: string | null
-    } | null
+    artisan: DeletedArtisanInfo | null
     deletedAt: string | null
     pendingFormValues: ArtisanFormValues | null
   }>({
@@ -314,8 +231,6 @@ export function NewArtisanModalContent({ mode, onClose, onCycleMode, artisanId, 
     deletedAt: null,
     pendingFormValues: null,
   })
-  const [isRestoringOrDeleting, setIsRestoringOrDeleting] = useState(false)
-
   // Utiliser le hook centralisé useCurrentUser au lieu d'un fetch direct
   const { data: currentUserData } = useCurrentUser()
   const currentUser = useMemo(() => {
@@ -330,16 +245,6 @@ export function NewArtisanModalContent({ mode, onClose, onCycleMode, artisanId, 
       avatarUrl: currentUserData.avatar_url ?? null,
     }
   }, [currentUserData])
-
-  // Charger l'artisan existant en mode édition
-  const { data: existingArtisan, isLoading: isLoadingArtisan } = useQuery({
-    queryKey: ["artisan", artisanId],
-    enabled: Boolean(artisanId),
-    queryFn: () => artisansApi.getById(artisanId!),
-  })
-
-  // Mémoriser le statut initial de l'artisan (pour ONE_SHOT notamment)
-  const [initialArtisanStatusId, setInitialArtisanStatusId] = useState<string | null>(null)
 
   // Cleanup du timeout
   useEffect(() => {
@@ -361,258 +266,40 @@ export function NewArtisanModalContent({ mode, onClose, onCycleMode, artisanId, 
     defaultValues: buildDefaultFormValues(),
   })
 
-  // Réinitialiser le flag quand l'artisan change
-  useEffect(() => {
-    setIsFormInitialized(false)
-    setInitialArtisanStatusId(null)
-    setPendingArchive(false)
-  }, [artisanId])
-
-  useEffect(() => {
-    onStatusReasonModalOpenChange?.(isStatusReasonModalOpen)
-  }, [isStatusReasonModalOpen, onStatusReasonModalOpenChange])
-
-  // En mode création, le formulaire est immédiatement initialisé
-  useEffect(() => {
-    if (!isEditMode) {
-      setIsFormInitialized(true)
-    }
-  }, [isEditMode])
-
-  // Charger les données de l'artisan existant dans le formulaire
-  useEffect(() => {
-    if (existingArtisan && isEditMode) {
-      const artisanAny = existingArtisan as any
-
-      // Extraire les métiers
-      const metierIds: string[] = (() => {
-        if (Array.isArray(artisanAny.artisan_metiers)) {
-          return artisanAny.artisan_metiers
-            .map((item: any) => item.metier_id || item.metiers?.id)
-            .filter(Boolean)
-        }
-        if (Array.isArray(artisanAny.metiers)) {
-          return artisanAny.metiers.filter(Boolean)
-        }
-        return []
-      })()
-
-      // Extraire la zone - utiliser zones.code en priorité car les options du Select utilisent les codes
-      const zoneValue = (() => {
-        if (Array.isArray(artisanAny.artisan_zones) && artisanAny.artisan_zones.length > 0) {
-          const first = artisanAny.artisan_zones[0]
-          // Priorité au code de la zone car les options utilisent des codes ("20", "35", etc.), pas des UUIDs
-          if (first.zones?.code) return String(first.zones.code)
-          if (first.zones?.label) return String(first.zones.label)
-          // Fallback sur zone_id seulement si pas de code/label disponible
-          if (first.zone_id) return String(first.zone_id)
-          return ""
-        }
-        if (Array.isArray(artisanAny.zones) && artisanAny.zones.length > 0) {
-          return artisanAny.zones[0]
-        }
-        return ""
-      })()
-
-      // Debug: vérifier ce qui est chargé
-
-      // Sauvegarder le statut initial pour pouvoir y revenir depuis ONE_SHOT
-      if (artisanAny.statut_id && !initialArtisanStatusId) {
-        setInitialArtisanStatusId(artisanAny.statut_id)
-      }
-
-      // Charger les absences existantes
-      if (Array.isArray(artisanAny.artisan_absences)) {
-        setExistingAbsences(artisanAny.artisan_absences.map((a: any) => ({
-          id: a.id,
-          start_date: a.start_date,
-          end_date: a.end_date,
-          reason: a.reason,
-          is_confirmed: a.is_confirmed ?? false,
-        })))
-      }
-
-      // Remplir le formulaire et réinitialiser isDirty
-      reset({
-        prenom: artisanAny.prenom ?? "",
-        nom: artisanAny.nom ?? "",
-        raison_sociale: artisanAny.raison_sociale ?? "",
-        telephone: artisanAny.telephone ?? "",
-        telephone2: artisanAny.telephone2 ?? "",
-        email: artisanAny.email ?? "",
-        adresse_siege_social: artisanAny.adresse_siege_social ?? "",
-        code_postal_siege_social: artisanAny.code_postal_siege_social ?? "",
-        ville_siege_social: artisanAny.ville_siege_social ?? "",
-        statut_juridique: artisanAny.statut_juridique ?? "",
-        siret: artisanAny.siret ?? "",
-        // Normaliser l'IBAN en majuscules dès le mapping pour éviter que le toUpperCase() 
-        // dans le onChange du InputOTP ne marque le champ comme modifié
-        iban: (artisanAny.iban ?? "").toUpperCase(),
-        metiers: metierIds,
-        zone_intervention: zoneValue,
-        gestionnaire_id: artisanAny.gestionnaire_id ?? "",
-        statut_id: artisanAny.statut_id ?? "",
-        numero_associe: artisanAny.numero_associe ?? "",
-        intervention_latitude: artisanAny.intervention_latitude ?? null,
-        intervention_longitude: artisanAny.intervention_longitude ?? null,
-        commentaire_initial: "",
-      }, { keepDefaultValues: false, keepDirtyValues: false })
-      // Marquer le formulaire comme initialisé après un court délai pour laisser reset() se terminer
-      setTimeout(() => {
-        setIsFormInitialized(true)
-      }, 150)
-
-      // Mettre à jour l'adresse query pour le géocodage
-      const fullAddress = [
-        artisanAny.adresse_siege_social,
-        artisanAny.code_postal_siege_social,
-        artisanAny.ville_siege_social
-      ].filter(Boolean).join(", ")
-      if (fullAddress) {
-        setAddressQuery(fullAddress)
-      }
-
-      // Mettre à jour le numéro associé
-      if (artisanAny.numero_associe) {
-        setGeneratedNumeroAssocie(artisanAny.numero_associe)
-      }
-    }
-  }, [existingArtisan, isEditMode, reset, setAddressQuery, initialArtisanStatusId])
-
   // Mettre à jour le statut par défaut en mode création
   useEffect(() => {
-    if (!isEditMode && defaultCandidatStatusId) {
+    if (defaultCandidatStatusId) {
       setValue("statut_id", defaultCandidatStatusId)
     }
-  }, [defaultCandidatStatusId, setValue, isEditMode])
+  }, [defaultCandidatStatusId, setValue])
 
-  // Récupérer le nombre d'interventions terminées en mode édition
-  const { data: completedInterventionsCount = 0 } = useQuery({
-    queryKey: ["artisan-completed-interventions", artisanId],
-    enabled: false, // Désactivé temporairement jusqu'à l'implémentation de la méthode
-    queryFn: () => Promise.resolve(0), // Retourne 0 temporairement
-  })
-
-  // Observer le statut actuel pour le useMemo
-  const currentStatusId = watch("statut_id")
-
-  // Récupérer le statut précédent depuis l'historique (pour ONE_SHOT notamment)
-  const { data: previousStatusData } = useQuery({
-    queryKey: ["artisan-previous-status", artisanId, currentStatusId],
-    enabled: isEditMode && Boolean(artisanId) && Boolean(currentStatusId),
-    queryFn: async () => {
-      if (!artisanId) return null
-
-      // Récupérer le statut actuel pour vérifier si c'est ONE_SHOT
-      const currentStatus = referenceData?.artisanStatuses?.find(
-        (s) => s.id === currentStatusId
-      )
-
-      // Si le statut actuel est ONE_SHOT, on cherche le statut juste avant de passer à ONE_SHOT
-      if (currentStatus?.code?.toUpperCase() === 'ONE_SHOT') {
-        return artisansApi.getPreviousStatus(artisanId, 'ONE_SHOT')
-      }
-
-      // Sinon, récupérer simplement le dernier statut précédent
-      return artisansApi.getPreviousStatus(artisanId)
-    },
-    staleTime: 5 * 60 * 1000, // Cache 5 minutes
-  })
-
-  // Filtrer les statuts disponibles selon le statut actuel
+  // Statuts disponibles en création : CANDIDAT ou ONE_SHOT
   const availableStatusesForModification = useMemo((): Array<{ id: string; code: string; label: string; color: string }> => {
     if (!referenceData?.artisanStatuses) return []
 
-    const currentStatus = referenceData.artisanStatuses.find(
-      (s) => s.id === currentStatusId
-    )
-    const currentStatusCode = currentStatus?.code?.toUpperCase() || ''
-
-    // Mode création : depuis POTENTIEL par défaut, on peut aller vers CANDIDAT ou ONE_SHOT
-    if (!isEditMode) {
-      const allowedCodes = ['CANDIDAT', 'ONE_SHOT']
-      return referenceData.artisanStatuses
-        .filter((status) => allowedCodes.includes(status.code?.toUpperCase() || ''))
-        .sort((a, b) => {
-          const order = ['CANDIDAT', 'ONE_SHOT']
-          const aIndex = order.indexOf(a.code?.toUpperCase() || '')
-          const bIndex = order.indexOf(b.code?.toUpperCase() || '')
-          return (aIndex === -1 ? 999 : aIndex) - (bIndex === -1 ? 999 : bIndex)
-        })
-    }
-
-    // Mode édition : déterminer les statuts disponibles selon le statut actuel
-    let allowedCodes: string[] = []
-
-    if (currentStatusCode === 'POTENTIEL') {
-      // Depuis POTENTIEL → CANDIDAT ou ONE_SHOT
-      allowedCodes = ['CANDIDAT', 'ONE_SHOT']
-    } else if (currentStatusCode === 'CANDIDAT') {
-      // Depuis CANDIDAT → ONE_SHOT ou POTENTIEL
-      allowedCodes = ['ONE_SHOT', 'POTENTIEL']
-    } else if (currentStatusCode === 'ONE_SHOT') {
-      // Depuis ONE_SHOT → Proposer de revenir au statut précédent
-
-      // Option 1: Utiliser le statut initial chargé (avant modification en ONE_SHOT)
-      const initialStatus = referenceData.artisanStatuses.find(s => s.id === initialArtisanStatusId)
-      if (initialStatus?.code && initialStatus.code.toUpperCase() !== 'ONE_SHOT') {
-        allowedCodes = [initialStatus.code.toUpperCase()]
-      }
-      // Option 2: Statut précédent depuis l'historique (si l'artisan était déjà ONE_SHOT au chargement)
-      else if (previousStatusData?.statusCode) {
-        allowedCodes = [previousStatusData.statusCode]
-      }
-      // Option 3: Fallback - Calculer selon le nombre d'interventions
-      else {
-        const calculatedStatus = calculateNewArtisanStatus(null, completedInterventionsCount)
-        if (calculatedStatus) {
-          allowedCodes = [calculatedStatus]
-        } else {
-          // Option 4: Dernier fallback - POTENTIEL
-          allowedCodes = ['POTENTIEL']
-        }
-      }
-    } else {
-      // Depuis n'importe quel autre statut (NOVICE, FORMATION, etc.) → ONE_SHOT uniquement
-      allowedCodes = ['ONE_SHOT']
-    }
-
-    // Filtrer les statuts disponibles
-    const availableStatuses = referenceData.artisanStatuses
+    const allowedCodes = ['CANDIDAT', 'ONE_SHOT']
+    return referenceData.artisanStatuses
       .filter((status) => allowedCodes.includes(status.code?.toUpperCase() || ''))
       .sort((a, b) => {
-        // Trier selon l'ordre : CANDIDAT, ONE_SHOT, POTENTIEL, puis les autres
-        const order = ['CANDIDAT', 'ONE_SHOT', 'POTENTIEL', 'NOVICE', 'FORMATION', 'CONFIRME', 'EXPERT']
+        const order = ['CANDIDAT', 'ONE_SHOT']
         const aIndex = order.indexOf(a.code?.toUpperCase() || '')
         const bIndex = order.indexOf(b.code?.toUpperCase() || '')
         return (aIndex === -1 ? 999 : aIndex) - (bIndex === -1 ? 999 : bIndex)
       })
+  }, [referenceData])
 
-    // IMPORTANT : Ajouter le statut actuel s'il n'est pas déjà dans la liste
-    // pour qu'il puisse être affiché dans le Select même s'il n'est pas modifiable
-    if (currentStatus && !availableStatuses.find(s => s.id === currentStatus.id)) {
-      return [currentStatus, ...availableStatuses]
-    }
-
-    return availableStatuses
-  }, [referenceData, isEditMode, currentStatusId, completedInterventionsCount, previousStatusData, initialArtisanStatusId])
-
-  // Attribuer automatiquement l'artisan au gestionnaire qui le crée (création uniquement)
+  // Attribuer automatiquement l'artisan au gestionnaire qui le crée
   useEffect(() => {
-    if (!isEditMode && currentUser?.id && isFormInitialized) {
-      // Vérifier la valeur actuelle sans déclencher de re-render
+    if (currentUser?.id) {
       const currentGestionnaireId = getValues("gestionnaire_id")
-      // Ne définir que si aucun gestionnaire n'est déjà assigné
       if (!currentGestionnaireId) {
         setValue("gestionnaire_id", currentUser.id, { shouldDirty: false })
       }
     }
-  }, [currentUser?.id, isEditMode, isFormInitialized, setValue, getValues])
+  }, [currentUser?.id, setValue, getValues])
 
-  // Récupérer le nombre d'artisans pour générer le numéro associé (création uniquement)
+  // Récupérer le nombre d'artisans pour générer le numéro associé
   useEffect(() => {
-    if (isEditMode) return
-
     const fetchArtisanCount = async () => {
       try {
         const count = await artisansApi.getTotalCount()
@@ -625,7 +312,7 @@ export function NewArtisanModalContent({ mode, onClose, onCycleMode, artisanId, 
       }
     }
     fetchArtisanCount()
-  }, [setValue, isEditMode])
+  }, [setValue])
 
   const { verifySiret, isLoading: isVerifyingSiret, isUnavailable } = useSiretVerification()
 
@@ -633,21 +320,6 @@ export function NewArtisanModalContent({ mode, onClose, onCycleMode, artisanId, 
     mutationFn: (payload: ReturnType<typeof buildCreatePayload>) => artisansApi.create(payload),
   })
 
-  const updateArtisan = useMutation({
-    mutationFn: (payload: { id: string; data: ReturnType<typeof buildCreatePayload> }) =>
-      artisansApi.update(payload.id, payload.data),
-  })
-
-  // Fonction pour obtenir le code de statut d'un artisan
-  const getArtisanStatusCode = useCallback(
-    (statusId?: string | null) => {
-      if (!statusId || !referenceData?.artisanStatuses) {
-        return null
-      }
-      return referenceData.artisanStatuses.find((status) => status.id === statusId)?.code ?? null
-    },
-    [referenceData?.artisanStatuses],
-  )
 
   const metierOptions = useMemo(
     () => (referenceData?.metiers ?? []).map((metier) => ({
@@ -705,37 +377,12 @@ export function NewArtisanModalContent({ mode, onClose, onCycleMode, artisanId, 
   const watchedLat = watch("intervention_latitude")
   const watchedLng = watch("intervention_longitude")
 
-  // Gestion des absences
-  const handleAddAbsence = useCallback(() => {
-    if (!newAbsence.start_date || !newAbsence.end_date) {
-      toast.error("Veuillez renseigner les dates de début et de fin")
-      return
-    }
-
-    const newEntry: PendingAbsence = {
-      id: `pending-${Date.now()}`,
-      start_date: newAbsence.start_date,
-      end_date: newAbsence.end_date,
-      reason: newAbsence.reason,
-    }
-
-    setPendingAbsences(prev => [...prev, newEntry])
-    setNewAbsence({ start_date: "", end_date: "", reason: "" })
-    toast.success("Absence ajoutée")
-  }, [newAbsence])
+  const handleAddAbsence = useCallback((absence: PendingAbsence) => {
+    setPendingAbsences(prev => [...prev, absence])
+  }, [])
 
   const handleRemovePendingAbsence = useCallback((id: string) => {
     setPendingAbsences(prev => prev.filter(a => a.id !== id))
-  }, [])
-
-  const handleDeleteExistingAbsence = useCallback(async (id: string) => {
-    try {
-      await artisansApi.deleteAbsence(id)
-      setExistingAbsences(prev => prev.filter(a => a.id !== id))
-      toast.success("Absence supprimée")
-    } catch (error) {
-      toast.error("Erreur lors de la suppression de l'absence")
-    }
   }, [])
 
   // Fonction interne pour créer l'artisan (appelée après vérification des doublons)
@@ -805,11 +452,7 @@ export function NewArtisanModalContent({ mode, onClose, onCycleMode, artisanId, 
       reset(buildDefaultFormValues())
       setPendingAbsences([])
 
-      // Attendre un court délai pour que le refetch se termine
-      // avant de fermer le modal
-      await new Promise(resolve => setTimeout(resolve, 300))
-
-      // Fermer le modal après sauvegarde réussie
+      // Fermer le modal après sauvegarde réussie (refetch déjà await plus haut)
       shouldCloseAfterSave.current = false
       onClose()
     } catch (error: any) {
@@ -981,98 +624,30 @@ export function NewArtisanModalContent({ mode, onClose, onCycleMode, artisanId, 
 
   const onSubmit = async (values: ArtisanFormValues) => {
     try {
-      const payload = buildCreatePayload(values)
+      // Vérifier d'abord si un artisan supprimé existe
+      if (values.email || values.siret) {
+        try {
+          const checkResult = await artisansApi.checkDeletedArtisan({
+            email: values.email || undefined,
+            siret: values.siret || undefined,
+          })
 
-      if (isEditMode && artisanId) {
-        // Mode édition
-        const updated = await updateArtisan.mutateAsync({ id: artisanId, data: payload })
-
-        // Créer les nouvelles absences
-        for (const absence of pendingAbsences) {
-          try {
-            await artisansApi.createAbsence(artisanId, {
-              start_date: absence.start_date,
-              end_date: absence.end_date,
-              reason: absence.reason || undefined,
-              is_confirmed: false,
+          if (checkResult.found && checkResult.artisan) {
+            setDeletedArtisanDialog({
+              isOpen: true,
+              artisan: checkResult.artisan,
+              deletedAt: checkResult.deleted_at || null,
+              pendingFormValues: values,
             })
-          } catch (absenceError) {
-            console.error("Erreur lors de la création de l'absence:", absenceError)
+            return
           }
+        } catch (checkError) {
+          console.warn("Erreur lors de la vérification des artisans supprimés:", checkError)
         }
-
-        // Ajouter le commentaire initial si renseigné
-        const trimmedComment = values.commentaire_initial.trim()
-        if (trimmedComment.length > 0) {
-          try {
-            await commentsApi.create({
-              entity_id: artisanId,
-              entity_type: "artisan",
-              content: trimmedComment,
-              comment_type: "internal",
-              is_internal: true,
-              author_id: currentUser?.id,
-            })
-          } catch (commentError) {
-            console.error("Impossible d'ajouter le commentaire:", commentError)
-            toast.error("Le commentaire n'a pas pu être enregistré.")
-          }
-        }
-
-        queryClient.invalidateQueries({ queryKey: ["artisan", artisanId] })
-        await queryClient.invalidateQueries({
-          queryKey: artisanKeys.invalidateLists(),
-          refetchType: 'active'
-        })
-
-        // Forcer un refetch immédiat pour contourner le staleTime
-        await queryClient.refetchQueries({
-          queryKey: artisanKeys.invalidateLists(),
-          type: 'active'
-        })
-
-        if (typeof window !== "undefined") {
-          window.dispatchEvent(
-            new CustomEvent("artisan-updated", {
-              detail: { id: artisanId, data: updated, type: "update" },
-            }),
-          )
-        }
-
-        toast.success("Artisan mis à jour")
-
-        // Fermer le modal après sauvegarde réussie
-        shouldCloseAfterSave.current = false
-        onClose()
-      } else {
-        // Mode création - Vérifier d'abord si un artisan supprimé existe
-        if (values.email || values.siret) {
-          try {
-            const checkResult = await artisansApi.checkDeletedArtisan({
-              email: values.email || undefined,
-              siret: values.siret || undefined,
-            })
-
-            if (checkResult.found && checkResult.artisan) {
-              // Un artisan supprimé existe, afficher le dialogue
-              setDeletedArtisanDialog({
-                isOpen: true,
-                artisan: checkResult.artisan,
-                deletedAt: checkResult.deleted_at || null,
-                pendingFormValues: values,
-              })
-              return
-            }
-          } catch (checkError) {
-            // Si la vérification échoue, on doit quand même vérifier côté serveur
-            // L'Edge Function va gérer les doublons avec un message approprié
-            console.warn("Erreur lors de la vérification des artisans supprimés:", checkError)
-          }
-        }
-
-        // Créer l'artisan - l'Edge Function gère les doublons
-        await performCreateArtisan(values)
       }
+
+      // Créer l'artisan - l'Edge Function gère les doublons
+      await performCreateArtisan(values)
     } catch (error) {
       const message = error instanceof Error ? error.message : "Impossible de sauvegarder l'artisan."
       toast.error("Échec de la sauvegarde", { description: message })
@@ -1085,113 +660,15 @@ export function NewArtisanModalContent({ mode, onClose, onCycleMode, artisanId, 
     }
   }
 
-  // Fonction pour soumettre l'archivage avec commentaire
-  const submitArtisanArchive = async (comment: string) => {
-    if (!artisanId || !isEditMode) return
-
-    const archiveStatusId = referenceData?.artisanStatuses?.find((status) => status.code === "ARCHIVE")?.id
-    if (!archiveStatusId) {
-      toast.error("Erreur", {
-        description: "Impossible de trouver le statut ARCHIVE",
-      })
-      setPendingArchive(false)
-      return
-    }
-
-    const formValues = getValues()
-    const payload = buildCreatePayload({
-      ...formValues,
-      statut_id: archiveStatusId,
-    })
-
-    try {
-      const updated = await updateArtisan.mutateAsync({ id: artisanId, data: payload })
-
-      // Ajouter le commentaire obligatoire
-      try {
-        await commentsApi.create({
-          entity_id: artisanId,
-          entity_type: "artisan",
-          content: comment,
-          comment_type: "internal",
-          is_internal: true,
-          author_id: currentUser?.id ?? undefined,
-          reason_type: "archive",
-        })
-        await queryClient.invalidateQueries({ queryKey: ["comments", "artisan", artisanId] })
-      } catch (commentError) {
-        console.error("[NewArtisanModalContent] Impossible d'ajouter le commentaire obligatoire", commentError)
-        throw new Error("Le commentaire obligatoire n'a pas pu être enregistré. Merci de réessayer.")
-      }
-
-      await queryClient.invalidateQueries({ queryKey: ["artisan", artisanId] })
-      await queryClient.invalidateQueries({
-        queryKey: artisanKeys.invalidateLists(),
-        refetchType: 'active'
-      })
-
-      await queryClient.refetchQueries({
-        queryKey: artisanKeys.invalidateLists(),
-        type: 'active'
-      })
-
-      if (typeof window !== "undefined") {
-        window.dispatchEvent(
-          new CustomEvent("artisan-updated", {
-            detail: {
-              id: artisanId,
-              data: updated,
-              optimistic: false,
-              type: "update",
-            },
-          }),
-        )
-      }
-
-      toast.success("Artisan archivé", {
-        description: "L'artisan a été archivé avec succès.",
-      })
-
-      setPendingArchive(false)
-      onClose()
-    } catch (mutationError) {
-      const message = mutationError instanceof Error ? mutationError.message : "Une erreur est survenue."
-      toast.error("Échec de l'archivage", {
-        description: message,
-      })
-      setPendingArchive(false)
-    }
-  }
-
-  const handleArchiveClick = () => {
-    if (!existingArtisan || !isEditMode) return
-    const currentStatusCode = getArtisanStatusCode(existingArtisan.statut_id ?? null)
-    if (currentStatusCode === "ARCHIVE") {
-      // Déjà archivé, ne rien faire
-      return
-    }
-    setPendingArchive(true)
-  }
-
-  const handleArchiveCancel = () => {
-    setPendingArchive(false)
-  }
-
-  const handleArchiveConfirm = async (comment: string) => {
-    await submitArtisanArchive(comment)
-  }
-
-  const isSubmitting = createArtisan.isPending || updateArtisan.isPending
-  const isLoading = (referenceLoading && !referenceData) || (isEditMode && isLoadingArtisan)
+  const isSubmitting = createArtisan.isPending
+  const isLoading = referenceLoading && !referenceData
 
   // State pour la protection des modifications non sauvegardées
   const [showUnsavedDialog, setShowUnsavedDialog] = useState(false)
   const pendingCloseAction = useRef<(() => void) | null>(null)
   const shouldCloseAfterSave = useRef(false)
 
-  // Détection des modifications non sauvegardées - utiliser isDirty comme dans ArtisanModalContent
-  // avec la condition isFormInitialized pour éviter les faux positifs au chargement
-  const hasUnsavedChanges = isFormInitialized && isDirty && !isSubmitting && !isLoading && (!isEditMode || existingArtisan !== undefined)
+  const hasUnsavedChanges = isDirty && !isSubmitting && !isLoading
 
   // Notifier le parent des changements d'état pour la gestion du clic sur backdrop
   useEffect(() => {
@@ -1280,42 +757,6 @@ export function NewArtisanModalContent({ mode, onClose, onCycleMode, artisanId, 
   const inputClass = "h-8 text-sm bg-background border-input/80 focus:border-primary focus:ring-1 focus:ring-primary/30 placeholder:text-muted-foreground/60"
   const labelClass = "text-xs font-medium text-foreground/80"
 
-  // Toutes les absences combinées pour affichage
-  const allAbsences = [...existingAbsences.map(a => ({ ...a, isPending: false })), ...pendingAbsences.map(a => ({ ...a, isPending: true, is_confirmed: false }))]
-
-  // Statut dossier (uniquement en mode édition)
-  const dossierStatus = isEditMode ? (existingArtisan as any)?.statutDossier ?? null : null
-  const dossierBadge = (() => {
-    if (!dossierStatus) {
-      return <Badge variant="outline">Non renseigné</Badge>
-    }
-
-    // Si le statut est "À compléter", utiliser un style rouge
-    const statusLower = dossierStatus.toLowerCase()
-    if (statusLower === "à compléter" || statusLower === "a compléter") {
-      return (
-        <Badge className={cn("border border-red-500/30 bg-red-500/15 text-red-700")}>
-          {dossierStatus}
-        </Badge>
-      )
-    }
-
-    // Pour les autres statuts, utiliser les thèmes par défaut
-    const slug = dossierStatus.toLowerCase().replace(/\s+/g, "_")
-    const dossierStatusTheme: Record<string, string> = {
-      complet: "bg-emerald-100 text-emerald-700 border-emerald-300",
-      en_attente: "bg-amber-100 text-amber-700 border-amber-300",
-      incomplet: "bg-red-100 text-red-700 border-red-300",
-      a_verifier: "bg-blue-100 text-blue-700 border-blue-300",
-      bloque: "bg-gray-200 text-gray-700 border-gray-300",
-    }
-    const theme = dossierStatusTheme[slug] ?? "bg-slate-100 text-slate-700 border-slate-200"
-    return (
-      <Badge className={cn("border", theme)}>
-        {dossierStatus}
-      </Badge>
-    )
-  })()
 
   // Rendu du contrôle métiers
   const renderMetiersControl = (isRequired = false) => {
@@ -1489,72 +930,16 @@ export function NewArtisanModalContent({ mode, onClose, onCycleMode, artisanId, 
               <span className="modal-config-columns-icon-placeholder" />
             )}
 
-            {/* Bouton toggle Statistiques / Informations */}
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className={cn(
-                    "modal-config-columns-icon-button",
-                    showStats && "bg-primary/20 text-primary"
-                  )}
-                  onClick={() => setShowStats(!showStats)}
-                  aria-label={showStats ? "Afficher les informations" : "Afficher les statistiques"}
-                  disabled={!isEditMode}
-                >
-                  {showStats ? <Info className="h-4 w-4" /> : <BarChart3 className="h-4 w-4" />}
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent className="modal-config-columns-tooltip">
-                {showStats ? "Informations" : "Statistiques"}
-              </TooltipContent>
-            </Tooltip>
           </div>
 
           <div className="pointer-events-none absolute left-1/2 top-1/2 flex -translate-x-1/2 -translate-y-1/2 items-center gap-3">
             <div className="flex flex-col items-center">
               <div className="modal-config-columns-title flex items-center gap-2">
-                {isEditMode ? (
-                  <>
-                    <Pencil className="h-4 w-4" />
-                    Modifier l&apos;artisan
-                  </>
-                ) : (
-                  "Créer un artisan"
-                )}
+                Créer un artisan
               </div>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            {existingArtisan?.created_at && isEditMode && (
-              <span className="text-xs text-muted-foreground">
-                Créé le {formatDate(existingArtisan.created_at)}
-              </span>
-            )}
-            {existingArtisan && isEditMode && canWriteArtisans ? (
-              getArtisanStatusCode(existingArtisan.statut_id ?? null) === "ARCHIVE" ? (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="bg-orange-100 text-orange-700 border-orange-300 hover:bg-orange-200 hover:text-orange-800"
-                  disabled
-                >
-                  Archivé
-                </Button>
-              ) : (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="bg-orange-100 text-orange-700 border-orange-300 hover:bg-orange-200 hover:text-orange-800"
-                  onClick={handleArchiveClick}
-                  disabled={isSubmitting || isLoading}
-                >
-                  Archiver
-                </Button>
-              )
-            ) : null}
-          </div>
+          <div className="flex items-center gap-2" />
         </header>
 
         <form ref={formRef} onSubmit={handleSubmit(onSubmit)} className="flex flex-1 min-h-0 flex-col">
@@ -1565,7 +950,7 @@ export function NewArtisanModalContent({ mode, onClose, onCycleMode, artisanId, 
                   Vous n&apos;avez pas la permission de créer ou modifier un artisan.
                 </div>
               </div>
-            ) : (isLoading || (isEditMode && !isFormInitialized)) ? (
+            ) : isLoading ? (
               <div className="grid gap-4 md:grid-cols-2 px-4 py-3 md:px-6">
                 <div className="h-64 rounded-lg bg-muted animate-pulse" />
                 <div className="h-64 rounded-lg bg-muted animate-pulse" />
@@ -1583,17 +968,6 @@ export function NewArtisanModalContent({ mode, onClose, onCycleMode, artisanId, 
                             <User className="h-4 w-4" />
                             Informations de l&apos;artisan
                           </CardTitle>
-                          {isEditMode && (
-                            <div className="flex items-center gap-2">
-                              <span className="text-[10px] uppercase text-muted-foreground">Dossier</span>
-                              {dossierBadge}
-                              {isDirty && (
-                                <Badge variant="outline" className="border-amber-300 bg-amber-100 text-amber-700 text-[10px]">
-                                  Non enregistré
-                                </Badge>
-                              )}
-                            </div>
-                          )}
                         </div>
                       </CardHeader>
                       <CardContent className="px-4 pb-4 pt-0 space-y-3">
@@ -1886,14 +1260,8 @@ export function NewArtisanModalContent({ mode, onClose, onCycleMode, artisanId, 
                                 (s) => s.id === currentStatusId
                               )
 
-                              // Vérifier si le statut est modifiable
-                              // - En création : toujours modifiable (POTENTIEL par défaut)
-                              // - En édition : modifiable si des options sont disponibles
-                              const hasAvailableOptions = availableStatusesForModification.length > 0
-                              const isStatusModifiable = !isEditMode || (isEditMode && hasAvailableOptions)
-
-                              // Mode lecture seule OU statut non modifiable : affichage statique
-                              if (!canWriteArtisans || !isStatusModifiable) {
+                              // Mode lecture seule : affichage statique
+                              if (!canWriteArtisans) {
                                 return (
                                   <div className="flex items-center gap-2 rounded-md border bg-muted px-3 py-2 h-8 text-sm">
                                     {currentStatus ? (
@@ -1911,14 +1279,13 @@ export function NewArtisanModalContent({ mode, onClose, onCycleMode, artisanId, 
                                 );
                               }
 
-                              // Mode création ou édition avec statut modifiable : Select pour choisir le statut
+                              // Select pour choisir le statut
                               return (
                                 <Controller
                                   name="statut_id"
                                   control={control}
                                   render={({ field }) => {
-                                    // Utiliser la valeur du champ directement, avec fallback en mode création
-                                    const selectedStatusId = field.value || (isEditMode ? "" : defaultCandidatStatusId);
+                                    const selectedStatusId = field.value || defaultCandidatStatusId;
                                     const selectedStatus = availableStatusesForModification.find(
                                       (s) => s.id === selectedStatusId
                                     ) || referenceData?.artisanStatuses?.find(
@@ -2024,86 +1391,7 @@ export function NewArtisanModalContent({ mode, onClose, onCycleMode, artisanId, 
                           </div>
                         </div>
 
-                        <div className="space-y-1 overflow-hidden">
-                          <Label htmlFor="siret" className={labelClass}>SIRET</Label>
-                          <Controller
-                            name="siret"
-                            control={control}
-                            rules={{
-                              validate: (value) => {
-                                const siret = value?.trim() || ""
-                                if (siret.length === 0) return true
-                                if (siret.length === 14 && /^\d+$/.test(siret)) return true
-                                return "14 chiffres requis"
-                              },
-                            }}
-                            render={({ field, fieldState }) => {
-                              const siretValue = field.value?.replace(/\s/g, "") || ""
-                              const siretValidation = validateSiret(siretValue)
-                              const isSiretValid = siretValidation.isValid && siretValue.length === 14
-
-                              return (
-                                <div className="space-y-1 w-full overflow-hidden">
-                                  <div className="flex items-center gap-1 w-full overflow-hidden">
-                                    <div className="flex-1 min-w-0 overflow-hidden">
-                                      <InputOTP
-                                        maxLength={14}
-                                        pattern={REGEXP_ONLY_DIGITS}
-                                        value={field.value}
-                                        onChange={(value) => field.onChange(value.replace(/\s/g, ""))}
-                                        onPaste={(e) => {
-                                          e.preventDefault()
-                                          const pastedText = e.clipboardData.getData('text/plain')
-                                          const cleaned = pastedText.replace(/\s/g, "").slice(0, 14)
-                                          field.onChange(cleaned)
-                                        }}
-                                        containerClassName="flex flex-nowrap items-center w-full"
-                                        className="gap-0 w-full"
-                                        pushPasswordManagerStrategy="none"
-                                      >
-                                        <InputOTPGroup className="gap-0 flex-1 min-w-0">
-                                          <InputOTPSlot index={0} className="!w-[calc(100%/3)] !max-w-[22px] h-6 text-[10px] bg-background border border-[#C6CEDC] text-foreground font-mono p-0" />
-                                          <InputOTPSlot index={1} className="!w-[calc(100%/3)] !max-w-[22px] h-6 text-[10px] bg-background border border-[#C6CEDC] text-foreground font-mono p-0" />
-                                          <InputOTPSlot index={2} className="!w-[calc(100%/3)] !max-w-[22px] h-6 text-[10px] bg-background border border-[#C6CEDC] text-foreground font-mono p-0" />
-                                        </InputOTPGroup>
-                                        <span className="text-muted-foreground text-[8px] shrink-0 px-px">·</span>
-                                        <InputOTPGroup className="gap-0 flex-1 min-w-0">
-                                          <InputOTPSlot index={3} className="!w-[calc(100%/3)] !max-w-[22px] h-6 text-[10px] bg-background border border-[#C6CEDC] text-foreground font-mono p-0" />
-                                          <InputOTPSlot index={4} className="!w-[calc(100%/3)] !max-w-[22px] h-6 text-[10px] bg-background border border-[#C6CEDC] text-foreground font-mono p-0" />
-                                          <InputOTPSlot index={5} className="!w-[calc(100%/3)] !max-w-[22px] h-6 text-[10px] bg-background border border-[#C6CEDC] text-foreground font-mono p-0" />
-                                        </InputOTPGroup>
-                                        <span className="text-muted-foreground text-[8px] shrink-0 px-px">·</span>
-                                        <InputOTPGroup className="gap-0 flex-1 min-w-0">
-                                          <InputOTPSlot index={6} className="!w-[calc(100%/3)] !max-w-[22px] h-6 text-[10px] bg-background border border-[#C6CEDC] text-foreground font-mono p-0" />
-                                          <InputOTPSlot index={7} className="!w-[calc(100%/3)] !max-w-[22px] h-6 text-[10px] bg-background border border-[#C6CEDC] text-foreground font-mono p-0" />
-                                          <InputOTPSlot index={8} className="!w-[calc(100%/3)] !max-w-[22px] h-6 text-[10px] bg-background border border-[#C6CEDC] text-foreground font-mono p-0" />
-                                        </InputOTPGroup>
-                                        <span className="text-muted-foreground text-[8px] shrink-0 px-px">·</span>
-                                        <InputOTPGroup className="gap-0 flex-[1.67] min-w-0">
-                                          <InputOTPSlot index={9} className="!w-[calc(100%/5)] !max-w-[22px] h-6 text-[10px] bg-background border border-[#C6CEDC] text-foreground font-mono p-0" />
-                                          <InputOTPSlot index={10} className="!w-[calc(100%/5)] !max-w-[22px] h-6 text-[10px] bg-background border border-[#C6CEDC] text-foreground font-mono p-0" />
-                                          <InputOTPSlot index={11} className="!w-[calc(100%/5)] !max-w-[22px] h-6 text-[10px] bg-background border border-[#C6CEDC] text-foreground font-mono p-0" />
-                                          <InputOTPSlot index={12} className="!w-[calc(100%/5)] !max-w-[22px] h-6 text-[10px] bg-background border border-[#C6CEDC] text-foreground font-mono p-0" />
-                                          <InputOTPSlot index={13} className="!w-[calc(100%/5)] !max-w-[22px] h-6 text-[10px] bg-background border border-[#C6CEDC] text-foreground font-mono p-0" />
-                                        </InputOTPGroup>
-                                      </InputOTP>
-                                    </div>
-                                    {siretValue.length > 0 && (
-                                      isSiretValid ? (
-                                        <CheckCircle2 className="h-3.5 w-3.5 text-green-600 shrink-0" />
-                                      ) : siretValue.length === 14 ? (
-                                        <AlertCircle className="h-3.5 w-3.5 text-destructive shrink-0" />
-                                      ) : null
-                                    )}
-                                  </div>
-                                  {fieldState.error && (
-                                    <p className="text-xs text-destructive">{fieldState.error.message}</p>
-                                  )}
-                                </div>
-                              )
-                            }}
-                          />
-                        </div>
+                        <SiretField control={control} />
 
                         <div className="space-y-1">
                           <Label className={labelClass}>Zone d&apos;intervention</Label>
@@ -2137,216 +1425,13 @@ export function NewArtisanModalContent({ mode, onClose, onCycleMode, artisanId, 
                       </CardContent>
                     </Card>
 
-                    {/* IBAN */}
-                    <Card>
-                      <CardHeader className="py-3 px-4">
-                        <CardTitle className="flex items-center gap-2 text-sm">
-                          <Landmark className="h-4 w-4" />
-                          IBAN
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent className="px-4 pb-4 pt-0 overflow-hidden">
-                        <Controller
-                          name="iban"
-                          control={control}
-                          rules={{
-                            validate: (value) => {
-                              const raw = value?.trim() || ""
-                              if (raw.length === 0) return true
-                              const iban = raw.replace(/\s/g, "").toUpperCase()
-                              if (iban.length !== IBAN_LENGTH) return "27 caractères requis"
-                              if (!/^[A-Z0-9]+$/.test(iban)) return "Caractères invalides"
-                              return true
-                            },
-                          }}
-                          render={({ field, fieldState }) => {
-                            const ibanValue = field.value?.replace(/\s/g, "").toUpperCase() || ""
-                            const isIbanComplete = ibanValue.length === IBAN_LENGTH
-                            const isIbanValid = isIbanComplete && /^[A-Z0-9]+$/.test(ibanValue)
+                    <IbanField control={control} />
 
-                            return (
-                              <div className="space-y-1 w-full overflow-hidden">
-                                <div className="flex items-center gap-1 w-full overflow-hidden">
-                                  <div className="flex-1 min-w-0 overflow-hidden">
-                                    <InputOTP
-                                      maxLength={IBAN_LENGTH}
-                                      pattern={REGEXP_ONLY_DIGITS_AND_CHARS}
-                                      inputMode="text"
-                                      value={field.value}
-                                      onChange={(value) => field.onChange(value.replace(/\s/g, "").toUpperCase())}
-                                      onPaste={(e) => {
-                                        e.preventDefault()
-                                        const pastedText = e.clipboardData.getData('text/plain')
-                                        const cleaned = pastedText.replace(/\s/g, "").toUpperCase().slice(0, IBAN_LENGTH)
-                                        field.onChange(cleaned)
-                                      }}
-                                      containerClassName="flex flex-nowrap items-center w-full"
-                                      className="gap-0 w-full"
-                                      pushPasswordManagerStrategy="none"
-                                    >
-                                      {IBAN_GROUPS.map((size, groupIndex) => {
-                                        const startIndex = IBAN_GROUPS.slice(0, groupIndex).reduce(
-                                          (sum, groupSize) => sum + groupSize,
-                                          0
-                                        )
-                                        return (
-                                          <React.Fragment key={`iban-group-${groupIndex}`}>
-                                            <InputOTPGroup className="gap-0 flex-1 min-w-0">
-                                              {Array.from({ length: size }).map((_, slotIndex) => (
-                                                <InputOTPSlot
-                                                  key={`iban-slot-${startIndex + slotIndex}`}
-                                                  index={startIndex + slotIndex}
-                                                  className="!w-[calc(100%/4)] !max-w-[18px] h-6 text-[9px] bg-background border border-[#C6CEDC] text-foreground font-mono p-0"
-                                                />
-                                              ))}
-                                            </InputOTPGroup>
-                                            {groupIndex < IBAN_GROUPS.length - 1 && (
-                                              <span className="text-muted-foreground text-[8px] shrink-0 px-px">·</span>
-                                            )}
-                                          </React.Fragment>
-                                        )
-                                      })}
-                                    </InputOTP>
-                                  </div>
-                                  {ibanValue.length > 0 && (
-                                    isIbanValid ? (
-                                      <CheckCircle2 className="h-3.5 w-3.5 text-green-600 shrink-0" />
-                                    ) : isIbanComplete ? (
-                                      <AlertCircle className="h-3.5 w-3.5 text-destructive shrink-0" />
-                                    ) : null
-                                  )}
-                                </div>
-                                {fieldState.error && (
-                                  <p className="text-xs text-destructive">{fieldState.error.message}</p>
-                                )}
-                              </div>
-                            )
-                          }}
-                        />
-                      </CardContent>
-                    </Card>
-
-                    {/* Gestion des absences (collapsible) */}
-                    <Collapsible open={isAbsencesOpen} onOpenChange={setIsAbsencesOpen}>
-                      <Card>
-                        <CollapsibleTrigger asChild>
-                          <CardHeader className="cursor-pointer py-3 px-4 hover:bg-muted/50">
-                            <CardTitle className="flex items-center gap-2 text-sm">
-                              <Calendar className="h-4 w-4" />
-                              Gestion des absences
-                              {isAbsencesOpen ? (
-                                <ChevronDown className="ml-auto h-4 w-4" />
-                              ) : (
-                                <ChevronRight className="ml-auto h-4 w-4" />
-                              )}
-                              {allAbsences.length > 0 && (
-                                <Badge variant="secondary" className="ml-2 text-xs">
-                                  {allAbsences.length}
-                                </Badge>
-                              )}
-                            </CardTitle>
-                          </CardHeader>
-                        </CollapsibleTrigger>
-                        <CollapsibleContent>
-                          <CardContent className="px-4 pb-4 pt-0 space-y-3">
-                            {/* Formulaire d'ajout d'absence */}
-                            <div className="space-y-2 p-3 rounded-lg bg-muted/30 border border-border/50">
-                              <div className="grid grid-cols-2 gap-2">
-                                <div className="space-y-1">
-                                  <Label className={labelClass}>Date de début</Label>
-                                  <Input
-                                    type="date"
-                                    className={inputClass}
-                                    value={newAbsence.start_date}
-                                    onChange={(e) => setNewAbsence(prev => ({ ...prev, start_date: e.target.value }))}
-                                  />
-                                </div>
-                                <div className="space-y-1">
-                                  <Label className={labelClass}>Date de fin</Label>
-                                  <Input
-                                    type="date"
-                                    className={inputClass}
-                                    value={newAbsence.end_date}
-                                    onChange={(e) => setNewAbsence(prev => ({ ...prev, end_date: e.target.value }))}
-                                  />
-                                </div>
-                              </div>
-                              <div className="space-y-1">
-                                <Label className={labelClass}>Motif (optionnel)</Label>
-                                <Input
-                                  placeholder="Ex: Congés, Maladie..."
-                                  className={inputClass}
-                                  value={newAbsence.reason}
-                                  onChange={(e) => setNewAbsence(prev => ({ ...prev, reason: e.target.value }))}
-                                />
-                              </div>
-                              <Button
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                                className="w-full mt-2"
-                                onClick={handleAddAbsence}
-                              >
-                                <Plus className="h-3 w-3 mr-1" />
-                                Ajouter une absence
-                              </Button>
-                            </div>
-
-                            {/* Liste des absences */}
-                            {allAbsences.length > 0 && (
-                              <div className="space-y-1.5">
-                                {allAbsences.map((absence) => (
-                                  <div
-                                    key={absence.id}
-                                    className={cn(
-                                      "flex items-center justify-between p-2 rounded border text-xs",
-                                      absence.isPending
-                                        ? "bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800"
-                                        : "bg-background border-border"
-                                    )}
-                                  >
-                                    <div className="flex items-center gap-2">
-                                      <Calendar className={cn("h-3 w-3", absence.isPending ? "text-amber-600" : "text-muted-foreground")} />
-                                      <span>
-                                        Du {new Date(absence.start_date).toLocaleDateString('fr-FR')} au {new Date(absence.end_date).toLocaleDateString('fr-FR')}
-                                      </span>
-                                      {absence.reason && (
-                                        <Badge variant="outline" className="text-[10px]">
-                                          {absence.reason}
-                                        </Badge>
-                                      )}
-                                      {absence.isPending && (
-                                        <Badge variant="secondary" className="text-[10px] bg-amber-100 text-amber-700">
-                                          En attente
-                                        </Badge>
-                                      )}
-                                    </div>
-                                    <Button
-                                      type="button"
-                                      variant="ghost"
-                                      size="icon"
-                                      className="h-6 w-6 text-destructive hover:text-destructive"
-                                      onClick={() => absence.isPending
-                                        ? handleRemovePendingAbsence(absence.id)
-                                        : handleDeleteExistingAbsence(absence.id)
-                                      }
-                                    >
-                                      <Trash2 className="h-3 w-3" />
-                                    </Button>
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-
-                            {allAbsences.length === 0 && (
-                              <p className="text-xs italic text-muted-foreground text-center py-2">
-                                Aucune absence planifiée
-                              </p>
-                            )}
-                          </CardContent>
-                        </CollapsibleContent>
-                      </Card>
-                    </Collapsible>
+                    <PendingAbsencesSection
+                      absences={pendingAbsences}
+                      onAdd={handleAddAbsence}
+                      onRemove={handleRemovePendingAbsence}
+                    />
 
                     {/* DIV 4: Documents de l'entreprise (collapsible) */}
                     <Collapsible open={isDocumentsOpen} onOpenChange={setIsDocumentsOpen}>
@@ -2366,24 +1451,15 @@ export function NewArtisanModalContent({ mode, onClose, onCycleMode, artisanId, 
                         </CollapsibleTrigger>
                         <CollapsibleContent>
                           <CardContent className="px-4 pb-4 pt-0">
-                            {isEditMode && artisanId ? (
-                              <DocumentManager
-                                entityType="artisan"
-                                entityId={artisanId}
-                                kinds={ARTISAN_DOCUMENT_KINDS}
-                                currentUser={currentUser ?? undefined}
-                              />
-                            ) : (
-                              <div className="text-center py-6 space-y-2">
-                                <Upload className="h-8 w-8 mx-auto text-muted-foreground/50" />
-                                <p className="text-xs italic text-muted-foreground">
-                                  Les documents pourront être ajoutés après la création de l&apos;artisan
-                                </p>
-                                <p className="text-[10px] text-muted-foreground">
-                                  (KBIS, Attestation d&apos;assurance, CNI, IBAN, Décharge partenariat, Photo de profil)
-                                </p>
-                              </div>
-                            )}
+                            <div className="text-center py-6 space-y-2">
+                              <Upload className="h-8 w-8 mx-auto text-muted-foreground/50" />
+                              <p className="text-xs italic text-muted-foreground">
+                                Les documents pourront être ajoutés après la création de l&apos;artisan
+                              </p>
+                              <p className="text-[10px] text-muted-foreground">
+                                (KBIS, Attestation d&apos;assurance, CNI, IBAN, Décharge partenariat, Photo de profil)
+                              </p>
+                            </div>
                           </CardContent>
                         </CollapsibleContent>
                       </Card>
@@ -2407,27 +1483,17 @@ export function NewArtisanModalContent({ mode, onClose, onCycleMode, artisanId, 
                         </CollapsibleTrigger>
                         <CollapsibleContent>
                           <CardContent className="px-4 pb-4 pt-0">
-                            {isEditMode && artisanId ? (
-                              /* Mode édition : utiliser CommentSection comme dans ArtisanModalContent */
-                              <CommentSection
-                                entityType="artisan"
-                                entityId={artisanId}
-                                currentUserId={currentUser?.id ?? undefined}
+                            <div className="space-y-1">
+                              <Label className={labelClass}>Commentaire initial</Label>
+                              <Textarea
+                                placeholder="Commentaire sur l'artisan..."
+                                className="text-sm resize-none min-h-[80px]"
+                                {...register("commentaire_initial")}
                               />
-                            ) : (
-                              /* Mode création : champ commentaire initial */
-                              <div className="space-y-1">
-                                <Label className={labelClass}>Commentaire initial</Label>
-                                <Textarea
-                                  placeholder="Commentaire sur l'artisan..."
-                                  className="text-sm resize-none min-h-[80px]"
-                                  {...register("commentaire_initial")}
-                                />
-                                <p className="text-[10px] text-muted-foreground">
-                                  Ce commentaire sera enregistré lors de la sauvegarde
-                                </p>
-                              </div>
-                            )}
+                              <p className="text-[10px] text-muted-foreground">
+                                Ce commentaire sera enregistré lors de la sauvegarde
+                              </p>
+                            </div>
                           </CardContent>
                         </CollapsibleContent>
                       </Card>
@@ -2453,11 +1519,11 @@ export function NewArtisanModalContent({ mode, onClose, onCycleMode, artisanId, 
               {isSubmitting ? (
                 <>
                   <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-                  {isEditMode ? "Mise à jour..." : "Création..."}
+                  Création...
                 </>
               ) : (
                 <>
-                  {isEditMode ? "Enregistrer" : "Créer l'artisan"}
+                  Créer l&apos;artisan
                   <kbd className="ml-2 pointer-events-none hidden md:inline-flex h-5 select-none items-center gap-0.5 rounded border border-primary-foreground/30 bg-primary-foreground/10 px-1.5 font-mono text-[10px] font-medium text-primary-foreground/70">
                     {shortcutHint}
                   </kbd>
@@ -2467,124 +1533,21 @@ export function NewArtisanModalContent({ mode, onClose, onCycleMode, artisanId, 
           </footer>
         </form>
 
-        {/* Dialogue de confirmation pour artisan supprimé - z-[200] pour être au-dessus du modal */}
-        <AlertDialog
-          open={deletedArtisanDialog.isOpen}
-          onOpenChange={(open) => !open && handleCloseDeletedDialog()}
-        >
-          <AlertDialogContent className="max-w-md z-[200]">
-            <AlertDialogHeader>
-              <AlertDialogTitle className="flex items-center gap-2 text-amber-600">
-                <AlertTriangle className="h-5 w-5" />
-                Artisan déjà existant
-              </AlertDialogTitle>
-              <AlertDialogDescription asChild>
-                <div className="space-y-3">
-                  <p>
-                    Un artisan avec ces informations a déjà été supprimé
-                    {deletedArtisanDialog.deletedAt && (
-                      <span className="font-medium">
-                        {" "}le {new Date(deletedArtisanDialog.deletedAt).toLocaleDateString('fr-FR', {
-                          day: 'numeric',
-                          month: 'long',
-                          year: 'numeric',
-                        })}
-                      </span>
-                    )}
-                    .
-                  </p>
-
-                  {deletedArtisanDialog.artisan && (
-                    <div className="p-3 rounded-lg bg-muted/50 border text-sm space-y-1">
-                      <p className="font-medium text-foreground">
-                        {[deletedArtisanDialog.artisan.prenom, deletedArtisanDialog.artisan.nom]
-                          .filter(Boolean)
-                          .join(' ') || 'Sans nom'}
-                      </p>
-                      {deletedArtisanDialog.artisan.raison_sociale && (
-                        <p className="text-muted-foreground">
-                          {deletedArtisanDialog.artisan.raison_sociale}
-                        </p>
-                      )}
-                      {deletedArtisanDialog.artisan.email && (
-                        <p className="text-xs text-muted-foreground">
-                          📧 {deletedArtisanDialog.artisan.email}
-                        </p>
-                      )}
-                      {deletedArtisanDialog.artisan.siret && (
-                        <p className="text-xs text-muted-foreground">
-                          🏢 SIRET: {deletedArtisanDialog.artisan.siret}
-                        </p>
-                      )}
-                    </div>
-                  )}
-
-                  <p className="text-sm font-medium mt-2">
-                    Que souhaitez-vous faire ?
-                  </p>
-                  <ul className="text-xs text-muted-foreground space-y-1 ml-2">
-                    <li>• <strong>Restaurer</strong> : réactive l&apos;artisan avec ses données d&apos;origine</li>
-                    <li>• <strong>Écraser</strong> : réactive et remplace par les nouvelles données saisies</li>
-                  </ul>
-                </div>
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter className="flex-col sm:flex-row gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleCloseDeletedDialog}
-                disabled={isRestoringOrDeleting}
-                className="sm:order-1"
-              >
-                Annuler
-              </Button>
-              <Button
-                variant="default"
-                size="sm"
-                onClick={handleRestoreArtisan}
-                disabled={isRestoringOrDeleting}
-                className="bg-emerald-600 hover:bg-emerald-700 text-white sm:order-2"
-              >
-                {isRestoringOrDeleting ? (
-                  <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-                ) : (
-                  <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
-                )}
-                Restaurer
-              </Button>
-              <Button
-                variant="default"
-                size="sm"
-                onClick={handleOverwriteAndCreate}
-                disabled={isRestoringOrDeleting}
-                className="bg-blue-600 hover:bg-blue-700 text-white sm:order-3"
-              >
-                {isRestoringOrDeleting ? (
-                  <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-                ) : (
-                  <Pencil className="mr-1.5 h-3.5 w-3.5" />
-                )}
-                Écraser avec nouvelles données
-              </Button>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
+        <DeletedArtisanDialog
+          isOpen={deletedArtisanDialog.isOpen}
+          artisan={deletedArtisanDialog.artisan}
+          deletedAt={deletedArtisanDialog.deletedAt}
+          isSubmitting={isRestoringOrDeleting}
+          onClose={handleCloseDeletedDialog}
+          onRestore={handleRestoreArtisan}
+          onOverwrite={handleOverwriteAndCreate}
+        />
 
         <UnsavedChangesDialog
           open={showUnsavedDialog}
           onCancel={handleCancelClose}
           onConfirm={handleConfirmClose}
           onSaveAndConfirm={handleSaveAndClose}
-        />
-        <StatusReasonModal
-          open={isStatusReasonModalOpen}
-          type="archive"
-          onCancel={handleArchiveCancel}
-          onConfirm={(reason) => {
-            void handleArchiveConfirm(reason)
-          }}
-          isSubmitting={isSubmitting}
         />
       </div>
     </TooltipProvider>

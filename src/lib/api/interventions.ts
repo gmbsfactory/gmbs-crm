@@ -143,6 +143,7 @@ export async function findDuplicates(input: DuplicateCheckInput, supabaseClient?
       .select("id, contexte_intervention, adresse, agence_id, commentaire_agent")
       .eq("adresse", normalizedAddress)
       .eq("contexte_intervention", normalizedContext)
+      .eq("is_active", true)
       .limit(5)
 
     if (!error && data) {
@@ -158,6 +159,7 @@ export async function findDuplicates(input: DuplicateCheckInput, supabaseClient?
       .select("id, contexte_intervention, adresse, agence_id, commentaire_agent")
       .eq("adresse", normalizedAddress)
       .eq("agence_id", agency.trim())
+      .eq("is_active", true)
       .limit(5)
 
     if (!error && data) {

@@ -26,8 +26,28 @@ import type { InterventionStatusKey } from "@/config/interventions";
 // Utiliser le client admin dans Node.js, le client standard dans le navigateur
 const supabaseClient = typeof window !== 'undefined' ? supabase : getSupabaseClientForNode();
 
-/** Safely get current user ID — returns null in SSR or when no session exists */
-async function getCurrentUserId(): Promise<string | undefined> {
+/**
+ * Auth context that callers may pass through to make CRUD operations
+ * environment-agnostic. When omitted, browser callers fall back to the session
+ * stored in the Supabase JS client; SSR/server callers must provide it
+ * explicitly because there is no ambient session to read from.
+ */
+export interface InterventionAuthContext {
+  userId?: string;
+  isAdmin?: boolean;
+}
+
+const isBrowser = (): boolean => typeof window !== 'undefined';
+
+/**
+ * Resolve the current user id. If provided by the caller, use it. Otherwise
+ * attempt a browser-side session lookup. In SSR contexts without a provided
+ * id, returns undefined (callers must accept the absence rather than the code
+ * silently failing inside auth.getUser()).
+ */
+async function resolveUserId(provided?: string): Promise<string | undefined> {
+  if (provided) return provided;
+  if (!isBrowser()) return undefined;
   try {
     const { data: { user } } = await supabaseClient.auth.getUser();
     return user?.id ?? undefined;
@@ -36,14 +56,15 @@ async function getCurrentUserId(): Promise<string | undefined> {
   }
 }
 
-// ===== HELPERS POUR update() =====
-
-/** Vérifie le rôle admin et retire contexte_intervention si non-admin */
-async function stripAdminOnlyFields(payload: UpdateInterventionData): Promise<UpdateInterventionData> {
-  if (!Object.prototype.hasOwnProperty.call(payload, "contexte_intervention")) {
-    return payload;
-  }
-
+/**
+ * Resolve whether the current caller is admin. If provided, use it. Otherwise
+ * attempt a browser-side lookup via /api/auth/me. In SSR without a provided
+ * value, returns false defensively (admin-only fields will be dropped rather
+ * than leaked).
+ */
+async function resolveIsAdmin(provided?: boolean): Promise<boolean> {
+  if (typeof provided === 'boolean') return provided;
+  if (!isBrowser()) return false;
   try {
     const { data: session } = await supabaseClient.auth.getSession();
     const token = session?.session?.access_token;
@@ -51,26 +72,34 @@ async function stripAdminOnlyFields(payload: UpdateInterventionData): Promise<Up
       cache: "no-store",
       headers: token ? { Authorization: `Bearer ${token}` } : {},
     });
-
-    let isAdmin = false;
-    if (response.ok) {
-      const current = await response.json();
-      const roles: string[] = Array.isArray(current?.user?.roles) ? current.user.roles : [];
-      isAdmin = roles.some(
-        (role) => typeof role === "string" && role.toLowerCase().includes("admin"),
-      );
-    }
-
-    if (!isAdmin) {
-      const { contexte_intervention: _ignored, ...rest } = payload;
-      return rest as UpdateInterventionData;
-    }
-    return payload;
+    if (!response.ok) return false;
+    const current = await response.json();
+    const roles: string[] = Array.isArray(current?.user?.roles) ? current.user.roles : [];
+    return roles.some(
+      (role) => typeof role === "string" && role.toLowerCase().includes("admin"),
+    );
   } catch (error) {
-    console.warn("[interventionsApi.update] Unable to verify user role, dropping context update", error);
-    const { contexte_intervention: _ignored, ...rest } = payload;
-    return rest as UpdateInterventionData;
+    console.warn("[interventionsApi] Unable to verify admin role", error);
+    return false;
   }
+}
+
+// ===== HELPERS POUR update() =====
+
+/** Retire contexte_intervention si l'appelant n'est pas admin. */
+async function stripAdminOnlyFields(
+  payload: UpdateInterventionData,
+  auth?: InterventionAuthContext,
+): Promise<UpdateInterventionData> {
+  if (!Object.prototype.hasOwnProperty.call(payload, "contexte_intervention")) {
+    return payload;
+  }
+
+  const isAdmin = await resolveIsAdmin(auth?.isAdmin);
+  if (isAdmin) return payload;
+
+  const { contexte_intervention: _ignored, ...rest } = payload;
+  return rest as UpdateInterventionData;
 }
 
 /** Récupère le statut actuel d'une intervention avant mise à jour */
@@ -97,9 +126,10 @@ async function handleStatusTransition(
   oldStatutId: string | null,
   newStatutId: string,
   oldStatusCode: string | null,
+  providedUserId?: string,
 ) {
   try {
-    const userId = await getCurrentUserId();
+    const userId = await resolveUserId(providedUserId);
     const refs = await getReferenceCache();
 
     const newStatusObj = refs.interventionStatusesById.get(newStatutId);
@@ -505,7 +535,7 @@ export const interventionsCrud = {
   },
 
   // Créer une intervention
-  async create(data: CreateInterventionData): Promise<Intervention> {
+  async create(data: CreateInterventionData, auth?: InterventionAuthContext): Promise<Intervention> {
     // 1. Faire l'INSERT
     const { data: result, error } = await supabaseClient
       .from('interventions')
@@ -526,7 +556,7 @@ export const interventionsCrud = {
           .eq('intervention_id', result.id)
           .eq('source', 'trigger');
 
-        const userId = await getCurrentUserId();
+        const userId = await resolveUserId(auth?.userId);
 
         // Créer les transitions automatiques
         await automaticTransitionService.createAutomaticTransitions(
@@ -620,8 +650,12 @@ export const interventionsCrud = {
   },
 
   // Modifier une intervention
-  async update(id: string, data: UpdateInterventionData): Promise<InterventionWithStatus> {
-    const payload = await stripAdminOnlyFields({ ...data });
+  async update(
+    id: string,
+    data: UpdateInterventionData,
+    auth?: InterventionAuthContext,
+  ): Promise<InterventionWithStatus> {
+    const payload = await stripAdminOnlyFields({ ...data }, auth);
 
     // Pré-fetch du statut actuel si on change de statut
     let oldStatutId: string | null = null;
@@ -635,7 +669,7 @@ export const interventionsCrud = {
     // Enregistrer la transition AVANT la mise à jour
     const statusChanged = payload.statut_id && oldStatutId !== payload.statut_id;
     if (statusChanged) {
-      await handleStatusTransition(id, oldStatutId, payload.statut_id!, oldStatusCode);
+      await handleStatusTransition(id, oldStatutId, payload.statut_id!, oldStatusCode, auth?.userId);
     }
 
     // Mise à jour en base
@@ -694,7 +728,8 @@ export const interventionsCrud = {
   // Upsert direct via Supabase (pour import en masse)
   async upsertDirect(
     data: CreateInterventionData & { id_inter?: string },
-    customClient?: typeof supabase
+    customClient?: typeof supabase,
+    auth?: InterventionAuthContext,
   ): Promise<Intervention & { _operation: 'created' | 'updated'; _matchedBy?: 'id_inter' }> {
     // Utiliser le client personnalisé si fourni, sinon utiliser supabaseClient (qui utilise getSupabaseClientForNode() dans Node.js)
     const client = customClient || supabaseClient;
@@ -748,7 +783,7 @@ export const interventionsCrud = {
             .eq('source', 'trigger');
         }
 
-        const userId = await getCurrentUserId();
+        const userId = await resolveUserId(auth?.userId);
 
         await automaticTransitionService.createAutomaticTransitions(
           result.id,

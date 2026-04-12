@@ -12,42 +12,99 @@ export interface FacturationEntriesResult {
  */
 export const comptaApi = {
   /**
-   * Récupère toutes les entrées de facturation (transitions vers INTER_TERMINEE).
-   * Query légère sur intervention_status_transitions, sans charger les interventions complètes.
-   * Dédoublonne par intervention (garde la plus récente) et trie par date DESC.
+   * Récupère les interventions dont le statut actuel est INTER_TERMINEE.
+   * Enrichit avec la date de facturation (dernière transition vers INTER_TERMINEE).
+   * Exclut les interventions marquées comme exclues de la compta.
    */
   async getAllFacturationEntries(
     dateRange?: { start: string; end: string } | null
   ): Promise<FacturationEntriesResult> {
-    let query = supabase
-      .from("intervention_status_transitions")
-      .select("intervention_id, transition_date")
-      .eq("to_status_code", "INTER_TERMINEE")
-      .order("transition_date", { ascending: false })
+    // 1. Résoudre l'UUID du statut INTER_TERMINEE
+    const { data: statusData, error: statusError } = await supabase
+      .from("intervention_statuses")
+      .select("id")
+      .eq("code", "INTER_TERMINEE")
+      .single()
 
-    if (dateRange) {
-      query = query.gte("transition_date", dateRange.start).lte("transition_date", dateRange.end)
+    if (statusError || !statusData) {
+      console.error("Error fetching INTER_TERMINEE status:", statusError)
+      throw statusError || new Error("Status INTER_TERMINEE not found")
     }
 
-    const { data, error } = await query
+    // 2. En parallèle : interventions au statut actuel INTER_TERMINEE + transitions (dates) + exclusions
+    const [interventionsResult, transitionsResult, exclusionsResult] = await Promise.all([
+      supabase
+        .from("interventions")
+        .select("id")
+        .eq("statut_id", statusData.id),
+      supabase
+        .from("intervention_status_transitions")
+        .select("intervention_id, transition_date")
+        .eq("to_status_code", "INTER_TERMINEE")
+        .order("transition_date", { ascending: false }),
+      supabase
+        .from("intervention_compta_exclusions")
+        .select("intervention_id"),
+    ])
 
-    if (error) {
-      console.error("Error fetching all facturation entries:", error)
-      throw error
+    if (interventionsResult.error) {
+      console.error("Error fetching INTER_TERMINEE interventions:", interventionsResult.error)
+      throw interventionsResult.error
     }
 
-    // Dédoublonnage : garder la transition la plus récente par intervention
+    // Set des IDs au statut actuel INTER_TERMINEE
+    const termineeIds = new Set<string>(
+      (interventionsResult.data || []).map((row: { id: string }) => row.id)
+    )
+
+    // Set des IDs exclus
+    const excludedIds = new Set(
+      (exclusionsResult.data || []).map((row: { intervention_id: string }) => row.intervention_id)
+    )
+
+    // Map des dates de facturation (dernière transition vers INTER_TERMINEE)
     const dateMap = new Map<string, string>()
-    for (const row of data || []) {
-      if (!dateMap.has(row.intervention_id)) {
+    for (const row of transitionsResult.data || []) {
+      if (
+        termineeIds.has(row.intervention_id) &&
+        !excludedIds.has(row.intervention_id) &&
+        !dateMap.has(row.intervention_id)
+      ) {
         dateMap.set(row.intervention_id, row.transition_date)
       }
     }
 
-    // IDs triés par date de facturation DESC (l'ordre est déjà garanti par la query)
-    const sortedIds = Array.from(dateMap.keys())
+    // Ajouter les interventions INTER_TERMINEE sans transition (cas rare)
+    for (const id of termineeIds) {
+      if (!excludedIds.has(id) && !dateMap.has(id)) {
+        dateMap.set(id, "")
+      }
+    }
 
-    return { dateMap, sortedIds, total: sortedIds.length }
+    // Filtrer par date range sur la date de facturation
+    let sortedIds: string[]
+    if (dateRange) {
+      sortedIds = Array.from(dateMap.entries())
+        .filter(([, date]) => {
+          if (!date) return false
+          return date >= dateRange.start && date <= dateRange.end
+        })
+        .sort(([, a], [, b]) => (b || "").localeCompare(a || ""))
+        .map(([id]) => id)
+    } else {
+      sortedIds = Array.from(dateMap.entries())
+        .sort(([, a], [, b]) => (b || "").localeCompare(a || ""))
+        .map(([id]) => id)
+    }
+
+    // Nettoyer la dateMap pour ne garder que les IDs filtrés
+    const filteredDateMap = new Map<string, string>()
+    for (const id of sortedIds) {
+      const date = dateMap.get(id)
+      if (date) filteredDateMap.set(id, date)
+    }
+
+    return { dateMap: filteredDateMap, sortedIds, total: sortedIds.length }
   },
 
   /**
@@ -167,5 +224,39 @@ export const comptaApi = {
       return false
     }
     return true
-  }
+  },
+
+  /**
+   * Exclut une intervention de la vue comptabilité
+   */
+  async exclude(interventionId: string): Promise<boolean> {
+    const { error } = await supabase
+      .from("intervention_compta_exclusions")
+      .upsert(
+        { intervention_id: interventionId },
+        { onConflict: "intervention_id" }
+      )
+
+    if (error) {
+      console.error("Error excluding intervention from compta:", error)
+      return false
+    }
+    return true
+  },
+
+  /**
+   * Restaure une intervention exclue dans la vue comptabilité
+   */
+  async restore(interventionId: string): Promise<boolean> {
+    const { error } = await supabase
+      .from("intervention_compta_exclusions")
+      .delete()
+      .eq("intervention_id", interventionId)
+
+    if (error) {
+      console.error("Error restoring intervention to compta:", error)
+      return false
+    }
+    return true
+  },
 }

@@ -80,6 +80,11 @@ async function advancePastThrottle() {
   })
 }
 
+/** Returns a fresh timestamp (within the 5-min stale window) */
+function freshTimestamp(offsetMs = 0) {
+  return new Date(Date.now() - offsetMs).toISOString()
+}
+
 // Helper to build a presence entry
 function makePresence(overrides: Partial<{
   userId: string
@@ -97,7 +102,7 @@ function makePresence(overrides: Partial<{
     name: 'Marie C',
     color: '#ef4444',
     avatarUrl: null,
-    joinedAt: '2025-01-01T10:01:00Z',
+    joinedAt: freshTimestamp(),
     currentPage: 'interventions',
     activeInterventionId: null,
     activeArtisanId: null,
@@ -272,8 +277,8 @@ describe('usePagePresence', () => {
 
     it('should deduplicate same user across multiple tabs', async () => {
       mockPresenceState = {
-        'key-tab1': [makePresence({ userId: 'user-other', currentPage: 'interventions', joinedAt: '2025-01-01T10:00:00Z' })],
-        'key-tab2': [makePresence({ userId: 'user-other', currentPage: 'interventions', joinedAt: '2025-01-01T10:01:00Z' })],
+        'key-tab1': [makePresence({ userId: 'user-other', currentPage: 'interventions', joinedAt: freshTimestamp(60000) })],
+        'key-tab2': [makePresence({ userId: 'user-other', currentPage: 'interventions', joinedAt: freshTimestamp(30000) })],
       }
 
       const { result } = renderHook(() => usePagePresence('interventions'))
@@ -285,8 +290,8 @@ describe('usePagePresence', () => {
 
     it('should sort viewers by joinedAt ascending', async () => {
       mockPresenceState = {
-        'key-b': [makePresence({ userId: 'user-b', name: 'B', currentPage: 'interventions', joinedAt: '2025-01-01T10:02:00Z' })],
-        'key-a': [makePresence({ userId: 'user-a', name: 'A', currentPage: 'interventions', joinedAt: '2025-01-01T10:00:00Z' })],
+        'key-b': [makePresence({ userId: 'user-b', name: 'B', currentPage: 'interventions', joinedAt: freshTimestamp(30000) })],
+        'key-a': [makePresence({ userId: 'user-a', name: 'A', currentPage: 'interventions', joinedAt: freshTimestamp(60000) })],
       }
 
       const { result } = renderHook(() => usePagePresence('interventions'))
@@ -300,9 +305,9 @@ describe('usePagePresence', () => {
     it('should handle multiple viewers correctly', async () => {
       mockPresenceState = {
         'key-self': [makePresence({ userId: 'user-self', currentPage: 'interventions' })],
-        'key-a': [makePresence({ userId: 'user-a', name: 'Alice', currentPage: 'interventions', joinedAt: '2025-01-01T10:01:00Z' })],
-        'key-b': [makePresence({ userId: 'user-b', name: 'Bob', currentPage: 'interventions', joinedAt: '2025-01-01T10:02:00Z' })],
-        'key-c': [makePresence({ userId: 'user-c', name: 'Carol', currentPage: 'interventions', joinedAt: '2025-01-01T10:03:00Z' })],
+        'key-a': [makePresence({ userId: 'user-a', name: 'Alice', currentPage: 'interventions', joinedAt: freshTimestamp(90000) })],
+        'key-b': [makePresence({ userId: 'user-b', name: 'Bob', currentPage: 'interventions', joinedAt: freshTimestamp(60000) })],
+        'key-c': [makePresence({ userId: 'user-c', name: 'Carol', currentPage: 'interventions', joinedAt: freshTimestamp(30000) })],
       }
 
       const { result } = renderHook(() => usePagePresence('interventions'))
