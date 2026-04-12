@@ -46,8 +46,7 @@ export function ExpandedRowContent({
       consigne: intervAny.consigneIntervention || "—",
       coutSST: intervAny.coutSST,
       adresse: intervAny.adresse || "—",
-      prenomClient: intervAny.prenomClient || "",
-      nomClient: intervAny.nomClient || "",
+      nomPrenomClient: intervAny.nomPrenomClient || "",
       telephoneClient: intervAny.telephoneClient || "",
       telephone2Client: intervAny.telephone2Client || "",
       referenceAgence: intervAny.referenceAgence || intervAny.reference_agence || "",
@@ -112,14 +111,14 @@ export function ExpandedRowContent({
             <p className="text-[10px] font-semibold text-muted-foreground/70 uppercase tracking-wide mb-0.5">Adresse</p>
             <p className="text-sm font-medium text-foreground">{renderText(interventionData.adresse)}</p>
           </div>
-          {(interventionData.prenomClient || interventionData.nomClient || interventionData.telephoneClient) && (
+          {(interventionData.nomPrenomClient || interventionData.telephoneClient) && (
             <div>
               <p className="text-[10px] font-semibold text-muted-foreground/70 uppercase tracking-wide mb-0.5">Info client</p>
               <p className="text-sm font-medium text-foreground">
-                {(interventionData.prenomClient || interventionData.nomClient) && (
-                  <span>{renderText(`${interventionData.prenomClient} ${interventionData.nomClient}`.trim())}</span>
+                {interventionData.nomPrenomClient && (
+                  <span>{renderText(interventionData.nomPrenomClient)}</span>
                 )}
-                {(interventionData.prenomClient || interventionData.nomClient) && interventionData.telephoneClient && (
+                {interventionData.nomPrenomClient && interventionData.telephoneClient && (
                   <span className="text-muted-foreground"> — </span>
                 )}
                 {interventionData.telephoneClient && (
