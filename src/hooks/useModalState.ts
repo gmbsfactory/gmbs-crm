@@ -60,5 +60,13 @@ export const useModalState = create<ModalState>((set) => ({
   setMetadata: (metadata) => set({ metadata }),
   setClosingGuardId: (id) => set({ closingGuardId: id }),
   setPendingModalId: (id) => set({ pendingModalId: id }),
-  reset: () => set({ ...initialState }),
+  reset: () =>
+    set((state) => ({
+      ...initialState,
+      // Préserver les guards de transition : ils sont posés AVANT reset() dans close()
+      // pour empêcher l'URL-sync effect de réouvrir le modal pendant que router.replace
+      // est en cours. Les écraser ici provoque un glitch close→reopen→close.
+      closingGuardId: state.closingGuardId,
+      pendingModalId: state.pendingModalId,
+    })),
 }))
