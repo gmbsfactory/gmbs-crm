@@ -7,12 +7,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { interventionsApi } from "@/lib/api/v2"
+import { interventionsApi } from "@/lib/api"
 import { useReferenceDataQuery } from "@/hooks/useReferenceDataQuery"
 import { useInterventionModal } from "@/hooks/useInterventionModal"
 import { useArtisanModal } from "@/hooks/useArtisanModal"
 import { cn } from "@/lib/utils"
-import type { Intervention } from "@/lib/api/v2/common/types"
+import type { Intervention } from "@/lib/api/common/types"
 
 type ArtisanInterventionsTableProps = {
   artisanId: string

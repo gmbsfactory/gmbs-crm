@@ -12,7 +12,7 @@ import type {
   UpdateDocumentData,
 } from "./common/types";
 import { getSupabaseFunctionsUrl, getHeaders, handleResponse } from "./common/utils";
-import { safeErrorMessage } from "@/lib/api/v2/common/error-handler";
+import { safeErrorMessage } from "@/lib/api/common/error-handler";
 import { supabase, getSupabaseClientForNode } from "./common/client";
 
 // Détecter si on est dans Node.js (pas de window)

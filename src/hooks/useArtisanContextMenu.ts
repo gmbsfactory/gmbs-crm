@@ -6,7 +6,7 @@ import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query"
 import { toast } from "sonner"
 import { useArtisanModal } from "@/hooks/useArtisanModal"
 import { artisanKeys } from "@/lib/react-query/queryKeys"
-import { artisansApi } from "@/lib/api/v2"
+import { artisansApi } from "@/lib/api"
 
 export function useArtisanContextMenu(artisanId: string) {
   const queryClient = useQueryClient()

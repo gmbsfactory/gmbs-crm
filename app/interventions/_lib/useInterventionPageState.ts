@@ -35,7 +35,7 @@ import { isServerSortable } from "@/lib/interventions/server-sortable-properties
 import { mapStatusFromDb, mapStatusToDb } from "@/lib/interventions/mappers"
 import { isCheckStatus } from "@/lib/interventions/checkStatus"
 import { getAccentHexColor } from "@/lib/themes"
-import { interventionsApi, type InterventionQueryParams } from "@/lib/api/v2"
+import { interventionsApi, type InterventionQueryParams } from "@/lib/api"
 
 import type { WorkflowConfig } from "@/types/intervention-workflow"
 import type { InterventionStatusValue } from "@/types/interventions"

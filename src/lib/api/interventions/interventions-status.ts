@@ -1,14 +1,14 @@
 // ===== INTERVENTIONS STATUS & WORKFLOW =====
 // Gestion des statuts, transitions et artisans
 
-import { supabase, getSupabaseClientForNode } from "@/lib/api/v2/common/client";
+import { supabase, getSupabaseClientForNode } from "@/lib/api/common/client";
 import type {
   InterventionStatusTransition,
-} from "@/lib/api/v2/common/types";
+} from "@/lib/api/common/types";
 import {
   getReferenceCache,
-} from "@/lib/api/v2/common/utils";
-import type { UpdateInterventionData } from "@/lib/api/v2/common/types";
+} from "@/lib/api/common/utils";
+import type { UpdateInterventionData } from "@/lib/api/common/types";
 import type { InterventionWithStatus, InterventionStatus } from "@/types/intervention";
 
 // Utiliser le client admin dans Node.js, le client standard dans le navigateur

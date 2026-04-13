@@ -69,7 +69,7 @@ export const getSupabaseFunctionsUrl = (): string => {
 export const SUPABASE_FUNCTIONS_URL = getSupabaseFunctionsUrl();
 
 // Headers communs pour toutes les requêtes
-// src/lib/api/v2/common/utils.ts
+// src/lib/api/common/utils.ts
 export const getHeaders = async () => {
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
   const isNodeJs = typeof window === "undefined";

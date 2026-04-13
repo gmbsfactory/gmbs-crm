@@ -1,7 +1,7 @@
 "use client"
 
 import { useMutation, useQueryClient } from "@tanstack/react-query"
-import { updatesApi } from "@/lib/api/v2"
+import { updatesApi } from "@/lib/api"
 import { updateKeys } from "@/lib/react-query/queryKeys"
 
 export function useAcknowledgeUpdates() {

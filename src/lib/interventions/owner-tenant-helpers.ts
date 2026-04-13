@@ -1,7 +1,7 @@
 // ===== HELPERS POUR GÉRER LES OWNERS ET TENANTS DANS LES INTERVENTIONS =====
 
-import { ownersApi, tenantsApi } from "@/lib/api/v2";
-import type { CreateOwnerData, CreateTenantData } from "@/lib/api/v2/common/types";
+import { ownersApi, tenantsApi } from "@/lib/api";
+import type { CreateOwnerData, CreateTenantData } from "@/lib/api/common/types";
 
 /**
  * Trouve ou crée un owner (propriétaire) à partir des données du formulaire

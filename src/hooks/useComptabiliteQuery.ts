@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef } from "react"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
-import { interventionsApi, comptaApi, type FacturationEntriesResult } from "@/lib/api/v2"
+import { interventionsApi, comptaApi, type FacturationEntriesResult } from "@/lib/api"
 import { comptabiliteKeys, type ComptabiliteQueryParams } from "@/lib/react-query/queryKeys"
 import { getPreloadConfig } from "@/lib/device-capabilities"
 import { supabase } from "@/lib/supabase-client"

@@ -3,7 +3,7 @@
 
 import { useMemo } from "react"
 import { useQuery } from "@tanstack/react-query"
-import { supabase } from "@/lib/api/v2/common/client"
+import { supabase } from "@/lib/api/common/client"
 
 /**
  * Retourne un Set d'artisan IDs actuellement absents parmi les IDs fournis.

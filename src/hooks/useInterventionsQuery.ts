@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo } from "react"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
-import { interventionsApi, type InterventionQueryParams } from "@/lib/api/v2"
+import { interventionsApi, type InterventionQueryParams } from "@/lib/api"
 import type { InterventionView } from "@/types/intervention-view"
 import { interventionKeys } from "@/lib/react-query/queryKeys"
 import { getPreloadConfig } from "@/lib/device-capabilities"

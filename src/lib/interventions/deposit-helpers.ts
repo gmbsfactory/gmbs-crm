@@ -1,4 +1,4 @@
-import type { InterventionPayment } from '@/lib/api/v2/common/types'
+import type { InterventionPayment } from '@/lib/api/common/types'
 
 export function isDepositReceived(payment: InterventionPayment | undefined): boolean {
     return payment?.is_received === true &&

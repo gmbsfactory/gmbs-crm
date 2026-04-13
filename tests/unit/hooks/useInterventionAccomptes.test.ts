@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { useInterventionAccomptes } from "@/hooks/useInterventionAccomptes"
 import type { InterventionFormData } from "@/lib/interventions/form-types"
 
-vi.mock("@/lib/api/v2", () => ({
+vi.mock("@/lib/api", () => ({
   interventionsApi: {
     upsertPayment: vi.fn().mockResolvedValue(undefined),
     update: vi.fn().mockResolvedValue(undefined),
@@ -15,7 +15,7 @@ vi.mock("sonner", () => ({
   toast: { info: vi.fn(), success: vi.fn(), error: vi.fn() },
 }))
 
-import { interventionsApi } from "@/lib/api/v2"
+import { interventionsApi } from "@/lib/api"
 
 const STATUSES = [
   { id: "s-accepte", code: "ACCEPTE", label: "Accepté" },

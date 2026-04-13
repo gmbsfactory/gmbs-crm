@@ -23,7 +23,7 @@ import {
   chunkArray,
   MAX_BATCH_SIZE,
 } from "./common/utils";
-import { safeErrorMessage } from "@/lib/api/v2/common/error-handler";
+import { safeErrorMessage } from "@/lib/api/common/error-handler";
 
 // Utiliser le client admin dans Node.js, le client standard dans le navigateur
 const supabaseClient = typeof window !== 'undefined' ? supabase : getSupabaseClientForNode();

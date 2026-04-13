@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { QueryClient } from '@tanstack/react-query'
-import type { Intervention } from '@/lib/api/v2/common/types'
+import type { Intervention } from '@/lib/api/common/types'
 import type { CrmEvent, SyncContext } from '@/lib/realtime/event-router/types'
 import { STOP } from '@/lib/realtime/event-router/types'
 import {

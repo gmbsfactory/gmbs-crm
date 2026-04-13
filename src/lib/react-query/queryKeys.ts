@@ -1,5 +1,5 @@
 import type { QueryClient } from "@tanstack/react-query"
-import type { InterventionQueryParams } from "@/lib/api/v2"
+import type { InterventionQueryParams } from "@/lib/api"
 
 // Alias pour compatibilité avec le code existant
 type GetAllParams = InterventionQueryParams

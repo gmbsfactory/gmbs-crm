@@ -1,14 +1,14 @@
 // ===== INTERVENTIONS COSTS =====
 // Gestion des coûts, paiements et calcul de marge
 
-import { supabase } from "@/lib/api/v2/common/client";
+import { supabase } from "@/lib/api/common/client";
 import type {
   InterventionCost,
   InterventionPayment,
   BulkOperationResult,
   MarginCalculation,
-} from "@/lib/api/v2/common/types";
-import { safeErrorMessage } from "@/lib/api/v2/common/error-handler";
+} from "@/lib/api/common/types";
+import { safeErrorMessage } from "@/lib/api/common/error-handler";
 
 /**
  * Build a consistent matching key for intervention costs.

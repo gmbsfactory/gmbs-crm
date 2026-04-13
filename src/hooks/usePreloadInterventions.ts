@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef } from "react"
 import { useQueryClient } from "@tanstack/react-query"
-import { interventionsApi, type InterventionQueryParams } from "@/lib/api/v2"
+import { interventionsApi, type InterventionQueryParams } from "@/lib/api"
 import { interventionKeys } from "@/lib/react-query/queryKeys"
 
 // Alias pour compatibilité

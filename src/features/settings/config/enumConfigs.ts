@@ -1,6 +1,6 @@
-import { agenciesApi, type Agency } from '@/lib/api/v2/agenciesApi';
-import { metiersApi, type Metier } from '@/lib/api/v2/metiersApi';
-import { interventionStatusesApi, type InterventionStatus } from '@/lib/api/v2/interventionStatusesApi';
+import { agenciesApi, type Agency } from '@/lib/api/agenciesApi';
+import { metiersApi, type Metier } from '@/lib/api/metiersApi';
+import { interventionStatusesApi, type InterventionStatus } from '@/lib/api/interventionStatusesApi';
 
 export type EntityType = 'agencies' | 'metiers' | 'intervention-statuses';
 

@@ -1,4 +1,4 @@
-import type { InterventionPayment } from "@/lib/api/v2/common/types"
+import type { InterventionPayment } from "@/lib/api/common/types"
 
 export type SearchEntityType = "intervention" | "artisan"
 export type SearchContext = SearchEntityType | "mixed"

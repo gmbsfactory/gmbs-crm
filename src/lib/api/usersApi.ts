@@ -15,7 +15,7 @@ import type {
     UpdateGestionnaireTargetData,
     TargetPeriodType,
 } from "./common/types";
-import { safeErrorMessage } from "@/lib/api/v2/common/error-handler";
+import { safeErrorMessage } from "@/lib/api/common/error-handler";
 
 export const usersApi = {
   // Récupérer tous les utilisateurs avec leurs rôles

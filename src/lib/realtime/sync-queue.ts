@@ -3,7 +3,7 @@
  * Permet de synchroniser les modifications différées lorsque la connexion est rétablie
  */
 
-import type { Intervention, CreateInterventionData, UpdateInterventionData } from '@/lib/api/v2/common/types'
+import type { Intervention, CreateInterventionData, UpdateInterventionData } from '@/lib/api/common/types'
 import { isNetworkError } from './realtime-client'
 
 export interface QueuedModification {
@@ -257,7 +257,7 @@ export class SyncQueue {
    * @param modification - Modification à synchroniser
    */
   private async syncModification(modification: QueuedModification): Promise<void> {
-    const { interventionsApi } = await import('@/lib/api/v2')
+    const { interventionsApi } = await import('@/lib/api')
 
     switch (modification.type) {
       case 'create':

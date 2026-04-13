@@ -1,7 +1,7 @@
 "use client"
 
 import { useQuery } from "@tanstack/react-query"
-import { interventionsApi, type KPIHistoryParams, type CycleTimeHistoryResponse } from "@/lib/api/v2"
+import { interventionsApi, type KPIHistoryParams, type CycleTimeHistoryResponse } from "@/lib/api"
 
 export function useCycleTimeHistory(
   params: KPIHistoryParams | null,

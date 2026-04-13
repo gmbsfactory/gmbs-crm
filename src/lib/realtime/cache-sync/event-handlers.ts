@@ -4,9 +4,9 @@
  */
 
 import type { QueryClient } from '@tanstack/react-query'
-import type { Intervention } from '@/lib/api/v2/common/types'
-import type { PaginatedResponse } from '@/lib/api/v2/common/types'
-import type { InterventionQueryParams } from '@/lib/api/v2'
+import type { Intervention } from '@/lib/api/common/types'
+import type { PaginatedResponse } from '@/lib/api/common/types'
+import type { InterventionQueryParams } from '@/lib/api'
 import { interventionKeys } from '@/lib/react-query/queryKeys'
 import { matchesFilters, extractFiltersFromQueryKey } from '@/lib/realtime/filter-utils'
 import { getRemoteEditIndicatorManager } from '@/lib/realtime/remote-edit-indicator'

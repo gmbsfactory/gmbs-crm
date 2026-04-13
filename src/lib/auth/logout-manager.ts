@@ -3,7 +3,7 @@
  * Handles status updates with retries and broadcasts logout to other tabs
  */
 
-import { getAbortControllerManager } from '@/lib/api/v2/common/abort-controller-manager'
+import { getAbortControllerManager } from '@/lib/api/common/abort-controller-manager'
 import type { QueryClient } from '@tanstack/react-query'
 import type { SupabaseClient } from '@supabase/supabase-js'
 

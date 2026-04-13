@@ -2,8 +2,8 @@
 
 import { useEffect, useState, useMemo } from "react"
 import { Card, CardContent } from "@/components/ui/card"
-import { usersApi } from "@/lib/api/v2"
-import type { TargetPeriodType } from "@/lib/api/v2"
+import { usersApi } from "@/lib/api"
+import type { TargetPeriodType } from "@/lib/api"
 import Loader from "@/components/ui/Loader"
 import { useCurrentUser } from "@/hooks/useCurrentUser"
 import { useDashboardMargin } from "@/hooks/useDashboardStats"

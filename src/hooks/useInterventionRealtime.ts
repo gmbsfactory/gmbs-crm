@@ -3,7 +3,7 @@
 import { useEffect, useRef } from "react"
 import { createEditFormData } from "@/lib/interventions/form-types"
 import { dbArtisanToNearbyArtisan } from "@/lib/interventions/form-utils"
-import type { Intervention } from "@/lib/api/v2/common/types"
+import type { Intervention } from "@/lib/api/common/types"
 
 interface UseInterventionRealtimeParams {
   intervention: Intervention & { intervention_artisans?: any[]; intervention_costs?: any[]; intervention_payments?: any[] }

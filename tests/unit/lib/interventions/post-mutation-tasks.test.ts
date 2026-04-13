@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest"
 import { runPostMutationTasks, type PostMutationConfig } from "@/lib/interventions/post-mutation-tasks"
 
 // Mock API modules
-vi.mock("@/lib/api/v2", () => ({
+vi.mock("@/lib/api", () => ({
   interventionsApi: {
     setPrimaryArtisan: vi.fn().mockResolvedValue(undefined),
     setSecondaryArtisan: vi.fn().mockResolvedValue(undefined),
@@ -12,7 +12,7 @@ vi.mock("@/lib/api/v2", () => ({
   },
 }))
 
-vi.mock("@/lib/api/v2/commentsApi", () => ({
+vi.mock("@/lib/api/commentsApi", () => ({
   commentsApi: {
     create: vi.fn().mockResolvedValue({}),
   },
@@ -24,8 +24,8 @@ vi.mock("sonner", () => ({
   },
 }))
 
-import { interventionsApi } from "@/lib/api/v2"
-import { commentsApi } from "@/lib/api/v2/commentsApi"
+import { interventionsApi } from "@/lib/api"
+import { commentsApi } from "@/lib/api/commentsApi"
 import { toast } from "sonner"
 
 // Helper to flush all pending promises

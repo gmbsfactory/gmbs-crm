@@ -13,7 +13,7 @@ import {
   EnumFormData,
   EnumItem,
 } from '@/features/settings/config/enumConfigs';
-import { agenciesApi } from '@/lib/api/v2/agenciesApi';
+import { agenciesApi } from '@/lib/api/agenciesApi';
 
 interface EnumEditDialogProps {
   config: EnumConfig;

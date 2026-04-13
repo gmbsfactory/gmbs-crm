@@ -1,6 +1,6 @@
 import { useCallback } from "react"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
-import { interventionsApi, type Intervention, type InterventionCost, type InterventionPayment } from "@/lib/api/v2"
+import { interventionsApi, type Intervention, type InterventionCost, type InterventionPayment } from "@/lib/api"
 import { useInterventionModal } from "@/hooks/useInterventionModal"
 import { interventionKeys } from "@/lib/react-query/queryKeys"
 import { invalidateArtisanQueries } from "@/lib/react-query/invalidate-artisan-queries"

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { artisansApi, commentsApi } from "@/lib/api/v2"
+import { artisansApi, commentsApi } from "@/lib/api"
 import { createSSRServerClient } from "@/lib/supabase/server-ssr"
 import { referenceApi } from "@/lib/reference-api"
 import { requirePermission, isPermissionError } from "@/lib/auth/permissions"

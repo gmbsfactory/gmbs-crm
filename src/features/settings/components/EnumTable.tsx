@@ -10,7 +10,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Plus, Cog, Trash2, Loader2 } from 'lucide-react';
 import { EnumConfig, EnumItem, getEnumFieldValue } from '@/features/settings/config/enumConfigs';
 import { EnumEditDialog } from './EnumEditDialog';
-import { agenciesApi } from '@/lib/api/v2/agenciesApi';
+import { agenciesApi } from '@/lib/api/agenciesApi';
 import { toast } from 'sonner';
 
 interface EnumTableProps {

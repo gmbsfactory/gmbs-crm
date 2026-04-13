@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { interventionsApi, invalidateReferenceCache } from "@/lib/api/v2";
+import { interventionsApi, invalidateReferenceCache } from "@/lib/api";
 import { supabase } from "@/lib/supabase-client";
 import { referenceApi } from "@/lib/reference-api";
 import { automaticTransitionService } from "@/lib/interventions/automatic-transition-service";

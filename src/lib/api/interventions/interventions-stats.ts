@@ -1,7 +1,7 @@
 // ===== INTERVENTIONS STATS =====
 // Statistiques, marges, dashboard admin, historiques KPI
 
-import { supabase } from "@/lib/api/v2/common/client";
+import { supabase } from "@/lib/api/common/client";
 import { RevenueProjectionService } from "@/lib/services/revenueProjection";
 import type {
   AdminDashboardStats,
@@ -33,8 +33,8 @@ import type {
   MonthWeekStats,
   YearMonthStats,
   YearlyStats,
-} from "@/lib/api/v2/common/types";
-import { getReferenceCache } from "@/lib/api/v2/common/utils";
+} from "@/lib/api/common/types";
+import { getReferenceCache } from "@/lib/api/common/utils";
 import { isCheckStatus } from "@/lib/interventions/checkStatus";
 import type { InterventionStatusKey } from "@/config/interventions";
 

@@ -9,7 +9,7 @@ import type {
     UpdateClientData,
 } from "./common/types";
 import { SUPABASE_FUNCTIONS_URL, getHeaders, handleResponse } from "./common/utils";
-import { safeErrorMessage } from "@/lib/api/v2/common/error-handler";
+import { safeErrorMessage } from "@/lib/api/common/error-handler";
 
 export const clientsApi = {
   // Récupérer tous les clients

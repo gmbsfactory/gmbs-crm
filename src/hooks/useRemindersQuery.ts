@@ -2,8 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useRef } from "react"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
-import { remindersApi } from "@/lib/api/v2/reminders"
-import type { InterventionReminder } from "@/lib/api/v2"
+import { remindersApi } from "@/lib/api/reminders"
+import type { InterventionReminder } from "@/lib/api"
 import { useCurrentUser } from "@/hooks/useCurrentUser"
 import { useInterventionModal } from "@/hooks/useInterventionModal"
 import { onReminderRealtimeEvent } from "@/lib/realtime/reminder-events"

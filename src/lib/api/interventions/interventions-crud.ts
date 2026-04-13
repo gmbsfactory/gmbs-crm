@@ -1,7 +1,7 @@
 // ===== INTERVENTIONS CRUD =====
 // Opérations CRUD de base sur les interventions
 
-import { supabase, getSupabaseClientForNode } from "@/lib/api/v2/common/client";
+import { supabase, getSupabaseClientForNode } from "@/lib/api/common/client";
 import type {
   CreateInterventionData,
   Intervention,
@@ -9,7 +9,7 @@ import type {
   InterventionQueryParams,
   PaginatedResponse,
   UpdateInterventionData,
-} from "@/lib/api/v2/common/types";
+} from "@/lib/api/common/types";
 import {
   getSupabaseFunctionsUrl,
   getHeaders,
@@ -17,8 +17,8 @@ import {
   mapInterventionRecord,
   getReferenceCache,
   resolveMetierToId,
-} from "@/lib/api/v2/common/utils";
-import { safeErrorMessage } from "@/lib/api/v2/common/error-handler";
+} from "@/lib/api/common/utils";
+import { safeErrorMessage } from "@/lib/api/common/error-handler";
 import type { InterventionWithStatus } from "@/types/intervention";
 import { automaticTransitionService } from "@/lib/interventions/automatic-transition-service";
 import type { InterventionStatusKey } from "@/config/interventions";

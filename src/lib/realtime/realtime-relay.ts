@@ -15,8 +15,8 @@
  */
 
 import type { RealtimePostgresChangesPayload } from '@supabase/supabase-js'
-import type { Intervention, Artisan } from '@/lib/api/v2/common/types'
-import type { InterventionReminder } from '@/lib/api/v2'
+import type { Intervention, Artisan } from '@/lib/api/common/types'
+import type { InterventionReminder } from '@/lib/api'
 import type { InterventionArtisanRow } from './realtime-client'
 
 const RELAY_CHANNEL_NAME = 'crm-realtime-relay'

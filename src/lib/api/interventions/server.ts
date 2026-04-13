@@ -20,7 +20,7 @@ import {
   mapStatusFromDb,
   mapStatusToDb,
 } from "@/lib/interventions/mappers"
-import { interventionsApi } from "@/lib/api/v2"
+import { interventionsApi } from "@/lib/api"
 import { createSSRServerClient } from "@/lib/supabase/server-ssr"
 import type { InterventionStatus } from "@/types/intervention"
 

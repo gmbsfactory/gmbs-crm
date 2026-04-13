@@ -8,7 +8,7 @@ vi.mock("@/lib/supabase-client", () => ({
   },
 }))
 
-import { comptaApi } from "@/lib/api/v2/comptaApi"
+import { comptaApi } from "@/lib/api/comptaApi"
 
 // Helper to build a chainable query mock
 function chainable(resolvedValue: { data: unknown; error: unknown }) {

@@ -11,8 +11,8 @@
 
 import { supabase } from '@/lib/supabase-client'
 import type { RealtimeChannel, RealtimePostgresChangesPayload } from '@supabase/supabase-js'
-import type { Intervention, Artisan } from '@/lib/api/v2/common/types'
-import type { InterventionReminder } from '@/lib/api/v2'
+import type { Intervention, Artisan } from '@/lib/api/common/types'
+import type { InterventionReminder } from '@/lib/api'
 
 const CHANNEL_NAME = 'crm-sync'
 

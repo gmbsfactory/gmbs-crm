@@ -1,5 +1,5 @@
 import { supabase } from "./common/client"
-import type { InterventionPayment } from "@/lib/api/v2/common/types"
+import type { InterventionPayment } from "@/lib/api/common/types"
 import type {
   ArtisanSearchRecord,
   GroupedSearchResults,
@@ -841,8 +841,8 @@ const fetchInterventionsByIds = async (ids: string[]): Promise<InterventionSearc
   const errors: Array<{ id: string; error: any }> = []
 
   // Import the utility function and API
-  const { convertInterventionToSearchRecord } = await import("@/lib/api/v2/search-utils")
-  const { interventionsApi } = await import("@/lib/api/v2/interventionsApi")
+  const { convertInterventionToSearchRecord } = await import("@/lib/api/search-utils")
+  const { interventionsApi } = await import("@/lib/api/interventionsApi")
 
   // Fetch interventions in parallel
   const promises = ids.map(async (id) => {

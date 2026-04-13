@@ -8,7 +8,7 @@
  */
 
 import type { RealtimePostgresChangesPayload } from '@supabase/supabase-js'
-import type { InterventionReminder } from '@/lib/api/v2'
+import type { InterventionReminder } from '@/lib/api'
 
 export type ReminderEventCallback = (
   payload: RealtimePostgresChangesPayload<InterventionReminder>

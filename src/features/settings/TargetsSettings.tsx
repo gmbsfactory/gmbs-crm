@@ -16,8 +16,8 @@ import {
 } from "lucide-react"
 import { toast } from "sonner"
 import { useCurrentUser } from "@/hooks/useCurrentUser"
-import { usersApi } from "@/lib/api/v2"
-import type { User, GestionnaireTarget, TargetPeriodType, CreateGestionnaireTargetData } from "@/lib/api/v2"
+import { usersApi } from "@/lib/api"
+import type { User, GestionnaireTarget, TargetPeriodType, CreateGestionnaireTargetData } from "@/lib/api"
 import { cn } from "@/lib/utils"
 
 const PERIOD_CONFIG: Record<string, { icon: typeof CalendarDays; label: string; shortLabel: string; defaultMargin: number; color: string; iconColor: string; bgColor: string }> = {

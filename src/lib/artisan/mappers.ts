@@ -2,7 +2,7 @@
  * Mapping functions for artisan data transformations.
  */
 
-import type { Artisan as ApiArtisan } from "@/lib/api/v2"
+import type { Artisan as ApiArtisan } from "@/lib/api"
 import type { Contact, ReferenceUser, ArtisanStatus } from "@/types/artisan-page"
 
 /** Map an ApiArtisan to a Contact used by the UI */

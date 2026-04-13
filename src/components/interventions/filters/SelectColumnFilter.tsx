@@ -21,9 +21,9 @@ import type { ViewFilter } from "@/types/intervention-views"
 import type { InterventionView as InterventionEntity } from "@/types/intervention-view"
 import { formatFilterSummary } from "./filter-utils"
 import { useFilterCounts } from "@/hooks/useFilterCounts"
-import { agenciesApi } from "@/lib/api/v2/agenciesApi"
-import { metiersApi } from "@/lib/api/v2/metiersApi"
-import { interventionsApi } from "@/lib/api/v2/interventionsApi"
+import { agenciesApi } from "@/lib/api/agenciesApi"
+import { metiersApi } from "@/lib/api/metiersApi"
+import { interventionsApi } from "@/lib/api/interventionsApi"
 
 const makeValueKey = (value: unknown): string => {
   if (value === null || value === undefined) return "null"

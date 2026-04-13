@@ -10,7 +10,7 @@ import type {
   NormalizeOptions,
   AvatarMetadata,
 } from "./types"
-import type { NearbyArtisan } from "@/lib/api/v2/common/types"
+import type { NearbyArtisan } from "@/lib/api/common/types"
 import type { ArtisanSearchResult } from "./types"
 
 /**

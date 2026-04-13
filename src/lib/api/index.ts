@@ -5,8 +5,8 @@
 // Il centralise les exports et permet une importation simplifiée.
 //
 // Usage recommandé:
-//   import { interventionsApi, artisansApi } from '@/lib/api/v2';
-//   import type { Intervention, Artisan } from '@/lib/api/v2';
+//   import { interventionsApi, artisansApi } from '@/lib/api';
+//   import type { Intervention, Artisan } from '@/lib/api';
 
 // ===== TYPES COMMUNS =====
 export * from "./common/types";

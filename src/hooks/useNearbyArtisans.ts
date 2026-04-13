@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react"
 import { supabase } from "@/lib/supabase-client"
-import { safeErrorMessage } from "@/lib/api/v2/common/error-handler"
+import { safeErrorMessage } from "@/lib/api/common/error-handler"
 
 export interface AvatarMetadata {
   hash: string | null

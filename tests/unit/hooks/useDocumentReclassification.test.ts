@@ -8,7 +8,7 @@ import React from 'react'
 const mockGetAll = vi.fn()
 const mockUpdate = vi.fn()
 
-vi.mock('@/lib/api/v2/documentsApi', () => ({
+vi.mock('@/lib/api/documentsApi', () => ({
   documentsApi: {
     getAll: (...args: unknown[]) => mockGetAll(...args),
     update: (...args: unknown[]) => mockUpdate(...args),

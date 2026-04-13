@@ -1,7 +1,7 @@
 import type { ViewFilter, ViewSort } from "@/types/intervention-views"
 import type { PropertySchema } from "@/types/property-schema"
 import type { InterventionView as InterventionEntity } from "@/types/intervention-view"
-import type { InterventionQueryParams } from "@/lib/api/v2/common/types"
+import type { InterventionQueryParams } from "@/lib/api/common/types"
 
 export interface ColumnFilterProps {
   property: string

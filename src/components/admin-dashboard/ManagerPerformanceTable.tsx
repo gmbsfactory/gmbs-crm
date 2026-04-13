@@ -9,7 +9,7 @@ import {
 } from "@/components/ui/table"
 import { Skeleton } from "@/components/ui/skeleton"
 import { cn } from "@/lib/utils"
-import type { AdminDashboardStats } from "@/lib/api/v2"
+import type { AdminDashboardStats } from "@/lib/api"
 
 interface ManagerPerformanceTableProps {
   data?: AdminDashboardStats["agencyStats"]

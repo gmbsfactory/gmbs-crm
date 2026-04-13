@@ -4,7 +4,7 @@ import type {
   TransformationRateHistoryData,
   CycleTimeHistoryData,
   MarginHistoryData,
-} from "@/lib/api/v2/common/types"
+} from "@/lib/api/common/types"
 
 /**
  * Interface pour les modèles de projection

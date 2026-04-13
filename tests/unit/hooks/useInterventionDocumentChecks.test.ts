@@ -5,7 +5,7 @@ import { renderHook, waitFor, act } from '@testing-library/react'
 
 const mockGetAll = vi.fn()
 
-vi.mock('@/lib/api/v2/documentsApi', () => ({
+vi.mock('@/lib/api/documentsApi', () => ({
   documentsApi: {
     getAll: (...args: unknown[]) => mockGetAll(...args),
   },

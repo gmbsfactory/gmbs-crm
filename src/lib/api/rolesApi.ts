@@ -8,7 +8,7 @@ import type {
     Permission,
     Role,
 } from "./common/types";
-import { safeErrorMessage } from "@/lib/api/v2/common/error-handler";
+import { safeErrorMessage } from "@/lib/api/common/error-handler";
 
 export const rolesApi = {
   // Récupérer tous les rôles

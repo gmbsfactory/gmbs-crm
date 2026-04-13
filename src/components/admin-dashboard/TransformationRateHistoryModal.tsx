@@ -3,7 +3,7 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { VerticalBarChart } from "./VerticalBarChart"
 import { useTransformationRateHistory } from "@/hooks/useTransformationRateHistory"
-import type { PeriodType } from "@/lib/api/v2"
+import type { PeriodType } from "@/lib/api"
 import { Skeleton } from "@/components/ui/skeleton"
 import { AlertCircle } from "lucide-react"
 

@@ -5,7 +5,7 @@
  * syncCacheWithRealtimeEvent(). No behavior changes, just decomposition.
  */
 
-import type { Intervention } from '@/lib/api/v2/common/types'
+import type { Intervention } from '@/lib/api/common/types'
 import type { CrmEvent, SyncContext, SyncMiddleware } from '@/lib/realtime/event-router/types'
 import { STOP } from '@/lib/realtime/event-router/types'
 import { interventionKeys } from '@/lib/react-query/queryKeys'

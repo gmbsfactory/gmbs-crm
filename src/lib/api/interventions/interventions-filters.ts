@@ -1,14 +1,14 @@
 // ===== INTERVENTIONS FILTERS =====
 // Fonctions de comptage avec filtres et valeurs distinctes
 
-import { supabase } from "@/lib/api/v2/common/client";
+import { supabase } from "@/lib/api/common/client";
 import type {
   InterventionQueryParams,
-} from "@/lib/api/v2/common/types";
+} from "@/lib/api/common/types";
 import {
   getReferenceCache,
   resolveMetierToId,
-} from "@/lib/api/v2/common/utils";
+} from "@/lib/api/common/utils";
 import { isCheckStatus } from "@/lib/interventions/checkStatus";
 import type { InterventionStatusKey } from "@/config/interventions";
 

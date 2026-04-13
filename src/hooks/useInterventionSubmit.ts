@@ -5,14 +5,14 @@ import { useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
 import { useInterventionsMutations } from "@/hooks/useInterventionsMutations"
 import { useInterventionModal } from "@/hooks/useInterventionModal"
-import { commentsApi } from "@/lib/api/v2/commentsApi"
-import { documentsApi } from "@/lib/api/v2/documentsApi"
+import { commentsApi } from "@/lib/api/commentsApi"
+import { documentsApi } from "@/lib/api/documentsApi"
 import { interventionKeys } from "@/lib/react-query/queryKeys"
 import { findOrCreateOwner, findOrCreateTenant } from "@/lib/interventions/owner-tenant-helpers"
 import { runPostMutationTasks } from "@/lib/interventions/post-mutation-tasks"
 import { extractErrorMessage } from "@/lib/toast-helpers"
 import { getReasonTypeForTransition, type StatusReasonType } from "@/lib/comments/statusReason"
-import type { UpdateInterventionData } from "@/lib/api/v2/common/types"
+import type { UpdateInterventionData } from "@/lib/api/common/types"
 
 interface UseInterventionSubmitParams {
   interventionId: string

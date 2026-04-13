@@ -1,8 +1,8 @@
 "use client"
 
 import { useQuery } from "@tanstack/react-query"
-import { interventionsApi } from "@/lib/api/v2"
-import type { InterventionStatsByStatus, MarginStats, MarginRankingResult, WeeklyStats, MonthlyStats, YearlyStats, StatsPeriod } from "@/lib/api/v2"
+import { interventionsApi } from "@/lib/api"
+import type { InterventionStatsByStatus, MarginStats, MarginRankingResult, WeeklyStats, MonthlyStats, YearlyStats, StatsPeriod } from "@/lib/api"
 import { dashboardKeys, type DashboardStatsParams, type DashboardMarginParams, type DashboardPeriodStatsParams } from "@/lib/react-query/queryKeys"
 import { useCurrentUser } from "@/hooks/useCurrentUser"
 import { getTierQueryOptions } from "@/config/freshness-tiers"

@@ -7,7 +7,7 @@ L'API V2 a été refactorisée en architecture modulaire pour améliorer la main
 ## 📁 Structure des fichiers
 
 ```
-src/lib/api/v2/
+src/lib/api/
 ├── common/
 │   ├── types.ts          # Types TypeScript communs
 │   └── utils.ts          # Utilitaires partagés
@@ -26,17 +26,17 @@ src/lib/api/v2/
 
 ### Import simple
 ```typescript
-import { usersApi, interventionsApi, artisansApi } from '@/lib/api/v2';
+import { usersApi, interventionsApi, artisansApi } from '@/lib/api';
 ```
 
 ### Import avec alias (compatibilité)
 ```typescript
-import { usersApiV2, interventionsApiV2 } from '@/lib/api/v2';
+import { usersApiV2, interventionsApiV2 } from '@/lib/api';
 ```
 
 ### Import par défaut
 ```typescript
-import api from '@/lib/api/v2';
+import api from '@/lib/api';
 // Utilisation: api.users.getAll()
 ```
 
@@ -145,7 +145,7 @@ import { getInterventionTotalCount } from '@/lib/supabase-api-v2';
 ### Après (recommandé)
 ```typescript
 // ✅ Nouveau chemin modulaire
-import { usersApi, interventionsApi } from '@/lib/api/v2';
+import { usersApi, interventionsApi } from '@/lib/api';
 
 // ✅ Nouvelles méthodes de comptage
 const count = await interventionsApi.getTotalCountWithFilters({ statut: 'DEMANDE' });
@@ -178,10 +178,10 @@ const values = await interventionsApi.getDistinctValues('ville');
 ### Import spécifique
 ```typescript
 // ✅ Bon - Import seulement ce dont vous avez besoin
-import { usersApi, utilsApi } from '@/lib/api/v2';
+import { usersApi, utilsApi } from '@/lib/api';
 
 // ❌ Éviter - Import de tout
-import * as api from '@/lib/api/v2';
+import * as api from '@/lib/api';
 ```
 
 ### Gestion des erreurs

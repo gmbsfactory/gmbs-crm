@@ -66,7 +66,7 @@ describe('updatesApi', () => {
       }
       mockFrom.mockReturnValue(chain)
 
-      const { updatesApi } = await import('@/lib/api/v2/updatesApi')
+      const { updatesApi } = await import('@/lib/api/updatesApi')
       const result = await updatesApi.getAll()
 
       expect(mockFrom).toHaveBeenCalledWith('app_updates')
@@ -81,7 +81,7 @@ describe('updatesApi', () => {
       }
       mockFrom.mockReturnValue(chain)
 
-      const { updatesApi } = await import('@/lib/api/v2/updatesApi')
+      const { updatesApi } = await import('@/lib/api/updatesApi')
       await expect(updatesApi.getAll()).rejects.toThrow('DB error')
     })
   })
@@ -108,7 +108,7 @@ describe('updatesApi', () => {
       }
       mockFrom.mockReturnValue(chain)
 
-      const { updatesApi } = await import('@/lib/api/v2/updatesApi')
+      const { updatesApi } = await import('@/lib/api/updatesApi')
       const result = await updatesApi.create(input)
 
       expect(mockFrom).toHaveBeenCalledWith('app_updates')
@@ -125,7 +125,7 @@ describe('updatesApi', () => {
       }
       mockFrom.mockReturnValue(chain)
 
-      const { updatesApi } = await import('@/lib/api/v2/updatesApi')
+      const { updatesApi } = await import('@/lib/api/updatesApi')
       await updatesApi.remove('update-1')
 
       expect(mockFrom).toHaveBeenCalledWith('app_updates')
@@ -140,14 +140,14 @@ describe('updatesApi', () => {
       }
       mockFrom.mockReturnValue(chain)
 
-      const { updatesApi } = await import('@/lib/api/v2/updatesApi')
+      const { updatesApi } = await import('@/lib/api/updatesApi')
       await expect(updatesApi.remove('update-1')).rejects.toThrow('Delete failed')
     })
   })
 
   describe('acknowledgeUpdates', () => {
     it('should do nothing for empty array', async () => {
-      const { updatesApi } = await import('@/lib/api/v2/updatesApi')
+      const { updatesApi } = await import('@/lib/api/updatesApi')
       await updatesApi.acknowledgeUpdates('user-1', [])
       expect(mockFrom).not.toHaveBeenCalled()
     })
@@ -158,7 +158,7 @@ describe('updatesApi', () => {
       }
       mockFrom.mockReturnValue(chain)
 
-      const { updatesApi } = await import('@/lib/api/v2/updatesApi')
+      const { updatesApi } = await import('@/lib/api/updatesApi')
       await updatesApi.acknowledgeUpdates('user-1', ['u1', 'u2'])
 
       expect(mockFrom).toHaveBeenCalledWith('app_update_views')

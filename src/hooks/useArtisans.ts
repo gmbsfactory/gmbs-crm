@@ -2,7 +2,7 @@
 // Centralise la logique de chargement des artisans
 // Utilise l'API v2 optimisée
 
-import { artisansApi, type Artisan } from '@/lib/api/v2';
+import { artisansApi, type Artisan } from '@/lib/api';
 import * as React from 'react';
 import { useCallback, useEffect, useState, useMemo } from 'react';
 

@@ -8,7 +8,7 @@ vi.mock('@/lib/supabase-client', () => ({
   },
 }))
 
-import { utilsApi } from "@/lib/api/v2/utilsApi"
+import { utilsApi } from "@/lib/api/utilsApi"
 
 describe("mapInterventionRecord - assigned user display", () => {
   it("prefers code_gestionnaire for attribueA and assignedUserCode", () => {

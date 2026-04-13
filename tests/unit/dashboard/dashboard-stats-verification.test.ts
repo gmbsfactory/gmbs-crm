@@ -9,7 +9,7 @@ vi.mock('@/lib/supabase-client', () => ({
   },
 }))
 
-import { interventionsApi } from "@/lib/api/v2";
+import { interventionsApi } from "@/lib/api";
 import { supabase } from "@/lib/supabase-client";
 
 /**

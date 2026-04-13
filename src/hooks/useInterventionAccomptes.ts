@@ -1,6 +1,6 @@
 import { useCallback, useMemo } from "react"
 import { toast } from "sonner"
-import { interventionsApi } from "@/lib/api/v2"
+import { interventionsApi } from "@/lib/api"
 import { applyRecuToggle } from "@/lib/interventions/deposit-helpers"
 import type { InterventionFormData } from "@/lib/interventions/form-types"
 

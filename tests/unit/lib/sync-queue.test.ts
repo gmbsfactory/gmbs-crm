@@ -5,7 +5,7 @@ const mockCreate = vi.fn().mockResolvedValue({ id: 'new-id' })
 const mockUpdate = vi.fn().mockResolvedValue({ id: 'existing-id' })
 const mockDelete = vi.fn().mockResolvedValue({ message: 'deleted', data: { id: 'deleted-id' } })
 
-vi.mock('@/lib/api/v2', () => ({
+vi.mock('@/lib/api', () => ({
   interventionsApi: {
     create: mockCreate,
     update: mockUpdate,

@@ -3,9 +3,9 @@
  * Utilise le cache centralisé de common/cache.ts pour eviter la duplication
  */
 
-import type { Intervention } from '@/lib/api/v2/common/types'
-import { getReferenceCache, type ReferenceCache } from '@/lib/api/v2/common/cache'
-import { mapInterventionRecord } from '@/lib/api/v2/common/utils'
+import type { Intervention } from '@/lib/api/common/types'
+import { getReferenceCache, type ReferenceCache } from '@/lib/api/common/cache'
+import { mapInterventionRecord } from '@/lib/api/common/utils'
 
 // Re-export from centralized cache for backward compatibility
 export { getReferenceCache, type ReferenceCache }

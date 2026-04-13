@@ -21,10 +21,10 @@ import {
 import { Checkbox } from '@/components/ui/checkbox';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
-import { agenciesApi } from '@/lib/api/v2/agenciesApi';
-import { metiersApi } from '@/lib/api/v2/metiersApi';
-import { interventionStatusesApi } from '@/lib/api/v2/interventionStatusesApi';
-import { artisanStatusesApi } from '@/lib/api/v2/artisanStatusesApi';
+import { agenciesApi } from '@/lib/api/agenciesApi';
+import { metiersApi } from '@/lib/api/metiersApi';
+import { interventionStatusesApi } from '@/lib/api/interventionStatusesApi';
+import { artisanStatusesApi } from '@/lib/api/artisanStatusesApi';
 
 type EntityType = 'agencies' | 'metiers' | 'intervention-statuses' | 'artisan-statuses';
 

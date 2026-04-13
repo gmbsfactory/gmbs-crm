@@ -3,7 +3,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
 import { useReferenceDataQuery } from "@/hooks/useReferenceDataQuery"
-import { interventionsApi } from "@/lib/api/v2"
+import { interventionsApi } from "@/lib/api"
 import { GestionnaireField } from "@/components/interventions/GestionnaireField"
 
 interface GestionnaireSelectorProps {

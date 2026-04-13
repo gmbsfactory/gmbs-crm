@@ -1,23 +1,23 @@
 // ===== API V2 - FICHIER DE COMPATIBILITÉ =====
 /**
- * @deprecated Ce fichier est déprécié. Utilisez les imports depuis '@/lib/api/v2' à la place.
+ * @deprecated Ce fichier est déprécié. Utilisez les imports depuis '@/lib/api' à la place.
  * 
  * Migration recommandée:
  * ```typescript
  * 
  * // ✅ Nouveau
- * import { interventionsApi, artisansApi } from '@/lib/api/v2';
- * import type { Intervention, InterventionQueryParams } from '@/lib/api/v2';
+ * import { interventionsApi, artisansApi } from '@/lib/api';
+ * import type { Intervention, InterventionQueryParams } from '@/lib/api';
  * ```
  * 
  * Ce fichier sera supprimé dans une future version.
  */
 
 // ===== RÉ-EXPORTS DEPUIS API/V2 =====
-// Tous les exports principaux sont désormais dans @/lib/api/v2
+// Tous les exports principaux sont désormais dans @/lib/api
 
 // Import des APIs pour les wrappers legacy
-import { interventionsApi, artisansApi } from "./api/v2";
+import { interventionsApi, artisansApi } from "./api";
 
 // Types
 export type {
@@ -38,7 +38,7 @@ export type {
   UpdateArtisanData,
   InterventionQueryParams,
   ArtisanQueryParams,
-} from "./api/v2";
+} from "./api";
 
 // APIs (noms avec V2 pour compatibilité)
 export {
@@ -56,7 +56,7 @@ export {
   ownersApi,
   agenciesApi,
   remindersApi,
-} from "./api/v2";
+} from "./api";
 
 // APIs (nouveaux noms)
 export {
@@ -65,7 +65,7 @@ export {
   usersApi,
   rolesApi,
   permissionsApi,
-} from "./api/v2";
+} from "./api";
 
 // Cache et utilitaires
 export {
@@ -82,14 +82,14 @@ export {
   mapArtisanRecord,
   chunkArray,
   MAX_BATCH_SIZE,
-} from "./api/v2";
+} from "./api";
 
 // ===== TYPES LEGACY POUR COMPATIBILITÉ =====
 
 type FilterValue = string | string[] | null | undefined;
 
 /**
- * @deprecated Utilisez InterventionQueryParams depuis '@/lib/api/v2' à la place
+ * @deprecated Utilisez InterventionQueryParams depuis '@/lib/api' à la place
  */
 export type GetAllParams = {
   limit?: number;
@@ -107,7 +107,7 @@ export type GetAllParams = {
 };
 
 /**
- * @deprecated Utilisez InterventionQueryParams depuis '@/lib/api/v2' à la place
+ * @deprecated Utilisez InterventionQueryParams depuis '@/lib/api' à la place
  */
 export type GetDistinctParams = Omit<GetAllParams, "limit" | "fields"> & {
   limit?: number;
@@ -145,7 +145,7 @@ function convertLegacyParams(params?: GetAllParams): Parameters<typeof intervent
 
 /**
  * Obtient le nombre total d'interventions correspondant aux filtres
- * @deprecated Utilisez interventionsApi.getTotalCountWithFilters() depuis '@/lib/api/v2' à la place
+ * @deprecated Utilisez interventionsApi.getTotalCountWithFilters() depuis '@/lib/api' à la place
  */
 export async function getInterventionTotalCount(
   params?: Omit<GetAllParams, "limit" | "offset" | "fields" | "sortBy" | "sortDir" | "cursor" | "direction">
@@ -155,7 +155,7 @@ export async function getInterventionTotalCount(
 
 /**
  * Obtient le nombre total d'artisans correspondant aux filtres basiques
- * @deprecated Utilisez artisansApi.getTotalCount() depuis '@/lib/api/v2' à la place
+ * @deprecated Utilisez artisansApi.getTotalCount() depuis '@/lib/api' à la place
  */
 export async function getArtisanTotalCount(
   params?: {
@@ -168,7 +168,7 @@ export async function getArtisanTotalCount(
 
 /**
  * Obtient le nombre total d'artisans avec tous les filtres appliqués
- * @deprecated Utilisez artisansApi.getCountWithFilters() depuis '@/lib/api/v2' à la place
+ * @deprecated Utilisez artisansApi.getCountWithFilters() depuis '@/lib/api' à la place
  */
 export async function getArtisanCountWithFilters(
   params?: {
@@ -186,7 +186,7 @@ export async function getArtisanCountWithFilters(
 
 /**
  * Obtient le nombre d'interventions par statut
- * @deprecated Utilisez interventionsApi.getCountsByStatus() depuis '@/lib/api/v2' à la place
+ * @deprecated Utilisez interventionsApi.getCountsByStatus() depuis '@/lib/api' à la place
  */
 export async function getInterventionCounts(
   params?: Omit<GetDistinctParams, "statut">
@@ -196,7 +196,7 @@ export async function getInterventionCounts(
 
 /**
  * Obtient les valeurs distinctes d'une colonne d'intervention
- * @deprecated Utilisez interventionsApi.getDistinctValues() depuis '@/lib/api/v2' à la place
+ * @deprecated Utilisez interventionsApi.getDistinctValues() depuis '@/lib/api' à la place
  */
 export async function getDistinctInterventionValues(
   property: string,

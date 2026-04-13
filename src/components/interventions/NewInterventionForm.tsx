@@ -16,9 +16,9 @@ import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/componen
 import { MapLibreMap } from "@/components/maps/MapLibreMap"
 import { DocumentManager } from "@/components/documents"
 import type { NearbyArtisan } from "@/hooks/useNearbyArtisans"
-import { interventionsApi } from "@/lib/api/v2"
+import { interventionsApi } from "@/lib/api"
 
-import type { CreateInterventionData } from "@/lib/api/v2/common/types"
+import type { CreateInterventionData } from "@/lib/api/common/types"
 import { cn } from "@/lib/utils"
 import { formatMarginPercentage, getMarginColorClass } from "@/lib/utils/margin-calculator"
 import { ArtisanSearchModal } from "@/components/artisans/ArtisanSearchModal"

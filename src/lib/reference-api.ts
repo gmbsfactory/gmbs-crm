@@ -1,6 +1,6 @@
 // ===== API DONNÉES DE RÉFÉRENCE =====
 // Façade par-dessus l'API v2 pour récupérer les statuts, agences, métiers, utilisateurs.
-// Ne fait PAS d'appel direct à Supabase : délègue à src/lib/api/v2/.
+// Ne fait PAS d'appel direct à Supabase : délègue à src/lib/api/.
 // Voir CLAUDE.md : "Toujours passer par API v2".
 
 import {
@@ -9,7 +9,7 @@ import {
   agenciesApi,
   metiersApi,
   usersApi,
-} from './api/v2';
+} from './api';
 
 export interface ReferenceData {
   interventionStatuses: Array<{ id: string; code: string; label: string; color: string; sort_order: number | null }>;

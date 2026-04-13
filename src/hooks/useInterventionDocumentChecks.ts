@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useState } from "react"
-import { documentsApi } from "@/lib/api/v2/documentsApi"
+import { documentsApi } from "@/lib/api/documentsApi"
 
 /**
  * Vérifie l'existence de documents obligatoires (facture GMBS et devis) pour une intervention.
