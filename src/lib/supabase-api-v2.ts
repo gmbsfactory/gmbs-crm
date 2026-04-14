@@ -13,11 +13,16 @@
  * Ce fichier sera supprimé dans une future version.
  */
 
-// ===== RÉ-EXPORTS DEPUIS API/V2 =====
+// ===== RÉ-EXPORTS DEPUIS @/lib/api =====
 // Tous les exports principaux sont désormais dans @/lib/api
 
-// Import des APIs pour les wrappers legacy
-import { interventionsApi, artisansApi } from "./api";
+import {
+  interventionsApi,
+  artisansApi,
+  usersApi,
+  rolesApi,
+  permissionsApi,
+} from "./api";
 
 // Types
 export type {
@@ -40,13 +45,15 @@ export type {
   ArtisanQueryParams,
 } from "./api";
 
-// APIs (noms avec V2 pour compatibilité)
+// APIs (nouveaux noms) — ré-exports directs
 export {
-  interventionsApiV2,
-  artisansApiV2,
-  usersApiV2,
-  rolesApiV2,
-  permissionsApiV2,
+  interventionsApi,
+  artisansApi,
+  usersApi,
+  rolesApi,
+  permissionsApi,
+};
+export {
   documentsApi,
   commentsApi,
   clientsApi,
@@ -58,14 +65,12 @@ export {
   remindersApi,
 } from "./api";
 
-// APIs (nouveaux noms)
-export {
-  interventionsApi,
-  artisansApi,
-  usersApi,
-  rolesApi,
-  permissionsApi,
-} from "./api";
+// APIs (anciens noms V2) — alias locaux pour les scripts Node legacy
+export const interventionsApiV2 = interventionsApi;
+export const artisansApiV2 = artisansApi;
+export const usersApiV2 = usersApi;
+export const rolesApiV2 = rolesApi;
+export const permissionsApiV2 = permissionsApi;
 
 // Cache et utilitaires
 export {

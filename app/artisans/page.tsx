@@ -34,12 +34,13 @@ export default function ArtisansPage(): ReactElement {
     onPreviousPage: state.previousPage,
   })
 
+  const { viewFilteredContacts, handleViewDetails } = state
   const handleArtisanEnter = useCallback(
     (index: number) => {
-      const contact = state.viewFilteredContacts[index]
-      if (contact) state.handleViewDetails(contact)
+      const contact = viewFilteredContacts[index]
+      if (contact) handleViewDetails(contact)
     },
-    [state.viewFilteredContacts, state.handleViewDetails],
+    [viewFilteredContacts, handleViewDetails],
   )
 
   const { highlightedIndex: artisanHighlightedIndex } = useSimpleTableNavigation({

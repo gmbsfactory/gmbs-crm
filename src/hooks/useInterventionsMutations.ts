@@ -92,7 +92,7 @@ export function useInterventionsMutations() {
         reference_agence?: string | null
         agence_id?: string
         client_id?: string
-        assigned_user_id?: string
+        assigned_user_id?: string | null
         statut_id?: string
         metier_id?: string
         date?: string

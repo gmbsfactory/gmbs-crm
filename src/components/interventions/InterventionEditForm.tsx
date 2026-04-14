@@ -412,14 +412,11 @@ export const InterventionEditForm = memo(function InterventionEditForm({
     canEditAccomptes,
     handleAccompteSSTChange,
     handleAccompteClientChange,
-    handleAccompteSSTBlur,
-    handleAccompteClientBlur,
     handleAccompteSSTRecuChange,
     handleAccompteClientRecuChange,
     handleDateAccompteSSTRecuChange,
     handleDateAccompteClientRecuChange,
   } = useInterventionAccomptes({
-    interventionId: intervention.id,
     formData,
     interventionStatuses: refData?.interventionStatuses,
     handleInputChange,
@@ -447,17 +444,7 @@ export const InterventionEditForm = memo(function InterventionEditForm({
   // Inter. → lié aux requirements de INTER_EN_COURS (client fields optional if vacant)
   const isInterButtonDisabled = useMemo(
     () => isInterventionEmailButtonDisabled({ selectedArtisanId, formData }),
-    [
-      selectedArtisanId,
-      formData.id_inter,
-      formData.coutIntervention,
-      formData.coutSST,
-      formData.consigne_intervention,
-      formData.nomPrenomClient,
-      formData.telephoneClient,
-      formData.date_prevue,
-      formData.is_vacant,
-    ],
+    [selectedArtisanId, formData],
   )
 
   // Edit-specific: handleOpenArtisanModal with intervention context
@@ -841,8 +828,6 @@ export const InterventionEditForm = memo(function InterventionEditForm({
                     canEditAccomptes={canEditAccomptes}
                     handleAccompteSSTChange={handleAccompteSSTChange}
                     handleAccompteClientChange={handleAccompteClientChange}
-                    handleAccompteSSTBlur={handleAccompteSSTBlur}
-                    handleAccompteClientBlur={handleAccompteClientBlur}
                     handleAccompteSSTRecuChange={handleAccompteSSTRecuChange}
                     handleAccompteClientRecuChange={handleAccompteClientRecuChange}
                     handleDateAccompteSSTRecuChange={handleDateAccompteSSTRecuChange}

@@ -79,7 +79,7 @@ import { interventionStatusesApi } from "./interventionStatusesApi";
 import { artisanStatusesApi } from "./artisanStatusesApi";
 import { metiersApi } from "./metiersApi";
 import { ownersApi } from "./ownersApi";
-import { remindersApi } from "./reminders";
+import { remindersApi } from "./remindersApi";
 import { permissionsApi, rolesApi } from "./rolesApi";
 import { tenantsApi } from "./tenantsApi";
 import { usersApi } from "./usersApi";
@@ -110,44 +110,3 @@ export {
   utilsApi,
 };
 
-// ===== ALIAS POUR COMPATIBILITÉ =====
-// Ces alias permettent une migration progressive depuis l'ancien code
-export const agenciesApiV2 = agenciesApi;
-export const usersApiV2 = usersApi;
-export const interventionsApiV2 = interventionsApi;
-export const artisansApiV2 = artisansApi;
-export const clientsApiV2 = clientsApi;
-export const documentsApiV2 = documentsApi;
-export const commentsApiV2 = commentsApi;
-export const rolesApiV2 = rolesApi;
-export const permissionsApiV2 = permissionsApi;
-export const tenantsApiV2 = tenantsApi;
-export const ownersApiV2 = ownersApi;
-export const enumsApiV2 = enumsApi;
-export const remindersApiV2 = remindersApi;
-export const utilsApiV2 = utilsApi;
-export const updatesApiV2 = updatesApi;
-
-// ===== EXPORT PAR DÉFAUT =====
-// Permet d'accéder à toutes les APIs via un objet unique
-const apiV2 = {
-  // APIs principales (nouveau nommage)
-  analytics: analyticsApi,
-  agencies: agenciesApi,
-  users: usersApi,
-  interventions: interventionsApi,
-  artisans: artisansApi,
-  clients: clientsApi,
-  documents: documentsApi,
-  comments: commentsApi,
-  roles: rolesApi,
-  permissions: permissionsApi,
-  tenants: tenantsApi,
-  owners: ownersApi,
-  reminders: remindersApi,
-  enums: enumsApi,
-  utils: utilsApi,
-  updates: updatesApi,
-};
-
-export default apiV2;

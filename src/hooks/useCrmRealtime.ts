@@ -461,6 +461,7 @@ export function useCrmRealtime() {
     unsubscribeFromRealtime,
     startPolling,
     stopPolling,
+    updateStats,
   ])
 
   return { connectionStatus }

@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { universalSearch } from "@/lib/api/search"
+import { universalSearch } from "@/lib/api/searchApi"
 import type { GroupedSearchResults } from "@/types/search"
 
 const SEARCH_DEBOUNCE_MS = 300

@@ -20,7 +20,7 @@ interface BottomCardProps {
   entry: GestionnaireRankingItem
   position: number
   totalRankings: number
-  displayMetric?: 'margin' | 'revenue'
+  displayMetric?: 'margin' | 'count'
 }
 
 const getInitials = (name: string | null) => {
@@ -55,10 +55,12 @@ export const BottomCard = ({ entry, position, totalRankings, displayMetric = 'ma
     : null
   const displayName = entry.user_firstname || firstNameFromName || entry.user_code || entry.user_name
 
-  // Afficher soit la marge soit le CA selon displayMetric
-  const displayValue = displayMetric === 'revenue'
-    ? (entry.total_revenue || 0)
-    : entry.total_margin
+  // Afficher soit la marge soit le nombre d'interventions terminées selon displayMetric
+  const isCount = displayMetric === 'count'
+  const displayValue = isCount ? entry.total_interventions : entry.total_margin
+  const formattedValue = isCount
+    ? `${displayValue} inter${displayValue > 1 ? 's' : ''}`
+    : formatCurrency(displayValue)
 
   return (
     <Card
@@ -95,7 +97,7 @@ export const BottomCard = ({ entry, position, totalRankings, displayMetric = 'ma
           {isLast && <TrendingDown className="w-3 h-3 text-cold" />}
         </p>
         <p className={cn("text-sm font-bold", isLast ? "text-cold" : "text-foreground")}>
-          {formatCurrency(displayValue)}
+          {formattedValue}
         </p>
       </div>
     </Card>

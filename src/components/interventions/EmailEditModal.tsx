@@ -152,7 +152,7 @@ export function EmailEditModal({
       return `Demande de devis - Intervention #${interventionRef}`;
     }
     return `Demande d'intervention - Intervention #${interventionRef}`;
-  }, [emailType, templateData.idIntervention, interventionId]);
+  }, [emailType, templateData.idIntervention]);
 
   // Initialize editable data only when modal opens (not on every templateData reference change)
   useEffect(() => {

@@ -672,6 +672,7 @@ GMBS`
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
+                  type="button"
                   variant="ghost"
                   size="icon"
                   className="modal-config-columns-icon-button"

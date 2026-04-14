@@ -19,7 +19,7 @@ interface GestionnaireRankingItem {
 interface PodiumCardProps {
   entry: GestionnaireRankingItem
   position: 1 | 2 | 3
-  displayMetric?: 'margin' | 'revenue'
+  displayMetric?: 'margin' | 'count'
 }
 
 const positionConfig = {
@@ -104,10 +104,12 @@ export const PodiumCard = ({ entry, position, displayMetric = 'margin' }: Podium
     : null
   const displayName = entry.user_firstname || firstNameFromName || entry.user_code || entry.user_name
 
-  // Afficher soit la marge soit le CA selon displayMetric
-  const displayValue = displayMetric === 'revenue'
-    ? (entry.total_revenue || 0)
-    : entry.total_margin
+  // Afficher soit la marge soit le nombre d'interventions terminées selon displayMetric
+  const isCount = displayMetric === 'count'
+  const displayValue = isCount ? entry.total_interventions : entry.total_margin
+  const formattedValue = isCount
+    ? `${displayValue} inter${displayValue > 1 ? 's' : ''}`
+    : formatCurrency(displayValue)
 
   return (
     <div className={cn("flex flex-col items-center gap-3", config.order)}>
@@ -178,7 +180,7 @@ export const PodiumCard = ({ entry, position, displayMetric = 'margin' }: Podium
             {displayName}
           </p>
           <p className={cn("font-extrabold", config.scoreColor, config.scoreSize)}>
-            {formatCurrency(displayValue)}
+            {formattedValue}
           </p>
         </div>
       </Card>

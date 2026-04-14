@@ -271,7 +271,7 @@ export function useEntityPresence(
       prevLocksKeyRef.current = locksKey
       setFieldLockMap(locks)
     }
-  }, [buildPayload, scheduleTrack, logTag])
+  }, [scheduleTrack, logTag])
 
   // ─── Track mounted state for async callbacks ───────────────────────────────
   useEffect(() => {

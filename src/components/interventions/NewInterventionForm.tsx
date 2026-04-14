@@ -286,41 +286,26 @@ export function NewInterventionForm({
     [generateEmailTemplateData],
   )
 
-  // Acompte handler shims — NewInterventionForm has no status-based gating,
-  // so we delegate to the generic handleInputChange and mark the section as always editable.
-  // Invariant partagé avec l'édition : cocher Reçu/Envoyé auto-remplit la date à aujourd'hui ;
-  // décocher la vide. Logique centralisée dans applyRecuToggle.
+  // Acompte handlers — NewInterventionForm a pas de gating de statut, donc tout
+  // est délégué à handleInputChange. Règle métier : seul SST auto-remplit la date
+  // au check (acompte sortant côté GMBS) ; côté client la date reste à saisir.
   const handleAccompteSSTChange = useCallback((value: string) => handleInputChange("accompteSST", value), [handleInputChange])
   const handleAccompteClientChange = useCallback((value: string) => handleInputChange("accompteClient", value), [handleInputChange])
-  const handleAccompteSSTBlur = useCallback(() => { /* no-op on create: no prefill-on-blur logic */ }, [])
-  const handleAccompteClientBlur = useCallback(() => { /* no-op on create */ }, [])
   const handleAccompteSSTRecuChange = useCallback((checked: boolean) => {
     const { recu, date } = applyRecuToggle(checked, formData.dateAccompteSSTRecu)
     handleInputChange("accompteSSTRecu", recu)
     handleInputChange("dateAccompteSSTRecu", date)
   }, [handleInputChange, formData.dateAccompteSSTRecu])
   const handleAccompteClientRecuChange = useCallback((checked: boolean) => {
-    const { recu, date } = applyRecuToggle(checked, formData.dateAccompteClientRecu)
-    handleInputChange("accompteClientRecu", recu)
-    handleInputChange("dateAccompteClientRecu", date)
-  }, [handleInputChange, formData.dateAccompteClientRecu])
+    handleInputChange("accompteClientRecu", checked)
+  }, [handleInputChange])
   const handleDateAccompteSSTRecuChange = useCallback((value: string) => handleInputChange("dateAccompteSSTRecu", value), [handleInputChange])
   const handleDateAccompteClientRecuChange = useCallback((value: string) => handleInputChange("dateAccompteClientRecu", value), [handleInputChange])
 
   const isDevisButtonDisabled = !selectedArtisanId
   const isInterButtonDisabled = useMemo(
     () => isInterventionEmailButtonDisabled({ selectedArtisanId, formData }),
-    [
-      selectedArtisanId,
-      formData.id_inter,
-      formData.coutIntervention,
-      formData.coutSST,
-      formData.consigne_intervention,
-      formData.nomPrenomClient,
-      formData.telephoneClient,
-      formData.date_prevue,
-      formData.is_vacant,
-    ],
+    [selectedArtisanId, formData],
   )
 
   // États pour la gestion des doublons
@@ -914,8 +899,6 @@ export function NewInterventionForm({
               canEditAccomptes={true}
               handleAccompteSSTChange={handleAccompteSSTChange}
               handleAccompteClientChange={handleAccompteClientChange}
-              handleAccompteSSTBlur={handleAccompteSSTBlur}
-              handleAccompteClientBlur={handleAccompteClientBlur}
               handleAccompteSSTRecuChange={handleAccompteSSTRecuChange}
               handleAccompteClientRecuChange={handleAccompteClientRecuChange}
               handleDateAccompteSSTRecuChange={handleDateAccompteSSTRecuChange}

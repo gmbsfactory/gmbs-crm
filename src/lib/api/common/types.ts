@@ -325,7 +325,7 @@ export interface UpdateInterventionData {
   owner_id?: string | null;
   client_id?: string | null;
   artisan_id?: string;
-  assigned_user_id?: string;
+  assigned_user_id?: string | null;
   statut_id?: string;
   metier_id?: string;
   date?: string;

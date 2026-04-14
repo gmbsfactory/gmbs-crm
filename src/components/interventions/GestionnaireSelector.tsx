@@ -32,7 +32,7 @@ export function GestionnaireSelector({
 
   const updateMutation = useMutation({
     mutationFn: async (newUserId: string) => {
-      return interventionsApi.update(interventionId, { assigned_user_id: newUserId || undefined })
+      return interventionsApi.update(interventionId, { assigned_user_id: newUserId || null })
     },
     onSuccess: (_, newUserId) => {
       queryClient.invalidateQueries({ queryKey: ['interventions'] })

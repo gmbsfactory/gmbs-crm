@@ -4,25 +4,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { useInterventionAccomptes } from "@/hooks/useInterventionAccomptes"
 import type { InterventionFormData } from "@/lib/interventions/form-types"
 
-vi.mock("@/lib/api", () => ({
-  interventionsApi: {
-    upsertPayment: vi.fn().mockResolvedValue(undefined),
-    update: vi.fn().mockResolvedValue(undefined),
-  },
-}))
-
-vi.mock("sonner", () => ({
-  toast: { info: vi.fn(), success: vi.fn(), error: vi.fn() },
-}))
-
-import { interventionsApi } from "@/lib/api"
-
 const STATUSES = [
   { id: "s-accepte", code: "ACCEPTE", label: "Accepté" },
   { id: "s-att", code: "ATT_ACOMPTE", label: "Attente acompte" },
 ]
-
-const INTERVENTION_ID = "int-1"
 
 function makeFormData(overrides: Partial<InterventionFormData> = {}): InterventionFormData {
   return {
@@ -41,7 +26,6 @@ function setup(formData: InterventionFormData) {
   const handleInputChange = vi.fn()
   const hook = renderHook(() =>
     useInterventionAccomptes({
-      interventionId: INTERVENTION_ID,
       formData,
       interventionStatuses: STATUSES,
       handleInputChange,
@@ -50,7 +34,7 @@ function setup(formData: InterventionFormData) {
   return { hook, handleInputChange }
 }
 
-describe("useInterventionAccomptes", () => {
+describe("useInterventionAccomptes (local-only)", () => {
   beforeEach(() => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date(2026, 3, 12, 10, 0, 0))
@@ -61,108 +45,103 @@ describe("useInterventionAccomptes", () => {
   })
 
   describe("handleAccompteClientRecuChange", () => {
-    it("auto-fills today's date and transitions to ACCEPTE when checking with empty date", async () => {
+    it("checks without auto-filling date and transitions statut_id to ACCEPTE", () => {
       const { hook, handleInputChange } = setup(
         makeFormData({ statut_id: "s-att", dateAccompteClientRecu: "" }),
       )
 
-      await act(async () => {
-        await hook.result.current.handleAccompteClientRecuChange(true)
+      act(() => {
+        hook.result.current.handleAccompteClientRecuChange(true)
       })
 
-      // Statut transition persisted first
-      expect(interventionsApi.update).toHaveBeenCalledWith(INTERVENTION_ID, {
-        statut_id: "s-accepte",
-      })
-      // Payment upsert with auto-filled date
-      expect(interventionsApi.upsertPayment).toHaveBeenCalledWith(INTERVENTION_ID, {
-        payment_type: "acompte_client",
-        is_received: true,
-        payment_date: "2026-04-12",
-      })
-      // Both fields propagated to form state
       expect(handleInputChange).toHaveBeenCalledWith("accompteClientRecu", true)
-      expect(handleInputChange).toHaveBeenCalledWith("dateAccompteClientRecu", "2026-04-12")
-    })
-
-    it("preserves an existing date when checking", async () => {
-      const { hook, handleInputChange } = setup(
-        makeFormData({ statut_id: "s-att", dateAccompteClientRecu: "2026-03-01" }),
-      )
-
-      await act(async () => {
-        await hook.result.current.handleAccompteClientRecuChange(true)
-      })
-
-      expect(interventionsApi.upsertPayment).toHaveBeenCalledWith(INTERVENTION_ID, {
-        payment_type: "acompte_client",
-        is_received: true,
-        payment_date: "2026-03-01",
-      })
-      // No date update needed since unchanged
+      expect(handleInputChange).toHaveBeenCalledWith("statut_id", "s-accepte")
       expect(handleInputChange).not.toHaveBeenCalledWith(
         "dateAccompteClientRecu",
         expect.anything(),
       )
     })
 
-    it("clears the date and transitions to ATT_ACOMPTE when unchecking from ACCEPTE", async () => {
+    it("unchecking from ACCEPTE transitions statut_id to ATT_ACOMPTE", () => {
       const { hook, handleInputChange } = setup(
-        makeFormData({ statut_id: "s-accepte", dateAccompteClientRecu: "2026-03-01" }),
+        makeFormData({ statut_id: "s-accepte", accompteClientRecu: true }),
       )
 
-      await act(async () => {
-        await hook.result.current.handleAccompteClientRecuChange(false)
+      act(() => {
+        hook.result.current.handleAccompteClientRecuChange(false)
       })
 
-      expect(interventionsApi.update).toHaveBeenCalledWith(INTERVENTION_ID, {
-        statut_id: "s-att",
-      })
-      expect(interventionsApi.upsertPayment).toHaveBeenCalledWith(INTERVENTION_ID, {
-        payment_type: "acompte_client",
-        is_received: false,
-        payment_date: null,
-      })
       expect(handleInputChange).toHaveBeenCalledWith("accompteClientRecu", false)
-      expect(handleInputChange).toHaveBeenCalledWith("dateAccompteClientRecu", "")
+      expect(handleInputChange).toHaveBeenCalledWith("statut_id", "s-att")
+    })
+
+    it("unchecking when statut is not ACCEPTE leaves statut untouched", () => {
+      const { hook, handleInputChange } = setup(
+        makeFormData({ statut_id: "s-att", accompteClientRecu: true }),
+      )
+
+      act(() => {
+        hook.result.current.handleAccompteClientRecuChange(false)
+      })
+
+      expect(handleInputChange).toHaveBeenCalledWith("accompteClientRecu", false)
+      expect(handleInputChange).not.toHaveBeenCalledWith("statut_id", expect.anything())
     })
   })
 
   describe("handleAccompteSSTRecuChange", () => {
-    it("auto-fills today's date when checking with empty date (no status transition)", async () => {
+    it("auto-fills today's date when checking with empty date", () => {
       const { hook, handleInputChange } = setup(
-        makeFormData({ statut_id: "s-accepte", dateAccompteSSTRecu: "" }),
+        makeFormData({ dateAccompteSSTRecu: "" }),
       )
 
-      await act(async () => {
-        await hook.result.current.handleAccompteSSTRecuChange(true)
+      act(() => {
+        hook.result.current.handleAccompteSSTRecuChange(true)
       })
 
-      expect(interventionsApi.update).not.toHaveBeenCalled()
-      expect(interventionsApi.upsertPayment).toHaveBeenCalledWith(INTERVENTION_ID, {
-        payment_type: "acompte_sst",
-        is_received: true,
-        payment_date: "2026-04-12",
-      })
       expect(handleInputChange).toHaveBeenCalledWith("accompteSSTRecu", true)
       expect(handleInputChange).toHaveBeenCalledWith("dateAccompteSSTRecu", "2026-04-12")
     })
 
-    it("clears the date when unchecking", async () => {
+    it("preserves an existing date when checking", () => {
       const { hook, handleInputChange } = setup(
-        makeFormData({ statut_id: "s-accepte", dateAccompteSSTRecu: "2026-03-01" }),
+        makeFormData({ dateAccompteSSTRecu: "2026-03-01" }),
       )
 
-      await act(async () => {
-        await hook.result.current.handleAccompteSSTRecuChange(false)
+      act(() => {
+        hook.result.current.handleAccompteSSTRecuChange(true)
       })
 
-      expect(interventionsApi.upsertPayment).toHaveBeenCalledWith(INTERVENTION_ID, {
-        payment_type: "acompte_sst",
-        is_received: false,
-        payment_date: null,
+      expect(handleInputChange).toHaveBeenCalledWith("accompteSSTRecu", true)
+      expect(handleInputChange).not.toHaveBeenCalledWith(
+        "dateAccompteSSTRecu",
+        expect.anything(),
+      )
+    })
+
+    it("clears the date when unchecking", () => {
+      const { hook, handleInputChange } = setup(
+        makeFormData({ dateAccompteSSTRecu: "2026-03-01" }),
+      )
+
+      act(() => {
+        hook.result.current.handleAccompteSSTRecuChange(false)
       })
+
+      expect(handleInputChange).toHaveBeenCalledWith("accompteSSTRecu", false)
       expect(handleInputChange).toHaveBeenCalledWith("dateAccompteSSTRecu", "")
+    })
+
+    it("never triggers a status transition", () => {
+      const { hook, handleInputChange } = setup(
+        makeFormData({ statut_id: "s-accepte" }),
+      )
+
+      act(() => {
+        hook.result.current.handleAccompteSSTRecuChange(true)
+      })
+
+      expect(handleInputChange).not.toHaveBeenCalledWith("statut_id", expect.anything())
     })
   })
 })

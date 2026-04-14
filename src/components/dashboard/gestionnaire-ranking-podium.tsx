@@ -25,7 +25,7 @@ interface GestionnaireRankingPodiumProps {
 }
 
 export function GestionnaireRankingPodium({ period, useAutoPeriod = false }: GestionnaireRankingPodiumProps) {
-  const [sortBy, setSortBy] = useState<'margin' | 'revenue'>('margin')
+  const [sortBy, setSortBy] = useState<'margin' | 'count'>('margin')
 
   // Charger la période automatique du podium si activé
   const {
@@ -62,8 +62,8 @@ export function GestionnaireRankingPodium({ period, useAutoPeriod = false }: Ges
       return []
     }
     const sorted = [...ranking.rankings].sort((a, b) => {
-      if (sortBy === 'revenue') {
-        return b.total_revenue - a.total_revenue
+      if (sortBy === 'count') {
+        return b.total_interventions - a.total_interventions
       }
       // Par défaut, trier par marge
       return b.total_margin - a.total_margin
@@ -140,11 +140,11 @@ export function GestionnaireRankingPodium({ period, useAutoPeriod = false }: Ges
             </Label>
             <StyledSwitch
               id="sort-switch"
-              checked={sortBy === 'revenue'}
-              onCheckedChange={(checked) => setSortBy(checked ? 'revenue' : 'margin')}
+              checked={sortBy === 'count'}
+              onCheckedChange={(checked) => setSortBy(checked ? 'count' : 'margin')}
             />
             <Label htmlFor="sort-switch" className="text-sm text-muted-foreground cursor-pointer">
-              CA
+              Nb Inter
             </Label>
           </div>
         </div>

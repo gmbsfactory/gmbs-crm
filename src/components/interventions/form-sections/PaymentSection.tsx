@@ -17,8 +17,6 @@ interface PaymentSectionProps {
   // Handlers
   handleAccompteSSTChange: (value: string) => void
   handleAccompteClientChange: (value: string) => void
-  handleAccompteSSTBlur: () => void
-  handleAccompteClientBlur: () => void
   handleAccompteSSTRecuChange: (checked: boolean) => void
   handleAccompteClientRecuChange: (checked: boolean) => void
   handleDateAccompteSSTRecuChange: (value: string) => void
@@ -32,8 +30,6 @@ export function PaymentSection({
   canEditAccomptes,
   handleAccompteSSTChange,
   handleAccompteClientChange,
-  handleAccompteSSTBlur,
-  handleAccompteClientBlur,
   handleAccompteSSTRecuChange,
   handleAccompteClientRecuChange,
   handleDateAccompteSSTRecuChange,
@@ -56,7 +52,7 @@ export function PaymentSection({
               <div>
                 <Label htmlFor="accompteClient" className="text-[10px]">Acompte client</Label>
                 <PresenceFieldIndicator fieldName="accompteClient">
-                <Input id="accompteClient" value={formData.accompteClient} onChange={(e) => handleAccompteClientChange(e.target.value)} onBlur={handleAccompteClientBlur} placeholder="Montant" className="h-7 text-xs" disabled={!canEditAccomptes} type="number" step="0.01" min="0" />
+                <Input id="accompteClient" value={formData.accompteClient} onChange={(e) => handleAccompteClientChange(e.target.value)} placeholder="Montant" className="h-7 text-xs" disabled={!canEditAccomptes} type="number" step="0.01" min="0" />
                 </PresenceFieldIndicator>
               </div>
               <div>
@@ -71,7 +67,7 @@ export function PaymentSection({
               <div>
                 <Label htmlFor="accompteSST" className="text-[10px]">Acompte SST</Label>
                 <PresenceFieldIndicator fieldName="accompteSST">
-                <Input id="accompteSST" value={formData.accompteSST} onChange={(e) => handleAccompteSSTChange(e.target.value)} onBlur={handleAccompteSSTBlur} placeholder="Montant" className="h-7 text-xs" disabled={!canEditAccomptes} type="number" step="0.01" min="0" />
+                <Input id="accompteSST" value={formData.accompteSST} onChange={(e) => handleAccompteSSTChange(e.target.value)} placeholder="Montant" className="h-7 text-xs" disabled={!canEditAccomptes} type="number" step="0.01" min="0" />
                 </PresenceFieldIndicator>
               </div>
               <div>
