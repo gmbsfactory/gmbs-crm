@@ -8,9 +8,7 @@ import {
   Check, 
   X, 
   TrendingUp,
-  Calendar,
   CalendarDays,
-  CalendarRange,
   Percent,
   Euro,
   Lock,
@@ -18,37 +16,19 @@ import {
 } from "lucide-react"
 import { toast } from "sonner"
 import { useCurrentUser } from "@/hooks/useCurrentUser"
-import { usersApi } from "@/lib/api/v2"
-import type { User, GestionnaireTarget, TargetPeriodType, CreateGestionnaireTargetData } from "@/lib/api/v2"
+import { usersApi } from "@/lib/api"
+import type { User, GestionnaireTarget, TargetPeriodType, CreateGestionnaireTargetData } from "@/lib/api"
 import { cn } from "@/lib/utils"
 
-const PERIOD_CONFIG = {
-  week: { 
-    icon: Calendar, 
-    label: 'Semaine', 
-    shortLabel: 'Sem.',
-    defaultMargin: 1500,
-    color: 'from-blue-500/20 to-indigo-500/10',
-    iconColor: 'text-blue-600 dark:text-blue-400',
-    bgColor: 'bg-blue-500/10',
-  },
-  month: { 
-    icon: CalendarDays, 
-    label: 'Mois', 
+const PERIOD_CONFIG: Record<string, { icon: typeof CalendarDays; label: string; shortLabel: string; defaultMargin: number; color: string; iconColor: string; bgColor: string }> = {
+  month: {
+    icon: CalendarDays,
+    label: 'Mois',
     shortLabel: 'Mois',
     defaultMargin: 5000,
     color: 'from-emerald-500/20 to-green-500/10',
     iconColor: 'text-emerald-600 dark:text-emerald-400',
     bgColor: 'bg-emerald-500/10',
-  },
-  year: { 
-    icon: CalendarRange, 
-    label: 'Année', 
-    shortLabel: 'An',
-    defaultMargin: 58000,
-    color: 'from-amber-500/20 to-orange-500/10',
-    iconColor: 'text-amber-600 dark:text-amber-400',
-    bgColor: 'bg-amber-500/10',
   },
 }
 
@@ -166,7 +146,7 @@ export function TargetsSettings() {
     const initialData: typeof editableData = {}
     
     gestionnaires.forEach((user) => {
-      const periods: TargetPeriodType[] = ["week", "month", "year"]
+      const periods: TargetPeriodType[] = ["month"]
       initialData[user.id] = {} as Record<TargetPeriodType, { margin_target: number; performance_target: number | null; targetId?: string }>
       
       periods.forEach((period) => {
@@ -373,7 +353,7 @@ export function TargetsSettings() {
               <div>
                 <h2 className="text-xl font-bold">Objectifs de marge</h2>
                 <p className="text-sm text-muted-foreground">
-                  {gestionnaires.length} gestionnaire{gestionnaires.length > 1 ? 's' : ''} • Semaine, Mois, Année
+                  {gestionnaires.length} gestionnaire{gestionnaires.length > 1 ? 's' : ''} • Objectif mensuel
                 </p>
               </div>
             </div>
@@ -426,11 +406,11 @@ export function TargetsSettings() {
         </div>
 
         {/* Period Headers */}
-        <div className="grid grid-cols-4 border-b bg-muted/30">
+        <div className="grid grid-cols-2 border-b bg-muted/30">
           <div className="px-6 py-3 font-medium text-sm text-muted-foreground">
             Gestionnaire
           </div>
-          {(['week', 'month', 'year'] as TargetPeriodType[]).map((period) => {
+          {(['month'] as TargetPeriodType[]).map((period) => {
             const config = PERIOD_CONFIG[period]
             const Icon = config.icon
             return (
@@ -453,13 +433,8 @@ export function TargetsSettings() {
             </div>
           ) : (
             gestionnaires.map((user, index) => {
-              const weekTarget = targets.find((t) => t.user_id === user.id && t.period_type === "week")
               const monthTarget = targets.find((t) => t.user_id === user.id && t.period_type === "month")
-              const yearTarget = targets.find((t) => t.user_id === user.id && t.period_type === "year")
-
-              const canModifyWeek = canModifyTarget(weekTarget)
               const canModifyMonth = canModifyTarget(monthTarget)
-              const canModifyYear = canModifyTarget(yearTarget)
 
               const getValue = (target: GestionnaireTarget | undefined, periodType: TargetPeriodType, field: "margin_target" | "performance_target") => {
                 if (isEditMode && editableData[user.id]?.[periodType]) {
@@ -472,9 +447,7 @@ export function TargetsSettings() {
               }
 
               const targetsByPeriod = [
-                { period: 'week' as TargetPeriodType, target: weekTarget, canModify: canModifyWeek },
                 { period: 'month' as TargetPeriodType, target: monthTarget, canModify: canModifyMonth },
-                { period: 'year' as TargetPeriodType, target: yearTarget, canModify: canModifyYear },
               ]
 
               return (
@@ -484,7 +457,7 @@ export function TargetsSettings() {
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: index * 0.03 }}
                   className={cn(
-                    "grid grid-cols-4 hover:bg-muted/30 transition-colors",
+                    "grid grid-cols-2 hover:bg-muted/30 transition-colors",
                     isEditMode && "bg-primary/5"
                   )}
                 >

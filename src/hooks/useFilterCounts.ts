@@ -1,8 +1,8 @@
 import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { interventionsApi } from '@/lib/api/v2'
+import { interventionsApi } from '@/lib/api'
 import { interventionKeys } from '@/lib/react-query/queryKeys'
-import type { InterventionQueryParams } from '@/lib/api/v2/common/types'
+import type { InterventionQueryParams } from '@/lib/api/common/types'
 
 type FilterProperty = 'metier' | 'agence' | 'statut' | 'user'
 

@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
-import { interventionsApi } from "@/lib/api/v2"
+import { interventionsApi } from "@/lib/api"
 
 // Wrapper pour compatibilité avec les tests existants
 const getInterventionTotalCount = interventionsApi.getTotalCountWithFilters.bind(interventionsApi)

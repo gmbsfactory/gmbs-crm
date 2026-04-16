@@ -2,8 +2,7 @@
 
 import { useEffect, useState, useRef, useMemo } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { interventionsApi } from "@/lib/api/v2"
-import type { InterventionStatsByStatus } from "@/lib/api/v2"
+import { useDashboardStats } from "@/hooks/useDashboardStats"
 import { useCurrentUser } from "@/hooks/useCurrentUser"
 import { AlertCircle } from "lucide-react"
 import Loader from "@/components/ui/Loader"
@@ -28,9 +27,6 @@ interface InterventionStatsPieChartProps {
 }
 
 export function InterventionStatsPieChart({ period }: InterventionStatsPieChartProps) {
-  const [stats, setStats] = useState<InterventionStatsByStatus | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
   const { open: openModal } = useModal()
   const { open: openInterventionModal } = useInterventionModal()
   const [hoveredStatus, setHoveredStatus] = useState<string | null>(null)
@@ -42,18 +38,26 @@ export function InterventionStatsPieChart({ period }: InterventionStatsPieChartP
 
   const router = useRouter()
 
-  // Utiliser le hook React Query pour charger l'utilisateur (cache partagé)
-  const { data: currentUser, isLoading: isLoadingUser } = useCurrentUser()
+  // Calculer les dates (mois en cours par défaut si non fournies)
+  const resolvedPeriod = useMemo(() => {
+    const startDate = period?.startDate
+    const endDate = period?.endDate
+    if (startDate && endDate) return { startDate, endDate }
+    const now = new Date()
+    return {
+      startDate: startDate || new Date(now.getFullYear(), now.getMonth(), 1).toISOString(),
+      endDate: endDate || new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59).toISOString(),
+    }
+  }, [period?.startDate, period?.endDate])
+
+  // Utiliser le hook React Query (cache partagé, background polling, etc.)
+  const { data: currentUser } = useCurrentUser()
   const userId = currentUser?.id ?? null
+  const { data: stats, isLoading: loading, error: queryError } = useDashboardStats(resolvedPeriod)
+  const error = queryError ? (queryError as Error).message || "Erreur lors du chargement des statistiques" : null
 
   // Charger les statuts depuis la DB pour avoir les couleurs exactes
-  const { statuses: dbStatuses, statusesByCode, statusesByLabel } = useInterventionStatuses()
-
-  // Log les statuts chargés depuis la DB pour déboguer
-  useEffect(() => {
-    if (dbStatuses.length > 0 && process.env.NODE_ENV === 'development') {
-    }
-  }, [dbStatuses])
+  const { statusesByCode, statusesByLabel } = useInterventionStatuses()
 
   // Suivre la position de la souris pour positionner le trigger du HoverCard
   useEffect(() => {
@@ -77,55 +81,6 @@ export function InterventionStatsPieChart({ period }: InterventionStatsPieChartP
       }
     }
   }, [])
-
-  // Charger les statistiques une fois l'utilisateur chargé
-  useEffect(() => {
-    if (!userId || isLoadingUser) {
-      setLoading(isLoadingUser)
-      return
-    }
-
-    let cancelled = false
-
-    const loadStats = async () => {
-      try {
-        setLoading(true)
-        setError(null)
-
-        // Calculer les dates si non fournies (mois en cours par défaut)
-        let startDate = period?.startDate
-        let endDate = period?.endDate
-
-        if (!startDate || !endDate) {
-          const now = new Date()
-          const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
-          const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59)
-
-          startDate = startDate || startOfMonth.toISOString()
-          endDate = endDate || endOfMonth.toISOString()
-        }
-
-        // Charger les stats
-        const statsData = await interventionsApi.getStatsByUser(userId, startDate, endDate)
-
-        if (!cancelled) {
-          setStats(statsData)
-          setLoading(false)
-        }
-      } catch (err: any) {
-        if (!cancelled) {
-          setError(err.message || "Erreur lors du chargement des statistiques")
-          setLoading(false)
-        }
-      }
-    }
-
-    loadStats()
-
-    return () => {
-      cancelled = true
-    }
-  }, [userId, isLoadingUser, period?.startDate, period?.endDate])
 
   // Fonction helper pour obtenir la couleur d'un statut
   const getStatusColor = (statusLabel: string): string => {

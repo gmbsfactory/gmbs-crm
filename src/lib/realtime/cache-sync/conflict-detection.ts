@@ -3,7 +3,7 @@
  * Detecte quand deux utilisateurs modifient la meme intervention en meme temps
  */
 
-import type { Intervention } from '@/lib/api/v2/common/types'
+import type { Intervention } from '@/lib/api/common/types'
 import { getRemoteEditIndicatorManager } from '@/lib/realtime/remote-edit-indicator'
 import { toast } from 'sonner'
 

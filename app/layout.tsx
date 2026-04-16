@@ -12,10 +12,7 @@ import { AuthStateListenerProvider } from "@/providers/AuthStateListenerProvider
 import { SidebarProvider } from "@/components/ui/sidebar"
 import { Toaster } from "@/components/ui/toaster"
 import { ModalDisplayProvider } from "@/contexts/ModalDisplayContext"
-import { SimpleOptimizedProvider } from "@/contexts/SimpleOptimizedContext"
 import { InterfaceProvider } from "@/contexts/interface-context"
-import { UserStatusProvider } from "@/contexts/user-status-context"
-import { RemindersProvider } from "@/contexts/RemindersContext"
 import { AuthGuard } from "@/components/layout/auth-guard"
 import { DeveloperDashboardLoader } from "@/components/debug/DeveloperDashboardLoader"
 import UpdatesModal from "@/components/layout/UpdatesModal"
@@ -253,14 +250,11 @@ export default async function RootLayout({
           Aller au contenu
         </a>
         <StyledComponentsRegistry>
-          <SimpleOptimizedProvider>
             <SettingsProvider>
               <ReactQueryProvider>
                 <AuthStateListenerProvider>
                   <ModalDisplayProvider>
-                    <UserStatusProvider>
                       <InterfaceProvider>
-                        <RemindersProvider>
                           <ThemeWrapper>
                             <AuthGuard>
                               <SidebarProvider>
@@ -288,14 +282,11 @@ export default async function RootLayout({
                               <DeveloperDashboardLoader />
                             </AuthGuard>
                           </ThemeWrapper>
-                        </RemindersProvider>
                       </InterfaceProvider>
-                    </UserStatusProvider>
                   </ModalDisplayProvider>
                 </AuthStateListenerProvider>
               </ReactQueryProvider>
             </SettingsProvider>
-          </SimpleOptimizedProvider>
         </StyledComponentsRegistry>
         <Toaster position="bottom-right" duration={10000} />
       </body>

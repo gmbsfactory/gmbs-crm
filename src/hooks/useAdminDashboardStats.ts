@@ -2,8 +2,8 @@
 
 import { useQuery } from "@tanstack/react-query"
 import { useMemo } from "react"
-import { interventionsApi } from "@/lib/api/v2"
-import type { AdminDashboardStats, DashboardPeriodParams, PeriodType } from "@/lib/api/v2"
+import { interventionsApi } from "@/lib/api"
+import type { AdminDashboardStats, DashboardPeriodParams, PeriodType } from "@/lib/api"
 
 /**
  * Hook pour récupérer les statistiques du dashboard administrateur

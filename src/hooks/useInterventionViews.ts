@@ -6,785 +6,31 @@ import type {
   InterventionViewDefinition,
   LayoutOptions,
   ViewFilters,
-  ViewFilter,
-  ViewFilterOperator,
   ViewLayout,
   ViewSort,
-  TableLayoutOptions,
-  TableColumnStyle,
-  TableColumnAlignment,
-  TableColumnAppearance,
 } from "@/types/intervention-views"
-import { STYLE_ELIGIBLE_COLUMNS, normalizeColumnStyle } from "@/lib/interventions/column-style"
 import { useCurrentUser } from "@/hooks/useCurrentUser"
+import {
+  DEFAULT_VIEWS,
+  DEFAULT_VIEW_IDS,
+  LEGACY_DEFAULT_VIEW_IDS,
+  VISIBLE_VIEW_LAYOUTS,
+  VIEWS_STORAGE_KEY,
+  ACTIVE_VIEW_STORAGE_KEY,
+  USER_SCOPED_VIEW_IDS,
+  VIEW_TEMPLATES,
+  layoutTemplatesByLayout,
+  cloneViewDefinition,
+  ensureLayoutOptions,
+  applyUserScopedFilters,
+  prepareViewsForPersistence,
+  safeJSONParse,
+  mergeStoredViews,
+  generateRandomId,
+  slugify,
+} from "@/config/intervention-view-presets"
 
-const CURRENT_USER_PLACEHOLDER = "__CURRENT_USER_USERNAME__"
-const NO_USER_PLACEHOLDER = "__NO_USER_USERNAME__"
-const USER_SCOPED_VIEW_IDS = new Set([
-  "mes-demandes",
-  "ma-liste-en-cours",
-  "mes-visites-technique",
-  "ma-liste-accepte",
-  "ma-liste-att-acompte",
-  "mes-interventions-a-check",
-])
-
-const VISIBLE_VIEW_LAYOUTS: ViewLayout[] = ["table", "cards", "calendar"]
-
-const VIEWS_STORAGE_KEY = "crm:interventions:view-configs"
-const ACTIVE_VIEW_STORAGE_KEY = "crm:interventions:active-view"
-
-const cloneViewDefinition = (view: InterventionViewDefinition): InterventionViewDefinition => {
-  if (typeof structuredClone === "function") {
-    return structuredClone(view)
-  }
-  return JSON.parse(JSON.stringify(view)) as InterventionViewDefinition
-}
-
-const VIEW_TEMPLATES: Record<ViewLayout, InterventionViewDefinition> = {
-  table: {
-    id: "table",
-    title: "Tableau",
-    layout: "table",
-    visibleProperties: [
-      "dateIntervention",
-      "agence",
-      "attribueA",
-      "id_inter",
-      "metier",
-      "codePostal",
-      "adresse",
-      "artisan",
-      "coutIntervention",
-      "datePrevue",
-      "statusValue",
-      "understatement", // Sous-statut (affiché juste après le statut)
-    ],
-    filters: [],
-    sorts: [{ property: "dateIntervention", direction: "desc" }],
-    layoutOptions: {
-      layout: "table",
-      columnWidths: {
-        dateIntervention: 85,
-        agence: 85,
-        attribueA: 50,
-        id_inter: 85,
-        metier: 85,
-        codePostal: 70,
-        adresse: 100,
-        artisan: 110,
-        coutIntervention: 80,
-        datePrevue: 85,
-        statusValue: 100,
-        understatement: 50,
-      },
-      hiddenColumns: [],
-      rowDensity: "ultra-dense",
-      rowDisplayMode: "stripes",
-      useAccentColor: true,
-      showStatusBorder: false,
-      columnStyles: {
-        attribueA: { appearance: "none" },
-        agence: { appearance: "badge", bold: true },
-        metier: { appearance: "badge" },
-        statusValue: { appearance: "badge" },
-        understatement: { appearance: "badge" },
-      },
-      columnAlignment: {
-        statusValue: "right",
-        understatement: "left",
-      },
-    },
-    description: "Vue en tableau avec colonnes configurables et tri multi-colonnes",
-    isDefault: true,
-  },
-  cards: {
-    id: "cards",
-    title: "Cartes",
-    layout: "cards",
-    visibleProperties: ["contexteIntervention", "nomClient", "prenomClient", "dateIntervention", "attribueA"],
-    filters: [],
-    sorts: [{ property: "date", direction: "desc" }],
-    layoutOptions: {
-      layout: "cards",
-      coverProperty: null,
-      previewProperties: ["contexteIntervention", "nomClient"],
-      showStatus: true,
-    },
-    description: "Vue cartes compacte avec focus sur le contexte et le client",
-    isDefault: true,
-  },
-  gallery: {
-    id: "gallery",
-    title: "Galerie",
-    layout: "gallery",
-    visibleProperties: ["nomClient", "contexteIntervention", "attribueA"],
-    filters: [],
-    sorts: [{ property: "dateIntervention", direction: "desc" }],
-    layoutOptions: {
-      layout: "gallery",
-      coverProperty: null,
-      previewProperty: "contexteIntervention",
-      size: "medium",
-      highlightedProperties: ["nomClient", "attribueA"],
-    },
-    description: "Galerie visuelle des interventions avec carte responsive",
-    isDefault: false,
-  },
-  kanban: {
-    id: "kanban",
-    title: "Kanban",
-    layout: "kanban",
-    visibleProperties: ["contexteIntervention", "nomClient", "attribueA", "dateIntervention"],
-    filters: [],
-    sorts: [{ property: "statusValue", direction: "asc" }],
-    layoutOptions: {
-      layout: "kanban",
-      groupProperty: "statusValue",
-      columnOrder: [],
-      collapsedColumns: [],
-    },
-    description: "Pipeline par statut avec drag & drop",
-    isDefault: false,
-  },
-  calendar: {
-    id: "calendar",
-    title: "Calendrier",
-    layout: "calendar",
-    visibleProperties: ["nomClient", "contexteIntervention", "attribueA"],
-    filters: [],
-    sorts: [{ property: "dateIntervention", direction: "asc" }],
-    layoutOptions: {
-      layout: "calendar",
-      dateProperty: "dateIntervention",
-      endDateProperty: "dateIntervention",
-      viewMode: "month",
-    },
-    description: "Vue calendrier (mois/semaine/jour) basée sur la date d'intervention",
-    isDefault: false,
-  },
-  timeline: {
-    id: "timeline",
-    title: "Chronologie",
-    layout: "timeline",
-    visibleProperties: ["nomClient", "attribueA", "statusValue"],
-    filters: [],
-    sorts: [{ property: "date", direction: "asc" }],
-    layoutOptions: {
-      layout: "timeline",
-      startDateProperty: "date",
-      endDateProperty: "dateIntervention",
-      groupBy: "artisan",
-      zoom: "month",
-    },
-    description: "Chronologie type Gantt avec regroupement personnalisable",
-    isDefault: true,
-  },
-}
-
-// ============================================
-// HELPER FUNCTIONS - Doivent être avant DEFAULT_VIEWS
-// ============================================
-
-const sanitizeColumnStyles = (styles?: Record<string, TableColumnStyle | null> | null): Record<string, TableColumnStyle> | undefined => {
-  if (!styles) return undefined
-  const result: Record<string, TableColumnStyle> = {}
-  Object.entries(styles).forEach(([key, value]) => {
-    if (!value) return
-    const normalized = normalizeColumnStyle(key, value)
-    if (normalized) {
-      result[key] = normalized
-    }
-  })
-  return Object.keys(result).length ? result : undefined
-}
-
-const sanitizeColumnAlignment = (alignment?: Record<string, TableColumnAlignment>): Record<string, TableColumnAlignment> | undefined => {
-  if (!alignment) return undefined
-  const allowed: TableColumnAlignment[] = ["left", "center", "right"]
-  const result: Record<string, TableColumnAlignment> = {}
-  Object.entries(alignment).forEach(([key, value]) => {
-    if (allowed.includes(value) && value !== "center") {
-      result[key] = value
-    }
-  })
-  return Object.keys(result).length ? result : undefined
-}
-
-const mergeTableLayoutOptions = (
-  base: TableLayoutOptions,
-  patch?: Partial<TableLayoutOptions>,
-): TableLayoutOptions => {
-  const mergedColumnWidths = { ...base.columnWidths, ...(patch?.columnWidths ?? {}) }
-  const mergedHidden = patch?.hiddenColumns ?? base.hiddenColumns
-  const baseDensity = base.rowDensity ?? (base.dense ? "dense" : undefined)
-  const patchDensityCandidate =
-    patch?.rowDensity ?? (patch?.dense !== undefined ? (patch.dense ? "dense" : "default") : undefined)
-  const resolvedDensity = patchDensityCandidate ?? baseDensity
-  const normalizedDensity = resolvedDensity === "default" ? undefined : resolvedDensity
-  const mergedDense =
-    patch?.dense !== undefined
-      ? patch.dense
-      : normalizedDensity
-        ? normalizedDensity === "dense" || normalizedDensity === "ultra-dense"
-        : base.dense
-  const mergedStyles = sanitizeColumnStyles({
-    ...(base.columnStyles ?? {}),
-    ...(patch?.columnStyles ?? {}),
-  })
-
-  const mergedAlignment = sanitizeColumnAlignment({
-    ...(base.columnAlignment ?? {}),
-    ...(patch?.columnAlignment ?? {}),
-  })
-
-  return {
-    ...base,
-    ...patch,
-    layout: "table",
-    columnWidths: mergedColumnWidths,
-    hiddenColumns: mergedHidden,
-    dense: mergedDense,
-    rowDensity: normalizedDensity,
-    columnStyles: mergedStyles,
-    columnAlignment: mergedAlignment,
-  }
-}
-
-const ensureLayoutOptions = (layout: ViewLayout, base: LayoutOptions, patch?: Partial<LayoutOptions>): LayoutOptions => {
-  if (layout === "table") {
-    return mergeTableLayoutOptions(base as TableLayoutOptions, patch as Partial<TableLayoutOptions> | undefined)
-  }
-  if (!patch) return base
-  const { layout: _, ...rest } = patch as Partial<Record<string, unknown>>
-  return { ...base, ...rest, layout } as LayoutOptions
-}
-
-// ============================================
-// DEFAULT VIEW PRESETS
-// ============================================
-
-type DefaultViewPreset = {
-  id: string
-  title: string
-  description: string
-  filters: ViewFilters
-  visibleProperties?: string[]
-  layoutOptions?: Partial<TableLayoutOptions>
-  showBadge?: boolean
-}
-
-const DEFAULT_VIEW_PRESETS: DefaultViewPreset[] = [
-  {
-    id: "liste-generale",
-    title: "Liste générale",
-    description: "Liste complète de toutes les interventions sans filtres",
-    filters: [],
-    showBadge: true,
-    layoutOptions: {
-      showStatusBorder: true,
-      statusBorderSize: "m",
-      showStatusFilter: false,
-      columnWidths: {
-        dateIntervention: 85,
-        agence: 85,
-        attribueA: 50,
-        id_inter: 85,
-        metier: 85,
-        codePostal: 70,
-        adresse: 100,
-        artisan: 110,
-        coutIntervention: 80,
-        datePrevue: 85,
-        statusValue: 100,
-        understatement: 50,
-      },
-      rowDensity: "ultra-dense",
-      rowDisplayMode: "stripes",
-      useAccentColor: true,
-      columnStyles: {
-        statusValue: { appearance: "badge" },
-        understatement: { appearance: "badge" },
-        attribueA: { appearance: "none" },
-        agence: { appearance: "badge", bold: true },
-        metier: { appearance: "badge" },
-      },
-      columnAlignment: {
-        statusValue: "right",
-        understatement: "left",
-      },
-    },
-  },
-  {
-    id: "market",
-    title: "Market",
-    description: "Interventions en demande qui n'ont pas encore d'assignation",
-    filters: [
-      { property: "statusValue", operator: "eq", value: "DEMANDE" },
-      { property: "attribueA", operator: "is_empty" },
-    ],
-    showBadge: true,
-    visibleProperties: [
-      "dateIntervention",
-      "agence",
-      "metier",
-      "adresse",
-      "ville",
-      "codePostal",
-      "datePrevue",
-    ],
-    layoutOptions: {
-      columnWidths: {
-        dateIntervention: 85,
-        agence: 85,
-        metier: 85,
-        adresse: 150,
-        ville: 100,
-        codePostal: 70,
-        datePrevue: 85,
-        attribueA: 50,
-        understatement: 50,
-      },
-      columnStyles: {
-        attribueA: { appearance: "none" },
-        agence: { appearance: "badge", bold: true },
-        metier: { appearance: "badge" },
-        statusValue: { appearance: "badge" },
-        understatement: { appearance: "badge" },
-      },
-      columnAlignment: {
-        statusValue: "right",
-        understatement: "left",
-      },
-    },
-  },
-  {
-    id: "mes-demandes",
-    title: "Mes demandes",
-    description: "Demandes assignées à l'utilisateur connecté",
-    filters: [
-      { property: "statusValue", operator: "eq", value: "DEMANDE" },
-      { property: "attribueA", operator: "eq", value: CURRENT_USER_PLACEHOLDER },
-    ],
-    showBadge: true,
-    layoutOptions: {
-      columnWidths: {
-        dateIntervention: 85,
-        agence: 85,
-        attribueA: 50,
-        id_inter: 85,
-        metier: 85,
-        codePostal: 70,
-        adresse: 100,
-        artisan: 110,
-        coutIntervention: 80,
-        datePrevue: 85,
-        statusValue: 100,
-        understatement: 50,
-      },
-      columnStyles: {
-        attribueA: { appearance: "none" },
-        agence: { appearance: "badge", bold: true },
-        metier: { appearance: "badge" },
-        statusValue: { appearance: "badge" },
-        understatement: { appearance: "badge" },
-      },
-      columnAlignment: {
-        statusValue: "right",
-        understatement: "left",
-      },
-    },
-  },
-  {
-    id: "ma-liste-en-cours",
-    title: "Ma liste en cours",
-    description: "Interventions en cours assignées à l'utilisateur connecté",
-    filters: [
-      { property: "statusValue", operator: "eq", value: "INTER_EN_COURS" },
-      { property: "attribueA", operator: "eq", value: CURRENT_USER_PLACEHOLDER },
-    ],
-    showBadge: true,
-    layoutOptions: {
-      columnWidths: {
-        dateIntervention: 85,
-        agence: 85,
-        attribueA: 50,
-        id_inter: 85,
-        metier: 85,
-        codePostal: 70,
-        adresse: 100,
-        artisan: 110,
-        coutIntervention: 80,
-        datePrevue: 85,
-        statusValue: 100,
-        understatement: 50,
-      },
-      columnStyles: {
-        attribueA: { appearance: "none" },
-        agence: { appearance: "badge", bold: true },
-        metier: { appearance: "badge" },
-        statusValue: { appearance: "badge" },
-        understatement: { appearance: "badge" },
-      },
-      columnAlignment: {
-        statusValue: "right",
-        understatement: "left",
-      },
-    },
-  },
-  {
-    id: "mes-visites-technique",
-    title: "Mes visites technique",
-    description: "Visites techniques assignées à l'utilisateur connecté",
-    filters: [
-      { property: "statusValue", operator: "eq", value: "VISITE_TECHNIQUE" },
-      { property: "attribueA", operator: "eq", value: CURRENT_USER_PLACEHOLDER },
-    ],
-    showBadge: true,
-    layoutOptions: {
-      columnWidths: {
-        dateIntervention: 85,
-        agence: 85,
-        attribueA: 50,
-        id_inter: 85,
-        metier: 85,
-        codePostal: 70,
-        adresse: 100,
-        artisan: 110,
-        coutIntervention: 80,
-        datePrevue: 85,
-        statusValue: 100,
-        understatement: 50,
-      },
-      columnStyles: {
-        attribueA: { appearance: "none" },
-        agence: { appearance: "badge", bold: true },
-        metier: { appearance: "badge" },
-        statusValue: { appearance: "badge" },
-        understatement: { appearance: "badge" },
-      },
-      columnAlignment: {
-        statusValue: "right",
-        understatement: "left",
-      },
-    },
-  },
-  {
-    id: "ma-liste-accepte",
-    title: "Ma liste accepté",
-    description: "Interventions acceptées assignées à l'utilisateur connecté",
-    filters: [
-      { property: "statusValue", operator: "eq", value: "ACCEPTE" },
-      { property: "attribueA", operator: "eq", value: CURRENT_USER_PLACEHOLDER },
-    ],
-    showBadge: true,
-    layoutOptions: {
-      columnWidths: {
-        dateIntervention: 85,
-        agence: 85,
-        attribueA: 50,
-        id_inter: 85,
-        metier: 85,
-        codePostal: 70,
-        adresse: 100,
-        artisan: 110,
-        coutIntervention: 80,
-        datePrevue: 85,
-        statusValue: 100,
-        understatement: 50,
-      },
-      columnStyles: {
-        attribueA: { appearance: "none" },
-        agence: { appearance: "badge", bold: true },
-        metier: { appearance: "badge" },
-        statusValue: { appearance: "badge" },
-        understatement: { appearance: "badge" },
-      },
-      columnAlignment: {
-        statusValue: "right",
-        understatement: "left",
-      },
-    },
-  },
-  {
-    id: "ma-liste-att-acompte",
-    title: "En attente d'acompte",
-    description: "Interventions en attente d'acompte assignées à l'utilisateur connecté",
-    filters: [
-      { property: "statusValue", operator: "eq", value: "ATT_ACOMPTE" },
-      { property: "attribueA", operator: "eq", value: CURRENT_USER_PLACEHOLDER },
-    ],
-    showBadge: true,
-    layoutOptions: {
-      columnWidths: {
-        dateIntervention: 85,
-        agence: 85,
-        attribueA: 50,
-        id_inter: 85,
-        metier: 85,
-        codePostal: 70,
-        adresse: 100,
-        artisan: 110,
-        coutIntervention: 80,
-        datePrevue: 85,
-        statusValue: 100,
-        understatement: 50,
-      },
-      columnStyles: {
-        attribueA: { appearance: "none" },
-        agence: { appearance: "badge", bold: true },
-        metier: { appearance: "badge" },
-        statusValue: { appearance: "badge" },
-        understatement: { appearance: "badge" },
-      },
-      columnAlignment: {
-        statusValue: "right",
-        understatement: "left",
-      },
-    },
-  },
-  {
-    id: "mes-interventions-a-check",
-    title: "Mes Interventions à check",
-    description: "Interventions assignées à l'utilisateur connecté avec date d'échéance dépassée",
-    filters: [
-      { property: "isCheck", operator: "eq", value: true },
-      { property: "attribueA", operator: "eq", value: CURRENT_USER_PLACEHOLDER },
-    ],
-    showBadge: true,
-    layoutOptions: {
-      columnWidths: {
-        dateIntervention: 85,
-        agence: 85,
-        attribueA: 50,
-        id_inter: 85,
-        metier: 85,
-        codePostal: 70,
-        adresse: 100,
-        artisan: 110,
-        coutIntervention: 80,
-        datePrevue: 85,
-        statusValue: 100,
-        understatement: 50,
-      },
-      columnStyles: {
-        attribueA: { appearance: "none" },
-        agence: { appearance: "badge", bold: true },
-        metier: { appearance: "badge" },
-        statusValue: { appearance: "badge" },
-        understatement: { appearance: "badge" },
-      },
-      columnAlignment: {
-        statusValue: "right",
-        understatement: "left",
-      },
-    },
-  },
-  // Vue calendar retirée des vues par défaut
-  // {
-  //   id: "calendar",
-  //   title: "Calendrier",
-  //   description: "Vue calendrier des interventions",
-  //   filters: [],
-  //   layoutOptions: {
-  //     layout: "calendar",
-  //     dateProperty: "dateIntervention",
-  //     endDateProperty: "dateIntervention",
-  //     viewMode: "month",
-  //   } as any,
-  // },
-]
-
-const DEFAULT_VIEWS: InterventionViewDefinition[] = DEFAULT_VIEW_PRESETS.map((preset) => {
-  // Détecter le layout depuis layoutOptions ou utiliser "table" par défaut
-  const layout = (preset.layoutOptions?.layout as ViewLayout) ?? "table"
-  const base = cloneViewDefinition(VIEW_TEMPLATES[layout] ?? VIEW_TEMPLATES.table)
-  
-  // Si c'est une vue table, utiliser mergeTableLayoutOptions
-  if (layout === "table") {
-    const baseTableOptions = base.layoutOptions as TableLayoutOptions
-    const mergedLayoutOptions = preset.layoutOptions
-      ? mergeTableLayoutOptions(baseTableOptions, preset.layoutOptions)
-      : baseTableOptions
-    const view: InterventionViewDefinition = {
-      ...base,
-      id: preset.id,
-      title: preset.title,
-      description: preset.description,
-      filters: preset.filters,
-      visibleProperties: preset.visibleProperties ?? base.visibleProperties,
-      layoutOptions: mergedLayoutOptions,
-      showBadge: preset.showBadge ?? false,
-      isDefault: true,
-    }
-    return USER_SCOPED_VIEW_IDS.has(view.id) ? applyUserScopedFilters(view, null) : view
-  }
-  
-  // Pour les autres layouts (calendar, etc.)
-  const view: InterventionViewDefinition = {
-    ...base,
-    id: preset.id,
-    title: preset.title,
-    description: preset.description,
-    filters: preset.filters,
-    visibleProperties: preset.visibleProperties ?? base.visibleProperties,
-    layoutOptions: preset.layoutOptions ? { ...base.layoutOptions, ...preset.layoutOptions } : base.layoutOptions,
-    showBadge: preset.showBadge ?? false,
-    isDefault: true,
-  }
-  return USER_SCOPED_VIEW_IDS.has(view.id) ? applyUserScopedFilters(view, null) : view
-})
-
-const DEFAULT_VIEW_IDS = new Set(DEFAULT_VIEWS.map((view) => view.id))
-const DEFAULT_VIEW_MAP = new Map(DEFAULT_VIEWS.map((view) => [view.id, cloneViewDefinition(view)]))
-const LEGACY_DEFAULT_VIEW_IDS = new Set(["table", "cards", "timeline", "ma-liste-accepte"])
-
-const layoutTemplatesByLayout: Record<ViewLayout, InterventionViewDefinition> = VIEW_TEMPLATES
-
-function applyUserScopedFilters(view: InterventionViewDefinition, userId: string | null): InterventionViewDefinition {
-  if (!USER_SCOPED_VIEW_IDS.has(view.id)) {
-    return view
-  }
-
-  // Ne pas appliquer le filtre si le userId n'est pas connu
-  // Cela évite d'injecter un placeholder qui ne peut pas être converti en ID utilisateur
-  if (userId === null) {
-    return view
-  }
-
-  const targetValue = userId
-  let changed = false
-  let hasAssignmentFilter = false
-
-  const nextFilters = view.filters.map((filter) => {
-    if (filter.property !== "attribueA") {
-      return filter
-    }
-    hasAssignmentFilter = true
-    const needsUpdate =
-      filter.operator !== "eq" ||
-      filter.value === CURRENT_USER_PLACEHOLDER ||
-      filter.value !== targetValue
-    if (!needsUpdate) {
-      return filter
-    }
-    changed = true
-    return {
-      property: filter.property,
-      operator: "eq",
-      value: targetValue,
-    } as ViewFilter
-  })
-
-  if (!hasAssignmentFilter) {
-    changed = true
-    nextFilters.push({
-      property: "attribueA",
-      operator: "eq",
-      value: targetValue,
-    } as ViewFilter)
-  }
-
-  if (!changed) {
-    return view
-  }
-
-  return {
-    ...view,
-    filters: nextFilters as ViewFilters,
-  }
-}
-
-const prepareViewsForPersistence = (views: InterventionViewDefinition[]): InterventionViewDefinition[] => {
-  return views.map((view) => {
-    if (!DEFAULT_VIEW_IDS.has(view.id)) {
-      return view
-    }
-    const template = DEFAULT_VIEW_MAP.get(view.id)
-    if (!template) return view
-    if (view.filters === template.filters) return view
-    const resetFilters = cloneViewDefinition(template).filters
-    if (JSON.stringify(view.filters) === JSON.stringify(resetFilters)) {
-      return view
-    }
-    return {
-      ...view,
-      filters: resetFilters,
-    }
-  })
-}
-
-const safeJSONParse = (value: string | null): InterventionViewDefinition[] | null => {
-  if (!value) return null
-  try {
-    const parsed = JSON.parse(value)
-    if (!Array.isArray(parsed)) return null
-    return parsed.filter((view): view is InterventionViewDefinition =>
-      Boolean(view && typeof view.id === "string" && typeof view.layout === "string" && Array.isArray(view.visibleProperties)),
-    )
-  } catch (error) {
-    console.warn("useInterventionViews: parsing failed", error)
-    return null
-  }
-}
-
-const mergeViewWithDefaults = (
-  base: InterventionViewDefinition,
-  overrides: Partial<InterventionViewDefinition> | null,
-): InterventionViewDefinition => {
-  if (!overrides) return cloneViewDefinition(base)
-
-  const snapshot = cloneViewDefinition(base)
-
-  const merged: InterventionViewDefinition = {
-    ...snapshot,
-    ...overrides,
-    layout: overrides.layout ?? snapshot.layout,
-    visibleProperties: overrides.visibleProperties ?? snapshot.visibleProperties,
-    filters: overrides.filters ?? snapshot.filters,
-    sorts: overrides.sorts ?? snapshot.sorts,
-    layoutOptions: {
-      ...snapshot.layoutOptions,
-      ...(overrides.layoutOptions as Partial<LayoutOptions> | undefined),
-    } as LayoutOptions,
-    isDefault: snapshot.isDefault,
-  }
-
-  if (merged.layout === "table") {
-    const tableOptions = merged.layoutOptions as TableLayoutOptions
-    tableOptions.columnStyles = sanitizeColumnStyles(tableOptions.columnStyles)
-    tableOptions.columnAlignment = sanitizeColumnAlignment(tableOptions.columnAlignment)
-  }
-
-  if (overrides.isCustom) {
-    merged.isCustom = overrides.isCustom
-  }
-
-  return merged
-}
-
-const mergeStoredViews = (stored: InterventionViewDefinition[] | null): InterventionViewDefinition[] => {
-  const result: InterventionViewDefinition[] = []
-  const seen = new Set<string>()
-
-  stored?.forEach((view) => {
-    if (LEGACY_DEFAULT_VIEW_IDS.has(view.id) && !DEFAULT_VIEW_IDS.has(view.id)) {
-      return
-    }
-    const template = layoutTemplatesByLayout[view.layout]
-    const merged = template ? mergeViewWithDefaults(template, view) : { ...view, isCustom: true }
-    result.push(merged)
-    seen.add(merged.id)
-  })
-
-  DEFAULT_VIEWS.forEach((defaultView) => {
-    if (seen.has(defaultView.id)) return
-    result.push(cloneViewDefinition(defaultView))
-    seen.add(defaultView.id)
-  })
-
-  return result
-}
+// ---- Types ----
 
 type CreateViewPayload = {
   title: string
@@ -826,20 +72,7 @@ type UseInterventionViewsResult = {
   registerExternalView: (view: InterventionViewDefinition, activate?: boolean) => void
 }
 
-const generateRandomId = () => {
-  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
-    return crypto.randomUUID()
-  }
-  return `view-${Math.random().toString(36).slice(2, 10)}`
-}
-
-const slugify = (input: string) =>
-  input
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[^a-z0-9\s-]/g, "")
-    .trim()
-    .replace(/\s+/g, "-")
+// ---- Hook ----
 
 export function useInterventionViews(): UseInterventionViewsResult {
   const [views, setViews] = useState<InterventionViewDefinition[]>(DEFAULT_VIEWS)
@@ -848,15 +81,13 @@ export function useInterventionViews(): UseInterventionViewsResult {
     return defaultView.id
   })
   const [isReady, setIsReady] = useState(false)
-  
-  // Utiliser le hook centralisé useCurrentUser au lieu d'un fetch direct
+
   const { data: currentUser } = useCurrentUser()
-  const currentUsername = currentUser?.code_gestionnaire ?? currentUser?.username ?? currentUser?.surnom ?? null
   const currentUserId = currentUser?.id ?? null
 
+  // Load from localStorage on mount
   useEffect(() => {
     if (typeof window === "undefined") return
-
     const storedViews = safeJSONParse(localStorage.getItem(VIEWS_STORAGE_KEY))
     const mergedViews = mergeStoredViews(storedViews)
     setViews(mergedViews)
@@ -868,20 +99,20 @@ export function useInterventionViews(): UseInterventionViewsResult {
       const defaultView = mergedViews.find((view) => view.isDefault) ?? mergedViews[0]
       setActiveViewId(defaultView.id)
     }
-
     setIsReady(true)
   }, [])
 
+  // Persist views to localStorage
   useEffect(() => {
     if (typeof window === "undefined" || !isReady) return
     try {
-      const persistable = prepareViewsForPersistence(views)
-      localStorage.setItem(VIEWS_STORAGE_KEY, JSON.stringify(persistable))
+      localStorage.setItem(VIEWS_STORAGE_KEY, JSON.stringify(prepareViewsForPersistence(views)))
     } catch (error) {
       console.warn("useInterventionViews: unable to persist views", error)
     }
   }, [views, isReady])
 
+  // Persist active view
   useEffect(() => {
     if (typeof window === "undefined" || !isReady) return
     try {
@@ -891,44 +122,42 @@ export function useInterventionViews(): UseInterventionViewsResult {
     }
   }, [activeViewId, isReady])
 
+  // Fallback if active view no longer exists
   useEffect(() => {
-    if (!views.length) return
-    if (views.some((view) => view.id === activeViewId)) return
-    const fallback = views.find((view) => view.isDefault) ?? views[0]
+    if (!views.length || views.some((v) => v.id === activeViewId)) return
+    const fallback = views.find((v) => v.isDefault) ?? views[0]
     setActiveViewId(fallback.id)
   }, [views, activeViewId])
 
+  // Apply user-scoped filters when user changes
   useEffect(() => {
     setViews((prev) => {
       let changed = false
       const next = prev.map((view) => {
         const updated = applyUserScopedFilters(view, currentUserId)
-        if (updated !== view) {
-          changed = true
-          return updated
-        }
-        return view
+        if (updated !== view) changed = true
+        return updated !== view ? updated : view
       })
       return changed ? next : prev
     })
   }, [currentUserId])
 
+  // Ensure active view uses a visible layout
   useEffect(() => {
     if (!views.length) return
-    const active = views.find((view) => view.id === activeViewId)
+    const active = views.find((v) => v.id === activeViewId)
     if (active && VISIBLE_VIEW_LAYOUTS.includes(active.layout)) return
-    const fallback = views.find((view) => VISIBLE_VIEW_LAYOUTS.includes(view.layout))
-    if (!fallback) return
-    setActiveViewId(fallback.id)
+    const fallback = views.find((v) => VISIBLE_VIEW_LAYOUTS.includes(v.layout))
+    if (fallback) setActiveViewId(fallback.id)
   }, [views, activeViewId])
 
-  const existingIds = useMemo(() => new Set(views.map((view) => view.id)), [views])
+  const existingIds = useMemo(() => new Set(views.map((v) => v.id)), [views])
 
   const buildViewFromTemplate = useCallback(
     (layout: ViewLayout, overrides: Partial<InterventionViewDefinition> = {}): InterventionViewDefinition => {
       const template = layoutTemplatesByLayout[layout] ?? DEFAULT_VIEWS[0]
       const base = cloneViewDefinition(template)
-      const composed: InterventionViewDefinition = {
+      return {
         ...base,
         id: overrides.id ?? base.id,
         title: overrides.title ?? base.title,
@@ -941,7 +170,6 @@ export function useInterventionViews(): UseInterventionViewsResult {
         isCustom: overrides.isCustom ?? overrides.id !== base.id,
         description: overrides.description ?? base.description,
       }
-      return composed
     },
     [],
   )
@@ -964,7 +192,7 @@ export function useInterventionViews(): UseInterventionViewsResult {
       }
 
       const templateSource = payload.sourceViewId
-        ? views.find((view) => view.id === payload.sourceViewId)
+        ? views.find((v) => v.id === payload.sourceViewId)
         : layoutTemplatesByLayout[payload.layout]
 
       const template = templateSource
@@ -994,11 +222,10 @@ export function useInterventionViews(): UseInterventionViewsResult {
 
   const duplicateView = useCallback(
     (id: string, titleOverride?: string) => {
-      const baseView = views.find((view) => view.id === id)
+      const baseView = views.find((v) => v.id === id)
       if (!baseView) return null
-      const newTitle = titleOverride?.trim() || `${baseView.title} (copie)`
       return createView({
-        title: newTitle,
+        title: titleOverride?.trim() || `${baseView.title} (copie)`,
         layout: baseView.layout,
         sourceViewId: id,
         visibleProperties: baseView.visibleProperties,
@@ -1010,131 +237,93 @@ export function useInterventionViews(): UseInterventionViewsResult {
     [views, createView],
   )
 
-  const updateView = useCallback(
-    (id: string, patch: UpdateViewPatch) => {
-      setViews((prev) =>
-        prev.map((view) => {
-          if (view.id !== id) return view
-          const layoutOptions = patch.layoutOptions
+  const updateView = useCallback((id: string, patch: UpdateViewPatch) => {
+    setViews((prev) =>
+      prev.map((view) => {
+        if (view.id !== id) return view
+        return {
+          ...view,
+          title: patch.title ? patch.title.trim() || view.title : view.title,
+          visibleProperties: patch.visibleProperties ?? view.visibleProperties,
+          filters: patch.filters ?? view.filters,
+          sorts: patch.sorts ?? view.sorts,
+          layoutOptions: patch.layoutOptions
             ? ensureLayoutOptions(view.layout, view.layoutOptions, patch.layoutOptions)
-            : view.layoutOptions
+            : view.layoutOptions,
+          description: patch.description === null ? undefined : patch.description ?? view.description,
+          showBadge: patch.showBadge !== undefined ? patch.showBadge : view.showBadge,
+        }
+      }),
+    )
+  }, [])
 
-          return {
-            ...view,
-            title: patch.title ? patch.title.trim() || view.title : view.title,
-            visibleProperties: patch.visibleProperties ?? view.visibleProperties,
-            filters: patch.filters ?? view.filters,
-            sorts: patch.sorts ?? view.sorts,
-            layoutOptions,
-            description: patch.description === null ? undefined : patch.description ?? view.description,
-            showBadge: patch.showBadge !== undefined ? patch.showBadge : view.showBadge,
-          }
-        }),
-      )
-    },
-    [],
-  )
+  const updateLayoutOptions = useCallback((id: string, patch: Partial<LayoutOptions>) => {
+    updateView(id, { layoutOptions: patch })
+  }, [updateView])
 
-  const updateLayoutOptions = useCallback(
-    (id: string, patch: Partial<LayoutOptions>) => {
-      updateView(id, { layoutOptions: patch })
-    },
-    [updateView],
-  )
+  const updateVisibleProperties = useCallback((id: string, properties: string[]) => {
+    updateView(id, { visibleProperties: properties })
+  }, [updateView])
 
-  const updateVisibleProperties = useCallback(
-    (id: string, properties: string[]) => {
-      updateView(id, { visibleProperties: properties })
-    },
-    [updateView],
-  )
+  const updateFilters = useCallback((id: string, filters: ViewFilters) => {
+    updateView(id, { filters })
+  }, [updateView])
 
-  const updateFilters = useCallback(
-    (id: string, filters: ViewFilters) => {
-      updateView(id, { filters })
-    },
-    [updateView],
-  )
-
-  const updateSorts = useCallback(
-    (id: string, sorts: ViewSort[]) => {
-      updateView(id, { sorts })
-    },
-    [updateView],
-  )
+  const updateSorts = useCallback((id: string, sorts: ViewSort[]) => {
+    updateView(id, { sorts })
+  }, [updateView])
 
   const reorderViews = useCallback((ids: string[]) => {
     setViews((prev) => {
       if (!ids.length) return prev
-      const byId = new Map(prev.map((view) => [view.id, view]))
-      if (ids.some((id) => !byId.has(id))) {
-        return prev
-      }
+      const byId = new Map(prev.map((v) => [v.id, v]))
+      if (ids.some((id) => !byId.has(id))) return prev
       const ordered = ids.map((id) => byId.get(id) as InterventionViewDefinition)
-      prev.forEach((view) => {
-        if (!ids.includes(view.id)) {
-          ordered.push(view)
-        }
-      })
+      prev.forEach((v) => { if (!ids.includes(v.id)) ordered.push(v) })
       return ordered
     })
   }, [])
 
   const removeView = useCallback((id: string) => {
     if (DEFAULT_VIEW_IDS.has(id)) return
-    setViews((prev) => prev.filter((view) => view.id !== id))
+    setViews((prev) => prev.filter((v) => v.id !== id))
   }, [])
 
   const resetViewToDefault = useCallback((id: string) => {
-    const defaultView = DEFAULT_VIEWS.find((view) => view.id === id)
+    const defaultView = DEFAULT_VIEWS.find((v) => v.id === id)
     if (!defaultView) return
-    setViews((prev) => prev.map((view) => (view.id === id ? cloneViewDefinition(defaultView) : view)))
+    setViews((prev) => prev.map((v) => (v.id === id ? cloneViewDefinition(defaultView) : v)))
   }, [])
 
   const resetAllViews = useCallback(() => {
-    // Supprimer les données du localStorage
     if (typeof window !== "undefined") {
       localStorage.removeItem(VIEWS_STORAGE_KEY)
       localStorage.removeItem(ACTIVE_VIEW_STORAGE_KEY)
     }
-    
-    // Réinitialiser avec les vues par défaut
     const refreshedDefaults = DEFAULT_VIEWS.map((view) => {
       if (USER_SCOPED_VIEW_IDS.has(view.id)) {
         return applyUserScopedFilters(cloneViewDefinition(view), currentUserId)
       }
       return cloneViewDefinition(view)
     })
-
     setViews(refreshedDefaults)
-
-    // Réinitialiser la vue active à la première vue par défaut
-    const defaultView = DEFAULT_VIEWS.find((view) => view.isDefault) ?? DEFAULT_VIEWS[0]
-    setActiveViewId(defaultView.id)
+    setActiveViewId((DEFAULT_VIEWS.find((v) => v.isDefault) ?? DEFAULT_VIEWS[0]).id)
   }, [currentUserId])
 
   const registerExternalView = useCallback(
     (incoming: InterventionViewDefinition, activate = false) => {
       setViews((prev) => {
-        const enriched: InterventionViewDefinition = {
-          ...incoming,
-          isCustom: true,
-        }
-        const exists = prev.some((view) => view.id === enriched.id)
-        if (exists) {
-          return prev.map((view) => (view.id === enriched.id ? enriched : view))
-        }
-        return [...prev, enriched]
+        const enriched = { ...incoming, isCustom: true }
+        const exists = prev.some((v) => v.id === enriched.id)
+        return exists ? prev.map((v) => (v.id === enriched.id ? enriched : v)) : [...prev, enriched]
       })
-      if (activate) {
-        setActiveView(incoming.id)
-      }
+      if (activate) setActiveView(incoming.id)
     },
     [setActiveView],
   )
 
   const activeView = useMemo(() => {
-    return views.find((view) => view.id === activeViewId) ?? views[0]
+    return views.find((v) => v.id === activeViewId) ?? views[0]
   }, [views, activeViewId])
 
   return {

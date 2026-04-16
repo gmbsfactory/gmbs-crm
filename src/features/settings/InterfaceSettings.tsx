@@ -21,7 +21,7 @@ import { useToast } from "@/hooks/use-toast"
 import { useInterface } from "@/contexts/interface-context"
 import { ACCENT_PRESETS, type ColorMode, type AccentOption, type AccentPresetName, applyTheme } from "@/lib/themes"
 import { useCurrentUser } from "@/hooks/useCurrentUser"
-import { usersApi } from "@/lib/api/v2"
+import { usersApi } from "@/lib/api"
 import { cn } from "@/lib/utils"
 
 const ACCENT_ORDER: AccentOption[] = ["indigo", "emerald", "violet", "amber", "rose", "custom"]

@@ -307,6 +307,51 @@ interface FilterParams {
 const COUNT_CACHE_TTL_MS = 120 * 1000;
 const countCache = new Map<string, { value: number; expiresAt: number }>();
 
+// ---------------------------------------------------------------------------
+// Whitelist de tri : propriété frontend → colonne DB
+// Les propriétés non listées ici sont ignorées (protection injection).
+// ---------------------------------------------------------------------------
+const SORTABLE_DIRECT_COLUMNS: Record<string, string> = {
+  date: 'created_at',
+  created_at: 'created_at',
+  dateIntervention: 'date',
+  datePrevue: 'date_prevue',
+  date_prevue: 'date_prevue',
+  date_termine: 'date_termine',
+  due_date: 'due_date',
+  id_inter: 'id_inter',
+  updated_at: 'updated_at',
+};
+
+// Propriétés nécessitant le RPC (tri via intervention_costs_cache)
+const SORTABLE_COST_PROPERTIES = new Set([
+  'coutIntervention', 'coutSST', 'coutMateriel', 'marge',
+]);
+
+function parseSortParams(url: URL): { sortBy: string | null; sortDir: 'asc' | 'desc' } {
+  const rawSortBy = url.searchParams.get('sort_by')?.trim() ?? null;
+  const rawSortDir = url.searchParams.get('sort_dir')?.trim()?.toLowerCase();
+  const sortDir: 'asc' | 'desc' = rawSortDir === 'asc' ? 'asc' : 'desc';
+
+  // Valider contre la whitelist
+  if (rawSortBy && (SORTABLE_DIRECT_COLUMNS[rawSortBy] || SORTABLE_COST_PROPERTIES.has(rawSortBy))) {
+    return { sortBy: rawSortBy, sortDir };
+  }
+  return { sortBy: null, sortDir: 'desc' };
+}
+
+function applySort<T extends { order: Function }>(query: T, sortBy: string | null, sortDir: 'asc' | 'desc'): T {
+  if (sortBy && SORTABLE_DIRECT_COLUMNS[sortBy]) {
+    const dbColumn = SORTABLE_DIRECT_COLUMNS[sortBy];
+    query = query.order(dbColumn, { ascending: sortDir === 'asc', nullsFirst: false });
+  } else {
+    query = query.order('created_at', { ascending: false });
+  }
+  // Tiebreaker
+  query = query.order('id', { ascending: false });
+  return query;
+}
+
 const DEFAULT_INTERVENTION_COLUMNS = [
   'id',
   'id_inter',
@@ -394,7 +439,7 @@ const buildSelectClause = (extraSelect: string | null, include: string[], hasSea
   // ⚠️ TOUJOURS inclure les artisans, coûts, tenants et users par défaut
   // Les tenants sont nécessaires pour l'affichage des informations client dans ExpandedRowContent
   // Les users sont nécessaires pour l'affichage des badges des gestionnaires dans TableView
-  const defaultRelations = ['artisans', 'costs', 'tenants', 'users'];
+  const defaultRelations = ['artisans', 'costs', 'payments', 'tenants', 'users'];
 
   // Si recherche active, inclure aussi agencies pour le filtrage client
   const searchRelations = hasSearch ? ['agencies'] : [];
@@ -1302,13 +1347,14 @@ serve(async (req: Request) => {
       // Sélection minimale pour le warm-up : uniquement les champs essentiels
       const lightSelect = 'id,id_inter,statut_id,date,date_prevue,agence_id,assigned_user_id,updated_by,metier_id,created_at,updated_at';
 
+      const { sortBy: lightSortBy, sortDir: lightSortDir } = parseSortParams(url);
+
       let query = supabase
         .from('interventions')
         .select(lightSelect, { count: 'exact' })
-        .eq('is_active', true)
-        .order('created_at', { ascending: false })
-        .order('id', { ascending: false });
+        .eq('is_active', true);
 
+      query = applySort(query, lightSortBy, lightSortDir);
       query = applyFilters(query, filters);
       query = query.range(clampedOffset, clampedOffset + clampedLimit - 1);
 
@@ -1691,54 +1737,94 @@ serve(async (req: Request) => {
       // ========================================
       // RECHERCHE CLASSIQUE (sans search)
       // ========================================
-      let query = supabase
-        .from('interventions')
-        .select(selectClause, { count: 'exact' })
-        .eq('is_active', true)
-        .order('created_at', { ascending: false })
-        .order('id', { ascending: false });
+      const { sortBy, sortDir } = parseSortParams(url);
 
-      query = applyFilters(query, filters);
+      // --- Tri via RPC pour les colonnes de coûts ---
+      let costSortedIds: string[] | null = null;
+      let costSortTotalCount: number | null = null;
 
-      // Filtre isCheck : utiliser la fonction RPC pour obtenir les IDs des interventions concernées
-      if (filters.isCheck !== undefined) {
-        const userId = filters.user && Array.isArray(filters.user) && filters.user.length === 1
-          ? filters.user[0]
-          : null;
-
-        console.log(`[Edge Function] Applying isCheck filter via RPC - isCheck: ${filters.isCheck}, userId: ${userId}`);
-
-        const { data: isCheckIds, error: rpcError } = await supabase
-          .rpc('filter_interventions_ischeck', {
-            p_user_id: userId,
-            p_include_check: filters.isCheck
+      if (sortBy && SORTABLE_COST_PROPERTIES.has(sortBy)) {
+        const { data: rpcRows, error: rpcError } = await supabase
+          .rpc('get_sorted_intervention_ids', {
+            p_sort_property: sortBy,
+            p_sort_dir: sortDir,
+            p_limit: clampedLimit,
+            p_offset: clampedOffset,
+            p_statut_ids: filters.statut && filters.statut.length > 0 ? filters.statut : null,
+            p_agence_id: filters.agence && filters.agence.length === 1 ? filters.agence[0] : null,
+            p_metier_ids: filters.metier && filters.metier.length > 0 ? filters.metier : null,
+            p_user_id: filters.user && filters.user.length === 1 ? filters.user[0] : null,
+            p_user_is_null: filters.userIsNull ?? false,
+            p_start_date: filters.startDate ?? null,
+            p_end_date: filters.endDate ?? null,
           });
 
         if (rpcError) {
-          console.error(
-            JSON.stringify({
-              level: 'error',
-              requestId,
-              error: rpcError.message,
-              message: 'Failed to apply isCheck filter via RPC',
-            }),
-          );
-        } else if (isCheckIds && Array.isArray(isCheckIds)) {
-          const interventionIds = isCheckIds.map((row: any) => row.intervention_id);
-          console.log(`[Edge Function] isCheck RPC returned ${interventionIds.length} intervention IDs`);
-
-          if (interventionIds.length > 0) {
-            query = query.in('id', interventionIds);
-          } else {
-            // Aucune intervention ne correspond au filtre isCheck
-            // Utiliser un filtre impossible pour retourner 0 résultat
-            query = query.eq('id', '00000000-0000-0000-0000-000000000000');
-          }
+          console.error(JSON.stringify({
+            level: 'error', requestId,
+            error: rpcError.message,
+            message: 'Failed to call get_sorted_intervention_ids RPC',
+          }));
+        } else if (rpcRows && Array.isArray(rpcRows) && rpcRows.length > 0) {
+          costSortedIds = rpcRows.map((r: any) => r.intervention_id);
+          costSortTotalCount = Number(rpcRows[0].total_count);
         }
       }
 
-      // Appliquer la pagination
-      query = query.range(clampedOffset, clampedOffset + clampedLimit - 1);
+      let query = supabase
+        .from('interventions')
+        .select(selectClause, { count: costSortedIds ? undefined : 'exact' })
+        .eq('is_active', true);
+
+      if (costSortedIds && costSortedIds.length > 0) {
+        // Le RPC a déjà trié et paginé — on récupère ces IDs précis
+        query = query.in('id', costSortedIds);
+      } else if (costSortedIds && costSortedIds.length === 0) {
+        // Aucun résultat pour ce tri
+        query = query.eq('id', '00000000-0000-0000-0000-000000000000');
+      } else {
+        // Tri classique (colonne directe ou défaut)
+        query = applySort(query, sortBy, sortDir);
+        query = applyFilters(query, filters);
+
+        // Filtre isCheck : utiliser la fonction RPC pour obtenir les IDs des interventions concernées
+        if (filters.isCheck !== undefined) {
+          const userId = filters.user && Array.isArray(filters.user) && filters.user.length === 1
+            ? filters.user[0]
+            : null;
+
+          console.log(`[Edge Function] Applying isCheck filter via RPC - isCheck: ${filters.isCheck}, userId: ${userId}`);
+
+          const { data: isCheckIds, error: rpcError } = await supabase
+            .rpc('filter_interventions_ischeck', {
+              p_user_id: userId,
+              p_include_check: filters.isCheck
+            });
+
+          if (rpcError) {
+            console.error(
+              JSON.stringify({
+                level: 'error',
+                requestId,
+                error: rpcError.message,
+                message: 'Failed to apply isCheck filter via RPC',
+              }),
+            );
+          } else if (isCheckIds && Array.isArray(isCheckIds)) {
+            const interventionIds = isCheckIds.map((row: any) => row.intervention_id);
+            console.log(`[Edge Function] isCheck RPC returned ${interventionIds.length} intervention IDs`);
+
+            if (interventionIds.length > 0) {
+              query = query.in('id', interventionIds);
+            } else {
+              query = query.eq('id', '00000000-0000-0000-0000-000000000000');
+            }
+          }
+        }
+
+        // Appliquer la pagination (seulement pour le chemin classique, le RPC pagine déjà)
+        query = query.range(clampedOffset, clampedOffset + clampedLimit - 1);
+      }
 
       console.log(`[Edge Function] Requête classique avec range(${clampedOffset}, ${clampedOffset + clampedLimit - 1})`);
 
@@ -1757,6 +1843,12 @@ serve(async (req: Request) => {
       }
 
       let filteredData = Array.isArray(data) ? data : [];
+
+      // Quand le tri vient du RPC, réordonner pour respecter l'ordre du RPC
+      if (costSortedIds && costSortedIds.length > 0 && filteredData.length > 0) {
+        const orderMap = new Map(costSortedIds.map((id, idx) => [id, idx]));
+        filteredData.sort((a, b) => (orderMap.get(a.id) ?? 999) - (orderMap.get(b.id) ?? 999));
+      }
 
       // Filtrage artisan en post-traitement si nécessaire
       if (artisanFilters.length > 0) {
@@ -1785,7 +1877,7 @@ serve(async (req: Request) => {
         }
       }
 
-      const totalCount = count ?? await getCachedCount(supabase, filters);
+      const totalCount = costSortTotalCount ?? count ?? await getCachedCount(supabase, filters);
       const hasMore = clampedOffset + clampedLimit < totalCount;
 
       console.log(

@@ -2,7 +2,7 @@ import nodemailer, { type Transporter } from 'nodemailer';
 import type { SendMailOptions } from 'nodemailer';
 import * as fs from 'fs';
 import * as path from 'path';
-import { safeErrorMessage } from "@/lib/api/v2/common/error-handler";
+import { safeErrorMessage } from "@/lib/api/common/error-handler";
 
 /**
  * Email service for sending emails via Gmail SMTP

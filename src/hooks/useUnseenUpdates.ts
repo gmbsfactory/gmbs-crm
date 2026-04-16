@@ -1,7 +1,7 @@
 "use client"
 
 import { useQuery } from "@tanstack/react-query"
-import { updatesApi } from "@/lib/api/v2"
+import { updatesApi } from "@/lib/api"
 import { updateKeys } from "@/lib/react-query/queryKeys"
 import { useCurrentUser } from "@/hooks/useCurrentUser"
 

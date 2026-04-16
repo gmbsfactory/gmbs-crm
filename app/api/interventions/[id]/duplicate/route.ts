@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
-import { duplicateIntervention } from "@/lib/api/interventions"
+import { duplicateIntervention } from "@/lib/api/interventions/server"
 import { createSSRServerClient } from "@/lib/supabase/server-ssr"
-import { requirePermission, isPermissionError } from "@/lib/api/permissions"
+import { requirePermission, isPermissionError } from "@/lib/auth/permissions"
 
 type Params = {
   params: Promise<{

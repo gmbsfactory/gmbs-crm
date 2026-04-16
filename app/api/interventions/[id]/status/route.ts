@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
-import { transitionStatus } from "@/lib/api/interventions"
+import { transitionStatus } from "@/lib/api/interventions/server"
 import type { InterventionStatusValue } from "@/types/interventions"
-import { requirePermission, isPermissionError } from "@/lib/api/permissions"
+import { requirePermission, isPermissionError } from "@/lib/auth/permissions"
 
 type Params = {
   params: Promise<{

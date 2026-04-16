@@ -16,6 +16,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { cn } from "@/lib/utils"
 import type { ColumnFilterProps } from "./types"
+import { SortControls } from "./SortControls"
 import type { ViewFilter } from "@/types/intervention-views"
 import { formatFilterSummary } from "./filter-utils"
 
@@ -67,6 +68,8 @@ export function DateColumnFilter({
   schema,
   activeFilter,
   onFilterChange,
+  sorts,
+  onSortChange,
 }: ColumnFilterProps) {
   const [open, setOpen] = useState(false)
   const [mode, setMode] = useState<"preset" | "range">("preset")
@@ -167,6 +170,7 @@ export function DateColumnFilter({
       <DropdownMenuContent side="bottom" align="start" className="w-auto p-0">
         <div className="space-y-3 p-4">
           <div className="text-sm font-semibold text-foreground">Filtrer par {schema.label}</div>
+          <SortControls property={property} label={schema.label} sortable={schema.sortable} sorts={sorts} onSortChange={onSortChange} />
           <Tabs value={mode} onValueChange={(v) => setMode(v as "preset" | "range")} className="w-full">
             <TabsList className="grid w-full grid-cols-2">
               <TabsTrigger value="preset">Presets</TabsTrigger>

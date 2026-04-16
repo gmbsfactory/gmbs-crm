@@ -1,4 +1,4 @@
-import type { AdminDashboardStats, PeriodType } from "@/lib/api/v2/common/types"
+import type { AdminDashboardStats, PeriodType } from "@/lib/api/common/types"
 
 // Re-export for convenience
 export type { AdminDashboardStats, PeriodType }

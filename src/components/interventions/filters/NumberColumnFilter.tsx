@@ -20,6 +20,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { cn } from "@/lib/utils"
 import type { ColumnFilterProps } from "./types"
+import { SortControls } from "./SortControls"
 import type { ViewFilter } from "@/types/intervention-views"
 import { formatFilterSummary } from "./filter-utils"
 
@@ -40,6 +41,8 @@ export function NumberColumnFilter({
   schema,
   activeFilter,
   onFilterChange,
+  sorts,
+  onSortChange,
 }: ColumnFilterProps) {
   const [open, setOpen] = useState(false)
   const [mode, setMode] = useState<"simple" | "range">("simple")
@@ -177,6 +180,7 @@ export function NumberColumnFilter({
       <DropdownMenuContent side="bottom" align="start" className="w-72">
         <div className="space-y-3 p-4">
           <div className="text-sm font-semibold text-foreground">Filtrer par {schema.label}</div>
+          <SortControls property={property} label={schema.label} sortable={schema.sortable} sorts={sorts} onSortChange={onSortChange} />
           <Tabs value={mode} onValueChange={(v) => setMode(v as "simple" | "range")} className="w-full">
             <TabsList className="grid w-full grid-cols-2">
               <TabsTrigger value="simple">Simple</TabsTrigger>

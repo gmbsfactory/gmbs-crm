@@ -22,7 +22,7 @@ import type {
 } from "@/types/intervention-views"
 import type { WorkflowConfig } from "@/types/intervention-workflow"
 import type { ModalDisplayMode } from "@/types/modal-display"
-import type { DateRange, SortDir, SortField } from "@/components/interventions/FiltersBar"
+import type { DateRange } from "@/components/interventions/FiltersBar"
 
 // ---------------------------------------------------------------------------
 // Normalized intervention type used throughout the page
@@ -111,6 +111,4 @@ export type {
   ViewSort,
   WorkflowConfig,
   DateRange,
-  SortDir,
-  SortField,
 }

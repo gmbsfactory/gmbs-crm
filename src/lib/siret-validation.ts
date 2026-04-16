@@ -87,3 +87,13 @@ export function validateSiret(siret: string): { isValid: boolean; errorMessage?:
   return { isValid: true }
 }
 
+/**
+ * Règle de validation pour react-hook-form Controller.
+ */
+export function siretFormRule(value: string | undefined): true | string {
+  const siret = value?.trim() || ""
+  if (siret.length === 0) return true
+  if (siret.length === 14 && /^\d+$/.test(siret)) return true
+  return "14 chiffres requis"
+}
+

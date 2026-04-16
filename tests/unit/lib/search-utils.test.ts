@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { convertInterventionToSearchRecord } from '@/lib/api/v2/search-utils'
+import { convertInterventionToSearchRecord } from '@/lib/api/search-utils'
 
 describe('search-utils', () => {
   describe('convertInterventionToSearchRecord', () => {

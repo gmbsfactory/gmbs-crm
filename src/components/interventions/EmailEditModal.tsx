@@ -152,7 +152,7 @@ export function EmailEditModal({
       return `Demande de devis - Intervention #${interventionRef}`;
     }
     return `Demande d'intervention - Intervention #${interventionRef}`;
-  }, [emailType, templateData.idIntervention, interventionId]);
+  }, [emailType, templateData.idIntervention]);
 
   // Initialize editable data only when modal opens (not on every templateData reference change)
   useEffect(() => {
@@ -183,6 +183,11 @@ export function EmailEditModal({
         commentaire: editableData.commentaire,
         datePrevue: templateData.datePrevue,
         coutSST: editableData.coutSST,
+        isVacant: templateData.isVacant,
+        keyCode: templateData.keyCode,
+        floor: templateData.floor,
+        apartmentNumber: templateData.apartmentNumber,
+        vacantHousingInstructions: templateData.vacantHousingInstructions,
       };
 
       try {
@@ -355,6 +360,11 @@ export function EmailEditModal({
         commentaire: editableData.commentaire || templateData.commentaire,
         datePrevue: templateData.datePrevue,
         coutSST: editableData.coutSST || templateData.coutSST,
+        isVacant: templateData.isVacant,
+        keyCode: templateData.keyCode,
+        floor: templateData.floor,
+        apartmentNumber: templateData.apartmentNumber,
+        vacantHousingInstructions: templateData.vacantHousingInstructions,
       };
 
       // Generate final HTML content with editable data

@@ -14,8 +14,8 @@ import type { ModalDisplayMode } from "@/types/modal-display"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { Textarea } from "@/components/ui/textarea"
 import { ModeIcons } from "@/components/ui/mode-selector"
-import { interventionsApi } from "@/lib/api/v2"
-import type { Intervention } from "@/lib/api/v2/common/types"
+import { interventionsApi } from "@/lib/api"
+import type { Intervention } from "@/lib/api/common/types"
 import { useInterventionReminders } from "@/hooks/useInterventionReminders"
 import { interventionKeys } from "@/lib/react-query/queryKeys"
 import {
@@ -672,6 +672,7 @@ GMBS`
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
+                  type="button"
                   variant="ghost"
                   size="icon"
                   className="modal-config-columns-icon-button"

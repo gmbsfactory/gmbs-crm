@@ -6,7 +6,7 @@ import type { ArtisanGetAllParams } from "@/lib/react-query/queryKeys"
 import { useReferenceDataQuery } from "@/hooks/useReferenceDataQuery"
 import { useArtisanModal } from "@/hooks/useArtisanModal"
 import { useArtisanViews } from "@/hooks/useArtisanViews"
-import { artisansApi } from "@/lib/api/v2"
+import { artisansApi } from "@/lib/api"
 import { convertArtisanFiltersToServerFilters } from "@/lib/filter-converter"
 import { useCurrentUser } from "@/hooks/useCurrentUser"
 import { usePermissions } from "@/hooks/usePermissions"
@@ -114,19 +114,6 @@ export function useArtisanPageState() {
       }
     }
 
-    // Par défaut, exclure les artisans archivés.
-    // Si l'utilisateur filtre explicitement par statut (ex: sélectionne "Archivé"),
-    // ce filtre est ignoré — il verra exactement ce qu'il a demandé.
-    if (!combinedServerFilters.statuts && !combinedServerFilters.statut) {
-      const archiveIds = artisanStatuses
-        .filter((s) => s.code === "ARCHIVE")
-        .map((s) => s.id)
-        .filter((id): id is string => Boolean(id))
-      if (archiveIds.length > 0) {
-        const existing = combinedServerFilters.exclude_statuts ?? []
-        combinedServerFilters.exclude_statuts = [...new Set([...existing, ...archiveIds])]
-      }
-    }
 
     if (selectedMetiers.length > 0 && metiers.length > 0) {
       const metierIds = metiers

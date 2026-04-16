@@ -1,7 +1,7 @@
 "use client"
 
 import { useQuery } from "@tanstack/react-query"
-import { interventionsApi, type RevenueHistoryParams, type RevenueHistoryResponse } from "@/lib/api/v2"
+import { interventionsApi, type RevenueHistoryParams, type RevenueHistoryResponse } from "@/lib/api"
 
 export function useRevenueHistory(
   params: RevenueHistoryParams | null,

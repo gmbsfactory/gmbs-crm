@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import { supabaseAdmin } from "@/lib/supabase-admin"
-import { getAuthenticatedUser } from "@/lib/api/permissions"
+import { getAuthenticatedUser } from "@/lib/auth/permissions"
 
 export const runtime = "nodejs"
 

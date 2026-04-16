@@ -6,7 +6,7 @@
  * Gere 3 tables : interventions (optimiste), artisans (invalidation), intervention_artisans (invalidation).
  */
 
-import type { Intervention } from '@/lib/api/v2/common/types'
+import type { Intervention } from '@/lib/api/common/types'
 
 // Event Router — the preferred entry point for all Realtime events
 export { routeRealtimeEvent } from './event-router/router'

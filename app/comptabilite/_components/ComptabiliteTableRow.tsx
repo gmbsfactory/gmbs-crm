@@ -1,7 +1,7 @@
 "use client"
 
 import { memo, type CSSProperties } from "react"
-import { Eye } from "lucide-react"
+import { Eye, Trash2 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -54,6 +54,7 @@ interface ComptabiliteTableRowProps {
   onToggleSelect: (id: string) => void
   onToggleComptaCheck: (id: string) => void
   onOpenModal: (id: string) => void
+  onExclude: (id: string) => void
   rowIndex?: number
   isHighlighted?: boolean
 }
@@ -76,6 +77,7 @@ export const ComptabiliteTableRow = memo(function ComptabiliteTableRow({
   onToggleSelect,
   onToggleComptaCheck,
   onOpenModal,
+  onExclude,
   rowIndex,
   isHighlighted = false,
 }: ComptabiliteTableRowProps) {
@@ -200,6 +202,15 @@ export const ComptabiliteTableRow = memo(function ComptabiliteTableRow({
             aria-label={`Voir le détail de ${rowLabel}`}
           >
             <Eye className="h-3.5 w-3.5" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7 text-muted-foreground hover:text-destructive"
+            onClick={() => onExclude(intervention.id)}
+            aria-label={`Retirer ${rowLabel} de la compta`}
+          >
+            <Trash2 className="h-3.5 w-3.5" />
           </Button>
         </div>
       </td>

@@ -1,61 +1,52 @@
 "use client"
 
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { useQueryClient } from "@tanstack/react-query"
-import { Building, ChevronDown, ChevronRight, FileText, MessageSquare, Upload, X, Search, Eye, Mail, MessageCircle, Users, Palette, Wand2 } from "lucide-react"
+import { memo, useCallback, useEffect, useMemo, useState } from "react"
+import { ChevronDown, MessageSquare } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
-import { Badge } from "@/components/ui/badge"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
-import { GestionnaireBadge } from "@/components/ui/gestionnaire-badge"
-import { SearchableBadgeSelect } from "@/components/ui/searchable-badge-select"
+import { GestionnaireField } from "@/components/interventions/GestionnaireField"
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable"
 import { MapLibreMap } from "@/components/maps/MapLibreMap"
-import { DocumentManager } from "@/components/documents"
-import { DocumentReclassificationModal } from "@/components/documents/DocumentReclassificationModal"
 import { CommentSection } from "@/components/shared/CommentSection"
 import { StatusReasonModal } from "@/components/shared/StatusReasonModal"
 import type { NearbyArtisan } from "@/hooks/useNearbyArtisans"
-import { documentsApi } from "@/lib/api/v2/documentsApi"
-import { interventionsApi } from "@/lib/api/v2"
-import { interventionKeys } from "@/lib/react-query/queryKeys"
-import { commentsApi } from "@/lib/api/v2/commentsApi"
-import type { Intervention, UpdateInterventionData } from "@/lib/api/v2/common/types"
-import type { InterventionWithStatus } from "@/types/intervention"
+import type { Intervention } from "@/lib/api/common/types"
 import { usePermissions } from "@/hooks/usePermissions"
-import { useInterventionsMutations } from "@/hooks/useInterventionsMutations"
-import { useInterventionModal } from "@/hooks/useInterventionModal"
-import { getReasonTypeForTransition, type StatusReasonType } from "@/lib/comments/statusReason"
+import type { StatusReasonType } from "@/lib/comments/statusReason"
 import { cn } from "@/lib/utils"
-import { formatMarginPercentage, getMarginColorClass } from "@/lib/utils/margin-calculator"
 import { ArtisanSearchModal } from "@/components/artisans/ArtisanSearchModal"
-import { Avatar } from "@/components/artisans/Avatar"
-import { toast } from "sonner"
-import { extractErrorMessage } from "@/lib/toast-helpers"
 import { EmailEditModal } from "@/components/interventions/EmailEditModal"
 import { SectionLock } from "@/components/ui/SectionLock"
-import { generateDevisWhatsAppText, generateInterventionWhatsAppText, encodeWhatsAppUrl } from "@/lib/email-templates/intervention-emails"
-import { findOrCreateOwner, findOrCreateTenant } from "@/lib/interventions/owner-tenant-helpers"
-import { runPostMutationTasks } from "@/lib/interventions/post-mutation-tasks"
+import { openWhatsApp } from "@/lib/interventions/whatsapp"
 import { normalizeArtisanData, getDisplayName } from "@/lib/artisans"
 
 // Shared form state hook
 import { useInterventionFormState } from "@/hooks/useInterventionFormState"
+import { useInterventionSubmit } from "@/hooks/useInterventionSubmit"
+import { useInterventionRealtime } from "@/hooks/useInterventionRealtime"
+import { useInterventionDocumentChecks } from "@/hooks/useInterventionDocumentChecks"
+import { usePanelResize } from "@/hooks/usePanelResize"
 import { useInterventionAccomptes } from "@/hooks/useInterventionAccomptes"
 import { useFieldPresenceDelegation } from "@/hooks/useFieldPresenceDelegation"
 import { useDocumentReclassification } from "@/hooks/useDocumentReclassification"
 import { useFieldPresence } from "@/contexts/FieldPresenceContext"
 import { PresenceFieldIndicator } from "@/components/ui/intervention-modal/PresenceFieldIndicator"
+import {
+  InterventionHeaderFields, InterventionOwnerSection, InterventionClientSection, InterventionDetailsSection,
+  ArtisanPanel, SecondArtisanSection, PaymentSection, DocumentSection, CustomStatusSection,
+} from "@/components/interventions/form-sections"
 
 // Shared form utilities
-import { INTERVENTION_DOCUMENT_KINDS, STATUS_SORT_ORDER, MAX_RADIUS_KM } from "@/lib/interventions/form-constants"
-import { formatDistanceKm, hexToRgba, dbArtisanToNearbyArtisan } from "@/lib/interventions/form-utils"
+import { INTERVENTION_DOCUMENT_KINDS, MAX_RADIUS_KM } from "@/lib/interventions/form-constants"
+import { dbArtisanToNearbyArtisan } from "@/lib/interventions/form-utils"
 import { createEditFormData } from "@/lib/interventions/form-types"
+import {
+  getArtisansWithEmail,
+  isInterventionEmailButtonDisabled,
+} from "@/lib/interventions/derivations"
 
 // Convert readonly INTERVENTION_DOCUMENT_KINDS to mutable for DocumentManager
 const DOCUMENT_KINDS = [...INTERVENTION_DOCUMENT_KINDS] as { kind: string; label: string }[]
@@ -99,9 +90,6 @@ export const InterventionEditForm = memo(function InterventionEditForm({
   onReclassifyModalOpenChange,
   readOnly = false
 }: InterventionEditFormProps) {
-  const queryClient = useQueryClient()
-  const { update: updateMutation } = useInterventionsMutations()
-  const { open: openInterventionModal } = useInterventionModal()
   const { can } = usePermissions()
 
   // Field-level presence tracking (soft lock)
@@ -110,9 +98,10 @@ export const InterventionEditForm = memo(function InterventionEditForm({
 
   // Edit-specific state
   const [pendingReasonType, setPendingReasonType] = useState<StatusReasonType | null>(null)
-  const [hasFactureGMBS, setHasFactureGMBS] = useState(false)
-  const [hasDevis, setHasDevis] = useState(false)
   const [secondArtisanDisplayMode, setSecondArtisanDisplayMode] = useState<"nom" | "rs" | "tel">("nom")
+
+  // Document checks (facture GMBS + devis)
+  const { hasFactureGMBS, hasDevis, refreshFactureGMBS, refreshDevis } = useInterventionDocumentChecks(intervention.id)
   const [isReclassifyModalOpen, setIsReclassifyModalOpen] = useState(false)
 
   const handleReclassifyModalOpenChange = useCallback((open: boolean) => {
@@ -141,10 +130,6 @@ export const InterventionEditForm = memo(function InterventionEditForm({
   const primaryArtisan = artisans.find(a => a.is_primary)?.artisans
   const secondaryArtisan = artisans.find(a => !a.is_primary)?.artisans
 
-  // Refs for tracking artisan changes (edit-specific)
-  const primaryArtisanIdRef = useRef<string | null>(primaryArtisan?.id ?? null)
-  const secondaryArtisanIdRef = useRef<string | null>(secondaryArtisan?.id ?? null)
-
   // Use the shared form state hook
   const {
     // Reference data
@@ -157,15 +142,12 @@ export const InterventionEditForm = memo(function InterventionEditForm({
     setFormData,
     isSubmitting,
     setIsSubmitting,
-    isFormReady,
-    hasUnsavedChanges,
     clearDraft,
 
     // Geocoding
     locationQuery,
     setLocationQuery,
     locationSuggestions,
-    isSuggesting,
     clearSuggestions,
     showLocationSuggestions,
     setShowLocationSuggestions,
@@ -183,8 +165,6 @@ export const InterventionEditForm = memo(function InterventionEditForm({
     selectedArtisanId,
     setSelectedArtisanId,
     selectedArtisanData,
-    searchSelectedArtisan,
-    setSearchSelectedArtisan,
     nearbyArtisans,
     isLoadingNearbyArtisans,
     nearbyArtisansError,
@@ -195,10 +175,7 @@ export const InterventionEditForm = memo(function InterventionEditForm({
     selectedSecondArtisanId,
     setSelectedSecondArtisanId,
     selectedSecondArtisanData,
-    searchSelectedSecondArtisan,
-    setSearchSelectedSecondArtisan,
     nearbyArtisansSecondMetier,
-    isLoadingNearbyArtisansSecondMetier,
 
     // Absences
     absentArtisanIds,
@@ -229,11 +206,9 @@ export const InterventionEditForm = memo(function InterventionEditForm({
 
     // Email modal
     emailModalState,
-    effectiveSelectedArtisanId,
     selectedArtisanEmail,
 
     // Validation
-    selectedStatus,
     requiresDefinitiveId,
     requiresDatePrevue,
     requiresArtisan,
@@ -250,7 +225,6 @@ export const InterventionEditForm = memo(function InterventionEditForm({
     // Handlers (from shared hook)
     handleInputChange: baseHandleInputChange,
     handleLocationChange,
-    applyArtisanSelection,
     handleSelectNearbyArtisan,
     handleRemoveSelectedArtisan,
     handleSelectSecondArtisan,
@@ -262,7 +236,6 @@ export const InterventionEditForm = memo(function InterventionEditForm({
     openEmailModal,
     closeEmailModal,
     generateEmailTemplateData,
-    handleOpenArtisanModal: baseHandleOpenArtisanModal,
 
     // For edit-specific wrappers
     openArtisanModal,
@@ -297,28 +270,6 @@ export const InterventionEditForm = memo(function InterventionEditForm({
     onHasUnsavedChanges,
     onSubmittingChange,
   })
-
-  // Liste des utilisateurs sélectionnables : actifs + archivés éligibles selon date intervention
-  const selectableUsers = useMemo(() => {
-    const active = refData?.users ?? []
-    const allUsers = refData?.allUsers
-    const interventionDate = (intervention as any).date ?? (intervention as any).date_intervention ?? formData?.date
-    if (!allUsers || !interventionDate) return active
-
-    const d = new Date(interventionDate)
-    if (Number.isNaN(d.getTime())) return active
-
-    const activeIds = new Set(active.map(u => u.id))
-    const archivedEligible = allUsers.filter(
-      u => u.status === "archived" && u.archived_at && !activeIds.has(u.id) && new Date(u.archived_at) > d
-    )
-    const merged = [...active, ...archivedEligible]
-    return merged.sort((a, b) => {
-      if (a.id === currentUser?.id) return -1
-      if (b.id === currentUser?.id) return 1
-      return 0
-    })
-  }, [refData?.users, refData?.allUsers, intervention, formData?.date, currentUser?.id])
 
   // Destructure collapsible state for easier access
   const {
@@ -356,70 +307,13 @@ export const InterventionEditForm = memo(function InterventionEditForm({
     onArtisanSearchOpenChange?.(showArtisanSearch || showSecondArtisanSearch)
   }, [showArtisanSearch, showSecondArtisanSearch, onArtisanSearchOpenChange])
 
-  const checkFactureGMBS = useCallback(async () => {
-    if (!intervention.id) return
-    try {
-      const docs = await documentsApi.getAll({
-        entity_id: intervention.id,
-        entity_type: "intervention",
-        kind: "facturesGMBS"
-      })
-      const found = (docs?.data?.length ?? 0) > 0
-      setHasFactureGMBS(found)
-    } catch (error) {
-      console.error("[InterventionEditForm] Erreur checkFactureGMBS:", error)
-    }
-  }, [intervention.id])
-
-  const checkDevis = useCallback(async () => {
-    if (!intervention.id) return
-    try {
-      const docs = await documentsApi.getAll({
-        entity_id: intervention.id,
-        entity_type: "intervention",
-        kind: "devis"
-      })
-      const found = (docs?.data?.length ?? 0) > 0
-      setHasDevis(found)
-    } catch (error) {
-      console.error("[InterventionEditForm] Erreur checkDevis:", error)
-    }
-  }, [intervention.id])
-
-  useEffect(() => {
-    void checkFactureGMBS()
-    void checkDevis()
-  }, [checkFactureGMBS, checkDevis])
-
-  // Edit-specific: Right column width management
-  const DEFAULT_RIGHT_COLUMN_WIDTH = 320
+  // Right column panel resize
   const rightColumnStorageKey = currentUser?.id
     ? `gmbs:intervention-form:right-column-width:${currentUser.id}`
     : null
-  const [rightColumnWidth, setRightColumnWidth] = useState(DEFAULT_RIGHT_COLUMN_WIDTH)
-
-  useEffect(() => {
-    if (typeof window === "undefined") return
-    if (!rightColumnStorageKey) {
-      setRightColumnWidth(DEFAULT_RIGHT_COLUMN_WIDTH)
-      return
-    }
-
-    try {
-      const saved = localStorage.getItem(rightColumnStorageKey)
-      if (saved) {
-        const parsed = Number.parseFloat(saved)
-        if (Number.isFinite(parsed) && parsed >= 250 && parsed <= 600) {
-          setRightColumnWidth(parsed)
-          return
-        }
-      }
-      setRightColumnWidth(DEFAULT_RIGHT_COLUMN_WIDTH)
-    } catch (error) {
-      console.warn("Erreur lors du chargement de la largeur de la colonne droite:", error)
-      setRightColumnWidth(DEFAULT_RIGHT_COLUMN_WIDTH)
-    }
-  }, [rightColumnStorageKey])
+  const { width: rightColumnWidth, handleResizeStart } = usePanelResize({
+    storageKey: rightColumnStorageKey,
+  })
 
   // Fonction helper pour obtenir le nom à afficher selon le mode
   // Uses centralized artisan display utilities
@@ -431,67 +325,15 @@ export const InterventionEditForm = memo(function InterventionEditForm({
     return getDisplayName(displayData, mode)
   }, [refData?.artisanStatuses])
 
-  // ---- Synchronisation complète lors d'un changement distant (Realtime) ----
-  // Quand updated_at change, cela signifie qu'un autre utilisateur a modifié l'intervention.
-  // On réinitialise entièrement le formData + artisans sélectionnés depuis les nouvelles données.
-  const lastSyncedUpdatedAtRef = useRef(intervention.updated_at)
-
-  useEffect(() => {
-    // Skip le premier render (déjà initialisé par useState)
-    if (lastSyncedUpdatedAtRef.current === intervention.updated_at) return
-
-    lastSyncedUpdatedAtRef.current = intervention.updated_at
-
-    // Recalculer les données jointes (costs, payments, artisans) depuis l'intervention fraîche
-    const freshCosts = intervention.intervention_costs || []
-    const freshPayments = intervention.intervention_payments || []
-    const freshArtisans = intervention.intervention_artisans || []
-    const freshPrimaryArtisan = freshArtisans.find((a: any) => a.is_primary)?.artisans
-    const freshSecondaryArtisan = freshArtisans.find((a: any) => !a.is_primary)?.artisans
-    const freshSstCost = freshCosts.find((c: any) => c.cost_type === 'sst' && (c.artisan_order === 1 || c.artisan_order === undefined || c.artisan_order === null))
-    const freshMaterielCost = freshCosts.find((c: any) => c.cost_type === 'materiel' && (c.artisan_order === 1 || c.artisan_order === undefined || c.artisan_order === null))
-    const freshInterventionCost = freshCosts.find((c: any) => c.cost_type === 'intervention')
-    const freshSstCostSecondArtisan = freshCosts.find((c: any) => c.cost_type === 'sst' && c.artisan_order === 2)
-    const freshMaterielCostSecondArtisan = freshCosts.find((c: any) => c.cost_type === 'materiel' && c.artisan_order === 2)
-    const freshSstPayment = freshPayments.find((p: any) => p.payment_type === 'acompte_sst')
-    const freshClientPayment = freshPayments.find((p: any) => p.payment_type === 'acompte_client')
-
-    // Reset complet du formData depuis la source de vérité (Supabase)
-    const newFormData = createEditFormData(
-      intervention,
-      freshPrimaryArtisan,
-      freshSecondaryArtisan,
-      {
-        sstCost: freshSstCost,
-        materielCost: freshMaterielCost,
-        interventionCost: freshInterventionCost,
-        sstCostSecondArtisan: freshSstCostSecondArtisan,
-        materielCostSecondArtisan: freshMaterielCostSecondArtisan,
-      },
-      { sstPayment: freshSstPayment, clientPayment: freshClientPayment }
-    )
-    setFormData(newFormData)
-
-    // Sync artisan selections + assigned artisan data
-    setSelectedArtisanId(freshPrimaryArtisan?.id ?? null)
-    setSelectedSecondArtisanId(freshSecondaryArtisan?.id ?? null)
-    setAssignedPrimaryArtisan(dbArtisanToNearbyArtisan(freshPrimaryArtisan))
-    setAssignedSecondaryArtisan(dbArtisanToNearbyArtisan(freshSecondaryArtisan))
-
-    // Sync location query
-    setLocationQuery(intervention.adresse_complete || intervention.adresse || "")
-
-    console.debug("[InterventionEditForm] Realtime sync: formData reset from updated_at change", intervention.updated_at)
-  }, [intervention, setFormData, setSelectedArtisanId, setSelectedSecondArtisanId, setAssignedPrimaryArtisan, setAssignedSecondaryArtisan, setLocationQuery])
-
-  // Edit-specific: Update refs when artisans change
-  useEffect(() => {
-    primaryArtisanIdRef.current = primaryArtisan?.id ?? null
-  }, [primaryArtisan?.id])
-
-  useEffect(() => {
-    secondaryArtisanIdRef.current = secondaryArtisan?.id ?? null
-  }, [secondaryArtisan?.id])
+  // Realtime sync: reset form when another user modifies the intervention
+  useInterventionRealtime({
+    intervention,
+    setFormData,
+    setSelectedArtisanId,
+    setSelectedSecondArtisanId,
+    setAssignedPrimaryArtisan,
+    setAssignedSecondaryArtisan,
+  })
 
   // Edit-specific: Permission checks
   const canEditContext = useMemo(() => {
@@ -570,182 +412,40 @@ export const InterventionEditForm = memo(function InterventionEditForm({
     canEditAccomptes,
     handleAccompteSSTChange,
     handleAccompteClientChange,
-    handleAccompteSSTBlur,
-    handleAccompteClientBlur,
     handleAccompteSSTRecuChange,
     handleAccompteClientRecuChange,
     handleDateAccompteSSTRecuChange,
     handleDateAccompteClientRecuChange,
   } = useInterventionAccomptes({
-    interventionId: intervention.id,
     formData,
     interventionStatuses: refData?.interventionStatuses,
-    sstPayment,
-    clientPayment,
     handleInputChange,
   })
 
-  // Get artisans with valid email from intervention_artisans AND from selected artisan in form
-  const artisansWithEmail = useMemo(() => {
-    const artisansFromIntervention = artisans
-      .filter((ia: any) => ia.artisans?.email && ia.artisans.email.trim().length > 0)
-      .map((ia: any) => ({
-        id: ia.artisan_id,
-        email: ia.artisans.email,
-        telephone: ia.artisans.telephone || '',
-        name: `${ia.artisans.prenom || ''} ${ia.artisans.nom || ''}`.trim() || ia.artisans.plain_nom || 'Artisan',
-        is_primary: ia.is_primary,
-      }))
-
-    // Add selected artisan from form if it has an email and is not already in the list
-    const selectedArtisanIds = new Set(artisansFromIntervention.map((a) => a.id))
-    if (selectedArtisanData && selectedArtisanData.email && selectedArtisanData.email.trim().length > 0) {
-      if (!selectedArtisanIds.has(selectedArtisanData.id)) {
-        artisansFromIntervention.push({
-          id: selectedArtisanData.id,
-          email: selectedArtisanData.email,
-          telephone: selectedArtisanData.telephone || '',
-          name: selectedArtisanData.displayName || 'Artisan',
-          is_primary: false, // Will be determined when saved
-        })
-      }
-    }
-
-    return artisansFromIntervention
-  }, [artisans, selectedArtisanData])
+  // Artisans with valid email (from intervention_artisans + currently-selected)
+  const artisansWithEmail = useMemo(
+    () => getArtisansWithEmail(artisans, selectedArtisanData),
+    [artisans, selectedArtisanData],
+  )
 
 
-  // Edit-specific: Get selected artisan email (includes check for artisansWithEmail)
-  const editSelectedArtisanEmail = useMemo(() => {
-    const artisanId = effectiveSelectedArtisanId
-    if (!artisanId) return ''
-
-    // First check in artisansWithEmail (from intervention_artisans)
-    const artisan = artisansWithEmail.find((a) => a.id === artisanId)
-    if (artisan) return artisan.email
-
-    // Fall back to hook's value
-    return selectedArtisanEmail
-  }, [effectiveSelectedArtisanId, artisansWithEmail, selectedArtisanEmail])
-
-
-  // Fonction pour formater le numéro de téléphone pour WhatsApp
-  const formatPhoneForWhatsApp = useCallback((phone: string): string => {
-    if (!phone) return ''
-
-    // Nettoyer le numéro (supprimer espaces, tirets, points, parenthèses)
-    const cleanPhone = phone.replace(/[\s\-\.\(\)]/g, '')
-
-    // Ajouter l'indicatif si nécessaire (format international)
-    // Si le numéro commence par 0, le remplacer par +33 pour la France
-    const formattedPhone = cleanPhone.startsWith('0')
-      ? `+33${cleanPhone.slice(1)}`
-      : cleanPhone.startsWith('+')
-        ? cleanPhone
-        : `+33${cleanPhone}`
-
-    return formattedPhone
-  }, [])
-
-  // Fonction pour ouvrir WhatsApp avec le message prérempli
+  // WhatsApp handler using extracted utility
   const handleOpenWhatsApp = useCallback((
     emailType: 'devis' | 'intervention',
     artisanId: string,
     artisanPhone: string
   ) => {
-    if (!artisanId) {
-      toast.error('Artisan non sélectionné')
-      return
-    }
-
-    if (!artisanPhone || artisanPhone.trim() === '') {
-      toast.error('Numéro de téléphone de l\'artisan manquant')
-      return
-    }
-
-    // Générer les données du template
-    const templateData = generateEmailTemplateData(artisanId)
-
-    // Générer le message WhatsApp selon le type
-    const whatsappMessage = emailType === 'devis'
-      ? generateDevisWhatsAppText(templateData)
-      : generateInterventionWhatsAppText(templateData)
-
-    // Formater le numéro de téléphone
-    const formattedPhone = formatPhoneForWhatsApp(artisanPhone)
-
-    // Détecter si on est sur mobile
-    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent)
-
-    // Ouvrir WhatsApp avec le numéro et le message
-    if (isMobile) {
-      // Sur mobile : utiliser le protocole whatsapp:// pour ouvrir directement l'app
-      const whatsappUrl = `whatsapp://send?phone=${formattedPhone}&text=${encodeURIComponent(whatsappMessage)}`
-      window.location.href = whatsappUrl
-    } else {
-      // Sur desktop : ouvrir dans une nouvelle fenêtre centrée et de taille confortable
-      const whatsappUrl = encodeWhatsAppUrl(formattedPhone, whatsappMessage)
-      const popupWidth = 780
-      const popupHeight = 910
-      const left = Math.round((window.screen.width - popupWidth) / 2)
-      const top = Math.round((window.screen.height - popupHeight) / 2)
-      window.open(
-        whatsappUrl,
-        '_blank',
-        `width=${popupWidth},height=${popupHeight},left=${left},top=${top},resizable=yes,scrollbars=yes`
-      )
-    }
-  }, [generateEmailTemplateData, formatPhoneForWhatsApp])
+    openWhatsApp({ emailType, artisanId, artisanPhone, generateEmailTemplateData })
+  }, [generateEmailTemplateData])
 
   // Conditions de blocage des boutons Mail/WhatsApp
   // Devis → lié aux requirements de VISITE_TECHNIQUE (artisan requis)
   const isDevisButtonDisabled = !selectedArtisanId
-  // Inter. → lié aux requirements de INTER_EN_COURS
-  // Note: Champs client optionnels pour les logements vacants (pas de locataire)
-  const isInterButtonDisabled = useMemo(() => {
-    if (!selectedArtisanId) return true
-    if (!formData.id_inter?.trim()) return true
-    if (!(parseFloat(formData.coutIntervention) > 0)) return true
-    if (!(parseFloat(formData.coutSST) > 0)) return true
-    if (!formData.consigne_intervention?.trim()) return true
-    // Champs client optionnels si logement vacant
-    if (!formData.is_vacant && !formData.nomPrenomClient?.trim()) return true
-    if (!formData.is_vacant && !formData.telephoneClient?.trim()) return true
-    if (!formData.date_prevue?.trim()) return true
-    return false
-  }, [selectedArtisanId, formData.id_inter, formData.coutIntervention, formData.coutSST, formData.consigne_intervention, formData.nomPrenomClient, formData.telephoneClient, formData.date_prevue, formData.is_vacant])
-
-  // Hook pour gérer le redimensionnement de la colonne droite
-  const handleResizeStart = useCallback((e: React.MouseEvent | React.TouchEvent) => {
-    e.preventDefault()
-    const startX = 'touches' in e ? e.touches[0].clientX : e.clientX
-    const startWidth = rightColumnWidth
-
-    const handleMouseMove = (moveEvent: MouseEvent | TouchEvent) => {
-      const currentX = 'touches' in moveEvent ? moveEvent.touches[0].clientX : moveEvent.clientX
-      const diff = startX - currentX // Inversé car on redimensionne depuis la gauche
-      const newWidth = Math.max(250, Math.min(600, startWidth + diff)) // Min 250px, Max 600px
-      setRightColumnWidth(newWidth)
-      if (!rightColumnStorageKey || typeof window === "undefined") return
-      try {
-        localStorage.setItem(rightColumnStorageKey, String(newWidth))
-      } catch (error) {
-        console.warn("Erreur lors de la sauvegarde de la largeur de la colonne droite:", error)
-      }
-    }
-
-    const handleMouseUp = () => {
-      document.removeEventListener('mousemove', handleMouseMove)
-      document.removeEventListener('mouseup', handleMouseUp)
-      document.removeEventListener('touchmove', handleMouseMove)
-      document.removeEventListener('touchend', handleMouseUp)
-    }
-
-    document.addEventListener('mousemove', handleMouseMove)
-    document.addEventListener('mouseup', handleMouseUp)
-    document.addEventListener('touchmove', handleMouseMove, { passive: false })
-    document.addEventListener('touchend', handleMouseUp)
-  }, [rightColumnWidth, rightColumnStorageKey])
+  // Inter. → lié aux requirements de INTER_EN_COURS (client fields optional if vacant)
+  const isInterButtonDisabled = useMemo(
+    () => isInterventionEmailButtonDisabled({ selectedArtisanId, formData }),
+    [selectedArtisanId, formData],
+  )
 
   // Edit-specific: handleOpenArtisanModal with intervention context
   const handleOpenArtisanModal = useCallback((artisanId: string, event: React.MouseEvent) => {
@@ -758,418 +458,58 @@ export const InterventionEditForm = memo(function InterventionEditForm({
     })
   }, [intervention.id, openArtisanModal])
 
-  // Note: handleSuggestionSelect, handleGeocodeAddress, and related functions
-  // are now provided by useInterventionFormState hook
+  // Agency data (needed before submit hook for showReferenceField)
+  const selectedAgencyId = formData.agence_id
+  const selectedAgencyData = useMemo(() => {
+    if (!selectedAgencyId || !refData?.agencies) return undefined
+    return refData.agencies.find((agency) => agency.id === selectedAgencyId)
+  }, [selectedAgencyId, refData])
 
-  const executeSubmit = async (options?: { reason?: string; reasonType?: StatusReasonType }) => {
-    setIsSubmitting(true)
-    onSubmittingChange?.(true)
+  const showReferenceField = useMemo(() => {
+    if (!selectedAgencyData) return false
+    return selectedAgencyData.requires_reference === true
+  }, [selectedAgencyData])
 
-    try {
-      const referenceAgenceValue = formData.reference_agence?.trim() ?? ""
-      const idInterValue = formData.id_inter?.trim() ?? ""
+  // Submit logic (extracted hook)
+  const { executeSubmit, handleSubmit: baseHandleSubmit } = useInterventionSubmit({
+    interventionId: intervention.id,
+    formData,
+    currentUser,
+    selectedArtisanId,
+    selectedArtisanData,
+    selectedSecondArtisanId,
+    primaryArtisanId: primaryArtisan?.id ?? null,
+    secondaryArtisanId: secondaryArtisan?.id ?? null,
+    canEditContext,
+    readOnly,
+    initialStatusCode,
+    showReferenceField,
+    requiresDefinitiveId,
+    requiresDatePrevue,
+    requiresArtisan,
+    requiresFacture,
+    requiresNomFacturation,
+    requiresAssignedUser,
+    requiresCouts,
+    requiresConsigneArtisan,
+    requiresClientInfo,
+    requiresAgence,
+    requiresMetier,
+    requiresDevis,
+    setIsSubmitting,
+    onSubmittingChange,
+    onSuccess,
+    clearDraft,
+    getInterventionStatusCode,
+  })
 
-      // Trouver ou créer le propriétaire et le client
-      let ownerId: string | null = null
-      let tenantId: string | null = null
-
-      try {
-        ownerId = await findOrCreateOwner({
-          nomPrenomFacturation: formData.nomPrenomFacturation,
-          telephoneProprietaire: formData.telephoneProprietaire,
-          emailProprietaire: formData.emailProprietaire,
-        })
-      } catch (error) {
-        console.error("[InterventionEditForm] Erreur lors de la gestion du propriétaire:", error)
-        toast.error("Erreur lors de la sauvegarde du propriétaire")
-      }
-
-      // Ne créer/trouver le tenant que si le logement n'est pas vacant
-      if (!formData.is_vacant) {
-        try {
-          tenantId = await findOrCreateTenant({
-            nomPrenomClient: formData.nomPrenomClient,
-            telephoneClient: formData.telephoneClient,
-            emailClient: formData.emailClient,
-          })
-        } catch (error) {
-          console.error("[InterventionEditForm] Erreur lors de la gestion du client:", error)
-          toast.error("Erreur lors de la sauvegarde du client")
-        }
-      } else {
-        // Si logement vacant, on doit mettre tenant_id à null explicitement
-        tenantId = null
-      }
-
-      const updateData: UpdateInterventionData = {
-        statut_id: formData.statut_id || undefined,
-        agence_id: formData.agence_id || undefined,
-        reference_agence: referenceAgenceValue.length > 0 ? referenceAgenceValue : null,
-        assigned_user_id: formData.assigned_user_id || undefined,
-        metier_id: formData.metier_id || undefined,
-        date: formData.date || undefined,
-        date_prevue: formData.date_prevue || undefined,
-        contexte_intervention: formData.contexte_intervention || undefined,
-        consigne_intervention: formData.consigne_intervention || undefined,
-        consigne_second_artisan: formData.consigne_second_artisan || undefined,
-        commentaire_agent: formData.commentaire_agent || undefined,
-        adresse: formData.adresse || undefined,
-        code_postal: formData.code_postal || undefined,
-        ville: formData.ville || undefined,
-        adresse_complete: formData.adresse_complete || null,
-        latitude: formData.latitude,
-        longitude: formData.longitude,
-        numero_sst: formData.numero_sst || undefined,
-        pourcentage_sst: formData.pourcentage_sst ? parseFloat(formData.pourcentage_sst) : undefined,
-        id_inter: idInterValue.length > 0 ? idInterValue : null,
-        is_vacant: formData.is_vacant,
-        // Toujours envoyer les champs de logement vacant, même s'ils sont vides
-        key_code: formData.is_vacant ? (formData.key_code?.trim() || null) : null,
-        floor: formData.is_vacant ? (formData.floor?.trim() || null) : null,
-        apartment_number: formData.is_vacant ? (formData.apartment_number?.trim() || null) : null,
-        vacant_housing_instructions: formData.is_vacant ? (formData.vacant_housing_instructions?.trim() || null) : null,
-        owner_id: ownerId,
-        tenant_id: tenantId, // null si is_vacant=true, sinon l'ID du tenant trouvé/créé
-        // Sous-statut personnalisé
-        sous_statut_text: formData.sousStatutText?.trim() || null,
-        sous_statut_text_color: formData.sousStatutTextColor || '#000000',
-        sous_statut_bg_color: formData.sousStatutBgColor || 'transparent',
-        // Deuxième artisan - métier
-        metier_second_artisan_id: formData.metierSecondArtisanId || null,
-        // Note: client_id est un alias de tenant_id dans certains contextes, mais on utilise tenant_id ici
-        // Note: Les coûts du 2ème artisan sont gérés via intervention_costs avec artisan_order = 2
-      }
-
-      if (!canEditContext) {
-        delete updateData.contexte_intervention
-      }
-
-      Object.keys(updateData).forEach((key) => {
-        if (updateData[key as keyof UpdateInterventionData] === undefined) {
-          delete updateData[key as keyof UpdateInterventionData]
-        }
-      })
-
-      // Fermer le modal immédiatement pour la fluidité UX
-      clearDraft()
-      onSuccess?.(null)
-      setIsSubmitting(false)
-      onSubmittingChange?.(false)
-
-      const toastId = toast.loading("Enregistrement en cours...")
-
-      try {
-        const updated = await updateMutation.mutateAsync({
-          id: intervention.id,
-          data: {
-            id_inter: updateData.id_inter ?? null,
-            reference_agence: updateData.reference_agence ?? null,
-            agence_id: updateData.agence_id,
-            assigned_user_id: updateData.assigned_user_id,
-            statut_id: updateData.statut_id,
-            metier_id: updateData.metier_id,
-            date: updateData.date,
-            date_prevue: updateData.date_prevue ?? undefined,
-            contexte_intervention: updateData.contexte_intervention,
-            consigne_intervention: updateData.consigne_intervention,
-            consigne_second_artisan: updateData.consigne_second_artisan,
-            commentaire_agent: updateData.commentaire_agent,
-            adresse: updateData.adresse,
-            code_postal: updateData.code_postal,
-            ville: updateData.ville,
-            adresse_complete: updateData.adresse_complete ?? null,
-            latitude: updateData.latitude,
-            longitude: updateData.longitude,
-            numero_sst: updateData.numero_sst,
-            pourcentage_sst: updateData.pourcentage_sst,
-            is_vacant: updateData.is_vacant,
-            key_code: updateData.key_code ?? null,
-            floor: updateData.floor ?? null,
-            apartment_number: updateData.apartment_number ?? null,
-            vacant_housing_instructions: updateData.vacant_housing_instructions ?? null,
-            owner_id: updateData.owner_id ?? null,
-            tenant_id: updateData.tenant_id ?? null,
-            sous_statut_text: updateData.sous_statut_text ?? null,
-            sous_statut_text_color: updateData.sous_statut_text_color ?? '#000000',
-            sous_statut_bg_color: updateData.sous_statut_bg_color ?? 'transparent',
-            metier_second_artisan_id: updateData.metier_second_artisan_id ?? null,
-          },
-        })
-
-        // Commentaire de raison de statut
-        if (options?.reason && options.reasonType) {
-          try {
-            await commentsApi.create({
-              entity_id: intervention.id,
-              entity_type: "intervention",
-              content: options.reason,
-              comment_type: "internal",
-              is_internal: true,
-              author_id: currentUser?.id ?? undefined,
-              reason_type: options.reasonType,
-            })
-          } catch (commentError) {
-            console.error("[InterventionEditForm] Impossible d'ajouter le commentaire obligatoire", commentError)
-            // L'intervention est sauvegardée, mais le commentaire a échoué
-          }
-        }
-
-        toast.success("Intervention modifiée avec succès", {
-          id: toastId,
-          action: {
-            label: "Voir",
-            onClick: () => openInterventionModal(intervention.id),
-          },
-        })
-
-        // Préparer les coûts pour le batch
-        const coutSSTValue = parseFloat(formData.coutSST) || 0
-        const coutMaterielValue = parseFloat(formData.coutMateriel) || 0
-        const coutInterventionValue = parseFloat(formData.coutIntervention) || 0
-        const coutSST2Value = parseFloat(formData.coutSSTSecondArtisan) || 0
-        const coutMateriel2Value = parseFloat(formData.coutMaterielSecondArtisan) || 0
-
-        const allCosts: Array<{ cost_type: 'sst' | 'materiel' | 'intervention' | 'marge'; amount: number; artisan_order?: 1 | 2 | null; label?: string | null }> = []
-
-        // N'ajouter que les coûts > 0 (ignorer les champs vides/zéro)
-        if (coutSSTValue > 0) allCosts.push({ cost_type: "sst", label: "Coût SST", amount: coutSSTValue, artisan_order: 1 })
-        if (coutMaterielValue > 0) allCosts.push({ cost_type: "materiel", label: "Coût Matériel", amount: coutMaterielValue, artisan_order: 1 })
-        if (coutInterventionValue > 0) allCosts.push({ cost_type: "intervention", label: "Coût Intervention", amount: coutInterventionValue, artisan_order: null })
-
-        console.log('[DEBUG EditForm] selectedSecondArtisanId:', selectedSecondArtisanId, 'coutSST2Value:', coutSST2Value, 'coutMateriel2Value:', coutMateriel2Value)
-        if (selectedSecondArtisanId) {
-          if (coutSST2Value > 0) allCosts.push({ cost_type: "sst", label: "Coût SST 2ème artisan", amount: coutSST2Value, artisan_order: 2 })
-          if (coutMateriel2Value > 0) allCosts.push({ cost_type: "materiel", label: "Coût Matériel 2ème artisan", amount: coutMateriel2Value, artisan_order: 2 })
-        }
-
-        // Préparer les paiements
-        const accompteSSTValue = parseFloat(formData.accompteSST) || 0
-        const accompteClientValue = parseFloat(formData.accompteClient) || 0
-        const payments: Array<{ payment_type: string; amount: number; currency?: string; is_received?: boolean; payment_date?: string | null }> = []
-
-        if (accompteSSTValue > 0 || formData.accompteSSTRecu || formData.dateAccompteSSTRecu) {
-          payments.push({ payment_type: 'acompte_sst', amount: accompteSSTValue, currency: 'EUR', is_received: formData.accompteSSTRecu || false, payment_date: formData.dateAccompteSSTRecu || null })
-        }
-        if (accompteClientValue > 0 || formData.accompteClientRecu || formData.dateAccompteClientRecu) {
-          payments.push({ payment_type: 'acompte_client', amount: accompteClientValue, currency: 'EUR', is_received: formData.accompteClientRecu || false, payment_date: formData.dateAccompteClientRecu || null })
-        }
-
-        // Mettre à jour les refs de manière optimiste
-        const currentPrimaryId = primaryArtisanIdRef.current
-        const nextPrimaryId = selectedArtisanId ?? null
-        const currentSecondaryId = secondaryArtisanIdRef.current
-        const nextSecondaryId = selectedSecondArtisanId ?? null
-
-        if (currentPrimaryId !== nextPrimaryId) primaryArtisanIdRef.current = nextPrimaryId
-        if (currentSecondaryId !== nextSecondaryId) secondaryArtisanIdRef.current = nextSecondaryId
-
-        // Mise à jour optimiste des coûts dans le cache detail
-        // pour affichage instantané (les coûts sont sauvegardés en fire-and-forget après)
-        if (allCosts.length > 0) {
-          queryClient.setQueryData(
-            interventionKeys.detail(intervention.id),
-            (old: any) => {
-              if (!old) return old
-              const updatedCosts = allCosts.map(c => ({
-                ...((old.costs || old.intervention_costs || []).find(
-                  (existing: any) => existing.cost_type === c.cost_type && (existing.artisan_order ?? null) === (c.artisan_order ?? null)
-                ) || {}),
-                cost_type: c.cost_type,
-                amount: c.amount,
-                label: c.label,
-                artisan_order: c.artisan_order ?? null,
-              }))
-              // Garder les coûts existants non modifiés (ex: marge)
-              const existingCosts = old.costs || old.intervention_costs || []
-              const untouchedCosts = existingCosts.filter(
-                (e: any) => !allCosts.some(c => c.cost_type === e.cost_type && (c.artisan_order ?? null) === (e.artisan_order ?? null))
-              )
-              const newCosts = [...updatedCosts, ...untouchedCosts]
-              return {
-                ...old,
-                costs: newCosts,
-                intervention_costs: newCosts,
-                coutIntervention: allCosts.find(c => c.cost_type === 'intervention')?.amount ?? old.coutIntervention,
-                coutSST: allCosts.filter(c => c.cost_type === 'sst').reduce((sum, c) => sum + c.amount, 0) || old.coutSST,
-                coutMateriel: allCosts.filter(c => c.cost_type === 'materiel').reduce((sum, c) => sum + c.amount, 0) || old.coutMateriel,
-              }
-            }
-          )
-        }
-
-        // Lancer coûts/paiements/artisans en arrière-plan (fire-and-forget)
-        // L'invalidation du cache intervention detail se fait après completion
-        runPostMutationTasks({
-          interventionId: intervention.id,
-          artisans: {
-            primary: { current: currentPrimaryId, next: nextPrimaryId },
-            secondary: { current: currentSecondaryId, next: nextSecondaryId },
-          },
-          costs: allCosts.length > 0 ? allCosts : undefined,
-          deleteSecondaryCosts: currentSecondaryId !== null && nextSecondaryId === null,
-          payments: payments.length > 0 ? payments : undefined,
-          queryClient,
-          invalidateDashboard: allCosts.length > 0,
-          invalidateComments: !!(options?.reason && options.reasonType),
-        })
-      } catch (apiError) {
-        console.error("Erreur lors de la mise à jour:", apiError)
-        const description = extractErrorMessage(apiError)
-        toast.error("Erreur lors de la mise à jour de l'intervention", {
-          id: toastId,
-          duration: Infinity,
-          description,
-          action: {
-            label: "Réessayer",
-            onClick: () => openInterventionModal(intervention.id),
-          },
-        })
-      }
-
-    } catch (error) {
-      console.error("Erreur lors de la préparation:", error)
-      const message = error instanceof Error ? error.message : "Erreur lors de la mise à jour de l'intervention"
-      toast.error(message)
-      setIsSubmitting(false)
-      onSubmittingChange?.(false)
+  // Wrap handleSubmit to handle status reason modal
+  const handleSubmit = useCallback(async (event: React.FormEvent<HTMLFormElement>) => {
+    const result = await baseHandleSubmit(event)
+    if (result?.pendingReasonType) {
+      setPendingReasonType(result.pendingReasonType)
     }
-  }
-
-  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
-
-    // Block submission in read-only mode
-    if (readOnly) return
-
-    const form = event.currentTarget
-    if (!form.checkValidity()) {
-      form.reportValidity()
-      return
-    }
-
-    const idInterValue = formData.id_inter?.trim() ?? ""
-    if (requiresDefinitiveId && (idInterValue.length === 0 || idInterValue.toLowerCase().includes("auto"))) {
-      form.reportValidity()
-      return
-    }
-
-    const datePrevueValue = formData.date_prevue?.trim() ?? ""
-    if (requiresDatePrevue && datePrevueValue.length === 0) {
-      form.reportValidity()
-      return
-    }
-
-    // === VALIDATIONS HÉRITÉES DE DEMANDE ===
-    if (requiresAgence && !formData.agence_id) {
-      toast.error("L'agence est obligatoire pour ce statut")
-      return
-    }
-
-    if (requiresMetier && !formData.metier_id) {
-      toast.error("Le métier est obligatoire pour ce statut")
-      return
-    }
-
-    // === VALIDATIONS POUR DEVIS_ENVOYE ===
-    if (requiresNomFacturation && !formData.nomPrenomFacturation?.trim()) {
-      toast.error("Le nom/prénom de facturation (propriétaire) est obligatoire pour passer à Devis envoyé")
-      return
-    }
-
-    if (requiresAssignedUser && !formData.assigned_user_id) {
-      toast.error("L'intervention doit être assignée à un gestionnaire pour passer à Devis envoyé")
-      return
-    }
-
-    // === VALIDATIONS POUR INTER_EN_COURS ===
-    if (requiresCouts) {
-      const coutInterValue = parseFloat(formData.coutIntervention) || 0
-      const coutSSTValue = parseFloat(formData.coutSST) || 0
-
-      if (coutInterValue <= 0) {
-        toast.error("Le coût d'intervention doit être renseigné pour passer en cours")
-        return
-      }
-      if (coutSSTValue <= 0) {
-        toast.error("Le coût SST doit être renseigné pour passer en cours")
-        return
-      }
-    }
-
-    if (requiresConsigneArtisan && !formData.consigne_intervention?.trim()) {
-      toast.error("La consigne pour l'artisan doit être renseignée pour passer en cours")
-      return
-    }
-
-    if (requiresClientInfo && !formData.is_vacant) {
-      if (!formData.nomPrenomClient?.trim()) {
-        toast.error("Le nom/prénom du client doit être renseigné pour passer en cours")
-        return
-      }
-      if (!formData.telephoneClient?.trim()) {
-        toast.error("Le téléphone du client doit être renseigné pour passer en cours")
-        return
-      }
-    }
-
-    // === VALIDATION DEVIS (hérité depuis ACCEPTE) ===
-    if (requiresDevis) {
-      try {
-        const docs = await documentsApi.getAll({
-          entity_id: intervention.id,
-          entity_type: "intervention",
-          kind: "devis"
-        })
-
-        if (!docs.data || docs.data.length === 0) {
-          toast.error("Un document devis est obligatoire pour ce statut")
-          return
-        }
-      } catch (error) {
-        console.error("Erreur lors de la vérification du devis:", error)
-        toast.error("Erreur lors de la vérification des documents obligatoires")
-        return
-      }
-    }
-
-    // === VALIDATIONS POUR ARTISAN ===
-    const nextStatusCode = getInterventionStatusCode(formData.statut_id)
-    const ARTISAN_REQUIRED_STATUSES = ["VISITE_TECHNIQUE", "INTER_EN_COURS", "INTER_TERMINEE", "ATT_ACOMPTE"]
-
-    if (ARTISAN_REQUIRED_STATUSES.includes(nextStatusCode) && (!selectedArtisanId || !selectedArtisanData)) {
-      toast.error(`Un artisan est obligatoire pour passer au statut ${nextStatusCode}`)
-      return
-    }
-
-    // === VALIDATIONS POUR INTER_TERMINEE (FACTURE GMBS) ===
-    if (nextStatusCode === "INTER_TERMINEE") {
-      try {
-        const docs = await documentsApi.getAll({
-          entity_id: intervention.id,
-          entity_type: "intervention",
-          kind: "facturesGMBS"
-        })
-
-        if (!docs.data || docs.data.length === 0) {
-          toast.error("La facture GMBS est obligatoire pour passer au statut terminé")
-          return
-        }
-      } catch (error) {
-        console.error("Erreur lors de la vérification des documents:", error)
-        toast.error("Erreur lors de la vérification des documents obligatoires")
-        return
-      }
-    }
-
-    const reasonType = getReasonTypeForTransition(initialStatusCode, nextStatusCode)
-
-    if (reasonType) {
-      setPendingReasonType(reasonType)
-      return
-    }
-
-    await executeSubmit()
-  }
+  }, [baseHandleSubmit])
 
   const handleStatusReasonCancel = () => {
     setPendingReasonType(null)
@@ -1177,27 +517,10 @@ export const InterventionEditForm = memo(function InterventionEditForm({
 
   const handleStatusReasonConfirm = async (reason: string) => {
     const reasonType = pendingReasonType
-    if (!reasonType) {
-      return
-    }
+    if (!reasonType) return
     setPendingReasonType(null)
     await executeSubmit({ reason, reasonType })
   }
-
-  const isFullPage = mode === "fullpage"
-  const isCenterPage = mode === "centerpage"
-  const useTwoColumns = isFullPage || isCenterPage
-
-  const containerClass = useTwoColumns ? "space-y-4" : "space-y-4"
-  const contentClass = useTwoColumns ? "grid grid-cols-1 gap-6 lg:grid-cols-2" : "space-y-4"
-
-  const selectedAgencyId = formData.agence_id
-  const selectedAgencyData = useMemo(() => {
-    if (!selectedAgencyId || !refData?.agencies) {
-      return undefined
-    }
-    return refData.agencies.find((agency) => agency.id === selectedAgencyId)
-  }, [selectedAgencyId, refData])
 
   // Expose client name to parent
   useEffect(() => {
@@ -1208,18 +531,6 @@ export const InterventionEditForm = memo(function InterventionEditForm({
   useEffect(() => {
     onAgencyNameChange?.(selectedAgencyData?.label || "")
   }, [selectedAgencyData?.label, onAgencyNameChange])
-
-  const showReferenceField = useMemo(() => {
-    if (!selectedAgencyData) {
-      return false
-    }
-    // Utilise la configuration depuis agency_config en base de données
-    return selectedAgencyData.requires_reference === true
-  }, [selectedAgencyData])
-
-  const mainGridClassName = showReferenceField
-    ? "grid legacy-form-main-grid legacy-form-main-grid--with-reference"
-    : "grid legacy-form-main-grid"
 
   if (refDataLoading) {
     return (
@@ -1262,197 +573,24 @@ export const InterventionEditForm = memo(function InterventionEditForm({
                   }}
                 >
                   {/* DIV1: HEADER PRINCIPAL - Row 1, Cols 1-4 */}
-                  <Card className="legacy-form-card" style={{ gridArea: "1 / 1 / 2 / 5" }}>
-                    <CardContent className="py-0.5 px-3">
-                      <div
-                        className="grid gap-2 items-end"
-                        style={{
-                          gridTemplateColumns: showReferenceField
-                            ? "auto 1fr 1fr 1fr 1fr 1fr"
-                            : "auto 1fr 1fr 1fr 1fr"
-                        }}
-                      >
-                        {/* Badge utilisateur assigné - Largeur fixe à gauche */}
-                        <div className="flex items-center relative">
-                          <Popover>
-                            <PopoverTrigger asChild>
-                              <button
-                                type="button"
-                                className={cn(
-                                  "flex items-center justify-center h-7 w-7 cursor-pointer group rounded-full",
-                                  requiresAssignedUser && !formData.assigned_user_id && "ring-2 ring-orange-400 ring-offset-1"
-                                )}
-                                title={requiresAssignedUser && !formData.assigned_user_id ? "Attribution obligatoire pour ce statut" : undefined}
-                              >
-                                {(() => {
-                                  const assignedUser = selectableUsers.find(u => u.id === formData.assigned_user_id)
-                                    ?? refData?.allUsers?.find(u => u.id === formData.assigned_user_id)
-                                  return (
-                                    <GestionnaireBadge
-                                      firstname={assignedUser?.firstname}
-                                      lastname={assignedUser?.lastname}
-                                      color={assignedUser?.color}
-                                      avatarUrl={assignedUser?.avatar_url}
-                                      size="sm"
-                                      className="transition-transform group-hover:scale-110 h-7 w-7"
-                                    />
-                                  )
-                                })()}
-                              </button>
-                            </PopoverTrigger>
-                            <PopoverContent className="w-56 p-2 z-[100]" align="start">
-                              <div className="space-y-1">
-                                <p className="text-xs font-medium text-muted-foreground mb-2">Attribuer à ({selectableUsers.length} utilisateurs)</p>
-                                <div className="space-y-1 max-h-64 overflow-y-auto scrollbar-minimal pr-1">
-                                  {selectableUsers.length > 0 ? (
-                                    selectableUsers.map((user) => {
-                                      const displayName = [user.firstname, user.lastname].filter(Boolean).join(" ").trim() || user.username
-                                      const isSelected = user.id === formData.assigned_user_id
-                                      return (
-                                        <button
-                                          key={user.id}
-                                          type="button"
-                                          className={cn(
-                                            "w-full flex items-center gap-1.5 px-2 py-1 rounded-md text-left transition-colors",
-                                            isSelected ? "bg-primary/10 text-primary" : "hover:bg-muted"
-                                          )}
-                                          onClick={() => handleInputChange("assigned_user_id", user.id)}
-                                        >
-                                          <GestionnaireBadge
-                                            firstname={user.firstname}
-                                            lastname={user.lastname}
-                                            color={user.color}
-                                            avatarUrl={user.avatar_url}
-                                            size="sm"
-                                            showBorder={false}
-                                          />
-                                          <span className="text-xs truncate flex-1">
-                                            {user.code_gestionnaire ? `${user.code_gestionnaire} - ${displayName}` : displayName}
-                                          </span>
-                                        </button>
-                                      )
-                                    })
-                                  ) : (
-                                    <p className="text-xs text-muted-foreground">Aucun utilisateur disponible</p>
-                                  )}
-                                </div>
-                              </div>
-                            </PopoverContent>
-                          </Popover>
-                          {requiresAssignedUser && !formData.assigned_user_id && (
-                            <span className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-orange-500 animate-pulse" />
-                          )}
-                        </div>
-
-                        {/* Statut - Badge coloré */}
-                        <PresenceFieldIndicator fieldName="statut_id">
-                        <SearchableBadgeSelect
-                          label="Statut"
-                          required
-                          hideLabel
-                          value={formData.statut_id}
-                          onChange={(value) => handleInputChange("statut_id", value)}
-                          placeholder="Statut"
-                          onOpenChange={onPopoverOpenChange}
-                          searchPlaceholder="Rechercher un statut..."
-                          sortAlphabetically={false}
-                          presenceFieldName="statut_id"
-                          options={(refData?.interventionStatuses || [])
-                            .map(s => ({
-                              id: s.id,
-                              label: s.label,
-                              color: s.color,
-                              code: s.code || ""
-                            }))
-                            .sort((a, b) => {
-                              const orderA = STATUS_SORT_ORDER[a.code] || 999
-                              const orderB = STATUS_SORT_ORDER[b.code] || 999
-                              if (orderA !== orderB) return orderA - orderB
-                              return (a.label || "").localeCompare(b.label || "", "fr")
-                            })
-                          }
-                        />
-                        </PresenceFieldIndicator>
-
-                        {/* Agence - Badge coloré */}
-                        <PresenceFieldIndicator fieldName="agence_id">
-                        <SearchableBadgeSelect
-                          label="Agence"
-                          hideLabel
-                          value={formData.agence_id}
-                          options={refData?.agencies || []}
-                          onChange={(value) => handleInputChange("agence_id", value)}
-                          placeholder="Agence"
-                          minWidth="70px"
-                          searchPlaceholder="Rechercher une agence..."
-                          onOpenChange={onPopoverOpenChange}
-                          emptyText="Aucune agence trouvée"
-                          presenceFieldName="agence_id"
-                        />
-                        </PresenceFieldIndicator>
-
-                        {/* Réf. agence - Input conditionnel */}
-                        {showReferenceField && (
-                          <PresenceFieldIndicator fieldName="reference_agence">
-                          <div className="flex items-center">
-                            <Input
-                              id="reference_agence"
-                              name="reference_agence"
-                              value={formData.reference_agence}
-                              onChange={(event) => handleInputChange("reference_agence", event.target.value)}
-                              placeholder="Réf. agence"
-                              className="h-7 text-xs rounded-full px-3"
-                              autoComplete="off"
-                            />
-                          </div>
-                          </PresenceFieldIndicator>
-                        )}
-
-                        {/* Métier - Badge coloré */}
-                        <PresenceFieldIndicator fieldName="metier_id">
-                        <SearchableBadgeSelect
-                          label="Métier"
-                          hideLabel
-                          value={formData.metier_id}
-                          onChange={(value) => handleInputChange("metier_id", value)}
-                          placeholder="Métier"
-                          onOpenChange={onPopoverOpenChange}
-                          searchPlaceholder="Rechercher un métier..."
-                          minWidth="100px"
-                          presenceFieldName="metier_id"
-                          options={(refData?.metiers || []).map(m => ({
-                            id: m.id,
-                            label: m.label,
-                            color: m.color,
-                          }))}
-                        />
-                        </PresenceFieldIndicator>
-
-                        {/* ID Intervention - Input */}
-                        <PresenceFieldIndicator fieldName="idIntervention">
-                        <div className="flex items-center relative">
-                          <Input
-                            id="idIntervention"
-                            value={formData.id_inter}
-                            onChange={(event) => handleInputChange("id_inter", event.target.value)}
-                            placeholder={requiresDefinitiveId ? "ID Inter. *" : "ID Inter."}
-                            className={cn(
-                              "h-7 text-xs rounded-full px-3",
-                              requiresDefinitiveId && (!formData.id_inter?.trim() || formData.id_inter.toLowerCase().includes("auto")) && "border-orange-400 focus-visible:ring-orange-400"
-                            )}
-                            required={requiresDefinitiveId}
-                            pattern={requiresDefinitiveId ? "^(?!.*(?:[Aa][Uu][Tt][Oo])).+$" : undefined}
-                            title={requiresDefinitiveId ? "ID définitif requis (sans 'AUTO')" : undefined}
-                            autoComplete="off"
-                          />
-                          {requiresDefinitiveId && (!formData.id_inter?.trim() || formData.id_inter.toLowerCase().includes("auto")) && (
-                            <span className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-orange-500 animate-pulse" title="ID définitif requis" />
-                          )}
-                        </div>
-                        </PresenceFieldIndicator>
-                      </div>
-                    </CardContent>
-                  </Card>
+                  <InterventionHeaderFields
+                    formData={formData}
+                    onChange={handleInputChange}
+                    refData={refData}
+                    showReferenceField={showReferenceField}
+                    requiresDefinitiveId={requiresDefinitiveId}
+                    withPresence
+                    onPopoverOpenChange={onPopoverOpenChange}
+                    renderUserBadge={() => (
+                      <GestionnaireField
+                        value={formData.assigned_user_id}
+                        onChange={(userId) => handleInputChange("assigned_user_id", userId || null)}
+                        interventionDate={(intervention as any).date ?? (intervention as any).date_intervention ?? formData?.date}
+                        required={requiresAssignedUser}
+                        onOpenChange={onPopoverOpenChange}
+                      />
+                    )}
+                  />
 
                   {/* DIV2: ADRESSE - Row 2, Cols 1-4 */}
                   <Card style={{ gridArea: "2 / 1 / 3 / 5" }}>
@@ -1592,351 +730,44 @@ export const InterventionEditForm = memo(function InterventionEditForm({
 
                       {/* Panel Artisans */}
                       <ResizablePanel defaultSize={DEFAULT_ARTISANS_PANEL_SIZE} minSize={15} maxSize={70}>
-                        <Card className={cn("h-full flex flex-col overflow-hidden rounded-l-none border-l-0", requiresArtisan && (!selectedArtisanId || !selectedArtisanData) && "ring-2 ring-orange-400/50")}>
-                          <CardContent className="p-3 flex flex-col h-full overflow-hidden">
-                            {/* Header artisans */}
-                            <div className="flex items-center justify-between gap-2 mb-3 flex-shrink-0 flex-wrap min-w-0">
-                              <div className="flex items-center gap-2 min-w-0 overflow-hidden">
-                                <h3 className="font-semibold text-sm flex items-center gap-2 flex-shrink-0">
-                                  <Building className="h-4 w-4" />
-                                  Artisans {requiresArtisan && <span className="text-orange-500">*</span>}
-                                </h3>
-                                <div className="flex gap-0.5 flex-shrink-0">
-                                  <Button
-                                    type="button"
-                                    variant={artisanDisplayMode === "nom" ? "default" : "ghost"}
-                                    size="sm"
-                                    className="h-5 px-1.5 text-[10px]"
-                                    onClick={() => setArtisanDisplayMode("nom")}
-                                  >
-                                    nom
-                                  </Button>
-                                  <Button
-                                    type="button"
-                                    variant={artisanDisplayMode === "rs" ? "default" : "ghost"}
-                                    size="sm"
-                                    className="h-5 px-1.5 text-[10px]"
-                                    onClick={() => setArtisanDisplayMode("rs")}
-                                  >
-                                    RS
-                                  </Button>
-                                  <Button
-                                    type="button"
-                                    variant={artisanDisplayMode === "tel" ? "default" : "ghost"}
-                                    size="sm"
-                                    className="h-5 px-1.5 text-[10px]"
-                                    onClick={() => setArtisanDisplayMode("tel")}
-                                  >
-                                    tel
-                                  </Button>
-                                </div>
-                              </div>
-                              <div className="flex gap-1">
-                                <Button
-                                  type="button"
-                                  variant="outline"
-                                  size="icon"
-                                  className="h-7 w-7 flex-shrink-0"
-                                  onClick={(e) => {
-                                    const rect = e.currentTarget.getBoundingClientRect()
-                                    setArtisanSearchPosition({
-                                      x: rect.left,
-                                      y: rect.top,
-                                      width: rect.width,
-                                      height: rect.height
-                                    })
-                                    setShowArtisanSearch(true)
-                                  }}
-                                  title="Rechercher un artisan"
-                                >
-                                  <Search className="h-3.5 w-3.5" />
-                                </Button>
-                              </div>
-                            </div>
-
-                            {/* Artisan sélectionné */}
-                            {selectedArtisanId && selectedArtisanData && (() => {
-                              const artisan = selectedArtisanData
-                              const artisanDisplayName = getArtisanDisplayName(artisan, artisanDisplayMode)
-                              const artisanInitials = artisanDisplayName.split(" ").map((p) => p.charAt(0)).join("").slice(0, 2).toUpperCase() || "??"
-                              const artisanStatus = refData?.artisanStatuses?.find((s) => s.id === artisan.statut_id)
-                              const statutArtisan = artisanStatus?.label || ""
-                              const statutArtisanColor = artisanStatus?.color || null
-
-                              return (
-                                <div className="mb-2 flex-shrink-0">
-                                  <div className="relative rounded-lg border border-primary/70 ring-2 ring-primary/50 bg-background/80 p-2 text-xs shadow-sm">
-                                    <Button
-                                      type="button"
-                                      variant="ghost"
-                                      size="icon"
-                                      className="absolute right-1 top-1 h-5 w-5 rounded-full bg-background/80 text-muted-foreground shadow-sm hover:text-destructive z-20"
-                                      onClick={() => handleRemoveSelectedArtisan()}
-                                    >
-                                      <X className="h-3 w-3" />
-                                    </Button>
-                                    <div className="flex items-center gap-2 flex-wrap min-w-0">
-                                      <Avatar photoProfilMetadata={artisan.photoProfilMetadata} initials={artisanInitials} name={artisan.displayName} size={40} className="hidden" />
-                                      <span className="font-semibold text-foreground truncate text-xs min-w-0 flex-1">{artisanDisplayName}</span>
-                                      {statutArtisan && (
-                                        <Badge variant="outline" className="text-[9px] px-1 py-0 flex-shrink-0" style={statutArtisanColor ? { backgroundColor: hexToRgba(statutArtisanColor, 0.15) || undefined, color: statutArtisanColor, borderColor: statutArtisanColor } : undefined}>
-                                          {statutArtisan}
-                                        </Badge>
-                                      )}
-                                      {absentArtisanIds.has(artisan.id) && (
-                                        <Badge variant="outline" className="text-[9px] px-1 py-0 bg-orange-100 text-orange-800 border-orange-300 flex-shrink-0">
-                                          Indisponible
-                                        </Badge>
-                                      )}
-                                      <Badge variant="default" className="text-[9px] px-1 py-0 flex-shrink-0">{formatDistanceKm(artisan.distanceKm)}</Badge>
-                                      {artisan.telephone && (
-                                        <span className="text-[10px] text-muted-foreground truncate flex-shrink-0">📞 {artisan.telephone}</span>
-                                      )}
-                                    </div>
-                                  </div>
-                                </div>
-                              )
-                            })()}
-
-                            {/* Email sending section */}
-                            {selectedArtisanId && selectedArtisanData && (
-                              <div className="flex flex-col gap-1 p-2 bg-primary/5 dark:bg-primary/10 rounded-lg border border-primary/20 dark:border-primary/30 mb-2 flex-shrink-0">
-                                {/* Boutons Email */}
-                                <div className="flex gap-1">
-                                  <Button
-                                    type="button"
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => openEmailModal('devis')}
-                                    disabled={isDevisButtonDisabled}
-                                    className="flex-1 text-[10px] h-7 px-2 border-primary/30 hover:bg-primary/10 dark:border-primary/40 dark:hover:bg-primary/20"
-                                  >
-                                    <Mail className="h-3 w-3 mr-1" />
-                                    Devis
-                                  </Button>
-                                  <Button
-                                    type="button"
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => openEmailModal('intervention')}
-                                    disabled={isInterButtonDisabled}
-                                    className="flex-1 text-[10px] h-7 px-2 border-primary/30 hover:bg-primary/10 dark:border-primary/40 dark:hover:bg-primary/20"
-                                  >
-                                    <Mail className="h-3 w-3 mr-1" />
-                                    Inter.
-                                  </Button>
-                                </div>
-                                {/* Boutons WhatsApp */}
-                                {selectedArtisanData.telephone && (
-                                  <div className="flex gap-1">
-                                    <Button
-                                      type="button"
-                                      variant="outline"
-                                      size="sm"
-                                      onClick={() => handleOpenWhatsApp('devis', selectedArtisanId, selectedArtisanData.telephone || '')}
-                                      disabled={isDevisButtonDisabled}
-                                      className="flex-1 text-[10px] h-7 px-2 bg-[#25D366]/10 hover:bg-[#25D366]/20 border-[#25D366]/30 text-[#25D366]"
-                                    >
-                                      <MessageCircle className="h-3 w-3 mr-1" />
-                                      WA Devis
-                                    </Button>
-                                    <Button
-                                      type="button"
-                                      variant="outline"
-                                      size="sm"
-                                      onClick={() => handleOpenWhatsApp('intervention', selectedArtisanId, selectedArtisanData.telephone || '')}
-                                      disabled={isInterButtonDisabled}
-                                      className="flex-1 text-[10px] h-7 px-2 bg-[#25D366]/10 hover:bg-[#25D366]/20 border-[#25D366]/30 text-[#25D366]"
-                                    >
-                                      <MessageCircle className="h-3 w-3 mr-1" />
-                                      WA Inter.
-                                    </Button>
-                                  </div>
-                                )}
-                              </div>
-                            )}
-
-                            {/* Liste des artisans - max 8 visibles avec scroll */}
-                            <div className="flex-1 overflow-y-auto space-y-1 min-h-0 scrollbar-minimal">
-                              {isLoadingNearbyArtisans ? (
-                                <div className="flex items-center justify-center h-full text-xs text-muted-foreground">Recherche...</div>
-                              ) : nearbyArtisansError ? (
-                                <div className="rounded border border-destructive/40 bg-destructive/10 px-2 py-1 text-[10px] text-destructive">{nearbyArtisansError}</div>
-                              ) : nearbyArtisans.length === 0 ? (
-                                <div className="rounded border border-border/50 bg-background px-2 py-2 text-[10px] text-muted-foreground">Aucun artisan dans un rayon de {perimeterKmValue} km.</div>
-                              ) : (
-                                nearbyArtisans.map((artisan) => {
-                                  const artisanDisplayName = getArtisanDisplayName(artisan, artisanDisplayMode)
-                                  const artisanInitials = artisanDisplayName.split(" ").map((p) => p.charAt(0)).join("").slice(0, 2).toUpperCase() || "??"
-                                  const artisanStatus = refData?.artisanStatuses?.find((s) => s.id === artisan.statut_id)
-                                  const statutArtisan = artisanStatus?.label || ""
-                                  const statutArtisanColor = artisanStatus?.color || null
-
-                                  return (
-                                    <div
-                                      key={artisan.id}
-                                      role="button"
-                                      tabIndex={0}
-                                      className={cn(
-                                        "rounded-lg border border-border/60 bg-background/80 p-2 text-xs shadow-sm transition-all cursor-pointer",
-                                        selectedArtisanId ? "opacity-0 scale-95 max-h-0 overflow-hidden pointer-events-none m-0 p-0 border-0" : "hover:border-primary/40"
-                                      )}
-                                      onClick={() => handleSelectNearbyArtisan(artisan)}
-                                      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); handleSelectNearbyArtisan(artisan) } }}
-                                    >
-                                      <div className="flex items-center justify-between gap-2 flex-wrap w-full min-w-0">
-                                        <Avatar photoProfilMetadata={artisan.photoProfilMetadata} initials={artisanInitials} name={artisan.displayName} size={40} className="hidden" />
-                                        <div className="flex items-center gap-1 flex-wrap min-w-0 flex-1">
-                                          <span className="font-medium text-foreground truncate text-[11px] min-w-0">{artisanDisplayName}</span>
-                                          {absentArtisanIds.has(artisan.id) && (
-                                            <Badge variant="outline" className="text-[9px] px-1 py-0 bg-orange-100 text-orange-800 border-orange-300 flex-shrink-0">
-                                              Indisponible
-                                            </Badge>
-                                          )}
-                                        </div>
-                                        <div className="flex items-center gap-1 flex-wrap flex-shrink-0">
-                                          {statutArtisan && (
-                                            <Badge variant="outline" className="text-[9px] px-1 py-0 flex-shrink-0" style={statutArtisanColor ? { backgroundColor: hexToRgba(statutArtisanColor, 0.15) || undefined, color: statutArtisanColor, borderColor: statutArtisanColor } : undefined}>
-                                              {statutArtisan}
-                                            </Badge>
-                                          )}
-                                          <Badge variant="secondary" className="text-[9px] px-1 py-0 flex-shrink-0">{formatDistanceKm(artisan.distanceKm)}</Badge>
-                                          <Button type="button" variant="ghost" size="icon" className="h-5 w-5 text-muted-foreground hover:text-foreground flex-shrink-0" onClick={(e) => handleOpenArtisanModal(artisan.id, e)}>
-                                            <Eye className="h-3 w-3" />
-                                          </Button>
-                                        </div>
-                                      </div>
-                                    </div>
-                                  )
-                                })
-                              )}
-                            </div>
-                          </CardContent>
-                        </Card>
+                        <ArtisanPanel
+                          selectedArtisanId={selectedArtisanId}
+                          selectedArtisanData={selectedArtisanData}
+                          nearbyArtisans={nearbyArtisans}
+                          isLoadingNearbyArtisans={isLoadingNearbyArtisans}
+                          nearbyArtisansError={nearbyArtisansError}
+                          absentArtisanIds={absentArtisanIds}
+                          perimeterKmValue={perimeterKmValue}
+                          requiresArtisan={requiresArtisan}
+                          artisanDisplayMode={artisanDisplayMode}
+                          setArtisanDisplayMode={setArtisanDisplayMode}
+                          getArtisanDisplayName={getArtisanDisplayName}
+                          artisanStatuses={refData?.artisanStatuses}
+                          isDevisButtonDisabled={isDevisButtonDisabled}
+                          isInterButtonDisabled={isInterButtonDisabled}
+                          openEmailModal={openEmailModal}
+                          handleOpenWhatsApp={handleOpenWhatsApp}
+                          handleSelectNearbyArtisan={handleSelectNearbyArtisan}
+                          handleRemoveSelectedArtisan={handleRemoveSelectedArtisan}
+                          handleOpenArtisanModal={handleOpenArtisanModal}
+                          onSearchClick={(pos) => { setArtisanSearchPosition(pos); setShowArtisanSearch(true) }}
+                        />
                       </ResizablePanel>
                     </ResizablePanelGroup>
                   </div>
 
-                  {/* DIV5: CONTEXTE INTERVENTION - Row 5, Cols 1-2 */}
-                  <Card style={{ gridArea: "5 / 1 / 6 / 3" }}>
-                    <CardContent className="p-4">
-                      <Label htmlFor="contexteIntervention" className="text-xs font-medium mb-2 block">Contexte intervention *</Label>
-                      <PresenceFieldIndicator fieldName="contexteIntervention">
-                      <Textarea
-                        id="contexteIntervention"
-                        value={formData.contexte_intervention}
-                        onChange={canEditContext ? (event) => handleInputChange("contexte_intervention", event.target.value) : undefined}
-                        placeholder="Décrivez le contexte..."
-                        rows={4}
-                        className={cn("text-sm resize-none", !canEditContext && "cursor-not-allowed bg-muted/50 text-muted-foreground")}
-                        readOnly={!canEditContext}
-                        aria-readonly={!canEditContext}
-                        required
-                      />
-                      </PresenceFieldIndicator>
-                      {!canEditContext && <p className="mt-1 text-[10px] text-muted-foreground">Admin uniquement</p>}
-                    </CardContent>
-                  </Card>
-
-                  {/* DIV6: CONSIGNE INTERVENTION - Row 5, Cols 3-4 */}
-                  <Card style={{ gridArea: "5 / 3 / 6 / 5" }} className={cn(requiresConsigneArtisan && !formData.consigne_intervention?.trim() && "ring-2 ring-orange-400/50")}>
-                    <CardContent className="p-4">
-                      <Label htmlFor="consigneIntervention" className="text-xs font-medium mb-2 block">
-                        Consigne pour l&apos;artisan {requiresConsigneArtisan && <span className="text-orange-500">*</span>}
-                      </Label>
-                      <PresenceFieldIndicator fieldName="consigneIntervention">
-                      <Textarea
-                        id="consigneIntervention"
-                        value={formData.consigne_intervention}
-                        onChange={(event) => handleInputChange("consigne_intervention", event.target.value)}
-                        placeholder="Consignes spécifiques..."
-                        rows={4}
-                        className={cn("text-sm resize-none", requiresConsigneArtisan && !formData.consigne_intervention?.trim() && "border-orange-400 focus-visible:ring-orange-400")}
-                      />
-                      </PresenceFieldIndicator>
-                    </CardContent>
-                  </Card>
-
-                  {/* DIV4: FINANCES & PLANIFICATION - Row 6, Cols 1-4 */}
-                  <Card style={{ gridArea: "6 / 1 / 7 / 5" }} className={cn(requiresCouts && (!(parseFloat(formData.coutIntervention) > 0) || !(parseFloat(formData.coutSST) > 0)) && "ring-2 ring-orange-400/50")}>
-                    <CardContent className="p-4">
-                      <div className="grid grid-cols-5 gap-3 items-end">
-                        <PresenceFieldIndicator fieldName="coutIntervention">
-                        <div>
-                          <Label htmlFor="coutIntervention" className="text-xs">
-                            Coût inter. {requiresCouts && <span className="text-orange-500">*</span>}
-                          </Label>
-                          <Input
-                            id="coutIntervention"
-                            type="number"
-                            step="0.01"
-                            min="0"
-                            value={formData.coutIntervention}
-                            onChange={(e) => handleInputChange("coutIntervention", e.target.value)}
-                            placeholder="0.00 €"
-                            className={cn("h-8 text-sm mt-1", requiresCouts && !(parseFloat(formData.coutIntervention) > 0) && "border-orange-400 focus-visible:ring-orange-400")}
-                          />
-                        </div>
-                        </PresenceFieldIndicator>
-                        <PresenceFieldIndicator fieldName="coutSST">
-                        <div>
-                          <Label htmlFor="coutSST" className="text-xs">
-                            Coût SST {requiresCouts && <span className="text-orange-500">*</span>}
-                          </Label>
-                          <Input
-                            id="coutSST"
-                            type="number"
-                            step="0.01"
-                            min="0"
-                            value={formData.coutSST}
-                            onChange={(e) => handleInputChange("coutSST", e.target.value)}
-                            placeholder="0.00 €"
-                            className={cn("h-8 text-sm mt-1", requiresCouts && !(parseFloat(formData.coutSST) > 0) && "border-orange-400 focus-visible:ring-orange-400")}
-                          />
-                        </div>
-                        </PresenceFieldIndicator>
-                        <PresenceFieldIndicator fieldName="coutMateriel">
-                        <div>
-                          <Label htmlFor="coutMateriel" className="text-xs">Coût mat.</Label>
-                          <Input id="coutMateriel" type="number" step="0.01" min="0" value={formData.coutMateriel} onChange={(e) => handleInputChange("coutMateriel", e.target.value)} placeholder="0.00 €" className="h-8 text-sm mt-1" />
-                        </div>
-                        </PresenceFieldIndicator>
-                        <div>
-                          <Label className="text-xs">Marge</Label>
-                          <div className="flex h-8 w-full rounded-md border border-input bg-muted px-3 py-1 text-sm shadow-sm items-center mt-1">
-                            {margePrimaryArtisan.isValid ? (
-                              <span className={cn("font-medium", getMarginColorClass(margePrimaryArtisan.marginPercentage))}>
-                                {formatMarginPercentage(margePrimaryArtisan.marginPercentage)}
-                              </span>
-                            ) : (
-                              <span className="text-muted-foreground">-- %</span>
-                            )}
-                          </div>
-                        </div>
-                        <PresenceFieldIndicator fieldName="datePrevue">
-                        <div className="relative">
-                          <Label htmlFor="datePrevue" className="text-xs">
-                            Date prévue {requiresDatePrevue && <span className="text-orange-500">*</span>}
-                          </Label>
-                          <Input
-                            id="datePrevue"
-                            type="date"
-                            value={formData.date_prevue}
-                            onChange={(e) => handleInputChange("date_prevue", e.target.value)}
-                            className={cn(
-                              "h-8 text-sm mt-1",
-                              requiresDatePrevue && !formData.date_prevue?.trim() && "border-orange-400 focus-visible:ring-orange-400"
-                            )}
-                            required={requiresDatePrevue}
-                          />
-                          {requiresDatePrevue && !formData.date_prevue?.trim() && (
-                            <span className="absolute top-0 -right-1 h-2 w-2 rounded-full bg-orange-500 animate-pulse" title="Date prévue requise" />
-                          )}
-                        </div>
-                        </PresenceFieldIndicator>
-                      </div>
-                    </CardContent>
-                  </Card>
+                  {/* DIV5+6+4: CONTEXTE + CONSIGNE + FINANCES */}
+                  <InterventionDetailsSection
+                    formData={formData}
+                    onChange={handleInputChange}
+                    margePrimaryArtisan={margePrimaryArtisan}
+                    requiresDatePrevue={requiresDatePrevue}
+                    canEditContext={canEditContext}
+                    requiresConsigneArtisan={requiresConsigneArtisan}
+                    requiresCouts={requiresCouts}
+                    withPresence
+                  />
+                  {/* END DIV5+6+4 — replaced inline sections */}
                 </div>
               </SectionLock>
             </div>
@@ -1965,577 +796,87 @@ export const InterventionEditForm = memo(function InterventionEditForm({
               <div className="flex flex-col gap-2 pb-4">
                 {/* Détails facturation */}
                 <SectionLock isLocked={!canEditIntervention}>
-                  <Collapsible open={isProprietaireOpen} onOpenChange={setIsProprietaireOpen}>
-                    <Card className={cn(requiresNomFacturation && !formData.nomPrenomFacturation?.trim() && "ring-2 ring-orange-400/50")}>
-                      <CollapsibleTrigger asChild>
-                        <CardHeader className="cursor-pointer py-2 px-3 hover:bg-muted/50">
-                          <CardTitle className="flex items-center gap-2 text-xs">
-                            Détails facturation
-                            {requiresNomFacturation && !formData.nomPrenomFacturation?.trim() && (
-                              <span className="h-2 w-2 rounded-full bg-orange-500 animate-pulse" title="Champ obligatoire manquant" />
-                            )}
-                            {isProprietaireOpen ? <ChevronDown className="ml-auto h-3 w-3" /> : <ChevronRight className="ml-auto h-3 w-3" />}
-                          </CardTitle>
-                        </CardHeader>
-                      </CollapsibleTrigger>
-                      <CollapsibleContent>
-                        <CardContent className="pt-0 px-3 pb-3">
-                          <div className="space-y-2">
-                            <div>
-                              <Label htmlFor="nomPrenomFacturation" className="text-[10px]">
-                                Nom Prénom {requiresNomFacturation && <span className="text-orange-500">*</span>}
-                              </Label>
-                              <PresenceFieldIndicator fieldName="nomPrenomFacturation">
-                              <Input
-                                id="nomPrenomFacturation"
-                                value={formData.nomPrenomFacturation}
-                                onChange={(e) => handleInputChange("nomPrenomFacturation", e.target.value)}
-                                placeholder="Nom Prénom"
-                                className={cn("h-7 text-xs mt-1", requiresNomFacturation && !formData.nomPrenomFacturation?.trim() && "border-orange-400 focus-visible:ring-orange-400")}
-                              />
-                              </PresenceFieldIndicator>
-                            </div>
-                            <div className="grid grid-cols-2 gap-2">
-                              <div>
-                                <Label htmlFor="telephoneProprietaire" className="text-[10px]">Téléphone</Label>
-                                <PresenceFieldIndicator fieldName="telephoneProprietaire">
-                                <Input id="telephoneProprietaire" value={formData.telephoneProprietaire} onChange={(e) => handleInputChange("telephoneProprietaire", e.target.value)} placeholder="06..." className="h-7 text-xs mt-1" />
-                                </PresenceFieldIndicator>
-                              </div>
-                              <div>
-                                <Label htmlFor="emailProprietaire" className="text-[10px]">Email</Label>
-                                <PresenceFieldIndicator fieldName="emailProprietaire">
-                                <Input id="emailProprietaire" type="email" value={formData.emailProprietaire} onChange={(e) => handleInputChange("emailProprietaire", e.target.value)} placeholder="email@..." className="h-7 text-xs mt-1" />
-                                </PresenceFieldIndicator>
-                              </div>
-                            </div>
-                          </div>
-                        </CardContent>
-                      </CollapsibleContent>
-                    </Card>
-                  </Collapsible>
+                  <InterventionOwnerSection
+                    formData={formData}
+                    onChange={handleInputChange}
+                    isOpen={isProprietaireOpen}
+                    onOpenChange={setIsProprietaireOpen}
+                    requiresNomFacturation={requiresNomFacturation}
+                    withPresence
+                  />
                 </SectionLock>
 
                 {/* Détails client */}
                 <SectionLock isLocked={!canEditIntervention}>
-                  <Collapsible open={isClientOpen} onOpenChange={setIsClientOpen}>
-                    <Card className={cn(requiresClientInfo && !formData.is_vacant && (!formData.nomPrenomClient?.trim() || !formData.telephoneClient?.trim()) && "ring-2 ring-orange-400/50")}>
-                      <CollapsibleTrigger asChild>
-                        <CardHeader className="cursor-pointer py-2 px-3 hover:bg-muted/50">
-                          <CardTitle className="flex items-center gap-2 text-xs">
-                            Détails client
-                            {requiresClientInfo && !formData.is_vacant && (!formData.nomPrenomClient?.trim() || !formData.telephoneClient?.trim()) && (
-                              <span className="h-2 w-2 rounded-full bg-orange-500 animate-pulse" title="Champs obligatoires manquants" />
-                            )}
-                            {isClientOpen ? <ChevronDown className="ml-auto h-3 w-3" /> : <ChevronRight className="ml-auto h-3 w-3" />}
-                          </CardTitle>
-                        </CardHeader>
-                      </CollapsibleTrigger>
-                      <CollapsibleContent>
-                        <CardContent className="pt-0 px-3 pb-3">
-                          <div className="flex items-center justify-between mb-2">
-                            <div className="flex items-center space-x-2">
-                              <input type="checkbox" id="is_vacant" className="h-3 w-3 rounded border-gray-300" checked={formData.is_vacant} onChange={(e) => handleInputChange("is_vacant", e.target.checked)} />
-                              <Label htmlFor="is_vacant" className="text-[10px] font-normal cursor-pointer">logement vacant</Label>
-                            </div>
-                            {!formData.is_vacant && onOpenSmsModal && (
-                              <Button
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                                className="h-6 px-2 text-[10px] flex items-center gap-1"
-                                onClick={onOpenSmsModal}
-                                disabled={!formData.nomPrenomClient || !formData.telephoneClient}
-                              >
-                                <MessageSquare className="h-3 w-3" />
-                                SMS
-                              </Button>
-                            )}
-                          </div>
-                          {formData.is_vacant ? (
-                            <div className="space-y-2">
-                              <div className="grid grid-cols-3 gap-2">
-                                <div>
-                                  <Label htmlFor="key_code" className="text-[10px]">CODE CLÉ</Label>
-                                  <Input id="key_code" value={formData.key_code} onChange={(e) => handleInputChange("key_code", e.target.value)} className="h-7 text-xs mt-1" />
-                                </div>
-                                <div>
-                                  <Label htmlFor="floor" className="text-[10px]">Étage</Label>
-                                  <Input id="floor" value={formData.floor} onChange={(e) => handleInputChange("floor", e.target.value)} className="h-7 text-xs mt-1" />
-                                </div>
-                                <div>
-                                  <Label htmlFor="apartment_number" className="text-[10px]">N° appart.</Label>
-                                  <Input id="apartment_number" value={formData.apartment_number} onChange={(e) => handleInputChange("apartment_number", e.target.value)} className="h-7 text-xs mt-1" />
-                                </div>
-                              </div>
-                              <div>
-                                <Label htmlFor="vacant_housing_instructions" className="text-[10px]">Consigne</Label>
-                                <Textarea id="vacant_housing_instructions" value={formData.vacant_housing_instructions} onChange={(e) => handleInputChange("vacant_housing_instructions", e.target.value)} placeholder="Consignes..." className="min-h-[60px] text-xs mt-1 resize-none" />
-                              </div>
-                            </div>
-                          ) : (
-                            <div className="space-y-2">
-                              <div>
-                                <Label htmlFor="nomPrenomClient" className="text-[10px]">
-                                  Nom Prénom {requiresClientInfo && !formData.is_vacant && <span className="text-orange-500">*</span>}
-                                </Label>
-                                <PresenceFieldIndicator fieldName="nomPrenomClient">
-                                <Input
-                                  id="nomPrenomClient"
-                                  value={formData.nomPrenomClient}
-                                  onChange={(e) => handleInputChange("nomPrenomClient", e.target.value)}
-                                  placeholder="Nom Prénom"
-                                  className={cn("h-7 text-xs mt-1", requiresClientInfo && !formData.is_vacant && !formData.nomPrenomClient?.trim() && "border-orange-400 focus-visible:ring-orange-400")}
-                                />
-                                </PresenceFieldIndicator>
-                              </div>
-                              <div className="grid grid-cols-2 gap-2">
-                                <div>
-                                  <Label htmlFor="telephoneClient" className="text-[10px]">
-                                    Téléphone {requiresClientInfo && !formData.is_vacant && <span className="text-orange-500">*</span>}
-                                  </Label>
-                                  <PresenceFieldIndicator fieldName="telephoneClient">
-                                  <Input
-                                    id="telephoneClient"
-                                    value={formData.telephoneClient}
-                                    onChange={(e) => handleInputChange("telephoneClient", e.target.value)}
-                                    placeholder="06..."
-                                    className={cn("h-7 text-xs mt-1", requiresClientInfo && !formData.is_vacant && !formData.telephoneClient?.trim() && "border-orange-400 focus-visible:ring-orange-400")}
-                                  />
-                                  </PresenceFieldIndicator>
-                                </div>
-                                <div>
-                                  <Label htmlFor="emailClient" className="text-[10px]">Email</Label>
-                                  <PresenceFieldIndicator fieldName="emailClient">
-                                  <Input id="emailClient" type="email" value={formData.emailClient} onChange={(e) => handleInputChange("emailClient", e.target.value)} placeholder="email@..." className="h-7 text-xs mt-1" />
-                                  </PresenceFieldIndicator>
-                                </div>
-                              </div>
-                            </div>
-                          )}
-                        </CardContent>
-                      </CollapsibleContent>
-                    </Card>
-                  </Collapsible>
+                  <InterventionClientSection
+                    formData={formData}
+                    onChange={handleInputChange}
+                    isOpen={isClientOpen}
+                    onOpenChange={setIsClientOpen}
+                    requiresClientInfo={requiresClientInfo}
+                    withPresence
+                    onOpenSmsModal={onOpenSmsModal}
+                  />
                 </SectionLock>
 
                 {/* Gestion des acomptes */}
                 <SectionLock isLocked={!canEditIntervention}>
-                  <Collapsible open={isAccompteOpen} onOpenChange={setIsAccompteOpen}>
-                    <Card>
-                      <CollapsibleTrigger asChild>
-                        <CardHeader className="cursor-pointer py-2 px-3 hover:bg-muted/50">
-                          <CardTitle className="flex items-center gap-2 text-xs">
-                            Gestion des acomptes
-                            {isAccompteOpen ? <ChevronDown className="ml-auto h-3 w-3" /> : <ChevronRight className="ml-auto h-3 w-3" />}
-                          </CardTitle>
-                        </CardHeader>
-                      </CollapsibleTrigger>
-                      <CollapsibleContent>
-                        <CardContent className="pt-0 px-3 pb-3 space-y-2">
-                          <div className="grid grid-cols-2 gap-2">
-                            <div>
-                              <Label htmlFor="accompteSST" className="text-[10px]">Acompte SST</Label>
-                              <PresenceFieldIndicator fieldName="accompteSST">
-                              <Input id="accompteSST" value={formData.accompteSST} onChange={(e) => handleAccompteSSTChange(e.target.value)} onBlur={handleAccompteSSTBlur} placeholder="Montant" className="h-7 text-xs" disabled={!canEditAccomptes} type="number" step="0.01" min="0" />
-                              </PresenceFieldIndicator>
-                            </div>
-                            <div>
-                              <Label className="text-[10px]">Reçu</Label>
-                              <div className="flex items-center gap-1">
-                                <input type="checkbox" checked={formData.accompteSSTRecu} onChange={(e) => handleAccompteSSTRecuChange(e.target.checked)} className="h-3 w-3" />
-                                <Input type="date" value={formData.dateAccompteSSTRecu} onChange={(e) => handleDateAccompteSSTRecuChange(e.target.value)} className="h-7 text-xs flex-1" />
-                              </div>
-                            </div>
-                          </div>
-                          <div className="grid grid-cols-2 gap-2">
-                            <div>
-                              <Label htmlFor="accompteClient" className="text-[10px]">Acompte client</Label>
-                              <PresenceFieldIndicator fieldName="accompteClient">
-                              <Input id="accompteClient" value={formData.accompteClient} onChange={(e) => handleAccompteClientChange(e.target.value)} onBlur={handleAccompteClientBlur} placeholder="Montant" className="h-7 text-xs" disabled={!canEditAccomptes} type="number" step="0.01" min="0" />
-                              </PresenceFieldIndicator>
-                            </div>
-                            <div>
-                              <Label className="text-[10px]">Reçu</Label>
-                              <div className="flex items-center gap-1">
-                                <input type="checkbox" checked={formData.accompteClientRecu} onChange={(e) => handleAccompteClientRecuChange(e.target.checked)} className="h-3 w-3" />
-                                <Input type="date" value={formData.dateAccompteClientRecu} onChange={(e) => handleDateAccompteClientRecuChange(e.target.value)} className="h-7 text-xs flex-1" />
-                              </div>
-                            </div>
-                          </div>
-                          <p className="text-[9px] text-muted-foreground">Éditable si statut = Accepté ou Attente acompte</p>
-                        </CardContent>
-                      </CollapsibleContent>
-                    </Card>
-                  </Collapsible>
+                  <PaymentSection
+                    isOpen={isAccompteOpen}
+                    onOpenChange={setIsAccompteOpen}
+                    formData={formData}
+                    canEditAccomptes={canEditAccomptes}
+                    handleAccompteSSTChange={handleAccompteSSTChange}
+                    handleAccompteClientChange={handleAccompteClientChange}
+                    handleAccompteSSTRecuChange={handleAccompteSSTRecuChange}
+                    handleAccompteClientRecuChange={handleAccompteClientRecuChange}
+                    handleDateAccompteSSTRecuChange={handleDateAccompteSSTRecuChange}
+                    handleDateAccompteClientRecuChange={handleDateAccompteClientRecuChange}
+                  />
                 </SectionLock>
 
-                <Collapsible open={isDocumentsOpen} onOpenChange={setIsDocumentsOpen}>
-                  <Card className={cn(
-                    (requiresFacture && !hasFactureGMBS) && "ring-2 ring-orange-400/50",
-                    (requiresDevis && !hasDevis) && "ring-2 ring-orange-400/50",
-                  )}>
-                    <CollapsibleTrigger asChild>
-                      <CardHeader className="cursor-pointer py-2 px-3 hover:bg-muted/50 group">
-                        <CardTitle className="flex items-center gap-2 text-xs justify-between">
-                          <div className="flex items-center gap-2">
-                            <Upload className="h-3 w-3" />
-                            Documents {(requiresFacture || requiresDevis) && <span className="text-orange-500">*</span>}
-                            {requiresFacture && !hasFactureGMBS && (
-                              <span className="h-2 w-2 rounded-full bg-orange-500 animate-pulse" title="Facture GMBS obligatoire" />
-                            )}
-                            {requiresDevis && !hasDevis && (
-                              <span className="h-2 w-2 rounded-full bg-orange-500 animate-pulse" title="Devis GMBS obligatoire" />
-                            )}
-                          </div>
-                          <div className="flex items-center gap-2">
-                            {documentsToReclassify.length > 0 && (
-                              <Button
-                                type="button"
-                                size="sm"
-                                variant="ghost"
-                                className="h-6 px-2 transition-opacity"
-                                onClick={(e) => {
-                                  e.stopPropagation()
-                                  handleReclassifyModalOpenChange(true)
-                                }}
-                              >
-                                <Wand2 className="h-3 w-3 mr-1" />
-                                <span className="text-xs hidden sm:inline">Reclassifier</span>
-                                <Badge variant="destructive" className="ml-1 h-4 px-1 text-xs">
-                                  {documentsToReclassify.length}
-                                </Badge>
-                              </Button>
-                            )}
-                            {isDocumentsOpen ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
-                          </div>
-                        </CardTitle>
-                      </CardHeader>
-                    </CollapsibleTrigger>
-                    <CollapsibleContent>
-                      <CardContent className="pt-0 px-3 pb-3">
-                        <DocumentManager
-                          entityType="intervention"
-                          entityId={intervention.id}
-                          kinds={DOCUMENT_KINDS}
-                          currentUser={currentUser ?? undefined}
-                          onChange={() => { void checkFactureGMBS(); void checkDevis() }}
-                          highlightedKinds={[
-                            ...(requiresFacture && !hasFactureGMBS ? ["facturesGMBS"] : []),
-                            ...(requiresDevis && !hasDevis ? ["devis"] : []),
-                          ]}
-                        />
-                      </CardContent>
-                    </CollapsibleContent>
-                  </Card>
-                </Collapsible>
-
-                {/* Modal de reclassification */}
-                <DocumentReclassificationModal
-                  open={isReclassifyModalOpen}
-                  onOpenChange={handleReclassifyModalOpenChange}
-                  entityType="intervention"
-                  entityId={intervention.id}
+                <DocumentSection
+                  isOpen={isDocumentsOpen}
+                  onOpenChange={setIsDocumentsOpen}
+                  interventionId={intervention.id}
+                  currentUser={currentUser}
                   documentKinds={DOCUMENT_KINDS}
+                  requiresFacture={requiresFacture}
+                  requiresDevis={requiresDevis}
+                  hasFactureGMBS={hasFactureGMBS}
+                  hasDevis={hasDevis}
+                  documentsToReclassify={documentsToReclassify}
+                  isReclassifyModalOpen={isReclassifyModalOpen}
+                  onReclassifyModalOpenChange={handleReclassifyModalOpenChange}
+                  onDocumentsChange={() => { void refreshFactureGMBS(); void refreshDevis() }}
                 />
 
                 {/* Deuxième artisan */}
                 <SectionLock isLocked={!canEditIntervention}>
-                  <Collapsible open={isSecondArtisanOpen} onOpenChange={setIsSecondArtisanOpen}>
-                    <Card>
-                      <CollapsibleTrigger asChild>
-                        <CardHeader className="cursor-pointer py-2 px-3 hover:bg-muted/50">
-                          <CardTitle className="flex items-center gap-2 text-xs">
-                            <Users className="h-3 w-3" />
-                            Deuxième artisan
-                            {isSecondArtisanOpen ? <ChevronDown className="ml-auto h-3 w-3" /> : <ChevronRight className="ml-auto h-3 w-3" />}
-                          </CardTitle>
-                        </CardHeader>
-                      </CollapsibleTrigger>
-                      <CollapsibleContent>
-                        <CardContent className="pt-0 px-3 pb-3">
-                          <div className="space-y-3">
-                            {/* Header artisans - même style que colonne gauche */}
-                            <div className="flex items-center justify-between gap-2 flex-shrink-0 pt-[13px] flex-wrap min-w-0">
-                              <div className="flex items-center gap-2 min-w-0 overflow-hidden">
-                                <PresenceFieldIndicator fieldName="metierSecondArtisanId">
-                                <SearchableBadgeSelect
-                                  label="Métier"
-                                  value={formData.metierSecondArtisanId}
-                                  options={(refData?.metiers || []).map(m => ({
-                                    id: m.id,
-                                    label: m.label,
-                                    color: m.color,
-                                  }))}
-                                  onChange={(value) => handleInputChange("metierSecondArtisanId", value)}
-                                  placeholder="Métier..."
-                                  minWidth="100px"
-                                  hideLabel
-                                  onOpenChange={onPopoverOpenChange}
-                                  searchPlaceholder="Rechercher un métier..."
-                                  emptyText="Aucun métier trouvé"
-                                  presenceFieldName="metierSecondArtisanId"
-                                />
-                                </PresenceFieldIndicator>
-                                <div className="flex gap-0.5 flex-shrink-0">
-                                  <Button
-                                    type="button"
-                                    variant={secondArtisanDisplayMode === "nom" ? "default" : "ghost"}
-                                    size="sm"
-                                    className="h-5 px-1.5 text-[10px]"
-                                    onClick={() => setSecondArtisanDisplayMode("nom")}
-                                  >
-                                    nom
-                                  </Button>
-                                  <Button
-                                    type="button"
-                                    variant={secondArtisanDisplayMode === "rs" ? "default" : "ghost"}
-                                    size="sm"
-                                    className="h-5 px-1.5 text-[10px]"
-                                    onClick={() => setSecondArtisanDisplayMode("rs")}
-                                  >
-                                    RS
-                                  </Button>
-                                  <Button
-                                    type="button"
-                                    variant={secondArtisanDisplayMode === "tel" ? "default" : "ghost"}
-                                    size="sm"
-                                    className="h-5 px-1.5 text-[10px]"
-                                    onClick={() => setSecondArtisanDisplayMode("tel")}
-                                  >
-                                    tel
-                                  </Button>
-                                </div>
-                              </div>
-                              <Button
-                                type="button"
-                                variant="outline"
-                                size="icon"
-                                className="h-7 w-7 flex-shrink-0"
-                                onClick={(e) => {
-                                  const rect = e.currentTarget.getBoundingClientRect()
-                                  setSecondArtisanSearchPosition({
-                                    x: rect.left,
-                                    y: rect.top,
-                                    width: rect.width,
-                                    height: rect.height
-                                  })
-                                  setShowSecondArtisanSearch(true)
-                                }}
-                                title="Rechercher un artisan"
-                              >
-                                <Search className="h-3.5 w-3.5" />
-                              </Button>
-                            </div>
-
-                            {/* Artisan secondaire sélectionné */}
-                            {selectedSecondArtisanId && selectedSecondArtisanData && (() => {
-                              const artisan = selectedSecondArtisanData
-                              const artisanDisplayName = getArtisanDisplayName(artisan, secondArtisanDisplayMode)
-                              const artisanInitials = artisanDisplayName.split(" ").map((p) => p.charAt(0)).join("").slice(0, 2).toUpperCase() || "??"
-                              const artisanStatus = refData?.artisanStatuses?.find((s) => s.id === artisan.statut_id)
-                              const statutArtisan = artisanStatus?.label || ""
-                              const statutArtisanColor = artisanStatus?.color || null
-
-                              return (
-                                <div className="relative rounded-lg border border-orange-500/70 ring-2 ring-orange-500/50 bg-background/80 p-2 text-xs shadow-sm">
-                                  <Button
-                                    type="button"
-                                    variant="ghost"
-                                    size="icon"
-                                    className="absolute right-1 top-1 h-5 w-5 rounded-full bg-background/80 text-muted-foreground shadow-sm hover:text-destructive z-20"
-                                    onClick={() => handleRemoveSecondArtisan()}
-                                  >
-                                    <X className="h-3 w-3" />
-                                  </Button>
-                                  <div className="flex items-center justify-between gap-2 flex-wrap min-w-0">
-                                    <Avatar photoProfilMetadata={artisan.photoProfilMetadata} initials={artisanInitials} name={artisan.displayName} size={40} className="hidden" />
-                                    <div className="flex items-center gap-1 flex-wrap flex-1 min-w-0">
-                                      <span className="font-semibold text-foreground truncate text-xs min-w-0">{artisanDisplayName}</span>
-                                      {absentArtisanIds.has(artisan.id) && (
-                                        <Badge variant="outline" className="text-[9px] px-1 py-0 bg-orange-100 text-orange-800 border-orange-300 flex-shrink-0">
-                                          Indisponible
-                                        </Badge>
-                                      )}
-                                    </div>
-                                    <div className="flex items-center gap-1 flex-wrap flex-shrink-0 ml-auto">
-                                      {statutArtisan && (
-                                        <Badge variant="outline" className="text-[9px] px-1 py-0 flex-shrink-0" style={statutArtisanColor ? { backgroundColor: hexToRgba(statutArtisanColor, 0.15) || undefined, color: statutArtisanColor, borderColor: statutArtisanColor } : undefined}>
-                                          {statutArtisan}
-                                        </Badge>
-                                      )}
-                                      <Badge variant="default" className="text-[9px] px-1 py-0 bg-orange-500 flex-shrink-0">{formatDistanceKm(artisan.distanceKm)}</Badge>
-                                    </div>
-                                  </div>
-                                  {artisan.telephone && (
-                                    <div className="mt-1 text-[10px] text-muted-foreground truncate">
-                                      📞 {artisan.telephone}
-                                    </div>
-                                  )}
-                                </div>
-                              )
-                            })()}
-
-                            {/* Email sending section for second artisan */}
-                            {selectedSecondArtisanId && selectedSecondArtisanData && (
-                              <div className="flex flex-col gap-1 p-2 bg-orange-50 dark:bg-orange-950/20 rounded-lg border border-orange-200 dark:border-orange-800/50">
-                                {/* Boutons Email */}
-                                <div className="flex gap-1">
-                                  <Button
-                                    type="button"
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => openEmailModal('devis', selectedSecondArtisanId)}
-                                    disabled={!selectedSecondArtisanId}
-                                    className="flex-1 text-[10px] h-7 px-2 border-orange-300 hover:bg-orange-100 dark:border-orange-700 dark:hover:bg-orange-900/30"
-                                  >
-                                    <Mail className="h-3 w-3 mr-1" />
-                                    Devis
-                                  </Button>
-                                  <Button
-                                    type="button"
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => openEmailModal('intervention', selectedSecondArtisanId)}
-                                    disabled={isInterButtonDisabled}
-                                    className="flex-1 text-[10px] h-7 px-2 border-orange-300 hover:bg-orange-100 dark:border-orange-700 dark:hover:bg-orange-900/30"
-                                  >
-                                    <Mail className="h-3 w-3 mr-1" />
-                                    Inter.
-                                  </Button>
-                                </div>
-                                {/* Boutons WhatsApp */}
-                                {selectedSecondArtisanData.telephone && (
-                                  <div className="flex gap-1">
-                                    <Button
-                                      type="button"
-                                      variant="outline"
-                                      size="sm"
-                                      onClick={() => handleOpenWhatsApp('devis', selectedSecondArtisanId, selectedSecondArtisanData.telephone || '')}
-                                      disabled={!selectedSecondArtisanId}
-                                      className="flex-1 text-[10px] h-7 px-2 bg-[#25D366]/10 hover:bg-[#25D366]/20 border-[#25D366]/30 text-[#25D366]"
-                                    >
-                                      <MessageCircle className="h-3 w-3 mr-1" />
-                                      WA Devis
-                                    </Button>
-                                    <Button
-                                      type="button"
-                                      variant="outline"
-                                      size="sm"
-                                      onClick={() => handleOpenWhatsApp('intervention', selectedSecondArtisanId, selectedSecondArtisanData.telephone || '')}
-                                      disabled={isInterButtonDisabled}
-                                      className="flex-1 text-[10px] h-7 px-2 bg-[#25D366]/10 hover:bg-[#25D366]/20 border-[#25D366]/30 text-[#25D366]"
-                                    >
-                                      <MessageCircle className="h-3 w-3 mr-1" />
-                                      WA Inter.
-                                    </Button>
-                                  </div>
-                                )}
-                              </div>
-                            )}
-
-                            {/* Liste des artisans pour sélection (affichée uniquement si pas d'artisan sélectionné) */}
-                            {!selectedSecondArtisanId && (
-                              <div className="max-h-[150px] overflow-y-auto space-y-1 scrollbar-minimal">
-                                {nearbyArtisansSecondMetier
-                                  .filter(artisan => artisan.id !== selectedArtisanId) // Exclure l'artisan principal
-                                  .slice(0, 5)
-                                  .map((artisan) => {
-                                    const artisanDisplayName = getArtisanDisplayName(artisan, secondArtisanDisplayMode)
-                                    const artisanInitials = artisanDisplayName.split(" ").map((p) => p.charAt(0)).join("").slice(0, 2).toUpperCase() || "??"
-                                    const artisanStatus = refData?.artisanStatuses?.find((s) => s.id === artisan.statut_id)
-                                    const statutArtisan = artisanStatus?.label || ""
-                                    const statutArtisanColor = artisanStatus?.color || null
-
-                                    return (
-                                      <div
-                                        key={artisan.id}
-                                        role="button"
-                                        tabIndex={0}
-                                        className="rounded-lg border border-border/60 bg-background/80 p-2 text-xs shadow-sm transition-all cursor-pointer hover:border-orange-500/40"
-                                        onClick={() => handleSelectSecondArtisan(artisan)}
-                                        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); handleSelectSecondArtisan(artisan) } }}
-                                      >
-                                        <div className="flex items-center justify-between gap-2 flex-wrap w-full min-w-0">
-                                          <Avatar photoProfilMetadata={artisan.photoProfilMetadata} initials={artisanInitials} name={artisan.displayName} size={40} className="hidden" />
-                                          <div className="flex items-center gap-1 flex-wrap flex-1 min-w-0">
-                                            <span className="font-medium text-foreground truncate text-[11px] min-w-0">{artisanDisplayName}</span>
-                                            {absentArtisanIds.has(artisan.id) && (
-                                              <Badge variant="outline" className="text-[9px] px-1 py-0 bg-orange-100 text-orange-800 border-orange-300 flex-shrink-0">
-                                                Indisponible
-                                              </Badge>
-                                            )}
-                                          </div>
-                                          <div className="flex items-center gap-1 flex-wrap flex-shrink-0 ml-auto">
-                                            {statutArtisan && (
-                                              <Badge variant="outline" className="text-[9px] px-1 py-0 flex-shrink-0" style={statutArtisanColor ? { backgroundColor: hexToRgba(statutArtisanColor, 0.15) || undefined, color: statutArtisanColor, borderColor: statutArtisanColor } : undefined}>
-                                                {statutArtisan}
-                                              </Badge>
-                                            )}
-                                            <Badge variant="secondary" className="text-[9px] px-1 py-0 flex-shrink-0">{formatDistanceKm(artisan.distanceKm)}</Badge>
-                                            <Button type="button" variant="ghost" size="icon" className="h-5 w-5 text-muted-foreground hover:text-foreground flex-shrink-0" onClick={(e) => handleOpenArtisanModal(artisan.id, e)}>
-                                              <Eye className="h-3 w-3" />
-                                            </Button>
-                                          </div>
-                                        </div>
-                                      </div>
-                                    )
-                                  })}
-                              </div>
-                            )}
-
-                            {/* Consigne pour le deuxième artisan */}
-                            <div>
-                              <Label htmlFor="consigne_second_artisan" className="text-[10px]">Consigne 2ème artisan</Label>
-                              <PresenceFieldIndicator fieldName="consigne_second_artisan">
-                              <Textarea
-                                id="consigne_second_artisan"
-                                value={formData.consigne_second_artisan}
-                                onChange={(e) => handleInputChange("consigne_second_artisan", e.target.value)}
-                                placeholder="Consignes spécifiques..."
-                                className="min-h-[50px] text-xs mt-1 resize-none"
-                              />
-                              </PresenceFieldIndicator>
-                            </div>
-
-                            {/* Coûts du 2ème artisan */}
-                            <div className="grid grid-cols-2 gap-2">
-                              <div>
-                                <Label htmlFor="coutSSTSecondArtisan" className="text-[10px]">Coût SST</Label>
-                                <PresenceFieldIndicator fieldName="coutSSTSecondArtisan">
-                                <Input
-                                  id="coutSSTSecondArtisan"
-                                  type="number"
-                                  step="0.01"
-                                  min="0"
-                                  value={formData.coutSSTSecondArtisan}
-                                  onChange={(e) => handleInputChange("coutSSTSecondArtisan", e.target.value)}
-                                  placeholder="0.00 €"
-                                  className="h-7 text-xs mt-1"
-                                />
-                                </PresenceFieldIndicator>
-                              </div>
-                              <div>
-                                <Label htmlFor="coutMaterielSecondArtisan" className="text-[10px]">Coût mat.</Label>
-                                <PresenceFieldIndicator fieldName="coutMaterielSecondArtisan">
-                                <Input
-                                  id="coutMaterielSecondArtisan"
-                                  type="number"
-                                  step="0.01"
-                                  min="0"
-                                  value={formData.coutMaterielSecondArtisan}
-                                  onChange={(e) => handleInputChange("coutMaterielSecondArtisan", e.target.value)}
-                                  placeholder="0.00 €"
-                                  className="h-7 text-xs mt-1"
-                                />
-                                </PresenceFieldIndicator>
-                              </div>
-                            </div>
-                          </div>
-                        </CardContent>
-                      </CollapsibleContent>
-                    </Card>
-                  </Collapsible>
+                  <SecondArtisanSection
+                    isOpen={isSecondArtisanOpen}
+                    onOpenChange={setIsSecondArtisanOpen}
+                    formData={formData}
+                    onChange={handleInputChange}
+                    selectedArtisanId={selectedArtisanId}
+                    selectedSecondArtisanId={selectedSecondArtisanId}
+                    selectedSecondArtisanData={selectedSecondArtisanData}
+                    nearbyArtisansSecondMetier={nearbyArtisansSecondMetier}
+                    absentArtisanIds={absentArtisanIds}
+                    secondArtisanDisplayMode={secondArtisanDisplayMode}
+                    setSecondArtisanDisplayMode={setSecondArtisanDisplayMode}
+                    getArtisanDisplayName={getArtisanDisplayName}
+                    artisanStatuses={refData?.artisanStatuses}
+                    metiers={refData?.metiers}
+                    isInterButtonDisabled={isInterButtonDisabled}
+                    openEmailModal={openEmailModal}
+                    handleOpenWhatsApp={handleOpenWhatsApp}
+                    handleSelectSecondArtisan={handleSelectSecondArtisan}
+                    handleRemoveSecondArtisan={handleRemoveSecondArtisan}
+                    handleOpenArtisanModal={handleOpenArtisanModal}
+                    onSearchClick={(pos) => { setSecondArtisanSearchPosition(pos); setShowSecondArtisanSearch(true) }}
+                    onPopoverOpenChange={onPopoverOpenChange}
+                  />
                 </SectionLock>
 
                 {/* Commentaires - ouvert par défaut */}
@@ -2560,121 +901,12 @@ export const InterventionEditForm = memo(function InterventionEditForm({
 
                 {/* Sous-statut personnalisé */}
                 <SectionLock isLocked={!canEditIntervention}>
-                  <Collapsible open={isSousStatutOpen} onOpenChange={setIsSousStatutOpen}>
-                    <Card>
-                      <CollapsibleTrigger asChild>
-                        <CardHeader className="cursor-pointer py-2 px-3 hover:bg-muted/50">
-                          <CardTitle className="flex items-center gap-2 text-xs">
-                            <Palette className="h-3 w-3" />
-                            Sous-statut
-                            {formData.sousStatutText && (
-                              <span
-                                className="ml-2 text-[10px] font-medium px-1.5 py-0.5 rounded"
-                                style={{
-                                  color: formData.sousStatutTextColor,
-                                  backgroundColor: formData.sousStatutBgColor !== 'transparent' ? formData.sousStatutBgColor : undefined
-                                }}
-                              >
-                                {formData.sousStatutText}
-                              </span>
-                            )}
-                            {isSousStatutOpen ? <ChevronDown className="ml-auto h-3 w-3" /> : <ChevronRight className="ml-auto h-3 w-3" />}
-                          </CardTitle>
-                        </CardHeader>
-                      </CollapsibleTrigger>
-                      <CollapsibleContent>
-                        <CardContent className="pt-0 px-3 pb-3">
-                          <div className="space-y-3">
-                            <p className="text-[10px] text-muted-foreground">
-                              Ajoutez un sous-statut personnalisé pour cette intervention (max 25 caractères).
-                            </p>
-                            <div>
-                              <Label htmlFor="sousStatutText" className="text-[10px]">Texte du sous-statut</Label>
-                              <PresenceFieldIndicator fieldName="sousStatutText">
-                              <Input
-                                id="sousStatutText"
-                                value={formData.sousStatutText}
-                                onChange={(e) => handleInputChange("sousStatutText", e.target.value)}
-                                placeholder="Ex: Devis supp, Urgent..."
-                                maxLength={25}
-                                className="h-7 text-xs mt-1"
-                              />
-                              </PresenceFieldIndicator>
-                            </div>
-                            <div className="flex items-center gap-3">
-                              <div className="flex-1">
-                                <Label htmlFor="sousStatutTextColor" className="text-[10px]">Couleur du texte</Label>
-                                <div className="flex items-center gap-2 mt-1">
-                                  <input
-                                    type="color"
-                                    id="sousStatutTextColor"
-                                    value={formData.sousStatutTextColor}
-                                    onChange={(e) => handleInputChange("sousStatutTextColor", e.target.value)}
-                                    className="h-7 w-12 rounded border border-input cursor-pointer p-0.5"
-                                    title="Couleur du texte"
-                                  />
-                                  <span className="text-[10px] text-muted-foreground">{formData.sousStatutTextColor}</span>
-                                </div>
-                              </div>
-                              <div className="flex-1">
-                                <Label htmlFor="sousStatutBgColor" className="text-[10px]">Surlignage</Label>
-                                <div className="flex items-center gap-2 mt-1">
-                                  <input
-                                    type="color"
-                                    id="sousStatutBgColor"
-                                    value={formData.sousStatutBgColor === 'transparent' ? '#ffffff' : formData.sousStatutBgColor}
-                                    onChange={(e) => handleInputChange("sousStatutBgColor", e.target.value)}
-                                    className="h-7 w-12 rounded border border-input cursor-pointer p-0.5"
-                                    title="Couleur de surlignage"
-                                  />
-                                  <Button
-                                    type="button"
-                                    variant="ghost"
-                                    size="sm"
-                                    className="h-6 px-1.5 text-[9px]"
-                                    onClick={() => handleInputChange("sousStatutBgColor", "transparent")}
-                                    title="Supprimer le surlignage"
-                                  >
-                                    <X className="h-3 w-3" />
-                                  </Button>
-                                </div>
-                              </div>
-                            </div>
-                            {formData.sousStatutText && (
-                              <div className="p-2 bg-muted/50 rounded-lg border border-border/50">
-                                <p className="text-[10px] text-muted-foreground mb-1">Aperçu :</p>
-                                <span
-                                  className="text-sm font-medium px-1.5 py-0.5 rounded"
-                                  style={{
-                                    color: formData.sousStatutTextColor,
-                                    backgroundColor: formData.sousStatutBgColor !== 'transparent' ? formData.sousStatutBgColor : undefined
-                                  }}
-                                >
-                                  {formData.sousStatutText}
-                                </span>
-                              </div>
-                            )}
-                            {formData.sousStatutText && (
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="sm"
-                                className="h-6 text-[10px] text-destructive hover:text-destructive"
-                                onClick={() => {
-                                  handleInputChange("sousStatutText", "")
-                                  handleInputChange("sousStatutTextColor", "#000000")
-                                  handleInputChange("sousStatutBgColor", "transparent")
-                                }}
-                              >
-                                <X className="h-3 w-3 mr-1" />
-                                Effacer le sous-statut
-                              </Button>
-                            )}
-                          </div>
-                        </CardContent>
-                      </CollapsibleContent>
-                    </Card>
-                  </Collapsible>
+                  <CustomStatusSection
+                    isOpen={isSousStatutOpen}
+                    onOpenChange={setIsSousStatutOpen}
+                    formData={formData}
+                    onChange={handleInputChange}
+                  />
                 </SectionLock>
               </div>
             </div>

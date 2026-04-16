@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useMemo } from "react"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
-import { updatesApi } from "@/lib/api/v2"
+import { updatesApi } from "@/lib/api"
 import { updateKeys } from "@/lib/react-query/queryKeys"
 import { useCurrentUser } from "@/hooks/useCurrentUser"
 import { useGestionnaires } from "@/hooks/useGestionnaires"

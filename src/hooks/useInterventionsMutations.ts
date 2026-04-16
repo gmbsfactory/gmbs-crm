@@ -1,5 +1,6 @@
+import { useCallback } from "react"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
-import { interventionsApi, type Intervention, type InterventionCost, type InterventionPayment } from "@/lib/api/v2"
+import { interventionsApi, type Intervention, type InterventionCost, type InterventionPayment } from "@/lib/api"
 import { useInterventionModal } from "@/hooks/useInterventionModal"
 import { interventionKeys } from "@/lib/react-query/queryKeys"
 import { invalidateArtisanQueries } from "@/lib/react-query/invalidate-artisan-queries"
@@ -15,7 +16,7 @@ export function useInterventionsMutations() {
   const queryClient = useQueryClient()
   const { open: openInterventionModal } = useInterventionModal()
   const syncQueue = getSyncQueue()
-  const invalidateLists = () => {
+  const invalidateLists = useCallback(() => {
     queryClient.invalidateQueries({
       queryKey: interventionKeys.invalidateLists(),
       refetchType: 'active'
@@ -27,7 +28,7 @@ export function useInterventionsMutations() {
     queryClient.invalidateQueries({
       queryKey: interventionKeys.invalidateFilterCounts(),
     })
-  }
+  }, [queryClient])
 
   // Mutation pour créer une intervention
   const createMutation = useMutation({
@@ -91,7 +92,7 @@ export function useInterventionsMutations() {
         reference_agence?: string | null
         agence_id?: string
         client_id?: string
-        assigned_user_id?: string
+        assigned_user_id?: string | null
         statut_id?: string
         metier_id?: string
         date?: string

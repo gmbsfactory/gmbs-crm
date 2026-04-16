@@ -4,16 +4,13 @@ import { useCallback, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import useModal from "./useModal"
 import { useModalState } from "./useModalState"
-import { useArtisanModal } from "./useArtisanModal"
 import type { ModalOpenOptions } from "@/types/modal"
 
-export type InterventionModalOpenOptions = Pick<ModalOpenOptions, "layoutId" | "modeOverride" | "orderedIds" | "index" | "origin">
+export type InterventionModalOpenOptions = Pick<ModalOpenOptions, "layoutId" | "modeOverride" | "orderedIds" | "index" | "origin" | "metadata">
 
 export function useInterventionModal() {
   const modal = useModal()
   const router = useRouter()
-  const { open: openArtisanModal } = useArtisanModal()
-
   const setSourceLayoutId = useModalState((state) => state.setSourceLayoutId)
   const setOverrideMode = useModalState((state) => state.setOverrideMode)
   const metadata = useModalState((state) => state.metadata)
@@ -27,6 +24,7 @@ export function useInterventionModal() {
         orderedIds: options?.orderedIds,
         index: options?.index,
         origin: options?.origin,
+        metadata: options?.metadata,
         content: "intervention",
       })
     },
@@ -43,11 +41,11 @@ export function useInterventionModal() {
       ? context.duplicateFrom
       : null
 
-    // Vérifier si le modal d'intervention vient d'un modal d'artisan AVANT de fermer
+    // Capturer le callback de retour à l'origine AVANT de fermer
     // car modal.close() va réinitialiser le state
-    const origin = typeof metadata?.origin === "string" ? metadata.origin : null
-    const isFromArtisan = origin?.startsWith("artisan:")
-    const artisanId = isFromArtisan ? origin?.replace("artisan:", "") : null
+    const onReturnToOrigin = typeof metadata?.onReturnToOrigin === "function"
+      ? metadata.onReturnToOrigin as () => void
+      : null
 
     // Si c'est un devis supp, retourner à l'intervention initiale
     if (duplicateFromId) {
@@ -62,14 +60,13 @@ export function useInterventionModal() {
     // Fermer le modal d'intervention
     modal.close()
 
-    // Si le modal venait d'un artisan, rouvrir le modal d'artisan avec la vue statistiques
-    if (isFromArtisan && artisanId) {
-      // Petit délai pour laisser le modal d'intervention se fermer proprement
+    // Si un callback de retour à l'origine existe, l'appeler après fermeture
+    if (onReturnToOrigin) {
       setTimeout(() => {
-        openArtisanModal(artisanId, { defaultView: "statistics" })
+        onReturnToOrigin()
       }, 100)
     }
-  }, [context, metadata, modal, openArtisanModal])
+  }, [context, metadata, modal])
 
   const openAtIndex = useCallback(
     (ids: string[], index: number, options?: Omit<InterventionModalOpenOptions, "orderedIds" | "index">) => {

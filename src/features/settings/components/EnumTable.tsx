@@ -8,9 +8,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Plus, Cog, Trash2, Loader2 } from 'lucide-react';
-import { EnumConfig } from '@/features/settings/config/enumConfigs';
+import { EnumConfig, EnumItem, getEnumFieldValue } from '@/features/settings/config/enumConfigs';
 import { EnumEditDialog } from './EnumEditDialog';
-import { agenciesApi } from '@/lib/api/v2/agenciesApi';
+import { agenciesApi } from '@/lib/api/agenciesApi';
 import { toast } from 'sonner';
 
 interface EnumTableProps {
@@ -18,10 +18,10 @@ interface EnumTableProps {
 }
 
 export function EnumTable({ config }: EnumTableProps) {
-  const [data, setData] = useState<any[]>([]);
+  const [data, setData] = useState<EnumItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [editItem, setEditItem] = useState<any | null>(null);
-  const [deleteItem, setDeleteItem] = useState<any | null>(null);
+  const [editItem, setEditItem] = useState<EnumItem | null>(null);
+  const [deleteItem, setDeleteItem] = useState<EnumItem | null>(null);
   const [deleteCodeConfirm, setDeleteCodeConfirm] = useState('');
   const [creating, setCreating] = useState(false);
   const [togglingIds, setTogglingIds] = useState<Set<string>>(new Set()); // IDs en cours de mise à jour
@@ -50,6 +50,11 @@ export function EnumTable({ config }: EnumTableProps) {
     // Vérification du code pour confirmation
     if (deleteCodeConfirm !== deleteItem.code) {
       alert('Le code ne correspond pas');
+      return;
+    }
+
+    if (!config.api.delete) {
+      alert(`La suppression n'est pas supportée pour ${config.title}`);
       return;
     }
 
@@ -82,15 +87,16 @@ export function EnumTable({ config }: EnumTableProps) {
     try {
       await agenciesApi.updateRequiresReference(itemId, !currentValue);
       // Mettre à jour les données localement pour éviter un rechargement complet
-      setData(prev => prev.map(item => 
-        item.id === itemId 
-          ? { ...item, requires_reference: !currentValue }
+      setData(prev => prev.map(item =>
+        item.id === itemId
+          ? ({ ...item, requires_reference: !currentValue } as EnumItem)
           : item
       ));
       toast.success(!currentValue ? 'Référence agence activée' : 'Référence agence désactivée');
-    } catch (error: any) {
+    } catch (error) {
       console.error('Erreur lors de la mise à jour:', error);
-      toast.error(`Erreur: ${error.message}`);
+      const message = error instanceof Error ? error.message : String(error);
+      toast.error(`Erreur: ${message}`);
     } finally {
       setTogglingIds(prev => {
         const next = new Set(prev);
@@ -151,36 +157,39 @@ export function EnumTable({ config }: EnumTableProps) {
 
             {!loading && data.map((item) => (
               <TableRow key={item.id}>
-                {displayFields.map(field => (
-                  <TableCell key={field.name}>
-                    {field.type === 'checkbox' && field.inlineToggle ? (
-                      // Checkbox cliquable directement dans le tableau
-                      <div className="flex items-center justify-center">
-                        {togglingIds.has(item.id) ? (
-                          <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-                        ) : (
-                          <Checkbox
-                            checked={item[field.name] || false}
-                            onCheckedChange={() => handleInlineToggle(item.id, field.name, item[field.name] || false)}
-                            aria-label={field.label}
+                {displayFields.map(field => {
+                  const rawValue = getEnumFieldValue(item, field.name);
+                  return (
+                    <TableCell key={field.name}>
+                      {field.type === 'checkbox' && field.inlineToggle ? (
+                        // Checkbox cliquable directement dans le tableau
+                        <div className="flex items-center justify-center">
+                          {togglingIds.has(item.id) ? (
+                            <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                          ) : (
+                            <Checkbox
+                              checked={rawValue === true}
+                              onCheckedChange={() => handleInlineToggle(item.id, field.name, rawValue === true)}
+                              aria-label={field.label}
+                            />
+                          )}
+                        </div>
+                      ) : field.type === 'color' && typeof rawValue === 'string' && rawValue ? (
+                        <div className="flex items-center gap-2">
+                          <div
+                            className="h-6 w-6 rounded border"
+                            style={{ backgroundColor: rawValue }}
                           />
-                        )}
-                      </div>
-                    ) : field.type === 'color' && item[field.name] ? (
-                      <div className="flex items-center gap-2">
-                        <div
-                          className="h-6 w-6 rounded border"
-                          style={{ backgroundColor: item[field.name] }}
-                        />
-                        <span className="text-xs text-muted-foreground">
-                          {item[field.name]}
-                        </span>
-                      </div>
-                    ) : (
-                      item[field.name] || '—'
-                    )}
-                  </TableCell>
-                ))}
+                          <span className="text-xs text-muted-foreground">
+                            {rawValue}
+                          </span>
+                        </div>
+                      ) : (
+                        rawValue == null || rawValue === '' ? '—' : String(rawValue)
+                      )}
+                    </TableCell>
+                  );
+                })}
                 <TableCell>
                   <Badge className={item.is_active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}>
                     {item.is_active ? 'Actif' : 'Inactif'}

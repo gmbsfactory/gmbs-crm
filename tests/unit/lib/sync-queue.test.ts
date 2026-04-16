@@ -5,7 +5,7 @@ const mockCreate = vi.fn().mockResolvedValue({ id: 'new-id' })
 const mockUpdate = vi.fn().mockResolvedValue({ id: 'existing-id' })
 const mockDelete = vi.fn().mockResolvedValue({ message: 'deleted', data: { id: 'deleted-id' } })
 
-vi.mock('@/lib/api/v2', () => ({
+vi.mock('@/lib/api', () => ({
   interventionsApi: {
     create: mockCreate,
     update: mockUpdate,
@@ -205,6 +205,208 @@ describe('SyncQueue', () => {
 
       queue.clear()
       expect(queue.getPending()).toHaveLength(0)
+    })
+  })
+
+  describe('race conditions and concurrent mutations', () => {
+    // Helper to create a manually-controllable promise
+    function deferred<T>() {
+      let resolve!: (value: T) => void
+      let reject!: (err: unknown) => void
+      const promise = new Promise<T>((res, rej) => {
+        resolve = res
+        reject = rej
+      })
+      return { promise, resolve, reject }
+    }
+
+    it('should prevent reentrant processBatch while a batch is in flight', async () => {
+      // First call hangs, so the in-flight batch never finishes within the test window.
+      const d = deferred<{ id: string }>()
+      mockUpdate.mockImplementationOnce(() => d.promise)
+
+      queue.enqueue({ interventionId: 'int-1', type: 'update', data: { id_inter: 'A' } })
+
+      // First interval tick — kicks off processBatch and awaits mockUpdate.
+      await vi.advanceTimersByTimeAsync(5000)
+      expect(mockUpdate).toHaveBeenCalledTimes(1)
+
+      // Second interval tick fires while the first batch is still in flight.
+      // The `processing` guard must short-circuit — no new API call.
+      await vi.advanceTimersByTimeAsync(5000)
+      expect(mockUpdate).toHaveBeenCalledTimes(1)
+
+      // Third tick — still guarded.
+      await vi.advanceTimersByTimeAsync(5000)
+      expect(mockUpdate).toHaveBeenCalledTimes(1)
+
+      // Resolve the in-flight call so processing can drain and the lock releases.
+      d.resolve({ id: 'int-1' })
+      await vi.advanceTimersByTimeAsync(0)
+
+      expect(queue.getPending()).toHaveLength(0)
+    })
+
+    it('should not lose items enqueued while a batch is in flight', async () => {
+      const d = deferred<{ id: string }>()
+      mockUpdate.mockImplementationOnce(() => d.promise)
+
+      queue.enqueue({ interventionId: 'int-1', type: 'update', data: { id_inter: 'A' } })
+      await vi.advanceTimersByTimeAsync(5000)
+      expect(mockUpdate).toHaveBeenCalledTimes(1)
+
+      // Mid-flight enqueue — must land in the queue and survive the in-flight batch.
+      queue.enqueue({ interventionId: 'int-2', type: 'create', data: { id_inter: 'B' } })
+      expect(
+        queue.getPending().some((m) => m.interventionId === 'int-2'),
+      ).toBe(true)
+
+      // First batch finishes; int-1 dequeued, int-2 still pending.
+      d.resolve({ id: 'int-1' })
+      await vi.advanceTimersByTimeAsync(0)
+
+      const pending = queue.getPending()
+      expect(pending).toHaveLength(1)
+      expect(pending[0].interventionId).toBe('int-2')
+
+      // Next interval picks up the new item.
+      await vi.advanceTimersByTimeAsync(5000)
+      expect(mockCreate).toHaveBeenCalledWith({ id_inter: 'B' })
+      expect(queue.getPending()).toHaveLength(0)
+    })
+
+    it('should handle dequeueByInterventionId called mid-batch without resurrecting the item', async () => {
+      const d = deferred<{ id: string }>()
+      mockUpdate.mockImplementationOnce(() => d.promise)
+
+      queue.enqueue({ interventionId: 'int-1', type: 'update', data: {} })
+      await vi.advanceTimersByTimeAsync(5000)
+      expect(mockUpdate).toHaveBeenCalledTimes(1)
+
+      // External removal while the API call is in flight. The batch operates on a
+      // snapshot, so the in-flight call still completes — but the final dequeue
+      // becomes a no-op against an already-empty queue.
+      queue.dequeueByInterventionId('int-1')
+      expect(queue.getPending()).toHaveLength(0)
+
+      d.resolve({ id: 'int-1' })
+      await vi.advanceTimersByTimeAsync(0)
+
+      expect(queue.getPending()).toHaveLength(0)
+
+      // Subsequent intervals must not re-trigger anything.
+      await vi.advanceTimersByTimeAsync(5000)
+      await vi.advanceTimersByTimeAsync(5000)
+      expect(mockUpdate).toHaveBeenCalledTimes(1)
+    })
+
+    it('should not resurrect items when clear() is called mid-batch', async () => {
+      const d1 = deferred<{ id: string }>()
+      mockUpdate
+        .mockImplementationOnce(() => d1.promise)
+        .mockResolvedValue({ id: 'snapshot-tail' })
+
+      queue.enqueue({ interventionId: 'int-1', type: 'update', data: { id_inter: 'A' } })
+      queue.enqueue({ interventionId: 'int-2', type: 'update', data: { id_inter: 'B' } })
+
+      await vi.advanceTimersByTimeAsync(5000)
+      expect(mockUpdate).toHaveBeenCalledTimes(1)
+
+      // External clear during processing. The current batch snapshot still drains,
+      // but nothing new should reappear afterwards.
+      queue.clear()
+      expect(queue.getPending()).toHaveLength(0)
+
+      d1.resolve({ id: 'int-1' })
+      await vi.advanceTimersByTimeAsync(0)
+
+      expect(queue.getPending()).toHaveLength(0)
+
+      // Next interval is a no-op — no items to process.
+      await vi.advanceTimersByTimeAsync(5000)
+      expect(queue.getPending()).toHaveLength(0)
+    })
+
+    it('should respect BATCH_SIZE and process remaining items on the next interval (FIFO)', async () => {
+      for (let i = 0; i < 12; i++) {
+        queue.enqueue({
+          interventionId: `int-${i}`,
+          type: 'update',
+          data: { id_inter: `id-${i}` },
+        })
+      }
+      expect(queue.getPending()).toHaveLength(12)
+
+      // First batch processes 10 items.
+      await vi.advanceTimersByTimeAsync(5000)
+      expect(mockUpdate).toHaveBeenCalledTimes(10)
+
+      // FIFO order — first 10 enqueued processed first.
+      for (let i = 0; i < 10; i++) {
+        expect(mockUpdate).toHaveBeenNthCalledWith(i + 1, `int-${i}`, { id_inter: `id-${i}` })
+      }
+
+      const remaining = queue.getPending()
+      expect(remaining).toHaveLength(2)
+      expect(remaining.map((m) => m.interventionId)).toEqual(['int-10', 'int-11'])
+
+      // Next interval drains the rest.
+      await vi.advanceTimersByTimeAsync(5000)
+      expect(mockUpdate).toHaveBeenCalledTimes(12)
+      expect(queue.getPending()).toHaveLength(0)
+    })
+
+    it('should isolate failures: a failing item leaves siblings successfully processed', async () => {
+      // int-1 succeeds, int-2 fails all 3 internal retries, int-3 succeeds.
+      mockUpdate
+        .mockResolvedValueOnce({ id: 'int-1' })
+        .mockRejectedValueOnce(new Error('fail'))
+        .mockRejectedValueOnce(new Error('fail'))
+        .mockRejectedValueOnce(new Error('fail'))
+        .mockResolvedValueOnce({ id: 'int-3' })
+
+      queue.enqueue({ interventionId: 'int-1', type: 'update', data: { id_inter: '1' } })
+      queue.enqueue({ interventionId: 'int-2', type: 'update', data: { id_inter: '2' } })
+      queue.enqueue({ interventionId: 'int-3', type: 'update', data: { id_inter: '3' } })
+
+      // Drain interval (t=5000) + the 1s/2s internal backoff for int-2.
+      // Note: with maxRetries=3 the third attempt is the last, so only 2 sleeps fire.
+      // We must stay below t=10000 to avoid the next interval re-processing int-2.
+      await vi.advanceTimersByTimeAsync(5000) // t=5000: batch starts, int-1 ok, int-2 attempt 1 fails, sleep(1000)
+      await vi.advanceTimersByTimeAsync(1000) // t=6000: int-2 attempt 2 fails, sleep(2000)
+      await vi.advanceTimersByTimeAsync(2000) // t=8000: int-2 attempt 3 (last) fails, retryCount=1, then int-3 ok
+
+      // 1 success + 3 failed attempts + 1 success = 5 calls total.
+      expect(mockUpdate).toHaveBeenCalledTimes(5)
+
+      const pending = queue.getPending()
+      expect(pending).toHaveLength(1)
+      expect(pending[0].interventionId).toBe('int-2')
+      expect(pending[0].retryCount).toBe(1)
+    })
+
+    it('should release the processing lock after a failing batch so the next interval proceeds', async () => {
+      mockUpdate.mockRejectedValue(new Error('persistent failure'))
+      queue.enqueue({ interventionId: 'int-1', type: 'update', data: {} })
+
+      // First batch (t=5000) + 1s/2s backoff. Last attempt = no trailing sleep.
+      await vi.advanceTimersByTimeAsync(5000) // t=5000: attempt 1 fails, sleep(1000)
+      await vi.advanceTimersByTimeAsync(1000) // t=6000: attempt 2 fails, sleep(2000)
+      await vi.advanceTimersByTimeAsync(2000) // t=8000: attempt 3 (last) fails, retryCount=1
+
+      expect(mockUpdate).toHaveBeenCalledTimes(3)
+      const afterFirstBatch = queue.getPending()
+      expect(afterFirstBatch).toHaveLength(1)
+      expect(afterFirstBatch[0].retryCount).toBe(1)
+
+      // Next interval at t=10000. If the processing lock had leaked, we'd still
+      // see only 3 calls. Drain its 1s/2s backoff too — staying below t=15000.
+      await vi.advanceTimersByTimeAsync(2000) // t=10000: interval fires, attempt 1 fails, sleep(1000)
+      await vi.advanceTimersByTimeAsync(1000) // t=11000: attempt 2 fails, sleep(2000)
+      await vi.advanceTimersByTimeAsync(2000) // t=13000: attempt 3 (last) fails, retryCount=2
+
+      expect(mockUpdate).toHaveBeenCalledTimes(6)
+      expect(queue.getPending()[0].retryCount).toBe(2)
     })
   })
 })

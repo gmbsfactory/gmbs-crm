@@ -2,9 +2,9 @@
 
 import { useEffect, useState } from "react"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { interventionsApi } from "@/lib/api/v2"
+import { interventionsApi } from "@/lib/api"
 import { supabase } from "@/lib/supabase-client"
-import type { WeeklyStats, MonthlyStats, YearlyStats, StatsPeriod } from "@/lib/api/v2"
+import type { WeeklyStats, MonthlyStats, YearlyStats, StatsPeriod } from "@/lib/api"
 import Loader from "@/components/ui/Loader"
 import { useCurrentUser } from "@/hooks/useCurrentUser"
 import { useUserRoles } from "@/hooks/useUserRoles"

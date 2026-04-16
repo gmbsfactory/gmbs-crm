@@ -9,8 +9,8 @@ import { cn } from "@/lib/utils"
 import { supabase } from "@/lib/supabase-client"
 import { createPortal } from "react-dom"
 import { useReferenceDataQuery } from "@/hooks/useReferenceDataQuery"
-import { artisansApi } from "@/lib/api/v2"
-import type { NearbyArtisan } from "@/lib/api/v2/common/types"
+import { artisansApi } from "@/lib/api"
+import type { NearbyArtisan } from "@/lib/api/common/types"
 import {
   normalizeArtisanData,
   getDisplayName as getArtisanDisplayName,

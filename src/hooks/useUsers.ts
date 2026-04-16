@@ -1,7 +1,8 @@
 import { useCallback } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase-client";
-import { normalizeReminderIdentifier } from "@/contexts/RemindersContext";
+import { normalizeReminderIdentifier } from "@/lib/reminders/utils";
+import { getUserDisplayName } from "@/utils/user-display-name";
 
 export interface MentionableUser {
   id: string;
@@ -66,11 +67,7 @@ async function fetchMentionableUsers(): Promise<MentionableUser[]> {
 
   return (
     data?.map((user: { id: string; firstname?: string | null; lastname?: string | null; username?: string | null; email?: string | null; code_gestionnaire?: string | null; [key: string]: unknown }) => {
-      const displayParts = [user.firstname, user.lastname].filter(Boolean);
-      const displayName =
-        displayParts.length > 0
-          ? displayParts.join(" ")
-          : user.username ?? user.email ?? "Utilisateur";
+      const displayName = getUserDisplayName(user, "Utilisateur");
 
       const handleFromNames = buildHandle({
         firstname: user.firstname,

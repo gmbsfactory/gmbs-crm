@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { QueryClient } from "@tanstack/react-query"
 import type { RealtimePostgresChangesPayload } from "@supabase/supabase-js"
-import type { Intervention, PaginatedResponse } from "@/lib/api/v2/common/types"
+import type { Intervention, PaginatedResponse } from "@/lib/api/common/types"
 import { interventionKeys } from "@/lib/react-query/queryKeys"
 import { routeRealtimeEvent } from "@/lib/realtime/event-router/router"
 
@@ -30,7 +30,7 @@ vi.mock("@/lib/reference-api", () => ({
   },
 }))
 
-vi.mock("@/lib/api/v2/common/utils", () => ({
+vi.mock("@/lib/api/common/utils", () => ({
   mapInterventionRecord: (record: Intervention) => record,
 }))
 

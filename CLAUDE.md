@@ -17,7 +17,7 @@ CRM pour la gestion des interventions, artisans et clients.
 ### Data Flow
 
 ```
-Component --> Hook --> TanStack Query --> API v2 --> Edge Function --> PostgreSQL
+Component --> Hook --> TanStack Query --> API --> Edge Function --> PostgreSQL
                                                                         |
 Component <-- Cache Update <-- Realtime <-------------------------------+
 ```
@@ -26,17 +26,17 @@ Component <-- Cache Update <-- Realtime <-------------------------------+
 graph LR
     A[Component] --> B[Hook]
     B --> C[TanStack Query]
-    C --> D[API v2]
+    C --> D[API]
     D --> E[Edge Function]
     E --> F[PostgreSQL]
     F -->|Realtime| G[Cache Update]
     G --> A
 ```
 
-- **29 modules API** dans `src/lib/api/v2/`
-- **67 hooks custom** dans `src/hooks/`
+- **~22 modules API** dans `src/lib/api/`
+- **99 hooks custom** dans `src/hooks/`
 - **13 Edge Functions** dans `supabase/functions/`
-- **200+ composants** dans `src/components/`
+- **290+ composants** dans `src/components/`
 
 Pour le detail complet : [docs/architecture/data-flow.md](docs/architecture/data-flow.md)
 
@@ -94,7 +94,7 @@ app/interventions/
 | Composant reutilisable | `src/components/<category>/` |
 | Composant UI (shadcn) | `src/components/ui/` |
 | Hook custom | `src/hooks/` |
-| Module API | `src/lib/api/v2/` |
+| Module API | `src/lib/api/` |
 | Types / Interfaces | `src/types/` |
 | Store Zustand | `src/stores/` |
 | Context React | `src/contexts/` |
@@ -223,8 +223,8 @@ describe('NomDuModule', () => {
 ### Pattern ErrorHandler
 
 ```typescript
-// src/lib/api/v2/common/error-handler.ts
-import { safeErrorMessage } from '@/lib/api/v2/common/error-handler'
+// src/lib/api/common/error-handler.ts
+import { safeErrorMessage } from '@/lib/api/common/error-handler'
 
 // En dev : message detaille complet
 // En prod : message generique securise "Erreur lors de <context>"
@@ -283,20 +283,20 @@ const mutation = useMutation({
 
 ### Regles fondamentales
 
-1. **Toujours passer par API v2** : `src/lib/api/v2/`
+1. **Toujours passer par la couche API** : `src/lib/api/`
 2. **Jamais Supabase direct dans les composants** : utiliser les modules API
 3. **Query keys centralisees** dans `src/lib/react-query/queryKeys.ts`
-4. **Facade principale** : `import { interventionsApi, artisansApi } from '@/lib/api/v2'`
+4. **Facade principale** : `import { interventionsApi, artisansApi } from '@/lib/api'`
 
 ### Pattern d'utilisation
 
 ```typescript
-// BON : via le hook + API v2
+// BON : via le hook + API
 import { useInterventionsQuery } from '@/hooks/useInterventionsQuery'
 const { data, isLoading } = useInterventionsQuery(params)
 
-// BON : mutation via API v2
-import { interventionsApi } from '@/lib/api/v2'
+// BON : mutation via API
+import { interventionsApi } from '@/lib/api'
 await interventionsApi.create(data)
 
 // MAUVAIS : Supabase direct dans un composant
@@ -336,14 +336,14 @@ Ces fichiers sont au coeur du systeme. Toute modification necessite des tests et
 
 | Fichier | Tests requis | Documentation |
 |---------|-------------|---------------|
-| `src/lib/api/v2/interventions/*.ts` | 80%+ | `docs/api-reference/interventions.md` |
+| `src/lib/api/interventions/*.ts` | 80%+ | `docs/api-reference/interventions.md` |
 | `src/lib/workflow/` | 100% | `docs/architecture/workflow-engine.md` |
 | `src/lib/realtime/cache-sync*.ts` | 80%+ | `docs/architecture/data-flow.md` |
 | `src/hooks/useInterventionsQuery.ts` | 80%+ | `docs/api-reference/query-keys.md` |
 | `src/hooks/usePermissions.ts` | 80%+ | `docs/architecture/auth-and-security.md` |
 | `src/hooks/useInterventionForm.ts` | 80%+ | `docs/guides/adding-a-feature.md` |
 | `src/hooks/useInterventionViews.ts` | 80%+ | `docs/components/intervention-components.md` |
-| `src/lib/api/v2/common/cache.ts` | 80%+ | `docs/architecture/api-layer.md` |
+| `src/lib/api/common/cache.ts` | 80%+ | `docs/architecture/api-layer.md` |
 | `supabase/functions/` | 60%+ | `docs/api-reference/edge-functions.md` |
 
 ---

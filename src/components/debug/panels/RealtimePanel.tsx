@@ -4,7 +4,7 @@ import { memo, useRef, useEffect, useState, useCallback } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { useRealtimeStats } from '@/hooks/useRealtimeStats'
-import { referenceCacheManager } from '@/lib/api/v2/common/cache'
+import { referenceCacheManager } from '@/lib/api/common/cache'
 import { interventionKeys, artisanKeys } from '@/lib/react-query/queryKeys'
 import { ChevronDown, ChevronRight, Trash2, Copy } from 'lucide-react'
 

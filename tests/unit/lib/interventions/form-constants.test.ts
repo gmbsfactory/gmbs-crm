@@ -137,15 +137,18 @@ describe("form-constants", () => {
   })
 
   describe("ARTISAN_REQUIRED_STATUS_CODES", () => {
-    it("should contain 4 status codes", () => {
-      expect(ARTISAN_REQUIRED_STATUS_CODES).toHaveLength(4)
+    it("should contain 3 status codes", () => {
+      expect(ARTISAN_REQUIRED_STATUS_CODES).toHaveLength(3)
     })
 
     it("should contain the expected codes", () => {
       expect(ARTISAN_REQUIRED_STATUS_CODES).toContain("VISITE_TECHNIQUE")
       expect(ARTISAN_REQUIRED_STATUS_CODES).toContain("INTER_EN_COURS")
       expect(ARTISAN_REQUIRED_STATUS_CODES).toContain("INTER_TERMINEE")
-      expect(ARTISAN_REQUIRED_STATUS_CODES).toContain("ATT_ACOMPTE")
+    })
+
+    it("should not require artisan for ATT_ACOMPTE", () => {
+      expect(ARTISAN_REQUIRED_STATUS_CODES).not.toContain("ATT_ACOMPTE")
     })
   })
 })

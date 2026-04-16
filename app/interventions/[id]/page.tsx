@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation"
-import { getIntervention } from "@/lib/api/interventions"
+import { getIntervention } from "@/lib/api/interventions/server"
 
 type Params = {
   params: Promise<{

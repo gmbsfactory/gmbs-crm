@@ -16,15 +16,16 @@ src/components/interventions/           # Composants réutilisables
   DuplicateInterventionDialog.tsx
   EmailEditModal.tsx
   FiltersBar.tsx
+  GestionnaireField.tsx                 # Sélecteur de gestionnaire (factorisé)
+  GestionnaireSelector.tsx
   InterventionCard.tsx
   InterventionContextMenu.tsx
-  InterventionEditForm.tsx
-  InterventionForm.tsx
+  InterventionEditForm.tsx              # Formulaire d'édition (composé de form-sections/)
   InterventionNotifications.tsx
   InterventionRealtimeProvider.tsx
   Interventions.tsx
   InterventionsKanban.tsx
-  NewInterventionForm.tsx
+  NewInterventionForm.tsx               # Formulaire de création (composé de form-sections/)
   ReminderMentionInput.tsx
   RemoteEditBadge.tsx
   ResizableTableHeader.tsx
@@ -35,8 +36,9 @@ src/components/interventions/           # Composants réutilisables
   UnsavedChangesDialog.tsx
   WorkflowAdminModal.tsx
   WorkflowVisualizer.tsx
-  filters/                              # Filtres de colonnes
-  views/                                # Vues (table, kanban, etc.)
+  filters/                              # Filtres de colonnes (+ SortControls)
+  form-sections/                        # Sections de formulaire factorisées
+  views/                                # Vues (table, kanban, etc.) + cells/
   history/                              # Historique intervention
   legacy/                               # Composants legacy
 
@@ -46,6 +48,8 @@ app/interventions/_components/          # Composants co-localisés (page-specifi
   InterventionsViewRenderer.tsx
   types.ts
 ```
+
+> **Note refacto (avril 2026)** : `InterventionForm.tsx` (monolithique) a été supprimé. `NewInterventionForm` et `InterventionEditForm` partagent désormais l'état via le hook `useInterventionFormState` et composent des sections issues de `form-sections/`.
 
 ---
 
@@ -65,15 +69,20 @@ Carte d'intervention utilisée dans les vues cards, gallery et kanban.
 
 Affiche : statut (couleur), adresse, artisan assigné, date, gestionnaire, métier.
 
-### InterventionForm.tsx / NewInterventionForm.tsx
+### NewInterventionForm.tsx
 
-Formulaires de création et d'édition d'intervention utilisant React Hook Form + Zod pour la validation.
+Formulaire de **création** d'intervention. C'est un composant fin qui :
+
+1. Initialise l'état partagé via `useInterventionFormState({ mode: "create" })`
+2. Compose les sections de `form-sections/` (header, client, owner, détails, artisan, paiement…)
+3. Délègue la persistance au hook `useInterventionSubmit`
 
 Fonctionnalités :
 - Détection automatique de doublons (adresse + agence)
-- Auto-complétion des champs adresse
-- Sélecteurs de statut, métier, agence, gestionnaire
-- Validation cumulative selon le workflow
+- Auto-complétion des champs adresse via `useGeocodeSearch`
+- Sélecteurs de statut, métier, agence, gestionnaire (factorisés en sous-composants)
+- Validation cumulative pilotée par `useInterventionValidation`
+- Brouillon persisté dans le store Zustand `interventionDraft`
 
 ### InterventionEditForm.tsx
 
@@ -92,6 +101,57 @@ Formulaire d'edition inline, utilise dans la modal d'intervention pour modifier 
 - En cas d'echec de la mutation : toast error avec bouton "Reessayer"
 - Le modal est deja ferme → l'utilisateur est informe uniquement via le toast
 - Les erreurs des taches secondaires sont isolees (chaque tache catch ses propres erreurs)
+
+---
+
+## Sections de formulaire (form-sections/)
+
+Depuis le refacto d'avril 2026, la logique des formulaires d'intervention est éclatée en sections autonomes, exportées depuis `form-sections/index.ts` :
+
+| Section | Fichier | Rôle |
+|---------|---------|------|
+| `InterventionHeaderFields` | `InterventionHeaderFields.tsx` | Référence, statut, dates principales |
+| `InterventionClientSection` | `InterventionClientSection.tsx` | Informations locataire (tenant) |
+| `InterventionOwnerSection` | `InterventionOwnerSection.tsx` | Informations propriétaire / facturation |
+| `InterventionDetailsSection` | `InterventionDetailsSection.tsx` | Métier, description, consigne |
+| `ArtisanPanel` | `ArtisanPanel.tsx` | Sélection de l'artisan principal + carte |
+| `SecondArtisanSection` | `SecondArtisanSection.tsx` | Artisan secondaire (optionnel) |
+| `PaymentSection` | `PaymentSection.tsx` | Coûts, paiements, acomptes |
+
+#### Invariant acomptes : "Reçu/Envoyé" implique une date
+
+Cocher la case "Reçu" (acompte client) ou "Envoyé" (acompte SST) auto-remplit la date de paiement avec **la date du jour (heure locale)** si elle est vide. Décocher vide la date. La date reste éditable dans tous les cas.
+
+- Logique métier centralisée dans `applyRecuToggle()` (`src/lib/interventions/deposit-helpers.ts`).
+- Édition : appliquée par `useInterventionAccomptes` avant la transition de statut et l'upsert paiement, garantissant que `is_received === true ⟺ payment_date !== null`.
+- Création : appliquée par les shims locaux de `NewInterventionForm.tsx`, qui consomment le même helper.
+- Côté statut (édition uniquement) : cocher l'acompte client → `ACCEPTE` ; décocher en `ACCEPTE` → `ATT_ACOMPTE`. L'acompte SST n'impacte pas le statut.
+| `DocumentSection` | `DocumentSection.tsx` | Documents liés (devis, facture…) |
+| `CustomStatusSection` | `CustomStatusSection.tsx` | Sous-statuts personnalisés |
+
+Chaque section reçoit l'état du formulaire en props depuis `useInterventionFormState` et reste découplée de la mécanique de submit.
+
+### GestionnaireField
+
+`GestionnaireField.tsx` est un composant factorisé partagé entre `NewInterventionForm`, `InterventionEditForm` et la modal artisan. Il encapsule la sélection (avec recherche) du gestionnaire assigné et a remplacé plusieurs implémentations dupliquées.
+
+---
+
+## Hooks de formulaire
+
+Le formulaire d'intervention est désormais piloté par trois hooks complémentaires :
+
+| Hook | Rôle |
+|------|------|
+| `useInterventionFormState` | État partagé : valeurs des champs, dirty tracking, sélection artisan, géocodage, brouillon Zustand. Mode `create` ou `edit`. |
+| `useInterventionSubmit` | Pipeline de soumission : mutation principale, owner/tenant find-or-create, post-mutation tasks, gestion d'erreur avec rollback toast. |
+| `useInterventionValidation` | Calcule dynamiquement quels champs sont requis en fonction du statut sélectionné (depuis `form-constants.ts`). |
+
+> Le hook historique `useInterventionForm` n'existe plus. Toute nouvelle section de formulaire doit consommer `useInterventionFormState` et déléguer la persistance via `useInterventionSubmit`.
+
+### Logique métier extraite
+
+Les règles de dérivation (artisans avec email, calculs intermédiaires, etc.) ont été extraites de `InterventionEditForm` vers `src/lib/interventions/derivations.ts` — fonctions pures testables en isolation. Suivre ce pattern pour toute nouvelle règle métier : extraire avant d'inclure dans un `useMemo`.
 
 ---
 
@@ -118,8 +178,33 @@ src/components/interventions/views/
   ViewTabs.tsx
   ColumnConfiguration.tsx
   ColumnConfigurationModal.tsx
+  ExpandedRowContent.tsx              # Détail dépliable d'une ligne table
   column-alignment-options.ts
+  cells/                              # Cellules réutilisables (refacto avril 2026)
+    ArtisanCell.tsx
+    AssigneeCell.tsx
+    ColorBadgeCell.tsx
+    StatusCell.tsx
+    types.ts
+    index.ts
 ```
+
+### Cellules de table (views/cells/)
+
+Les cellules complexes de la vue Table ont été extraites en composants dédiés et typés :
+
+| Cellule | Description |
+|---------|-------------|
+| `ArtisanCell` | Affichage de l'artisan assigné avec avatar et fallback |
+| `AssigneeCell` | Gestionnaire assigné (réutilise `GestionnaireField` en édition inline) |
+| `ColorBadgeCell` | Badge coloré générique (statut, métier, agence…) |
+| `StatusCell` | Cellule de statut avec sélecteur inline |
+
+Le fichier `cells/types.ts` définit les props partagées (`CellContext<Intervention>`).
+
+### ExpandedRowContent
+
+Contenu affiché lorsqu'une ligne de la `TableView` est dépliée. Présente un résumé enrichi de l'intervention sans ouvrir la modal complète.
 
 ### ViewTabs
 

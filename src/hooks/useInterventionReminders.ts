@@ -1,12 +1,11 @@
 "use client"
 
-import { useReminders } from "@/contexts/RemindersContext"
+import { useRemindersQuery } from "@/hooks/useRemindersQuery"
 
 /**
  * Hook pour gérer les reminders d'interventions
- * Wrapper autour du contexte RemindersContext pour la rétrocompatibilité
+ * Utilise TanStack Query pour le fetching, caching et les mutations
  */
 export function useInterventionReminders() {
-  return useReminders()
+  return useRemindersQuery()
 }
-

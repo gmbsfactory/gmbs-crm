@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useCallback, useEffect, useMemo } from "react"
-import { artisansApi } from "@/lib/api/v2"
+import { artisansApi } from "@/lib/api"
 import { convertArtisanFiltersToServerFilters } from "@/lib/filter-converter"
 import type { ArtisanViewFilter } from "@/hooks/useArtisanViews"
 import { ARTISAN_DOSSIER_VIEW_EXCLUDED_STATUTS } from "@/config/artisans"

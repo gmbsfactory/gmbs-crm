@@ -84,5 +84,6 @@ export type WorkflowEntityContext = {
   nomPrenomClient?: string | null
   telephoneClient?: string | null
   datePrevue?: string | Date | null
+  attachments?: Array<{ kind: string }> | null
   [key: string]: unknown
 }

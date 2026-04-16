@@ -1,7 +1,7 @@
-import { interventionsApi } from "@/lib/api/v2"
-import { commentsApi } from "@/lib/api/v2/commentsApi"
+import { interventionsApi } from "@/lib/api"
+import { commentsApi } from "@/lib/api/commentsApi"
 import type { QueryClient } from "@tanstack/react-query"
-import type { CreateCommentData } from "@/lib/api/v2/common/types"
+import type { CreateCommentData } from "@/lib/api/common/types"
 import { toast } from "sonner"
 
 export interface PostMutationCost {

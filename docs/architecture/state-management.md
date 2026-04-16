@@ -25,6 +25,7 @@ graph TD
     subgraph "Etat UI global"
         B[Zustand]
         B1[useSettings - sidebar, theme]
+        B2[useInterventionDraftStore - brouillon formulaire]
     end
 
     subgraph "Etat partage contextuel"
@@ -80,11 +81,13 @@ flowchart TD
 | Liste interventions | TanStack Query | `useInterventionsQuery` |
 | Detail intervention | TanStack Query | `interventionKeys.detail(id)` |
 | Theme, sidebar | Zustand + localStorage | `useSettings` |
+| Brouillon formulaire intervention | Zustand + localStorage | `useInterventionDraftStore` |
 | Modal ouverte, ID | URL Search Params | `?i=abc&mc=intervention` |
 | Filtres actifs | URL + TanStack Query | Params dans query key |
 | Mappers code->ID | React Context | `FilterMappersContext` |
 | Animation genie | React Context | `GenieEffectContext` |
-| Presence utilisateur | React Context | `UserStatusContext` |
+| Presence utilisateur (page-level) | TanStack Query / hook | `useEntityPresence`, `usePagePresence` |
+| Presence utilisateur (statut) | React Context | `UserStatusContext` |
 | Rappels temps reel | React Context | `RemindersContext` |
 
 ---
@@ -179,7 +182,9 @@ const updateMutation = useMutation({
 
 ## Zustand (etat UI global)
 
-Un seul store Zustand est utilise pour les preferences utilisateur :
+Deux stores Zustand sont utilises :
+
+### `useSettings` — preferences utilisateur
 
 ```typescript
 // src/stores/settings.ts
@@ -205,6 +210,27 @@ export const useSettings = create<SettingsState>((set) => ({
 ### Persistance
 
 Le store n'utilise pas le middleware `persist` de Zustand. A la place, une methode `hydrate()` est appelee manuellement au montage de l'application, lisant `localStorage('gmbs:settings')` et `localStorage('color-mode')` avec fallback.
+
+### `useInterventionDraftStore` — brouillon de formulaire
+
+> Source : `src/stores/interventionDraft.ts`
+
+Store dedie a la persistance des brouillons de creation/edition d'intervention. Ajoute lors du refacto formulaire (avril 2026) pour permettre :
+
+- La reprise d'un formulaire de creation interrompu (cle `NEW_INTERVENTION_DRAFT_KEY`)
+- L'isolation des brouillons par intervention en mode edition
+- Un round-trip rapide entre la modal artisan et le formulaire principal sans perdre la saisie
+
+```typescript
+// src/stores/interventionDraft.ts
+import { useInterventionDraftStore, NEW_INTERVENTION_DRAFT_KEY } from "@/stores/interventionDraft"
+
+const draft = useInterventionDraftStore((s) => s.getDraft(key))
+const setDraft = useInterventionDraftStore((s) => s.setDraft)
+const clearDraft = useInterventionDraftStore((s) => s.clearDraft)
+```
+
+Consomme exclusivement par `useInterventionFormState`. Les composants ne doivent **pas** lire/ecrire ce store directement — passer par le hook.
 
 ---
 

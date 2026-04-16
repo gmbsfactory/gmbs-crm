@@ -617,6 +617,17 @@ Contrairement au canal `crm-sync` qui passe par la leader election, les canaux d
 - **Deduplication** — un utilisateur avec plusieurs onglets sur la meme intervention n'apparait qu'une fois
 - **Degradation gracieuse** — si la presence echoue, le modal fonctionne normalement
 
+### Limites Supabase Realtime (Presence)
+
+| Limite | Valeur | Source |
+|--------|--------|--------|
+| **Messages Presence / seconde** | **2 500 events/s** (par projet) | Supabase Realtime quotas |
+| Connexions simultanees (Free) | 200 | Plan Free |
+| `track()` throttle (notre code) | 1 000 ms min entre appels | `useEntityPresence.ts` |
+| Canaux Presence concurrents max | 3 (entity) + 1 (page) = **4** | `MAX_CONCURRENT_PRESENCE` |
+
+> **Calcul d'usage typique** : 10 utilisateurs × 1 track/s (throttle 1000ms) × 4 canaux = ~40 events/s — largement sous la limite de 2 500/s. Le risque apparait si le throttle est contourne ou si le nombre d'utilisateurs depasse ~200 simultanement.
+
 ### Cout en connexions
 
 Borne par « nombre de modals ouverts simultanement × utilisateurs » — typiquement 5-10 connexions supplementaires, bien en dessous de la limite du plan Free (200 connexions, ~30 actuellement utilisees).
@@ -647,7 +658,9 @@ Voir [docs/maintenance/monitoring.md](../maintenance/monitoring.md#detection-din
 
 ```text
 src/types/presence.ts                                        # Types PresenceUser, PagePresenceUser (avec isIdle)
-src/hooks/useInterventionPresence.ts                         # Gestion du canal Presence par intervention (modal)
+src/hooks/useEntityPresence.ts                               # Hook generique Presence (throttle, reconnection, editor lock)
+src/hooks/useInterventionPresence.ts                         # Wrapper → useEntityPresence('intervention', id)
+src/hooks/useArtisanPresence.ts                              # Wrapper → useEntityPresence('artisan', id)
 src/hooks/usePagePresence.ts                                 # Gestion du canal Presence page-level (isIdle inclus)
 src/hooks/useIdleDetector.ts                                 # Detection d'inactivite (timeout + Page Visibility API)
 src/hooks/useActivityTracker.ts                              # Tracking sessions avec pause/resume idle

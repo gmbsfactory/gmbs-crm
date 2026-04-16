@@ -122,12 +122,33 @@ Vue détail d'un artisan avec :
 
 ### NewArtisanModalContent.tsx
 
-Formulaire de création d'artisan avec :
-- Champs de base (nom, prénom, raison sociale, SIRET)
-- Vérification SIRET via API INSEE (`useSiretVerification`)
-- Sélection métiers (multi-select)
-- Sélection zones (multi-select)
-- Assignation gestionnaire
+Formulaire de création d'artisan. Depuis le refacto d'avril 2026, c'est un composant fin qui compose des champs autonomes issus de `artisan-modal/_components/` (voir section suivante) :
+- Champs de base (nom, prénom, raison sociale)
+- `SiretField` — saisie + vérification SIRET via API INSEE
+- `IbanField` — saisie + validation IBAN
+- `AddressField` — saisie avec auto-complétion géocodage
+- `MetiersPicker` — sélection multi-métiers
+- `StatusPicker` — sélection du statut artisan
+- `GestionnaireAssignee` — assignation du gestionnaire
+
+---
+
+## Champs factorisés (artisan-modal/_components/)
+
+Le refacto d'avril 2026 a éclaté les anciens formulaires monolithiques en sous-composants autonomes, exportés depuis `src/components/ui/artisan-modal/_components/`. Chaque champ encapsule sa propre validation et son rendu, et est réutilisable entre `NewArtisanModalContent` et `ArtisanModalContent`.
+
+| Composant | Rôle |
+|-----------|------|
+| `AddressField` | Saisie d'adresse avec autocomplétion via `useGeocodeSearch` |
+| `IbanField` | Saisie IBAN avec validation (`src/lib/iban-validation.ts`) |
+| `SiretField` | Saisie SIRET avec vérification INSEE et préremplissage |
+| `MetiersPicker` | Multi-select des métiers depuis les enums de référence |
+| `StatusPicker` | Sélecteur de statut artisan (Candidat / Validé / Expert…) |
+| `GestionnaireAssignee` | Sélecteur du gestionnaire assigné (utilise le pattern `GestionnaireField`) |
+| `PendingAbsencesSection` | Section d'affichage et gestion des absences en attente |
+| `DeletedArtisanDialog` | Dialogue affiché si l'artisan est en soft-delete (recovery) |
+
+> **Règle :** toute nouvelle saisie/champ dans la modal artisan doit être ajoutée comme composant autonome dans `_components/`, **pas** inlinée dans `NewArtisanModalContent` ou `ArtisanModalContent`. La logique de validation correspondante va dans `src/lib/<domain>-validation.ts` (cf. `iban-validation`, `siret-validation`).
 
 ### ArtisanFinancesSection.tsx
 

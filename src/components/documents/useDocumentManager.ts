@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-import { documentsApi } from "@/lib/api/v2";
+import { documentsApi } from "@/lib/api";
 import {
   useDocumentUpload,
   type DocumentUploaderInfo,

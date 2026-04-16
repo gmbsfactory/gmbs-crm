@@ -5,7 +5,7 @@ import { Bar, BarChart, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { TrendingUp } from "lucide-react"
 import { useReferenceDataQuery } from "@/hooks/useReferenceDataQuery"
-import type { Intervention } from "@/lib/api/v2/common/types"
+import type { Intervention } from "@/lib/api/common/types"
 
 type ArtisanFinancesSectionProps = {
   interventions: Intervention[]

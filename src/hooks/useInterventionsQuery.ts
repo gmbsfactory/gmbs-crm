@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo } from "react"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
-import { interventionsApi, type InterventionQueryParams } from "@/lib/api/v2"
+import { interventionsApi, type InterventionQueryParams } from "@/lib/api"
 import type { InterventionView } from "@/types/intervention-view"
 import { interventionKeys } from "@/lib/react-query/queryKeys"
 import { getPreloadConfig } from "@/lib/device-capabilities"
@@ -10,7 +10,7 @@ type GetAllParams = InterventionQueryParams
 
 type ServerFilters = Pick<
   GetAllParams,
-  "statut" | "agence" | "artisan" | "metier" | "user" | "startDate" | "endDate" | "isCheck" | "search"
+  "statut" | "agence" | "artisan" | "metier" | "user" | "startDate" | "endDate" | "isCheck" | "search" | "sortBy" | "sortDir"
 >
 
 export interface UseInterventionsQueryOptions {
@@ -39,9 +39,6 @@ export interface UseInterventionsQueryReturn {
   currentPage: number
   totalPages: number
   refresh: () => Promise<void>
-  goToPage: (page: number) => void
-  nextPage: () => void
-  previousPage: () => void
   updateInterventionOptimistic: (id: string, updates: Partial<InterventionView>) => void
 }
 
@@ -194,14 +191,7 @@ export function useInterventionsQuery(
   // IMPORTANT: Toujours créer un nouveau tableau pour forcer la détection de changement par React
   // En production, React Query peut réutiliser la même référence même si les données changent
   const interventions = useMemo(() => {
-    const result = data?.data ?? []
-    // Créer un nouveau tableau pour forcer la détection de changement
-    const newArray = [...result] as InterventionView[]
-    const firstId = newArray[0]?.id ?? 'none'
-    const lastId = newArray[newArray.length - 1]?.id ?? 'none'
-    if (process.env.NODE_ENV !== 'production') {
-    }
-    return newArray
+    return [...(data?.data ?? [])] as InterventionView[]
   }, [data?.data])
   const totalCount = useMemo(() => data?.pagination?.total ?? 0, [data?.pagination?.total])
 
@@ -214,20 +204,6 @@ export function useInterventionsQuery(
   const refresh = useCallback(async () => {
     await refetch()
   }, [refetch])
-
-  // Navigation de pagination (sera gérée par le composant parent via le paramètre page)
-  const goToPage = useCallback((newPage: number) => {
-    // Cette fonction sera gérée par le composant parent qui contrôle le paramètre page
-    console.warn("[useInterventionsQuery] goToPage doit être géré par le composant parent via le paramètre page")
-  }, [])
-
-  const nextPage = useCallback(() => {
-    console.warn("[useInterventionsQuery] nextPage doit être géré par le composant parent via le paramètre page")
-  }, [])
-
-  const previousPage = useCallback(() => {
-    console.warn("[useInterventionsQuery] previousPage doit être géré par le composant parent via le paramètre page")
-  }, [])
 
   // Extraire les valeurs primitives pour des dépendances stables
   const isLowEnd = preloadConfig.isLowEnd
@@ -322,9 +298,6 @@ export function useInterventionsQuery(
     currentPage: page,
     totalPages,
     refresh,
-    goToPage,
-    nextPage,
-    previousPage,
     updateInterventionOptimistic,
   }
 }

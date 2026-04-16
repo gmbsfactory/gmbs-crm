@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef } from "react"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
-import { interventionsApi } from "@/lib/api/v2"
-import { comptaApi, type FacturationEntriesResult } from "@/lib/api/compta"
+import { interventionsApi, comptaApi, type FacturationEntriesResult } from "@/lib/api"
 import { comptabiliteKeys, type ComptabiliteQueryParams } from "@/lib/react-query/queryKeys"
 import { getPreloadConfig } from "@/lib/device-capabilities"
 import { supabase } from "@/lib/supabase-client"
@@ -285,6 +284,54 @@ export function useComptabiliteQuery(options: UseComptabiliteQueryOptions) {
     }
   }, [queryKey, queryClient])
 
+  // ── Exclusion de lignes ──
+
+  const excludeFromCompta = useCallback(async (interventionId: string) => {
+    // Optimistic: retirer la ligne du cache
+    queryClient.setQueryData<ComptabiliteData>(queryKey, (old) => {
+      if (!old) return old
+      return {
+        ...old,
+        interventions: old.interventions.filter((i) => i.id !== interventionId),
+        totalCount: old.totalCount - 1,
+      }
+    })
+
+    const success = await comptaApi.exclude(interventionId)
+
+    if (!success) {
+      // Rollback : invalider pour recharger les vraies données
+      queryClient.invalidateQueries({ queryKey: comptabiliteKeys.all })
+    }
+
+    return success
+  }, [queryKey, queryClient])
+
+  const bulkExclude = useCallback(async (ids: string[]) => {
+    if (ids.length === 0) return
+
+    const idsSet = new Set(ids)
+
+    // Optimistic: retirer les lignes du cache
+    queryClient.setQueryData<ComptabiliteData>(queryKey, (old) => {
+      if (!old) return old
+      return {
+        ...old,
+        interventions: old.interventions.filter((i) => !idsSet.has(i.id)),
+        totalCount: old.totalCount - ids.length,
+      }
+    })
+
+    const results = await Promise.all(
+      ids.map((id) => comptaApi.exclude(id))
+    )
+
+    const hasFailures = results.some((r) => !r)
+    if (hasFailures) {
+      queryClient.invalidateQueries({ queryKey: comptabiliteKeys.all })
+    }
+  }, [queryKey, queryClient])
+
   // Refresh complet
   const refresh = useCallback(async () => {
     await refetch()
@@ -310,6 +357,8 @@ export function useComptabiliteQuery(options: UseComptabiliteQueryOptions) {
     // Actions
     toggleComptaCheck,
     bulkCheck,
+    excludeFromCompta,
+    bulkExclude,
     refresh,
   }
 }

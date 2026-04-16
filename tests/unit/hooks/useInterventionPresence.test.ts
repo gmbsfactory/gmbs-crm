@@ -399,7 +399,7 @@ describe('useInterventionPresence', () => {
 
       act(() => { result.current.trackField('coutSST') })
 
-      await act(async () => { await vi.advanceTimersByTimeAsync(350) })
+      await act(async () => { await vi.advanceTimersByTimeAsync(1050) })
 
       expect(mocks.mockChannel.track).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -419,6 +419,9 @@ describe('useInterventionPresence', () => {
       mocks.mockChannel.track.mockClear()
 
       act(() => { result.current.clearField() })
+
+      // clearField flushes, but respects minimum throttle interval — advance past it
+      await act(async () => { await vi.advanceTimersByTimeAsync(1050) })
 
       expect(mocks.mockChannel.track).toHaveBeenCalledWith(
         expect.objectContaining({

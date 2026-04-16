@@ -2,7 +2,7 @@
 
 import { QueryClient } from "@tanstack/react-query"
 import { interventionKeys, artisanKeys, dashboardKeys, comptabiliteKeys, referenceKeys, type ArtisanGetAllParams, type ComptabiliteQueryParams } from "@/lib/react-query/queryKeys"
-import { interventionsApi, artisansApi, type InterventionQueryParams } from "@/lib/api/v2"
+import { interventionsApi, artisansApi, type InterventionQueryParams } from "@/lib/api"
 import { fetchComptabiliteData } from "@/hooks/useComptabiliteQuery"
 
 // Alias pour compatibilité

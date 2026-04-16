@@ -57,7 +57,7 @@ export function useSmartFilters() {
   // Options de filtres pour les composants UI
   const filterOptions = useMemo(() => ({
     statuts: referenceData?.interventionStatuses.map(s => ({ value: s.code, label: s.label })) || [],
-    agences: referenceData?.agencies.map(a => ({ value: a.code, label: a.label })) || [],
+    agences: referenceData?.agencies.filter(a => a.is_active).map(a => ({ value: a.code, label: a.label })) || [],
     users: referenceData?.users.map(u => ({ value: u.code_gestionnaire, label: `${u.firstname} ${u.lastname}` })) || [],
   }), [referenceData]);
 

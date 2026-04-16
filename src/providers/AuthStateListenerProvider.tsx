@@ -5,7 +5,7 @@ import { useQueryClient } from "@tanstack/react-query"
 import { supabase } from "@/lib/supabase-client"
 import { preloadCriticalDataAsync } from "@/lib/preload-critical-data"
 import { resetPreloadFlag } from "@/lib/preload-flag"
-import { resetPublicUserIdCache } from "@/lib/api/v2/reminders"
+import { resetPublicUserIdCache } from "@/lib/api/remindersApi"
 import { useCurrentUser } from "@/hooks/useCurrentUser"
 import { getLocalDateString } from "@/lib/date-utils"
 

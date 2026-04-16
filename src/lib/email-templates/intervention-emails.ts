@@ -40,6 +40,11 @@ export interface EmailTemplateData {
   coutSST?: string;
   commentaire?: string;
   idIntervention?: string;
+  isVacant?: boolean;
+  keyCode?: string;
+  floor?: string;
+  apartmentNumber?: string;
+  vacantHousingInstructions?: string;
 }
 
 /**
@@ -62,7 +67,7 @@ function formatDateToFrench(dateStr: string | undefined): string {
 /**
  * Applies default values for optional fields
  */
-function applyDefaults(data: EmailTemplateData): Required<Omit<EmailTemplateData, 'nomClient' | 'telephoneClient' | 'adresse'>> & Pick<EmailTemplateData, 'nomClient' | 'telephoneClient' | 'adresse'> {
+function applyDefaults(data: EmailTemplateData) {
   return {
     nomClient: data.nomClient || '',
     telephoneClient: data.telephoneClient || '',
@@ -73,7 +78,75 @@ function applyDefaults(data: EmailTemplateData): Required<Omit<EmailTemplateData
     coutSST: data.coutSST || 'Non spécifié',
     commentaire: data.commentaire || '',
     idIntervention: data.idIntervention || '',
+    isVacant: data.isVacant || false,
+    keyCode: data.keyCode || '',
+    floor: data.floor || '',
+    apartmentNumber: data.apartmentNumber || '',
+    vacantHousingInstructions: data.vacantHousingInstructions || '',
   };
+}
+
+/**
+ * Generates the HTML block for client or vacant housing information
+ */
+function renderClientInfoHtml(d: ReturnType<typeof applyDefaults>): string {
+  if (d.isVacant) {
+    const details = [
+      d.keyCode ? `<strong>Code clé :</strong> ${escapeHtml(d.keyCode)}` : '',
+      d.floor ? `<strong>Étage :</strong> ${escapeHtml(d.floor)}` : '',
+      d.apartmentNumber ? `<strong>N° appart. :</strong> ${escapeHtml(d.apartmentNumber)}` : '',
+    ].filter(Boolean);
+
+    return `
+              <p style="margin: 8px 0; color: #333333; font-size: 14px; line-height: 1.6;">
+                <strong>🏠 Logement vacant</strong>
+              </p>
+              ${details.length > 0 ? `
+              <p style="margin: 8px 0; color: #333333; font-size: 14px; line-height: 1.6;">
+                ${details.join(' &nbsp;|&nbsp; ')}
+              </p>` : ''}
+              <p style="margin: 8px 0; color: #333333; font-size: 14px; line-height: 1.6;">
+                <strong>Adresse :</strong> ${escapeHtml(d.adresse)}
+              </p>
+              ${d.vacantHousingInstructions ? `
+              <p style="margin: 8px 0 30px 0; color: #333333; font-size: 14px; line-height: 1.6;">
+                <strong>Consignes d'accès :</strong> ${escapeHtml(d.vacantHousingInstructions)}
+              </p>` : `
+              <p style="margin: 8px 0 30px 0;"></p>`}`;
+  }
+
+  return `
+              <p style="margin: 8px 0; color: #333333; font-size: 14px; line-height: 1.6;">
+                <strong>Client :</strong> ${escapeHtml(d.nomClient)}
+              </p>
+              <p style="margin: 8px 0; color: #333333; font-size: 14px; line-height: 1.6;">
+                <strong>Téléphone :</strong> ${escapeHtml(d.telephoneClient)}
+                ${d.telephoneClient2 ? `<br /><strong>Téléphone 2 :</strong> ${escapeHtml(d.telephoneClient2)}` : ''}
+              </p>
+              <p style="margin: 8px 0 30px 0; color: #333333; font-size: 14px; line-height: 1.6;">
+                <strong>Adresse :</strong> ${escapeHtml(d.adresse)}
+              </p>`;
+}
+
+/**
+ * Generates the plain text block for client or vacant housing information
+ */
+function renderClientInfoText(d: ReturnType<typeof applyDefaults>): string {
+  if (d.isVacant) {
+    let text = `Logement vacant\n`;
+    if (d.keyCode) text += `Code cle : ${d.keyCode}\n`;
+    if (d.floor) text += `Etage : ${d.floor}\n`;
+    if (d.apartmentNumber) text += `N appart. : ${d.apartmentNumber}\n`;
+    text += `Adresse : ${d.adresse}`;
+    if (d.vacantHousingInstructions) text += `\nConsignes d'acces : ${d.vacantHousingInstructions}`;
+    return text;
+  }
+
+  let text = `Client : ${d.nomClient}\n`;
+  text += `Telephone : ${d.telephoneClient}`;
+  if (d.telephoneClient2) text += `\nTelephone 2 : ${d.telephoneClient2}`;
+  text += `\nAdresse : ${d.adresse}`;
+  return text;
 }
 
 /**
@@ -111,18 +184,9 @@ export function generateDevisEmailTemplate(data: EmailTemplateData): string {
                 Merci d'effectuer une visite technique avant le <strong>${escapeHtml(d.datePrevue)}</strong> :
               </p>
               
-              <!-- Client Information -->
-              <p style="margin: 8px 0; color: #333333; font-size: 14px; line-height: 1.6;">
-                <strong>Client :</strong> ${escapeHtml(d.nomClient)}
-              </p>
-              <p style="margin: 8px 0; color: #333333; font-size: 14px; line-height: 1.6;">
-                <strong>Téléphone :</strong> ${escapeHtml(d.telephoneClient)}
-                ${d.telephoneClient2 ? `<br /><strong>Téléphone 2 :</strong> ${escapeHtml(d.telephoneClient2)}` : ''}
-              </p>
-              <p style="margin: 8px 0 30px 0; color: #333333; font-size: 14px; line-height: 1.6;">
-                <strong>Adresse :</strong> ${escapeHtml(d.adresse)}
-              </p>
-              
+              <!-- Client / Logement Information -->
+              ${renderClientInfoHtml(d)}
+
               <!-- Consignes de visite technique -->
               <p style="margin: 20px 0 10px 0; color: #333333; font-size: 16px; font-weight: bold; line-height: 1.6;">
                 🛠 CONSIGNES DE VISITE TECHNIQUE :
@@ -230,18 +294,9 @@ export function generateInterventionEmailTemplate(data: EmailTemplateData): stri
                 Merci d'intervenir dès que possible, avant le <strong>${escapeHtml(d.datePrevue)}</strong>, pour le client suivant :
               </p>
               
-              <!-- Client Information -->
-              <p style="margin: 8px 0; color: #333333; font-size: 14px; line-height: 1.6;">
-                <strong>Client :</strong> ${escapeHtml(d.nomClient)}
-              </p>
-              <p style="margin: 8px 0; color: #333333; font-size: 14px; line-height: 1.6;">
-                <strong>Téléphone :</strong> ${escapeHtml(d.telephoneClient)}
-                ${d.telephoneClient2 ? `<br /><strong>Téléphone 2 :</strong> ${escapeHtml(d.telephoneClient2)}` : ''}
-              </p>
-              <p style="margin: 8px 0 30px 0; color: #333333; font-size: 14px; line-height: 1.6;">
-                <strong>Adresse :</strong> ${escapeHtml(d.adresse)}
-              </p>
-              
+              <!-- Client / Logement Information -->
+              ${renderClientInfoHtml(d)}
+
               <!-- Consignes d'intervention -->
               <p style="margin: 20px 0 10px 0; color: #333333; font-size: 16px; font-weight: bold; line-height: 1.6;">
                 🛠 CONSIGNES D'INTERVENTION :
@@ -351,12 +406,13 @@ function escapeHtml(text: string): string {
 export function validateRequiredFields(data: EmailTemplateData): { valid: boolean; missing: string[] } {
   const missing: string[] = [];
 
-  if (!data.nomClient || data.nomClient.trim().length === 0) {
-    missing.push('nomClient');
-  }
-
-  if (!data.telephoneClient || data.telephoneClient.trim().length === 0) {
-    missing.push('telephoneClient');
+  if (!data.isVacant) {
+    if (!data.nomClient || data.nomClient.trim().length === 0) {
+      missing.push('nomClient');
+    }
+    if (!data.telephoneClient || data.telephoneClient.trim().length === 0) {
+      missing.push('telephoneClient');
+    }
   }
 
   if (!data.adresse || data.adresse.trim().length === 0) {
@@ -378,13 +434,8 @@ export function generateDevisWhatsAppText(data: EmailTemplateData): string {
   let message = `Bonjour,\n\n`;
   message += `Merci d'effectuer une visite technique avant le ${d.datePrevue} :\n\n`;
 
-  // Client Information
-  message += `Client : ${d.nomClient}\n`;
-  message += `Telephone : ${d.telephoneClient}`;
-  if (d.telephoneClient2) {
-    message += `\nTelephone 2 : ${d.telephoneClient2}`;
-  }
-  message += `\nAdresse : ${d.adresse}\n\n`;
+  // Client / Logement Information
+  message += renderClientInfoText(d) + `\n\n`;
 
   // Consignes de visite technique
   message += `--- CONSIGNES DE VISITE TECHNIQUE ---\n`;
@@ -425,13 +476,8 @@ export function generateInterventionWhatsAppText(data: EmailTemplateData): strin
   let message = `Bonjour,\n\n`;
   message += `Merci d'intervenir dès que possible, avant le ${d.datePrevue}, pour le client suivant :\n\n`;
 
-  // Client Information
-  message += `Client : ${d.nomClient}\n`;
-  message += `Telephone : ${d.telephoneClient}`;
-  if (d.telephoneClient2) {
-    message += `\nTelephone 2 : ${d.telephoneClient2}`;
-  }
-  message += `\nAdresse : ${d.adresse}\n\n`;
+  // Client / Logement Information
+  message += renderClientInfoText(d) + `\n\n`;
 
   // Consignes d'intervention
   message += `--- CONSIGNES D'INTERVENTION ---\n`;

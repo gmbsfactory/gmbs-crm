@@ -79,6 +79,11 @@ vi.mock("@/hooks/useFormDataChanges", () => ({
   useFormDataChanges: () => false,
 }))
 
+const EMPTY_ABSENT_SET = new Set<string>()
+vi.mock("@/hooks/useArtisanAbsences", () => ({
+  useArtisanAbsences: () => EMPTY_ABSENT_SET,
+}))
+
 const mockOpenArtisanModal = vi.fn()
 const mockArtisanModalResult = { open: mockOpenArtisanModal }
 vi.mock("@/hooks/useArtisanModal", () => ({
@@ -443,16 +448,16 @@ describe("useInterventionFormState", () => {
     })
   })
 
-  describe("handleOpenDevisEmailModal", () => {
+  describe("openEmailModal", () => {
     it("should show error when no artisan selected", () => {
       const { result } = renderHook(() => useInterventionFormState(defaultOptions))
 
       act(() => {
-        result.current.handleOpenDevisEmailModal()
+        result.current.openEmailModal('devis')
       })
 
       expect(vi.mocked(toast.error)).toHaveBeenCalledWith('Veuillez sélectionner un artisan')
-      expect(result.current.isDevisEmailModalOpen).toBe(false)
+      expect(result.current.emailModalState).toBeNull()
     })
   })
 

@@ -1,5 +1,5 @@
 import type { ViewFilter } from "@/types/intervention-views"
-import type { InterventionQueryParams } from "@/lib/api/v2"
+import type { InterventionQueryParams } from "@/lib/api"
 import type { ArtisanGetAllParams } from "@/lib/react-query/queryKeys"
 
 // Alias pour compatibilité

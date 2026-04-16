@@ -16,13 +16,14 @@ import {
 import { cn } from "@/lib/utils"
 import { getPropertyValue } from "@/lib/query-engine"
 import type { ColumnFilterProps, FilterOption } from "./types"
+import { SortControls } from "./SortControls"
 import type { ViewFilter } from "@/types/intervention-views"
 import type { InterventionView as InterventionEntity } from "@/types/intervention-view"
 import { formatFilterSummary } from "./filter-utils"
 import { useFilterCounts } from "@/hooks/useFilterCounts"
-import { agenciesApi } from "@/lib/api/v2/agenciesApi"
-import { metiersApi } from "@/lib/api/v2/metiersApi"
-import { interventionsApi } from "@/lib/api/v2/interventionsApi"
+import { agenciesApi } from "@/lib/api/agenciesApi"
+import { metiersApi } from "@/lib/api/metiersApi"
+import { interventionsApi } from "@/lib/api/interventionsApi"
 
 const makeValueKey = (value: unknown): string => {
   if (value === null || value === undefined) return "null"
@@ -147,6 +148,8 @@ export function SelectColumnFilter({
   loadDistinctValues,
   onFilterChange,
   baseFilters,
+  sorts,
+  onSortChange,
 }: ColumnFilterProps) {
   const [open, setOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
@@ -462,6 +465,7 @@ export function SelectColumnFilter({
       <DropdownMenuContent side="bottom" align="start" className="w-72">
         <div className="space-y-3 p-2">
           <div className="text-sm font-semibold text-foreground">Filtrer par {schema.label}</div>
+          <SortControls property={property} label={schema.label} sortable={schema.sortable} sorts={sorts} onSortChange={onSortChange} />
           <div className="space-y-2">
             <div className="relative">
               <Search className="absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />

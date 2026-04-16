@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import path from 'path';
-import { requirePermission, isPermissionError } from "@/lib/api/permissions"
+import { requirePermission, isPermissionError } from "@/lib/auth/permissions"
 
 const execAsync = promisify(exec);
 

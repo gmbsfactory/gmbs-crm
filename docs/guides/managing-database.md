@@ -92,7 +92,7 @@ supabase/migrations/
   00082_touch_intervention_on_child_change.sql
 ```
 
-**82 migrations** au total, executees dans l'ordre numerique.
+**115 migrations** au total, executees dans l'ordre numerique.
 
 ### Exemples de migrations recentes
 

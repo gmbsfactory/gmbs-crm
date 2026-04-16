@@ -87,7 +87,7 @@ src/lib/api/v2/
 └── search-utils.ts
 ```
 
-**Total : 29 modules, ~50 methodes pour les interventions seules.**
+**Total : ~22 modules, ~50 methodes pour les interventions seules.** (Inclut les nouveaux `analyticsApi.ts`, `artisanStatusesApi.ts`, `interventionStatusesApi.ts`, `updatesApi.ts`.)
 
 ---
 

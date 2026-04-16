@@ -1,8 +1,8 @@
 "use client"
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { documentsApi } from "@/lib/api/v2/documentsApi"
-import type { InterventionAttachment, ArtisanAttachment } from "@/lib/api/v2/common/types"
+import { documentsApi } from "@/lib/api/documentsApi"
+import type { InterventionAttachment, ArtisanAttachment } from "@/lib/api/common/types"
 import { documentKeys } from "@/lib/react-query/queryKeys"
 import { toast } from "sonner"
 

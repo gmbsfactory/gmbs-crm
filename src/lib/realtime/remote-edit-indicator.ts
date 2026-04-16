@@ -3,7 +3,7 @@
  * Affiche des badges overlay lorsque d'autres utilisateurs modifient des interventions
  */
 
-import type { Intervention } from '@/lib/api/v2/common/types'
+import type { Intervention } from '@/lib/api/common/types'
 
 /**
  * Interface pour un indicateur de modification distante

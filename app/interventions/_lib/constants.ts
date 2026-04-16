@@ -16,7 +16,6 @@ import {
 
 import type { InterventionStatusValue } from "@/types/interventions"
 import type { ViewLayout, TableRowDensity } from "@/types/intervention-views"
-import type { SortField } from "@/components/interventions/FiltersBar"
 import type { WorkflowConfig } from "@/types/intervention-workflow"
 import { WORKFLOW_EVENT_KEY } from "@/hooks/useWorkflowConfig"
 
@@ -92,25 +91,6 @@ export const DEFAULT_STATUS_VALUES: InterventionStatusValue[] = [
   "ANNULE",
   "ATT_ACOMPTE",
 ]
-
-// ---------------------------------------------------------------------------
-// Sort mapping
-// ---------------------------------------------------------------------------
-export const SORT_FIELD_TO_PROPERTY: Record<SortField, string> = {
-  cree: "date",
-  echeance: "dateIntervention",
-  marge: "marge",
-}
-
-export const PROPERTY_TO_SORT_FIELD: Record<string, SortField> = Object.entries(
-  SORT_FIELD_TO_PROPERTY,
-).reduce(
-  (acc, [field, property]) => {
-    acc[property] = field as SortField
-    return acc
-  },
-  {} as Record<string, SortField>,
-)
 
 // ---------------------------------------------------------------------------
 // Managed filter keys

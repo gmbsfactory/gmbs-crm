@@ -1,10 +1,8 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useMemo } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { interventionsApi } from "@/lib/api/v2"
-import { useCurrentUser } from "@/hooks/useCurrentUser"
-import type { InterventionStatsByStatus } from "@/lib/api/v2"
+import { useDashboardStats } from "@/hooks/useDashboardStats"
 import Loader from "@/components/ui/Loader"
 
 interface InterventionStatsCardsProps {
@@ -15,62 +13,20 @@ interface InterventionStatsCardsProps {
 }
 
 export function InterventionStatsCards({ period }: InterventionStatsCardsProps) {
-  const [stats, setStats] = useState<InterventionStatsByStatus | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-
-  // Utiliser le hook centralisé useCurrentUser au lieu d'un fetch direct
-  const { data: currentUser, isLoading: userLoading } = useCurrentUser()
-  const userId = currentUser?.id ?? null
-
-  // Charger les statistiques une fois l'utilisateur chargé
-  useEffect(() => {
-    if (userLoading) return
-    if (!userId) {
-      setLoading(false)
-      return
+  // Calculer les dates (mois en cours par défaut si non fournies)
+  const resolvedPeriod = useMemo(() => {
+    const startDate = period?.startDate
+    const endDate = period?.endDate
+    if (startDate && endDate) return { startDate, endDate }
+    const now = new Date()
+    return {
+      startDate: startDate || new Date(now.getFullYear(), now.getMonth(), 1).toISOString(),
+      endDate: endDate || new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59).toISOString(),
     }
+  }, [period?.startDate, period?.endDate])
 
-    let cancelled = false
-
-    const loadStats = async () => {
-      try {
-        setLoading(true)
-        setError(null)
-
-        // Calculer les dates si non fournies (mois en cours par défaut)
-        let startDate = period?.startDate
-        let endDate = period?.endDate
-
-        if (!startDate || !endDate) {
-          const now = new Date()
-          const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
-          const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59)
-
-          startDate = startDate || startOfMonth.toISOString()
-          endDate = endDate || endOfMonth.toISOString()
-        }
-
-        const statsData = await interventionsApi.getStatsByUser(userId, startDate, endDate)
-
-        if (!cancelled) {
-          setStats(statsData)
-          setLoading(false)
-        }
-      } catch (err: any) {
-        if (!cancelled) {
-          setError(err.message || "Erreur lors du chargement des statistiques")
-          setLoading(false)
-        }
-      }
-    }
-
-    loadStats()
-
-    return () => {
-      cancelled = true
-    }
-  }, [userId, userLoading, period?.startDate, period?.endDate])
+  const { data: stats, isLoading: loading, error: queryError } = useDashboardStats(resolvedPeriod)
+  const error = queryError ? (queryError as Error).message || "Erreur lors du chargement des statistiques" : null
 
   // Fonction helper pour chercher plusieurs variantes de labels
   const getStatusCount = (labels: string[]): number => {
@@ -146,8 +102,8 @@ export function InterventionStatsCards({ period }: InterventionStatsCardsProps) 
     )
   }
 
-  // Si pas d'utilisateur
-  if (!userId) {
+  // Si pas de données et pas en chargement (utilisateur non connecté)
+  if (!loading && !stats && !error) {
     return (
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
         <Card className="col-span-full">

@@ -3,7 +3,7 @@ import { createSSRServerClient } from '@/lib/supabase/server-ssr';
 import { decryptPassword } from '@/lib/utils/encryption';
 import { sendEmailToArtisan, validateGmailEmail } from '@/lib/services/email-service';
 import { generateInvitationEmailTemplate, generateInvitationEmailSubject } from '@/lib/email-templates/invitation-email';
-import { requirePermission, isPermissionError } from '@/lib/api/permissions';
+import { requirePermission, isPermissionError } from '@/lib/auth/permissions';
 
 export const runtime = 'nodejs';
 

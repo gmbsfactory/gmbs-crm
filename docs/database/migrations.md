@@ -8,7 +8,7 @@
 
 Le projet utilise le système de migrations de **Supabase CLI**. Les fichiers SQL se trouvent dans `supabase/migrations/` et sont exécutés séquentiellement par ordre de nom de fichier.
 
-**Total actuel : 86 migrations** (00001 a 00086, avec quelques numéros manquants).
+**Total actuel : 115 migrations** — séquence historique `00001`–`00086` (avec quelques trous) plus la séquence `99001`–`99024` introduite en 2026 (voir section dédiée plus bas).
 
 ---
 
@@ -192,6 +192,30 @@ Ajouts progressifs de fonctionnalités : champs artisan, audit, sous-statuts, co
 | `00086_fix_intervention_costs_duplicates.sql` | Correction des doublons dans `intervention_costs` + contrainte UNIQUE |
 
 > La migration 00086 corrige un bug ou `addCost()` utilisait `artisan_order=1` par defaut pour tous les types de couts, tandis que `upsertCostsBatch()` utilisait `artisan_order=NULL` pour les types `intervention` et `marge`. Ce mismatch creait des doublons silencieux qui faussaient les totaux dans `intervention_costs_cache` (SUM incluant les doublons). La migration normalise `artisan_order` a NULL pour les types `intervention`/`marge`, supprime les doublons (garde la ligne la plus recente), ajoute une contrainte UNIQUE `(intervention_id, cost_type, COALESCE(artisan_order, 0))`, et recalcule le cache.
+
+### Migrations 99xxx (numérotation parallèle)
+
+À partir de 2026, les nouvelles migrations utilisent une **numérotation 99xxx** pour éviter les collisions avec les commits parallèles sur plusieurs branches. Elles s'exécutent toutes après la séquence 000xx grâce au tri lexicographique.
+
+| Migration | Description |
+|-----------|-------------|
+| `99014_password_reset_tokens.sql` | Table de tokens pour la réinitialisation de mot de passe |
+| `99015_recalculate_null_dossier_status.sql` | Recalcul des `statut_dossier` à NULL pour les artisans existants |
+| `99016_compta_checks_realtime.sql` | Activation Realtime sur `intervention_compta_checks` |
+| `99017_artisan_telephone_unique.sql` | Contrainte d'unicité sur le téléphone artisan |
+| `99018_rpc_get_public_tables.sql` | RPC d'introspection : liste des tables publiques (utilisée par le dashboard dev) |
+| `99019_attachments_updated_at.sql` | Ajout/correction du trigger `updated_at` sur `attachments` |
+| `99020_protect_expert_confirme_from_downgrade.sql` | Empêche un artisan `EXPERT_CONFIRME` d'être rétrogradé via update |
+| `99021_search_add_owner_email_and_plain_noms.sql` | Étend la recherche full-text aux emails owner et aux versions "plain" des noms |
+| `99022_rpc_get_sorted_intervention_ids.sql` | RPC retournant les IDs d'interventions triés selon les filtres serveur (pagination par ID) |
+| `99023_intervention_compta_exclusions.sql` | Table d'exclusions comptables : interventions à exclure de la vue compta |
+| `99024_hybrid_search_global.sql` | Recherche hybride globale (renommage / consolidation de l'ancienne `99018_hybrid_search_global`) |
+
+> **99022 — pagination par ID** : ce RPC est consommé par `useInterventionsQuery` pour résoudre l'ordre stable des interventions côté serveur, évitant les sauts de pagination quand les données mutent en temps réel pendant le scroll.
+>
+> **99023 — exclusions compta** : table consultée par `useComptabiliteQuery` (`include: ["owner", …]`) pour cacher de la vue Comptabilité les interventions explicitement marquées comme à exclure.
+>
+> **99024 — recherche hybride** : combine la recherche trigramme (`pg_trgm`) et la recherche full-text sur les entités globales (interventions + artisans + clients). Renomme et remplace la migration `99018_hybrid_search_global` historique (cf. commit `feat : rename hybrid search`).
 
 ---
 

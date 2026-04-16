@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { artisansApi } from "@/lib/api/v2"
-import type { ArtisanStatsByStatus } from "@/lib/api/v2"
+import { artisansApi } from "@/lib/api"
+import type { ArtisanStatsByStatus } from "@/lib/api"
 import { useCurrentUser } from "@/hooks/useCurrentUser"
 import { FileText, Plus } from "lucide-react"
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card"

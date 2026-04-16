@@ -5,7 +5,7 @@
  * des artisans provenant de différentes sources (NearbyArtisan, ArtisanSearchResult, etc.)
  */
 
-import type { NearbyArtisan } from "@/lib/api/v2/common/types"
+import type { NearbyArtisan } from "@/lib/api/common/types"
 
 /**
  * Résultat de recherche d'artisan (défini ici pour éviter un import circulaire

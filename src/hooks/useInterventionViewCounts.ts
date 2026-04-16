@@ -1,9 +1,9 @@
 import { useMemo } from "react"
 import { useQueries, useQueryClient } from "@tanstack/react-query"
 import { interventionKeys, dashboardKeys } from "@/lib/react-query/queryKeys"
-import { safeErrorMessage } from "@/lib/api/v2/common/error-handler"
+import { safeErrorMessage } from "@/lib/api/common/error-handler"
 import type { InterventionViewDefinition } from "@/types/intervention-views"
-import { interventionsApi, type InterventionQueryParams } from "@/lib/api/v2"
+import { interventionsApi, type InterventionQueryParams } from "@/lib/api"
 import { getTierQueryOptions } from "@/config/freshness-tiers"
 
 // T3 Freshness: background polling 30s for view counters

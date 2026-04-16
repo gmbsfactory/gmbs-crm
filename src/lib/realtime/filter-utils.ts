@@ -3,7 +3,7 @@
  * Permet de déterminer si une intervention correspond aux filtres d'une vue
  */
 
-import type { Intervention, InterventionQueryParams } from '@/lib/api/v2'
+import type { Intervention, InterventionQueryParams } from '@/lib/api'
 
 // Alias pour compatibilité
 type GetAllParams = InterventionQueryParams

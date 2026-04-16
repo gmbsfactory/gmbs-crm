@@ -80,7 +80,7 @@ vi.mock('@/lib/supabase-admin', () => ({
   },
 }))
 
-vi.mock('@/lib/api/permissions', () => ({
+vi.mock('@/lib/auth/permissions', () => ({
   requirePermission: vi.fn().mockResolvedValue({ user: { id: 'admin-id' } }),
   isPermissionError: vi.fn().mockReturnValue(false),
 }))

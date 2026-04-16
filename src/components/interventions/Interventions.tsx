@@ -9,7 +9,7 @@ import { mapStatusFromDb, mapStatusToDb } from "@/lib/interventions/mappers"
 import useInterventionModal from "@/hooks/useInterventionModal"
 import type { InterventionStatusValue } from "@/types/interventions"
 import type { InterventionView } from "@/types/intervention-view"
-import type { Intervention as SupabaseIntervention } from "@/lib/api/v2"
+import type { Intervention as SupabaseIntervention } from "@/lib/api"
 
 type ScrollDirection = "left" | "right" | null
 

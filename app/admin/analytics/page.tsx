@@ -24,7 +24,7 @@ export default function AdminAnalyticsPage() {
                     {error && (
                         <div className="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-md">
                             <p className="font-semibold">Erreur lors du chargement des données</p>
-                            <p className="text-sm mt-1">{error}</p>
+                            <p className="text-sm mt-1">{error.message}</p>
                         </div>
                     )}
 

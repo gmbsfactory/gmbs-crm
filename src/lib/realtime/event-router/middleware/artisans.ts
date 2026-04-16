@@ -3,7 +3,7 @@
  * No optimistic updates, no enrichment, no conflict detection.
  */
 
-import type { Artisan } from '@/lib/api/v2/common/types'
+import type { Artisan } from '@/lib/api/common/types'
 import type { CrmEvent, SyncContext } from '@/lib/realtime/event-router/types'
 import { artisanKeys } from '@/lib/react-query/queryKeys'
 import { createPipeline } from '@/lib/realtime/event-router/pipeline'

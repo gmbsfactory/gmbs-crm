@@ -19,7 +19,7 @@ import {
   mapInterventionRecord,
   mapArtisanRecord,
   chunkArray,
-} from '@/lib/api/v2/common/utils'
+} from '@/lib/api/common/utils'
 
 describe('common/utils', () => {
   describe('getSupabaseFunctionsUrl', () => {

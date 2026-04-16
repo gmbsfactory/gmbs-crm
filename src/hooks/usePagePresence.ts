@@ -279,10 +279,10 @@ export function usePagePresence(
 
       console.log(`[PagePresence] Subscribing to ${CHANNEL_NAME}`)
 
+      // Only listen to 'sync' — Supabase fires it after every join/leave,
+      // so separate join/leave handlers would double-trigger handleSync.
       channel
         .on('presence', { event: 'sync' }, handleSync)
-        .on('presence', { event: 'join' }, () => handleSync())
-        .on('presence', { event: 'leave' }, () => handleSync())
         .subscribe(async (status: string) => {
           if (cancelled || !mountedRef.current) return
 

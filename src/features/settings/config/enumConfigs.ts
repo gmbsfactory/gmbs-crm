@@ -1,8 +1,35 @@
-import { agenciesApi } from '@/lib/api/v2/agenciesApi';
-import { metiersApi } from '@/lib/api/v2/metiersApi';
-import { interventionStatusesApi } from '@/lib/api/v2/interventionStatusesApi';
+import { agenciesApi, type Agency } from '@/lib/api/agenciesApi';
+import { metiersApi, type Metier } from '@/lib/api/metiersApi';
+import { interventionStatusesApi, type InterventionStatus } from '@/lib/api/interventionStatusesApi';
 
 export type EntityType = 'agencies' | 'metiers' | 'intervention-statuses';
+
+export type EnumItem = Agency | Metier | InterventionStatus;
+
+export type EnumFieldValue = string | number | boolean | null | undefined;
+
+export type EnumFormData = Record<string, EnumFieldValue>;
+
+export const getEnumFieldValue = (
+  item: EnumItem | EnumFormData | null | undefined,
+  name: string,
+): EnumFieldValue => {
+  if (!item) return undefined;
+  return (item as Record<string, EnumFieldValue>)[name];
+};
+
+/**
+ * Generic adapter shape used by the settings UI to drive any enum CRUD table.
+ * Each concrete API module (agenciesApi, metiersApi, …) is cast to this at the
+ * config boundary below — that single cast is the type-erasure point between
+ * the strongly-typed API layer and the generic UI driver.
+ */
+export interface EnumApiClient {
+  getAll(params?: { includeInactive?: boolean }): Promise<EnumItem[]>;
+  create?(data: EnumFormData): Promise<EnumItem>;
+  update(id: string, data: EnumFormData): Promise<EnumItem | void>;
+  delete?(id: string): Promise<void>;
+}
 
 export interface FieldConfig {
   name: string;
@@ -21,7 +48,7 @@ export interface EnumConfig {
   canCreate: boolean;
   canDelete: boolean;
   fields: FieldConfig[];
-  api: any; // API client (agenciesApi, metiersApi, etc.)
+  api: EnumApiClient;
 }
 
 export const ENUM_CONFIGS: Record<EntityType, EnumConfig> = {
@@ -37,7 +64,7 @@ export const ENUM_CONFIGS: Record<EntityType, EnumConfig> = {
       { name: 'color', label: 'Couleur', type: 'color', editable: true },
       { name: 'requires_reference', label: 'Réf. agence requise', type: 'checkbox', editable: true, inlineToggle: true },
     ],
-    api: agenciesApi,
+    api: agenciesApi as unknown as EnumApiClient,
   },
   'metiers': {
     type: 'metiers',
@@ -51,7 +78,7 @@ export const ENUM_CONFIGS: Record<EntityType, EnumConfig> = {
       { name: 'description', label: 'Description', type: 'textarea', editable: true },
       { name: 'color', label: 'Couleur', type: 'color', editable: true },
     ],
-    api: metiersApi,
+    api: metiersApi as unknown as EnumApiClient,
   },
   'intervention-statuses': {
     type: 'intervention-statuses',
@@ -64,6 +91,6 @@ export const ENUM_CONFIGS: Record<EntityType, EnumConfig> = {
       { name: 'label', label: 'Label', type: 'text', editable: true, required: true },
       { name: 'color', label: 'Couleur', type: 'color', editable: true },
     ],
-    api: interventionStatusesApi,
+    api: interventionStatusesApi as unknown as EnumApiClient,
   },
 };
