@@ -50,10 +50,10 @@ export function AppSidebar() {
                 <Button
                   variant={isActive ? "secondary" : "ghost"}
                   className={cn(
-                    "w-full gap-3",
-                    sidebarMode === "expanded" && "justify-start",
-                    sidebarMode === "hybrid" && "justify-start",
-                    sidebarMode === "collapsed" && "justify-center",
+                    "gap-3",
+                    sidebarMode === "expanded" && "w-full justify-start",
+                    sidebarMode === "hybrid" && "w-12 group-hover/sidebar:w-full justify-start",
+                    sidebarMode === "collapsed" && "w-full justify-center",
                     isActive && "bg-secondary"
                   )}
                 >
