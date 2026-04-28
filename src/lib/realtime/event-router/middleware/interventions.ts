@@ -8,7 +8,7 @@
 import type { Intervention } from '@/lib/api/common/types'
 import type { CrmEvent, SyncContext, SyncMiddleware } from '@/lib/realtime/event-router/types'
 import { STOP } from '@/lib/realtime/event-router/types'
-import { interventionKeys } from '@/lib/react-query/queryKeys'
+import { interventionKeys, comptabiliteKeys } from '@/lib/react-query/queryKeys'
 import { enrichRealtimeRecord, getReferenceCache } from '@/lib/realtime/cache-sync/enrichment'
 import {
   handleInsert,
@@ -256,6 +256,36 @@ export const refreshCountsIfNeeded: SyncMiddleware<Intervention> = (event, ctx) 
   }
 }
 
+// ─── Middleware 8: Invalidate Comptabilite If INTER_TERMINEE Crossing ──────────
+
+/**
+ * The comptabilite page lists only interventions whose current status is
+ * INTER_TERMINEE. So we only need to invalidate its cache when an intervention
+ * enters or leaves that status.
+ */
+export const invalidateComptabiliteIfTerminee: SyncMiddleware<Intervention> = async (event, ctx) => {
+  const refs = await getReferenceCache()
+
+  const isTerminee = (statutId: string | null | undefined): boolean => {
+    if (!statutId) return false
+    return refs.interventionStatusesById.get(statutId)?.code === 'INTER_TERMINEE'
+  }
+
+  let shouldInvalidate = false
+
+  if (event.eventType === 'INSERT' && event.record) {
+    shouldInvalidate = isTerminee(event.record.statut_id)
+  } else if (event.eventType === 'DELETE' && event.previousRecord) {
+    shouldInvalidate = isTerminee(event.previousRecord.statut_id)
+  } else if (event.eventType === 'UPDATE' && event.previousRecord && event.record) {
+    shouldInvalidate = isTerminee(event.previousRecord.statut_id) !== isTerminee(event.record.statut_id)
+  }
+
+  if (shouldInvalidate) {
+    ctx.queryClient.invalidateQueries({ queryKey: comptabiliteKeys.all })
+  }
+}
+
 // ─── Composed Pipeline ─────────────────────────────────────────────────────────
 
 /**
@@ -270,6 +300,7 @@ export const interventionPipeline = createPipeline<Intervention>(
   detectConflictsAndIndicators,
   bridgeDetailCache,
   refreshCountsIfNeeded,
+  invalidateComptabiliteIfTerminee,
   createBroadcastMiddleware<Intervention>(() => [
     interventionKeys.invalidateLists(),
     interventionKeys.invalidateLightLists(),
