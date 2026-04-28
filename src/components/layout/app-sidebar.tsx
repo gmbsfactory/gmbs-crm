@@ -33,9 +33,9 @@ export function AppSidebar() {
       aria-label="Application Sidebar"
     >
       <nav className={cn(
-        "flex-1 space-y-1 pr-5 py-10 rounded-r-lg border-r bg-background transition-[padding] duration-200 ease-out",
+        "flex-1 space-y-1 pr-5 py-10 rounded-r-lg border-r bg-background",
         sidebarMode === "expanded" && "pl-7",
-        sidebarMode === "hybrid" && "pl-9 group-hover/sidebar:pl-7",
+        sidebarMode === "hybrid" && "pl-7",
         sidebarMode === "collapsed" && "pl-9"
       )}>
         {navigation.map((item, idx) => {
@@ -52,7 +52,7 @@ export function AppSidebar() {
                   className={cn(
                     "w-full gap-3",
                     sidebarMode === "expanded" && "justify-start",
-                    sidebarMode === "hybrid" && "justify-center group-hover/sidebar:justify-start",
+                    sidebarMode === "hybrid" && "justify-start",
                     sidebarMode === "collapsed" && "justify-center",
                     isActive && "bg-secondary"
                   )}
