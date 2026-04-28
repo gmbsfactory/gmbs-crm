@@ -126,7 +126,7 @@ export function useComptabiliteQuery(options: UseComptabiliteQueryOptions) {
     staleTime: preloadConfig.staleTime,
     gcTime: preloadConfig.gcTime,
     refetchOnWindowFocus: false,
-    refetchOnMount: false,
+    refetchOnMount: true,
     placeholderData: (previousData) => previousData,
     structuralSharing: false,
   })
