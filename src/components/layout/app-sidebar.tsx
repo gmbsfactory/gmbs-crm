@@ -23,7 +23,7 @@ export function AppSidebar() {
   return (
     <div
       className={cn(
-        "relative group/sidebar flex flex-col bg-transparent transition-[width] duration-200 ease-out",
+        "relative group/sidebar flex flex-col bg-transparent overflow-hidden transition-[width] duration-200 ease-out",
         sidebarMode === "expanded" ? "w-72" : "w-20",
         // Hybrid expands only on hover (not focus) to avoid sticking open after click
         expandOnHover && "hover:w-72"
@@ -34,7 +34,9 @@ export function AppSidebar() {
     >
       <nav className={cn(
         "flex-1 space-y-1 pr-5 py-10 rounded-r-lg border-r bg-background",
-        sidebarMode === "collapsed" ? "pl-9" : "pl-7"
+        sidebarMode === "expanded" && "pl-7",
+        sidebarMode === "hybrid" && "pl-7",
+        sidebarMode === "collapsed" && "pl-9"
       )}>
         {navigation.map((item, idx) => {
           if (item.type === "spacer") {
@@ -48,19 +50,19 @@ export function AppSidebar() {
                 <Button
                   variant={isActive ? "secondary" : "ghost"}
                   className={cn(
-                    "w-full gap-3",
-                    sidebarMode === "expanded" && "justify-start",
-                    sidebarMode === "hybrid" && "justify-start",
-                    sidebarMode === "collapsed" && "justify-center",
+                    "gap-3",
+                    sidebarMode === "expanded" && "w-full justify-start",
+                    sidebarMode === "hybrid" && "w-12 group-hover/sidebar:w-full justify-start",
+                    sidebarMode === "collapsed" && "w-full justify-center",
                     isActive && "bg-secondary"
                   )}
                 >
                   <Icon className="h-4 w-4 shrink-0" />
                   <span
                     className={cn(
-                      "text-sm transition-opacity duration-200",
-                      sidebarMode === "expanded" ? "opacity-100" : "opacity-0",
-                      sidebarMode === "hybrid" && "group-hover/sidebar:opacity-100",
+                      "text-sm",
+                      sidebarMode === "expanded" && "opacity-100",
+                      sidebarMode === "hybrid" && "hidden group-hover/sidebar:inline",
                       sidebarMode === "collapsed" && "hidden"
                     )}
                   >
