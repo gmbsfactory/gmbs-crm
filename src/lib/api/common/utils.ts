@@ -392,7 +392,7 @@ export const mapInterventionRecord = (item: any, refs: any): any => {
       calculatedCosts.total_marge ??
       item.marge ??
       null,
-    agence: agency?.label ?? item.agence ?? item.agence_id ?? null,
+    agence: agency?.label ?? null,
     agenceLabel: agency?.label ?? null,
     agenceCode: agency?.code ?? null,
     agenceColor: agency?.color ?? null,

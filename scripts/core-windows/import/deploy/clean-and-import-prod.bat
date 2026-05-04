@@ -20,6 +20,8 @@ set NODE_ENV=production
 REM Appeler le script Node.js avec les paramètres
 npx tsx scripts\data\imports\deploy\deliver-prod.js --import-start-date=01/01/2026
 
+pause
+
 REM Vérifier le code de sortie
 if !ERRORLEVEL! neq 0 (
   echo.

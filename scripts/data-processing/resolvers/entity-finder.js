@@ -1,6 +1,6 @@
 'use strict';
 
-const { artisansApi } = require('../../../src/lib/api/v2');
+const { artisansApi } = require('../../../src/lib/api');
 const { createClient } = require('@supabase/supabase-js');
 
 class EntityFinder {
@@ -13,7 +13,7 @@ class EntityFinder {
   }
 
   async findOrCreateTenant(tenantInfo) {
-    const { tenantsApi } = require('../../../src/lib/api/v2');
+    const { tenantsApi } = require('../../../src/lib/api');
 
     if (!tenantInfo.email && !tenantInfo.telephone) {
       console.log('⚠️ Tenant sans email ni téléphone, impossible de créer');
@@ -57,7 +57,7 @@ class EntityFinder {
   }
 
   async findOrCreateOwner(ownerInfo) {
-    const { ownersApi } = require('../../../src/lib/api/v2');
+    const { ownersApi } = require('../../../src/lib/api');
 
     if (!ownerInfo.telephone) {
       console.log('⚠️ Owner sans téléphone, impossible de créer');

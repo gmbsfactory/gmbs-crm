@@ -144,7 +144,7 @@ export function GestionnaireRankingPodium({ period, useAutoPeriod = false }: Ges
               onCheckedChange={(checked) => setSortBy(checked ? 'count' : 'margin')}
             />
             <Label htmlFor="sort-switch" className="text-sm text-muted-foreground cursor-pointer">
-              Nb Inter
+              Nb Inter Terminée
             </Label>
           </div>
         </div>

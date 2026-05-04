@@ -96,7 +96,7 @@ class ImportV2TestSuite {
 
   async testApiImports() {
     await this.runTest('API Imports', async () => {
-      const { usersApi, interventionsApi, artisansApi, clientsApi } = require('../../../src/lib/api/v2');
+      const { usersApi, interventionsApi, artisansApi, clientsApi } = require('../../../src/lib/api');
       
       if (!usersApi) {
         throw new Error('usersApi not imported');
@@ -118,7 +118,7 @@ class ImportV2TestSuite {
 
   async testApiCompatibility() {
     await this.runTest('API Compatibility', async () => {
-      const { usersApiV2, interventionsApiV2, artisansApiV2 } = require('../../../src/lib/api/v2');
+      const { usersApiV2, interventionsApiV2, artisansApiV2 } = require('../../../src/lib/api');
       
       if (!usersApiV2) {
         throw new Error('usersApiV2 alias not available');

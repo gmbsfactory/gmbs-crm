@@ -811,7 +811,7 @@ async function main() {
   // Charger l'API v2 via import() dynamique (compatible tsx v4+)
   try {
     const { pathToFileURL } = await import('url');
-    const apiV2Path = pathToFileURL(path.resolve(__dirname, '../../../../src/lib/api/v2/index.ts'));
+    const apiV2Path = pathToFileURL(path.resolve(__dirname, '../../../../src/lib/api/index.ts'));
     const apiV2Raw = await import(apiV2Path);
     // Gestion interop ESM/CJS : tsx peut wrapper les named exports sous .default en mode CJS
     const apiV2 = apiV2Raw.default || apiV2Raw;
@@ -823,7 +823,7 @@ async function main() {
     }
 
     // Charger le module client Supabase pour la déduplication
-    const clientPath = pathToFileURL(path.resolve(__dirname, '../../../../src/lib/api/v2/common/client.ts'));
+    const clientPath = pathToFileURL(path.resolve(__dirname, '../../../../src/lib/api/common/client.ts'));
     const clientModule = await import(clientPath);
     const clientExports = clientModule.default || clientModule;
     getSupabaseClientForNode = clientExports.getSupabaseClientForNode;

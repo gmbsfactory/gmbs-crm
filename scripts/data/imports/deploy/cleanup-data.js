@@ -277,7 +277,7 @@ if (require.main === module) {
     console.log(`  📁 Env chargé : ${envFile}`);
   }
 
-  const { getSupabaseClientForNode } = require('../../../../src/lib/api/v2/common/client');
+  const { getSupabaseClientForNode } = require('../../../../src/lib/api/common/client');
   const verbose = process.argv.includes('--verbose');
 
   function ask(question) {

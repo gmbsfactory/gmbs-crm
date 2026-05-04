@@ -42,7 +42,6 @@ export const WORKFLOW_RULES: Record<InterventionStatusValue, WorkflowRule> = {
   },
   DEVIS_ENVOYE: {
     requirements: {
-      devisId: true,
       nomPrenomFacturation: true,
       assignedUser: true,
     },
@@ -92,7 +91,7 @@ export const WORKFLOW_RULES: Record<InterventionStatusValue, WorkflowRule> = {
     autoActions: [],
   },
   ATT_ACOMPTE: {
-    requirements: { devisId: true },
+    requirements: {},
     autoActions: [],
   },
   POTENTIEL: {

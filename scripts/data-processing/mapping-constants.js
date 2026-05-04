@@ -89,9 +89,9 @@ const GESTIONNAIRE_CODE_MAP = {
   "n": "metehan",
 
   // default affected to this user
-  "p": "harold",
-  "t": "harold",
-  "s": "harold",
+  "p": "harold.p.2kak",
+  "t": "harold.p.2kak",
+  "s": "harold.p.2kak",
 
   // from artisan sheet
   "metehan": "metehan",
@@ -103,7 +103,13 @@ const GESTIONNAIRE_CODE_MAP = {
   "lucien": "soufian",
   "olivier": "yazid",
   "adam": "adam",
-  "admin": "admin",
+
+  "admin": "harold.p.2kak",
+  "soulaimane": "harold.p.2kak",
+  "tom": "harold.p.2kak",
+  "killian": "harold.p.2kak",
+  "paul": "harold.p.2kak",
+  "samuel": "harold.p.2kak",
 
 
   // === VALEURS ABERRANTES (ignorer) ===

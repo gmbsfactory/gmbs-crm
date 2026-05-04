@@ -1,6 +1,6 @@
-# Spec — Podium mensuel cumulé avec rafraîchissement hebdo
+# Spec — Podium mensuel avec rafraîchissement hebdo et débordement
 
-**Statut :** Draft — en attente de validation
+**Statut :** Validé
 **Date :** 2026-04-14
 **Contexte :** GMBS-CRM, dashboard Podium gestionnaires (`#17`)
 
@@ -8,171 +8,235 @@
 
 ## 1. Objectif
 
-Le podium agrège les performances des gestionnaires sur **le mois en cours**, mais
-ne se recalcule pas en continu : il est figé entre deux **rafraîchissements
-hebdomadaires** qui ont lieu chaque vendredi à 16h.
+Le podium agrège les performances des gestionnaires sur un **"mois podium"**,
+qui ne correspond **pas** exactement au mois calendaire : il commence et se
+termine sur un **vendredi 16h**, pour rester aligné avec le rythme des
+rafraîchissements hebdomadaires.
 
-Au passage d'un mois à l'autre, le podium repart à zéro : la fenêtre cumulée du
-nouveau mois commence le 1er du mois.
+Entre deux vendredis 16h, les valeurs affichées sont **figées** (snapshots
+uniquement, jamais de live).
+
+Au passage d'un mois podium à l'autre, le podium repart **immédiatement à zéro**.
 
 ---
 
-## 2. Définition de la fenêtre `[period_start, period_end]`
+## 2. Définition formelle
+
+### 2.1 Ancre de mois
+
+Pour un mois calendaire `M` (ex: avril 2026), on définit :
+
+> `anchor(M)` = **le premier vendredi 16h qui tombe le 1er de M ou après**.
+
+Exemples pour 2026 :
+- `anchor(mars)` = vendredi 6 mars 16h (1er mars = dimanche)
+- `anchor(avril)` = vendredi 3 avril 16h (1er avril = mercredi)
+- `anchor(mai)` = vendredi 1er mai 16h (1er mai = vendredi)
+- `anchor(juin)` = vendredi 5 juin 16h (1er juin = lundi)
+
+### 2.2 Période podium courante
 
 Soit `now` l'instant courant.
 
-- **`period_start`** = `00:00` du **1er jour du mois calendaire courant**.
-- **`period_end`** = le **dernier vendredi 16h** ≤ `now`, **borné** au mois courant.
+- **`period_start`** = la dernière ancre ≤ `now`.
+- **`period_end`** = le dernier vendredi 16h ≤ `now` (toujours ≥ `period_start`).
+- **Période fermante** = la prochaine ancre > `now` = `anchor(M_suivant)`. Elle
+  n'est pas stockée, mais elle définit l'instant du prochain reset.
 
-> "Borné au mois courant" = si le dernier vendredi 16h ≤ `now` est dans le
-> mois précédent, alors `period_end = period_start` (podium vide en attendant
-> le premier rafraîchissement du nouveau mois).
+### 2.3 Reset
 
-### Conséquence directe
-
-Le podium n'est mis à jour qu'aux instants suivants :
-1. **Vendredi 16h** : `period_end` avance d'une semaine (cumul de la semaine ajouté).
-2. **1er du mois à 00:00** : `period_start` passe au nouveau mois, `period_end`
-   se replie sur `period_start` (podium remis à zéro jusqu'au prochain vendredi).
-
-Entre deux rafraîchissements, la fenêtre est **figée** : un job qui se termine
-le mardi n'apparaît dans le podium que le vendredi suivant à 16h.
+À l'instant `anchor(M+1)` exactement :
+1. Un snapshot final du mois M est calculé et archivé dans `podium_periods`.
+2. `period_start` bascule sur `anchor(M+1)`.
+3. `period_end` bascule sur `anchor(M+1)` également → podium vide jusqu'au
+   vendredi suivant.
 
 ---
 
-## 3. Cas limites
+## 3. Exemple complet : avril 2026
 
-### 3.1 Premier vendredi du mois
+| Date / heure | `period_start` | `period_end` | Ce qu'affiche le podium |
+|---|---|---|---|
+| 2 avril (jeu) | 6 mars 16h | 27 mars 16h | Cumul mars, snapshot du 27 mars |
+| 3 avril 15h59 (ven) | 6 mars 16h | 27 mars 16h | Idem, encore en "mois mars" |
+| **3 avril 16h00** | **3 avril 16h** | **3 avril 16h** | **Reset → podium vide** |
+| 4 avril (sam) | 3 avril 16h | 3 avril 16h | Vide |
+| 10 avril 16h (ven) | 3 avril 16h | 10 avril 16h | 1 semaine d'avril |
+| 17 avril 16h | 3 avril 16h | 17 avril 16h | 2 semaines |
+| 24 avril 16h | 3 avril 16h | 24 avril 16h | 3 semaines |
+| 30 avril (jeu) | 3 avril 16h | 24 avril 16h | Idem, pas de nouveau snapshot |
+| 1er mai 15h59 (ven) | 3 avril 16h | 24 avril 16h | **Avril quasi complet** (encore visible) |
+| **1er mai 16h00** | **1er mai 16h** | **1er mai 16h** | **Reset → mai vide** |
 
-- Mois M débute un mardi (1er M).
-- Mardi 1er → vendredi 4 à 15h59 : `period_start = 1er`, `period_end = 1er`
-  (podium vide, message "En attente du premier rafraîchissement").
-- Vendredi 4 à 16h : `period_end = vendredi 4 16h`. Le podium affiche les
-  interventions terminées entre le 1er 00h et le vendredi 4 16h.
-
-### 3.2 Mois à 5 vendredis
-
-Pas de cas particulier. Chaque vendredi 16h ≤ `now` dans le mois courant
-incrémente `period_end`.
-
-### 3.3 Transition de mois en milieu de semaine
-
-- Mois M se termine un mercredi (dernier jour M = mercredi).
-- Vendredi de la semaine précédente (dans M) à 16h : dernier rafraîchissement
-  de M, `period_end = ce vendredi 16h`.
-- Mercredi 23h59 → jeudi 1er M+1 00h : `period_start` bascule au 1er M+1,
-  `period_end` = `period_start` (podium M+1 vide).
-- Vendredi suivant 16h : premier rafraîchissement de M+1.
-
-> **Conséquence acceptée :** les interventions terminées entre le dernier
-> vendredi 16h de M et la fin de M ne sont **jamais affichées** dans le podium
-> de M (elles arrivent trop tard dans le mois). Elles ne sont pas non plus dans
-> M+1 (elles sont hors période). **À valider — voir Q1.**
-
-### 3.4 Mois qui commence un vendredi
-
-- 1er M = vendredi.
-- Vendredi 1er à 00h : `period_start = 1er 00h`, `period_end = 1er 00h` (vide).
-- Vendredi 1er à 16h : `period_end = 1er 16h`. Premier rafraîchissement.
+**Points clés :**
+- Le "mois d'avril podium" dure exactement `[3 avril 16h, 1er mai 16h)` = 4 semaines.
+- Aucune intervention n'est perdue : celles terminées entre le 24 et le 30 avril
+  sont incluses dans le snapshot final pris au 1er mai 16h juste avant le reset.
+- Juste après le reset (1er mai 16h01), l'utilisateur voit un podium vide.
+  Le snapshot final d'avril reste accessible via `podium_periods` (historique).
 
 ---
 
-## 4. Données affichées
+## 4. Cas limites
+
+### 4.1 Mois qui commence un vendredi
+
+- 1er M = vendredi → `anchor(M) = 1er M à 16h`.
+- 1er M 15h59 : encore dans le mois précédent (affichage de son dernier snapshot).
+- 1er M 16h00 : reset immédiat, période = `[1er M 16h, 1er M 16h]`.
+
+### 4.2 Mois avec 5 vendredis dans la période
+
+Ex: si `anchor(M)` = 2e vendredi et `anchor(M+1)` = 2e vendredi du mois suivant
+(configuration rare mais possible), la période contient 5 snapshots hebdo.
+Aucun cas particulier dans le calcul — la règle tient naturellement.
+
+### 4.3 Démarrage à froid (premier déploiement)
+
+Au premier déploiement, si `now` est entre deux vendredis, la période courante
+est correctement calculée par la règle `period_start = dernière ancre ≤ now`.
+Aucun état initial n'est requis autre que l'appel à `refresh_current_podium_period()`.
+
+---
+
+## 5. Données affichées
 
 Pour chaque gestionnaire, sur la fenêtre `[period_start, period_end]` :
 
 | Métrique | Définition |
 |---|---|
 | **Marge** | Somme `paiements - coûts` des interventions dont la **transition vers `INTER_TERMINEE`** a eu lieu dans la fenêtre. |
-| **CA** *(supprimé)* | — |
-| **Nb Inter** | Nombre d'interventions qui (a) ont **transitionné vers `INTER_TERMINEE`** dans la fenêtre **ET** (b) ont **actuellement** `status_code = 'INTER_TERMINEE'` (ie. pas re-rouvertes depuis). |
+| **Nb Inter Terminée** | Nombre d'interventions qui (a) ont **transitionné vers `INTER_TERMINEE`** dans la fenêtre **ET** (b) avaient `status_code = 'INTER_TERMINEE'` **au moment du snapshot hebdo**. Pas de recalcul en temps réel — **figé au snapshot**. |
+| ~~CA~~ | Supprimé. Le toggle UI est remplacé par Marge ↔ Nb Inter Terminée. |
 
-> **Important sur `Nb Inter`** : double critère. La transition dans la période
-> ne suffit pas — l'intervention doit toujours être en `INTER_TERMINEE` au
-> moment du calcul. Si elle a été ré-ouverte (transition vers un autre statut
-> après), elle ne compte pas.
-
----
-
-## 5. Implémentation
-
-### 5.1 SQL — `get_current_podium_period()`
-
-Réécriture complète de la fonction (migration `00048`). Pseudo-code :
-
-```sql
-v_now           := now();
-v_month_start   := date_trunc('month', v_now);
-v_last_friday   := -- dernier vendredi 16h ≤ v_now
-  CASE
-    WHEN dow(v_now) = 5 AND hour(v_now) >= 16
-      THEN date_trunc('day', v_now) + interval '16 hours'
-    ELSE date_trunc('day', v_now)
-         - interval '1 day' * ((dow(v_now) + 2) % 7)
-         + interval '16 hours'
-         - CASE WHEN dow(v_now) = 5 THEN interval '7 days' ELSE interval '0' END
-  END;
-
-v_period_start := v_month_start;
-v_period_end   := GREATEST(v_month_start, v_last_friday);
-```
-
-### 5.2 SQL — `get_podium_ranking_by_period()`
-
-Migration nouvelle (`00062_podium_count_current_status.sql`) :
-- Ajouter une CTE `currently_terminees` qui filtre `transitions_terminees`
-  sur `EXISTS (SELECT 1 FROM interventions WHERE id = ... AND status_code = 'INTER_TERMINEE')`.
-- `total_interventions` = `COUNT(DISTINCT intervention_id)` sur cette CTE.
-- **Marge / CA inchangés** : restent basés sur `transitions_terminees` (toutes
-  les transitions dans la période, même si re-rouvertes ensuite).
-
-### 5.3 Cron
-
-Job actuel `0 16 * * 5` reste valide **mais insuffisant** : il faut aussi un
-rafraîchissement au **1er du mois à 00h** pour que `period_start` bascule.
-
-Ajouter :
-```sql
-SELECT cron.schedule(
-  'refresh-podium-period-month',
-  '0 0 1 * *',  -- 1er du mois à minuit UTC
-  $$SELECT public.refresh_current_podium_period()$$
-);
-```
-
-### 5.4 Frontend
-
-- `usePodiumPeriod` : pas de changement (continue à poller `get_current_podium_period`).
-- `gestionnaire-ranking-podium.tsx` : retirer le toggle CA, garder le toggle
-  Marge ↔ Nb Inter (déjà fait dans le commit précédent).
-- `PodiumCard` / `BottomCard` : déjà adaptés.
+> **Important** : `Nb Inter Terminée` est un **snapshot figé**. Entre deux vendredis, si
+> une intervention est re-rouverte (ex: passée à `INTER_LITIGE`), la valeur
+> affichée ne change pas. Elle sera recalculée au prochain snapshot hebdo et
+> disparaîtra alors du compte.
 
 ---
 
-## 6. Tests requis
+## 6. Implémentation
+
+### 6.1 SQL — `get_current_podium_period()`
+
+Réécriture complète (remplace la fonction de la migration `00048`). Pseudo-code :
+
+```sql
+-- Calcule anchor(M) = premier vendredi 16h >= 1er de M
+CREATE OR REPLACE FUNCTION public.compute_month_anchor(p_month_start date)
+RETURNS timestamptz AS $$
+DECLARE
+  v_dow int := EXTRACT(DOW FROM p_month_start); -- 0=dim, 5=ven
+  v_days_to_friday int;
+BEGIN
+  -- Nombre de jours à ajouter pour atteindre le premier vendredi >= p_month_start
+  v_days_to_friday := (5 - v_dow + 7) % 7;
+  RETURN (p_month_start + (v_days_to_friday || ' days')::interval + interval '16 hours')
+         AT TIME ZONE 'UTC';
+END;
+$$ LANGUAGE plpgsql IMMUTABLE;
+
+CREATE OR REPLACE FUNCTION public.get_current_podium_period()
+RETURNS jsonb AS $$
+DECLARE
+  v_now timestamptz := now();
+  v_anchor_current timestamptz;
+  v_anchor_next timestamptz;
+  v_period_start timestamptz;
+  v_period_end timestamptz;
+BEGIN
+  -- Tester d'abord si l'ancre du mois courant est déjà passée
+  v_anchor_current := compute_month_anchor(date_trunc('month', v_now)::date);
+
+  IF v_now >= v_anchor_current THEN
+    v_period_start := v_anchor_current;
+  ELSE
+    -- Pas encore atteint l'ancre du mois courant : on est dans la période du mois précédent
+    v_period_start := compute_month_anchor((date_trunc('month', v_now) - interval '1 month')::date);
+  END IF;
+
+  -- period_end = dernier vendredi 16h <= now (et >= period_start)
+  v_period_end := GREATEST(
+    v_period_start,
+    -- Dernier vendredi 16h <= now
+    date_trunc('day', v_now)
+      - ((EXTRACT(DOW FROM v_now)::int + 2) % 7 || ' days')::interval
+      + interval '16 hours'
+      - CASE WHEN EXTRACT(DOW FROM v_now) = 5 AND EXTRACT(HOUR FROM v_now) < 16
+             THEN interval '7 days' ELSE interval '0' END
+  );
+
+  RETURN jsonb_build_object(
+    'period_start', v_period_start,
+    'period_end', v_period_end,
+    'is_active', true
+  );
+END;
+$$ LANGUAGE plpgsql STABLE;
+```
+
+### 6.2 SQL — `get_podium_ranking_by_period()`
+
+Migration `00062_podium_count_current_status.sql`.
+
+Changement : la métrique `total_interventions` doit compter uniquement les
+interventions actuellement en `INTER_TERMINEE`. On ajoute un filtre dans la
+CTE `gestionnaire_stats` :
+
+```sql
+-- Avant: COUNT(DISTINCT tt.intervention_id)
+-- Après:
+COUNT(DISTINCT tt.intervention_id) FILTER (
+  WHERE EXISTS (
+    SELECT 1 FROM public.interventions i
+    WHERE i.id = tt.intervention_id
+      AND i.status_code = 'INTER_TERMINEE'
+  )
+) AS total_interventions
+```
+
+Le calcul de Marge / CA reste inchangé : basé sur toutes les transitions dans
+la période, même si l'intervention a été re-rouverte ensuite.
+
+### 6.3 Cron
+
+Le cron actuel (`0 16 * * 5`) reste valide : il déclenche un rafraîchissement
+hebdomadaire qui, par construction, détectera aussi les ancres de début de mois
+(puisque toute ancre est un vendredi 16h).
+
+**Aucun nouveau cron requis.** 🎉
+
+### 6.4 Frontend
+
+- `usePodiumPeriod` : aucun changement.
+- `gestionnaire-ranking-podium.tsx` : déjà modifié (toggle Marge ↔ Nb Inter Terminée).
+- `PodiumCard` / `BottomCard` : déjà modifiés.
+
+---
+
+## 7. Tests requis
 
 | Niveau | Cas |
 |---|---|
-| Unit SQL | `get_current_podium_period` : 1er du mois lundi, 1er du mois vendredi 14h, 1er du mois vendredi 17h, milieu de mois vendredi 16h, milieu de mois mardi, dernier jour du mois mercredi |
-| Unit SQL | `get_podium_ranking_by_period` : intervention terminée puis re-rouverte (doit compter dans marge mais pas dans Nb Inter) |
-| Intégration | Hook `usePodiumPeriod` : changement de mois détecté dans l'heure |
+| Unit SQL | `compute_month_anchor` : 1er = dim / lun / ven / sam |
+| Unit SQL | `get_current_podium_period` à `now` = mi-mois, veille d'ancre 15h59, jour d'ancre 16h01, 1er du mois = vendredi 16h01 |
+| Unit SQL | `get_podium_ranking_by_period` : intervention terminée puis re-rouverte → compte dans Marge, pas dans Nb Inter Terminée |
+| Intégration | Hook `usePodiumPeriod` détecte le changement d'ancre dans l'heure suivant le cron |
 
 ---
 
-## 7. Questions ouvertes — à valider
+## 8. Migrations à créer
 
-**Q1.** Cas 3.3 : interventions terminées entre le dernier vendredi de M et
-la fin de M sont perdues. Acceptable, ou faut-il un rafraîchissement
-supplémentaire le dernier jour du mois à 23h59 ?
+1. `00062_podium_monthly_overflow.sql`
+   - `compute_month_anchor(date)` IMMUTABLE
+   - Réécrit `get_current_podium_period()`
+   - Réécrit `get_podium_ranking_by_period()` (filtre `Nb Inter Terminée` sur statut actuel)
+   - `NOTIFY pgrst, 'reload schema'`
 
-**Q2.** "Dernier vendredi 16h ≤ now borné au mois courant" — confirme : si on
-est lundi 5 mai et que le 1er mai était un jeudi, le podium est-il vide
-jusqu'au vendredi 9 mai 16h ? Ou veut-on que `period_end = now` en attendant
-le premier vendredi (podium "live" pour la première semaine) ?
+## 9. Historique des décisions
 
-**Q3.** `Nb Inter` doit-il filtrer sur le statut **actuel** au moment de la
-requête (donc change entre deux rafraîchissements si une intervention est
-re-rouverte) ? Ou être figé au moment du rafraîchissement hebdo (snapshot) ?
-
-**Q4.** Le toggle CA est-il définitivement supprimé, ou conservé en plus de
-"Nb Inter" (3 options : Marge / CA / Nb Inter) ?
+- **Q1 (perte de fin de mois)** : résolu par le débordement — plus de perte.
+- **Q2 (live vs snapshot)** : snapshots hebdo uniquement, jamais de live.
+- **Q3 (Nb Inter Terminée temps réel vs snapshot)** : snapshot hebdo uniquement.
+- **Q4 (toggle CA)** : supprimé, remplacé par Nb Inter Terminée.
