@@ -25,6 +25,7 @@ import { supabase } from "@/lib/supabase-client"
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar"
 import { Switch } from "@/components/ui/switch"
 import { cn } from "@/lib/utils"
+import { ExportInterventionsCard } from "./ExportInterventionsCard"
 
 interface LatenessEmailConfig {
   configured: boolean
@@ -657,6 +658,9 @@ export function ProfileSettings() {
           )}
         </AnimatePresence>
       </div>
+
+      {/* Section Export CSV */}
+      <ExportInterventionsCard />
 
       {/* Section Configuration Email des Retards (Admin Only) */}
       {isAdmin && (
