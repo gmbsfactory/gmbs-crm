@@ -34,6 +34,7 @@ function parseArgs() {
     endDate: null,
     output: null,
     verbose: false,
+    extended: false,
     help: false,
   };
 
@@ -47,6 +48,8 @@ function parseArgs() {
       options.output = args[++i];
     } else if (arg === '--verbose' || arg === '-v') {
       options.verbose = true;
+    } else if (arg === '--extended') {
+      options.extended = true;
     } else if (arg === '--help' || arg === '-h') {
       options.help = true;
     }
@@ -193,26 +196,35 @@ async function enrichInterventionsData(interventions, verbose = false) {
   let processedCount = 0;
 
   for (const intervention of interventions) {
-    // Récupérer le technicien principal (artisan)
+    // Artisans : primaire + secondaire (max 2 par intervention).
     const { data: artisansData } = await supabaseAdmin
       .from('intervention_artisans')
       .select(`
         is_primary,
+        role,
         artisans(plain_nom)
       `)
       .eq('intervention_id', intervention.id)
-      .order('is_primary', { ascending: false })
-      .limit(1);
+      .order('is_primary', { ascending: false });
 
-    const technicien = artisansData?.[0]?.artisans?.plain_nom || '';
+    let artisan_primary = '';
+    let artisan_secondary = '';
+    for (const row of artisansData || []) {
+      const name = row.artisans?.plain_nom || '';
+      if (row.is_primary && !artisan_primary) {
+        artisan_primary = name;
+      } else if (!artisan_secondary) {
+        artisan_secondary = name;
+      }
+    }
 
-    // Récupérer les coûts
+    // Coûts ventilés par artisan_order (1=primaire, 2=secondaire, null=global).
     const { data: costsData } = await supabaseAdmin
       .from('intervention_costs')
-      .select('cost_type, amount')
+      .select('cost_type, amount, artisan_order')
       .eq('intervention_id', intervention.id);
 
-    // Récupérer les commentaires (uniquement internal, triés par date décroissante)
+    // Commentaires internes : conservés pour le mode étendu (cf. spec §2.1).
     const { data: commentsData } = await supabaseAdmin
       .from('comments')
       .select('content, created_at')
@@ -221,14 +233,14 @@ async function enrichInterventionsData(interventions, verbose = false) {
       .eq('is_internal', true)
       .order('created_at', { ascending: false });
 
-    // Concaténer tous les commentaires avec leur date
     const commentaires = commentsData?.map(c =>
       `[${formatDate(c.created_at)}] ${c.content}`
     ).join(' || ') || '';
 
     enriched.push({
       ...intervention,
-      technicien,
+      artisan_primary,
+      artisan_secondary,
       costs: costsData || [],
       commentaires
     });
@@ -297,7 +309,7 @@ async function main() {
 
     // Convertir en CSV
     console.log('📝 Conversion en CSV...');
-    const csvContent = convertToCSV(interventions);
+    const csvContent = convertToCSV(interventions, { extended: options.extended });
 
     // Sauvegarder
     await saveCSV(csvContent, outputPath);

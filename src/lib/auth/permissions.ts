@@ -11,6 +11,8 @@ export type PermissionKey =
   | "write_interventions"
   | "delete_interventions"
   | "edit_closed_interventions"
+  | "export_interventions"
+  | "import_interventions"
   | "read_artisans"
   | "write_artisans"
   | "delete_artisans"
@@ -29,6 +31,8 @@ const ALL_PERMISSIONS: PermissionKey[] = [
   "write_interventions",
   "delete_interventions",
   "edit_closed_interventions",
+  "export_interventions",
+  "import_interventions",
   "read_artisans",
   "write_artisans",
   "delete_artisans",
@@ -55,6 +59,8 @@ const ROLE_PERMISSIONS: Record<string, PermissionKey[]> = {
     "write_interventions",
     "delete_interventions",
     "edit_closed_interventions",
+    "export_interventions",
+    "import_interventions",
     "read_artisans",
     "write_artisans",
     "delete_artisans",
@@ -70,6 +76,7 @@ const ROLE_PERMISSIONS: Record<string, PermissionKey[]> = {
   manager: [
     "read_interventions",
     "write_interventions",
+    "export_interventions",
     "read_artisans",
     "write_artisans",
     "read_users",
@@ -79,6 +86,7 @@ const ROLE_PERMISSIONS: Record<string, PermissionKey[]> = {
   gestionnaire: [
     "read_interventions",
     "write_interventions",
+    "export_interventions",
     "read_artisans",
     "write_artisans",
     "read_users",
@@ -88,6 +96,8 @@ const ROLE_PERMISSIONS: Record<string, PermissionKey[]> = {
     "write_interventions",
     "delete_interventions",
     "edit_closed_interventions",
+    "export_interventions",
+    "import_interventions",
     "read_artisans",
     "write_artisans",
     "delete_artisans",

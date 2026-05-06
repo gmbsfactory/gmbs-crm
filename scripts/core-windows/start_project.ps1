@@ -271,6 +271,11 @@ if (-not $codeFound) {
     Write-Host "Warning: VSCode not found in common locations" -ForegroundColor Yellow
 }
 
+# 6. Open Explorer at the scripts folder
+Write-Host "`nOpening Explorer at scripts folder..." -ForegroundColor Yellow
+Start-TrackedProcess -FilePath "explorer.exe" -Arguments "C:\Users\bigp_\code\gmbs\gmbs-crm\scripts\core-windows"
+Start-Sleep -Seconds 1
+
 # 1.5. Run fresh_start_db.ps1 to initialize/restart Supabase
 # $freshStartDbPath = Join-Path $PSScriptRoot "fresh_start_db.ps1"
 # if (Test-Path $freshStartDbPath) {

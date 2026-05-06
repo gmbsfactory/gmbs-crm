@@ -21,6 +21,7 @@ import { readFileSync } from 'fs'
 
 const EMAIL = process.env.TEST_USER_EMAIL
 const PASSWORD = process.env.TEST_USER_PASSWORD
+const HAS_CREDS = Boolean(EMAIL && PASSWORD)
 
 const EXPECTED_HEADER =
   "Date,Agence,Adresse d'intervention,ID,Statut,Contexte d'intervention," +
@@ -28,22 +29,22 @@ const EXPECTED_HEADER =
   "% SST,PROPRIO,Date d'intervention,TEL LOC,Locataire,Em@il Locataire," +
   "COMMENTAIRE"
 
-const authed = test.describe.configure ? test.describe : test.describe
-const itAuthed = EMAIL && PASSWORD ? test : test.skip
-
 test.describe('Settings — Export interventions CSV', () => {
-  test.beforeEach(async ({ page }) => {
-    if (!EMAIL || !PASSWORD) return
+  test.beforeEach(async ({ page }, testInfo) => {
+    if (testInfo.title.includes('unauthenticated')) return
+    test.skip(!HAS_CREDS, 'TEST_USER_EMAIL / TEST_USER_PASSWORD not set')
+
     await page.goto('/login')
-    await page.getByPlaceholder(/alice@gmbs/i).fill(EMAIL)
-    await page.getByLabel(/mot de passe/i).fill(PASSWORD)
+    await page.getByPlaceholder(/alice@gmbs/i).fill(EMAIL!)
+    // Le <label> "Mot de passe" n'est pas associé via htmlFor — cibler l'input directement.
+    await page.locator('input[type="password"]').fill(PASSWORD!)
     await page.getByRole('button', { name: /se connecter/i }).click()
     await page.waitForURL((url) => !url.pathname.startsWith('/login'), {
       timeout: 10_000,
     })
   })
 
-  itAuthed('happy path — downloads CSV with BOM and exact header row', async ({ page }) => {
+  test('happy path — downloads CSV with BOM and exact header row', async ({ page }) => {
     await page.goto('/settings/profile')
 
     // Ouvrir la carte (en-tête cliquable)
@@ -74,31 +75,34 @@ test.describe('Settings — Export interventions CSV', () => {
     expect(firstLine).toBe(EXPECTED_HEADER)
   })
 
-  itAuthed('date range > 12 months — warns but still exports', async ({ page }) => {
+  test('date range > 12 months — warns but still exports', async ({ page }) => {
     await page.goto('/settings/profile')
     await page.getByRole('button', { name: /exporter mes interventions/i }).click()
 
-    // Ouvrir le DateRangePicker
-    await page.getByRole('button', { name: /période|date|sélectionner/i }).first().click()
+    // Ouvrir le popover du DateRangePicker (id stable sur le trigger : voir DateRangePicker.tsx)
+    await page.locator('#date-range').click()
 
-    // Sélectionner une plage > 12 mois en saisissant directement les inputs
-    // start: 2 ans en arrière, end: aujourd'hui
-    const today = new Date()
-    const twoYearsAgo = new Date(today)
-    twoYearsAgo.setFullYear(today.getFullYear() - 2)
+    // Naviguer 24 mois en arrière via le bouton "mois précédent" de react-day-picker.
+    // Locale fr → aria-label "Aller au mois précédent" / fallback EN "previous".
+    const prev = page.getByRole('button', { name: /précédent|previous/i })
+    for (let i = 0; i < 24; i++) await prev.click()
 
-    const startInput = page.locator('input[name*="start"], input[placeholder*="début" i], input[type="date"]').first()
-    const endInput = page.locator('input[name*="end"], input[placeholder*="fin" i], input[type="date"]').nth(1)
+    // Sélectionner le 1er du mois affiché (début de plage)
+    await page.getByRole('gridcell', { name: /^1$/ }).first().click()
 
-    if (await startInput.count()) {
-      await startInput.fill(format(twoYearsAgo, 'yyyy-MM-dd'))
-      await endInput.fill(format(today, 'yyyy-MM-dd'))
-    } else {
-      // Fallback : forcer l'état via évaluation (le picker est un composant complexe — la sélection visuelle
-      // sort du périmètre de ce test ; ce qui compte ici est que > 365 j déclenche bien l'avertissement
-      // et n'empêche pas l'export). Si le picker n'expose pas d'input contrôlable, on skippe la précondition.
-      test.skip(true, 'DateRangePicker n\'expose pas d\'input directement adressable')
-    }
+    // Revenir au mois courant
+    const next = page.getByRole('button', { name: /suivant|next/i })
+    for (let i = 0; i < 24; i++) await next.click()
+
+    // Sélectionner aujourd'hui (fin de plage)
+    const todayDay = String(new Date().getDate())
+    await page
+      .getByRole('gridcell', { name: new RegExp(`^${todayDay}$`) })
+      .last()
+      .click()
+
+    // Fermer le popover pour ne pas masquer la bannière
+    await page.keyboard.press('Escape')
 
     await expect(
       page.getByText(/la période sélectionnée dépasse 12 mois/i)
@@ -115,10 +119,7 @@ test.describe('Settings — Export interventions CSV', () => {
   })
 
   test('unauthenticated — GET /api/exports/interventions returns 401', async ({ request }) => {
-    const res = await request.get('/api/exports/interventions', {
-      // Pas de cookies de session — context isolé par défaut entre tests
-      headers: {},
-    })
+    const res = await request.get('/api/exports/interventions')
     expect(res.status()).toBe(401)
   })
 })

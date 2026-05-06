@@ -1,22 +1,95 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { motion, AnimatePresence } from "framer-motion"
-import { Download, Loader2, AlertTriangle, FileDown, CalendarRange } from "lucide-react"
+import { Download, Loader2, AlertTriangle, FileDown, CalendarRange, Users } from "lucide-react"
 import { format, differenceInDays } from "date-fns"
 import { fr } from "date-fns/locale"
 import { DateRangePicker } from "@/components/interventions/DateRangePicker"
 import { useToast } from "@/hooks/use-toast"
+import { useCurrentUser } from "@/hooks/useCurrentUser"
+import { usePermissions } from "@/hooks/usePermissions"
+import { usersApi } from "@/lib/api"
+import type { User } from "@/lib/api"
 
 type DateRange = { from: Date | null; to: Date | null }
 
 const WARN_THRESHOLD_DAYS = 365
 
+function userLabel(u: Pick<User, "firstname" | "lastname" | "username" | "email">): string {
+  const full = `${u.firstname ?? ""} ${u.lastname ?? ""}`.trim()
+  return full || u.username || u.email || "—"
+}
+
 export function ExportInterventionsCard() {
   const { toast } = useToast()
+  const { data: currentUser } = useCurrentUser()
+  const { can, isLoading: permsLoading } = usePermissions()
   const [open, setOpen] = useState(false)
   const [range, setRange] = useState<DateRange>({ from: null, to: null })
   const [exporting, setExporting] = useState(false)
+  const [extended, setExtended] = useState(false)
+  const [users, setUsers] = useState<User[]>([])
+  const [loadingUsers, setLoadingUsers] = useState(false)
+  const [selectedUserIds, setSelectedUserIds] = useState<Set<string>>(new Set())
+
+  const isAdmin = useMemo(
+    () =>
+      (currentUser?.roles ?? []).some(
+        (r) => typeof r === "string" && r.toLowerCase().includes("admin")
+      ),
+    [currentUser]
+  )
+
+  const canExport = can("export_interventions")
+
+  // Initialiser la sélection avec soi-même quand l'utilisateur est connu
+  useEffect(() => {
+    if (currentUser?.id && selectedUserIds.size === 0) {
+      setSelectedUserIds(new Set([currentUser.id]))
+    }
+  }, [currentUser?.id, selectedUserIds.size])
+
+  // Charger la liste des gestionnaires uniquement pour les admins, à l'ouverture
+  useEffect(() => {
+    if (!open || !isAdmin || users.length > 0) return
+    let cancelled = false
+    ;(async () => {
+      try {
+        setLoadingUsers(true)
+        const res = await usersApi.getAll({ limit: 1000 })
+        if (!cancelled) setUsers(res.data)
+      } catch (err: any) {
+        toast({
+          title: "Erreur",
+          description: err?.message || "Impossible de charger les gestionnaires",
+          variant: "destructive" as any,
+        })
+      } finally {
+        if (!cancelled) setLoadingUsers(false)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [open, isAdmin, users.length, toast])
+
+  function toggleUser(id: string) {
+    setSelectedUserIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  function selectAllUsers() {
+    setSelectedUserIds(new Set(users.map((u) => u.id)))
+  }
+
+  function selectOnlyMe() {
+    if (currentUser?.id) setSelectedUserIds(new Set([currentUser.id]))
+  }
 
   const rangeExceeds12Months =
     range.from != null &&
@@ -24,11 +97,26 @@ export function ExportInterventionsCard() {
     differenceInDays(range.to, range.from) > WARN_THRESHOLD_DAYS
 
   async function handleExport() {
+    if (isAdmin && selectedUserIds.size === 0) {
+      toast({
+        title: "Sélection requise",
+        description: "Sélectionnez au moins un gestionnaire à exporter.",
+        variant: "destructive" as any,
+      })
+      return
+    }
+
     setExporting(true)
     try {
       const params = new URLSearchParams()
       if (range.from) params.set('start', format(range.from, 'yyyy-MM-dd'))
       if (range.to) params.set('end', format(range.to, 'yyyy-MM-dd'))
+      if (isAdmin && selectedUserIds.size > 0) {
+        params.set('userIds', Array.from(selectedUserIds).join(','))
+      }
+      if (extended) {
+        params.set('extended', '1')
+      }
 
       const res = await fetch(`/api/exports/interventions?${params}`)
 
@@ -72,6 +160,11 @@ export function ExportInterventionsCard() {
     return null
   })()
 
+  // Gate sur la permission export_interventions (cf. spec §8.3 + migration 00099).
+  // On masque silencieusement la carte tant que les permissions chargent ou si
+  // l'utilisateur ne l'a pas — pas d'écran d'erreur intermédiaire.
+  if (permsLoading || !canExport) return null
+
   return (
     <div className="rounded-2xl border bg-card/50 overflow-hidden">
       {/* ── En-tête cliquable ── */}
@@ -113,6 +206,76 @@ export function ExportInterventionsCard() {
           >
             <div className="px-8 pb-8 pt-4 space-y-5 border-t">
 
+              {/* Sélecteur de gestionnaires (admin uniquement) */}
+              {isAdmin && (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs text-muted-foreground font-medium flex items-center gap-2">
+                      <Users className="h-3.5 w-3.5" />
+                      Gestionnaires — interventions de qui exporter
+                    </label>
+                    <div className="flex gap-2 text-xs">
+                      <button
+                        type="button"
+                        onClick={selectOnlyMe}
+                        className="text-muted-foreground hover:text-foreground transition-colors"
+                      >
+                        Moi seulement
+                      </button>
+                      <span className="text-muted-foreground/50">·</span>
+                      <button
+                        type="button"
+                        onClick={selectAllUsers}
+                        className="text-muted-foreground hover:text-foreground transition-colors"
+                      >
+                        Tout sélectionner
+                      </button>
+                    </div>
+                  </div>
+                  <div className="rounded-xl border bg-background/50 max-h-56 overflow-y-auto">
+                    {loadingUsers ? (
+                      <div className="flex items-center gap-2 p-4 text-sm text-muted-foreground">
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Chargement des gestionnaires…
+                      </div>
+                    ) : users.length === 0 ? (
+                      <div className="p-4 text-sm text-muted-foreground">
+                        Aucun gestionnaire disponible.
+                      </div>
+                    ) : (
+                      <ul className="divide-y">
+                        {users.map((u) => {
+                          const checked = selectedUserIds.has(u.id)
+                          const isSelf = currentUser?.id === u.id
+                          return (
+                            <li key={u.id}>
+                              <label className="flex items-center gap-3 px-3 py-2 cursor-pointer hover:bg-muted/40 transition-colors">
+                                <input
+                                  type="checkbox"
+                                  checked={checked}
+                                  onChange={() => toggleUser(u.id)}
+                                  className="h-4 w-4 rounded border-input"
+                                />
+                                <span className="text-sm">
+                                  {userLabel(u)}
+                                  {isSelf && (
+                                    <span className="ml-2 text-xs text-muted-foreground">(moi)</span>
+                                  )}
+                                </span>
+                              </label>
+                            </li>
+                          )
+                        })}
+                      </ul>
+                    )}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {selectedUserIds.size} gestionnaire{selectedUserIds.size > 1 ? "s" : ""} sélectionné
+                    {selectedUserIds.size > 1 ? "s" : ""}.
+                  </p>
+                </div>
+              )}
+
               {/* Sélecteur de période */}
               <div className="space-y-2">
                 <label className="text-xs text-muted-foreground font-medium flex items-center gap-2">
@@ -124,6 +287,25 @@ export function ExportInterventionsCard() {
                   <p className="text-xs text-muted-foreground">{rangeLabel}</p>
                 )}
               </div>
+
+              {/* Mode étendu — admin uniquement (cf. spec §8.7) */}
+              {isAdmin && (
+                <label className="flex items-start gap-3 p-3 rounded-xl border bg-background/30 cursor-pointer hover:bg-muted/30 transition-colors">
+                  <input
+                    type="checkbox"
+                    checked={extended}
+                    onChange={(e) => setExtended(e.target.checked)}
+                    className="h-4 w-4 mt-0.5 rounded border-input"
+                  />
+                  <div className="text-sm">
+                    <div className="font-medium">Inclure colonnes internes</div>
+                    <p className="text-xs text-muted-foreground">
+                      Ajoute <code>Statut</code>, <code>Gest.</code> et <code>COMMENTAIRE</code> en
+                      fin de fichier. Utile pour la sauvegarde admin — à éviter pour un partage client.
+                    </p>
+                  </div>
+                </label>
+              )}
 
               {/* Avertissement > 12 mois */}
               <AnimatePresence>
