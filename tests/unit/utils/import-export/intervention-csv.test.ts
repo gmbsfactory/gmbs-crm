@@ -9,24 +9,28 @@ import {
 // Format client (24 colonnes) — les en-têtes Demande * contiennent un double
 // espace avant ✅, c'est volontaire (gabarit Excel maître).
 const HEADER =
-  "Date,Agence,Adresse,Contexte d'intervention,Métier,SST,COUT SST,COÛT MATERIEL,Numéro SST,COUT INTER,% SST,PROPRIO,Date d'intervention,TEL LOC,Locataire,Em@il Locataire,Truspilot,Demande d'intervention ✅,Demande Devis  ✅,Demande TrustPilot  ✅,SST 2,COUT SST 2,COÛT MATERIEL 2,ID";
+  "Date,Agence,Adresse,ID,Statut,Contexte d'intervention,Métier,Gest.,SST,COUT SST,COÛT MATERIEL,Numéro SST,COUT INTER,% SST,PROPRIO,Date d'intervention,TEL LOC,Locataire,Em@il Locataire,COMMENTAIRE,Truspilot,Demande d'intervention ✅,Demande Devis  ✅,Demande TrustPilot  ✅";
 
-const HEADER_EXTENDED = `${HEADER},Statut,Gest.,COMMENTAIRE`;
+const HEADER_EXTENDED = `${HEADER},SST 2,COUT SST 2,COÛT MATERIEL 2`;
 
 describe('intervention-csv', () => {
   describe('CSV_COLUMNS', () => {
     it('should have 24 columns in the client-defined order (mode standard)', () => {
       expect(CSV_COLUMNS).toHaveLength(24);
       expect(CSV_COLUMNS[0]).toBe('Date');
-      expect(CSV_COLUMNS[2]).toBe('Adresse');
-      expect(CSV_COLUMNS[5]).toBe('SST');
-      expect(CSV_COLUMNS[20]).toBe('SST 2');
-      expect(CSV_COLUMNS[23]).toBe('ID');
+      expect(CSV_COLUMNS[3]).toBe('ID');
+      expect(CSV_COLUMNS[4]).toBe('Statut');
+      expect(CSV_COLUMNS[7]).toBe('Gest.');
+      expect(CSV_COLUMNS[8]).toBe('SST');
+      expect(CSV_COLUMNS[19]).toBe('COMMENTAIRE');
+      expect(CSV_COLUMNS[23]).toBe('Demande TrustPilot  ✅');
     });
 
-    it('should add Statut/Gest./COMMENTAIRE in extended mode (27 cols)', () => {
+    it('should add second-artisan columns in extended mode (27 cols)', () => {
       expect(CSV_COLUMNS_EXTENDED).toHaveLength(27);
-      expect(CSV_COLUMNS_EXTENDED.slice(24)).toEqual(['Statut', 'Gest.', 'COMMENTAIRE']);
+      expect(CSV_COLUMNS_EXTENDED[24]).toBe('SST 2');
+      expect(CSV_COLUMNS_EXTENDED[25]).toBe('COUT SST 2');
+      expect(CSV_COLUMNS_EXTENDED[26]).toBe('COÛT MATERIEL 2');
     });
   });
 
@@ -35,7 +39,7 @@ describe('intervention-csv', () => {
       expect(convertToCSV([])).toBe(HEADER);
     });
 
-    it('should produce exact CSV for a fully-populated intervention with both artisans', () => {
+    it('should produce exact CSV for a fully-populated intervention (base mode, no second artisan)', () => {
       const intervention: InterventionRow = {
         // Local-time mid-day to avoid TZ-induced day shifts
         created_at: '2024-03-15T12:00:00',
@@ -61,42 +65,46 @@ describe('intervention-csv', () => {
           telephone: '0612345678',
           email: 'marie@example.com',
         },
-        owner: { owner_firstname: 'Pierre', owner_lastname: 'Dupont' },
+        owner: {
+          plain_nom_facturation: 'Pierre Dupont',
+          telephone: '0698765432',
+          email: 'pierre@example.com',
+        },
+        intervention_statuses: { label: 'En cours' },
+        users: { username: 'jdoe' },
         metiers: { label: 'Plombier' },
+        commentaires: '[15/03/2024] RAS',
       };
 
       const expectedRow =
-        '15/03/2024,Agence Paris,10 rue de la Paix,Plomberie,Plombier,Jean Martin,100,50,SST-42,200,10,Pierre Dupont,20/03/2024,0612345678,Marie Curie,marie@example.com,,,,,Paul Durand,80,30,INT-001';
+        '15/03/2024,Agence Paris,10 rue de la Paix,INT-001,En cours,Plomberie,Plombier,jdoe,Jean Martin,100,50,SST-42,200,10,Pierre Dupont - 0698765432 - pierre@example.com,20/03/2024,"=""0612345678""",Marie Curie,marie@example.com,[15/03/2024] RAS,,,,';
 
       expect(convertToCSV([intervention])).toBe(`${HEADER}\n${expectedRow}`);
     });
 
-    it('should leave SST 2 / COUT SST 2 / COÛT MATERIEL 2 empty when no second artisan', () => {
+    it('should include COMMENTAIRE in base mode at column 20', () => {
       const intervention: InterventionRow = {
         created_at: '2024-03-15T12:00:00',
         id_inter: 'INT-002',
-        artisan_primary: 'Jean Martin',
-        costs: [{ cost_type: 'sst', amount: 100, artisan_order: 1 }],
+        commentaires: '[15/03/2024] RAS',
       };
 
       const csv = convertToCSV([intervention]);
-      const dataRow = csv.split('\n')[1];
-      const cells = dataRow.split(',');
-      // SST 2 = col 21 (index 20), COUT SST 2 = 22, COÛT MATERIEL 2 = 23
-      expect(cells[20]).toBe('');
-      expect(cells[21]).toBe('');
-      expect(cells[22]).toBe('');
-      // ID = col 24 (index 23)
-      expect(cells[23]).toBe('INT-002');
+      const cells = csv.split('\n')[1].split(',');
+      expect(cells).toHaveLength(24);
+      expect(cells[19]).toBe('[15/03/2024] RAS');
     });
 
-    it('should append Statut / Gest. / COMMENTAIRE in extended mode', () => {
+    it('should append SST 2 / COUT SST 2 / COÛT MATERIEL 2 in extended mode', () => {
       const intervention: InterventionRow = {
         created_at: '2024-03-15T12:00:00',
         id_inter: 'INT-003',
-        intervention_statuses: { label: 'En cours' },
-        users: { username: 'jdoe' },
-        commentaires: '[15/03/2024] RAS',
+        artisan_primary: 'Jean Martin',
+        artisan_secondary: 'Paul Durand',
+        costs: [
+          { cost_type: 'sst', amount: 80, artisan_order: 2 },
+          { cost_type: 'materiel', amount: 30, artisan_order: 2 },
+        ],
       };
 
       const csv = convertToCSV([intervention], { extended: true });
@@ -104,9 +112,24 @@ describe('intervention-csv', () => {
       expect(lines[0]).toBe(HEADER_EXTENDED);
       const cells = lines[1].split(',');
       expect(cells).toHaveLength(27);
-      expect(cells[24]).toBe('En cours');
-      expect(cells[25]).toBe('jdoe');
-      expect(cells[26]).toBe('[15/03/2024] RAS');
+      expect(cells[24]).toBe('Paul Durand');
+      expect(cells[25]).toBe('80');
+      expect(cells[26]).toBe('30');
+    });
+
+    it('should leave SST 2 / COUT SST 2 / COÛT MATERIEL 2 empty when no second artisan (extended)', () => {
+      const intervention: InterventionRow = {
+        created_at: '2024-03-15T12:00:00',
+        id_inter: 'INT-004',
+        artisan_primary: 'Jean Martin',
+        costs: [{ cost_type: 'sst', amount: 100, artisan_order: 1 }],
+      };
+
+      const csv = convertToCSV([intervention], { extended: true });
+      const cells = csv.split('\n')[1].split(',');
+      expect(cells[24]).toBe('');
+      expect(cells[25]).toBe('');
+      expect(cells[26]).toBe('');
     });
 
     it('should output empty cells (and not crash) when all nested relations / costs are null', () => {
@@ -125,6 +148,8 @@ describe('intervention-csv', () => {
         tenants: null,
         owner: null,
         metiers: null,
+        intervention_statuses: null,
+        users: null,
       };
 
       // 24 empty cells → 23 commas

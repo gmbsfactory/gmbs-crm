@@ -15,6 +15,7 @@ export type InterventionView = GeneratedInterventionView & {
   statusLabel?: string | null
   statusColor?: string | null
   attribueA?: string
+  assignedUserId?: string | null
   assignedUserName?: string
   assignedUserCode?: string | null
   assignedUserColor?: string | null
@@ -59,7 +60,6 @@ export type InterventionView = GeneratedInterventionView & {
   marge?: number | null
 
   // SST
-  numeroSST?: string | null
   pourcentageSST?: number | null
 
   // Agence

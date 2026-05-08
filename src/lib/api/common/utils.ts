@@ -439,7 +439,6 @@ export const mapInterventionRecord = (item: any, refs: any): any => {
     statut: statusCode,
     statusValue: statusCode,
     statusColor: normalizedStatus?.color ?? null,
-    numeroSST: item.numero_sst ?? item.numeroSST ?? null,
     pourcentageSST: item.pourcentage_sst ?? item.pourcentageSST ?? null,
     commentaire: item.commentaire ?? item.commentaire_agent ?? null,
     demandeIntervention:

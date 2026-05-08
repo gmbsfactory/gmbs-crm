@@ -533,10 +533,6 @@ export default function InterventionCard({
                     <span className="text-xs text-muted-foreground">Marge actuelle : {marginPct}%</span>
                   </div>
 
-                  {intervention.numeroSST && (
-                    <div className="text-xs text-muted-foreground">Réf. : {intervention.numeroSST}</div>
-                  )}
-
                   <div className="flex items-center justify-end gap-1">
                     <Button
                       variant="ghost"

@@ -178,7 +178,6 @@ export type InterventionView = Intervention & {
     marge?: number | null;
 
     // SST
-    numeroSST?: string | null;
     pourcentageSST?: number | null;
 
     // Agence

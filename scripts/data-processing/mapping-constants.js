@@ -74,47 +74,15 @@ const STATUS_LABEL_TO_CODE = {
  * Mapping des codes/lettres de gestionnaire vers les usernames canoniques.
  * Les colonnes "Gest." des Sheets peuvent contenir une lettre, un code court
  * ou le prénom complet : on normalise tout ici.
+ *
+ * Source unique de vérité : `shared/import-mappings/gestionnaire-code-map.json`,
+ * également consommée par `src/utils/import-export/` pour garantir la parité
+ * entre l'import Google Sheets (script Node) et l'import CSV (app).
+ *
+ * Clés en lowercase — la normalisation (trim + lowercase) est appliquée avant
+ * chaque lookup dans getUserIdNormalized.
  */
-// Clés en lowercase uniquement — la normalisation (trim + lowercase) est appliquée
-// avant chaque lookup dans getUserIdNormalized, ce qui rend les variantes de casse inutiles.
-const GESTIONNAIRE_CODE_MAP = {
-  // from intervention sheet
-  "o": "yazid",
-  "l": "soufian",
-  "j": "clement",
-  "a": "andrea",
-  "d": "dimitri",
-  "m": "adam",
-  "b": "badr",  
-  "n": "metehan",
-
-  // default affected to this user
-  "p": "harold.p.2kak",
-  "t": "harold.p.2kak",
-  "s": "harold.p.2kak",
-
-  // from artisan sheet
-  "metehan": "metehan",
-  "badr": "badr",
-  "clement": "clement",
-  "clément": "clement",
-  "dimitri": "dimitri",
-  "andrea": "andrea",
-  "lucien": "soufian",
-  "olivier": "yazid",
-  "adam": "adam",
-
-  "admin": "harold.p.2kak",
-  "soulaimane": "harold.p.2kak",
-  "tom": "harold.p.2kak",
-  "killian": "harold.p.2kak",
-  "paul": "harold.p.2kak",
-  "samuel": "harold.p.2kak",
-
-
-  // === VALEURS ABERRANTES (ignorer) ===
-  "": null,
-};
+const GESTIONNAIRE_CODE_MAP = require('../../shared/import-mappings/gestionnaire-code-map.json');
 
 /**
  * Normalisation des noms d'agences

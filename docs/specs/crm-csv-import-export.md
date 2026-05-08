@@ -1,6 +1,6 @@
 # Spec — CRM CSV import/export
 
-> Statut : **Export livré** (commit `4123c8d`) — **Import à concevoir/implémenter**.
+> Statut : **Export livré** (commit `4123c8d`) — **Import livré** (feat/hybrid-integration).
 > Public : utilisateurs finaux du CRM (gestionnaires, admins agence), pas l'équipe de dev.
 
 ---
@@ -38,40 +38,43 @@ L'ordre et l'orthographe (accents, espaces, ✅) reproduisent **exactement** le 
 | 1 | `Date` | `interventions.created_at` formaté `DD/MM/YYYY` |
 | 2 | `Agence` | `agencies.label` |
 | 3 | `Adresse` | `interventions.adresse` |
-| 4 | `Contexte d'intervention` | `interventions.contexte_intervention` |
-| 5 | `Métier` | `metiers.label` |
-| 6 | `SST` | `intervention_artisans` (primaire) → `artisans.plain_nom` |
-| 7 | `COUT SST` | `intervention_costs` où `cost_type = 'sst'` et artisan = primaire |
-| 8 | `COÛT MATERIEL` | `intervention_costs` où `cost_type = 'materiel'` et artisan = primaire |
-| 9 | `Numéro SST` | `interventions.numero_sst` |
-| 10 | `COUT INTER` | `intervention_costs` où `cost_type = 'intervention'` |
-| 11 | `% SST` | `interventions.pourcentage_sst` |
-| 12 | `PROPRIO` | `owner.owner_firstname` + `owner.owner_lastname` |
-| 13 | `Date d'intervention` | `interventions.date_prevue` formaté `DD/MM/YYYY` |
-| 14 | `TEL LOC` | `tenants.telephone` |
-| 15 | `Locataire` | `tenants.firstname` + `tenants.lastname` |
-| 16 | `Em@il Locataire` | `tenants.email` |
-| 17 | `Truspilot` | *rien* — toujours vide à l'export (décidé §8.6 : pas de champ DB équivalent, colonne réservée au client). |
-| 18 | `Demande d'intervention ✅` | *rien* — toujours vide à l'export (cf. §8.6). |
-| 19 | `Demande Devis  ✅` | *rien* — toujours vide à l'export (cf. §8.6). **NB : double espace avant `✅` conservé tel quel — c'est le format client.** |
-| 20 | `Demande TrustPilot  ✅` | *rien* — toujours vide à l'export (cf. §8.6). **NB : double espace avant `✅` conservé.** |
-| 21 | `SST 2` | `intervention_artisans` (secondaire, position 2) → `artisans.plain_nom`. Colonnes 21-23 placées **en fin de fichier** : le client peut les supprimer sans casser son gabarit s'il n'en veut pas. Si une intervention a plus de 2 artisans (cas anormal), les suivants sont ignorés silencieusement — même comportement à l'import. |
-| 22 | `COUT SST 2` | `intervention_costs` où `cost_type = 'sst'` et artisan = secondaire |
-| 23 | `COÛT MATERIEL 2` | `intervention_costs` où `cost_type = 'materiel'` et artisan = secondaire |
+| 4 | `ID` | `interventions.id_inter` — fait partie du format client ; sert aussi de clé d'upsert à l'import (cf. §2.1). |
+| 5 | `Statut` | `intervention_statuses.label` |
+| 6 | `Contexte d'intervention` | `interventions.contexte_intervention` |
+| 7 | `Métier` | `metiers.label` |
+| 8 | `Gest.` | `users.username` (assigné) |
+| 9 | `SST` | `intervention_artisans` (primaire) → `artisans.plain_nom` |
+| 10 | `COUT SST` | `intervention_costs` où `cost_type = 'sst'` et artisan = primaire |
+| 11 | `COÛT MATERIEL` | `intervention_costs` où `cost_type = 'materiel'` et artisan = primaire |
+| 12 | `Numéro SST` | `intervention_artisans` (primaire) → `artisans.telephone` — **pas une colonne sur `interventions`**. À l'export : téléphone de l'artisan primaire. À l'import : ignoré (l'artisan est résolu par nom via la colonne `SST`). |
+| 13 | `COUT INTER` | `intervention_costs` où `cost_type = 'intervention'` |
+| 14 | `% SST` | `interventions.pourcentage_sst` |
+| 15 | `PROPRIO` | `owner.owner_firstname` + `owner.owner_lastname` |
+| 16 | `Date d'intervention` | `interventions.date_prevue` formaté `DD/MM/YYYY` |
+| 17 | `TEL LOC` | `tenants.telephone` |
+| 18 | `Locataire` | `tenants.firstname` + `tenants.lastname` |
+| 19 | `Em@il Locataire` | `tenants.email` |
+| 20 | `COMMENTAIRE` | Commentaires internes agrégés `[DD/MM/YYYY] contenu` séparés par ` || ` (ordre desc). Vide si aucun commentaire interne. |
+| 21 | `Truspilot` | *rien* — toujours vide à l'export (décidé §8.6 : pas de champ DB équivalent, colonne réservée au client). |
+| 22 | `Demande d'intervention ✅` | *rien* — toujours vide à l'export (cf. §8.6). |
+| 23 | `Demande Devis  ✅` | *rien* — toujours vide à l'export (cf. §8.6). **NB : double espace avant `✅` conservé tel quel — c'est le format client.** |
+| 24 | `Demande TrustPilot  ✅` | *rien* — toujours vide à l'export (cf. §8.6). **NB : double espace avant `✅` conservé.** |
 
-> **Colonnes retirées par rapport à la version livrée de l'export** : `ID`, `Statut`, `Gest.`, `Technicien` (renommé `SST`), `COMMENTAIRE`. Voir §2.1 pour les conséquences sur le round-trip.
-
-### 2.1 Conséquences sur l'import / round-trip
-
-Le format client ne contient pas de colonne `ID` (`id_inter`). Or l'import a besoin d'une clé stable pour distinguer création / mise à jour.
-
-**Décision (cf. §8.5) : Option A** — une colonne `ID` est ajoutée en **position #24** (après `COÛT MATERIEL 2`), mappée sur `interventions.id_inter`. Elle sert de clé d'upsert. Le client peut la supprimer dans son outil interne s'il ne s'en sert pas ; à l'import, son absence bascule la ligne en mode création stricte.
+#### Colonnes additionnelles — mode étendu uniquement (positions 25-27)
 
 | # | En-tête CSV | Champ DB / dérivation |
 |---|---|---|
-| 24 | `ID` | `interventions.id_inter` — clé d'upsert (cf. §4.4). |
+| 25 | `SST 2` | `intervention_artisans` (secondaire, position 2) → `artisans.plain_nom`. Si une intervention a plus de 2 artisans (cas anormal), les suivants sont ignorés silencieusement — même comportement à l'import. |
+| 26 | `COUT SST 2` | `intervention_costs` où `cost_type = 'sst'` et artisan = secondaire |
+| 27 | `COÛT MATERIEL 2` | `intervention_costs` où `cost_type = 'materiel'` et artisan = secondaire |
 
-**Mode export étendu** (cf. §8.7, validé) — case à cocher UI « Inclure colonnes internes » qui ajoute, **après `ID`**, les colonnes admin/sauvegarde retirées du format client : `Statut`, `Gest.`, `COMMENTAIRE` (positions 25-27). Désactivé par défaut (l'export sert d'abord le format client).
+> **Évolutions par rapport à la première version livrée de l'export** : `Technicien` renommé `SST`, ajout des colonnes vides `Truspilot` / `Demande *`. `ID`, `Statut`, `Gest.` et `COMMENTAIRE` font désormais partie du gabarit client (le client les a réintégrés à son Excel — `COMMENTAIRE` en position #20, entre `Em@il Locataire` et `Truspilot`). Les colonnes `SST 2` / `COUT SST 2` / `COÛT MATERIEL 2` sont désormais réservées au mode étendu (cf. §2.1).
+
+### 2.1 Conséquences sur l'import / round-trip
+
+`ID` (= `interventions.id_inter`) faisant désormais partie du format client (position #4), il sert directement de clé d'upsert à l'import. Une cellule `ID` vide bascule la ligne en mode création stricte.
+
+**Mode export étendu** (cf. §8.7, validé) — case à cocher UI « Inclure le deuxième artisan » qui ajoute en **positions #25-27** les colonnes `SST 2`, `COUT SST 2`, `COÛT MATERIEL 2`. Désactivé par défaut : la majorité des interventions n'ont qu'un seul artisan, et les colonnes additionnelles cassent le gabarit du client si présentes inutilement. À activer pour la sauvegarde admin ou les échanges entre instances CRM.
 
 ### Conventions de fichier
 
@@ -103,9 +106,9 @@ Le format client ne contient pas de colonne `ID` (`id_inter`). Or l'import a bes
 - RLS appliquées — l'utilisateur n'exporte que ce qu'il peut lire.
 - Filtre sur `created_at` (la borne `end` est inclusive du jour).
 - Récupère interventions + relations en une requête, puis batch :
-  - artisans (via `intervention_artisans`, primaire puis secondaire — colonnes `SST` / `SST 2`),
-  - coûts (via `intervention_costs`, ventilés par artisan pour `COUT SST` / `COUT SST 2` / `COÛT MATERIEL` / `COÛT MATERIEL 2`),
-  - ~~commentaires internes~~ (retirés du format client — voir §2.1).
+  - artisans (via `intervention_artisans`, primaire puis secondaire — colonnes `SST` / `SST 2`, ce dernier en mode étendu uniquement),
+  - coûts (via `intervention_costs`, ventilés par artisan pour `COUT SST` / `COÛT MATERIEL` toujours, et `COUT SST 2` / `COÛT MATERIEL 2` en mode étendu),
+  - commentaires internes (toujours inclus — colonne `COMMENTAIRE` en position #20 du format de base).
 - Retourne `text/csv; charset=utf-8` avec BOM, `Content-Disposition: attachment`.
 
 ### Garanties
@@ -282,8 +285,8 @@ Le test round-trip est la garantie principale que les deux côtés respectent le
 | 2 | Volume max | 10 Mo / 50 000 lignes |
 | 3 | Permission import | `interventions.import` — admin agence uniquement, via le système `usePermissions` + table `permissions` existant |
 | 4 | Référentiel inconnu (métier, agence) | Refus strict : ligne skippée + remontée dans le rapport d'erreurs |
-| 5 | Clé d'upsert | Colonne `ID` (= `id_inter`) ajoutée en position #24 ; absente → création stricte |
+| 5 | Clé d'upsert | Colonne `ID` (= `id_inter`) en position #4 du gabarit client ; absente → création stricte |
 | 6 | Colonnes client sans équivalent DB (`Truspilot`, `Demande *`) | Vides à l'export, ignorées à l'import (warning soft) — pas de champ DB créé |
-| 7 | Mode export étendu | Validé — case « Inclure colonnes internes » ajoute `Statut`, `Gest.`, `COMMENTAIRE` après `ID` |
+| 7 | Mode export étendu | Validé — case « Inclure le deuxième artisan » ajoute `SST 2`, `COUT SST 2`, `COÛT MATERIEL 2` en fin de fichier (positions #25-27). `COMMENTAIRE` est désormais dans le format de base (position #20) — le client l'a réintégré à son gabarit. |
 | 8 | Plus de 2 artisans par intervention | Troncature silencieuse à 2 (import et export) |
 | 9 | Update coûts en mode upsert | Delete + reinsert complet — comportement intentionnel (les coûts du CSV priment) |

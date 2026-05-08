@@ -880,6 +880,7 @@ export function NewInterventionForm({
               onChange={handleInputChange}
               isOpen={isProprietaireOpen}
               onOpenChange={setIsProprietaireOpen}
+              requiresNomFacturation={requiresNomFacturation}
             />
 
             {/* Détails client */}

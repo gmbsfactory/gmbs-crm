@@ -33,7 +33,6 @@ export interface InterventionFormData {
   commentaire_agent: string
 
   // SST (principalement edit)
-  numero_sst: string
   pourcentage_sst: string
 
   // Propriétaire (owner)
@@ -149,7 +148,6 @@ export function createNewFormData(
     commentaire_agent: "",
 
     // SST
-    numero_sst: "",
     pourcentage_sst: "",
 
     // Propriétaire (owner)
@@ -253,7 +251,6 @@ export function createEditFormData(
     date_prevue: intervention.date_prevue?.split('T')[0] || "",
 
     // SST
-    numero_sst: (intervention as any).numero_sst || "",
     pourcentage_sst: (intervention as any).pourcentage_sst?.toString() || "",
 
     // Commentaires

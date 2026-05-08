@@ -58,7 +58,6 @@ function translateFieldName(columnName: string): string {
     tenant_id: "locataire",
     email: "email",
     username: "nom d'utilisateur",
-    numero_sst: "numéro SST",
   }
   return translations[columnName] || columnName.replace(/_/g, " ")
 }

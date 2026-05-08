@@ -302,7 +302,6 @@ export interface CreateInterventionData {
   adresse_complete?: string | null;
   latitude?: number;
   longitude?: number;
-  numero_sst?: string;
   pourcentage_sst?: number;
   is_vacant?: boolean;
   key_code?: string | null;
@@ -341,7 +340,6 @@ export interface UpdateInterventionData {
   adresse_complete?: string | null;
   latitude?: number;
   longitude?: number;
-  numero_sst?: string;
   pourcentage_sst?: number;
   is_vacant?: boolean;
   key_code?: string | null;

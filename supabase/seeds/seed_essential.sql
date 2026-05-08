@@ -77,7 +77,18 @@ ON CONFLICT (code) DO NOTHING;
 -- ========================================
 
 INSERT INTO public.agencies (code, label, region) VALUES
-('DEFAUT', 'Défaut', 'Non spécifié')
+('DEFAUT', 'Défaut', 'Non spécifié'),
+('FLATLOOKER', 'Flatlooker', 'Non spécifié'),
+('AGENCE_BLUE', 'Agence Blue', 'Non spécifié'),
+('AFEDIM', 'AFEDIM', 'Non spécifié'),
+('HOMEPILOT', 'HomePilot', 'Non spécifié'),
+('MATERA', 'Matera', 'Non spécifié'),
+('OQORO', 'Oqoro', 'Non spécifié'),
+('IMODIRECT', 'ImoDirect', 'Non spécifié'),
+('BEANSTOCK', 'Beanstock', 'Non spécifié'),
+('CLICKANDRENT', 'ClickandRent', 'Non spécifié'),
+('LAGALERIE', 'LAGALERIE', 'Non spécifié'),
+('PARTICULIER', 'Particulier', 'Non spécifié')
 ON CONFLICT (code) DO NOTHING;
 
 -- ========================================

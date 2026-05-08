@@ -49,7 +49,6 @@ export function useInterventionsMutations() {
       adresse_complete?: string
       latitude?: number
       longitude?: number
-      numero_sst?: string
       pourcentage_sst?: number
     }) => {
       return await interventionsApi.create(data)
@@ -108,7 +107,6 @@ export function useInterventionsMutations() {
         adresse_complete?: string | null
         latitude?: number
         longitude?: number
-        numero_sst?: string
         pourcentage_sst?: number
         is_vacant?: boolean
         key_code?: string | null

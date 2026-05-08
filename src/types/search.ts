@@ -66,7 +66,6 @@ export interface InterventionSearchRecord {
   date: string | null
   date_prevue: string | null
   due_date: string | null
-  numero_sst: string | null
   pourcentage_sst: number | null
   owner?: {
     id: string

@@ -2,6 +2,7 @@
 
 import { useMemo } from "react"
 import { useRecentInterventionsByStatus } from "@/hooks/useDashboardStats"
+import type { RecentInterventionByStatusItem } from "@/lib/api/interventions/stats/user/recent"
 import { getMetierColor } from "@/config/metier-colors"
 import Loader from "@/components/ui/Loader"
 
@@ -71,7 +72,7 @@ export const InterventionStatusContent = ({
     <div className="space-y-3">
       <h4 className="font-semibold text-sm mb-2">{statusLabel}</h4>
       <div className="space-y-3 max-h-[400px] overflow-y-auto">
-        {interventionsData.map((intervention) => (
+        {interventionsData.map((intervention: RecentInterventionByStatusItem) => (
           <div
             key={intervention.id}
             className="flex items-center gap-2 text-sm cursor-pointer hover:bg-muted/50 p-1.5 rounded transition-colors"

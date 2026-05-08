@@ -165,7 +165,7 @@ export function InterfaceSettings() {
       })
       toast({ title: 'Préférences du tableau de bord sauvegardées' })
     } catch (e: any) {
-      toast({ title: 'Erreur', description: e?.message || 'Impossible de sauvegarder les préférences', variant: 'destructive' as any })
+      toast({ title: 'Erreur', description: e?.message || 'Impossible de sauvegarder les préférences', variant: 'destructive' })
     } finally {
       setSavingPreferences(false)
     }

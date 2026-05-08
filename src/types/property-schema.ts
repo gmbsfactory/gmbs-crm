@@ -85,7 +85,6 @@ export const INTERVENTION_PROPERTIES: PropertySchema[] = [
   { key: "emailProprietaire", label: "Email propriétaire", type: "text", sortable: true, filterable: true },
   
   // Informations SST
-  { key: "numeroSST", label: "Numéro SST", type: "text", sortable: true, filterable: true },
   { key: "pourcentageSST", label: "Pourcentage SST", type: "number", sortable: true, filterable: true },
   
   // Finances - Coûts
