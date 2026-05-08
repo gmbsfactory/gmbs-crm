@@ -39,6 +39,12 @@ export const artisansCrud = {
         if (searchError) {
           console.error("[artisansApi.getAll] Error in search_artisans RPC:", searchError);
           // Fallback vers l'ancienne méthode si RPC échoue
+        } else if (searchResults && searchResults.length === 0) {
+          // RPC succeeded but found nothing — return empty, don't fall through to unfiltered query
+          return {
+            data: [],
+            pagination: { total: 0, limit, offset, hasMore: false },
+          };
         } else if (searchResults && searchResults.length > 0) {
           // Extraire les IDs triés par pertinence
           let artisanIds: string[] = searchResults.map((r: { id?: string }) => r.id).filter((id: string | undefined): id is string => Boolean(id));

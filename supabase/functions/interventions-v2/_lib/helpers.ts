@@ -158,7 +158,7 @@ export function applySort<T extends { order: Function }>(
   } else {
     query = query.order('created_at', { ascending: false });
   }
-  query = query.order('id', { ascending: false });
+  query = query.order('created_at', { ascending: false });
   return query;
 }
 
