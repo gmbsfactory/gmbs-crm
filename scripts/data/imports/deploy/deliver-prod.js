@@ -43,7 +43,7 @@ if (fs.existsSync(envPath) && !process.env.NEXT_PUBLIC_SUPABASE_URL) {
   console.log(`  📁 Env chargé : ${envFile}`);
 }
 
-const clientPath = path.join(ROOT, 'src/lib/api/v2/common/client.ts');
+const clientPath = path.join(ROOT, 'src/lib/api/common/client.ts');
 console.log('🔍 Chemin client:', clientPath);
 const { getSupabaseClientForNode } = require(clientPath);
 

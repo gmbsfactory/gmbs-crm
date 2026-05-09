@@ -7,7 +7,7 @@ import { useInterventionModal } from "@/hooks/useInterventionModal"
 import { useModal } from "@/hooks/useModal"
 import { useCurrentUser } from "@/hooks/useCurrentUser"
 import { interventionKeys } from "@/lib/react-query/queryKeys"
-import { interventionsApi } from "@/lib/api/interventionsApi"
+import { interventionsApi } from "@/lib/api/interventions"
 import type { InterventionWithStatus, PaginatedResponse } from "@/lib/api/common/types"
 import type { InterventionStatusValue } from "@/types/interventions"
 import type { ContextMenuViewType } from "@/types/context-menu"
@@ -24,7 +24,6 @@ type InterventionWithRelations = InterventionWithStatus & {
   intervention_artisans?: unknown
   intervention_costs?: Array<{ cost_type?: string; amount?: number }>
   intervention_payments?: Array<{ payment_type?: string; amount?: number; is_received?: boolean; payment_date?: string | null }>
-  numero_sst?: string | null
   pourcentage_sst?: number | null
 }
 
@@ -164,7 +163,6 @@ export function useInterventionContextMenu(
       coutIntervention: "",
       coutSST: "",
       coutMateriel: "",
-      numero_sst: data.numero_sst || "",
       pourcentage_sst: data.pourcentage_sst ?? undefined,
       // Acomptes — remis à zéro pour un devis supplémentaire
       accompteSST: "",

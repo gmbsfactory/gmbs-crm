@@ -34,7 +34,7 @@
     "test:automatic-transitions:api-v2": "npx tsx scripts/test-api/test-automatic-transitions-api-v2.ts",
     "test:check-status": "npx tsx scripts/test-api/check-status.ts",
     "export:to-excel": "node scripts/exports/export-to-sheets.js",
-    "export:interventions-csv": "node scripts/exports/export-interventions-csv.js",
+    "export:interventions-csv": "npx tsx scripts/data/exports/export-interventions-csv.js",
     "types:generate": "supabase gen types typescript --local > src/lib/database.types.ts"
   },
   "dependencies": {
@@ -144,11 +144,13 @@
     "@types/dagre": "^0.7.53",
     "@types/maplibre-gl": "^1.13.2",
     "@types/node": "^22",
+    "@types/papaparse": "^5.5.2",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@types/three": "^0.179.0",
     "@vitejs/plugin-react": "^5.0.1",
     "@vitest/ui": "^3.2.4",
+    "cross-env": "^10.1.0",
     "eslint": "^9.34.0",
     "eslint-config-next": "^15.5.0",
     "jsdom": "^26.1.0",

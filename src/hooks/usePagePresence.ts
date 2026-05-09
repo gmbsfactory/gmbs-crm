@@ -28,6 +28,12 @@ const STALE_MS = 5 * 60 * 1000 // 5 minutes
 /** Heartbeat interval: re-track to refresh joinedAt and keep presence alive */
 const HEARTBEAT_MS = 2 * 60 * 1000 // 2 minutes (well under STALE_MS)
 
+/** Gate verbose presence logging behind an env flag (warnings always emit) */
+const PRESENCE_DEBUG = process.env.NEXT_PUBLIC_DEBUG_PRESENCE === 'true'
+const debugLog = (...args: unknown[]) => {
+  if (PRESENCE_DEBUG) console.log(...args)
+}
+
 /** Reconnection delay after channel error */
 const RECONNECT_DELAY_MS = 5000 // 5 seconds
 
@@ -277,7 +283,7 @@ export function usePagePresence(
       // Reset joinedAt on new subscription
       joinedAtRef.current = new Date().toISOString()
 
-      console.log(`[PagePresence] Subscribing to ${CHANNEL_NAME}`)
+      debugLog(`[PagePresence] Subscribing to ${CHANNEL_NAME}`)
 
       // Only listen to 'sync' — Supabase fires it after every join/leave,
       // so separate join/leave handlers would double-trigger handleSync.
@@ -286,7 +292,7 @@ export function usePagePresence(
         .subscribe(async (status: string) => {
           if (cancelled || !mountedRef.current) return
 
-          console.log(`[PagePresence] Channel status: ${status}`)
+          debugLog(`[PagePresence] Channel status: ${status}`)
 
           if (status === 'SUBSCRIBED') {
             const payload = buildPayload()
@@ -294,7 +300,7 @@ export function usePagePresence(
 
             try {
               await channel.track(payload)
-              console.log(`[PagePresence] Tracking on page: ${payload.currentPage}`)
+              debugLog(`[PagePresence] Tracking on page: ${payload.currentPage}`)
             } catch (error) {
               console.warn('[PagePresence] track() failed:', error)
             }
@@ -347,7 +353,7 @@ export function usePagePresence(
 
     return () => {
       cancelled = true
-      console.log(`[PagePresence] Cleaning up ${CHANNEL_NAME}`)
+      debugLog(`[PagePresence] Cleaning up ${CHANNEL_NAME}`)
       // Stop heartbeat, reconnection and throttle timers
       if (heartbeatTimer) clearInterval(heartbeatTimer)
       if (reconnectTimer) clearTimeout(reconnectTimer)

@@ -36,7 +36,7 @@ export function useAvatarHandlers({ userId, avatarUrl, setAvatarUrl, fileInputRe
       }
 
       const { error: uploadError } = await supabase.storage.from('documents').upload(storagePath, file, {
-        contentType: file.type, cacheControl: '3600', upsert: true
+        contentType: file.type, cacheControl: '31536000', upsert: true
       })
       if (uploadError) throw new Error(`Erreur upload: ${uploadError.message}`)
 

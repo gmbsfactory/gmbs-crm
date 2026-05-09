@@ -1,7 +1,7 @@
 // Test de l'API searchByPlainNom avec cas spécifiques
 // Ce script permet de tester la méthode avec des cas réels
 
-const { artisansApi } = require("../../../src/lib/api/v2");
+const { artisansApi } = require("../../../src/lib/api");
 
 async function testSearchByPlainNomSpecific() {
   console.log("🧪 Test spécifique de searchByPlainNom");

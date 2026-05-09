@@ -5,7 +5,7 @@ const {
   documentsApi,
   tenantsApi,
   ownersApi,
-} = require("../../../../src/lib/api/v2");
+} = require("../../../../src/lib/api");
 const { dataValidator } = require("../../../data-processing/data-validator");
 
 // Créer un client Supabase pour les insertions directes (évite les Edge Functions)

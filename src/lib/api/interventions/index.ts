@@ -4,12 +4,11 @@
 import { interventionsCrud } from "./interventions-crud";
 import { interventionsStatus, _setCrudRef } from "./interventions-status";
 import { interventionsCosts } from "./interventions-costs";
-import { interventionsStats, _setCostsRef } from "./interventions-stats";
+import { interventionsStats } from "./interventions-stats";
 import { interventionsFilters } from "./interventions-filters";
 
 // Injecter les références croisées entre modules
 _setCrudRef(interventionsCrud);
-_setCostsRef(interventionsCosts);
 
 // Objet unifié qui expose toutes les méthodes sous la même interface
 // que l'ancien interventionsApi monolithique

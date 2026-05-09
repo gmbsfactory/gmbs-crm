@@ -926,7 +926,7 @@ class GoogleSheetsImportCleanV2 {
 
     try {
       // Test simple avec la nouvelle API
-      const { usersApi } = require('../../../src/lib/api/v2');
+      const { usersApi } = require('../../../src/lib/api');
       const users = await usersApi.getAll({ limit: 1 });
 
       console.log('✅ Connexion à la base de données réussie');

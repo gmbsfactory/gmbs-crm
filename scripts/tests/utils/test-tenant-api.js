@@ -8,7 +8,7 @@
 console.log('🚀 Test de l\'API Tenants\n');
 
 // Import de l'API
-const { tenantsApi } = require('../../../src/lib/api/v2');
+const { tenantsApi } = require('../../../src/lib/api');
 
 async function testTenantsApi() {
   try {

@@ -67,20 +67,31 @@ export {
 // ===== IMPORTS DES APIs SPÉCIALISÉES =====
 import { analyticsApi } from "./analyticsApi";
 import { agenciesApi } from "./agenciesApi";
-import { artisansApi } from "./artisansApi";
+import { artisansApi } from "./artisans";
 import { clientsApi } from "./clientsApi";
 import { commentsApi } from "./commentsApi";
 import { comptaApi } from "./comptaApi";
 export type { FacturationEntriesResult } from "./comptaApi";
 import { documentsApi } from "./documentsApi";
 import { enumsApi } from "./enumsApi";
-import { interventionsApi } from "./interventionsApi";
+import { interventionsApi } from "./interventions";
+import { interventionsImportApi } from "./interventions/interventions-import";
+export type { InterventionImportPayload } from "./interventions/interventions-import";
 import { interventionStatusesApi } from "./interventionStatusesApi";
 import { artisanStatusesApi } from "./artisanStatusesApi";
 import { metiersApi } from "./metiersApi";
 import { ownersApi } from "./ownersApi";
 import { remindersApi } from "./remindersApi";
 import { permissionsApi, rolesApi } from "./rolesApi";
+import { referentialsApi } from "./referentials";
+export type {
+  ImportReferentials,
+  ReferentialAgency,
+  ReferentialArtisan,
+  ReferentialMetier,
+  ReferentialStatus,
+  ReferentialUser,
+} from "./referentials";
 import { tenantsApi } from "./tenantsApi";
 import { usersApi } from "./usersApi";
 import { utilsApi } from "./utilsApi";
@@ -97,11 +108,13 @@ export {
   documentsApi,
   enumsApi,
   interventionsApi,
+  interventionsImportApi,
   interventionStatusesApi,
   artisanStatusesApi,
   metiersApi,
   ownersApi,
   permissionsApi,
+  referentialsApi,
   remindersApi,
   rolesApi,
   tenantsApi,

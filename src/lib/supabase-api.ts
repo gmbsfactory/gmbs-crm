@@ -129,7 +129,6 @@ export interface Intervention {
   latitude: number | null;
   longitude: number | null;
   
-  numero_sst: string | null;
   pourcentage_sst: number | null;
   
   is_active: boolean | null;
@@ -190,7 +189,6 @@ export interface Intervention {
   
   // Champs additionnels du CSV (legacy)
   metier?: string; // Computed from metier_id
-  numeroSST?: string; // Alias for numero_sst
   pourcentageSST?: number; // Alias for pourcentage_sst
   dateIntervention?: string; // Alias for date
   telLoc?: string; // Legacy field

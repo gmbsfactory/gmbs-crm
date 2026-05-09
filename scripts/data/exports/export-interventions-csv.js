@@ -7,42 +7,22 @@
  * en respectant le format client défini dans le mapping
  *
  * Usage:
- *   node scripts/exports/export-interventions-csv.js (exporte toutes les interventions)
- *   node scripts/exports/export-interventions-csv.js --start-date 2024-01-01 --end-date 2024-12-31
- *   node scripts/exports/export-interventions-csv.js --start-date 2024-01-01 --end-date 2024-12-31 --output ./exports/interventions.csv
+ *   npm run export:interventions-csv (exporte toutes les interventions)
+ *   npm run export:interventions-csv -- --start-date 2024-01-01 --end-date 2024-12-31
+ *   npm run export:interventions-csv -- --start-date 2024-01-01 --end-date 2024-12-31 --output ./exports/interventions.csv
  */
 
 const path = require('path');
 const fs = require('fs');
 const { supabaseAdmin } = require('../../lib/supabase-client');
+const {
+  formatDate,
+  convertToCSV,
+} = require('../../../src/utils/import-export/intervention-csv');
 
 // Configuration
 const DEFAULT_OUTPUT_DIR = path.join(process.cwd(), 'exports');
 const DEFAULT_FILENAME = `Export_Interventions_${new Date().toISOString().split('T')[0]}.csv`;
-
-// Colonnes CSV dans l'ordre défini par le client
-const CSV_COLUMNS = [
-  'Date',
-  'Agence',
-  'Adresse d\'intervention',
-  'ID',
-  'Statut',
-  'Contexte d\'intervention',
-  'Métier',
-  'Gest.',
-  'Technicien',
-  'COUT SST',
-  'COÛT MATERIEL',
-  'Numéro SST',
-  'COUT INTER',
-  '% SST',
-  'PROPRIO',
-  'Date d\'intervention',
-  'TEL LOC',
-  'Locataire',
-  'Em@il Locataire',
-  'COMMENTAIRE'
-];
 
 /**
  * Parse les arguments de la ligne de commande
@@ -54,6 +34,7 @@ function parseArgs() {
     endDate: null,
     output: null,
     verbose: false,
+    extended: false,
     help: false,
   };
 
@@ -67,6 +48,8 @@ function parseArgs() {
       options.output = args[++i];
     } else if (arg === '--verbose' || arg === '-v') {
       options.verbose = true;
+    } else if (arg === '--extended') {
+      options.extended = true;
     } else if (arg === '--help' || arg === '-h') {
       options.help = true;
     }
@@ -83,7 +66,7 @@ function showHelp() {
 📊 Export des Interventions au format CSV
 
 Usage:
-  node scripts/exports/export-interventions-csv.js [options]
+  npm run export:interventions-csv -- [options]
 
 Options:
   --start-date, -s <date>  Date de début (format: YYYY-MM-DD) - Optionnel (par défaut: toutes)
@@ -93,10 +76,10 @@ Options:
   --help, -h               Affiche cette aide
 
 Exemples:
-  node scripts/exports/export-interventions-csv.js
-  node scripts/exports/export-interventions-csv.js --start-date 2024-01-01 --end-date 2024-12-31
-  node scripts/exports/export-interventions-csv.js -s 2024-01-01 -e 2024-12-31 -o ./backup.csv
-  node scripts/exports/export-interventions-csv.js -s 2024-01-01 -e 2024-12-31 --verbose
+  npm run export:interventions-csv
+  npm run export:interventions-csv -- --start-date 2024-01-01 --end-date 2024-12-31
+  npm run export:interventions-csv -- -s 2024-01-01 -e 2024-12-31 -o ./backup.csv
+  npm run export:interventions-csv -- -s 2024-01-01 -e 2024-12-31 --verbose
 `);
 }
 
@@ -144,57 +127,6 @@ async function ensureOutputDir(outputPath) {
     fs.mkdirSync(dir, { recursive: true });
     console.log(`📁 Dossier créé: ${dir}`);
   }
-}
-
-/**
- * Échappe les valeurs pour CSV (gestion des guillemets et virgules)
- */
-function escapeCSV(value) {
-  if (value == null) return '';
-
-  const stringValue = String(value);
-
-  // Si la valeur contient des guillemets, virgules ou sauts de ligne, on l'entoure de guillemets
-  if (stringValue.includes('"') || stringValue.includes(',') || stringValue.includes('\n') || stringValue.includes('\r')) {
-    // Doubler les guillemets internes
-    return `"${stringValue.replace(/"/g, '""')}"`;
-  }
-
-  return stringValue;
-}
-
-/**
- * Formate une date au format DD/MM/YYYY
- */
-function formatDate(dateString) {
-  if (!dateString) return '';
-
-  const date = new Date(dateString);
-  if (isNaN(date.getTime())) return '';
-
-  const day = String(date.getDate()).padStart(2, '0');
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const year = date.getFullYear();
-
-  return `${day}/${month}/${year}`;
-}
-
-/**
- * Formate un montant
- */
-function formatAmount(amount) {
-  if (amount == null || amount === '') return '';
-  return String(amount);
-}
-
-/**
- * Récupère les coûts d'une intervention par type
- */
-function getCostByType(costs, costType) {
-  if (!costs || costs.length === 0) return '';
-
-  const cost = costs.find(c => c.cost_type === costType);
-  return cost ? formatAmount(cost.amount) : '';
 }
 
 /**
@@ -264,26 +196,35 @@ async function enrichInterventionsData(interventions, verbose = false) {
   let processedCount = 0;
 
   for (const intervention of interventions) {
-    // Récupérer le technicien principal (artisan)
+    // Artisans : primaire + secondaire (max 2 par intervention).
     const { data: artisansData } = await supabaseAdmin
       .from('intervention_artisans')
       .select(`
         is_primary,
+        role,
         artisans(plain_nom)
       `)
       .eq('intervention_id', intervention.id)
-      .order('is_primary', { ascending: false })
-      .limit(1);
+      .order('is_primary', { ascending: false });
 
-    const technicien = artisansData?.[0]?.artisans?.plain_nom || '';
+    let artisan_primary = '';
+    let artisan_secondary = '';
+    for (const row of artisansData || []) {
+      const name = row.artisans?.plain_nom || '';
+      if (row.is_primary && !artisan_primary) {
+        artisan_primary = name;
+      } else if (!artisan_secondary) {
+        artisan_secondary = name;
+      }
+    }
 
-    // Récupérer les coûts
+    // Coûts ventilés par artisan_order (1=primaire, 2=secondaire, null=global).
     const { data: costsData } = await supabaseAdmin
       .from('intervention_costs')
-      .select('cost_type, amount')
+      .select('cost_type, amount, artisan_order')
       .eq('intervention_id', intervention.id);
 
-    // Récupérer les commentaires (uniquement internal, triés par date décroissante)
+    // Commentaires internes : conservés pour le mode étendu (cf. spec §2.1).
     const { data: commentsData } = await supabaseAdmin
       .from('comments')
       .select('content, created_at')
@@ -292,14 +233,14 @@ async function enrichInterventionsData(interventions, verbose = false) {
       .eq('is_internal', true)
       .order('created_at', { ascending: false });
 
-    // Concaténer tous les commentaires avec leur date
     const commentaires = commentsData?.map(c =>
       `[${formatDate(c.created_at)}] ${c.content}`
     ).join(' || ') || '';
 
     enriched.push({
       ...intervention,
-      technicien,
+      artisan_primary,
+      artisan_secondary,
       costs: costsData || [],
       commentaires
     });
@@ -315,56 +256,6 @@ async function enrichInterventionsData(interventions, verbose = false) {
   }
 
   return enriched;
-}
-
-/**
- * Convertit les interventions en format CSV
- */
-function convertToCSV(interventions) {
-  const rows = [];
-
-  // En-tête
-  rows.push(CSV_COLUMNS.map(escapeCSV).join(','));
-
-  // Données
-  for (const intervention of interventions) {
-    const proprio = [
-      intervention.owner?.owner_firstname || '',
-      intervention.owner?.owner_lastname || ''
-    ].filter(Boolean).join(' ').trim();
-
-    const locataire = [
-      intervention.tenants?.firstname || '',
-      intervention.tenants?.lastname || ''
-    ].filter(Boolean).join(' ').trim();
-
-    const row = [
-      formatDate(intervention.created_at),                           // Date
-      intervention.agencies?.label || '',                             // Agence
-      intervention.adresse || '',                                     // Adresse d'intervention
-      intervention.id_inter || '',                                    // ID
-      intervention.intervention_statuses?.label || '',                // Statut
-      intervention.contexte_intervention || '',                       // Contexte d'intervention
-      intervention.metiers?.label || '',                              // Métier
-      intervention.users?.username || '',                             // Gest.
-      intervention.technicien || '',                                  // Technicien
-      getCostByType(intervention.costs, 'sst'),                       // COUT SST
-      getCostByType(intervention.costs, 'materiel'),                  // COÛT MATERIEL
-      intervention.numero_sst || '',                                  // Numéro SST
-      getCostByType(intervention.costs, 'intervention'),              // COUT INTER
-      formatAmount(intervention.pourcentage_sst),                     // % SST
-      proprio,                                                        // PROPRIO
-      formatDate(intervention.date_prevue),                           // Date d'intervention
-      intervention.tenants?.telephone || '',                          // TEL LOC
-      locataire,                                                      // Locataire
-      intervention.tenants?.email || '',                              // Em@il Locataire
-      intervention.commentaires || ''                                 // COMMENTAIRE
-    ];
-
-    rows.push(row.map(escapeCSV).join(','));
-  }
-
-  return rows.join('\n');
 }
 
 /**
@@ -418,7 +309,7 @@ async function main() {
 
     // Convertir en CSV
     console.log('📝 Conversion en CSV...');
-    const csvContent = convertToCSV(interventions);
+    const csvContent = convertToCSV(interventions, { extended: options.extended });
 
     // Sauvegarder
     await saveCSV(csvContent, outputPath);

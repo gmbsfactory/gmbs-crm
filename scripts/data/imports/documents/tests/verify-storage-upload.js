@@ -20,7 +20,7 @@ require('dotenv').config({ path: '.env.local' });
 let documentsApi;
 let supabaseClient;
 try {
-  const apiV2 = require('../../../../src/lib/api/v2');
+  const apiV2 = require('../../../../src/lib/api');
   documentsApi = apiV2.documentsApi;
   
   // Créer un client Supabase pour vérifier Storage

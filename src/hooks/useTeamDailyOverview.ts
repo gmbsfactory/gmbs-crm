@@ -42,7 +42,9 @@ export function useTeamDailyOverview(date?: Date) {
       if (error) throw error
       return (data as unknown as TeamMemberOverview[]) ?? []
     },
-    staleTime: 30_000,
-    refetchInterval: 60_000,
+    staleTime: 2 * 60_000,
+    refetchInterval: 5 * 60_000,
+    refetchIntervalInBackground: false,
+    refetchOnWindowFocus: true,
   })
 }

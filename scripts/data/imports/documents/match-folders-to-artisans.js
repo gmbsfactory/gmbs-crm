@@ -771,7 +771,7 @@ async function main() {
   // Charger l'API v2 via import() dynamique (compatible tsx v4+)
   try {
     const { pathToFileURL } = await import('url');
-    const apiV2Path = pathToFileURL(path.resolve(__dirname, '../../../../src/lib/api/v2/index.ts'));
+    const apiV2Path = pathToFileURL(path.resolve(__dirname, '../../../../src/lib/api/index.ts'));
     const apiV2 = await import(apiV2Path);
     artisansApi = apiV2.artisansApi;
     documentsApi = apiV2.documentsApi;

@@ -29,7 +29,7 @@ import {
   TABLE_TEXT_SIZE_OPTIONS,
   normalizeColumnStyle,
 } from "@/lib/interventions/column-style"
-import { TABLE_ALIGNMENT_OPTIONS } from "./column-alignment-options"
+import { TABLE_ALIGNMENT_OPTIONS } from "./table/column-alignment-options"
 
 type ColumnConfigurationProps = {
   view: InterventionViewDefinition

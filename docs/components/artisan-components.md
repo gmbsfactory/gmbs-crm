@@ -150,6 +150,21 @@ Le refacto d'avril 2026 a éclaté les anciens formulaires monolithiques en sous
 
 > **Règle :** toute nouvelle saisie/champ dans la modal artisan doit être ajoutée comme composant autonome dans `_components/`, **pas** inlinée dans `NewArtisanModalContent` ou `ArtisanModalContent`. La logique de validation correspondante va dans `src/lib/<domain>-validation.ts` (cf. `iban-validation`, `siret-validation`).
 
+### Hooks partagés (artisan-modal/_hooks/)
+
+Le refacto de mai 2026 a extrait la plomberie dupliquée entre `NewArtisanModalContent` et `ArtisanModalContent` dans des hooks dédiés :
+
+| Hook | Rôle |
+|------|------|
+| `useArtisanForm` | Plomberie commune : dialogue "modifications non sauvegardées", interception Échap, raccourci Cmd/Ctrl+Enter, notifications au parent. Consommé par les deux modals. |
+| `useArtisanCreate` | Logique côté création uniquement : absences en attente, dialogue d'artisan supprimé (détecter / restaurer / écraser), génération du `numero_associe`, statut POTENTIEL par défaut, auto-attribution au gestionnaire connecté. |
+| `useArtisanMutations` | Mutations TanStack Query pour la mise à jour artisan + invalidation de cache. |
+| `useArtisanStatusTransition` | Transitions de statut nécessitant une raison/un commentaire (ex. archivage). |
+| `useArtisanAbsences` | CRUD des absences pour un artisan existant. |
+| `useArtisanAddressGeocode` | Autocomplétion d'adresse via géocodage. |
+
+Le schéma de formulaire (`ArtisanFormValues`), la valeur par défaut (`buildDefaultFormValues`) et les builders de payload (`buildCreatePayload`, `buildUpdatePayload`) sont exportés depuis `_lib/artisan-form-mapper.ts` — source unique pour la création et l'édition.
+
 ### ArtisanFinancesSection.tsx
 
 Section financière dans la modal artisan affichant :

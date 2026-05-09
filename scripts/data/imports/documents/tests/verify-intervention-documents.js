@@ -14,7 +14,7 @@ require('dotenv').config({ path: '.env.local' });
 // Utiliser l'API v2 centralisée
 let documentsApi;
 try {
-  const apiV2 = require('../../../../src/lib/api/v2');
+  const apiV2 = require('../../../../src/lib/api');
   documentsApi = apiV2.documentsApi;
 } catch (error) {
   console.error('❌ Erreur lors du chargement de l\'API v2:', error.message);

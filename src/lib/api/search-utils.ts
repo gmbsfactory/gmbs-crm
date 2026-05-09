@@ -22,7 +22,6 @@ export function convertInterventionToSearchRecord(intervention: any): Interventi
     date: intervention.date,
     date_prevue: intervention.date_prevue,
     due_date: intervention.due_date,
-    numero_sst: intervention.numero_sst,
     pourcentage_sst: intervention.pourcentage_sst,
     tenant: intervention.tenant
       ? {

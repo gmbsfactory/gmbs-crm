@@ -559,17 +559,6 @@ export default function ComptabilitePage() {
             {copiedAndChecked ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
             {copiedAndChecked ? "Copié + Géré !" : "Copier + Check"}
           </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleBulkExclude}
-            disabled={selectedRows.size === 0}
-            className="h-8 text-xs gap-1.5 text-destructive hover:bg-destructive/10 hover:text-destructive border-destructive/30"
-            aria-label={selectedRows.size === 0 ? "Sélectionnez des lignes pour supprimer" : `Retirer ${selectedRows.size} lignes de la compta`}
-          >
-            <Trash2 className="h-3.5 w-3.5" />
-            Supprimer
-          </Button>
         </div>
       </div>
 
@@ -677,14 +666,27 @@ export default function ComptabilitePage() {
         </div>
 
         {!isLoading && totalCount > 0 && (
-          <div className="border-t px-2 py-1.5 shrink-0">
-            <Pagination
-              currentPage={currentPage}
-              totalPages={totalPages}
-              totalCount={totalCount}
-              pageSize={itemsPerPage}
-              onPageChange={setCurrentPage}
-            />
+          <div className="border-t px-2 py-1.5 shrink-0 flex items-center">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleBulkExclude}
+              disabled={selectedRows.size === 0}
+              className="h-7 text-xs gap-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+              aria-label={selectedRows.size === 0 ? "Sélectionnez des lignes pour supprimer" : `Retirer ${selectedRows.size} lignes de la compta`}
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              Supprimer
+            </Button>
+            <div className="flex-1">
+              <Pagination
+                currentPage={currentPage}
+                totalPages={totalPages}
+                totalCount={totalCount}
+                pageSize={itemsPerPage}
+                onPageChange={setCurrentPage}
+              />
+            </div>
           </div>
         )}
       </div>

@@ -182,7 +182,7 @@ if (require.main === module) {
   const envPath = path.join(ROOT, envFile);
   if (fs.existsSync(envPath)) require('dotenv').config({ path: envPath });
 
-  const { getSupabaseClientForNode } = require(path.join(ROOT, 'src/lib/api/v2/common/client.ts'));
+  const { getSupabaseClientForNode } = require(path.join(ROOT, 'src/lib/api/common/client.ts'));
   const args    = process.argv.slice(2);
   const verbose = args.includes('--verbose');
   const dryRun  = args.includes('--dry-run');

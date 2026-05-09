@@ -1,15 +1,15 @@
 @echo off
 REM Batch file to launch a console command with predefined environment variables
 
-REM Set your environment variables here
-set SUPABASE_ACCESS_TOKEN=sbp_da34ec2f82673f9b903ea9a72e18855305271a16
+@REM REM Set your environment variables here
+@REM set SUPABASE_ACCESS_TOKEN=sbp_da34ec2f82673f9b903ea9a72e18855305271a16
 
-REM Add more environment variables as needed
-REM set MY_VAR=my_value
+@REM REM Add more environment variables as needed
+@REM REM set MY_VAR=my_value
 
-REM Launch your console command here
-REM Replace the command below with your actual command
-echo SUPABASE_ACCESS_TOKEN=%SUPABASE_ACCESS_TOKEN%
+@REM REM Launch your console command here
+@REM REM Replace the command below with your actual command
+@REM echo SUPABASE_ACCESS_TOKEN=%SUPABASE_ACCESS_TOKEN%
 
 REM Example: Run a Node.js command
 REM node your-script.js

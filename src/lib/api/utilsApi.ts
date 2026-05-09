@@ -167,7 +167,6 @@ export const utilsApi = {
       statut: status?.code ?? item.statut ?? null,
       statusValue: status?.code ?? item.statusValue ?? item.statut ?? null,
       statusColor: status?.color ?? null,
-      numeroSST: item.numero_sst ?? item.numeroSST ?? null,
       pourcentageSST: item.pourcentage_sst ?? item.pourcentageSST ?? null,
       commentaire: item.commentaire ?? item.commentaire_agent ?? null,
       demandeIntervention: item.demande_intervention ?? item.demandeIntervention ?? null,

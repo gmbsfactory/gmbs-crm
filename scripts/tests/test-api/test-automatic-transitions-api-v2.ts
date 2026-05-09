@@ -11,7 +11,7 @@
  */
 
 import dotenv from 'dotenv';
-import { interventionsApi } from '../../../src/lib/api/v2/interventionsApi';
+import { interventionsApi } from '../../../src/lib/api/interventionsApi';
 import { supabase } from '../../../src/lib/supabase-client';
 
 // Charger les variables d'environnement

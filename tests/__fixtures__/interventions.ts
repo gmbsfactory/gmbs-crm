@@ -8,8 +8,6 @@ export const createMockIntervention = (
   idIntervention: "INT-001",
   statut: "En cours",
   statutCode: "EN_COURS",
-  sousStatut: null,
-  sousStatutCode: null,
   nomClient: "Client Test",
   telephoneClient: "0601020304",
   adresse: "123 Rue Test",

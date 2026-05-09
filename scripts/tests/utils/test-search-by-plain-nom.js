@@ -1,7 +1,7 @@
 // Test de l'API searchByPlainNom
 // Ce script permet de tester directement la méthode qui pose problème
 
-const { artisansApi } = require("../../../src/lib/api/v2");
+const { artisansApi } = require("../../../src/lib/api");
 
 async function testSearchByPlainNom() {
   console.log("🧪 Test de l'API searchByPlainNom");

@@ -11,7 +11,7 @@ import Interventions from "@/components/interventions/Interventions"
 import CalendarView from "@/components/interventions/views/CalendarView"
 import GalleryView from "@/components/interventions/views/GalleryView"
 import KanbanView from "@/components/interventions/views/KanbanView"
-import TableView from "@/components/interventions/views/TableView"
+import TableView from "@/components/interventions/views/table/TableView"
 import TimelineView from "@/components/interventions/views/TimelineView"
 import Loader from "@/components/ui/Loader"
 

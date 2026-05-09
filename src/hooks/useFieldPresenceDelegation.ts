@@ -46,7 +46,6 @@ export const TRACKED_FIELD_IDS = new Set([
   'sousStatutTextColor',
   'sousStatutBgColor',
   // SST
-  'numero_sst',
   'pourcentage_sst',
 ])
 

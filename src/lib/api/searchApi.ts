@@ -198,7 +198,6 @@ export function scoreIntervention(intervention: InterventionSearchRecord, query:
     }
   }
 
-  // numero_sst corresponds to the artisan's telephone
   // Search in primary artisan's telephone and telephone2
   if (primaryArtisan) {
     const telephoneCandidates = [
@@ -599,8 +598,7 @@ const searchInterventions = async (
 
   // PostgREST .or() syntax: "column.operator.pattern"
   // Only search on direct columns, not relations (PostgREST limitation with .or())
-  // Note: numero_sst corresponds to artisan's telephone, so it's searched client-side
-  // via the intervention_artisans relation in scoreIntervention function
+  // Note: artisan telephone is searched client-side via intervention_artisans relation in scoreIntervention
   // Note: PostgREST may have issues with NULL values in .or() filters, so we use a workaround:
   // Instead of filtering NULL columns, we fetch more results and filter client-side
   const orFilters = [
@@ -678,7 +676,7 @@ const searchInterventions = async (
           label,
           color
         ),
-        metier:metiers (
+        metier:metiers!interventions_metier_id_fkey (
           id,
           code,
           label
@@ -842,7 +840,7 @@ const fetchInterventionsByIds = async (ids: string[]): Promise<InterventionSearc
 
   // Import the utility function and API
   const { convertInterventionToSearchRecord } = await import("@/lib/api/search-utils")
-  const { interventionsApi } = await import("@/lib/api/interventionsApi")
+  const { interventionsApi } = await import("@/lib/api/interventions")
 
   // Fetch interventions in parallel
   const promises = ids.map(async (id) => {

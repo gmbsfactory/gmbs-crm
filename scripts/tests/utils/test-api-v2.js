@@ -1,4 +1,4 @@
-const { usersApi, interventionsApi, artisansApi, clientsApi, documentsApi, commentsApi, rolesApi, permissionsApi, utilsApi } = require('../../../src/lib/api/v2');
+const { usersApi, interventionsApi, artisansApi, clientsApi, documentsApi, commentsApi, rolesApi, permissionsApi, utilsApi } = require('../../../src/lib/api');
 
 class ApiV2TestSuite {
   constructor() {
@@ -186,7 +186,7 @@ class ApiV2TestSuite {
   async testApiCompatibility() {
     await this.runTest('API Compatibility - Alias imports', async () => {
       // Test des alias pour la compatibilité
-      const { usersApiV2, interventionsApiV2, artisansApiV2 } = require('../../../src/lib/api/v2');
+      const { usersApiV2, interventionsApiV2, artisansApiV2 } = require('../../../src/lib/api');
       
       if (usersApiV2 !== usersApi) {
         throw new Error('usersApiV2 alias should point to usersApi');

@@ -25,6 +25,8 @@ import { supabase } from "@/lib/supabase-client"
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar"
 import { Switch } from "@/components/ui/switch"
 import { cn } from "@/lib/utils"
+import { ExportInterventionsCard } from "./ExportInterventionsCard"
+import { ImportInterventionsCard } from "./ImportInterventionsCard"
 
 interface LatenessEmailConfig {
   configured: boolean
@@ -155,7 +157,7 @@ export function ProfileSettings() {
       toast({
         title: 'Erreur',
         description: error.message || 'Impossible de sauvegarder',
-        variant: 'destructive' as any
+        variant: 'destructive'
       })
     } finally {
       setSavingLatenessEmail(false)
@@ -187,7 +189,7 @@ export function ProfileSettings() {
       toast({
         title: 'Erreur',
         description: error.message || "Impossible d'envoyer l'email de test",
-        variant: 'destructive' as any
+        variant: 'destructive'
       })
     } finally {
       setTestingLatenessEmail(false)
@@ -295,7 +297,7 @@ export function ProfileSettings() {
       setEmailPasswordField('') // Réinitialiser le mot de passe après sauvegarde
       toast({ title: 'Configuration email mise à jour' })
     } catch (e: any) {
-      toast({ title: 'Erreur', description: e?.message || 'Impossible de sauvegarder', variant: 'destructive' as any })
+      toast({ title: 'Erreur', description: e?.message || 'Impossible de sauvegarder', variant: 'destructive' })
     } finally {
       setSavingEmail(false)
     }
@@ -657,6 +659,12 @@ export function ProfileSettings() {
           )}
         </AnimatePresence>
       </div>
+
+      {/* Section Export CSV */}
+      <ExportInterventionsCard />
+
+      {/* Section Import CSV */}
+      <ImportInterventionsCard />
 
       {/* Section Configuration Email des Retards (Admin Only) */}
       {isAdmin && (

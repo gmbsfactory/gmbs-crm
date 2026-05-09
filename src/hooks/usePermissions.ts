@@ -13,6 +13,8 @@ export type PermissionKey =
   | "write_interventions"
   | "delete_interventions"
   | "edit_closed_interventions"
+  | "export_interventions"
+  | "import_interventions"
   | "read_artisans"
   | "write_artisans"
   | "delete_artisans"

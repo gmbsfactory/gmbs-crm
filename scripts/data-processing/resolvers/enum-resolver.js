@@ -2,7 +2,7 @@
 
 const {
   enumsApi,
-} = require('../../../src/lib/api/v2');
+} = require('../../../src/lib/api');
 const {
   ARTISAN_STATUS_LABEL_TO_CODE,
   STATUS_LABEL_TO_CODE,

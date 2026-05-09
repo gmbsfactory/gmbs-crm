@@ -61,7 +61,6 @@ export interface Intervention {
   
   // Champs additionnels du CSV
   metier?: string;
-  numeroSST?: string;
   pourcentageSST?: number;
   dateIntervention?: string;
   telLoc?: string;
@@ -98,7 +97,6 @@ export const mockInterventions: Intervention[] = [
     attribueA: "1",
     artisan: "1",
     metier: "Vitrerie",
-    numeroSST: "001",
     pourcentageSST: 0,
     dateIntervention: "2024-01-20",
     telLoc: "06 12 34 56 78",
@@ -133,7 +131,6 @@ export const mockInterventions: Intervention[] = [
     attribueA: "2",
     artisan: "2",
     metier: "Bricolage",
-    numeroSST: "002",
     pourcentageSST: 0,
     dateIntervention: "2024-01-18",
     telLoc: "06 13 27 31 07",
@@ -168,7 +165,6 @@ export const mockInterventions: Intervention[] = [
     attribueA: "1",
     artisan: "2",
     metier: "Plomberie",
-    numeroSST: "003",
     pourcentageSST: 0,
     dateIntervention: "2024-01-21",
     telLoc: "06 98 76 54 32",
@@ -203,7 +199,6 @@ export const mockInterventions: Intervention[] = [
     attribueA: "1",
     artisan: "3",
     metier: "Électricité",
-    numeroSST: "004",
     pourcentageSST: 0,
     dateIntervention: "2024-01-23",
     telLoc: "06 98 76 54 32",
@@ -238,7 +233,6 @@ export const mockInterventions: Intervention[] = [
     attribueA: "2",
     artisan: "5",
     metier: "Plomberie",
-    numeroSST: "005",
     pourcentageSST: 0,
     dateIntervention: "2024-01-26",
     telLoc: "06 11 22 33 44",

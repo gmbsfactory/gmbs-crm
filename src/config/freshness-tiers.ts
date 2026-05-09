@@ -80,8 +80,8 @@ const BASE_TIERS: Record<FreshnessTier, TierConfig> = {
    */
   T3: {
     tier: 'T3',
-    pollingInterval: 30_000,      // 30s
-    staleTime: 15_000,            // 15s
+    pollingInterval: 2 * 60_000,  // 2 min — refetchOnWindowFocus couvre le retour utilisateur
+    staleTime: 60_000,            // 1 min
     gcTime: 5 * 60 * 1000,       // 5 min
     label: 'Background (lazy polling)',
   },
@@ -116,8 +116,8 @@ const LOW_END_OVERRIDES: Partial<Record<FreshnessTier, Partial<TierConfig>>> = {
     staleTime: 5_000,
   },
   T3: {
-    pollingInterval: 60_000,
-    staleTime: 30_000,
+    pollingInterval: 5 * 60_000,
+    staleTime: 2 * 60_000,
   },
   T4: {
     staleTime: 15 * 60 * 1000,

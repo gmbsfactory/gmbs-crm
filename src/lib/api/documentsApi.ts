@@ -191,7 +191,7 @@ export const documentsApi = {
         .from('documents')
         .upload(storagePath, fileBuffer, {
           contentType: data.mime_type,
-          cacheControl: '3600',
+          cacheControl: '31536000',
           upsert: false
         });
 

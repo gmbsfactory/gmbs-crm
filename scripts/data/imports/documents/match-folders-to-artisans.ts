@@ -22,8 +22,8 @@ console.log(`📁 Variables chargées depuis ${envFile}`);
 
 // API v2 chargée dynamiquement (après dotenv) pour que les env vars soient disponibles
 // Note: using require() instead of top-level await to support CJS output format
-const { artisansApi, documentsApi } = require('@/lib/api/v2');
-const { getSupabaseClientForNode } = require('@/lib/api/v2/common/client');
+const { artisansApi, documentsApi } = require('@/lib/api');
+const { getSupabaseClientForNode } = require('@/lib/api/common/client');
 
 // Importer le module de classification des documents
 // @ts-ignore - JS module without types
@@ -775,7 +775,7 @@ async function main() {
   // Vérifier que les APIs sont chargées
   if (!artisansApi || !documentsApi) {
     console.error('❌ Erreur: Les APIs v2 (artisansApi, documentsApi) ne sont pas disponibles.');
-    console.error('   Vérifiez que le module @/lib/api/v2 est correctement importé.');
+    console.error('   Vérifiez que le module @/lib/api est correctement importé.');
     process.exit(1);
   }
 

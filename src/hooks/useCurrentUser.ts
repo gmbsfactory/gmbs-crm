@@ -80,8 +80,9 @@ export function useCurrentUser(options?: { enabled?: boolean }) {
     staleTime: 5 * 60 * 1000, // Cache 5 minutes
     gcTime: 10 * 60 * 1000, // Garde en cache 10 minutes
     retry: 1,
-    // Refetch automatique quand la fenêtre reprend le focus (sécurité)
-    refetchOnWindowFocus: true,
+    // Pas de refetch au focus — le heartbeat (60s) couvre la fraîcheur de session.
+    // Évite ~1 appel /api/auth/me par alt-tab.
+    refetchOnWindowFocus: false,
     // Refetch automatique quand la connexion réseau revient
     refetchOnReconnect: true,
     // Permettre de désactiver la query sur les pages publiques

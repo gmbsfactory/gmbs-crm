@@ -21,6 +21,12 @@ const SETUP_DELAY_MS = 50
 /** Reconnection delay after channel error */
 const RECONNECT_DELAY_MS = 5000
 
+/** Gate verbose presence logging behind an env flag (warnings always emit) */
+const PRESENCE_DEBUG = process.env.NEXT_PUBLIC_DEBUG_PRESENCE === 'true'
+const debugLog = (...args: unknown[]) => {
+  if (PRESENCE_DEBUG) console.log(...args)
+}
+
 /**
  * Shared module-level counter tracking active Presence channels.
  * Enforces a GLOBAL cap across all entity types (intervention, artisan, etc.).
@@ -218,7 +224,7 @@ export function useEntityPresence(
 
       if (oldest?.userId === userId) {
         isEditingRef.current = true
-        console.log(`[${logTag}] Promoted to editor (oldest viewer, previous editor left)`)
+        debugLog(`[${logTag}] Promoted to editor (oldest viewer, previous editor left)`)
         scheduleTrack()
       }
     }
@@ -322,7 +328,7 @@ export function useEntityPresence(
       isEditingRef.current = false
       hasResolvedEditingRef.current = false
 
-      console.log(`[${logTag}] Subscribing to ${channelName}`)
+      debugLog(`[${logTag}] Subscribing to ${channelName}`)
 
       // Only listen to 'sync' — Supabase fires it after every join/leave,
       // so separate join/leave handlers would double-trigger handleSync.
@@ -331,7 +337,7 @@ export function useEntityPresence(
         .subscribe(async (status: string) => {
           if (cancelled || !mountedRef.current) return
 
-          console.log(`[${logTag}] Channel ${channelName} status: ${status}`)
+          debugLog(`[${logTag}] Channel ${channelName} status: ${status}`)
 
           if (status === 'SUBSCRIBED') {
             const state = channel.presenceState() as Record<string, PresencePayload[]>
@@ -340,10 +346,10 @@ export function useEntityPresence(
 
             if (existingEditor) {
               isEditingRef.current = false
-              console.log(`[${logTag}] Opening read-only (editor: ${existingEditor.name})`)
+              debugLog(`[${logTag}] Opening read-only (editor: ${existingEditor.name})`)
             } else {
               isEditingRef.current = true
-              console.log(`[${logTag}] Opening as editor`)
+              debugLog(`[${logTag}] Opening as editor`)
             }
             hasResolvedEditingRef.current = true
 
@@ -351,9 +357,9 @@ export function useEntityPresence(
             if (!payload) return
 
             try {
-              console.log(`[${logTag}] Tracking user: ${payload.name} (editing: ${payload.isEditing})`)
+              debugLog(`[${logTag}] Tracking user: ${payload.name} (editing: ${payload.isEditing})`)
               await channel.track(payload)
-              console.log(`[${logTag}] Track successful for ${channelName}`)
+              debugLog(`[${logTag}] Track successful for ${channelName}`)
             } catch (error) {
               console.warn(`[${logTag}] track() failed:`, error)
             }
@@ -386,7 +392,7 @@ export function useEntityPresence(
 
     return () => {
       cancelled = true
-      console.log(`[${logTag}] Cleaning up ${channelName}`)
+      debugLog(`[${logTag}] Cleaning up ${channelName}`)
       decrementPresenceChannels()
       if (reconnectTimer) clearTimeout(reconnectTimer)
       if (throttleTimerRef.current) {

@@ -11,7 +11,7 @@
 
 const { DataMapper } = require('../../data-processing/data-mapper');
 const { DatabaseManager } = require('../imports/database/database-manager-v2');
-const { artisansApi } = require('../../../src/lib/api/v2');
+const { artisansApi } = require('../../../src/lib/api');
 
 // Charger les variables d'environnement
 require('dotenv').config({ path: '.env.local' });
