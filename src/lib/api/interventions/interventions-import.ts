@@ -611,7 +611,8 @@ async function fetchPreviousDisplayPayloads(
     is_active: boolean | null;
   };
 
-  const FETCH_CHUNK = 500;
+  // 100 UUIDs (~3.6 Ko) reste très en dessous des limites Kong/PostgREST locales.
+  const FETCH_CHUNK = 100;
   const rows: Row[] = [];
   for (let i = 0; i < ids.length; i += FETCH_CHUNK) {
     const slice = ids.slice(i, i + FETCH_CHUNK);
@@ -785,8 +786,6 @@ function buildDisplayPayload(
 // manquent. Si une rangée n'a aucune info exploitable, sa FK reste null.
 // ───────────────────────────────────────────────────────────────────────────
 
-const PERSON_LOOKUP_CHUNK = 200;
-
 /**
  * Statut de résolution d'une personne (locataire / propriétaire) :
  *   - 'none'     : aucune info exploitable dans le CSV (FK reste null)
@@ -831,18 +830,7 @@ type OwnerRow = {
   plain_nom_facturation: string | null;
 };
 
-async function fetchInChunks<T>(
-  values: string[],
-  fn: (slice: string[]) => Promise<T[]>,
-): Promise<T[]> {
-  const out: T[] = [];
-  for (let i = 0; i < values.length; i += PERSON_LOOKUP_CHUNK) {
-    out.push(...(await fn(values.slice(i, i + PERSON_LOOKUP_CHUNK))));
-  }
-  return out;
-}
-
-async function resolveTenants(
+export async function resolveTenants(
   supabase: SupabaseClient,
   mapped: Array<{ line: number; mapped: MappedIntervention }>,
   dryRun: boolean,
@@ -864,38 +852,18 @@ async function resolveTenants(
   const emails = unique([...byKey.values()].map((t) => t.email?.toLowerCase() ?? null).filter(isStr));
   const names = unique([...byKey.values()].map((t) => t.plain_nom_client).filter(isStr));
 
-  const select = 'id, email, telephone, telephone2, plain_nom_client';
-  const existing: TenantRow[] = [];
-  const seenIds = new Set<string>();
-  const collect = (rows: TenantRow[]) => {
-    for (const r of rows) if (!seenIds.has(r.id)) { seenIds.add(r.id); existing.push(r); }
-  };
-
-  if (phones.length) {
-    collect(await fetchInChunks(phones, async (slice) => {
-      const { data, error } = await supabase.from('tenants').select(select).in('telephone', slice);
-      if (error) throw error;
-      return (data ?? []) as TenantRow[];
-    }));
-    collect(await fetchInChunks(phones, async (slice) => {
-      const { data, error } = await supabase.from('tenants').select(select).in('telephone2', slice);
-      if (error) throw error;
-      return (data ?? []) as TenantRow[];
-    }));
-  }
-  if (emails.length) {
-    collect(await fetchInChunks(emails, async (slice) => {
-      const { data, error } = await supabase.from('tenants').select(select).in('email', slice);
-      if (error) throw error;
-      return (data ?? []) as TenantRow[];
-    }));
-  }
-  if (names.length) {
-    collect(await fetchInChunks(names, async (slice) => {
-      const { data, error } = await supabase.from('tenants').select(select).in('plain_nom_client', slice);
-      if (error) throw error;
-      return (data ?? []) as TenantRow[];
-    }));
+  // Lookup set-based via RPC (POST body) : élimine HTTP 414 par construction.
+  // Cf. docs/architecture/imports-async.md ADR-2.
+  let existing: TenantRow[] = [];
+  if (phones.length || emails.length || names.length) {
+    const { data, error } = await supabase.rpc('csv_intervention_import_resolve_tenants', {
+      p_telephones: phones,
+      p_telephones2: phones,
+      p_emails: emails,
+      p_names: names,
+    });
+    if (error) throw error;
+    existing = (data ?? []) as TenantRow[];
   }
 
   const existingIdByKey = new Map<string, string>();
@@ -945,7 +913,7 @@ async function resolveTenants(
   return out;
 }
 
-async function resolveOwners(
+export async function resolveOwners(
   supabase: SupabaseClient,
   mapped: Array<{ line: number; mapped: MappedIntervention }>,
   dryRun: boolean,
@@ -967,38 +935,16 @@ async function resolveOwners(
   const emails = unique([...byKey.values()].map((o) => o.email?.toLowerCase() ?? null).filter(isStr));
   const names = unique([...byKey.values()].map((o) => o.plain_nom_facturation).filter(isStr));
 
-  const select = 'id, email, telephone, telephone2, plain_nom_facturation';
-  const existing: OwnerRow[] = [];
-  const seenIds = new Set<string>();
-  const collect = (rows: OwnerRow[]) => {
-    for (const r of rows) if (!seenIds.has(r.id)) { seenIds.add(r.id); existing.push(r); }
-  };
-
-  if (phones.length) {
-    collect(await fetchInChunks(phones, async (slice) => {
-      const { data, error } = await supabase.from('owner').select(select).in('telephone', slice);
-      if (error) throw error;
-      return (data ?? []) as OwnerRow[];
-    }));
-    collect(await fetchInChunks(phones, async (slice) => {
-      const { data, error } = await supabase.from('owner').select(select).in('telephone2', slice);
-      if (error) throw error;
-      return (data ?? []) as OwnerRow[];
-    }));
-  }
-  if (emails.length) {
-    collect(await fetchInChunks(emails, async (slice) => {
-      const { data, error } = await supabase.from('owner').select(select).in('email', slice);
-      if (error) throw error;
-      return (data ?? []) as OwnerRow[];
-    }));
-  }
-  if (names.length) {
-    collect(await fetchInChunks(names, async (slice) => {
-      const { data, error } = await supabase.from('owner').select(select).in('plain_nom_facturation', slice);
-      if (error) throw error;
-      return (data ?? []) as OwnerRow[];
-    }));
+  let existing: OwnerRow[] = [];
+  if (phones.length || emails.length || names.length) {
+    const { data, error } = await supabase.rpc('csv_intervention_import_resolve_owners', {
+      p_telephones: phones,
+      p_telephones2: phones,
+      p_emails: emails,
+      p_names: names,
+    });
+    if (error) throw error;
+    existing = (data ?? []) as OwnerRow[];
   }
 
   const existingIdByKey = new Map<string, string>();
@@ -1064,7 +1010,7 @@ function unique(values: string[]): string[] {
 // remonte déjà via les warnings du mapper.
 // ───────────────────────────────────────────────────────────────────────────
 
-const ARTISAN_LINK_DELETE_CHUNK = 200;
+const ARTISAN_LINK_DELETE_CHUNK = 100;
 
 async function persistArtisanLinks(
   supabase: SupabaseClient,

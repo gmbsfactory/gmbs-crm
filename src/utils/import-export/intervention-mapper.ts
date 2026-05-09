@@ -47,7 +47,7 @@ export type MapperResult = MappedIntervention | InvalidRow;
 
 // ─── Champs requis (refus strict si absents) ─────────────────────────────────
 
-export const CSV_HEADERS_REQUIRED = ['Date', 'Métier', 'Agence'] as const;
+export const CSV_HEADERS_REQUIRED = ['ID', 'Date', 'Métier', 'Agence'] as const;
 
 // ─── Mapper principal ─────────────────────────────────────────────────────────
 
@@ -69,7 +69,20 @@ export async function mapInterventionFromCSV(
     return invalid(null, 'Ligne avec mauvais formatage');
   }
 
-  const id_inter = extractInterventionId(getCSVValue(row, 'ID'));
+  // ── ID intervention (requis) ───────────────────────────────────────────────
+  // Sans `id_inter` valide, la ligne ne peut pas être réconciliée avec un
+  // record existant : un réimport créerait systématiquement un doublon. On
+  // rejette donc la ligne plutôt que de la persister silencieusement. À
+  // l'utilisateur de corriger l'ID source et de réimporter.
+  const idRaw = getCSVValue(row, 'ID');
+  const id_inter = extractInterventionId(idRaw);
+  if (!id_inter) {
+    const trimmed = idRaw?.trim() ?? '';
+    const reason = trimmed
+      ? `ID intervention invalide : "${trimmed}" — format attendu : valeur commençant par des chiffres`
+      : 'ID intervention manquant — colonne "ID" requise pour la déduplication';
+    return invalid(null, reason);
+  }
 
   // ── Champs requis ──────────────────────────────────────────────────────────
   const dateRaw = getCSVValue(row, 'Date');

@@ -1,8 +1,28 @@
--- Fix: search_global() returned double precision for rank column (pg error 42804)
--- Cause: numeric literals like 0.5, 0.9 default to double precision, upcasting
---        GREATEST() result even though ts_rank() returns real and the function
---        signature declares `rank real`.
--- Fix: cast all literals to real explicitly.
+-- Fix: search_global() — typage du rang + bornage défensif du buffer live.
+--
+-- Historique:
+--   - 99024 a introduit la recherche hybride MV + buffer live, avec rank real.
+--   - Premier patch (commit c8fa527) : ts_rank() + littéraux numériques (0.5,
+--     0.9...) sont double precision par défaut → upcast → mismatch avec la
+--     signature `real` → erreur PG 42804 sur certains chemins.
+--     Fix initial : caster ::real partout.
+--   - Cette version : on règle le souci à la racine en passant la signature
+--     en double precision. Plus de casts à maintenir, plus de risque qu'un
+--     futur patch oublie un `::real` et casse la fonction. Le type TS généré
+--     reste `number` (real et double precision projettent tous les deux sur
+--     `number` dans les types Supabase) → aucun impact frontend.
+--
+-- Changement supplémentaire :
+--   - LIMIT 500 sur les CTEs `recent_interventions` / `recent_artisans`.
+--     Garde-fou : si le cron de refresh prend du retard (cf. alerte spec
+--     §9 : seuil > 500), ou si `search_views_refresh_flags` est vide
+--     (fallback epoch 1970-01-01), le buffer scannerait toute la table
+--     active. Avec LIMIT 500 + ORDER BY updated_at DESC le worst-case est
+--     borné — on garde au pire les 500 modifications les plus récentes.
+--
+-- Le type retourné change → DROP FUNCTION obligatoire avant CREATE.
+
+DROP FUNCTION IF EXISTS search_global(text, int, int, text);
 
 CREATE OR REPLACE FUNCTION search_global(
   p_query text,
@@ -14,7 +34,7 @@ RETURNS TABLE (
   entity_type text,
   entity_id uuid,
   metadata jsonb,
-  rank real
+  rank double precision
 )
 LANGUAGE plpgsql
 STABLE
@@ -61,25 +81,25 @@ BEGIN
       gsv.entity_id,
       gsv.metadata,
       GREATEST(
-        COALESCE(ts_rank(gsv.search_vector, v_tsquery), 0::real),
-        COALESCE(ts_rank(gsv.search_vector, v_tsquery_prefix) * 0.9::real, 0::real),
+        COALESCE(ts_rank(gsv.search_vector, v_tsquery)::double precision, 0),
+        COALESCE(ts_rank(gsv.search_vector, v_tsquery_prefix)::double precision * 0.9, 0),
         CASE
           WHEN gsv.entity_type = 'intervention' THEN
             CASE
-              WHEN (gsv.metadata->>'agence')::text ILIKE '%' || v_normalized || '%' THEN 0.5::real
-              WHEN (gsv.metadata->>'contexte')::text ILIKE '%' || v_normalized || '%' THEN 0.3::real
-              ELSE 0::real
+              WHEN (gsv.metadata->>'agence')::text ILIKE '%' || v_normalized || '%' THEN 0.5
+              WHEN (gsv.metadata->>'contexte')::text ILIKE '%' || v_normalized || '%' THEN 0.3
+              ELSE 0
             END
           WHEN gsv.entity_type = 'artisan' THEN
             CASE
-              WHEN (gsv.metadata->>'numero_associe')::text ILIKE '%' || v_normalized || '%' THEN 0.5::real
-              WHEN (gsv.metadata->>'plain_nom')::text ILIKE '%' || v_normalized || '%' THEN 0.4::real
-              WHEN (gsv.metadata->>'raison_sociale')::text ILIKE '%' || v_normalized || '%' THEN 0.3::real
-              ELSE 0::real
+              WHEN (gsv.metadata->>'numero_associe')::text ILIKE '%' || v_normalized || '%' THEN 0.5
+              WHEN (gsv.metadata->>'plain_nom')::text ILIKE '%' || v_normalized || '%' THEN 0.4
+              WHEN (gsv.metadata->>'raison_sociale')::text ILIKE '%' || v_normalized || '%' THEN 0.3
+              ELSE 0
             END
-          ELSE 0::real
+          ELSE 0
         END
-      )::real AS rank,
+      ) AS rank,
       1 AS source_priority
     FROM global_search_mv gsv
     WHERE
@@ -115,10 +135,10 @@ BEGIN
       CASE
         WHEN i.search_vector @@ v_tsquery OR i.search_vector @@ v_tsquery_prefix
         THEN GREATEST(
-          ts_rank(i.search_vector, v_tsquery),
-          ts_rank(i.search_vector, v_tsquery_prefix) * 0.9::real
-        )::real
-        ELSE 0.3::real
+          ts_rank(i.search_vector, v_tsquery)::double precision,
+          ts_rank(i.search_vector, v_tsquery_prefix)::double precision * 0.9
+        )
+        ELSE 0.3
       END AS rank,
       0 AS source_priority
     FROM public.interventions i
@@ -130,6 +150,8 @@ BEGIN
         OR i.search_vector @@ v_tsquery_prefix
         OR i.id_inter ILIKE '%' || v_normalized || '%'
       )
+    ORDER BY i.updated_at DESC
+    LIMIT 500
   ),
 
   recent_artisans AS (
@@ -147,10 +169,10 @@ BEGIN
       CASE
         WHEN a.search_vector @@ v_tsquery OR a.search_vector @@ v_tsquery_prefix
         THEN GREATEST(
-          ts_rank(a.search_vector, v_tsquery),
-          ts_rank(a.search_vector, v_tsquery_prefix) * 0.9::real
-        )::real
-        ELSE 0.3::real
+          ts_rank(a.search_vector, v_tsquery)::double precision,
+          ts_rank(a.search_vector, v_tsquery_prefix)::double precision * 0.9
+        )
+        ELSE 0.3
       END AS rank,
       0 AS source_priority
     FROM public.artisans a
@@ -163,6 +185,8 @@ BEGIN
         OR a.numero_associe ILIKE '%' || v_normalized || '%'
         OR a.plain_nom ILIKE '%' || v_normalized || '%'
       )
+    ORDER BY a.updated_at DESC
+    LIMIT 500
   ),
 
   all_results AS (
@@ -194,3 +218,8 @@ BEGIN
   OFFSET p_offset;
 END;
 $$;
+
+COMMENT ON FUNCTION search_global IS
+  'Hybrid search: combines materialized view (bulk) with live buffer for near-real-time results. '
+  'Live buffer scans rows modified since the last MV refresh, bounded to 500 rows per entity type '
+  'as a safety net against cron lag.';

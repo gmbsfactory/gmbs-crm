@@ -18,7 +18,7 @@ export type ReferenceCache = {
   metiersById: Map<string, ReferenceData["metiers"][number]>;
 };
 
-import { REFERENCE_CACHE_DURATION } from "./constants";
+import { REFERENCE_CACHE_DURATION, REFERENCE_CACHE_FAILURE_BACKOFF } from "./constants";
 
 /**
  * Gestionnaire centralisé du cache des données de référence
@@ -28,6 +28,8 @@ class ReferenceCacheManager {
   private static instance: ReferenceCacheManager;
   private cache: ReferenceCache | null = null;
   private fetchPromise: Promise<ReferenceCache> | null = null;
+  private lastFailureAt: number | null = null;
+  private lastError: unknown = null;
 
   private constructor() {
     // Constructeur privé pour le pattern Singleton
@@ -60,14 +62,28 @@ class ReferenceCacheManager {
       return this.fetchPromise;
     }
 
+    // Backoff après un échec récent : éviter de marteler l'API.
+    // Si on a un cache périmé mais utilisable, on le sert ; sinon on rejette
+    // immédiatement pour ne pas relancer un fetch qui vient d'échouer.
+    if (this.lastFailureAt && now - this.lastFailureAt < REFERENCE_CACHE_FAILURE_BACKOFF) {
+      if (this.cache) return this.cache;
+      throw this.lastError ?? new Error('Reference cache fetch failed (in backoff)');
+    }
+
     // Lancer une nouvelle requête
     this.fetchPromise = this.fetchData();
 
     try {
-      return await this.fetchPromise;
+      const result = await this.fetchPromise;
+      this.lastFailureAt = null;
+      this.lastError = null;
+      return result;
     } catch (error) {
-      // En cas d'erreur, réinitialiser la promesse pour permettre de réessayer
+      // En cas d'erreur : reset la promesse, marquer le timestamp d'échec
+      // pour activer le backoff sur les appels suivants.
       this.fetchPromise = null;
+      this.lastFailureAt = Date.now();
+      this.lastError = error;
       throw error;
     }
   }

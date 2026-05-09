@@ -46,13 +46,13 @@ describe('config/freshness-tiers', () => {
       expect(t2.gcTime).toBe(2 * 60 * 1000) // 2 min
     })
 
-    it('should configure T3 with 30s background polling', async () => {
+    it('should configure T3 with 2min background polling', async () => {
       const { getFreshnessTiers } = await import('@/config/freshness-tiers')
       const t3 = getFreshnessTiers().T3
 
       expect(t3.tier).toBe('T3')
-      expect(t3.pollingInterval).toBe(30_000)
-      expect(t3.staleTime).toBe(15_000)
+      expect(t3.pollingInterval).toBe(2 * 60_000)
+      expect(t3.staleTime).toBe(60_000)
       expect(t3.gcTime).toBe(5 * 60 * 1000)
     })
 
@@ -77,13 +77,13 @@ describe('config/freshness-tiers', () => {
       expect(t2.staleTime).toBe(5_000)
     })
 
-    it('should increase T3 polling interval to 60s on low-end devices', async () => {
+    it('should increase T3 polling interval to 5min on low-end devices', async () => {
       mockIsLowEnd = true
       const { getFreshnessTiers } = await import('@/config/freshness-tiers')
       const t3 = getFreshnessTiers().T3
 
-      expect(t3.pollingInterval).toBe(60_000)
-      expect(t3.staleTime).toBe(30_000)
+      expect(t3.pollingInterval).toBe(5 * 60_000)
+      expect(t3.staleTime).toBe(2 * 60_000)
     })
 
     it('should increase T4 cache times on low-end devices', async () => {

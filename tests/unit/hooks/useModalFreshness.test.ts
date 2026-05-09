@@ -91,8 +91,8 @@ describe('useModalFreshness', () => {
         useModalFreshness(true, { tier: 'T3' })
       )
 
-      expect(result.current.pollingInterval).toBe(30_000)
-      expect(result.current.queryOptions.staleTime).toBe(15_000)
+      expect(result.current.pollingInterval).toBe(2 * 60_000)
+      expect(result.current.queryOptions.staleTime).toBe(60_000)
     })
 
     it('should disable polling for T1 and T4 even when active', () => {

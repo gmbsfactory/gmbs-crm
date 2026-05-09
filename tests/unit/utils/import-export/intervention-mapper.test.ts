@@ -20,7 +20,7 @@ const BASE_ROW = {
   Agence: 'ImoDirect',
   Métier: 'Plomberie',
   Statut: 'En cours',
-  ID: 'INT-001',
+  ID: '1001',
 };
 
 // ─── Tests ────────────────────────────────────────────────────────────────────
@@ -51,7 +51,7 @@ describe('mapInterventionFromCSV', () => {
     expect('_invalid' in result).toBe(false);
     if ('_invalid' in result) return;
 
-    expect(result.id_inter).toBe('INT-001');
+    expect(result.id_inter).toBe('1001');
     expect(result.agence_id).toBe('agency-1');
     expect(result.metier_id).toBe('metier-1');
     expect(result.statut_id).toBe('status-1');
@@ -110,12 +110,17 @@ describe('mapInterventionFromCSV', () => {
     expect(result.artisan_sst2).toBe('artisan-1');
   });
 
-  it('accepte ID absent (mode création)', async () => {
+  it('rejette les lignes sans ID (déduplication impossible au réimport)', async () => {
     const { ID: _, ...rowWithoutId } = BASE_ROW;
     const result = await mapInterventionFromCSV(rowWithoutId, resolver, finder);
-    expect('_invalid' in result).toBe(false);
-    if ('_invalid' in result) return;
-    expect(result.id_inter).toBeNull();
+    expect('_invalid' in result && result._invalid).toBe(true);
+    if ('_invalid' in result) expect(result.reason).toMatch(/id intervention manquant/i);
+  });
+
+  it('rejette les lignes avec un ID au format invalide', async () => {
+    const result = await mapInterventionFromCSV({ ...BASE_ROW, ID: 'ABC-XYZ' }, resolver, finder);
+    expect('_invalid' in result && result._invalid).toBe(true);
+    if ('_invalid' in result) expect(result.reason).toMatch(/id intervention invalide/i);
   });
 
   it('retourne invalid pour une ligne vide', async () => {
@@ -133,6 +138,7 @@ describe('mapInterventionFromCSV', () => {
 
 describe('CSV_HEADERS_REQUIRED', () => {
   it('contient les champs minimaux', () => {
+    expect(CSV_HEADERS_REQUIRED).toContain('ID');
     expect(CSV_HEADERS_REQUIRED).toContain('Date');
     expect(CSV_HEADERS_REQUIRED).toContain('Métier');
     expect(CSV_HEADERS_REQUIRED).toContain('Agence');

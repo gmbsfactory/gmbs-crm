@@ -103,25 +103,19 @@ export const updateListCaches: SyncMiddleware<Intervention> = (event, ctx) => {
 // ─── Middleware 4: Invalidate Active Lists ─────────────────────────────────────
 
 /**
- * CRITICAL: Invalidate active queries in the next tick to force re-render.
- * The optimistic update (middleware 3) sets data, but invalidation triggers
- * the actual refetch for server reconciliation.
+ * Reconcile list caches with the server only when the optimistic patch in
+ * `updateListCaches` cannot fully cover the change:
+ *   - INSERT / DELETE: ordering and pagination edges shift, so refetch active lists.
+ *   - UPDATE: `handleUpdate` is filter-aware (handles all 4 cases of in/out of list),
+ *     so the patched cache is authoritative — no refetch needed. This avoids
+ *     namespace-wide fan-out where one row update would refetch ~7 prefetched views.
+ *
+ * Filter counts are handled separately (and debounced) by `refreshCountsIfNeeded`.
  */
 export const invalidateActiveLists: SyncMiddleware<Intervention> = (event, ctx) => {
+  if (event.eventType === 'UPDATE') return
+
   setTimeout(() => {
-    const listQueries = ctx.queryClient.getQueryCache().findAll({
-      queryKey: interventionKeys.invalidateLists()
-    })
-    const lightQueries = ctx.queryClient.getQueryCache().findAll({
-      queryKey: interventionKeys.invalidateLightLists()
-    })
-
-    if (process.env.NODE_ENV !== 'production') {
-      if (listQueries.length === 0 && lightQueries.length === 0) {
-        console.warn('[event-router] Aucune query trouvee pour invalidation - verifier les cles de requete')
-      }
-    }
-
     ctx.queryClient.invalidateQueries({
       queryKey: interventionKeys.invalidateLists(),
       refetchType: 'active',
@@ -129,9 +123,6 @@ export const invalidateActiveLists: SyncMiddleware<Intervention> = (event, ctx) 
     ctx.queryClient.invalidateQueries({
       queryKey: interventionKeys.invalidateLightLists(),
       refetchType: 'active',
-    })
-    ctx.queryClient.invalidateQueries({
-      queryKey: interventionKeys.invalidateFilterCounts(),
     })
   }, 0)
 }

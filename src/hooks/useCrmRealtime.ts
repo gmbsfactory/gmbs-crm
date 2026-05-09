@@ -49,7 +49,9 @@ export interface RealtimeStats {
 
 export type ConnectionStatus = 'realtime' | 'polling' | 'connecting'
 
-const POLLING_INTERVAL = 15000 // 15 secondes (suffisant pour un CRM)
+const POLLING_INTERVAL_ACTIVE = 30000 // 30s when tab visible
+const POLLING_INTERVAL_HIDDEN = 120000 // 2 min when tab hidden
+const POLLING_GRACE_DELAY = 20000 // wait 20s before polling kicks in (covers transient WS hiccups)
 const MAX_RECONNECT_ATTEMPTS = 10
 const BASE_RECONNECT_INTERVAL = 5000 // 5s
 const MAX_RECONNECT_INTERVAL = 300000 // 5 minutes
@@ -82,6 +84,8 @@ export function useCrmRealtime() {
   const queryClient = useQueryClient()
   const channelRef = useRef<RealtimeChannel | null>(null)
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null)
+  const pollingGraceTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const visibilityHandlerRef = useRef<(() => void) | null>(null)
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const leaderRef = useRef<LeaderElection | null>(null)
   const relayRef = useRef<RealtimeRelay | null>(null)
@@ -179,29 +183,76 @@ export function useCrmRealtime() {
 
   // ─── Polling fallback (used by both leader and follower) ────────────────
 
-  const startPolling = useCallback(() => {
-    if (pollingIntervalRef.current) return // Already running
-    setConnectionStatus('polling')
-    pollingIntervalRef.current = setInterval(() => {
-      queryClient.invalidateQueries({
-        queryKey: interventionKeys.invalidateLists(),
-        refetchType: 'active',
-      })
-      queryClient.invalidateQueries({
-        queryKey: interventionKeys.invalidateLightLists(),
-        refetchType: 'active',
-      })
-      queryClient.invalidateQueries({
-        queryKey: artisanKeys.invalidateLists(),
-        refetchType: 'active',
-      })
-    }, POLLING_INTERVAL)
+  const runPollingTick = useCallback(() => {
+    queryClient.invalidateQueries({
+      queryKey: interventionKeys.invalidateLists(),
+      refetchType: 'active',
+    })
+    queryClient.invalidateQueries({
+      queryKey: interventionKeys.invalidateLightLists(),
+      refetchType: 'active',
+    })
+    queryClient.invalidateQueries({
+      queryKey: artisanKeys.invalidateLists(),
+      refetchType: 'active',
+    })
   }, [queryClient])
 
+  /**
+   * Schedule polling with a grace delay. If the WS recovers within POLLING_GRACE_DELAY,
+   * polling never actually runs — eliminates fan-out for transient hiccups.
+   * Followers (non-leader tabs) skip polling entirely; the leader's invalidations
+   * cross tabs via cache-sync's BroadcastChannel.
+   */
+  const startPolling = useCallback(() => {
+    setConnectionStatus('polling')
+
+    // Followers don't poll: leader handles refreshes for the whole browser.
+    if (LEADER_ELECTION_ACTIVE && !leaderRef.current?.isLeader) return
+
+    if (pollingIntervalRef.current || pollingGraceTimeoutRef.current) return // Already scheduled
+
+    const scheduleInterval = () => {
+      const intervalMs =
+        typeof document !== 'undefined' && document.hidden
+          ? POLLING_INTERVAL_HIDDEN
+          : POLLING_INTERVAL_ACTIVE
+      pollingIntervalRef.current = setInterval(runPollingTick, intervalMs)
+    }
+
+    // Grace period — many WS errors recover in <20s. Don't pay the fan-out cost yet.
+    pollingGraceTimeoutRef.current = setTimeout(() => {
+      pollingGraceTimeoutRef.current = null
+      runPollingTick() // First tick after grace, then steady cadence
+      scheduleInterval()
+    }, POLLING_GRACE_DELAY)
+
+    // Visibility gating: switch cadence on tab show/hide, refresh once on regain.
+    if (typeof document !== 'undefined' && !visibilityHandlerRef.current) {
+      const handler = () => {
+        if (!pollingIntervalRef.current) return // grace period or stopped
+        clearInterval(pollingIntervalRef.current)
+        pollingIntervalRef.current = null
+        if (!document.hidden) runPollingTick() // catch up on regain
+        scheduleInterval()
+      }
+      visibilityHandlerRef.current = handler
+      document.addEventListener('visibilitychange', handler)
+    }
+  }, [runPollingTick])
+
   const stopPolling = useCallback(() => {
+    if (pollingGraceTimeoutRef.current) {
+      clearTimeout(pollingGraceTimeoutRef.current)
+      pollingGraceTimeoutRef.current = null
+    }
     if (pollingIntervalRef.current) {
       clearInterval(pollingIntervalRef.current)
       pollingIntervalRef.current = null
+    }
+    if (typeof document !== 'undefined' && visibilityHandlerRef.current) {
+      document.removeEventListener('visibilitychange', visibilityHandlerRef.current)
+      visibilityHandlerRef.current = null
     }
   }, [])
 

@@ -80,7 +80,9 @@ export function useUserDailyActivity(userId: string | null, date?: Date) {
       return data as unknown as UserDailyActivity
     },
     enabled: !!userId,
-    staleTime: 30_000,
-    refetchInterval: 60_000,
+    staleTime: 2 * 60_000,
+    refetchInterval: 5 * 60_000,
+    refetchIntervalInBackground: false,
+    refetchOnWindowFocus: true,
   })
 }

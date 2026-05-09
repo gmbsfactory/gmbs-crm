@@ -125,7 +125,8 @@ export function AuthStateListenerProvider({ children }: { children: ReactNode })
   useEffect(() => {
     if (!currentUser?.id || typeof window === 'undefined') return
 
-    const HEARTBEAT_INTERVAL = 30000
+    // Server heartbeat : 60s (server inactivity threshold = 180s, soit 3x le ping).
+    const HEARTBEAT_INTERVAL = 60000
 
     const sendHeartbeat = async () => {
       try {

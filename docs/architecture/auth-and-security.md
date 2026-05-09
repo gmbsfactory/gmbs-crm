@@ -143,7 +143,12 @@ Le matcher du middleware exclut automatiquement :
 | `/api/auth/me` | GET | Profil utilisateur + roles + permissions |
 | `/api/auth/resolve` | POST | Conversion username -> email (timing-safe) |
 | `/api/auth/status` | PATCH | Mise a jour presence (connected/busy/dnd/offline) |
-| `/api/auth/heartbeat` | POST | Ping presence toutes les 30s |
+| `/api/auth/heartbeat` | POST | Ping presence toutes les 60s |
+
+> **Note perf (middleware + heartbeat)**
+> - Le middleware utilise `getSession()` (lecture cookie locale, pas d'appel reseau) et n'appelle `getUser()` que si le token expire dans < 60s. Sur des tokens d'1h, on passe d'1 round-trip Auth+DB par navigation a ~1 par heure et par session. Trade-off : un cookie revoque cote serveur reste accepte jusqu'au prochain refresh, mais toute route mutante repasse par `getUser()` (API routes, edge functions).
+> - Le heartbeat client est passe de 30s a 60s, et le seuil serveur (`check-inactive-users`) de 90s a 180s pour conserver la marge "3 pings rates avant offline".
+> - L'endpoint heartbeat met en cache le mapping `auth_user_id -> public.users.id` en memoire process et n'execute qu'une seule UPDATE par ping (vs 4-6 requetes auparavant).
 | `/api/auth/first-activity` | POST | Tracking du premier acces quotidien (retard) |
 | `/api/auth/callback` | GET | Echange code PKCE (reset password) |
 

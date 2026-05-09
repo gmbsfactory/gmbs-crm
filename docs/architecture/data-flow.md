@@ -481,3 +481,75 @@ sequenceDiagram
 | Cache Sync | `src/lib/realtime/cache-sync.ts` | Orchestration mise a jour cache |
 | Cross-tab | `src/lib/realtime/broadcast-sync.ts` | Propagation inter-onglets (fallback) |
 | Offline | `src/lib/realtime/sync-queue.ts` | File d'attente mode deconnecte |
+
+---
+
+## Recherche universelle : pattern hybride MV + buffer live
+
+La barre de recherche globale (`search_global` RPC) combine deux sources pour offrir une recherche full-text quasi temps reel sans timeout sur les ecritures.
+
+### Probleme historique
+
+La recherche reposait initialement sur des materialized views (`global_search_mv`, `interventions_search_mv`, `artisans_search_mv`) rafraichies par un job pg_cron toutes les 60s (cf. migration `00035_async_search_views_refresh.sql`). Une intervention creee venait dans la barre de recherche apres un delai de 0 a 60s — frustrant pour le gestionnaire qui cree puis cherche immediatement.
+
+### Solution : pattern Near-Real-Time Search
+
+Inspire du pattern Elasticsearch (segments + translog), `search_global` combine :
+
+1. **Materialized View (bulk)** — `global_search_mv` pre-calcule l'index full-text avec tous les JOINs (agence, tenant, owner, artisan, commentaires). Refresh par cron toutes les 60s.
+2. **Buffer live** — scan direct des tables `interventions` et `artisans` pour les lignes modifiees depuis le dernier refresh (`updated_at > last_refresh`). Borne a 500 lignes par type d'entite (garde-fou si le cron prend du retard).
+3. **Deduplication** — si une ligne est presente dans les deux sources, la version live gagne (priorite source 0 > 1).
+
+```
+search_global(query)
+  |
+  +--> mv_results (bulk, MV pre-calcule, JOINs riches)
+  |    \-- LIMIT p_limit * 3 (sur-fetch pour le merge)
+  |
+  +--> recent_interventions (buffer live, GIN sur interventions.search_vector)
+  |    \-- WHERE updated_at > last_refresh
+  |    \-- ORDER BY updated_at DESC LIMIT 500
+  |
+  +--> recent_artisans (buffer live, GIN sur artisans.search_vector)
+  |    \-- WHERE updated_at > last_refresh
+  |    \-- ORDER BY updated_at DESC LIMIT 500
+  |
+  +--> UNION ALL + DISTINCT ON (entity_type, entity_id)
+       ORDER BY source_priority ASC  -- live (0) gagne sur MV (1)
+       \-- ORDER BY rank DESC LIMIT p_limit OFFSET p_offset
+```
+
+### Composants
+
+| Composant | Fichier | Role |
+|-----------|---------|------|
+| Fonction RPC | `supabase/migrations/99026_fix_search_global_rank_type.sql` | Implementation `search_global` |
+| Colonnes generees | `interventions.search_vector`, `artisans.search_vector` (tsvector) | Buffer live, GENERATED ALWAYS AS STORED |
+| Indexes GIN | `idx_interventions_search_vector_live`, `idx_artisans_search_vector_live` | Full-text sur tables de base |
+| Indexes B-tree partiels | `idx_interventions_updated_at`, `idx_artisans_updated_at` (WHERE is_active = true) | Fenetre temporelle du buffer |
+| Wrapper IMMUTABLE | `f_unaccent(text)` | Permet d'utiliser unaccent dans une colonne GENERATED |
+| Cron de refresh | Job `refresh_search_views` (toutes les 60s) | Maintient la MV |
+| Flags de refresh | Table `search_views_refresh_flags` | Source de verite pour `last_refresh` |
+
+### Limites connues
+
+- Le `search_vector` des tables de base ne contient **que les champs propres** (pas les JOINs). Une intervention fraichement creee sera trouvable par son `id_inter`, son contexte, son adresse, mais **pas par le nom du tenant ou de l'agence** avant le prochain refresh MV. La MV enrichie prend le relais sous 60s.
+- Le `metadata` JSONB du buffer live est simplifie (pas d'agence, pas d'artisan lie). Sans impact UI : le frontend re-fetch les donnees completes par ID via `fetchInterventionsByIds` / `fetchArtisansByIds`.
+- Pagination profonde instable si un refresh a lieu entre deux pages. Cas d'usage rare en pratique (la recherche universelle affiche peu de resultats par defaut).
+
+### Deploiement
+
+- Sur dev/staging : `99024_hybrid_search_global.sql` peut s'appliquer directement (volumes faibles).
+- En prod, en 2 etapes pour eviter les locks long :
+  1. `supabase/samples/sql/search/prod_deploy_1_search_columns.sql` — ALTER TABLE ADD COLUMN (transactionnel OK, mais rewrite de table).
+  2. `supabase/samples/sql/search/prod_deploy_2_search_indexes_concurrent.sql` — `CREATE INDEX CONCURRENTLY`, **statement par statement** (interdit en transaction).
+  
+  La migration 99024 devient ensuite no-op grace aux `IF NOT EXISTS`.
+
+### Tests
+
+`supabase/samples/sql/search/test_hybrid_search.sql` contient les tests manuels (buffer live, dedup, type de retour, bornage).
+
+### Spec complete
+
+[docs/specs/hybrid-search-freshness.md](../specs/hybrid-search-freshness.md) — design detaille, alternatives ecartees, evolution future trigger-based.

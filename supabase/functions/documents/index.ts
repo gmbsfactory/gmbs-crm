@@ -573,7 +573,7 @@ serve(async (req: Request) => {
         .from('documents')
         .upload(storagePath, fileBuffer, {
           contentType: body.mime_type,
-          cacheControl: '3600',
+          cacheControl: '31536000',
           upsert: false
         });
 

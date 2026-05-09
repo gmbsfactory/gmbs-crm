@@ -17,7 +17,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
  * Système inspiré de Teams/Skype/Slack
  */
 
-const INACTIVITY_THRESHOLD = 90 // 90 secondes (3x le heartbeat de 30s)
+const INACTIVITY_THRESHOLD = 180 // 180 secondes (3x le heartbeat de 60s)
 
 Deno.serve(async (req) => {
   try {

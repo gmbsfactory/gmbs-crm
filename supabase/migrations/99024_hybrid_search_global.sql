@@ -7,6 +7,26 @@
 --
 -- Solution: Combine MV (bulk) with a live buffer scanning rows modified since
 -- the last refresh. Deduplication ensures live wins over stale MV rows.
+--
+-- ⚠️  PROD DEPLOY WARNING
+-- Cette migration fait deux opérations coûteuses sur tables volumineuses :
+--   1. ALTER TABLE ADD COLUMN ... GENERATED ALWAYS STORED  (rewrite complet
+--      de la table sous lock ACCESS EXCLUSIVE)
+--   2. CREATE INDEX (sans CONCURRENTLY car interdit en transaction)  (lock
+--      ACCESS EXCLUSIVE pendant la construction de l'index)
+--
+-- Sur les tables `interventions` et `artisans` en prod (volume > 10k lignes),
+-- ces locks peuvent bloquer les écritures pendant plusieurs secondes/minutes.
+--
+-- Stratégie recommandée pour la prod :
+--   1. Appliquer `supabase/samples/sql/search/prod_deploy_1_search_columns.sql`
+--      (ALTER TABLE ADD COLUMN — peut tourner en transaction).
+--   2. Appliquer `supabase/samples/sql/search/prod_deploy_2_search_indexes_concurrent.sql`
+--      STATEMENT PAR STATEMENT (CREATE INDEX CONCURRENTLY interdit en transaction).
+--   3. Appliquer ensuite cette migration : grâce aux IF NOT EXISTS, les DDL
+--      coûteux deviendront des no-op.
+--
+-- Sur dev/staging avec petits volumes, l'application directe est OK.
 -- ============================================================================
 
 -- ========================================

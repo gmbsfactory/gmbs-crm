@@ -126,9 +126,17 @@ export type UserStatus = (typeof USER_STATUS)[number];
 export const MAX_BATCH_SIZE = 100;
 
 /**
- * Durée de validité du cache de référence (5 minutes)
+ * Durée de validité du cache de référence (30 minutes).
+ * Tables quasi-statiques (statuts, métiers, agences, users) ; les mutations
+ * réactives appellent `invalidateReferenceCache()` explicitement.
  */
-export const REFERENCE_CACHE_DURATION = 5 * 60 * 1000;
+export const REFERENCE_CACHE_DURATION = 30 * 60 * 1000;
+
+/**
+ * Backoff après un échec du fetch des données de référence (30 secondes).
+ * Empêche le re-fetch en boucle si l'API tombe.
+ */
+export const REFERENCE_CACHE_FAILURE_BACKOFF = 30 * 1000;
 
 /**
  * URL par défaut des Edge Functions Supabase

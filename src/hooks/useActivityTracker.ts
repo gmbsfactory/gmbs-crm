@@ -4,8 +4,8 @@ import { useEffect, useRef, useCallback } from 'react'
 import { supabase } from '@/lib/supabase-client'
 import { useCurrentUser } from '@/hooks/useCurrentUser'
 
-/** Flush interval: update the current session every 30 seconds */
-const FLUSH_INTERVAL_MS = 30_000
+/** Flush interval: update the current session every 60 seconds */
+const FLUSH_INTERVAL_MS = 60_000
 
 /**
  * Tracks page visit sessions in user_page_sessions table.
