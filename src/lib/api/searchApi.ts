@@ -676,7 +676,7 @@ const searchInterventions = async (
           label,
           color
         ),
-        metier:metiers (
+        metier:metiers!interventions_metier_id_fkey (
           id,
           code,
           label
