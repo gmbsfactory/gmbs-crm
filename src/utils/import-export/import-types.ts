@@ -24,6 +24,12 @@ export interface ImportPreviewRow {
   displayPayload?: Record<string, unknown> | null
   /** Pour les lignes "skipped" uniquement : raison du skip. */
   reason?: string
+  /**
+   * Pour les lignes "toUpdate" uniquement : version lisible des valeurs ACTUELLES
+   * en base (avant écrasement). Même forme que `displayPayload`, permettant à l'UI
+   * d'afficher une diff `ancien → nouveau` champ par champ.
+   */
+  previousDisplayPayload?: Record<string, unknown> | null
 }
 
 /** Détails par bucket renvoyés en mode dry-run pour alimenter l'UI. */

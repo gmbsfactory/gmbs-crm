@@ -318,7 +318,20 @@ export const interventionsImportApi = {
     if (dryRun) {
       // Per-bucket cap to keep the dry-run response a reasonable size even
       // for large imports. The UI can still show the counts in full.
-      const PREVIEW_LIMIT = 500;
+      const PREVIEW_LIMIT = 10000;
+
+      // Pour le bucket "toUpdate", on charge les valeurs ACTUELLES en base
+      // afin que l'UI puisse afficher une diff ancien → nouveau. Limité au
+      // PREVIEW_LIMIT pour ne pas exploser la latence sur des très gros imports.
+      const updateJobsForPreview = toUpdate.slice(0, PREVIEW_LIMIT);
+      const previousById = updateJobsForPreview.length > 0
+        ? await fetchPreviousDisplayPayloads(
+            supabase,
+            updateJobsForPreview.map((j) => j.existsId),
+            resolver,
+          )
+        : new Map<string, Record<string, unknown>>();
+
       const toRow = (j: Job) => ({
         line: j.line,
         id_inter: j.id_inter,
@@ -336,7 +349,10 @@ export const interventionsImportApi = {
       });
       const preview = {
         toInsert: toInsert.slice(0, PREVIEW_LIMIT).map(toRow),
-        toUpdate: toUpdate.slice(0, PREVIEW_LIMIT).map(toRow),
+        toUpdate: updateJobsForPreview.map((j) => ({
+          ...toRow(j),
+          previousDisplayPayload: previousById.get(j.existsId) ?? null,
+        })),
         skipped: skippedJobs.slice(0, PREVIEW_LIMIT).map((j) => ({
           ...toRow(j),
           reason: j.reason,
@@ -557,6 +573,142 @@ function artisanDisplay(
 function personStatus(r: PersonResolution | undefined): 'existing' | 'new' | null {
   if (!r || r.kind === 'none') return null;
   return r.kind === 'existing' ? 'existing' : 'new';
+}
+
+/**
+ * Charge les valeurs actuelles en base pour les interventions données et
+ * retourne, par id, un objet de la même forme que `buildDisplayPayload`
+ * (labels résolus pour les FKs, infos personnes pour locataire/propriétaire).
+ *
+ * Permet à l'UI de prévisualisation d'afficher une diff `ancien → nouveau`
+ * pour les lignes du bucket "à mettre à jour". Les artisans ne sont pas
+ * inclus dans cette première version (relation many-to-many via la table
+ * `intervention_artisans`, à ajouter plus tard si besoin).
+ */
+async function fetchPreviousDisplayPayloads(
+  supabase: SupabaseClient,
+  ids: string[],
+  resolver: EnumResolver,
+): Promise<Map<string, Record<string, unknown>>> {
+  const result = new Map<string, Record<string, unknown>>();
+  if (ids.length === 0) return result;
+
+  type Row = {
+    id: string;
+    id_inter: string | null;
+    agence_id: string | null;
+    assigned_user_id: string | null;
+    statut_id: string | null;
+    metier_id: string | null;
+    tenant_id: string | null;
+    owner_id: string | null;
+    date: string | null;
+    date_prevue: string | null;
+    contexte_intervention: string | null;
+    adresse: string | null;
+    code_postal: string | null;
+    ville: string | null;
+    is_active: boolean | null;
+  };
+
+  const FETCH_CHUNK = 500;
+  const rows: Row[] = [];
+  for (let i = 0; i < ids.length; i += FETCH_CHUNK) {
+    const slice = ids.slice(i, i + FETCH_CHUNK);
+    const { data, error } = await supabase
+      .from('interventions')
+      .select(
+        'id, id_inter, agence_id, assigned_user_id, statut_id, metier_id, tenant_id, owner_id, date, date_prevue, contexte_intervention, adresse, code_postal, ville, is_active',
+      )
+      .in('id', slice);
+    if (error) throw error;
+    rows.push(...((data ?? []) as Row[]));
+  }
+
+  // Lookup des locataires / propriétaires en lot (deux SELECTs au plus).
+  const tenantIds = Array.from(new Set(rows.map((r) => r.tenant_id).filter((v): v is string => !!v)));
+  const ownerIds = Array.from(new Set(rows.map((r) => r.owner_id).filter((v): v is string => !!v)));
+
+  type TenantRow = {
+    id: string;
+    plain_nom_client: string | null;
+    telephone: string | null;
+    telephone2: string | null;
+    email: string | null;
+  };
+  type OwnerRow = {
+    id: string;
+    plain_nom_facturation: string | null;
+    telephone: string | null;
+    email: string | null;
+  };
+
+  const tenantsById = new Map<string, TenantRow>();
+  const ownersById = new Map<string, OwnerRow>();
+
+  if (tenantIds.length > 0) {
+    for (let i = 0; i < tenantIds.length; i += FETCH_CHUNK) {
+      const slice = tenantIds.slice(i, i + FETCH_CHUNK);
+      const { data, error } = await supabase
+        .from('tenants')
+        .select('id, plain_nom_client, telephone, telephone2, email')
+        .in('id', slice);
+      if (error) throw error;
+      for (const t of (data ?? []) as TenantRow[]) tenantsById.set(t.id, t);
+    }
+  }
+
+  if (ownerIds.length > 0) {
+    for (let i = 0; i < ownerIds.length; i += FETCH_CHUNK) {
+      const slice = ownerIds.slice(i, i + FETCH_CHUNK);
+      const { data, error } = await supabase
+        .from('owner')
+        .select('id, plain_nom_facturation, telephone, email')
+        .in('id', slice);
+      if (error) throw error;
+      for (const o of (data ?? []) as OwnerRow[]) ownersById.set(o.id, o);
+    }
+  }
+
+  const personObject = (
+    nom: string | null,
+    telephone: string | null,
+    telephone2: string | null,
+    email: string | null,
+  ): Record<string, string | null> | null => {
+    const hasAny = [nom, telephone, telephone2, email].some(
+      (s) => typeof s === 'string' && s.length > 0,
+    );
+    if (!hasAny) return null;
+    const obj: Record<string, string | null> = { nom, telephone, email };
+    if (telephone2) obj.telephone2 = telephone2;
+    return obj;
+  };
+
+  for (const r of rows) {
+    const t = r.tenant_id ? tenantsById.get(r.tenant_id) : undefined;
+    const o = r.owner_id ? ownersById.get(r.owner_id) : undefined;
+    result.set(r.id, {
+      id_inter: r.id_inter,
+      agence: r.agence_id ? resolver.getAgencyLabel(r.agence_id) ?? r.agence_id : null,
+      statut: r.statut_id ? resolver.getInterventionStatusLabel(r.statut_id) ?? r.statut_id : null,
+      metier: r.metier_id ? resolver.getMetierLabel(r.metier_id) ?? r.metier_id : null,
+      gestionnaire: r.assigned_user_id
+        ? resolver.getUserLabel(r.assigned_user_id) ?? r.assigned_user_id
+        : null,
+      locataire: t
+        ? personObject(t.plain_nom_client, t.telephone, t.telephone2, t.email)
+        : null,
+      proprietaire: o ? personObject(o.plain_nom_facturation, o.telephone, null, o.email) : null,
+      date: r.date,
+      date_prevue: r.date_prevue,
+      contexte_intervention: r.contexte_intervention,
+      adresse: r.adresse,
+      is_active: r.is_active,
+    });
+  }
+
+  return result;
 }
 
 function buildDisplayPayload(

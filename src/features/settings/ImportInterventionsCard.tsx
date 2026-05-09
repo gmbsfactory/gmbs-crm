@@ -4,7 +4,7 @@ import { Fragment, useState, useRef, useCallback, useEffect } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import {
   Upload, Loader2, AlertTriangle, FileUp, CheckCircle2,
-  XCircle, Info, ChevronDown, ArrowRight,
+  XCircle, Info, ChevronDown, ArrowRight, Search, X,
 } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { usePermissions } from "@/hooks/usePermissions"
@@ -466,7 +466,7 @@ export function ImportInterventionsCard() {
                     )}
                     {pendingConfirm.preview?.truncated && (
                       <p className="text-[11px] text-amber-700 dark:text-amber-400">
-                        Aperçu limité aux {pendingConfirm.preview.perBucketLimit} premières lignes par catégorie.
+                        Aperçu plafonné à {pendingConfirm.preview.perBucketLimit.toLocaleString('fr-FR')} lignes par catégorie. Pour réviser au-delà, scindez le fichier en plusieurs imports.
                       </p>
                     )}
                     {pendingConfirm.updated > 0 && (
@@ -699,6 +699,21 @@ const BUCKET_DESCRIPTIONS: Record<PreviewBucket, string> = {
   error: 'lignes invalides — non importées. Corrigez le CSV puis relancez.',
 }
 
+// Identité visuelle par bucket : un rail de couleur sur le côté de la modale
+// + le ton du titre. Permet de garder le contexte d'où on est (insert / update
+// / skipped / error) sans relire le titre à chaque ligne.
+const BUCKET_THEME: Record<PreviewBucket, {
+  rail: string
+  dot: string
+  title: string
+  ring: string
+}> = {
+  insert:  { rail: 'bg-emerald-500',    dot: 'bg-emerald-500',    title: 'text-emerald-700 dark:text-emerald-400', ring: 'ring-emerald-500/40' },
+  update:  { rail: 'bg-blue-500',       dot: 'bg-blue-500',       title: 'text-blue-700 dark:text-blue-400',       ring: 'ring-blue-500/40' },
+  skipped: { rail: 'bg-amber-500',      dot: 'bg-amber-500',      title: 'text-amber-700 dark:text-amber-400',     ring: 'ring-amber-500/40' },
+  error:   { rail: 'bg-destructive',    dot: 'bg-destructive',    title: 'text-destructive',                       ring: 'ring-destructive/40' },
+}
+
 function PreviewDialog({
   bucket,
   response,
@@ -732,23 +747,33 @@ function PreviewDialog({
     return response.preview.skipped
   })()
 
+  const theme = bucket ? BUCKET_THEME[bucket] : null
+
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!o) onClose() }}>
-      <DialogContent className="max-w-5xl max-h-[85vh] overflow-hidden flex flex-col">
-        <DialogHeader>
-          <DialogTitle className={bucket === 'error' ? 'text-destructive flex items-center gap-2' : ''}>
-            {bucket === 'error' && <XCircle className="h-5 w-5" />}
-            {bucket ? BUCKET_LABELS[bucket] : ''}
-          </DialogTitle>
-          <DialogDescription>
-            {rows.length} ligne{rows.length > 1 ? 's' : ''} — {bucket ? BUCKET_DESCRIPTIONS[bucket] : ''}
-          </DialogDescription>
-        </DialogHeader>
-        <div className="overflow-y-auto pr-1 -mr-1 space-y-3">
-          {rows.length === 0 && (
-            <p className="text-sm text-muted-foreground py-8 text-center">Aucune ligne dans cette catégorie.</p>
-          )}
-          <PreviewRowList rows={rows} bucket={bucket} />
+      <DialogContent className="max-w-5xl max-h-[85vh] overflow-hidden flex flex-col p-0">
+        <div className="flex flex-1 min-h-0">
+          {/* Rail de couleur identifiant le bucket */}
+          {theme && <div className={`w-1 shrink-0 ${theme.rail}`} aria-hidden />}
+          <div className="flex-1 min-w-0 flex flex-col px-6 pt-6 pb-4">
+            <DialogHeader>
+              <DialogTitle className={`flex items-center gap-2.5 ${theme?.title ?? ''}`}>
+                {bucket === 'error'
+                  ? <XCircle className="h-5 w-5" />
+                  : theme && <span className={`h-2 w-2 rounded-full ${theme.dot}`} aria-hidden />}
+                {bucket ? BUCKET_LABELS[bucket] : ''}
+              </DialogTitle>
+              <DialogDescription>
+                {rows.length} ligne{rows.length > 1 ? 's' : ''} — {bucket ? BUCKET_DESCRIPTIONS[bucket] : ''}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="overflow-y-auto pr-1 -mr-1 space-y-3 mt-3">
+              {rows.length === 0 && (
+                <p className="text-sm text-muted-foreground py-8 text-center">Aucune ligne dans cette catégorie.</p>
+              )}
+              <PreviewRowList rows={rows} bucket={bucket} />
+            </div>
+          </div>
         </div>
       </DialogContent>
     </Dialog>
@@ -780,16 +805,57 @@ function PreviewRowList({
 }) {
   const isError = bucket === 'error'
   const [expanded, setExpanded] = useState<Set<number>>(new Set())
+  const [page, setPage] = useState(0)
+  const [search, setSearch] = useState('')
+  const [onlyChanged, setOnlyChanged] = useState(false)
+  const PAGE_SIZE = 50
 
-  // Reset expansion state whenever the bucket changes (dialog re-opened on another bucket).
+  // Reset expansion + pagination + filtres quand le bucket change.
   useEffect(() => {
     setExpanded(new Set())
+    setPage(0)
+    setSearch('')
+    setOnlyChanged(false)
   }, [bucket])
 
-  const allExpanded = rows.length > 0 && expanded.size === rows.length
+  // Filtrage : recherche full-text simple dans line / id_inter / champs raw,
+  // + filtre "uniquement changements" pour le bucket update.
+  const filteredRows = (() => {
+    let rs = rows
+    const q = search.trim().toLowerCase()
+    if (q) {
+      rs = rs.filter((r) => {
+        if (String(r.line).includes(q)) return true
+        if (r.id_inter && r.id_inter.toLowerCase().includes(q)) return true
+        for (const v of Object.values(r.raw)) {
+          if (typeof v === 'string' && v.toLowerCase().includes(q)) return true
+        }
+        return false
+      })
+    }
+    if (onlyChanged && bucket === 'update') {
+      rs = rs.filter((r) => hasChanges(r.previousDisplayPayload, r.displayPayload))
+    }
+    return rs
+  })()
+
+  // Reset la page si elle dépasse après filtrage.
+  useEffect(() => { setPage(0) }, [search, onlyChanged])
+
+  const totalPages = Math.max(1, Math.ceil(filteredRows.length / PAGE_SIZE))
+  const safePage = Math.min(page, totalPages - 1)
+  const start = safePage * PAGE_SIZE
+  const end = Math.min(start + PAGE_SIZE, filteredRows.length)
+  const pageRows = filteredRows.slice(start, end)
+
+  const allExpandedOnPage = pageRows.length > 0 && pageRows.every((r) => expanded.has(r.line))
   const toggleAll = () => {
-    if (allExpanded) setExpanded(new Set())
-    else setExpanded(new Set(rows.map((r) => r.line)))
+    setExpanded((prev) => {
+      const next = new Set(prev)
+      if (allExpandedOnPage) pageRows.forEach((r) => next.delete(r.line))
+      else pageRows.forEach((r) => next.add(r.line))
+      return next
+    })
   }
   const toggle = (line: number) => {
     setExpanded((prev) => {
@@ -803,25 +869,205 @@ function PreviewRowList({
   return (
     <div className="space-y-2">
       {rows.length > 0 && (
-        <div className="flex justify-end">
-          <button
-            type="button"
-            onClick={toggleAll}
-            className="text-xs text-muted-foreground hover:text-foreground transition-colors"
-          >
-            {allExpanded ? 'Tout replier' : 'Tout déplier'}
-          </button>
-        </div>
+        <>
+          {/* Barre de recherche + filtres */}
+          <div className="flex items-center gap-2">
+            <div className="relative flex-1">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground/70" />
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Rechercher (ligne, ID, ville, agence, statut…)"
+                className="w-full pl-8 pr-7 py-1.5 text-xs rounded-md ring-1 ring-border/50 bg-background/60 focus:bg-background focus:ring-primary/40 focus:outline-none transition-all placeholder:text-muted-foreground/60"
+              />
+              {search && (
+                <button
+                  type="button"
+                  onClick={() => setSearch('')}
+                  className="absolute right-1.5 top-1/2 -translate-y-1/2 p-0.5 rounded text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
+                  aria-label="Effacer la recherche"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              )}
+            </div>
+            {bucket === 'update' && (
+              <button
+                type="button"
+                onClick={() => setOnlyChanged((v) => !v)}
+                className={`text-[11px] px-2.5 py-1.5 rounded-md ring-1 transition-colors whitespace-nowrap ${
+                  onlyChanged
+                    ? 'ring-blue-500/40 bg-blue-500/10 text-blue-700 dark:text-blue-400'
+                    : 'ring-border/50 text-muted-foreground hover:text-foreground hover:bg-muted/50'
+                }`}
+              >
+                Avec modifications
+              </button>
+            )}
+          </div>
+
+          <div className="flex items-center justify-between text-xs text-muted-foreground">
+            <span>
+              {filteredRows.length === rows.length
+                ? `Lignes ${start + 1}–${end} sur ${rows.length}`
+                : `${filteredRows.length} sur ${rows.length} lignes — ${start + 1}–${end} affichées`}
+            </span>
+            <button
+              type="button"
+              onClick={toggleAll}
+              className="hover:text-foreground transition-colors"
+              disabled={pageRows.length === 0}
+            >
+              {allExpandedOnPage ? 'Tout replier (page)' : 'Tout déplier (page)'}
+            </button>
+          </div>
+        </>
       )}
-      {rows.map((row) => (
+      {pageRows.length === 0 && rows.length > 0 && (
+        <p className="text-sm text-muted-foreground py-6 text-center italic">
+          Aucune ligne ne correspond aux filtres.
+        </p>
+      )}
+      {pageRows.map((row) => (
         <PreviewRowItem
           key={row.line}
           row={row}
           open={expanded.has(row.line)}
           onToggle={() => toggle(row.line)}
           isError={isError}
+          bucket={bucket}
         />
       ))}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between pt-2 border-t border-border/40">
+          <button
+            type="button"
+            onClick={() => setPage((p) => Math.max(0, p - 1))}
+            disabled={safePage === 0}
+            className="text-xs px-3 py-1.5 rounded-md ring-1 ring-border/50 hover:bg-muted/50 disabled:opacity-40 disabled:pointer-events-none transition-colors"
+          >
+            ← Précédent
+          </button>
+          <span className="text-xs text-muted-foreground">
+            Page {safePage + 1} / {totalPages}
+          </span>
+          <button
+            type="button"
+            onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
+            disabled={safePage >= totalPages - 1}
+            className="text-xs px-3 py-1.5 rounded-md ring-1 ring-border/50 hover:bg-muted/50 disabled:opacity-40 disabled:pointer-events-none transition-colors"
+          >
+            Suivant →
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// Compare deux valeurs scalaires/objets pour la diff. Pour les objets
+// (locataire/propriétaire), on stringifie de manière stable.
+function diffValue(a: unknown, b: unknown): boolean {
+  if (a === b) return false
+  if (a == null && b == null) return false
+  if (a == null || b == null) return true
+  if (typeof a === 'object' && typeof b === 'object') {
+    return JSON.stringify(a) !== JSON.stringify(b)
+  }
+  return String(a) !== String(b)
+}
+
+function hasChanges(
+  prev: Record<string, unknown> | null | undefined,
+  next: Record<string, unknown> | null | undefined,
+): boolean {
+  if (!prev || !next) return false
+  const keys = new Set([...Object.keys(prev), ...Object.keys(next)])
+  for (const k of keys) {
+    if (diffValue(prev[k], next[k])) return true
+  }
+  return false
+}
+
+const DIFF_FIELD_LABELS: Record<string, string> = {
+  id_inter: 'ID',
+  agence: 'Agence',
+  statut: 'Statut',
+  metier: 'Métier',
+  gestionnaire: 'Gestionnaire',
+  locataire: 'Locataire',
+  proprietaire: 'Propriétaire',
+  date: 'Date',
+  date_prevue: 'Date prévue',
+  contexte_intervention: 'Contexte',
+  adresse: 'Adresse',
+  is_active: 'Actif',
+}
+
+function formatDiffValue(v: unknown): React.ReactNode {
+  if (v === null || v === undefined || v === '') {
+    return <span className="text-muted-foreground/60 italic">vide</span>
+  }
+  if (typeof v === 'object') {
+    const obj = v as Record<string, unknown>
+    const parts = Object.entries(obj)
+      .filter(([, val]) => val !== null && val !== undefined && val !== '')
+      .map(([k, val]) => `${k}: ${String(val)}`)
+    return parts.length > 0 ? parts.join(' · ') : <span className="text-muted-foreground/60 italic">vide</span>
+  }
+  return String(v)
+}
+
+function DiffBlock({
+  prev,
+  next,
+}: {
+  prev: Record<string, unknown>
+  next: Record<string, unknown>
+}) {
+  const keys = Array.from(new Set([...Object.keys(prev), ...Object.keys(next)]))
+    .filter((k) => diffValue(prev[k], next[k]))
+
+  if (keys.length === 0) {
+    return (
+      <div className="rounded-lg border bg-muted/20">
+        <div className="px-3 py-1.5 border-b text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+          Modifications
+        </div>
+        <p className="px-3 py-3 text-xs text-muted-foreground italic">
+          Aucun champ ne change — l&apos;import écrirait les mêmes valeurs.
+        </p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="md:col-span-2 rounded-lg border bg-blue-500/5 ring-1 ring-blue-500/20">
+      <div className="px-3 py-1.5 border-b border-blue-500/20 text-[11px] font-semibold uppercase tracking-wide text-blue-700 dark:text-blue-400 flex items-center justify-between">
+        <span>Modifications</span>
+        <span className="text-[10px] font-normal normal-case text-muted-foreground tabular-nums">
+          {keys.length} champ{keys.length > 1 ? 's' : ''} modifié{keys.length > 1 ? 's' : ''}
+        </span>
+      </div>
+      <div className="divide-y divide-blue-500/10">
+        {keys.map((k) => (
+          <div key={k} className="px-3 py-2 grid grid-cols-[110px_1fr] gap-3 items-start text-xs">
+            <span className="text-muted-foreground/90 font-medium pt-0.5">
+              {DIFF_FIELD_LABELS[k] ?? k}
+            </span>
+            <div className="min-w-0 grid grid-cols-1 sm:grid-cols-[1fr_auto_1fr] gap-1.5 sm:gap-2 items-baseline">
+              <span className="min-w-0 break-words text-muted-foreground line-through decoration-rose-500/60 decoration-1">
+                {formatDiffValue(prev[k])}
+              </span>
+              <ArrowRight className="hidden sm:inline-block h-3 w-3 text-muted-foreground/60 shrink-0" />
+              <span className="min-w-0 break-words text-emerald-700 dark:text-emerald-400 font-medium">
+                {formatDiffValue(next[k])}
+              </span>
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   )
 }
@@ -831,11 +1077,13 @@ function PreviewRowItem({
   open,
   onToggle,
   isError = false,
+  bucket = null,
 }: {
   row: ImportPreviewRow
   open: boolean
   onToggle: () => void
   isError?: boolean
+  bucket?: PreviewBucket | null
 }) {
   return (
     <div
@@ -866,6 +1114,28 @@ function PreviewRowItem({
             L{row.line}
           </span>
           <div className="flex-1" />
+          {bucket === 'update' && row.previousDisplayPayload && (() => {
+            const changedCount = Array.from(new Set([
+              ...Object.keys(row.previousDisplayPayload),
+              ...Object.keys((row.displayPayload ?? {}) as Record<string, unknown>),
+            ])).filter((k) => diffValue(
+              (row.previousDisplayPayload as Record<string, unknown>)[k],
+              ((row.displayPayload ?? {}) as Record<string, unknown>)[k],
+            )).length
+            return (
+              <span
+                className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] shrink-0 ${
+                  changedCount > 0
+                    ? 'bg-blue-500/10 text-blue-700 dark:text-blue-400'
+                    : 'bg-muted/60 text-muted-foreground'
+                }`}
+                title={changedCount > 0 ? `${changedCount} champ(s) modifié(s)` : 'Aucun changement détecté'}
+              >
+                <span className={`h-1.5 w-1.5 rounded-full ${changedCount > 0 ? 'bg-blue-500' : 'bg-muted-foreground/50'}`} />
+                {changedCount > 0 ? `${changedCount} modif.` : 'identique'}
+              </span>
+            )
+          })()}
           {row.reason && (
             <span
               className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] shrink-0 ${
@@ -908,6 +1178,12 @@ function PreviewRowItem({
             className="overflow-hidden"
           >
             <div className="px-4 pb-4 pt-1 grid md:grid-cols-2 gap-4 border-t">
+              {bucket === 'update' && row.previousDisplayPayload && (
+                <DiffBlock
+                  prev={row.previousDisplayPayload}
+                  next={(row.displayPayload ?? {}) as Record<string, unknown>}
+                />
+              )}
               <KeyValueBlock title="CSV brut" entries={row.raw} mono />
               <KeyValueBlock
                 title="Mapping base de données"
