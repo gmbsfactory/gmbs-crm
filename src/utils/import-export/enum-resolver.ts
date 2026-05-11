@@ -35,7 +35,12 @@ export class EnumResolver {
       this.metierLabels.set(row.id, row.label);
     }
     for (const row of refs.statuses) {
+      // Indexé par libellé ET par code technique : un CSV peut contenir aussi
+      // bien "Inter terminée" (label) que "INTER_TERMINEE" (code). Sans le code,
+      // l'underscore ne se replie pas sur l'espace du label et le statut est
+      // perdu silencieusement (cf. parité avec scripts/data-processing).
       this.statuses.set(normalize(row.label), row.id);
+      if (row.code) this.statuses.set(normalize(row.code), row.id);
       this.statusLabels.set(row.id, row.label);
     }
     for (const row of refs.users) {
@@ -207,7 +212,7 @@ export class EntityFinder {
       let score = 0;
       if (entry.normName === search) {
         score = 100;
-      } else if (entry.normName.includes(search) || search.includes(entry.normName)) {
+      } else if (entry.normName.length > 3 && (entry.normName.includes(search) || search.includes(entry.normName))) {
         score = 80;
       } else if (searchWords.length > 0 && entry.words.length > 0) {
         const matching = searchWords.filter((w) =>
@@ -238,16 +243,25 @@ function sanitizeArtisanLabel(value: string): string {
     .replace(/\s*\(?\s*archiv[eé]\s*\)?/gi, '')
     .replace(/\s+IDF\s*$/i, '')
     .replace(/\s*\/\s*$/, '')
-    .replace(/\s+\d{2,3}(?:\s+\d{2,3})?\s*$/, '')
     .replace(/\s+/g, ' ')
     .trim();
 }
 
-/** Normalisation pour comparaisons insensibles casse + accents. */
+/**
+ * Normalisation pour comparaisons insensibles à la casse, aux accents et aux
+ * séparateurs. Tout caractère non alphanumérique (underscore, tiret, slash,
+ * apostrophe, espaces multiples) est replié sur un seul espace, ce qui permet
+ * de matcher indifféremment "INTER_TERMINEE", "Inter-terminée" et
+ * "Inter terminée" sur la même clé canonique.
+ *
+ * Parité avec `normalizeSheetKey` du pipeline legacy
+ * (scripts/data-processing/resolvers/enum-resolver.js).
+ */
 function normalize(value: string): string {
   return value
-    .trim()
-    .toLowerCase()
     .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '');
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-zA-Z0-9]+/g, ' ')
+    .trim()
+    .toLowerCase();
 }
