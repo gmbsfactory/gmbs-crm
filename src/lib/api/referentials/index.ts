@@ -21,6 +21,11 @@ export interface ReferentialMetier {
 export interface ReferentialStatus {
   id: string;
   label: string;
+  /**
+   * Code technique stable (`INTER_TERMINEE`, `INTER_EN_COURS`, …). Sert à matcher
+   * les CSV exportés avec la valeur "code" plutôt que le libellé français.
+   */
+  code: string | null;
 }
 
 export interface ReferentialUser {
@@ -60,7 +65,7 @@ export const referentialsApi = {
         supabase.from('metiers').select('id, label').eq('is_active', true),
         supabase
           .from('intervention_statuses')
-          .select('id, label')
+          .select('id, label, code')
           .eq('is_active', true),
         // `users` n'a pas de colonne `is_active` — on exclut les utilisateurs
         // archivés via `archived_at IS NULL`.
