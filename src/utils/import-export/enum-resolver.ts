@@ -212,7 +212,7 @@ export class EntityFinder {
       let score = 0;
       if (entry.normName === search) {
         score = 100;
-      } else if (entry.normName.includes(search) || search.includes(entry.normName)) {
+      } else if (entry.normName.length > 3 && (entry.normName.includes(search) || search.includes(entry.normName))) {
         score = 80;
       } else if (searchWords.length > 0 && entry.words.length > 0) {
         const matching = searchWords.filter((w) =>
@@ -243,7 +243,6 @@ function sanitizeArtisanLabel(value: string): string {
     .replace(/\s*\(?\s*archiv[eé]\s*\)?/gi, '')
     .replace(/\s+IDF\s*$/i, '')
     .replace(/\s*\/\s*$/, '')
-    .replace(/\s+\d{2,3}(?:\s+\d{2,3})?\s*$/, '')
     .replace(/\s+/g, ' ')
     .trim();
 }
