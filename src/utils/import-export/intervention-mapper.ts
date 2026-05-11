@@ -69,19 +69,26 @@ export async function mapInterventionFromCSV(
     return invalid(null, 'Ligne avec mauvais formatage');
   }
 
-  // ── ID intervention (requis) ───────────────────────────────────────────────
-  // Sans `id_inter` valide, la ligne ne peut pas être réconciliée avec un
-  // record existant : un réimport créerait systématiquement un doublon. On
-  // rejette donc la ligne plutôt que de la persister silencieusement. À
-  // l'utilisateur de corriger l'ID source et de réimporter.
+  // ── ID intervention (optionnel — fallback composite si absent) ────────────
+  // Trois cas :
+  //   1. id_inter valide       → utilisé en clé primaire de réconciliation
+  //   2. champ vide            → autorisé, l'orchestrateur tentera un match
+  //                              composite (agence, date, adresse).
+  //   3. valeur présente mais malformée → on l'ignore (id_inter = null) et on
+  //                              continue avec le fallback composite, en
+  //                              traçant un warning. Si en plus l'adresse est
+  //                              absente, la ligne est rejetée plus bas
+  //                              (aucune clé de dédup possible).
   const idRaw = getCSVValue(row, 'ID');
   const id_inter = extractInterventionId(idRaw);
-  if (!id_inter) {
-    const trimmed = idRaw?.trim() ?? '';
-    const reason = trimmed
-      ? `ID intervention invalide : "${trimmed}" — format attendu : valeur commençant par des chiffres`
-      : 'ID intervention manquant — colonne "ID" requise pour la déduplication';
-    return invalid(null, reason);
+  const idRawTrimmed = idRaw?.trim() ?? '';
+  if (!id_inter && idRawTrimmed !== '') {
+    warnings.push({
+      field: 'ID',
+      reason:
+        `ID intervention invalide : "${idRawTrimmed}" — ignoré, ` +
+        `réconciliation tentée via (agence, date, adresse)`,
+    });
   }
 
   // ── Champs requis ──────────────────────────────────────────────────────────
@@ -144,6 +151,14 @@ export async function mapInterventionFromCSV(
   const adresseRaw = getCSVValue(row, 'Adresse') ?? getCSVValue(row, "Adresse d'intervention");
   const adresse = adresseRaw?.trim() ? adresseRaw.trim() : null;
   if (!adresse) {
+    // Sans id_inter ET sans adresse, aucune clé de dédup possible : un
+    // réimport créerait systématiquement un doublon. Rejet préventif.
+    if (!id_inter) {
+      return invalid(
+        null,
+        'ID intervention et adresse manquants — au moins une clé est requise pour la déduplication',
+      );
+    }
     warnings.push({ field: 'Adresse', reason: "Adresse manquante — intervention créée sans adresse" });
   }
 

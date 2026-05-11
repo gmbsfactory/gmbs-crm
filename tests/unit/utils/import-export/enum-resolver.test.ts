@@ -11,8 +11,8 @@ const refs = {
     { id: 'metier-2', label: 'Électricité' },
   ],
   statuses: [
-    { id: 'status-1', label: 'En cours' },
-    { id: 'status-2', label: 'Terminé' },
+    { id: 'status-1', label: 'Inter en cours', code: 'INTER_EN_COURS' },
+    { id: 'status-2', label: 'Inter terminée', code: 'INTER_TERMINEE' },
   ],
   users: [
     { id: 'user-1', username: 'alice', code_gestionnaire: 'A' },
@@ -45,9 +45,20 @@ describe('EnumResolver', () => {
     expect(resolver.getAgencyId('InconnuXYZ')).toBeNull();
   });
 
-  it('résout un statut', () => {
-    expect(resolver.getInterventionStatusId('Terminé')).toBe('status-2');
-    expect(resolver.getInterventionStatusId('termine')).toBe('status-2');
+  it('résout un statut par libellé', () => {
+    expect(resolver.getInterventionStatusId('Inter terminée')).toBe('status-2');
+    expect(resolver.getInterventionStatusId('inter terminee')).toBe('status-2');
+  });
+
+  it('résout un statut par code technique (CSV exporté avec la forme INTER_*)', () => {
+    expect(resolver.getInterventionStatusId('INTER_TERMINEE')).toBe('status-2');
+    expect(resolver.getInterventionStatusId('inter_terminee')).toBe('status-2');
+    expect(resolver.getInterventionStatusId('INTER_EN_COURS')).toBe('status-1');
+  });
+
+  it('résout indifféremment underscore, tiret et espace', () => {
+    expect(resolver.getInterventionStatusId('Inter-terminée')).toBe('status-2');
+    expect(resolver.getInterventionStatusId('INTER TERMINEE')).toBe('status-2');
   });
 
   it('résout un username', () => {
