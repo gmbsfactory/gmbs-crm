@@ -104,21 +104,26 @@ export async function GET(req: NextRequest) {
     `
     )
     .in('assigned_user_id', scopeUserIds)
-    .order('created_at', { ascending: true })
+    .order('date', { ascending: true, nullsFirst: false })
 
+  // Filtrage sur `interventions.date` (date métier de l'intervention) et NON
+  // sur `created_at` (date d'insertion en base). Côté UI l'utilisateur saisit
+  // une plage de dates d'intervention ; un filtrage par `created_at` faisait
+  // remonter les lignes importées dans cette fenêtre, peu importe leur vraie
+  // date métier — incohérent avec le filtre DB équivalent (`WHERE date = …`).
   if (start) {
-    query = query.gte('created_at', start)
+    query = query.gte('date', start)
   }
   let endBound: string | null = null
   if (end) {
-    // FIX: build the upper bound as a pure date string (UTC-safe) to avoid
-    // the timezone shift that previously rolled "end = today" back to today
-    // and excluded interventions created the same day.
+    // Borne supérieure construite en jour calendaire UTC pour éviter qu'un
+    // décalage de timezone exclue les interventions du dernier jour de la
+    // plage. `.lt(next_day)` reproduit l'intervalle inclusif `[start, end]`.
     const [y, m, d] = end.split('-').map(Number)
     const next = new Date(Date.UTC(y, (m ?? 1) - 1, d ?? 1))
     next.setUTCDate(next.getUTCDate() + 1)
     endBound = next.toISOString().split('T')[0]
-    query = query.lt('created_at', endBound)
+    query = query.lt('date', endBound)
   }
 
   const { data: interventions, error } = await query
@@ -247,6 +252,7 @@ export async function GET(req: NextRequest) {
   const rows: InterventionRow[] = list.map((i: any) => {
     const artisans = artisanMap.get(i.id) ?? { primary: '', secondary: '', primaryPhone: '' }
     return {
+      date: i.date,
       created_at: i.created_at,
       id_inter: i.id_inter,
       adresse: i.adresse,

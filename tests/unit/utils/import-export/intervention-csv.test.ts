@@ -41,7 +41,10 @@ describe('intervention-csv', () => {
 
     it('should produce exact CSV for a fully-populated intervention (base mode, no second artisan)', () => {
       const intervention: InterventionRow = {
-        // Local-time mid-day to avoid TZ-induced day shifts
+        // Local-time mid-day to avoid TZ-induced day shifts. La colonne `Date`
+        // est désormais alimentée par `interventions.date` (date métier) et
+        // non plus par `created_at` (date d'insertion en base).
+        date: '2024-03-15T12:00:00',
         created_at: '2024-03-15T12:00:00',
         date_prevue: '2024-03-20T12:00:00',
         id_inter: 'INT-001',
@@ -134,6 +137,7 @@ describe('intervention-csv', () => {
 
     it('should output empty cells (and not crash) when all nested relations / costs are null', () => {
       const intervention: InterventionRow = {
+        date: null,
         created_at: null,
         date_prevue: null,
         id_inter: null,

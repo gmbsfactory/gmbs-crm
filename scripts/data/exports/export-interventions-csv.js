@@ -156,15 +156,17 @@ async function fetchInterventions(startDate, endDate, verbose = false) {
       metiers!metier_id(label)
     `);
 
-  // Ajouter les filtres de date si fournis
+  // Filtrage et tri sur `interventions.date` (date métier), pas `created_at`
+  // (date d'insertion en base). Cohérent avec la colonne `Date` du CSV et avec
+  // la route webapp d'export (cf. app/api/exports/interventions/route.ts).
   if (startDate) {
-    query = query.gte('created_at', startDate);
+    query = query.gte('date', startDate);
   }
   if (endDate) {
-    query = query.lte('created_at', endDate);
+    query = query.lte('date', endDate);
   }
 
-  query = query.order('created_at', { ascending: false });
+  query = query.order('date', { ascending: false, nullsFirst: false });
 
   const { data: interventions, error } = await query;
 

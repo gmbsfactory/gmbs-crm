@@ -27,6 +27,18 @@ export interface InterventionCost {
 }
 
 export interface InterventionRow {
+  /**
+   * Date métier de l'intervention (`interventions.date`). Source de la colonne
+   * `Date` du CSV. Garantit la symétrie d'un round-trip export → re-import :
+   * `interventions.date` → CSV `Date` → `interventions.date`. Auparavant la
+   * colonne `Date` était alimentée par `created_at`, ce qui écrasait
+   * silencieusement la vraie date métier lors d'une réimportation.
+   */
+  date?: string | null;
+  /**
+   * Conservé pour usage interne (timestamps de commentaires agrégés via
+   * `commentaires`). Ce champ n'alimente PLUS la colonne `Date` du CSV.
+   */
   created_at?: string | null;
   id_inter?: string | null;
   adresse?: string | null;
@@ -167,7 +179,7 @@ const excelText = (value?: string | null): string => {
  * `docs/specs/crm-csv-import-export.md`.
  */
 const BASE_COLUMNS: readonly ColumnSpec[] = [
-  { header: 'Date',                       get: (r) => formatDate(r.created_at) },
+  { header: 'Date',                       get: (r) => formatDate(r.date) },
   { header: 'Agence',                     get: (r) => r.agencies?.label || '' },
   { header: 'Adresse',                    get: (r) => r.adresse || '' },
   { header: 'ID',                         get: (r) => r.id_inter || '' },
