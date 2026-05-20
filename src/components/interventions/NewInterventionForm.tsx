@@ -192,7 +192,6 @@ export function NewInterventionForm({
     setArtisanSearchPosition,
     secondArtisanSearchPosition,
     setSecondArtisanSearchPosition,
-    artisanSearchContainerRef,
     artisanDisplayMode,
     setArtisanDisplayMode,
 

@@ -200,7 +200,6 @@ export const InterventionEditForm = memo(function InterventionEditForm({
     setArtisanSearchPosition,
     secondArtisanSearchPosition,
     setSecondArtisanSearchPosition,
-    artisanSearchContainerRef,
     artisanDisplayMode,
     setArtisanDisplayMode,
 
@@ -936,7 +935,6 @@ export const InterventionEditForm = memo(function InterventionEditForm({
             />
           )}
         </fieldset>
-        <div ref={artisanSearchContainerRef} />
       </form>
       <ArtisanSearchModal
         open={showArtisanSearch}
@@ -946,7 +944,6 @@ export const InterventionEditForm = memo(function InterventionEditForm({
         }}
         onSelect={handleArtisanSearchSelect}
         position={artisanSearchPosition}
-        container={artisanSearchContainerRef.current}
         latitude={formData.latitude}
         longitude={formData.longitude}
         metier_id={formData.metier_id}
@@ -960,7 +957,6 @@ export const InterventionEditForm = memo(function InterventionEditForm({
         }}
         onSelect={handleSecondArtisanSearchSelect}
         position={secondArtisanSearchPosition}
-        container={artisanSearchContainerRef.current}
         latitude={formData.latitude}
         longitude={formData.longitude}
         metier_id={formData.metier_id}

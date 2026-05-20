@@ -16,6 +16,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { cn } from "@/lib/utils"
 import { usersApi } from "@/lib/api"
 import type { User } from "@/lib/api"
+import { GestionnaireBadge } from "@/components/ui/gestionnaire-badge"
 
 type DateRange = { from: Date | null; to: Date | null }
 
@@ -24,14 +25,6 @@ const WARN_THRESHOLD_DAYS = 365
 function userLabel(u: Pick<User, "firstname" | "lastname" | "username" | "email">): string {
   const full = `${u.firstname ?? ""} ${u.lastname ?? ""}`.trim()
   return full || u.username || u.email || "—"
-}
-
-function userInitials(u: Pick<User, "firstname" | "lastname" | "username" | "email">): string {
-  const f = (u.firstname ?? "").trim()
-  const l = (u.lastname ?? "").trim()
-  if (f || l) return `${f[0] ?? ""}${l[0] ?? ""}`.toUpperCase() || "?"
-  const fallback = u.username || u.email || "?"
-  return fallback.slice(0, 2).toUpperCase()
 }
 
 export function ExportInterventionsCard() {
@@ -326,12 +319,15 @@ export function ExportInterventionsCard() {
                                 className="group inline-flex items-center gap-1.5 pl-1 pr-2 py-0.5 rounded-full border bg-background hover:bg-muted/50 transition-colors text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                                 aria-label={`Retirer ${userLabel(u)} de la sélection`}
                               >
-                                <span
-                                  className="h-5 w-5 rounded-full flex items-center justify-center text-[10px] font-semibold text-white tabular-nums"
-                                  style={{ backgroundColor: color }}
-                                >
-                                  {userInitials(u)}
-                                </span>
+                                <GestionnaireBadge
+                                  firstname={u.firstname}
+                                  lastname={u.lastname}
+                                  color={color}
+                                  avatarUrl={(u as any).avatar_url}
+                                  size="xs"
+                                  showBorder={false}
+                                />
+
                                 <span className="font-medium">{userLabel(u)}</span>
                                 <X className="h-3 w-3 text-muted-foreground group-hover:text-foreground transition-colors" />
                               </button>
@@ -452,13 +448,21 @@ export function ExportInterventionsCard() {
                                     />
                                   )}
                                   <span
-                                    className="h-7 w-7 rounded-full flex items-center justify-center text-[11px] font-semibold text-white shrink-0 ring-2 ring-transparent transition-shadow"
-                                    style={{
-                                      backgroundColor: color,
-                                      ...(checked ? { boxShadow: `0 0 0 2px var(--background, white), 0 0 0 3.5px ${color}` } : {}),
-                                    }}
+                                    className="shrink-0 rounded-full transition-shadow"
+                                    style={
+                                      checked
+                                        ? { boxShadow: `0 0 0 2px var(--background, white), 0 0 0 3.5px ${color}` }
+                                        : undefined
+                                    }
                                   >
-                                    {userInitials(u)}
+                                    <GestionnaireBadge
+                                      firstname={u.firstname}
+                                      lastname={u.lastname}
+                                      color={color}
+                                      avatarUrl={(u as any).avatar_url}
+                                      size="sm"
+                                      showBorder={false}
+                                    />
                                   </span>
                                   <div className="flex-1 min-w-0">
                                     <div className="flex items-center gap-2">

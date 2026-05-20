@@ -26,7 +26,8 @@ import { referentialsApi } from '@/lib/api/referentials';
  *
  * Couvre les colonnes directement persistées sur `interventions`, y compris
  * `tenant_id` et `owner_id` (locataire / propriétaire). Les coûts associés
- * (`FormattedCost[]` du mapper) ne sont pas encore persistés ici.
+ * (`FormattedCost[]` du mapper) sont persistés séparément dans
+ * `intervention_costs` via `persistInterventionCosts` après l'insert/update.
  */
 export interface InterventionImportPayload {
   id_inter: string | null;
@@ -461,6 +462,17 @@ export const interventionsImportApi = {
       console.error('[import] persistArtisanLinks failed:', reason, e);
       // Non bloquant : les interventions sont écrites, on signale via errors.
       errors.push({ line: 0, id_inter: null, reason: `Liens artisans : ${reason}` });
+    }
+
+    // Coûts d'intervention (intervention_costs). Replace intégral : pour chaque
+    // intervention persistée, on supprime les coûts existants et on insère ceux
+    // du CSV. Un coût absent du CSV = coût supprimé (cohérent avec persistArtisanLinks).
+    try {
+      await persistInterventionCosts(supabase, persistedInterventionIds, mappedByLine);
+    } catch (e) {
+      const reason = formatError(e);
+      console.error('[import] persistInterventionCosts failed:', reason, e);
+      errors.push({ line: 0, id_inter: null, reason: `Coûts intervention : ${reason}` });
     }
 
     // Warnings non bloquants (artisan inconnu, etc.) — on ne remonte que les
@@ -1076,6 +1088,62 @@ async function persistArtisanLinks(
     const { error } = await supabase
       .from('intervention_artisans')
       .upsert(chunk, { onConflict: 'intervention_id,artisan_id' });
+    if (error) throw error;
+  }
+}
+
+async function persistInterventionCosts(
+  supabase: SupabaseClient,
+  persisted: Array<{ line: number; interventionId: string }>,
+  mappedByLine: Map<number, MappedIntervention>,
+): Promise<void> {
+  if (persisted.length === 0) return;
+
+  type CostRow = {
+    intervention_id: string;
+    cost_type: string;
+    label: string;
+    amount: number;
+    currency: 'EUR';
+    artisan_order: 1 | 2 | null;
+  };
+
+  const rows: CostRow[] = [];
+  const interventionIdsWithCosts: string[] = [];
+
+  for (const { line, interventionId } of persisted) {
+    const m = mappedByLine.get(line);
+    if (!m || !m.costs || m.costs.length === 0) continue;
+    interventionIdsWithCosts.push(interventionId);
+    for (const c of m.costs) {
+      rows.push({
+        intervention_id: interventionId,
+        cost_type: c.cost_type,
+        label: c.label,
+        amount: c.amount,
+        currency: c.currency,
+        artisan_order: c.artisan_position ?? null,
+      });
+    }
+  }
+
+  if (interventionIdsWithCosts.length === 0) return;
+
+  // Replace intégral : supprime les coûts existants pour les interventions qui
+  // en reçoivent de nouveaux. Les interventions sans coûts dans le CSV gardent
+  // leurs coûts existants (rien à faire).
+  for (let i = 0; i < interventionIdsWithCosts.length; i += ARTISAN_LINK_DELETE_CHUNK) {
+    const slice = interventionIdsWithCosts.slice(i, i + ARTISAN_LINK_DELETE_CHUNK);
+    const { error } = await supabase
+      .from('intervention_costs')
+      .delete()
+      .in('intervention_id', slice);
+    if (error) throw error;
+  }
+
+  for (let i = 0; i < rows.length; i += PERSIST_CHUNK) {
+    const chunk = rows.slice(i, i + PERSIST_CHUNK);
+    const { error } = await supabase.from('intervention_costs').insert(chunk);
     if (error) throw error;
   }
 }

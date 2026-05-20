@@ -159,23 +159,46 @@ class DatabaseManager {
    * @returns {string} - ID du owner
    */
   async findOrCreateOwner(ownerData) {
-    if (!ownerData || !ownerData.telephone) {
-      throw new Error("Owner requires telephone");
+    if (!ownerData) {
+      throw new Error("Owner data is required");
+    }
+
+    const hasAnyIdentity =
+      ownerData.telephone ||
+      ownerData.email ||
+      ownerData.plain_nom_facturation ||
+      ownerData.firstname ||
+      ownerData.lastname;
+
+    if (!hasAnyIdentity) {
+      throw new Error("Owner requires at least telephone, email, or name");
     }
 
     try {
-      // Chercher par téléphone
-      const results = await ownersApi.searchByPhone(ownerData.telephone);
-      if (results && results.data && results.data.length > 0) {
-        return results.data[0].id;
+      // 1. Dédup par téléphone (priorité)
+      if (ownerData.telephone) {
+        const byPhone = await ownersApi.searchByPhone(ownerData.telephone);
+        if (Array.isArray(byPhone) && byPhone.length > 0) {
+          return byPhone[0].id;
+        }
       }
 
-      // Créer si non trouvé
+      // 2. Fallback dédup par plain_nom_facturation (match exact)
+      if (!ownerData.telephone && ownerData.plain_nom_facturation) {
+        const byName = await ownersApi.searchByName(ownerData.plain_nom_facturation);
+        const exact = (byName || []).find(
+          (o) => (o.plain_nom_facturation || '').trim() === ownerData.plain_nom_facturation.trim()
+        );
+        if (exact) return exact.id;
+      }
+
+      // 3. Créer
       const created = await ownersApi.create({
-        owner_firstname: ownerData.firstname,
-        owner_lastname: ownerData.lastname,
-        telephone: ownerData.telephone,
-        email: ownerData.email,
+        plain_nom_facturation: ownerData.plain_nom_facturation || null,
+        owner_firstname: ownerData.firstname || null,
+        owner_lastname: ownerData.lastname || null,
+        telephone: ownerData.telephone || null,
+        email: ownerData.email || null,
       });
 
       return created.id;
@@ -583,7 +606,15 @@ class DatabaseManager {
             }
           }
 
-          if (ownerData && ownerData.telephone) {
+          const ownerHasIdentity =
+            ownerData &&
+            (ownerData.telephone ||
+              ownerData.email ||
+              ownerData.plain_nom_facturation ||
+              ownerData.firstname ||
+              ownerData.lastname);
+
+          if (ownerHasIdentity) {
             try {
               intervention.owner_id = await this.findOrCreateOwner(ownerData);
               this.log(`  → Owner lié: ${intervention.owner_id}`, "verbose");

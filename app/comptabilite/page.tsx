@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState, type CSSProperties } from "react"
 import { useRouter } from "next/navigation"
-import { Copy, Check, Trash2 } from "lucide-react"
+import { Copy, Check, CornerUpLeft } from "lucide-react"
 import { usePageKeyboardShortcuts } from "@/hooks/usePageKeyboardShortcuts"
 import { useSimpleTableNavigation } from "@/hooks/useSimpleTableNavigation"
 import { format, getYear, startOfMonth, endOfMonth, startOfYear, endOfYear, eachMonthOfInterval } from "date-fns"
@@ -104,7 +104,7 @@ export default function ComptabilitePage() {
   const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set())
   const [copied, setCopied] = useState(false)
   const [copiedAndChecked, setCopiedAndChecked] = useState(false)
-  const [excludeConfirm, setExcludeConfirm] = useState<{ ids: string[] } | null>(null)
+  const [reopenConfirm, setReopenConfirm] = useState<{ ids: string[] } | null>(null)
 
   // États pour la pagination
   const [currentPage, setCurrentPage] = useState(1)
@@ -115,6 +115,7 @@ export default function ComptabilitePage() {
 
   // Vérifier l'accès via la permission view_comptabilite
   const canAccessComptabilite = can("view_comptabilite")
+  const canReopenIntervention = can("edit_closed_interventions")
 
   // Charger depuis localStorage après le montage côté client
   useEffect(() => {
@@ -235,8 +236,8 @@ export default function ComptabilitePage() {
     error,
     toggleComptaCheck,
     bulkCheck,
-    excludeFromCompta,
-    bulkExclude,
+    reopenIntervention,
+    bulkReopen,
   } = useComptabiliteQuery({
     dateRange,
     enabled: canAccessComptabilite && !!currentUser,
@@ -389,33 +390,35 @@ export default function ComptabilitePage() {
     setTimeout(() => setCopiedAndChecked(false), 2000)
   }, [selectedRows, copySelectedRows, bulkCheck])
 
-  const handleExcludeRow = useCallback((id: string) => {
-    setExcludeConfirm({ ids: [id] })
-  }, [])
+  const handleReopenRow = useCallback((id: string) => {
+    if (!canReopenIntervention) return
+    setReopenConfirm({ ids: [id] })
+  }, [canReopenIntervention])
 
-  const handleBulkExclude = useCallback(() => {
+  const handleBulkReopen = useCallback(() => {
+    if (!canReopenIntervention) return
     if (selectedRows.size === 0) return
-    setExcludeConfirm({ ids: Array.from(selectedRows) })
-  }, [selectedRows])
+    setReopenConfirm({ ids: Array.from(selectedRows) })
+  }, [canReopenIntervention, selectedRows])
 
-  const confirmExclude = useCallback(async () => {
-    if (!excludeConfirm) return
-    const { ids } = excludeConfirm
-    setExcludeConfirm(null)
+  const confirmReopen = useCallback(async () => {
+    if (!reopenConfirm) return
+    const { ids } = reopenConfirm
+    setReopenConfirm(null)
 
     if (ids.length === 1) {
-      await excludeFromCompta(ids[0])
+      await reopenIntervention(ids[0])
     } else {
-      await bulkExclude(ids)
+      await bulkReopen(ids)
     }
 
-    // Retirer les IDs exclus de la sélection
+    // Retirer les IDs rouverts de la sélection
     setSelectedRows((prev) => {
       const next = new Set(prev)
       ids.forEach((id) => next.delete(id))
       return next
     })
-  }, [excludeConfirm, excludeFromCompta, bulkExclude])
+  }, [reopenConfirm, reopenIntervention, bulkReopen])
 
   if (!loadingUser && !loadingPermissions && (!currentUser || !canAccessComptabilite)) {
     return null
@@ -654,7 +657,8 @@ export default function ComptabilitePage() {
                       onToggleSelect={toggleSelectRow}
                       onToggleComptaCheck={toggleComptaCheck}
                       onOpenModal={handleOpenModal}
-                      onExclude={handleExcludeRow}
+                      onReopen={handleReopenRow}
+                      canReopen={canReopenIntervention}
                       columnWidths={columnWidths}
                       rowIndex={idx}
                       isHighlighted={comptaHighlightedIndex === idx}
@@ -667,17 +671,19 @@ export default function ComptabilitePage() {
 
         {!isLoading && totalCount > 0 && (
           <div className="border-t px-2 py-1.5 shrink-0 flex items-center">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleBulkExclude}
-              disabled={selectedRows.size === 0}
-              className="h-7 text-xs gap-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-              aria-label={selectedRows.size === 0 ? "Sélectionnez des lignes pour supprimer" : `Retirer ${selectedRows.size} lignes de la compta`}
-            >
-              <Trash2 className="h-3.5 w-3.5" />
-              Supprimer
-            </Button>
+            {canReopenIntervention && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleBulkReopen}
+                disabled={selectedRows.size === 0}
+                className="h-7 text-xs gap-1.5 text-muted-foreground hover:text-primary hover:bg-primary/10"
+                aria-label={selectedRows.size === 0 ? "Sélectionnez des lignes pour repasser en cours" : `Repasser ${selectedRows.size} interventions en cours`}
+              >
+                <CornerUpLeft className="h-3.5 w-3.5" />
+                Repasser en cours
+              </Button>
+            )}
             <div className="flex-1">
               <Pagination
                 currentPage={currentPage}
@@ -691,24 +697,25 @@ export default function ComptabilitePage() {
         )}
       </div>
 
-      {/* Dialog de confirmation de suppression */}
-      <AlertDialog open={!!excludeConfirm} onOpenChange={(open) => !open && setExcludeConfirm(null)}>
+      {/* Dialog de confirmation de réouverture */}
+      <AlertDialog open={!!reopenConfirm} onOpenChange={(open) => !open && setReopenConfirm(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Retirer de la comptabilité</AlertDialogTitle>
+            <AlertDialogTitle>
+              {reopenConfirm?.ids.length === 1
+                ? "Repasser cette intervention en cours ?"
+                : `Repasser ${reopenConfirm?.ids.length} interventions en cours ?`}
+            </AlertDialogTitle>
             <AlertDialogDescription>
-              {excludeConfirm?.ids.length === 1
-                ? "Cette intervention sera retirée de la vue comptabilité. Elle pourra être restaurée ultérieurement."
-                : `${excludeConfirm?.ids.length} interventions seront retirées de la vue comptabilité. Elles pourront être restaurées ultérieurement.`}
+              {reopenConfirm?.ids.length === 1
+                ? "L'intervention sera retirée de la comptabilité et repassera au statut « Intervention en cours »."
+                : `Les ${reopenConfirm?.ids.length} interventions seront retirées de la comptabilité et repasseront au statut « Intervention en cours ».`}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Annuler</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={confirmExclude}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              Supprimer
+            <AlertDialogAction onClick={confirmReopen}>
+              Repasser en cours
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
