@@ -52,11 +52,3 @@ export function extractInterventionAddress(adresseComplete: string | null | unde
 
   return { adresse: adresse || null, ville: ville || null, codePostal };
 }
-
-export function extractInterventionId(idValue: string | null | undefined): string | null {
-  if (!idValue?.trim()) return null;
-  const cleaned = idValue.trim();
-  if (/^\d+$/.test(cleaned)) return cleaned;
-  const match = cleaned.match(/^(\d+)/);
-  return match ? match[1] : null;
-}

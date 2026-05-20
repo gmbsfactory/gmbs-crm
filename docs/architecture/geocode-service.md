@@ -4,6 +4,28 @@
 
 Le service de géocodage utilise le **Strategy Pattern** pour permettre l'utilisation de différents providers de géocodage de manière interchangeable et configurable.
 
+## Modèle à deux adresses : `adresse` vs `adresse_complete`
+
+La table `interventions` stocke **deux représentations d'adresse distinctes et indépendantes** :
+
+| Colonne | Origine | Contenu | Usage |
+|---------|---------|---------|-------|
+| `adresse` (+ `code_postal`, `ville`) | **Saisie utilisateur** (formulaire, import CSV Google Sheets) | Adresse partielle telle que tapée — peut être incomplète, mal formatée, sans CP, etc. | Source de vérité affichée dans les formulaires et exports. Champ obligatoire. |
+| `adresse_complete` | **Service de géocodage** (`GeocodeService`) | Adresse normalisée renvoyée par le provider (ex: `"123 Rue de Rivoli, 75001 Paris, France"`) | Initialisation du champ de recherche d'adresse à l'édition, affichage sur la carte, recherche géographique, vérification de cohérence. Alimenté en même temps que `latitude` / `longitude`. |
+
+**Règles d'or :**
+
+1. `adresse_complete` n'est **jamais** une simple recopie de `adresse`. Si elle est non-nulle, elle provient d'un appel géocodage validé par l'utilisateur (sélection d'une suggestion ou résultat d'autocomplétion).
+2. L'import Google Sheets remplit **uniquement** `adresse` (valeur brute de la colonne `Adresse d'intervention`, **non parsée**). `adresse_complete`, `code_postal`, `ville`, `latitude`, `longitude` restent `NULL` jusqu'à un éventuel géocodage manuel ultérieur. Voir [import Google Sheets](../import/import-google-sheets.md).
+3. La création / édition d'intervention via le formulaire écrit les deux champs ensemble lorsque l'utilisateur sélectionne une suggestion d'autocomplétion (`useInterventionFormState.ts`).
+4. Pour la carte et la recherche géographique : se baser sur `latitude` / `longitude` (et `adresse_complete` pour l'affichage du libellé). Pour les exports CSV et l'affichage formulaire : se baser sur `adresse` / `code_postal` / `ville`.
+5. **Ne jamais écraser `adresse` avec `adresse_complete` ni l'inverse** — ce sont deux contrats sémantiques différents.
+
+Migration de référence : `supabase/migrations/00056_add_adresse_complete.sql`.
+
+---
+
+
 ## Structure des fichiers
 
 ```

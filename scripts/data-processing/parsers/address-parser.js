@@ -115,15 +115,6 @@ function extractDepartementFromNamePrenom(nomPrenom) {
   return null;
 }
 
-function extractInterventionId(idValue) {
-  if (!idValue || idValue.trim() === '') return null;
-  const cleaned = idValue.trim();
-  if (/^\d+$/.test(cleaned)) return cleaned;
-  const numberMatch = cleaned.match(/^(\d+)/);
-  if (numberMatch) return numberMatch[1];
-  return null;
-}
-
 function extractDepartementWithPriority(csvRow) {
   const dptColumn = getCSVValue(csvRow, 'DPT');
   if (dptColumn && dptColumn.trim() !== '') {
@@ -147,6 +138,5 @@ module.exports = {
   extractInterventionAddress,
   extractDepartement,
   extractDepartementFromNamePrenom,
-  extractInterventionId,
   extractDepartementWithPriority,
 };

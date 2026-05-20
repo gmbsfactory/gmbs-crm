@@ -8,7 +8,7 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { parseCSV } from '@/utils/import-export/parsers/csv-parser';
-import { extractInterventionId } from '@/utils/import-export/parsers/address-parser';
+import { extractInterventionId } from '@/utils/import-export/parsers/id-parser';
 import { EnumResolver, EntityFinder, type ArtisanInfo } from '@/utils/import-export/enum-resolver';
 import {
   mapInterventionFromCSV,

@@ -22,6 +22,28 @@ Le processus complet est orchestré par `scripts/data/imports/deploy/deliver-pro
 
 ---
 
+## ⚠️ Traitement des adresses à l'import
+
+Le modèle `interventions` possède **deux colonnes d'adresse distinctes** (voir [Modèle à deux adresses](../architecture/geocode-service.md#modèle-à-deux-adresses-adresse-vs-adresse_complete)) :
+
+- `adresse` — adresse partielle saisie utilisateur
+- `adresse_complete` — adresse normalisée par géocodage
+
+**L'import Google Sheets ne touche que `adresse`** :
+
+| Colonne Sheets | Champ DB | Traitement |
+|----------------|----------|------------|
+| `Adresse d'intervention` | `interventions.adresse` | Copie **brute**, sans parsing |
+| — | `interventions.adresse_complete` | **Reste `NULL`** (pas de géocodage à l'import) |
+| — | `interventions.code_postal` / `ville` | **Restent `NULL`** (pas d'extraction depuis la chaîne `Adresse d'intervention`) |
+| — | `interventions.latitude` / `longitude` | **Restent `NULL`** |
+
+> **À noter** : contrairement aux artisans (où `Adresse Postale` est parsée en `adresse_siege_social` + `ville_siege_social` + `code_postal_siege_social` via regex), l'adresse d'intervention est conservée telle quelle. Le géocodage et l'extraction CP/ville ne se produisent que lorsqu'un utilisateur édite ensuite l'intervention dans l'application et sélectionne une suggestion d'autocomplétion (`useInterventionFormState.ts`).
+
+Référence code : `scripts/data/imports/crm-importer.js:327`.
+
+---
+
 ## Prérequis
 
 ### Variables d'environnement

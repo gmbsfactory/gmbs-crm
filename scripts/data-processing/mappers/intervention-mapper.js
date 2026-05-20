@@ -3,7 +3,8 @@
 const { cleanString, truncateString } = require('../parsers/string-cleaner');
 const { parseDate, parseNumber } = require('../parsers/date-number-parser');
 const { cleanCSVKeys, getCSVValue, getStatutValue, isValidRow } = require('../parsers/csv-parser');
-const { extractInterventionAddress, extractInterventionId } = require('../parsers/address-parser');
+const { extractInterventionAddress } = require('../parsers/address-parser');
+const { extractInterventionId } = require('../parsers/id-parser');
 const { parseTenantInfo, parseOwnerInfo } = require('../parsers/person-parser');
 const { extractCostsData, _formatCostsForInsertion } = require('../extractors/cost-extractor');
 const { validateIntervention } = require('../validators/intervention-validator');
@@ -33,6 +34,14 @@ async function mapInterventionFromCSV(csvRow, verbose = false, lineNumber = null
   }
 
   let idInter = extractInterventionId(csvRow['ID']);
+
+  // id_inter vide → on saute la ligne (warning, pas d'erreur) : sans id_inter,
+  // le rapprochement create-or-update ne peut pas fonctionner et un réimport
+  // créerait des doublons silencieux.
+  if (!idInter) {
+    if (verbose) console.log('⚠️ Ligne ignorée : id_inter manquant ou vide après normalisation');
+    return { _invalid: true, reason: 'id_inter manquant — colonne ID requise pour la déduplication', idInter: 'N/A', csvSample: csvRow };
+  }
 
   if (!isValidRow(csvRow)) {
     errorLogger.logParsingError(idInter || 'N/A', 'Ligne avec mauvais formatage', csvRow, lineNumber);

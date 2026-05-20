@@ -1,7 +1,7 @@
 import { cleanCSVKeys, getCSVValue, getStatutValue, isValidRow, type CsvRow } from './parsers/csv-parser';
 import { cleanString, truncateString } from './parsers/string-cleaner';
 import { parseDate } from './parsers/date-number-parser';
-import { extractInterventionId } from './parsers/address-parser';
+import { extractInterventionId } from './parsers/id-parser';
 import { parseTenantInfo, parseOwnerInfo, type TenantInfo, type OwnerInfo } from './parsers/person-parser';
 import { extractCostsData, formatCostsForInsertion, type FormattedCost } from './parsers/cost-extractor';
 import type { EnumResolver, EntityFinder } from './enum-resolver';
