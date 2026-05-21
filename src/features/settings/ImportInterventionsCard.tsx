@@ -11,6 +11,7 @@ import type { ReactNode } from "react"
 import { useToast } from "@/hooks/use-toast"
 import { usePermissions } from "@/hooks/usePermissions"
 import { parseCSV } from "@/utils/import-export/parsers/csv-parser"
+import { orderByRank, rankRawKey, rankDbKey } from "@/utils/import-export/preview-field-order"
 import type {
   ImportMode,
   ImportResponse,
@@ -1166,12 +1167,15 @@ function diffableKeys(
   next: Record<string, unknown>,
 ): string[] {
   const keys = new Set([...Object.keys(prev), ...Object.keys(next)])
-  return Array.from(keys).filter((k) => {
+  const filtered = Array.from(keys).filter((k) => {
     if (PREV_UNLOADED_KEYS.has(k) && (prev[k] === undefined || prev[k] === null)) {
       return false
     }
     return true
   })
+  // Ordre canonique (cf. preview-field-order) pour que la diff se lise dans le
+  // même ordre que les colonnes CSV brut / mapping BDD côte à côte.
+  return orderByRank(filtered, rankDbKey)
 }
 
 const DIFF_FIELD_LABELS: Record<string, string> = {
@@ -2080,11 +2084,12 @@ function PreviewRowItem({
                       next={(row.displayPayload ?? {}) as Record<string, unknown>}
                     />
                   )}
-                  <KeyValueBlock title="CSV brut" entries={row.raw} mono />
+                  <KeyValueBlock title="CSV brut" entries={row.raw} mono keyOrder={rankRawKey} />
                   <KeyValueBlock
                     title="Mapping base de données"
                     entries={row.displayPayload ?? row.payload ?? {}}
                     mono
+                    keyOrder={rankDbKey}
                     emptyHint="Aucun mapping (ligne invalide)"
                   />
                 </>
@@ -2102,13 +2107,18 @@ function KeyValueBlock({
   entries,
   mono,
   emptyHint,
+  keyOrder,
 }: {
   title: string
   entries: Record<string, unknown>
   mono?: boolean
   emptyHint?: string
+  /** Tri canonique des clés (cf. preview-field-order). Absent = ordre d'origine. */
+  keyOrder?: (key: string) => number
 }) {
-  const keys = Object.keys(entries)
+  const keys = keyOrder
+    ? orderByRank(Object.keys(entries), keyOrder)
+    : Object.keys(entries)
   return (
     <div className="rounded-lg border bg-background/40">
       <div className="px-3 py-1.5 border-b text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">

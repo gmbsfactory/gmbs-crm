@@ -32,13 +32,17 @@ function extractPhones(text: string): string[] {
     /0[1-9](?:[\s.-]?\d{2}){4}/g,
     /\+33[\s.-]?[1-9](?:[\s.-]?\d{2}){4}/g,
     /\d{10}/g,
+    // 9 chiffres commençant par [1-9] : Excel ampute parfois le 0 de tête.
+    /[1-9](?:[\s.-]?\d{2}){4}/g,
   ];
   for (const pattern of patterns) {
     const matches = text.match(pattern);
     if (matches) {
       for (const match of matches) {
         const cleaned = match.replace(/[\s.-]/g, '');
-        const normalized = cleaned.startsWith('+33') ? '0' + cleaned.slice(3) : cleaned;
+        const normalized = recoverLeadingZero(
+          cleaned.startsWith('+33') ? '0' + cleaned.slice(3) : cleaned,
+        );
         if (normalized.length === 10 && normalized.startsWith('0') && !phones.includes(normalized)) {
           phones.push(normalized);
         }
@@ -46,6 +50,27 @@ function extractPhones(text: string): string[] {
     }
   }
   return phones;
+}
+
+/**
+ * Restitue le 0 de tête ampute par Excel : un numero de 9 chiffres commencant
+ * par [1-9] devient un numero francais a 10 chiffres (612345678 -> 0612345678).
+ */
+function recoverLeadingZero(digits: string): string {
+  return digits.length === 9 && /^[1-9]/.test(digits) ? '0' + digits : digits;
+}
+
+/**
+ * Conserve un numero non standard (ex. tronque a la saisie ou par Excel) plutot
+ * que de le perdre. Sert de repli quand `extractPhones` ne reconnait aucun
+ * numero bien forme : la donnee est preservee meme si elle ne fait pas 10
+ * chiffres. Seuil bas (>= 4 chiffres) pour eviter de stocker du bruit isole.
+ */
+function lenientPhone(text: string): string | null {
+  if (!text || typeof text !== 'string') return null;
+  const digits = recoverLeadingZero(text.replace(/\D/g, ''));
+  if (digits.length < 4 || digits.length > 15) return null;
+  return digits;
 }
 
 export function parseTenantInfo(csvRow: CsvRow): TenantInfo {
@@ -72,6 +97,10 @@ export function parseTenantInfo(csvRow: CsvRow): TenantInfo {
   if (phones.length > 0) {
     result.telephone = phones[0];
     if (phones.length > 1) result.telephone2 = phones[1];
+  } else {
+    // Aucun numero bien forme : on conserve la valeur brute de TEL LOC plutot
+    // que de la perdre (cohérent avec le reste du CRM qui n'impose aucun format).
+    result.telephone = lenientPhone(telCol);
   }
 
   const nameSource = locataireCol.trim() || telCol.trim();
@@ -103,7 +132,7 @@ export function parseOwnerInfo(csvRow: CsvRow): OwnerInfo | null {
     plain_nom_facturation: proprioCol.trim() || null,
     firstname: parsed.firstname,
     lastname: parsed.lastname,
-    telephone: telephones[0] ?? null,
+    telephone: telephones[0] ?? lenientPhone(proprioCol),
     email,
   };
 }

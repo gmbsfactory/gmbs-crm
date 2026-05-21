@@ -16,7 +16,9 @@
       "Bash(npx vitest run:*)",
       "Bash(git log *)",
       "Bash(git fetch *)",
-      "Bash(git rev-list *)"
+      "Bash(git rev-list *)",
+      "PowerShell(npx vitest run tests/unit/utils/import-export/preview-field-order.test.ts --reporter=dot 2>&1 | Select-Object -Last 8)",
+      "PowerShell(npx vitest run tests/unit/utils/import-export --reporter=dot 2>&1 | Select-Object -Last 8)"
     ],
     "deny": [],
     "ask": []

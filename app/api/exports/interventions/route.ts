@@ -259,7 +259,6 @@ export async function GET(req: NextRequest) {
       adresse: i.adresse,
       contexte_intervention: i.contexte_intervention,
       numero_sst: artisans.primaryPhone,
-      pourcentage_sst: i.pourcentage_sst,
       date_prevue: i.date_prevue,
       artisan_primary: artisans.primary,
       artisan_secondary: artisans.secondary,

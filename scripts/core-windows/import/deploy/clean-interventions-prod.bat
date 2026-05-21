@@ -15,7 +15,7 @@ echo.
 
 REM Aller au repertoire racine du projet
 cd /d "%~dp0..\..\..\.."
-set NODE_ENV=production
+rem set NODE_ENV=production
 
 REM Appeler le script de nettoyage cible
 npx tsx scripts\data\imports\deploy\cleanup-interventions.js
