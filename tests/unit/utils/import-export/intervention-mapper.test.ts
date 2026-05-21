@@ -122,11 +122,11 @@ describe('mapInterventionFromCSV', () => {
     expect(result.artisan_sst2).toBe('artisan-1');
   });
 
-  it('rejette les lignes sans ID (déduplication impossible au réimport)', async () => {
+  it('rejette les lignes sans ID ET sans adresse (déduplication impossible)', async () => {
     const { ID: _, ...rowWithoutId } = BASE_ROW;
     const result = await mapInterventionFromCSV(rowWithoutId, resolver, finder);
     expect('_invalid' in result && result._invalid).toBe(true);
-    if ('_invalid' in result) expect(result.reason).toMatch(/id intervention manquant/i);
+    if ('_invalid' in result) expect(result.reason).toMatch(/déduplication|adresse manquants/i);
   });
 
   it('conserve la valeur brute de l\'ID (trim + uppercase, pas de validation de format)', async () => {
@@ -139,6 +139,43 @@ describe('mapInterventionFromCSV', () => {
   it('retourne invalid pour une ligne vide', async () => {
     const result = await mapInterventionFromCSV({ Date: '', Agence: '', Métier: '' }, resolver, finder);
     expect('_invalid' in result && result._invalid).toBe(true);
+  });
+
+  it('accepte une ligne sans ID quand une adresse est présente (fallback composite)', async () => {
+    const result = await mapInterventionFromCSV(
+      { ...BASE_ROW, ID: '', Adresse: '12 rue de la Paix' },
+      resolver,
+      finder,
+    );
+    expect('_invalid' in result).toBe(false);
+    if ('_invalid' in result) return;
+    expect(result.id_inter).toBeNull();
+    expect(result.adresse).toBe('12 rue de la Paix');
+  });
+
+  it('rejette une ligne sans ID ET sans adresse (aucune clé de dédup)', async () => {
+    const result = await mapInterventionFromCSV(
+      { ...BASE_ROW, ID: '', Adresse: '' },
+      resolver,
+      finder,
+    );
+    expect('_invalid' in result && result._invalid).toBe(true);
+    if ('_invalid' in result) {
+      expect(result.reason).toMatch(/adresse manquants|déduplication/i);
+    }
+  });
+
+  it('accepte une ligne avec ID malformé si adresse présente (warning + fallback composite)', async () => {
+    const result = await mapInterventionFromCSV(
+      { ...BASE_ROW, ID: 'ABC-NOPE', Adresse: '12 rue de la Paix' },
+      resolver,
+      finder,
+    );
+    expect('_invalid' in result).toBe(false);
+    if ('_invalid' in result) return;
+    expect(result.id_inter).toBeNull();
+    expect(result.adresse).toBe('12 rue de la Paix');
+    expect(result.warnings.some((w) => w.field === 'ID' && /invalide/i.test(w.reason))).toBe(true);
   });
 
   it('produit un warning si % SST hors plage', async () => {

@@ -3,7 +3,7 @@ import { createSSRServerClient } from '@/lib/supabase/server-ssr'
 import { requirePermission, isPermissionError } from '@/lib/auth/permissions'
 import { interventionsImportApi } from '@/lib/api'
 import { ImportAbortedError, type ImportProgressEvent } from '@/lib/api/interventions/interventions-import'
-import type { ImportMode } from '@/utils/import-export/import-types'
+import type { ImportMode, ImportResolutionsMap } from '@/utils/import-export/import-types'
 
 export const runtime = 'nodejs'
 
@@ -27,6 +27,7 @@ export async function POST(req: NextRequest) {
   // L'ancien comportement (réponse JSON unique) reste accessible pour les
   // appels programmatiques / tests qui n'ont pas besoin de progression.
   const stream = String(formData.get('stream') ?? 'false') === 'true'
+  const resolutionsRaw = formData.get('resolutions')
 
   if (!file || !(file instanceof Blob)) {
     return NextResponse.json({ error: 'Le champ "file" est manquant' }, { status: 400 })
@@ -38,6 +39,45 @@ export async function POST(req: NextRequest) {
     )
   }
 
+  // Phase B : parsing des résolutions manuelles. Le format attendu est un JSON
+  // sérialisé `{ "<line>": { "action": "update", "targetId": "<uuid>" } }`.
+  // Une entrée mal formée → 400 ; absence du champ → pas de résolutions.
+  let resolutions: ImportResolutionsMap | undefined
+  if (typeof resolutionsRaw === 'string' && resolutionsRaw.trim() !== '') {
+    try {
+      const parsed = JSON.parse(resolutionsRaw) as unknown
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+        throw new Error('attendu : objet { line: { action, targetId } }')
+      }
+      const out: ImportResolutionsMap = {}
+      for (const [k, v] of Object.entries(parsed as Record<string, unknown>)) {
+        const line = Number(k)
+        if (!Number.isInteger(line) || line <= 0) throw new Error(`clé "${k}" invalide`)
+        if (!v || typeof v !== 'object') throw new Error(`valeur ligne ${k} invalide`)
+        const obj = v as Record<string, unknown>
+        if (obj.action === 'skip') {
+          out[line] = { action: 'skip' }
+        } else if (obj.action === 'create_without_id_inter') {
+          out[line] = { action: 'create_without_id_inter' }
+        } else if (obj.action === 'update') {
+          if (typeof obj.targetId !== 'string' || obj.targetId.length === 0) {
+            throw new Error(`targetId manquant pour la ligne ${k}`)
+          }
+          out[line] = { action: 'update', targetId: obj.targetId }
+        } else {
+          throw new Error(`action "${String(obj.action)}" non supportée`)
+        }
+      }
+      resolutions = out
+    } catch (e) {
+      const reason = e instanceof Error ? e.message : String(e)
+      return NextResponse.json(
+        { error: `Champ "resolutions" invalide : ${reason}` },
+        { status: 400 },
+      )
+    }
+  }
+
   const content = await (file as Blob).text()
   const supabase = await createSSRServerClient()
 
@@ -46,6 +86,7 @@ export async function POST(req: NextRequest) {
       content,
       mode: mode as ImportMode,
       dryRun,
+      resolutions,
     })
     if (!result.ok) {
       return NextResponse.json({ error: result.error }, { status: result.status })
@@ -66,6 +107,7 @@ export async function POST(req: NextRequest) {
           content,
           mode: mode as ImportMode,
           dryRun,
+          resolutions,
           signal: req.signal,
           onProgress: (event: ImportProgressEvent) => {
             write({ type: 'progress', event })
