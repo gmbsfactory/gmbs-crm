@@ -156,6 +156,20 @@ export async function mapInterventionFromCSV(
     ? await resolveArtisan(sst2Label, finder, 'SST 2', id_inter, warnings)
     : null;
 
+  // ── % SST (optionnel) ──────────────────────────────────────────────────────
+  // Pas de persistance dédiée : on signale uniquement une valeur hors plage
+  // [0, 100] pour que l'utilisateur corrige la source si besoin.
+  const pctSstRaw = getCSVValue(row, '% SST')?.trim();
+  if (pctSstRaw) {
+    const pct = Number(pctSstRaw.replace(',', '.').replace('%', '').trim());
+    if (!Number.isFinite(pct) || pct < 0 || pct > 100) {
+      warnings.push({
+        field: '% SST',
+        reason: `% SST hors plage : "${pctSstRaw}" — valeur attendue entre 0 et 100`,
+      });
+    }
+  }
+
   // ── Coûts ──────────────────────────────────────────────────────────────────
   const rawCosts = extractCostsData(row);
   const costs = formatCostsForInsertion(rawCosts, id_inter);

@@ -105,6 +105,7 @@ export async function GET(req: NextRequest) {
     )
     .in('assigned_user_id', scopeUserIds)
     .order('date', { ascending: true, nullsFirst: false })
+    .range(0, 49999)
 
   // Filtrage sur `interventions.date` (date métier de l'intervention) et NON
   // sur `created_at` (date d'insertion en base). Côté UI l'utilisateur saisit

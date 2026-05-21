@@ -14,7 +14,9 @@
       "Bash(docker exec:*)",
       "Bash(npx tsc:*)",
       "Bash(npx vitest run:*)",
-      "Bash(git log *)"
+      "Bash(git log *)",
+      "Bash(git fetch *)",
+      "Bash(git rev-list *)"
     ],
     "deny": [],
     "ask": []

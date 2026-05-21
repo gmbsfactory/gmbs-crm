@@ -698,9 +698,53 @@ async function fetchPreviousDisplayPayloads(
     return obj;
   };
 
+  // Coûts existants (table intervention_costs, one-to-many). Chargés en lot
+  // pour que la diff ancien → nouveau affiche aussi COUT SST / COÛT MATERIEL /
+  // COUT INTER (et leurs variantes _2 pour le second artisan).
+  type CostRow = {
+    intervention_id: string;
+    cost_type: string;
+    amount: number | string | null;
+    artisan_order: number | null;
+  };
+  const costsByIntervention = new Map<string, CostRow[]>();
+  if (rows.length > 0) {
+    const interventionIds = rows.map((r) => r.id);
+    for (let i = 0; i < interventionIds.length; i += FETCH_CHUNK) {
+      const slice = interventionIds.slice(i, i + FETCH_CHUNK);
+      const { data, error } = await supabase
+        .from('intervention_costs')
+        .select('intervention_id, cost_type, amount, artisan_order')
+        .in('intervention_id', slice);
+      if (error) throw error;
+      for (const c of (data ?? []) as CostRow[]) {
+        const list = costsByIntervention.get(c.intervention_id) ?? [];
+        list.push(c);
+        costsByIntervention.set(c.intervention_id, list);
+      }
+    }
+  }
+
+  const findCostAmount = (
+    list: CostRow[] | undefined,
+    type: string,
+    order: number | null,
+  ): number | null => {
+    if (!list) return null;
+    const c = list.find(
+      (x) =>
+        x.cost_type === type &&
+        (order === null ? x.artisan_order == null : x.artisan_order === order),
+    );
+    if (!c || c.amount == null) return null;
+    const n = typeof c.amount === 'number' ? c.amount : Number(c.amount);
+    return Number.isFinite(n) ? n : null;
+  };
+
   for (const r of rows) {
     const t = r.tenant_id ? tenantsById.get(r.tenant_id) : undefined;
     const o = r.owner_id ? ownersById.get(r.owner_id) : undefined;
+    const costs = costsByIntervention.get(r.id);
     result.set(r.id, {
       id_inter: r.id_inter,
       agence: r.agence_id ? resolver.getAgencyLabel(r.agence_id) ?? r.agence_id : null,
@@ -718,6 +762,11 @@ async function fetchPreviousDisplayPayloads(
       contexte_intervention: r.contexte_intervention,
       adresse: r.adresse,
       is_active: r.is_active,
+      cout_sst: findCostAmount(costs, 'sst', 1),
+      cout_materiel: findCostAmount(costs, 'materiel', 1),
+      cout_intervention: findCostAmount(costs, 'intervention', null),
+      cout_sst_2: findCostAmount(costs, 'sst', 2),
+      cout_materiel_2: findCostAmount(costs, 'materiel', 2),
     });
   }
 
@@ -785,7 +834,25 @@ function buildDisplayPayload(
     is_active: payload.is_active,
     artisan_sst: artisanDisplay(m.artisan_sst, raw['SST'] ?? raw['Technicien'], finder),
     artisan_sst2: artisanDisplay(m.artisan_sst2, raw['SST 2'], finder),
+    cout_sst: mappedCostAmount(m.costs, 'sst', 1),
+    cout_materiel: mappedCostAmount(m.costs, 'materiel', 1),
+    cout_intervention: mappedCostAmount(m.costs, 'intervention', null),
+    cout_sst_2: mappedCostAmount(m.costs, 'sst', 2),
+    cout_materiel_2: mappedCostAmount(m.costs, 'materiel', 2),
   };
+}
+
+function mappedCostAmount(
+  costs: MappedIntervention['costs'],
+  type: string,
+  position: 1 | 2 | null,
+): number | null {
+  const c = costs.find(
+    (x) =>
+      x.cost_type === type &&
+      (position === null ? x.artisan_position == null : x.artisan_position === position),
+  );
+  return c ? c.amount : null;
 }
 
 // ───────────────────────────────────────────────────────────────────────────
