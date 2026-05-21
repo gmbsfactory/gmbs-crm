@@ -109,11 +109,13 @@
   .modal-overlay,
   .shadcn-dialog-overlay {
     background: var(--backdrop-color);
-    backdrop-filter: none;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
     animation: fadeIn var(--transition-base) var(--transition-easing);
     position: fixed;
     inset: 0;
     z-index: 40;
+    transition: backdrop-filter var(--transition-base) var(--transition-easing), background-color var(--transition-base) var(--transition-easing);
   }
 
   .modal-surface,
