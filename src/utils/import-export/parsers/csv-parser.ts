@@ -13,14 +13,19 @@ export function cleanCSVKeys(csvRow: CsvRow): CsvRow {
   return cleaned;
 }
 
-/** Récupère une valeur par nom de colonne (insensible aux espaces superflus). */
+/** Récupère une valeur par nom de colonne (insensible aux espaces superflus et à la casse). */
 export function getCSVValue(csvRow: CsvRow, columnName: string): string | null {
   if (!csvRow) return null;
   if (csvRow[columnName] !== undefined) return csvRow[columnName];
   const normalized = columnName.trim();
   if (csvRow[normalized] !== undefined) return csvRow[normalized];
-  const key = Object.keys(csvRow).find((k) => k.trim() === normalized);
-  return key ? csvRow[key] : null;
+  // Fallback 1 : correspondance exacte après trim des clés.
+  const exactKey = Object.keys(csvRow).find((k) => k.trim() === normalized);
+  if (exactKey) return csvRow[exactKey];
+  // Fallback 2 : correspondance insensible à la casse (ex. CSV avec "adresse" en minuscule).
+  const lowered = normalized.toLowerCase();
+  const ciKey = Object.keys(csvRow).find((k) => k.trim().toLowerCase() === lowered);
+  return ciKey ? csvRow[ciKey] : null;
 }
 
 /** Extrait la valeur du statut depuis plusieurs noms de colonne possibles. */

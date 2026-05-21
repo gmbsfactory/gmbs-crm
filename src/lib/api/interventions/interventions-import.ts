@@ -8,7 +8,7 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { parseCSV } from '@/utils/import-export/parsers/csv-parser';
-import { extractInterventionId } from '@/utils/import-export/parsers/address-parser';
+import { extractInterventionId } from '@/utils/import-export/parsers/id-parser';
 import { EnumResolver, EntityFinder, type ArtisanInfo } from '@/utils/import-export/enum-resolver';
 import {
   mapInterventionFromCSV,
@@ -17,7 +17,13 @@ import {
   type InvalidRow,
 } from '@/utils/import-export/intervention-mapper';
 import type { TenantInfo, OwnerInfo } from '@/utils/import-export/parsers/person-parser';
-import type { ImportMode, ImportResponse } from '@/utils/import-export/import-types';
+import type {
+  ImportMode,
+  ImportResponse,
+  ImportConflictReason,
+  ImportConflictCandidate,
+  ImportResolutionsMap,
+} from '@/utils/import-export/import-types';
 import { referentialsApi } from '@/lib/api/referentials';
 
 /**
@@ -26,7 +32,8 @@ import { referentialsApi } from '@/lib/api/referentials';
  *
  * Couvre les colonnes directement persistées sur `interventions`, y compris
  * `tenant_id` et `owner_id` (locataire / propriétaire). Les coûts associés
- * (`FormattedCost[]` du mapper) ne sont pas encore persistés ici.
+ * (`FormattedCost[]` du mapper) sont persistés séparément dans
+ * `intervention_costs` via `persistInterventionCosts` après l'insert/update.
  */
 export interface InterventionImportPayload {
   id_inter: string | null;
@@ -99,6 +106,45 @@ export const interventionsImportApi = {
       }
     }
 
+    return result;
+  },
+
+  /**
+   * Résout les correspondances par clé composite (agence?, date, adresse).
+   * Appelle le RPC `csv_intervention_import_resolve_by_composite` qui renvoie,
+   * par ligne, la liste des interventions matchant la clé (peut être vide,
+   * unique ou multiple — l'orchestrateur arbitre).
+   *
+   * Les entrées avec `date` ou `adresse` nulles sont filtrées en amont (rien
+   * à matcher).
+   */
+  async resolveByComposite(
+    supabase: SupabaseClient,
+    rows: Array<{ line: number; agence_id: string | null; date: string; adresse: string }>,
+  ): Promise<Map<number, string[]>> {
+    const result = new Map<number, string[]>();
+    if (rows.length === 0) return result;
+
+    // Convertit `date` (ISO timestamptz) → YYYY-MM-DD (jour UTC) : aligné
+    // avec l'expression `(date at time zone 'UTC')::date` côté index.
+    const toUtcDay = (iso: string): string => iso.slice(0, 10);
+
+    const { data, error } = await supabase.rpc(
+      'csv_intervention_import_resolve_by_composite',
+      {
+        p_lines: rows.map((r) => r.line),
+        p_agence_ids: rows.map((r) => r.agence_id),
+        p_dates: rows.map((r) => toUtcDay(r.date)),
+        p_addresses: rows.map((r) => r.adresse),
+      },
+    );
+    if (error) throw error;
+
+    for (const row of (data ?? []) as Array<{ line: number; match_ids: string[] }>) {
+      if (Array.isArray(row.match_ids) && row.match_ids.length > 0) {
+        result.set(row.line, row.match_ids);
+      }
+    }
     return result;
   },
 
@@ -176,11 +222,18 @@ export const interventionsImportApi = {
       content: string;
       mode: ImportMode;
       dryRun: boolean;
+      /**
+       * Phase B : décisions manuelles utilisateur pour des lignes qui sinon
+       * seraient en conflit. Map `line` → { action: 'update', targetId }.
+       * Le `targetId` DOIT correspondre à l'un des candidats matchés pour
+       * cette ligne ; sinon la requête est rejetée (422).
+       */
+      resolutions?: ImportResolutionsMap;
       onProgress?: (event: ImportProgressEvent) => void;
       signal?: AbortSignal;
     },
   ): Promise<RunImportResult> {
-    const { content, mode, dryRun, onProgress, signal } = input;
+    const { content, mode, dryRun, resolutions, onProgress, signal } = input;
     const emit = (e: ImportProgressEvent) => onProgress?.(e);
     const checkAbort = () => {
       if (signal?.aborted) throw new ImportAbortedError();
@@ -248,8 +301,24 @@ export const interventionsImportApi = {
     emit({ stage: 'lookup', total: mappedRows.length });
     const idInters = mappedRows.map((m) => m.id_inter).filter((x): x is string => !!x);
     let existingMap: Map<string, string>;
+    let compositeMap: Map<number, string[]>;
     try {
-      existingMap = await this.findIdsByIdInter(supabase, idInters);
+      // Lookups parallèles : id_inter et composite. Le composite ne concerne
+      // que les lignes ayant `date` ET `adresse` (sinon, rien à matcher).
+      const compositeInputs = mappedRows
+        .filter((m): m is typeof m & { mapped: MappedIntervention & { date: string; adresse: string } } =>
+          !!m.mapped.date && !!m.mapped.adresse)
+        .map((m) => ({
+          line: m.line,
+          agence_id: m.mapped.agence_id,
+          date: m.mapped.date,
+          adresse: m.mapped.adresse,
+        }));
+
+      [existingMap, compositeMap] = await Promise.all([
+        this.findIdsByIdInter(supabase, idInters),
+        this.resolveByComposite(supabase, compositeInputs),
+      ]);
     } catch (e) {
       const reason = e instanceof Error ? e.message : String(e);
       return { ok: false, status: 500, error: reason };
@@ -272,8 +341,18 @@ export const interventionsImportApi = {
     const resolutionId = (r: PersonResolution | undefined): string | null =>
       r && r.kind !== 'none' ? r.id : null;
 
-    // Partition: créations (sans existsId) vs mises à jour (avec existsId).
+    // Partition: créations (sans match) vs mises à jour (match unique)
+    // vs conflits (matches concurrents → résolution manuelle requise).
     // Le mode dicte ce qui est ignoré silencieusement.
+    //
+    // Arbre de décision par ligne (id_inter optionnel, composite en fallback) :
+    //   A. id_inter match + composite match :
+    //        - même ligne en base       → UPDATE
+    //        - lignes différentes       → CONFLIT (id_inter_diverges_from_composite)
+    //   B. id_inter match seul          → UPDATE
+    //   C. composite match unique       → UPDATE (set id_inter du CSV si présent)
+    //   D. composite matches multiples  → CONFLIT (composite_ambiguous)
+    //   E. aucun match                  → INSERT
     type Job = {
       line: number;
       id_inter: string | null;
@@ -286,25 +365,156 @@ export const interventionsImportApi = {
     const toUpdate: Array<Job & { existsId: string }> = [];
     type SkippedJob = Job & { reason: string };
     const skippedJobs: SkippedJob[] = [];
+    type ConflictJob = Job & {
+      conflictReason: ImportConflictReason;
+      matchIds: string[];
+      /** Origine de chaque matchId, dans le même ordre. */
+      matchSources: Array<'id_inter' | 'composite'>;
+    };
+    const conflictJobs: ConflictJob[] = [];
+    // Validation des résolutions reçues : on collecte les conflits réels par
+    // ligne, puis on vérifie après-coup que chaque targetId est bien dans
+    // matchIds. Une résolution qui pointe vers un id étranger est un signe de
+    // CSV/état UI désynchronisé — on refuse plutôt que d'écrire silencieusement.
+    const resolutionErrors: Array<{ line: number; reason: string }> = [];
+
+    // Prefetch des id_inter des candidats référencés par des résolutions
+    // 'update'. Utilisé pour rejeter les résolutions qui écraseraient un
+    // id_inter non nul (règle d'immutabilité). On reste lazy : si aucune
+    // résolution n'est fournie, aucun aller-retour réseau.
+    const updateTargetIds = Array.from(
+      new Set(
+        Object.values(resolutions ?? {})
+          .filter((r): r is { action: 'update'; targetId: string } => r.action === 'update')
+          .map((r) => r.targetId),
+      ),
+    );
+    const targetIdInterByUuid = new Map<string, string | null>();
+    if (updateTargetIds.length > 0) {
+      const FETCH_CHUNK = 100;
+      for (let i = 0; i < updateTargetIds.length; i += FETCH_CHUNK) {
+        const slice = updateTargetIds.slice(i, i + FETCH_CHUNK);
+        const { data, error } = await supabase
+          .from('interventions')
+          .select('id, id_inter')
+          .in('id', slice);
+        if (error) {
+          return { ok: false, status: 500, error: formatError(error) };
+        }
+        for (const row of (data ?? []) as Array<{ id: string; id_inter: string | null }>) {
+          targetIdInterByUuid.set(row.id, row.id_inter);
+        }
+      }
+    }
 
     for (const { line, id_inter, mapped, raw } of mappedRows) {
-      const existsId = id_inter ? existingMap.get(id_inter) : undefined;
+      const idMatch = id_inter ? existingMap.get(id_inter) : undefined;
+      const compositeMatches = compositeMap.get(line) ?? [];
       const payload = buildInterventionPayload(
         mapped,
         resolutionId(tenantByLine.get(line)),
         resolutionId(ownerByLine.get(line)),
       );
-      const job: Job = { line, id_inter, raw, payload, mapped, existsId };
+      const job: Job = { line, id_inter, raw, payload, mapped };
+
+      // Résolution : déduire l'existsId effectif OU détecter un conflit.
+      let existsId: string | undefined;
+      let conflict:
+        | { reason: ImportConflictReason; matchIds: string[]; matchSources: Array<'id_inter' | 'composite'> }
+        | undefined;
+
+      if (idMatch && compositeMatches.length > 0) {
+        if (compositeMatches.includes(idMatch)) {
+          // Cas A.1 : id_inter et composite convergent (même ligne).
+          existsId = idMatch;
+        } else {
+          // Cas A.2 : divergence — fusion ou non à arbitrer manuellement.
+          conflict = {
+            reason: 'id_inter_diverges_from_composite',
+            matchIds: [idMatch, ...compositeMatches],
+            matchSources: ['id_inter', ...compositeMatches.map(() => 'composite' as const)],
+          };
+        }
+      } else if (idMatch) {
+        // Cas B
+        existsId = idMatch;
+      } else if (compositeMatches.length === 1) {
+        // Cas C
+        existsId = compositeMatches[0];
+      } else if (compositeMatches.length > 1) {
+        // Cas D
+        conflict = {
+          reason: 'composite_ambiguous',
+          matchIds: compositeMatches,
+          matchSources: compositeMatches.map(() => 'composite' as const),
+        };
+      }
+      // Cas E : existsId et conflict tous deux undefined → insertion.
+
+      if (conflict) {
+        // Phase B : si l'utilisateur a fourni une résolution pour cette ligne,
+        // on l'applique. 'update' valide que targetId est bien dans matchIds
+        // ET que la cible ne sera pas écrasée sur son id_inter ;
+        // 'create_without_id_inter' force une insertion sans id_inter ;
+        // 'skip' bascule la ligne dans skippedJobs sans écriture.
+        const userResolution = resolutions?.[line];
+        if (userResolution?.action === 'skip') {
+          skippedJobs.push({ ...job, reason: 'Ignoré manuellement (conflit non tranché)' });
+          continue;
+        } else if (userResolution?.action === 'create_without_id_inter') {
+          // Insertion forcée avec id_inter retiré : l'utilisateur reconnaît la
+          // ligne CSV comme distincte des candidates en base, sans écraser
+          // leur identité. Le doublon créé sera arbitré hors import.
+          job.payload.id_inter = null;
+          job.id_inter = null;
+          toInsert.push(job);
+          continue;
+        } else if (userResolution?.action === 'update') {
+          if (!conflict.matchIds.includes(userResolution.targetId)) {
+            resolutionErrors.push({
+              line,
+              reason:
+                `Résolution invalide : la cible ${userResolution.targetId} ne fait pas partie ` +
+                `des candidats (${conflict.matchIds.join(', ')}).`,
+            });
+            continue;
+          }
+          // Règle d'immutabilité de l'id_inter : on refuse l'update si la
+          // cible porte déjà un id_inter non nul différent de celui du CSV.
+          // L'utilisateur doit choisir `create_without_id_inter` ou `skip`.
+          const targetIdInter = targetIdInterByUuid.get(userResolution.targetId) ?? null;
+          if (targetIdInter && job.id_inter && targetIdInter !== job.id_inter) {
+            resolutionErrors.push({
+              line,
+              reason:
+                `Résolution invalide : la cible ${userResolution.targetId} porte déjà ` +
+                `id_inter "${targetIdInter}" — refus d'écrasement par "${job.id_inter}" ` +
+                `(utilisez "create_without_id_inter" ou "skip").`,
+            });
+            continue;
+          }
+          existsId = userResolution.targetId;
+          // Tombe dans la classification normale plus bas (toUpdate).
+        } else {
+          conflictJobs.push({
+            ...job,
+            conflictReason: conflict.reason,
+            matchIds: conflict.matchIds,
+            matchSources: conflict.matchSources,
+          });
+          continue;
+        }
+      }
 
       if (mode === 'create') {
         if (existsId) {
-          skippedJobs.push({ ...job, reason: 'ID déjà présent en base (mode "create")' });
+          skippedJobs.push({ ...job, reason: 'Match existant en base (mode "create")', existsId });
           continue;
         }
         toInsert.push(job);
       } else if (mode === 'update') {
         if (!existsId) {
-          skippedJobs.push({ ...job, reason: 'ID absent en base (mode "update")' });
+          skippedJobs.push({ ...job, reason: 'Aucun match en base (mode "update")' });
           continue;
         }
         toUpdate.push({ ...job, existsId });
@@ -314,6 +524,50 @@ export const interventionsImportApi = {
       }
     }
     const skipped = skippedJobs.length;
+    const unresolved = conflictJobs.length;
+
+    // Préservation de `id_inter` à l'UPDATE : si le CSV ne porte pas d'ID
+    // pour une ligne qui matche une intervention existante (clé composite,
+    // ou résolution de conflit), on ne doit pas écraser l'ID en base avec
+    // null. On récupère l'ID existant et on le réinjecte dans le payload.
+    // Règle métier : "une intervention qui a un id prédomine sur une qui n'en
+    // a pas" — l'absence dans le CSV signifie "pas d'info", jamais "effacer".
+    const updateJobsMissingIdInter = toUpdate.filter((j) => j.payload.id_inter === null);
+    if (updateJobsMissingIdInter.length > 0) {
+      const missingIds = Array.from(new Set(updateJobsMissingIdInter.map((j) => j.existsId)));
+      const FETCH_CHUNK = 100;
+      const existingIdInterById = new Map<string, string | null>();
+      for (let i = 0; i < missingIds.length; i += FETCH_CHUNK) {
+        const slice = missingIds.slice(i, i + FETCH_CHUNK);
+        const { data, error } = await supabase
+          .from('interventions')
+          .select('id, id_inter')
+          .in('id', slice);
+        if (error) {
+          return { ok: false, status: 500, error: formatError(error) };
+        }
+        for (const row of (data ?? []) as Array<{ id: string; id_inter: string | null }>) {
+          existingIdInterById.set(row.id, row.id_inter);
+        }
+      }
+      for (const job of updateJobsMissingIdInter) {
+        const existing = existingIdInterById.get(job.existsId) ?? null;
+        if (existing !== null) {
+          job.payload.id_inter = existing;
+        }
+      }
+    }
+
+    // Rejet précoce des résolutions incohérentes (ids étrangers aux candidats).
+    if (resolutionErrors.length > 0) {
+      return {
+        ok: false,
+        status: 422,
+        error:
+          `Résolutions invalides — ${resolutionErrors.length} ligne(s) : ` +
+          resolutionErrors.map((r) => `L${r.line} ${r.reason}`).join(' | '),
+      };
+    }
 
     if (dryRun) {
       // Per-bucket cap to keep the dry-run response a reasonable size even
@@ -324,12 +578,28 @@ export const interventionsImportApi = {
       // afin que l'UI puisse afficher une diff ancien → nouveau. Limité au
       // PREVIEW_LIMIT pour ne pas exploser la latence sur des très gros imports.
       const updateJobsForPreview = toUpdate.slice(0, PREVIEW_LIMIT);
-      const previousById = updateJobsForPreview.length > 0
-        ? await fetchPreviousDisplayPayloads(
-            supabase,
-            updateJobsForPreview.map((j) => j.existsId),
-            resolver,
-          )
+
+      // Pour le bucket "toResolve" (Phase B), on charge les détails (id_inter,
+      // date, adresse) de tous les candidats afin que l'UI puisse afficher
+      // chaque option de manière intelligible avant que l'utilisateur tranche.
+      const conflictJobsForPreview = conflictJobs.slice(0, PREVIEW_LIMIT);
+      const allCandidateIds = Array.from(
+        new Set(conflictJobsForPreview.flatMap((j) => j.matchIds)),
+      );
+      const candidatesById = allCandidateIds.length > 0
+        ? await fetchConflictCandidates(supabase, allCandidateIds)
+        : new Map<string, { id_inter: string | null; date: string | null; adresse: string | null }>();
+
+      // Snapshot lisible (FKs résolues en labels, personnes en objets) pour
+      // toutes les interventions concernées par un diff : celles à mettre à
+      // jour ET celles candidates à un conflit. Une seule passe groupée pour
+      // limiter les allers-retours réseau.
+      const previousIdsToLoad = Array.from(new Set<string>([
+        ...updateJobsForPreview.map((j) => j.existsId),
+        ...allCandidateIds,
+      ]));
+      const previousById = previousIdsToLoad.length > 0
+        ? await fetchPreviousDisplayPayloads(supabase, previousIdsToLoad, resolver)
         : new Map<string, Record<string, unknown>>();
 
       const toRow = (j: Job) => ({
@@ -357,10 +627,31 @@ export const interventionsImportApi = {
           ...toRow(j),
           reason: j.reason,
         })),
+        toResolve: conflictJobsForPreview.map((j) => ({
+          ...toRow(j),
+          conflictReason: j.conflictReason,
+          matchIds: j.matchIds,
+          candidates: j.matchIds.map((id, idx): ImportConflictCandidate => {
+            const info = candidatesById.get(id);
+            return {
+              id,
+              id_inter: info?.id_inter ?? null,
+              date: info?.date ?? null,
+              adresse: info?.adresse ?? null,
+              source: j.matchSources[idx] ?? 'composite',
+              previousDisplayPayload: previousById.get(id) ?? null,
+            };
+          }),
+          reason:
+            j.conflictReason === 'id_inter_diverges_from_composite'
+              ? `Conflit : l'ID CSV pointe vers une intervention, mais la clé (agence, date, adresse) en désigne une autre — ${j.matchIds.length} candidates`
+              : `Conflit : ${j.matchIds.length} interventions existantes correspondent à (agence, date, adresse)`,
+        })),
         truncated:
           toInsert.length > PREVIEW_LIMIT ||
           toUpdate.length > PREVIEW_LIMIT ||
-          skippedJobs.length > PREVIEW_LIMIT,
+          skippedJobs.length > PREVIEW_LIMIT ||
+          conflictJobs.length > PREVIEW_LIMIT,
         perBucketLimit: PREVIEW_LIMIT,
       };
       return {
@@ -372,9 +663,23 @@ export const interventionsImportApi = {
           inserted: toInsert.length,
           updated: toUpdate.length,
           skipped,
+          unresolved,
           errors,
           preview,
         },
+      };
+    }
+
+    // Phase B : refus dur si conflits non résolus. Les lignes pour lesquelles
+    // l'utilisateur a fourni une résolution valide ont déjà été retirées de
+    // conflictJobs ci-dessus ; ce qui reste est ce qu'il faut encore arbitrer.
+    if (unresolved > 0) {
+      return {
+        ok: false,
+        status: 409,
+        error:
+          `${unresolved} ligne${unresolved > 1 ? 's' : ''} en conflit non résolu — ` +
+          `lancez une simulation, choisissez un candidat pour chaque conflit puis relancez.`,
       };
     }
 
@@ -463,6 +768,17 @@ export const interventionsImportApi = {
       errors.push({ line: 0, id_inter: null, reason: `Liens artisans : ${reason}` });
     }
 
+    // Coûts d'intervention (intervention_costs). Replace intégral : pour chaque
+    // intervention persistée, on supprime les coûts existants et on insère ceux
+    // du CSV. Un coût absent du CSV = coût supprimé (cohérent avec persistArtisanLinks).
+    try {
+      await persistInterventionCosts(supabase, persistedInterventionIds, mappedByLine);
+    } catch (e) {
+      const reason = formatError(e);
+      console.error('[import] persistInterventionCosts failed:', reason, e);
+      errors.push({ line: 0, id_inter: null, reason: `Coûts intervention : ${reason}` });
+    }
+
     // Warnings non bloquants (artisan inconnu, etc.) — on ne remonte que les
     // lignes qui ont été persistées (les autres sont déjà dans `errors`).
     const persistedLines = new Set(persistedInterventionIds.map((p) => p.line));
@@ -470,7 +786,7 @@ export const interventionsImportApi = {
     for (const m of mappedRows) {
       if (!persistedLines.has(m.line)) continue;
       for (const w of m.mapped.warnings) {
-        if (w.field === 'SST' || w.field === 'SST 2') {
+        if (w.field === 'SST' || w.field === 'SST 2' || w.field === 'ID') {
           warnings.push({ line: m.line, id_inter: m.id_inter, field: w.field, reason: w.reason });
         }
       }
@@ -485,6 +801,7 @@ export const interventionsImportApi = {
         inserted,
         updated,
         skipped,
+        unresolved,
         errors,
         ...(warnings.length > 0 ? { warnings } : {}),
       },
@@ -686,9 +1003,53 @@ async function fetchPreviousDisplayPayloads(
     return obj;
   };
 
+  // Coûts existants (table intervention_costs, one-to-many). Chargés en lot
+  // pour que la diff ancien → nouveau affiche aussi COUT SST / COÛT MATERIEL /
+  // COUT INTER (et leurs variantes _2 pour le second artisan).
+  type CostRow = {
+    intervention_id: string;
+    cost_type: string;
+    amount: number | string | null;
+    artisan_order: number | null;
+  };
+  const costsByIntervention = new Map<string, CostRow[]>();
+  if (rows.length > 0) {
+    const interventionIds = rows.map((r) => r.id);
+    for (let i = 0; i < interventionIds.length; i += FETCH_CHUNK) {
+      const slice = interventionIds.slice(i, i + FETCH_CHUNK);
+      const { data, error } = await supabase
+        .from('intervention_costs')
+        .select('intervention_id, cost_type, amount, artisan_order')
+        .in('intervention_id', slice);
+      if (error) throw error;
+      for (const c of (data ?? []) as CostRow[]) {
+        const list = costsByIntervention.get(c.intervention_id) ?? [];
+        list.push(c);
+        costsByIntervention.set(c.intervention_id, list);
+      }
+    }
+  }
+
+  const findCostAmount = (
+    list: CostRow[] | undefined,
+    type: string,
+    order: number | null,
+  ): number | null => {
+    if (!list) return null;
+    const c = list.find(
+      (x) =>
+        x.cost_type === type &&
+        (order === null ? x.artisan_order == null : x.artisan_order === order),
+    );
+    if (!c || c.amount == null) return null;
+    const n = typeof c.amount === 'number' ? c.amount : Number(c.amount);
+    return Number.isFinite(n) ? n : null;
+  };
+
   for (const r of rows) {
     const t = r.tenant_id ? tenantsById.get(r.tenant_id) : undefined;
     const o = r.owner_id ? ownersById.get(r.owner_id) : undefined;
+    const costs = costsByIntervention.get(r.id);
     result.set(r.id, {
       id_inter: r.id_inter,
       agence: r.agence_id ? resolver.getAgencyLabel(r.agence_id) ?? r.agence_id : null,
@@ -706,9 +1067,45 @@ async function fetchPreviousDisplayPayloads(
       contexte_intervention: r.contexte_intervention,
       adresse: r.adresse,
       is_active: r.is_active,
+      cout_sst: findCostAmount(costs, 'sst', 1),
+      cout_materiel: findCostAmount(costs, 'materiel', 1),
+      cout_intervention: findCostAmount(costs, 'intervention', null),
+      cout_sst_2: findCostAmount(costs, 'sst', 2),
+      cout_materiel_2: findCostAmount(costs, 'materiel', 2),
     });
   }
 
+  return result;
+}
+
+/**
+ * Récupère les détails minimaux (id_inter, date, adresse) pour un ensemble
+ * d'interventions candidates à un conflit. Permet à l'UI d'afficher chaque
+ * option de manière intelligible au lieu d'un simple UUID.
+ */
+async function fetchConflictCandidates(
+  supabase: SupabaseClient,
+  ids: string[],
+): Promise<Map<string, { id_inter: string | null; date: string | null; adresse: string | null }>> {
+  const result = new Map<string, { id_inter: string | null; date: string | null; adresse: string | null }>();
+  if (ids.length === 0) return result;
+  const CHUNK = 100;
+  for (let i = 0; i < ids.length; i += CHUNK) {
+    const slice = ids.slice(i, i + CHUNK);
+    const { data, error } = await supabase
+      .from('interventions')
+      .select('id, id_inter, date, adresse')
+      .in('id', slice);
+    if (error) throw error;
+    for (const row of (data ?? []) as Array<{
+      id: string;
+      id_inter: string | null;
+      date: string | null;
+      adresse: string | null;
+    }>) {
+      result.set(row.id, { id_inter: row.id_inter, date: row.date, adresse: row.adresse });
+    }
+  }
   return result;
 }
 
@@ -773,7 +1170,25 @@ function buildDisplayPayload(
     is_active: payload.is_active,
     artisan_sst: artisanDisplay(m.artisan_sst, raw['SST'] ?? raw['Technicien'], finder),
     artisan_sst2: artisanDisplay(m.artisan_sst2, raw['SST 2'], finder),
+    cout_sst: mappedCostAmount(m.costs, 'sst', 1),
+    cout_materiel: mappedCostAmount(m.costs, 'materiel', 1),
+    cout_intervention: mappedCostAmount(m.costs, 'intervention', null),
+    cout_sst_2: mappedCostAmount(m.costs, 'sst', 2),
+    cout_materiel_2: mappedCostAmount(m.costs, 'materiel', 2),
   };
+}
+
+function mappedCostAmount(
+  costs: MappedIntervention['costs'],
+  type: string,
+  position: 1 | 2 | null,
+): number | null {
+  const c = costs.find(
+    (x) =>
+      x.cost_type === type &&
+      (position === null ? x.artisan_position == null : x.artisan_position === position),
+  );
+  return c ? c.amount : null;
 }
 
 // ───────────────────────────────────────────────────────────────────────────
@@ -1076,6 +1491,62 @@ async function persistArtisanLinks(
     const { error } = await supabase
       .from('intervention_artisans')
       .upsert(chunk, { onConflict: 'intervention_id,artisan_id' });
+    if (error) throw error;
+  }
+}
+
+async function persistInterventionCosts(
+  supabase: SupabaseClient,
+  persisted: Array<{ line: number; interventionId: string }>,
+  mappedByLine: Map<number, MappedIntervention>,
+): Promise<void> {
+  if (persisted.length === 0) return;
+
+  type CostRow = {
+    intervention_id: string;
+    cost_type: string;
+    label: string;
+    amount: number;
+    currency: 'EUR';
+    artisan_order: 1 | 2 | null;
+  };
+
+  const rows: CostRow[] = [];
+  const interventionIdsWithCosts: string[] = [];
+
+  for (const { line, interventionId } of persisted) {
+    const m = mappedByLine.get(line);
+    if (!m || !m.costs || m.costs.length === 0) continue;
+    interventionIdsWithCosts.push(interventionId);
+    for (const c of m.costs) {
+      rows.push({
+        intervention_id: interventionId,
+        cost_type: c.cost_type,
+        label: c.label,
+        amount: c.amount,
+        currency: c.currency,
+        artisan_order: c.artisan_position ?? null,
+      });
+    }
+  }
+
+  if (interventionIdsWithCosts.length === 0) return;
+
+  // Replace intégral : supprime les coûts existants pour les interventions qui
+  // en reçoivent de nouveaux. Les interventions sans coûts dans le CSV gardent
+  // leurs coûts existants (rien à faire).
+  for (let i = 0; i < interventionIdsWithCosts.length; i += ARTISAN_LINK_DELETE_CHUNK) {
+    const slice = interventionIdsWithCosts.slice(i, i + ARTISAN_LINK_DELETE_CHUNK);
+    const { error } = await supabase
+      .from('intervention_costs')
+      .delete()
+      .in('intervention_id', slice);
+    if (error) throw error;
+  }
+
+  for (let i = 0; i < rows.length; i += PERSIST_CHUNK) {
+    const chunk = rows.slice(i, i + PERSIST_CHUNK);
+    const { error } = await supabase.from('intervention_costs').insert(chunk);
     if (error) throw error;
   }
 }

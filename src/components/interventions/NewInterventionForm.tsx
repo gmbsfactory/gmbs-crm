@@ -192,7 +192,6 @@ export function NewInterventionForm({
     setArtisanSearchPosition,
     secondArtisanSearchPosition,
     setSecondArtisanSearchPosition,
-    artisanSearchContainerRef,
     artisanDisplayMode,
     setArtisanDisplayMode,
 
@@ -243,6 +242,13 @@ export function NewInterventionForm({
     onHasUnsavedChanges,
     onSubmittingChange,
   })
+
+  // Mettre en pause le focus-trap du modal parent quand le popover de recherche
+  // d'artisan est ouvert : sinon le focus-trap intercepte les clics souris sur
+  // le popover (rendu sans Portal, hors du conteneur du modal). Voir InterventionEditForm.
+  useEffect(() => {
+    onPopoverOpenChange?.(showArtisanSearch || showSecondArtisanSearch)
+  }, [showArtisanSearch, showSecondArtisanSearch, onPopoverOpenChange])
 
   // Destructure collapsible state for easier access
   const {

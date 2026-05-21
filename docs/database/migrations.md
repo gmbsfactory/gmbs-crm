@@ -208,12 +208,14 @@ Ajouts progressifs de fonctionnalités : champs artisan, audit, sous-statuts, co
 | `99020_protect_expert_confirme_from_downgrade.sql` | Empêche un artisan `EXPERT_CONFIRME` d'être rétrogradé via update |
 | `99021_search_add_owner_email_and_plain_noms.sql` | Étend la recherche full-text aux emails owner et aux versions "plain" des noms |
 | `99022_rpc_get_sorted_intervention_ids.sql` | RPC retournant les IDs d'interventions triés selon les filtres serveur (pagination par ID) |
-| `99023_intervention_compta_exclusions.sql` | Table d'exclusions comptables : interventions à exclure de la vue compta |
+| `99023_intervention_compta_exclusions.sql` | Table d'exclusions comptables : interventions à exclure de la vue compta — **supprimée par 99029 (obsolète)** |
 | `99024_hybrid_search_global.sql` | Recherche hybride globale (renommage / consolidation de l'ancienne `99018_hybrid_search_global`) |
+| `99028_csv_import_composite_match.sql` | Import CSV : normalisation d'adresse IMMUTABLE, index composite `(agence, date, adresse)` et RPC `csv_intervention_import_resolve_by_composite` (résolution lecture-seule pour le match composite des interventions sans `id_inter`) |
+| `99029_drop_intervention_compta_exclusions.sql` | Supprime la table `intervention_compta_exclusions` (99023), devenue code mort : plus aucun code applicatif ni objet SQL ne la référence |
 
 > **99022 — pagination par ID** : ce RPC est consommé par `useInterventionsQuery` pour résoudre l'ordre stable des interventions côté serveur, évitant les sauts de pagination quand les données mutent en temps réel pendant le scroll.
 >
-> **99023 — exclusions compta** : table consultée par `useComptabiliteQuery` (`include: ["owner", …]`) pour cacher de la vue Comptabilité les interventions explicitement marquées comme à exclure.
+> **99023 — exclusions compta** *(obsolète, supprimée par 99029)* : table introduite pour cacher de la vue Comptabilité les interventions marquées comme à exclure. La fonctionnalité n'est plus câblée et la table était devenue du code mort (aucune référence applicative ni SQL).
 >
 > **99024 — recherche hybride** : combine la recherche trigramme (`pg_trgm`) et la recherche full-text sur les entités globales (interventions + artisans + clients). Renomme et remplace la migration `99018_hybrid_search_global` historique (cf. commit `feat : rename hybrid search`).
 

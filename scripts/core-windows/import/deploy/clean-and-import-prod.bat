@@ -10,7 +10,6 @@ echo   GMBS CRM — Déploiement Production
 echo ===============================================================
 echo.
 echo [INFO] Démarrage du processus d'import...
-echo [INFO] Date de départ : 01/01/2026
 echo.
 
 REM Aller au répertoire racine du projet
@@ -18,7 +17,7 @@ cd /d "%~dp0..\..\..\.."
 set NODE_ENV=production
 
 REM Appeler le script Node.js avec les paramètres
-npx tsx scripts\data\imports\deploy\deliver-prod.js --import-start-date=01/01/2026
+npx tsx scripts\data\imports\deploy\deliver-prod.js
 
 pause
 

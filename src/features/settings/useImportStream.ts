@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback, useRef, useState } from "react"
-import type { ImportMode, ImportResponse } from "@/utils/import-export/import-types"
+import type { ImportMode, ImportResponse, ImportResolutionsMap } from "@/utils/import-export/import-types"
 import type { ImportStage, StageId, StageStatus } from "./ImportProgressPanel"
 
 type ProgressEvent =
@@ -34,6 +34,8 @@ interface RunArgs {
   file: File
   mode: ImportMode
   dryRun: boolean
+  /** Phase B : décisions manuelles ligne par ligne pour les conflits. */
+  resolutions?: ImportResolutionsMap
 }
 
 interface RunResult {
@@ -130,7 +132,7 @@ export function useImportStream() {
   )
 
   const run = useCallback(
-    async ({ file, mode, dryRun }: RunArgs): Promise<RunResult> => {
+    async ({ file, mode, dryRun, resolutions }: RunArgs): Promise<RunResult> => {
       setStages(initialStages())
       setRunning(true)
 
@@ -142,6 +144,9 @@ export function useImportStream() {
       body.append('mode', mode)
       body.append('dry_run', String(dryRun))
       body.append('stream', 'true')
+      if (resolutions && Object.keys(resolutions).length > 0) {
+        body.append('resolutions', JSON.stringify(resolutions))
+      }
 
       let res: Response
       try {

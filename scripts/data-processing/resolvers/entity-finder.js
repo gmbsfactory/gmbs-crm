@@ -59,28 +59,47 @@ class EntityFinder {
   async findOrCreateOwner(ownerInfo) {
     const { ownersApi } = require('../../../src/lib/api');
 
-    if (!ownerInfo.telephone) {
-      console.log('⚠️ Owner sans téléphone, impossible de créer');
+    if (!ownerInfo) return null;
+
+    const hasAnyIdentity =
+      ownerInfo.telephone ||
+      ownerInfo.email ||
+      ownerInfo.plain_nom_facturation ||
+      ownerInfo.firstname ||
+      ownerInfo.lastname;
+
+    if (!hasAnyIdentity) {
+      console.log('⚠️ Owner sans aucune identité, impossible de créer');
       return null;
     }
 
     try {
-      const existingByPhone = await ownersApi.searchByPhone(ownerInfo.telephone);
-      if (existingByPhone && existingByPhone.length > 0) {
-        // console.log(`✅ Owner trouvé par téléphone: ${ownerInfo.telephone} (ID: ${existingByPhone[0].id})`);
-        return existingByPhone[0].id;
+      // 1. Dédup par téléphone (priorité)
+      if (ownerInfo.telephone) {
+        const existingByPhone = await ownersApi.searchByPhone(ownerInfo.telephone);
+        if (existingByPhone && existingByPhone.length > 0) {
+          return existingByPhone[0].id;
+        }
+      }
+
+      // 2. Fallback dédup par plain_nom_facturation (match exact)
+      if (!ownerInfo.telephone && ownerInfo.plain_nom_facturation) {
+        const byName = await ownersApi.searchByName(ownerInfo.plain_nom_facturation);
+        const exact = (byName || []).find(
+          (o) => (o.plain_nom_facturation || '').trim() === ownerInfo.plain_nom_facturation.trim()
+        );
+        if (exact) return exact.id;
       }
 
       const ownerData = {
-        plain_nom_facturation: ownerInfo.plain_nom_facturation,
-        owner_firstname: ownerInfo.firstname,
-        owner_lastname: ownerInfo.lastname,
-        telephone: ownerInfo.telephone,
+        plain_nom_facturation: ownerInfo.plain_nom_facturation || null,
+        owner_firstname: ownerInfo.firstname || null,
+        owner_lastname: ownerInfo.lastname || null,
+        telephone: ownerInfo.telephone || null,
+        email: ownerInfo.email || null,
       };
 
       const created = await ownersApi.create(ownerData);
-      const name = [ownerInfo.firstname, ownerInfo.lastname].filter(Boolean).join(' ') || 'Sans nom';
-      // console.log(`🆕 Owner créé: ${name} (ID: ${created.id})`);
       return created.id;
     } catch (error) {
       console.error('Erreur lors de la recherche/création du owner:', error);

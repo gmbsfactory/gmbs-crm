@@ -284,10 +284,18 @@ export function useComptabiliteQuery(options: UseComptabiliteQueryOptions) {
     }
   }, [queryKey, queryClient])
 
-  // ── Exclusion de lignes ──
+  // ── Réouverture (INTER_TERMINEE → INTER_EN_COURS) ──
 
-  const excludeFromCompta = useCallback(async (interventionId: string) => {
-    // Optimistic: retirer la ligne du cache
+  const getEnCoursStatusId = useCallback(async (): Promise<string | null> => {
+    const status = await interventionsApi.getStatusByCode("INTER_EN_COURS")
+    return status?.id ?? null
+  }, [])
+
+  const reopenIntervention = useCallback(async (interventionId: string) => {
+    const statusId = await getEnCoursStatusId()
+    if (!statusId) return false
+
+    // Optimistic: retirer la ligne du cache (elle ne sera plus INTER_TERMINEE)
     queryClient.setQueryData<ComptabiliteData>(queryKey, (old) => {
       if (!old) return old
       return {
@@ -297,18 +305,24 @@ export function useComptabiliteQuery(options: UseComptabiliteQueryOptions) {
       }
     })
 
-    const success = await comptaApi.exclude(interventionId)
-
-    if (!success) {
+    try {
+      await interventionsApi.updateStatus(interventionId, statusId)
+      // Invalider les listes d'interventions ailleurs (Kanban, table, etc.)
+      queryClient.invalidateQueries({ queryKey: ["interventions"] })
+      return true
+    } catch (err) {
+      console.error("Error reopening intervention:", err)
       // Rollback : invalider pour recharger les vraies données
       queryClient.invalidateQueries({ queryKey: comptabiliteKeys.all })
+      return false
     }
+  }, [getEnCoursStatusId, queryKey, queryClient])
 
-    return success
-  }, [queryKey, queryClient])
-
-  const bulkExclude = useCallback(async (ids: string[]) => {
+  const bulkReopen = useCallback(async (ids: string[]) => {
     if (ids.length === 0) return
+
+    const statusId = await getEnCoursStatusId()
+    if (!statusId) return
 
     const idsSet = new Set(ids)
 
@@ -322,15 +336,16 @@ export function useComptabiliteQuery(options: UseComptabiliteQueryOptions) {
       }
     })
 
-    const results = await Promise.all(
-      ids.map((id) => comptaApi.exclude(id))
+    const results = await Promise.allSettled(
+      ids.map((id) => interventionsApi.updateStatus(id, statusId))
     )
 
-    const hasFailures = results.some((r) => !r)
+    const hasFailures = results.some((r) => r.status === "rejected")
     if (hasFailures) {
       queryClient.invalidateQueries({ queryKey: comptabiliteKeys.all })
     }
-  }, [queryKey, queryClient])
+    queryClient.invalidateQueries({ queryKey: ["interventions"] })
+  }, [getEnCoursStatusId, queryKey, queryClient])
 
   // Refresh complet
   const refresh = useCallback(async () => {
@@ -357,8 +372,8 @@ export function useComptabiliteQuery(options: UseComptabiliteQueryOptions) {
     // Actions
     toggleComptaCheck,
     bulkCheck,
-    excludeFromCompta,
-    bulkExclude,
+    reopenIntervention,
+    bulkReopen,
     refresh,
   }
 }

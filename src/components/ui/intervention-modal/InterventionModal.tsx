@@ -196,6 +196,7 @@ export function InterventionModal({
       isSubmitting={isSubmitting}
       onShowUnsavedDialog={() => showUnsavedDialogRef.current?.()}
       pauseFocusTrap={
+        isArtisanSearchOpen ||
         isSmsModalOpen ||
         isEmailModalOpen ||
         isStatusReasonModalOpen ||

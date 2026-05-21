@@ -48,7 +48,7 @@ L'ordre et l'orthographe (accents, espaces, ✅) reproduisent **exactement** le 
 | 11 | `COÛT MATERIEL` | `intervention_costs` où `cost_type = 'materiel'` et artisan = primaire |
 | 12 | `Numéro SST` | `intervention_artisans` (primaire) → `artisans.telephone` — **pas une colonne sur `interventions`**. À l'export : téléphone de l'artisan primaire. À l'import : ignoré (l'artisan est résolu par nom via la colonne `SST`). |
 | 13 | `COUT INTER` | `intervention_costs` où `cost_type = 'intervention'` |
-| 14 | `% SST` | `interventions.pourcentage_sst` |
+| 14 | `% SST` | **Calculé** — marge de l'artisan principal, identique au modal d'intervention : `((COUT INTER − (COUT SST + COUT SST 2 + COÛT MATERIEL + COÛT MATERIEL 2)) / COUT INTER) × 100`, arrondi à 1 décimale. Vide si `COUT INTER ≤ 0`. N'utilise plus `interventions.pourcentage_sst` (champ non alimenté). À l'import : ignoré (warning si hors plage [0, 100]). |
 | 15 | `PROPRIO` | `owner.owner_firstname` + `owner.owner_lastname` |
 | 16 | `Date d'intervention` | `interventions.date_prevue` formaté `DD/MM/YYYY` |
 | 17 | `TEL LOC` | `tenants.telephone` |
@@ -136,6 +136,19 @@ Une carte symétrique « Importer des interventions » dans Settings, à côté 
 5. **Confirmation** — récap avant écriture, bouton « Importer ».
 6. **Rapport post-import** — `X créées, Y mises à jour, Z ignorées, W en erreur`, téléchargeable en CSV.
 
+> **Inspection ligne par ligne (ordre canonique).** Dans la modale d'aperçu d'un
+> bucket, chaque ligne dépliée affiche côte à côte « CSV brut » et « Mapping base
+> de données ». Les deux colonnes sont triées selon une **séquence canonique
+> unique** (`src/utils/import-export/preview-field-order.ts`) de sorte que la
+> ligne N de gauche corresponde à la ligne N de droite (`ID → id_inter`,
+> `Agence → agence`, `Adresse → adresse`, `Date → date`, `Métier → metier`,
+> `Statut → statut`, `Gest. → gestionnaire`, …). Les colonnes locataire
+> (`Locataire` + `TEL LOC` + `Em@il Locataire`) sont regroupées face à l'objet
+> `locataire`. Les colonnes CSV sans pendant en base (`Numéro SST`, `% SST`,
+> `COMMENTAIRE`, `Truspilot`…) tombent en queue, dans leur ordre d'origine. Ce
+> même ordre s'applique aux diffs (`update`) et aux cartes de conflit. Toute
+> évolution du mapping doit être répercutée dans `CSV_DB_PAIRS`.
+
 ### 4.2 Endpoint
 
 `POST /api/imports/interventions`
@@ -214,7 +227,7 @@ interface EntityFinder {
 | `COUT *` (incl. `COUT SST 2`, `COÛT MATERIEL 2`) | Numérique ≥ 0 ou vide. Limite haute (ex : 100 000 €) → warning mais accepté. |
 | `SST` / `SST 2` | Lookup `artisans.plain_nom` (insensible à la casse, accents tolérés). Inconnu → warning, intervention créée sans rattachement. `SST 2` non vide alors que `SST` est vide → erreur ligne. |
 | `Em@il Locataire` | Format email valide ou vide. |
-| `TEL LOC` | Normalisation FR (réutiliser l'utilitaire existant si présent). |
+| `TEL LOC` | Normalisation FR : `0X XX XX XX XX`, `+33…` et 10 chiffres bruts reconnus. **Récupération Excel** : un numéro de 9 chiffres commençant par `[1-9]` se voit restituer le `0` de tête (Excel ampute parfois le zéro). Une valeur non standard (ex. tronquée `056777`, ≥ 4 chiffres) est **conservée telle quelle** plutôt que perdue — cohérent avec le reste du CRM qui n'impose aucun format. |
 | `Truspilot`, `Demande d'intervention ✅`, `Demande Devis  ✅`, `Demande TrustPilot  ✅` | Tant que les champs DB ne sont pas définis (cf. §2 et §8.6) : valeur ignorée à l'import (lue mais non écrite), warning soft « colonne pas encore mappée ». |
 
 Toute erreur est non-bloquante au niveau du fichier : on continue, on rapporte ligne par ligne.

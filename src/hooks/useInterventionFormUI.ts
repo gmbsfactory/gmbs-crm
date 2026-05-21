@@ -47,7 +47,6 @@ export function useInterventionFormUI(options: UseInterventionFormUIOptions = {}
   const [showSecondArtisanSearch, setShowSecondArtisanSearch] = useState(false)
   const [artisanSearchPosition, setArtisanSearchPosition] = useState<ArtisanSearchPosition | null>(null)
   const [secondArtisanSearchPosition, setSecondArtisanSearchPosition] = useState<ArtisanSearchPosition | null>(null)
-  const artisanSearchContainerRef = useRef<HTMLDivElement>(null)
   const [artisanDisplayMode, setArtisanDisplayMode] = useState<"nom" | "rs" | "tel">("nom")
 
   // ---- Modale email ----
@@ -94,7 +93,6 @@ export function useInterventionFormUI(options: UseInterventionFormUIOptions = {}
     setArtisanSearchPosition,
     secondArtisanSearchPosition,
     setSecondArtisanSearchPosition,
-    artisanSearchContainerRef,
     artisanDisplayMode,
     setArtisanDisplayMode,
 

@@ -1,5 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { resolveTenants, resolveOwners } from '@/lib/api/interventions/interventions-import';
+import {
+  resolveTenants,
+  resolveOwners,
+  interventionsImportApi,
+} from '@/lib/api/interventions/interventions-import';
 import type { TenantInfo, OwnerInfo } from '@/utils/import-export/parsers/person-parser';
 import type { MappedIntervention } from '@/utils/import-export/types/import-types';
 
@@ -68,6 +72,73 @@ describe('resolveTenants', () => {
     );
     expect(out.get(1)).toEqual({ kind: 'existing', id: 'tenant-alice' });
     expect(out.get(2)).toEqual({ kind: 'new', id: null });
+  });
+});
+
+describe('resolveByComposite', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('renvoie une Map vide si aucune ligne en entrée (court-circuit, pas d\'appel RPC)', async () => {
+    const rpc = vi.fn();
+    const out = await interventionsImportApi.resolveByComposite(
+      { rpc } as never,
+      [],
+    );
+    expect(rpc).not.toHaveBeenCalled();
+    expect(out.size).toBe(0);
+  });
+
+  it('appelle le RPC avec lignes, agence_id, date (jour UTC), adresse — et indexe par line', async () => {
+    const rpc = vi.fn().mockResolvedValue({
+      data: [
+        { line: 7, match_ids: ['inter-a'] },
+        { line: 9, match_ids: ['inter-b', 'inter-c'] },
+      ],
+      error: null,
+    });
+    const out = await interventionsImportApi.resolveByComposite(
+      { rpc } as never,
+      [
+        { line: 7, agence_id: 'ag-1', date: '2024-06-15T00:00:00Z', adresse: '12 rue Paix' },
+        { line: 9, agence_id: null, date: '2024-06-16T23:45:00+02:00', adresse: '8 rue Lyon' },
+      ],
+    );
+    expect(rpc).toHaveBeenCalledTimes(1);
+    const [name, args] = rpc.mock.calls[0];
+    expect(name).toBe('csv_intervention_import_resolve_by_composite');
+    expect(args.p_lines).toEqual([7, 9]);
+    expect(args.p_agence_ids).toEqual(['ag-1', null]);
+    // Truncation au jour : on garde uniquement les 10 premiers caractères.
+    expect(args.p_dates).toEqual(['2024-06-15', '2024-06-16']);
+    expect(args.p_addresses).toEqual(['12 rue Paix', '8 rue Lyon']);
+    expect(out.get(7)).toEqual(['inter-a']);
+    expect(out.get(9)).toEqual(['inter-b', 'inter-c']);
+  });
+
+  it('ignore les lignes avec match_ids vide', async () => {
+    const rpc = vi.fn().mockResolvedValue({
+      data: [{ line: 1, match_ids: [] }, { line: 2, match_ids: ['x'] }],
+      error: null,
+    });
+    const out = await interventionsImportApi.resolveByComposite(
+      { rpc } as never,
+      [
+        { line: 1, agence_id: null, date: '2024-06-15T00:00:00Z', adresse: 'a' },
+        { line: 2, agence_id: null, date: '2024-06-15T00:00:00Z', adresse: 'b' },
+      ],
+    );
+    expect(out.has(1)).toBe(false);
+    expect(out.get(2)).toEqual(['x']);
+  });
+
+  it('propage l\'erreur RPC', async () => {
+    const rpc = vi.fn().mockResolvedValue({ data: null, error: { message: 'boom' } });
+    await expect(
+      interventionsImportApi.resolveByComposite(
+        { rpc } as never,
+        [{ line: 1, agence_id: null, date: '2024-06-15T00:00:00Z', adresse: 'a' }],
+      ),
+    ).rejects.toMatchObject({ message: 'boom' });
   });
 });
 

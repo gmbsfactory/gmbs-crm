@@ -221,8 +221,9 @@ Tables de statuts avec `code`, `label`, `color`, `sort_order`.
 | `consigne_second_artisan` | `text` | Consignes pour le 2e artisan |
 | `commentaire_agent` | `text` | Commentaire interne |
 | `reference_agence` | `text` | Référence externe agence |
-| `adresse` / `code_postal` / `ville` | `text` | Adresse (obligatoire) |
-| `latitude` / `longitude` | `numeric(9,6)` | Coordonnées GPS |
+| `adresse` / `code_postal` / `ville` | `text` | **Adresse partielle saisie par l'utilisateur** (rue, CP, ville). Source de vérité pour l'affichage formulaire et l'import CSV. Obligatoire. |
+| `adresse_complete` | `text` | **Adresse normalisée retournée par le service de géocodage** (ex: `"123 Rue de Rivoli, 75001 Paris, France"`). Indépendante de `adresse`. Voir [Modèle à deux adresses](../architecture/geocode-service.md#modèle-à-deux-adresses-adresse-vs-adresse_complete). Migration 00056. |
+| `latitude` / `longitude` | `numeric(9,6)` | Coordonnées GPS issues du géocodage (alimentées en même temps que `adresse_complete`) |
 | `is_vacant` | `boolean` | Logement vacant |
 | `key_code` / `floor` / `apartment_number` | `text` | Accès logement vacant |
 | `is_active` | `boolean` | Actif (soft delete) |

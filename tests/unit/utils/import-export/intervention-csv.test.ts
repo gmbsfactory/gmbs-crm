@@ -3,6 +3,7 @@ import {
   CSV_COLUMNS,
   CSV_COLUMNS_EXTENDED,
   convertToCSV,
+  type InterventionCost,
   type InterventionRow,
 } from '@/utils/import-export/intervention-csv';
 
@@ -41,14 +42,16 @@ describe('intervention-csv', () => {
 
     it('should produce exact CSV for a fully-populated intervention (base mode, no second artisan)', () => {
       const intervention: InterventionRow = {
-        // Local-time mid-day to avoid TZ-induced day shifts
+        // Local-time mid-day to avoid TZ-induced day shifts. La colonne `Date`
+        // est désormais alimentée par `interventions.date` (date métier) et
+        // non plus par `created_at` (date d'insertion en base).
+        date: '2024-03-15T12:00:00',
         created_at: '2024-03-15T12:00:00',
         date_prevue: '2024-03-20T12:00:00',
         id_inter: 'INT-001',
         adresse: '10 rue de la Paix',
         contexte_intervention: 'Plomberie',
         numero_sst: 'SST-42',
-        pourcentage_sst: 10,
         artisan_primary: 'Jean Martin',
         artisan_secondary: 'Paul Durand',
         costs: [
@@ -76,8 +79,10 @@ describe('intervention-csv', () => {
         commentaires: '[15/03/2024] RAS',
       };
 
+      // `% SST` = marge artisan principal (comme le modal) :
+      // (200 − (100+80+50+30)) / 200 × 100 = −30.0
       const expectedRow =
-        '15/03/2024,Agence Paris,10 rue de la Paix,INT-001,En cours,Plomberie,Plombier,jdoe,Jean Martin,100,50,SST-42,200,10,Pierre Dupont - 0698765432 - pierre@example.com,20/03/2024,"=""0612345678""",Marie Curie,marie@example.com,[15/03/2024] RAS,,,,';
+        '15/03/2024,Agence Paris,10 rue de la Paix,INT-001,En cours,Plomberie,Plombier,jdoe,Jean Martin,100,50,"=""SST-42""",200,-30.0,Pierre Dupont - 0698765432 - pierre@example.com,20/03/2024,"=""0612345678""",Marie Curie,marie@example.com,[15/03/2024] RAS,,,,';
 
       expect(convertToCSV([intervention])).toBe(`${HEADER}\n${expectedRow}`);
     });
@@ -134,13 +139,13 @@ describe('intervention-csv', () => {
 
     it('should output empty cells (and not crash) when all nested relations / costs are null', () => {
       const intervention: InterventionRow = {
+        date: null,
         created_at: null,
         date_prevue: null,
         id_inter: null,
         adresse: null,
         contexte_intervention: null,
         numero_sst: null,
-        pourcentage_sst: null,
         artisan_primary: null,
         artisan_secondary: null,
         costs: null,
@@ -155,6 +160,48 @@ describe('intervention-csv', () => {
       // 24 empty cells → 23 commas
       const expectedRow = ','.repeat(23);
       expect(convertToCSV([intervention])).toBe(`${HEADER}\n${expectedRow}`);
+    });
+  });
+
+  // Colonne `% SST` = marge artisan principal, identique au modal d'intervention.
+  describe('% SST (marge artisan principal)', () => {
+    // Index 0-based de la colonne `% SST` (14ᵉ colonne du format de base).
+    const PCT_SST_INDEX = 13;
+
+    const pctSstCell = (costs: InterventionCost[] | null): string => {
+      const intervention: InterventionRow = { id_inter: 'INT-PCT', costs };
+      return convertToCSV([intervention]).split('\n')[1].split(',')[PCT_SST_INDEX];
+    };
+
+    it('should compute the margin from all costs (primaire + secondaire)', () => {
+      // (200 − (100+80+50+30)) / 200 × 100 = −30.0
+      expect(
+        pctSstCell([
+          { cost_type: 'sst', amount: 100, artisan_order: 1 },
+          { cost_type: 'materiel', amount: 50, artisan_order: 1 },
+          { cost_type: 'sst', amount: 80, artisan_order: 2 },
+          { cost_type: 'materiel', amount: 30, artisan_order: 2 },
+          { cost_type: 'intervention', amount: 200, artisan_order: null },
+        ])
+      ).toBe('-30.0');
+    });
+
+    it('should round the margin to one decimal', () => {
+      // (1000 − 600) / 1000 × 100 = 40.0
+      expect(
+        pctSstCell([
+          { cost_type: 'sst', amount: 600, artisan_order: 1 },
+          { cost_type: 'intervention', amount: 1000, artisan_order: null },
+        ])
+      ).toBe('40.0');
+    });
+
+    it('should leave the cell empty when COUT INTER is 0 or missing', () => {
+      expect(pctSstCell([{ cost_type: 'sst', amount: 100, artisan_order: 1 }])).toBe('');
+      expect(
+        pctSstCell([{ cost_type: 'intervention', amount: 0, artisan_order: null }])
+      ).toBe('');
+      expect(pctSstCell(null)).toBe('');
     });
   });
 });

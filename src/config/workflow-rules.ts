@@ -127,6 +127,7 @@ export const AUTHORIZED_TRANSITIONS: AuthorizedTransition[] = [
   { from: "VISITE_TECHNIQUE", to: "REFUSE", trigger: "Refus après visite" },
   { from: "VISITE_TECHNIQUE", to: "STAND_BY", trigger: "Mise en attente" },
   { from: "INTER_TERMINEE", to: "SAV", trigger: "Ouverture SAV" },
+  { from: "INTER_TERMINEE", to: "INTER_EN_COURS", trigger: "Réouverture depuis comptabilité" },
   { from: "STAND_BY", to: "ACCEPTE", trigger: "Reprise" },
   { from: "STAND_BY", to: "INTER_EN_COURS", trigger: "Reprise intervention" },
   { from: "STAND_BY", to: "ANNULE", trigger: "Annulation" },

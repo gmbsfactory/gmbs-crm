@@ -260,7 +260,7 @@ async function runCleanup(client, { verbose = false } = {}) {
 
 // ── Export (utilisé par deliver-prod.js) ─────────────────────────────────────
 
-module.exports = { preCleanupReport, runCleanup, validateCoverage };
+module.exports = { preCleanupReport, runCleanup, validateCoverage, deleteBatch, BATCH_SIZE };
 
 // ── Exécution directe ─────────────────────────────────────────────────────────
 

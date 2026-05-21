@@ -27,12 +27,23 @@ export interface InterventionCost {
 }
 
 export interface InterventionRow {
+  /**
+   * Date métier de l'intervention (`interventions.date`). Source de la colonne
+   * `Date` du CSV. Garantit la symétrie d'un round-trip export → re-import :
+   * `interventions.date` → CSV `Date` → `interventions.date`. Auparavant la
+   * colonne `Date` était alimentée par `created_at`, ce qui écrasait
+   * silencieusement la vraie date métier lors d'une réimportation.
+   */
+  date?: string | null;
+  /**
+   * Conservé pour usage interne (timestamps de commentaires agrégés via
+   * `commentaires`). Ce champ n'alimente PLUS la colonne `Date` du CSV.
+   */
   created_at?: string | null;
   id_inter?: string | null;
   adresse?: string | null;
   contexte_intervention?: string | null;
   numero_sst?: string | null;
-  pourcentage_sst?: number | string | null;
   date_prevue?: string | null;
   /** Nom de l'artisan primaire (intervention_artisans.is_primary = true) */
   artisan_primary?: string | null;
@@ -133,6 +144,29 @@ export function getCostByType(
   return cost ? formatAmount(cost.amount) : '';
 }
 
+/**
+ * Calcule la colonne `% SST` : la marge de l'artisan principal, identique à
+ * celle affichée dans le modal d'intervention (`calculatePrimaryArtisanMargin`
+ * via `useInterventionFormData`).
+ *
+ * Formule : `((COUT INTER − (SST1 + SST2 + MAT1 + MAT2)) / COUT INTER) × 100`,
+ * arrondie à une décimale. Chaîne vide si `COUT INTER ≤ 0` (équivaut au `-- %`
+ * du modal). N'utilise plus `interventions.pourcentage_sst` (champ non alimenté).
+ */
+function formatSstMargin(costs: InterventionCost[] | null | undefined): string {
+  const num = (v: string): number => parseFloat(v) || 0;
+  const revenue = num(getCostByType(costs, 'intervention'));
+  if (revenue <= 0) return '';
+
+  const totalCosts =
+    num(getCostByType(costs, 'sst', 1)) +
+    num(getCostByType(costs, 'sst', 2)) +
+    num(getCostByType(costs, 'materiel', 1)) +
+    num(getCostByType(costs, 'materiel', 2));
+
+  return (((revenue - totalCosts) / revenue) * 100).toFixed(1);
+}
+
 const fullName = (first?: string | null, last?: string | null): string =>
   [first || '', last || ''].filter(Boolean).join(' ').trim();
 
@@ -167,7 +201,7 @@ const excelText = (value?: string | null): string => {
  * `docs/specs/crm-csv-import-export.md`.
  */
 const BASE_COLUMNS: readonly ColumnSpec[] = [
-  { header: 'Date',                       get: (r) => formatDate(r.created_at) },
+  { header: 'Date',                       get: (r) => formatDate(r.date) },
   { header: 'Agence',                     get: (r) => r.agencies?.label || '' },
   { header: 'Adresse',                    get: (r) => r.adresse || '' },
   { header: 'ID',                         get: (r) => r.id_inter || '' },
@@ -180,7 +214,7 @@ const BASE_COLUMNS: readonly ColumnSpec[] = [
   { header: 'COÛT MATERIEL',              get: (r) => getCostByType(r.costs, 'materiel', 1) },
   { header: 'Numéro SST',                 get: (r) => excelText(r.numero_sst) },
   { header: 'COUT INTER',                 get: (r) => getCostByType(r.costs, 'intervention') },
-  { header: '% SST',                      get: (r) => formatAmount(r.pourcentage_sst) },
+  { header: '% SST',                      get: (r) => formatSstMargin(r.costs) },
   { header: 'PROPRIO',                    get: (r) => ownerSummary(r.owner) },
   { header: "Date d'intervention",        get: (r) => formatDate(r.date_prevue) },
   { header: 'TEL LOC',                    get: (r) => excelText(r.tenants?.telephone) },

@@ -1,7 +1,7 @@
 "use client"
 
 import { memo, type CSSProperties } from "react"
-import { Eye, Trash2 } from "lucide-react"
+import { Eye, CornerUpLeft } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -54,7 +54,8 @@ interface ComptabiliteTableRowProps {
   onToggleSelect: (id: string) => void
   onToggleComptaCheck: (id: string) => void
   onOpenModal: (id: string) => void
-  onExclude: (id: string) => void
+  onReopen: (id: string) => void
+  canReopen?: boolean
   rowIndex?: number
   isHighlighted?: boolean
 }
@@ -77,7 +78,8 @@ export const ComptabiliteTableRow = memo(function ComptabiliteTableRow({
   onToggleSelect,
   onToggleComptaCheck,
   onOpenModal,
-  onExclude,
+  onReopen,
+  canReopen = true,
   rowIndex,
   isHighlighted = false,
 }: ComptabiliteTableRowProps) {
@@ -203,15 +205,18 @@ export const ComptabiliteTableRow = memo(function ComptabiliteTableRow({
           >
             <Eye className="h-3.5 w-3.5" />
           </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-7 w-7 text-muted-foreground hover:text-destructive"
-            onClick={() => onExclude(intervention.id)}
-            aria-label={`Retirer ${rowLabel} de la compta`}
-          >
-            <Trash2 className="h-3.5 w-3.5" />
-          </Button>
+          {canReopen && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 text-muted-foreground hover:text-primary"
+              onClick={() => onReopen(intervention.id)}
+              aria-label={`Repasser ${rowLabel} en cours`}
+              title="Repasser en cours"
+            >
+              <CornerUpLeft className="h-3.5 w-3.5" />
+            </Button>
+          )}
         </div>
       </td>
     </tr>

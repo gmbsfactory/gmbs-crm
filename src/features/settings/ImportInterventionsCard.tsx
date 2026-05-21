@@ -4,15 +4,22 @@ import { Fragment, useState, useRef, useCallback, useEffect } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import {
   Upload, Loader2, AlertTriangle, FileUp, CheckCircle2,
-  XCircle, Info, ChevronDown, ArrowRight, Search, X,
+  XCircle, Info, ChevronDown, ArrowRight, Search, X, Sparkles,
+  Plus, RefreshCw, Minus, GitMerge, Hash,
 } from "lucide-react"
+import type { ReactNode } from "react"
 import { useToast } from "@/hooks/use-toast"
 import { usePermissions } from "@/hooks/usePermissions"
 import { parseCSV } from "@/utils/import-export/parsers/csv-parser"
+import { orderByRank, rankRawKey, rankDbKey } from "@/utils/import-export/preview-field-order"
 import type {
   ImportMode,
   ImportResponse,
   ImportPreviewRow,
+  ImportConflictCandidate,
+  ImportConflictRow,
+  ImportResolution,
+  ImportResolutionsMap,
 } from "@/utils/import-export/import-types"
 import { ImportProgressPanel } from "./ImportProgressPanel"
 import { useImportStream } from "./useImportStream"
@@ -24,7 +31,7 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog"
 
-type PreviewBucket = 'insert' | 'update' | 'skipped' | 'error'
+type PreviewBucket = 'insert' | 'update' | 'skipped' | 'conflict' | 'error'
 
 const MAX_PREVIEW_ROWS = 20
 const MAX_FILE_MB = 10
@@ -50,6 +57,9 @@ export function ImportInterventionsCard() {
   const [report, setReport] = useState<ImportResponse | null>(null)
   const [pendingConfirm, setPendingConfirm] = useState<ImportResponse | null>(null)
   const [previewBucket, setPreviewBucket] = useState<PreviewBucket | null>(null)
+  // Phase B : décisions de résolution de conflits. Vidées à chaque nouveau
+  // dry-run (l'utilisateur recommence depuis la nouvelle photo des conflits).
+  const [resolutions, setResolutions] = useState<ImportResolutionsMap>({})
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [dragOver, setDragOver] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -57,6 +67,11 @@ export function ImportInterventionsCard() {
   const importing = running
 
   const canImport = can("import_interventions")
+
+  // Phase B : nombre de conflits restant à arbitrer (pas encore résolus par
+  // l'utilisateur). Bloque le bouton "Confirmer" tant que > 0.
+  const conflictRows = pendingConfirm?.preview?.toResolve ?? []
+  const remainingConflicts = conflictRows.filter((r) => !resolutions[r.line]).length
 
   const handleFile = useCallback((f: File | null) => {
     if (!f) return
@@ -95,12 +110,12 @@ export function ImportInterventionsCard() {
     handleFile(e.dataTransfer.files[0] ?? null)
   }, [handleFile])
 
-  async function runImport(opts: { dryRun: boolean }) {
+  async function runImport(opts: { dryRun: boolean; resolutions?: ImportResolutionsMap }) {
     if (!file) return null
     setReport(null)
     setErrorMessage(null)
 
-    const result = await run({ file, mode, dryRun: opts.dryRun })
+    const result = await run({ file, mode, dryRun: opts.dryRun, resolutions: opts.resolutions })
 
     if (result.aborted) {
       toast({ title: 'Import annulé', description: 'L\'opération a été interrompue.' })
@@ -117,6 +132,8 @@ export function ImportInterventionsCard() {
   async function handleImport() {
     if (!file) return
     setPendingConfirm(null)
+    // Nouveau dry-run = nouvelle photo des conflits ; on repart de zéro.
+    setResolutions({})
 
     // Manual "Simulation uniquement" : single dry-run, no confirm step.
     if (dryRun) {
@@ -140,7 +157,7 @@ export function ImportInterventionsCard() {
   async function handleConfirm() {
     if (!pendingConfirm) return
     setPendingConfirm(null)
-    const r = await runImport({ dryRun: false })
+    const r = await runImport({ dryRun: false, resolutions })
     if (r) {
       setReport(r)
       toast({
@@ -156,6 +173,7 @@ export function ImportInterventionsCard() {
     setReport(null)
     setPendingConfirm(null)
     setErrorMessage(null)
+    setResolutions({})
     resetStages()
     if (inputRef.current) inputRef.current.value = ''
   }
@@ -340,18 +358,18 @@ export function ImportInterventionsCard() {
                     </div>
                     <div className="grid grid-cols-2 gap-2 text-xs">
                       <Stat label="Total lignes" value={report.total} />
-                      <Stat label="Valides" value={report.valid} />
+                      <Stat label="Valides" value={report.valid} tone={report.valid > 0 ? 'success' : 'neutral'} />
                       {!report.dry_run && (
                         <>
-                          <Stat label="Créées" value={report.inserted} color="text-emerald-600" />
-                          <Stat label="Mises à jour" value={report.updated} color="text-blue-600" />
-                          <Stat label="Ignorées" value={report.skipped} color="text-muted-foreground" />
+                          <Stat label="Créées" value={report.inserted} tone="success" />
+                          <Stat label="Mises à jour" value={report.updated} tone="info" />
+                          <Stat label="Ignorées" value={report.skipped} tone="muted" />
                         </>
                       )}
                       <Stat
                         label="Erreurs"
                         value={report.errors.length}
-                        color={report.errors.length > 0 ? 'text-destructive' : undefined}
+                        tone={report.errors.length > 0 ? 'danger' : 'neutral'}
                         onClick={
                           report.errors.length > 0
                             ? () => setPreviewBucket('error')
@@ -417,11 +435,11 @@ export function ImportInterventionsCard() {
 
                     <div className="grid grid-cols-2 gap-2 text-xs">
                       <Stat label="Total lignes" value={pendingConfirm.total} />
-                      <Stat label="Valides" value={pendingConfirm.valid} />
+                      <Stat label="Valides" value={pendingConfirm.valid} tone={pendingConfirm.valid > 0 ? 'success' : 'neutral'} />
                       <Stat
                         label="À créer"
                         value={pendingConfirm.inserted}
-                        color="text-emerald-600"
+                        tone="success"
                         onClick={
                           pendingConfirm.inserted > 0
                             ? () => setPreviewBucket('insert')
@@ -431,7 +449,7 @@ export function ImportInterventionsCard() {
                       <Stat
                         label="À mettre à jour"
                         value={pendingConfirm.updated}
-                        color="text-blue-600"
+                        tone="info"
                         onClick={
                           pendingConfirm.updated > 0
                             ? () => setPreviewBucket('update')
@@ -439,9 +457,29 @@ export function ImportInterventionsCard() {
                         }
                       />
                       <Stat
+                        label={remainingConflicts > 0
+                          ? `Conflits (${remainingConflicts} à résoudre)`
+                          : pendingConfirm.unresolved > 0
+                            ? 'Conflits (tous résolus)'
+                            : 'Conflits'}
+                        value={pendingConfirm.unresolved}
+                        tone={
+                          remainingConflicts > 0
+                            ? 'warning'
+                            : pendingConfirm.unresolved > 0
+                              ? 'success'
+                              : 'neutral'
+                        }
+                        onClick={
+                          pendingConfirm.unresolved > 0
+                            ? () => setPreviewBucket('conflict')
+                            : undefined
+                        }
+                      />
+                      <Stat
                         label="Ignorées"
                         value={pendingConfirm.skipped}
-                        color="text-muted-foreground"
+                        tone="muted"
                         onClick={
                           pendingConfirm.skipped > 0
                             ? () => setPreviewBucket('skipped')
@@ -451,7 +489,7 @@ export function ImportInterventionsCard() {
                       <Stat
                         label="Erreurs"
                         value={pendingConfirm.errors.length}
-                        color={pendingConfirm.errors.length > 0 ? 'text-destructive' : undefined}
+                        tone={pendingConfirm.errors.length > 0 ? 'danger' : 'neutral'}
                         onClick={
                           pendingConfirm.errors.length > 0
                             ? () => setPreviewBucket('error')
@@ -459,6 +497,17 @@ export function ImportInterventionsCard() {
                         }
                       />
                     </div>
+                    {pendingConfirm.unresolved > 0 && (
+                      remainingConflicts > 0 ? (
+                        <p className="text-xs text-orange-700 dark:text-orange-400">
+                          <strong>{remainingConflicts}</strong> ligne{remainingConflicts > 1 ? 's' : ''} en conflit — cliquez sur le compteur «&nbsp;Conflits&nbsp;» pour choisir un candidat par ligne. L&apos;import reste bloqué tant qu&apos;il en reste à résoudre.
+                        </p>
+                      ) : (
+                        <p className="text-xs text-emerald-700 dark:text-emerald-400">
+                          <strong>{pendingConfirm.unresolved}</strong> conflit{pendingConfirm.unresolved > 1 ? 's' : ''} résolu{pendingConfirm.unresolved > 1 ? 's' : ''} — les lignes correspondantes seront traitées en mise à jour vers la cible choisie.
+                        </p>
+                      )
+                    )}
                     {(pendingConfirm.inserted > 0 || pendingConfirm.updated > 0 || pendingConfirm.skipped > 0) && (
                       <p className="text-[11px] text-muted-foreground">
                         Cliquez sur un compteur pour inspecter les lignes et leur mapping.
@@ -478,7 +527,7 @@ export function ImportInterventionsCard() {
                       <button
                         type="button"
                         onClick={handleConfirm}
-                        disabled={pendingConfirm.valid === 0}
+                        disabled={pendingConfirm.valid === 0 || remainingConflicts > 0}
                         className="px-4 py-2 rounded-lg text-sm font-medium bg-blue-600 text-white hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         Confirmer l&apos;import
@@ -564,37 +613,112 @@ export function ImportInterventionsCard() {
         bucket={previewBucket}
         response={pendingConfirm ?? report}
         onClose={() => setPreviewBucket(null)}
+        resolutions={resolutions}
+        onResolve={(line, resolution) =>
+          setResolutions((prev) => ({ ...prev, [line]: resolution }))
+        }
+        onClearResolution={(line) =>
+          setResolutions((prev) => {
+            const next = { ...prev }
+            delete next[line]
+            return next
+          })
+        }
       />
     </div>
   )
 }
 
+type StatTone = 'neutral' | 'success' | 'info' | 'warning' | 'danger' | 'muted'
+
+const STAT_TONES: Record<StatTone, {
+  bg: string
+  border: string
+  hover: string
+  label: string
+  value: string
+  icon: ReactNode
+}> = {
+  neutral: {
+    bg: 'bg-muted/30',
+    border: 'border-transparent',
+    hover: 'hover:bg-muted/60 hover:border-border',
+    label: 'text-muted-foreground',
+    value: 'text-foreground',
+    icon: <Hash className="h-3 w-3 opacity-70" />,
+  },
+  success: {
+    bg: 'bg-emerald-500/8 dark:bg-emerald-500/12',
+    border: 'border-emerald-500/25 dark:border-emerald-500/30',
+    hover: 'hover:bg-emerald-500/15 hover:border-emerald-500/40',
+    label: 'text-emerald-700/80 dark:text-emerald-300/80',
+    value: 'text-emerald-700 dark:text-emerald-400',
+    icon: <Plus className="h-3 w-3" />,
+  },
+  info: {
+    bg: 'bg-sky-500/8 dark:bg-sky-500/12',
+    border: 'border-sky-500/25 dark:border-sky-500/30',
+    hover: 'hover:bg-sky-500/15 hover:border-sky-500/40',
+    label: 'text-sky-700/80 dark:text-sky-300/80',
+    value: 'text-sky-700 dark:text-sky-400',
+    icon: <RefreshCw className="h-3 w-3" />,
+  },
+  warning: {
+    bg: 'bg-amber-500/10 dark:bg-amber-500/12',
+    border: 'border-amber-500/30 dark:border-amber-500/35',
+    hover: 'hover:bg-amber-500/18 hover:border-amber-500/50',
+    label: 'text-amber-800/85 dark:text-amber-300/85',
+    value: 'text-amber-700 dark:text-amber-400',
+    icon: <GitMerge className="h-3 w-3" />,
+  },
+  danger: {
+    bg: 'bg-destructive/8',
+    border: 'border-destructive/25',
+    hover: 'hover:bg-destructive/15 hover:border-destructive/40',
+    label: 'text-destructive/85',
+    value: 'text-destructive',
+    icon: <XCircle className="h-3 w-3" />,
+  },
+  muted: {
+    bg: 'bg-muted/20',
+    border: 'border-transparent',
+    hover: 'hover:bg-muted/40',
+    label: 'text-muted-foreground/80',
+    value: 'text-muted-foreground',
+    icon: <Minus className="h-3 w-3 opacity-70" />,
+  },
+}
+
 function Stat({
   label,
   value,
-  color,
+  tone = 'neutral',
   onClick,
 }: {
   label: string
   value: number
-  color?: string
+  tone?: StatTone
   onClick?: () => void
 }) {
   const interactive = !!onClick
   const Comp = interactive ? 'button' : 'div'
+  const t = STAT_TONES[tone]
   return (
     <Comp
       type={interactive ? 'button' : undefined}
       onClick={onClick}
-      className={`flex justify-between items-center p-2 rounded-lg bg-muted/30 w-full text-left ${
-        interactive ? 'hover:bg-muted/60 transition-colors cursor-pointer' : ''
+      className={`group flex justify-between items-center gap-2 p-2 rounded-lg border w-full text-left transition-colors ${t.bg} ${t.border} ${
+        interactive ? `${t.hover} cursor-pointer` : ''
       }`}
     >
-      <span className="text-muted-foreground inline-flex items-center gap-1">
+      <span className={`inline-flex items-center gap-1.5 ${t.label}`}>
+        <span className="inline-flex">{t.icon}</span>
         {label}
-        {interactive && <ArrowRight className="h-3 w-3 opacity-60" />}
+        {interactive && (
+          <ArrowRight className="h-3 w-3 opacity-0 -translate-x-1 group-hover:opacity-70 group-hover:translate-x-0 transition-all" />
+        )}
       </span>
-      <span className={`font-semibold tabular-nums ${color ?? ''}`}>{value}</span>
+      <span className={`font-semibold tabular-nums ${t.value}`}>{value}</span>
     </Comp>
   )
 }
@@ -689,6 +813,7 @@ const BUCKET_LABELS: Record<PreviewBucket, string> = {
   insert: 'Lignes à créer',
   update: 'Lignes à mettre à jour',
   skipped: 'Lignes ignorées',
+  conflict: 'Lignes en conflit',
   error: 'Lignes en erreur',
 }
 
@@ -696,6 +821,7 @@ const BUCKET_DESCRIPTIONS: Record<PreviewBucket, string> = {
   insert: 'comparaison entre le CSV brut et le mapping vers la base.',
   update: 'comparaison entre le CSV brut et le mapping vers la base.',
   skipped: 'comparaison entre le CSV brut et le mapping vers la base.',
+  conflict: "lignes pointant vers plusieurs interventions existantes — résolution manuelle requise (corrigez le CSV).",
   error: 'lignes invalides — non importées. Corrigez le CSV puis relancez.',
 }
 
@@ -708,20 +834,27 @@ const BUCKET_THEME: Record<PreviewBucket, {
   title: string
   ring: string
 }> = {
-  insert:  { rail: 'bg-emerald-500',    dot: 'bg-emerald-500',    title: 'text-emerald-700 dark:text-emerald-400', ring: 'ring-emerald-500/40' },
-  update:  { rail: 'bg-blue-500',       dot: 'bg-blue-500',       title: 'text-blue-700 dark:text-blue-400',       ring: 'ring-blue-500/40' },
-  skipped: { rail: 'bg-amber-500',      dot: 'bg-amber-500',      title: 'text-amber-700 dark:text-amber-400',     ring: 'ring-amber-500/40' },
-  error:   { rail: 'bg-destructive',    dot: 'bg-destructive',    title: 'text-destructive',                       ring: 'ring-destructive/40' },
+  insert:   { rail: 'bg-emerald-500',    dot: 'bg-emerald-500',    title: 'text-emerald-700 dark:text-emerald-400', ring: 'ring-emerald-500/40' },
+  update:   { rail: 'bg-blue-500',       dot: 'bg-blue-500',       title: 'text-blue-700 dark:text-blue-400',       ring: 'ring-blue-500/40' },
+  skipped:  { rail: 'bg-amber-500',      dot: 'bg-amber-500',      title: 'text-amber-700 dark:text-amber-400',     ring: 'ring-amber-500/40' },
+  conflict: { rail: 'bg-orange-500',     dot: 'bg-orange-500',     title: 'text-orange-700 dark:text-orange-400',   ring: 'ring-orange-500/40' },
+  error:    { rail: 'bg-destructive',    dot: 'bg-destructive',    title: 'text-destructive',                       ring: 'ring-destructive/40' },
 }
 
 function PreviewDialog({
   bucket,
   response,
   onClose,
+  resolutions,
+  onResolve,
+  onClearResolution,
 }: {
   bucket: PreviewBucket | null
   response: ImportResponse | null
   onClose: () => void
+  resolutions: ImportResolutionsMap
+  onResolve: (line: number, resolution: ImportResolution) => void
+  onClearResolution: (line: number) => void
 }) {
   const hasData =
     bucket === 'error'
@@ -744,6 +877,7 @@ function PreviewDialog({
     if (!response.preview) return []
     if (bucket === 'insert') return response.preview.toInsert
     if (bucket === 'update') return response.preview.toUpdate
+    if (bucket === 'conflict') return response.preview.toResolve
     return response.preview.skipped
   })()
 
@@ -771,7 +905,13 @@ function PreviewDialog({
               {rows.length === 0 && (
                 <p className="text-sm text-muted-foreground py-8 text-center">Aucune ligne dans cette catégorie.</p>
               )}
-              <PreviewRowList rows={rows} bucket={bucket} />
+              <PreviewRowList
+                rows={rows}
+                bucket={bucket}
+                resolutions={resolutions}
+                onResolve={onResolve}
+                onClearResolution={onClearResolution}
+              />
             </div>
           </div>
         </div>
@@ -799,9 +939,15 @@ function pickField(raw: Record<string, string>, keys: string[]): string {
 function PreviewRowList({
   rows,
   bucket,
+  resolutions,
+  onResolve,
+  onClearResolution,
 }: {
   rows: ImportPreviewRow[]
   bucket: PreviewBucket | null
+  resolutions: ImportResolutionsMap
+  onResolve: (line: number, resolution: ImportResolution) => void
+  onClearResolution: (line: number) => void
 }) {
   const isError = bucket === 'error'
   const [expanded, setExpanded] = useState<Set<number>>(new Set())
@@ -937,6 +1083,9 @@ function PreviewRowList({
           onToggle={() => toggle(row.line)}
           isError={isError}
           bucket={bucket}
+          resolution={resolutions[row.line]}
+          onResolve={(resolution) => onResolve(row.line, resolution)}
+          onClearResolution={() => onClearResolution(row.line)}
         />
       ))}
       {totalPages > 1 && (
@@ -966,12 +1115,30 @@ function PreviewRowList({
   )
 }
 
+// Détecte une chaîne ISO-8601 (date ou date+heure) pour comparer par instant
+// plutôt que par sérialisation exacte. Évite les faux positifs du type
+// "2025-08-21T00:00:00+00:00" vs "2025-08-21T00:00:00.000Z".
+const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:?\d{2})?)?$/
+
+function isoEqual(a: string, b: string): boolean {
+  if (a === b) return true
+  if (!ISO_DATE_RE.test(a) || !ISO_DATE_RE.test(b)) return false
+  const ta = Date.parse(a)
+  const tb = Date.parse(b)
+  return Number.isFinite(ta) && Number.isFinite(tb) && ta === tb
+}
+
 // Compare deux valeurs scalaires/objets pour la diff. Pour les objets
-// (locataire/propriétaire), on stringifie de manière stable.
+// (locataire/propriétaire), on stringifie de manière stable. Les chaînes ISO
+// sont comparées par instant pour ignorer les variantes d'encodage (+00:00
+// vs .000Z, présence/absence de millisecondes, etc.).
 function diffValue(a: unknown, b: unknown): boolean {
   if (a === b) return false
   if (a == null && b == null) return false
   if (a == null || b == null) return true
+  if (typeof a === 'string' && typeof b === 'string') {
+    return !isoEqual(a, b)
+  }
   if (typeof a === 'object' && typeof b === 'object') {
     return JSON.stringify(a) !== JSON.stringify(b)
   }
@@ -983,11 +1150,32 @@ function hasChanges(
   next: Record<string, unknown> | null | undefined,
 ): boolean {
   if (!prev || !next) return false
-  const keys = new Set([...Object.keys(prev), ...Object.keys(next)])
+  const keys = diffableKeys(prev, next)
   for (const k of keys) {
     if (diffValue(prev[k], next[k])) return true
   }
   return false
+}
+
+// Champs dont la valeur côté CURRENT n'est pas chargée (cf. fetchPreviousDisplayPayloads
+// — les liens artisans ne sont pas hydratés). Les masquer évite un faux diff
+// systématique « vide → … ». À retirer le jour où on charge les artisans.
+const PREV_UNLOADED_KEYS = new Set(['artisan_sst', 'artisan_sst2'])
+
+function diffableKeys(
+  prev: Record<string, unknown>,
+  next: Record<string, unknown>,
+): string[] {
+  const keys = new Set([...Object.keys(prev), ...Object.keys(next)])
+  const filtered = Array.from(keys).filter((k) => {
+    if (PREV_UNLOADED_KEYS.has(k) && (prev[k] === undefined || prev[k] === null)) {
+      return false
+    }
+    return true
+  })
+  // Ordre canonique (cf. preview-field-order) pour que la diff se lise dans le
+  // même ordre que les colonnes CSV brut / mapping BDD côte à côte.
+  return orderByRank(filtered, rankDbKey)
 }
 
 const DIFF_FIELD_LABELS: Record<string, string> = {
@@ -1026,8 +1214,7 @@ function DiffBlock({
   prev: Record<string, unknown>
   next: Record<string, unknown>
 }) {
-  const keys = Array.from(new Set([...Object.keys(prev), ...Object.keys(next)]))
-    .filter((k) => diffValue(prev[k], next[k]))
+  const keys = diffableKeys(prev, next).filter((k) => diffValue(prev[k], next[k]))
 
   if (keys.length === 0) {
     return (
@@ -1072,19 +1259,706 @@ function DiffBlock({
   )
 }
 
+// ───────────────────────────────────────────────────────────────────────────
+// Résolution de conflits d'import
+//
+// Deux scénarios sémantiquement distincts (cf. ImportConflictReason) qui
+// nécessitent un wording et une mise en scène différents :
+//
+//   1. id_inter_diverges_from_composite → conflit d'IDENTITÉ
+//      Le CSV affirme une identité (id_inter A123) qui ne matche pas la
+//      même intervention que sa clé métier (date+adresse). C'est un
+//      problème d'intégrité des données. Ton rouge, choix binaire.
+//
+//   2. composite_ambiguous → conflit de DOUBLON en base
+//      Plusieurs interventions partagent (date, adresse). C'est l'état
+//      de la base qui pose problème, pas le CSV. Ton orange, choix
+//      parmi N candidates avec rappel que les autres restent inchangées.
+//
+// Dans les deux cas, l'utilisateur peut aussi explicitement IGNORER la
+// ligne (action 'skip') pour libérer le verrou sans écrire en base.
+// ───────────────────────────────────────────────────────────────────────────
+
+function ConflictResolver({
+  conflict,
+  newPayload,
+  resolution,
+  onResolve,
+  onClear,
+}: {
+  conflict: ImportConflictRow
+  /** Valeurs CSV mappées telles qu'elles seraient écrites (côté NEW). */
+  newPayload: Record<string, unknown>
+  resolution: ImportResolution | undefined
+  onResolve: (resolution: ImportResolution) => void
+  onClear?: () => void
+}) {
+  if (conflict.conflictReason === 'id_inter_diverges_from_composite') {
+    return (
+      <IdentityConflictBoard
+        conflict={conflict}
+        newPayload={newPayload}
+        resolution={resolution}
+        onResolve={onResolve}
+        onClear={onClear}
+      />
+    )
+  }
+  return (
+    <DuplicateConflictBoard
+      conflict={conflict}
+      newPayload={newPayload}
+      resolution={resolution}
+      onResolve={onResolve}
+      onClear={onClear}
+    />
+  )
+}
+
+// ─── Conflit d'identité (id_inter divergent) ────────────────────────────────
+
+function IdentityConflictBoard({
+  conflict,
+  newPayload,
+  resolution,
+  onResolve,
+  onClear,
+}: {
+  conflict: ImportConflictRow
+  newPayload: Record<string, unknown>
+  resolution: ImportResolution | undefined
+  onResolve: (resolution: ImportResolution) => void
+  onClear?: () => void
+}) {
+  const csvIdInter = (newPayload['id_inter'] as string | null) ?? null
+  return (
+    <div className="md:col-span-2 space-y-3">
+      <div className="rounded-lg border border-rose-500/40 bg-rose-500/5">
+        <div className="px-3 py-2 border-b border-rose-500/20 flex items-start gap-2">
+          <AlertTriangle className="h-4 w-4 text-rose-600 dark:text-rose-400 shrink-0 mt-0.5" />
+          <div className="min-w-0">
+            <div className="text-[11px] font-semibold uppercase tracking-wide text-rose-700 dark:text-rose-400">
+              Conflit d&apos;identité
+            </div>
+            <p className="text-xs text-foreground/80 mt-0.5 leading-snug">
+              Le CSV pointe vers l&apos;intervention <span className="font-mono font-medium">{csvIdInter ?? '—'}</span>{' '}
+              par son ID, mais la clé métier (date + adresse) en désigne une autre.
+              <br />
+              <span className="font-medium text-foreground">Laquelle est la vraie intervention&nbsp;?</span>
+            </p>
+          </div>
+        </div>
+        <div className="px-3 py-2 border-b border-rose-500/10 bg-amber-500/5">
+          <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-amber-700 dark:text-amber-400">
+            <Info className="h-3 w-3" />
+            Aperçu de la ligne CSV
+          </div>
+        </div>
+        <CompactRawGrid raw={conflict.raw} />
+      </div>
+
+      <div className="grid md:grid-cols-2 gap-3">
+        {conflict.candidates.map((c) => (
+          <CandidateCard
+            key={c.id}
+            candidate={c}
+            csvIdInter={csvIdInter}
+            newPayload={newPayload}
+            isSelected={resolution?.action === 'update' && resolution.targetId === c.id}
+            onSelect={() => onResolve({ action: 'update', targetId: c.id })}
+            onClear={onClear}
+            tone="identity"
+            ctaLabel="C'est celle-ci — appliquer la mise à jour"
+          />
+        ))}
+      </div>
+
+      {csvIdInter && (
+        <CreateWithoutIdInterButton
+          isSelected={resolution?.action === 'create_without_id_inter'}
+          onSelect={() => onResolve({ action: 'create_without_id_inter' })}
+          onClear={onClear}
+          csvIdInter={csvIdInter}
+        />
+      )}
+
+      <SkipLineButton
+        isSkipped={resolution?.action === 'skip'}
+        onSkip={() => onResolve({ action: 'skip' })}
+        onClear={onClear}
+        helperText="Ne rien écrire pour cette ligne — à utiliser si tu veux d'abord investiguer manuellement avant d'importer."
+      />
+    </div>
+  )
+}
+
+// ─── Conflit de doublon (composite ambigu) ──────────────────────────────────
+
+// Scoring heuristique appliqué aux candidates d'un conflit composite. But :
+// désigner *une* recommandation pré-sélectionnée et reléguer les autres dans
+// un repli, sans jamais retirer la liberté de choix.
+//
+// La règle d'or : on ne sait pas qui est "la bonne" — on signale juste celle
+// qui ressemble le plus à une mise-à-jour légitime. Pas d'auto-merge, pas de
+// suppression : la sélection reste un clic explicite que l'utilisateur peut
+// défaire.
+function effectiveNextFor(
+  newPayload: Record<string, unknown>,
+  candidate: ImportConflictCandidate,
+): Record<string, unknown> {
+  if (newPayload['id_inter'] == null && candidate.id_inter) {
+    return { ...newPayload, id_inter: candidate.id_inter }
+  }
+  return newPayload
+}
+
+function countModifs(
+  prev: Record<string, unknown> | null | undefined,
+  next: Record<string, unknown>,
+): number {
+  if (!prev) return 0
+  let n = 0
+  for (const k of diffableKeys(prev, next)) {
+    if (diffValue(prev[k], next[k])) n++
+  }
+  return n
+}
+
+interface CandidateScore {
+  id: string
+  score: number
+  blocked: boolean
+  modifs: number
+  reasons: string[]
+}
+
+function scoreCandidates(
+  candidates: ImportConflictCandidate[],
+  newPayload: Record<string, unknown>,
+  csvIdInter: string | null,
+): CandidateScore[] {
+  const enriched = candidates.map((c) => {
+    const blocked = !!c.id_inter && !!csvIdInter && c.id_inter !== csvIdInter
+    const prev = (c.previousDisplayPayload ?? {}) as Record<string, unknown>
+    const next = effectiveNextFor(newPayload, c)
+    const modifs = countModifs(prev, next)
+    const sameStatut = !diffValue(prev['statut'], next['statut'])
+    return { c, blocked, prev, modifs, sameStatut }
+  })
+  const minModifs = Math.min(...enriched.filter((e) => !e.blocked).map((e) => e.modifs))
+  return enriched.map(({ c, blocked, modifs, sameStatut }) => {
+    if (blocked) {
+      return { id: c.id, score: -Infinity, blocked, modifs, reasons: ['id_inter différent du CSV — update interdite'] }
+    }
+    // Scoring (révision) :
+    //   - On ne bonifie PAS le simple fait de porter un id_inter quand le CSV
+    //     n'en apporte pas : l'id_inter de la candidate est alors sans rapport
+    //     avec l'intention du CSV. Seul le match exact compte.
+    //   - On ne pénalise PAS la candidate "déjà identique" : c'est au contraire
+    //     le signal le plus fiable qu'elle est la cible visée par la ligne CSV.
+    //   - La proximité (modifs minimales) domine quand le CSV ne fournit pas
+    //     d'id — d'où le poids +2.
+    let score = 0
+    const reasons: string[] = []
+    if (csvIdInter && c.id_inter === csvIdInter) { score += 5; reasons.push('id_inter identique à celui du CSV') }
+    if (sameStatut) { score += 1; reasons.push('statut déjà aligné sur le CSV') }
+    if (modifs === minModifs) {
+      score += 2
+      reasons.push(modifs === 0 ? 'déjà identique à la ligne CSV' : 'la plus proche de la ligne CSV')
+    }
+    return { id: c.id, score, blocked, modifs, reasons }
+  })
+}
+
+function DuplicateConflictBoard({
+  conflict,
+  newPayload,
+  resolution,
+  onResolve,
+  onClear,
+}: {
+  conflict: ImportConflictRow
+  newPayload: Record<string, unknown>
+  resolution: ImportResolution | undefined
+  onResolve: (resolution: ImportResolution) => void
+  onClear?: () => void
+}) {
+  const csvIdInter = (newPayload['id_inter'] as string | null) ?? null
+
+  const scores = scoreCandidates(conflict.candidates, newPayload, csvIdInter)
+  const scoreById = new Map(scores.map((s) => [s.id, s]))
+  const best = scores
+    .filter((s) => !s.blocked)
+    .reduce<CandidateScore | null>((acc, s) => (acc && acc.score >= s.score ? acc : s), null)
+
+  // Pré-sélection automatique de la recommandation à la première ouverture.
+  // On ne touche pas si l'utilisateur a déjà tranché (resolution !== undefined),
+  // et on n'auto-pré-sélectionne que s'il y a une recommandation non bloquée.
+  useEffect(() => {
+    if (resolution) return
+    if (!best) return
+    onResolve({ action: 'update', targetId: best.id })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [conflict.line])
+
+  const recommendedCandidate = best
+    ? conflict.candidates.find((c) => c.id === best.id) ?? null
+    : null
+  const otherCandidates = conflict.candidates.filter((c) => c.id !== best?.id)
+  const [othersOpen, setOthersOpen] = useState(false)
+
+  return (
+    <div className="md:col-span-2 space-y-3">
+      <div className="rounded-lg border border-orange-500/30 bg-orange-500/5">
+        <div className="px-3 py-2 border-b border-orange-500/20 flex items-start gap-2">
+          <AlertTriangle className="h-4 w-4 text-orange-600 dark:text-orange-400 shrink-0 mt-0.5" />
+          <div className="min-w-0">
+            <div className="text-[11px] font-semibold uppercase tracking-wide text-orange-700 dark:text-orange-400">
+              {conflict.matchIds.length} interventions partagent (date, adresse)
+            </div>
+            <p className="text-xs text-foreground/80 mt-0.5 leading-snug">
+              {recommendedCandidate ? (
+                <>
+                  Une candidate est <span className="font-medium text-foreground">pré-sélectionnée</span> ci-dessous.
+                  Tu peux la valider, en choisir une autre, ou ignorer la ligne.{' '}
+                </>
+              ) : (
+                <>Choisis celle à mettre à jour avec la ligne CSV.{' '}</>
+              )}
+              <span className="text-muted-foreground">
+                Les autres resteront inchangées en base — l&apos;import ne fusionne ni ne supprime aucun doublon.
+              </span>
+            </p>
+          </div>
+        </div>
+        <div className="px-3 py-2 border-b border-orange-500/10 bg-amber-500/5">
+          <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-amber-700 dark:text-amber-400">
+            <Info className="h-3 w-3" />
+            Aperçu de la ligne CSV
+          </div>
+        </div>
+        <CompactRawGrid raw={conflict.raw} />
+      </div>
+
+      <div className="space-y-2">
+        {recommendedCandidate && (
+          <div className="space-y-1.5">
+            <div className="flex items-center gap-1.5 px-1 text-[10px] uppercase tracking-wider text-emerald-700 dark:text-emerald-400">
+              <Sparkles className="h-3 w-3" />
+              Recommandée
+              {scoreById.get(recommendedCandidate.id)?.reasons.length ? (
+                <span className="normal-case tracking-normal text-muted-foreground">
+                  · {scoreById.get(recommendedCandidate.id)!.reasons.join(' · ')}
+                </span>
+              ) : null}
+            </div>
+            <CandidateCard
+              candidate={recommendedCandidate}
+              csvIdInter={csvIdInter}
+              newPayload={newPayload}
+              isSelected={resolution?.action === 'update' && resolution.targetId === recommendedCandidate.id}
+              onSelect={() => onResolve({ action: 'update', targetId: recommendedCandidate.id })}
+              onClear={onClear}
+              tone="duplicate"
+              ctaLabel="Mettre à jour celle-ci"
+            />
+          </div>
+        )}
+
+        {otherCandidates.length > 0 && (
+          <div className="rounded-lg border border-border/50 bg-background/30">
+            <button
+              type="button"
+              onClick={() => setOthersOpen((v) => !v)}
+              className="w-full px-3 py-2 flex items-center justify-between text-xs text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <span className="flex items-center gap-1.5">
+                <ChevronDown
+                  className={`h-3.5 w-3.5 transition-transform ${othersOpen ? '' : '-rotate-90'}`}
+                />
+                {otherCandidates.length === 1
+                  ? '1 autre candidate'
+                  : `${otherCandidates.length} autres candidates`}
+              </span>
+              <span className="text-[10px] text-muted-foreground/70">
+                {othersOpen ? 'Replier' : 'Afficher pour comparer'}
+              </span>
+            </button>
+            {othersOpen && (
+              <div className="px-2 pb-2 pt-1 space-y-2 border-t border-border/40">
+                {otherCandidates.map((c) => {
+                  const s = scoreById.get(c.id)
+                  return (
+                    <div key={c.id} className="space-y-1">
+                      {s && s.reasons.length > 0 && (
+                        <div className="px-1 text-[10px] text-muted-foreground italic">
+                          {s.reasons.join(' · ')}
+                        </div>
+                      )}
+                      <CandidateCard
+                        candidate={c}
+                        csvIdInter={csvIdInter}
+                        newPayload={newPayload}
+                        isSelected={resolution?.action === 'update' && resolution.targetId === c.id}
+                        onSelect={() => onResolve({ action: 'update', targetId: c.id })}
+                        onClear={onClear}
+                        tone="duplicate"
+                        ctaLabel="Choisir celle-ci à la place"
+                      />
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {csvIdInter && (
+        <CreateWithoutIdInterButton
+          isSelected={resolution?.action === 'create_without_id_inter'}
+          onSelect={() => onResolve({ action: 'create_without_id_inter' })}
+          onClear={onClear}
+          csvIdInter={csvIdInter}
+        />
+      )}
+
+      <SkipLineButton
+        isSkipped={resolution?.action === 'skip'}
+        onSkip={() => onResolve({ action: 'skip' })}
+        onClear={onClear}
+        helperText="Si tu préfères dédupliquer en base avant, ignore cette ligne pour le moment."
+      />
+    </div>
+  )
+}
+
+// ─── Carte candidate (partagée) ─────────────────────────────────────────────
+
+function CandidateCard({
+  candidate,
+  csvIdInter,
+  newPayload,
+  isSelected,
+  onSelect,
+  onClear,
+  tone,
+  ctaLabel,
+}: {
+  candidate: ImportConflictRow['candidates'][number]
+  /** id_inter présent dans le CSV pour cette ligne (pour détecter l'écrasement). */
+  csvIdInter: string | null
+  newPayload: Record<string, unknown>
+  isSelected: boolean
+  onSelect: () => void
+  onClear?: () => void
+  tone: 'identity' | 'duplicate'
+  ctaLabel: string
+}) {
+  // Action bloquée : la cible porte déjà un id_inter différent. L'`id_inter`
+  // d'une intervention existante est immuable côté import — l'utilisateur doit
+  // choisir "créer sans id_inter" ou "skip" au niveau de la ligne.
+  const updateBlocked =
+    !!candidate.id_inter && !!csvIdInter && candidate.id_inter !== csvIdInter
+  const formatDate = (iso: string | null) =>
+    iso ? iso.slice(0, 10) : <span className="text-muted-foreground/60 italic">—</span>
+  const prev = (candidate.previousDisplayPayload ?? {}) as Record<string, unknown>
+  // Synonyme local pour lisibilité — la cible est-elle frappée par la règle
+  // d'immutabilité de l'id_inter ?
+  const overwritesIdInter = updateBlocked
+
+  // Reflète la règle de préservation appliquée à l'apply (interventions-import.ts
+  // lignes 528-557) : à l'UPDATE, un id_inter null côté CSV n'écrase jamais une
+  // valeur existante en base. Sans ce miroir, la diff affichait "12646 → vide"
+  // alors que l'écriture conserve 12646 — un faux signal de perte de donnée.
+  const effectiveNext =
+    newPayload['id_inter'] == null && candidate.id_inter
+      ? { ...newPayload, id_inter: candidate.id_inter }
+      : newPayload
+
+  const sourceBadge =
+    candidate.source === 'id_inter'
+      ? { cls: 'bg-blue-500/15 text-blue-700 dark:text-blue-400', label: 'Désignée par ID' }
+      : { cls: 'bg-purple-500/15 text-purple-700 dark:text-purple-400', label: 'Désignée par clé métier' }
+
+  return (
+    <div
+      className={`rounded-lg border transition-colors ${
+        isSelected
+          ? 'border-emerald-500/50 bg-emerald-500/10 ring-1 ring-emerald-500/30'
+          : tone === 'identity'
+            ? 'border-rose-500/20 bg-background/40'
+            : 'border-orange-500/20 bg-background/40'
+      }`}
+    >
+      <div className="px-3 py-2 border-b border-border/40 flex items-center gap-2 flex-wrap text-xs">
+        <span className={`px-1.5 py-0.5 rounded text-[9px] uppercase tracking-wider ${sourceBadge.cls}`}>
+          {sourceBadge.label}
+        </span>
+        <span className="font-mono text-[10px] text-muted-foreground truncate">
+          {candidate.id.slice(0, 8)}…
+        </span>
+        {candidate.id_inter && (
+          <span className="font-mono text-foreground/90">ID {candidate.id_inter}</span>
+        )}
+        <span className="text-muted-foreground">·</span>
+        <span className="text-muted-foreground">{formatDate(candidate.date)}</span>
+        <span className="text-muted-foreground">·</span>
+        <span className="text-muted-foreground truncate" title={candidate.adresse ?? ''}>
+          {candidate.adresse || <span className="italic">—</span>}
+        </span>
+      </div>
+
+      {overwritesIdInter && (
+        <div className="px-3 py-2 border-b border-border/40 bg-rose-500/10 flex items-start gap-2 text-xs">
+          <AlertTriangle className="h-3.5 w-3.5 text-rose-700 dark:text-rose-400 shrink-0 mt-0.5" />
+          <div className="min-w-0">
+            <span className="font-medium text-rose-800 dark:text-rose-300">
+              Mise à jour interdite
+            </span>{' '}
+            <span className="text-foreground/80">
+              cette intervention porte déjà l&apos;ID{' '}
+              <span className="font-mono font-medium">{candidate.id_inter}</span> ; l&apos;import ne
+              réécrit jamais un id_inter existant. Choisis «&nbsp;Créer sans id_inter&nbsp;» ou
+              «&nbsp;Ignorer cette ligne&nbsp;» plus bas.
+            </span>
+          </div>
+        </div>
+      )}
+
+      <div className="px-3 py-2">
+        <CurrentVsNewBlock prev={prev} next={effectiveNext} />
+      </div>
+
+      <div className="px-3 py-2 border-t border-border/40 flex items-center justify-end gap-2">
+        {isSelected ? (
+          <button
+            type="button"
+            onClick={onClear}
+            className="px-2.5 py-1 rounded-md text-[11px] font-medium border border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/20 transition-colors inline-flex items-center gap-1.5"
+          >
+            <CheckCircle2 className="h-3 w-3" />
+            Choix retenu — cliquer pour annuler
+          </button>
+        ) : updateBlocked ? (
+          <button
+            type="button"
+            disabled
+            title="L'id_inter d'une intervention existante ne peut pas être réécrit par l'import."
+            className="px-2.5 py-1 rounded-md text-[11px] font-medium bg-muted text-muted-foreground/70 cursor-not-allowed inline-flex items-center gap-1.5"
+          >
+            <AlertTriangle className="h-3 w-3" />
+            Mise à jour interdite
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={onSelect}
+            className={`px-2.5 py-1 rounded-md text-[11px] font-medium text-white transition-colors ${
+              tone === 'identity'
+                ? 'bg-rose-600 hover:bg-rose-700'
+                : 'bg-blue-600 hover:bg-blue-700'
+            }`}
+          >
+            {ctaLabel}
+          </button>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function CreateWithoutIdInterButton({
+  isSelected,
+  onSelect,
+  onClear,
+  csvIdInter,
+}: {
+  isSelected: boolean
+  onSelect: () => void
+  onClear?: () => void
+  /** id_inter du CSV — affiché dans le helper pour rappeler ce qui sera retiré. */
+  csvIdInter: string
+}) {
+  return (
+    <div className="rounded-lg border border-blue-500/30 bg-blue-500/5 px-3 py-2 flex items-center gap-3">
+      <div className="flex-1 min-w-0 text-xs text-muted-foreground">
+        <span className="font-medium text-foreground/80">
+          Ou créer une nouvelle intervention sans id_inter :
+        </span>{' '}
+        l&apos;`id_inter` <span className="font-mono">{csvIdInter}</span> du CSV est retiré ;
+        une nouvelle ligne est insérée en base, à arbitrer manuellement par la suite.
+      </div>
+      {isSelected ? (
+        <button
+          type="button"
+          onClick={onClear}
+          className="px-2.5 py-1 rounded-md text-[11px] font-medium border border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/20 transition-colors inline-flex items-center gap-1.5 shrink-0"
+        >
+          <CheckCircle2 className="h-3 w-3" />
+          Choisi — cliquer pour annuler
+        </button>
+      ) : (
+        <button
+          type="button"
+          onClick={onSelect}
+          className="px-2.5 py-1 rounded-md text-[11px] font-medium bg-blue-600 text-white hover:bg-blue-700 transition-colors inline-flex items-center gap-1.5 shrink-0"
+        >
+          Créer sans id_inter
+        </button>
+      )}
+    </div>
+  )
+}
+
+function SkipLineButton({
+  isSkipped,
+  onSkip,
+  onClear,
+  helperText,
+}: {
+  isSkipped: boolean
+  onSkip: () => void
+  onClear?: () => void
+  helperText: string
+}) {
+  return (
+    <div className="rounded-lg border border-border/50 bg-muted/20 px-3 py-2 flex items-center gap-3">
+      <div className="flex-1 min-w-0 text-xs text-muted-foreground">
+        <span className="font-medium text-foreground/80">Ou ignorer cette ligne :</span>{' '}
+        {helperText}
+      </div>
+      {isSkipped ? (
+        <button
+          type="button"
+          onClick={onClear}
+          className="px-2.5 py-1 rounded-md text-[11px] font-medium border border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-400 hover:bg-amber-500/20 transition-colors inline-flex items-center gap-1.5 shrink-0"
+        >
+          <CheckCircle2 className="h-3 w-3" />
+          Ignorée — cliquer pour annuler
+        </button>
+      ) : (
+        <button
+          type="button"
+          onClick={onSkip}
+          className="px-2.5 py-1 rounded-md text-[11px] font-medium border border-border hover:bg-muted/60 transition-colors inline-flex items-center gap-1.5 shrink-0"
+        >
+          <X className="h-3 w-3" />
+          Ignorer cette ligne
+        </button>
+      )}
+    </div>
+  )
+}
+
+// Aperçu compact des colonnes les plus utiles de la ligne CSV brute.
+function CompactRawGrid({ raw }: { raw: Record<string, string> }) {
+  const entries = Object.entries(raw).filter(([, v]) => v && String(v).trim() !== '')
+  if (entries.length === 0) {
+    return <p className="px-3 py-2 text-xs text-muted-foreground italic">Ligne vide</p>
+  }
+  return (
+    <div className="grid grid-cols-2 md:grid-cols-3 gap-x-4 gap-y-1 px-3 py-2 text-xs">
+      {entries.map(([k, v]) => (
+        <div key={k} className="min-w-0 flex items-baseline gap-1.5">
+          <span className="text-[10px] uppercase tracking-wider text-muted-foreground/70 shrink-0">
+            {k}
+          </span>
+          <span className="font-mono truncate text-foreground/90" title={String(v)}>
+            {String(v)}
+          </span>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+// Affiche tous les champs côté CURRENT (base) | NEW (CSV), avec mise en
+// évidence des champs qui changeraient si l'utilisateur retenait ce candidat.
+function CurrentVsNewBlock({
+  prev,
+  next,
+}: {
+  prev: Record<string, unknown>
+  next: Record<string, unknown>
+}) {
+  const keys = diffableKeys(prev, next)
+  const changedCount = keys.filter((k) => diffValue(prev[k], next[k])).length
+
+  return (
+    <div className="rounded-md border bg-background/40">
+      <div className="px-3 py-1 border-b text-[10px] uppercase tracking-wide grid grid-cols-[110px_1fr_auto_1fr] gap-3 items-center">
+        <span className="text-muted-foreground/70">Champ</span>
+        <span className="text-muted-foreground/70">Valeur actuelle (base)</span>
+        <span />
+        <span className="text-emerald-700 dark:text-emerald-400 font-semibold">
+          Nouvelle valeur (CSV)
+          {changedCount > 0 && (
+            <span className="ml-1.5 text-muted-foreground font-normal normal-case">
+              · {changedCount} modif.
+            </span>
+          )}
+        </span>
+      </div>
+      <div className="divide-y">
+        {keys.map((k) => {
+          const changed = diffValue(prev[k], next[k])
+          return (
+            <div
+              key={k}
+              className={`px-3 py-1.5 grid grid-cols-[110px_1fr_auto_1fr] gap-3 items-baseline text-xs ${
+                changed ? 'bg-blue-500/5' : ''
+              }`}
+            >
+              <span className="text-muted-foreground/90 font-medium pt-0.5">
+                {DIFF_FIELD_LABELS[k] ?? k}
+              </span>
+              <span
+                className={`min-w-0 break-words ${
+                  changed ? 'text-muted-foreground line-through decoration-rose-500/60 decoration-1' : 'text-foreground/80'
+                }`}
+              >
+                {formatDiffValue(prev[k])}
+              </span>
+              <ArrowRight
+                className={`h-3 w-3 shrink-0 ${changed ? 'text-muted-foreground/70' : 'text-muted-foreground/20'}`}
+              />
+              <span
+                className={`min-w-0 break-words ${
+                  changed ? 'text-emerald-700 dark:text-emerald-400 font-medium' : 'text-foreground/80'
+                }`}
+              >
+                {formatDiffValue(next[k])}
+              </span>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
 function PreviewRowItem({
   row,
   open,
   onToggle,
   isError = false,
   bucket = null,
+  resolution,
+  onResolve,
+  onClearResolution,
 }: {
   row: ImportPreviewRow
   open: boolean
   onToggle: () => void
   isError?: boolean
   bucket?: PreviewBucket | null
+  resolution?: ImportResolutionsMap[number]
+  onResolve?: (resolution: ImportResolution) => void
+  onClearResolution?: () => void
 }) {
+  const isConflict = bucket === 'conflict'
+  const conflict = isConflict ? (row as ImportConflictRow) : null
   return (
     <div
       className={`rounded-xl ring-1 overflow-hidden transition-all ${
@@ -1115,13 +1989,11 @@ function PreviewRowItem({
           </span>
           <div className="flex-1" />
           {bucket === 'update' && row.previousDisplayPayload && (() => {
-            const changedCount = Array.from(new Set([
-              ...Object.keys(row.previousDisplayPayload),
-              ...Object.keys((row.displayPayload ?? {}) as Record<string, unknown>),
-            ])).filter((k) => diffValue(
-              (row.previousDisplayPayload as Record<string, unknown>)[k],
-              ((row.displayPayload ?? {}) as Record<string, unknown>)[k],
-            )).length
+            const prev = row.previousDisplayPayload as Record<string, unknown>
+            const next = (row.displayPayload ?? {}) as Record<string, unknown>
+            const changedCount = diffableKeys(prev, next).filter((k) =>
+              diffValue(prev[k], next[k]),
+            ).length
             return (
               <span
                 className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] shrink-0 ${
@@ -1136,15 +2008,33 @@ function PreviewRowItem({
               </span>
             )
           })()}
+          {isConflict && resolution && (
+            <span
+              className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] shrink-0 ${
+                resolution.action === 'skip'
+                  ? 'bg-amber-500/10 text-amber-700 dark:text-amber-400'
+                  : 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400'
+              }`}
+            >
+              <span
+                className={`h-1.5 w-1.5 rounded-full ${
+                  resolution.action === 'skip' ? 'bg-amber-500' : 'bg-emerald-500'
+                }`}
+              />
+              {resolution.action === 'skip' ? 'ignoré' : 'résolu'}
+            </span>
+          )}
           {row.reason && (
             <span
               className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] shrink-0 ${
                 isError
                   ? 'bg-destructive/15 text-destructive'
-                  : 'bg-amber-500/10 text-amber-700 dark:text-amber-400'
+                  : isConflict
+                    ? 'bg-orange-500/10 text-orange-700 dark:text-orange-400'
+                    : 'bg-amber-500/10 text-amber-700 dark:text-amber-400'
               }`}
             >
-              <span className={`h-1.5 w-1.5 rounded-full ${isError ? 'bg-destructive' : 'bg-amber-500'}`} />
+              <span className={`h-1.5 w-1.5 rounded-full ${isError ? 'bg-destructive' : isConflict ? 'bg-orange-500' : 'bg-amber-500'}`} />
               {row.reason}
             </span>
           )}
@@ -1178,19 +2068,32 @@ function PreviewRowItem({
             className="overflow-hidden"
           >
             <div className="px-4 pb-4 pt-1 grid md:grid-cols-2 gap-4 border-t">
-              {bucket === 'update' && row.previousDisplayPayload && (
-                <DiffBlock
-                  prev={row.previousDisplayPayload}
-                  next={(row.displayPayload ?? {}) as Record<string, unknown>}
+              {isConflict && conflict && onResolve ? (
+                <ConflictResolver
+                  conflict={conflict}
+                  newPayload={(row.displayPayload ?? row.payload ?? {}) as Record<string, unknown>}
+                  resolution={resolution}
+                  onResolve={onResolve}
+                  onClear={onClearResolution}
                 />
+              ) : (
+                <>
+                  {bucket === 'update' && row.previousDisplayPayload && (
+                    <DiffBlock
+                      prev={row.previousDisplayPayload}
+                      next={(row.displayPayload ?? {}) as Record<string, unknown>}
+                    />
+                  )}
+                  <KeyValueBlock title="CSV brut" entries={row.raw} mono keyOrder={rankRawKey} />
+                  <KeyValueBlock
+                    title="Mapping base de données"
+                    entries={row.displayPayload ?? row.payload ?? {}}
+                    mono
+                    keyOrder={rankDbKey}
+                    emptyHint="Aucun mapping (ligne invalide)"
+                  />
+                </>
               )}
-              <KeyValueBlock title="CSV brut" entries={row.raw} mono />
-              <KeyValueBlock
-                title="Mapping base de données"
-                entries={row.displayPayload ?? row.payload ?? {}}
-                mono
-                emptyHint="Aucun mapping (ligne invalide)"
-              />
             </div>
           </motion.div>
         )}
@@ -1204,13 +2107,18 @@ function KeyValueBlock({
   entries,
   mono,
   emptyHint,
+  keyOrder,
 }: {
   title: string
   entries: Record<string, unknown>
   mono?: boolean
   emptyHint?: string
+  /** Tri canonique des clés (cf. preview-field-order). Absent = ordre d'origine. */
+  keyOrder?: (key: string) => number
 }) {
-  const keys = Object.keys(entries)
+  const keys = keyOrder
+    ? orderByRank(Object.keys(entries), keyOrder)
+    : Object.keys(entries)
   return (
     <div className="rounded-lg border bg-background/40">
       <div className="px-3 py-1.5 border-b text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
