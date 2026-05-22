@@ -1131,3 +1131,50 @@ Alias for `getTotalCountWithFilters`.
 Same as [`getTotalCountWithFilters`](#gettotalcountwithfiltersparams).
 
 **Return:** `Promise<number>`
+
+---
+
+## Import CSV (pipeline asynchrone)
+
+Import en masse d'interventions via un système de **jobs** : le client crée un
+job, le serveur répond immédiatement, un worker traite en arrière-plan, et le
+client suit la progression via Supabase Realtime. Voir
+[docs/architecture/imports-async.md](../architecture/imports-async.md).
+
+Permission requise sur tous les endpoints : `import_interventions`.
+
+### POST /api/imports/interventions/jobs
+
+Crée un job d'import et déclenche le worker (self-fetch fire-and-forget).
+
+**Body** (`multipart/form-data`) : `file` (CSV ≤ 10 Mo), `mode`
+(`create` | `update` | `upsert`), `dry_run` (`"true"` | `"false"`),
+`resolutions` (JSON optionnel — arbitrages de conflits, cf. Phase B).
+
+**Réponse :** `202 { job_id }`.
+
+### GET /api/imports/interventions/jobs
+
+Historique des imports de l'utilisateur courant (RLS). Query : `limit` (≤ 100,
+défaut 20). **Réponse :** `{ jobs: ImportJobRow[] }` (sans `result`/`preview`).
+
+### GET /api/imports/interventions/jobs/:id
+
+État d'un job + `result`/`preview` (joints depuis la sidecar). Fallback de
+polling si Realtime indisponible. **Réponse :** `{ job: ImportJobRow }`.
+
+### POST /api/imports/interventions/jobs/:id/cancel
+
+Demande l'annulation (effet sur un job `pending`/`running` uniquement). Le
+worker interrompt entre deux chunks ; les chunks déjà commités restent
+appliqués.
+
+### POST /api/imports/interventions/jobs/:id/run
+
+**Worker interne** (non destiné au client). Protégé par l'en-tête
+`x-worker-secret` (= `WORKER_SECRET`). Réutilise `interventionsImportApi.runImport()`
+via le client service-role, écrit la progression (throttlée) sur la ligne job.
+
+> **Endpoint legacy** : `POST /api/imports/interventions` (synchrone, streaming
+> NDJSON) est conservé comme fallback pour petits fichiers / tests, mais le
+> pipeline job ci-dessus est le chemin recommandé.

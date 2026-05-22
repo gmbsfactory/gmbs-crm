@@ -44,6 +44,13 @@ interface RunResult {
   aborted?: boolean
 }
 
+/**
+ * @deprecated Remplacé par {@link useImportJob} (pipeline d'import asynchrone
+ * basé sur des jobs + Realtime, cf. docs/architecture/imports-async.md). Ce
+ * hook synchrone (streaming NDJSON, lié au cycle de vie de la requête) est
+ * conservé temporairement comme filet de sécurité ; à supprimer une fois le
+ * flux job stabilisé en prod (Open Question #4).
+ */
 export function useImportStream() {
   const [stages, setStages] = useState<ImportStage[]>(initialStages())
   const [running, setRunning] = useState(false)

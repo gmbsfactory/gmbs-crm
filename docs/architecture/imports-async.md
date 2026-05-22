@@ -2,23 +2,33 @@
 
 > Architecture du pipeline d'import CSV en masse : upload, traitement async via Edge Function, suivi temps réel, idempotence et reprise sur timeout.
 
-**Statut :** En conception (mai 2026). Sections 1–4 et 12 finalisées. Sections 5–10 décrites en intention, à enrichir au fil des PRs (P1 → P6 dans le plan de phasage).
+**Statut :** Slice vertical livré (mai 2026). L'enveloppe asynchrone (jobs +
+Realtime + historique) est en place et réutilise la logique TS existante
+`runImport()`. La réécriture Deno stricte (ADR-1) reste un suivi optionnel —
+voir **ADR-5** qui inverse ce choix pour le slice.
 
 ### État d'implémentation (mise à jour mai 2026)
 
 | Élément | État | Référence |
 |---|---|---|
-| ADR-2 — résolution locataires/propriétaires en SQL set-based | ✅ Livré (mode synchrone) | migration `99027_csv_intervention_import_person_resolvers.sql`, RPCs `csv_intervention_import_resolve_tenants` / `_resolve_owners` |
+| ADR-2 — résolution locataires/propriétaires en SQL set-based | ✅ Livré | migration `99027_csv_intervention_import_person_resolvers.sql` |
 | Mitigation 414 sur lookups UUID (`FETCH_CHUNK` 500 → 100) | ✅ Livré | `src/lib/api/interventions/interventions-import.ts` |
-| P1 — Table `intervention_import_jobs` + API `/jobs` | ⏳ À faire | section 3, section 6 |
-| P2 — Edge Function worker `process-intervention-import` | ⏳ À faire | section 5, ADR-1 |
-| P3 — Bucket Storage `imports/` + RLS | ⏳ À faire | section 3, section 9 |
+| Mitigation timeout — `maxDuration=300` sur l'endpoint synchrone | ✅ Livré | `app/api/imports/interventions/route.ts` |
+| P1 — Table `intervention_import_jobs` (+ sidecar `_job_data`) | ✅ Livré (slice) | migration `99030_intervention_import_jobs.sql` |
+| P2 — Worker = route Next.js nodejs réutilisant `runImport()` (PAS Deno) | ✅ Livré (slice, **ADR-5**) | `app/api/imports/interventions/jobs/**`, `src/lib/api/interventions/import-jobs.ts` |
+| P4 — Hooks client `useImportJob` / `useImportJobs` + Realtime | ✅ Livré (slice) | `src/features/settings/useImportJob.ts`, `useImportJobs.ts` |
+| P2-bis — Réécriture Deno du worker (ADR-1 strict) | ⏳ Optionnel / suivi | section 5, ADR-1 |
+| P3 — Bucket Storage `imports/` (vs colonne) | ⏳ Non retenu pour le slice | ADR-5 |
 | P3.5 — `cleanup_old_import_files()` + `pg_cron` | ⏳ À faire | section 8, ADR-4 |
-| P4 — Hook client `useImportJob` + abonnement Realtime | ⏳ À faire | section 7 |
+| Heartbeat / reprise sur timeout | ⏳ À faire | section 4 |
 | P5 — Observabilité | ⏳ À faire | section 10 |
 | P6 — Suppression de l'endpoint synchrone legacy | ⏳ À faire | Open Question #4 |
 
-**Dette technique courante.** L'endpoint synchrone `POST /api/imports/interventions` reste le seul chemin de production. Il est désormais résistant au 414 grâce aux RPCs livrées, mais conserve les autres limites listées section 1 (timeout serverless, perte à la fermeture d'onglet, pas d'historique, pas de reprise). La migration vers le pipeline async (P1→P6) reste la cible.
+**Dette technique courante.** L'endpoint synchrone `POST /api/imports/interventions`
+est conservé comme fallback (petits fichiers, tests d'intégration) mais n'est
+plus le chemin recommandé. Limites résiduelles du slice : pas de heartbeat /
+reprise sur timeout (une invocation worker = budget 300 s, soit ~25 k lignes au
+débit actuel), worker en TS et non en Deno (ADR-1 non appliqué — voir ADR-5).
 
 ---
 
@@ -323,6 +333,39 @@ Les Edge Functions Supabase ont une limite ~150 s par invocation. Si un import d
 - ✅ Pas de dépendance réseau à un cron externe.
 - ✅ Pas d'authent à gérer (s'exécute en superuser DB).
 - ⚠️ Logique de cleanup en SQL/PLpgSQL, moins testable que du TypeScript.
+
+### ADR-5 : Slice vertical — worker TS et stockage en colonne (inverse ADR-1 & P3)
+
+**Contexte.** Livrer la valeur (survie à la fermeture d'onglet, historique,
+progression Realtime) sans bloquer sur la réécriture Deno (~800 lignes de TS de
+matching à porter en SQL) ni sur la mise en place d'un bucket Storage.
+
+**Décision.** Pour cette première livraison :
+
+1. **Worker = route Next.js `nodejs`** (`/api/imports/interventions/jobs/[id]/run`,
+   `maxDuration=300`), déclenchée par self-fetch fire-and-forget depuis la route
+   de création, protégée par `WORKER_SECRET`. Elle réutilise `runImport()` tel
+   quel via le client service-role. **Inverse ADR-1** (Edge Function Deno).
+2. **Stockage en base, pas bucket** : le CSV (entrée) et `result`/`preview`
+   (sortie) vivent dans une table **sidecar** `intervention_import_job_data`,
+   distincte de `intervention_import_jobs`. **Écarte P3** (bucket Storage).
+
+**Pourquoi la sidecar.** `intervention_import_jobs` est publiée sur Realtime :
+chaque UPDATE rediffuse la ligne entière. Garder `csv_content` (≤ 10 Mo) et
+`result`/`preview` (jusqu'à 10 000 lignes) sur cette table ferait exploser
+chaque message de progression et dépasser la limite de taille Realtime
+(~256 Ko) sur le message terminal → événement perdu. La sidecar (non publiée)
+garde la table jobs légère ; le client récupère `result` via `GET /jobs/:id`
+quand le job atteint un état terminal.
+
+**Conséquences.**
+
+- ✅ Réutilise la logique métier éprouvée — pas de double maintenance immédiate.
+- ✅ Zéro infra nouvelle (pas de bucket, pas de RLS Storage).
+- ✅ Suivi Realtime robuste même sur gros fichiers (table publiée légère).
+- ⚠️ Pas de reprise sur timeout (une invocation = budget 300 s).
+- ⚠️ ADR-1 (Deno) et P3 (bucket) restent la cible si le slice montre ses limites
+  (imports > ~25 k lignes, besoin de rétention fichier 7-30 j).
 
 ---
 

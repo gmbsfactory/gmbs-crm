@@ -5,7 +5,19 @@ import { interventionsImportApi } from '@/lib/api'
 import { ImportAbortedError, type ImportProgressEvent } from '@/lib/api/interventions/interventions-import'
 import type { ImportMode, ImportResolutionsMap } from '@/utils/import-export/import-types'
 
+// ⚠️ Endpoint LEGACY (synchrone, streaming NDJSON). Conservé comme fallback /
+// pour les tests d'intégration et les petits fichiers. Le chemin recommandé est
+// désormais le pipeline asynchrone basé sur des jobs :
+//   POST /api/imports/interventions/jobs  (+ worker /jobs/[id]/run)
+// cf. docs/architecture/imports-async.md. À déprécier une fois le flux job
+// stabilisé en prod (Open Question #4).
 export const runtime = 'nodejs'
+// L'import synchrone traite tout dans cette requête. Sans budget explicite,
+// Vercel applique le défaut (souvent 10–15 s) → timeout dès quelques milliers
+// de lignes. On demande le maximum nodejs (clampé au plafond du plan : 300 s
+// en Pro). Mitigation immédiate en attendant le pipeline async (P1→P6,
+// cf. docs/architecture/imports-async.md).
+export const maxDuration = 300
 
 const VALID_MODES: ImportMode[] = ['create', 'update', 'upsert']
 

@@ -8,8 +8,14 @@ import {
   Plus, RefreshCw, Minus, GitMerge, Hash,
 } from "lucide-react"
 import type { ReactNode } from "react"
+import { useQueryClient } from "@tanstack/react-query"
 import { useToast } from "@/hooks/use-toast"
 import { usePermissions } from "@/hooks/usePermissions"
+import {
+  interventionKeys,
+  artisanKeys,
+  dashboardKeys,
+} from "@/lib/react-query/queryKeys"
 import { parseCSV } from "@/utils/import-export/parsers/csv-parser"
 import { orderByRank, rankRawKey, rankDbKey } from "@/utils/import-export/preview-field-order"
 import type {
@@ -22,7 +28,8 @@ import type {
   ImportResolutionsMap,
 } from "@/utils/import-export/import-types"
 import { ImportProgressPanel } from "./ImportProgressPanel"
-import { useImportStream } from "./useImportStream"
+import { useImportJob } from "./useImportJob"
+import { ImportHistorySection } from "./ImportHistorySection"
 import {
   Dialog,
   DialogContent,
@@ -48,6 +55,7 @@ interface PreviewState {
 
 export function ImportInterventionsCard() {
   const { toast } = useToast()
+  const queryClient = useQueryClient()
   const { can, isLoading: permsLoading } = usePermissions()
   const [open, setOpen] = useState(false)
   const [file, setFile] = useState<File | null>(null)
@@ -63,7 +71,7 @@ export function ImportInterventionsCard() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [dragOver, setDragOver] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
-  const { stages, running, run, cancel, reset: resetStages } = useImportStream()
+  const { stages, running, run, cancel, reset: resetStages } = useImportJob()
   const importing = running
 
   const canImport = can("import_interventions")
@@ -164,6 +172,17 @@ export function ImportInterventionsCard() {
         title: 'Import terminé',
         description: `${r.inserted} créées, ${r.updated} mises à jour, ${r.skipped} ignorées`,
       })
+      // L'import a écrit en base : le cache TanStack Query (listes/tableaux,
+      // détails, comptages, dashboard) est désormais stale. On invalide pour
+      // forcer un refetch et faire apparaître les interventions importées.
+      // NB : la recherche globale (useUniversalSearch) n'est pas concernée —
+      // elle interroge le serveur à chaque frappe et dépend du rafraîchissement
+      // (asynchrone, ~60s) des vues matérialisées de recherche.
+      if (r.inserted > 0 || r.updated > 0) {
+        void queryClient.invalidateQueries({ queryKey: interventionKeys.all })
+        void queryClient.invalidateQueries({ queryKey: artisanKeys.all })
+        void queryClient.invalidateQueries({ queryKey: dashboardKeys.all })
+      }
     }
   }
 
@@ -604,6 +623,11 @@ export function ImportInterventionsCard() {
               <p className="text-xs text-muted-foreground">
                 Format attendu : CSV UTF-8 exporté depuis cette interface ou depuis l&apos;outil admin.
               </p>
+
+              {/* Historique des imports (survit à la fermeture d'onglet — le
+                  worker poursuit côté serveur). Activé seulement quand la carte
+                  est dépliée. */}
+              <ImportHistorySection enabled={open} />
             </div>
           </motion.div>
         )}

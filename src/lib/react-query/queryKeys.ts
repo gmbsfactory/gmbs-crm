@@ -669,3 +669,15 @@ export const updateKeys = {
   admin: () => [...updateKeys.all, 'admin'] as const,
   adminWithViews: () => [...updateKeys.admin(), 'with-views'] as const,
 } as const
+
+// ---------------------------------------------------------------------------
+// Import jobs query keys (pipeline d'import CSV asynchrone)
+// ---------------------------------------------------------------------------
+
+export const importJobKeys = {
+  all: ['import-jobs'] as const,
+  /** Historique des jobs de l'utilisateur courant. */
+  list: () => [...importJobKeys.all, 'list'] as const,
+  /** État d'un job précis. */
+  detail: (id: string) => [...importJobKeys.all, 'detail', id] as const,
+} as const
