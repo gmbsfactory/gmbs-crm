@@ -64,8 +64,15 @@ export const STATUSES_REQUIRING_AGENCE = new Set(["DEMANDE", "DEVIS_ENVOYE", "AC
 /** Statuts nécessitant un métier — cumulatif depuis DEMANDE */
 export const STATUSES_REQUIRING_METIER = new Set(["DEMANDE", "DEVIS_ENVOYE", "ACCEPTE", "INTER_EN_COURS", "INTER_TERMINEE"])
 
-/** Statuts nécessitant un devis (document kind "devis") */
-export const STATUSES_REQUIRING_DEVIS = new Set(["INTER_EN_COURS", "INTER_TERMINEE"])
+/**
+ * Statuts nécessitant un devis (document kind "devis").
+ *
+ * Vide volontairement : le devis n'est plus une condition bloquante pour
+ * aucune transition (aligné sur workflow-rules.ts, cf. commits d558929 /
+ * b2a1a98). Il reste un simple document optionnel. Réactivable par statut
+ * en réintroduisant le code ici si la règle métier change.
+ */
+export const STATUSES_REQUIRING_DEVIS = new Set<string>([])
 
 /** Codes de statuts nécessitant un artisan assigné */
 export const ARTISAN_REQUIRED_STATUS_CODES = [

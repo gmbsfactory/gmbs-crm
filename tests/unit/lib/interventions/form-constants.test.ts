@@ -10,6 +10,7 @@ import {
   STATUSES_REQUIRING_COUTS,
   STATUSES_REQUIRING_CONSIGNE_ARTISAN,
   STATUSES_REQUIRING_CLIENT_INFO,
+  STATUSES_REQUIRING_DEVIS,
   ARTISAN_REQUIRED_STATUS_CODES,
 } from "@/lib/interventions/form-constants"
 
@@ -133,6 +134,17 @@ describe("form-constants", () => {
       expect(STATUSES_REQUIRING_CLIENT_INFO.has("INTER_EN_COURS")).toBe(true)
       expect(STATUSES_REQUIRING_CLIENT_INFO.has("INTER_TERMINEE")).toBe(true)
       expect(STATUSES_REQUIRING_CLIENT_INFO.size).toBe(2)
+    })
+  })
+
+  describe("STATUSES_REQUIRING_DEVIS", () => {
+    it("should be empty (devis is no longer a blocking requirement for any status)", () => {
+      expect(STATUSES_REQUIRING_DEVIS.size).toBe(0)
+    })
+
+    it("should not require a devis to reach INTER_TERMINEE or INTER_EN_COURS", () => {
+      expect(STATUSES_REQUIRING_DEVIS.has("INTER_TERMINEE")).toBe(false)
+      expect(STATUSES_REQUIRING_DEVIS.has("INTER_EN_COURS")).toBe(false)
     })
   })
 
