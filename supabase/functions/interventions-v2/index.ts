@@ -35,7 +35,6 @@ import {
   parseSortParams,
 } from './_lib/helpers.ts';
 import {
-  createAutomaticStatusTransitions,
   handleInterventionCompletionSideEffects,
 } from './_lib/side-effects.ts';
 import { handleListInterventions } from './_lib/list-handler.ts';
@@ -512,8 +511,7 @@ serve(async (req: Request) => {
         throw new Error(`Failed to create intervention: ${error.message}`);
       }
 
-      // Créer les transitions automatiques si un statut est défini
-      await createAutomaticStatusTransitions(supabase, data.id, data.statut_id, authUserId, requestId);
+      // La transition de création est enregistrée par le trigger DB on_insert (source unique).
 
       console.log(JSON.stringify({
         level: 'info',
@@ -709,8 +707,7 @@ serve(async (req: Request) => {
               message: 'Intervention created successfully with regenerated id_inter'
             }));
 
-            // Créer les transitions automatiques si un statut est défini
-            await createAutomaticStatusTransitions(supabase, retryData.id, retryData.statut_id, authUserId, requestId);
+            // La transition de création est enregistrée par le trigger DB on_insert (source unique).
 
             await handleInterventionCompletionSideEffects(supabase, retryData, requestId);
 
@@ -731,8 +728,7 @@ serve(async (req: Request) => {
         message: 'Intervention created successfully'
       }));
 
-      // Créer les transitions automatiques si un statut est défini
-      await createAutomaticStatusTransitions(supabase, data.id, data.statut_id, authUserId, requestId);
+      // La transition de création est enregistrée par le trigger DB on_insert (source unique).
 
       await handleInterventionCompletionSideEffects(supabase, data, requestId);
 
@@ -759,46 +755,8 @@ serve(async (req: Request) => {
 
       const oldStatutId = currentIntervention?.statut_id || null;
 
-      // Si le statut change, enregistrer la transition AVANT la mise à jour
-      if (body.statut_id && oldStatutId !== body.statut_id) {
-        try {
-          // Enregistrer la transition explicitement via la fonction SQL
-          const { error: transitionError } = await supabase.rpc(
-            'log_status_transition_from_api',
-            {
-              p_intervention_id: resourceId,
-              p_from_status_id: oldStatutId,
-              p_to_status_id: body.statut_id,
-              p_changed_by_user_id: authUserId,
-              p_metadata: {
-                updated_via: 'edge_function',
-                updated_at: new Date().toISOString(),
-              }
-            }
-          );
-
-          if (transitionError) {
-            console.error(JSON.stringify({
-              level: 'warn',
-              requestId,
-              interventionId: resourceId,
-              message: 'Erreur lors de l\'enregistrement de la transition',
-              error: transitionError.message,
-            }));
-            // Ne pas bloquer la mise à jour si l'enregistrement de la transition échoue
-            // Le trigger de sécurité prendra le relais
-          }
-        } catch (error) {
-          console.error(JSON.stringify({
-            level: 'warn',
-            requestId,
-            interventionId: resourceId,
-            message: 'Erreur lors de l\'enregistrement de la transition',
-            error: error instanceof Error ? error.message : String(error),
-          }));
-          // Continuer quand même, le trigger de sécurité enregistrera
-        }
-      }
+      // Le changement de statut est enregistré par le trigger DB `_safety` (source unique).
+      // L'acteur est propagé via `updated_by` dans l'UPDATE ci-dessous.
 
       const { data, error } = await supabase
         .from('interventions')
