@@ -140,28 +140,12 @@ describe("interventionsApi.update", () => {
     });
   });
 
-  describe("status transition handling", () => {
-    it("should NOT trigger transition when statut_id is unchanged", async () => {
-      const updateChain = buildSupabaseMock({ data: mockUpdatedRow, error: null });
-      // fetchCurrentStatus returns same statut_id
-      const selectChain = buildSupabaseMock({
-        data: { statut_id: "status-accepte", status: { code: "ACCEPTE" } },
-        error: null,
-      });
+  describe("status transition logging (trigger-only)", () => {
+    // Depuis fix/status-transitions-single-source, update() n'écrit plus de transition
+    // côté applicatif : le trigger DB `log_intervention_status_transition_safety` est
+    // l'unique écrivain. update() se contente de propager l'acteur via `updated_by`.
 
-      let callCount = 0;
-      vi.mocked(supabase.from).mockImplementation(() => {
-        callCount++;
-        // First call: fetchCurrentStatus, second call: the update
-        return callCount === 1 ? (selectChain as any) : (updateChain as any);
-      });
-
-      await interventionsApi.update("interv-1", { statut_id: "status-accepte" });
-
-      expect(automaticTransitionService.executeTransition).not.toHaveBeenCalled();
-    });
-
-    it("should trigger transition when statut_id changes", async () => {
+    it("should NOT write a transition from the app when statut_id changes", async () => {
       const updateChain = buildSupabaseMock({ data: mockUpdatedRow, error: null });
       const selectChain = buildSupabaseMock({
         data: { statut_id: "status-demande", status: { code: "DEMANDE" } },
@@ -176,19 +160,18 @@ describe("interventionsApi.update", () => {
 
       await interventionsApi.update("interv-1", { statut_id: "status-accepte" });
 
-      expect(automaticTransitionService.executeTransition).toHaveBeenCalledWith(
-        "interv-1",
-        "DEMANDE",
-        "ACCEPTE",
-        "user-1",
-        expect.objectContaining({ updated_via: "api_v2" }),
-      );
+      // Ni service de chaîne synthétique, ni RPC applicative de log de transition.
+      expect(automaticTransitionService.executeTransition).not.toHaveBeenCalled();
+      const transitionRpcCalls = vi
+        .mocked(supabase.rpc)
+        .mock.calls.filter(([name]) => name === "log_status_transition_from_api");
+      expect(transitionRpcCalls).toHaveLength(0);
     });
 
-    it("should use RPC fallback when status codes cannot be resolved", async () => {
-      const updateChain = buildSupabaseMock({ data: { ...mockUpdatedRow, statut_id: "status-unknown" }, error: null });
+    it("should propagate updated_by when an actor is provided (server/service-role path)", async () => {
+      const updateChain = buildSupabaseMock({ data: mockUpdatedRow, error: null });
       const selectChain = buildSupabaseMock({
-        data: { statut_id: "status-old-unknown", status: null },
+        data: { statut_id: "status-demande", status: { code: "DEMANDE" } },
         error: null,
       });
 
@@ -198,18 +181,34 @@ describe("interventionsApi.update", () => {
         return callCount === 1 ? (selectChain as any) : (updateChain as any);
       });
 
-      await interventionsApi.update("interv-1", { statut_id: "status-unknown" });
+      await interventionsApi.update(
+        "interv-1",
+        { statut_id: "status-accepte" },
+        { userId: "user-actor-1" },
+      );
 
-      // Should NOT call executeTransition (codes unresolvable)
-      expect(automaticTransitionService.executeTransition).not.toHaveBeenCalled();
-      // Should call RPC fallback
-      expect(supabase.rpc).toHaveBeenCalledWith(
-        "log_status_transition_from_api",
-        expect.objectContaining({
-          p_intervention_id: "interv-1",
-          p_from_status_id: "status-old-unknown",
-          p_to_status_id: "status-unknown",
-        }),
+      expect(updateChain.update).toHaveBeenCalledWith(
+        expect.objectContaining({ updated_by: "user-actor-1" }),
+      );
+    });
+
+    it("should NOT set updated_by when no actor is provided (browser path relies on auth.uid())", async () => {
+      const updateChain = buildSupabaseMock({ data: mockUpdatedRow, error: null });
+      const selectChain = buildSupabaseMock({
+        data: { statut_id: "status-demande", status: { code: "DEMANDE" } },
+        error: null,
+      });
+
+      let callCount = 0;
+      vi.mocked(supabase.from).mockImplementation(() => {
+        callCount++;
+        return callCount === 1 ? (selectChain as any) : (updateChain as any);
+      });
+
+      await interventionsApi.update("interv-1", { statut_id: "status-accepte" });
+
+      expect(updateChain.update).toHaveBeenCalledWith(
+        expect.not.objectContaining({ updated_by: expect.anything() }),
       );
     });
   });

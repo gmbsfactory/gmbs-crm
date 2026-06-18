@@ -16,14 +16,12 @@ import {
 } from "@/lib/api/common/utils";
 import { safeErrorMessage } from "@/lib/api/common/error-handler";
 import type { InterventionWithStatus } from "@/types/intervention";
-import { automaticTransitionService } from "@/lib/interventions/automatic-transition-service";
 import { supabase } from "@/lib/api/common/client";
-import { supabaseClient, resolveUserId } from "./_auth";
+import { supabaseClient } from "./_auth";
 import type { InterventionAuthContext } from "./_auth";
 import {
   stripAdminOnlyFields,
   fetchCurrentStatus,
-  handleStatusTransition,
   recalculateArtisanStatuses,
 } from "./_update-helpers";
 
@@ -34,37 +32,15 @@ export async function create(
 ): Promise<Intervention> {
   const { data: result, error } = await supabaseClient
     .from("interventions")
-    .insert(data)
+    .insert(auth?.userId ? { ...data, created_by: auth.userId, updated_by: auth.userId } : data)
     .select()
     .single();
 
   if (error) throw new Error(`Erreur lors de la création de l'intervention: ${error.message}`);
 
-  // Créer la chaîne de transitions si nécessaire
-  if (result.statut_id) {
-    try {
-      // Le trigger a créé une transition NULL → statut_actuel lors de l'INSERT.
-      // On la supprime pour la remplacer par la chaîne complète.
-      await supabaseClient
-        .from("intervention_status_transitions")
-        .delete()
-        .eq("intervention_id", result.id)
-        .eq("source", "trigger");
-
-      const userId = await resolveUserId(auth?.userId);
-
-      await automaticTransitionService.createAutomaticTransitions(
-        result.id,
-        result.statut_id,
-        null,
-        userId,
-        { updated_via: "create", api_operation: true },
-      );
-    } catch (transitionError) {
-      console.error("Erreur lors de la création des transitions automatiques:", transitionError);
-      // Ne pas bloquer la création si les transitions échouent
-    }
-  }
+  // La transition de création est enregistrée par le trigger DB
+  // `log_intervention_status_transition_on_insert` (source unique de vérité).
+  // L'acteur est propagé via created_by/updated_by ci-dessus.
 
   const refs = await getReferenceCache();
   return mapInterventionRecord(result, refs);
@@ -150,21 +126,23 @@ export async function update(
   const payload = await stripAdminOnlyFields({ ...data }, auth);
 
   let oldStatutId: string | null = null;
-  let oldStatusCode: string | null = null;
   if (payload.statut_id) {
     const current = await fetchCurrentStatus(id);
     oldStatutId = current.statut_id;
-    oldStatusCode = current.statusCode;
   }
 
+  // Le changement de statut est enregistré par le trigger DB
+  // `log_intervention_status_transition_safety` (source unique). On propage l'acteur
+  // via `updated_by` pour que le trigger l'attribue correctement.
   const statusChanged = payload.statut_id && oldStatutId !== payload.statut_id;
-  if (statusChanged) {
-    await handleStatusTransition(id, oldStatutId, payload.statut_id!, oldStatusCode, auth?.userId);
-  }
 
   const { data: updated, error } = await supabaseClient
     .from("interventions")
-    .update({ ...payload, updated_at: new Date().toISOString() })
+    .update({
+      ...payload,
+      updated_at: new Date().toISOString(),
+      ...(auth?.userId ? { updated_by: auth.userId } : {}),
+    })
     .eq("id", id)
     .select(`
       *,
@@ -224,7 +202,6 @@ export async function upsertDirect(
 
   // 1. Vérifier si l'intervention existe déjà
   let existingIntervention: { id: string; statut_id: string | null } | null = null;
-  let oldStatusId: string | null = null;
 
   if (data.id_inter) {
     const { data: existing } = await client
@@ -234,57 +211,29 @@ export async function upsertDirect(
       .maybeSingle();
 
     existingIntervention = existing;
-    oldStatusId = existing?.statut_id || null;
   }
 
   const operation: "created" | "updated" = existingIntervention ? "updated" : "created";
   const matchedBy: "id_inter" | undefined = existingIntervention ? "id_inter" : undefined;
 
-  // 2. Faire l'upsert
+  // 2. Faire l'upsert (propagation de l'acteur : created_by à l'insertion, updated_by toujours)
+  const actorFields = auth?.userId
+    ? (existingIntervention
+        ? { updated_by: auth.userId }
+        : { created_by: auth.userId, updated_by: auth.userId })
+    : {};
+
   const { data: result, error } = await client
     .from("interventions")
-    .upsert(data, { onConflict: "id_inter", ignoreDuplicates: false })
+    .upsert({ ...data, ...actorFields }, { onConflict: "id_inter", ignoreDuplicates: false })
     .select()
     .single();
 
   if (error) throw new Error(`Erreur lors de l'upsert de l'intervention: ${error.message}`);
 
-  // 3. Créer la chaîne de transitions si nécessaire
-  if (result.statut_id) {
-    try {
-      if (!existingIntervention) {
-        await client
-          .from("intervention_status_transitions")
-          .delete()
-          .eq("intervention_id", result.id)
-          .eq("source", "trigger");
-      } else if (oldStatusId && oldStatusId !== result.statut_id) {
-        await client
-          .from("intervention_status_transitions")
-          .delete()
-          .eq("intervention_id", result.id)
-          .eq("from_status_id", oldStatusId)
-          .eq("to_status_id", result.statut_id)
-          .eq("source", "trigger");
-      }
-
-      const userId = await resolveUserId(auth?.userId);
-
-      await automaticTransitionService.createAutomaticTransitions(
-        result.id,
-        result.statut_id,
-        oldStatusId,
-        userId,
-        {
-          updated_via: "upsertDirect",
-          import_operation: true,
-          id_inter: data.id_inter,
-        },
-      );
-    } catch (transitionError) {
-      console.error("Erreur lors de la création des transitions automatiques:", transitionError);
-    }
-  }
+  // Les transitions (création ET changement de statut) sont enregistrées par les triggers DB
+  // `log_intervention_status_transition_on_insert` / `_safety` (source unique). Plus aucune
+  // chaîne synthétique ni suppression de la ligne trigger côté applicatif.
 
   const refs = await getReferenceCache();
   const intervention = mapInterventionRecord(result, refs);

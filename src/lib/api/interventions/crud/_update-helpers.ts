@@ -2,14 +2,14 @@
 // Helpers internes utilisés exclusivement par `update()` :
 // - stripAdminOnlyFields : retire les champs admin-only si pas admin
 // - fetchCurrentStatus   : pré-fetch du statut avant mise à jour
-// - handleStatusTransition : enregistre la transition (service auto + fallback RPC)
 // - recalculateArtisanStatuses : recalcule les statuts artisans liés sur transition terminale
+//
+// NB : l'enregistrement des transitions de statut est désormais assuré par les
+// triggers DB (source unique). Plus de service de chaîne synthétique côté app.
 
 import type { UpdateInterventionData } from "@/lib/api/common/types";
 import { getReferenceCache } from "@/lib/api/common/utils";
-import { automaticTransitionService } from "@/lib/interventions/automatic-transition-service";
-import type { InterventionStatusKey } from "@/config/interventions";
-import { supabaseClient, resolveUserId, resolveIsAdmin } from "./_auth";
+import { supabaseClient, resolveIsAdmin } from "./_auth";
 import type { InterventionAuthContext } from "./_auth";
 
 /** Retire contexte_intervention si l'appelant n'est pas admin. */
@@ -46,55 +46,6 @@ export async function fetchCurrentStatus(
     statut_id: data.statut_id,
     statusCode: statusObj?.code ?? null,
   };
-}
-
-/** Enregistre une transition de statut via le service automatique ou fallback RPC. */
-export async function handleStatusTransition(
-  interventionId: string,
-  oldStatutId: string | null,
-  newStatutId: string,
-  oldStatusCode: string | null,
-  providedUserId?: string,
-) {
-  try {
-    const userId = await resolveUserId(providedUserId);
-    const refs = await getReferenceCache();
-
-    const newStatusObj = refs.interventionStatusesById.get(newStatutId);
-    const newStatusCode = newStatusObj?.code as InterventionStatusKey;
-
-    const resolvedOldCode = oldStatusCode
-      ?? (oldStatutId ? (refs.interventionStatusesById.get(oldStatutId)?.code as InterventionStatusKey) : undefined);
-
-    if (newStatusCode && resolvedOldCode) {
-      await automaticTransitionService.executeTransition(
-        interventionId,
-        resolvedOldCode as InterventionStatusKey,
-        newStatusCode,
-        userId || undefined,
-        { updated_via: "api_v2", updated_at: new Date().toISOString() },
-      );
-    } else {
-      console.warn("[interventionsApi] Impossible de récupérer les codes de statut pour la transition", { oldStatutId, newStatutId });
-
-      const { error: transitionError } = await supabaseClient.rpc(
-        "log_status_transition_from_api",
-        {
-          p_intervention_id: interventionId,
-          p_from_status_id: oldStatutId || null,
-          p_to_status_id: newStatutId,
-          p_changed_by_user_id: userId,
-          p_metadata: { updated_via: "api_v2", updated_at: new Date().toISOString(), fallback: true },
-        },
-      );
-
-      if (transitionError) {
-        console.warn("[interventionsApi] Erreur lors de l'enregistrement de la transition (fallback):", transitionError);
-      }
-    }
-  } catch (error) {
-    console.warn("[interventionsApi] Erreur lors de l'enregistrement de la transition:", error);
-  }
 }
 
 /** Recalcule le statut des artisans liés quand l'intervention entre/sort d'un statut terminal. */

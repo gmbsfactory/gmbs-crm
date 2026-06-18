@@ -1,8 +1,10 @@
 // ===== INTERVENTIONS-V2 - SIDE EFFECTS =====
 // Effets de bord déclenchés par les transitions de statut :
-// - createAutomaticStatusTransitions : crée la chaîne de transitions à la création
 // - recalculateArtisanStatusInternal : recalcule le niveau d'un artisan (avec downgrade)
 // - handleInterventionCompletionSideEffects : update statut + dossier des artisans liés
+//
+// NB : la création des transitions de statut est assurée par le trigger DB
+// `log_intervention_status_transition_on_insert` (source unique).
 
 import { type SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import {
@@ -11,51 +13,6 @@ import {
   calculateDossierStatus,
 } from './helpers.ts';
 
-// Helper function pour créer les transitions automatiques lors de la création
-export async function createAutomaticStatusTransitions(
-  supabase: SupabaseClient,
-  interventionId: string,
-  statusId: string | null,
-  userId: string | null,
-  requestId: string
-): Promise<void> {
-  if (!statusId) {
-    return;
-  }
-
-  try {
-    // Récupérer le code du statut
-    const { data: statusData } = await supabase
-      .from('intervention_statuses')
-      .select('code')
-      .eq('id', statusId)
-      .single();
-
-    if (statusData?.code) {
-      // Appeler la fonction SQL pour créer les transitions automatiques
-      const { error: transitionError } = await supabase.rpc(
-        'create_automatic_status_transitions_on_creation',
-        {
-          p_intervention_id: interventionId,
-          p_to_status_code: statusData.code,
-          p_changed_by_user_id: userId,
-          p_metadata: {
-            created_via: 'edge_function',
-            request_id: requestId,
-          }
-        }
-      );
-
-      if (transitionError) {
-        console.warn(`Failed to create automatic status transitions: ${transitionError.message}`);
-        // Ne pas échouer la création si les transitions échouent
-      }
-    }
-  } catch (transitionErr) {
-    console.warn(`Error creating automatic status transitions: ${transitionErr}`);
-    // Ne pas échouer la création si les transitions échouent
-  }
-}
 /**
  * Fonction interne pour recalculer le statut d'un artisan basé sur ses interventions terminées.
  * Supporte le downgrade (si moins d'interventions terminées, le statut peut baisser).
