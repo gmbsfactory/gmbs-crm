@@ -702,6 +702,7 @@ export function EmailEditModal({
 
   const handleClose = () => {
     if (isSending) return; // Prevent closing while sending
+    if (showSstPriceConfirm) return; // Garder le modal email ouvert tant que la confirmation prix SST est affichée
     onClose();
   };
 
@@ -710,6 +711,14 @@ export function EmailEditModal({
       <DialogContent
         className="w-[85vw] max-w-[85vw] h-[90vh] max-h-[90vh] overflow-hidden z-[80] p-0 flex"
         overlayClassName="z-[75]"
+        onEscapeKeyDown={(event) => {
+          // Ne pas fermer le modal email pendant l'envoi ou quand la confirmation prix SST est ouverte
+          if (isSending || showSstPriceConfirm) event.preventDefault();
+        }}
+        onInteractOutside={(event) => {
+          // Les interactions dans l'AlertDialog (rendu via portal) ne doivent pas fermer le modal email
+          if (isSending || showSstPriceConfirm) event.preventDefault();
+        }}
       >
         <div className="flex flex-row w-full h-full">
           {/* Left: Preview - full height with zoom controls and scroll */}
@@ -995,28 +1004,45 @@ export function EmailEditModal({
               Choisissez si ce nouveau prix doit aussi être enregistré sur l&apos;intervention avant l&apos;envoi du mail.
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter className="flex-col sm:flex-row gap-2 sm:items-center">
-            <div className="flex-1">
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button type="button" variant="ghost" size="sm" disabled={isSending}>
-                    Voir plus d&apos;options
-                    <ChevronDown className="ml-2 h-4 w-4" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="start" className="w-72">
-                  <DropdownMenuItem onSelect={handleSendWithoutSavingPrice} disabled={isSending}>
-                    Envoyer avec le nouveau prix sans l&apos;enregistrer
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
+          <AlertDialogFooter className="flex-col gap-3 sm:flex-col sm:justify-start sm:space-x-0">
+            {/* Ligne 1 : option secondaire, isolée dans un menu déroulant (pas un choix par défaut) */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  disabled={isSending}
+                  className="w-full justify-between px-2 text-muted-foreground hover:text-foreground sm:w-auto sm:self-start sm:justify-start"
+                >
+                  Voir plus d&apos;options
+                  <ChevronDown className="ml-2 h-4 w-4 shrink-0" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="w-72 max-w-[calc(100vw-2rem)]">
+                <DropdownMenuItem
+                  onSelect={handleSendWithoutSavingPrice}
+                  disabled={isSending}
+                  className="whitespace-normal"
+                >
+                  Envoyer avec le nouveau prix sans l&apos;enregistrer
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            {/* Ligne 2 : actions principales — bouton de retour + validation */}
+            <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <AlertDialogCancel
+                onClick={() => setShowSstPriceConfirm(false)}
+                disabled={isSending}
+                className="mt-0"
+              >
+                Retour arrière
+              </AlertDialogCancel>
+              <AlertDialogAction onClick={handleSavePriceAndSend} disabled={isSending}>
+                Enregistrer nouveau prix et envoyer
+              </AlertDialogAction>
             </div>
-            <AlertDialogCancel onClick={() => setShowSstPriceConfirm(false)} disabled={isSending}>
-              Retour arrière
-            </AlertDialogCancel>
-            <AlertDialogAction onClick={handleSavePriceAndSend} disabled={isSending}>
-              Enregistrer nouveau prix et envoyer
-            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
