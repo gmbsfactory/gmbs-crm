@@ -2,6 +2,16 @@
 
 import { useEffect, useState, useRef, useCallback, useLayoutEffect } from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -11,9 +21,11 @@ import { X, Paperclip, Mail, Loader2, ZoomIn, ZoomOut, RotateCcw, CheckCircle2, 
 import { toast } from 'sonner';
 import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase-client';
-import { emailLogKeys } from '@/lib/react-query/queryKeys';
+import { interventionsApi } from '@/lib/api';
+import { emailLogKeys, interventionKeys } from '@/lib/react-query/queryKeys';
 import { useEmailLogsByType, type EmailLog } from '@/hooks/useEmailLogs';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import type { EmailTemplateData } from '@/lib/email-templates/intervention-emails';
 import { generateDevisEmailTemplate, generateInterventionEmailTemplate } from '@/lib/email-templates/intervention-emails';
 import DOMPurify from 'dompurify';
@@ -26,6 +38,11 @@ export interface EmailEditModalProps {
   artisanEmail: string;
   interventionId: string;
   templateData: EmailTemplateData;
+  sstPriceSaveContext?: {
+    originalValue: string;
+    artisanOrder: 1 | 2;
+    persistedArtisanOrder?: 1 | 2 | null;
+  };
 }
 
 interface AttachmentFile {
@@ -37,6 +54,87 @@ interface AttachmentFile {
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
 const MAX_ATTACHMENTS = 5;
+
+interface SstPriceChange {
+  previousAmount: number | null;
+  nextAmount: number;
+  previousLabel: string;
+  nextLabel: string;
+}
+
+function parseSstAmount(value: string | null | undefined): number | null {
+  const raw = String(value ?? '').trim();
+  if (!raw) return null;
+
+  const normalized = raw.replace(/\s/g, '').replace(',', '.');
+  const match = normalized.match(/-?\d+(?:\.\d+)?/);
+  if (!match) return null;
+
+  const amount = Number(match[0]);
+  return Number.isFinite(amount) ? amount : null;
+}
+
+function amountToCents(amount: number | null): number | null {
+  return amount === null ? null : Math.round(amount * 100);
+}
+
+function formatSstAmountLabel(amount: number | null, fallback?: string): string {
+  if (amount === null) {
+    const trimmedFallback = fallback?.trim();
+    return trimmedFallback || 'Non spécifié';
+  }
+
+  return new Intl.NumberFormat('fr-FR', {
+    style: 'currency',
+    currency: 'EUR',
+    minimumFractionDigits: amount % 1 === 0 ? 0 : 2,
+    maximumFractionDigits: 2,
+  }).format(amount);
+}
+
+function updateSstCostInCache(
+  old: any,
+  amount: number,
+  artisanOrder: 1 | 2,
+  persistedArtisanOrder: 1 | 2 | null,
+) {
+  if (!old) return old;
+
+  const existingCosts = Array.isArray(old.intervention_costs)
+    ? old.intervention_costs
+    : Array.isArray(old.costs)
+      ? old.costs
+      : [];
+
+  const matchesTargetCost = (cost: any) => (
+    cost.cost_type === 'sst' &&
+    (cost.artisan_order ?? 1) === artisanOrder
+  );
+
+  const existingCost = existingCosts.find(matchesTargetCost);
+  const nextCost = {
+    ...(existingCost || {}),
+    cost_type: 'sst',
+    amount,
+    label: artisanOrder === 2 ? 'Coût SST 2ème artisan' : 'Coût SST',
+    artisan_order: persistedArtisanOrder,
+  };
+
+  const nextCosts = existingCost
+    ? existingCosts.map((cost: any) => matchesTargetCost(cost) ? nextCost : cost)
+    : [...existingCosts, nextCost];
+
+  const totalSst = nextCosts
+    .filter((cost: any) => cost.cost_type === 'sst')
+    .reduce((sum: number, cost: any) => sum + (Number(cost.amount) || 0), 0);
+
+  return {
+    ...old,
+    costs: nextCosts,
+    intervention_costs: nextCosts,
+    coutSST: totalSst || old.coutSST,
+  };
+}
 
 function formatRelativeTime(dateStr: string): string {
   const date = new Date(dateStr);
@@ -106,6 +204,7 @@ export function EmailEditModal({
   artisanEmail,
   interventionId,
   templateData,
+  sstPriceSaveContext,
 }: EmailEditModalProps) {
   const queryClient = useQueryClient();
   const { data: emailHistory, isLoading: isHistoryLoading } = useEmailLogsByType(
@@ -118,6 +217,7 @@ export function EmailEditModal({
   const [htmlContent, setHtmlContent] = useState('');
   const [attachments, setAttachments] = useState<AttachmentFile[]>([]);
   const [isSending, setIsSending] = useState(false);
+  const [showSstPriceConfirm, setShowSstPriceConfirm] = useState(false);
   const [previewZoom, setPreviewZoom] = useState(100); // Zoom percentage (100 = 100%)
   const [optimalZoom, setOptimalZoom] = useState(100); // Calculated optimal zoom
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -321,34 +421,113 @@ export function EmailEditModal({
     return html.replace(/cid:logoGM/g, logoPath);
   }, []);
 
-  const handleSend = async () => {
-    // Validation
+  const getSstPriceChange = useCallback((): SstPriceChange | null => {
+    if (emailType !== 'intervention' || !sstPriceSaveContext) return null;
+
+    const previousAmount = parseSstAmount(sstPriceSaveContext.originalValue);
+    const nextAmount = parseSstAmount(editableData.coutSST);
+    if (nextAmount === null) return null;
+
+    if (amountToCents(previousAmount) === amountToCents(nextAmount)) return null;
+
+    return {
+      previousAmount,
+      nextAmount,
+      previousLabel: formatSstAmountLabel(previousAmount, sstPriceSaveContext.originalValue),
+      nextLabel: formatSstAmountLabel(nextAmount, editableData.coutSST),
+    };
+  }, [editableData.coutSST, emailType, sstPriceSaveContext]);
+
+  const validateSendFields = useCallback(() => {
     if (!subject || subject.trim().length === 0) {
       toast.error('Le sujet de l\'email est requis');
-      return;
+      return false;
     }
 
     if (!artisanId) {
       toast.error('Artisan non sélectionné');
+      return false;
+    }
+
+    return true;
+  }, [artisanId, subject]);
+
+  const persistSstPriceChange = useCallback(async (change: SstPriceChange) => {
+    if (!sstPriceSaveContext) return;
+
+    const priceToast = toast.loading('Mise à jour du prix SST...');
+    const persistedArtisanOrder = sstPriceSaveContext.persistedArtisanOrder === undefined
+      ? sstPriceSaveContext.artisanOrder
+      : sstPriceSaveContext.persistedArtisanOrder;
+
+    try {
+      await interventionsApi.upsertCost(interventionId, {
+        cost_type: 'sst',
+        label: sstPriceSaveContext.artisanOrder === 2 ? 'Coût SST 2ème artisan' : 'Coût SST',
+        amount: change.nextAmount,
+        artisan_order: persistedArtisanOrder,
+      });
+
+      queryClient.setQueryData(
+        interventionKeys.detail(interventionId),
+        (old: any) => updateSstCostInCache(
+          old,
+          change.nextAmount,
+          sstPriceSaveContext.artisanOrder,
+          persistedArtisanOrder,
+        ),
+      );
+
+      await queryClient.invalidateQueries({
+        queryKey: interventionKeys.detail(interventionId),
+        refetchType: 'all',
+      });
+      queryClient.invalidateQueries({ queryKey: ['admin', 'dashboard'] });
+      queryClient.invalidateQueries({ queryKey: ['podium'] });
+
+      toast.success('Prix SST mis à jour', {
+        id: priceToast,
+        description: `${change.previousLabel} → ${change.nextLabel}`,
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Erreur inconnue';
+      toast.error('Erreur lors de la mise à jour du prix SST', {
+        id: priceToast,
+        description: message,
+      });
+      throw Object.assign(error instanceof Error ? error : new Error(message), { toastShown: true });
+    }
+  }, [interventionId, queryClient, sstPriceSaveContext]);
+
+  const sendEmail = async ({ persistSstPrice = false }: { persistSstPrice?: boolean } = {}) => {
+    if (!validateSendFields()) {
       return;
     }
 
     setIsSending(true);
-    const sendingToast = toast.loading('Envoi en cours...');
+    let sendingToast: string | number | undefined;
 
     // Clear any existing timeout
     if (timeoutRef.current) {
       clearTimeout(timeoutRef.current);
+      timeoutRef.current = null;
     }
 
-    // Set timeout (70s frontend timeout)
-    timeoutRef.current = setTimeout(() => {
-      setIsSending(false);
-      toast.dismiss(sendingToast);
-      toast.error('L\'envoi a pris trop de temps. Veuillez vérifier votre connexion et réessayer.');
-    }, 70000);
-
     try {
+      const pendingSstPriceChange = getSstPriceChange();
+      if (persistSstPrice && pendingSstPriceChange) {
+        await persistSstPriceChange(pendingSstPriceChange);
+      }
+
+      sendingToast = toast.loading('Envoi en cours...');
+
+      // Set timeout (70s frontend timeout)
+      timeoutRef.current = setTimeout(() => {
+        setIsSending(false);
+        if (sendingToast !== undefined) toast.dismiss(sendingToast);
+        toast.error('L\'envoi a pris trop de temps. Veuillez vérifier votre connexion et réessayer.');
+      }, 70000);
+
       // Regenerate HTML with current editable data before sending
       const finalTemplateData: EmailTemplateData = {
         nomClient: templateData.nomClient,
@@ -375,7 +554,7 @@ export function EmailEditModal({
           : generateInterventionEmailTemplate(finalTemplateData);
       } catch (error) {
         console.error('[EmailEditModal] Failed to generate final template:', error);
-        toast.dismiss(sendingToast);
+        if (sendingToast !== undefined) toast.dismiss(sendingToast);
         toast.error('Erreur lors de la génération du template final');
         setIsSending(false);
         if (timeoutRef.current) {
@@ -386,7 +565,7 @@ export function EmailEditModal({
       }
 
       if (!finalHtmlContent || finalHtmlContent.trim().length === 0) {
-        toast.dismiss(sendingToast);
+        if (sendingToast !== undefined) toast.dismiss(sendingToast);
         toast.error('Le contenu de l\'email est vide');
         setIsSending(false);
         if (timeoutRef.current) {
@@ -414,7 +593,7 @@ export function EmailEditModal({
       const token = session?.session?.access_token;
 
       if (!token) {
-        toast.dismiss(sendingToast);
+        if (sendingToast !== undefined) toast.dismiss(sendingToast);
         toast.error('Session expirée. Veuillez vous reconnecter.');
         setIsSending(false);
         if (timeoutRef.current) {
@@ -462,7 +641,7 @@ export function EmailEditModal({
         logId?: string | null;
       } | undefined;
 
-      toast.dismiss(sendingToast);
+      if (sendingToast !== undefined) toast.dismiss(sendingToast);
 
       // Warn if some recipients were rejected
       if (responseData?.rejected && responseData.rejected.length > 0) {
@@ -488,12 +667,37 @@ export function EmailEditModal({
         timeoutRef.current = null;
       }
 
-      toast.dismiss(sendingToast);
+      if (sendingToast !== undefined) toast.dismiss(sendingToast);
       const errorMessage = error instanceof Error ? error.message : 'Erreur lors de l\'envoi de l\'email';
-      toast.error(errorMessage);
+      if (!(error instanceof Error && (error as Error & { toastShown?: boolean }).toastShown)) {
+        toast.error(errorMessage);
+      }
     } finally {
       setIsSending(false);
     }
+  };
+
+  const handleSend = () => {
+    if (!validateSendFields()) {
+      return;
+    }
+
+    if (getSstPriceChange()) {
+      setShowSstPriceConfirm(true);
+      return;
+    }
+
+    void sendEmail();
+  };
+
+  const handleSavePriceAndSend = () => {
+    setShowSstPriceConfirm(false);
+    void sendEmail({ persistSstPrice: true });
+  };
+
+  const handleSendWithoutSavingPrice = () => {
+    setShowSstPriceConfirm(false);
+    void sendEmail({ persistSstPrice: false });
   };
 
   const handleClose = () => {
@@ -770,7 +974,52 @@ export function EmailEditModal({
           </DialogDescription>
         </DialogHeader>
       </DialogContent>
+
+      <AlertDialog
+        open={showSstPriceConfirm}
+        onOpenChange={(open) => {
+          if (!isSending) setShowSstPriceConfirm(open);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {(() => {
+                const change = getSstPriceChange();
+                return change
+                  ? `Le prix SST passe de ${change.previousLabel} → ${change.nextLabel}`
+                  : 'Le prix SST a été modifié';
+              })()}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Choisissez si ce nouveau prix doit aussi être enregistré sur l&apos;intervention avant l&apos;envoi du mail.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="flex-col sm:flex-row gap-2 sm:items-center">
+            <div className="flex-1">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button type="button" variant="ghost" size="sm" disabled={isSending}>
+                    Voir plus d&apos;options
+                    <ChevronDown className="ml-2 h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="w-72">
+                  <DropdownMenuItem onSelect={handleSendWithoutSavingPrice} disabled={isSending}>
+                    Envoyer avec le nouveau prix sans l&apos;enregistrer
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+            <AlertDialogCancel onClick={() => setShowSstPriceConfirm(false)} disabled={isSending}>
+              Retour arrière
+            </AlertDialogCancel>
+            <AlertDialogAction onClick={handleSavePriceAndSend} disabled={isSending}>
+              Enregistrer nouveau prix et envoyer
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Dialog>
   );
 }
-

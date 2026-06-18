@@ -446,6 +446,39 @@ export const InterventionEditForm = memo(function InterventionEditForm({
     [selectedArtisanId, formData],
   )
 
+  const emailSstPriceSaveContext = useMemo(() => {
+    if (!emailModalState || emailModalState.type !== "intervention") return undefined
+
+    const linkedArtisan = artisans.find((artisanLink) => artisanLink.artisan_id === emailModalState.artisanId)
+    const artisanOrder: 1 | 2 = linkedArtisan
+      ? (linkedArtisan.is_primary ? 1 : 2)
+      : emailModalState.artisanId === selectedSecondArtisanId
+        ? 2
+        : 1
+    const existingSstCost = artisanOrder === 2 ? sstCostSecondArtisan : sstCost
+    const persistedArtisanOrder: 1 | 2 | null = existingSstCost && "artisan_order" in existingSstCost
+      ? existingSstCost.artisan_order === 2
+        ? 2
+        : existingSstCost.artisan_order === null
+          ? null
+          : 1
+      : artisanOrder
+
+    return {
+      originalValue: artisanOrder === 2 ? formData.coutSSTSecondArtisan : formData.coutSST,
+      artisanOrder,
+      persistedArtisanOrder,
+    }
+  }, [
+    artisans,
+    emailModalState,
+    formData.coutSST,
+    formData.coutSSTSecondArtisan,
+    selectedSecondArtisanId,
+    sstCost,
+    sstCostSecondArtisan,
+  ])
+
   // Edit-specific: handleOpenArtisanModal with intervention context
   const handleOpenArtisanModal = useCallback((artisanId: string, event: React.MouseEvent) => {
     event.stopPropagation()
@@ -932,6 +965,7 @@ export const InterventionEditForm = memo(function InterventionEditForm({
               }
               interventionId={intervention.id}
               templateData={generateEmailTemplateData(emailModalState.artisanId)}
+              sstPriceSaveContext={emailSstPriceSaveContext}
             />
           )}
         </fieldset>
