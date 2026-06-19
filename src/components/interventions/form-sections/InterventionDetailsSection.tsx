@@ -46,8 +46,10 @@ export function InterventionDetailsSection({
 
   return (
     <>
-      {/* DIV5: CONTEXTE INTERVENTION - Row 5, Cols 1-2 */}
-      <Card style={{ gridArea: "5 / 1 / 6 / 3" }} className="flex flex-col">
+      {/* DIV5+6: CONTEXTE + CONSIGNE - Row 5 (2 colonnes, empilées si le modal devient étroit) */}
+      <div className="if-textareas" style={{ gridArea: "5 / 1 / 6 / 5" }}>
+      {/* Contexte */}
+      <Card className="flex flex-col">
         <CardContent className="p-4 flex flex-col flex-1 min-h-0">
           <Label htmlFor="contexteIntervention" className="text-xs font-medium mb-2 block">Contexte intervention *</Label>
           <Presence fieldName="contexteIntervention">
@@ -67,9 +69,8 @@ export function InterventionDetailsSection({
         </CardContent>
       </Card>
 
-      {/* DIV6: CONSIGNE INTERVENTION - Row 5, Cols 3-4 */}
+      {/* Consigne */}
       <Card
-        style={{ gridArea: "5 / 3 / 6 / 5" }}
         className={cn("flex flex-col", requiresConsigneArtisan && !formData.consigne_intervention?.trim() && "ring-2 ring-orange-400/50")}
       >
         <CardContent className="p-4 flex flex-col flex-1 min-h-0">
@@ -91,6 +92,7 @@ export function InterventionDetailsSection({
           </Presence>
         </CardContent>
       </Card>
+      </div>
 
       {/* DIV4: FINANCES & PLANIFICATION - Row 6, Cols 1-4 */}
       <Card
@@ -100,7 +102,7 @@ export function InterventionDetailsSection({
         )}
       >
         <CardContent className="p-4">
-          <div className="grid grid-cols-5 gap-3 items-end">
+          <div className="if-costs">
             <Presence fieldName="coutIntervention">
               <div>
                 <Label htmlFor="coutIntervention" className="text-xs">

@@ -438,3 +438,68 @@
     letter-spacing: 0.01em;
   }
 }
+
+/* === Modal intervention — responsive interne (container queries) ===
+   Hors @layer : priorité supérieure aux utilitaires Tailwind pour les overrides ciblés.
+   Conteneur de référence = le <form> (.if-form-container). On s'adapte à SA largeur réelle,
+   donc le comportement est correct dans les 3 modes (demi-page / centrée / plein écran). */
+.if-form-container {
+  container-type: inline-size;
+  container-name: ifmodal;
+}
+
+.if-grid {
+  min-height: 100%;
+}
+
+.if-textareas {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+  min-height: 0;
+}
+
+.if-costs {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 0.75rem;
+  align-items: end;
+}
+
+/* Conteneur étroit : empiler les 2 grandes colonnes (sections de droite sous le formulaire),
+   empiler Contexte/Consigne, et resserrer la barre de coûts. */
+@container ifmodal (max-width: 560px) {
+  .if-columns {
+    flex-direction: column;
+    overflow-y: auto;
+  }
+  .if-columns > .if-col-left {
+    flex: none;
+    overflow: visible;
+    min-height: 0;
+  }
+  .if-columns > .if-col-right {
+    flex: none;
+    width: 100% !important;
+    overflow: visible;
+  }
+  .if-grid {
+    min-height: 0;
+  }
+  .if-resize-handle {
+    display: none;
+  }
+  .if-textareas {
+    grid-template-columns: 1fr;
+  }
+  .if-costs {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+/* Très étroit : coûts sur 2 colonnes */
+@container ifmodal (max-width: 400px) {
+  .if-costs {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}

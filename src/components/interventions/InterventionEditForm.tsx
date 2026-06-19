@@ -609,7 +609,7 @@ export const InterventionEditForm = memo(function InterventionEditForm({
 
   return (
     <>
-      <form ref={formRef} onSubmit={handleSubmit} className="flex-1 min-h-0 flex flex-col">
+      <form ref={formRef} onSubmit={handleSubmit} className="flex-1 min-h-0 flex flex-col if-form-container">
         {!canEditIntervention && !readOnly && (
           <div className="mb-3 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
             Cette intervention est en lecture seule. Permission requise :{" "}
@@ -618,12 +618,12 @@ export const InterventionEditForm = memo(function InterventionEditForm({
         )}
         <fieldset className={cn("flex-1 min-h-0 flex flex-col", readOnly && "pointer-events-none select-none")} disabled={readOnly}>
           {/* LAYOUT DEUX COLONNES DISTINCTES - Chaque colonne a son propre scroll */}
-          <div className="flex gap-3 flex-1 min-h-0">
+          <div className="flex gap-3 flex-1 min-h-0 if-columns">
             {/* COLONNE GAUCHE - Scroll indépendant avec scrollbar minimale à gauche */}
-            <div className="flex-1 min-w-0 overflow-y-auto min-h-0 scrollbar-minimal scrollbar-left">
+            <div className="flex-1 min-w-0 overflow-y-auto min-h-0 scrollbar-minimal scrollbar-left if-col-left">
               <SectionLock isLocked={!canEditIntervention} className="h-full">
                 <div
-                  className="grid gap-3 min-h-full"
+                  className="grid gap-3 if-grid"
                   style={{
                     gridTemplateColumns: "repeat(4, 1fr)",
                     // Rangées 4 (carte+artisans) et 5 (contexte/consigne) flexibles : elles se
@@ -842,7 +842,7 @@ export const InterventionEditForm = memo(function InterventionEditForm({
             <div
               onMouseDown={handleResizeStart}
               onTouchStart={handleResizeStart}
-              className="w-2 bg-muted/50 hover:bg-primary/20 transition-colors cursor-col-resize flex-shrink-0 group relative flex items-center justify-center"
+              className="if-resize-handle w-2 bg-muted/50 hover:bg-primary/20 transition-colors cursor-col-resize flex-shrink-0 group relative flex items-center justify-center"
               style={{ touchAction: 'none', userSelect: 'none' }}
             >
               <div className="flex h-full items-center justify-center">
@@ -856,7 +856,7 @@ export const InterventionEditForm = memo(function InterventionEditForm({
 
             {/* COLONNE DROITE - Collapsibles avec scroll indépendant et scrollbar minimale */}
             <div
-              className="flex-shrink-0 overflow-y-auto min-h-0 scrollbar-minimal"
+              className="if-col-right flex-shrink-0 overflow-y-auto min-h-0 scrollbar-minimal"
               style={{ width: `${rightColumnWidth}px` }}
             >
               <div className="flex flex-col gap-2 pb-4 min-h-full">
