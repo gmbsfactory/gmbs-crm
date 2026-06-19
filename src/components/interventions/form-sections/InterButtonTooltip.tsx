@@ -32,7 +32,7 @@ export function InterButtonTooltip({ missingFields, className, children }: Inter
         </TooltipTrigger>
         {hasMissing && (
           <TooltipContent side="top" className="max-w-[240px]">
-            <p className="mb-1 text-[11px] font-medium">À compléter pour débloquer l'envoi :</p>
+            <p className="mb-1 text-[11px] font-medium">À compléter pour débloquer l&apos;envoi :</p>
             <ul className="list-disc space-y-0.5 pl-4 text-[11px]">
               {missingFields.map((field) => (
                 <li key={field}>{field}</li>
