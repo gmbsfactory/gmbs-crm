@@ -88,7 +88,14 @@ export function parseCSVDate(value: unknown): Date {
     context.parsed = parsed
 
     // Validate the parsed date
-    if (!isValidDate(parsed)) {
+    // Validate: JS auto-corrige les dates impossibles (ex 30/02 -> 02/03). On rejette donc
+    // toute entrée dont les composants ont été décalés au parsing (date calendaire inexistante).
+    if (
+      !isValidDate(parsed) ||
+      parsed.getUTCFullYear() !== Number(year) ||
+      parsed.getUTCMonth() + 1 !== Number(month) ||
+      parsed.getUTCDate() !== Number(day)
+    ) {
       throw new Error(
         `Invalid date: ${trimmed} parses to invalid date ${isoString}. ` +
           `Check month (01-12) and day are valid for the year.`
@@ -114,7 +121,14 @@ export function parseCSVDate(value: unknown): Date {
     const parsed = new Date(isoString)
     context.parsed = parsed
 
-    if (!isValidDate(parsed)) {
+    // Validate: JS auto-corrige les dates impossibles (ex 30/02 -> 02/03). On rejette donc
+    // toute entrée dont les composants ont été décalés au parsing (date calendaire inexistante).
+    if (
+      !isValidDate(parsed) ||
+      parsed.getUTCFullYear() !== Number(year) ||
+      parsed.getUTCMonth() + 1 !== Number(month) ||
+      parsed.getUTCDate() !== Number(day)
+    ) {
       throw new Error(
         `Invalid date: ${trimmed} parses to invalid date ${isoString}. ` +
           `Check month (01-12) and day are valid for the year.`
@@ -320,7 +334,8 @@ export function getDateParseDebugInfo(
     input: value,
     inputType: typeof value,
     inputIsArray: Array.isArray(value),
-    inputLength: typeof value === 'string' ? value.length : undefined,
+    inputLength:
+      typeof value === 'string' || Array.isArray(value) ? value.length : undefined,
     error: error.message,
     timestamp: new Date().toISOString(),
   }
