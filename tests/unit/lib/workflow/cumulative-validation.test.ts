@@ -112,11 +112,15 @@ describe('cumulative-validation', () => {
       expect(ruleKeys).toContain('INTERVENTION_ID_REQUIRED')
     })
 
-    it('should return ACCEPTE_DEVIS_REQUIRED for ACCEPTE', () => {
+    it('should return INTERVENTION_ID_REQUIRED for ACCEPTE (devis requirement removed)', () => {
       const rules = getEntryRulesForStatus('ACCEPTE')
       const ruleKeys = rules.map(r => r.key)
 
-      expect(ruleKeys).toContain('ACCEPTE_DEVIS_REQUIRED')
+      // ACCEPTE_DEVIS_REQUIRED was intentionally removed (commit b2a1a985
+      // "remove devis required for ACCEPTE"). ACCEPTE now only inherits the
+      // generic INTERVENTION_ID_REQUIRED rule via its `statuses` array.
+      expect(ruleKeys).toContain('INTERVENTION_ID_REQUIRED')
+      expect(ruleKeys).not.toContain('ACCEPTE_DEVIS_REQUIRED')
     })
 
     it('should NOT include rules with a from constraint', () => {
@@ -203,8 +207,8 @@ describe('cumulative-validation', () => {
       expect(ruleKeys).toContain('DEVIS_ENVOYE_ASSIGNED_USER')
       // INTERVENTION_ID_REQUIRED applies to DEVIS_ENVOYE via statuses
       expect(ruleKeys).toContain('INTERVENTION_ID_REQUIRED')
-      // From ACCEPTE
-      expect(ruleKeys).toContain('ACCEPTE_DEVIS_REQUIRED')
+      // ACCEPTE no longer contributes ACCEPTE_DEVIS_REQUIRED (removed in b2a1a985)
+      expect(ruleKeys).not.toContain('ACCEPTE_DEVIS_REQUIRED')
     })
 
     it('should include all predecessor rules when target is INTER_TERMINEE', () => {
@@ -219,8 +223,8 @@ describe('cumulative-validation', () => {
       // From DEVIS_ENVOYE predecessors
       expect(ruleKeys).toContain('DEVIS_ENVOYE_NOM_FACTURATION')
       expect(ruleKeys).toContain('DEVIS_ENVOYE_ASSIGNED_USER')
-      // From ACCEPTE
-      expect(ruleKeys).toContain('ACCEPTE_DEVIS_REQUIRED')
+      // ACCEPTE no longer contributes ACCEPTE_DEVIS_REQUIRED (removed in b2a1a985)
+      expect(ruleKeys).not.toContain('ACCEPTE_DEVIS_REQUIRED')
       // From INTER_EN_COURS predecessors
       expect(ruleKeys).toContain('INTER_EN_COURS_COUT_INTERVENTION')
       expect(ruleKeys).toContain('INTER_EN_COURS_COUT_SST')

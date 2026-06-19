@@ -24,6 +24,13 @@ const { mockUser, mockSupabase, mockPermissions, mockApi } = vi.hoisted(() => {
     },
     interventionsImportApi: {
       findIdsByIdInter: vi.fn(),
+      // `runImport` appelle aussi `this.resolveByComposite` (matching par clé
+      // composite agence/date/adresse, ajouté après l'écriture initiale de ce
+      // test). Sans ce stub, `this.resolveByComposite is not a function` fait
+      // rejeter le Promise.all interne → réponse 500. On le stube pour qu'il
+      // ne renvoie aucun match composite : ces tests ciblent le matching par
+      // id_inter (findIdsByIdInter) et la dédup, pas la résolution composite.
+      resolveByComposite: vi.fn(),
       createFromImport: vi.fn(),
       updateFromImport: vi.fn(),
       bulkInsert: vi.fn(),
@@ -115,11 +122,24 @@ function setupApi(opts: {
   )
   mockApi.interventionsImportApi.findIdsByIdInter.mockResolvedValue(existingMap)
 
-  // bulkInsert / bulkUpdateByIds échouent → fallback per-row dans runImport.
-  // Pour simuler une erreur DB, on rejette le bulk ET le per-row.
-  mockApi.interventionsImportApi.bulkInsert.mockImplementation(async () => {
-    if (insertError) throw insertError
-  })
+  // Aucun match par clé composite : la classification repose uniquement sur
+  // les id_inter résolus par findIdsByIdInter ci-dessus.
+  mockApi.interventionsImportApi.resolveByComposite.mockResolvedValue(
+    new Map<number, string[]>(),
+  )
+
+  // Contrat réel respecté : bulkInsert renvoie le tableau des IDs insérés
+  // (un par payload, dans l'ordre d'envoi). runImport fait `ids.length` puis
+  // `inserted += chunk.length` — un retour `undefined` ferait planter sur
+  // `.length` et déclencherait à tort le fallback per-row (double comptage).
+  // Pour simuler une erreur DB : on rejette le bulk ET le per-row, afin
+  // d'exercer le fallback puis l'attribution d'erreur ligne-par-ligne.
+  mockApi.interventionsImportApi.bulkInsert.mockImplementation(
+    async (_supabase: unknown, payloads: unknown[]) => {
+      if (insertError) throw insertError
+      return payloads.map((_, i) => `new-db-id-${i}`)
+    },
+  )
   mockApi.interventionsImportApi.bulkUpdateByIds.mockImplementation(async () => {
     if (updateError) throw updateError
   })
@@ -226,7 +246,11 @@ describe('POST /api/imports/interventions', () => {
 
     it('rapporte les erreurs de mapping sans écrire en base', async () => {
       setupApi()
-      const row = VALID_ROW.replace('PARIS', 'AGENCE_INCONNUE')
+      // Une agence inconnue n'invalide PAS une ligne : le mapper retombe sur
+      // l'agence "DEFAUT" avec un simple warning (cf. intervention-mapper.ts).
+      // Pour exercer le rapport d'erreurs de mapping, on déclenche une vraie
+      // erreur : une Date invalide → InvalidRow (champ Date requis).
+      const row = VALID_ROW.replace('15/03/2024', 'pas-une-date')
       const req = makeRequest(makeCsvContent([row]), { dryRun: true })
       const res = await POST(req)
       expect(res.status).toBe(200)

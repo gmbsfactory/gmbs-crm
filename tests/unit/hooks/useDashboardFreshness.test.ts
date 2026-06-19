@@ -14,24 +14,24 @@ vi.mock('@/lib/device-capabilities', () => ({
 import { useDashboardFreshness } from '@/hooks/useDashboardFreshness'
 
 describe('useDashboardFreshness', () => {
-  it('should return T3 polling interval (30s)', () => {
+  it('should return T3 polling interval (2 min)', () => {
     const { result } = renderHook(() => useDashboardFreshness())
 
-    expect(result.current.pollingInterval).toBe(30_000)
+    expect(result.current.pollingInterval).toBe(2 * 60_000)
   })
 
   it('should return T3 query options with correct staleTime and gcTime', () => {
     const { result } = renderHook(() => useDashboardFreshness())
     const { queryOptions } = result.current
 
-    expect(queryOptions.staleTime).toBe(15_000)
+    expect(queryOptions.staleTime).toBe(60_000)
     expect(queryOptions.gcTime).toBe(5 * 60 * 1000)
   })
 
   it('should set refetchInterval to match polling interval', () => {
     const { result } = renderHook(() => useDashboardFreshness())
 
-    expect(result.current.queryOptions.refetchInterval).toBe(30_000)
+    expect(result.current.queryOptions.refetchInterval).toBe(2 * 60_000)
   })
 
   it('should disable refetch in background', () => {
@@ -75,8 +75,8 @@ describe('useDashboardFreshness (low-end device)', () => {
     )
     const { result } = renderHook(() => useDashboardFreshnessLowEnd())
 
-    expect(result.current.pollingInterval).toBe(60_000)
-    expect(result.current.queryOptions.staleTime).toBe(30_000)
-    expect(result.current.queryOptions.refetchInterval).toBe(60_000)
+    expect(result.current.pollingInterval).toBe(5 * 60_000)
+    expect(result.current.queryOptions.staleTime).toBe(2 * 60_000)
+    expect(result.current.queryOptions.refetchInterval).toBe(5 * 60_000)
   })
 })
