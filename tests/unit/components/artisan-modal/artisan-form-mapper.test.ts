@@ -28,6 +28,7 @@ const emptyForm: ArtisanFormValues = {
   numero_associe: "",
   intervention_latitude: null,
   intervention_longitude: null,
+  commentaire_initial: "",
 }
 
 describe("artisan-form-mapper", () => {

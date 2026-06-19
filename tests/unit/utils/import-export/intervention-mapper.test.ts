@@ -165,7 +165,11 @@ describe('mapInterventionFromCSV', () => {
     }
   });
 
-  it('accepte une ligne avec ID malformé si adresse présente (warning + fallback composite)', async () => {
+  it('conserve un ID non-numérique tel quel (trim + uppercase, plus de validation de format)', async () => {
+    // Depuis le passage au matching composite (commit 1c8cf4f5) puis la
+    // réécriture de extractInterventionId (id-parser.ts), tout ID non vide est
+    // conservé brut (uppercase) ; il n'y a plus de validation "doit commencer
+    // par des chiffres". Aucun warning "ID invalide" n'est donc émis.
     const result = await mapInterventionFromCSV(
       { ...BASE_ROW, ID: 'ABC-NOPE', Adresse: '12 rue de la Paix' },
       resolver,
@@ -173,9 +177,9 @@ describe('mapInterventionFromCSV', () => {
     );
     expect('_invalid' in result).toBe(false);
     if ('_invalid' in result) return;
-    expect(result.id_inter).toBeNull();
+    expect(result.id_inter).toBe('ABC-NOPE');
     expect(result.adresse).toBe('12 rue de la Paix');
-    expect(result.warnings.some((w) => w.field === 'ID' && /invalide/i.test(w.reason))).toBe(true);
+    expect(result.warnings.some((w) => w.field === 'ID')).toBe(false);
   });
 
   it('produit un warning si % SST hors plage', async () => {

@@ -21,10 +21,17 @@ vi.mock("sonner", () => ({
 
 vi.mock("@/lib/reference-api", () => ({
   referenceApi: {
+    // Doit refléter la forme complète de ReferenceData (6 clés) : le cache de
+    // référence (src/lib/api/common/cache.ts) fait `.map()` sur chacune,
+    // y compris `allUsers` et `artisanStatuses`. Un objet partiel fait planter
+    // le cache (TypeError sur undefined.map), et le middleware
+    // `invalidateComptabiliteIfTerminee` propage alors l'erreur hors pipeline.
     getAll: vi.fn().mockResolvedValue({
       users: [],
+      allUsers: [],
       agencies: [],
       interventionStatuses: [],
+      artisanStatuses: [],
       metiers: [],
     }),
   },

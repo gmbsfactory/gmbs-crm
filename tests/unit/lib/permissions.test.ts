@@ -321,8 +321,8 @@ describe('permissions - getAuthenticatedUser', () => {
       expect(result!.permissions.has('manage_settings')).toBe(true)
       expect(result!.permissions.has('view_admin')).toBe(true)
       expect(result!.permissions.has('delete_interventions')).toBe(true)
-      // admin has all 15 permissions defined in ROLE_PERMISSIONS
-      expect(result!.permissions.size).toBe(15)
+      // admin has all 17 permissions defined in ROLE_PERMISSIONS
+      expect(result!.permissions.size).toBe(17)
     })
 
     it('charge les permissions depuis ROLE_PERMISSIONS quand supabaseAdmin est null (gestionnaire)', async () => {
@@ -337,7 +337,7 @@ describe('permissions - getAuthenticatedUser', () => {
       expect(result!.permissions.has('read_artisans')).toBe(true)
       expect(result!.permissions.has('write_artisans')).toBe(true)
       expect(result!.permissions.has('read_users')).toBe(true)
-      expect(result!.permissions.size).toBe(5)
+      expect(result!.permissions.size).toBe(6)
       // gestionnaire should NOT have admin permissions
       expect(result!.permissions.has('manage_settings')).toBe(false)
       expect(result!.permissions.has('view_admin')).toBe(false)
