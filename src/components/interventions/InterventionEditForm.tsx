@@ -753,8 +753,11 @@ export const InterventionEditForm = memo(function InterventionEditForm({
                   </Card>
 
                   {/* DIV7+8: CARTE + ARTISANS REDIMENSIONNABLES - Row 4, Cols 1-4 */}
-                  {/* min-h-0 : laisse la rangée flexible piloter la hauteur (le ResizablePanelGroup est en h-full) */}
-                  <div className="min-h-0" style={{ gridArea: "4 / 1 / 5 / 5" }}>
+                  {/* Rangée flexible : un calque absolu borne la section à la hauteur de sa rangée, pour que la
+                      liste d'artisans scrolle à l'intérieur (sinon une longue liste déborde et masque contexte/prix).
+                      Le contenu absolu ne peut pas faire grandir la cellule → hauteur stable quel que soit le nb d'artisans. */}
+                  <div className="relative min-h-0" style={{ gridArea: "4 / 1 / 5 / 5" }}>
+                    <div className="absolute inset-0">
                     <ResizablePanelGroup
                       key={`panel-group-${currentUser?.id ?? "anonymous"}`}
                       direction="horizontal"
@@ -816,6 +819,7 @@ export const InterventionEditForm = memo(function InterventionEditForm({
                         />
                       </ResizablePanel>
                     </ResizablePanelGroup>
+                    </div>
                   </div>
 
                   {/* DIV5+6+4: CONTEXTE + CONSIGNE + FINANCES */}
