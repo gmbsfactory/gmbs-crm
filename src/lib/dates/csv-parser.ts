@@ -288,8 +288,8 @@ export function createDateRangeFromStrings(
  *
  * Excel serial dates are days since 1899-12-30
  * - 1 = 1899-12-31
- * - 44927 = 2022-12-31
- * - 45000+ = 2023-01-01+
+ * - 44926 = 2022-12-31
+ * - 45000 = 2023-03-15
  *
  * @param serial - Excel serial number
  * @returns Parsed Date or null if invalid
@@ -300,9 +300,8 @@ function parseExcelSerialDate(serial: number): Date | null {
     return null
   }
 
-  // Excel dates are days since 1899-12-30, but use 1-based indexing
-  // So serial 1 = 1899-12-31
-  const milliseconds = (serial - 1) * 24 * 60 * 60 * 1000
+  // Excel dates are days since the 1899-12-30 epoch (serial 1 = 1899-12-31).
+  const milliseconds = serial * 24 * 60 * 60 * 1000
   const date = new Date(EXCEL_EPOCH_TIME + milliseconds)
 
   // Validate the result
