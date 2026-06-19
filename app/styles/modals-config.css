@@ -466,9 +466,10 @@
   align-items: end;
 }
 
-/* Conteneur étroit : empiler les 2 grandes colonnes (sections de droite sous le formulaire),
-   empiler Contexte/Consigne, et resserrer la barre de coûts. */
-@container ifmodal (max-width: 560px) {
+/* ÉTAT INTERMÉDIAIRE — conteneur un peu étroit : on empile les 2 grandes colonnes
+   (sections de droite sous le formulaire). Le formulaire garde sa pleine largeur, donc
+   Contexte/Consigne restent côte à côte et les coûts sur une ligne tant qu'il y a la place. */
+@container ifmodal (max-width: 640px) {
   .if-columns {
     flex-direction: column;
     overflow-y: auto;
@@ -489,6 +490,10 @@
   .if-resize-handle {
     display: none;
   }
+}
+
+/* Plus étroit : empiler Contexte/Consigne et resserrer la barre de coûts */
+@container ifmodal (max-width: 500px) {
   .if-textareas {
     grid-template-columns: 1fr;
   }
@@ -498,7 +503,7 @@
 }
 
 /* Très étroit : coûts sur 2 colonnes */
-@container ifmodal (max-width: 400px) {
+@container ifmodal (max-width: 380px) {
   .if-costs {
     grid-template-columns: repeat(2, 1fr);
   }
