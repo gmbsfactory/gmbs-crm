@@ -45,6 +45,7 @@ import { dbArtisanToNearbyArtisan } from "@/lib/interventions/form-utils"
 import { createEditFormData } from "@/lib/interventions/form-types"
 import {
   getArtisansWithEmail,
+  getInterventionEmailMissingFields,
   isInterventionEmailButtonDisabled,
 } from "@/lib/interventions/derivations"
 
@@ -445,6 +446,11 @@ export const InterventionEditForm = memo(function InterventionEditForm({
     () => isInterventionEmailButtonDisabled({ selectedArtisanId, formData }),
     [selectedArtisanId, formData],
   )
+  // Champs encore manquants — alimente le tooltip du bouton Inter. désactivé
+  const interMissingFields = useMemo(
+    () => getInterventionEmailMissingFields(formData),
+    [formData],
+  )
 
   const emailSstPriceSaveContext = useMemo(() => {
     if (!emailModalState || emailModalState.type !== "intervention") return undefined
@@ -777,6 +783,7 @@ export const InterventionEditForm = memo(function InterventionEditForm({
                           artisanStatuses={refData?.artisanStatuses}
                           isDevisButtonDisabled={isDevisButtonDisabled}
                           isInterButtonDisabled={isInterButtonDisabled}
+                          interMissingFields={interMissingFields}
                           openEmailModal={openEmailModal}
                           handleOpenWhatsApp={handleOpenWhatsApp}
                           handleSelectNearbyArtisan={handleSelectNearbyArtisan}
@@ -901,6 +908,7 @@ export const InterventionEditForm = memo(function InterventionEditForm({
                     artisanStatuses={refData?.artisanStatuses}
                     metiers={refData?.metiers}
                     isInterButtonDisabled={isInterButtonDisabled}
+                    interMissingFields={interMissingFields}
                     openEmailModal={openEmailModal}
                     handleOpenWhatsApp={handleOpenWhatsApp}
                     handleSelectSecondArtisan={handleSelectSecondArtisan}

@@ -141,37 +141,60 @@ export function getSelectableUsers<T extends UserLike>(params: {
 // isInterventionEmailButtonDisabled
 // ============================================================================
 
+/** Champs requis pour l'envoi de l'ordre d'intervention (transition INTER_EN_COURS). */
+type InterventionEmailFormData = Pick<
+  InterventionFormData,
+  | 'id_inter'
+  | 'coutIntervention'
+  | 'coutSST'
+  | 'consigne_intervention'
+  | 'nomPrenomClient'
+  | 'telephoneClient'
+  | 'date_prevue'
+  | 'is_vacant'
+>
+
 /**
- * Returns true if the "Send intervention email" button should be disabled.
+ * Returns the list of human-readable field labels still missing before the
+ * "Send intervention email" (Inter.) button can be enabled.
  *
  * All fields required for a valid INTER_EN_COURS transition must be filled,
  * because sending the intervention email implies the intervention is ready
  * to dispatch. Client fields are optional for vacant housing.
+ *
+ * The artisan selection itself is intentionally NOT included here: the email
+ * section is only rendered once an artisan is selected, so this list is meant
+ * to populate the disabled-button tooltip with the remaining form fields.
+ */
+export function getInterventionEmailMissingFields(
+  formData: InterventionEmailFormData,
+): string[] {
+  const missing: string[] = []
+
+  if (!formData.id_inter?.trim()) missing.push("N° d'intervention")
+  if (!(parseFloat(formData.coutIntervention) > 0)) missing.push('Coût intervention')
+  if (!(parseFloat(formData.coutSST) > 0)) missing.push('Coût SST')
+  if (!formData.consigne_intervention?.trim()) missing.push("Consigne d'intervention")
+  // Client fields optional for vacant housing
+  if (!formData.is_vacant && !formData.nomPrenomClient?.trim()) missing.push('Nom / prénom client')
+  if (!formData.is_vacant && !formData.telephoneClient?.trim()) missing.push('Téléphone client')
+  if (!formData.date_prevue?.trim()) missing.push('Date prévue')
+
+  return missing
+}
+
+/**
+ * Returns true if the "Send intervention email" button should be disabled.
+ *
+ * Disabled when no artisan is selected, or when any field required for a valid
+ * INTER_EN_COURS transition is still missing (see getInterventionEmailMissingFields).
  */
 export function isInterventionEmailButtonDisabled(params: {
   selectedArtisanId: string | null
-  formData: Pick<
-    InterventionFormData,
-    | 'id_inter'
-    | 'coutIntervention'
-    | 'coutSST'
-    | 'consigne_intervention'
-    | 'nomPrenomClient'
-    | 'telephoneClient'
-    | 'date_prevue'
-    | 'is_vacant'
-  >
+  formData: InterventionEmailFormData
 }): boolean {
   const { selectedArtisanId, formData } = params
 
   if (!selectedArtisanId) return true
-  if (!formData.id_inter?.trim()) return true
-  if (!(parseFloat(formData.coutIntervention) > 0)) return true
-  if (!(parseFloat(formData.coutSST) > 0)) return true
-  if (!formData.consigne_intervention?.trim()) return true
-  // Client fields optional for vacant housing
-  if (!formData.is_vacant && !formData.nomPrenomClient?.trim()) return true
-  if (!formData.is_vacant && !formData.telephoneClient?.trim()) return true
-  if (!formData.date_prevue?.trim()) return true
-  return false
+  return getInterventionEmailMissingFields(formData).length > 0
 }

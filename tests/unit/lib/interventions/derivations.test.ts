@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   getArtisansWithEmail,
   getSelectableUsers,
+  getInterventionEmailMissingFields,
   isInterventionEmailButtonDisabled,
 } from '@/lib/interventions/derivations'
 
@@ -349,5 +350,92 @@ describe('isInterventionEmailButtonDisabled', () => {
         },
       }),
     ).toBe(false)
+  })
+})
+
+// ============================================================================
+// getInterventionEmailMissingFields
+// ============================================================================
+
+describe('getInterventionEmailMissingFields', () => {
+  const validFormData = {
+    id_inter: 'INT-001',
+    coutIntervention: '100',
+    coutSST: '50',
+    consigne_intervention: 'Faire attention',
+    nomPrenomClient: 'Jean Dupont',
+    telephoneClient: '0601020304',
+    date_prevue: '2026-05-01',
+    is_vacant: false,
+  } as any
+
+  it('returns an empty array when all required fields are filled', () => {
+    expect(getInterventionEmailMissingFields(validFormData)).toEqual([])
+  })
+
+  it('lists every missing field when the form is empty', () => {
+    expect(
+      getInterventionEmailMissingFields({
+        id_inter: '',
+        coutIntervention: '',
+        coutSST: '',
+        consigne_intervention: '',
+        nomPrenomClient: '',
+        telephoneClient: '',
+        date_prevue: '',
+        is_vacant: false,
+      } as any),
+    ).toEqual([
+      "N° d'intervention",
+      'Coût intervention',
+      'Coût SST',
+      "Consigne d'intervention",
+      'Nom / prénom client',
+      'Téléphone client',
+      'Date prévue',
+    ])
+  })
+
+  it('flags coûts that are zero or non-positive', () => {
+    expect(
+      getInterventionEmailMissingFields({ ...validFormData, coutIntervention: '0', coutSST: '-5' }),
+    ).toEqual(['Coût intervention', 'Coût SST'])
+  })
+
+  it('treats whitespace-only text fields as missing', () => {
+    expect(
+      getInterventionEmailMissingFields({ ...validFormData, id_inter: '   ', consigne_intervention: ' ' }),
+    ).toEqual(["N° d'intervention", "Consigne d'intervention"])
+  })
+
+  it('omits client fields when housing is vacant', () => {
+    expect(
+      getInterventionEmailMissingFields({
+        ...validFormData,
+        nomPrenomClient: '',
+        telephoneClient: '',
+        is_vacant: true,
+      }),
+    ).toEqual([])
+  })
+
+  it('requires client fields when housing is NOT vacant', () => {
+    expect(
+      getInterventionEmailMissingFields({
+        ...validFormData,
+        nomPrenomClient: '',
+        telephoneClient: '',
+        is_vacant: false,
+      }),
+    ).toEqual(['Nom / prénom client', 'Téléphone client'])
+  })
+
+  it('is consistent with isInterventionEmailButtonDisabled', () => {
+    // When an artisan is selected, disabled ⇔ there is at least one missing field
+    const partial = { ...validFormData, date_prevue: '' }
+    expect(getInterventionEmailMissingFields(partial).length > 0).toBe(true)
+    expect(
+      isInterventionEmailButtonDisabled({ selectedArtisanId: 'a1', formData: partial }),
+    ).toBe(true)
   })
 })

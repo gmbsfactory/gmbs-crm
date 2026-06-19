@@ -131,6 +131,37 @@ Cocher la case "Reçu" (acompte client) ou "Envoyé" (acompte SST) auto-remplit 
 
 Chaque section reçoit l'état du formulaire en props depuis `useInterventionFormState` et reste découplée de la mécanique de submit.
 
+#### Carte artisan sélectionné (ArtisanPanel / SecondArtisanSection)
+
+Une fois un artisan choisi, sa carte récapitulative s'affiche au-dessus des boutons d'envoi. Agencement :
+
+- **À gauche** : nom (selon le mode d'affichage nom / RS / tél) + badge `Indisponible` le cas échéant.
+- **À droite, dans cet ordre** : badge **statut** → badge **distance** → icône **œil** (`Eye`) qui ouvre la fiche artisan via `handleOpenArtisanModal` — le même raccourci que dans le menu déroulant de sélection.
+- **Coin supérieur droit** : bouton **X** de désélection. Sa gouttière est réservée par `pr-7` sur la carte, afin qu'il ne recouvre jamais la distance ni l'œil.
+- **Sous la ligne** : le téléphone de l'artisan.
+
+#### Envoi d'email / WhatsApp (boutons Devis & Inter.)
+
+La section d'envoi propose, par artisan, deux boutons (et leurs équivalents WhatsApp) dont les conditions d'activation diffèrent :
+
+| Bouton | Condition d'activation | Logique métier |
+|--------|------------------------|----------------|
+| **Devis** | Un artisan est sélectionné | Lié aux requirements de `VISITE_TECHNIQUE` (simple demande de devis) |
+| **Inter.** | Tous les champs requis pour le dispatch sont remplis | Lié aux requirements de `INTER_EN_COURS` (l'ordre d'intervention implique une fiche complète) |
+
+Les champs requis pour activer **Inter.** sont centralisés dans `getInterventionEmailMissingFields()` (`src/lib/interventions/derivations.ts`) :
+
+1. N° d'intervention (`id_inter`)
+2. Coût intervention > 0
+3. Coût SST > 0
+4. Consigne d'intervention
+5. Date prévue
+6. Nom / prénom client **et** téléphone client — **sauf** si le logement est marqué vacant (`is_vacant`), auquel cas ces deux champs sont optionnels.
+
+`isInterventionEmailButtonDisabled()` réutilise cette même fonction (`disabled ⇔ aucun artisan sélectionné OU au moins un champ manquant`).
+
+Quand le bouton **Inter.** est désactivé, il est enveloppé par le composant `InterButtonTooltip` (`form-sections/InterButtonTooltip.tsx`) : au survol, un tooltip liste précisément les champs restant à compléter. Le wrapper `<span>` est nécessaire car un `<button disabled>` ne reçoit pas les événements de survol. La liste est calculée une fois au niveau du formulaire (`useMemo`) et passée en prop `interMissingFields` à `ArtisanPanel` et `SecondArtisanSection`.
+
 ### GestionnaireField
 
 `GestionnaireField.tsx` est un composant factorisé partagé entre `NewInterventionForm`, `InterventionEditForm` et la modal artisan. Il encapsule la sélection (avec recherche) du gestionnaire assigné et a remplacé plusieurs implémentations dupliquées.
