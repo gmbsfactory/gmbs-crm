@@ -196,6 +196,20 @@ npm run recalculate:single-artisan -- <artisan-id>
 
 ---
 
+## Tableau de bord & KPI
+
+### Le compteur « Dossiers à compléter » diffère entre le dashboard et la page /artisans
+
+**Symptôme :** Le KPI « Dossiers à compléter » du dashboard affiche un nombre plus élevé que la liste filtrée « À compléter » de la page `/artisans` (ex. gestionnaire Badr : 232 au dashboard contre 127 sur `/artisans`).
+
+**Cause :** Divergence de filtre sur le statut artisan. Historiquement, le dashboard n'excluait que les artisans `ARCHIVE`, alors que la page `/artisans` exclut `ARCHIVE`, `POTENTIEL` et `CANDIDAT`. L'écart correspond exactement aux artisans `POTENTIEL` + `CANDIDAT` ayant un dossier « À compléter ».
+
+**Décision métier (validée le 17/06/2026) :** on adopte le comportement de la page `/artisans`. Les artisans `POTENTIEL` et `CANDIDAT` n'ont jamais réalisé d'intervention : il n'est pas nécessaire de réclamer leurs documents dans l'immédiat, ils ne doivent donc pas être comptés dans les dossiers à compléter.
+
+**Résolution (2026-06-19) :** le calcul du dashboard exclut désormais `CANDIDAT`, `POTENTIEL` et `ARCHIVE`, comme `/artisans`. La liste des statuts exclus est centralisée dans la constante `ARTISAN_DOSSIER_VIEW_EXCLUDED_STATUTS` (`src/config/artisans.ts`), réutilisée par `getStatsByGestionnaire` et `getArtisansWithDossiersACompleter` (`src/lib/api/artisans/artisans-stats.ts`). La répartition par statut du dashboard (`by_status`) n'est volontairement pas impactée et continue d'afficher tous les statuts.
+
+---
+
 ## Problèmes de performance (développement)
 
 ### Le composant re-render excessivement
