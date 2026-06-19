@@ -1,5 +1,12 @@
 import { supabaseClient } from "./_helpers";
 import type { ArtisanStatsByStatus } from "@/lib/api/common/types";
+import { ARTISAN_DOSSIER_VIEW_EXCLUDED_STATUTS } from "@/config/artisans";
+
+// Codes de statut artisan exclus du calcul "Dossiers à compléter", afin d'aligner
+// le dashboard sur la page /artisans : les artisans CANDIDAT / POTENTIEL / ARCHIVE
+// n'ont pas d'intervention, donc pas de documents à réclamer dans l'immédiat.
+// Typé `readonly string[]` pour comparer directement au code de statut brut.
+const DOSSIER_EXCLUDED_CODES: readonly string[] = ARTISAN_DOSSIER_VIEW_EXCLUDED_STATUTS;
 
 export const artisansStats = {
   /**
@@ -49,8 +56,8 @@ export const artisansStats = {
     (data || []).forEach((item: any) => {
       const statusRaw = item.status;
       const status = Array.isArray(statusRaw) ? statusRaw[0] as { id?: string; code?: string; label?: string } | undefined : statusRaw as { id?: string; code?: string; label?: string } | null;
+      const code = status?.code || "SANS_STATUT";
       if (status) {
-        const code = status.code || "SANS_STATUT";
         const label = status.label || "Sans statut";
 
         byStatus[code] = (byStatus[code] || 0) + 1;
@@ -61,8 +68,17 @@ export const artisansStats = {
         byStatusLabel["Sans statut"] = (byStatusLabel["Sans statut"] || 0) + 1;
       }
 
-      // Compter les dossiers à compléter
-      if (item.statut_dossier === "À compléter" || item.statut_dossier === "incomplet" || item.statut_dossier === "INCOMPLET") {
+      // Compter les dossiers à compléter.
+      // On exclut les statuts non pertinents (CANDIDAT, POTENTIEL, ARCHIVE) pour
+      // aligner ce compteur sur la page /artisans. La répartition par statut
+      // ci-dessus (byStatus / byStatusLabel) n'est volontairement PAS impactée.
+      const isDossierExcluded = DOSSIER_EXCLUDED_CODES.includes(code);
+      if (
+        !isDossierExcluded &&
+        (item.statut_dossier === "À compléter" ||
+          item.statut_dossier === "incomplet" ||
+          item.statut_dossier === "INCOMPLET")
+      ) {
         dossiersACompleter++;
       }
     });
@@ -440,17 +456,25 @@ export const artisansStats = {
       .select("id, nom, prenom, statut_id, artisan_statuses!inner(code)")
       .eq("gestionnaire_id", gestionnaireId)
       .eq("is_active", true)
-      .in("statut_dossier", ["À compléter", "incomplet", "INCOMPLET"])
-      .neq("artisan_statuses.code", "ARCHIVE");
+      .in("statut_dossier", ["À compléter", "incomplet", "INCOMPLET"]);
 
     if (error) {
       throw new Error(`Erreur lors de la récupération des artisans: ${error.message}`);
     }
 
-    return (data || []).map((a: any) => ({
-      artisan_id: a.id,
-      artisan_nom: a.nom || "",
-      artisan_prenom: a.prenom || "",
-    }));
+    // Exclut les statuts non pertinents (CANDIDAT, POTENTIEL, ARCHIVE) pour rester
+    // cohérent avec le compteur du dashboard et la page /artisans.
+    return (data || [])
+      .filter((a: any) => {
+        const statusRaw = a.artisan_statuses;
+        const status = Array.isArray(statusRaw) ? statusRaw[0] : statusRaw;
+        const code: string | undefined = status?.code;
+        return !code || !DOSSIER_EXCLUDED_CODES.includes(code);
+      })
+      .map((a: any) => ({
+        artisan_id: a.id,
+        artisan_nom: a.nom || "",
+        artisan_prenom: a.prenom || "",
+      }));
   },
 };

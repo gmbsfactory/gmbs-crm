@@ -360,6 +360,8 @@ Shorthand for `getAll({ ...params, zone: zoneId })`.
 
 Retrieves artisan statistics grouped by status for a gestionnaire. Includes counts for artisans created in period, with "missionne" status, and dossier completeness.
 
+> **Note — "dossiers à compléter" count:** the `dossiers_a_completer` figure excludes artisans with status `CANDIDAT`, `POTENTIEL` or `ARCHIVE` (same rule as the `/artisans` page — see `ARTISAN_DOSSIER_VIEW_EXCLUDED_STATUTS` in `src/config/artisans.ts`). These artisans have no interventions, so their documents are not required immediately. The per-status breakdown (`by_status` / `by_status_label`) and `total` are **not** affected and still include every status.
+
 **Parameters**
 
 | Name | Type | Required | Description |
@@ -423,7 +425,7 @@ Retrieves artisans filtered by status label with their recent interventions.
 
 ### getArtisansWithDossiersACompleter(gestionnaireId)
 
-Retrieves artisans that have incomplete dossiers (missing required documents).
+Retrieves artisans that have incomplete dossiers (missing required documents). Artisans with status `CANDIDAT`, `POTENTIEL` or `ARCHIVE` are excluded, consistent with the dashboard counter (`getStatsByGestionnaire`) and the `/artisans` page.
 
 **Parameters**
 
