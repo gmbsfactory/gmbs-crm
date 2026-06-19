@@ -48,6 +48,12 @@ export function ModalDisplayProvider({ children }: { children: React.ReactNode }
 
   useEffect(() => {
     if (typeof window === "undefined") return
+    // La demi-page occupe ~50% de l'écran. On décide la bascule sur SA largeur réelle (innerWidth / 2),
+    // pas sur un seuil viewport arbitraire : dès que la demi-page devient trop étroite pour le 2-colonnes,
+    // on force la vue centrée (plus large) ; on revient en demi-page quand l'espace revient.
+    // Deux seuils (hystérésis) pour éviter le clignotement quand on zoome autour du point de bascule.
+    const SIDEVIEW_MIN_WIDTH = 640 // sous cette largeur de demi-page → centrée
+    const SIDEVIEW_RESTORE_WIDTH = 700 // au-dessus → retour en demi-page
     const handleResize = () => {
       const width = window.innerWidth
       const baseMode = overrideMode ?? preferredMode
@@ -55,8 +61,14 @@ export function ModalDisplayProvider({ children }: { children: React.ReactNode }
         setEffectiveMode("fullpage")
         return
       }
-      if (width < 1024 && baseMode === "halfpage") {
-        setEffectiveMode("centerpage")
+      if (baseMode === "halfpage") {
+        const sideviewWidth = width / 2
+        setEffectiveMode((prev) => {
+          if (sideviewWidth < SIDEVIEW_MIN_WIDTH) return "centerpage"
+          if (sideviewWidth > SIDEVIEW_RESTORE_WIDTH) return "halfpage"
+          // Zone morte (hystérésis) : on garde l'état courant s'il est cohérent
+          return prev === "centerpage" ? "centerpage" : "halfpage"
+        })
         return
       }
       setEffectiveMode(baseMode)
