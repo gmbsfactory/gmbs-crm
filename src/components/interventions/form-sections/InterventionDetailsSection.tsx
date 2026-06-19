@@ -47,8 +47,8 @@ export function InterventionDetailsSection({
   return (
     <>
       {/* DIV5: CONTEXTE INTERVENTION - Row 5, Cols 1-2 */}
-      <Card style={{ gridArea: "5 / 1 / 6 / 3" }}>
-        <CardContent className="p-4">
+      <Card style={{ gridArea: "5 / 1 / 6 / 3" }} className="flex flex-col">
+        <CardContent className="p-4 flex flex-col flex-1 min-h-0">
           <Label htmlFor="contexteIntervention" className="text-xs font-medium mb-2 block">Contexte intervention *</Label>
           <Presence fieldName="contexteIntervention">
             <Textarea
@@ -57,7 +57,7 @@ export function InterventionDetailsSection({
               onChange={canEditContext ? (event) => onChange("contexte_intervention", event.target.value) : undefined}
               placeholder="Décrivez le contexte..."
               rows={4}
-              className={cn("text-sm resize-none", !canEditContext && "cursor-not-allowed bg-muted/50 text-muted-foreground")}
+              className={cn("text-sm resize-none flex-1 min-h-0", !canEditContext && "cursor-not-allowed bg-muted/50 text-muted-foreground")}
               readOnly={!canEditContext}
               aria-readonly={!canEditContext}
               required
@@ -70,9 +70,9 @@ export function InterventionDetailsSection({
       {/* DIV6: CONSIGNE INTERVENTION - Row 5, Cols 3-4 */}
       <Card
         style={{ gridArea: "5 / 3 / 6 / 5" }}
-        className={cn(requiresConsigneArtisan && !formData.consigne_intervention?.trim() && "ring-2 ring-orange-400/50")}
+        className={cn("flex flex-col", requiresConsigneArtisan && !formData.consigne_intervention?.trim() && "ring-2 ring-orange-400/50")}
       >
-        <CardContent className="p-4">
+        <CardContent className="p-4 flex flex-col flex-1 min-h-0">
           <Label htmlFor="consigneIntervention" className="text-xs font-medium mb-2 block">
             Consigne pour l&apos;artisan {requiresConsigneArtisan && <span className="text-orange-500">*</span>}
           </Label>
@@ -84,7 +84,7 @@ export function InterventionDetailsSection({
               placeholder="Consignes spécifiques..."
               rows={4}
               className={cn(
-                "text-sm resize-none",
+                "text-sm resize-none flex-1 min-h-0",
                 requiresConsigneArtisan && !formData.consigne_intervention?.trim() && "border-orange-400 focus-visible:ring-orange-400",
               )}
             />

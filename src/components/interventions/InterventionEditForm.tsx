@@ -307,6 +307,25 @@ export const InterventionEditForm = memo(function InterventionEditForm({
     onArtisanSearchOpenChange?.(showArtisanSearch || showSecondArtisanSearch)
   }, [showArtisanSearch, showSecondArtisanSearch, onArtisanSearchOpenChange])
 
+  // Colonne droite contextuelle : auto-ouvre les sections pertinentes au statut courant.
+  // Les flags requires* changent avec le statut. Non destructif (on n'ouvre que, jamais on ne ferme)
+  // et `return prev` quand rien ne change → aucun re-render parasite ni écrasement d'un repli manuel.
+  useEffect(() => {
+    setCollapsibleState((prev) => {
+      const isProprietaireOpen = prev.isProprietaireOpen || requiresNomFacturation
+      const isClientOpen = prev.isClientOpen || requiresClientInfo
+      const isDocumentsOpen = prev.isDocumentsOpen || requiresFacture || requiresDevis
+      if (
+        isProprietaireOpen === prev.isProprietaireOpen &&
+        isClientOpen === prev.isClientOpen &&
+        isDocumentsOpen === prev.isDocumentsOpen
+      ) {
+        return prev
+      }
+      return { ...prev, isProprietaireOpen, isClientOpen, isDocumentsOpen }
+    })
+  }, [requiresNomFacturation, requiresClientInfo, requiresFacture, requiresDevis, setCollapsibleState])
+
   // Right column panel resize
   const rightColumnStorageKey = currentUser?.id
     ? `gmbs:intervention-form:right-column-width:${currentUser.id}`
@@ -602,12 +621,15 @@ export const InterventionEditForm = memo(function InterventionEditForm({
           <div className="flex gap-3 flex-1 min-h-0">
             {/* COLONNE GAUCHE - Scroll indépendant avec scrollbar minimale à gauche */}
             <div className="flex-1 min-w-0 overflow-y-auto min-h-0 scrollbar-minimal scrollbar-left">
-              <SectionLock isLocked={!canEditIntervention}>
+              <SectionLock isLocked={!canEditIntervention} className="h-full">
                 <div
-                  className="grid gap-3 pb-4"
+                  className="grid gap-3 min-h-full"
                   style={{
                     gridTemplateColumns: "repeat(4, 1fr)",
-                    gridTemplateRows: `auto auto auto ${mapSectionHeight} auto auto`,
+                    // Rangées 4 (carte+artisans) et 5 (contexte/consigne) flexibles : elles se
+                    // partagent la hauteur disponible pour remplir le modal (zéro espace blanc),
+                    // avec un plancher = taille actuelle. Les autres rangées restent compactes.
+                    gridTemplateRows: `auto auto auto minmax(${mapSectionHeight}, 1.3fr) minmax(160px, 1fr) auto`,
                   }}
                 >
                   {/* DIV1: HEADER PRINCIPAL - Row 1, Cols 1-4 */}
@@ -731,7 +753,8 @@ export const InterventionEditForm = memo(function InterventionEditForm({
                   </Card>
 
                   {/* DIV7+8: CARTE + ARTISANS REDIMENSIONNABLES - Row 4, Cols 1-4 */}
-                  <div style={{ gridArea: "4 / 1 / 5 / 5", height: mapSectionHeight }}>
+                  {/* min-h-0 : laisse la rangée flexible piloter la hauteur (le ResizablePanelGroup est en h-full) */}
+                  <div className="min-h-0" style={{ gridArea: "4 / 1 / 5 / 5" }}>
                     <ResizablePanelGroup
                       key={`panel-group-${currentUser?.id ?? "anonymous"}`}
                       direction="horizontal"
@@ -832,9 +855,9 @@ export const InterventionEditForm = memo(function InterventionEditForm({
               className="flex-shrink-0 overflow-y-auto min-h-0 scrollbar-minimal"
               style={{ width: `${rightColumnWidth}px` }}
             >
-              <div className="flex flex-col gap-2 pb-4">
-                {/* Détails facturation */}
-                <SectionLock isLocked={!canEditIntervention}>
+              <div className="flex flex-col gap-2 pb-4 min-h-full">
+                {/* Détails facturation — remonte en tête si le statut requiert le nom de facturation */}
+                <SectionLock isLocked={!canEditIntervention} className={cn(requiresNomFacturation && "order-first")}>
                   <InterventionOwnerSection
                     formData={formData}
                     onChange={handleInputChange}
@@ -845,8 +868,8 @@ export const InterventionEditForm = memo(function InterventionEditForm({
                   />
                 </SectionLock>
 
-                {/* Détails client */}
-                <SectionLock isLocked={!canEditIntervention}>
+                {/* Détails client — remonte en tête si le statut requiert les infos client */}
+                <SectionLock isLocked={!canEditIntervention} className={cn(requiresClientInfo && "order-first")}>
                   <InterventionClientSection
                     formData={formData}
                     onChange={handleInputChange}
@@ -874,6 +897,8 @@ export const InterventionEditForm = memo(function InterventionEditForm({
                   />
                 </SectionLock>
 
+                {/* Documents — remonte en tête si le statut requiert facture ou devis */}
+                <div className={cn((requiresFacture || requiresDevis) && "order-first")}>
                 <DocumentSection
                   isOpen={isDocumentsOpen}
                   onOpenChange={setIsDocumentsOpen}
@@ -889,6 +914,7 @@ export const InterventionEditForm = memo(function InterventionEditForm({
                   onReclassifyModalOpenChange={handleReclassifyModalOpenChange}
                   onDocumentsChange={() => { void refreshFactureGMBS(); void refreshDevis() }}
                 />
+                </div>
 
                 {/* Deuxième artisan */}
                 <SectionLock isLocked={!canEditIntervention}>
@@ -919,9 +945,9 @@ export const InterventionEditForm = memo(function InterventionEditForm({
                   />
                 </SectionLock>
 
-                {/* Commentaires - ouvert par défaut */}
-                <Collapsible open={isCommentsOpen} onOpenChange={setIsCommentsOpen}>
-                  <Card className="flex-1 flex flex-col">
+                {/* Commentaires — absorbe l'espace restant en bas de la colonne quand ouverts */}
+                <Collapsible open={isCommentsOpen} onOpenChange={setIsCommentsOpen} className={cn("flex flex-col", isCommentsOpen && "flex-1 min-h-0")}>
+                  <Card className="flex-1 flex flex-col min-h-0">
                     <CollapsibleTrigger asChild>
                       <CardHeader className="cursor-pointer py-2 px-3 hover:bg-muted/50">
                         <CardTitle className="flex items-center gap-2 text-xs">
