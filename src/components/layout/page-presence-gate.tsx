@@ -21,7 +21,7 @@ const PRESENCE_PAGES = new Set(["interventions", "artisans", "comptabilite", "da
  */
 export function PagePresenceGate({ children }: { children: ReactNode }) {
   const pathname = usePathname()
-  const isIdle = useIdleDetector()
+  const { isIdle } = useIdleDetector()
 
   const pageName = useMemo(() => {
     if (!pathname) return null

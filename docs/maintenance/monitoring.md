@@ -125,12 +125,14 @@ Le hook `src/hooks/useIdleDetector.ts` combine deux mecanismes :
 |-----------|-------------|------------|
 | **Timeout 5 min** | Aucun `mousemove`, `keydown`, `click`, `scroll`, `touchstart` pendant 5 minutes | actif → inactif |
 | **Page Visibility API** | Onglet masque (`document.hidden = true`) | actif → inactif (immediat) |
-| **Retour activite** | Mouvement souris, frappe clavier, ou onglet redevient visible | inactif → actif (immediat) |
+| **Retour activite** | Mouvement souris, frappe clavier, onglet redevient visible, ou fenetre refocalisee (`focus`) | inactif → actif (immediat) |
 
-Les events sont throttles a 1s via un `lastActivityRef` pour eviter les re-renders excessifs.
+Les transitions `goActive`/`resetTimer` sont throttlees a 1s, mais le timestamp de derniere activite (`lastActiveRef`) est rafraichi a **chaque** event (ecriture de ref, sans re-render) pour permettre un credit precis du temps d'ecran.
+
+> Le `blur` (perte de focus) n'est volontairement **pas** un declencheur idle dans ce hook : cela eviterait l'apparition du screensaver des qu'on clique dans une autre app. Le focus-gating du temps d'ecran est gere separement par `useActivityTracker`.
 
 ```
-useIdleDetector(timeoutMs = 5 * 60 * 1000) → boolean (isIdle)
+useIdleDetector(timeoutMs = 5 * 60 * 1000) → { isIdle: boolean, getLastActiveAt: () => number }
 ```
 
 #### Impact sur la presence (`usePagePresence`)
@@ -141,15 +143,25 @@ Le type `PagePresenceUser` inclut le champ `isIdle: boolean` depuis la v2.
 
 #### Impact sur le tracking de sessions (`useActivityTracker`)
 
-Quand l'utilisateur passe en idle :
-1. La session en cours est terminee (`ended_at` + `duration_ms`)
-2. Le timer de flush periodique (30s) est stoppe
+Le tracker ne crédite que du **temps réellement actif**. La logique de calcul des bornes est isolée dans `src/lib/monitoring/session-timing.ts` (module pur, testé à 100 %).
+
+Quand l'utilisateur passe en idle (ou que la fenêtre perd le focus) :
+1. La session en cours est terminée et **créditée uniquement jusqu'à la dernière activité réelle** (`getLastActiveAt()`), pas jusqu'à `now`. La fenêtre d'inactivité de 5 min qui précède la détection est donc **retirée** du temps d'écran.
+2. Le timer de flush périodique (60s) est stoppé.
 
 Quand l'utilisateur revient actif :
-1. Une **nouvelle session** est creee (nouveau row dans `user_page_sessions`)
-2. Le flush periodique reprend
+1. Une **nouvelle session** est créée (nouveau row dans `user_page_sessions`).
+2. Le flush périodique reprend.
 
-Resultat : les sessions sont decoupees proprement. Exemple : "session 1 (8h-12h05) + session 2 (13h02-17h30)" au lieu de "session 1 (8h-17h30)".
+Trois garde-fous supplémentaires :
+
+| Cas | Mécanisme | Effet |
+|-----|-----------|-------|
+| **Veille OS / capot fermé** | Le flush détecte un saut d'horloge (`isStaleGap`) et clôture la session à la dernière activité (`reason: 'stale'`) ; toute clôture « active » est par ailleurs plafonnée à `lastActive + 5 min` | Le temps de sommeil n'est jamais compté |
+| **Multi-fenêtres / double écran** | Seule la fenêtre **au premier plan** accumule (`focus`/`blur` → pause/reprise) | Pas de double-comptage entre deux fenêtres CRM visibles |
+| **Intervention réellement ouverte** | La gate lit `?i=<id>` (param `mc` = intervention) et renseigne `intervention_id` sur la session ; un changement d'intervention découpe la session | Le temps est attribué à l'intervention réelle, pas à la page liste |
+
+Résultat : les sessions sont découpées proprement et ne comptent que le temps actif. Exemple : "session 1 (8h–12h00, dernière activité 12h00) + session 2 (13h02–17h30)" — les 5 min d'inactivité avant la pause déjeuner ne sont pas créditées.
 
 #### 3 etats dans le monitoring
 
@@ -176,10 +188,12 @@ Le composant `src/components/layout/IdleScreensaver.tsx` affiche un ecran de vei
 #### Fichiers
 
 ```
-src/hooks/useIdleDetector.ts                    # Hook de detection d'inactivite
+src/hooks/useIdleDetector.ts                     # Detection d'inactivite + getLastActiveAt
+src/hooks/useActivityTracker.ts                  # Enregistrement des sessions (credit du temps actif)
+src/lib/monitoring/session-timing.ts             # Calcul pur des bornes/durees (teste a 100%)
 src/components/layout/IdleScreensaver.tsx        # Ecran de veille DVD bouncing
 src/components/layout/page-presence-gate.tsx     # Monte useIdleDetector + IdleScreensaver
-src/components/layout/activity-tracker-gate.tsx  # Passe isIdle au tracker de sessions
+src/components/layout/activity-tracker-gate.tsx  # isIdle + getLastActiveAt + intervention ouverte → tracker
 ```
 
 ---
