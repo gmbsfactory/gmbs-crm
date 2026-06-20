@@ -1,9 +1,9 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, type CSSProperties } from "react"
+import { format } from "date-fns"
+import { fr } from "date-fns/locale"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { interventionsApi } from "@/lib/api"
-import { supabase } from "@/lib/supabase-client"
 import type { WeeklyStats, MonthlyStats, YearlyStats, StatsPeriod } from "@/lib/api"
 import Loader from "@/components/ui/Loader"
 import { useCurrentUser } from "@/hooks/useCurrentUser"
@@ -30,6 +30,96 @@ function getRowStyles(hexColor: string) {
     border: hexColor,
     text: hexColor,
   }
+}
+
+// ── Styles inline (en-têtes ET cellules) ────────────────────────────────────
+// La feuille globale `app/styles/tables.css` impose le fond des cellules via
+// `.data-table tbody tr td { background-color: var(--cell-base-color) }` (+ stripe
+// pattern qui pose --cell-base-color sur chaque <td>), et l'alignement/couleur des
+// <th> via `.data-table th`. Ces sélecteurs sont plus spécifiques que les classes
+// Tailwind. On pilote donc fond/couleur/alignement EN INLINE (qui prime), pour
+// retrouver le rendu de la maquette : teinte par ligne + colonne en cours en bleu.
+const HILITE_TEXT = "var(--info)"      // bleu "info" du thème (s'adapte clair / sombre)
+const HILITE_BG = "var(--info-bg)"     // fond bleu clair de la colonne en cours
+const NEUTRAL_BG = "hsl(var(--muted) / 0.5)" // gris neutre pour la colonne Total
+
+// En-tête d'une colonne de données (jour / semaine / mois). `accent` = colonne en cours.
+function columnHeaderStyle(accent: boolean): CSSProperties {
+  return {
+    textAlign: "center",
+    fontWeight: 700,
+    color: accent ? HILITE_TEXT : "var(--text)",
+    backgroundColor: accent ? HILITE_BG : undefined,
+  }
+}
+
+// En-tête de la colonne Total : libellé bleu accentué sur fond gris neutre
+const TOTAL_HEADER_STYLE: CSSProperties = {
+  textAlign: "center",
+  fontWeight: 700,
+  color: HILITE_TEXT,
+  backgroundColor: NEUTRAL_BG,
+}
+
+// Cellule de données : fond = teinte de la ligne, sauf colonne en cours (bleu)
+function dataCellStyle(rowTint: string | undefined, current: boolean): CSSProperties {
+  if (current) return { backgroundColor: HILITE_BG, color: HILITE_TEXT, fontWeight: 700 }
+  return { backgroundColor: rowTint }
+}
+
+// Cellule Total : fond gris neutre, en gras
+const TOTAL_CELL_STYLE: CSSProperties = { backgroundColor: NEUTRAL_BG, fontWeight: 700 }
+
+// Cellule "Action" (libellé de ligne) : barre colorée à gauche + teinte de la ligne
+function actionCellStyle(rowStyles: ReturnType<typeof getRowStyles> | null): CSSProperties {
+  return {
+    color: rowStyles?.text ?? "var(--foreground)",
+    backgroundColor: rowStyles?.bgLight,
+    borderLeft: `4px solid ${rowStyles?.border ?? "var(--border)"}`,
+  }
+}
+
+// Libellés et clés des colonnes, par période
+const WEEK_DAY_NAMES = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"] as const
+const WEEK_DAY_KEYS = ["lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi", "dimanche"] as const
+const YEAR_MONTH_LABELS = [
+  "Janvier", "Février", "Mars", "Avril", "Mai", "Juin",
+  "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre",
+] as const
+const YEAR_MONTH_KEYS = [
+  "janvier", "fevrier", "mars", "avril", "mai", "juin",
+  "juillet", "aout", "septembre", "octobre", "novembre", "decembre",
+] as const
+
+// Les 7 jours (lundi -> dimanche) d'une semaine à partir de son lundi ISO
+function weekDays(weekStartISO: string): Date[] {
+  const monday = new Date(weekStartISO)
+  return Array.from({ length: 7 }, (_, i) => {
+    const day = new Date(monday)
+    day.setDate(monday.getDate() + i)
+    return day
+  })
+}
+
+// Libellé de plage d'une semaine du mois, ex. "1–4 janv."
+function formatWeekRange(startISO: string, endISO: string): string {
+  const start = new Date(startISO)
+  const end = new Date(endISO)
+  return `${format(start, "d", { locale: fr })}–${format(end, "d MMM", { locale: fr })}`
+}
+
+function isSameDay(a: Date, b: Date): boolean {
+  return (
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate()
+  )
+}
+
+// Index de la plage (semaine du mois) contenant aujourd'hui, ou -1 — pour surligner la colonne courante
+function indexContainingToday(ranges: { start: string; end: string }[]): number {
+  const now = new Date()
+  return ranges.findIndex((r) => now >= new Date(r.start) && now <= new Date(r.end))
 }
 
 interface WeeklyStatsTableProps {
@@ -68,7 +158,7 @@ export function WeeklyStatsTable({ weekStartDate, period: externalPeriod, userId
     }
   }, [externalPeriod])
   // Utiliser le hook React Query pour charger l'utilisateur (cache partagé)
-  const { data: currentUser, isLoading: isLoadingUser } = useCurrentUser()
+  const { data: currentUser } = useCurrentUser()
   const { isAdmin } = useUserRoles()
   // Utiliser le prop userId s'il est fourni, sinon utiliser currentUser
   const userId = propUserId ?? currentUser?.id ?? null
@@ -137,6 +227,9 @@ export function WeeklyStatsTable({ weekStartDate, period: externalPeriod, userId
   // Rendu pour la semaine
   if (period === "week" && "week_start" in stats) {
     const weekStats = stats as WeeklyStats
+    const days = weekDays(weekStats.week_start)
+    const today = new Date()
+    const todayIdx = days.findIndex((d) => isSameDay(d, today))
     const rows = [
       { label: "Devis envoyé", data: weekStats.devis_envoye },
       { label: "Inter en cours", data: weekStats.inter_en_cours },
@@ -148,48 +241,48 @@ export function WeeklyStatsTable({ weekStartDate, period: externalPeriod, userId
     return (
       <div className="rounded-xl bg-background border border-border/40 shadow-lg overflow-hidden">
         <div className="overflow-x-auto scrollbar-hide">
-          <Table>
+          <Table className="stats-clean">
             <TableHeader>
               <TableRow className="bg-muted/50 dark:bg-muted/30 border-b-2 border-border/60 hover:bg-transparent h-14">
-                <TableHead className="w-[200px] font-bold text-foreground">Action</TableHead>
-                <TableHead className="text-center font-bold text-foreground min-w-[80px]">Lundi</TableHead>
-                <TableHead className="text-center font-bold text-foreground min-w-[80px]">Mardi</TableHead>
-                <TableHead className="text-center font-bold text-foreground min-w-[80px]">Mercredi</TableHead>
-                <TableHead className="text-center font-bold text-foreground min-w-[80px]">Jeudi</TableHead>
-                <TableHead className="text-center font-bold text-foreground min-w-[80px]">Vendredi</TableHead>
-                <TableHead className="text-center font-bold text-foreground min-w-[80px]">Samedi</TableHead>
-                <TableHead className="text-center font-bold text-foreground min-w-[80px]">Dimanche</TableHead>
-                <TableHead className="text-center font-bold bg-primary/10 dark:bg-primary/20 text-primary min-w-[80px]">Total</TableHead>
+                <TableHead className="w-[200px]" style={{ textAlign: "left", fontWeight: 700, color: "var(--text)" }}>Action</TableHead>
+                {days.map((day, i) => (
+                  <TableHead
+                    key={day.toISOString()}
+                    className="min-w-[80px] leading-tight"
+                    style={columnHeaderStyle(i === todayIdx)}
+                  >
+                    {WEEK_DAY_NAMES[i]}
+                    <span className="block text-[11px] font-normal text-muted-foreground">
+                      {format(day, "d MMM", { locale: fr })}
+                    </span>
+                  </TableHead>
+                ))}
+                <TableHead className="min-w-[80px]" style={TOTAL_HEADER_STYLE}>Total</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {rows.map((row, index) => {
+              {rows.map((row) => {
                 const hexColor = ROW_COLORS_CONFIG[row.label as keyof typeof ROW_COLORS_CONFIG]
                 const styles = hexColor ? getRowStyles(hexColor) : null
 
                 return (
                   <TableRow
                     key={row.label}
-                    className="border-b-0 border-l-4 transition-colors duration-200 h-14 hover:brightness-95"
-                    style={{
-                      backgroundColor: styles?.bgLight ?? (index % 2 === 0 ? 'var(--muted)' : 'transparent'),
-                      borderLeftColor: styles?.border ?? 'var(--border)',
-                    }}
+                    className="border-b-0 transition-colors duration-200 h-14 hover:brightness-95"
                   >
-                    <TableCell
-                      className="font-semibold py-4 text-base"
-                      style={{ color: styles?.text ?? 'var(--foreground)' }}
-                    >
+                    <TableCell className="font-semibold py-4 text-base" style={actionCellStyle(styles)}>
                       {row.label}
                     </TableCell>
-                    <TableCell className="text-center py-4 text-lg font-medium">{row.data.lundi}</TableCell>
-                    <TableCell className="text-center py-4 text-lg font-medium">{row.data.mardi}</TableCell>
-                    <TableCell className="text-center py-4 text-lg font-medium">{row.data.mercredi}</TableCell>
-                    <TableCell className="text-center py-4 text-lg font-medium">{row.data.jeudi}</TableCell>
-                    <TableCell className="text-center py-4 text-lg font-medium">{row.data.vendredi}</TableCell>
-                    <TableCell className="text-center py-4 text-lg font-medium">{row.data.samedi}</TableCell>
-                    <TableCell className="text-center py-4 text-lg font-medium">{row.data.dimanche}</TableCell>
-                    <TableCell className="text-center font-bold bg-muted/40 dark:bg-muted/60 py-4 text-lg">{row.data.total}</TableCell>
+                    {WEEK_DAY_KEYS.map((key, i) => (
+                      <TableCell
+                        key={key}
+                        className="text-center py-4 text-lg font-medium"
+                        style={dataCellStyle(styles?.bgLight, i === todayIdx)}
+                      >
+                        {row.data[key]}
+                      </TableCell>
+                    ))}
+                    <TableCell className="text-center py-4 text-lg" style={TOTAL_CELL_STYLE}>{row.data.total}</TableCell>
                   </TableRow>
                 )
               })}
@@ -203,6 +296,8 @@ export function WeeklyStatsTable({ weekStartDate, period: externalPeriod, userId
   // Rendu pour le mois
   if (period === "month" && "month_start" in stats) {
     const monthStats = stats as MonthlyStats
+    const weeks = monthStats.weeks ?? []
+    const currentWeekIdx = indexContainingToday(weeks)
     const rows = [
       { label: "Devis envoyé", data: monthStats.devis_envoye },
       { label: "Inter en cours", data: monthStats.inter_en_cours },
@@ -214,44 +309,48 @@ export function WeeklyStatsTable({ weekStartDate, period: externalPeriod, userId
     return (
       <div className="rounded-xl bg-background border border-border/40 shadow-lg overflow-hidden">
         <div className="overflow-x-auto scrollbar-hide">
-          <Table>
+          <Table className="stats-clean">
             <TableHeader>
               <TableRow className="bg-muted/50 dark:bg-muted/30 border-b-2 border-border/60 hover:bg-transparent h-14">
-                <TableHead className="w-[200px] font-bold text-foreground">Action</TableHead>
-                <TableHead className="text-center font-bold text-foreground min-w-[70px]">Semaine 1</TableHead>
-                <TableHead className="text-center font-bold text-foreground min-w-[70px]">Semaine 2</TableHead>
-                <TableHead className="text-center font-bold text-foreground min-w-[70px]">Semaine 3</TableHead>
-                <TableHead className="text-center font-bold text-foreground min-w-[70px]">Semaine 4</TableHead>
-                <TableHead className="text-center font-bold text-foreground min-w-[70px]">Semaine 5</TableHead>
-                <TableHead className="text-center font-bold bg-primary/10 dark:bg-primary/20 text-primary min-w-[80px]">Total</TableHead>
+                <TableHead className="w-[200px]" style={{ textAlign: "left", fontWeight: 700, color: "var(--text)" }}>Action</TableHead>
+                {weeks.map((week, i) => (
+                  <TableHead
+                    key={week.start}
+                    className="min-w-[78px] leading-tight"
+                    style={columnHeaderStyle(i === currentWeekIdx)}
+                  >
+                    Sem. {i + 1}
+                    <span className="block text-[11px] font-normal text-muted-foreground">
+                      {formatWeekRange(week.start, week.end)}
+                    </span>
+                  </TableHead>
+                ))}
+                <TableHead className="min-w-[80px]" style={TOTAL_HEADER_STYLE}>Total</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {rows.map((row, index) => {
+              {rows.map((row) => {
                 const hexColor = ROW_COLORS_CONFIG[row.label as keyof typeof ROW_COLORS_CONFIG]
                 const styles = hexColor ? getRowStyles(hexColor) : null
 
                 return (
                   <TableRow
                     key={row.label}
-                    className="border-b-0 border-l-4 transition-colors duration-200 h-14 hover:brightness-95"
-                    style={{
-                      backgroundColor: styles?.bgLight ?? (index % 2 === 0 ? 'var(--muted)' : 'transparent'),
-                      borderLeftColor: styles?.border ?? 'var(--border)',
-                    }}
+                    className="border-b-0 transition-colors duration-200 h-14 hover:brightness-95"
                   >
-                    <TableCell
-                      className="font-semibold py-4 text-base"
-                      style={{ color: styles?.text ?? 'var(--foreground)' }}
-                    >
+                    <TableCell className="font-semibold py-4 text-base" style={actionCellStyle(styles)}>
                       {row.label}
                     </TableCell>
-                    <TableCell className="text-center py-4 text-base font-medium">{row.data.semaine1}</TableCell>
-                    <TableCell className="text-center py-4 text-base font-medium">{row.data.semaine2}</TableCell>
-                    <TableCell className="text-center py-4 text-base font-medium">{row.data.semaine3}</TableCell>
-                    <TableCell className="text-center py-4 text-base font-medium">{row.data.semaine4}</TableCell>
-                    <TableCell className="text-center py-4 text-base font-medium">{row.data.semaine5}</TableCell>
-                    <TableCell className="text-center font-bold bg-muted/40 dark:bg-muted/60 py-4 text-base">{row.data.total}</TableCell>
+                    {weeks.map((week, i) => (
+                      <TableCell
+                        key={week.start}
+                        className="text-center py-4 text-base font-medium"
+                        style={dataCellStyle(styles?.bgLight, i === currentWeekIdx)}
+                      >
+                        {row.data.counts[i] ?? 0}
+                      </TableCell>
+                    ))}
+                    <TableCell className="text-center py-4 text-base" style={TOTAL_CELL_STYLE}>{row.data.total}</TableCell>
                   </TableRow>
                 )
               })}
@@ -274,6 +373,8 @@ export function WeeklyStatsTable({ weekStartDate, period: externalPeriod, userId
       )
     }
     const yearStats = stats as YearlyStats
+    const now = new Date()
+    const currentMonthIdx = yearStats.year === now.getFullYear() ? now.getMonth() : -1
     const rows = [
       { label: "Devis envoyé", data: yearStats.devis_envoye },
       { label: "Inter en cours", data: yearStats.inter_en_cours },
@@ -282,59 +383,48 @@ export function WeeklyStatsTable({ weekStartDate, period: externalPeriod, userId
       { label: "Artisans Missionnés", data: yearStats.artisans_missionnes },
     ]
 
-    const monthLabels = [
-      "Janvier", "Février", "Mars", "Avril", "Mai", "Juin",
-      "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"
-    ]
-
     return (
       <div className="rounded-xl bg-background border border-border/40 shadow-lg overflow-hidden">
         <div className="overflow-x-auto scrollbar-hide">
-          <Table>
+          <Table className="stats-clean">
             <TableHeader>
               <TableRow className="bg-muted/50 dark:bg-muted/30 border-b-2 border-border/60 hover:bg-transparent h-14">
-                <TableHead className="w-[180px] font-bold text-foreground">Action</TableHead>
-                {monthLabels.map((month) => (
-                  <TableHead key={month} className="text-center text-xs font-bold text-foreground min-w-[45px]">
+                <TableHead className="w-[180px]" style={{ textAlign: "left", fontWeight: 700, color: "var(--text)" }}>Action</TableHead>
+                {YEAR_MONTH_LABELS.map((month, i) => (
+                  <TableHead
+                    key={month}
+                    className="min-w-[45px] text-xs"
+                    style={columnHeaderStyle(i === currentMonthIdx)}
+                  >
                     {month.slice(0, 3)}
                   </TableHead>
                 ))}
-                <TableHead className="text-center font-bold bg-primary/10 dark:bg-primary/20 text-primary min-w-[60px]">Total</TableHead>
+                <TableHead className="min-w-[60px]" style={TOTAL_HEADER_STYLE}>Total</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {rows.map((row, index) => {
+              {rows.map((row) => {
                 const hexColor = ROW_COLORS_CONFIG[row.label as keyof typeof ROW_COLORS_CONFIG]
                 const styles = hexColor ? getRowStyles(hexColor) : null
 
                 return (
                   <TableRow
                     key={row.label}
-                    className="border-b-0 border-l-4 transition-colors duration-200 h-14 hover:brightness-95"
-                    style={{
-                      backgroundColor: styles?.bgLight ?? (index % 2 === 0 ? 'var(--muted)' : 'transparent'),
-                      borderLeftColor: styles?.border ?? 'var(--border)',
-                    }}
+                    className="border-b-0 transition-colors duration-200 h-14 hover:brightness-95"
                   >
-                    <TableCell
-                      className="font-semibold py-4 text-sm"
-                      style={{ color: styles?.text ?? 'var(--foreground)' }}
-                    >
+                    <TableCell className="font-semibold py-4 text-sm" style={actionCellStyle(styles)}>
                       {row.label}
                     </TableCell>
-                    <TableCell className="text-center py-4 text-base font-medium">{row.data.janvier}</TableCell>
-                    <TableCell className="text-center py-4 text-base font-medium">{row.data.fevrier}</TableCell>
-                    <TableCell className="text-center py-4 text-base font-medium">{row.data.mars}</TableCell>
-                    <TableCell className="text-center py-4 text-base font-medium">{row.data.avril}</TableCell>
-                    <TableCell className="text-center py-4 text-base font-medium">{row.data.mai}</TableCell>
-                    <TableCell className="text-center py-4 text-base font-medium">{row.data.juin}</TableCell>
-                    <TableCell className="text-center py-4 text-base font-medium">{row.data.juillet}</TableCell>
-                    <TableCell className="text-center py-4 text-base font-medium">{row.data.aout}</TableCell>
-                    <TableCell className="text-center py-4 text-base font-medium">{row.data.septembre}</TableCell>
-                    <TableCell className="text-center py-4 text-base font-medium">{row.data.octobre}</TableCell>
-                    <TableCell className="text-center py-4 text-base font-medium">{row.data.novembre}</TableCell>
-                    <TableCell className="text-center py-4 text-base font-medium">{row.data.decembre}</TableCell>
-                    <TableCell className="text-center font-bold bg-muted/40 dark:bg-muted/60 py-4 text-base">{row.data.total}</TableCell>
+                    {YEAR_MONTH_KEYS.map((key, i) => (
+                      <TableCell
+                        key={key}
+                        className="text-center py-4 text-base font-medium"
+                        style={dataCellStyle(styles?.bgLight, i === currentMonthIdx)}
+                      >
+                        {row.data[key]}
+                      </TableCell>
+                    ))}
+                    <TableCell className="text-center py-4 text-base" style={TOTAL_CELL_STYLE}>{row.data.total}</TableCell>
                   </TableRow>
                 )
               })}

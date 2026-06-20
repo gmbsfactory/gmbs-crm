@@ -641,13 +641,15 @@ export interface WeekDayStats {
   total: number;
 }
 
-// Stats pour le mois (semaines du mois)
+// Plage d'une semaine du mois (bornes ISO) — sert aux libelles de colonnes du tableau
+export interface MonthWeekRange {
+  start: string; // ISO — borne au 1er du mois pour la 1re semaine
+  end: string;   // ISO — borne au dernier jour du mois pour la derniere semaine
+}
+
+// Stats pour le mois (semaines du mois) — longueur dynamique (4 a 6 semaines)
 export interface MonthWeekStats {
-  semaine1: number;
-  semaine2: number;
-  semaine3: number;
-  semaine4: number;
-  semaine5: number;
+  counts: number[]; // un compteur par semaine ; aligne sur MonthlyStats.weeks
   total: number;
 }
 
@@ -687,6 +689,7 @@ export interface MonthlyStats {
   inter_factures: MonthWeekStats;
   nouveaux_artisans: MonthWeekStats;
   artisans_missionnes: MonthWeekStats; // Artisans POTENTIEL avec au moins une intervention
+  weeks: MonthWeekRange[]; // Decoupage du mois en semaines reelles (bornees au mois) ; aligne sur les `counts`
   month_start: string; // Date de début du mois
   month_end: string; // Date de fin du mois
   month: number; // Mois (1-12)

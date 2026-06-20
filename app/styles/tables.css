@@ -102,6 +102,21 @@
     opacity: 0.5;
   }
 
+  /* Variante épurée "stats-clean" (tableau d'évènements du dashboard) :
+     en-tête plat façon maquette — sans dégradé, flou, ombre ni séparateurs.
+     Scopé à ce tableau pour ne pas toucher les autres .data-table de l'app. */
+  .data-table.stats-clean thead,
+  :root[data-theme="dark"] .data-table.stats-clean thead {
+    background: transparent;
+    backdrop-filter: none;
+    box-shadow: none;
+    position: static;
+    border-bottom: 1px solid hsl(var(--border));
+  }
+  .data-table.stats-clean th:not(:last-child)::after {
+    content: none;
+  }
+
   .data-table tbody tr {
     border-bottom: 1px solid hsl(var(--border));
     /* Transitions déplacées dans section Design v1.5 (ligne 662) pour éviter doublon */
