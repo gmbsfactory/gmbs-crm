@@ -8,6 +8,7 @@ import {
   Activity,
 } from "lucide-react"
 import { t } from "./domain"
+import { MonitoringDevIcon } from "@/components/layout/MonitoringDevIcon"
 import type { PermissionKey } from "@/hooks/usePermissions"
 
 /**
@@ -77,6 +78,12 @@ const ROUTE_CONFIG: (RouteConfig | { type: "spacer" })[] = [
     name: "Monitoring",
     href: "/monitoring",
     icon: Activity,
+    permission: { type: "simple", key: "manage_updates" },
+  },
+  {
+    name: "Monitoring DEV",
+    href: "/monitoring-dev",
+    icon: MonitoringDevIcon,
     permission: { type: "simple", key: "manage_updates" },
   },
 ]

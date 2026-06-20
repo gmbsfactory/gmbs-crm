@@ -36,6 +36,10 @@ type EntityFilter = "all" | "intervention" | "artisan"
 
 interface ActivityTimelineProps {
   actions: RecentAction[]
+  /** Affiche l'auteur de chaque groupe (utilisé par le flux global du Monitoring DEV). */
+  showActor?: boolean
+  /** Message affiché quand il n'y a aucune action (défaut : "Aucune action aujourd'hui"). */
+  emptyLabel?: string
 }
 
 /** Grouped actions on same entity within 1-min window */
@@ -46,6 +50,8 @@ interface ActionGroup {
   entity_meta: InterventionMeta | ArtisanMeta | null
   actions: RecentAction[]
   timestamp: string
+  /** Auteur du groupe (premier de la fenêtre) — flux global uniquement. */
+  actor?: RecentAction["actor"]
 }
 
 interface ResolvedValue {
@@ -149,12 +155,18 @@ function truncate(s: string, max: number): string {
   return s.length > max ? s.slice(0, max) + "..." : s
 }
 
-/** Group consecutive actions on same entity within 1-min window */
-function groupActions(actions: RecentAction[]): ActionGroup[] {
+/**
+ * Group consecutive actions on same entity within 1-min window.
+ * When `showActor` is true, a change of author also breaks the group (the
+ * global feed mixes authors, so a group must stay single-author).
+ */
+function groupActions(actions: RecentAction[], showActor = false): ActionGroup[] {
   const groups: ActionGroup[] = []
   for (const action of actions) {
     const last = groups[groups.length - 1]
-    if (last && last.entity_id === action.entity_id) {
+    const sameActor =
+      !showActor || (last?.actor?.user_id ?? null) === (action.actor?.user_id ?? null)
+    if (last && last.entity_id === action.entity_id && sameActor) {
       const lastAction = last.actions[last.actions.length - 1]
       const diff = Math.abs(
         new Date(lastAction.occurred_at).getTime() - new Date(action.occurred_at).getTime()
@@ -171,6 +183,7 @@ function groupActions(actions: RecentAction[]): ActionGroup[] {
       entity_meta: action.entity_meta,
       actions: [action],
       timestamp: action.occurred_at,
+      actor: action.actor,
     })
   }
   return groups
@@ -525,7 +538,7 @@ function ActionLineRow({
 // Main component
 // ---------------------------------------------------------------------------
 
-export function ActivityTimeline({ actions }: ActivityTimelineProps) {
+export function ActivityTimeline({ actions, showActor = false, emptyLabel }: ActivityTimelineProps) {
   const [filter, setFilter] = useState<EntityFilter>("all")
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set())
   const interventionModal = useInterventionModal()
@@ -539,7 +552,7 @@ export function ActivityTimeline({ actions }: ActivityTimelineProps) {
     return actions.filter((a) => a.entity_type === filter)
   }, [actions, filter])
 
-  const groups = useMemo(() => groupActions(filtered), [filtered])
+  const groups = useMemo(() => groupActions(filtered, showActor), [filtered, showActor])
 
   const interventionCount = useMemo(() => actions.filter((a) => a.entity_type === "intervention").length, [actions])
   const artisanCount = useMemo(() => actions.filter((a) => a.entity_type === "artisan").length, [actions])
@@ -556,7 +569,7 @@ export function ActivityTimeline({ actions }: ActivityTimelineProps) {
   if (actions.length === 0) {
     return (
       <p className="text-xs text-muted-foreground py-3 text-center italic">
-        Aucune action aujourd&apos;hui
+        {emptyLabel ?? "Aucune action aujourd'hui"}
       </p>
     )
   }
@@ -600,6 +613,18 @@ export function ActivityTimeline({ actions }: ActivityTimelineProps) {
 
               {/* Content */}
               <div className="flex-1 min-w-0 space-y-0">
+                {/* Author (global feed only) */}
+                {showActor && group.actor && (
+                  <div className="flex items-center gap-1 mb-0.5">
+                    <span
+                      className="h-2 w-2 rounded-full shrink-0"
+                      style={{ backgroundColor: group.actor.color || "hsl(var(--muted-foreground))" }}
+                    />
+                    <span className="text-[10px] font-semibold text-foreground truncate">
+                      {group.actor.display || group.actor.code || "—"}
+                    </span>
+                  </div>
+                )}
                 {/* Action lines */}
                 {lines.map((line, lIdx) => {
                   const lineKey = `${groupKey}-${lIdx}`

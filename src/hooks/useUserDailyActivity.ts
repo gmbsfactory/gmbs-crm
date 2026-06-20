@@ -41,6 +41,17 @@ export interface RecentAction {
   changed_fields: string[] | null
   old_values: Record<string, unknown> | null
   new_values: Record<string, unknown> | null
+  /**
+   * Auteur de l'action. Présent uniquement dans le flux global du
+   * Monitoring DEV (get_global_activity_feed) ; absent du suivi par
+   * utilisateur (/monitoring), qui rend donc le même affichage qu'avant.
+   */
+  actor?: {
+    user_id: string | null
+    display: string | null
+    code: string | null
+    color: string | null
+  }
 }
 
 export interface PageSession {

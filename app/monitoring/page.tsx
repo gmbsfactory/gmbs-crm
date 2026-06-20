@@ -11,12 +11,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import type { PagePresenceUser } from "@/types/presence"
 
-import { RealtimeStatusDot } from "./_components/RealtimeStatusDot"
-import { OnlineUsersBar } from "./_components/OnlineUsersBar"
-import { StatBadgeGroup } from "./_components/StatBadgeGroup"
-import { PagePresenceGrid } from "./_components/PagePresenceGrid"
-import { WeeklyStatsTable } from "./_components/WeeklyStatsTable"
-import { UserActivitySheet } from "./_components/UserActivitySheet"
+import { RealtimeStatusDot } from "@/components/monitoring/RealtimeStatusDot"
+import { OnlineUsersBar } from "@/components/monitoring/OnlineUsersBar"
+import { StatBadgeGroup } from "@/components/monitoring/StatBadgeGroup"
+import { PagePresenceGrid } from "@/components/monitoring/PagePresenceGrid"
+import { WeeklyStatsTable } from "@/components/monitoring/WeeklyStatsTable"
+import { UserActivitySheet } from "@/components/monitoring/UserActivitySheet"
 
 /** Group users by their current page */
 function groupByPage(users: PagePresenceUser[]): Record<string, PagePresenceUser[]> {

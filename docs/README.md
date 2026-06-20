@@ -73,6 +73,7 @@ Reference technique des modules API, hooks et Edge Functions.
 | [Settings API](api-reference/settings.md) | Agencies, enums, metiers, roles |
 | [Query Keys Reference](api-reference/query-keys.md) | Reference complete des query keys TanStack Query |
 | [Edge Functions](api-reference/edge-functions.md) | 13+ fonctions Deno, patterns, CORS, auth, logging |
+| [Monitoring API](api-reference/monitoring.md) | RPC flux d'activite global + connexions (dashboard dev) |
 
 ---
 
@@ -86,6 +87,7 @@ Bibliotheque de composants et patterns UI.
 | [Composants Intervention](components/intervention-components.md) | Modal, Card, Views, Filters, Workflow |
 | [Composants Artisan](components/artisan-components.md) | Modal, Card, formulaires, context menu |
 | [Patterns partages](components/shared-patterns.md) | CommentSection, ErrorBoundary, TruncatedCell, etc. |
+| [Monitoring DEV](components/monitoring-dev.md) | Dashboard developpeur full-page (/monitoring-dev) |
 
 ---
 

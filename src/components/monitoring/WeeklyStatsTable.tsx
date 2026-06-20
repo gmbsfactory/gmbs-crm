@@ -88,13 +88,34 @@ function PageBreakdownTooltip({ pages }: { pages: DayPageStat[] }) {
   )
 }
 
-export function WeeklyStatsTable() {
+interface WeeklyStatsTableProps {
+  /** Début de période. Défaut : lundi de la semaine courante. */
+  startDate?: Date
+  /** Fin de période. Défaut : dimanche de la semaine courante. */
+  endDate?: Date
+  /** Titre de la carte. Défaut : "Statistiques hebdomadaires". */
+  title?: string
+  /** Message affiché quand aucune donnée. Défaut : "Aucune donnee pour cette semaine.". */
+  emptyLabel?: string
+}
+
+export function WeeklyStatsTable({
+  startDate,
+  endDate,
+  title = "Statistiques hebdomadaires",
+  emptyLabel = "Aucune donnee pour cette semaine.",
+}: WeeklyStatsTableProps = {}) {
+  const startMs = startDate?.getTime()
+  const endMs = endDate?.getTime()
   const [startOfWeek, endOfWeek] = useMemo(() => {
+    if (startMs !== undefined && endMs !== undefined) {
+      return [new Date(startMs), new Date(endMs)] as const
+    }
     const start = getStartOfWeek(new Date())
     const end = new Date(start)
     end.setDate(end.getDate() + 6)
     return [start, end] as const
-  }, [])
+  }, [startMs, endMs])
 
   const { data: weeklyStats, isLoading } = useTeamWeeklyStats(startOfWeek, endOfWeek)
 
@@ -120,7 +141,7 @@ export function WeeklyStatsTable() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-sm">
             <CalendarDays className="h-4 w-4" />
-            Statistiques hebdomadaires
+            {title}
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
@@ -138,12 +159,12 @@ export function WeeklyStatsTable() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-sm">
             <CalendarDays className="h-4 w-4" />
-            Statistiques hebdomadaires
+            {title}
           </CardTitle>
         </CardHeader>
         <CardContent>
           <p className="text-sm text-muted-foreground italic py-4">
-            Aucune donnee pour cette semaine.
+            {emptyLabel}
           </p>
         </CardContent>
       </Card>
@@ -156,7 +177,7 @@ export function WeeklyStatsTable() {
         <CardHeader className="pb-3">
           <CardTitle className="flex items-center gap-2 text-sm">
             <CalendarDays className="h-4 w-4" />
-            Statistiques hebdomadaires
+            {title}
             <span className="text-xs font-normal text-muted-foreground ml-2">
               {startOfWeek.toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}
               {" — "}
