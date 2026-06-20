@@ -3,6 +3,7 @@ import {
   computeActiveIntervals,
   totalActiveMs,
   activeMsByPage,
+  sessionizeIntervals,
   MAX_ACTIVE_GAP_MS,
   type ActivityEvent,
 } from '@/lib/monitoring/active-time'
@@ -142,6 +143,48 @@ describe('active-time', () => {
 
     it('retourne un tableau vide sans événement', () => {
       expect(computeActiveIntervals([])).toEqual([])
+    })
+  })
+
+  describe('sessionizeIntervals', () => {
+    it('fusionne les intervalles contigus de même page en une session', () => {
+      // Arrange — battements continus 0/60/120/180 sur dashboard
+      const intervals = computeActiveIntervals([
+        ev(0, 'connect', 'dashboard'),
+        ev(60 * S, 'heartbeat', 'dashboard'),
+        ev(120 * S, 'heartbeat', 'dashboard'),
+        ev(180 * S, 'heartbeat', 'dashboard'),
+      ])
+
+      // Act
+      const sessions = sessionizeIntervals(intervals)
+
+      // Assert — une seule session de 180s
+      expect(sessions).toHaveLength(1)
+      expect(sessions[0]).toMatchObject({
+        pageName: 'dashboard',
+        startMs: T0,
+        endMs: T0 + 180 * S,
+        durationMs: 180 * S,
+      })
+    })
+
+    it('découpe sur trou d\'inactivité et sur changement de page', () => {
+      // Arrange — dashboard, trou (idle), puis interventions
+      const intervals = computeActiveIntervals([
+        ev(0, 'heartbeat', 'dashboard'),
+        ev(60 * S, 'idle', 'dashboard'), // STOP → trou
+        ev(600 * S, 'page', 'interventions'),
+        ev(660 * S, 'heartbeat', 'interventions'),
+      ])
+
+      // Act
+      const sessions = sessionizeIntervals(intervals)
+
+      // Assert — 2 sessions distinctes (dashboard avant trou, interventions après)
+      expect(sessions).toHaveLength(2)
+      expect(sessions[0].pageName).toBe('dashboard')
+      expect(sessions[1].pageName).toBe('interventions')
     })
   })
 })

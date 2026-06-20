@@ -114,6 +114,52 @@ export function totalActiveMs(intervals: ActiveInterval[]): number {
   return intervals.reduce((sum, i) => sum + i.durationMs, 0)
 }
 
+export interface ScreenSession {
+  pageName: string | null
+  interventionId: string | null
+  startMs: number
+  endMs: number
+  durationMs: number
+}
+
+/**
+ * Reconstitue des « sessions » logiques en fusionnant les intervalles actifs
+ * contigus de même page et même intervention. Un trou (inactivité/veille) ou
+ * un changement de page/intervention démarre une nouvelle session.
+ *
+ * Miroir de la logique gaps-and-islands de `monitoring_screen_rows` (99035).
+ * Les intervalles ne se chevauchent jamais (ils se touchent ou laissent un
+ * trou) → la somme des durées = temps couvert.
+ */
+export function sessionizeIntervals(intervals: ActiveInterval[]): ScreenSession[] {
+  const sorted = [...intervals].sort((a, b) => a.startMs - b.startMs)
+  const sessions: ScreenSession[] = []
+
+  for (const iv of sorted) {
+    const prev = sessions[sessions.length - 1]
+    const contiguous =
+      prev !== undefined &&
+      prev.pageName === iv.pageName &&
+      prev.interventionId === iv.interventionId &&
+      iv.startMs <= prev.endMs
+
+    if (contiguous) {
+      prev.endMs = Math.max(prev.endMs, iv.endMs)
+      prev.durationMs += iv.durationMs
+    } else {
+      sessions.push({
+        pageName: iv.pageName,
+        interventionId: iv.interventionId,
+        startMs: iv.startMs,
+        endMs: iv.endMs,
+        durationMs: iv.durationMs,
+      })
+    }
+  }
+
+  return sessions
+}
+
 /** Temps actif agrégé par page (ms), trié décroissant. */
 export function activeMsByPage(
   intervals: ActiveInterval[]

@@ -141,27 +141,36 @@ Quand `isIdle` change, le hook `usePagePresence` re-track immediatement le paylo
 
 Le type `PagePresenceUser` inclut le champ `isIdle: boolean` depuis la v2.
 
-#### Impact sur le tracking de sessions (`useActivityTracker`)
+#### Tracking du temps d'écran : JOURNAL D'ÉVÉNEMENTS (`useActivityTracker`)
 
-Le tracker ne crédite que du **temps réellement actif**. La logique de calcul des bornes est isolée dans `src/lib/monitoring/session-timing.ts` (module pur, testé à 100 %).
+Depuis la migration `99034`/`99035`, le temps d'écran repose sur un **journal d'événements horodaté serveur**, pas sur des durées calculées côté client.
 
-Quand l'utilisateur passe en idle (ou que la fenêtre perd le focus) :
-1. La session en cours est terminée et **créditée uniquement jusqu'à la dernière activité réelle** (`getLastActiveAt()`), pas jusqu'à `now`. La fenêtre d'inactivité de 5 min qui précède la détection est donc **retirée** du temps d'écran.
-2. Le timer de flush périodique (60s) est stoppé.
+**Collecte** (`src/hooks/useActivityTracker.ts`) : le client n'écrit QUE des événements dans `user_activity_events` (jamais de durée). `occurred_at` est l'horodatage **serveur** (`default now()`) — la source de vérité.
 
-Quand l'utilisateur revient actif :
-1. Une **nouvelle session** est créée (nouveau row dans `user_page_sessions`).
-2. Le flush périodique reprend.
+| Marqueur émis | Quand |
+|---|---|
+| `connect` | montage (nouvelle session navigateur, `session_id` uuid) |
+| `page` | changement de page / d'intervention ouverte (`?i=<id>`) |
+| `heartbeat` | toutes les 60 s, **uniquement** s'il y a eu une vraie activité depuis le dernier battement |
+| `idle` | bascule en inactivité (souris immobile / onglet caché) |
+| `blur` / `focus` | fenêtre au second / premier plan (dé-doublonnage multi-écran) |
+| `disconnect` | fermeture d'onglet (keepalive) |
 
-Trois garde-fous supplémentaires :
+**Calcul serveur** : `monitoring_active_intervals` (miroir SQL de `src/lib/monitoring/active-time.ts`, testé) crédite, pour chaque marqueur **actif**, l'écart jusqu'à l'événement suivant **plafonné à MAX_GAP = 90 s**. `monitoring_screen_rows` sessionise ces intervalles (gaps & islands) et les unit aux sessions legacy. Les 4 RPC monitoring lisent cette source unifiée (contrat JSON inchangé).
 
-| Cas | Mécanisme | Effet |
-|-----|-----------|-------|
-| **Veille OS / capot fermé** | Le flush détecte un saut d'horloge (`isStaleGap`) et clôture la session à la dernière activité (`reason: 'stale'`) ; toute clôture « active » est par ailleurs plafonnée à `lastActive + 5 min` | Le temps de sommeil n'est jamais compté |
-| **Multi-fenêtres / double écran** | Seule la fenêtre **au premier plan** accumule (`focus`/`blur` → pause/reprise) | Pas de double-comptage entre deux fenêtres CRM visibles |
-| **Intervention réellement ouverte** | La gate lit `?i=<id>` (param `mc` = intervention) et renseigne `intervention_id` sur la session ; un changement d'intervention découpe la session | Le temps est attribué à l'intervention réelle, pas à la page liste |
+Garanties structurelles (vérifiées par les tests de `active-time.ts`) :
 
-Résultat : les sessions sont découpées proprement et ne comptent que le temps actif. Exemple : "session 1 (8h–12h00, dernière activité 12h00) + session 2 (13h02–17h30)" — les 5 min d'inactivité avant la pause déjeuner ne sont pas créditées.
+| Cas | Effet |
+|---|---|
+| **Veille OS / capot fermé / crash** | Pas de heartbeat → écart > MAX_GAP → on ne crédite qu'un MAX_GAP (≤ 90 s), jamais des heures fantômes |
+| **Inactivité** | Un marqueur d'arrêt (`idle`/`blur`/`disconnect`) ne crédite jamais l'écart qui le suit |
+| **Multi-fenêtres / double écran** | Seule la fenêtre au premier plan émet des heartbeats (`focus`/`blur`) |
+| **Intervention ouverte** | `intervention_id` porté par chaque événement → temps attribué à l'intervention réelle |
+| **Reconnexions** | Chaque `connect` = nouveau `session_id`, calculé et auditable |
+
+> Le `heartbeat` ne bat que sur **vraie activité** (pas seulement « non-idle »), sinon les 5 min précédant la bascule idle seraient recréditées.
+
+La table `user_page_sessions` reste lue pour l'historique antérieur à la bascule (les RPC unissent les deux sources), mais n'est plus alimentée.
 
 #### 3 etats dans le monitoring
 
@@ -189,11 +198,13 @@ Le composant `src/components/layout/IdleScreensaver.tsx` affiche un ecran de vei
 
 ```
 src/hooks/useIdleDetector.ts                     # Detection d'inactivite + getLastActiveAt
-src/hooks/useActivityTracker.ts                  # Enregistrement des sessions (credit du temps actif)
-src/lib/monitoring/session-timing.ts             # Calcul pur des bornes/durees (teste a 100%)
+src/hooks/useActivityTracker.ts                  # Emetteur du journal d'evenements (user_activity_events)
+src/lib/monitoring/active-time.ts                # Calcul pur des intervalles actifs (miroir SQL, teste)
 src/components/layout/IdleScreensaver.tsx        # Ecran de veille DVD bouncing
 src/components/layout/page-presence-gate.tsx     # Monte useIdleDetector + IdleScreensaver
 src/components/layout/activity-tracker-gate.tsx  # isIdle + getLastActiveAt + intervention ouverte → tracker
+supabase/migrations/99034_activity_events_journal.sql   # Table user_activity_events + monitoring_active_intervals
+supabase/migrations/99035_monitoring_rpcs_use_events.sql # monitoring_screen_rows + RPC sur le journal
 ```
 
 ---

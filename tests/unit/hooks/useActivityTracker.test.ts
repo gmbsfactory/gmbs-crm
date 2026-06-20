@@ -1,31 +1,16 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { renderHook, act } from '@testing-library/react'
 
-// ─── État capturé des appels Supabase (hoisted pour les factories vi.mock) ────
-const db = vi.hoisted(() => ({
-  inserts: [] as Array<Record<string, unknown>>,
-  updates: [] as Array<Record<string, unknown>>,
-  nextId: 0,
-}))
+// ─── Capture des événements insérés dans user_activity_events ────────────────
+const journal = vi.hoisted(() => ({ events: [] as Array<Record<string, unknown>> }))
 
 vi.mock('@/lib/supabase-client', () => ({
   supabase: {
     from: vi.fn(() => ({
       insert: (payload: Record<string, unknown>) => {
-        db.inserts.push(payload)
-        const id = `sess-${++db.nextId}`
-        return {
-          select: () => ({
-            single: () => Promise.resolve({ data: { id }, error: null }),
-          }),
-        }
+        journal.events.push(payload)
+        return { then: (ok: () => void) => { ok?.(); return Promise.resolve() } }
       },
-      update: (payload: Record<string, unknown>) => ({
-        eq: () => {
-          db.updates.push(payload)
-          return Promise.resolve({ data: null, error: null })
-        },
-      }),
     })),
     auth: {
       getSession: vi.fn(() =>
@@ -42,101 +27,87 @@ vi.mock('@/hooks/useCurrentUser', () => ({
 import { useActivityTracker } from '@/hooks/useActivityTracker'
 
 const T0 = 1_700_000_000_000
-const MIN = 60_000
+const kinds = () => journal.events.map((e) => e.kind)
 
-/** Flush plusieurs tours de microtâches (chaînes endSession→startSession). */
-async function flush() {
-  await act(async () => {
-    for (let i = 0; i < 6; i++) await Promise.resolve()
-  })
-}
-
-describe('useActivityTracker (intégration)', () => {
+describe('useActivityTracker (émetteur de journal)', () => {
   beforeEach(() => {
-    db.inserts.length = 0
-    db.updates.length = 0
-    db.nextId = 0
+    journal.events.length = 0
     vi.useFakeTimers()
     vi.setSystemTime(T0)
     vi.spyOn(document, 'hasFocus').mockReturnValue(true)
   })
-
   afterEach(() => {
     vi.useRealTimers()
     vi.restoreAllMocks()
   })
 
-  it('crédite le temps seulement jusqu\'à la dernière activité en idle (retire la fenêtre d\'inactivité)', async () => {
-    let lastActive = T0
-    const getLastActiveAt = () => lastActive
+  it('émet "connect" au montage avec session_id et page', async () => {
+    renderHook(() => useActivityTracker('interventions', false, () => Date.now(), null))
+    await act(async () => { await Promise.resolve() })
 
-    const { rerender } = renderHook(
-      ({ isIdle }) => useActivityTracker('interventions', isIdle, getLastActiveAt, null),
-      { initialProps: { isIdle: false } }
-    )
-    await flush()
-
-    // Session démarrée à T0
-    expect(db.inserts).toHaveLength(1)
-    expect(db.inserts[0]).toMatchObject({
+    expect(journal.events).toHaveLength(1)
+    expect(journal.events[0]).toMatchObject({
       user_id: 'user-1',
+      kind: 'connect',
       page_name: 'interventions',
       intervention_id: null,
     })
-
-    // Actif jusqu'à T0+20min puis absence ; idle détecté à T0+25min
-    lastActive = T0 + 20 * MIN
-    vi.setSystemTime(T0 + 25 * MIN)
-    rerender({ isIdle: true })
-    await flush()
-
-    // Créditée 20 min (dernière activité), pas 25 min (instant de détection)
-    expect(db.updates.length).toBeGreaterThanOrEqual(1)
-    const last = db.updates[db.updates.length - 1]
-    expect(last.duration_ms).toBe(20 * MIN)
+    expect(journal.events[0].session_id).toBeTruthy()
   })
 
-  it('exclut le temps de veille OS (gros saut d\'horloge) lors de la bascule idle', async () => {
-    let lastActive = T0
-    const getLastActiveAt = () => lastActive
-
+  it('émet "page" sur changement de page et d\'intervention ouverte', async () => {
     const { rerender } = renderHook(
-      ({ isIdle }) => useActivityTracker('dashboard', isIdle, getLastActiveAt, null),
+      ({ page, inter }) => useActivityTracker(page, false, () => Date.now(), inter),
+      { initialProps: { page: 'interventions', inter: null as string | null } }
+    )
+    await act(async () => { await Promise.resolve() })
+
+    rerender({ page: 'interventions', inter: 'inter-42' })
+    await act(async () => { await Promise.resolve() })
+
+    const pageEvents = journal.events.filter((e) => e.kind === 'page')
+    expect(pageEvents).toHaveLength(1)
+    expect(pageEvents[0]).toMatchObject({ page_name: 'interventions', intervention_id: 'inter-42' })
+  })
+
+  it('émet "idle" en inactivité puis "heartbeat" à la reprise', async () => {
+    const { rerender } = renderHook(
+      ({ isIdle }) => useActivityTracker('dashboard', isIdle, () => Date.now(), null),
       { initialProps: { isIdle: false } }
     )
-    await flush()
-    expect(db.inserts).toHaveLength(1)
+    await act(async () => { await Promise.resolve() })
 
-    // Dernière activité T0+2min, puis veille 8h, réveil → idle
-    lastActive = T0 + 2 * MIN
-    vi.setSystemTime(T0 + 8 * 60 * MIN)
     rerender({ isIdle: true })
-    await flush()
+    await act(async () => { await Promise.resolve() })
+    expect(kinds()).toContain('idle')
 
-    const last = db.updates[db.updates.length - 1]
-    // Seules les 2 min réelles sont comptées, pas les 8h de sommeil
-    expect(last.duration_ms).toBe(2 * MIN)
+    rerender({ isIdle: false })
+    await act(async () => { await Promise.resolve() })
+    // reprise = marqueur actif
+    expect(kinds().filter((k) => k === 'heartbeat').length).toBeGreaterThanOrEqual(1)
   })
 
-  it('attribue le temps à l\'intervention ouverte et découpe la session quand elle change', async () => {
-    const getLastActiveAt = () => Date.now()
+  it('ne bat le heartbeat QUE s\'il y a eu une vraie activité', async () => {
+    let lastActive = T0
+    renderHook(() => useActivityTracker('dashboard', false, () => lastActive, null))
+    await act(async () => { await Promise.resolve() })
+    journal.events.length = 0 // on ignore le connect
 
-    const { rerender } = renderHook(
-      ({ interventionId }) =>
-        useActivityTracker('interventions', false, getLastActiveAt, interventionId),
-      { initialProps: { interventionId: null as string | null } }
-    )
-    await flush()
+    // 60s sans nouvelle activité → pas de heartbeat
+    await act(async () => { await vi.advanceTimersByTimeAsync(60_000) })
+    expect(kinds()).not.toContain('heartbeat')
 
-    expect(db.inserts).toHaveLength(1)
-    expect(db.inserts[0].intervention_id).toBeNull()
+    // Nouvelle activité puis 60s → heartbeat
+    lastActive = T0 + 90_000
+    await act(async () => { await vi.advanceTimersByTimeAsync(60_000) })
+    expect(kinds()).toContain('heartbeat')
+  })
 
-    // Ouverture d'une intervention → ancienne session clôturée + nouvelle avec l'id
-    rerender({ interventionId: 'inter-42' })
-    await flush()
-
-    expect(db.inserts.length).toBeGreaterThanOrEqual(2)
-    expect(db.inserts[db.inserts.length - 1].intervention_id).toBe('inter-42')
-    expect(db.updates.length).toBeGreaterThanOrEqual(1) // la 1re session a été fermée
+  it('émet "disconnect" au démontage', async () => {
+    const { unmount } = renderHook(() => useActivityTracker('dashboard', false, () => Date.now(), null))
+    await act(async () => { await Promise.resolve() })
+    unmount()
+    await act(async () => { await Promise.resolve() })
+    expect(kinds()).toContain('disconnect')
   })
 })

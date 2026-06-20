@@ -3,37 +3,60 @@
 import { useEffect, useRef, useCallback } from 'react'
 import { supabase } from '@/lib/supabase-client'
 import { useCurrentUser } from '@/hooks/useCurrentUser'
-import { DEFAULT_IDLE_TIMEOUT_MS } from '@/hooks/useIdleDetector'
-import {
-  computeSessionEndMs,
-  computeDurationMs,
-  isStaleGap,
-  type SessionEndReason,
-} from '@/lib/monitoring/session-timing'
-
-/** Flush interval: refresh the current session every 60 seconds */
-const FLUSH_INTERVAL_MS = 60_000
 
 /**
- * Tracks page visit sessions in the `user_page_sessions` table.
- * Runs at layout level — logs start/end of each session and the time spent.
+ * Émetteur du JOURNAL D'ÉVÉNEMENTS d'activité (temps d'écran précis et auditable).
  *
- * Screen time is credited as REAL active time only:
- * - When the user goes idle (or the window loses focus), the session is closed
- *   and credited only up to the last real activity — the trailing idle window
- *   and any OS sleep are NOT counted.
- * - A periodic flush self-heals after a clock jump (wake from sleep) by closing
- *   the session at the last activity instead of "now".
- * - Only the focused window accrues time, so multiple visible windows (dual
- *   monitor) don't double-count.
- * - The currently open intervention (`?i=<id>`) is recorded on the session so
- *   time can be attributed to a real intervention, not just the list page.
+ * Le client n'écrit PLUS de durées : il émet uniquement des événements dans
+ * `user_activity_events` (horodatés SERVEUR via `occurred_at default now()`).
+ * Les durées sont recalculées côté serveur (cf. monitoring_active_intervals /
+ * src/lib/monitoring/active-time.ts) en bornant chaque marqueur actif à MAX_GAP.
  *
- * @param pageName        Current page name (e.g. 'interventions', 'dashboard')
- * @param isIdle          Whether the user is currently idle
- * @param getLastActiveAt Stable getter for the last real-activity epoch (ms)
- * @param interventionId  Id of the intervention currently open (modal), or null
+ * Marqueurs émis :
+ * - `connect`     : montage (nouvelle session navigateur).
+ * - `page`        : changement de page / d'intervention ouverte.
+ * - `heartbeat`   : toutes les 60 s, UNIQUEMENT s'il y a eu une vraie activité
+ *                   depuis le dernier battement (preuve de vie réelle → exclut
+ *                   l'inactivité sans rien compter à tort).
+ * - `idle`        : bascule en inactivité (souris immobile / onglet caché).
+ * - `blur`/`focus`: fenêtre au second / premier plan (dé-doublonnage multi-écran).
+ * - `disconnect`  : fermeture de l'onglet (best-effort keepalive).
+ *
+ * Veille OS, coupure réseau et crash ne produisent aucun heartbeat → le serveur
+ * ne crédite qu'un MAX_GAP (≤ ~90 s), jamais des heures fantômes.
+ *
+ * @param pageName        Page courante (ex. 'interventions', 'dashboard')
+ * @param isIdle          Inactivité courante (cf. useIdleDetector)
+ * @param getLastActiveAt Getter stable de l'epoch (ms) de la dernière activité réelle
+ * @param interventionId  Id de l'intervention ouverte (modal), ou null
  */
+const HEARTBEAT_MS = 60_000
+const EVENTS_TABLE = 'user_activity_events'
+
+type EventKind =
+  | 'connect'
+  | 'page'
+  | 'heartbeat'
+  | 'idle'
+  | 'focus'
+  | 'blur'
+  | 'disconnect'
+
+/** Marqueurs actifs : leur émission "réamorce" le crédit de temps. */
+const ACTIVE_KINDS = new Set<EventKind>(['connect', 'page', 'heartbeat', 'focus'])
+
+function newSessionId(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID()
+  }
+  // Fallback (navigateurs anciens)
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = (Date.now() + Math.floor(Math.random() * 16)) % 16
+    const v = c === 'x' ? r : (r & 0x3) | 0x8
+    return v.toString(16)
+  })
+}
+
 export function useActivityTracker(
   pageName: string | null,
   isIdle = false,
@@ -43,197 +66,104 @@ export function useActivityTracker(
   const { data: currentUser } = useCurrentUser()
   const currentUserId = currentUser?.id ?? null
 
-  // ─── Incoming-props refs (synced each render) ────────────────────────────────
+  // ─── Refs synchronisées chaque render ────────────────────────────────────────
   const currentUserIdRef = useRef<string | null>(null)
   const isIdleRef = useRef(isIdle)
   const getLastActiveAtRef = useRef(getLastActiveAt)
+  const pageNameRef = useRef<string | null>(pageName)
+  const interventionIdRef = useRef<string | null>(interventionId)
   currentUserIdRef.current = currentUserId
   getLastActiveAtRef.current = getLastActiveAt
 
-  // ─── Desired-state refs (page / intervention currently requested) ────────────
-  const pageNameRef = useRef<string | null>(pageName)
-  const interventionIdRef = useRef<string | null>(interventionId)
-
-  // ─── Current-session refs ────────────────────────────────────────────────────
-  const currentSessionIdRef = useRef<string | null>(null)
-  const sessionStartRef = useRef<number>(0)
-
-  // ─── Misc refs ───────────────────────────────────────────────────────────────
-  const flushTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
-  const accessTokenRef = useRef<string | null>(null)
-  const mountedRef = useRef(true)
+  // ─── État de session / heartbeat ─────────────────────────────────────────────
+  const sessionIdRef = useRef<string>('')
+  const lastBeatRef = useRef<number>(0)
   const hasFocusRef = useRef<boolean>(
     typeof document === 'undefined' ? true : document.hasFocus()
   )
+  const heartbeatTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const accessTokenRef = useRef<string | null>(null)
 
   const lastActiveMs = useCallback(() => {
     const fn = getLastActiveAtRef.current
     return typeof fn === 'function' ? fn() : Date.now()
   }, [])
 
-  /** Session runs only when: user present, on a page, not idle, window focused. */
-  const shouldTrack = useCallback(
-    () => !isIdleRef.current && hasFocusRef.current,
-    []
-  )
+  // ─── Émission d'un événement (insert append-only, fire-and-forget) ───────────
+  const emit = useCallback((kind: EventKind) => {
+    const userId = currentUserIdRef.current
+    if (!userId || !sessionIdRef.current) return
 
-  // ─── DB ops ──────────────────────────────────────────────────────────────────
-  const startSession = useCallback(
-    async (page: string, intervention: string | null) => {
-      const userId = currentUserIdRef.current
-      if (!userId || !page) return
-
-      const startMs = Date.now()
-      try {
-        const { data, error } = await (supabase as any)
-          .from('user_page_sessions')
-          .insert({
-            user_id: userId,
-            page_name: page,
-            started_at: new Date(startMs).toISOString(),
-            intervention_id: intervention,
-          })
-          .select('id')
-          .single()
-
-        if (!error && data) {
-          currentSessionIdRef.current = data.id
-          sessionStartRef.current = startMs
-        }
-      } catch (err) {
-        console.warn('[ActivityTracker] Failed to start session:', err)
-      }
-    },
-    []
-  )
-
-  const endSession = useCallback(
-    async (reason: SessionEndReason) => {
-      const sessionId = currentSessionIdRef.current
-      if (!sessionId) return
-
-      const endMs = computeSessionEndMs({
-        reason,
-        nowMs: Date.now(),
-        lastActiveMs: lastActiveMs(),
-        idleTimeoutMs: DEFAULT_IDLE_TIMEOUT_MS,
-      })
-      const durationMs = computeDurationMs(sessionStartRef.current, endMs)
-
-      // Clear ref first to prevent re-entry / double-end.
-      currentSessionIdRef.current = null
-
-      try {
-        await (supabase as any)
-          .from('user_page_sessions')
-          .update({
-            ended_at: new Date(endMs).toISOString(),
-            duration_ms: durationMs,
-          })
-          .eq('id', sessionId)
-      } catch (err) {
-        console.warn('[ActivityTracker] Failed to end session:', err)
-      }
-    },
-    [lastActiveMs]
-  )
-
-  const stopFlushTimer = useCallback(() => {
-    if (flushTimerRef.current) {
-      clearInterval(flushTimerRef.current)
-      flushTimerRef.current = null
-    }
-  }, [])
-
-  const flushSession = useCallback(async () => {
-    const sessionId = currentSessionIdRef.current
-    if (!sessionId) return
-
-    const nowMs = Date.now()
-    const la = lastActiveMs()
-
-    // Auto-heal: a clock jump (wake from sleep) or a window left idle past the
-    // threshold → close at the last activity and stop crediting.
-    if (isStaleGap({ nowMs, lastActiveMs: la, idleTimeoutMs: DEFAULT_IDLE_TIMEOUT_MS })) {
-      await endSession('stale')
-      stopFlushTimer()
-      return
-    }
-
-    const endMs = computeSessionEndMs({
-      reason: 'flush',
-      nowMs,
-      lastActiveMs: la,
-      idleTimeoutMs: DEFAULT_IDLE_TIMEOUT_MS,
-    })
-    const durationMs = computeDurationMs(sessionStartRef.current, endMs)
+    if (ACTIVE_KINDS.has(kind)) lastBeatRef.current = Date.now()
 
     try {
-      await (supabase as any)
-        .from('user_page_sessions')
-        .update({
-          ended_at: new Date(endMs).toISOString(),
-          duration_ms: durationMs,
-        })
-        .eq('id', sessionId)
-    } catch {
-      // Silent — non-critical periodic flush
-    }
-  }, [endSession, lastActiveMs, stopFlushTimer])
-
-  const startFlushTimer = useCallback(() => {
-    if (flushTimerRef.current) clearInterval(flushTimerRef.current)
-    flushTimerRef.current = setInterval(flushSession, FLUSH_INTERVAL_MS)
-  }, [flushSession])
-
-  // ─── Pause / resume ──────────────────────────────────────────────────────────
-  const pause = useCallback(
-    (reason: SessionEndReason) => {
-      if (!currentSessionIdRef.current) return
-      stopFlushTimer()
-      void endSession(reason)
-    },
-    [endSession, stopFlushTimer]
-  )
-
-  const resume = useCallback(() => {
-    if (currentSessionIdRef.current) return
-    const page = pageNameRef.current
-    if (!currentUserIdRef.current || !page || !shouldTrack()) return
-    void startSession(page, interventionIdRef.current).then(() => {
-      if (mountedRef.current && shouldTrack()) startFlushTimer()
-    })
-  }, [shouldTrack, startSession, startFlushTimer])
-
-  // ─── Effect: mounted flag ────────────────────────────────────────────────────
-  useEffect(() => {
-    mountedRef.current = true
-    return () => {
-      mountedRef.current = false
+      const builder = (supabase as any).from(EVENTS_TABLE).insert({
+        user_id: userId,
+        session_id: sessionIdRef.current,
+        kind,
+        page_name: pageNameRef.current,
+        intervention_id: interventionIdRef.current,
+        client_ts: new Date().toISOString(),
+        // occurred_at : NON envoyé → horodatage serveur (default now())
+      })
+      // PostgREST builder est "thenable" : .then() déclenche la requête.
+      builder.then(
+        () => {},
+        (err: unknown) => console.warn('[ActivityTracker] emit failed:', kind, err)
+      )
+    } catch (err) {
+      console.warn('[ActivityTracker] emit error:', kind, err)
     }
   }, [])
 
-  // ─── Effect: idle changes → pause / resume ───────────────────────────────────
+  // ─── Heartbeat : ne bat que sur vraie activité depuis le dernier battement ───
+  const tick = useCallback(() => {
+    if (isIdleRef.current || !hasFocusRef.current) return
+    if (lastActiveMs() > lastBeatRef.current) emit('heartbeat')
+  }, [emit, lastActiveMs])
+
+  // ─── Cycle de vie de la session (lié au userId) ──────────────────────────────
+  useEffect(() => {
+    if (!currentUserId) return
+
+    sessionIdRef.current = newSessionId()
+    lastBeatRef.current = Date.now()
+    emit('connect')
+
+    if (heartbeatTimerRef.current) clearInterval(heartbeatTimerRef.current)
+    heartbeatTimerRef.current = setInterval(tick, HEARTBEAT_MS)
+
+    return () => {
+      if (heartbeatTimerRef.current) {
+        clearInterval(heartbeatTimerRef.current)
+        heartbeatTimerRef.current = null
+      }
+      emit('disconnect')
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUserId])
+
+  // ─── Idle → marqueur d'arrêt ; retour actif → réamorce ───────────────────────
   useEffect(() => {
     const wasIdle = isIdleRef.current
     isIdleRef.current = isIdle
-    if (!currentUserId || !pageNameRef.current) return
+    if (!currentUserId || !sessionIdRef.current) return
 
-    if (isIdle && !wasIdle) pause('idle')
-    else if (!isIdle && wasIdle) resume()
-  }, [isIdle, currentUserId, pause, resume])
+    if (isIdle && !wasIdle) emit('idle')
+    else if (!isIdle && wasIdle) emit('heartbeat') // reprise = marqueur actif
+  }, [isIdle, currentUserId, emit])
 
-  // ─── Effect: window focus / blur → resume / pause (dual-monitor de-dup) ──────
+  // ─── Focus / blur (dé-doublonnage multi-écran) ───────────────────────────────
   useEffect(() => {
     const onFocus = () => {
       if (hasFocusRef.current) return
       hasFocusRef.current = true
-      if (currentUserIdRef.current && pageNameRef.current) resume()
+      if (currentUserIdRef.current && sessionIdRef.current) emit('focus')
     }
     const onBlur = () => {
       if (!hasFocusRef.current) return
       hasFocusRef.current = false
-      pause('blur')
+      if (currentUserIdRef.current && sessionIdRef.current) emit('blur')
     }
     window.addEventListener('focus', onFocus)
     window.addEventListener('blur', onBlur)
@@ -241,57 +171,23 @@ export function useActivityTracker(
       window.removeEventListener('focus', onFocus)
       window.removeEventListener('blur', onBlur)
     }
-  }, [resume, pause])
+  }, [emit])
 
-  // ─── Effect: page or intervention change → split session ─────────────────────
+  // ─── Changement de page / d'intervention → marqueur 'page' ───────────────────
   useEffect(() => {
     const prevPage = pageNameRef.current
     const prevIntervention = interventionIdRef.current
     pageNameRef.current = pageName
     interventionIdRef.current = interventionId
 
-    if (!currentUserId) return
+    if (!currentUserId || !sessionIdRef.current) return
     if (prevPage === pageName && prevIntervention === interventionId) return
 
-    // Active transition: end the current session, then start a fresh one.
-    void endSession('page').then(() => {
-      if (pageName && mountedRef.current && shouldTrack()) {
-        void startSession(pageName, interventionId).then(() => {
-          if (mountedRef.current && shouldTrack()) startFlushTimer()
-        })
-      } else {
-        stopFlushTimer()
-      }
-    })
-  }, [
-    pageName,
-    interventionId,
-    currentUserId,
-    endSession,
-    startSession,
-    startFlushTimer,
-    stopFlushTimer,
-    shouldTrack,
-  ])
+    // Seulement si actif au premier plan (sinon le prochain 'focus'/reprise réamorce)
+    if (!isIdleRef.current && hasFocusRef.current) emit('page')
+  }, [pageName, interventionId, currentUserId, emit])
 
-  // ─── Effect: initial session + flush (tied to userId) ────────────────────────
-  useEffect(() => {
-    if (!currentUserId || !pageNameRef.current) return
-
-    if (shouldTrack()) {
-      void startSession(pageNameRef.current, interventionIdRef.current)
-      startFlushTimer()
-    }
-
-    return () => {
-      stopFlushTimer()
-      void endSession('unload')
-    }
-    // Only re-run when the user changes — page/intervention handled above.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentUserId])
-
-  // ─── Effect: keep access token fresh for beforeunload (sync access required) ─
+  // ─── Token frais pour le disconnect au beforeunload ──────────────────────────
   useEffect(() => {
     if (!currentUserId) return
     const refreshToken = async () => {
@@ -303,47 +199,40 @@ export function useActivityTracker(
     return () => clearInterval(tokenTimer)
   }, [currentUserId])
 
-  // ─── Effect: tab close / beforeunload — best-effort session end ──────────────
+  // ─── beforeunload : 'disconnect' fiable via keepalive ────────────────────────
   useEffect(() => {
     const handleBeforeUnload = () => {
-      const sessionId = currentSessionIdRef.current
+      const userId = currentUserIdRef.current
       const accessToken = accessTokenRef.current
-      if (!sessionId || !accessToken) return
+      if (!userId || !accessToken || !sessionIdRef.current) return
 
-      const endMs = computeSessionEndMs({
-        reason: 'unload',
-        nowMs: Date.now(),
-        lastActiveMs: lastActiveMs(),
-        idleTimeoutMs: DEFAULT_IDLE_TIMEOUT_MS,
-      })
-      const durationMs = computeDurationMs(sessionStartRef.current, endMs)
       const payload = JSON.stringify({
-        ended_at: new Date(endMs).toISOString(),
-        duration_ms: durationMs,
+        user_id: userId,
+        session_id: sessionIdRef.current,
+        kind: 'disconnect',
+        page_name: pageNameRef.current,
+        intervention_id: interventionIdRef.current,
+        client_ts: new Date().toISOString(),
       })
 
-      // Use fetch with keepalive for reliable delivery on tab close
       try {
-        fetch(
-          `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/user_page_sessions?id=eq.${sessionId}`,
-          {
-            method: 'PATCH',
-            headers: {
-              'Content-Type': 'application/json',
-              apikey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '',
-              Authorization: `Bearer ${accessToken}`,
-              Prefer: 'return=minimal',
-            },
-            body: payload,
-            keepalive: true,
-          }
-        )
+        fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/${EVENTS_TABLE}`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            apikey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '',
+            Authorization: `Bearer ${accessToken}`,
+            Prefer: 'return=minimal',
+          },
+          body: payload,
+          keepalive: true,
+        })
       } catch {
-        // Best effort — tab is closing
+        // Best effort — onglet en fermeture
       }
     }
 
     window.addEventListener('beforeunload', handleBeforeUnload)
     return () => window.removeEventListener('beforeunload', handleBeforeUnload)
-  }, [lastActiveMs])
+  }, [])
 }

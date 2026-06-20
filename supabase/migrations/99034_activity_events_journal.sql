@@ -73,11 +73,12 @@ CREATE POLICY uae_user_own_events ON public.user_activity_events
 --    SECURITY DEFINER qui portent leurs propres gardes de rôle).
 -- ========================================
 CREATE OR REPLACE FUNCTION public.monitoring_active_intervals(
-  p_user_id uuid,
   p_from    timestamptz,
-  p_to      timestamptz
+  p_to      timestamptz,
+  p_user_id uuid DEFAULT NULL   -- NULL = toute l'equipe
 )
 RETURNS TABLE (
+  user_id         uuid,
   page_name       text,
   intervention_id text,
   started_at      timestamptz,
@@ -91,6 +92,7 @@ SET search_path = public
 AS $$
   WITH ordered AS (
     SELECT
+      e.user_id,
       e.page_name,
       e.intervention_id,
       e.kind,
@@ -99,11 +101,12 @@ AS $$
         PARTITION BY e.session_id ORDER BY e.occurred_at, e.id
       ) AS next_at
     FROM public.user_activity_events e
-    WHERE e.user_id = p_user_id
-      AND e.occurred_at >= p_from
+    WHERE e.occurred_at >= p_from
       AND e.occurred_at <  p_to
+      AND (p_user_id IS NULL OR e.user_id = p_user_id)
   )
   SELECT
+    o.user_id,
     o.page_name,
     o.intervention_id,
     o.occurred_at AS started_at,
@@ -115,7 +118,7 @@ AS $$
     AND o.kind IN ('connect','heartbeat','page','visible','focus');
 $$;
 
-COMMENT ON FUNCTION public.monitoring_active_intervals(uuid, timestamptz, timestamptz) IS
-  'Intervalles de temps actif derives du journal d''evenements (bornage MAX_GAP=90s). Miroir de active-time.ts. Helper des RPC monitoring.';
+COMMENT ON FUNCTION public.monitoring_active_intervals(timestamptz, timestamptz, uuid) IS
+  'Intervalles de temps actif derives du journal d''evenements (bornage MAX_GAP=90s). Miroir de active-time.ts. p_user_id NULL = toute l''equipe. Helper des RPC monitoring.';
 
-REVOKE ALL ON FUNCTION public.monitoring_active_intervals(uuid, timestamptz, timestamptz) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.monitoring_active_intervals(timestamptz, timestamptz, uuid) FROM PUBLIC;
