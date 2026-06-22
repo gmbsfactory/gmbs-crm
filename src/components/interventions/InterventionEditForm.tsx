@@ -532,6 +532,8 @@ export const InterventionEditForm = memo(function InterventionEditForm({
     interventionId: intervention.id,
     formData,
     currentUser,
+    existingOwnerId: intervention.owner_id ?? null,
+    existingTenantId: intervention.tenant_id ?? null,
     selectedArtisanId,
     selectedArtisanData,
     selectedSecondArtisanId,

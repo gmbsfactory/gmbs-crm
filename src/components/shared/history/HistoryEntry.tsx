@@ -394,6 +394,19 @@ const getSummary = (item: HistoryItem, resolver?: HistoryValueResolver) => {
     )
   }
 
+  if (actionType === "EMAIL_SENT") {
+    const recipient = (newValues as Record<string, unknown>)?.recipient_email as string | undefined
+    const subject = (newValues as Record<string, unknown>)?.subject as string | undefined
+    const emailType = (newValues as Record<string, unknown>)?.email_type as string | undefined
+    return (
+      <div className="history-item-summary-text">
+        {recipient && <span className="font-medium">{truncate(recipient, 60)}</span>}
+        {subject && <span className="ml-2 text-muted-foreground">{truncate(subject, 80)}</span>}
+        {emailType && <Badge variant="outline" className="ml-2 text-[9px]">{emailType}</Badge>}
+      </div>
+    )
+  }
+
   if (actionType === "CREATE") {
     // Intervention create
     const idInter = (newValues as Record<string, unknown>)?.id_inter as string | undefined

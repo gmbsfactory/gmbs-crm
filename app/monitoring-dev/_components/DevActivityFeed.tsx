@@ -10,11 +10,12 @@ import { useTeamConnections } from "@/hooks/useTeamConnections"
 import { usePagePresenceContext } from "@/contexts/PagePresenceContext"
 import { GestionnaireBadge } from "@/components/ui/gestionnaire-badge"
 import { Button } from "@/components/ui/button"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Skeleton } from "@/components/ui/skeleton"
 import { cn } from "@/lib/utils"
 import { catColor, categoryMeta, categoryOf, type ActivityCategory } from "@/lib/monitoring/activity-categories"
 import type { ActivityActor, GlobalActivityRow } from "@/types/monitoring"
-import { DocPreviewModal, type DocPreviewTarget } from "./DocPreviewModal"
+import { DocPreviewContent, type DocPreviewTarget } from "./DocPreviewModal"
 import { useFeedValueResolver, FeedDiffRows } from "./feedDiff"
 
 type FeedMode = "group" | "detail"
@@ -32,6 +33,7 @@ interface ConnRow {
 type FeedItem = GlobalActivityRow | ConnRow
 const isConn = (x: FeedItem): x is ConnRow => (x as ConnRow).__conn === true
 const catOf = (x: FeedItem): FeedFilter => (isConn(x) ? "conn" : categoryOf(x.action_type))
+type OpenDocPreview = DocPreviewTarget & { rowId: string }
 
 interface StatusRef {
   label: string
@@ -86,12 +88,15 @@ function describe(row: GlobalActivityRow, resolveStatus: (id: unknown) => Status
     case "create":
       return { ...base, text: row.entity_type === "intervention" ? "Intervention créée" : "Artisan créé", sub: null }
     case "status": {
-      const to =
-        resolveStatus(nv.statut_id) ??
-        (row.entity_meta && "statut_label" in row.entity_meta
-          ? { label: row.entity_meta.statut_label ?? "—", color: row.entity_meta.statut_color ?? null }
-          : null)
-      return { ...base, text: "Changement de statut", sub: null, from: resolveStatus(ov.statut_id), to }
+      const fromKey = ov.status_code ?? ov.statut_code ?? ov.status_id ?? ov.statut_id
+      const toKey = nv.status_code ?? nv.statut_code ?? nv.status_id ?? nv.statut_id
+      return {
+        ...base,
+        text: "Changement de statut",
+        sub: null,
+        from: resolveStatus(fromKey),
+        to: resolveStatus(toKey),
+      }
     }
     case "finance":
       return { ...base, text: row.action_type.startsWith("PAYMENT") ? "Paiement" : "Coût", sub: fmtEur(nv.amount ?? nv.montant) }
@@ -125,7 +130,7 @@ export function DevActivityFeed({ startDate, endDate, userIds }: DevActivityFeed
   const [filter, setFilter] = useState<FeedFilter>("all")
   const [query, setQuery] = useState("")
   const [openTx, setOpenTx] = useState<Set<string>>(new Set())
-  const [preview, setPreview] = useState<DocPreviewTarget | null>(null)
+  const [preview, setPreview] = useState<OpenDocPreview | null>(null)
 
   const feed = useGlobalActivityFeed({ startDate, endDate, userIds: userIds.length ? userIds : null })
   const { data: refData } = useReferenceDataQuery()
@@ -138,8 +143,13 @@ export function DevActivityFeed({ startDate, endDate, userIds }: DevActivityFeed
 
   const resolveStatus = useMemo(() => {
     const map = new Map<string, StatusRef>()
-    refData?.interventionStatuses?.forEach((s) => map.set(s.id, { label: s.label || s.code, color: s.color }))
-    refData?.artisanStatuses?.forEach((s) => map.set(s.id, { label: s.label || s.code, color: s.color }))
+    const add = (s: { id?: string | null; code?: string | null; label?: string | null; color?: string | null }) => {
+      const value = { label: s.label || s.code || "—", color: s.color ?? null }
+      if (s.id) map.set(s.id, value)
+      if (s.code) map.set(s.code, value)
+    }
+    refData?.interventionStatuses?.forEach(add)
+    refData?.artisanStatuses?.forEach(add)
     return (id: unknown) => (typeof id === "string" ? map.get(id) ?? null : null)
   }, [refData])
 
@@ -237,18 +247,19 @@ export function DevActivityFeed({ startDate, endDate, userIds }: DevActivityFeed
     if (row.entity_type === "intervention") interventionModal.open(row.entity_id)
     else artisanModal.open(row.entity_id)
   }
-  const openDoc = (row: GlobalActivityRow) => {
+  const buildDocTarget = (row: GlobalActivityRow): OpenDocPreview => {
     // La ligne d'audit DOCUMENT_ADD porte directement l'URL/mime/nom du fichier
     // (new_values) → on ouvre le bon document sans fetch ni match par nom.
     const nv = (row.new_values ?? {}) as Record<string, unknown>
-    setPreview({
+    return {
+      rowId: row.id,
       url: (nv.url as string | null) ?? null,
       mimeType: (nv.mime_type as string | null) ?? null,
       filename: (nv.filename as string | null) ?? null,
       entityLabel: row.entity_label,
       entityType: row.entity_type,
       entityId: row.entity_id,
-    })
+    }
   }
 
   // Contenu inline d'une action : badges de statut OU glyphe + texte + sous-texte.
@@ -276,32 +287,48 @@ export function DevActivityFeed({ startDate, endDate, userIds }: DevActivityFeed
         )}
         {d.sub && <span className="font-mono text-[11.5px] font-semibold text-muted-foreground">{d.sub}</span>}
         {withDoc && d.isDoc && (
-          <button
-            type="button"
-            onClick={() => openDoc(row)}
-            title="Prévisualiser le document"
-            className="inline-flex items-center gap-1 rounded bg-primary/10 px-1.5 py-px text-[10px] font-bold text-primary hover:bg-primary/20"
-          >
-            ⊙ voir
-          </button>
+          renderDocPreviewButton(row, "inline")
         )}
       </div>
+    )
+  }
+  const renderDocPreviewButton = (row: GlobalActivityRow, variant: "icon" | "inline") => {
+    const open = preview?.rowId === row.id
+    return (
+      <Popover
+        open={open}
+        onOpenChange={(nextOpen) => setPreview(nextOpen ? buildDocTarget(row) : null)}
+      >
+        <PopoverTrigger asChild>
+          <button
+            type="button"
+            title="Prévisualiser le document"
+            className={
+              variant === "inline"
+                ? "inline-flex items-center gap-1 rounded bg-primary/10 px-1.5 py-px text-[10px] font-bold text-primary hover:bg-primary/20"
+                : "flex h-7 w-7 items-center justify-center rounded-lg border text-[14px]"
+            }
+            style={
+              variant === "icon"
+                ? { color: "#0EA5E9", background: tint("#0EA5E9", 0.08), borderColor: tint("#0EA5E9", 0.2) }
+                : undefined
+            }
+          >
+            {variant === "inline" ? "⊙ voir" : "⊙"}
+          </button>
+        </PopoverTrigger>
+        {open && preview && (
+          <PopoverContent className="w-auto p-1.5" side="left" align="center">
+            <DocPreviewContent target={preview} onClose={() => setPreview(null)} />
+          </PopoverContent>
+        )}
+      </Popover>
     )
   }
   // Colonne « œil » (aperçu document) de la ligne principale.
   const renderDocCol = (row: GlobalActivityRow) => {
     if (categoryOf(row.action_type) !== "doc") return null
-    return (
-      <button
-        type="button"
-        onClick={() => openDoc(row)}
-        title="Prévisualiser le document"
-        className="flex h-7 w-7 items-center justify-center rounded-lg border text-[14px]"
-        style={{ color: "#0EA5E9", background: tint("#0EA5E9", 0.08), borderColor: tint("#0EA5E9", 0.2) }}
-      >
-        ⊙
-      </button>
-    )
+    return renderDocPreviewButton(row, "icon")
   }
   // Colonne « dossier » (ouverture du modal réel) de la ligne principale.
   // Intervention : on affiche l'ID inter (et non la référence agence), avec un
@@ -442,8 +469,6 @@ export function DevActivityFeed({ startDate, endDate, userIds }: DevActivityFeed
           </>
         )}
       </div>
-
-      <DocPreviewModal target={preview} onClose={() => setPreview(null)} />
     </div>
   )
 }

@@ -21,17 +21,16 @@ export interface DocPreviewTarget {
 /**
  * Aperçu d'une pièce jointe — réutilise le visualiseur `DocumentPreview` de la
  * section Documents du modal d'intervention (image / PDF / fichier), affiché en
- * grand et centré. Pas de « copier le lien » / « exporter » (juste l'aperçu).
+ * grand dans un popover ancré sur l'œil. Pas de « copier le lien » / « exporter ».
  *
  * Cible le document directement par son URL quand elle est connue (cas normal,
  * issue de l'audit) ; sinon repli sur la récupération des pièces du dossier.
  */
-export function DocPreviewModal({ target, onClose }: { target: DocPreviewTarget | null; onClose: () => void }) {
-  const needsFetch = !!target && !target.url
+export function DocPreviewContent({ target, onClose }: { target: DocPreviewTarget; onClose?: () => void }) {
+  const needsFetch = !target.url
   const { data, isLoading } = useQuery({
     queryKey: ["dev-doc-preview", target?.entityType, target?.entityId],
     queryFn: async () => {
-      if (!target) return []
       const res =
         target.entityType === "intervention"
           ? await documentsApi.getByIntervention(target.entityId)
@@ -41,8 +40,6 @@ export function DocPreviewModal({ target, onClose }: { target: DocPreviewTarget 
     enabled: needsFetch,
     staleTime: 60_000,
   })
-
-  if (!target) return null
 
   // Document à afficher : URL directe en priorité, sinon match dans les pièces du dossier.
   const doc = target.url
@@ -54,38 +51,41 @@ export function DocPreviewModal({ target, onClose }: { target: DocPreviewTarget 
       })()
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/55 p-6" onClick={onClose}>
-      <div
-        className="flex max-h-[90%] w-[760px] max-w-[95%] flex-col overflow-hidden rounded-lg border border-border bg-card shadow-xl"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex shrink-0 items-center gap-2 border-b border-border px-4 py-3">
-          <span className="min-w-0 flex-1 truncate font-mono text-sm font-semibold">
-            {doc?.filename ?? target.filename ?? "Document"}
-          </span>
-          {target.entityLabel && (
-            <span className="shrink-0 font-mono text-[11px] text-muted-foreground">{target.entityLabel}</span>
-          )}
+    <div
+      className="relative flex h-[560px] w-[680px] max-h-[78vh] max-w-[min(86vw,680px)] flex-col overflow-hidden rounded border bg-background"
+      onDoubleClick={(event) => event.stopPropagation()}
+    >
+      <div className="flex shrink-0 items-start gap-2 px-3 pt-2">
+        <div className="min-w-0 flex-1">
+          <h4 className="truncate text-xs font-semibold">{doc?.filename ?? target.filename ?? "Document"}</h4>
+          {target.entityLabel && <p className="truncate font-mono text-[10px] text-muted-foreground">{target.entityLabel}</p>}
+        </div>
+        {onClose && (
           <button
             type="button"
             onClick={onClose}
             title="Fermer"
-            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-border text-muted-foreground hover:bg-muted"
+            className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-muted"
           >
-            <X className="h-4 w-4" />
+            <X className="h-3.5 w-3.5" />
           </button>
-        </div>
-        <div className="flex min-h-[320px] flex-1 items-center justify-center overflow-auto bg-muted/20 p-3">
-          {needsFetch && isLoading ? (
-            <Skeleton className="h-80 w-full rounded-lg" />
-          ) : doc ? (
-            <DocumentPreview url={doc.url} mimeType={doc.mime_type} filename={doc.filename ?? undefined} className="max-h-[80vh] w-full" />
-          ) : (
-            <p className="py-12 text-center text-sm italic text-muted-foreground">
-              Aucune pièce jointe trouvée pour ce dossier.
-            </p>
-          )}
-        </div>
+        )}
+      </div>
+      <div className="flex min-h-0 flex-1 items-center justify-center overflow-hidden px-3 pb-2 pt-1">
+        {needsFetch && isLoading ? (
+          <Skeleton className="h-full w-full rounded border" />
+        ) : doc ? (
+          <DocumentPreview
+            url={doc.url}
+            mimeType={doc.mime_type}
+            filename={doc.filename ?? undefined}
+            className="flex h-full w-full items-stretch justify-center overflow-hidden rounded border bg-muted/40"
+          />
+        ) : (
+          <p className="py-12 text-center text-sm italic text-muted-foreground">
+            Aucune pièce jointe trouvée pour ce dossier.
+          </p>
+        )}
       </div>
     </div>
   )

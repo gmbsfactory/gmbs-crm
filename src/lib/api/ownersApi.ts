@@ -101,6 +101,8 @@ export const findByNomFacturation = async (nom: string): Promise<Owner[]> => {
     .from("owner")
     .select("*")
     .eq("plain_nom_facturation", term)
+    .order("updated_at", { ascending: false })
+    .order("created_at", { ascending: false })
     .limit(5);
 
   if (error) throw new Error(`Erreur lors de la recherche par nom de facturation: ${error.message}`);
@@ -268,7 +270,6 @@ export const ownersApi = {
   existsByPhone,
   getStats,
 };
-
 
 
 

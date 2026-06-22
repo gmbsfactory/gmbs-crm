@@ -210,8 +210,13 @@ function buildResolver(ref: ReferenceData | null) {
         userMap.set(u.id, { label, color: u.color })
       }
     })
-    ref.interventionStatuses?.forEach((s) => interStatusMap.set(s.id, { label: s.label || s.code, color: s.color }))
-    ref.artisanStatuses?.forEach((s) => artisanStatusMap.set(s.id, { label: s.label || s.code, color: s.color }))
+    const addStatus = (map: Map<string, ResolvedValue>, s: { id?: string | null; code?: string | null; label?: string | null; color?: string | null }) => {
+      const value = { label: s.label || s.code || "—", color: s.color }
+      if (s.id) map.set(s.id, value)
+      if (s.code) map.set(s.code, value)
+    }
+    ref.interventionStatuses?.forEach((s) => addStatus(interStatusMap, s))
+    ref.artisanStatuses?.forEach((s) => addStatus(artisanStatusMap, s))
     ref.metiers?.forEach((m) => metierMap.set(m.id, { label: m.label || m.code, color: m.color }))
   }
 
@@ -284,8 +289,8 @@ function describeAction(action: RecentAction, resolver: Resolver): ActionLine {
 
     // -- Status --
     case "STATUS_CHANGE": {
-      const fromStatus = resolver.resolveStatus(ov.statut_id)
-      const toStatus = resolver.resolveStatus(nv.statut_id)
+      const fromStatus = resolver.resolveStatus(ov.status_code ?? ov.statut_code ?? ov.status_id ?? ov.statut_id)
+      const toStatus = resolver.resolveStatus(nv.status_code ?? nv.statut_code ?? nv.status_id ?? nv.statut_id)
       return {
         icon: ArrowRight,
         text: "Statut",

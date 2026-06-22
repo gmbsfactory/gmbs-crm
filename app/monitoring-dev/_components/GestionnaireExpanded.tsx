@@ -2,6 +2,7 @@
 
 import { useMemo, useRef } from "react"
 import { pageHex, pageLabel } from "@/lib/monitoring/activity-categories"
+import { toParisDateStr } from "@/lib/monitoring/local-date"
 import { smoothSessions, totalInactivityMs } from "@/lib/monitoring/session-smoothing"
 import type { DevFocus, HeatmapBucket, HeatmapCell, TeamConnection } from "@/types/monitoring"
 import type { TipData } from "./useTimelineTooltip"
@@ -123,7 +124,7 @@ export function GestionnaireExpanded({
   const actionsByDate = useMemo(() => {
     const map = new Map<string, ExpandedAction[]>()
     for (const a of actions) {
-      const key = new Date(a.occurredAt).toISOString().split("T")[0]
+      const key = toParisDateStr(new Date(a.occurredAt))
       const arr = map.get(key) ?? []
       arr.push(a)
       map.set(key, arr)
