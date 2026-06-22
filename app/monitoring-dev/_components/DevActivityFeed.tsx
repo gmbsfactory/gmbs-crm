@@ -234,13 +234,19 @@ export function DevActivityFeed({ startDate, endDate, userIds }: DevActivityFeed
     if (row.entity_type === "intervention") interventionModal.open(row.entity_id)
     else artisanModal.open(row.entity_id)
   }
-  const openDoc = (row: GlobalActivityRow) =>
+  const openDoc = (row: GlobalActivityRow) => {
+    // La ligne d'audit DOCUMENT_ADD porte directement l'URL/mime/nom du fichier
+    // (new_values) → on ouvre le bon document sans fetch ni match par nom.
+    const nv = (row.new_values ?? {}) as Record<string, unknown>
     setPreview({
+      url: (nv.url as string | null) ?? null,
+      mimeType: (nv.mime_type as string | null) ?? null,
+      filename: (nv.filename as string | null) ?? null,
+      entityLabel: row.entity_label,
       entityType: row.entity_type,
       entityId: row.entity_id,
-      entityLabel: row.entity_label,
-      filename: (row.new_values as Record<string, unknown> | null)?.filename as string | null ?? null,
     })
+  }
 
   // Contenu inline d'une action : badges de statut OU glyphe + texte + sous-texte.
   // `withDoc` ajoute le bouton « ⊙ voir » en ligne (sous-actions repliées).
