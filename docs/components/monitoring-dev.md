@@ -1,6 +1,6 @@
 # Monitoring DEV — Dashboard développeur
 
-> Sources : `app/monitoring-dev/`, `src/components/monitoring/`, `src/lib/monitoring/period-presets.ts`
+> Sources : `app/monitoring-dev/` (page + `_components/` + `_lib/`), `src/lib/monitoring/` (`activity-categories.ts`, `session-smoothing.ts`, `period-presets.ts`)
 
 Page **full-page réservée aux développeurs** (`/monitoring-dev`), pensée comme le cockpit d'observabilité du CRM. Elle **lit des données déjà collectées** et va plus loin que `/monitoring`.
 
@@ -20,35 +20,44 @@ Page **full-page réservée aux développeurs** (`/monitoring-dev`), pensée com
 - **Page** : `app/monitoring-dev/page.tsx` — gate `if (!hasRole("dev")) → ShieldAlert`.
 - **Sidebar** : entrée « Monitoring DEV » dans `src/config/navigation.ts`, gardée par `manage_updates` (réservé au rôle dev). Icône `src/components/layout/MonitoringDevIcon.tsx`.
 
-## Vues (cockpit à 3 onglets)
+## Structure (vue unique, split redimensionnable)
 
-- **Centre de contrôle** — bandeau 5 KPI + colonne LIVE (présence enrichie) + flux d'activité plat filtrable.
-- **Timeline** — gantt « Journée des sessions » (segments par page + traits = actions + repère « maintenant ») + flux compact.
-- **Pulse** — rail live, heatmap d'activité (gestionnaire × heure/jour), dossiers les plus actifs.
+Page à **une seule vue**, sans scroll de page (scroll **interne** par colonne). Header (badge dev + **période granularité+navigation** + live + filtre gestionnaires) puis un **split redimensionnable 30–70 %** (poignée centrale ; au-delà du seuil → une vue se **maximise** et l'autre devient une **pastille latérale** cliquable).
 
-La colonne **LIVE** s'enrichit via `get_team_weekly_stats(today, today)` (déjà déployée) ; le flux, la timeline et le pulse consomment les RPC de la migration `99033`. Sélecteur de gestionnaire repris **à l'identique du Dashboard** (`ExpandableAvatarGroup`, mono-sélection).
+- **Gauche — Liste des gestionnaires** (`GestionnaireList`) : en-tête `Gestionnaires` + badge **`tri ↓ <stat>`** (tri actif) + bouton **⚙** + ligne `X en ligne · Y inactifs · Z hors ligne`. En dessous, une **ligne d'en-têtes de colonnes triables** (style tableau) : `Détail / gestionnaire` + **Créées · Devis · Term. · Actions · Retard** (somme sur le scope, **clic = tri décroissant**, re-clic → temps écran) + **Écran ↓**. Chaque carte : avatar (**clic = filtre**, pastille ✓ + point de statut) + nom + statut + ligne de contexte, puis les **mêmes colonnes en nombres alignés** (gris si 0) + temps écran, et une **barre de répartition épaisse libellée**. **Clic sur la carte** = déplie (`GestionnaireExpanded`) — **plusieurs cartes ouvrables** simultanément.
+- **Carte dépliée** (`GestionnaireExpanded`) : **timeline 1 ligne/jour** (segments colorés par page ; **inactivité** hachurée 45° ; **tics d'action** cliquables → focus du flux ; marqueurs connexion/déconnexion **multiples** + repère « maintenant »), **zoom par glisser** sur les horaires (Échap pour quitter), **tooltip flottant** au survol, et **heatmap horaire** (jour unique). L'**inactivité totale** est affichée dans la gouttière droite (sous actions/écran), pas sur le graphe. Le clic sur une heure / un tic / le compteur d'actions **focalise le flux de droite**.
+- **Droite — `RightPanel`** : bascule **Flux d'actions** (`DevActivityFeed`) / **Dossiers actifs** (`TopEntitiesPanel`), avec puce de **focus** retirable.
+
+**Deux gestes de scope, un seul filtre du flux** :
+- **Clic sur un avatar** (`selectedIds`) → ajoute/retire du filtre **et filtre la liste de gauche** (n'affiche plus que les sélectionnés ; vide = tous).
+- **Clic sur une carte** (`expandedIds`) → ouvre le détail **et restreint le flux** à ce gestionnaire.
+- Le **flux & les dossiers** (`RightPanel`) sont scopés via `feedScope` (`page.tsx`) : **la sélection avatars prime** ; à défaut (aucun avatar sélectionné), fallback sur les **cartes ouvertes**. Donc : sélectionner Andrea → flux = Andrea (même si une autre carte est restée dépliée) ; sans sélection, ouvrir DD + Andrea → flux = DD + Andrea. Le **focus** (clic timeline) prime temporairement sur tout. Le bandeau **KPI** reste sur la sélection avatars.
+
+Filtre gestionnaire **multi-sélection** (chips retirables + `ExpandableAvatarGroup`, repris du Dashboard). Données : `get_team_weekly_stats` (roster + barres + stats), `get_team_connections` (timeline + sessions + connexions, par carte ouverte), `get_activity_heatmap` (heatmap), `get_global_activity_feed` (flux), `get_top_entities` (dossiers). **Aucune migration v2** : tout est dérivé côté client des RPC existantes.
 
 ## Capacités
 
-1. **Temps réel** (colonne LIVE toujours visible) — présence et page courante de chacun. `LivePresencePanel` réutilise `OnlineUsersBar`, `PagePresenceGrid`, `RealtimeStatusDot`, le contexte `usePagePresenceContext` et `useCrmRealtime`.
-2. **Flux d'activité global** — chaque action de chaque gestionnaire (qui / quand / avant→après). `GlobalActivityFeed` → `useGlobalActivityFeed` + `ActivityTimeline` (mode `showActor`).
-3. **Connexions / déconnexions** — horaires et présence par jour. `ConnectionsLog` → `useTeamConnections` (barre de présence 6h–22h).
-4. **Stats par période** — totaux par gestionnaire + détail journalier. Réutilise `WeeklyStatsTable` (props de plage) sur `get_team_weekly_stats`.
-5. **Drill-down par gestionnaire** — `GestionnaireDetailSheet` (clic → activité + présence du gestionnaire sur la période).
+1. **Temps réel** — présence et nb « en ligne » via `usePagePresenceContext` (header + pastilles de statut sur les cartes).
+2. **Flux d'activité global** — chaque action (qui / quand / avant→après), via `useGlobalActivityFeed`. **Modes Groupé/Détaillé**, **recherche**, **chips de catégorie** (dont **Connexions**). Les events **Connexion/Déconnexion** sont **dérivés** de `get_team_connections` (`first_seen_at` / `last_seen_at`) + présence — pas dans l'audit log.
+3. **Modals réels** — clic sur un dossier = vrai modal `useInterventionModal` / `useArtisanModal` ; aperçu de pièce jointe (⊙ voir) = vrai `DocumentPreview` via `DocPreviewModal` (récupère les documents du dossier). **Pas de maquette.**
+4. **Couleurs & avatars réels** — statuts via `useReferenceDataQuery` (couleurs CRM), avatars via `GestionnaireBadge` (`avatar_url`).
+5. **Lissage, inactivité & déconnexion timeline** — `src/lib/monitoring/session-smoothing.ts` classe chaque trou entre sessions en **3 catégories** : `trou ≤ seuil` → micro-coupure **fusionnée** (comptée en écran) ; `seuil < trou < 1h` → **inactivité** (hachuré 45°, déduite du temps écran mais **affichée** « X inactif » dans la gouttière droite) ; `trou ≥ 1h` (`BREAK_MS`) → **déconnexion timeline** (session **fermée**, temps retiré : ni écran ni inactivité). La déconnexion n'est **pas** rendue en bande : elle est matérialisée par les **marqueurs** connexion (vert) / déconnexion (gris) et le libellé **« N sessions »**. Le seuil de lissage (Aucun / 3 / 5 / 10 / 15 min) se règle dans ⚙ ; la déconnexion à 1h est indépendante de la session d'**auth** (24 h) — c'est purement l'affichage de la timeline.
 
 ## Sélection de période et filtres
 
-- **Période** (`usePeriodRange` + `period-presets.ts`) : presets (Aujourd'hui, Hier, Cette semaine, 7 j, Ce mois, 30 j) + plage libre (`DateRangePicker`). Persistée dans l'URL (`?preset` / `?from` / `?to`) → partageable. Logique pure dans `src/lib/monitoring/period-presets.ts` (testée).
-- **Gestionnaires** (`GestionnaireFilter`) : multi-sélection (vide = tous). S'applique au flux et aux connexions. *Limite V1* : l'onglet « Stats période » reste à l'échelle de toute l'équipe (`get_team_weekly_stats` n'a pas de filtre utilisateur).
+- **Période** (`usePeriodRange`) : **granularité** `Jour / Semaine / Mois` (onglets animés) + **navigation d'ancrage** `‹ [📅 picker natif] ›` (date / `week` / `month`), `›` désactivé sur la période courante. Semaine = lundi→dimanche, Mois = 1er→dernier, **plafonnés à aujourd'hui**. État `gran` + `anchor` ; expose un `range:{from,to}` consommé par les hooks.
+- **Gestionnaires** : multi-sélection (vide = tous). S'applique aux totaux de colonnes (somme du scope), au flux et aux dossiers. Le focus (clic timeline) restreint temporairement le flux à un gestionnaire / jour / heure.
 
-## Layout
+## Réglages (⚙ popover `DevSettings`)
 
-Full-page sans scroll de page (`h-full` + `min-h-0` + scroll interne par bloc) : header (titre + badge dev + période + filtre), bandeau KPI, puis 2 colonnes — onglets (Activité / Connexions / Stats) à gauche, panneau LIVE à droite. Tokens sémantiques uniquement.
+- **Couleur des barres par page** — **color picker natif** (`<input type="color">`) par page, défaut `pageHex()` ; override stocké dans `pageColors`.
+- **Plage horaire de la timeline** — `Fixe` (de/à) ou `Auto` (1ʳᵉ connexion → dernière déconnexion).
+- **Lissage des micro-coupures** — seuil au-delà duquel un trou devient une **inactivité hachurée** (déduite du temps écran).
 
 ## Tests
 
 - `tests/unit/lib/period-presets.test.ts`
-- `tests/unit/hooks/useGlobalActivityFeed.test.ts`
-- `tests/unit/hooks/useTeamConnections.test.ts`
+- `tests/unit/lib/session-smoothing.test.ts` — lissage / extraction des pauses.
+- `tests/unit/hooks/useGlobalActivityFeed.test.ts`, `tests/unit/hooks/useTeamConnections.test.ts`
 
 Voir aussi [API Monitoring](../api-reference/monitoring.md).

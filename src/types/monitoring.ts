@@ -96,6 +96,12 @@ export interface HeatmapCell {
   count: number
 }
 
+export interface TopEntityActor {
+  actor_user_id: string | null
+  color: string | null
+  count: number
+}
+
 /** Une entité (intervention/artisan) parmi les plus actives. */
 export interface TopEntity {
   entity_type: ActivityEntityType
@@ -103,4 +109,24 @@ export interface TopEntity {
   entity_label: string | null
   count: number
   last_action_at: string | null
+  last_action_type?: string | null
+  last_actor?: { user_id: string | null; display: string | null; color: string | null } | null
+  actors?: TopEntityActor[]
+}
+
+// ---------------------------------------------------------------------------
+// État UI de la page Monitoring DEV (partagé entre _lib et _components)
+// ---------------------------------------------------------------------------
+
+export type SortKey = "screen" | "actions" | "created" | "devis" | "completed" | "retard"
+export type RightView = "feed" | "entities"
+export type Maxed = "left" | "right" | null
+
+/** Focus contextuel : flux restreint à un gestionnaire (+ jour, + heure optionnelle). */
+export interface DevFocus {
+  userId: string
+  label: string
+  color: string
+  start: Date
+  end: Date
 }

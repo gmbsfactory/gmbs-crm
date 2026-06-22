@@ -95,14 +95,14 @@ export function actionTypesForCategory(c: ActivityCategory): string[] {
 // Palette « par page » (présence)
 // ---------------------------------------------------------------------------
 
-const PAGES: Record<string, { label: string; token: string }> = {
-  dashboard: { label: "Dashboard", token: "--chart-4" },
-  interventions: { label: "Interventions", token: "--chart-3" },
-  artisans: { label: "Artisans", token: "--chart-1" },
-  comptabilite: { label: "Comptabilité", token: "--chart-2" },
-  monitoring: { label: "Suivi", token: "--chart-5" },
-  "monitoring-dev": { label: "Monitoring Dev", token: "--chart-5" },
-  settings: { label: "Paramètres", token: "--muted-foreground" },
+const PAGES: Record<string, { label: string; token: string; hex: string }> = {
+  dashboard: { label: "Dashboard", token: "--chart-4", hex: "#0EA5E9" },
+  interventions: { label: "Interventions", token: "--chart-3", hex: "#F97316" },
+  artisans: { label: "Artisans", token: "--chart-1", hex: "#8B5CF6" },
+  comptabilite: { label: "Comptabilité", token: "--chart-2", hex: "#10B981" },
+  monitoring: { label: "Suivi", token: "--chart-5", hex: "#6366F1" },
+  "monitoring-dev": { label: "Monitoring Dev", token: "--chart-5", hex: "#7C3AED" },
+  settings: { label: "Paramètres", token: "--muted-foreground", hex: "#94A3B8" },
 }
 
 export function pageLabel(page: string | null): string {
@@ -114,7 +114,37 @@ export function pageColor(page: string | null): string {
   return `hsl(var(${token}))`
 }
 
+/** Couleur hex par défaut d'une page (pour le color picker natif et les barres). */
+export function pageHex(page: string | null): string {
+  return PAGES[page ?? ""]?.hex ?? "#94A3B8"
+}
+
 export function pageTint(page: string | null, alpha = 0.14): string {
   const token = PAGES[page ?? ""]?.token ?? "--muted-foreground"
   return `hsl(var(${token}) / ${alpha})`
 }
+
+/** Liste des pages connues (pour le ⚙ réglages couleurs). */
+export const PAGE_LIST: { key: string; label: string }[] = Object.entries(PAGES).map(([key, v]) => ({
+  key,
+  label: v.label,
+}))
+
+/** Résout la couleur d'une page en tenant compte d'overrides utilisateur (⚙). */
+export function resolvePageColor(page: string | null, overrides?: Record<string, string>): string {
+  return (page && overrides?.[page]) || pageColor(page)
+}
+
+/** Palette de couleurs (tokens) proposée dans le ⚙ réglages. */
+export const PAGE_COLOR_PALETTE: string[] = [
+  "hsl(var(--chart-1))",
+  "hsl(var(--chart-2))",
+  "hsl(var(--chart-3))",
+  "hsl(var(--chart-4))",
+  "hsl(var(--chart-5))",
+  "hsl(var(--primary))",
+  "hsl(var(--success-hsl))",
+  "hsl(var(--warning-hsl))",
+  "hsl(var(--info-hsl))",
+  "hsl(var(--muted-foreground))",
+]
