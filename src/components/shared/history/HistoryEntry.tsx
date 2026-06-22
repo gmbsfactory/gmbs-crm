@@ -229,12 +229,16 @@ const getSummary = (item: HistoryItem, resolver?: HistoryValueResolver) => {
     const toStatus = (newValues as Record<string, unknown>)?.status_code ?? (newValues as Record<string, unknown>)?.status_id ?? (newValues as Record<string, unknown>)?.statut_id
     const fromStatusId = (oldValues as Record<string, unknown>)?.status_id ?? (oldValues as Record<string, unknown>)?.statut_id
     const toStatusId = (newValues as Record<string, unknown>)?.status_id ?? (newValues as Record<string, unknown>)?.statut_id
-    const fromDisplay = fromStatusId
-      ? resolveDisplay("statut_id", fromStatusId, resolver)
-      : resolveDisplay("status_code", (oldValues as Record<string, unknown>)?.status_code, resolver)
-    const toDisplay = toStatusId
-      ? resolveDisplay("statut_id", toStatusId, resolver)
-      : resolveDisplay("status_code", (newValues as Record<string, unknown>)?.status_code, resolver)
+    const fromCode = (oldValues as Record<string, unknown>)?.status_code ?? (oldValues as Record<string, unknown>)?.statut_code
+    const toCode = (newValues as Record<string, unknown>)?.status_code ?? (newValues as Record<string, unknown>)?.statut_code
+    // On résout par CODE en priorité (stable même si les id de statut changent
+    // après un re-seed) ; l'id reste un repli. La couleur vient des paramètres.
+    const fromDisplay = fromCode
+      ? resolveDisplay("status_code", fromCode, resolver)
+      : resolveDisplay("statut_id", fromStatusId, resolver)
+    const toDisplay = toCode
+      ? resolveDisplay("status_code", toCode, resolver)
+      : resolveDisplay("statut_id", toStatusId, resolver)
     return (
       <div className="flex items-center gap-2">
         <Badge
