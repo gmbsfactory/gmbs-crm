@@ -290,9 +290,16 @@ export function DevActivityFeed({ startDate, endDate, userIds }: DevActivityFeed
     )
   }
   // Colonne « dossier » (ouverture du modal réel) de la ligne principale.
+  // Intervention : on affiche l'ID inter (et non la référence agence), avec un
+  // ID provisoire INT-<uuid> en repli quand id_inter est nul. Artisan : libellé.
   const renderEntityCol = (row: GlobalActivityRow) => {
-    if (!row.entity_label) return null
-    const c = row.entity_type === "intervention" ? "hsl(var(--chart-3))" : "hsl(var(--chart-1))"
+    const isInter = row.entity_type === "intervention"
+    const idInter = isInter ? (row.entity_meta as { id_inter?: string | null } | null)?.id_inter : null
+    const label = isInter
+      ? idInter || row.entity_label || `INT-${row.entity_id.slice(0, 8)}`
+      : row.entity_label
+    if (!label) return null
+    const c = isInter ? "hsl(var(--chart-3))" : "hsl(var(--chart-1))"
     return (
       <button
         type="button"
@@ -301,7 +308,7 @@ export function DevActivityFeed({ startDate, endDate, userIds }: DevActivityFeed
         className="inline-flex max-w-full items-center gap-1 truncate rounded border px-2 py-[3px] font-mono text-[10.5px] font-bold"
         style={{ background: tint(c, 0.12), color: c, borderColor: tint(c, 0.3) }}
       >
-        {row.entity_type === "intervention" ? "◳" : "◈"} {row.entity_label}
+        {isInter ? "◳" : "◈"} {label}
       </button>
     )
   }
