@@ -15,6 +15,7 @@ import { cn } from "@/lib/utils"
 import { catColor, categoryMeta, categoryOf, type ActivityCategory } from "@/lib/monitoring/activity-categories"
 import type { ActivityActor, GlobalActivityRow } from "@/types/monitoring"
 import { DocPreviewModal, type DocPreviewTarget } from "./DocPreviewModal"
+import { useFeedValueResolver, FeedDiffRows } from "./feedDiff"
 
 type FeedMode = "group" | "detail"
 type FeedFilter = ActivityCategory | "all" | "conn"
@@ -170,6 +171,10 @@ export function DevActivityFeed({ startDate, endDate, userIds }: DevActivityFeed
 
   const auditItems = useMemo(() => feed.data?.pages.flatMap((p) => p.items) ?? [], [feed.data])
   const total = feed.data?.pages[0]?.total ?? 0
+  // Résolveur de valeurs (id → libellé + couleur) pour le détail champ-à-champ
+  const valueResolver = useFeedValueResolver(auditItems)
+  const showDiff = (r: GlobalActivityRow) =>
+    categoryOf(r.action_type) === "update" && (r.changed_fields?.length ?? 0) > 0
 
   // Fusion audit + connexions, triées du plus récent au plus ancien
   const allEvents = useMemo<FeedItem[]>(() => {
@@ -390,6 +395,7 @@ export function DevActivityFeed({ startDate, endDate, userIds }: DevActivityFeed
                       <div className="flex w-[30px] shrink-0 items-center justify-center">{renderDocCol(headRow)}</div>
                       <div className="flex w-[96px] shrink-0 items-center justify-end">{renderEntityCol(headRow)}</div>
                     </div>
+                    {showDiff(headRow) && <FeedDiffRows row={headRow} resolver={valueResolver} />}
                     {minors.length > 0 && (
                       <>
                         <button
@@ -403,7 +409,10 @@ export function DevActivityFeed({ startDate, endDate, userIds }: DevActivityFeed
                         {open && (
                           <div className="mt-0.5 flex flex-col gap-1 border-l-2 border-border pl-2">
                             {minors.map((m) => (
-                              <div key={m.id}>{renderInline(m, true, true)}</div>
+                              <div key={m.id}>
+                                {renderInline(m, true, true)}
+                                {showDiff(m) && <FeedDiffRows row={m} resolver={valueResolver} />}
+                              </div>
                             ))}
                           </div>
                         )}
