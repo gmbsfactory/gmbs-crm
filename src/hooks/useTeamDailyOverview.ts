@@ -2,6 +2,7 @@
 
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase-client'
+import { toParisDateStr } from '@/lib/monitoring/local-date'
 
 export interface InterventionRef {
   id: string
@@ -28,7 +29,7 @@ export interface TeamMemberOverview {
 }
 
 export function useTeamDailyOverview(date?: Date) {
-  const dateStr = (date ?? new Date()).toISOString().split('T')[0]
+  const dateStr = toParisDateStr(date ?? new Date())
 
   return useQuery<TeamMemberOverview[]>({
     queryKey: ['team-daily-overview', dateStr],

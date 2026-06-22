@@ -2,6 +2,7 @@
 
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase-client'
+import { toParisDateStr } from '@/lib/monitoring/local-date'
 
 interface PageStat {
   page_name: string
@@ -75,7 +76,7 @@ export interface UserDailyActivity {
 }
 
 export function useUserDailyActivity(userId: string | null, date?: Date) {
-  const dateStr = (date ?? new Date()).toISOString().split('T')[0]
+  const dateStr = toParisDateStr(date ?? new Date())
 
   return useQuery<UserDailyActivity>({
     queryKey: ['user-daily-activity', userId, dateStr],
