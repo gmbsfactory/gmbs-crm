@@ -6,6 +6,7 @@
  * qui consomment ce module.
  */
 import { supabase } from "@/lib/supabase-client"
+import { toParisDateStr } from "@/lib/monitoring/local-date"
 import type {
   GlobalActivityFeedParams,
   GlobalActivityFeedResult,
@@ -15,9 +16,9 @@ import type {
   TopEntity,
 } from "@/types/monitoring"
 
-/** YYYY-MM-DD à partir d'une Date. */
+/** YYYY-MM-DD (jour Europe/Paris) à partir d'une Date — voir local-date.ts. */
 function toDateStr(d: Date): string {
-  return d.toISOString().split("T")[0]
+  return toParisDateStr(d)
 }
 
 export const monitoringApi = {

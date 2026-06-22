@@ -17,8 +17,12 @@ function createWrapper() {
   }
 }
 
-const startDate = new Date("2026-06-01T00:00:00.000Z")
-const endDate = new Date("2026-06-30T23:59:59.999Z")
+// Instants à midi UTC : la date du jour en Europe/Paris (UTC+1/+2) est sans
+// ambiguïté (pas de bascule de jour), donc le test est déterministe quel que
+// soit le fuseau de la machine. Les bornes sont sérialisées en jour Paris
+// (toParisDateStr) côté hook.
+const startDate = new Date("2026-06-01T12:00:00.000Z")
+const endDate = new Date("2026-06-30T12:00:00.000Z")
 
 const mockConnections = [
   {

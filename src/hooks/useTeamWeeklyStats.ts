@@ -2,6 +2,7 @@
 
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase-client'
+import { toParisDateStr } from '@/lib/monitoring/local-date'
 
 export interface DayPageStat {
   page: string
@@ -37,8 +38,8 @@ export interface TeamMemberWeeklyStat {
 }
 
 export function useTeamWeeklyStats(startDate: Date, endDate: Date) {
-  const startStr = startDate.toISOString().split('T')[0]
-  const endStr = endDate.toISOString().split('T')[0]
+  const startStr = toParisDateStr(startDate)
+  const endStr = toParisDateStr(endDate)
 
   return useQuery<TeamMemberWeeklyStat[]>({
     queryKey: ['team-weekly-stats', startStr, endStr],

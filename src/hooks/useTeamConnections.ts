@@ -2,6 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query"
 import { monitoringApi } from "@/lib/api/monitoring"
+import { toParisDateStr } from "@/lib/monitoring/local-date"
 import type { TeamConnection } from "@/types/monitoring"
 
 /**
@@ -15,8 +16,8 @@ export function useTeamConnections(
   userIds?: string[] | null,
   enabled = true
 ) {
-  const startStr = startDate.toISOString().split("T")[0]
-  const endStr = endDate.toISOString().split("T")[0]
+  const startStr = toParisDateStr(startDate)
+  const endStr = toParisDateStr(endDate)
 
   return useQuery<TeamConnection[]>({
     queryKey: ["team-connections", startStr, endStr, userIds ?? null],
