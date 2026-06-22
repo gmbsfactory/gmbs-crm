@@ -250,9 +250,14 @@ const getSummary = (item: HistoryItem, resolver?: HistoryValueResolver) => {
         </Badge>
         <ArrowRight className="h-3 w-3 text-muted-foreground" />
         <Badge
+          variant="secondary"
           className={cn(
-            "history-item-status-badge history-item-status-badge--new",
-            toDisplay?.color && "border-transparent"
+            // Avec une vraie couleur (paramètres), on calque le badge "ancien
+            // statut" qui s'affiche correctement. On n'applique le dégradé d'accent
+            // `--new` qu'en repli (couleur introuvable) : son `background` raccourci
+            // recouvrait sinon le `background-color` inline -> mauvaise couleur.
+            "history-item-status-badge",
+            toDisplay?.color ? "border-transparent text-white" : "history-item-status-badge--new"
           )}
           style={toDisplay?.color ? { backgroundColor: toDisplay.color } : undefined}
         >
