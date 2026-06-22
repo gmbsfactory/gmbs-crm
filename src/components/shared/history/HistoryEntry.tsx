@@ -121,7 +121,7 @@ const toCamelCase = (value: string) => {
     .join("")
 }
 
-const getFieldLabel = (field: string) => {
+export const getFieldLabel = (field: string) => {
   if (FIELD_LABELS[field]) return FIELD_LABELS[field]
   const schemaLabel = getPropertyLabel(field)
   if (schemaLabel !== field) return schemaLabel
@@ -138,7 +138,7 @@ const safeParseDate = (value: string | null | undefined) => {
   return Number.isNaN(fallback.getTime()) ? null : fallback
 }
 
-const isUuid = (value: string) =>
+export const isUuid = (value: string) =>
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value)
 
 const formatValue = (value: unknown, field?: string): string => {
@@ -187,7 +187,7 @@ const resolveDisplay = (
   return { label: formatValue(value, field), color: null }
 }
 
-const renderValue = (
+export const renderValue = (
   field: string,
   value: unknown,
   resolver?: HistoryValueResolver

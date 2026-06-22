@@ -1,104 +1,12 @@
 "use client"
 
 import { useMemo } from "react"
-import { format, isValid, parseISO } from "date-fns"
-import { fr } from "date-fns/locale"
 import { ArrowRight } from "lucide-react"
-import { Badge } from "@/components/ui/badge"
-import { getPropertyLabel } from "@/types/property-schema"
 import { useBatchResolver } from "@/hooks/useBatchResolver"
 import { useReferenceDataQuery } from "@/hooks/useReferenceDataQuery"
 import type { HistoryValueResolver } from "@/components/shared/history/types"
+import { getFieldLabel, isUuid, renderValue } from "@/components/shared/history/HistoryEntry"
 import type { GlobalActivityRow } from "@/types/monitoring"
-
-// ── Helpers de formatage, repris de src/components/shared/history/HistoryEntry.tsx
-//    (mêmes libellés/valeurs que l'historique d'intervention, pour la parité).
-
-const FIELD_LABELS: Record<string, string> = {
-  id_inter: "Référence",
-  adresse: "Adresse",
-  code_postal: "Code postal",
-  ville: "Ville",
-  contexte_intervention: "Contexte",
-  consigne_intervention: "Consigne",
-  agence_id: "Agence",
-  metier_id: "Métier",
-  assigned_user_id: "Assigné à",
-  created_by: "Créé par",
-  updated_by: "Mis à jour par",
-  owner_id: "Propriétaire",
-  tenant_id: "Locataire",
-  client_id: "Locataire",
-  status_id: "Statut",
-  statut_id: "Statut",
-  status_code: "Statut",
-  date_prevue: "Date prévue",
-  date_termine: "Date terminée",
-  is_active: "Actif",
-  reference_agence: "Référence agence",
-  commentaire_agent: "Commentaire agent",
-  consigne_second_artisan: "Consigne 2ème artisan",
-  metier_second_artisan_id: "Métier 2ème artisan",
-  sous_statut_text: "Sous-statut",
-  adresse_complete: "Adresse",
-}
-
-const ABBREVIATIONS: Record<string, string> = { id: "ID", sst: "SST", tva: "TVA", ht: "HT", ca: "CA", tel: "Tel", sms: "SMS" }
-const truncate = (v: string, max = 100) => (v.length <= max ? v : `${v.slice(0, max - 3)}…`)
-const toTitleCase = (v: string) =>
-  v.replace(/[_-]+/g, " ").replace(/\s+/g, " ").trim().split(" ")
-    .map((p) => (ABBREVIATIONS[p.toLowerCase()] ? ABBREVIATIONS[p.toLowerCase()] : p.charAt(0).toUpperCase() + p.slice(1).toLowerCase()))
-    .join(" ")
-const toCamelCase = (v: string) => {
-  const parts = v.split("_")
-  if (parts.length === 1) return v
-  return parts.map((p, i) => (i === 0 ? p : p.charAt(0).toUpperCase() + p.slice(1))).join("")
-}
-function getFieldLabel(field: string): string {
-  if (FIELD_LABELS[field]) return FIELD_LABELS[field]
-  const schemaLabel = getPropertyLabel(field)
-  if (schemaLabel !== field) return schemaLabel
-  const camelLabel = getPropertyLabel(toCamelCase(field))
-  if (camelLabel !== toCamelCase(field)) return camelLabel
-  return toTitleCase(field)
-}
-const safeParseDate = (v: string | null | undefined) => {
-  if (!v) return null
-  const p = parseISO(v)
-  if (isValid(p)) return p
-  const f = new Date(v)
-  return Number.isNaN(f.getTime()) ? null : f
-}
-const isUuid = (v: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v)
-const fmtCurrency = (n: number) => new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(n)
-function formatValue(value: unknown, field?: string): string {
-  if (value === null || value === undefined || value === "") return "—"
-  if (typeof value === "boolean") return value ? "Oui" : "Non"
-  if (typeof value === "number") return field && /amount|cost|cout|marge/i.test(field) ? fmtCurrency(value) : new Intl.NumberFormat("fr-FR").format(value)
-  if (typeof value === "string") {
-    const t = value.trim()
-    if (!t) return "—"
-    if (field === "id_inter") return t
-    const d = safeParseDate(t)
-    if (d && /t/i.test(t)) return format(d, "dd/MM/yyyy HH:mm", { locale: fr })
-    if (isUuid(t)) return `${t.slice(0, 8)}…${t.slice(-4)}`
-    return truncate(t, 150)
-  }
-  if (Array.isArray(value)) return value.map((i) => formatValue(i, field)).join(", ")
-  if (typeof value === "object") { try { return truncate(JSON.stringify(value), 150) } catch { return "—" } }
-  return String(value)
-}
-function renderValue(field: string, value: unknown, resolver?: HistoryValueResolver) {
-  const resolved = resolver?.(field, value) ?? null
-  if (resolved?.color) {
-    return (
-      <Badge variant="outline" className="border-transparent text-[9px] text-white" style={{ backgroundColor: resolved.color }}>
-        {resolved.label}
-      </Badge>
-    )
-  }
-  return <span>{resolved?.label ?? formatValue(value, field)}</span>
-}
 
 // ── Résolveur de valeurs (id → libellé + couleur) calqué sur le modal historique.
 
@@ -186,9 +94,9 @@ export function FeedDiffRows({ row, resolver }: { row: GlobalActivityRow; resolv
         <div key={field} className="flex items-center gap-2 text-[11px]">
           <span className="w-[88px] shrink-0 truncate font-semibold text-muted-foreground">{getFieldLabel(field)}</span>
           <div className="flex min-w-0 flex-1 items-center gap-1.5">
-            <span className="truncate text-muted-foreground/70 line-through decoration-muted-foreground/40">{renderValue(field, oldV[field], resolver)}</span>
+            <span className="truncate text-muted-foreground/70 line-through decoration-muted-foreground/40">{renderValue(field, oldV[field], resolver).node}</span>
             <ArrowRight className="h-3 w-3 shrink-0 text-muted-foreground/50" />
-            <span className="truncate font-semibold text-foreground">{renderValue(field, newV[field], resolver)}</span>
+            <span className="truncate font-semibold text-foreground">{renderValue(field, newV[field], resolver).node}</span>
           </div>
         </div>
       ))}
