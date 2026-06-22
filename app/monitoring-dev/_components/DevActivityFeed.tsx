@@ -45,6 +45,7 @@ const CHIPS: { key: FeedFilter; label: string }[] = [
   { key: "finance", label: "Finances" },
   { key: "doc", label: "Documents" },
   { key: "comment", label: "Commentaires" },
+  { key: "email", label: "Emails" },
   { key: "conn", label: "Connexions" },
 ]
 
@@ -104,6 +105,8 @@ function describe(row: GlobalActivityRow, resolveStatus: (id: unknown) => Status
       return { ...base, text: row.action_type === "ARTISAN_UNASSIGN" ? "Artisan désassigné" : "Artisan assigné", sub: null }
     case "archive":
       return { ...base, text: row.action_type === "RESTORE" ? "Restauré" : "Archivé", sub: null }
+    case "email":
+      return { ...base, text: "Email envoyé", sub: (nv.recipient_email as string) ?? null }
     default: {
       const f = (row.changed_fields ?? []).filter(Boolean)
       return { ...base, text: "Modification", sub: f.length ? `${f.length} champ${f.length > 1 ? "s" : ""}` : null }
