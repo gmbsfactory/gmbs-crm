@@ -1,10 +1,12 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { Settings2 } from "lucide-react"
+import { Eye, Settings2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { usePagePresenceContext } from "@/contexts/PagePresenceContext"
+import { useInterventionModal } from "@/hooks/useInterventionModal"
+import { useArtisanModal } from "@/hooks/useArtisanModal"
 import { useTeamWeeklyStats, type DailyBreakdown } from "@/hooks/useTeamWeeklyStats"
 import { useTeamConnections } from "@/hooks/useTeamConnections"
 import { useActivityHeatmap } from "@/hooks/useActivityHeatmap"
@@ -105,6 +107,10 @@ interface Row {
   retards: number
   segs: Segment[]
   hasBar: boolean
+  // ── présence live (temps réel, depuis presence.allUsers) ──
+  livePage: string | null
+  liveInterventionId: string | null
+  liveArtisanId: string | null
   sortVal: number
 }
 
@@ -133,6 +139,8 @@ export function GestionnaireList({
 }: GestionnaireListProps) {
   const presence = usePagePresenceContext()
   const online = useMemo(() => presence?.allUsers ?? [], [presence?.allUsers])
+  const interventionModal = useInterventionModal()
+  const artisanModal = useArtisanModal()
   const { data: stats } = useTeamWeeklyStats(startDate, endDate)
 
   const singleDay = endDate.getTime() - startDate.getTime() <= 36 * 3_600_000
@@ -273,6 +281,9 @@ export function GestionnaireList({
         retards,
         segs,
         hasBar: total > 0,
+        livePage: u?.currentPage ?? null,
+        liveInterventionId: u?.activeInterventionId ?? null,
+        liveArtisanId: u?.activeArtisanId ?? null,
         sortVal,
       }
     })
@@ -419,7 +430,52 @@ export function GestionnaireList({
                               {u.statusTag}
                             </span>
                           </div>
-                          <span className="mt-0.5 truncate text-[10px] font-medium text-muted-foreground">{u.headLine}</span>
+                          {u.online ? (
+                            <div className="mt-0.5 flex min-w-0 items-center gap-1">
+                              {/* page actuelle (présence temps réel — comme Suivi v1) */}
+                              <span
+                                title="Page actuelle"
+                                className="inline-flex max-w-[120px] shrink-0 items-center gap-1 overflow-hidden rounded-full px-1.5 py-px text-[9.5px] font-bold"
+                                style={{ background: `${pc(u.livePage ?? "")}22`, color: pc(u.livePage ?? "") }}
+                              >
+                                <span className="h-1.5 w-1.5 shrink-0 rounded-[2px]" style={{ background: pc(u.livePage ?? "") }} />
+                                <span className="truncate">{pageLabel(u.livePage)}</span>
+                              </span>
+                              {/* entité ouverte (intervention / artisan) + ouverture */}
+                              {(() => {
+                                const interId = u.liveInterventionId
+                                const artId = u.liveArtisanId
+                                if (!interId && !artId) return null
+                                const isInter = Boolean(interId)
+                                const entColor = isInter ? "#3B82F6" : "#8B5CF6"
+                                const openEntity = (e: React.MouseEvent | React.KeyboardEvent) => {
+                                  e.stopPropagation()
+                                  if (isInter) interventionModal.open(interId!, { allowInactive: true })
+                                  else artisanModal.open(artId!)
+                                }
+                                return (
+                                  <>
+                                    <span title="Entité ouverte" className="inline-flex min-w-0 items-center gap-0.5 overflow-hidden font-mono text-[9.5px] font-bold" style={{ color: entColor }}>
+                                      <span className="shrink-0">{isInter ? "◳" : "◈"}</span>
+                                      <span className="truncate">{isInter ? "Intervention" : "Artisan"}</span>
+                                    </span>
+                                    <span
+                                      role="button"
+                                      tabIndex={0}
+                                      title={isInter ? "Ouvrir l'intervention" : "Ouvrir l'artisan"}
+                                      onClick={openEntity}
+                                      onKeyDown={(e) => { if (e.key === "Enter") openEntity(e) }}
+                                      className="flex h-[18px] w-5 shrink-0 cursor-pointer items-center justify-center rounded-[5px] bg-primary/10 text-primary hover:bg-primary/20"
+                                    >
+                                      <Eye className="h-3 w-3" />
+                                    </span>
+                                  </>
+                                )
+                              })()}
+                            </div>
+                          ) : (
+                            <span className="mt-0.5 truncate text-[10px] font-medium text-muted-foreground">{u.headLine}</span>
+                          )}
                         </div>
                         {/* colonnes de stats alignées sur les en-têtes */}
                         <div className="flex shrink-0 items-center gap-1">
