@@ -48,6 +48,7 @@ const CHIPS: { key: FeedFilter; label: string }[] = [
   { key: "doc", label: "Documents" },
   { key: "comment", label: "Commentaires" },
   { key: "email", label: "Emails" },
+  { key: "archive", label: "Archives" },
   { key: "conn", label: "Connexions" },
 ]
 
