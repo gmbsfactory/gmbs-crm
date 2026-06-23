@@ -76,7 +76,7 @@
     --radius-sm: 6px;
     --radius-md: 10px;
     --radius-lg: 14px;
-    --radius-xl: 20px;
+    --radius-xl: 11px; /* aligné sur la maquette V3 (cartes 11px) — volontairement < lg */
 
     /* Transitions */
     --transition-easing: cubic-bezier(0.4, 0, 0.2, 1);
