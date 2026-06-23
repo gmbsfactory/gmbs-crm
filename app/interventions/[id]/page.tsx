@@ -15,6 +15,19 @@ export default async function InterventionDetailPage({ params }: Params) {
     notFound()
   }
 
+  if (!intervention.isActive) {
+    return (
+      <div className="flex min-h-[360px] items-center justify-center p-6">
+        <div className="max-w-md rounded-lg border border-amber-200 bg-amber-50 p-5 text-center text-sm text-amber-950 shadow-sm">
+          <h1 className="font-semibold">Intervention supprimée</h1>
+          <p className="mt-2 text-amber-900">
+            Cette intervention a été supprimée du CRM. Veuillez contacter le développeur.
+          </p>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-4 p-6">
       <h1 className="text-2xl font-semibold">

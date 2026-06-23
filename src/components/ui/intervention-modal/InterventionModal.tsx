@@ -23,6 +23,7 @@ type Props = {
   activeIndex?: number
   totalCount?: number
   content?: ModalContent | null
+  allowInactive?: boolean
 }
 
 export function InterventionModal({
@@ -36,6 +37,7 @@ export function InterventionModal({
   activeIndex,
   totalCount,
   content,
+  allowInactive = false,
 }: Props) {
   const { effectiveMode, setPreferredMode } = useModalDisplay()
   const setSourceLayoutId = useModalState((state) => state.setSourceLayoutId)
@@ -177,6 +179,7 @@ export function InterventionModal({
         onUnsavedDialogOpenChange={setIsUnsavedDialogOpen}
         onDeleteDialogOpenChange={setIsDeleteDialogOpen}
         onReclassifyModalOpenChange={setIsReclassifyModalOpen}
+        allowInactive={allowInactive}
       />
     )
   })()

@@ -123,6 +123,7 @@ export const mapRowToIntervention = (row: InterventionRow): InterventionDTO => {
     artisanId: row.artisan_id ?? null,
     managerId: row.attribue_a ? String(row.attribue_a) : null,
     isValidated: Boolean(row.id_facture),
+    isActive: row.is_active !== false,
   }
 }
 

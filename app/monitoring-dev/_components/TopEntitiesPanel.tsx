@@ -80,7 +80,7 @@ export function TopEntitiesPanel({ startDate, endDate, userIds }: TopEntitiesPan
           <button
             key={`${e.entity_type}-${e.entity_id}`}
             type="button"
-            onClick={() => (isInter ? interventionModal.open(e.entity_id) : artisanModal.open(e.entity_id))}
+            onClick={() => (isInter ? interventionModal.open(e.entity_id, { allowInactive: true, origin: "monitoring-dev" }) : artisanModal.open(e.entity_id))}
             className="flex w-full items-center gap-3 rounded-lg border border-border p-2.5 text-left transition-colors hover:bg-muted/50"
             style={{ borderLeft: `4px solid ${color}` }}
           >
