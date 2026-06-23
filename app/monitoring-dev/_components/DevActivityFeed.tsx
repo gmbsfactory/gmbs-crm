@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { ChevronDown, Loader2, Search, SlidersHorizontal } from "lucide-react"
 import { useGlobalActivityFeed } from "@/hooks/useGlobalActivityFeed"
 import { useReferenceDataQuery } from "@/hooks/useReferenceDataQuery"
@@ -229,6 +229,7 @@ export function DevActivityFeed({ startDate, endDate, userIds }: DevActivityFeed
   const [query, setQuery] = useState("")
   const [openTx, setOpenTx] = useState<Set<string>>(new Set())
   const [preview, setPreview] = useState<OpenDocPreview | null>(null)
+  const feedScrollRef = useRef<HTMLDivElement>(null)
 
   const feed = useGlobalActivityFeed({ startDate, endDate, userIds: userIds.length ? userIds : null })
   const { data: refData } = useReferenceDataQuery()
@@ -416,6 +417,50 @@ export function DevActivityFeed({ startDate, endDate, userIds }: DevActivityFeed
     return rows
   }, [filtered, mode, winMin, singleDay, userMap])
 
+  // Séparateurs collants : la puce épinglée (sortante) fond dans la suivante qui monte,
+  // et les puces empilées derrière sont masquées (sinon les ombres se cumulent). Réplique V3.
+  const syncSecPill = useCallback(() => {
+    const sc = feedScrollRef.current
+    if (!sc) return
+    const anchors = sc.querySelectorAll<HTMLElement>("[data-sec-anchor]")
+    const chips = sc.querySelectorAll<HTMLElement>("[data-sec]")
+    const top = sc.scrollTop
+    const PIN = 6
+    const TH = 52
+    const ease = (x: number) => (x <= 0 ? 0 : x >= 1 ? 1 : x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2)
+    let pinnedIdx = -1
+    for (let i = 0; i < anchors.length; i++) {
+      if (anchors[i].offsetTop - top <= PIN) pinnedIdx = i
+      else break
+    }
+    for (let i = 0; i < chips.length; i++) {
+      const pill = chips[i].firstElementChild as HTMLElement | null
+      if (!pill) continue
+      if (i < pinnedIdx) {
+        // empilée derrière → masquée (pas d'ombre cumulée)
+        pill.style.opacity = "0"
+        pill.style.transform = "scale(.55)"
+      } else if (i === pinnedIdx) {
+        // épinglée (sortante) : fusionne dans la suivante qui monte
+        const next = anchors[i + 1]
+        const p = next ? ease(1 - (next.offsetTop - top - PIN) / TH) : 0
+        pill.style.transformOrigin = "center bottom"
+        pill.style.opacity = String(1 - p)
+        pill.style.transform = `scale(${(1 - 0.42 * p).toFixed(3)}) translateY(${(7 * p).toFixed(1)}px)`
+      } else {
+        // dans le flux
+        pill.style.opacity = "1"
+        pill.style.transform = "none"
+      }
+    }
+  }, [])
+
+  // Recalage initial + à chaque changement du flux (nouvelles sections)
+  useEffect(() => {
+    const id = requestAnimationFrame(syncSecPill)
+    return () => cancelAnimationFrame(id)
+  }, [feedRows, syncSecPill])
+
   const toggleTx = (k: string) =>
     setOpenTx((prev) => {
       const next = new Set(prev)
@@ -599,7 +644,7 @@ export function DevActivityFeed({ startDate, endDate, userIds }: DevActivityFeed
         </div>
 
         {/* Flux */}
-        <div className="min-h-0 flex-1 overflow-y-auto px-2.5 py-2">
+        <div ref={feedScrollRef} onScroll={syncSecPill} className="relative min-h-0 flex-1 overflow-y-auto px-2.5 pb-2.5 pt-1.5">
           {feed.isLoading ? (
             <div className="space-y-1.5">{Array.from({ length: 10 }).map((_, i) => <Skeleton key={i} className="h-12 rounded-lg" />)}</div>
           ) : feedRows.length === 0 ? (
@@ -609,11 +654,15 @@ export function DevActivityFeed({ startDate, endDate, userIds }: DevActivityFeed
               {feedRows.map((row) => {
                 if (row.kind === "sep") {
                   return (
-                    <div key={row.key} className="pointer-events-none sticky top-1.5 z-[8] my-2 flex justify-center">
-                      <span className="pointer-events-auto inline-flex items-center rounded-full border border-border bg-card px-3 py-0.5 text-[10px] font-extrabold uppercase tracking-wide text-muted-foreground shadow-sm">
-                        {row.label}
-                      </span>
-                    </div>
+                    <Fragment key={row.key}>
+                      {/* ancre : position stable (non collante) pour mesurer l'épinglage */}
+                      <div data-sec-anchor className="h-0 overflow-hidden" />
+                      <div data-sec className="pointer-events-none sticky top-1.5 z-[9] my-2 flex justify-center">
+                        <span className="pointer-events-auto inline-flex items-center rounded-full border border-border bg-card px-3 py-0.5 text-[10px] font-extrabold uppercase tracking-wide text-muted-foreground shadow-sm will-change-[transform,opacity]">
+                          {row.label}
+                        </span>
+                      </div>
+                    </Fragment>
                   )
                 }
                 if (row.kind === "line") {
