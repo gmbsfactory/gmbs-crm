@@ -110,7 +110,9 @@ interface Row {
   // ── présence live (temps réel, depuis presence.allUsers) ──
   livePage: string | null
   liveInterventionId: string | null
+  liveInterventionLabel: string | null
   liveArtisanId: string | null
+  liveArtisanLabel: string | null
   sortVal: number
 }
 
@@ -283,7 +285,9 @@ export function GestionnaireList({
         hasBar: total > 0,
         livePage: u?.currentPage ?? null,
         liveInterventionId: u?.activeInterventionId ?? null,
+        liveInterventionLabel: u?.activeInterventionLabel ?? null,
         liveArtisanId: u?.activeArtisanId ?? null,
+        liveArtisanLabel: u?.activeArtisanLabel ?? null,
         sortVal,
       }
     })
@@ -448,6 +452,10 @@ export function GestionnaireList({
                                 if (!interId && !artId) return null
                                 const isInter = Boolean(interId)
                                 const entColor = isInter ? "#3B82F6" : "#8B5CF6"
+                                // Libellé : ID inter / n° associé quand dispo, sinon mot générique
+                                const entLabel = isInter
+                                  ? (u.liveInterventionLabel || "Intervention")
+                                  : (u.liveArtisanLabel || "Artisan")
                                 const openEntity = (e: React.MouseEvent | React.KeyboardEvent) => {
                                   e.stopPropagation()
                                   if (isInter) interventionModal.open(interId!, { allowInactive: true })
@@ -455,14 +463,14 @@ export function GestionnaireList({
                                 }
                                 return (
                                   <>
-                                    <span title="Entité ouverte" className="inline-flex min-w-0 items-center gap-0.5 overflow-hidden font-mono text-[9.5px] font-bold" style={{ color: entColor }}>
+                                    <span title={`Entité ouverte · ${entLabel}`} className="inline-flex min-w-0 items-center gap-0.5 overflow-hidden font-mono text-[9.5px] font-bold" style={{ color: entColor }}>
                                       <span className="shrink-0">{isInter ? "◳" : "◈"}</span>
-                                      <span className="truncate">{isInter ? "Intervention" : "Artisan"}</span>
+                                      <span className="truncate">{entLabel}</span>
                                     </span>
                                     <span
                                       role="button"
                                       tabIndex={0}
-                                      title={isInter ? "Ouvrir l'intervention" : "Ouvrir l'artisan"}
+                                      title={isInter ? `Ouvrir l'intervention${u.liveInterventionLabel ? " " + u.liveInterventionLabel : ""}` : `Ouvrir l'artisan${u.liveArtisanLabel ? " " + u.liveArtisanLabel : ""}`}
                                       onClick={openEntity}
                                       onKeyDown={(e) => { if (e.key === "Enter") openEntity(e) }}
                                       className="flex h-[18px] w-5 shrink-0 cursor-pointer items-center justify-center rounded-[5px] bg-primary/10 text-primary hover:bg-primary/20"

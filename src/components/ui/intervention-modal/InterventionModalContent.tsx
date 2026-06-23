@@ -163,16 +163,8 @@ export function InterventionModalContent({
     prevReadOnlyRef.current = isReadOnly
   }, [isReadOnly])
 
-  // Page presence — signaler au système de présence de la page que ce modal affiche une intervention
+  // Page presence — signaler quelle intervention ce modal affiche (effet plus bas, après le chargement)
   const pagePresenceCtx = usePagePresenceContext()
-
-  useEffect(() => {
-    if (!pagePresenceCtx?.updateActiveIntervention) return
-    pagePresenceCtx.updateActiveIntervention(interventionId)
-    return () => {
-      pagePresenceCtx.updateActiveIntervention(null)
-    }
-  }, [interventionId, pagePresenceCtx])
 
   // Raccourci clavier Cmd/Ctrl+Enter pour enregistrer
   const { shortcutHint } = useSubmitShortcut({ formRef, isSubmitting })
@@ -347,6 +339,17 @@ GMBS`
 
   // Wire up refetch for promotion effect
   refetchRef.current = refetch
+
+  // Présence : UUID (pour rouvrir le modal) + id_inter (libellé affiché côté monitoring).
+  // Placé après la query car l'id_inter n'est connu qu'une fois l'intervention chargée.
+  const activeIdInter = intervention?.id_inter ?? null
+  useEffect(() => {
+    if (!pagePresenceCtx?.updateActiveIntervention) return
+    pagePresenceCtx.updateActiveIntervention(interventionId, activeIdInter)
+    return () => {
+      pagePresenceCtx.updateActiveIntervention(null, null)
+    }
+  }, [interventionId, activeIdInter, pagePresenceCtx])
 
   // Hook pour la suppression et duplication d'intervention
   const { deleteIntervention, duplicateDevisSupp, isLoading: contextMenuLoading } = useInterventionContextMenu(

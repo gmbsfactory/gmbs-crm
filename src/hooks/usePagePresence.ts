@@ -15,7 +15,9 @@ interface PagePresencePayload {
   joinedAt: string
   currentPage: string | null
   activeInterventionId: string | null
+  activeInterventionLabel: string | null
   activeArtisanId: string | null
+  activeArtisanLabel: string | null
   isIdle: boolean
 }
 
@@ -63,8 +65,8 @@ export function usePagePresence(
 ): {
   viewers: PagePresenceUser[]
   allUsers: PagePresenceUser[]
-  updateActiveIntervention: (id: string | null) => void
-  updateActiveArtisan: (id: string | null) => void
+  updateActiveIntervention: (id: string | null, label?: string | null) => void
+  updateActiveArtisan: (id: string | null, label?: string | null) => void
 } {
   const { data: currentUser } = useCurrentUser()
   const [viewers, setViewers] = useState<PagePresenceUser[]>([])
@@ -85,7 +87,9 @@ export function usePagePresence(
   // ─── Page & entity tracking refs ──────────────────────────────────────────────
   const pageNameRef = useRef<string | null>(pageName)
   const activeInterventionIdRef = useRef<string | null>(null)
+  const activeInterventionLabelRef = useRef<string | null>(null)
   const activeArtisanIdRef = useRef<string | null>(null)
+  const activeArtisanLabelRef = useRef<string | null>(null)
   const joinedAtRef = useRef<string>(new Date().toISOString())
   const isIdleRef = useRef<boolean>(isIdle)
 
@@ -126,7 +130,9 @@ export function usePagePresence(
       joinedAt: joinedAtRef.current,
       currentPage: pageNameRef.current,
       activeInterventionId: activeInterventionIdRef.current,
+      activeInterventionLabel: activeInterventionLabelRef.current,
       activeArtisanId: activeArtisanIdRef.current,
+      activeArtisanLabel: activeArtisanLabelRef.current,
       isIdle: isIdleRef.current,
     }
   }, [])
@@ -147,13 +153,15 @@ export function usePagePresence(
   }, [buildPayload])
 
   // ─── Public API: updateActiveIntervention / updateActiveArtisan ──────────────
-  const updateActiveIntervention = useCallback((id: string | null) => {
+  const updateActiveIntervention = useCallback((id: string | null, label: string | null = null) => {
     activeInterventionIdRef.current = id
+    activeInterventionLabelRef.current = label
     doTrack()
   }, [doTrack])
 
-  const updateActiveArtisan = useCallback((id: string | null) => {
+  const updateActiveArtisan = useCallback((id: string | null, label: string | null = null) => {
     activeArtisanIdRef.current = id
+    activeArtisanLabelRef.current = label
     doTrack()
   }, [doTrack])
 
@@ -183,12 +191,14 @@ export function usePagePresence(
         joinedAt: u.joinedAt,
         currentPage: u.currentPage,
         activeInterventionId: u.activeInterventionId,
+        activeInterventionLabel: u.activeInterventionLabel ?? null,
         activeArtisanId: u.activeArtisanId ?? null,
+        activeArtisanLabel: u.activeArtisanLabel ?? null,
         isIdle: u.isIdle ?? false,
       }))
 
     const allUsersKey = allSorted
-      .map((v) => `${v.userId}:${v.currentPage ?? ''}:${v.activeInterventionId ?? ''}:${v.activeArtisanId ?? ''}:${v.isIdle ? '1' : '0'}`)
+      .map((v) => `${v.userId}:${v.currentPage ?? ''}:${v.activeInterventionId ?? ''}:${v.activeInterventionLabel ?? ''}:${v.activeArtisanId ?? ''}:${v.activeArtisanLabel ?? ''}:${v.isIdle ? '1' : '0'}`)
       .join('|')
     if (allUsersKey !== prevAllUsersKeyRef.current) {
       prevAllUsersKeyRef.current = allUsersKey
@@ -223,7 +233,9 @@ export function usePagePresence(
         joinedAt: u.joinedAt,
         currentPage: u.currentPage,
         activeInterventionId: u.activeInterventionId,
+        activeInterventionLabel: u.activeInterventionLabel ?? null,
         activeArtisanId: u.activeArtisanId ?? null,
+        activeArtisanLabel: u.activeArtisanLabel ?? null,
         isIdle: u.isIdle ?? false,
       }))
 

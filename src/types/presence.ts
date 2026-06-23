@@ -45,7 +45,9 @@ export interface PagePresenceUser {
   avatarUrl: string | null
   joinedAt: string
   currentPage: string | null
-  activeInterventionId: string | null  // L'intervention ouverte dans le modal, ou null
-  activeArtisanId: string | null       // L'artisan ouvert dans le modal, ou null
+  activeInterventionId: string | null  // L'intervention ouverte dans le modal (UUID), ou null
+  activeInterventionLabel?: string | null  // id_inter de l'intervention ouverte (libellé d'affichage), ou null
+  activeArtisanId: string | null       // L'artisan ouvert dans le modal (UUID), ou null
+  activeArtisanLabel?: string | null   // numero_associe de l'artisan ouvert (libellé d'affichage), ou null
   isIdle: boolean                      // L'utilisateur est inactif (pas de mouvement/tab cache)
 }

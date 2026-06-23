@@ -7,8 +7,8 @@ import type { PagePresenceUser } from "@/types/presence"
 interface PagePresenceContextValue {
   viewers: PagePresenceUser[]
   allUsers: PagePresenceUser[]
-  updateActiveIntervention: (interventionId: string | null) => void
-  updateActiveArtisan: (artisanId: string | null) => void
+  updateActiveIntervention: (interventionId: string | null, label?: string | null) => void
+  updateActiveArtisan: (artisanId: string | null, label?: string | null) => void
 }
 
 const PagePresenceContext = createContext<PagePresenceContextValue | undefined>(undefined)
