@@ -4,6 +4,8 @@ import { useMemo } from "react"
 import { ArrowRight } from "lucide-react"
 import { useBatchResolver } from "@/hooks/useBatchResolver"
 import { useReferenceDataQuery } from "@/hooks/useReferenceDataQuery"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { cn } from "@/lib/utils"
 import type { HistoryValueResolver } from "@/components/shared/history/types"
 import { getFieldLabel, isUuid, renderValue } from "@/components/shared/history/HistoryEntry"
 import type { GlobalActivityRow } from "@/types/monitoring"
@@ -83,20 +85,46 @@ export function useFeedValueResolver(items: GlobalActivityRow[]): HistoryValueRe
 
 // ── Rendu des lignes de diff (champ par champ : libellé · ancien → nouveau).
 
+// Champs techniques/dérivés (index plein-texte…) : jamais une modif lisible → exclus du diff.
+const IGNORED_DIFF_FIELDS = new Set(["search_vector", "fts", "tsv"])
+const MAX_VALUE_CHARS = 50
+
+/** Valeur de diff : badge résolu tel quel, sinon texte tronqué à 50 car. (+ tooltip complet au survol). */
+function DiffValue({ field, value, resolver, kind }: { field: string; value: unknown; resolver: HistoryValueResolver; kind: "old" | "new" }) {
+  const { node, isBadge } = renderValue(field, value, resolver)
+  if (isBadge) return <span className="shrink-0">{node}</span>
+  const cls = cn(
+    "min-w-0 break-words",
+    kind === "old" ? "text-muted-foreground/70 line-through decoration-muted-foreground/40" : "font-semibold text-foreground",
+  )
+  const full = typeof node === "string" && node.length ? node : "—"
+  if (full.length <= MAX_VALUE_CHARS) return <span className={cls}>{full}</span>
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span className={cls}>{`${full.slice(0, MAX_VALUE_CHARS)}…`}</span>
+      </TooltipTrigger>
+      <TooltipContent side="bottom" className="max-w-[340px] whitespace-pre-wrap break-words text-[11px] font-normal">
+        {full}
+      </TooltipContent>
+    </Tooltip>
+  )
+}
+
 export function FeedDiffRows({ row, resolver }: { row: GlobalActivityRow; resolver: HistoryValueResolver }) {
-  const fields = (row.changed_fields ?? []).filter(Boolean)
+  const fields = (row.changed_fields ?? []).filter((f): f is string => Boolean(f) && !IGNORED_DIFF_FIELDS.has(f.toLowerCase()))
   if (fields.length === 0) return null
   const oldV = (row.old_values ?? {}) as Record<string, unknown>
   const newV = (row.new_values ?? {}) as Record<string, unknown>
   return (
     <div className="mt-1 flex flex-col gap-1">
       {fields.map((field) => (
-        <div key={field} className="flex items-center gap-2 text-[11px]">
+        <div key={field} className="flex items-start gap-2 text-[11px]">
           <span className="w-[88px] shrink-0 truncate font-semibold text-muted-foreground">{getFieldLabel(field)}</span>
-          <div className="flex min-w-0 flex-1 items-center gap-1.5">
-            <span className="truncate text-muted-foreground/70 line-through decoration-muted-foreground/40">{renderValue(field, oldV[field], resolver).node}</span>
+          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
+            <DiffValue field={field} value={oldV[field]} resolver={resolver} kind="old" />
             <ArrowRight className="h-3 w-3 shrink-0 text-muted-foreground/50" />
-            <span className="truncate font-semibold text-foreground">{renderValue(field, newV[field], resolver).node}</span>
+            <DiffValue field={field} value={newV[field]} resolver={resolver} kind="new" />
           </div>
         </div>
       ))}
