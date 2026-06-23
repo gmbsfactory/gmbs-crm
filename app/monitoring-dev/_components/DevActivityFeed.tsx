@@ -244,7 +244,7 @@ export function DevActivityFeed({ startDate, endDate, userIds }: DevActivityFeed
     })
 
   const openEntity = (row: GlobalActivityRow) => {
-    if (row.entity_type === "intervention") interventionModal.open(row.entity_id)
+    if (row.entity_type === "intervention") interventionModal.open(row.entity_id, { allowInactive: true, origin: "monitoring-dev" })
     else artisanModal.open(row.entity_id)
   }
   const buildDocTarget = (row: GlobalActivityRow): OpenDocPreview => {
