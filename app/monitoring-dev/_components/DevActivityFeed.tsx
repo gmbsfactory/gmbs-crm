@@ -844,17 +844,20 @@ function ConnFeedRow({ row, userMap }: { row: ConnRow; userMap: UserMap }) {
         <div className="absolute -bottom-1.5 left-1/2 top-0 w-0.5 -translate-x-1/2 bg-border" />
         <span className="relative z-[1] bg-card px-0.5 font-mono text-[11px] font-extrabold text-foreground">{fmtTime(row.occurred_at)}</span>
       </div>
-      <div className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden rounded-xl border border-border px-3 py-2 shadow-sm" style={{ background: isIn ? "rgba(34,197,94,.05)" : "hsl(var(--muted) / 0.3)" }}>
-        <div className="w-[3px] shrink-0 self-stretch rounded-full" style={{ background: accent }} />
-        <span title={name} className="flex h-[26px] w-[26px] shrink-0 items-center justify-center rounded-full text-[9.5px] font-extrabold text-white" style={{ background: color ?? "hsl(var(--muted-foreground))" }}>
-          {initialsOf(name)}
-        </span>
-        <span className="shrink-0 whitespace-nowrap text-[10px] font-semibold text-muted-foreground">{relTime(row.occurred_at)}</span>
-        <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded text-[11px] font-extrabold" style={{ background: tint(accent, 0.16), color: accent }}>
-          {isIn ? "●" : "○"}
-        </span>
-        <span className="text-[12px] font-semibold">{isIn ? "Connexion" : "Déconnexion"}</span>
-        <span className="font-mono text-[11px] font-semibold text-muted-foreground">{isIn ? "Session ouverte" : "Session fermée"}</span>
+      <div className="flex min-w-0 flex-1 items-stretch overflow-hidden rounded-xl border border-border bg-card shadow-sm">
+        <div className="w-[3px] shrink-0" style={{ background: accent }} />
+        {/* design distinct : chip de type à gauche · sous-texte · il y a … · avatar à droite */}
+        <div className="flex min-w-0 flex-1 items-center gap-2 px-3 py-2" style={{ background: tint(accent, 0.04) }}>
+          <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full py-0.5 pl-2 pr-2.5 text-[10.5px] font-extrabold" style={{ background: tint(accent, 0.1), color: accent }}>
+            <span className="text-[11px]">{isIn ? "●" : "○"}</span>
+            {isIn ? "Connexion" : "Déconnexion"}
+          </span>
+          <span className="min-w-0 flex-1 truncate font-mono text-[10.5px] font-semibold text-muted-foreground">{isIn ? "Session ouverte" : "Session fermée"}</span>
+          <span className="shrink-0 whitespace-nowrap text-[10px] font-semibold text-muted-foreground">{relTime(row.occurred_at)}</span>
+          <span title={name} className="flex h-[26px] w-[26px] shrink-0 items-center justify-center rounded-full text-[9.5px] font-extrabold text-white" style={{ background: color ?? "hsl(var(--muted-foreground))" }}>
+            {initialsOf(name)}
+          </span>
+        </div>
       </div>
     </div>
   )
