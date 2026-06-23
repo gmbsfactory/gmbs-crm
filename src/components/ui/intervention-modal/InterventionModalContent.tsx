@@ -677,8 +677,18 @@ GMBS`
 
     setIsRestoring(true)
     try {
-      const restored = await interventionsApi.update(interventionId, { is_active: true })
-      queryClient.setQueryData(interventionKeys.detail(interventionId), restored)
+      await interventionsApi.update(interventionId, { is_active: true })
+      // Ne PAS écraser le cache détail avec le retour de `update` : son select ne
+      // ramène ni intervention_costs ni intervention_payments, ce qui ferait
+      // afficher des coûts à 0 après restauration. On conserve l'objet complet déjà
+      // en cache et on bascule juste is_active, puis on invalide pour un refetch
+      // complet (getById inclut les coûts/paiements).
+      const cached = queryClient.getQueryData<Record<string, unknown>>(
+        interventionKeys.detail(interventionId)
+      )
+      if (cached) {
+        queryClient.setQueryData(interventionKeys.detail(interventionId), { ...cached, is_active: true })
+      }
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: interventionKeys.invalidateLists() }),
         queryClient.invalidateQueries({ queryKey: interventionKeys.invalidateLightLists() }),
