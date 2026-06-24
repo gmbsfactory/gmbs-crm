@@ -7,6 +7,7 @@ import { useReferenceDataQuery } from "@/hooks/useReferenceDataQuery"
 import { useInterventionModal } from "@/hooks/useInterventionModal"
 import { useArtisanModal } from "@/hooks/useArtisanModal"
 import { useTeamConnections } from "@/hooks/useTeamConnections"
+import { useBatchResolver } from "@/hooks/useBatchResolver"
 import { usePagePresenceContext } from "@/contexts/PagePresenceContext"
 import { Button } from "@/components/ui/button"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
@@ -215,6 +216,9 @@ interface Brick {
   isDoc: boolean
   isConn: boolean
   connDir: "in" | "out" | null
+  roleTag: string | null
+  artisanId: string | null
+  artisanName: string | null
   entityType: string | null
   entityId: string | null
   ekind: EKind
@@ -223,7 +227,13 @@ interface Brick {
 }
 
 /** Éclate un événement d'audit en briques atomiques (un UPDATE → 1 brique par champ). */
-function toBricks(item: FeedItem, resolveStatus: (id: unknown) => StatusRef | null, userMap: UserMap): Brick[] {
+function toBricks(
+  item: FeedItem,
+  resolveStatus: (id: unknown) => StatusRef | null,
+  userMap: UserMap,
+  artisanName: (id: string | null | undefined) => string | null,
+  costLabel: (id: string | null | undefined) => string | null,
+): Brick[] {
   const actor = actorInfoOf(item, userMap)
   const occurredAt = item.occurred_at
   if (isConn(item)) {
@@ -232,6 +242,7 @@ function toBricks(item: FeedItem, resolveStatus: (id: unknown) => StatusRef | nu
       glyph: item.dir === "in" ? "●" : "○", label: item.dir === "in" ? "Connexion" : "Déconnexion",
       before: null, after: null, sub: item.dir === "in" ? "Session ouverte" : "Session fermée",
       entityRow: null, isDoc: false, isConn: true, connDir: item.dir,
+      roleTag: null, artisanId: null, artisanName: null,
       entityType: null, entityId: null, ekind: "other", catFilter: "conn",
       hay: `connexion déconnexion ${actor.name}`.toLowerCase(),
     }]
@@ -246,6 +257,7 @@ function toBricks(item: FeedItem, resolveStatus: (id: unknown) => StatusRef | nu
   const hay = `${row.action_type} ${row.entity_label ?? ""} ${actor.name}`.toLowerCase()
   const base = {
     occurredAt, actor, cat, accent, entityRow: row, isConn: false as const, connDir: null,
+    roleTag: null as string | null, artisanId: null as string | null, artisanName: null as string | null,
     entityType: row.entity_type, entityId: row.entity_id, ekind, catFilter: cat as CatFilter,
   }
 
@@ -274,16 +286,22 @@ function toBricks(item: FeedItem, resolveStatus: (id: unknown) => StatusRef | nu
   let before: BVal | null = d.from ? { t: "status", ref: d.from } : null
   let after: BVal | null = d.to ? { t: "status", ref: d.to } : null
   let sub: string | null = d.sub
+  let roleTag: string | null = null
+  let artisanId: string | null = null
+  let artisanNm: string | null = null
 
   if (cat === "finance") {
     if (row.action_type.startsWith("PAYMENT")) {
       const pt = nv.payment_type as string | undefined
       label = pt && PAYMENT_TYPE_LABEL[pt] ? `Paiement ${PAYMENT_TYPE_LABEL[pt]}` : "Paiement"
     } else {
-      const ct = nv.cost_type as string | undefined
-      const ord = nv.artisan_order
-      const ordLbl = ord === 1 || ord === 2 ? ` (Art. ${ord})` : ""
-      label = (ct && COST_TYPE_LABEL[ct] ? `Coût ${COST_TYPE_LABEL[ct]}` : "Coût") + ordLbl
+      // cost_type est dans le payload pour ADD/DELETE ; pour UPDATE (diff = {amount}) on le
+      // résout via la ligne intervention_costs (related_entity_id, exposé par la migration 99049).
+      const ct = (nv.cost_type ?? ov.cost_type) as string | undefined
+      const ord = nv.artisan_order ?? ov.artisan_order
+      let typeLabel = ct && COST_TYPE_LABEL[ct] ? COST_TYPE_LABEL[ct] + (ord === 1 || ord === 2 ? ` (Art. ${ord})` : "") : ""
+      if (!typeLabel) typeLabel = costLabel(row.related_entity_id) ?? ""
+      label = typeLabel ? `Coût ${typeLabel}` : "Coût"
     }
     const oldAmt = fmtEur(ov.amount ?? ov.montant)
     const newAmt = fmtEur(nv.amount ?? nv.montant)
@@ -291,11 +309,26 @@ function toBricks(item: FeedItem, resolveStatus: (id: unknown) => StatusRef | nu
     after = newAmt ? { t: "text", text: newAmt } : null
     sub = null
   } else if (cat === "assign") {
-    label = "Artisan"
-    after = { t: "text", text: row.action_type === "ARTISAN_UNASSIGN" ? "retiré" : "assigné" }
+    label = row.action_type === "ARTISAN_UNASSIGN" ? "Artisan retiré" : "Artisan assigné"
+    const role = (nv.role ?? ov.role) as string | undefined
+    const isPrimary = (nv.is_primary ?? ov.is_primary) as boolean | undefined
+    roleTag = role === "primary" || isPrimary === true ? "SST 1" : role === "secondary" ? "SST 2" : null
+    artisanId = ((nv.artisan_id ?? ov.artisan_id) as string | undefined) ?? null
+    artisanNm = artisanName(artisanId)
+    before = null
+    after = null
+    sub = null
+  } else if (cat === "email") {
+    const et = nv.email_type as string | undefined
+    label = et === "devis" ? "Email devis" : et === "intervention" ? "Email intervention" : "Email envoyé"
+    sub = (nv.recipient_email as string) ?? null
+    artisanId = (nv.artisan_id as string | undefined) ?? null
+    artisanNm = artisanName(artisanId)
+    before = null
+    after = null
   }
 
-  return [{ ...base, key: row.id, glyph: d.glyph, label, before, after, sub, isDoc: d.isDoc, hay }]
+  return [{ ...base, key: row.id, glyph: d.glyph, label, before, after, sub, isDoc: d.isDoc, roleTag, artisanId, artisanName: artisanNm, hay }]
 }
 
 interface CatChip {
@@ -378,12 +411,50 @@ export function DevActivityFeed({ startDate, endDate, userIds }: DevActivityFeed
   const auditItems = useMemo(() => feed.data?.pages.flatMap((p) => p.items) ?? [], [feed.data])
   const valueResolver = useFeedValueResolver(auditItems)
 
+  // Résolution des noms d'artisans (affectations + emails) — artisan_id est dans new/old_values
+  const artisanIds = useMemo(() => {
+    const s = new Set<string>()
+    for (const r of auditItems) {
+      if (!(r.action_type.startsWith("ARTISAN") || r.action_type === "EMAIL_SENT")) continue
+      const nv = (r.new_values ?? {}) as Record<string, unknown>
+      const ov = (r.old_values ?? {}) as Record<string, unknown>
+      const id = (nv.artisan_id ?? ov.artisan_id) as string | undefined
+      if (id) s.add(id)
+    }
+    return [...s]
+  }, [auditItems])
+  const { map: artisanMap } = useBatchResolver({
+    ids: artisanIds,
+    table: "artisans",
+    select: "id, plain_nom, raison_sociale",
+    buildLabel: (r: Record<string, unknown>) => ({ label: (r.plain_nom as string) || (r.raison_sociale as string) || "Artisan" }),
+  })
+  const artisanName = useCallback((id: string | null | undefined) => (id ? artisanMap[id]?.label ?? null : null), [artisanMap])
+
+  // Type de coût (COST_UPDATE ne porte que {amount}) → résolu via la ligne intervention_costs
+  const costIds = useMemo(() => {
+    const s = new Set<string>()
+    for (const r of auditItems) if (r.action_type === "COST_UPDATE" && r.related_entity_id) s.add(r.related_entity_id)
+    return [...s]
+  }, [auditItems])
+  const { map: costMap } = useBatchResolver({
+    ids: costIds,
+    table: "intervention_costs",
+    select: "id, cost_type, artisan_order",
+    buildLabel: (r: Record<string, unknown>) => {
+      const ct = r.cost_type as string
+      const ord = r.artisan_order
+      return { label: (COST_TYPE_LABEL[ct] ?? "") + (ord === 1 || ord === 2 ? ` (Art. ${ord})` : "") }
+    },
+  })
+  const costLabel = useCallback((id: string | null | undefined) => (id ? costMap[id]?.label || null : null), [costMap])
+
   // Événements fusionnés (audit + connexions) → briques atomiques, triées du plus récent au plus ancien
   const allBricks = useMemo<Brick[]>(() => {
     const merged: FeedItem[] = [...auditItems, ...connEvents]
     merged.sort((a, b) => new Date(b.occurred_at).getTime() - new Date(a.occurred_at).getTime())
-    return merged.flatMap((e) => toBricks(e, resolveStatus, userMap))
-  }, [auditItems, connEvents, resolveStatus, userMap])
+    return merged.flatMap((e) => toBricks(e, resolveStatus, userMap, artisanName, costLabel))
+  }, [auditItems, connEvents, resolveStatus, userMap, artisanName, costLabel])
 
   const searched = useMemo(() => {
     const q = query.trim().toLowerCase()
@@ -599,7 +670,27 @@ export function DevActivityFeed({ startDate, endDate, userIds }: DevActivityFeed
     )
   }
 
-  // Rendu inline d'une brique : glyphe · libellé · avant → après · sous-texte · (doc)
+  const renderArtisanButton = (artisanId: string, name: string | null) => {
+    const c = "hsl(var(--chart-1))"
+    return (
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation()
+          artisanModal.open(artisanId)
+        }}
+        title="Ouvrir l'artisan"
+        className="inline-flex min-w-0 max-w-full shrink-0 items-center gap-1 rounded-full border px-2.5 py-1 font-mono text-[10.5px] font-extrabold"
+        style={{ background: tint(c, 0.12), color: c, borderColor: tint(c, 0.3) }}
+      >
+        <span className="shrink-0">◈</span>
+        <span className="truncate">{name || "Artisan"}</span>
+        <span className="shrink-0">↗</span>
+      </button>
+    )
+  }
+
+  // Rendu inline d'une brique : glyphe · libellé · (rôle) · avant → après · sous-texte · (doc / artisan)
   const renderBrickInline = (b: Brick) => (
     <div className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1">
       <span
@@ -609,11 +700,13 @@ export function DevActivityFeed({ startDate, endDate, userIds }: DevActivityFeed
         {b.glyph}
       </span>
       <span className="shrink-0 text-[12px] font-semibold text-foreground">{b.label}</span>
+      {b.roleTag && <span className="shrink-0 rounded bg-muted px-1.5 py-px text-[9.5px] font-bold text-muted-foreground">{b.roleTag}</span>}
       {b.before && <BrickValue v={b.before} resolver={valueResolver} strike />}
       {b.before && b.after && <span className="shrink-0 text-[11px] text-muted-foreground">→</span>}
       {b.after && <BrickValue v={b.after} resolver={valueResolver} />}
       {b.sub && <span className="min-w-0 break-words font-mono text-[11px] font-semibold text-muted-foreground">{b.sub}</span>}
       {b.isDoc && b.entityRow && renderDocButton(b.entityRow)}
+      {b.artisanId && renderArtisanButton(b.artisanId, b.artisanName)}
     </div>
   )
 
