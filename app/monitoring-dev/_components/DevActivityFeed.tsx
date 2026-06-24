@@ -296,7 +296,7 @@ function toBricks(
       label = pt && PAYMENT_TYPE_LABEL[pt] ? `Paiement ${PAYMENT_TYPE_LABEL[pt]}` : "Paiement"
     } else {
       // cost_type est dans le payload pour ADD/DELETE ; pour UPDATE (diff = {amount}) on le
-      // résout via la ligne intervention_costs (related_entity_id, exposé par la migration 99049).
+      // résout via la ligne intervention_costs (related_entity_id, exposé par la migration 99050).
       const ct = (nv.cost_type ?? ov.cost_type) as string | undefined
       const ord = nv.artisan_order ?? ov.artisan_order
       let typeLabel = ct && COST_TYPE_LABEL[ct] ? COST_TYPE_LABEL[ct] + (ord === 1 || ord === 2 ? ` (Art. ${ord})` : "") : ""

@@ -23,7 +23,7 @@ export interface ActivityActor {
 export interface GlobalActivityRow extends RecentAction {
   id: string
   actor: ActivityActor
-  /** id de la sous-entité (coût / artisan / doc…) — exposé par get_global_activity_feed (migration 99049). */
+  /** id de la sous-entité (coût / artisan / doc…) — exposé par get_global_activity_feed (migration 99050). */
   related_entity_id?: string | null
 }
 
