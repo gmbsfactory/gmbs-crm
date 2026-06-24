@@ -66,7 +66,8 @@ export function useDevMonitoringState() {
         return
       }
       setMaxed(null)
-      setSplit(Math.round(Math.max(30, Math.min(70, pct))))
+      // gauche ∈ [25,75] % → le panneau droit (flux) peut descendre jusqu'à 25 %
+      setSplit(Math.round(Math.max(25, Math.min(75, pct))))
     }
     const up = () => {
       window.removeEventListener("mousemove", move)

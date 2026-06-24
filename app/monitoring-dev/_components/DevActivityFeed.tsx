@@ -1,6 +1,6 @@
 "use client"
 
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react"
 import { ChevronDown, Loader2, Search, SlidersHorizontal } from "lucide-react"
 import { useGlobalActivityFeed } from "@/hooks/useGlobalActivityFeed"
 import { useReferenceDataQuery } from "@/hooks/useReferenceDataQuery"
@@ -14,9 +14,11 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { Skeleton } from "@/components/ui/skeleton"
 import { cn } from "@/lib/utils"
 import { catColor, categoryMeta, categoryOf, type ActivityCategory } from "@/lib/monitoring/activity-categories"
+import { getFieldLabel } from "@/components/shared/history/HistoryEntry"
+import type { HistoryValueResolver } from "@/components/shared/history/types"
 import type { ActivityActor, GlobalActivityRow } from "@/types/monitoring"
 import { DocPreviewContent, type DocPreviewTarget } from "./DocPreviewModal"
-import { useFeedValueResolver, FeedDiffRows } from "./feedDiff"
+import { useFeedValueResolver, DiffValue, IGNORED_DIFF_FIELDS } from "./feedDiff"
 
 type FeedMode = "group" | "detail"
 type CatFilter = ActivityCategory | "all" | "conn"
@@ -33,7 +35,6 @@ interface ConnRow {
 }
 type FeedItem = GlobalActivityRow | ConnRow
 const isConn = (x: FeedItem): x is ConnRow => (x as ConnRow).__conn === true
-const catOf = (x: FeedItem): CatFilter => (isConn(x) ? "conn" : categoryOf(x.action_type))
 function ekindOf(x: FeedItem): EKind {
   if (isConn(x) || !x.entity_label) return "other"
   if (x.entity_type === "intervention") return "inter"
@@ -71,7 +72,10 @@ const WINDOWS: { min: number; label: string }[] = [
   { min: 60, label: "1 heure" },
   { min: 1440, label: "Journée entière" },
 ]
-/** Priorité de catégorie : détermine l'action « tête » et l'accent d'une carte groupée. */
+const COST_TYPE_LABEL: Record<string, string> = { sst: "SST", materiel: "Matériel", intervention: "Intervention", marge: "Marge" }
+const PAYMENT_TYPE_LABEL: Record<string, string> = { acompte_sst: "Acompte SST", acompte_client: "Acompte client", final: "Solde" }
+
+/** Priorité de catégorie : détermine l'accent d'une carte groupée. */
 const PRIORITY: ActivityCategory[] = ["status", "create", "finance", "assign", "doc", "comment", "email", "update", "archive"]
 const prioRank = (cat: ActivityCategory) => {
   const i = PRIORITY.indexOf(cat)
@@ -132,6 +136,21 @@ function fmtEur(v: unknown): string | null {
   return new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(n)
 }
 
+interface ActorInfo {
+  userId: string
+  initials: string
+  color: string | null
+  name: string
+}
+type UserMap = Map<string, { firstname: string | null; lastname: string | null; color: string | null; avatar_url: string | null }>
+function actorInfoOf(item: FeedItem, userMap: UserMap): ActorInfo {
+  const actor = item.actor
+  const userId = actor?.user_id ?? "?"
+  const u = userMap.get(userId)
+  const name = u ? [u.firstname, u.lastname].filter(Boolean).join(" ") || actor?.display || "—" : actor?.display || "—"
+  return { userId, initials: initialsOf(name), color: u?.color ?? actor?.color ?? null, name }
+}
+
 interface Described {
   cat: ActivityCategory
   glyph: string
@@ -154,10 +173,10 @@ function describe(row: GlobalActivityRow, resolveStatus: (id: unknown) => Status
     case "status": {
       const fromKey = ov.status_code ?? ov.statut_code ?? ov.status_id ?? ov.statut_id
       const toKey = nv.status_code ?? nv.statut_code ?? nv.status_id ?? nv.statut_id
-      return { ...base, text: "Changement de statut", sub: null, from: resolveStatus(fromKey), to: resolveStatus(toKey) }
+      return { ...base, text: "Statut", sub: null, from: resolveStatus(fromKey), to: resolveStatus(toKey) }
     }
     case "finance":
-      return { ...base, text: row.action_type.startsWith("PAYMENT") ? "Paiement" : "Coût", sub: fmtEur(nv.amount ?? nv.montant) }
+      return { ...base, text: row.action_type.startsWith("PAYMENT") ? "Paiement" : "Coût", sub: null }
     case "doc":
       return { ...base, text: "Document", sub: (nv.filename as string) ?? null, isDoc: true }
     case "comment": {
@@ -165,31 +184,118 @@ function describe(row: GlobalActivityRow, resolveStatus: (id: unknown) => Status
       return { ...base, text: "Commentaire", sub: c ? `« ${c.slice(0, 60)} »` : null }
     }
     case "assign":
-      return { ...base, text: row.action_type === "ARTISAN_UNASSIGN" ? "Artisan désassigné" : "Artisan assigné", sub: null }
+      return { ...base, text: "Artisan", sub: null }
     case "archive":
       return { ...base, text: row.action_type === "RESTORE" ? "Restauré" : "Archivé", sub: null }
     case "email":
       return { ...base, text: "Email envoyé", sub: (nv.recipient_email as string) ?? null }
-    default: {
-      const f = (row.changed_fields ?? []).filter(Boolean)
-      return { ...base, text: "Modification", sub: f.length ? `${f.length} champ${f.length > 1 ? "s" : ""}` : null }
-    }
+    default:
+      return { ...base, text: "Modification", sub: null }
   }
 }
 
-interface ActorInfo {
-  userId: string
-  initials: string
-  color: string | null
-  name: string
+// ── La brique : l'unité atomique du flux (1 champ modifié, 1 coût, 1 statut, 1 doc, 1 connexion…).
+type BVal =
+  | { t: "status"; ref: StatusRef }
+  | { t: "field"; field: string; value: unknown }
+  | { t: "text"; text: string }
+
+interface Brick {
+  key: string
+  occurredAt: string
+  actor: ActorInfo
+  cat: ActivityCategory | "conn"
+  accent: string
+  glyph: string
+  label: string
+  before: BVal | null
+  after: BVal | null
+  sub: string | null
+  entityRow: GlobalActivityRow | null
+  isDoc: boolean
+  isConn: boolean
+  connDir: "in" | "out" | null
+  entityType: string | null
+  entityId: string | null
+  ekind: EKind
+  catFilter: CatFilter
+  hay: string
 }
-type UserMap = Map<string, { firstname: string | null; lastname: string | null; color: string | null; avatar_url: string | null }>
-function actorInfoOf(item: FeedItem, userMap: UserMap): ActorInfo {
-  const actor: ActivityActor | undefined = isConn(item) ? item.actor : item.actor
-  const userId = actor?.user_id ?? "?"
-  const u = userMap.get(userId)
-  const name = u ? [u.firstname, u.lastname].filter(Boolean).join(" ") || actor?.display || "—" : actor?.display || "—"
-  return { userId, initials: initialsOf(name), color: u?.color ?? actor?.color ?? null, name }
+
+/** Éclate un événement d'audit en briques atomiques (un UPDATE → 1 brique par champ). */
+function toBricks(item: FeedItem, resolveStatus: (id: unknown) => StatusRef | null, userMap: UserMap): Brick[] {
+  const actor = actorInfoOf(item, userMap)
+  const occurredAt = item.occurred_at
+  if (isConn(item)) {
+    return [{
+      key: item.id, occurredAt, actor, cat: "conn", accent: item.dir === "in" ? "#22C55E" : "#94A3B8",
+      glyph: item.dir === "in" ? "●" : "○", label: item.dir === "in" ? "Connexion" : "Déconnexion",
+      before: null, after: null, sub: item.dir === "in" ? "Session ouverte" : "Session fermée",
+      entityRow: null, isDoc: false, isConn: true, connDir: item.dir,
+      entityType: null, entityId: null, ekind: "other", catFilter: "conn",
+      hay: `connexion déconnexion ${actor.name}`.toLowerCase(),
+    }]
+  }
+  const row = item
+  const cat = categoryOf(row.action_type)
+  const accent = catColor(cat)
+  const glyph = categoryMeta(cat).glyph
+  const nv = (row.new_values ?? {}) as Record<string, unknown>
+  const ov = (row.old_values ?? {}) as Record<string, unknown>
+  const ekind = ekindOf(row)
+  const hay = `${row.action_type} ${row.entity_label ?? ""} ${actor.name}`.toLowerCase()
+  const base = {
+    occurredAt, actor, cat, accent, entityRow: row, isConn: false as const, connDir: null,
+    entityType: row.entity_type, entityId: row.entity_id, ekind, catFilter: cat as CatFilter,
+  }
+
+  // UPDATE → une brique par champ modifié (hors champs techniques)
+  if (cat === "update") {
+    const fields = (row.changed_fields ?? []).filter((f): f is string => Boolean(f) && !IGNORED_DIFF_FIELDS.has(f.toLowerCase()))
+    if (fields.length === 0) {
+      return [{ ...base, key: row.id, glyph, label: "Modification", before: null, after: null, sub: null, isDoc: false, hay }]
+    }
+    return fields.map((f) => ({
+      ...base,
+      key: `${row.id}#${f}`,
+      glyph,
+      label: getFieldLabel(f),
+      before: { t: "field", field: f, value: ov[f] } as BVal,
+      after: { t: "field", field: f, value: nv[f] } as BVal,
+      sub: null,
+      isDoc: false,
+      hay: `${hay} ${getFieldLabel(f).toLowerCase()}`,
+    }))
+  }
+
+  // Événements sémantiques → une brique chacun (enrichie)
+  const d = describe(row, resolveStatus)
+  let label = d.text
+  let before: BVal | null = d.from ? { t: "status", ref: d.from } : null
+  let after: BVal | null = d.to ? { t: "status", ref: d.to } : null
+  let sub: string | null = d.sub
+
+  if (cat === "finance") {
+    if (row.action_type.startsWith("PAYMENT")) {
+      const pt = nv.payment_type as string | undefined
+      label = pt && PAYMENT_TYPE_LABEL[pt] ? `Paiement ${PAYMENT_TYPE_LABEL[pt]}` : "Paiement"
+    } else {
+      const ct = nv.cost_type as string | undefined
+      const ord = nv.artisan_order
+      const ordLbl = ord === 1 || ord === 2 ? ` (Art. ${ord})` : ""
+      label = (ct && COST_TYPE_LABEL[ct] ? `Coût ${COST_TYPE_LABEL[ct]}` : "Coût") + ordLbl
+    }
+    const oldAmt = fmtEur(ov.amount ?? ov.montant)
+    const newAmt = fmtEur(nv.amount ?? nv.montant)
+    before = oldAmt ? { t: "text", text: oldAmt } : null
+    after = newAmt ? { t: "text", text: newAmt } : null
+    sub = null
+  } else if (cat === "assign") {
+    label = "Artisan"
+    after = { t: "text", text: row.action_type === "ARTISAN_UNASSIGN" ? "retiré" : "assigné" }
+  }
+
+  return [{ ...base, key: row.id, glyph: d.glyph, label, before, after, sub, isDoc: d.isDoc, hay }]
 }
 
 interface CatChip {
@@ -197,23 +303,11 @@ interface CatChip {
   glyph: string
   color: string
   label: string
-  isDoc: boolean
-  docRow: GlobalActivityRow | null
-}
-interface CardData {
-  kind: "card"
-  key: string
-  head: GlobalActivityRow
-  events: GlobalActivityRow[]
-  accent: string
-  count: number
-  actors: (ActorInfo & { count: number })[]
-  catChips: CatChip[]
 }
 type FeedRow =
   | { kind: "sep"; key: string; label: string }
-  | { kind: "line"; key: string; item: FeedItem }
-  | CardData
+  | { kind: "brick"; key: string; brick: Brick }
+  | { kind: "card"; key: string; bricks: Brick[]; accent: string; count: number; actors: (ActorInfo & { count: number })[]; catChips: CatChip[]; head: Brick }
 
 interface DevActivityFeedProps {
   startDate: Date
@@ -259,7 +353,7 @@ export function DevActivityFeed({ startDate, endDate, userIds }: DevActivityFeed
     return map
   }, [refData])
 
-  // Événements de connexion / déconnexion dérivés des sessions réelles
+  // Connexions / déconnexions dérivées des sessions réelles
   const onlineIds = useMemo(() => new Set((presence?.allUsers ?? []).map((u) => u.userId)), [presence?.allUsers])
   const connEvents = useMemo<ConnRow[]>(() => {
     const out: ConnRow[] = []
@@ -282,80 +376,66 @@ export function DevActivityFeed({ startDate, endDate, userIds }: DevActivityFeed
   }, [connections, onlineIds])
 
   const auditItems = useMemo(() => feed.data?.pages.flatMap((p) => p.items) ?? [], [feed.data])
-  const total = feed.data?.pages[0]?.total ?? 0
   const valueResolver = useFeedValueResolver(auditItems)
-  const showDiff = (r: GlobalActivityRow) => categoryOf(r.action_type) === "update" && (r.changed_fields?.length ?? 0) > 0
 
-  // Fusion audit + connexions, triées du plus récent au plus ancien
-  const allEvents = useMemo<FeedItem[]>(() => {
+  // Événements fusionnés (audit + connexions) → briques atomiques, triées du plus récent au plus ancien
+  const allBricks = useMemo<Brick[]>(() => {
     const merged: FeedItem[] = [...auditItems, ...connEvents]
     merged.sort((a, b) => new Date(b.occurred_at).getTime() - new Date(a.occurred_at).getTime())
-    return merged
-  }, [auditItems, connEvents])
+    return merged.flatMap((e) => toBricks(e, resolveStatus, userMap))
+  }, [auditItems, connEvents, resolveStatus, userMap])
 
-  // Recherche d'abord (commune aux deux compteurs)
   const searched = useMemo(() => {
     const q = query.trim().toLowerCase()
-    if (!q) return allEvents
-    return allEvents.filter((it) => {
-      const hay = isConn(it)
-        ? `connexion déconnexion ${it.actor.display ?? ""} ${it.actor.code ?? ""}`
-        : `${it.action_type} ${it.entity_label ?? ""} ${it.actor?.display ?? ""}`
-      return hay.toLowerCase().includes(q)
-    })
-  }, [allEvents, query])
+    return q ? allBricks.filter((b) => b.hay.includes(q)) : allBricks
+  }, [allBricks, query])
 
   const ekindCounts = useMemo(() => {
     const c: Record<EKind, number> = { all: searched.length, inter: 0, artisan: 0, other: 0 }
-    for (const it of searched) c[ekindOf(it)]++
+    for (const b of searched) c[b.ekind]++
     return c
   }, [searched])
 
-  const afterEkind = useMemo(() => (ekind === "all" ? searched : searched.filter((it) => ekindOf(it) === ekind)), [searched, ekind])
+  const afterEkind = useMemo(() => (ekind === "all" ? searched : searched.filter((b) => b.ekind === ekind)), [searched, ekind])
 
   const catCounts = useMemo(() => {
     const c: Record<string, number> = { all: afterEkind.length }
-    for (const it of afterEkind) {
-      const k = catOf(it)
-      c[k] = (c[k] ?? 0) + 1
-    }
+    for (const b of afterEkind) c[b.catFilter] = (c[b.catFilter] ?? 0) + 1
     return c
   }, [afterEkind])
 
   const filtered = useMemo(
-    () => (filter === "all" ? afterEkind : afterEkind.filter((it) => catOf(it) === filter)),
+    () => (filter === "all" ? afterEkind : afterEkind.filter((b) => b.catFilter === filter)),
     [afterEkind, filter],
   )
 
-  // Construction des lignes du flux : séparateurs collants + cartes groupées (par dossier + fenêtre) / lignes
+  // Lignes du flux : séparateurs collants + cartes (groupé, par dossier+fenêtre) / briques à plat (détaillé)
   const feedRows = useMemo<FeedRow[]>(() => {
-    // 1. Moments = regroupement (vue groupée) par dossier dans la fenêtre temporelle ; connexions isolées.
-    const moments: { key: string; events: FeedItem[] }[] = []
+    const moments: { key: string; bricks: Brick[] }[] = []
     if (mode === "group") {
-      const open = new Map<string, { m: { key: string; events: FeedItem[] }; lastMin: number }>()
-      for (const e of filtered) {
-        if (isConn(e) || !e.entity_label) {
-          moments.push({ key: `s-${e.id}`, events: [e] })
+      const open = new Map<string, { m: { key: string; bricks: Brick[] }; lastMin: number }>()
+      for (const b of filtered) {
+        if (b.isConn || !b.entityId) {
+          moments.push({ key: `s-${b.key}`, bricks: [b] })
           continue
         }
-        const k = `${e.entity_type}:${e.entity_id}:${dayOffOf(e.occurred_at)}`
-        const eMin = absMin(e.occurred_at)
+        const k = `${b.entityType}:${b.entityId}:${dayOffOf(b.occurredAt)}`
+        const bMin = absMin(b.occurredAt)
         const g = open.get(k)
-        const gap = g ? g.lastMin - eMin : Infinity
+        const gap = g ? g.lastMin - bMin : Infinity
         if (g && gap >= 0 && gap <= winMin) {
-          g.m.events.push(e)
-          g.lastMin = eMin
+          g.m.bricks.push(b)
+          g.lastMin = bMin
         } else {
-          const m = { key: `w-${k}-${e.id}`, events: [e] as FeedItem[] }
-          open.set(k, { m, lastMin: eMin })
+          const m = { key: `w-${k}-${b.key}`, bricks: [b] }
+          open.set(k, { m, lastMin: bMin })
           moments.push(m)
         }
       }
     } else {
-      for (const e of filtered) moments.push({ key: `e-${e.id}`, events: [e] })
+      for (const b of filtered) moments.push({ key: b.key, bricks: [b] })
     }
 
-    // 2. Lignes : séparateur quand la section change, puis carte (groupé) / ligne (détaillé).
     const rows: FeedRow[] = []
     let curSec: string | null = null
     const pushSep = (iso: string) => {
@@ -365,60 +445,43 @@ export function DevActivityFeed({ startDate, endDate, userIds }: DevActivityFeed
         rows.push({ kind: "sep", key: `sep-${s.key}-${rows.length}`, label: s.label })
       }
     }
-    for (const mo of moments.slice(0, 120)) {
-      const headItem = mo.events[0]
-      // Carte uniquement pour des actions d'audit (pas les connexions) en vue groupée.
-      if (mode === "group" && !isConn(headItem)) {
-        pushSep(headItem.occurred_at)
-        const events = mo.events as GlobalActivityRow[]
-        const desc = [...events].sort(
-          (a, b) => new Date(b.occurred_at).getTime() - new Date(a.occurred_at).getTime() || prioRank(categoryOf(a.action_type)) - prioRank(categoryOf(b.action_type)),
-        )
-        const byPrio = [...events].sort((a, b) => prioRank(categoryOf(a.action_type)) - prioRank(categoryOf(b.action_type)))
-        // Acteurs distincts (ordre d'apparition) + nombre d'actions
+    for (const mo of moments.slice(0, 200)) {
+      const head = mo.bricks[0]
+      if (mode === "group" && !head.isConn) {
+        pushSep(head.occurredAt)
+        const bricks = mo.bricks
+        // acteurs distincts (ordre d'apparition) + nb de modifs
         const actCount = new Map<string, number>()
         const ordered: string[] = []
-        for (const e of desc) {
-          const uid = e.actor?.user_id ?? "?"
-          if (!actCount.has(uid)) ordered.push(uid)
-          actCount.set(uid, (actCount.get(uid) ?? 0) + 1)
+        for (const b of bricks) {
+          if (!actCount.has(b.actor.userId)) ordered.push(b.actor.userId)
+          actCount.set(b.actor.userId, (actCount.get(b.actor.userId) ?? 0) + 1)
         }
         const actors = ordered.map((uid) => {
-          const info = actorInfoOf(events.find((e) => (e.actor?.user_id ?? "?") === uid)!, userMap)
-          return { ...info, count: actCount.get(uid) ?? 0 }
+          const bb = bricks.find((b) => b.actor.userId === uid)!
+          return { ...bb.actor, count: actCount.get(uid) ?? 0 }
         })
-        // Chips de catégories distinctes (ordre de priorité)
-        const seen = new Set<ActivityCategory>()
+        // chips de catégories distinctes (ordre de priorité)
+        const seen = new Set<string>()
         const catChips: CatChip[] = []
-        for (const e of byPrio) {
-          const cat = categoryOf(e.action_type)
-          if (seen.has(cat)) continue
-          seen.add(cat)
-          const meta = categoryMeta(cat)
-          catChips.push({ cat, glyph: meta.glyph, color: catColor(cat), label: meta.label, isDoc: cat === "doc", docRow: cat === "doc" ? e : null })
+        for (const b of [...bricks].sort((a, z) => prioRank(a.cat as ActivityCategory) - prioRank(z.cat as ActivityCategory))) {
+          if (b.cat === "conn" || seen.has(b.cat)) continue
+          seen.add(b.cat)
+          const m = categoryMeta(b.cat)
+          catChips.push({ cat: b.cat, glyph: m.glyph, color: catColor(b.cat), label: m.label })
         }
-        rows.push({
-          kind: "card",
-          key: mo.key,
-          head: desc[0],
-          events: desc,
-          accent: catColor(categoryOf(byPrio[0].action_type)),
-          count: events.length,
-          actors,
-          catChips,
-        })
+        rows.push({ kind: "card", key: mo.key, bricks, accent: catChips[0]?.color ?? head.accent, count: bricks.length, actors, catChips, head })
       } else {
-        for (const e of mo.events) {
-          pushSep(e.occurred_at)
-          rows.push({ kind: "line", key: `line-${e.id}`, item: e })
+        for (const b of mo.bricks) {
+          pushSep(b.occurredAt)
+          rows.push({ kind: "brick", key: b.key, brick: b })
         }
       }
     }
     return rows
-  }, [filtered, mode, winMin, singleDay, userMap])
+  }, [filtered, mode, winMin, singleDay])
 
-  // Séparateurs collants : la puce épinglée (sortante) fond dans la suivante qui monte,
-  // et les puces empilées derrière sont masquées (sinon les ombres se cumulent). Réplique V3.
+  // Séparateurs collants : la puce épinglée fond dans la suivante, les puces derrière sont masquées (réplique V3)
   const syncSecPill = useCallback(() => {
     const sc = feedScrollRef.current
     if (!sc) return
@@ -437,25 +500,21 @@ export function DevActivityFeed({ startDate, endDate, userIds }: DevActivityFeed
       const pill = chips[i].firstElementChild as HTMLElement | null
       if (!pill) continue
       if (i < pinnedIdx) {
-        // empilée derrière → masquée (pas d'ombre cumulée)
         pill.style.opacity = "0"
         pill.style.transform = "scale(.55)"
       } else if (i === pinnedIdx) {
-        // épinglée (sortante) : fusionne dans la suivante qui monte
         const next = anchors[i + 1]
         const p = next ? ease(1 - (next.offsetTop - top - PIN) / TH) : 0
         pill.style.transformOrigin = "center bottom"
         pill.style.opacity = String(1 - p)
         pill.style.transform = `scale(${(1 - 0.42 * p).toFixed(3)}) translateY(${(7 * p).toFixed(1)}px)`
       } else {
-        // dans le flux
         pill.style.opacity = "1"
         pill.style.transform = "none"
       }
     }
   }, [])
 
-  // Recalage initial + à chaque changement du flux (nouvelles sections)
   useEffect(() => {
     const id = requestAnimationFrame(syncSecPill)
     return () => cancelAnimationFrame(id)
@@ -493,7 +552,7 @@ export function DevActivityFeed({ startDate, endDate, userIds }: DevActivityFeed
     return row.entity_label
   }
 
-  const renderDocButton = (row: GlobalActivityRow, variant: "icon" | "inline") => {
+  const renderDocButton = (row: GlobalActivityRow) => {
     const open = preview?.rowId === row.id
     return (
       <Popover open={open} onOpenChange={(o) => setPreview(o ? buildDocTarget(row) : null)}>
@@ -502,14 +561,9 @@ export function DevActivityFeed({ startDate, endDate, userIds }: DevActivityFeed
             type="button"
             title="Prévisualiser le document"
             onClick={(e) => e.stopPropagation()}
-            className={
-              variant === "inline"
-                ? "inline-flex items-center gap-1 rounded bg-primary/10 px-1.5 py-px text-[10px] font-bold text-primary hover:bg-primary/20"
-                : "flex h-6 w-6 items-center justify-center rounded-lg border text-[13px]"
-            }
-            style={variant === "icon" ? { color: "#0EA5E9", background: tint("#0EA5E9", 0.08), borderColor: tint("#0EA5E9", 0.2) } : undefined}
+            className="inline-flex shrink-0 items-center gap-1 rounded bg-primary/10 px-1.5 py-px text-[10px] font-bold text-primary hover:bg-primary/20"
           >
-            {variant === "inline" ? "⊙ Aperçu" : "⊙"}
+            ⊙ Aperçu
           </button>
         </PopoverTrigger>
         {open && preview && (
@@ -521,7 +575,8 @@ export function DevActivityFeed({ startDate, endDate, userIds }: DevActivityFeed
     )
   }
 
-  const renderEntityButton = (row: GlobalActivityRow) => {
+  const renderEntityButton = (row: GlobalActivityRow | null) => {
+    if (!row) return null
     const label = entityLabelOf(row)
     if (!label) return null
     const isInter = row.entity_type === "intervention"
@@ -534,38 +589,33 @@ export function DevActivityFeed({ startDate, endDate, userIds }: DevActivityFeed
           openEntity(row)
         }}
         title="Ouvrir le dossier"
-        className="inline-flex max-w-full shrink-0 items-center gap-1 truncate rounded-full border px-2.5 py-1 font-mono text-[10.5px] font-extrabold"
+        className="inline-flex min-w-0 max-w-full shrink-0 items-center gap-1 rounded-full border px-2.5 py-1 font-mono text-[10.5px] font-extrabold"
         style={{ background: tint(c, 0.12), color: c, borderColor: tint(c, 0.3) }}
       >
-        {isInter ? "◳" : "◈"} {label} ↗
+        <span className="shrink-0">{isInter ? "◳" : "◈"}</span>
+        <span className="truncate">{label}</span>
+        <span className="shrink-0">↗</span>
       </button>
     )
   }
 
-  // Action « inline » : badges de statut, OU glyphe + texte + sous-texte (+ bouton doc optionnel).
-  const renderAction = (row: GlobalActivityRow, { minor = false, withDoc = false }: { minor?: boolean; withDoc?: boolean } = {}) => {
-    const d = describe(row, resolveStatus)
-    return (
-      <div className="flex flex-wrap items-center gap-1.5">
-        <span
-          className={cn("flex shrink-0 items-center justify-center rounded font-extrabold", minor ? "h-[18px] w-[18px] text-[10px]" : "h-5 w-5 text-[11px]")}
-          style={{ background: tint(d.color, 0.16), color: d.color }}
-        >
-          {d.glyph}
-        </span>
-        <span className={cn("font-semibold", minor ? "text-[11.5px]" : "text-[12px]")}>{d.text}</span>
-        {(d.from || d.to) && (
-          <>
-            {d.from && <StatusBadge s={d.from} small />}
-            {d.from && d.to && <span className="text-[11px] text-muted-foreground">→</span>}
-            {d.to && <StatusBadge s={d.to} small />}
-          </>
-        )}
-        {d.sub && <span className="truncate font-mono text-[11px] font-semibold text-muted-foreground">{d.sub}</span>}
-        {withDoc && d.isDoc && renderDocButton(row, "inline")}
-      </div>
-    )
-  }
+  // Rendu inline d'une brique : glyphe · libellé · avant → après · sous-texte · (doc)
+  const renderBrickInline = (b: Brick) => (
+    <div className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1">
+      <span
+        className="flex h-5 w-5 shrink-0 items-center justify-center rounded text-[11px] font-extrabold"
+        style={{ background: tint(b.accent, 0.16), color: b.accent }}
+      >
+        {b.glyph}
+      </span>
+      <span className="shrink-0 text-[12px] font-semibold text-foreground">{b.label}</span>
+      {b.before && <BrickValue v={b.before} resolver={valueResolver} strike />}
+      {b.before && b.after && <span className="shrink-0 text-[11px] text-muted-foreground">→</span>}
+      {b.after && <BrickValue v={b.after} resolver={valueResolver} />}
+      {b.sub && <span className="min-w-0 break-words font-mono text-[11px] font-semibold text-muted-foreground">{b.sub}</span>}
+      {b.isDoc && b.entityRow && renderDocButton(b.entityRow)}
+    </div>
+  )
 
   const filtActive = ekind !== "all" || mode !== "group" || winMin !== 15
   const ekindLabel = EKINDS.find((e) => e.key === ekind)?.label ?? "Tout"
@@ -573,16 +623,16 @@ export function DevActivityFeed({ startDate, endDate, userIds }: DevActivityFeed
 
   return (
     <TooltipProvider delayDuration={150}>
-      <div className="flex h-full min-h-0 flex-col">
-        {/* Contrôles : ⚙ Filtres (Affichage · Type · Fenêtre) + recherche, puis chips de catégorie */}
-        <div className="flex shrink-0 flex-col gap-2.5 border-b border-border px-3.5 py-3">
+      <div className="flex h-full min-h-0 min-w-0 flex-col">
+        {/* Contrôles : ⚙ Filtres + recherche, puis chips de catégorie */}
+        <div className="flex shrink-0 flex-col gap-2.5 border-b border-border px-3 py-3">
           <div className="flex flex-wrap items-center gap-2">
             <Popover>
               <PopoverTrigger asChild>
                 <button
                   type="button"
                   className={cn(
-                    "inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[12px] font-bold",
+                    "inline-flex shrink-0 items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[12px] font-bold",
                     filtActive ? "border-primary/35 bg-primary/10 text-primary" : "border-border bg-card text-foreground hover:bg-muted/60",
                   )}
                 >
@@ -608,19 +658,19 @@ export function DevActivityFeed({ startDate, endDate, userIds }: DevActivityFeed
                       <MenuOption key={w.min} label={w.label} active={winMin === w.min} onClick={() => setWinMin(w.min)} />
                     ))}
                     <p className="px-2 pt-1.5 text-[9.5px] font-medium leading-snug text-muted-foreground">
-                      Fusionne les actions consécutives d&apos;une même fiche dans cet intervalle. « Journée entière » regroupe tout le dossier du jour.
+                      Fusionne les modifications d&apos;une même fiche dans cet intervalle. « Journée entière » regroupe tout le dossier du jour.
                     </p>
                   </MenuSection>
                 )}
               </PopoverContent>
             </Popover>
-            <div className="relative ml-auto">
+            <div className="relative min-w-[120px] flex-1">
               <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
               <input
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="Rechercher…"
-                className="h-8 w-44 rounded-lg border border-border bg-background pl-8 pr-2 text-xs font-medium outline-none focus:ring-1 focus:ring-ring"
+                className="h-8 w-full rounded-lg border border-border bg-background pl-8 pr-2 text-xs font-medium outline-none focus:ring-1 focus:ring-ring"
               />
             </div>
           </div>
@@ -644,7 +694,7 @@ export function DevActivityFeed({ startDate, endDate, userIds }: DevActivityFeed
         </div>
 
         {/* Flux */}
-        <div ref={feedScrollRef} onScroll={syncSecPill} className="relative min-h-0 flex-1 overflow-y-auto px-2.5 pb-2.5 pt-1.5">
+        <div ref={feedScrollRef} onScroll={syncSecPill} className="relative min-h-0 min-w-0 flex-1 overflow-y-auto px-2.5 pb-2.5 pt-1.5">
           {feed.isLoading ? (
             <div className="space-y-1.5">{Array.from({ length: 10 }).map((_, i) => <Skeleton key={i} className="h-12 rounded-lg" />)}</div>
           ) : feedRows.length === 0 ? (
@@ -655,7 +705,6 @@ export function DevActivityFeed({ startDate, endDate, userIds }: DevActivityFeed
                 if (row.kind === "sep") {
                   return (
                     <Fragment key={row.key}>
-                      {/* ancre : position stable (non collante) pour mesurer l'épinglage */}
                       <div data-sec-anchor className="h-0 overflow-hidden" />
                       <div data-sec className="pointer-events-none sticky top-1.5 z-[9] my-2 flex justify-center">
                         <span className="pointer-events-auto inline-flex items-center rounded-full border border-border bg-card px-3 py-0.5 text-[10px] font-extrabold uppercase tracking-wide text-muted-foreground shadow-sm will-change-[transform,opacity]">
@@ -665,123 +714,93 @@ export function DevActivityFeed({ startDate, endDate, userIds }: DevActivityFeed
                     </Fragment>
                   )
                 }
-                if (row.kind === "line") {
-                  if (isConn(row.item)) return <ConnFeedRow key={row.key} row={row.item} userMap={userMap} />
-                  const e = row.item
-                  const a = actorInfoOf(e, userMap)
-                  const isDoc = categoryOf(e.action_type) === "doc"
+                if (row.kind === "brick") {
+                  const b = row.brick
+                  if (b.isConn) return <ConnBrick key={row.key} brick={b} />
                   return (
                     <div key={row.key} className="mb-1.5 flex items-stretch gap-2.5">
-                      <div className="relative flex w-11 shrink-0 flex-col items-center pt-3">
-                        <div className="absolute -bottom-1.5 left-1/2 top-0 w-0.5 -translate-x-1/2 bg-border" />
-                        <span className="relative z-[1] bg-card px-0.5 font-mono text-[11px] font-extrabold text-foreground">{fmtTime(e.occurred_at)}</span>
-                      </div>
+                      <Rail iso={b.occurredAt} />
                       <div className="flex min-w-0 flex-1 items-stretch overflow-hidden rounded-xl border border-border bg-card shadow-sm">
-                        <div className="w-[3px] shrink-0" style={{ background: catColor(categoryOf(e.action_type)) }} />
-                        <div className="flex min-w-0 flex-1 flex-col gap-1 px-3 py-2">
-                          <div className="flex items-center gap-2">
-                            <span title={a.name} className="flex h-[26px] w-[26px] shrink-0 items-center justify-center rounded-full text-[9.5px] font-extrabold text-white" style={{ background: a.color ?? "hsl(var(--muted-foreground))" }}>
-                              {a.initials}
-                            </span>
-                            <span className="shrink-0 whitespace-nowrap text-[10px] font-semibold text-muted-foreground">{relTime(e.occurred_at)}</span>
-                            <div className="min-w-0 flex-1">{renderAction(e)}</div>
-                            {isDoc && renderDocButton(e, "icon")}
-                            {renderEntityButton(e)}
-                          </div>
-                          {showDiff(e) && <FeedDiffRows row={e} resolver={valueResolver} />}
+                        <div className="w-[3px] shrink-0" style={{ background: b.accent }} />
+                        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1 px-3 py-2">
+                          <Avatar actor={b.actor} />
+                          <span className="shrink-0 whitespace-nowrap text-[10px] font-semibold text-muted-foreground">{relTime(b.occurredAt)}</span>
+                          <div className="min-w-0 flex-1">{renderBrickInline(b)}</div>
+                          {renderEntityButton(b.entityRow)}
                         </div>
                       </div>
                     </div>
                   )
                 }
-                // Carte groupée
+                // Carte groupée (dossier + fenêtre)
                 const open = openTx.has(row.key)
                 return (
                   <div key={row.key} className="mb-1.5 flex items-stretch gap-2.5">
-                    {/* rail timeline */}
-                    <div className="relative flex w-11 shrink-0 flex-col items-center pt-2.5">
-                      <div className="absolute -bottom-1.5 left-1/2 top-0 w-0.5 -translate-x-1/2 bg-border" />
-                      <span className="relative z-[1] bg-card px-0.5 font-mono text-[11px] font-extrabold text-foreground">{fmtTime(row.head.occurred_at)}</span>
-                    </div>
-                    {/* carte */}
+                    <Rail iso={row.head.occurredAt} />
                     <div className="flex min-w-0 flex-1 items-stretch overflow-hidden rounded-xl border border-border bg-card shadow-sm">
                       <div className="w-[3px] shrink-0" style={{ background: row.accent }} />
                       <div className="flex min-w-0 flex-1 flex-col">
-                        <div className="flex cursor-pointer flex-col gap-1.5 px-3 py-2" onClick={() => toggleTx(row.key)}>
-                          <div className="flex items-center gap-2">
-                            {/* pile d'avatars + overflow */}
-                            <div className="flex shrink-0 items-center pl-2">
-                              {row.actors.slice(0, 3).map((a) => (
-                                <span
-                                  key={a.userId}
-                                  title={a.name}
-                                  className="-ml-2 flex h-[26px] w-[26px] items-center justify-center rounded-full text-[9.5px] font-extrabold text-white ring-2 ring-card"
-                                  style={{ background: a.color ?? "hsl(var(--muted-foreground))" }}
-                                >
-                                  {a.initials}
-                                </span>
-                              ))}
-                              {row.actors.length > 3 && (
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <span className="-ml-2 flex h-[26px] w-[26px] cursor-default items-center justify-center rounded-full bg-muted text-[9.5px] font-extrabold text-muted-foreground ring-2 ring-card">
-                                      +{row.actors.length - 3}
-                                    </span>
-                                  </TooltipTrigger>
-                                  <TooltipContent side="bottom" className="w-[190px] p-1.5">
-                                    <p className="px-1.5 pb-1 text-[8.5px] font-extrabold uppercase tracking-wide text-muted-foreground">Gestionnaires intervenus</p>
-                                    {row.actors.map((a) => (
-                                      <div key={a.userId} className="flex items-center gap-2 rounded-md px-1.5 py-1">
-                                        <span className="flex h-5 w-5 items-center justify-center rounded-full text-[8px] font-extrabold text-white" style={{ background: a.color ?? "hsl(var(--muted-foreground))" }}>
-                                          {a.initials}
-                                        </span>
-                                        <span className="flex-1 truncate text-[11px] font-semibold">{a.name}</span>
-                                        <span className="shrink-0 text-[9.5px] font-bold text-muted-foreground">{a.count} action{a.count > 1 ? "s" : ""}</span>
-                                      </div>
-                                    ))}
-                                  </TooltipContent>
-                                </Tooltip>
-                              )}
-                            </div>
-                            <span title={row.count > 1 ? `${row.count} actions` : "1 action"} className="flex h-4 min-w-[18px] shrink-0 items-center justify-center rounded-full bg-muted/80 px-1.5 text-[10px] font-extrabold tabular-nums text-muted-foreground">
-                              {row.count}
-                            </span>
-                            <span className="shrink-0 whitespace-nowrap text-[10px] font-semibold text-muted-foreground">{relTime(row.head.occurred_at)}</span>
-                            <div className="flex flex-wrap items-center gap-1.5">
-                              {row.catChips.map((c) => (
-                                <span key={c.cat} title={c.label} className="inline-flex items-center gap-1 rounded-full py-0.5 pl-1.5 pr-2 text-[10px] font-extrabold" style={{ background: tint(c.color, 0.1), color: c.color }}>
-                                  <span className="text-[11px]">{c.glyph}</span>
-                                  {c.label}
-                                </span>
-                              ))}
-                            </div>
-                            <div className="flex-1" />
-                            {renderEntityButton(row.head)}
-                            <ChevronDown className={cn("h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform", open && "rotate-180")} />
+                        <div className="flex cursor-pointer flex-wrap items-center gap-x-2 gap-y-1.5 px-3 py-2" onClick={() => toggleTx(row.key)}>
+                          {/* pile d'avatars distincts + overflow +N */}
+                          <div className="flex shrink-0 items-center pl-2">
+                            {row.actors.slice(0, 3).map((a) => (
+                              <span
+                                key={a.userId}
+                                title={a.name}
+                                className="-ml-2 flex h-[26px] w-[26px] items-center justify-center rounded-full text-[9.5px] font-extrabold text-white ring-2 ring-card"
+                                style={{ background: a.color ?? "hsl(var(--muted-foreground))" }}
+                              >
+                                {a.initials}
+                              </span>
+                            ))}
+                            {row.actors.length > 3 && (
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <span className="-ml-2 flex h-[26px] w-[26px] cursor-default items-center justify-center rounded-full bg-muted text-[9.5px] font-extrabold text-muted-foreground ring-2 ring-card">
+                                    +{row.actors.length - 3}
+                                  </span>
+                                </TooltipTrigger>
+                                <TooltipContent side="bottom" className="w-[190px] p-1.5">
+                                  <p className="px-1.5 pb-1 text-[8.5px] font-extrabold uppercase tracking-wide text-muted-foreground">Gestionnaires intervenus</p>
+                                  {row.actors.map((a) => (
+                                    <div key={a.userId} className="flex items-center gap-2 rounded-md px-1.5 py-1">
+                                      <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[8px] font-extrabold text-white" style={{ background: a.color ?? "hsl(var(--muted-foreground))" }}>
+                                        {a.initials}
+                                      </span>
+                                      <span className="flex-1 truncate text-[11px] font-semibold">{a.name}</span>
+                                      <span className="shrink-0 text-[9.5px] font-bold text-muted-foreground">{a.count} modif{a.count > 1 ? "s" : ""}</span>
+                                    </div>
+                                  ))}
+                                </TooltipContent>
+                              </Tooltip>
+                            )}
                           </div>
+                          <span title={`${row.count} modification${row.count > 1 ? "s" : ""}`} className="flex h-4 min-w-[18px] shrink-0 items-center justify-center rounded-full bg-muted/80 px-1.5 text-[10px] font-extrabold tabular-nums text-muted-foreground">
+                            {row.count}
+                          </span>
+                          <span className="shrink-0 whitespace-nowrap text-[10px] font-semibold text-muted-foreground">{relTime(row.head.occurredAt)}</span>
+                          <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+                            {row.catChips.map((c) => (
+                              <span key={c.cat} title={c.label} className="inline-flex shrink-0 items-center gap-1 rounded-full py-0.5 pl-1.5 pr-2 text-[10px] font-extrabold" style={{ background: tint(c.color, 0.1), color: c.color }}>
+                                <span className="text-[11px]">{c.glyph}</span>
+                                {c.label}
+                              </span>
+                            ))}
+                          </div>
+                          <span className="ml-auto flex shrink-0 items-center gap-1.5">
+                            {renderEntityButton(row.head.entityRow)}
+                            <ChevronDown className={cn("h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform", open && "rotate-180")} />
+                          </span>
                         </div>
-                        {/* détail complet : qui · quand · avant → après */}
                         {open && (
                           <div className="flex flex-col border-t border-border bg-muted/30">
-                            {row.events.map((e, i) => {
-                              const a = actorInfoOf(e, userMap)
-                              return (
-                                <div key={e.id} className={cn("flex flex-col gap-1 px-3 py-2", i < row.events.length - 1 && "border-b border-border")}>
-                                  <div className="flex items-center gap-2">
-                                    <span className="w-[52px] shrink-0 font-mono text-[10px] font-bold text-muted-foreground">{fmtTimeSec(e.occurred_at)}</span>
-                                    <span title={a.name} className="flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-full text-[7.5px] font-extrabold text-white" style={{ background: a.color ?? "hsl(var(--muted-foreground))" }}>
-                                      {a.initials}
-                                    </span>
-                                    <div className="min-w-0 flex-1">{renderAction(e, { minor: true, withDoc: true })}</div>
-                                  </div>
-                                  {showDiff(e) && (
-                                    <div className="pl-[78px]">
-                                      <FeedDiffRows row={e} resolver={valueResolver} />
-                                    </div>
-                                  )}
-                                </div>
-                              )
-                            })}
+                            {row.bricks.map((b, i) => (
+                              <div key={b.key} className={cn("flex items-start gap-2 px-3 py-2", i < row.bricks.length - 1 && "border-b border-border")}>
+                                <span className="w-[52px] shrink-0 pt-0.5 font-mono text-[10px] font-bold text-muted-foreground">{fmtTimeSec(b.occurredAt)}</span>
+                                <Avatar actor={b.actor} size={18} />
+                                <div className="min-w-0 flex-1">{renderBrickInline(b)}</div>
+                              </div>
+                            ))}
                           </div>
                         )}
                       </div>
@@ -796,7 +815,7 @@ export function DevActivityFeed({ startDate, endDate, userIds }: DevActivityFeed
                   </Button>
                 </div>
               )}
-              <p className="py-2 text-center text-[11px] text-muted-foreground">{filtered.length} affichés · {total} action(s) sur la période</p>
+              <p className="py-2 text-center text-[11px] text-muted-foreground">{filtered.length} modification(s) affichée(s)</p>
             </>
           )}
         </div>
@@ -805,8 +824,61 @@ export function DevActivityFeed({ startDate, endDate, userIds }: DevActivityFeed
   )
 }
 
+/** Rail timeline : l'heure sur une ligne verticale. */
+function Rail({ iso }: { iso: string }) {
+  return (
+    <div className="relative flex w-11 shrink-0 flex-col items-center pt-3">
+      <div className="absolute -bottom-1.5 left-1/2 top-0 w-0.5 -translate-x-1/2 bg-border" />
+      <span className="relative z-[1] bg-card px-0.5 font-mono text-[11px] font-extrabold text-foreground">{fmtTime(iso)}</span>
+    </div>
+  )
+}
+/** Avatar coloré aux initiales. */
+function Avatar({ actor, size = 26 }: { actor: ActorInfo; size?: number }) {
+  return (
+    <span
+      title={actor.name}
+      className="flex shrink-0 items-center justify-center rounded-full font-extrabold text-white"
+      style={{ width: size, height: size, fontSize: size <= 18 ? "7.5px" : "9.5px", background: actor.color ?? "hsl(var(--muted-foreground))" }}
+    >
+      {actor.initials}
+    </span>
+  )
+}
+
+/** Valeur d'une brique : badge de statut, valeur de champ résolue (tronquée + tooltip), ou texte. */
+function BrickValue({ v, resolver, strike }: { v: BVal; resolver: HistoryValueResolver; strike?: boolean }) {
+  if (v.t === "status") return <StatusBadge s={v.ref} small />
+  if (v.t === "field") return <DiffValue field={v.field} value={v.value} resolver={resolver} kind={strike ? "old" : "new"} />
+  return (
+    <span className={cn("min-w-0 break-words text-[12px]", strike ? "text-muted-foreground/70 line-through" : "font-semibold text-foreground")}>{v.text}</span>
+  )
+}
+
+/** Ligne de connexion / déconnexion (design distinct : chip à gauche · avatar à droite). */
+function ConnBrick({ brick }: { brick: Brick }) {
+  const accent = brick.accent
+  return (
+    <div className="mb-1.5 flex items-stretch gap-2.5">
+      <Rail iso={brick.occurredAt} />
+      <div className="flex min-w-0 flex-1 items-stretch overflow-hidden rounded-xl border border-border bg-card shadow-sm">
+        <div className="w-[3px] shrink-0" style={{ background: accent }} />
+        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1 px-3 py-2" style={{ background: tint(accent, 0.04) }}>
+          <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full py-0.5 pl-2 pr-2.5 text-[10.5px] font-extrabold" style={{ background: tint(accent, 0.1), color: accent }}>
+            <span className="text-[11px]">{brick.glyph}</span>
+            {brick.label}
+          </span>
+          {brick.sub && <span className="min-w-0 flex-1 truncate font-mono text-[10.5px] font-semibold text-muted-foreground">{brick.sub}</span>}
+          <span className="ml-auto shrink-0 whitespace-nowrap text-[10px] font-semibold text-muted-foreground">{relTime(brick.occurredAt)}</span>
+          <Avatar actor={brick.actor} />
+        </div>
+      </div>
+    </div>
+  )
+}
+
 /** Une section repliable du menu ⚙ Filtres. */
-function MenuSection({ label, value, children }: { label: string; value: string; children: React.ReactNode }) {
+function MenuSection({ label, value, children }: { label: string; value: string; children: ReactNode }) {
   return (
     <div className="border-b border-border py-1.5 last:border-0">
       <div className="flex items-center justify-between px-2 pb-1">
@@ -832,41 +904,10 @@ function MenuOption({ label, count, title, active, onClick }: { label: string; c
   )
 }
 
-function ConnFeedRow({ row, userMap }: { row: ConnRow; userMap: UserMap }) {
-  const isIn = row.dir === "in"
-  const accent = isIn ? "#22C55E" : "#94A3B8"
-  const u = userMap.get(row.userId)
-  const name = u ? [u.firstname, u.lastname].filter(Boolean).join(" ") || row.actor.display || "—" : row.actor.display || "—"
-  const color = u?.color ?? row.actor.color ?? null
-  return (
-    <div className="mb-1.5 flex items-stretch gap-2.5">
-      <div className="relative flex w-11 shrink-0 flex-col items-center pt-3">
-        <div className="absolute -bottom-1.5 left-1/2 top-0 w-0.5 -translate-x-1/2 bg-border" />
-        <span className="relative z-[1] bg-card px-0.5 font-mono text-[11px] font-extrabold text-foreground">{fmtTime(row.occurred_at)}</span>
-      </div>
-      <div className="flex min-w-0 flex-1 items-stretch overflow-hidden rounded-xl border border-border bg-card shadow-sm">
-        <div className="w-[3px] shrink-0" style={{ background: accent }} />
-        {/* design distinct : chip de type à gauche · sous-texte · il y a … · avatar à droite */}
-        <div className="flex min-w-0 flex-1 items-center gap-2 px-3 py-2" style={{ background: tint(accent, 0.04) }}>
-          <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full py-0.5 pl-2 pr-2.5 text-[10.5px] font-extrabold" style={{ background: tint(accent, 0.1), color: accent }}>
-            <span className="text-[11px]">{isIn ? "●" : "○"}</span>
-            {isIn ? "Connexion" : "Déconnexion"}
-          </span>
-          <span className="min-w-0 flex-1 truncate font-mono text-[10.5px] font-semibold text-muted-foreground">{isIn ? "Session ouverte" : "Session fermée"}</span>
-          <span className="shrink-0 whitespace-nowrap text-[10px] font-semibold text-muted-foreground">{relTime(row.occurred_at)}</span>
-          <span title={name} className="flex h-[26px] w-[26px] shrink-0 items-center justify-center rounded-full text-[9.5px] font-extrabold text-white" style={{ background: color ?? "hsl(var(--muted-foreground))" }}>
-            {initialsOf(name)}
-          </span>
-        </div>
-      </div>
-    </div>
-  )
-}
-
 function StatusBadge({ s, small }: { s: StatusRef; small?: boolean }) {
   const color = s.color ?? "hsl(var(--muted-foreground))"
   return (
-    <span className={cn("inline-flex rounded font-bold", small ? "px-1.5 py-px text-[9.5px]" : "px-2 py-0.5 text-[11px]")} style={{ background: tint(color, 0.13), color }}>
+    <span className={cn("inline-flex shrink-0 rounded font-bold", small ? "px-1.5 py-px text-[9.5px]" : "px-2 py-0.5 text-[11px]")} style={{ background: tint(color, 0.13), color }}>
       {s.label}
     </span>
   )

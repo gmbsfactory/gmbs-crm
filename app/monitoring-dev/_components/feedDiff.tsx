@@ -86,11 +86,11 @@ export function useFeedValueResolver(items: GlobalActivityRow[]): HistoryValueRe
 // ── Rendu des lignes de diff (champ par champ : libellé · ancien → nouveau).
 
 // Champs techniques/dérivés (index plein-texte…) : jamais une modif lisible → exclus du diff.
-const IGNORED_DIFF_FIELDS = new Set(["search_vector", "fts", "tsv"])
+export const IGNORED_DIFF_FIELDS = new Set(["search_vector", "fts", "tsv"])
 const MAX_VALUE_CHARS = 50
 
 /** Valeur de diff : badge résolu tel quel, sinon texte tronqué à 50 car. (+ tooltip complet au survol). */
-function DiffValue({ field, value, resolver, kind }: { field: string; value: unknown; resolver: HistoryValueResolver; kind: "old" | "new" }) {
+export function DiffValue({ field, value, resolver, kind }: { field: string; value: unknown; resolver: HistoryValueResolver; kind: "old" | "new" }) {
   const { node, isBadge } = renderValue(field, value, resolver)
   if (isBadge) return <span className="shrink-0">{node}</span>
   const cls = cn(

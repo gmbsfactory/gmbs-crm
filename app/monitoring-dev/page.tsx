@@ -210,7 +210,7 @@ export default function MonitoringDevPage() {
         )}
 
         {showLeft && (
-          <div className="min-h-0" style={{ flex: leftFlex }}>
+          <div className="min-h-0 min-w-0" style={{ flex: leftFlex }}>
             <GestionnaireList
               startDate={range.from}
               endDate={range.to}
@@ -232,7 +232,7 @@ export default function MonitoringDevPage() {
         )}
 
         {showRight && (
-          <div className="min-h-0" style={{ flex: "1 1 auto" }}>
+          <div className="min-h-0 min-w-0" style={{ flex: "1 1 auto" }}>
             <RightPanel
               startDate={range.from}
               endDate={range.to}
