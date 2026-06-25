@@ -267,20 +267,6 @@ export function AuthStateListenerProvider({ children }: { children: ReactNode })
       return newCount
     }
 
-    const setOfflineStatus = async (): Promise<void> => {
-      try {
-        await fetch('/api/auth/status', {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          keepalive: true,
-          body: JSON.stringify({ status: 'offline', authEvent: 'SIGNED_OUT' })
-        })
-      } catch (error) {
-        console.warn('[AuthStateListenerProvider] Error setting offline status:', error)
-      }
-    }
-
     if (tabChannel) {
       tabChannel.onmessage = (event: MessageEvent<{ type: string; tabId: string; count?: number; timestamp?: number }>) => {
         const { type, count, timestamp } = event.data
@@ -320,19 +306,15 @@ export function AuthStateListenerProvider({ children }: { children: ReactNode })
     broadcastHeartbeat()
 
     const handlePageHide = (event: PageTransitionEvent) => {
+      // Fermeture d'onglet : on décompte l'onglet mais on NE passe PAS offline.
+      // La présence métier reste active ; le cron bascule idle (+5 min) puis offline (+1 h).
       if (!event.persisted) {
-        const remainingTabs = decrementTabCount()
-        if (remainingTabs === 0) {
-          setOfflineStatus()
-        }
+        decrementTabCount()
       }
     }
 
     const handleBeforeUnload = () => {
-      const remainingTabs = decrementTabCount()
-      if (remainingTabs === 0) {
-        setOfflineStatus()
-      }
+      decrementTabCount()
     }
 
     window.addEventListener('pagehide', handlePageHide)
@@ -356,10 +338,7 @@ export function AuthStateListenerProvider({ children }: { children: ReactNode })
         console.warn('[AuthStateListenerProvider] Failed to remove heartbeat:', error)
       }
 
-      const remainingTabs = decrementTabCount()
-      if (remainingTabs === 0 && tabChannel) {
-        setOfflineStatus()
-      }
+      decrementTabCount()
 
       if (tabChannel) {
         tabChannel.close()

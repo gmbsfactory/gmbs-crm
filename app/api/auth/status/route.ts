@@ -33,7 +33,7 @@ export async function PATCH(req: Request) {
     }
 
     // Récupérer et valider le body
-    let body: { status?: string }
+    let body: { status?: string; authEvent?: string }
     try {
       body = await req.json()
     } catch (parseError) {
@@ -148,18 +148,19 @@ export async function PATCH(req: Request) {
       return NextResponse.json({ error: 'Failed to update status' }, { status: 500 })
     }
 
-    // Présence CRM : la connexion (AUTH_LOGIN / PRESENCE_START) est émise par
-    // usePresenceLifecycle (émetteur unique → distinction portail déterministe).
-    // Ici on ne journalise que la déconnexion immédiate à la fermeture du dernier
-    // onglet ; le cron check_inactive_users sert de filet si l'onglet a crashé.
+    // Présence CRM : seule la DÉCONNEXION métier est journalisée ici.
+    // - logout volontaire (authEvent SIGNED_OUT) → reason 'logout' (affiché « Déconnexion volontaire »)
+    // - tout autre passage offline → reason 'tab_close' (masqué du flux)
+    // La connexion (AUTH_LOGIN / PRESENCE_START) est émise par usePresenceLifecycle.
     if (status === 'offline') {
+      const reason = body.authEvent === 'SIGNED_OUT' ? 'logout' : 'tab_close'
       const { error: presenceError } = await (supabaseAdmin as any).rpc('record_user_presence_event', {
         p_user_id: publicUserId,
         p_state: 'offline',
         p_kind: 'PRESENCE_END',
         p_source: 'auth',
         p_session_id: null,
-        p_metadata: { auth_status: status },
+        p_metadata: { auth_status: status, reason },
         p_occurred_at: new Date().toISOString(),
       })
 

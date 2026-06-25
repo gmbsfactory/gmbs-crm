@@ -115,7 +115,7 @@ describe('usePresenceLifecycle', () => {
     expect(presenceCalls().some((c) => c.event === 'PRESENCE_END' && c.state === 'offline')).toBe(true)
   })
 
-  it('reprend (idle → active) sans portail et émet PRESENCE_RESUME', async () => {
+  it('reprend depuis idle SANS reconnexion (PRESENCE_PING, jamais PRESENCE_RESUME)', async () => {
     const { result, rerender } = renderLifecycle(false)
     await flush()
     rerender({ isIdle: true })
@@ -126,7 +126,8 @@ describe('usePresenceLifecycle', () => {
     await flush()
 
     expect(result.current.presenceState).toBe('active')
-    expect(hasEvent('PRESENCE_RESUME')).toBe(true)
+    expect(hasEvent('PRESENCE_RESUME')).toBe(false)
+    expect(hasEvent('PRESENCE_PING')).toBe(true)
   })
 
   it('renouvelle le sessionId au retour depuis offline', async () => {
@@ -145,6 +146,7 @@ describe('usePresenceLifecycle', () => {
 
     expect(result.current.presenceState).toBe('active')
     expect(result.current.sessionId).not.toBe(sessionIdBefore)
+    expect(hasEvent('PRESENCE_RESUME')).toBe(true) // Reconnexion uniquement depuis offline
   })
 
   it('émet PRESENCE_PING toutes les 60 s en activité', async () => {

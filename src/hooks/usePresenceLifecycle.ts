@@ -148,19 +148,19 @@ export function usePresenceLifecycle({
 
     if (!isIdle) {
       const previousState = stateRef.current
-      const shouldLogResume = previousState === "idle" || previousState === "offline"
-
-      if (previousState === "offline") {
-        sessionIdRef.current = createSessionId()
-      }
-
       syncLocalState("active", activeAtIso, null)
 
-      if (shouldLogResume) {
+      if (previousState === "offline") {
+        // Reprise après une déconnexion >1h : nouvelle session + Reconnexion (sans portail).
+        sessionIdRef.current = createSessionId()
         void postPresence("active", "PRESENCE_RESUME", {
           auth_required: false,
           previous_client_state: previousState,
         })
+      } else if (previousState === "idle") {
+        // Retour d'une simple inactivité (<1h) : on réactive la présence SANS journaliser de
+        // reconnexion (le PING n'est jamais loggé). L'inactivité reste visible dans la timeline.
+        void postPresence("active", "PRESENCE_PING", { reason: "idle_return" })
       }
       return
     }

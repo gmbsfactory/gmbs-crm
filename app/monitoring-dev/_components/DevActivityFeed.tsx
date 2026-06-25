@@ -137,28 +137,32 @@ function fmtEur(v: unknown): string | null {
   return new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(n)
 }
 
-function describePresence(row: GlobalActivityRow): Pick<Brick, "accent" | "glyph" | "label" | "sub" | "connDir"> {
+/**
+ * Mapping des événements de présence vers les briques du flux. Le flux ne montre que
+ * 3 types métier : Connexion (portail), Déconnexion (logout OU inactivité >1h), Reconnexion
+ * (retour après >1h). Le reste — ouverture de session sans portail, inactivité, fermeture
+ * d'onglet — est masqué (retourne null) : la timeline le capture déjà.
+ */
+function describePresence(row: GlobalActivityRow): Pick<Brick, "accent" | "glyph" | "label" | "sub" | "connDir"> | null {
   const nv = (row.new_values ?? {}) as Record<string, unknown>
   const reason = typeof nv.reason === "string" ? nv.reason : null
   switch (row.action_type) {
     case "AUTH_LOGIN":
       return { accent: "#22C55E", glyph: "●", label: "Connexion", sub: "Portail auth", connDir: "in" }
-    case "PRESENCE_START":
-      return { accent: "#22C55E", glyph: "●", label: "Connexion", sub: "Session CRM ouverte", connDir: "in" }
     case "PRESENCE_RESUME":
-      return { accent: "#22C55E", glyph: "↻", label: "Reconnexion", sub: "Reprise CRM sans portail auth", connDir: "in" }
-    case "IDLE_START":
-      return { accent: "#F59E0B", glyph: "◔", label: "Inactivité", sub: "Seuil d'inactivité atteint", connDir: null }
+      // Reconnexion seulement si on revient d'un offline (>1h). Masque les PRESENCE_RESUME
+      // historiques émis à tort au retour d'une simple inactivité (previous_state ≠ offline).
+      if (nv.previous_state !== "offline") return null
+      return { accent: "#22C55E", glyph: "↻", label: "Reconnexion", sub: "Reprise après +1 h", connDir: "in" }
     case "PRESENCE_END":
-      return {
-        accent: "#94A3B8",
-        glyph: "○",
-        label: "Déconnexion",
-        sub: reason === "offline_threshold" ? "Seuil hors ligne atteint" : "Session CRM fermée",
-        connDir: "out",
-      }
+      if (reason === "offline_threshold")
+        return { accent: "#94A3B8", glyph: "○", label: "Déconnexion", sub: "Inactivité prolongée (+1 h)", connDir: "out" }
+      if (reason === "logout")
+        return { accent: "#94A3B8", glyph: "○", label: "Déconnexion", sub: "Déconnexion volontaire", connDir: "out" }
+      return null // fermeture d'onglet ou autre → masqué
+    // PRESENCE_START (ouverture sans portail) et IDLE_START (inactivité) → masqués
     default:
-      return { accent: "#94A3B8", glyph: "•", label: "Présence", sub: null, connDir: null }
+      return null
   }
 }
 
@@ -275,6 +279,7 @@ function toBricks(
   const row = item
   if (row.entity_type === "presence") {
     const d = describePresence(row)
+    if (!d) return [] // PRESENCE_START / IDLE_START / fermeture d'onglet → hors flux
     return [{
       key: row.id,
       occurredAt,
