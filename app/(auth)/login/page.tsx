@@ -50,6 +50,12 @@ export default function LoginPage() {
       const { error } = await supabase.auth.signInWithPassword({ email, password })
       if (error) throw new Error(error.message)
 
+      try {
+        sessionStorage.setItem('crm_auth_login', '1')
+      } catch {
+        // sessionStorage indisponible : la présence retombera sur PRESENCE_START.
+      }
+
       // Poser le cookie de session quotidienne
       const today = new Date().toISOString().slice(0, 10)
       document.cookie = `crm_session_date=${today}; path=/; max-age=86400; samesite=lax${window.location.protocol === 'https:' ? '; secure' : ''}`

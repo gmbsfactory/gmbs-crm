@@ -48,16 +48,6 @@ export function AuthStateListenerProvider({ children }: { children: ReactNode })
           sessionStorage.removeItem('revealTransition')
         }
       } else if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION' || event === 'TOKEN_REFRESHED') {
-        // Connexion via portail : marque pour que le cycle de présence émette AUTH_LOGIN
-        // (et non PRESENCE_START). Consommé une fois au montage de usePresenceLifecycle.
-        if (event === 'SIGNED_IN' && typeof window !== 'undefined') {
-          try {
-            sessionStorage.setItem('crm_auth_login', '1')
-          } catch {
-            // sessionStorage indisponible → on retombera sur PRESENCE_START
-          }
-        }
-
         // Connexion, session initiale ou refresh token : invalider pour forcer un refetch
         queryClient.invalidateQueries({ queryKey: ["currentUser"] })
 
