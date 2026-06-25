@@ -46,6 +46,7 @@ export function AuthStateListenerProvider({ children }: { children: ReactNode })
         // Nettoyer aussi sessionStorage pour l'animation
         if (typeof window !== 'undefined') {
           sessionStorage.removeItem('revealTransition')
+          sessionStorage.removeItem('crm_auth_login')
         }
       } else if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION' || event === 'TOKEN_REFRESHED') {
         // Connexion, session initiale ou refresh token : invalider pour forcer un refetch

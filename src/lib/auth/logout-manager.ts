@@ -108,12 +108,11 @@ class LogoutManager {
 
     try {
 
-      // STEP 1: Set status to offline (with retries, non-blocking)
+      // STEP 1: Set status to offline (with retries) before signOut.
+      // This is a business event, not just cleanup: if we fire it in the
+      // background, signOut can remove the auth cookies before the route runs.
       if (!skipStatusUpdate) {
-        // Don't await - run in background and don't block logout
-        this.setStatusOfflineWithRetry().catch(error => {
-          console.warn('[LogoutManager] Background status update failed:', error)
-        })
+        await this.setStatusOfflineWithRetry()
       }
 
       // STEP 2: Cancel all pending requests immediately
@@ -136,6 +135,7 @@ class LogoutManager {
       // STEP 5: Clean up sessionStorage
       if (typeof window !== 'undefined') {
         sessionStorage.removeItem('revealTransition')
+        sessionStorage.removeItem('crm_auth_login')
       }
 
       // STEP 6: Sign out from Supabase (@supabase/ssr nettoie automatiquement les cookies)

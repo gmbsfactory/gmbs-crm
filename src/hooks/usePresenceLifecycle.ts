@@ -43,7 +43,7 @@ function isoFromMs(value: number | null): string | null {
  * Cycle de présence CRM (active → idle → offline → reprise), indépendant du token auth.
  *
  * Émetteur UNIQUE des événements de présence côté client :
- * - `AUTH_LOGIN`     : 1re connexion via portail (flag `crm_auth_login` posé par la page login).
+ * - `AUTH_LOGIN`     : secours si la page login n'a pas pu enregistrer la connexion portail.
  * - `PRESENCE_START` : ouverture/reprise de session CRM sans portail (rechargement, session déjà active).
  * - `PRESENCE_PING`  : ping d'activité 60 s (rafraîchit last_active_at, jamais journalisé).
  * - `IDLE_START`     : passage inactif (souris immobile au-delà du seuil idle).
@@ -119,7 +119,7 @@ export function usePresenceLifecycle({
       const now = new Date().toISOString()
       syncLocalState("active", now, null)
 
-      // AUTH_LOGIN si on vient de passer par le portail (flag posé par la page login),
+      // AUTH_LOGIN si la page login n'a pas pu enregistrer directement la connexion portail,
       // sinon PRESENCE_START (rechargement / session déjà active, sans portail).
       // Émetteur unique → la distinction « via portail / sans portail » est déterministe.
       let freshLogin = false
