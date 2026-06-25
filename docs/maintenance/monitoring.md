@@ -91,23 +91,48 @@ Les Error Boundaries sont placées autour :
 
 ## Suivi de présence
 
-### Heartbeat
+### Présence CRM (active / idle / offline)
 
-Le système de présence repose sur un heartbeat HTTP :
+Depuis les migrations `99051`/`99052`, la présence métier est **distincte du token
+d'authentification** (qui reste valide 24 h). Trois états sont stockés dans
+`users.presence_state` (colonne dédiée, jamais mélangée avec `status` busy/dnd) :
 
-```
-Client: POST /api/auth/heartbeat (toutes les 30s)
-  → Met a jour `last_seen_at` dans la table `users`
+| État | Seuil | Pastille |
+|------|-------|----------|
+| `active` | activité récente | verte |
+| `idle` | inactivité ≥ seuil idle (défaut 5 min) → écran de veille | orange |
+| `offline` | inactivité ≥ seuil offline (défaut 1 h) → session CRM fermée | grise |
 
-Server: Edge Function check-inactive-users (cron toutes les 60s)
-  → Utilisateurs avec last_seen_at > 90s → status = 'offline'
-```
+**Seuils configurables** depuis Monitoring Dev (table `crm_presence_settings`, hook
+`usePresenceSettings`, route `PATCH /api/monitoring/presence-settings` réservée dev/admin).
+Le même seuil idle pilote l'écran de veille DVD.
 
-**Avantages par rapport a `beforeunload` :**
-- Fonctionne si l'onglet crash
-- Fonctionne si le processus est kill
-- Fonctionne en cas de coupure réseau
-- Pas dépendant du cycle de vie du navigateur
+**Cycle client** (`usePresenceLifecycle`, monté dans `page-presence-gate.tsx`) — émetteur
+**unique** des événements, journalisés dans `user_presence_events` :
+
+| Événement | Quand |
+|-----------|-------|
+| `AUTH_LOGIN` | 1re connexion via portail (flag `crm_auth_login` posé sur `SIGNED_IN`) |
+| `PRESENCE_START` | ouverture/reprise de session CRM sans portail (rechargement) |
+| `PRESENCE_PING` | ping d'activité 60 s — rafraîchit `last_active_at`, **jamais journalisé** |
+| `IDLE_START` | passage inactif au-delà du seuil idle |
+| `PRESENCE_RESUME` | retour d'activité après idle/offline, **sans** repasser par le portail |
+| `PRESENCE_END` | hors ligne au-delà du seuil offline (ou fermeture du dernier onglet) |
+
+**Filet serveur** : `check_inactive_users` (cron pg_cron 60 s + Edge Function
+`check-inactive-users`) lit les seuils dans `crm_presence_settings` et bascule
+`active → idle → offline` selon `last_active_at` (l'activité **réelle**, pas la simple
+présence de l'onglet). Couvre les onglets fermés/crashés ; la sauvegarde des seuils le relance immédiatement.
+
+**Sécurité** : `record_user_presence_event` et `check_inactive_users` sont `SECURITY DEFINER`
+et appelables **uniquement par le serveur** (`service_role`) — REVOKE nominatif de
+`anon`/`authenticated` (migration `99052`), car les DEFAULT PRIVILEGES du projet exposeraient
+sinon toute nouvelle fonction. `record_user_presence_event` porte en plus une garde `auth.uid()`
+(un client ne peut écrire que sa propre présence) ; la route `/api/auth/presence` force `p_user_id`
+depuis la session.
+
+> Distinction clé : `last_active_at` (dernière activité réelle, **figée** en idle) vs
+> `last_seen_at` (onglet vivant). Le calcul idle/offline s'appuie sur le premier.
 
 ### First Activity Tracking
 
@@ -174,7 +199,7 @@ La table `user_page_sessions` reste lue pour l'historique antérieur à la bascu
 
 #### 3 etats dans le monitoring
 
-La page monitoring (`/monitoring`) affiche 3 etats pour chaque utilisateur :
+Les 3 etats proviennent de `users.presence_state` (seuils configurables, cf. *Présence CRM* ci-dessus). La page monitoring (`/monitoring`) et Monitoring Dev les affichent pour chaque utilisateur :
 
 | Etat | Pastille | Style | Tooltip |
 |------|----------|-------|---------|
@@ -203,8 +228,12 @@ src/lib/monitoring/active-time.ts                # Calcul pur des intervalles ac
 src/components/layout/IdleScreensaver.tsx        # Ecran de veille DVD bouncing
 src/components/layout/page-presence-gate.tsx     # Monte useIdleDetector + IdleScreensaver
 src/components/layout/activity-tracker-gate.tsx  # isIdle + getLastActiveAt + intervention ouverte → tracker
+src/hooks/usePresenceLifecycle.ts                # Cycle de présence CRM (active/idle/offline/reprise) — émetteur d'événements
+src/hooks/usePresenceSettings.ts                 # Seuils configurables (idle/offline) via /api/monitoring/presence-settings
 supabase/migrations/99034_activity_events_journal.sql   # Table user_activity_events + monitoring_active_intervals
 supabase/migrations/99035_monitoring_rpcs_use_events.sql # monitoring_screen_rows + RPC sur le journal
+supabase/migrations/99051_presence_settings_and_events.sql # presence_state, crm_presence_settings, user_presence_events
+supabase/migrations/99052_presence_security_backfill.sql   # REVOKE service_role + garde auth.uid() + PRESENCE_PING + backfill
 ```
 
 ---

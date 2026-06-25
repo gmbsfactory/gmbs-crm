@@ -37,6 +37,8 @@ export interface PresenceUser {
 /** Map of fieldName → the user who has it locked */
 export type FieldLockMap = Record<string, PresenceUser>
 
+export type CrmPresenceState = 'active' | 'idle' | 'offline'
+
 /** Processed viewer data for page-level presence (who's on the same page) */
 export interface PagePresenceUser {
   userId: string
@@ -49,5 +51,8 @@ export interface PagePresenceUser {
   activeInterventionLabel?: string | null  // id_inter de l'intervention ouverte (libellé d'affichage), ou null
   activeArtisanId: string | null       // L'artisan ouvert dans le modal (UUID), ou null
   activeArtisanLabel?: string | null   // numero_associe de l'artisan ouvert (libellé d'affichage), ou null
+  presenceState?: CrmPresenceState     // Statut CRM global : vert / orange / gris
+  lastActiveAt?: string | null         // Dernière activité réelle connue
+  idleSinceAt?: string | null          // Début d'inactivité si presenceState='idle'
   isIdle: boolean                      // L'utilisateur est inactif (pas de mouvement/tab cache)
 }

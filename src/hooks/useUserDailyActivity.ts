@@ -34,7 +34,7 @@ export interface ArtisanMeta {
 
 export interface RecentAction {
   action_type: string
-  entity_type: 'intervention' | 'artisan'
+  entity_type: 'intervention' | 'artisan' | 'presence'
   entity_id: string
   entity_label: string | null
   entity_meta: InterventionMeta | ArtisanMeta | null

@@ -56,8 +56,9 @@ describe("activity-categories", () => {
     })
   })
 
-  it("expose 9 catégories (dont email)", () => {
-    expect(ALL_CATEGORIES).toHaveLength(9)
+  it("expose 10 catégories (dont email et presence)", () => {
+    expect(ALL_CATEGORIES).toHaveLength(10)
     expect(ALL_CATEGORIES).toContain("email")
+    expect(ALL_CATEGORIES).toContain("presence")
   })
 })

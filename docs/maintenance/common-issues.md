@@ -160,13 +160,13 @@ Cela exécute `supabase gen types typescript --local > src/lib/database.types.ts
 1. Supprimer les cookies `sb-access-token` et `sb-refresh-token`
 2. Se reconnecter
 
-### Le heartbeat échoue et l'utilisateur passe offline
+### Un utilisateur passe offline malgré son activité
 
-**Symptôme :** Le statut de l'utilisateur bascule en "offline" malgré une activité.
+**Symptôme :** Le statut bascule en "offline" alors que l'utilisateur est actif.
 
-**Cause :** Le heartbeat POST `/api/auth/heartbeat` toutes les 30s échoue (réseau, serveur).
+**Cause :** Le ping d'activité (`PRESENCE_PING` toutes les 60s via `/api/auth/presence`, hook `usePresenceLifecycle`) n'atteint plus le serveur (réseau, onglet figé en arrière-plan), donc `last_active_at` n'est plus rafraîchi.
 
-**Vérification :** Le cron `check-inactive-users` marque les utilisateurs offline après 90 secondes sans heartbeat.
+**Vérification :** Le cron `check-inactive-users` bascule `offline` au-delà du seuil configuré (`crm_presence_settings`, défaut 1h). Vérifier les seuils dans Monitoring Dev et que `/api/auth/presence` répond bien (200).
 
 ---
 

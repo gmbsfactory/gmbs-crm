@@ -42,8 +42,8 @@ export default function MonitoringDevPage() {
 
   const online = presence?.allUsers ?? []
   const scopeOnline = st.selectedIds.length
-    ? online.filter((u) => st.selectedIds.includes(u.userId) && !u.isIdle)
-    : online.filter((u) => !u.isIdle)
+    ? online.filter((u) => st.selectedIds.includes(u.userId) && (u.presenceState ?? (u.isIdle ? "idle" : "active")) === "active")
+    : online.filter((u) => (u.presenceState ?? (u.isIdle ? "idle" : "active")) === "active")
 
   if (isLoadingPerms) {
     return (

@@ -23,6 +23,10 @@ interface OnlineUsersBarProps {
   onSelectUser: (userId: string) => void
 }
 
+function presenceStateOf(user: PagePresenceUser): "active" | "idle" | "offline" {
+  return user.presenceState ?? (user.isIdle ? "idle" : "active")
+}
+
 /**
  * Compact horizontal row of online user badges.
  * Three visual states: active (green), idle (orange), offline (grey).
@@ -36,8 +40,9 @@ export function OnlineUsersBar({ users, offlineUsers = [], onSelectUser }: Onlin
     const active: PagePresenceUser[] = []
     const idle: PagePresenceUser[] = []
     for (const u of users) {
-      if (u.isIdle) idle.push(u)
-      else active.push(u)
+      const state = presenceStateOf(u)
+      if (state === "idle") idle.push(u)
+      else if (state === "active") active.push(u)
     }
     return { activeUsers: active, idleUsers: idle }
   }, [users])

@@ -48,6 +48,16 @@ export function AuthStateListenerProvider({ children }: { children: ReactNode })
           sessionStorage.removeItem('revealTransition')
         }
       } else if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION' || event === 'TOKEN_REFRESHED') {
+        // Connexion via portail : marque pour que le cycle de présence émette AUTH_LOGIN
+        // (et non PRESENCE_START). Consommé une fois au montage de usePresenceLifecycle.
+        if (event === 'SIGNED_IN' && typeof window !== 'undefined') {
+          try {
+            sessionStorage.setItem('crm_auth_login', '1')
+          } catch {
+            // sessionStorage indisponible → on retombera sur PRESENCE_START
+          }
+        }
+
         // Connexion, session initiale ou refresh token : invalider pour forcer un refetch
         queryClient.invalidateQueries({ queryKey: ["currentUser"] })
 
@@ -121,32 +131,9 @@ export function AuthStateListenerProvider({ children }: { children: ReactNode })
     checkFirstActivity()
   }, [currentUser?.id])
 
-  // Server-side heartbeat system
-  useEffect(() => {
-    if (!currentUser?.id || typeof window === 'undefined') return
-
-    // Server heartbeat : 60s (server inactivity threshold = 180s, soit 3x le ping).
-    const HEARTBEAT_INTERVAL = 60000
-
-    const sendHeartbeat = async () => {
-      try {
-        await fetch('/api/auth/heartbeat', {
-          method: 'POST',
-          credentials: 'include',
-          headers: { 'Content-Type': 'application/json' },
-        })
-      } catch (error) {
-        console.warn('[AuthStateListenerProvider] Heartbeat error:', error)
-      }
-    }
-
-    sendHeartbeat()
-    const heartbeatInterval = setInterval(sendHeartbeat, HEARTBEAT_INTERVAL)
-
-    return () => {
-      clearInterval(heartbeatInterval)
-    }
-  }, [currentUser?.id])
+  // Le heartbeat serveur (rafraîchissement de last_seen_at) est désormais assuré par le
+  // ping d'activité de usePresenceLifecycle (PRESENCE_PING, 60 s, arrêté en idle).
+  // Plus de double requête /api/auth/heartbeat.
 
   // Handle tab/window close with multi-tab support
   useEffect(() => {
@@ -287,7 +274,7 @@ export function AuthStateListenerProvider({ children }: { children: ReactNode })
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include',
           keepalive: true,
-          body: JSON.stringify({ status: 'offline' })
+          body: JSON.stringify({ status: 'offline', authEvent: 'SIGNED_OUT' })
         })
       } catch (error) {
         console.warn('[AuthStateListenerProvider] Error setting offline status:', error)

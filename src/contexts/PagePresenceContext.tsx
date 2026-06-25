@@ -2,7 +2,7 @@
 
 import { createContext, useContext, type ReactNode } from "react"
 import { usePagePresence } from "@/hooks/usePagePresence"
-import type { PagePresenceUser } from "@/types/presence"
+import type { CrmPresenceState, PagePresenceUser } from "@/types/presence"
 
 interface PagePresenceContextValue {
   viewers: PagePresenceUser[]
@@ -13,8 +13,30 @@ interface PagePresenceContextValue {
 
 const PagePresenceContext = createContext<PagePresenceContextValue | undefined>(undefined)
 
-export function PagePresenceProvider({ pageName, isIdle = false, children }: { pageName: string | null; isIdle?: boolean; children: ReactNode }) {
-  const { viewers, allUsers, updateActiveIntervention, updateActiveArtisan } = usePagePresence(pageName, isIdle)
+interface PagePresenceProviderProps {
+  pageName: string | null
+  isIdle?: boolean
+  presenceState?: CrmPresenceState
+  lastActiveAt?: string | null
+  idleSinceAt?: string | null
+  children: ReactNode
+}
+
+export function PagePresenceProvider({
+  pageName,
+  isIdle = false,
+  presenceState = isIdle ? "idle" : "active",
+  lastActiveAt = null,
+  idleSinceAt = null,
+  children,
+}: PagePresenceProviderProps) {
+  const { viewers, allUsers, updateActiveIntervention, updateActiveArtisan } = usePagePresence(
+    pageName,
+    isIdle,
+    presenceState,
+    lastActiveAt,
+    idleSinceAt,
+  )
   return (
     <PagePresenceContext.Provider value={{ viewers, allUsers, updateActiveIntervention, updateActiveArtisan }}>
       {children}

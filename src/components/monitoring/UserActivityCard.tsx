@@ -28,11 +28,18 @@ function formatTime(joinedAt: string): string {
   return d.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })
 }
 
+function presenceStateOf(user: PagePresenceUser): "active" | "idle" | "offline" {
+  return user.presenceState ?? (user.isIdle ? "idle" : "active")
+}
+
 export function UserActivityCard({ user, onSelect }: UserActivityCardProps) {
   const router = useRouter()
   const nameParts = user.name.split(" ")
   const firstName = nameParts[0] || ""
   const lastName = nameParts.slice(1).join(" ") || ""
+  const state = presenceStateOf(user)
+  const statusLabel = state === "active" ? "Actif" : state === "idle" ? "Inactif" : "Hors ligne"
+  const statusDot = state === "active" ? "bg-emerald-500" : state === "idle" ? "bg-amber-500" : "bg-gray-400"
 
   // Timer that re-renders every 60s
   const [, setTick] = useState(0)
@@ -67,8 +74,8 @@ export function UserActivityCard({ user, onSelect }: UserActivityCardProps) {
         <div className="flex items-center justify-between gap-2">
           <p className="text-sm font-semibold truncate">{user.name}</p>
           <span className="flex items-center gap-1.5 shrink-0">
-            <span className="h-2 w-2 rounded-full bg-emerald-500" />
-            <span className="text-xs text-muted-foreground">Actif</span>
+            <span className={`h-2 w-2 rounded-full ${statusDot}`} />
+            <span className="text-xs text-muted-foreground">{statusLabel}</span>
           </span>
         </div>
 

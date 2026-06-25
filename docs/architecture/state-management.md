@@ -371,7 +371,7 @@ graph TD
 
     D --> D1["/api/auth/first-activity 1x/jour"]
 
-    E --> E1["/api/auth/heartbeat toutes les 30s"]
+    E --> E1["/api/auth/presence (PRESENCE_PING 60s)"]
 
     F --> F1["BroadcastChannel logout"]
     F --> F2["localStorage heartbeats par onglet"]
@@ -382,5 +382,5 @@ Ce provider est monte au plus haut niveau de l'application et orchestre :
 1. **Session** : un listener unique `onAuthStateChange` pour les changements d'etat d'authentification
 2. **Cache** : invalidation complete du QueryClient lors du `SIGNED_OUT`
 3. **First Activity** : appel unique a `/api/auth/first-activity` une fois par jour pour le tracking de retard
-4. **Heartbeat** : ping `/api/auth/heartbeat` toutes les 30 secondes pour la detection de presence
-5. **Multi-tab** : propagation du logout via `BroadcastChannel` + heartbeats localStorage par onglet
+4. **Présence** : ping d'activite (`PRESENCE_PING` 60s via `/api/auth/presence`, hook `usePresenceLifecycle`) pour la presence CRM
+5. **Multi-tab** : propagation du logout via `BroadcastChannel` + heartbeats localStorage par onglet (comptage d'onglets, statut offline a la fermeture)

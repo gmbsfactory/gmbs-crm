@@ -137,6 +137,31 @@ function fmtEur(v: unknown): string | null {
   return new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(n)
 }
 
+function describePresence(row: GlobalActivityRow): Pick<Brick, "accent" | "glyph" | "label" | "sub" | "connDir"> {
+  const nv = (row.new_values ?? {}) as Record<string, unknown>
+  const reason = typeof nv.reason === "string" ? nv.reason : null
+  switch (row.action_type) {
+    case "AUTH_LOGIN":
+      return { accent: "#22C55E", glyph: "●", label: "Connexion", sub: "Portail auth", connDir: "in" }
+    case "PRESENCE_START":
+      return { accent: "#22C55E", glyph: "●", label: "Connexion", sub: "Session CRM ouverte", connDir: "in" }
+    case "PRESENCE_RESUME":
+      return { accent: "#22C55E", glyph: "↻", label: "Reconnexion", sub: "Reprise CRM sans portail auth", connDir: "in" }
+    case "IDLE_START":
+      return { accent: "#F59E0B", glyph: "◔", label: "Inactivité", sub: "Seuil d'inactivité atteint", connDir: null }
+    case "PRESENCE_END":
+      return {
+        accent: "#94A3B8",
+        glyph: "○",
+        label: "Déconnexion",
+        sub: reason === "offline_threshold" ? "Seuil hors ligne atteint" : "Session CRM fermée",
+        connDir: "out",
+      }
+    default:
+      return { accent: "#94A3B8", glyph: "•", label: "Présence", sub: null, connDir: null }
+  }
+}
+
 interface ActorInfo {
   userId: string
   initials: string
@@ -248,6 +273,33 @@ function toBricks(
     }]
   }
   const row = item
+  if (row.entity_type === "presence") {
+    const d = describePresence(row)
+    return [{
+      key: row.id,
+      occurredAt,
+      actor,
+      cat: "conn",
+      accent: d.accent,
+      glyph: d.glyph,
+      label: d.label,
+      before: null,
+      after: null,
+      sub: d.sub,
+      entityRow: null,
+      isDoc: false,
+      isConn: true,
+      connDir: d.connDir,
+      roleTag: null,
+      artisanId: null,
+      artisanName: null,
+      entityType: row.entity_type,
+      entityId: row.entity_id,
+      ekind: "other",
+      catFilter: "conn",
+      hay: `${row.action_type} ${d.label} ${d.sub ?? ""} ${actor.name}`.toLowerCase(),
+    }]
+  }
   const cat = categoryOf(row.action_type)
   const accent = catColor(cat)
   const glyph = categoryMeta(cat).glyph
@@ -409,6 +461,7 @@ export function DevActivityFeed({ startDate, endDate, userIds }: DevActivityFeed
   }, [connections, onlineIds])
 
   const auditItems = useMemo(() => feed.data?.pages.flatMap((p) => p.items) ?? [], [feed.data])
+  const hasPresenceEvents = useMemo(() => auditItems.some((item) => item.entity_type === "presence"), [auditItems])
   const valueResolver = useFeedValueResolver(auditItems)
 
   // Résolution des noms d'artisans (affectations + emails) — artisan_id est dans new/old_values
@@ -451,10 +504,10 @@ export function DevActivityFeed({ startDate, endDate, userIds }: DevActivityFeed
 
   // Événements fusionnés (audit + connexions) → briques atomiques, triées du plus récent au plus ancien
   const allBricks = useMemo<Brick[]>(() => {
-    const merged: FeedItem[] = [...auditItems, ...connEvents]
+    const merged: FeedItem[] = hasPresenceEvents ? [...auditItems] : [...auditItems, ...connEvents]
     merged.sort((a, b) => new Date(b.occurred_at).getTime() - new Date(a.occurred_at).getTime())
     return merged.flatMap((e) => toBricks(e, resolveStatus, userMap, artisanName, costLabel))
-  }, [auditItems, connEvents, resolveStatus, userMap, artisanName, costLabel])
+  }, [auditItems, connEvents, hasPresenceEvents, resolveStatus, userMap, artisanName, costLabel])
 
   const searched = useMemo(() => {
     const q = query.trim().toLowerCase()
@@ -601,7 +654,7 @@ export function DevActivityFeed({ startDate, endDate, userIds }: DevActivityFeed
 
   const openEntity = (row: GlobalActivityRow) => {
     if (row.entity_type === "intervention") interventionModal.open(row.entity_id, { allowInactive: true, origin: "monitoring-dev" })
-    else artisanModal.open(row.entity_id)
+    else if (row.entity_type === "artisan") artisanModal.open(row.entity_id)
   }
   const buildDocTarget = (row: GlobalActivityRow): OpenDocPreview => {
     const nv = (row.new_values ?? {}) as Record<string, unknown>
@@ -620,7 +673,8 @@ export function DevActivityFeed({ startDate, endDate, userIds }: DevActivityFeed
       const idInter = (row.entity_meta as { id_inter?: string | null } | null)?.id_inter
       return idInter || row.entity_label || `INT-${row.entity_id.slice(0, 8)}`
     }
-    return row.entity_label
+    if (row.entity_type === "artisan") return row.entity_label
+    return null
   }
 
   const renderDocButton = (row: GlobalActivityRow) => {

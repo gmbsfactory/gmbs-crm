@@ -3,6 +3,7 @@
 import { usePathname, useSearchParams } from "next/navigation"
 import { useActivityTracker } from "@/hooks/useActivityTracker"
 import { useIdleDetector } from "@/hooks/useIdleDetector"
+import { DEFAULT_PRESENCE_SETTINGS, usePresenceSettings } from "@/hooks/usePresenceSettings"
 
 /** Modal contents (param `mc`) qui correspondent à une intervention ouverte. */
 const INTERVENTION_CONTENTS = new Set([null, "intervention"])
@@ -20,7 +21,8 @@ export function ActivityTrackerGate() {
   const pathname = usePathname()
   const searchParams = useSearchParams()
   const pageName = pathname?.split("/").filter(Boolean)[0] || "dashboard"
-  const { isIdle, getLastActiveAt } = useIdleDetector()
+  const { data: presenceSettings = DEFAULT_PRESENCE_SETTINGS } = usePresenceSettings()
+  const { isIdle, getLastActiveAt } = useIdleDetector(presenceSettings.idleAfterMinutes * 60_000)
 
   // Intervention réellement ouverte : modal `?i=<id>` avec un contenu intervention.
   const modalId = searchParams?.get("i") ?? null

@@ -72,12 +72,12 @@ Cron-triggered function that detects and marks inactive users as offline. Runs e
 
 **Authentication:** Requires `Authorization` header containing the `SUPABASE_SERVICE_ROLE_KEY`.
 
-**Logic:**
-1. Finds all users with status `connected`, `busy`, or `dnd`
-2. Checks if their `last_seen_at` is older than 90 seconds (3x the heartbeat interval of 30s)
-3. Sets their status to `offline`
+**Logic:** Delegates to the `check_inactive_users()` SQL function, which reads thresholds from `crm_presence_settings`:
+1. Reads `idle_after_minutes` / `offline_after_minutes` (defaults 5 min / 1h)
+2. Transitions `active → idle` and `active/idle → offline` based on `last_active_at` (real activity, not the tab heartbeat)
+3. Updates both `presence_state` and `status`
 
-**Inactivity Threshold:** 90 seconds
+**Inactivity Thresholds:** configurable via `crm_presence_settings` (defaults: idle 5 min, offline 1h)
 
 **Response (200):**
 

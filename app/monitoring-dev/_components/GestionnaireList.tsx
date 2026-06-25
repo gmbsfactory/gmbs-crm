@@ -12,6 +12,7 @@ import { useTeamConnections } from "@/hooks/useTeamConnections"
 import { useActivityHeatmap } from "@/hooks/useActivityHeatmap"
 import { catColor, categoryMeta, categoryOf, pageHex, pageLabel } from "@/lib/monitoring/activity-categories"
 import { useGlobalActivityFeed } from "@/hooks/useGlobalActivityFeed"
+import { DEFAULT_PRESENCE_SETTINGS, usePresenceSettings, useUpdatePresenceSettings } from "@/hooks/usePresenceSettings"
 import type { DevFocus, HeatmapBucket, HeatmapCell, SortKey, TeamConnection } from "@/types/monitoring"
 import { GestionnaireExpanded, type ExpandedAction } from "./GestionnaireExpanded"
 import { DevSettings } from "./DevSettings"
@@ -206,6 +207,8 @@ export function GestionnaireList({
   const [tlStart, setTlStart] = useState(8)
   const [tlEnd, setTlEnd] = useState(20)
   const [smooth, setSmooth] = useState(5) // seuil de lissage (minutes)
+  const { data: presenceSettings = DEFAULT_PRESENCE_SETTINGS } = usePresenceSettings()
+  const updatePresenceSettings = useUpdatePresenceSettings()
   const pc = (page: string) => pageColors[page] ?? pageHex(page)
 
   // Zoom de la timeline dépliée (glisser sur les barres) + tooltip flottant
@@ -247,7 +250,7 @@ export function GestionnaireList({
     return Array.from(ids).map((id): Row => {
       const u = onlineById.get(id)
       const s = statById.get(id)
-      const status: LiveStatus = u ? (u.isIdle ? "idle" : "active") : "offline"
+      const status: LiveStatus = u ? (u.presenceState ?? (u.isIdle ? "idle" : "active")) : "offline"
       const name = u?.name || [s?.firstname, s?.lastname].filter(Boolean).join(" ") || s?.code_gestionnaire || "—"
       const { segs, total } = aggregateSegments(s?.daily_breakdown)
       const daysActive = s?.days_active ?? 0
@@ -346,6 +349,15 @@ export function GestionnaireList({
                   setTlEnd={setTlEnd}
                   smooth={smooth}
                   setSmooth={setSmooth}
+                  presenceIdleMinutes={presenceSettings.idleAfterMinutes}
+                  presenceOfflineMinutes={presenceSettings.offlineAfterMinutes}
+                  savingPresenceSettings={updatePresenceSettings.isPending}
+                  setPresenceThresholds={async (idleMinutes, offlineMinutes) => {
+                    await updatePresenceSettings.mutateAsync({
+                      idleAfterMinutes: idleMinutes,
+                      offlineAfterMinutes: offlineMinutes,
+                    })
+                  }}
                 />
               </PopoverContent>
             </Popover>

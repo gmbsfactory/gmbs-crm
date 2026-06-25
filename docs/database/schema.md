@@ -79,7 +79,7 @@ Table centrale des utilisateurs du CRM.
 | `code_gestionnaire` | `text` UNIQUE | Code court gestionnaire |
 | `status` | `user_status` | Statut de présence (connected, dnd, busy, offline) |
 | `token_version` | `int` | Version du token pour invalidation |
-| `last_seen_at` | `timestamptz` | Dernière activité (heartbeat) |
+| `last_seen_at` | `timestamptz` | Dernière présence de l'onglet (ping d'activité) |
 | `email_smtp*` | `text/int/bool` | Configuration SMTP individuelle |
 | `avatar_url` | `text` | URL de l'avatar (ajouté par migration 00050) |
 | `delete_date` | `timestamptz` | Date de suppression (soft delete, migration 00057) |

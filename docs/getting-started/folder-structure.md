@@ -42,7 +42,7 @@ app/
 │   ├── analytics/              # Analytics avances (cartes, KPIs)
 │   └── dashboard/              # Dashboard admin (stats globales)
 ├── api/                        # Routes API Next.js (API routes)
-│   ├── auth/                   # Auth endpoints (session, me, resolve, status, heartbeat)
+│   ├── auth/                   # Auth endpoints (session, me, resolve, status, presence)
 │   ├── settings/               # Configuration equipe et profils
 │   ├── artisans/               # Recalcul statuts artisans
 │   ├── geocode/                # Geocodage d'adresses
@@ -218,7 +218,7 @@ src/
 │   └── user-status-context.tsx # Tracking presence utilisateur
 │
 ├── providers/                  # Providers React globaux
-│   └── AuthStateListenerProvider # Auth, heartbeat, multi-tab
+│   └── AuthStateListenerProvider # Auth, multi-tab, statut offline
 │
 ├── stores/                     # Zustand stores
 │   └── settings.ts             # Preferences UI (sidebar, theme)

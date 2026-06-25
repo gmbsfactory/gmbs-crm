@@ -1,5 +1,6 @@
 "use client"
 
+import { useEffect, useMemo, useState } from "react"
 import { cn } from "@/lib/utils"
 import { PAGE_LIST, pageHex } from "@/lib/monitoring/activity-categories"
 
@@ -22,10 +23,57 @@ interface DevSettingsProps {
   setTlEnd: (n: number) => void
   smooth: number
   setSmooth: (n: number) => void
+  presenceIdleMinutes: number
+  presenceOfflineMinutes: number
+  savingPresenceSettings?: boolean
+  setPresenceThresholds: (idleMinutes: number, offlineMinutes: number) => Promise<void>
 }
 
 /** Contenu du popover ⚙ : couleur des barres par page + plage horaire + lissage. */
-export function DevSettings({ pageColors, setPageColor, tlMode, setTlMode, tlStart, tlEnd, setTlStart, setTlEnd, smooth, setSmooth }: DevSettingsProps) {
+export function DevSettings({
+  pageColors,
+  setPageColor,
+  tlMode,
+  setTlMode,
+  tlStart,
+  tlEnd,
+  setTlStart,
+  setTlEnd,
+  smooth,
+  setSmooth,
+  presenceIdleMinutes,
+  presenceOfflineMinutes,
+  savingPresenceSettings = false,
+  setPresenceThresholds,
+}: DevSettingsProps) {
+  const [idleDraft, setIdleDraft] = useState(presenceIdleMinutes)
+  const [offlineDraft, setOfflineDraft] = useState(presenceOfflineMinutes)
+  const [presenceError, setPresenceError] = useState<string | null>(null)
+
+  useEffect(() => {
+    setIdleDraft(presenceIdleMinutes)
+    setOfflineDraft(presenceOfflineMinutes)
+  }, [presenceIdleMinutes, presenceOfflineMinutes])
+
+  const presenceValidation = useMemo(() => {
+    if (!Number.isInteger(idleDraft) || !Number.isInteger(offlineDraft)) return "Minutes entières uniquement."
+    if (idleDraft < 1 || idleDraft > 240) return "Inactivité : 1 à 240 min."
+    if (offlineDraft <= idleDraft) return "Hors ligne doit être supérieur à inactivité."
+    if (offlineDraft > 1440) return "Hors ligne : maximum 1440 min."
+    return null
+  }, [idleDraft, offlineDraft])
+
+  const presenceDirty = idleDraft !== presenceIdleMinutes || offlineDraft !== presenceOfflineMinutes
+  const savePresence = async () => {
+    if (presenceValidation || !presenceDirty || savingPresenceSettings) return
+    setPresenceError(null)
+    try {
+      await setPresenceThresholds(idleDraft, offlineDraft)
+    } catch (error) {
+      setPresenceError(error instanceof Error ? error.message : "Enregistrement impossible.")
+    }
+  }
+
   return (
     <div className="w-[300px] space-y-3.5">
       <div>
@@ -112,6 +160,62 @@ export function DevSettings({ pageColors, setPageColor, tlMode, setTlMode, tlSta
         <p className="text-[10.5px] leading-snug text-muted-foreground">
           Fusionne les coupures plus courtes que ce seuil (changements de page). Au-delà = veille / inactivité réelle, affichée en hachuré et déduite du temps écran.
         </p>
+      </div>
+
+      <div className="border-t border-border pt-3">
+        <p className="mb-2 text-[9.5px] font-extrabold uppercase tracking-wide text-muted-foreground">
+          Réglage de présence CRM
+        </p>
+        <div className="grid grid-cols-2 gap-2">
+          <label className="min-w-0">
+            <span className="mb-1 block text-[10px] font-bold text-muted-foreground">Inactivité</span>
+            <div className="flex h-7 items-center rounded-md border border-border bg-background px-1.5">
+              <input
+                type="number"
+                min={1}
+                max={240}
+                step={1}
+                value={idleDraft}
+                onChange={(e) => setIdleDraft(Number(e.target.value))}
+                className="min-w-0 flex-1 bg-transparent text-[12px] font-bold outline-none"
+              />
+              <span className="shrink-0 text-[10px] font-semibold text-muted-foreground">min</span>
+            </div>
+          </label>
+          <label className="min-w-0">
+            <span className="mb-1 block text-[10px] font-bold text-muted-foreground">Hors ligne</span>
+            <div className="flex h-7 items-center rounded-md border border-border bg-background px-1.5">
+              <input
+                type="number"
+                min={2}
+                max={1440}
+                step={1}
+                value={offlineDraft}
+                onChange={(e) => setOfflineDraft(Number(e.target.value))}
+                className="min-w-0 flex-1 bg-transparent text-[12px] font-bold outline-none"
+              />
+              <span className="shrink-0 text-[10px] font-semibold text-muted-foreground">min</span>
+            </div>
+          </label>
+        </div>
+        <div className="mt-2 flex items-center gap-2">
+          <button
+            type="button"
+            disabled={!presenceDirty || Boolean(presenceValidation) || savingPresenceSettings}
+            onClick={savePresence}
+            className={cn(
+              "h-7 shrink-0 rounded-md px-2.5 text-[11px] font-extrabold",
+              !presenceDirty || presenceValidation || savingPresenceSettings
+                ? "cursor-not-allowed bg-muted text-muted-foreground/60"
+                : "bg-primary text-primary-foreground hover:bg-primary/90"
+            )}
+          >
+            {savingPresenceSettings ? "..." : "Enregistrer"}
+          </button>
+          <p className="min-w-0 flex-1 text-[10px] leading-snug text-muted-foreground">
+            {presenceValidation || presenceError || "Pilote les pastilles CRM, le flux et l'animation idle."}
+          </p>
+        </div>
       </div>
     </div>
   )

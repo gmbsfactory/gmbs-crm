@@ -31,7 +31,7 @@ class LogoutManager {
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include',
           keepalive: true, // Critical: ensures request completes even if page closes
-          body: JSON.stringify({ status: 'offline' }),
+          body: JSON.stringify({ status: 'offline', authEvent: 'SIGNED_OUT' }),
         })
 
         if (response.ok) {

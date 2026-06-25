@@ -19,10 +19,11 @@ interface PagePresenceAvatarsProps {
  * Renders nothing when viewers is empty — zero visual impact when alone.
  */
 export function PagePresenceAvatars({ viewers, className }: PagePresenceAvatarsProps) {
-  if (viewers.length === 0) return null
+  const presentViewers = viewers.filter((viewer) => (viewer.presenceState ?? (viewer.isIdle ? 'idle' : 'active')) !== 'offline')
+  if (presentViewers.length === 0) return null
 
-  const visible = viewers.slice(0, MAX_VISIBLE)
-  const overflow = viewers.length - MAX_VISIBLE
+  const visible = presentViewers.slice(0, MAX_VISIBLE)
+  const overflow = presentViewers.length - MAX_VISIBLE
 
   // Build children array explicitly — AvatarGroup expects ReactElement[]
   const children: React.ReactElement[] = visible.map((viewer) => (
@@ -54,7 +55,7 @@ export function PagePresenceAvatars({ viewers, className }: PagePresenceAvatarsP
           </span>
         </div>
         <AvatarGroupTooltip side="bottom">
-          {viewers
+          {presentViewers
             .slice(MAX_VISIBLE)
             .map((v) => v.name)
             .join(', ')}
@@ -66,7 +67,7 @@ export function PagePresenceAvatars({ viewers, className }: PagePresenceAvatarsP
   return (
     <div
       className={cn('flex items-center', className)}
-      aria-label={`${viewers.length} utilisateur${viewers.length > 1 ? 's' : ''} sur cette page`}
+      aria-label={`${presentViewers.length} utilisateur${presentViewers.length > 1 ? 's' : ''} sur cette page`}
     >
       <AvatarGroup variant="motion" invertOverlap>
         {children}

@@ -16,6 +16,7 @@ export type ActivityCategory =
   | "assign"
   | "archive"
   | "email"
+  | "presence"
 
 interface CategoryMeta {
   label: string
@@ -34,6 +35,7 @@ const CATEGORIES: Record<ActivityCategory, CategoryMeta> = {
   assign: { label: "Affectations", glyph: "⊕", token: "--chart-5" },
   archive: { label: "Archives", glyph: "▦", token: "--muted-foreground" },
   email: { label: "Emails", glyph: "✉", token: "--chart-3" },
+  presence: { label: "Présence", glyph: "●", token: "--success-hsl" },
 }
 
 const ACTION_CATEGORY: Record<string, ActivityCategory> = {
@@ -65,6 +67,12 @@ const ACTION_CATEGORY: Record<string, ActivityCategory> = {
   ARCHIVE: "archive",
   RESTORE: "archive",
   EMAIL_SENT: "email",
+  AUTH_LOGIN: "presence",
+  PRESENCE_START: "presence",
+  PRESENCE_RESUME: "presence",
+  PRESENCE_PING: "presence",
+  IDLE_START: "presence",
+  PRESENCE_END: "presence",
 }
 
 export const ALL_CATEGORIES = Object.keys(CATEGORIES) as ActivityCategory[]

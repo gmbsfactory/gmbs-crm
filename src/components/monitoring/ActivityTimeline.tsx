@@ -32,7 +32,7 @@ import type { RecentAction, InterventionMeta, ArtisanMeta } from "@/hooks/useUse
 // Types
 // ---------------------------------------------------------------------------
 
-type EntityFilter = "all" | "intervention" | "artisan"
+type EntityFilter = "all" | "intervention" | "artisan" | "presence"
 
 interface ActivityTimelineProps {
   actions: RecentAction[]
@@ -44,10 +44,10 @@ interface ActivityTimelineProps {
 
 /** Grouped actions on same entity within 1-min window */
 interface ActionGroup {
-  entity_type: "intervention" | "artisan"
+  entity_type: RecentAction["entity_type"]
   entity_id: string
   entity_label: string | null
-  entity_meta: InterventionMeta | ArtisanMeta | null
+  entity_meta: RecentAction["entity_meta"]
   actions: RecentAction[]
   timestamp: string
   /** Auteur du groupe (premier de la fenêtre) — flux global uniquement. */
@@ -259,6 +259,17 @@ function describeAction(action: RecentAction, resolver: Resolver): ActionLine {
   const ov = action.old_values ?? {}
 
   switch (action.action_type) {
+    case "AUTH_LOGIN":
+      return { icon: Activity, text: "Connexion auth" }
+    case "PRESENCE_START":
+      return { icon: Activity, text: "Connexion CRM" }
+    case "PRESENCE_RESUME":
+      return { icon: Activity, text: "Reconnexion CRM" }
+    case "IDLE_START":
+      return { icon: Activity, text: "Inactivité détectée" }
+    case "PRESENCE_END":
+      return { icon: Activity, text: "Déconnexion CRM" }
+
     // -- Create --
     case "CREATE":
       return {
@@ -410,6 +421,14 @@ function describeAction(action: RecentAction, resolver: Resolver): ActionLine {
 
 /** Compact entity chip — clickable to open modal */
 function EntityChip({ group, onOpen }: { group: ActionGroup; onOpen: () => void }) {
+  if (group.entity_type === "presence") {
+    return (
+      <span className="inline-flex items-center gap-1 rounded border border-muted px-1.5 py-0 text-[10px] font-medium text-muted-foreground">
+        Présence CRM
+      </span>
+    )
+  }
+
   const isInter = group.entity_type === "intervention"
   const meta = group.entity_meta
 
@@ -561,6 +580,7 @@ export function ActivityTimeline({ actions, showActor = false, emptyLabel }: Act
 
   const interventionCount = useMemo(() => actions.filter((a) => a.entity_type === "intervention").length, [actions])
   const artisanCount = useMemo(() => actions.filter((a) => a.entity_type === "artisan").length, [actions])
+  const presenceCount = useMemo(() => actions.filter((a) => a.entity_type === "presence").length, [actions])
 
   const toggleExpanded = useCallback((id: string) => {
     setExpandedIds((prev) => {
@@ -587,6 +607,7 @@ export function ActivityTimeline({ actions, showActor = false, emptyLabel }: Act
           ["all", `Tout (${actions.length})`],
           ["intervention", `Inter. (${interventionCount})`],
           ["artisan", `Artisan (${artisanCount})`],
+          ...(presenceCount > 0 ? ([["presence", `Présence (${presenceCount})`]] as const) : []),
         ] as const).map(([key, label]) => (
           <button
             key={key}
@@ -649,7 +670,7 @@ export function ActivityTimeline({ actions, showActor = false, emptyLabel }: Act
                     group={group}
                     onOpen={() => {
                       if (group.entity_type === "intervention") interventionModal.open(group.entity_id)
-                      else artisanModal.open(group.entity_id)
+                      else if (group.entity_type === "artisan") artisanModal.open(group.entity_id)
                     }}
                   />
                 </div>

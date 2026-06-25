@@ -8,13 +8,13 @@ export const runtime = 'nodejs'
 // Sélection de base sans jointures pour éviter les erreurs
 const userSelectBasic = `
   id, firstname, lastname, email, status, color, 
-  code_gestionnaire, username, last_seen_at, email_smtp, avatar_url
+  code_gestionnaire, username, last_seen_at, presence_state, last_active_at, email_smtp, avatar_url
 `
 
 // Sélection optimisée avec jointures pour récupérer user + roles + permissions en une seule requête
 const userSelectWithRelations = `
   id, firstname, lastname, email, status, color, 
-  code_gestionnaire, username, last_seen_at, email_smtp, avatar_url,
+  code_gestionnaire, username, last_seen_at, presence_state, last_active_at, email_smtp, avatar_url,
   user_roles (
     roles (name)
   ),
@@ -33,6 +33,8 @@ interface UserRecord {
   code_gestionnaire: string | null
   username: string | null
   last_seen_at: string | null
+  presence_state?: string | null
+  last_active_at?: string | null
   email_smtp: string | null
   avatar_url: string | null
   user_roles?: Array<{ roles: { name: string } | null } | null>
@@ -72,6 +74,8 @@ function buildUserResponse(record: UserRecord, roles: string[], pagePermissions:
     surnom: record.code_gestionnaire,
     username: record.username,
     last_seen_at: record.last_seen_at,
+    presence_state: record.presence_state ?? null,
+    last_active_at: record.last_active_at ?? null,
     email_smtp: record.email_smtp || null,
     avatar_url: record.avatar_url || null,
     roles,

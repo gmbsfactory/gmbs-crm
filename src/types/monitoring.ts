@@ -33,7 +33,7 @@ export interface GlobalActivityFeedResult {
   total: number
 }
 
-export type ActivityEntityType = "intervention" | "artisan"
+export type ActivityEntityType = "intervention" | "artisan" | "presence"
 
 /** Paramètres d'appel du flux global. */
 export interface GlobalActivityFeedParams {
@@ -106,7 +106,7 @@ export interface TopEntityActor {
 
 /** Une entité (intervention/artisan) parmi les plus actives. */
 export interface TopEntity {
-  entity_type: ActivityEntityType
+  entity_type: Exclude<ActivityEntityType, "presence">
   entity_id: string
   entity_label: string | null
   count: number
