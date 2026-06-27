@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useMemo } from "react"
+import { useEffect, useMemo } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import {
   Download, Loader2, AlertTriangle, FileDown, CalendarRange,
@@ -17,8 +17,7 @@ import { cn } from "@/lib/utils"
 import { usersApi } from "@/lib/api"
 import type { User } from "@/lib/api"
 import { GestionnaireBadge } from "@/components/ui/gestionnaire-badge"
-
-type DateRange = { from: Date | null; to: Date | null }
+import { useExportSessionStore } from "./importExportSessionStore"
 
 const WARN_THRESHOLD_DAYS = 365
 
@@ -31,14 +30,22 @@ export function ExportInterventionsCard() {
   const { toast } = useToast()
   const { data: currentUser } = useCurrentUser()
   const { can, isLoading: permsLoading } = usePermissions()
-  const [open, setOpen] = useState(false)
-  const [range, setRange] = useState<DateRange>({ from: null, to: null })
-  const [exporting, setExporting] = useState(false)
-  const [extended, setExtended] = useState(false)
-  const [users, setUsers] = useState<User[]>([])
-  const [loadingUsers, setLoadingUsers] = useState(false)
-  const [selectedUserIds, setSelectedUserIds] = useState<Set<string>>(new Set())
-  const [userQuery, setUserQuery] = useState("")
+  const open = useExportSessionStore((state) => state.open)
+  const range = useExportSessionStore((state) => state.range)
+  const exporting = useExportSessionStore((state) => state.exporting)
+  const extended = useExportSessionStore((state) => state.extended)
+  const users = useExportSessionStore((state) => state.users)
+  const loadingUsers = useExportSessionStore((state) => state.loadingUsers)
+  const selectedUserIds = useExportSessionStore((state) => state.selectedUserIds)
+  const userQuery = useExportSessionStore((state) => state.userQuery)
+  const setOpen = useExportSessionStore((state) => state.setOpen)
+  const setRange = useExportSessionStore((state) => state.setRange)
+  const setExporting = useExportSessionStore((state) => state.setExporting)
+  const setExtended = useExportSessionStore((state) => state.setExtended)
+  const setUsers = useExportSessionStore((state) => state.setUsers)
+  const setLoadingUsers = useExportSessionStore((state) => state.setLoadingUsers)
+  const setSelectedUserIds = useExportSessionStore((state) => state.setSelectedUserIds)
+  const setUserQuery = useExportSessionStore((state) => state.setUserQuery)
 
   const isAdmin = useMemo(
     () =>
@@ -55,7 +62,7 @@ export function ExportInterventionsCard() {
     if (currentUser?.id && selectedUserIds.size === 0) {
       setSelectedUserIds(new Set([currentUser.id]))
     }
-  }, [currentUser?.id, selectedUserIds.size])
+  }, [currentUser?.id, selectedUserIds.size, setSelectedUserIds])
 
   // Charger la liste des gestionnaires uniquement pour les admins, à l'ouverture
   useEffect(() => {
@@ -67,27 +74,27 @@ export function ExportInterventionsCard() {
         const res = await usersApi.getAll({ limit: 1000 })
         if (!cancelled) setUsers(res.data)
       } catch (err: any) {
-        toast({
-          title: "Erreur",
-          description: err?.message || "Impossible de charger les gestionnaires",
-          variant: "destructive",
-        })
+        if (!cancelled) {
+          toast({
+            title: "Erreur",
+            description: err?.message || "Impossible de charger les gestionnaires",
+            variant: "destructive",
+          })
+        }
       } finally {
-        if (!cancelled) setLoadingUsers(false)
+        setLoadingUsers(false)
       }
     })()
     return () => {
       cancelled = true
     }
-  }, [open, isAdmin, users.length, toast])
+  }, [open, isAdmin, users.length, setLoadingUsers, setUsers, toast])
 
   function toggleUser(id: string) {
-    setSelectedUserIds((prev) => {
-      const next = new Set(prev)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
-      return next
-    })
+    const next = new Set(selectedUserIds)
+    if (next.has(id)) next.delete(id)
+    else next.add(id)
+    setSelectedUserIds(next)
   }
 
   function selectAllUsers() {
@@ -138,15 +145,13 @@ export function ExportInterventionsCard() {
     filteredUsers.every((u) => selectedUserIds.has(u.id))
 
   function toggleAllFiltered() {
-    setSelectedUserIds((prev) => {
-      const next = new Set(prev)
-      if (allFilteredSelected) {
-        filteredUsers.forEach((u) => next.delete(u.id))
-      } else {
-        filteredUsers.forEach((u) => next.add(u.id))
-      }
-      return next
-    })
+    const next = new Set(selectedUserIds)
+    if (allFilteredSelected) {
+      filteredUsers.forEach((u) => next.delete(u.id))
+    } else {
+      filteredUsers.forEach((u) => next.add(u.id))
+    }
+    setSelectedUserIds(next)
   }
 
   const rangeExceeds12Months =

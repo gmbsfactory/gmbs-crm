@@ -13,7 +13,6 @@ import { usePermissions } from "@/hooks/usePermissions"
 import { parseCSV } from "@/utils/import-export/parsers/csv-parser"
 import { orderByRank, rankRawKey, rankDbKey } from "@/utils/import-export/preview-field-order"
 import type {
-  ImportMode,
   ImportResponse,
   ImportPreviewRow,
   ImportConflictCandidate,
@@ -24,6 +23,10 @@ import type {
 import { ImportProgressPanel } from "./ImportProgressPanel"
 import { useImportStream } from "./useImportStream"
 import {
+  useImportSessionStore,
+  type ImportPreviewBucket as PreviewBucket,
+} from "./importExportSessionStore"
+import {
   Dialog,
   DialogContent,
   DialogHeader,
@@ -31,37 +34,41 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog"
 
-type PreviewBucket = 'insert' | 'update' | 'skipped' | 'conflict' | 'error'
-
 const MAX_PREVIEW_ROWS = 20
 const MAX_FILE_MB = 10
-
-// ─── Types ────────────────────────────────────────────────────────────────────
-
-interface PreviewState {
-  headers: string[]
-  rows: Record<string, string>[]
-  totalRows: number
-}
 
 // ─── Composant principal ──────────────────────────────────────────────────────
 
 export function ImportInterventionsCard() {
   const { toast } = useToast()
   const { can, isLoading: permsLoading } = usePermissions()
-  const [open, setOpen] = useState(false)
-  const [file, setFile] = useState<File | null>(null)
-  const [preview, setPreview] = useState<PreviewState | null>(null)
-  const [mode, setMode] = useState<ImportMode>('upsert')
-  const [dryRun, setDryRun] = useState(false)
-  const [report, setReport] = useState<ImportResponse | null>(null)
-  const [pendingConfirm, setPendingConfirm] = useState<ImportResponse | null>(null)
-  const [previewBucket, setPreviewBucket] = useState<PreviewBucket | null>(null)
+  const open = useImportSessionStore((state) => state.open)
+  const file = useImportSessionStore((state) => state.file)
+  const preview = useImportSessionStore((state) => state.preview)
+  const mode = useImportSessionStore((state) => state.mode)
+  const dryRun = useImportSessionStore((state) => state.dryRun)
+  const report = useImportSessionStore((state) => state.report)
+  const pendingConfirm = useImportSessionStore((state) => state.pendingConfirm)
+  const previewBucket = useImportSessionStore((state) => state.previewBucket)
   // Phase B : décisions de résolution de conflits. Vidées à chaque nouveau
   // dry-run (l'utilisateur recommence depuis la nouvelle photo des conflits).
-  const [resolutions, setResolutions] = useState<ImportResolutionsMap>({})
-  const [errorMessage, setErrorMessage] = useState<string | null>(null)
-  const [dragOver, setDragOver] = useState(false)
+  const resolutions = useImportSessionStore((state) => state.resolutions)
+  const errorMessage = useImportSessionStore((state) => state.errorMessage)
+  const dragOver = useImportSessionStore((state) => state.dragOver)
+  const setOpen = useImportSessionStore((state) => state.setOpen)
+  const setFile = useImportSessionStore((state) => state.setFile)
+  const setPreview = useImportSessionStore((state) => state.setPreview)
+  const setMode = useImportSessionStore((state) => state.setMode)
+  const setDryRun = useImportSessionStore((state) => state.setDryRun)
+  const setReport = useImportSessionStore((state) => state.setReport)
+  const setPendingConfirm = useImportSessionStore((state) => state.setPendingConfirm)
+  const setPreviewBucket = useImportSessionStore((state) => state.setPreviewBucket)
+  const setResolutions = useImportSessionStore((state) => state.setResolutions)
+  const setResolution = useImportSessionStore((state) => state.setResolution)
+  const clearResolution = useImportSessionStore((state) => state.clearResolution)
+  const setErrorMessage = useImportSessionStore((state) => state.setErrorMessage)
+  const setDragOver = useImportSessionStore((state) => state.setDragOver)
+  const resetImport = useImportSessionStore((state) => state.resetImport)
   const inputRef = useRef<HTMLInputElement>(null)
   const { stages, running, run, cancel, reset: resetStages } = useImportStream()
   const importing = running
@@ -102,13 +109,13 @@ export function ImportInterventionsCard() {
       })
     }
     reader.readAsText(f)
-  }, [toast])
+  }, [setFile, setPreview, setReport, toast])
 
   const onDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault()
     setDragOver(false)
     handleFile(e.dataTransfer.files[0] ?? null)
-  }, [handleFile])
+  }, [handleFile, setDragOver])
 
   async function runImport(opts: { dryRun: boolean; resolutions?: ImportResolutionsMap }) {
     if (!file) return null
@@ -168,12 +175,7 @@ export function ImportInterventionsCard() {
   }
 
   function reset() {
-    setFile(null)
-    setPreview(null)
-    setReport(null)
-    setPendingConfirm(null)
-    setErrorMessage(null)
-    setResolutions({})
+    resetImport()
     resetStages()
     if (inputRef.current) inputRef.current.value = ''
   }
@@ -570,7 +572,8 @@ export function ImportInterventionsCard() {
                       {/Colonnes requises/i.test(errorMessage) && (
                         <p className="text-xs text-muted-foreground pt-1">
                           Colonnes obligatoires attendues : <code className="font-mono">Date</code>,{' '}
-                          <code className="font-mono">Métier</code>, <code className="font-mono">Agence</code>.
+                          <code className="font-mono">Métier</code>, <code className="font-mono">ID</code>,{' '}
+                          <code className="font-mono">Agence</code>.
                           Vérifiez que votre CSV provient bien de l&apos;export de cette interface.
                         </p>
                       )}
@@ -614,16 +617,8 @@ export function ImportInterventionsCard() {
         response={pendingConfirm ?? report}
         onClose={() => setPreviewBucket(null)}
         resolutions={resolutions}
-        onResolve={(line, resolution) =>
-          setResolutions((prev) => ({ ...prev, [line]: resolution }))
-        }
-        onClearResolution={(line) =>
-          setResolutions((prev) => {
-            const next = { ...prev }
-            delete next[line]
-            return next
-          })
-        }
+        onResolve={setResolution}
+        onClearResolution={clearResolution}
       />
     </div>
   )
