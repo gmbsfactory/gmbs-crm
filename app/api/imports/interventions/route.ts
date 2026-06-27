@@ -2,8 +2,14 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createSSRServerClient } from '@/lib/supabase/server-ssr'
 import { requirePermission, isPermissionError } from '@/lib/auth/permissions'
 import { interventionsImportApi } from '@/lib/api'
-import { ImportAbortedError, type ImportProgressEvent } from '@/lib/api/interventions/interventions-import'
+import { ImportAbortedError, type ImportProgressEvent, type RunImportResult } from '@/lib/api/interventions/interventions-import'
 import type { ImportMode, ImportResolutionsMap } from '@/utils/import-export/import-types'
+import {
+  resolveImportActor,
+  createImportOperation,
+  makeImportServiceClient,
+  finalizeImportOperation,
+} from '@/lib/api/interventions/import-operation'
 
 export const runtime = 'nodejs'
 
@@ -79,15 +85,50 @@ export async function POST(req: NextRequest) {
   }
 
   const content = await (file as Blob).text()
-  const supabase = await createSSRServerClient()
+  const fileName = (file as File).name ?? null
+  const ssr = await createSSRServerClient()
+
+  // Phase 3 — cycle de vie de l'opération d'import.
+  // Réel : on journalise une opération (running → success/failed/cancelled) et
+  // on exécute l'import sous un client service_role portant les en-têtes
+  // x-crm-operation-* → le contexte import neutralise l'acteur dans les triggers.
+  // Dry-run : aucune écriture → on reste sur le client SSR de l'utilisateur.
+  const runImportLifecycle = async (
+    onProgress?: (event: ImportProgressEvent) => void,
+  ): Promise<RunImportResult> => {
+    if (dryRun) {
+      return interventionsImportApi.runImport(ssr, {
+        content, mode: mode as ImportMode, dryRun, resolutions, signal: req.signal, onProgress,
+      })
+    }
+    const actor = await resolveImportActor(permCheck.user.id)
+    const operationId = await createImportOperation({ actor, fileName, mode: mode as ImportMode })
+    const importClient = makeImportServiceClient(operationId)
+    try {
+      const result = await interventionsImportApi.runImport(importClient, {
+        content, mode: mode as ImportMode, dryRun, resolutions, signal: req.signal, onProgress,
+      })
+      await finalizeImportOperation(
+        operationId,
+        result.ok ? 'success' : 'failed',
+        result.ok ? result.body : undefined,
+        result.ok ? undefined : result.error,
+      )
+      return result
+    } catch (e) {
+      const reason = e instanceof Error ? e.message : String(e)
+      await finalizeImportOperation(
+        operationId,
+        e instanceof ImportAbortedError ? 'cancelled' : 'failed',
+        undefined,
+        reason,
+      )
+      throw e
+    }
+  }
 
   if (!stream) {
-    const result = await interventionsImportApi.runImport(supabase, {
-      content,
-      mode: mode as ImportMode,
-      dryRun,
-      resolutions,
-    })
+    const result = await runImportLifecycle()
     if (!result.ok) {
       return NextResponse.json({ error: result.error }, { status: result.status })
     }
@@ -103,15 +144,8 @@ export async function POST(req: NextRequest) {
       }
 
       try {
-        const result = await interventionsImportApi.runImport(supabase, {
-          content,
-          mode: mode as ImportMode,
-          dryRun,
-          resolutions,
-          signal: req.signal,
-          onProgress: (event: ImportProgressEvent) => {
-            write({ type: 'progress', event })
-          },
+        const result = await runImportLifecycle((event: ImportProgressEvent) => {
+          write({ type: 'progress', event })
         })
 
         if (!result.ok) {
