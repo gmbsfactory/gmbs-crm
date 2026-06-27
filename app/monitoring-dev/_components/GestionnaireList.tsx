@@ -70,7 +70,7 @@ function minutesOf(iso: string): number {
 function isLate(iso: string | null): boolean {
   if (!iso) return false
   const d = new Date(iso)
-  return d.getHours() * 60 + d.getMinutes() > 540 // après 9h00
+  return d.getHours() * 60 + d.getMinutes() >= 600 // à partir de 10h00
 }
 
 interface Segment {
@@ -503,7 +503,7 @@ export function GestionnaireList({
                           <span title="Devis envoyés" className="w-[33px] text-center text-[13px] font-extrabold tabular-nums" style={{ color: u.devis > 0 ? "#8B5CF6" : MUTED_HALF }}>{u.devis}</span>
                           <span title="Interventions terminées" className="w-[33px] text-center text-[13px] font-extrabold tabular-nums" style={{ color: u.completed > 0 ? "#10B981" : MUTED_HALF }}>{u.completed}</span>
                           <span title="Actions totales" className="w-[33px] text-center text-[13px] font-extrabold tabular-nums" style={{ color: u.actions > 0 ? "hsl(var(--foreground))" : MUTED_HALF }}>{u.actions}</span>
-                          <span title="Retards · connexions après 9h" className="w-[33px] text-center text-[13px] font-extrabold tabular-nums" style={{ color: u.retards > 0 ? "#D97706" : MUTED_HALF }}>{u.retards}</span>
+                          <span title="Retards · connexions à partir de 10h" className="w-[33px] text-center text-[13px] font-extrabold tabular-nums" style={{ color: u.retards > 0 ? "#D97706" : MUTED_HALF }}>{u.retards}</span>
                           <span className="w-[42px] text-right text-[15px] font-extrabold leading-none tabular-nums">{u.screen}</span>
                           <span className={cn("w-[14px] shrink-0 text-center text-[12px] text-muted-foreground transition-transform", expanded && "rotate-180")}>⌄</span>
                         </div>
