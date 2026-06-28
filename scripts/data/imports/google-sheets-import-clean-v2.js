@@ -74,6 +74,7 @@ const { dataValidator } = require('../../data-processing/data-validator');
 const { googleSheetsConfig } = require('./config/google-sheets-config');
 const { ColumnMapper } = require('../../data-processing/column-mapper');
 const { ReportGenerator } = require('./reporting/report-generator');
+const { runColumnCheck } = require('./check-columns');
 
 class GoogleSheetsImportCleanV2 {
   constructor(options = {}) {
@@ -83,6 +84,7 @@ class GoogleSheetsImportCleanV2 {
       interventionsOnly: options.interventionsOnly || false,
       dryRun: options.dryRun || false,
       verbose: options.verbose || false,
+      skipColumnCheck: options.skipColumnCheck || false,
       limit: options.limit || null, // Limite pour debug
       batchSize: options.batchSize || 20,
       credentialsPath: options.credentialsPath || './credentials.json',
@@ -811,6 +813,24 @@ class GoogleSheetsImportCleanV2 {
         throw new Error('Échec du test de connexion');
       }
 
+      // Vérification pré-import des colonnes (lecture seule, bloquant si requis manquant)
+      if (!this.options.skipColumnCheck) {
+        const { ok, requiredMissing } = await runColumnCheck({
+          sheets: this.sheets,
+          spreadsheetId: googleSheetsConfig.getSpreadsheetId(),
+          artisansOnly: this.options.artisansOnly,
+          interventionsOnly: this.options.interventionsOnly,
+        });
+        if (!ok) {
+          throw new Error(
+            `Colonnes requises manquantes dans : ${requiredMissing.join(', ')}. ` +
+            'Corrigez le Google Sheet, ou relancez avec --skip-column-check pour ignorer cette vérification.'
+          );
+        }
+      } else {
+        console.log('⏭️  Vérification des colonnes ignorée (--skip-column-check)');
+      }
+
       // Import selon les options
       if (this.options.artisansOnly) {
         await this.importArtisans();
@@ -1254,6 +1274,7 @@ Options:
   --dry-run                  Mode test sans écriture en base
   --verbose                  Affichage détaillé
   --upsert                   Mode upsert (met à jour les enregistrements existants au lieu de créer des doublons)
+  --skip-column-check        Ignorer la vérification pré-import des colonnes du Google Sheet
   --limit=N                  Limiter le nombre d'interventions/artisans (pour debug)
   --batch-size=N             Taille des lots (défaut: 50)
   --date-start=DD/MM/YYYY    Filtrer les interventions à partir de cette date (inclus)
@@ -1300,6 +1321,7 @@ Exemples:
       if (args.includes('--artisans-only')) options.artisansOnly = true;
       if (args.includes('--interventions-only')) options.interventionsOnly = true;
       if (args.includes('--upsert')) options.upsert = true;
+      if (args.includes('--skip-column-check')) options.skipColumnCheck = true;
 
       // Limite pour debug
       const limitArg = args.find(arg => arg.startsWith('--limit='));
