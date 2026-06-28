@@ -220,40 +220,47 @@ async function deleteBatch(client, step) {
   return { error: null, count: totalDeleted };
 }
 
+// Token de confirmation attendu par le RPC cleanup_truncate_import_data (migration 99058).
+const TRUNCATE_CONFIRM = 'TRUNCATE_GMBS_IMPORT_DATA';
+
+/**
+ * Table rase via RPC TRUNCATE CASCADE (migration 99058).
+ *
+ * Les DELETE ordonnés échouaient en prod : le trigger de gel des interventions
+ * archivées (99048) bloque les cascades, et les triggers AFTER DELETE réinsèrent
+ * dans intervention_audit_log (violation FK). TRUNCATE CASCADE ne déclenche aucun
+ * de ces triggers ligne → table rase fiable. Le RPC porte l'allowlist : seules
+ * les tables de données d'import sont vidées, jamais les référentiels/users/agences.
+ */
 async function runCleanup(client, { verbose = false } = {}) {
   const results = { success: 0, errors: 0, details: [] };
 
-  for (const step of CLEANUP_STEPS) {
-    try {
-      let error, count;
+  // On passe explicitement la liste des tables (source de vérité côté JS),
+  // le RPC la réintersecte avec son allowlist en dur (défense en profondeur).
+  const tables = CLEANUP_STEPS.map((s) => s.table);
 
-      if (step.batch) {
-        // Suppression par lots pour les grandes tables sujettes aux timeouts
-        ({ error, count } = await deleteBatch(client, step));
-      } else {
-        ({ error, count } = await step.filter(
-          client.from(step.table).delete({ count: 'exact' })
-        ));
-      }
+  const { data, error } = await client.rpc('cleanup_truncate_import_data', {
+    p_confirm: TRUNCATE_CONFIRM,
+    p_tables: tables,
+  });
 
-      if (error) {
-        if (error.code === '42P01') {
-          if (verbose) console.log(`  ⏭️  ${step.label.padEnd(35)} (table absente, ignorée)`);
-          continue;
-        }
-        console.warn(`  ⚠️  ${step.label.padEnd(35)} ERREUR: ${error.message}`);
-        results.errors++;
-        results.details.push({ table: step.table, error: error.message });
-      } else {
-        console.log(`  ✅ ${step.label.padEnd(35)} ${count ?? '?'} ligne(s) supprimée(s)`);
-        results.success++;
-      }
-    } catch (e) {
-      console.warn(`  ⚠️  ${step.label.padEnd(35)} EXCEPTION: ${e.message}`);
-      results.errors++;
-      results.details.push({ table: step.table, error: e.message });
+  if (error) {
+    console.warn(`  ⚠️  TRUNCATE CASCADE ERREUR: ${error.message}`);
+    results.errors++;
+    results.details.push({ rpc: 'cleanup_truncate_import_data', error: error.message });
+    return results;
+  }
+
+  const rowsBefore = (data && data.rows_before) || {};
+  const truncatedCount = (data && data.truncated_count) || 0;
+
+  if (verbose) {
+    for (const [table, count] of Object.entries(rowsBefore)) {
+      console.log(`  ✅ ${table.padEnd(35)} ${count} ligne(s) supprimée(s)`);
     }
   }
+  console.log(`  ✅ Table rase OK — ${truncatedCount} table(s) vidée(s) via TRUNCATE CASCADE.`);
+  results.success++;
 
   return results;
 }
