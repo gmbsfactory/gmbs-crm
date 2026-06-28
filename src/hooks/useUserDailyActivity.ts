@@ -2,6 +2,7 @@
 
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase-client'
+import { toParisDateStr } from '@/lib/monitoring/local-date'
 
 interface PageStat {
   page_name: string
@@ -33,7 +34,7 @@ export interface ArtisanMeta {
 
 export interface RecentAction {
   action_type: string
-  entity_type: 'intervention' | 'artisan'
+  entity_type: 'intervention' | 'artisan' | 'presence'
   entity_id: string
   entity_label: string | null
   entity_meta: InterventionMeta | ArtisanMeta | null
@@ -41,6 +42,17 @@ export interface RecentAction {
   changed_fields: string[] | null
   old_values: Record<string, unknown> | null
   new_values: Record<string, unknown> | null
+  /**
+   * Auteur de l'action. Présent uniquement dans le flux global du
+   * Monitoring DEV (get_global_activity_feed) ; absent du suivi par
+   * utilisateur (/monitoring), qui rend donc le même affichage qu'avant.
+   */
+  actor?: {
+    user_id: string | null
+    display: string | null
+    code: string | null
+    color: string | null
+  }
 }
 
 export interface PageSession {
@@ -64,7 +76,7 @@ export interface UserDailyActivity {
 }
 
 export function useUserDailyActivity(userId: string | null, date?: Date) {
-  const dateStr = (date ?? new Date()).toISOString().split('T')[0]
+  const dateStr = toParisDateStr(date ?? new Date())
 
   return useQuery<UserDailyActivity>({
     queryKey: ['user-daily-activity', userId, dateStr],

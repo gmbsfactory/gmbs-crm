@@ -9,6 +9,7 @@ import { PresenceFieldIndicator } from "@/components/ui/intervention-modal/Prese
 import { cn } from "@/lib/utils"
 import { formatDistanceKm, hexToRgba } from "@/lib/interventions/form-utils"
 import type { NearbyArtisan } from "@/hooks/useNearbyArtisans"
+import { InterButtonTooltip } from "./InterButtonTooltip"
 
 interface ArtisanPanelProps {
   // Artisan state
@@ -30,6 +31,7 @@ interface ArtisanPanelProps {
   // Email/WhatsApp
   isDevisButtonDisabled: boolean
   isInterButtonDisabled: boolean
+  interMissingFields: string[]
   openEmailModal: (type: 'devis' | 'intervention') => void
   handleOpenWhatsApp: (type: 'devis' | 'intervention', artisanId: string, phone: string) => void
 
@@ -55,6 +57,7 @@ export function ArtisanPanel({
   artisanStatuses,
   isDevisButtonDisabled,
   isInterButtonDisabled,
+  interMissingFields,
   openEmailModal,
   handleOpenWhatsApp,
   handleSelectNearbyArtisan,
@@ -115,34 +118,50 @@ export function ArtisanPanel({
 
           return (
             <div className="mb-2 flex-shrink-0">
-              <div className="relative rounded-lg border border-primary/70 ring-2 ring-primary/50 bg-background/80 p-2 text-xs shadow-sm">
+              <div className="relative rounded-lg border border-primary/70 ring-2 ring-primary/50 bg-background/80 p-2 pr-7 text-xs shadow-sm">
+                {/* Désélection — coin supérieur droit, l'espace est réservé par pr-7 pour ne pas recouvrir l'œil */}
                 <Button
                   type="button"
                   variant="ghost"
                   size="icon"
                   className="absolute right-1 top-1 h-5 w-5 rounded-full bg-background/80 text-muted-foreground shadow-sm hover:text-destructive z-20"
                   onClick={() => handleRemoveSelectedArtisan()}
+                  title="Désélectionner l'artisan"
                 >
                   <X className="h-3 w-3" />
                 </Button>
-                <div className="flex items-center gap-2 flex-wrap min-w-0">
+                <div className="flex items-center justify-between gap-2 min-w-0">
                   <Avatar photoProfilMetadata={artisan.photoProfilMetadata} initials={artisanInitials} name={artisan.displayName} size={40} className="hidden" />
-                  <span className="font-semibold text-foreground truncate text-xs min-w-0 flex-1">{artisanDisplayName}</span>
-                  {statutArtisan && (
-                    <Badge variant="outline" className="text-[9px] px-1 py-0 flex-shrink-0" style={statutArtisanColor ? { backgroundColor: hexToRgba(statutArtisanColor, 0.15) || undefined, color: statutArtisanColor, borderColor: statutArtisanColor } : undefined}>
-                      {statutArtisan}
-                    </Badge>
-                  )}
-                  {absentArtisanIds.has(artisan.id) && (
-                    <Badge variant="outline" className="text-[9px] px-1 py-0 bg-orange-100 text-orange-800 border-orange-300 flex-shrink-0">
-                      Indisponible
-                    </Badge>
-                  )}
-                  <Badge variant="default" className="text-[9px] px-1 py-0 flex-shrink-0">{formatDistanceKm(artisan.distanceKm)}</Badge>
-                  {artisan.telephone && (
-                    <span className="text-[10px] text-muted-foreground truncate flex-shrink-0">📞 {artisan.telephone}</span>
-                  )}
+                  <div className="flex items-center gap-1 flex-1 min-w-0">
+                    <span className="font-semibold text-foreground truncate text-xs min-w-0">{artisanDisplayName}</span>
+                    {absentArtisanIds.has(artisan.id) && (
+                      <Badge variant="outline" className="text-[9px] px-1 py-0 bg-orange-100 text-orange-800 border-orange-300 flex-shrink-0">
+                        Indisponible
+                      </Badge>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1 flex-shrink-0">
+                    {statutArtisan && (
+                      <Badge variant="outline" className="text-[9px] px-1 py-0 flex-shrink-0" style={statutArtisanColor ? { backgroundColor: hexToRgba(statutArtisanColor, 0.15) || undefined, color: statutArtisanColor, borderColor: statutArtisanColor } : undefined}>
+                        {statutArtisan}
+                      </Badge>
+                    )}
+                    <Badge variant="default" className="text-[9px] px-1 py-0 flex-shrink-0">{formatDistanceKm(artisan.distanceKm)}</Badge>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-5 w-5 text-muted-foreground hover:text-foreground flex-shrink-0"
+                      onClick={(e) => handleOpenArtisanModal(artisan.id, e)}
+                      title="Voir la fiche artisan"
+                    >
+                      <Eye className="h-3 w-3" />
+                    </Button>
+                  </div>
                 </div>
+                {artisan.telephone && (
+                  <div className="mt-1 text-[10px] text-muted-foreground truncate">📞 {artisan.telephone}</div>
+                )}
               </div>
             </div>
           )
@@ -164,17 +183,19 @@ export function ArtisanPanel({
                 <Mail className="h-3 w-3 mr-1" />
                 Devis
               </Button>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => openEmailModal('intervention')}
-                disabled={isInterButtonDisabled}
-                className="flex-1 text-[10px] h-7 px-2 border-primary/30 hover:bg-primary/10 dark:border-primary/40 dark:hover:bg-primary/20"
-              >
-                <Mail className="h-3 w-3 mr-1" />
-                Inter.
-              </Button>
+              <InterButtonTooltip missingFields={interMissingFields} className="flex-1">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => openEmailModal('intervention')}
+                  disabled={isInterButtonDisabled}
+                  className="w-full text-[10px] h-7 px-2 border-primary/30 hover:bg-primary/10 dark:border-primary/40 dark:hover:bg-primary/20"
+                >
+                  <Mail className="h-3 w-3 mr-1" />
+                  Inter.
+                </Button>
+              </InterButtonTooltip>
             </div>
             {/* Boutons WhatsApp */}
             {selectedArtisanData.telephone && (
@@ -190,17 +211,19 @@ export function ArtisanPanel({
                   <MessageCircle className="h-3 w-3 mr-1" />
                   WA Devis
                 </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handleOpenWhatsApp('intervention', selectedArtisanId, selectedArtisanData.telephone || '')}
-                  disabled={isInterButtonDisabled}
-                  className="flex-1 text-[10px] h-7 px-2 bg-[#25D366]/10 hover:bg-[#25D366]/20 border-[#25D366]/30 text-[#25D366]"
-                >
-                  <MessageCircle className="h-3 w-3 mr-1" />
-                  WA Inter.
-                </Button>
+                <InterButtonTooltip missingFields={interMissingFields} className="flex-1">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleOpenWhatsApp('intervention', selectedArtisanId, selectedArtisanData.telephone || '')}
+                    disabled={isInterButtonDisabled}
+                    className="w-full text-[10px] h-7 px-2 bg-[#25D366]/10 hover:bg-[#25D366]/20 border-[#25D366]/30 text-[#25D366]"
+                  >
+                    <MessageCircle className="h-3 w-3 mr-1" />
+                    WA Inter.
+                  </Button>
+                </InterButtonTooltip>
               </div>
             )}
           </div>

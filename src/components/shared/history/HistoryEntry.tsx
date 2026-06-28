@@ -121,7 +121,7 @@ const toCamelCase = (value: string) => {
     .join("")
 }
 
-const getFieldLabel = (field: string) => {
+export const getFieldLabel = (field: string) => {
   if (FIELD_LABELS[field]) return FIELD_LABELS[field]
   const schemaLabel = getPropertyLabel(field)
   if (schemaLabel !== field) return schemaLabel
@@ -138,7 +138,7 @@ const safeParseDate = (value: string | null | undefined) => {
   return Number.isNaN(fallback.getTime()) ? null : fallback
 }
 
-const isUuid = (value: string) =>
+export const isUuid = (value: string) =>
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value)
 
 const formatValue = (value: unknown, field?: string): string => {
@@ -187,7 +187,7 @@ const resolveDisplay = (
   return { label: formatValue(value, field), color: null }
 }
 
-const renderValue = (
+export const renderValue = (
   field: string,
   value: unknown,
   resolver?: HistoryValueResolver
@@ -229,12 +229,16 @@ const getSummary = (item: HistoryItem, resolver?: HistoryValueResolver) => {
     const toStatus = (newValues as Record<string, unknown>)?.status_code ?? (newValues as Record<string, unknown>)?.status_id ?? (newValues as Record<string, unknown>)?.statut_id
     const fromStatusId = (oldValues as Record<string, unknown>)?.status_id ?? (oldValues as Record<string, unknown>)?.statut_id
     const toStatusId = (newValues as Record<string, unknown>)?.status_id ?? (newValues as Record<string, unknown>)?.statut_id
-    const fromDisplay = fromStatusId
-      ? resolveDisplay("statut_id", fromStatusId, resolver)
-      : resolveDisplay("status_code", (oldValues as Record<string, unknown>)?.status_code, resolver)
-    const toDisplay = toStatusId
-      ? resolveDisplay("statut_id", toStatusId, resolver)
-      : resolveDisplay("status_code", (newValues as Record<string, unknown>)?.status_code, resolver)
+    const fromCode = (oldValues as Record<string, unknown>)?.status_code ?? (oldValues as Record<string, unknown>)?.statut_code
+    const toCode = (newValues as Record<string, unknown>)?.status_code ?? (newValues as Record<string, unknown>)?.statut_code
+    // On résout par CODE en priorité (stable même si les id de statut changent
+    // après un re-seed) ; l'id reste un repli. La couleur vient des paramètres.
+    const fromDisplay = fromCode
+      ? resolveDisplay("status_code", fromCode, resolver)
+      : resolveDisplay("statut_id", fromStatusId, resolver)
+    const toDisplay = toCode
+      ? resolveDisplay("status_code", toCode, resolver)
+      : resolveDisplay("statut_id", toStatusId, resolver)
     return (
       <div className="flex items-center gap-2">
         <Badge
@@ -246,9 +250,14 @@ const getSummary = (item: HistoryItem, resolver?: HistoryValueResolver) => {
         </Badge>
         <ArrowRight className="h-3 w-3 text-muted-foreground" />
         <Badge
+          variant="secondary"
           className={cn(
-            "history-item-status-badge history-item-status-badge--new",
-            toDisplay?.color && "border-transparent"
+            // Avec une vraie couleur (paramètres), on calque le badge "ancien
+            // statut" qui s'affiche correctement. On n'applique le dégradé d'accent
+            // `--new` qu'en repli (couleur introuvable) : son `background` raccourci
+            // recouvrait sinon le `background-color` inline -> mauvaise couleur.
+            "history-item-status-badge",
+            toDisplay?.color ? "border-transparent text-white" : "history-item-status-badge--new"
           )}
           style={toDisplay?.color ? { backgroundColor: toDisplay.color } : undefined}
         >
@@ -381,6 +390,19 @@ const getSummary = (item: HistoryItem, resolver?: HistoryValueResolver) => {
           </span>
         )}
         {reason && <span className="ml-2 text-muted-foreground">{truncate(reason, 60)}</span>}
+      </div>
+    )
+  }
+
+  if (actionType === "EMAIL_SENT") {
+    const recipient = (newValues as Record<string, unknown>)?.recipient_email as string | undefined
+    const subject = (newValues as Record<string, unknown>)?.subject as string | undefined
+    const emailType = (newValues as Record<string, unknown>)?.email_type as string | undefined
+    return (
+      <div className="history-item-summary-text">
+        {recipient && <span className="font-medium">{truncate(recipient, 60)}</span>}
+        {subject && <span className="ml-2 text-muted-foreground">{truncate(subject, 80)}</span>}
+        {emailType && <Badge variant="outline" className="ml-2 text-[9px]">{emailType}</Badge>}
       </div>
     )
   }

@@ -94,6 +94,9 @@ export function useArtisanMutations(
 
   const invalidateArtisanDetail = useCallback(() => {
     void queryClient.invalidateQueries({ queryKey: artisanKeys.detail(artisanId) })
+    // Rafraichit aussi les listes : l'avatar (photo de profil) y est affiche,
+    // il doit se mettre a jour des l'import du document, sans recharger la page.
+    void queryClient.invalidateQueries({ queryKey: artisanKeys.invalidateLists() })
   }, [artisanId, queryClient])
 
   return { updateArtisan, submitArtisanUpdate, invalidateArtisanDetail }

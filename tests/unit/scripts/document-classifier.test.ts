@@ -1,7 +1,6 @@
 import { describe, it, expect } from 'vitest'
 
 // Le classifier est un module JS pur sans dépendances — import direct
-// eslint-disable-next-line @typescript-eslint/no-require-imports
 const {
   classifyDocument,
   extractFactureGmbs,

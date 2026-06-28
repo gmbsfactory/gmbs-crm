@@ -89,6 +89,7 @@ export type InterventionDTO = {
   artisanId: string | null
   managerId: string | null
   isValidated: boolean
+  isActive: boolean
 }
 
 export type InterventionWithDocuments = InterventionDTO & {

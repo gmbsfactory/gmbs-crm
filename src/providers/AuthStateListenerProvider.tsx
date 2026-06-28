@@ -46,6 +46,7 @@ export function AuthStateListenerProvider({ children }: { children: ReactNode })
         // Nettoyer aussi sessionStorage pour l'animation
         if (typeof window !== 'undefined') {
           sessionStorage.removeItem('revealTransition')
+          sessionStorage.removeItem('crm_auth_login')
         }
       } else if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION' || event === 'TOKEN_REFRESHED') {
         // Connexion, session initiale ou refresh token : invalider pour forcer un refetch
@@ -121,32 +122,9 @@ export function AuthStateListenerProvider({ children }: { children: ReactNode })
     checkFirstActivity()
   }, [currentUser?.id])
 
-  // Server-side heartbeat system
-  useEffect(() => {
-    if (!currentUser?.id || typeof window === 'undefined') return
-
-    // Server heartbeat : 60s (server inactivity threshold = 180s, soit 3x le ping).
-    const HEARTBEAT_INTERVAL = 60000
-
-    const sendHeartbeat = async () => {
-      try {
-        await fetch('/api/auth/heartbeat', {
-          method: 'POST',
-          credentials: 'include',
-          headers: { 'Content-Type': 'application/json' },
-        })
-      } catch (error) {
-        console.warn('[AuthStateListenerProvider] Heartbeat error:', error)
-      }
-    }
-
-    sendHeartbeat()
-    const heartbeatInterval = setInterval(sendHeartbeat, HEARTBEAT_INTERVAL)
-
-    return () => {
-      clearInterval(heartbeatInterval)
-    }
-  }, [currentUser?.id])
+  // Le heartbeat serveur (rafraîchissement de last_seen_at) est désormais assuré par le
+  // ping d'activité de usePresenceLifecycle (PRESENCE_PING, 60 s, arrêté en idle).
+  // Plus de double requête /api/auth/heartbeat.
 
   // Handle tab/window close with multi-tab support
   useEffect(() => {
@@ -280,20 +258,6 @@ export function AuthStateListenerProvider({ children }: { children: ReactNode })
       return newCount
     }
 
-    const setOfflineStatus = async (): Promise<void> => {
-      try {
-        await fetch('/api/auth/status', {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          keepalive: true,
-          body: JSON.stringify({ status: 'offline' })
-        })
-      } catch (error) {
-        console.warn('[AuthStateListenerProvider] Error setting offline status:', error)
-      }
-    }
-
     if (tabChannel) {
       tabChannel.onmessage = (event: MessageEvent<{ type: string; tabId: string; count?: number; timestamp?: number }>) => {
         const { type, count, timestamp } = event.data
@@ -333,19 +297,15 @@ export function AuthStateListenerProvider({ children }: { children: ReactNode })
     broadcastHeartbeat()
 
     const handlePageHide = (event: PageTransitionEvent) => {
+      // Fermeture d'onglet : on décompte l'onglet mais on NE passe PAS offline.
+      // La présence métier reste active ; le cron bascule idle (+5 min) puis offline (+1 h).
       if (!event.persisted) {
-        const remainingTabs = decrementTabCount()
-        if (remainingTabs === 0) {
-          setOfflineStatus()
-        }
+        decrementTabCount()
       }
     }
 
     const handleBeforeUnload = () => {
-      const remainingTabs = decrementTabCount()
-      if (remainingTabs === 0) {
-        setOfflineStatus()
-      }
+      decrementTabCount()
     }
 
     window.addEventListener('pagehide', handlePageHide)
@@ -369,10 +329,7 @@ export function AuthStateListenerProvider({ children }: { children: ReactNode })
         console.warn('[AuthStateListenerProvider] Failed to remove heartbeat:', error)
       }
 
-      const remainingTabs = decrementTabCount()
-      if (remainingTabs === 0 && tabChannel) {
-        setOfflineStatus()
-      }
+      decrementTabCount()
 
       if (tabChannel) {
         tabChannel.close()

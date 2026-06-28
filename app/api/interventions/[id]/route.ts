@@ -17,6 +17,12 @@ export async function GET(_request: Request, { params }: Params) {
   if (!intervention) {
     return NextResponse.json({ message: "Intervention introuvable" }, { status: 404 })
   }
+  if (!intervention.isActive) {
+    return NextResponse.json(
+      { message: "Cette intervention a été supprimée du CRM. Veuillez contacter le développeur." },
+      { status: 410 },
+    )
+  }
   return NextResponse.json(intervention)
 }
 
@@ -33,12 +39,19 @@ export async function PATCH(request: Request, { params }: Params) {
 
     const { data: existing, error: existingError } = await supabaseAdmin
       .from("interventions")
-      .select("statut")
+      .select("statut,is_active")
       .eq("id", id)
       .maybeSingle()
 
     if (existingError) {
       return NextResponse.json({ message: existingError.message }, { status: 500 })
+    }
+
+    if (existing?.is_active === false) {
+      return NextResponse.json(
+        { message: "Cette intervention a été supprimée du CRM. Veuillez contacter le développeur." },
+        { status: 410 },
+      )
     }
 
     if (existing?.statut) {

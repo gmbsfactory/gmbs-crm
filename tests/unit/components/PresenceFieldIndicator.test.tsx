@@ -5,6 +5,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 // Mock framer-motion (same pattern as PresenceAvatars tests)
 vi.mock('framer-motion', () => ({
   motion: {
+    // eslint-disable-next-line react/display-name
     div: React.forwardRef<HTMLDivElement, React.HTMLProps<HTMLDivElement>>(
       ({ children, ...props }, ref) => (
         <div ref={ref} {...props}>

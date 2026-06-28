@@ -10,6 +10,7 @@ import {
   Edit,
   FileText,
   FileX,
+  Mail,
   MapPin,
   MessageSquare,
   Plus,
@@ -118,6 +119,11 @@ const getConfig = (actionType: string | null | undefined): IconConfig => {
       return { icon: MessageSquare, variant: "danger" }
     }
     return { icon: MessageSquare, variant: "warning" }
+  }
+
+  // Emails
+  if (normalized === "EMAIL_SENT") {
+    return { icon: Mail, variant: "info" }
   }
 
   // Artisan assignment (intervention-specific)

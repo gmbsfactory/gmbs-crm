@@ -18,6 +18,8 @@ interface UseInterventionSubmitParams {
   interventionId: string
   formData: any
   currentUser: any
+  existingOwnerId?: string | null
+  existingTenantId?: string | null
   selectedArtisanId: string | null
   selectedArtisanData: any
   selectedSecondArtisanId: string | null
@@ -54,6 +56,8 @@ export function useInterventionSubmit({
   interventionId,
   formData,
   currentUser,
+  existingOwnerId = null,
+  existingTenantId = null,
   selectedArtisanId,
   selectedArtisanData,
   selectedSecondArtisanId,
@@ -101,32 +105,54 @@ export function useInterventionSubmit({
       const referenceAgenceValue = formData.reference_agence?.trim() ?? ""
       const idInterValue = formData.id_inter?.trim() ?? ""
 
-      // Trouver ou créer le propriétaire et le client
+      // Trouver ou créer le propriétaire et le client.
+      // En édition, si la section n'apporte aucune donnée exploitable, on conserve
+      // l'ID existant au lieu d'écraser owner_id/tenant_id à NULL.
       let ownerId: string | null = null
       let tenantId: string | null = null
+      const hasOwnerInput = Boolean(
+        formData.nomPrenomFacturation?.trim() ||
+        formData.telephoneProprietaire?.trim() ||
+        formData.emailProprietaire?.trim()
+      )
+      const hasTenantInput = Boolean(
+        formData.nomPrenomClient?.trim() ||
+        formData.telephoneClient?.trim() ||
+        formData.emailClient?.trim()
+      )
 
-      try {
-        ownerId = await findOrCreateOwner({
-          nomPrenomFacturation: formData.nomPrenomFacturation,
-          telephoneProprietaire: formData.telephoneProprietaire,
-          emailProprietaire: formData.emailProprietaire,
-        })
-      } catch (error) {
-        console.error("[useInterventionSubmit] Erreur lors de la gestion du propriétaire:", error)
-        toast.error("Erreur lors de la sauvegarde du propriétaire")
+      if (hasOwnerInput) {
+        try {
+          ownerId = await findOrCreateOwner({
+            nomPrenomFacturation: formData.nomPrenomFacturation,
+            telephoneProprietaire: formData.telephoneProprietaire,
+            emailProprietaire: formData.emailProprietaire,
+          })
+        } catch (error) {
+          console.error("[useInterventionSubmit] Erreur lors de la gestion du propriétaire:", error)
+          toast.error("Erreur lors de la sauvegarde du propriétaire")
+          ownerId = existingOwnerId
+        }
+      } else {
+        ownerId = existingOwnerId
       }
 
       // Ne créer/trouver le tenant que si le logement n'est pas vacant
       if (!formData.is_vacant) {
-        try {
-          tenantId = await findOrCreateTenant({
-            nomPrenomClient: formData.nomPrenomClient,
-            telephoneClient: formData.telephoneClient,
-            emailClient: formData.emailClient,
-          })
-        } catch (error) {
-          console.error("[useInterventionSubmit] Erreur lors de la gestion du client:", error)
-          toast.error("Erreur lors de la sauvegarde du client")
+        if (hasTenantInput) {
+          try {
+            tenantId = await findOrCreateTenant({
+              nomPrenomClient: formData.nomPrenomClient,
+              telephoneClient: formData.telephoneClient,
+              emailClient: formData.emailClient,
+            })
+          } catch (error) {
+            console.error("[useInterventionSubmit] Erreur lors de la gestion du client:", error)
+            toast.error("Erreur lors de la sauvegarde du client")
+            tenantId = existingTenantId
+          }
+        } else {
+          tenantId = existingTenantId
         }
       } else {
         tenantId = null
@@ -352,7 +378,8 @@ export function useInterventionSubmit({
       onSubmittingChange?.(false)
     }
   }, [
-    interventionId, formData, currentUser, selectedArtisanId, selectedSecondArtisanId,
+    interventionId, formData, currentUser, existingOwnerId, existingTenantId,
+    selectedArtisanId, selectedSecondArtisanId,
     canEditContext, setIsSubmitting, onSubmittingChange, onSuccess, clearDraft,
     updateMutation, openInterventionModal, queryClient,
   ])

@@ -21,11 +21,15 @@ export async function POST(request: Request, { params }: Params) {
       return NextResponse.json({ message: "Statut requis" }, { status: 400 })
     }
 
-    const intervention = await transitionStatus(id, {
-      status,
-      dueAt: body.dueAt,
-      artisanId: body.artisanId,
-    })
+    const intervention = await transitionStatus(
+      id,
+      {
+        status,
+        dueAt: body.dueAt,
+        artisanId: body.artisanId,
+      },
+      permCheck.user.id,
+    )
     return NextResponse.json(intervention)
   } catch (error) {
     console.error("[api/interventions/:id/status] POST failed", error)

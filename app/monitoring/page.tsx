@@ -11,12 +11,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import type { PagePresenceUser } from "@/types/presence"
 
-import { RealtimeStatusDot } from "./_components/RealtimeStatusDot"
-import { OnlineUsersBar } from "./_components/OnlineUsersBar"
-import { StatBadgeGroup } from "./_components/StatBadgeGroup"
-import { PagePresenceGrid } from "./_components/PagePresenceGrid"
-import { WeeklyStatsTable } from "./_components/WeeklyStatsTable"
-import { UserActivitySheet } from "./_components/UserActivitySheet"
+import { RealtimeStatusDot } from "@/components/monitoring/RealtimeStatusDot"
+import { OnlineUsersBar } from "@/components/monitoring/OnlineUsersBar"
+import { StatBadgeGroup } from "@/components/monitoring/StatBadgeGroup"
+import { PagePresenceGrid } from "@/components/monitoring/PagePresenceGrid"
+import { WeeklyStatsTable } from "@/components/monitoring/WeeklyStatsTable"
+import { UserActivitySheet } from "@/components/monitoring/UserActivitySheet"
 
 /** Group users by their current page */
 function groupByPage(users: PagePresenceUser[]): Record<string, PagePresenceUser[]> {
@@ -29,6 +29,10 @@ function groupByPage(users: PagePresenceUser[]): Record<string, PagePresenceUser
   return groups
 }
 
+function presenceStateOf(user: PagePresenceUser): "active" | "idle" | "offline" {
+  return user.presenceState ?? (user.isIdle ? "idle" : "active")
+}
+
 export default function MonitoringPage() {
   const presence = usePagePresenceContext()
   const { isAdmin, hasRole, isLoading: isLoadingPerms } = usePermissions()
@@ -38,13 +42,15 @@ export default function MonitoringPage() {
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null)
 
   const allUsers = useMemo(() => presence?.allUsers ?? [], [presence?.allUsers])
-  const grouped = useMemo(() => groupByPage(allUsers), [allUsers])
+  const connectedUsers = useMemo(() => allUsers.filter((u) => presenceStateOf(u) !== "offline"), [allUsers])
+  const grouped = useMemo(() => groupByPage(connectedUsers), [connectedUsers])
 
   // Users who connected today but are no longer online
   const offlineUsers = useMemo(() => {
-    if (!teamOverview?.length) return []
+    const liveOffline = allUsers.filter((u) => presenceStateOf(u) === "offline")
+    if (!teamOverview?.length) return liveOffline
     const onlineIds = new Set(allUsers.map((u) => u.userId))
-    return teamOverview
+    const historicalOffline = teamOverview
       .filter((m) => !onlineIds.has(m.user_id) && m.first_seen_at)
       .map((m): PagePresenceUser => ({
         userId: m.user_id,
@@ -55,8 +61,10 @@ export default function MonitoringPage() {
         currentPage: null,
         activeInterventionId: null,
         activeArtisanId: null,
+        presenceState: "offline",
         isIdle: false,
       }))
+    return [...liveOffline, ...historicalOffline]
   }, [teamOverview, allUsers])
 
   const selectedUser = useMemo(
@@ -68,22 +76,25 @@ export default function MonitoringPage() {
   )
 
   const selectedIsOnline = useMemo(
-    () => allUsers.some((u) => u.userId === selectedUserId),
+    () => allUsers.some((u) => u.userId === selectedUserId && presenceStateOf(u) !== "offline"),
     [allUsers, selectedUserId]
   )
 
   const selectedIsIdle = useMemo(
-    () => allUsers.find((u) => u.userId === selectedUserId)?.isIdle ?? false,
+    () => {
+      const user = allUsers.find((u) => u.userId === selectedUserId)
+      return user ? presenceStateOf(user) === "idle" : false
+    },
     [allUsers, selectedUserId]
   )
 
   // Active vs idle online users
   const activeOnlineCount = useMemo(
-    () => allUsers.filter((u) => !u.isIdle).length,
+    () => allUsers.filter((u) => presenceStateOf(u) === "active").length,
     [allUsers]
   )
   const idleOnlineCount = useMemo(
-    () => allUsers.filter((u) => u.isIdle).length,
+    () => allUsers.filter((u) => presenceStateOf(u) === "idle").length,
     [allUsers]
   )
 
@@ -183,7 +194,7 @@ export default function MonitoringPage() {
               </div>
             </CardHeader>
             <CardContent className="px-5 pb-4 pt-0">
-              <OnlineUsersBar users={allUsers} offlineUsers={offlineUsers} onSelectUser={setSelectedUserId} />
+              <OnlineUsersBar users={connectedUsers} offlineUsers={offlineUsers} onSelectUser={setSelectedUserId} />
             </CardContent>
           </Card>
 

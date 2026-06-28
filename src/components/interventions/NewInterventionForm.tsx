@@ -45,7 +45,7 @@ import {
 } from "@/components/interventions/form-sections"
 import { normalizeArtisanData, getDisplayName } from "@/lib/artisans"
 import { openWhatsApp } from "@/lib/interventions/whatsapp"
-import { isInterventionEmailButtonDisabled } from "@/lib/interventions/derivations"
+import { getInterventionEmailMissingFields, isInterventionEmailButtonDisabled } from "@/lib/interventions/derivations"
 
 // Shared form utilities
 import { useInterventionFormState } from "@/hooks/useInterventionFormState"
@@ -312,6 +312,11 @@ export function NewInterventionForm({
   const isInterButtonDisabled = useMemo(
     () => isInterventionEmailButtonDisabled({ selectedArtisanId, formData }),
     [selectedArtisanId, formData],
+  )
+  // Champs encore manquants — alimente le tooltip du bouton Inter. désactivé
+  const interMissingFields = useMemo(
+    () => getInterventionEmailMissingFields(formData),
+    [formData],
   )
 
   // États pour la gestion des doublons
@@ -856,6 +861,7 @@ export function NewInterventionForm({
                     artisanStatuses={refData?.artisanStatuses}
                     isDevisButtonDisabled={isDevisButtonDisabled}
                     isInterButtonDisabled={isInterButtonDisabled}
+                    interMissingFields={interMissingFields}
                     openEmailModal={openEmailModal}
                     handleOpenWhatsApp={handleOpenWhatsApp}
                     handleSelectNearbyArtisan={handleSelectNearbyArtisan}
@@ -929,6 +935,7 @@ export function NewInterventionForm({
               artisanStatuses={refData?.artisanStatuses}
               metiers={refData?.metiers}
               isInterButtonDisabled={isInterButtonDisabled}
+              interMissingFields={interMissingFields}
               openEmailModal={openEmailModal}
               handleOpenWhatsApp={handleOpenWhatsApp}
               handleSelectSecondArtisan={handleSelectSecondArtisan}

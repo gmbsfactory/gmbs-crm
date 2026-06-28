@@ -25,7 +25,7 @@ export function InterventionPresenceIndicator({
   viewers,
 }: InterventionPresenceIndicatorProps) {
   const activeViewers = viewers.filter(
-    (v) => v.activeInterventionId === interventionId
+    (v) => v.activeInterventionId === interventionId && (v.presenceState ?? (v.isIdle ? 'idle' : 'active')) !== 'offline'
   )
 
   if (activeViewers.length === 0) return null

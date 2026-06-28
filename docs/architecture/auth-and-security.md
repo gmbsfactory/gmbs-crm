@@ -24,7 +24,7 @@ graph TB
         G["/api/auth/resolve"]
         I["/api/auth/me"]
         J["/api/auth/status"]
-        K["/api/auth/heartbeat"]
+        K["/api/auth/presence"]
         L["/api/auth/first-activity"]
     end
 
@@ -143,12 +143,12 @@ Le matcher du middleware exclut automatiquement :
 | `/api/auth/me` | GET | Profil utilisateur + roles + permissions |
 | `/api/auth/resolve` | POST | Conversion username -> email (timing-safe) |
 | `/api/auth/status` | PATCH | Mise a jour presence (connected/busy/dnd/offline) |
-| `/api/auth/heartbeat` | POST | Ping presence toutes les 60s |
+| `/api/auth/presence` | POST | Événements de présence CRM (login, ping, idle, offline) |
 
-> **Note perf (middleware + heartbeat)**
+> **Note perf (middleware + présence)**
 > - Le middleware utilise `getSession()` (lecture cookie locale, pas d'appel reseau) et n'appelle `getUser()` que si le token expire dans < 60s. Sur des tokens d'1h, on passe d'1 round-trip Auth+DB par navigation a ~1 par heure et par session. Trade-off : un cookie revoque cote serveur reste accepte jusqu'au prochain refresh, mais toute route mutante repasse par `getUser()` (API routes, edge functions).
-> - Le heartbeat client est passe de 30s a 60s, et le seuil serveur (`check-inactive-users`) de 90s a 180s pour conserver la marge "3 pings rates avant offline".
-> - L'endpoint heartbeat met en cache le mapping `auth_user_id -> public.users.id` en memoire process et n'execute qu'une seule UPDATE par ping (vs 4-6 requetes auparavant).
+> - La présence repose desormais sur le ping d'activite de `usePresenceLifecycle` (`PRESENCE_PING` toutes les 60s via `/api/auth/presence`), qui rafraichit `last_active_at`/`last_seen_at`. L'ancienne route `/api/auth/heartbeat` a ete supprimee (plus de double ping).
+> - Le cron `check-inactive-users` lit les seuils dans `crm_presence_settings` (defaut idle 5 min / offline 1h) et se base sur `last_active_at` (activite reelle).
 | `/api/auth/first-activity` | POST | Tracking du premier acces quotidien (retard) |
 | `/api/auth/callback` | GET | Echange code PKCE (reset password) |
 
@@ -327,35 +327,38 @@ Le `PermissionGate` est un composant similaire pour masquer conditionnellement d
 
 ## Presence en temps reel
 
-### Heartbeat
+### Presence CRM (active / idle / offline)
 
-Le systeme de presence utilise des heartbeats plutot que l'evenement `beforeunload` (qui est peu fiable) :
+La presence metier est distincte du token auth (migrations `99051`/`99052`). Le client emet des evenements de presence (jamais `beforeunload` seul, peu fiable) ; un cron sert de filet pour les onglets fermes/crashes :
 
 ```mermaid
 sequenceDiagram
-    participant C as Client
-    participant API as /api/auth/heartbeat
+    participant C as Client (usePresenceLifecycle)
+    participant API as /api/auth/presence
     participant DB as PostgreSQL
     participant Cron as Edge Function check-inactive-users
 
-    loop Toutes les 30s
-        C->>API: POST heartbeat
-        API->>DB: UPDATE users SET last_seen_at = NOW()
+    loop Toutes les 60s (si actif)
+        C->>API: POST PRESENCE_PING
+        API->>DB: record_user_presence_event → last_active_at = NOW()
     end
 
+    Note over C,API: AUTH_LOGIN / IDLE_START / PRESENCE_RESUME / PRESENCE_END selon l'activite
+
     loop Toutes les 60s
-        Cron->>DB: SELECT users WHERE last_seen_at < NOW() - 90s
-        Cron->>DB: UPDATE users SET status = 'offline'
+        Cron->>DB: lit crm_presence_settings (seuils idle/offline)
+        Cron->>DB: active→idle / →offline selon last_active_at
     end
 ```
 
-| Parametre | Valeur |
+| Parametre | Valeur (defaut, configurable) |
 |-----------|--------|
-| Intervalle heartbeat | 30 secondes |
+| Ping d'activite | 60 secondes (arrete en idle) |
 | Intervalle cron | 60 secondes |
-| Seuil inactivite | 90 secondes |
+| Seuil idle | 5 minutes |
+| Seuil offline | 1 heure |
 
-Ce systeme fonctionne meme si l'onglet crash, est kill, ou si le reseau est coupe.
+Les seuils sont pilotes depuis Monitoring Dev (`crm_presence_settings`). Le calcul s'appuie sur `last_active_at` (activite reelle, figee en idle), pas sur la simple presence de l'onglet. Fonctionne meme si l'onglet crash, est kill, ou si le reseau est coupe.
 
 ### Tracking inactivite client
 

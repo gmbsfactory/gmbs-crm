@@ -125,14 +125,29 @@ export function GestionnaireRankingPodium({ period, useAutoPeriod = false }: Ges
     )
   }
 
+  // Formate une borne de période (ISO) en heure de Paris : "ven. 05/06 18:00"
+  const formatPodiumDate = (iso: string) =>
+    new Date(iso).toLocaleString('fr-FR', {
+      timeZone: 'Europe/Paris',
+      weekday: 'short', day: '2-digit', month: '2-digit',
+      hour: '2-digit', minute: '2-digit',
+    })
+
   return (
     <Card className="bg-background border-border/5 shadow-sm/30 h-full flex flex-col">
       <CardHeader className="pb-3 flex-shrink-0">
         <div className="flex items-center justify-between">
-          <div className="flex items-center justify-center gap-3">
-            <Trophy className="w-6 h-6 text-gold" />
-            <CardTitle className="text-xl font-bold">Podium</CardTitle>
-            <Trophy className="w-6 h-6 text-gold" />
+          <div className="flex flex-col items-center gap-0.5">
+            <div className="flex items-center justify-center gap-3">
+              <Trophy className="w-6 h-6 text-gold" />
+              <CardTitle className="text-xl font-bold">Podium</CardTitle>
+              <Trophy className="w-6 h-6 text-gold" />
+            </div>
+            {resolvedPeriod && (
+              <span className="text-xs text-muted-foreground" title="Semaine terminée précédente (vendredi 16:00 UTC → vendredi 16:00 UTC)">
+                {formatPodiumDate(resolvedPeriod.startDate)} → {formatPodiumDate(resolvedPeriod.endDate)}
+              </span>
+            )}
           </div>
           <div className="flex items-center gap-3">
             <Label htmlFor="sort-switch" className="text-sm text-muted-foreground cursor-pointer">

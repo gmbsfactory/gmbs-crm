@@ -32,20 +32,26 @@ import type { RecentAction, InterventionMeta, ArtisanMeta } from "@/hooks/useUse
 // Types
 // ---------------------------------------------------------------------------
 
-type EntityFilter = "all" | "intervention" | "artisan"
+type EntityFilter = "all" | "intervention" | "artisan" | "presence"
 
 interface ActivityTimelineProps {
   actions: RecentAction[]
+  /** Affiche l'auteur de chaque groupe (utilisé par le flux global du Monitoring DEV). */
+  showActor?: boolean
+  /** Message affiché quand il n'y a aucune action (défaut : "Aucune action aujourd'hui"). */
+  emptyLabel?: string
 }
 
 /** Grouped actions on same entity within 1-min window */
 interface ActionGroup {
-  entity_type: "intervention" | "artisan"
+  entity_type: RecentAction["entity_type"]
   entity_id: string
   entity_label: string | null
-  entity_meta: InterventionMeta | ArtisanMeta | null
+  entity_meta: RecentAction["entity_meta"]
   actions: RecentAction[]
   timestamp: string
+  /** Auteur du groupe (premier de la fenêtre) — flux global uniquement. */
+  actor?: RecentAction["actor"]
 }
 
 interface ResolvedValue {
@@ -149,12 +155,18 @@ function truncate(s: string, max: number): string {
   return s.length > max ? s.slice(0, max) + "..." : s
 }
 
-/** Group consecutive actions on same entity within 1-min window */
-function groupActions(actions: RecentAction[]): ActionGroup[] {
+/**
+ * Group consecutive actions on same entity within 1-min window.
+ * When `showActor` is true, a change of author also breaks the group (the
+ * global feed mixes authors, so a group must stay single-author).
+ */
+function groupActions(actions: RecentAction[], showActor = false): ActionGroup[] {
   const groups: ActionGroup[] = []
   for (const action of actions) {
     const last = groups[groups.length - 1]
-    if (last && last.entity_id === action.entity_id) {
+    const sameActor =
+      !showActor || (last?.actor?.user_id ?? null) === (action.actor?.user_id ?? null)
+    if (last && last.entity_id === action.entity_id && sameActor) {
       const lastAction = last.actions[last.actions.length - 1]
       const diff = Math.abs(
         new Date(lastAction.occurred_at).getTime() - new Date(action.occurred_at).getTime()
@@ -171,6 +183,7 @@ function groupActions(actions: RecentAction[]): ActionGroup[] {
       entity_meta: action.entity_meta,
       actions: [action],
       timestamp: action.occurred_at,
+      actor: action.actor,
     })
   }
   return groups
@@ -197,8 +210,13 @@ function buildResolver(ref: ReferenceData | null) {
         userMap.set(u.id, { label, color: u.color })
       }
     })
-    ref.interventionStatuses?.forEach((s) => interStatusMap.set(s.id, { label: s.label || s.code, color: s.color }))
-    ref.artisanStatuses?.forEach((s) => artisanStatusMap.set(s.id, { label: s.label || s.code, color: s.color }))
+    const addStatus = (map: Map<string, ResolvedValue>, s: { id?: string | null; code?: string | null; label?: string | null; color?: string | null }) => {
+      const value = { label: s.label || s.code || "—", color: s.color }
+      if (s.id) map.set(s.id, value)
+      if (s.code) map.set(s.code, value)
+    }
+    ref.interventionStatuses?.forEach((s) => addStatus(interStatusMap, s))
+    ref.artisanStatuses?.forEach((s) => addStatus(artisanStatusMap, s))
     ref.metiers?.forEach((m) => metierMap.set(m.id, { label: m.label || m.code, color: m.color }))
   }
 
@@ -241,6 +259,17 @@ function describeAction(action: RecentAction, resolver: Resolver): ActionLine {
   const ov = action.old_values ?? {}
 
   switch (action.action_type) {
+    case "AUTH_LOGIN":
+      return { icon: Activity, text: "Connexion auth" }
+    case "PRESENCE_START":
+      return { icon: Activity, text: "Connexion CRM" }
+    case "PRESENCE_RESUME":
+      return { icon: Activity, text: "Reconnexion CRM" }
+    case "IDLE_START":
+      return { icon: Activity, text: "Inactivité détectée" }
+    case "PRESENCE_END":
+      return { icon: Activity, text: "Déconnexion CRM" }
+
     // -- Create --
     case "CREATE":
       return {
@@ -271,8 +300,8 @@ function describeAction(action: RecentAction, resolver: Resolver): ActionLine {
 
     // -- Status --
     case "STATUS_CHANGE": {
-      const fromStatus = resolver.resolveStatus(ov.statut_id)
-      const toStatus = resolver.resolveStatus(nv.statut_id)
+      const fromStatus = resolver.resolveStatus(ov.status_code ?? ov.statut_code ?? ov.status_id ?? ov.statut_id)
+      const toStatus = resolver.resolveStatus(nv.status_code ?? nv.statut_code ?? nv.status_id ?? nv.statut_id)
       return {
         icon: ArrowRight,
         text: "Statut",
@@ -392,6 +421,14 @@ function describeAction(action: RecentAction, resolver: Resolver): ActionLine {
 
 /** Compact entity chip — clickable to open modal */
 function EntityChip({ group, onOpen }: { group: ActionGroup; onOpen: () => void }) {
+  if (group.entity_type === "presence") {
+    return (
+      <span className="inline-flex items-center gap-1 rounded border border-muted px-1.5 py-0 text-[10px] font-medium text-muted-foreground">
+        Présence CRM
+      </span>
+    )
+  }
+
   const isInter = group.entity_type === "intervention"
   const meta = group.entity_meta
 
@@ -525,7 +562,7 @@ function ActionLineRow({
 // Main component
 // ---------------------------------------------------------------------------
 
-export function ActivityTimeline({ actions }: ActivityTimelineProps) {
+export function ActivityTimeline({ actions, showActor = false, emptyLabel }: ActivityTimelineProps) {
   const [filter, setFilter] = useState<EntityFilter>("all")
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set())
   const interventionModal = useInterventionModal()
@@ -539,10 +576,11 @@ export function ActivityTimeline({ actions }: ActivityTimelineProps) {
     return actions.filter((a) => a.entity_type === filter)
   }, [actions, filter])
 
-  const groups = useMemo(() => groupActions(filtered), [filtered])
+  const groups = useMemo(() => groupActions(filtered, showActor), [filtered, showActor])
 
   const interventionCount = useMemo(() => actions.filter((a) => a.entity_type === "intervention").length, [actions])
   const artisanCount = useMemo(() => actions.filter((a) => a.entity_type === "artisan").length, [actions])
+  const presenceCount = useMemo(() => actions.filter((a) => a.entity_type === "presence").length, [actions])
 
   const toggleExpanded = useCallback((id: string) => {
     setExpandedIds((prev) => {
@@ -556,7 +594,7 @@ export function ActivityTimeline({ actions }: ActivityTimelineProps) {
   if (actions.length === 0) {
     return (
       <p className="text-xs text-muted-foreground py-3 text-center italic">
-        Aucune action aujourd&apos;hui
+        {emptyLabel ?? "Aucune action aujourd'hui"}
       </p>
     )
   }
@@ -569,6 +607,7 @@ export function ActivityTimeline({ actions }: ActivityTimelineProps) {
           ["all", `Tout (${actions.length})`],
           ["intervention", `Inter. (${interventionCount})`],
           ["artisan", `Artisan (${artisanCount})`],
+          ...(presenceCount > 0 ? ([["presence", `Présence (${presenceCount})`]] as const) : []),
         ] as const).map(([key, label]) => (
           <button
             key={key}
@@ -600,6 +639,18 @@ export function ActivityTimeline({ actions }: ActivityTimelineProps) {
 
               {/* Content */}
               <div className="flex-1 min-w-0 space-y-0">
+                {/* Author (global feed only) */}
+                {showActor && group.actor && (
+                  <div className="flex items-center gap-1 mb-0.5">
+                    <span
+                      className="h-2 w-2 rounded-full shrink-0"
+                      style={{ backgroundColor: group.actor.color || "hsl(var(--muted-foreground))" }}
+                    />
+                    <span className="text-[10px] font-semibold text-foreground truncate">
+                      {group.actor.display || group.actor.code || "—"}
+                    </span>
+                  </div>
+                )}
                 {/* Action lines */}
                 {lines.map((line, lIdx) => {
                   const lineKey = `${groupKey}-${lIdx}`
@@ -619,7 +670,7 @@ export function ActivityTimeline({ actions }: ActivityTimelineProps) {
                     group={group}
                     onOpen={() => {
                       if (group.entity_type === "intervention") interventionModal.open(group.entity_id)
-                      else artisanModal.open(group.entity_id)
+                      else if (group.entity_type === "artisan") artisanModal.open(group.entity_id)
                     }}
                   />
                 </div>

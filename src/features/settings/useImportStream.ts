@@ -1,6 +1,7 @@
 "use client"
 
-import { useCallback, useRef, useState } from "react"
+import { useCallback } from "react"
+import { create } from "zustand"
 import type { ImportMode, ImportResponse, ImportResolutionsMap } from "@/utils/import-export/import-types"
 import type { ImportStage, StageId, StageStatus } from "./ImportProgressPanel"
 
@@ -44,19 +45,39 @@ interface RunResult {
   aborted?: boolean
 }
 
+interface ImportStreamState {
+  stages: ImportStage[]
+  running: boolean
+  setStages: (stages: ImportStage[] | ((stages: ImportStage[]) => ImportStage[])) => void
+  setRunning: (running: boolean) => void
+}
+
+const useImportStreamStore = create<ImportStreamState>((set) => ({
+  stages: initialStages(),
+  running: false,
+  setStages: (stages) =>
+    set((state) => ({
+      stages: typeof stages === "function" ? stages(state.stages) : stages,
+    })),
+  setRunning: (running) => set({ running }),
+}))
+
+let activeAbortController: AbortController | null = null
+
 export function useImportStream() {
-  const [stages, setStages] = useState<ImportStage[]>(initialStages())
-  const [running, setRunning] = useState(false)
-  const abortRef = useRef<AbortController | null>(null)
+  const stages = useImportStreamStore((state) => state.stages)
+  const running = useImportStreamStore((state) => state.running)
+  const setStages = useImportStreamStore((state) => state.setStages)
+  const setRunning = useImportStreamStore((state) => state.setRunning)
 
   const reset = useCallback(() => {
     setStages(initialStages())
     setRunning(false)
-    abortRef.current = null
-  }, [])
+    activeAbortController = null
+  }, [setRunning, setStages])
 
   const cancel = useCallback(() => {
-    abortRef.current?.abort()
+    activeAbortController?.abort()
   }, [])
 
   const updateStage = useCallback(
@@ -74,7 +95,7 @@ export function useImportStream() {
         return next
       })
     },
-    [],
+    [setStages],
   )
 
   const applyEvent = useCallback(
@@ -128,16 +149,20 @@ export function useImportStream() {
         }
       }
     },
-    [updateStage],
+    [setStages, updateStage],
   )
 
   const run = useCallback(
     async ({ file, mode, dryRun, resolutions }: RunArgs): Promise<RunResult> => {
+      if (useImportStreamStore.getState().running) {
+        return { error: "Un import est déjà en cours" }
+      }
+
       setStages(initialStages())
       setRunning(true)
 
       const controller = new AbortController()
-      abortRef.current = controller
+      activeAbortController = controller
 
       const body = new FormData()
       body.append('file', file)
@@ -157,12 +182,14 @@ export function useImportStream() {
         })
       } catch (e: any) {
         setRunning(false)
+        activeAbortController = null
         if (e?.name === 'AbortError') return { aborted: true }
         return { error: e?.message ?? 'Erreur réseau' }
       }
 
       if (!res.ok || !res.body) {
         setRunning(false)
+        activeAbortController = null
         try {
           const json = await res.json()
           return { error: json.error ?? `Erreur HTTP ${res.status}` }
@@ -219,12 +246,12 @@ export function useImportStream() {
         else result = { error: e?.message ?? 'Erreur de lecture du flux' }
       } finally {
         setRunning(false)
-        abortRef.current = null
+        activeAbortController = null
       }
 
       return result
     },
-    [applyEvent],
+    [applyEvent, setRunning, setStages],
   )
 
   return { stages, running, run, cancel, reset }

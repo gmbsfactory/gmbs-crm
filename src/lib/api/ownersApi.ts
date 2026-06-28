@@ -90,6 +90,27 @@ export const searchByName = async (searchTerm: string, limit = 20): Promise<Owne
 };
 
 /**
+ * Recherche des owners par nom de facturation EXACT (`plain_nom_facturation`).
+ * Sert à la déduplication : évite de recréer un doublon de propriétaire à chaque
+ * sauvegarde d'intervention quand aucun téléphone n'est renseigné.
+ */
+export const findByNomFacturation = async (nom: string): Promise<Owner[]> => {
+  const term = nom.trim();
+  if (!term) return [];
+  const { data, error } = await supabase
+    .from("owner")
+    .select("*")
+    .eq("plain_nom_facturation", term)
+    .order("updated_at", { ascending: false })
+    .order("created_at", { ascending: false })
+    .limit(5);
+
+  if (error) throw new Error(`Erreur lors de la recherche par nom de facturation: ${error.message}`);
+
+  return data || [];
+};
+
+/**
  * Recherche des owners par téléphone
  */
 export const searchByPhone = async (phone: string): Promise<Owner[]> => {
@@ -239,6 +260,7 @@ export const ownersApi = {
   getById,
   getByExternalRef,
   searchByName,
+  findByNomFacturation,
   searchByPhone,
   create,
   upsert,
@@ -248,7 +270,6 @@ export const ownersApi = {
   existsByPhone,
   getStats,
 };
-
 
 
 

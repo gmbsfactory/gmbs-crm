@@ -1,5 +1,5 @@
 // ===== USER STATS - MONTHLY =====
-// Stats par semaine au sein d'un mois (jusqu'à 5 buckets) pour un utilisateur.
+// Stats par semaine au sein d'un mois (nombre de semaines dynamique) pour un utilisateur.
 
 import type { MonthWeekStats, MonthlyStats } from "@/lib/api/common/types";
 import {
@@ -9,54 +9,16 @@ import {
   formatDate,
   requireUserId,
 } from "@/lib/api/interventions/stats/user/_shared";
+import {
+  buildMonthWeekRanges,
+  computeMonthWeeks,
+  findWeekIndex,
+} from "@/lib/api/interventions/stats/user/period/month-weeks";
 
-const initWeekStats = (): MonthWeekStats => ({
-  semaine1: 0,
-  semaine2: 0,
-  semaine3: 0,
-  semaine4: 0,
-  semaine5: 0,
+const initWeekStats = (weekCount: number): MonthWeekStats => ({
+  counts: new Array(weekCount).fill(0),
   total: 0,
 });
-
-type WeekRange = { start: Date; end: Date };
-
-/**
- * Calcule les semaines (lundi → dimanche) qui chevauchent le mois donné, plafonné à 5.
- */
-function computeMonthWeeks(monthStart: Date, monthEnd: Date): WeekRange[] {
-  const weeks: WeekRange[] = [];
-  const current = new Date(monthStart);
-  // Reculer jusqu'au lundi de la première semaine
-  const firstDay = current.getDay();
-  const diffToMonday = firstDay === 0 ? -6 : 1 - firstDay;
-  current.setDate(current.getDate() + diffToMonday);
-
-  while (current <= monthEnd) {
-    const weekEnd = new Date(current);
-    weekEnd.setDate(current.getDate() + 6);
-    weekEnd.setHours(23, 59, 59, 999);
-    weeks.push({
-      start: new Date(current),
-      end: weekEnd <= monthEnd ? weekEnd : monthEnd,
-    });
-    current.setDate(current.getDate() + 7);
-  }
-
-  return weeks;
-}
-
-/**
- * Trouve l'index de semaine (0..4) qui contient `date`, ou -1 si hors plage.
- */
-function findWeekIndex(weeks: WeekRange[], date: Date): number {
-  for (let i = 0; i < weeks.length && i < 5; i++) {
-    if (date >= weeks[i].start && date <= weeks[i].end) return i;
-  }
-  return -1;
-}
-
-const weekKey = (i: number): keyof MonthWeekStats => `semaine${i + 1}` as keyof MonthWeekStats;
 
 /**
  * Stats mensuelles (semaines du mois en cours par défaut).
@@ -87,12 +49,13 @@ export async function getMonthlyStatsByUser(
   const nextMonthStartStr = formatDate(nextMonthStart);
 
   const weeks = computeMonthWeeks(monthStart, monthEnd);
+  const weekCount = weeks.length;
 
-  const devisEnvoye = initWeekStats();
-  const interEnCours = initWeekStats();
-  const interFactures = initWeekStats();
-  const nouveauxArtisans = initWeekStats();
-  const artisansMissionnes = initWeekStats();
+  const devisEnvoye = initWeekStats(weekCount);
+  const interEnCours = initWeekStats(weekCount);
+  const interFactures = initWeekStats(weekCount);
+  const nouveauxArtisans = initWeekStats(weekCount);
+  const artisansMissionnes = initWeekStats(weekCount);
 
   // Transitions (préserve la borne historique inclusive sur la fin de mois)
   const transitions = await fetchUserTransitions({
@@ -106,15 +69,14 @@ export async function getMonthlyStatsByUser(
   transitions.forEach((transition) => {
     const idx = findWeekIndex(weeks, new Date(transition.transition_date));
     if (idx === -1) return;
-    const key = weekKey(idx);
     if (transition.to_status_code === "DEVIS_ENVOYE") {
-      devisEnvoye[key]++;
+      devisEnvoye.counts[idx]++;
       devisEnvoye.total++;
     } else if (transition.to_status_code === "INTER_EN_COURS") {
-      interEnCours[key]++;
+      interEnCours.counts[idx]++;
       interEnCours.total++;
     } else if (transition.to_status_code === "INTER_TERMINEE") {
-      interFactures[key]++;
+      interFactures.counts[idx]++;
       interFactures.total++;
     }
   });
@@ -128,7 +90,7 @@ export async function getMonthlyStatsByUser(
   artisans.forEach((artisan) => {
     if (!artisan.created_at) return;
     const idx = findWeekIndex(weeks, new Date(artisan.created_at));
-    if (idx !== -1) nouveauxArtisans[weekKey(idx)]++;
+    if (idx !== -1) nouveauxArtisans.counts[idx]++;
     nouveauxArtisans.total++;
   });
 
@@ -141,7 +103,7 @@ export async function getMonthlyStatsByUser(
   missionnes.forEach((artisan) => {
     if (!artisan.created_at) return;
     const idx = findWeekIndex(weeks, new Date(artisan.created_at));
-    if (idx !== -1) artisansMissionnes[weekKey(idx)]++;
+    if (idx !== -1) artisansMissionnes.counts[idx]++;
     artisansMissionnes.total++;
   });
 
@@ -151,6 +113,7 @@ export async function getMonthlyStatsByUser(
     inter_factures: interFactures,
     nouveaux_artisans: nouveauxArtisans,
     artisans_missionnes: artisansMissionnes,
+    weeks: buildMonthWeekRanges(monthStart, monthEnd),
     month_start: monthStart.toISOString(),
     month_end: monthEnd.toISOString(),
     month: monthStart.getMonth() + 1,

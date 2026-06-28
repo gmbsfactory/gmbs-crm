@@ -91,23 +91,48 @@ Les Error Boundaries sont placées autour :
 
 ## Suivi de présence
 
-### Heartbeat
+### Présence CRM (active / idle / offline)
 
-Le système de présence repose sur un heartbeat HTTP :
+Depuis les migrations `99051`/`99052`, la présence métier est **distincte du token
+d'authentification** (qui reste valide 24 h). Trois états sont stockés dans
+`users.presence_state` (colonne dédiée, jamais mélangée avec `status` busy/dnd) :
 
-```
-Client: POST /api/auth/heartbeat (toutes les 30s)
-  → Met a jour `last_seen_at` dans la table `users`
+| État | Seuil | Pastille |
+|------|-------|----------|
+| `active` | activité récente | verte |
+| `idle` | inactivité ≥ seuil idle (défaut 5 min) → écran de veille | orange |
+| `offline` | inactivité ≥ seuil offline (défaut 1 h) → session CRM fermée | grise |
 
-Server: Edge Function check-inactive-users (cron toutes les 60s)
-  → Utilisateurs avec last_seen_at > 90s → status = 'offline'
-```
+**Seuils configurables** depuis Monitoring Dev (table `crm_presence_settings`, hook
+`usePresenceSettings`, route `PATCH /api/monitoring/presence-settings` réservée dev/admin).
+Le même seuil idle pilote l'écran de veille DVD.
 
-**Avantages par rapport a `beforeunload` :**
-- Fonctionne si l'onglet crash
-- Fonctionne si le processus est kill
-- Fonctionne en cas de coupure réseau
-- Pas dépendant du cycle de vie du navigateur
+**Cycle client** (`usePresenceLifecycle`, monté dans `page-presence-gate.tsx`) — émetteur
+**unique** des événements, journalisés dans `user_presence_events` :
+
+| Événement | Quand |
+|-----------|-------|
+| `AUTH_LOGIN` | 1re connexion via portail (flag `crm_auth_login` posé sur `SIGNED_IN`) |
+| `PRESENCE_START` | ouverture/reprise de session CRM sans portail (rechargement) |
+| `PRESENCE_PING` | ping d'activité 60 s — rafraîchit `last_active_at`, **jamais journalisé** |
+| `IDLE_START` | passage inactif au-delà du seuil idle |
+| `PRESENCE_RESUME` | retour d'activité après idle/offline, **sans** repasser par le portail |
+| `PRESENCE_END` | hors ligne au-delà du seuil offline (ou fermeture du dernier onglet) |
+
+**Filet serveur** : `check_inactive_users` (cron pg_cron 60 s + Edge Function
+`check-inactive-users`) lit les seuils dans `crm_presence_settings` et bascule
+`active → idle → offline` selon `last_active_at` (l'activité **réelle**, pas la simple
+présence de l'onglet). Couvre les onglets fermés/crashés ; la sauvegarde des seuils le relance immédiatement.
+
+**Sécurité** : `record_user_presence_event` et `check_inactive_users` sont `SECURITY DEFINER`
+et appelables **uniquement par le serveur** (`service_role`) — REVOKE nominatif de
+`anon`/`authenticated` (migration `99052`), car les DEFAULT PRIVILEGES du projet exposeraient
+sinon toute nouvelle fonction. `record_user_presence_event` porte en plus une garde `auth.uid()`
+(un client ne peut écrire que sa propre présence) ; la route `/api/auth/presence` force `p_user_id`
+depuis la session.
+
+> Distinction clé : `last_active_at` (dernière activité réelle, **figée** en idle) vs
+> `last_seen_at` (onglet vivant). Le calcul idle/offline s'appuie sur le premier.
 
 ### First Activity Tracking
 
@@ -125,12 +150,14 @@ Le hook `src/hooks/useIdleDetector.ts` combine deux mecanismes :
 |-----------|-------------|------------|
 | **Timeout 5 min** | Aucun `mousemove`, `keydown`, `click`, `scroll`, `touchstart` pendant 5 minutes | actif → inactif |
 | **Page Visibility API** | Onglet masque (`document.hidden = true`) | actif → inactif (immediat) |
-| **Retour activite** | Mouvement souris, frappe clavier, ou onglet redevient visible | inactif → actif (immediat) |
+| **Retour activite** | Mouvement souris, frappe clavier, onglet redevient visible, ou fenetre refocalisee (`focus`) | inactif → actif (immediat) |
 
-Les events sont throttles a 1s via un `lastActivityRef` pour eviter les re-renders excessifs.
+Les transitions `goActive`/`resetTimer` sont throttlees a 1s, mais le timestamp de derniere activite (`lastActiveRef`) est rafraichi a **chaque** event (ecriture de ref, sans re-render) pour permettre un credit precis du temps d'ecran.
+
+> Le `blur` (perte de focus) n'est volontairement **pas** un declencheur idle dans ce hook : cela eviterait l'apparition du screensaver des qu'on clique dans une autre app. Le focus-gating du temps d'ecran est gere separement par `useActivityTracker`.
 
 ```
-useIdleDetector(timeoutMs = 5 * 60 * 1000) → boolean (isIdle)
+useIdleDetector(timeoutMs = 5 * 60 * 1000) → { isIdle: boolean, getLastActiveAt: () => number }
 ```
 
 #### Impact sur la presence (`usePagePresence`)
@@ -139,21 +166,40 @@ Quand `isIdle` change, le hook `usePagePresence` re-track immediatement le paylo
 
 Le type `PagePresenceUser` inclut le champ `isIdle: boolean` depuis la v2.
 
-#### Impact sur le tracking de sessions (`useActivityTracker`)
+#### Tracking du temps d'écran : JOURNAL D'ÉVÉNEMENTS (`useActivityTracker`)
 
-Quand l'utilisateur passe en idle :
-1. La session en cours est terminee (`ended_at` + `duration_ms`)
-2. Le timer de flush periodique (30s) est stoppe
+Depuis la migration `99034`/`99035`, le temps d'écran repose sur un **journal d'événements horodaté serveur**, pas sur des durées calculées côté client.
 
-Quand l'utilisateur revient actif :
-1. Une **nouvelle session** est creee (nouveau row dans `user_page_sessions`)
-2. Le flush periodique reprend
+**Collecte** (`src/hooks/useActivityTracker.ts`) : le client n'écrit QUE des événements dans `user_activity_events` (jamais de durée). `occurred_at` est l'horodatage **serveur** (`default now()`) — la source de vérité.
 
-Resultat : les sessions sont decoupees proprement. Exemple : "session 1 (8h-12h05) + session 2 (13h02-17h30)" au lieu de "session 1 (8h-17h30)".
+| Marqueur émis | Quand |
+|---|---|
+| `connect` | montage (nouvelle session navigateur, `session_id` uuid) |
+| `page` | changement de page / d'intervention ouverte (`?i=<id>`) |
+| `heartbeat` | toutes les 60 s, **uniquement** s'il y a eu une vraie activité depuis le dernier battement |
+| `idle` | bascule en inactivité (souris immobile / onglet caché) |
+| `blur` / `focus` | fenêtre au second / premier plan (dé-doublonnage multi-écran) |
+| `disconnect` | fermeture d'onglet (keepalive) |
+
+**Calcul serveur** : `monitoring_active_intervals` (miroir SQL de `src/lib/monitoring/active-time.ts`, testé) crédite, pour chaque marqueur **actif**, l'écart jusqu'à l'événement suivant **plafonné à MAX_GAP = 90 s**. `monitoring_screen_rows` sessionise ces intervalles (gaps & islands) et les unit aux sessions legacy. Les 4 RPC monitoring lisent cette source unifiée (contrat JSON inchangé).
+
+Garanties structurelles (vérifiées par les tests de `active-time.ts`) :
+
+| Cas | Effet |
+|---|---|
+| **Veille OS / capot fermé / crash** | Pas de heartbeat → écart > MAX_GAP → on ne crédite qu'un MAX_GAP (≤ 90 s), jamais des heures fantômes |
+| **Inactivité** | Un marqueur d'arrêt (`idle`/`blur`/`disconnect`) ne crédite jamais l'écart qui le suit |
+| **Multi-fenêtres / double écran** | Seule la fenêtre au premier plan émet des heartbeats (`focus`/`blur`) |
+| **Intervention ouverte** | `intervention_id` porté par chaque événement → temps attribué à l'intervention réelle |
+| **Reconnexions** | Chaque `connect` = nouveau `session_id`, calculé et auditable |
+
+> Le `heartbeat` ne bat que sur **vraie activité** (pas seulement « non-idle »), sinon les 5 min précédant la bascule idle seraient recréditées.
+
+La table `user_page_sessions` reste lue pour l'historique antérieur à la bascule (les RPC unissent les deux sources), mais n'est plus alimentée.
 
 #### 3 etats dans le monitoring
 
-La page monitoring (`/monitoring`) affiche 3 etats pour chaque utilisateur :
+Les 3 etats proviennent de `users.presence_state` (seuils configurables, cf. *Présence CRM* ci-dessus). La page monitoring (`/monitoring`) et Monitoring Dev les affichent pour chaque utilisateur :
 
 | Etat | Pastille | Style | Tooltip |
 |------|----------|-------|---------|
@@ -176,10 +222,18 @@ Le composant `src/components/layout/IdleScreensaver.tsx` affiche un ecran de vei
 #### Fichiers
 
 ```
-src/hooks/useIdleDetector.ts                    # Hook de detection d'inactivite
+src/hooks/useIdleDetector.ts                     # Detection d'inactivite + getLastActiveAt
+src/hooks/useActivityTracker.ts                  # Emetteur du journal d'evenements (user_activity_events)
+src/lib/monitoring/active-time.ts                # Calcul pur des intervalles actifs (miroir SQL, teste)
 src/components/layout/IdleScreensaver.tsx        # Ecran de veille DVD bouncing
 src/components/layout/page-presence-gate.tsx     # Monte useIdleDetector + IdleScreensaver
-src/components/layout/activity-tracker-gate.tsx  # Passe isIdle au tracker de sessions
+src/components/layout/activity-tracker-gate.tsx  # isIdle + getLastActiveAt + intervention ouverte → tracker
+src/hooks/usePresenceLifecycle.ts                # Cycle de présence CRM (active/idle/offline/reprise) — émetteur d'événements
+src/hooks/usePresenceSettings.ts                 # Seuils configurables (idle/offline) via /api/monitoring/presence-settings
+supabase/migrations/99034_activity_events_journal.sql   # Table user_activity_events + monitoring_active_intervals
+supabase/migrations/99035_monitoring_rpcs_use_events.sql # monitoring_screen_rows + RPC sur le journal
+supabase/migrations/99051_presence_settings_and_events.sql # presence_state, crm_presence_settings, user_presence_events
+supabase/migrations/99052_presence_security_backfill.sql   # REVOKE service_role + garde auth.uid() + PRESENCE_PING + backfill
 ```
 
 ---

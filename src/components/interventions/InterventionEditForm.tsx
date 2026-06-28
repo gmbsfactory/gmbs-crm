@@ -45,6 +45,7 @@ import { dbArtisanToNearbyArtisan } from "@/lib/interventions/form-utils"
 import { createEditFormData } from "@/lib/interventions/form-types"
 import {
   getArtisansWithEmail,
+  getInterventionEmailMissingFields,
   isInterventionEmailButtonDisabled,
 } from "@/lib/interventions/derivations"
 
@@ -306,6 +307,25 @@ export const InterventionEditForm = memo(function InterventionEditForm({
     onArtisanSearchOpenChange?.(showArtisanSearch || showSecondArtisanSearch)
   }, [showArtisanSearch, showSecondArtisanSearch, onArtisanSearchOpenChange])
 
+  // Colonne droite contextuelle : auto-ouvre les sections pertinentes au statut courant.
+  // Les flags requires* changent avec le statut. Non destructif (on n'ouvre que, jamais on ne ferme)
+  // et `return prev` quand rien ne change → aucun re-render parasite ni écrasement d'un repli manuel.
+  useEffect(() => {
+    setCollapsibleState((prev) => {
+      const isProprietaireOpen = prev.isProprietaireOpen || requiresNomFacturation
+      const isClientOpen = prev.isClientOpen || requiresClientInfo
+      const isDocumentsOpen = prev.isDocumentsOpen || requiresFacture || requiresDevis
+      if (
+        isProprietaireOpen === prev.isProprietaireOpen &&
+        isClientOpen === prev.isClientOpen &&
+        isDocumentsOpen === prev.isDocumentsOpen
+      ) {
+        return prev
+      }
+      return { ...prev, isProprietaireOpen, isClientOpen, isDocumentsOpen }
+    })
+  }, [requiresNomFacturation, requiresClientInfo, requiresFacture, requiresDevis, setCollapsibleState])
+
   // Right column panel resize
   const rightColumnStorageKey = currentUser?.id
     ? `gmbs:intervention-form:right-column-width:${currentUser.id}`
@@ -445,6 +465,44 @@ export const InterventionEditForm = memo(function InterventionEditForm({
     () => isInterventionEmailButtonDisabled({ selectedArtisanId, formData }),
     [selectedArtisanId, formData],
   )
+  // Champs encore manquants — alimente le tooltip du bouton Inter. désactivé
+  const interMissingFields = useMemo(
+    () => getInterventionEmailMissingFields(formData),
+    [formData],
+  )
+
+  const emailSstPriceSaveContext = useMemo(() => {
+    if (!emailModalState || emailModalState.type !== "intervention") return undefined
+
+    const linkedArtisan = artisans.find((artisanLink) => artisanLink.artisan_id === emailModalState.artisanId)
+    const artisanOrder: 1 | 2 = linkedArtisan
+      ? (linkedArtisan.is_primary ? 1 : 2)
+      : emailModalState.artisanId === selectedSecondArtisanId
+        ? 2
+        : 1
+    const existingSstCost = artisanOrder === 2 ? sstCostSecondArtisan : sstCost
+    const persistedArtisanOrder: 1 | 2 | null = existingSstCost && "artisan_order" in existingSstCost
+      ? existingSstCost.artisan_order === 2
+        ? 2
+        : existingSstCost.artisan_order === null
+          ? null
+          : 1
+      : artisanOrder
+
+    return {
+      originalValue: artisanOrder === 2 ? formData.coutSSTSecondArtisan : formData.coutSST,
+      artisanOrder,
+      persistedArtisanOrder,
+    }
+  }, [
+    artisans,
+    emailModalState,
+    formData.coutSST,
+    formData.coutSSTSecondArtisan,
+    selectedSecondArtisanId,
+    sstCost,
+    sstCostSecondArtisan,
+  ])
 
   // Edit-specific: handleOpenArtisanModal with intervention context
   const handleOpenArtisanModal = useCallback((artisanId: string, event: React.MouseEvent) => {
@@ -474,6 +532,8 @@ export const InterventionEditForm = memo(function InterventionEditForm({
     interventionId: intervention.id,
     formData,
     currentUser,
+    existingOwnerId: intervention.owner_id ?? null,
+    existingTenantId: intervention.tenant_id ?? null,
     selectedArtisanId,
     selectedArtisanData,
     selectedSecondArtisanId,
@@ -551,7 +611,7 @@ export const InterventionEditForm = memo(function InterventionEditForm({
 
   return (
     <>
-      <form ref={formRef} onSubmit={handleSubmit} className="flex-1 min-h-0 flex flex-col">
+      <form ref={formRef} onSubmit={handleSubmit} className="flex-1 min-h-0 flex flex-col if-form-container">
         {!canEditIntervention && !readOnly && (
           <div className="mb-3 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
             Cette intervention est en lecture seule. Permission requise :{" "}
@@ -560,15 +620,18 @@ export const InterventionEditForm = memo(function InterventionEditForm({
         )}
         <fieldset className={cn("flex-1 min-h-0 flex flex-col", readOnly && "pointer-events-none select-none")} disabled={readOnly}>
           {/* LAYOUT DEUX COLONNES DISTINCTES - Chaque colonne a son propre scroll */}
-          <div className="flex gap-3 flex-1 min-h-0">
+          <div className="flex gap-3 flex-1 min-h-0 if-columns">
             {/* COLONNE GAUCHE - Scroll indépendant avec scrollbar minimale à gauche */}
-            <div className="flex-1 min-w-0 overflow-y-auto min-h-0 scrollbar-minimal scrollbar-left">
-              <SectionLock isLocked={!canEditIntervention}>
+            <div className="flex-1 min-w-0 overflow-y-auto min-h-0 scrollbar-minimal scrollbar-left if-col-left">
+              <SectionLock isLocked={!canEditIntervention} className="h-full">
                 <div
-                  className="grid gap-3 pb-4"
+                  className="grid gap-3 if-grid"
                   style={{
                     gridTemplateColumns: "repeat(4, 1fr)",
-                    gridTemplateRows: `auto auto auto ${mapSectionHeight} auto auto`,
+                    // Rangées 4 (carte+artisans) et 5 (contexte/consigne) flexibles : elles se
+                    // partagent la hauteur disponible pour remplir le modal (zéro espace blanc),
+                    // avec un plancher = taille actuelle. Les autres rangées restent compactes.
+                    gridTemplateRows: `auto auto auto minmax(${mapSectionHeight}, 1.3fr) minmax(160px, 1fr) auto`,
                   }}
                 >
                   {/* DIV1: HEADER PRINCIPAL - Row 1, Cols 1-4 */}
@@ -692,7 +755,11 @@ export const InterventionEditForm = memo(function InterventionEditForm({
                   </Card>
 
                   {/* DIV7+8: CARTE + ARTISANS REDIMENSIONNABLES - Row 4, Cols 1-4 */}
-                  <div style={{ gridArea: "4 / 1 / 5 / 5", height: mapSectionHeight }}>
+                  {/* Rangée flexible : un calque absolu borne la section à la hauteur de sa rangée, pour que la
+                      liste d'artisans scrolle à l'intérieur (sinon une longue liste déborde et masque contexte/prix).
+                      Le contenu absolu ne peut pas faire grandir la cellule → hauteur stable quel que soit le nb d'artisans. */}
+                  <div className="relative min-h-0" style={{ gridArea: "4 / 1 / 5 / 5" }}>
+                    <div className="absolute inset-0">
                     <ResizablePanelGroup
                       key={`panel-group-${currentUser?.id ?? "anonymous"}`}
                       direction="horizontal"
@@ -744,6 +811,7 @@ export const InterventionEditForm = memo(function InterventionEditForm({
                           artisanStatuses={refData?.artisanStatuses}
                           isDevisButtonDisabled={isDevisButtonDisabled}
                           isInterButtonDisabled={isInterButtonDisabled}
+                          interMissingFields={interMissingFields}
                           openEmailModal={openEmailModal}
                           handleOpenWhatsApp={handleOpenWhatsApp}
                           handleSelectNearbyArtisan={handleSelectNearbyArtisan}
@@ -753,6 +821,7 @@ export const InterventionEditForm = memo(function InterventionEditForm({
                         />
                       </ResizablePanel>
                     </ResizablePanelGroup>
+                    </div>
                   </div>
 
                   {/* DIV5+6+4: CONTEXTE + CONSIGNE + FINANCES */}
@@ -775,7 +844,7 @@ export const InterventionEditForm = memo(function InterventionEditForm({
             <div
               onMouseDown={handleResizeStart}
               onTouchStart={handleResizeStart}
-              className="w-2 bg-muted/50 hover:bg-primary/20 transition-colors cursor-col-resize flex-shrink-0 group relative flex items-center justify-center"
+              className="if-resize-handle w-2 bg-muted/50 hover:bg-primary/20 transition-colors cursor-col-resize flex-shrink-0 group relative flex items-center justify-center"
               style={{ touchAction: 'none', userSelect: 'none' }}
             >
               <div className="flex h-full items-center justify-center">
@@ -789,12 +858,12 @@ export const InterventionEditForm = memo(function InterventionEditForm({
 
             {/* COLONNE DROITE - Collapsibles avec scroll indépendant et scrollbar minimale */}
             <div
-              className="flex-shrink-0 overflow-y-auto min-h-0 scrollbar-minimal"
+              className="if-col-right flex-shrink-0 overflow-y-auto min-h-0 scrollbar-minimal"
               style={{ width: `${rightColumnWidth}px` }}
             >
-              <div className="flex flex-col gap-2 pb-4">
-                {/* Détails facturation */}
-                <SectionLock isLocked={!canEditIntervention}>
+              <div className="flex flex-col gap-2 pb-4 min-h-full">
+                {/* Détails facturation — remonte en tête si le statut requiert le nom de facturation */}
+                <SectionLock isLocked={!canEditIntervention} className={cn(requiresNomFacturation && "order-first")}>
                   <InterventionOwnerSection
                     formData={formData}
                     onChange={handleInputChange}
@@ -805,8 +874,8 @@ export const InterventionEditForm = memo(function InterventionEditForm({
                   />
                 </SectionLock>
 
-                {/* Détails client */}
-                <SectionLock isLocked={!canEditIntervention}>
+                {/* Détails client — remonte en tête si le statut requiert les infos client */}
+                <SectionLock isLocked={!canEditIntervention} className={cn(requiresClientInfo && "order-first")}>
                   <InterventionClientSection
                     formData={formData}
                     onChange={handleInputChange}
@@ -834,6 +903,8 @@ export const InterventionEditForm = memo(function InterventionEditForm({
                   />
                 </SectionLock>
 
+                {/* Documents — remonte en tête si le statut requiert facture ou devis */}
+                <div className={cn((requiresFacture || requiresDevis) && "order-first")}>
                 <DocumentSection
                   isOpen={isDocumentsOpen}
                   onOpenChange={setIsDocumentsOpen}
@@ -849,6 +920,7 @@ export const InterventionEditForm = memo(function InterventionEditForm({
                   onReclassifyModalOpenChange={handleReclassifyModalOpenChange}
                   onDocumentsChange={() => { void refreshFactureGMBS(); void refreshDevis() }}
                 />
+                </div>
 
                 {/* Deuxième artisan */}
                 <SectionLock isLocked={!canEditIntervention}>
@@ -868,6 +940,7 @@ export const InterventionEditForm = memo(function InterventionEditForm({
                     artisanStatuses={refData?.artisanStatuses}
                     metiers={refData?.metiers}
                     isInterButtonDisabled={isInterButtonDisabled}
+                    interMissingFields={interMissingFields}
                     openEmailModal={openEmailModal}
                     handleOpenWhatsApp={handleOpenWhatsApp}
                     handleSelectSecondArtisan={handleSelectSecondArtisan}
@@ -878,9 +951,9 @@ export const InterventionEditForm = memo(function InterventionEditForm({
                   />
                 </SectionLock>
 
-                {/* Commentaires - ouvert par défaut */}
-                <Collapsible open={isCommentsOpen} onOpenChange={setIsCommentsOpen}>
-                  <Card className="flex-1 flex flex-col">
+                {/* Commentaires — absorbe l'espace restant en bas de la colonne quand ouverts */}
+                <Collapsible open={isCommentsOpen} onOpenChange={setIsCommentsOpen} className={cn("flex flex-col", isCommentsOpen && "flex-1 min-h-0")}>
+                  <Card className="flex-1 flex flex-col min-h-0">
                     <CollapsibleTrigger asChild>
                       <CardHeader className="cursor-pointer py-2 px-3 hover:bg-muted/50">
                         <CardTitle className="flex items-center gap-2 text-xs">
@@ -932,6 +1005,7 @@ export const InterventionEditForm = memo(function InterventionEditForm({
               }
               interventionId={intervention.id}
               templateData={generateEmailTemplateData(emailModalState.artisanId)}
+              sstPriceSaveContext={emailSstPriceSaveContext}
             />
           )}
         </fieldset>

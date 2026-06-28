@@ -79,12 +79,14 @@ describe("form-types", () => {
       expect(data.coutSST).toBe("500")
     })
 
-    it("should build adresse_complete when adresse and ville provided", () => {
+    it("should NOT auto-build adresse_complete (it is filled by geocoding, not by concatenation)", () => {
       const data = createNewFormData({
         adresse: "10 Rue de la Paix",
         ville: "Paris",
       })
-      expect(data.adresse_complete).toBe("10 Rue de la Paix, Paris")
+      // adresse_complete reste vide à la création : en prod il est rempli par le géocodage
+      // (suggestion.label dans useInterventionFormState), pas par une concaténation adresse + ville.
+      expect(data.adresse_complete).toBe("")
     })
 
     it("should leave adresse_complete empty when no ville", () => {
@@ -104,7 +106,7 @@ describe("form-types", () => {
 
     it("should initialize edit-only fields as empty strings", () => {
       const data = createNewFormData()
-      expect(data.numero_sst).toBe("")
+      // numero_sst n'existe pas dans le modèle de formulaire (uniquement dans la couche import/export CSV)
       expect(data.pourcentage_sst).toBe("")
       expect(data.commentaire_agent).toBe("")
     })

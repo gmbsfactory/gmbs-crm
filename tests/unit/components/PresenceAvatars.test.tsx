@@ -6,6 +6,7 @@ import type { PresenceUser } from '@/types/presence'
 // Mock framer-motion to avoid animation complexity in jsdom
 vi.mock('framer-motion', () => ({
   motion: {
+    // eslint-disable-next-line react/display-name
     div: React.forwardRef<HTMLDivElement, React.HTMLProps<HTMLDivElement>>(
       ({ children, ...props }, ref) => (
         <div ref={ref} {...props}>

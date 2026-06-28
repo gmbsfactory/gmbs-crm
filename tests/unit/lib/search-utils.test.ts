@@ -77,7 +77,6 @@ describe('search-utils', () => {
       expect(record.statut_id).toBe('st-1')
       expect(record.adresse).toBe('10 Rue A')
       expect(record.ville).toBe('Paris')
-      expect(record.numero_sst).toBe('SST-001')
       expect(record.pourcentage_sst).toBe(30)
     })
 
@@ -87,6 +86,7 @@ describe('search-utils', () => {
         id: 't-1',
         firstname: 'Jean',
         lastname: 'Dupont',
+        plain_nom: null,
         telephone: '0612345678',
         telephone2: null,
         email: 'jean@test.fr',
@@ -102,6 +102,7 @@ describe('search-utils', () => {
         id: 'o-1',
         owner_firstname: 'Marie',
         owner_lastname: 'Martin',
+        plain_nom: null,
         telephone: '0698765432',
         telephone2: null,
         email: 'marie@test.fr',

@@ -6,7 +6,9 @@ import useModal from "./useModal"
 import { useModalState } from "./useModalState"
 import type { ModalOpenOptions } from "@/types/modal"
 
-export type InterventionModalOpenOptions = Pick<ModalOpenOptions, "layoutId" | "modeOverride" | "orderedIds" | "index" | "origin" | "metadata">
+export type InterventionModalOpenOptions = Pick<ModalOpenOptions, "layoutId" | "modeOverride" | "orderedIds" | "index" | "origin" | "metadata"> & {
+  allowInactive?: boolean
+}
 
 export function useInterventionModal() {
   const modal = useModal()
@@ -18,13 +20,18 @@ export function useInterventionModal() {
 
   const open = useCallback(
     (id: string, options?: InterventionModalOpenOptions) => {
+      const nextMetadata = {
+        ...(options?.metadata ?? {}),
+        ...(options?.allowInactive !== undefined ? { allowInactive: options.allowInactive } : {}),
+      }
+
       modal.open(id, {
         layoutId: options?.layoutId,
         modeOverride: options?.modeOverride,
         orderedIds: options?.orderedIds,
         index: options?.index,
         origin: options?.origin,
-        metadata: options?.metadata,
+        metadata: Object.keys(nextMetadata).length > 0 ? nextMetadata : undefined,
         content: "intervention",
       })
     },
@@ -90,11 +97,13 @@ export function useInterventionModal() {
     const nextIndex = modal.activeIndex + 1
     const nextId = modal.orderedIds[nextIndex]
     const origin = typeof metadata?.origin === "string" ? metadata.origin : undefined
+    const allowInactive = metadata?.allowInactive === true
     open(nextId, {
       orderedIds: modal.orderedIds,
       index: nextIndex,
       layoutId: null,
       origin,
+      allowInactive,
     })
     return true
   }, [metadata, modal.activeIndex, modal.content, modal.orderedIds, open])
@@ -106,11 +115,13 @@ export function useInterventionModal() {
     const prevIndex = modal.activeIndex - 1
     const prevId = modal.orderedIds[prevIndex]
     const origin = typeof metadata?.origin === "string" ? metadata.origin : undefined
+    const allowInactive = metadata?.allowInactive === true
     open(prevId, {
       orderedIds: modal.orderedIds,
       index: prevIndex,
       layoutId: null,
       origin,
+      allowInactive,
     })
     return true
   }, [metadata, modal.activeIndex, modal.content, modal.orderedIds, open])
@@ -174,6 +185,7 @@ export function useInterventionModal() {
     sourceLayoutId: modal.sourceLayoutId,
     overrideMode: modal.overrideMode,
     content: modal.content,
+    metadata: modal.metadata,
     open,
     close,
     openAtIndex,

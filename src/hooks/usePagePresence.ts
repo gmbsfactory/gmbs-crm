@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, useCallback } from 'react'
 import type { RealtimeChannel } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase-client'
 import { useCurrentUser } from '@/hooks/useCurrentUser'
-import type { PagePresenceUser } from '@/types/presence'
+import type { CrmPresenceState, PagePresenceUser } from '@/types/presence'
 
 /** Payload shape tracked via channel.track() for page-level presence */
 interface PagePresencePayload {
@@ -15,7 +15,12 @@ interface PagePresencePayload {
   joinedAt: string
   currentPage: string | null
   activeInterventionId: string | null
+  activeInterventionLabel: string | null
   activeArtisanId: string | null
+  activeArtisanLabel: string | null
+  presenceState?: CrmPresenceState
+  lastActiveAt?: string | null
+  idleSinceAt?: string | null
   isIdle: boolean
 }
 
@@ -43,6 +48,30 @@ const TRACK_THROTTLE_MS = 500
 /** Single global channel name — shared across all pages */
 const CHANNEL_NAME = 'presence:pages'
 
+const PRESENCE_RANK: Record<CrmPresenceState, number> = { active: 0, idle: 1, offline: 2 }
+function stateOfPayload(payload: Pick<PagePresencePayload, 'presenceState' | 'isIdle'>): CrmPresenceState {
+  return payload.presenceState ?? (payload.isIdle ? 'idle' : 'active')
+}
+
+function dedupePresenceMetas(metas: PagePresencePayload[]): Map<string, PagePresencePayload> {
+  const unique = new Map<string, PagePresencePayload>()
+  for (const meta of metas) {
+    const existing = unique.get(meta.userId)
+    if (!existing) {
+      unique.set(meta.userId, meta)
+      continue
+    }
+    const nextRank = PRESENCE_RANK[stateOfPayload(meta)]
+    const currentRank = PRESENCE_RANK[stateOfPayload(existing)]
+    if (nextRank < currentRank) {
+      unique.set(meta.userId, meta)
+    } else if (nextRank === currentRank && meta.joinedAt > existing.joinedAt) {
+      unique.set(meta.userId, meta)
+    }
+  }
+  return unique
+}
+
 /**
  * Manages a single global Supabase Presence channel for real-time viewer tracking
  * across all pages. Unlike the previous per-page approach, the channel stays alive
@@ -59,12 +88,15 @@ const CHANNEL_NAME = 'presence:pages'
  */
 export function usePagePresence(
   pageName: string | null,
-  isIdle = false
+  isIdle = false,
+  presenceState: CrmPresenceState = isIdle ? 'idle' : 'active',
+  lastActiveAt: string | null = null,
+  idleSinceAt: string | null = null
 ): {
   viewers: PagePresenceUser[]
   allUsers: PagePresenceUser[]
-  updateActiveIntervention: (id: string | null) => void
-  updateActiveArtisan: (id: string | null) => void
+  updateActiveIntervention: (id: string | null, label?: string | null) => void
+  updateActiveArtisan: (id: string | null, label?: string | null) => void
 } {
   const { data: currentUser } = useCurrentUser()
   const [viewers, setViewers] = useState<PagePresenceUser[]>([])
@@ -85,9 +117,14 @@ export function usePagePresence(
   // ─── Page & entity tracking refs ──────────────────────────────────────────────
   const pageNameRef = useRef<string | null>(pageName)
   const activeInterventionIdRef = useRef<string | null>(null)
+  const activeInterventionLabelRef = useRef<string | null>(null)
   const activeArtisanIdRef = useRef<string | null>(null)
+  const activeArtisanLabelRef = useRef<string | null>(null)
   const joinedAtRef = useRef<string>(new Date().toISOString())
   const isIdleRef = useRef<boolean>(isIdle)
+  const presenceStateRef = useRef<CrmPresenceState>(presenceState)
+  const lastActiveAtRef = useRef<string | null>(lastActiveAt)
+  const idleSinceAtRef = useRef<string | null>(idleSinceAt)
 
   // ─── Throttle ref for track() calls ──────────────────────────────────────────
   const trackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -126,7 +163,12 @@ export function usePagePresence(
       joinedAt: joinedAtRef.current,
       currentPage: pageNameRef.current,
       activeInterventionId: activeInterventionIdRef.current,
+      activeInterventionLabel: activeInterventionLabelRef.current,
       activeArtisanId: activeArtisanIdRef.current,
+      activeArtisanLabel: activeArtisanLabelRef.current,
+      presenceState: presenceStateRef.current,
+      lastActiveAt: lastActiveAtRef.current,
+      idleSinceAt: idleSinceAtRef.current,
       isIdle: isIdleRef.current,
     }
   }, [])
@@ -147,13 +189,15 @@ export function usePagePresence(
   }, [buildPayload])
 
   // ─── Public API: updateActiveIntervention / updateActiveArtisan ──────────────
-  const updateActiveIntervention = useCallback((id: string | null) => {
+  const updateActiveIntervention = useCallback((id: string | null, label: string | null = null) => {
     activeInterventionIdRef.current = id
+    activeInterventionLabelRef.current = label
     doTrack()
   }, [doTrack])
 
-  const updateActiveArtisan = useCallback((id: string | null) => {
+  const updateActiveArtisan = useCallback((id: string | null, label: string | null = null) => {
     activeArtisanIdRef.current = id
+    activeArtisanLabelRef.current = label
     doTrack()
   }, [doTrack])
 
@@ -171,24 +215,32 @@ export function usePagePresence(
     const allMetas = Object.values(state).flat()
 
     // ─── allUsers: ALL connected users (including self), all pages ────────────
-    const allUnique = new Map(allMetas.map((u) => [u.userId, u]))
+    const allUnique = dedupePresenceMetas(allMetas)
     const allSorted: PagePresenceUser[] = Array.from(allUnique.values())
       .filter((u) => now - new Date(u.joinedAt).getTime() < STALE_MS)
       .sort((a, b) => a.joinedAt.localeCompare(b.joinedAt))
-      .map((u) => ({
-        userId: u.userId,
-        name: u.name,
-        color: u.color,
-        avatarUrl: u.avatarUrl,
-        joinedAt: u.joinedAt,
-        currentPage: u.currentPage,
-        activeInterventionId: u.activeInterventionId,
-        activeArtisanId: u.activeArtisanId ?? null,
-        isIdle: u.isIdle ?? false,
-      }))
+      .map((u) => {
+        const state = stateOfPayload(u)
+        return {
+          userId: u.userId,
+          name: u.name,
+          color: u.color,
+          avatarUrl: u.avatarUrl,
+          joinedAt: u.joinedAt,
+          currentPage: u.currentPage,
+          activeInterventionId: u.activeInterventionId,
+          activeInterventionLabel: u.activeInterventionLabel ?? null,
+          activeArtisanId: u.activeArtisanId ?? null,
+          activeArtisanLabel: u.activeArtisanLabel ?? null,
+          presenceState: state,
+          lastActiveAt: u.lastActiveAt ?? null,
+          idleSinceAt: u.idleSinceAt ?? null,
+          isIdle: state !== 'active',
+        }
+      })
 
     const allUsersKey = allSorted
-      .map((v) => `${v.userId}:${v.currentPage ?? ''}:${v.activeInterventionId ?? ''}:${v.activeArtisanId ?? ''}:${v.isIdle ? '1' : '0'}`)
+      .map((v) => `${v.userId}:${v.currentPage ?? ''}:${v.activeInterventionId ?? ''}:${v.activeInterventionLabel ?? ''}:${v.activeArtisanId ?? ''}:${v.activeArtisanLabel ?? ''}:${v.presenceState ?? ''}:${v.lastActiveAt ?? ''}:${v.idleSinceAt ?? ''}`)
       .join('|')
     if (allUsersKey !== prevAllUsersKeyRef.current) {
       prevAllUsersKeyRef.current = allUsersKey
@@ -209,27 +261,35 @@ export function usePagePresence(
     )
 
     // Dedup by userId (same user in multiple tabs shows once)
-    const unique = new Map(others.map((u) => [u.userId, u]))
+    const unique = dedupePresenceMetas(others)
 
     // Filter out stale entries and sort by joinedAt ascending for stable render order
     const sorted: PagePresenceUser[] = Array.from(unique.values())
       .filter((u) => now - new Date(u.joinedAt).getTime() < STALE_MS)
       .sort((a, b) => a.joinedAt.localeCompare(b.joinedAt))
-      .map((u) => ({
-        userId: u.userId,
-        name: u.name,
-        color: u.color,
-        avatarUrl: u.avatarUrl,
-        joinedAt: u.joinedAt,
-        currentPage: u.currentPage,
-        activeInterventionId: u.activeInterventionId,
-        activeArtisanId: u.activeArtisanId ?? null,
-        isIdle: u.isIdle ?? false,
-      }))
+      .map((u) => {
+        const state = stateOfPayload(u)
+        return {
+          userId: u.userId,
+          name: u.name,
+          color: u.color,
+          avatarUrl: u.avatarUrl,
+          joinedAt: u.joinedAt,
+          currentPage: u.currentPage,
+          activeInterventionId: u.activeInterventionId,
+          activeInterventionLabel: u.activeInterventionLabel ?? null,
+          activeArtisanId: u.activeArtisanId ?? null,
+          activeArtisanLabel: u.activeArtisanLabel ?? null,
+          presenceState: state,
+          lastActiveAt: u.lastActiveAt ?? null,
+          idleSinceAt: u.idleSinceAt ?? null,
+          isIdle: state !== 'active',
+        }
+      })
 
     // Only update state when data actually changed — prevents flash on heartbeat syncs
     const viewersKey = sorted
-      .map((v) => `${v.userId}:${v.activeInterventionId ?? ''}:${v.activeArtisanId ?? ''}:${v.isIdle ? '1' : '0'}`)
+      .map((v) => `${v.userId}:${v.activeInterventionId ?? ''}:${v.activeArtisanId ?? ''}:${v.presenceState ?? ''}:${v.lastActiveAt ?? ''}:${v.idleSinceAt ?? ''}`)
       .join('|')
     if (viewersKey !== prevViewersKeyRef.current) {
       prevViewersKeyRef.current = viewersKey
@@ -249,8 +309,11 @@ export function usePagePresence(
   // ─── Re-track immediately when idle state changes ─────────────────────────
   useEffect(() => {
     isIdleRef.current = isIdle
+    presenceStateRef.current = presenceState
+    lastActiveAtRef.current = lastActiveAt
+    idleSinceAtRef.current = idleSinceAt
     doTrack()
-  }, [isIdle, doTrack])
+  }, [isIdle, presenceState, lastActiveAt, idleSinceAt, doTrack])
 
   // ─── Track mounted state for async callbacks ───────────────────────────────
   useEffect(() => {

@@ -4,6 +4,8 @@ import { usePathname } from "next/navigation"
 import { useMemo, type ReactNode } from "react"
 import { PagePresenceProvider } from "@/contexts/PagePresenceContext"
 import { useIdleDetector } from "@/hooks/useIdleDetector"
+import { DEFAULT_PRESENCE_SETTINGS, usePresenceSettings } from "@/hooks/usePresenceSettings"
+import { usePresenceLifecycle } from "@/hooks/usePresenceLifecycle"
 import { IdleScreensaver } from "@/components/layout/IdleScreensaver"
 
 /** Pages where page-level presence tracking is enabled */
@@ -21,7 +23,10 @@ const PRESENCE_PAGES = new Set(["interventions", "artisans", "comptabilite", "da
  */
 export function PagePresenceGate({ children }: { children: ReactNode }) {
   const pathname = usePathname()
-  const isIdle = useIdleDetector()
+  const { data: presenceSettings = DEFAULT_PRESENCE_SETTINGS } = usePresenceSettings()
+  const idleTimeoutMs = presenceSettings.idleAfterMinutes * 60_000
+  const { isIdle, getLastActiveAt } = useIdleDetector(idleTimeoutMs)
+  const lifecycle = usePresenceLifecycle({ isIdle, getLastActiveAt, settings: presenceSettings })
 
   const pageName = useMemo(() => {
     if (!pathname) return null
@@ -30,7 +35,13 @@ export function PagePresenceGate({ children }: { children: ReactNode }) {
   }, [pathname])
 
   return (
-    <PagePresenceProvider pageName={pageName} isIdle={isIdle}>
+    <PagePresenceProvider
+      pageName={pageName}
+      isIdle={isIdle}
+      presenceState={lifecycle.presenceState}
+      lastActiveAt={lifecycle.lastActiveAt}
+      idleSinceAt={lifecycle.idleSinceAt}
+    >
       <IdleScreensaver isIdle={isIdle} />
       {children}
     </PagePresenceProvider>

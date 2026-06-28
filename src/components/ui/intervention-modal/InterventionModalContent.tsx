@@ -3,7 +3,7 @@
 import React, { useCallback, useEffect, useRef, useState } from "react"
 import { useInterventionDraftStore } from "@/stores/interventionDraft"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
-import { Bell, X, MessageSquare, Copy, MessageCircle, Trash2, Plus, Info, Mail } from "lucide-react"
+import { Bell, X, MessageSquare, Copy, MessageCircle, Trash2, Plus, Info, Mail, RotateCcw } from "lucide-react"
 import { InterventionEditForm } from "@/components/interventions/InterventionEditForm"
 import { UnsavedChangesDialog } from "@/components/interventions/UnsavedChangesDialog"
 import { InterventionHistoryPanel } from "@/components/interventions/history/InterventionHistoryPanel"
@@ -102,6 +102,7 @@ type Props = {
   onUnsavedDialogOpenChange?: (isOpen: boolean) => void
   onDeleteDialogOpenChange?: (isOpen: boolean) => void
   onReclassifyModalOpenChange?: (isOpen: boolean) => void
+  allowInactive?: boolean
 }
 
 export function InterventionModalContent({
@@ -126,6 +127,7 @@ export function InterventionModalContent({
   onUnsavedDialogOpenChange,
   onDeleteDialogOpenChange,
   onReclassifyModalOpenChange,
+  allowInactive = false,
 }: Props) {
   const bodyPadding = mode === "fullpage" ? "px-8 py-6 md:px-12" : "px-5 py-4 md:px-8"
   const surfaceVariantClass = mode === "fullpage" ? "modal-config-surface-full" : undefined
@@ -135,6 +137,7 @@ export function InterventionModalContent({
   const formRef = useRef<HTMLFormElement>(null)
   const modalRef = useRef<HTMLDivElement>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [isRestoring, setIsRestoring] = useState(false)
   const queryClient = useQueryClient()
   const { can } = usePermissions()
   const canWriteInterventions = can("write_interventions")
@@ -160,16 +163,8 @@ export function InterventionModalContent({
     prevReadOnlyRef.current = isReadOnly
   }, [isReadOnly])
 
-  // Page presence — signaler au système de présence de la page que ce modal affiche une intervention
+  // Page presence — signaler quelle intervention ce modal affiche (effet plus bas, après le chargement)
   const pagePresenceCtx = usePagePresenceContext()
-
-  useEffect(() => {
-    if (!pagePresenceCtx?.updateActiveIntervention) return
-    pagePresenceCtx.updateActiveIntervention(interventionId)
-    return () => {
-      pagePresenceCtx.updateActiveIntervention(null)
-    }
-  }, [interventionId, pagePresenceCtx])
 
   // Raccourci clavier Cmd/Ctrl+Enter pour enregistrer
   const { shortcutHint } = useSubmitShortcut({ formRef, isSubmitting })
@@ -345,12 +340,28 @@ GMBS`
   // Wire up refetch for promotion effect
   refetchRef.current = refetch
 
+  // Présence : UUID (pour rouvrir le modal) + id_inter (libellé affiché côté monitoring).
+  // Placé après la query car l'id_inter n'est connu qu'une fois l'intervention chargée.
+  const activeIdInter = intervention?.id_inter ?? null
+  useEffect(() => {
+    if (!pagePresenceCtx?.updateActiveIntervention) return
+    pagePresenceCtx.updateActiveIntervention(interventionId, activeIdInter)
+    return () => {
+      pagePresenceCtx.updateActiveIntervention(null, null)
+    }
+  }, [interventionId, activeIdInter, pagePresenceCtx])
+
   // Hook pour la suppression et duplication d'intervention
   const { deleteIntervention, duplicateDevisSupp, isLoading: contextMenuLoading } = useInterventionContextMenu(
     interventionId,
     "default",
     intervention?.id_inter || undefined
   )
+
+  const isInactiveIntervention = intervention?.is_active === false
+  const shouldBlockInactiveIntervention = isInactiveIntervention && !allowInactive
+  const canShowInterventionActions = Boolean(intervention) && !shouldBlockInactiveIntervention
+  const canRestoreIntervention = canDeleteInterventions && allowInactive && isInactiveIntervention
 
   // Fonction pour confirmer la fermeture après l'alerte
   const handleConfirmClose = useCallback(() => {
@@ -664,6 +675,40 @@ GMBS`
     onClose()
   }, [deleteIntervention, onClose])
 
+  const handleRestoreIntervention = useCallback(async () => {
+    if (!intervention || isRestoring) return
+
+    setIsRestoring(true)
+    try {
+      await interventionsApi.update(interventionId, { is_active: true })
+      // Ne PAS écraser le cache détail avec le retour de `update` : son select ne
+      // ramène ni intervention_costs ni intervention_payments, ce qui ferait
+      // afficher des coûts à 0 après restauration. On conserve l'objet complet déjà
+      // en cache et on bascule juste is_active, puis on invalide pour un refetch
+      // complet (getById inclut les coûts/paiements).
+      const cached = queryClient.getQueryData<Record<string, unknown>>(
+        interventionKeys.detail(interventionId)
+      )
+      if (cached) {
+        queryClient.setQueryData(interventionKeys.detail(interventionId), { ...cached, is_active: true })
+      }
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: interventionKeys.invalidateLists() }),
+        queryClient.invalidateQueries({ queryKey: interventionKeys.invalidateLightLists() }),
+        queryClient.invalidateQueries({ queryKey: interventionKeys.invalidateFilterCounts() }),
+        queryClient.invalidateQueries({ queryKey: interventionKeys.summaries() }),
+        queryClient.invalidateQueries({ queryKey: interventionKeys.detail(interventionId) }),
+      ])
+      toast.success("Intervention réactivée avec succès")
+    } catch (restoreError) {
+      toast.error("Erreur lors de la réactivation de l'intervention", {
+        description: restoreError instanceof Error ? restoreError.message : "Une erreur est survenue.",
+      })
+    } finally {
+      setIsRestoring(false)
+    }
+  }, [intervention, interventionId, isRestoring, queryClient])
+
   return (
     <TooltipProvider>
       <div ref={modalRef} className={`modal-config-surface ${surfaceVariantClass} ${surfaceModeClass}`}>
@@ -684,98 +729,122 @@ GMBS`
               </TooltipTrigger>
               <TooltipContent className="modal-config-columns-tooltip">Fermer (Esc)</TooltipContent>
             </Tooltip>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className={cn(
-                    "modal-config-columns-icon-button",
-                    reminders.has(interventionId) && "text-red-500 hover:text-red-600"
-                  )}
-                  onClick={handleReminderToggle}
-                  onContextMenu={handleReminderContextMenu}
-                  aria-label={reminders.has(interventionId) ? "Retirer le rappel" : "Ajouter un rappel"}
-                >
-                  <Bell className={cn("h-4 w-4", reminders.has(interventionId) && "fill-current")} />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent className="modal-config-columns-tooltip">
-                {reminders.has(interventionId) ? "Retirer le rappel" : "Ajouter un rappel"} (Clic droit pour détails)
-              </TooltipContent>
-            </Tooltip>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="modal-config-columns-icon-button"
-                  onClick={() => setShowHistoryPanel(true)}
-                  aria-label="Voir l'historique"
-                >
-                  <Info className="h-4 w-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent className="modal-config-columns-tooltip">Historique des actions</TooltipContent>
-            </Tooltip>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="modal-config-columns-icon-button"
-                  onClick={() => setShowEmailHistoryPanel(true)}
-                  aria-label="Historique des emails"
-                >
-                  <Mail className="h-4 w-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent className="modal-config-columns-tooltip">Historique des emails</TooltipContent>
-            </Tooltip>
-            {onCycleMode ? (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="modal-config-columns-icon-button"
-                    onClick={onCycleMode}
-                    aria-label="Changer le mode d'affichage"
-                  >
-                    <ModeIcon className="h-4 w-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent className="modal-config-columns-tooltip">
-                  Ajuster l&apos;affichage ({mode})
-                </TooltipContent>
-              </Tooltip>
-            ) : (
-              <span className="modal-config-columns-icon-placeholder" />
+            {canShowInterventionActions && (
+              <>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className={cn(
+                        "modal-config-columns-icon-button",
+                        reminders.has(interventionId) && "text-red-500 hover:text-red-600"
+                      )}
+                      onClick={handleReminderToggle}
+                      onContextMenu={handleReminderContextMenu}
+                      aria-label={reminders.has(interventionId) ? "Retirer le rappel" : "Ajouter un rappel"}
+                    >
+                      <Bell className={cn("h-4 w-4", reminders.has(interventionId) && "fill-current")} />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent className="modal-config-columns-tooltip">
+                    {reminders.has(interventionId) ? "Retirer le rappel" : "Ajouter un rappel"} (Clic droit pour détails)
+                  </TooltipContent>
+                </Tooltip>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="modal-config-columns-icon-button"
+                      onClick={() => setShowHistoryPanel(true)}
+                      aria-label="Voir l'historique"
+                    >
+                      <Info className="h-4 w-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent className="modal-config-columns-tooltip">Historique des actions</TooltipContent>
+                </Tooltip>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="modal-config-columns-icon-button"
+                      onClick={() => setShowEmailHistoryPanel(true)}
+                      aria-label="Historique des emails"
+                    >
+                      <Mail className="h-4 w-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent className="modal-config-columns-tooltip">Historique des emails</TooltipContent>
+                </Tooltip>
+                {onCycleMode ? (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="modal-config-columns-icon-button"
+                        onClick={onCycleMode}
+                        aria-label="Changer le mode d'affichage"
+                      >
+                        <ModeIcon className="h-4 w-4" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent className="modal-config-columns-tooltip">
+                      Ajuster l&apos;affichage ({mode})
+                    </TooltipContent>
+                  </Tooltip>
+                ) : (
+                  <span className="modal-config-columns-icon-placeholder" />
+                )}
+                {canRestoreIntervention ? (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="modal-config-columns-icon-button text-emerald-600 hover:bg-emerald-500/10 hover:text-emerald-700"
+                        onClick={() => {
+                          void handleRestoreIntervention()
+                        }}
+                        disabled={isRestoring || !intervention}
+                        aria-label="Réactiver l'intervention"
+                      >
+                        <RotateCcw className="h-4 w-4" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent className="modal-config-columns-tooltip">
+                      Réactiver l&apos;intervention
+                    </TooltipContent>
+                  </Tooltip>
+                ) : canDeleteInterventions ? (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="modal-config-columns-icon-button hover:bg-red-500/10"
+                        onClick={handleDelete}
+                        disabled={contextMenuLoading.delete || !intervention}
+                        aria-label="Supprimer l'intervention"
+                      >
+                        <Trash2 className="h-4 w-4 text-red-500" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent className="modal-config-columns-tooltip">
+                      Supprimer l&apos;intervention
+                    </TooltipContent>
+                  </Tooltip>
+                ) : null}
+                <PresenceAvatars viewers={viewers} />
+              </>
             )}
-            {canDeleteInterventions && (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="modal-config-columns-icon-button hover:bg-red-500/10"
-                    onClick={handleDelete}
-                    disabled={contextMenuLoading.delete || !intervention}
-                    aria-label="Supprimer l'intervention"
-                  >
-                    <Trash2 className="h-4 w-4 text-red-500" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent className="modal-config-columns-tooltip">
-                  Supprimer l&apos;intervention
-                </TooltipContent>
-              </Tooltip>
-            )}
-            <PresenceAvatars viewers={viewers} />
           </div>
           <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none">
             <div className="modal-config-columns-title">
-              Modifier l&apos;intervention
+              {shouldBlockInactiveIntervention ? "Intervention supprimée" : "Modifier l'intervention"}
               {activeIndex !== undefined && totalCount !== undefined && totalCount > 1 && (
                 <span className="text-sm text-muted-foreground ml-2">
                   ({activeIndex + 1} / {totalCount})
@@ -784,7 +853,7 @@ GMBS`
             </div>
           </div>
           <div className="flex items-center gap-3">
-            {canWriteInterventions && (
+            {canShowInterventionActions && canWriteInterventions && (
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button
@@ -804,7 +873,7 @@ GMBS`
                 </TooltipContent>
               </Tooltip>
             )}
-            {intervention?.updated_at && (
+            {canShowInterventionActions && intervention?.updated_at && (
               <span className="text-xs text-muted-foreground">
                 Mis à jour le {new Date(intervention.updated_at).toLocaleDateString('fr-FR', {
                   day: '2-digit',
@@ -819,7 +888,7 @@ GMBS`
         </header>
 
         <div className="modal-config-columns-body overflow-hidden flex flex-col">
-          {isReadOnly && activeEditor && (
+          {canShowInterventionActions && isReadOnly && activeEditor && (
             <ReadOnlyBanner editor={activeEditor} />
           )}
           <div className={`${bodyPadding} flex-1 min-h-0 flex flex-col`}>
@@ -836,6 +905,15 @@ GMBS`
             ) : error ? (
               <div className="rounded border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
                 {(error as Error).message}
+              </div>
+            ) : shouldBlockInactiveIntervention ? (
+              <div className="flex min-h-[260px] items-center justify-center">
+                <div className="max-w-md rounded-lg border border-amber-200 bg-amber-50 p-5 text-center text-sm text-amber-950 shadow-sm">
+                  <p className="font-semibold">Cette intervention a été supprimée du CRM.</p>
+                  <p className="mt-2 text-amber-900">
+                    Elle ne peut plus être affichée ni modifiée depuis son lien direct. Veuillez contacter le développeur.
+                  </p>
+                </div>
               </div>
             ) : intervention ? (
               <FieldPresenceProvider value={{ fieldLockMap, trackField, clearField }}>
@@ -869,7 +947,7 @@ GMBS`
 
         <footer className="modal-config-columns-footer flex items-center justify-between">
           <div className="flex items-center gap-2">
-            {!isReadOnly && (
+            {canShowInterventionActions && !isReadOnly && (
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button
@@ -897,9 +975,9 @@ GMBS`
               disabled={isSubmitting}
               className="legacy-form-button"
             >
-              {isReadOnly ? "Fermer" : "Annuler"}
+              {isReadOnly || shouldBlockInactiveIntervention ? "Fermer" : "Annuler"}
             </Button>
-            {!isReadOnly && (
+            {canShowInterventionActions && !isReadOnly && (
               <Button
                 type="button"
                 onClick={handleSubmit}

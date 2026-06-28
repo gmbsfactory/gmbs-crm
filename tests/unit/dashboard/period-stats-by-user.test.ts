@@ -1,11 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { interventionsApi } from "@/lib/api";
+import type { MonthlyStats } from "@/lib/api";
 import { supabase } from "@/lib/supabase-client";
 import { SupabaseMockBuilder, createChainableMock } from "../../__mocks__/supabase";
 import {
   TEST_USER_ID,
   TEST_WEEK,
+  TEST_MONTH,
   INTERVENTION_STATUSES,
   WEEK_INTERVENTIONS,
   WEEK_ARTISANS,
@@ -181,6 +183,37 @@ describe("interventionsApi.getPeriodStatsByUser", () => {
       // Vérifier que week_start est un lundi (getDay() === 1)
       const weekStart = new Date(result.week_start);
       expect(weekStart.getDay()).toBe(1); // Lundi
+    });
+  });
+
+  describe("period = month", () => {
+    it("retourne des semaines dynamiques et des compteurs alignés", async () => {
+      vi.mocked(supabase.from).mockImplementation((tableName: string) => {
+        if (tableName === "intervention_statuses") {
+          return createChainableMock({ data: INTERVENTION_STATUSES, error: null });
+        }
+        return createChainableMock({ data: [], error: null, count: 0 });
+      });
+
+      const result = (await interventionsApi.getPeriodStatsByUser(
+        TEST_USER_ID,
+        "month",
+        TEST_MONTH.start
+      )) as MonthlyStats;
+
+      // Découpage dynamique du mois en semaines réelles (4 à 6)
+      expect(Array.isArray(result.weeks)).toBe(true);
+      expect(result.weeks.length).toBeGreaterThanOrEqual(4);
+      expect(result.weeks.length).toBeLessThanOrEqual(6);
+
+      // Les compteurs de chaque ligne sont alignés sur le nombre de semaines
+      expect(result.devis_envoye.counts.length).toBe(result.weeks.length);
+      expect(result.artisans_missionnes.counts.length).toBe(result.weeks.length);
+
+      // Données vides -> totaux à zéro, métadonnées du mois correctes
+      expect(result.devis_envoye.total).toBe(0);
+      expect(result.month).toBe(TEST_MONTH.month);
+      expect(result.year).toBe(TEST_MONTH.year);
     });
   });
 });

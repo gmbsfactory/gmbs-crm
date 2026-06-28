@@ -88,7 +88,14 @@ export function parseCSVDate(value: unknown): Date {
     context.parsed = parsed
 
     // Validate the parsed date
-    if (!isValidDate(parsed)) {
+    // Validate: JS auto-corrige les dates impossibles (ex 30/02 -> 02/03). On rejette donc
+    // toute entrée dont les composants ont été décalés au parsing (date calendaire inexistante).
+    if (
+      !isValidDate(parsed) ||
+      parsed.getUTCFullYear() !== Number(year) ||
+      parsed.getUTCMonth() + 1 !== Number(month) ||
+      parsed.getUTCDate() !== Number(day)
+    ) {
       throw new Error(
         `Invalid date: ${trimmed} parses to invalid date ${isoString}. ` +
           `Check month (01-12) and day are valid for the year.`
@@ -114,7 +121,14 @@ export function parseCSVDate(value: unknown): Date {
     const parsed = new Date(isoString)
     context.parsed = parsed
 
-    if (!isValidDate(parsed)) {
+    // Validate: JS auto-corrige les dates impossibles (ex 30/02 -> 02/03). On rejette donc
+    // toute entrée dont les composants ont été décalés au parsing (date calendaire inexistante).
+    if (
+      !isValidDate(parsed) ||
+      parsed.getUTCFullYear() !== Number(year) ||
+      parsed.getUTCMonth() + 1 !== Number(month) ||
+      parsed.getUTCDate() !== Number(day)
+    ) {
       throw new Error(
         `Invalid date: ${trimmed} parses to invalid date ${isoString}. ` +
           `Check month (01-12) and day are valid for the year.`
@@ -274,8 +288,8 @@ export function createDateRangeFromStrings(
  *
  * Excel serial dates are days since 1899-12-30
  * - 1 = 1899-12-31
- * - 44927 = 2022-12-31
- * - 45000+ = 2023-01-01+
+ * - 44926 = 2022-12-31
+ * - 45000 = 2023-03-15
  *
  * @param serial - Excel serial number
  * @returns Parsed Date or null if invalid
@@ -286,9 +300,8 @@ function parseExcelSerialDate(serial: number): Date | null {
     return null
   }
 
-  // Excel dates are days since 1899-12-30, but use 1-based indexing
-  // So serial 1 = 1899-12-31
-  const milliseconds = (serial - 1) * 24 * 60 * 60 * 1000
+  // Excel dates are days since the 1899-12-30 epoch (serial 1 = 1899-12-31).
+  const milliseconds = serial * 24 * 60 * 60 * 1000
   const date = new Date(EXCEL_EPOCH_TIME + milliseconds)
 
   // Validate the result
@@ -320,7 +333,8 @@ export function getDateParseDebugInfo(
     input: value,
     inputType: typeof value,
     inputIsArray: Array.isArray(value),
-    inputLength: typeof value === 'string' ? value.length : undefined,
+    inputLength:
+      typeof value === 'string' || Array.isArray(value) ? value.length : undefined,
     error: error.message,
     timestamp: new Date().toISOString(),
   }

@@ -10,6 +10,7 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet"
 import { cn } from "@/lib/utils"
+import { getInterventionStatusColor } from "@/config/status-colors"
 import { useCurrentUser } from "@/hooks/useCurrentUser"
 import { useReferenceDataQuery } from "@/hooks/useReferenceDataQuery"
 import { useInterventionHistory, type InterventionHistoryItem } from "@/hooks/useInterventionHistory"
@@ -345,10 +346,16 @@ export function InterventionHistoryPanel({ interventionId, isOpen, onClose }: In
     return map
   }, [referenceData?.agencies])
 
+  // Couleur officielle des statuts : DB (paramètres) en priorité, repli sur la
+  // palette de référence getInterventionStatusColor — exactement comme le badge
+  // du tableau interventions (getStatusDisplay). Évite les badges gris/incohérents.
   const statusById = useMemo(() => {
     const map = new Map<string, { label: string; color?: string | null }>()
     referenceData?.interventionStatuses.forEach((status) => {
-      map.set(status.id, { label: status.label || status.code, color: status.color ?? null })
+      map.set(status.id, {
+        label: status.label || status.code,
+        color: status.color ?? getInterventionStatusColor(status.label, status.code),
+      })
     })
     return map
   }, [referenceData?.interventionStatuses])
@@ -357,7 +364,10 @@ export function InterventionHistoryPanel({ interventionId, isOpen, onClose }: In
     const map = new Map<string, { label: string; color?: string | null }>()
     referenceData?.interventionStatuses.forEach((status) => {
       if (status.code) {
-        map.set(status.code, { label: status.label || status.code, color: status.color ?? null })
+        map.set(status.code, {
+          label: status.label || status.code,
+          color: status.color ?? getInterventionStatusColor(status.label, status.code),
+        })
       }
     })
     return map

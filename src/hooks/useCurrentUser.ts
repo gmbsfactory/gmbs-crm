@@ -15,6 +15,8 @@ interface CurrentUser {
   color?: string | null
   avatar_url?: string | null
   status?: string | null
+  presence_state?: "active" | "idle" | "offline" | null
+  last_active_at?: string | null
   roles?: string[]
   page_permissions?: Record<string, boolean>
 }
@@ -89,4 +91,3 @@ export function useCurrentUser(options?: { enabled?: boolean }) {
     enabled: options?.enabled !== false,
   })
 }
-

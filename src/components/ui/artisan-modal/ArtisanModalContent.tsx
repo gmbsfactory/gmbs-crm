@@ -191,15 +191,17 @@ export function ArtisanModalContent({
     prevReadOnlyRef.current = isReadOnly
   }, [isReadOnly])
 
-  // Page presence — signal that this modal is showing an artisan
+  // Page presence — signal that this modal is showing an artisan.
+  // On transmet l'UUID (pour rouvrir le modal) ET le numero_associe (libellé affiché côté monitoring).
   const pagePresenceCtx = usePagePresenceContext()
+  const activeNumeroAssocie = artisan?.numero_associe ?? null
   useEffect(() => {
     if (!pagePresenceCtx?.updateActiveArtisan) return
-    pagePresenceCtx.updateActiveArtisan(artisanId)
+    pagePresenceCtx.updateActiveArtisan(artisanId, activeNumeroAssocie)
     return () => {
-      pagePresenceCtx.updateActiveArtisan(null)
+      pagePresenceCtx.updateActiveArtisan(null, null)
     }
-  }, [artisanId, pagePresenceCtx])
+  }, [artisanId, activeNumeroAssocie, pagePresenceCtx])
 
   const { isFormInitialized } = useArtisanFormInitialization({ artisanId, artisan, reset })
 

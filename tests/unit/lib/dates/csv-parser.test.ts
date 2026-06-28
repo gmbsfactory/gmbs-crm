@@ -81,15 +81,15 @@ describe('CSV Date Parser', () => {
 
   describe('parseCSVDate - Excel serial dates', () => {
     it('should parse Excel serial number as number', () => {
-      // 44927 = 2022-12-31
-      const date = parseCSVDate(44927)
+      // 44926 = 2022-12-31 (epoch 1899-12-30 + serial jours)
+      const date = parseCSVDate(44926)
       expect(date.getUTCFullYear()).toBe(2022)
       expect(date.getUTCMonth()).toBe(11) // December (0-indexed)
       expect(date.getUTCDate()).toBe(31)
     })
 
     it('should parse Excel serial number as string', () => {
-      const date = parseCSVDate('44927')
+      const date = parseCSVDate('44926')
       expect(date.getUTCFullYear()).toBe(2022)
       expect(date.getUTCMonth()).toBe(11)
       expect(date.getUTCDate()).toBe(31)
@@ -102,10 +102,10 @@ describe('CSV Date Parser', () => {
     })
 
     it('should parse large Excel serial numbers (recent dates)', () => {
-      // 45000 ≈ 2023-01-01
+      // 45000 = 2023-03-15 (epoch 1899-12-30 + serial jours)
       const date = parseCSVDate(45000)
       expect(date.getUTCFullYear()).toBe(2023)
-      expect(date.getUTCMonth()).toBe(0) // January
+      expect(date.getUTCMonth()).toBe(2) // March (0-indexed)
     })
   })
 

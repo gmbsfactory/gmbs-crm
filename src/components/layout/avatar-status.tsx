@@ -9,6 +9,7 @@ import { supabase } from '@/lib/supabase-client'
 import { useQueryClient } from "@tanstack/react-query"
 import { useCurrentUser } from "@/hooks/useCurrentUser"
 import { useUnseenUpdates } from "@/hooks/useUnseenUpdates"
+import { usePagePresenceContext } from "@/contexts/PagePresenceContext"
 import { getLogoutManager } from '@/lib/auth/logout-manager'
 import UpdatesJournal from "@/components/layout/UpdatesJournal"
 
@@ -20,6 +21,7 @@ type Me = {
   name?: string | null
   email: string | null
   status: string | null
+  presence_state?: "active" | "idle" | "offline" | null
   color: string | null
   code_gestionnaire?: string | null
   username?: string | null
@@ -31,6 +33,7 @@ export function AvatarStatus() {
   const [isJournalOpen, setIsJournalOpen] = React.useState(false)
   const { data: unseenUpdates } = useUnseenUpdates()
   const unseenCount = unseenUpdates?.length ?? 0
+  const pagePresence = usePagePresenceContext()
 
   // Utiliser useCurrentUser pour consommer la query partagée
   // Cela évite les fetchs parallèles et profite du cache TanStack Query
@@ -47,6 +50,7 @@ export function AvatarStatus() {
       name: currentUser.nom ?? null,
       email: currentUser.email ?? null,
       status: currentUser.status || null,
+      presence_state: currentUser.presence_state ?? null,
       color: currentUser.color ?? null,
       code_gestionnaire: currentUser.code_gestionnaire ?? null,
       username: currentUser.username ?? null,
@@ -57,9 +61,14 @@ export function AvatarStatus() {
     setIsMounted(true)
   }, [])
 
-  const status = (me?.status || 'offline') as 'connected' | 'busy' | 'dnd' | 'offline'
-  const label = status === 'connected' ? 'En ligne' : status === 'busy' ? 'Occupé' : status === 'dnd' ? 'Ne pas déranger' : 'Hors ligne'
-  const statusColorClass = status === 'connected' ? 'bg-green-500' : status === 'busy' ? 'bg-orange-500' : status === 'dnd' ? 'bg-red-500' : 'bg-gray-400'
+  const livePresenceState = React.useMemo(() => {
+    if (!me?.id) return null
+    const live = pagePresence?.allUsers.find((u) => u.userId === me.id)
+    return live?.presenceState ?? null
+  }, [me?.id, pagePresence?.allUsers])
+  const presenceState = livePresenceState ?? me?.presence_state ?? ((me?.status || 'offline') === 'offline' ? 'offline' : 'active')
+  const label = presenceState === 'active' ? 'En ligne' : presenceState === 'idle' ? 'Inactif' : 'Hors ligne'
+  const statusColorClass = presenceState === 'active' ? 'bg-green-500' : presenceState === 'idle' ? 'bg-amber-500' : 'bg-gray-400'
 
   async function setStatus(next: 'connected' | 'busy' | 'dnd' | 'offline') {
     // Les cookies HTTP-only seront automatiquement inclus dans la requête

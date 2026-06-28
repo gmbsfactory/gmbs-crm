@@ -50,6 +50,33 @@ export default function LoginPage() {
       const { error } = await supabase.auth.signInWithPassword({ email, password })
       if (error) throw new Error(error.message)
 
+      const loginOccurredAt = new Date().toISOString()
+      let authLoginRecorded = false
+      try {
+        const presenceResponse = await fetch('/api/auth/presence', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({
+            state: 'active',
+            event: 'AUTH_LOGIN',
+            occurredAt: loginOccurredAt,
+            metadata: { source: 'login_page', auth_required: true },
+          }),
+        })
+        authLoginRecorded = presenceResponse.ok
+      } catch {
+        authLoginRecorded = false
+      }
+
+      if (!authLoginRecorded) {
+        try {
+          sessionStorage.setItem('crm_auth_login', '1')
+        } catch {
+          // sessionStorage indisponible : la connexion restera non bloquante.
+        }
+      }
+
       // Poser le cookie de session quotidienne
       const today = new Date().toISOString().slice(0, 10)
       document.cookie = `crm_session_date=${today}; path=/; max-age=86400; samesite=lax${window.location.protocol === 'https:' ? '; secure' : ''}`

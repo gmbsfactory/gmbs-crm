@@ -80,6 +80,7 @@ export type { InterventionImportPayload } from "./interventions/interventions-im
 import { interventionStatusesApi } from "./interventionStatusesApi";
 import { artisanStatusesApi } from "./artisanStatusesApi";
 import { metiersApi } from "./metiersApi";
+import { monitoringApi } from "./monitoring";
 import { ownersApi } from "./ownersApi";
 import { remindersApi } from "./remindersApi";
 import { permissionsApi, rolesApi } from "./rolesApi";
@@ -112,6 +113,7 @@ export {
   interventionStatusesApi,
   artisanStatusesApi,
   metiersApi,
+  monitoringApi,
   ownersApi,
   permissionsApi,
   referentialsApi,

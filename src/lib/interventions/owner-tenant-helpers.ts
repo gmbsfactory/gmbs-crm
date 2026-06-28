@@ -51,6 +51,29 @@ export async function findOrCreateOwner(ownerData: {
     }
   }
 
+  // Sans téléphone : dédupliquer par nom de facturation EXACT (anti-doublon).
+  // Sinon, chaque sauvegarde d'intervention recrée un owner identique → un nouvel
+  // owner_id → un faux « changement de propriétaire » dans l'historique d'audit.
+  // S'il existe déjà plusieurs doublons historiques, on réutilise le plus récent
+  // (ordre stable côté API) au lieu d'en créer un de plus.
+  const nomFacturation = nomPrenomFacturation?.trim();
+  if (!(telephoneProprietaire && telephoneProprietaire.trim()) && nomFacturation) {
+    try {
+      const byName = await ownersApi.findByNomFacturation(nomFacturation);
+      if (byName.length > 0) {
+        const existingOwner = byName[0];
+        const newEmail = emailProprietaire?.trim() || null;
+        const existingEmail = existingOwner.email?.trim() || null;
+        if (newEmail !== null && newEmail !== existingEmail) {
+          await ownersApi.update(existingOwner.id, { email: newEmail });
+        }
+        return existingOwner.id;
+      }
+    } catch (error) {
+      console.warn("[findOrCreateOwner] Erreur lors de la recherche par nom de facturation:", error);
+    }
+  }
+
   // Si pas trouvé, créer un nouvel owner
   try {
     const createData: CreateOwnerData = {
@@ -171,8 +194,6 @@ export async function findOrCreateTenant(tenantData: {
     throw error;
   }
 }
-
-
 
 
 

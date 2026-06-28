@@ -832,7 +832,9 @@ Retrieves statistics for a user grouped by the specified period type.
 | period | `StatsPeriod` (`"week" \| "month" \| "year"`) | Yes | Period grouping |
 | startDate | `string` | No | Reference date |
 
-**Return:** `Promise<MonthlyStats>`
+**Return:** `Promise<WeeklyStats | MonthlyStats | YearlyStats>` (selon `period`)
+
+> **MonthlyStats** (`period = "month"`) expose `weeks: MonthWeekRange[]` — le découpage du mois en **4 à 6 semaines réelles** (lundi → dimanche, bornées au 1er / dernier jour du mois) — et chaque ligne fournit `counts: number[]` aligné sur `weeks`. Le tableau du dashboard affiche ainsi des plages de dates (« 1–4 janv. ») au lieu de « Semaine 1-5 », et les mois s'étalant sur 6 semaines ne sont plus tronqués (le calcul ne plafonne plus à 5 semaines).
 
 ---
 

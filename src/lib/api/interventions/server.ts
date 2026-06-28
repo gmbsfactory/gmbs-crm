@@ -232,7 +232,7 @@ export type StatusPayload = {
   artisanId?: string | null
 }
 
-export async function transitionStatus(id: string, payload: StatusPayload) {
+export async function transitionStatus(id: string, payload: StatusPayload, actorUserId?: string) {
   assertBusinessRules(payload)
   const dueAt = computeDueDate(payload)
   const statusInput = payload.status
@@ -264,11 +264,15 @@ export async function transitionStatus(id: string, payload: StatusPayload) {
   const artisanIdUpdate =
     payload.artisanId === undefined ? undefined : payload.artisanId ?? undefined
 
-  const updated = await interventionsApi.update(id, {
-    statut_id: statusId,
-    artisan_id: artisanIdUpdate,
-    date_prevue: datePrevueUpdate,
-  })
+  const updated = await interventionsApi.update(
+    id,
+    {
+      statut_id: statusId,
+      artisan_id: artisanIdUpdate,
+      date_prevue: datePrevueUpdate,
+    },
+    actorUserId ? { userId: actorUserId } : undefined,
+  )
 
   const mapped = mapRowToInterventionWithDocuments({
     ...updated,

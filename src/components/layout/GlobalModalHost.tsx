@@ -14,11 +14,12 @@ const useModalSummary = () =>
       isOpen: state.isOpen,
       activeId: state.activeId,
       content: state.content,
+      metadata: state.metadata,
     })),
   )
 
 export function GlobalModalHost() {
-  const { isOpen, activeId, content } = useModalSummary()
+  const { isOpen, activeId, content, metadata } = useModalSummary()
   const interventionModal = useInterventionModal()
   const artisanModal = useArtisanModal()
 
@@ -44,6 +45,7 @@ export function GlobalModalHost() {
           activeIndex={interventionModal.activeIndex}
           totalCount={interventionModal.totalCount}
           content={interventionModal.content}
+          allowInactive={metadata?.allowInactive === true}
         />
       ) : null}
       {shouldRenderArtisan ? (
