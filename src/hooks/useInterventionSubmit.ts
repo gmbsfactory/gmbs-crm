@@ -8,7 +8,7 @@ import { useInterventionModal } from "@/hooks/useInterventionModal"
 import { commentsApi } from "@/lib/api/commentsApi"
 import { documentsApi } from "@/lib/api/documentsApi"
 import { interventionKeys } from "@/lib/react-query/queryKeys"
-import { findOrCreateOwner, findOrCreateTenant } from "@/lib/interventions/owner-tenant-helpers"
+import { resolveOwnerForSubmit, resolveTenantForSubmit } from "@/lib/interventions/owner-tenant-helpers"
 import { runPostMutationTasks } from "@/lib/interventions/post-mutation-tasks"
 import { extractErrorMessage } from "@/lib/toast-helpers"
 import { getReasonTypeForTransition, type StatusReasonType } from "@/lib/comments/statusReason"
@@ -105,57 +105,40 @@ export function useInterventionSubmit({
       const referenceAgenceValue = formData.reference_agence?.trim() ?? ""
       const idInterValue = formData.id_inter?.trim() ?? ""
 
-      // Trouver ou créer le propriétaire et le client.
-      // En édition, si la section n'apporte aucune donnée exploitable, on conserve
-      // l'ID existant au lieu d'écraser owner_id/tenant_id à NULL.
+      // Résolution owner (facturation) et tenant (client) :
+      // - édition EN PLACE du record déjà lié (pas de doublon, owner_id/tenant_id stable),
+      // - section vidée → délier (null) : la facturation/le client est retiré(e),
+      // - le diff des champs est tracé dans l'historique par les triggers DB
+      //   `audit_owner_update` / `audit_tenant_update`.
+      // En cas d'erreur, on conserve le lien existant (ne pas vider sur erreur transitoire).
       let ownerId: string | null = null
       let tenantId: string | null = null
-      const hasOwnerInput = Boolean(
-        formData.nomPrenomFacturation?.trim() ||
-        formData.telephoneProprietaire?.trim() ||
-        formData.emailProprietaire?.trim()
-      )
-      const hasTenantInput = Boolean(
-        formData.nomPrenomClient?.trim() ||
-        formData.telephoneClient?.trim() ||
-        formData.emailClient?.trim()
-      )
 
-      if (hasOwnerInput) {
-        try {
-          ownerId = await findOrCreateOwner({
-            nomPrenomFacturation: formData.nomPrenomFacturation,
-            telephoneProprietaire: formData.telephoneProprietaire,
-            emailProprietaire: formData.emailProprietaire,
-          })
-        } catch (error) {
-          console.error("[useInterventionSubmit] Erreur lors de la gestion du propriétaire:", error)
-          toast.error("Erreur lors de la sauvegarde du propriétaire")
-          ownerId = existingOwnerId
-        }
-      } else {
+      try {
+        ownerId = await resolveOwnerForSubmit({
+          existingOwnerId,
+          nomPrenomFacturation: formData.nomPrenomFacturation,
+          telephoneProprietaire: formData.telephoneProprietaire,
+          emailProprietaire: formData.emailProprietaire,
+        })
+      } catch (error) {
+        console.error("[useInterventionSubmit] Erreur lors de la gestion du propriétaire:", error)
+        toast.error("Erreur lors de la sauvegarde du propriétaire")
         ownerId = existingOwnerId
       }
 
-      // Ne créer/trouver le tenant que si le logement n'est pas vacant
-      if (!formData.is_vacant) {
-        if (hasTenantInput) {
-          try {
-            tenantId = await findOrCreateTenant({
-              nomPrenomClient: formData.nomPrenomClient,
-              telephoneClient: formData.telephoneClient,
-              emailClient: formData.emailClient,
-            })
-          } catch (error) {
-            console.error("[useInterventionSubmit] Erreur lors de la gestion du client:", error)
-            toast.error("Erreur lors de la sauvegarde du client")
-            tenantId = existingTenantId
-          }
-        } else {
-          tenantId = existingTenantId
-        }
-      } else {
-        tenantId = null
+      try {
+        tenantId = await resolveTenantForSubmit({
+          existingTenantId,
+          isVacant: formData.is_vacant,
+          nomPrenomClient: formData.nomPrenomClient,
+          telephoneClient: formData.telephoneClient,
+          emailClient: formData.emailClient,
+        })
+      } catch (error) {
+        console.error("[useInterventionSubmit] Erreur lors de la gestion du client:", error)
+        toast.error("Erreur lors de la sauvegarde du client")
+        tenantId = existingTenantId
       }
 
       const updateData: UpdateInterventionData = {

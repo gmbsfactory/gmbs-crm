@@ -47,6 +47,18 @@ const FIELD_LABELS: Record<string, string> = {
   commentaire_agent: "Commentaire agent",
   consigne_second_artisan: "Consigne 2ème artisan",
   metier_second_artisan_id: "Métier 2ème artisan",
+  // Champs des records owner (facturation) / tenants (client) — utilisés par les
+  // entrées OWNER_UPDATE / TENANT_UPDATE (l'en-tête indique déjà l'entité).
+  plain_nom_facturation: "Nom facturation",
+  plain_nom_client: "Nom client",
+  owner_firstname: "Prénom (facturation)",
+  owner_lastname: "Nom (facturation)",
+  firstname: "Prénom",
+  lastname: "Nom",
+  email: "Email",
+  telephone: "Téléphone",
+  telephone2: "Téléphone secondaire",
+  external_ref: "Référence externe",
 }
 
 const COST_TYPE_LABELS: Record<string, string> = {
