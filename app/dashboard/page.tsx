@@ -188,8 +188,9 @@ export default function DashboardPage() {
   }, [isMounted, startAnimationFromPosition])
 
   // Effect to check for lateness and update count
+  // (inutile pour les admins : l'encadré de retards ne leur est pas affiché)
   useEffect(() => {
-    if (!isMounted || !currentUser?.id) return
+    if (!isMounted || !currentUser?.id || isAdmin) return
 
     const checkLateness = async () => {
       try {
@@ -213,7 +214,7 @@ export default function DashboardPage() {
     }
 
     checkLateness()
-  }, [isMounted, currentUser?.id])
+  }, [isMounted, currentUser?.id, isAdmin])
 
   // Appliquer le clipPath au contenu dashboard pendant l'animation
   useEffect(() => {
@@ -762,21 +763,19 @@ export default function DashboardPage() {
               {/* ═══ BLOC RETARD + SPEEDOMÈTRES ═══ */}
               <div className="flex flex-col flex-shrink-0 p-2 bg-muted/30 rounded-lg" style={{ height: '30%', minHeight: '180px' }}>
 
-                {/* Indicateur de retards */}
-                <div
-                  className="mb-2 flex-shrink-0 rounded-md px-2 py-1 text-center font-semibold text-base transition-colors duration-300"
-                  style={{
-                    backgroundColor: `${getLatenessColor(latenessCount)}20`,
-                    color: getLatenessColor(latenessCount),
-                    border: `2px solid ${getLatenessColor(latenessCount)}`,
-                  }}
-                >
-                  {isAdmin ? (
-                    <>👑 Le boss n&apos;est jamais en retard</>
-                  ) : (
-                    <>⏰ Retard dans l&apos;année : {latenessCount}</>
-                  )}
-                </div>
+                {/* Indicateur de retards (masqué pour les admins, à la demande de Badr) */}
+                {!isAdmin && (
+                  <div
+                    className="mb-2 flex-shrink-0 rounded-md px-2 py-1 text-center font-semibold text-base transition-colors duration-300"
+                    style={{
+                      backgroundColor: `${getLatenessColor(latenessCount)}20`,
+                      color: getLatenessColor(latenessCount),
+                      border: `2px solid ${getLatenessColor(latenessCount)}`,
+                    }}
+                  >
+                    ⏰ Retard dans l&apos;année : {latenessCount}
+                  </div>
+                )}
 
                 {/* KPIs de marge côte à côte - prennent l'espace restant */}
                 <div className="flex-1 grid grid-cols-2 gap-2 min-h-0 overflow-hidden">
