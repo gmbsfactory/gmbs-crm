@@ -5,6 +5,8 @@ import { Eye, Settings2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { usePagePresenceContext } from "@/contexts/PagePresenceContext"
+import { Avatar as UIAvatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar"
+import { useGestionnaires, type Gestionnaire } from "@/hooks/useGestionnaires"
 import { useInterventionModal } from "@/hooks/useInterventionModal"
 import { useArtisanModal } from "@/hooks/useArtisanModal"
 import { useTeamWeeklyStats, type DailyBreakdown } from "@/hooks/useTeamWeeklyStats"
@@ -95,6 +97,7 @@ interface Row {
   code: string | null
   initials: string
   color: string | null
+  avatarUrl: string | null
   status: LiveStatus
   online: boolean
   statusTag: string
@@ -142,6 +145,13 @@ export function GestionnaireList({
 }: GestionnaireListProps) {
   const presence = usePagePresenceContext()
   const online = useMemo(() => presence?.allUsers ?? [], [presence?.allUsers])
+  // Avatars réels (couleur + photo) depuis la source live settings/team, indexés par userId.
+  const { data: gestionnaires } = useGestionnaires()
+  const gestById = useMemo(() => {
+    const m = new Map<string, Gestionnaire>()
+    for (const g of gestionnaires ?? []) m.set(g.id, g)
+    return m
+  }, [gestionnaires])
   const interventionModal = useInterventionModal()
   const artisanModal = useArtisanModal()
   const { data: stats } = useTeamWeeklyStats(startDate, endDate)
@@ -250,6 +260,7 @@ export function GestionnaireList({
     return Array.from(ids).map((id): Row => {
       const u = onlineById.get(id)
       const s = statById.get(id)
+      const g = gestById.get(id)
       const status: LiveStatus = u ? (u.presenceState ?? (u.isIdle ? "idle" : "active")) : "offline"
       const name = u?.name || [s?.firstname, s?.lastname].filter(Boolean).join(" ") || s?.code_gestionnaire || "—"
       const { segs, total } = aggregateSegments(s?.daily_breakdown)
@@ -272,7 +283,8 @@ export function GestionnaireList({
         name,
         code: s?.code_gestionnaire ?? null,
         initials: initialsOf(name),
-        color: u?.color ?? s?.color ?? null,
+        color: g?.color ?? u?.color ?? s?.color ?? null,
+        avatarUrl: g?.avatar_url ?? u?.avatarUrl ?? s?.avatar_url ?? null,
         status,
         online: status !== "offline",
         statusTag: singleDay ? (status === "active" ? "actif" : status === "idle" ? "idle" : "offline") : `${daysActive}j`,
@@ -294,7 +306,7 @@ export function GestionnaireList({
         sortVal,
       }
     })
-  }, [online, stats, sort, singleDay])
+  }, [online, stats, gestById, sort, singleDay])
 
   const ordered = useMemo(() => {
     // On affiche toujours tout le monde ; la sélection ne fait que surligner + déplier.
@@ -428,12 +440,15 @@ export function GestionnaireList({
                           onKeyDown={(e) => { if (e.key === "Enter") { e.stopPropagation(); onToggleFilter(u.userId) } }}
                           className="relative shrink-0 cursor-pointer"
                         >
-                          <span
-                            className="flex h-9 w-9 items-center justify-center rounded-full text-[12.5px] font-extrabold text-white"
+                          <UIAvatar
+                            className="h-9 w-9"
                             style={{ background: avatarColor, boxShadow: inFilter ? `0 0 0 2.5px hsl(var(--primary)), 0 0 0 4.5px hsl(var(--card))` : "none" }}
                           >
-                            {u.initials}
-                          </span>
+                            {u.avatarUrl && <AvatarImage src={u.avatarUrl} alt={u.name} className="object-cover" />}
+                            <AvatarFallback className="text-[12.5px] font-extrabold uppercase text-white" style={{ background: avatarColor }}>
+                              {u.initials}
+                            </AvatarFallback>
+                          </UIAvatar>
                           <span className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-card" style={{ background: dot }} />
                           {inFilter && (
                             <span className="absolute -left-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full border-2 border-card bg-primary text-[8px] font-extrabold text-primary-foreground">✓</span>

@@ -4,6 +4,7 @@ import { useMemo } from "react"
 import { Activity, ShieldAlert, X } from "lucide-react"
 import { usePermissions } from "@/hooks/usePermissions"
 import { usePagePresenceContext } from "@/contexts/PagePresenceContext"
+import { useDevMonitoringRealtime } from "@/hooks/useDevMonitoringRealtime"
 import { useGestionnaires, type Gestionnaire } from "@/hooks/useGestionnaires"
 import { Skeleton } from "@/components/ui/skeleton"
 import { GestionnaireBadge } from "@/components/ui/gestionnaire-badge"
@@ -27,6 +28,8 @@ function getDisplayName(g: Gestionnaire): string {
 
 export default function MonitoringDevPage() {
   const { hasRole, isLoading: isLoadingPerms } = usePermissions()
+  // Temps réel : abonnement aux journaux d'audit → flux d'actions & stats live (dev only).
+  useDevMonitoringRealtime(hasRole("dev"))
   const { gran, range, label: periodLabel, pickType, pickValue, canNext, setGran, step, onPick } = usePeriodRange()
   const granIdx = Math.max(0, GRAN_TABS.findIndex((g) => g.value === gran))
   const presence = usePagePresenceContext()
