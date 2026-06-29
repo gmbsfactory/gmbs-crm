@@ -823,4 +823,88 @@ describe('usePagePresence', () => {
       mockCurrentUserResult.data = mockCurrentUserData
     })
   })
+
+  // ─── Wake guard (recovery after background / sleep) ─────────────────────────
+  describe('wake guard (background/sleep recovery)', () => {
+    let nowMs = 2_000_000
+    let restoreNow: () => void = () => {}
+
+    function setHidden(hidden: boolean) {
+      Object.defineProperty(document, 'hidden', { configurable: true, get: () => hidden })
+    }
+
+    beforeEach(() => {
+      nowMs = 2_000_000
+      const spy = vi.spyOn(Date, 'now').mockImplementation(() => nowMs)
+      restoreNow = () => spy.mockRestore()
+      setHidden(false)
+    })
+
+    afterEach(() => {
+      restoreNow()
+      setHidden(false)
+    })
+
+    it('re-subscribes a fresh channel when returning visible after a long background', async () => {
+      renderHook(() => usePagePresence('interventions'))
+      await advancePastSetup()
+      await act(async () => { await subscribeCallback?.('SUBSCRIBED') })
+      expect(supabase.channel).toHaveBeenCalledTimes(1)
+
+      // Tab goes to the background...
+      act(() => { setHidden(true); document.dispatchEvent(new Event('visibilitychange')) })
+      // ...for longer than the threshold (wall-clock advances even while timers are frozen)
+      nowMs += 31_000
+      // ...then comes back to the foreground
+      act(() => { setHidden(false); document.dispatchEvent(new Event('visibilitychange')) })
+      await advancePastSetup()
+
+      // Zombie channel torn down + a brand-new channel created
+      expect(mocks.mockRemoveChannel).toHaveBeenCalled()
+      expect(supabase.channel).toHaveBeenCalledTimes(2)
+    })
+
+    it('does NOT re-subscribe on a brief tab switch — only refreshes presence', async () => {
+      renderHook(() => usePagePresence('interventions'))
+      await advancePastSetup()
+      await act(async () => { await subscribeCallback?.('SUBSCRIBED') })
+      expect(supabase.channel).toHaveBeenCalledTimes(1)
+      mocks.mockChannel.track.mockClear()
+
+      act(() => { setHidden(true); document.dispatchEvent(new Event('visibilitychange')) })
+      nowMs += 5_000 // brief — under the threshold
+      act(() => { setHidden(false); document.dispatchEvent(new Event('visibilitychange')) })
+      await advancePastThrottle()
+
+      expect(supabase.channel).toHaveBeenCalledTimes(1) // no new channel
+      expect(mocks.mockChannel.track).toHaveBeenCalled() // presence refreshed
+    })
+
+    it('re-subscribes when the network connection is regained (online)', async () => {
+      renderHook(() => usePagePresence('interventions'))
+      await advancePastSetup()
+      await act(async () => { await subscribeCallback?.('SUBSCRIBED') })
+      expect(supabase.channel).toHaveBeenCalledTimes(1)
+
+      act(() => { window.dispatchEvent(new Event('online')) })
+      await advancePastSetup()
+
+      expect(mocks.mockRemoveChannel).toHaveBeenCalled()
+      expect(supabase.channel).toHaveBeenCalledTimes(2)
+    })
+
+    it('does not re-subscribe after unmount (wake listeners cleaned up)', async () => {
+      const { unmount } = renderHook(() => usePagePresence('interventions'))
+      await advancePastSetup()
+      await act(async () => { await subscribeCallback?.('SUBSCRIBED') })
+
+      unmount()
+      vi.mocked(supabase.channel).mockClear()
+
+      act(() => { window.dispatchEvent(new Event('online')) })
+      await act(async () => { await vi.advanceTimersByTimeAsync(60) })
+
+      expect(supabase.channel).not.toHaveBeenCalled()
+    })
+  })
 })

@@ -45,6 +45,20 @@ const RECONNECT_DELAY_MS = 5000 // 5 seconds
 /** Throttle interval for track() calls to avoid ClientPresenceRateLimitReached */
 const TRACK_THROTTLE_MS = 500
 
+/**
+ * When the tab comes back to the foreground after being hidden at least this long,
+ * the Realtime socket was very likely dropped silently (browser throttles/freezes
+ * timers while backgrounded or asleep, so the socket heartbeat stops and the server
+ * closes the connection). A silent drop never emits CHANNEL_ERROR/TIMED_OUT, so the
+ * channel would otherwise stay a "zombie" — subscribed in name only — until a manual
+ * reload. Past this threshold we force a clean re-subscribe; shorter hides just refresh
+ * presence (no flicker). Measured with wall-clock time so it survives timer freezing.
+ */
+const WAKE_RESUBSCRIBE_MS = 30_000
+
+/** Debounce coincident wake signals (e.g. visibilitychange + online firing together). */
+const WAKE_COOLDOWN_MS = 3_000
+
 /** Single global channel name — shared across all pages */
 const CHANNEL_NAME = 'presence:pages'
 
@@ -414,9 +428,65 @@ export function usePagePresence(
 
     subscribe()
 
+    // ─── Wake guard: recover the presence channel after background/sleep ──────
+    // The channel only self-heals on an explicit CHANNEL_ERROR/TIMED_OUT, which a
+    // silent socket drop (backgrounded tab / sleeping machine) never emits. Without
+    // this, presence stays stale until a manual reload. We watch for the tab waking
+    // up and re-subscribe a fresh channel when the prior one is likely dead.
+    let hiddenAt: number | null = null
+    let lastWakeResubscribeAt = 0
+
+    const resubscribe = (reason: string) => {
+      if (cancelled || !mountedRef.current) return
+      const now = Date.now()
+      if (now - lastWakeResubscribeAt < WAKE_COOLDOWN_MS) return // ignore coincident signals
+      lastWakeResubscribeAt = now
+      debugLog(`[PagePresence] Wake re-subscribe (${reason})`)
+      // Tear down the (possibly zombie) channel + its timers, then subscribe fresh.
+      // Only this channel is touched — the shared socket / crm-sync channel is untouched
+      // (and subscribing a fresh channel revives the socket if it was dropped).
+      if (heartbeatTimer) { clearInterval(heartbeatTimer); heartbeatTimer = null }
+      if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null }
+      const ch = channelRef.current
+      channelRef.current = null
+      if (ch) {
+        ch.untrack().catch(() => {})
+        supabase.removeChannel(ch)
+      }
+      subscribe()
+    }
+
+    const handleVisibility = () => {
+      if (cancelled || !mountedRef.current) return
+      if (document.hidden) {
+        hiddenAt = Date.now()
+        return
+      }
+      const hiddenMs = hiddenAt != null ? Date.now() - hiddenAt : 0
+      hiddenAt = null
+      if (!channelRef.current || hiddenMs >= WAKE_RESUBSCRIBE_MS) {
+        resubscribe('visible-after-long-hide')
+      } else {
+        // Brief switch — the channel is still healthy: just refresh joinedAt + presence.
+        joinedAtRef.current = new Date().toISOString()
+        doTrack()
+      }
+    }
+
+    const handleOnline = () => {
+      // Network regained → the WebSocket was almost certainly closed → re-subscribe.
+      resubscribe('network-online')
+    }
+
+    document.addEventListener('visibilitychange', handleVisibility)
+    window.addEventListener('online', handleOnline)
+
     return () => {
       cancelled = true
       debugLog(`[PagePresence] Cleaning up ${CHANNEL_NAME}`)
+      // Remove wake listeners
+      document.removeEventListener('visibilitychange', handleVisibility)
+      window.removeEventListener('online', handleOnline)
       // Stop heartbeat, reconnection and throttle timers
       if (heartbeatTimer) clearInterval(heartbeatTimer)
       if (reconnectTimer) clearTimeout(reconnectTimer)
@@ -435,6 +505,7 @@ export function usePagePresence(
     currentUserId, // Primitive string — channel lives as long as user is authed
     handleSync,    // Stable — no deps
     buildPayload,  // Stable — no deps
+    doTrack,       // Stable — used by the wake guard's brief-switch refresh
   ])
 
   return { viewers, allUsers, updateActiveIntervention, updateActiveArtisan }
