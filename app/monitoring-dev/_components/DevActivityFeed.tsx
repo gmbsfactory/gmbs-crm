@@ -4,6 +4,7 @@ import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type React
 import { ChevronDown, Loader2, Search, SlidersHorizontal } from "lucide-react"
 import { useGlobalActivityFeed } from "@/hooks/useGlobalActivityFeed"
 import { useReferenceDataQuery } from "@/hooks/useReferenceDataQuery"
+import { useGestionnaires } from "@/hooks/useGestionnaires"
 import { useInterventionModal } from "@/hooks/useInterventionModal"
 import { useArtisanModal } from "@/hooks/useArtisanModal"
 import { useTeamConnections } from "@/hooks/useTeamConnections"
@@ -13,6 +14,7 @@ import { Button } from "@/components/ui/button"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { Skeleton } from "@/components/ui/skeleton"
+import { Avatar as UIAvatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar"
 import { cn } from "@/lib/utils"
 import { catColor, categoryMeta, categoryOf, type ActivityCategory } from "@/lib/monitoring/activity-categories"
 import { getFieldLabel } from "@/components/shared/history/HistoryEntry"
@@ -171,6 +173,7 @@ interface ActorInfo {
   initials: string
   color: string | null
   name: string
+  avatarUrl: string | null
 }
 type UserMap = Map<string, { firstname: string | null; lastname: string | null; color: string | null; avatar_url: string | null }>
 function actorInfoOf(item: FeedItem, userMap: UserMap): ActorInfo {
@@ -178,7 +181,9 @@ function actorInfoOf(item: FeedItem, userMap: UserMap): ActorInfo {
   const userId = actor?.user_id ?? "?"
   const u = userMap.get(userId)
   const name = u ? [u.firstname, u.lastname].filter(Boolean).join(" ") || actor?.display || "—" : actor?.display || "—"
-  return { userId, initials: initialsOf(name), color: u?.color ?? actor?.color ?? null, name }
+  // Avatar réel (couleur + photo) résolu depuis la source live settings/team ; repli sur
+  // le snapshot dénormalisé de l'audit log (actor.*) pour les acteurs introuvables (ex. archivés).
+  return { userId, initials: initialsOf(name), color: u?.color ?? actor?.color ?? null, name, avatarUrl: u?.avatar_url ?? null }
 }
 
 interface Described {
@@ -417,6 +422,7 @@ export function DevActivityFeed({ startDate, endDate, userIds }: DevActivityFeed
 
   const feed = useGlobalActivityFeed({ startDate, endDate, userIds: userIds.length ? userIds : null })
   const { data: refData } = useReferenceDataQuery()
+  const { data: gestionnaires } = useGestionnaires()
   const { data: connections } = useTeamConnections(startDate, endDate, userIds.length ? userIds : null, true)
   const presence = usePagePresenceContext()
   const interventionModal = useInterventionModal()
@@ -436,12 +442,19 @@ export function DevActivityFeed({ startDate, endDate, userIds }: DevActivityFeed
     return (id: unknown) => (typeof id === "string" ? map.get(id) ?? null : null)
   }, [refData])
 
+  // Avatars réels (couleur + photo) depuis la source live settings/team — pas le snapshot d'audit.
   const userMap = useMemo<UserMap>(() => {
     const map: UserMap = new Map()
-    const list = refData?.allUsers ?? refData?.users ?? []
-    for (const u of list) map.set(u.id, { firstname: u.firstname, lastname: u.lastname, color: u.color, avatar_url: u.avatar_url ?? null })
+    for (const g of gestionnaires ?? []) {
+      map.set(g.id, {
+        firstname: g.firstname ?? g.prenom ?? null,
+        lastname: g.lastname ?? g.name ?? null,
+        color: g.color,
+        avatar_url: g.avatar_url ?? null,
+      })
+    }
     return map
-  }, [refData])
+  }, [gestionnaires])
 
   // Connexions / déconnexions dérivées des sessions réelles
   const onlineIds = useMemo(() => new Set((presence?.allUsers ?? []).map((u) => u.userId)), [presence?.allUsers])
@@ -896,14 +909,7 @@ export function DevActivityFeed({ startDate, endDate, userIds }: DevActivityFeed
                           {/* pile d'avatars distincts + overflow +N */}
                           <div className="flex shrink-0 items-center pl-2">
                             {row.actors.slice(0, 3).map((a) => (
-                              <span
-                                key={a.userId}
-                                title={a.name}
-                                className="-ml-2 flex h-[26px] w-[26px] items-center justify-center rounded-full text-[9.5px] font-extrabold text-white ring-2 ring-card"
-                                style={{ background: a.color ?? "hsl(var(--muted-foreground))" }}
-                              >
-                                {a.initials}
-                              </span>
+                              <Avatar key={a.userId} actor={a} size={26} className="-ml-2 ring-2 ring-card" />
                             ))}
                             {row.actors.length > 3 && (
                               <Tooltip>
@@ -916,9 +922,7 @@ export function DevActivityFeed({ startDate, endDate, userIds }: DevActivityFeed
                                   <p className="px-1.5 pb-1 text-[8.5px] font-extrabold uppercase tracking-wide text-muted-foreground">Gestionnaires intervenus</p>
                                   {row.actors.map((a) => (
                                     <div key={a.userId} className="flex items-center gap-2 rounded-md px-1.5 py-1">
-                                      <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[8px] font-extrabold text-white" style={{ background: a.color ?? "hsl(var(--muted-foreground))" }}>
-                                        {a.initials}
-                                      </span>
+                                      <Avatar actor={a} size={20} />
                                       <span className="flex-1 truncate text-[11px] font-semibold">{a.name}</span>
                                       <span className="shrink-0 text-[9.5px] font-bold text-muted-foreground">{a.count} modif{a.count > 1 ? "s" : ""}</span>
                                     </div>
@@ -985,16 +989,23 @@ function Rail({ iso }: { iso: string }) {
     </div>
   )
 }
-/** Avatar coloré aux initiales. */
-function Avatar({ actor, size = 26 }: { actor: ActorInfo; size?: number }) {
+/** Avatar acteur : photo de profil réelle (settings/team), couleur + initiales en repli. */
+function Avatar({ actor, size = 26, className }: { actor: ActorInfo; size?: number; className?: string }) {
+  const bg = actor.color ?? "hsl(var(--muted-foreground))"
   return (
-    <span
+    <UIAvatar
       title={actor.name}
-      className="flex shrink-0 items-center justify-center rounded-full font-extrabold text-white"
-      style={{ width: size, height: size, fontSize: size <= 18 ? "7.5px" : "9.5px", background: actor.color ?? "hsl(var(--muted-foreground))" }}
+      className={cn("shrink-0", className)}
+      style={{ width: size, height: size, background: bg }}
     >
-      {actor.initials}
-    </span>
+      {actor.avatarUrl && <AvatarImage src={actor.avatarUrl} alt={actor.name} className="object-cover" />}
+      <AvatarFallback
+        className="font-extrabold uppercase text-white"
+        style={{ background: bg, fontSize: size <= 18 ? "7.5px" : "9.5px" }}
+      >
+        {actor.initials}
+      </AvatarFallback>
+    </UIAvatar>
   )
 }
 
