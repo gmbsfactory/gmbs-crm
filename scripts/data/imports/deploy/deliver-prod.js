@@ -54,6 +54,8 @@ const { preCleanupReport, runCleanup, validateCoverage } = require(cleanupPath);
 const backfillPath = path.join(__dirname, 'backfill-status-transitions');
 const { runBackfillStatusTransitions } = require(backfillPath);
 
+const { runColumnCheck } = require(path.join(__dirname, '..', 'check-columns'));
+
 // ── Options CLI ───────────────────────────────────────────────────────────────
 
 const args = process.argv.slice(2);
@@ -64,6 +66,7 @@ const skipDocuments     = args.includes('--skip-documents');
 const artisansOnly      = args.includes('--artisans-only');
 const interventionsOnly = args.includes('--interventions-only');
 const verbose           = args.includes('--verbose');
+const skipColumnCheck   = args.includes('--skip-column-check');
 
 // Filtres de dates — mappés vers --date-start / --date-end du script d'import
 const importStartDateArg = args.find(a => a.startsWith('--import-start-date='));
@@ -139,6 +142,30 @@ function checkEnvironment() {
   log('\n✅ Environnement OK');
 }
 
+// ── Étape 1bis : Vérification des colonnes Google Sheets ──────────────────────
+
+async function stepCheckColumns() {
+  sep();
+  log('ÉTAPE 1bis — Vérification des colonnes Google Sheets');
+  sep();
+
+  if (skipColumnCheck) {
+    log('⏭️  Vérification des colonnes ignorée (--skip-column-check)');
+    return;
+  }
+
+  const { ok, requiredMissing } = await runColumnCheck({ artisansOnly, interventionsOnly });
+
+  if (!ok) {
+    err(
+      `\nColonnes requises manquantes dans : ${requiredMissing.join(', ')}.\n` +
+      `Corrigez le Google Sheet avant de continuer (aucune donnée n'a été supprimée).\n` +
+      `Pour ignorer cette vérification : relancez avec --skip-column-check.`
+    );
+    process.exit(1);
+  }
+}
+
 // ── Étape 2 : Rapport pré-suppression ─────────────────────────────────────────
 
 async function stepPreCleanupReport(client) {
@@ -204,6 +231,8 @@ async function runImport() {
   if (verbose)           importArgs.push('--verbose');
   if (importStartDate)   importArgs.push(`--date-start=${importStartDate}`);
   if (importEndDate)     importArgs.push(`--date-end=${importEndDate}`);
+  // Le check des colonnes a déjà été fait à l'étape 1bis — éviter de le relancer.
+  importArgs.push('--skip-column-check');
 
   const cmd = `npx tsx "${importScript}" ${importArgs.join(' ')}`;
   log(`  Commande : ${cmd}\n`);
@@ -338,6 +367,9 @@ async function main() {
 
   // Étape 1 — Environnement
   checkEnvironment();
+
+  // Étape 1bis — Vérification des colonnes (avant tout cleanup/suppression)
+  await stepCheckColumns();
 
   // Créer le client Supabase via le point d'entrée centralisé de l'API V2
   // getSupabaseClientForNode() retourne un client service role (bypass RLS) en Node.js
