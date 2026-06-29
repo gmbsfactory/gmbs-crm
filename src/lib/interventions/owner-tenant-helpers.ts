@@ -195,6 +195,74 @@ export async function findOrCreateTenant(tenantData: {
   }
 }
 
+/**
+ * Résout l'owner (facturation) à enregistrer sur l'intervention au moment du submit.
+ *
+ * Contrairement à findOrCreateOwner (qui crée un nouveau record à chaque nom
+ * différent → doublons + churn d'owner_id), on édite EN PLACE le record déjà lié :
+ * - Section vidée  → `null` : on délie l'owner (la facturation est retirée).
+ * - Lien existant  → mise à jour en place du record (owner_id stable, pas de
+ *   doublon ; un champ vidé devient `null` sur le record). Le trigger DB
+ *   `audit_owner_update` trace alors le diff dans l'historique de l'intervention.
+ * - Aucun lien     → findOrCreateOwner (déduplication à la première saisie).
+ */
+export async function resolveOwnerForSubmit(params: {
+  existingOwnerId: string | null;
+  nomPrenomFacturation?: string;
+  telephoneProprietaire?: string;
+  emailProprietaire?: string;
+}): Promise<string | null> {
+  const { existingOwnerId, nomPrenomFacturation, telephoneProprietaire, emailProprietaire } = params;
+
+  const hasInput = Boolean(
+    nomPrenomFacturation?.trim() || telephoneProprietaire?.trim() || emailProprietaire?.trim(),
+  );
+  if (!hasInput) return null;
+
+  if (existingOwnerId) {
+    await ownersApi.update(existingOwnerId, {
+      plain_nom_facturation: nomPrenomFacturation?.trim() || null,
+      telephone: telephoneProprietaire?.trim() || null,
+      email: emailProprietaire?.trim() || null,
+    });
+    return existingOwnerId;
+  }
+
+  return findOrCreateOwner({ nomPrenomFacturation, telephoneProprietaire, emailProprietaire });
+}
+
+/**
+ * Résout le tenant (client) à enregistrer sur l'intervention au moment du submit.
+ * Même logique que resolveOwnerForSubmit (édition en place + effacement + dédup).
+ * Si le logement est vacant, il n'y a jamais de client → `null`.
+ */
+export async function resolveTenantForSubmit(params: {
+  existingTenantId: string | null;
+  isVacant: boolean;
+  nomPrenomClient?: string;
+  telephoneClient?: string;
+  emailClient?: string;
+}): Promise<string | null> {
+  const { existingTenantId, isVacant, nomPrenomClient, telephoneClient, emailClient } = params;
+  if (isVacant) return null;
+
+  const hasInput = Boolean(
+    nomPrenomClient?.trim() || telephoneClient?.trim() || emailClient?.trim(),
+  );
+  if (!hasInput) return null;
+
+  if (existingTenantId) {
+    await tenantsApi.update(existingTenantId, {
+      plain_nom_client: nomPrenomClient?.trim() || null,
+      telephone: telephoneClient?.trim() || null,
+      email: emailClient?.trim() || null,
+    });
+    return existingTenantId;
+  }
+
+  return findOrCreateTenant({ nomPrenomClient, telephoneClient, emailClient });
+}
+
 
 
 

@@ -11,8 +11,10 @@ import {
   FileX,
   MessageSquare,
   Plus,
+  Receipt,
   RotateCcw,
   Trash2,
+  User,
   UserMinus,
   UserPlus,
   Wrench,
@@ -117,6 +119,14 @@ const getConfig = (actionType: string | null | undefined): IconConfig => {
       return { icon: MessageSquare, variant: "danger" }
     }
     return { icon: MessageSquare, variant: "warning" }
+  }
+
+  // Facturation (owner) / Client (tenant)
+  if (normalized === "OWNER_UPDATE") {
+    return { icon: Receipt, variant: "info" }
+  }
+  if (normalized === "TENANT_UPDATE") {
+    return { icon: User, variant: "info" }
   }
 
   // Artisans

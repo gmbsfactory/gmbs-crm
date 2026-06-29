@@ -33,7 +33,7 @@ type ActionFilter =
 const ACTION_FILTER_MAP: Record<ActionFilter, string[]> = {
   all: [],
   creation: ["CREATE"],
-  updates: ["UPDATE", "ARCHIVE", "RESTORE"],
+  updates: ["UPDATE", "ARCHIVE", "RESTORE", "OWNER_UPDATE", "TENANT_UPDATE"],
   status: ["STATUS_CHANGE"],
   costs: ["COST_ADD", "COST_UPDATE", "COST_DELETE"],
   payments: ["PAYMENT_ADD", "PAYMENT_UPDATE", "PAYMENT_DELETE"],
