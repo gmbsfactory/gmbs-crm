@@ -24,6 +24,7 @@ import {
   fetchCurrentStatus,
   recalculateArtisanStatuses,
 } from "./_update-helpers";
+import { normalizeNullableUuidFields } from "./normalize-uuid-fields";
 
 /** Créer une intervention. */
 export async function create(
@@ -123,7 +124,10 @@ export async function update(
   data: UpdateInterventionData,
   auth?: InterventionAuthContext,
 ): Promise<InterventionWithStatus> {
-  const payload = await stripAdminOnlyFields({ ...data }, auth);
+  const stripped = await stripAdminOnlyFields({ ...data }, auth);
+  // Filet de sécurité : convertit les UUID nullable vides ("") en NULL pour
+  // éviter le rejet Postgres 22P02, quel que soit l'appelant.
+  const payload = normalizeNullableUuidFields(stripped);
 
   let oldStatutId: string | null = null;
   if (payload.statut_id) {

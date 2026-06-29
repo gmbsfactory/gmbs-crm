@@ -84,6 +84,7 @@ export function useInterventionsMutations() {
     mutationFn: async ({
       id,
       data,
+      actorUserId,
     }: {
       id: string
       data: {
@@ -122,8 +123,17 @@ export function useInterventionsMutations() {
         metier_second_artisan_id?: string | null
         // Note: Les coûts du 2ème artisan sont gérés via intervention_costs avec artisan_order = 2
       }
+      // Acteur de la modification (utilisateur courant) → posé en `updated_by` pour
+      // que le trigger d'audit attribue l'action au bon utilisateur, même si
+      // l'intervention n'a pas de gestionnaire assigné (sinon l'historique crédite
+      // l'éditeur précédent conservé dans la colonne).
+      actorUserId?: string | null
     }) => {
-      return await interventionsApi.update(id, data)
+      return await interventionsApi.update(
+        id,
+        data,
+        actorUserId ? { userId: actorUserId } : undefined,
+      )
     },
     // Mise à jour optimiste du cache pour un affichage instantané
     onMutate: async (variables) => {

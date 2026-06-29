@@ -162,7 +162,10 @@ export function useInterventionSubmit({
         statut_id: formData.statut_id || undefined,
         agence_id: formData.agence_id || undefined,
         reference_agence: referenceAgenceValue.length > 0 ? referenceAgenceValue : null,
-        assigned_user_id: formData.assigned_user_id ?? null,
+        // `|| null` (et non `??`) : un formulaire sans gestionnaire assigné fournit
+        // une chaîne vide ""; `??` ne la capture pas et Postgres rejette alors le
+        // PATCH (« invalid input syntax for type uuid: "" », code 22P02).
+        assigned_user_id: formData.assigned_user_id || null,
         metier_id: formData.metier_id || undefined,
         date: formData.date || undefined,
         date_prevue: formData.date_prevue || undefined,
@@ -212,6 +215,7 @@ export function useInterventionSubmit({
       try {
         await updateMutation.mutateAsync({
           id: interventionId,
+          actorUserId: currentUser?.id ?? null,
           data: {
             id_inter: updateData.id_inter ?? null,
             reference_agence: updateData.reference_agence ?? null,
