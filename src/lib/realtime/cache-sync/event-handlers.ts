@@ -58,6 +58,12 @@ export function handleInsert(
     return oldData || { data: [], pagination: EMPTY_PAGINATION }
   }
   if (!filters) return oldData
+  // Recherche server-authoritative : la composition d'une liste filtree par `search` est
+  // tranchee par la RPC full-text serveur (search_interventions), que le client ne peut pas
+  // reproduire (elle couvre id_inter, agence, artisan, locataire... la-ou matchesFilters ne
+  // teste que 4 champs). On n'insere donc pas optimistiquement ici ; le refetch des listes
+  // actives (declenche sur INSERT) recompose la liste cote serveur.
+  if (filters.search) return oldData
   if (!matchesFilters(newRecord, filters)) return oldData
 
   const currentTotal = oldData.pagination?.total ?? oldData.data.length
@@ -92,6 +98,23 @@ export function handleUpdate(
   const wasInList = index !== -1
 
   if (!filters) {
+    if (wasInList) {
+      return {
+        ...oldData,
+        data: [...oldData.data.slice(0, index), newRecord, ...oldData.data.slice(index + 1)],
+      }
+    }
+    return oldData
+  }
+
+  // Recherche server-authoritative (cf. handleInsert) : on ne laisse pas matchesFilters
+  // trancher l'appartenance d'une liste de recherche, car son matching a 4 champs
+  // (contexte/adresse/ville/commentaire_agent) differe de la RPC full-text serveur.
+  // Mise a jour EN PLACE uniquement : jamais d'ejection — sinon l'intervention « saute »
+  // des qu'un commentaire/cout/paiement/artisan touche updated_at via le trigger 00082,
+  // alors que `invalidateActiveLists` ne refetch pas sur UPDATE — ni insertion. Le refetch
+  // serveur reste seul maitre de la composition d'une recherche.
+  if (filters.search) {
     if (wasInList) {
       return {
         ...oldData,
