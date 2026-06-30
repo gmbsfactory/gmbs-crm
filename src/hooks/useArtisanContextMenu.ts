@@ -1,7 +1,6 @@
 "use client"
 
 import { useState } from "react"
-import { flushSync } from "react-dom"
 import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query"
 import { toast } from "sonner"
 import { useArtisanModal } from "@/hooks/useArtisanModal"
@@ -38,29 +37,25 @@ export function useArtisanContextMenu(artisanId: string) {
     mutationFn: (reason: string) =>
       archiveArtisan({ artisanId, reason, authorId: currentUser?.id }),
     onSuccess: () => {
-      // Utiliser flushSync pour forcer la fermeture synchrone du modal avant l'invalidation
-      // Cela évite le freeze causé par le re-render massif pendant la fermeture
-      flushSync(() => {
-        setIsArchiveModalOpen(false)
+      // Fermer d'abord le modal de motif, puis notifier.
+      setIsArchiveModalOpen(false)
+      toast.success("Artisan archivé avec succès", {
+        description: new Date().toLocaleString(),
       })
 
-      // Utiliser requestAnimationFrame pour s'assurer que le DOM est mis à jour
-      // avant d'invalider les queries et de déclencher un re-render massif
-      requestAnimationFrame(() => {
-        // Invalider toutes les listes d'artisans + le détail + l'historique des commentaires
+      // Différer les invalidations : on laisse le Dialog (StatusReasonModal) se
+      // fermer et se démonter proprement AVANT que l'invalidation des listes ne
+      // retire éventuellement cette ligne du tableau (et avec elle ce menu + le
+      // modal). Invalider trop tôt démonte le Dialog en plein vol et laisse le
+      // verrou `pointer-events:none` de Radix sur <body> → page gelée. Le filet
+      // au démontage de StatusReasonModal couvre le cas résiduel.
+      window.setTimeout(() => {
         queryClient.invalidateQueries({ queryKey: artisanKeys.invalidateLists() })
         queryClient.invalidateQueries({ queryKey: artisanKeys.detail(artisanId) })
         queryClient.invalidateQueries({
           queryKey: commentKeys.invalidateByEntity("artisan", artisanId),
         })
-
-        // Afficher le toast après un petit délai pour éviter les conflits
-        setTimeout(() => {
-          toast.success("Artisan archivé avec succès", {
-            description: new Date().toLocaleString(),
-          })
-        }, 50)
-      })
+      }, 250)
     },
     onError: (error: Error) => {
       toast.error("Erreur d'archivage", {

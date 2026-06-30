@@ -70,6 +70,23 @@ export function StatusReasonModal({ open, type, onConfirm, onCancel, isSubmittin
     }
   }, [open])
 
+  // Filet de sécurité au DÉMONTAGE : si ce modal est démonté alors qu'il était
+  // ouvert (ex. la ligne du tableau qui le contient disparaît après archivage,
+  // avant que Radix ait retiré le verrou), on restaure le body. Sinon le style
+  // `pointer-events: none` posé par Radix sur <body> reste et gèle toute la page.
+  useEffect(() => {
+    return () => {
+      if (wasOpenRef.current) {
+        if (document.body.style.pointerEvents === 'none') {
+          document.body.style.pointerEvents = ''
+        }
+        if (document.body.style.overflow === 'hidden') {
+          document.body.style.overflow = ''
+        }
+      }
+    }
+  }, [])
+
   const trimmedReason = reason.trim()
   const copy = MODAL_COPY[type]
 
