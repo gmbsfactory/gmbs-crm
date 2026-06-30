@@ -74,8 +74,12 @@ export const ArtisanTableRow = memo(function ArtisanTableRow({
   onDelete,
   isHighlighted = false,
 }: ArtisanTableRowProps) {
+  // modal={false} : sans ça, le ContextMenu (modal par défaut) pose
+  // `pointer-events:none` sur <body> et entre en conflit avec le Dialog modal
+  // (StatusReasonModal) ouvert par "Archiver" → le verrou reste coincé à la
+  // fermeture et fige la page. Le Dialog gère seul son propre verrou.
   return (
-    <ContextMenu>
+    <ContextMenu modal={false}>
       <ContextMenuTrigger asChild>
         <tr
           data-kb-row={index}
