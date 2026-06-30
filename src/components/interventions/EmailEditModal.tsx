@@ -55,6 +55,12 @@ interface AttachmentFile {
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
 const MAX_ATTACHMENTS = 5;
 
+// Vercel rejette (413 « Request Entity Too Large ») tout corps de requête serverless
+// dépassant ~4,5 Mo. Après encodage base64 (~+33 %), cela correspond à environ 3,2 Mo
+// de fichiers bruts. On affiche cette limite indicative à l'utilisateur.
+const MAX_ATTACHMENTS_SIZE_LABEL = '3,2 Mo';
+const ATTACHMENTS_TOO_LARGE_MESSAGE = `Pièces jointes trop volumineuses : la taille maximale est de ${MAX_ATTACHMENTS_SIZE_LABEL} au total. Réduisez ou compressez vos fichiers.`;
+
 interface SstPriceChange {
   previousAmount: number | null;
   nextAmount: number;
@@ -627,7 +633,22 @@ export function EmailEditModal({
         timeoutRef.current = null;
       }
 
-      const data = await response.json();
+      // Vercel rejette les corps de requête > ~4,5 Mo avec un 413 « Request Entity
+      // Too Large » (réponse en texte brut, pas en JSON) avant même d'atteindre le
+      // serveur. On intercepte ce cas pour afficher un message clair plutôt que
+      // l'erreur de parsing JSON « Unexpected token 'R'... ».
+      if (response.status === 413) {
+        throw new Error(ATTACHMENTS_TOO_LARGE_MESSAGE);
+      }
+
+      let data: { error?: string; data?: unknown };
+      try {
+        data = await response.json();
+      } catch {
+        // Réponse non-JSON : sur cet endpoint, le seul cas est le rejet plateforme
+        // pour corps trop volumineux.
+        throw new Error(ATTACHMENTS_TOO_LARGE_MESSAGE);
+      }
 
       if (!response.ok) {
         throw new Error(data.error || 'Erreur lors de l\'envoi de l\'email');
@@ -917,6 +938,7 @@ export function EmailEditModal({
                     Ajouter
                     {attachments.length > 0 && ` (${attachments.length}/${MAX_ATTACHMENTS})`}
                   </Button>
+                  <span className="text-xs text-muted-foreground">max {MAX_ATTACHMENTS_SIZE_LABEL} au total</span>
                 </div>
 
                 {/* Attachment list */}
