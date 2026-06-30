@@ -5,6 +5,12 @@ import {
   ContextMenuItem,
   ContextMenuSeparator,
 } from "@/components/ui/context-menu"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
 import { FileText, Archive } from "lucide-react"
 import { useArtisanContextMenu } from "@/hooks/useArtisanContextMenu"
 import { StatusReasonModal } from "@/components/shared/StatusReasonModal"
@@ -30,7 +36,7 @@ export function ArtisanContextMenuContent({
   const { can } = usePermissions()
   
   // Utiliser la prop isArchived si fournie, sinon utiliser la valeur du hook
-  const shouldHideArchive = isArchived || hookIsArchived
+  const alreadyArchived = isArchived || hookIsArchived
   const canWriteArtisans = can("write_artisans")
 
   const handleOpenClick = () => {
@@ -45,16 +51,37 @@ export function ArtisanContextMenuContent({
           <FileText className="mr-2 h-4 w-4" />
           Ouvrir fiche artisan
         </ContextMenuItem>
-        {canWriteArtisans && !shouldHideArchive && (
+        {canWriteArtisans && (
           <>
             <ContextMenuSeparator />
-            <ContextMenuItem
-              onSelect={handleArchive}
-              disabled={archiveModal.isSubmitting}
-            >
-              <Archive className="mr-2 h-4 w-4" />
-              Archiver
-            </ContextMenuItem>
+            {alreadyArchived ? (
+              // Déjà archivé : option grisée + tooltip explicatif.
+              // Le <span> porte le TooltipTrigger et capte le survol même si le
+              // ContextMenuItem `disabled` a pointer-events-none.
+              <TooltipProvider>
+                <Tooltip delayDuration={150}>
+                  <TooltipTrigger asChild>
+                    <span className="block">
+                      <ContextMenuItem disabled className="text-muted-foreground">
+                        <Archive className="mr-2 h-4 w-4" />
+                        Archiver
+                      </ContextMenuItem>
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent side="right" className="z-[10001]">
+                    Artisan déjà archivé
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            ) : (
+              <ContextMenuItem
+                onSelect={handleArchive}
+                disabled={archiveModal.isSubmitting}
+              >
+                <Archive className="mr-2 h-4 w-4" />
+                Archiver
+              </ContextMenuItem>
+            )}
           </>
         )}
       </ContextMenuContent>

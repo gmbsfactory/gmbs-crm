@@ -21,8 +21,11 @@ export function useArtisanContextMenu(artisanId: string) {
     enabled: !!artisanId,
   })
 
-  // Vérifier si l'artisan est archivé (is_active === false ou statut ARCHIVE)
-  const isArchived = artisan ? (artisan.is_active === false) : false
+  // Vérifier si l'artisan est archivé : on se base sur le statut ARCHIVE, pas sur
+  // is_active. L'archivage laisse désormais is_active=true (archive ≠ soft-delete),
+  // donc is_active===false ne reflète plus l'état "archivé".
+  const statusCode = (artisan as { status?: { code?: string } } | undefined)?.status?.code
+  const isArchived = statusCode === "ARCHIVE"
 
   // Mutation pour archiver un artisan
   const archiveMutation = useMutation({
