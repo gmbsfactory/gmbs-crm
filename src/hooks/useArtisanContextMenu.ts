@@ -5,13 +5,15 @@ import { flushSync } from "react-dom"
 import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query"
 import { toast } from "sonner"
 import { useArtisanModal } from "@/hooks/useArtisanModal"
-import { artisanKeys } from "@/lib/react-query/queryKeys"
+import { useCurrentUser } from "@/hooks/useCurrentUser"
+import { artisanKeys, commentKeys } from "@/lib/react-query/queryKeys"
 import { artisansApi } from "@/lib/api"
+import { archiveArtisan } from "@/lib/artisans/archiveArtisan"
 
 export function useArtisanContextMenu(artisanId: string) {
   const queryClient = useQueryClient()
-  // const { toast } = useToast() // Removed legacy toast
   const { open: openArtisanModal } = useArtisanModal()
+  const { data: currentUser } = useCurrentUser()
   const [isArchiveModalOpen, setIsArchiveModalOpen] = useState(false)
 
   // Vérifier si l'artisan est déjà archivé
@@ -27,22 +29,14 @@ export function useArtisanContextMenu(artisanId: string) {
   const statusCode = (artisan as { status?: { code?: string } } | undefined)?.status?.code
   const isArchived = statusCode === "ARCHIVE"
 
-  // Mutation pour archiver un artisan
+  // Mutation pour archiver un artisan.
+  // L'archivage se fait CÔTÉ CLIENT, à l'identique du modal d'édition : les appels
+  // portent le JWT de l'utilisateur. (Auparavant ce hook passait par la route
+  // serveur /api/artisans/[id]/archive, qui perdait l'identité utilisateur côté
+  // serveur → 401 sur la création du commentaire.) Voir archiveArtisan().
   const archiveMutation = useMutation({
-    mutationFn: async (reason: string) => {
-      const response = await fetch(`/api/artisans/${artisanId}/archive`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ reason }),
-      })
-      if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.error || "Erreur lors de l'archivage")
-      }
-      return await response.json()
-    },
+    mutationFn: (reason: string) =>
+      archiveArtisan({ artisanId, reason, authorId: currentUser?.id }),
     onSuccess: () => {
       // Utiliser flushSync pour forcer la fermeture synchrone du modal avant l'invalidation
       // Cela évite le freeze causé par le re-render massif pendant la fermeture
@@ -53,9 +47,12 @@ export function useArtisanContextMenu(artisanId: string) {
       // Utiliser requestAnimationFrame pour s'assurer que le DOM est mis à jour
       // avant d'invalider les queries et de déclencher un re-render massif
       requestAnimationFrame(() => {
-        // Invalider toutes les listes d'artisans
+        // Invalider toutes les listes d'artisans + le détail + l'historique des commentaires
         queryClient.invalidateQueries({ queryKey: artisanKeys.invalidateLists() })
         queryClient.invalidateQueries({ queryKey: artisanKeys.detail(artisanId) })
+        queryClient.invalidateQueries({
+          queryKey: commentKeys.invalidateByEntity("artisan", artisanId),
+        })
 
         // Afficher le toast après un petit délai pour éviter les conflits
         setTimeout(() => {
@@ -100,4 +97,3 @@ export function useArtisanContextMenu(artisanId: string) {
     },
   }
 }
-
