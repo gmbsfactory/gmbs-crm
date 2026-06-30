@@ -249,4 +249,36 @@ GET https://api-adresse.data.gouv.fr/search/?q=rue+rivoli+paris&limit=5&autocomp
 }
 ```
 
+## Extraction rue / code postal / ville
+
+⚠️ **Le `label` de la BAN n'est pas virgulé** : il a la forme `« rue CP ville »`
+(ex: `"7 Rue Jean Giraudoux 03300 Cusset"`), contrairement à Google/Nominatim
+(`"7 Rue Jean Giraudoux, 03300 Cusset, France"`). Re-parser ce label par
+`split(',')` casse l'extraction de la ville (toute l'adresse atterrit dans le
+champ ville).
+
+**Règle** : on ne re-parse jamais le label en priorité. La BAN renvoie déjà
+`postcode` et `city` **structurés** — ce sont eux qui font foi. Ces champs sont
+propagés de bout en bout :
+
+```
+BAN (postcode, city) → GeocodeResult → /api/geocode (mapResultToResponse)
+   → GeocodeSuggestion → resolveSuggestionParts() → champs du formulaire
+```
+
+Source de vérité unique : `src/lib/geocode/address-parts.ts`
+
+| Fonction | Rôle |
+|----------|------|
+| `resolveSuggestionParts(suggestion)` | À utiliser dans les formulaires. Privilégie `suggestion.postcode` / `suggestion.city` ; ne retombe sur le parsing du label qu'en dernier recours. |
+| `parseAddressLabel(label)` | Filet de secours. Parse une chaîne libre — gère le format virgulé **et** le format BAN sans virgule. |
+
+`parseAddress()` (dans `@/lib/interventions/form-utils`) délègue à
+`parseAddressLabel` et reste exporté pour compatibilité.
+
+**Consommateurs** : `AddressField.tsx` (modale artisan) et
+`useInterventionFormState.ts` (formulaire intervention) utilisent tous deux
+`resolveSuggestionParts`. La route `app/api/geocode/route.ts` renvoie `postcode`
+et `city` aussi bien en mode `suggest` qu'en résultat unique.
+
 

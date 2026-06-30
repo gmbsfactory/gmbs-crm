@@ -23,6 +23,14 @@ export type {
   GeocodeExecutionMode,
 } from "./types"
 
+// Extraction des composants d'adresse (rue / code postal / ville)
+export {
+  parseAddressLabel,
+  resolveSuggestionParts,
+  type AddressParts,
+  type SuggestionLike,
+} from "./address-parts"
+
 // Providers
 export { 
   FrenchAddressProvider, 

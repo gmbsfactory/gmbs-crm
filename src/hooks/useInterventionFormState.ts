@@ -18,7 +18,8 @@ import type { NearbyArtisan } from "@/hooks/useNearbyArtisans"
 import { useArtisanModal } from "@/hooks/useArtisanModal"
 import type { EmailTemplateData } from "@/lib/email-templates/intervention-emails"
 
-import { formatDistanceKm, parseAddress } from "@/lib/interventions/form-utils"
+import { formatDistanceKm } from "@/lib/interventions/form-utils"
+import { resolveSuggestionParts } from "@/lib/geocode/address-parts"
 import type { InterventionFormData } from "@/lib/interventions/form-types"
 import { useArtisanSelection } from "@/hooks/useArtisanSelection"
 import { useInterventionFormUI } from "@/hooks/useInterventionFormUI"
@@ -251,7 +252,7 @@ export function useInterventionFormState(options: UseInterventionFormStateOption
       window.clearTimeout(suggestionBlurTimeoutRef.current)
       suggestionBlurTimeoutRef.current = null
     }
-    const addressParts = parseAddress(suggestion.label)
+    const addressParts = resolveSuggestionParts(suggestion)
     clearSuggestions()
     setShowLocationSuggestions(false)
     setFormData((prev) => ({
@@ -278,7 +279,7 @@ export function useInterventionFormState(options: UseInterventionFormStateOption
     try {
       const result = await geocodeQuery(fullAddress)
       if (!result) { setGeocodeError("Adresse introuvable"); return }
-      const addressParts = parseAddress(result.label)
+      const addressParts = resolveSuggestionParts(result)
       setFormData((prev) => ({
         ...prev,
         latitude: result.lat,

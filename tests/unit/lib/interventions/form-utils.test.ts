@@ -109,6 +109,13 @@ describe("form-utils", () => {
       expect(result.postalCode).toBe("")
       expect(result.city).toBe("")
     })
+
+    it("should parse a comma-less BAN label without leaking the address into the city", () => {
+      const result = parseAddress("7 Rue Jean Giraudoux 03300 Cusset")
+      expect(result.street).toBe("7 Rue Jean Giraudoux")
+      expect(result.postalCode).toBe("03300")
+      expect(result.city).toBe("Cusset")
+    })
   })
 
   describe("generateAutoInterventionId", () => {

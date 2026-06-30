@@ -7,6 +7,10 @@ export type GeocodeSuggestion = {
   lat: number
   lng: number
   precision?: string
+  /** Code postal structuré renvoyé par le provider (BAN) — à préférer au parsing du label */
+  postcode?: string
+  /** Ville structurée renvoyée par le provider (BAN) — à préférer au parsing du label */
+  city?: string
 }
 
 type UseGeocodeSearchOptions = {
@@ -122,12 +126,20 @@ export function useGeocodeSearch(options: UseGeocodeSearchOptions = {}) {
           throw new Error(`Geocode request failed with status ${response.status}`)
         }
 
-        const payload = (await response.json()) as { lat: number; lng: number; precision?: string }
+        const payload = (await response.json()) as {
+          lat: number
+          lng: number
+          precision?: string
+          postcode?: string
+          city?: string
+        }
         return {
           label: target,
           lat: payload.lat,
           lng: payload.lng,
           precision: payload.precision,
+          postcode: payload.postcode,
+          city: payload.city,
         } satisfies GeocodeSuggestion
       } catch (error) {
         if ((error as Error)?.name === "AbortError") {

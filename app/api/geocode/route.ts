@@ -11,6 +11,8 @@ type GeocodeResponse = {
   lat: number
   lng: number
   precision?: string
+  postcode?: string
+  city?: string
 }
 
 type GeocodeSuggestion = GeocodeResponse & {
@@ -94,6 +96,8 @@ function mapResultToResponse(result: GeocodeResult): GeocodeSuggestion {
     lat: result.lat,
     lng: result.lng,
     precision: result.precision,
+    postcode: result.postcode,
+    city: result.city,
   }
 }
 
@@ -149,6 +153,8 @@ export async function GET(request: NextRequest) {
       lat: bestMatch.lat,
       lng: bestMatch.lng,
       precision: bestMatch.precision,
+      postcode: bestMatch.postcode,
+      city: bestMatch.city,
     } satisfies GeocodeResponse)
     response.headers.set("Cache-Control", "public, max-age=60")
     return response

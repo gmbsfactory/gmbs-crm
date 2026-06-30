@@ -2,6 +2,7 @@
 
 import type { NearbyArtisan } from "@/hooks/useNearbyArtisans"
 import type { ArtisanSearchResult } from "@/lib/artisans/types"
+import { parseAddressLabel } from "@/lib/geocode/address-parts"
 
 /**
  * Formate une distance en km pour l'affichage
@@ -26,41 +27,15 @@ export function hexToRgba(hex: string, alpha: number): string | null {
 }
 
 /**
- * Parse une adresse française complète pour en extraire rue, code postal et ville
+ * Parse une adresse française complète pour en extraire rue, code postal et ville.
+ *
+ * Délègue à `parseAddressLabel` (source de vérité partagée), qui gère aussi bien
+ * le format virgulé que le format BAN « rue CP ville » sans séparateur.
+ *
+ * @see parseAddressLabel dans `@/lib/geocode/address-parts`
  */
 export function parseAddress(fullAddress: string): { street: string; postalCode: string; city: string } {
-  const parts = fullAddress.split(',').map(p => p.trim())
-
-  let street = ""
-  let postalCode = ""
-  let city = ""
-
-  const postalCodeRegex = /\b(\d{5})\b/
-
-  for (let i = 0; i < parts.length; i++) {
-    const part = parts[i]
-    const match = part.match(postalCodeRegex)
-
-    if (match) {
-      postalCode = match[1]
-
-      const cityInSamePart = part.replace(match[0], '').trim()
-      if (cityInSamePart) {
-        city = cityInSamePart
-      }
-      else if (i > 0 && !city) {
-        city = parts[i - 1]
-      }
-    }
-  }
-
-  if (!city && parts.length >= 2) {
-    city = parts[1].replace(postalCodeRegex, '').trim()
-  }
-
-  street = parts[0] || fullAddress
-
-  return { street, postalCode, city }
+  return parseAddressLabel(fullAddress)
 }
 
 // Compteur pour garantir l'unicité même si Date.now() est identique

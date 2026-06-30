@@ -6,6 +6,7 @@ import { CheckCircle2, Loader2, MapPin } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useGeocodeSearch, type GeocodeSuggestion } from "@/hooks/useGeocodeSearch"
+import { resolveSuggestionParts } from "@/lib/geocode/address-parts"
 import { cn } from "@/lib/utils"
 
 const inputClass = "h-8 text-sm bg-background border-input/80 focus:border-primary focus:ring-1 focus:ring-primary/30 placeholder:text-muted-foreground/60"
@@ -44,21 +45,9 @@ export function AddressField({
       window.clearTimeout(blurTimeoutRef.current)
     }
 
-    const parts = suggestion.label.split(',').map(p => p.trim())
-    const postalMatch = suggestion.label.match(/\b(\d{5})\b/)
-
-    let street = parts[0] || suggestion.label
-    let postalCode = postalMatch?.[1] || ""
-    let city = ""
-
-    for (const part of parts) {
-      if (postalMatch && part.includes(postalMatch[1])) {
-        const cityMatch = part.replace(postalMatch[1], '').trim()
-        if (cityMatch) city = cityMatch
-      } else if (!part.toLowerCase().includes("france") && !postalMatch?.[1]?.includes(part) && part !== street && part.length > 1) {
-        if (!city) city = part
-      }
-    }
+    // Priorité aux champs structurés (postcode / city) renvoyés par la BAN ;
+    // le parsing du label ne sert que de filet de secours.
+    const { street, postalCode, city } = resolveSuggestionParts(suggestion)
 
     setValue("adresse_siege_social", street)
     setValue("code_postal_siege_social", postalCode)
