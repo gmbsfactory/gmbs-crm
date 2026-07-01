@@ -25,6 +25,8 @@ import { agenciesApi } from '@/lib/api/agenciesApi';
 import { metiersApi } from '@/lib/api/metiersApi';
 import { interventionStatusesApi } from '@/lib/api/interventionStatusesApi';
 import { artisanStatusesApi } from '@/lib/api/artisanStatusesApi';
+import { useQueryClient } from '@tanstack/react-query';
+import { invalidateReferenceCaches } from '@/lib/react-query/invalidate-reference-caches';
 
 type EntityType = 'agencies' | 'metiers' | 'intervention-statuses' | 'artisan-statuses';
 
@@ -95,6 +97,7 @@ const PRESET_COLORS = [
 ];
 
 export function EnumManager() {
+  const queryClient = useQueryClient();
   const [selectedEntity, setSelectedEntity] = useState<EntityType>('agencies');
   const [data, setData] = useState<EntityItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -232,6 +235,9 @@ export function EnumManager() {
         toast.success(`${config.title.slice(0, -1)} créé`);
       }
       await loadData();
+      // Notifier le cache partagé pour que Artisans, filtres et formulaires
+      // reflètent la création/modification sans rechargement de page (F5).
+      await invalidateReferenceCaches(queryClient);
       setShowModal(false);
     } catch (error: any) {
       toast.error(error.message || 'Erreur lors de la sauvegarde');
@@ -251,6 +257,7 @@ export function EnumManager() {
         await (config.api as any).delete(deletingItem.id);
         toast.success(`${config.title.slice(0, -1)} supprimé`);
         await loadData();
+        await invalidateReferenceCaches(queryClient);
         setDeletingItem(null);
         setDeleteCodeConfirm('');
       }
@@ -272,6 +279,7 @@ export function EnumManager() {
         i.id === item.id ? { ...i, requires_reference: !item.requires_reference } : i
       ));
       toast.success(item.requires_reference ? 'Référence agence désactivée' : 'Référence agence activée');
+      await invalidateReferenceCaches(queryClient);
     } catch (error: any) {
       toast.error(error.message || 'Erreur lors de la mise à jour');
     } finally {
