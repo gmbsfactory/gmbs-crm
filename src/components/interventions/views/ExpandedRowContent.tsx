@@ -85,11 +85,11 @@ export function ExpandedRowContent({
         <div className="space-y-3">
           <div>
             <p className="text-[10px] font-semibold text-muted-foreground/70 uppercase tracking-wide mb-0.5">Contexte</p>
-            <p className="text-sm font-medium text-foreground">{renderText(interventionData.contexte)}</p>
+            <p className="text-sm font-medium text-foreground whitespace-pre-wrap break-words">{renderText(interventionData.contexte)}</p>
           </div>
           <div>
             <p className="text-[10px] font-semibold text-muted-foreground/70 uppercase tracking-wide mb-0.5">Consigne</p>
-            <p className="text-sm font-medium text-foreground">{renderText(interventionData.consigne)}</p>
+            <p className="text-sm font-medium text-foreground whitespace-pre-wrap break-words">{renderText(interventionData.consigne)}</p>
           </div>
           {interventionData.coutSST != null && (
             <div>
