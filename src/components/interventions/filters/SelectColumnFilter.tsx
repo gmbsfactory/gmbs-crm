@@ -1,6 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useState } from "react"
+import { useQuery } from "@tanstack/react-query"
 import { Filter, X, Search, ChevronDown } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -21,9 +22,9 @@ import type { ViewFilter } from "@/types/intervention-views"
 import type { InterventionView as InterventionEntity } from "@/types/intervention-view"
 import { formatFilterSummary } from "./filter-utils"
 import { useFilterCounts } from "@/hooks/useFilterCounts"
-import { agenciesApi } from "@/lib/api/agenciesApi"
-import { metiersApi } from "@/lib/api/metiersApi"
 import { interventionsApi } from "@/lib/api/interventions"
+import { referenceApi } from "@/lib/reference-api"
+import { referenceKeys } from "@/lib/react-query/queryKeys"
 
 const makeValueKey = (value: unknown): string => {
   if (value === null || value === undefined) return "null"
@@ -156,9 +157,6 @@ export function SelectColumnFilter({
   const [remoteOptions, setRemoteOptions] = useState<FilterOption[] | null>(null)
   const [isLoadingOptions, setIsLoadingOptions] = useState(false)
   const [hasFetchedOptions, setHasFetchedOptions] = useState(false)
-  const [allAgencies, setAllAgencies] = useState<Array<{ id: string; label: string; code?: string }>>([])
-  const [allMetiers, setAllMetiers] = useState<Array<{ id: string; label: string; code?: string }>>([])
-  const [allStatuts, setAllStatuts] = useState<Array<{ id: string; label: string; code?: string }>>([])
 
   // Déterminer le type de propriété pour le comptage API
   const filterPropertyType = useMemo(() => {
@@ -166,48 +164,40 @@ export function SelectColumnFilter({
     return type
   }, [property])
 
-  // Charger toutes les agences depuis l'API si nécessaire
-  useEffect(() => {
-    if (filterPropertyType === 'agence' && allAgencies.length === 0) {
-      agenciesApi.getAll().then(agencies => {
-        setAllAgencies(agencies.map(a => ({ id: a.id, label: a.label })))
-      }).catch(err => {
-        console.error('[SelectColumnFilter] Erreur chargement agences:', err)
-      })
-    }
-  }, [filterPropertyType, allAgencies.length])
+  // Charger les listes de référence via TanStack Query (cache partagé + invalidation).
+  // Les clés ci-dessous sont couvertes par invalidateReferenceCaches (Paramètres > Enums) :
+  // ajouter/modifier un métier, une agence ou un statut rafraîchit ce filtre sans F5.
+  const { data: metiersData } = useQuery({
+    queryKey: ["metiers"],
+    queryFn: () => referenceApi.getMetiers(),
+    staleTime: 5 * 60 * 1000,
+    enabled: filterPropertyType === 'metier',
+  })
+  const { data: agenciesData } = useQuery({
+    queryKey: ["agences"],
+    queryFn: () => referenceApi.getAgencies(),
+    staleTime: 5 * 60 * 1000,
+    enabled: filterPropertyType === 'agence',
+  })
+  const { data: statutsData } = useQuery({
+    queryKey: referenceKeys.statuses(),
+    queryFn: () => interventionsApi.getAllStatuses(),
+    staleTime: 5 * 60 * 1000,
+    enabled: filterPropertyType === 'statut',
+  })
 
-  // Charger tous les métiers depuis l'API si nécessaire
-  useEffect(() => {
-    if (filterPropertyType === 'metier' && allMetiers.length === 0) {
-      metiersApi.getAll().then(metiers => {
-        const mappedMetiers = metiers.map(m => ({
-          id: m.id,
-          label: m.label || m.code || m.id,
-          code: m.code // Garder le code pour le mapping
-        }))
-        setAllMetiers(mappedMetiers)
-      }).catch(err => {
-        console.error('[SelectColumnFilter] Erreur chargement métiers:', err)
-      })
-    }
-  }, [filterPropertyType, allMetiers.length])
-
-  // Charger tous les statuts depuis l'API si nécessaire
-  useEffect(() => {
-    if (filterPropertyType === 'statut' && allStatuts.length === 0) {
-      interventionsApi.getAllStatuses().then(statuses => {
-        const mappedStatuses = statuses.map(s => ({
-          id: s.id,
-          label: s.label || s.code || s.id,
-          code: s.code // Garder le code pour le mapping
-        }))
-        setAllStatuts(mappedStatuses)
-      }).catch(err => {
-        console.error('[SelectColumnFilter] Erreur chargement statuts:', err)
-      })
-    }
-  }, [filterPropertyType, allStatuts.length])
+  const allMetiers = useMemo(
+    () => (metiersData ?? []).map((m) => ({ id: m.id, label: m.label || m.code || m.id, code: m.code })),
+    [metiersData],
+  )
+  const allAgencies = useMemo<Array<{ id: string; label: string; code?: string }>>(
+    () => (agenciesData ?? []).map((a) => ({ id: a.id, label: a.label })),
+    [agenciesData],
+  )
+  const allStatuts = useMemo(
+    () => (statutsData ?? []).map((s) => ({ id: s.id, label: s.label || s.code || s.id, code: s.code })),
+    [statutsData],
+  )
 
   // Récupérer les valeurs possibles pour le comptage API
   const possibleValues = useMemo(() => {
