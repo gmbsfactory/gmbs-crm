@@ -192,8 +192,9 @@ export function generateDevisEmailTemplate(data: EmailTemplateData): string {
                 🛠 CONSIGNES DE VISITE TECHNIQUE :
               </p>
               <p style="margin: 5px 0; color: #333333; font-size: 14px; line-height: 1.6;">
-                Devis à effectuer : ${escapeHtml(d.consigneArtisan)}
+                Devis à effectuer :
               </p>
+              <p style="margin: 5px 0; color: #333333; font-size: 14px; line-height: 1.6; white-space: pre-wrap;">${escapeHtml(d.consigneArtisan)}</p>
               <p style="margin: 5px 0; color: #333333; font-size: 14px; line-height: 1.6;">
                 Se présenter en tant que technicien GMBS, mandaté par l'agence du client
               </p>
@@ -302,8 +303,9 @@ export function generateInterventionEmailTemplate(data: EmailTemplateData): stri
                 🛠 CONSIGNES D'INTERVENTION :
               </p>
               <p style="margin: 5px 0; color: #333333; font-size: 14px; line-height: 1.6;">
-                Intervention à réaliser : ${escapeHtml(d.consigneArtisan)}
+                Intervention à réaliser :
               </p>
+              <p style="margin: 5px 0; color: #333333; font-size: 14px; line-height: 1.6; white-space: pre-wrap;">${escapeHtml(d.consigneArtisan)}</p>
               <p style="margin: 5px 0; color: #333333; font-size: 14px; line-height: 1.6;">
                 Budget maximum autorisé : <strong>${escapeHtml(d.coutSST)} € (HT)</strong>
               </p>
