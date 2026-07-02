@@ -67,7 +67,7 @@ export function ScreenRapport({ m }: { m: BilanMetrics }) {
             <div className="frow">
               <div className="ftop">
                 <span>Signalements reçus</span>
-                <b>20 · 100 %</b>
+                <b>21 · 100 %</b>
               </div>
               <div className="ftrack">
                 <div className="ffill" style={{ width: "100%", background: "linear-gradient(90deg,#2563eb,var(--bs1-accent))" }} />
@@ -76,10 +76,10 @@ export function ScreenRapport({ m }: { m: BilanMetrics }) {
             <div className="frow">
               <div className="ftop">
                 <span>Bugs réels du CRM</span>
-                <b>10 · 50 %</b>
+                <b>10 · 48 %</b>
               </div>
               <div className="ftrack">
-                <div className="ffill" style={{ width: "50%", background: "linear-gradient(90deg,#9f1239,var(--bs1-rose))" }} />
+                <div className="ffill" style={{ width: "48%", background: "linear-gradient(90deg,#9f1239,var(--bs1-rose))" }} />
               </div>
             </div>
             <div className="frow">
@@ -88,12 +88,13 @@ export function ScreenRapport({ m }: { m: BilanMetrics }) {
                 <b>8 · 80 %</b>
               </div>
               <div className="ftrack">
-                <div className="ffill" style={{ width: "40%", background: "linear-gradient(90deg,#14805e,var(--bs1-green))" }} />
+                <div className="ffill" style={{ width: "38%", background: "linear-gradient(90deg,#14805e,var(--bs1-green))" }} />
               </div>
             </div>
             <div className="footnote">
-              Les 10 signalements restants (50 %) : données à corriger, formats de fichier, faux positif, demandes
-              d’évolution — dont 2 où une règle métier voulue a fait exactement son travail (acompte, archives).
+              Les 11 signalements restants (52 %) : données à corriger, formats de fichier, faux positif, demandes
+              d’évolution — dont 3 où une contrainte ou règle métier voulue a fait exactement son travail (acompte,
+              archives, unicité des ID).
             </div>
           </div>
         </div>
