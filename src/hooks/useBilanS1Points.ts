@@ -1,14 +1,39 @@
 "use client"
 
+import { useEffect } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { supabase } from "@/lib/supabase-client"
 import { bilanS1Keys } from "@/lib/react-query/queryKeys"
 import type { BilanPoint } from "@/types/bilan-s1"
 
 /**
- * Points à traiter en réunion (écran 3). Poll 60 s : les réponses des autres
- * participants apparaissent sans F5 pendant la réunion.
+ * Points à traiter en réunion (écran 3 de /bilan-s1).
+ *
+ * TEMPS RÉEL : abonnement Postgres Changes sur bilan_point_replies (INSERT)
+ * et bilan_points (UPDATE de statut) — les réponses et décisions des
+ * participants autorisés apparaissent en live pendant la réunion, sans F5.
+ * Le poll de 60 s reste en filet de sécurité si le canal décroche.
  */
 export function useBilanS1Points(enabled: boolean) {
+  const queryClient = useQueryClient()
+
+  useEffect(() => {
+    if (!enabled) return
+
+    const invalidate = () => {
+      queryClient.invalidateQueries({ queryKey: bilanS1Keys.points() })
+    }
+    const channel = supabase
+      .channel("bilan-s1-points")
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "bilan_point_replies" }, invalidate)
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "bilan_points" }, invalidate)
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [enabled, queryClient])
+
   return useQuery<BilanPoint[]>({
     queryKey: bilanS1Keys.points(),
     queryFn: async () => {
@@ -29,7 +54,7 @@ export function useBilanS1Points(enabled: boolean) {
   })
 }
 
-/** Envoie une réponse à un point ; le point passe en « Répondu ». */
+/** Envoie une réponse (texte libre ou décision) ; le point passe en « Répondu ». */
 export function useReplyToBilanPoint() {
   const queryClient = useQueryClient()
   return useMutation({

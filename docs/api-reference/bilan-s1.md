@@ -42,7 +42,7 @@ Caches serveur (par instance) : payload complet 45 s (la page est pollée toutes
 
 ### `GET /api/bilan-s1/points` · `POST /api/bilan-s1/points/[pointId]/reply`
 
-Écran 3 : points à traiter en réunion (tables `bilan_points` + `bilan_point_replies`, migration 99064 — RLS SELECT authenticated, écritures service-role). GET renvoie les points ordonnés avec leurs réponses (auteur : prénom/nom/couleur/avatar). POST ajoute une réponse horodatée (auteur = utilisateur connecté, 1-4000 caractères) et passe le point en `repondu` (défaut : `a_qualifier`). Les deux routes appliquent le gate `canViewBilan` : toute personne à qui la visibilité de la page a été ouverte peut répondre.
+Écran 3 : points à traiter en réunion (tables `bilan_points` + `bilan_point_replies`, migration 99064 — RLS SELECT authenticated, écritures service-role). GET renvoie les points ordonnés avec leurs réponses (auteur : prénom/nom/couleur/avatar). POST ajoute une réponse horodatée (auteur = utilisateur connecté, 1-4000 caractères) et passe le point en `repondu` (défaut : `a_qualifier`). Chaque point porte un `reponse_type` (migration 99065) : `decision` = boutons « Valider — devis supp » / « Refuser » sans commentaire ; `texte` = réponse libre. Les deux tables sont dans la publication realtime : les réponses apparaissent en direct chez tous les participants (abonnement Postgres Changes dans `useBilanS1Points`, poll 60 s en filet). Les deux routes appliquent le gate `canViewBilan` : toute personne à qui la visibilité de la page a été ouverte peut répondre.
 
 ## Modules
 

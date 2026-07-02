@@ -28,6 +28,7 @@ type PointRow = {
   detail: string | null
   origine: string | null
   statut: "a_qualifier" | "repondu"
+  reponse_type: "texte" | "decision"
   bilan_point_replies: ReplyRow[] | null
 }
 
@@ -52,7 +53,7 @@ export async function GET(req: Request) {
     .from("bilan_points")
     .select(
       `
-      id, ordre, titre, detail, origine, statut,
+      id, ordre, titre, detail, origine, statut, reponse_type,
       bilan_point_replies (
         id, body, created_at,
         users ( id, firstname, lastname, color, avatar_url )
@@ -73,6 +74,7 @@ export async function GET(req: Request) {
     detail: row.detail,
     origine: row.origine,
     statut: row.statut,
+    reponseType: row.reponse_type,
     replies: (row.bilan_point_replies ?? []).map(
       (reply): BilanPointReply => ({
         id: reply.id,

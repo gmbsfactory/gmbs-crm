@@ -166,6 +166,18 @@
 .bilan-s1 .reply-send svg { width: 13px; height: 13px; }
 .bilan-s1 .reply-send:hover { filter: brightness(1.1); }
 .bilan-s1 .reply-send:disabled { opacity: .5; cursor: default; }
+.bilan-s1 .decision-actions { display: flex; gap: 9px; }
+.bilan-s1 .btn-decide {
+  display: inline-flex; align-items: center; gap: 6px;
+  border-radius: 9px; padding: 8px 14px; font-size: 12.5px; font-weight: 650;
+  cursor: pointer; font-family: inherit;
+}
+.bilan-s1 .btn-decide svg { width: 13px; height: 13px; }
+.bilan-s1 .btn-decide:disabled { opacity: .5; cursor: default; }
+.bilan-s1 .btn-validate { background: var(--bs1-green); color: #06121f; border: none; }
+.bilan-s1 .btn-validate:hover { filter: brightness(1.1); }
+.bilan-s1 .btn-refuse { background: transparent; color: var(--bs1-rose); border: 1px solid var(--bs1-rose); }
+.bilan-s1 .btn-refuse:hover { background: rgba(251, 113, 133, .12); }
 .bilan-s1 .frow { display: flex; flex-direction: column; gap: 5px; }
 .bilan-s1 .frow .ftop { display: flex; justify-content: space-between; font-size: 12.5px; }
 .bilan-s1 .frow .ftop b { font-size: 14.5px; }

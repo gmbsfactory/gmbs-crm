@@ -49,6 +49,9 @@ export type BilanPointReply = {
 
 export type BilanPointStatut = "a_qualifier" | "repondu"
 
+/** decision = boutons Valider (devis supp) / Refuser ; texte = réponse libre. */
+export type BilanPointReponseType = "texte" | "decision"
+
 /** Point à traiter en réunion (écran 3 de /bilan-s1). */
 export type BilanPoint = {
   id: string
@@ -57,6 +60,7 @@ export type BilanPoint = {
   detail: string | null
   origine: string | null
   statut: BilanPointStatut
+  reponseType: BilanPointReponseType
   replies: BilanPointReply[]
 }
 

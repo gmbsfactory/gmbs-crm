@@ -1,10 +1,14 @@
 "use client"
 
 import { useState } from "react"
-import { ChevronDown, Send } from "lucide-react"
+import { Check, ChevronDown, Send, X } from "lucide-react"
 import { GestionnaireBadge } from "@/components/ui/gestionnaire-badge"
 import type { BilanPoint } from "@/types/bilan-s1"
 import { useBilanS1Points, useReplyToBilanPoint } from "@/hooks/useBilanS1Points"
+
+/** Libellés enregistrés comme réponse quand on tranche par bouton. */
+const DECISION_VALIDATE = "✅ Validé — part en devis supplémentaire"
+const DECISION_REFUSE = "❌ Refusé"
 
 const replyDateFmt = new Intl.DateTimeFormat("fr-FR", {
   timeZone: "Europe/Paris",
@@ -49,6 +53,15 @@ export function MeetingPoints() {
         onSuccess: () => setDraft(""),
         onError: (e) => setSendError(e instanceof Error ? e.message : "Erreur lors de l'envoi"),
       }
+    )
+  }
+
+  const sendDecision = (pointId: string, decision: string) => {
+    if (replyMutation.isPending) return
+    setSendError(null)
+    replyMutation.mutate(
+      { pointId, body: decision },
+      { onError: (e) => setSendError(e instanceof Error ? e.message : "Erreur lors de l'envoi") }
     )
   }
 
@@ -116,24 +129,47 @@ export function MeetingPoints() {
                     </div>
                   ) : null}
 
-                  <div className="reply-form">
-                    <textarea
-                      value={draft}
-                      onChange={(e) => setDraft(e.target.value)}
-                      placeholder="Votre réponse…"
-                      rows={2}
-                      maxLength={4000}
-                    />
-                    <button
-                      type="button"
-                      className="reply-send"
-                      disabled={!draft.trim() || replyMutation.isPending}
-                      onClick={() => send(point.id)}
-                    >
-                      <Send aria-hidden="true" />
-                      {replyMutation.isPending ? "Envoi…" : "Envoyer"}
-                    </button>
-                  </div>
+                  {point.reponseType === "decision" ? (
+                    <div className="decision-actions">
+                      <button
+                        type="button"
+                        className="btn-decide btn-validate"
+                        disabled={replyMutation.isPending}
+                        onClick={() => sendDecision(point.id, DECISION_VALIDATE)}
+                      >
+                        <Check aria-hidden="true" />
+                        Valider — devis supp
+                      </button>
+                      <button
+                        type="button"
+                        className="btn-decide btn-refuse"
+                        disabled={replyMutation.isPending}
+                        onClick={() => sendDecision(point.id, DECISION_REFUSE)}
+                      >
+                        <X aria-hidden="true" />
+                        Refuser
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="reply-form">
+                      <textarea
+                        value={draft}
+                        onChange={(e) => setDraft(e.target.value)}
+                        placeholder="Votre réponse…"
+                        rows={2}
+                        maxLength={4000}
+                      />
+                      <button
+                        type="button"
+                        className="reply-send"
+                        disabled={!draft.trim() || replyMutation.isPending}
+                        onClick={() => send(point.id)}
+                      >
+                        <Send aria-hidden="true" />
+                        {replyMutation.isPending ? "Envoi…" : "Envoyer"}
+                      </button>
+                    </div>
+                  )}
                   {sendError ? <div className="vis-error">{sendError}</div> : null}
                 </div>
               ) : null}
