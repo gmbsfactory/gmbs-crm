@@ -750,7 +750,9 @@ interface InterventionStatsByStatus {
 
 ### getMarginStatsByUser(userId, startDate?, endDate?)
 
-Retrieves aggregated margin statistics for a user's interventions.
+Retrieves aggregated margin statistics for a user's **completed** interventions.
+
+**Scope (since 2026-07-02, signalement n°17)** : on facture le jour du passage en Terminée. La période filtre donc sur la **date de transition vers `INTER_TERMINEE`** (table `intervention_status_transitions`), pas sur la date de l'intervention ni sur son statut courant. Une intervention repassée plusieurs fois en Terminée sur la période n'est comptée qu'une fois ; les transitions sans changement réel (`from = to`) sont ignorées. Logique propre aux cartes marge du dashboard, indépendante du podium (`get_podium_ranking_by_period`). Agrégation pure : `aggregateMarginFromTransitions` (testée dans `tests/unit/lib/margin-stats-by-user.test.ts`).
 
 **Parameters**
 
