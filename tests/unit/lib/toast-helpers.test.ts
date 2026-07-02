@@ -27,8 +27,37 @@ describe("extractErrorMessage", () => {
     expect(extractErrorMessage("Quelque chose a échoué")).toBe("Quelque chose a échoué")
   })
 
+  describe("violations d'unicité aplaties en texte (code Postgres perdu)", () => {
+    // Scénario réel du signalement n°21 : la route serveur enveloppe l'erreur
+    // PostgREST dans un new Error(...) — le code 23505 disparaît, seul le texte reste.
+    it("should translate a server-wrapped id_inter duplicate into the dedicated message", () => {
+      const wrapped = new Error(
+        'Échec de la mise à jour de l\'intervention: duplicate key value violates unique constraint "interventions_id_inter_key"'
+      )
+      expect(extractErrorMessage(wrapped)).toBe(
+        "Cet ID intervention existe déjà — choisissez un identifiant unique"
+      )
+    })
+
+    it("should include the taken value when the flattened text carries the key details", () => {
+      expect(
+        extractErrorMessage('duplicate key value violates unique constraint. Key (id_inter)=(20843) already exists.')
+      ).toBe("Cet ID intervention existe déjà — choisissez un identifiant unique (« 20843 » est déjà pris).")
+    })
+
+    it("should fall back to the generic duplicate message for other flattened constraints", () => {
+      expect(
+        extractErrorMessage(new Error('duplicate key value violates unique constraint "users_email_key"'))
+      ).toBe("Cette valeur existe déjà. Veuillez en choisir une autre.")
+    })
+
+    it("should not touch unrelated messages", () => {
+      expect(extractErrorMessage(new Error("Réseau indisponible"))).toBe("Réseau indisponible")
+    })
+  })
+
   describe("traduction des erreurs PostgreSQL", () => {
-    it("should translate unique constraint violation (23505) with field details", () => {
+    it("should use the dedicated id_inter message on unique violation (23505)", () => {
       const pgError = {
         message: "duplicate key value violates unique constraint",
         details: 'Key (id_inter)=(TEST-001) already exists.',
@@ -36,7 +65,18 @@ describe("extractErrorMessage", () => {
         hint: "",
       }
       expect(extractErrorMessage(pgError)).toBe(
-        "Le numéro d'intervention « TEST-001 » est déjà utilisé. Veuillez en choisir un autre."
+        "Cet ID intervention existe déjà — choisissez un identifiant unique (« TEST-001 » est déjà pris)."
+      )
+    })
+
+    it("should keep the generic field message for other unique violations (23505)", () => {
+      const pgError = {
+        message: "duplicate key value violates unique constraint",
+        details: 'Key (email)=(a@b.fr) already exists.',
+        code: "23505",
+      }
+      expect(extractErrorMessage(pgError)).toBe(
+        "Le email « a@b.fr » est déjà utilisé. Veuillez en choisir un autre."
       )
     })
 
@@ -165,7 +205,7 @@ describe("toastSaveOperation", () => {
       expect(mockToast.error).toHaveBeenCalledWith("Erreur lors de la mise à jour", {
         id: "toast-id-123",
         duration: Infinity,
-        description: "Le numéro d'intervention « TEST-001 » est déjà utilisé. Veuillez en choisir un autre.",
+        description: "Cet ID intervention existe déjà — choisissez un identifiant unique (« TEST-001 » est déjà pris).",
       })
     })
 
