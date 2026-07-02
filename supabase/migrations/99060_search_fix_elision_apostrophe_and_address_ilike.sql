@@ -38,6 +38,11 @@
 -- ========================================
 -- 1. search_global (barre de recherche du haut / Cmd+K)
 -- ========================================
+-- DROP prealable : la fonction deployee peut avoir un type de retour different
+-- (ex. rank real au lieu de double precision) -> CREATE OR REPLACE seul echoue
+-- avec 42P13 « cannot change return type ». DROP+CREATE est transactionnel
+-- (aucune coupure pour les appelants).
+DROP FUNCTION IF EXISTS search_global(text, int, int, text);
 CREATE OR REPLACE FUNCTION search_global(
   p_query text,
   p_limit int DEFAULT 20,
@@ -258,6 +263,7 @@ COMMENT ON FUNCTION search_global IS
 --    Même correctif de tokenisation. Les replis ILIKE (dont adresse) y
 --    existaient déjà ; on aligne juste la construction des tsquery.
 -- ========================================
+DROP FUNCTION IF EXISTS search_interventions(text, int, int);
 CREATE OR REPLACE FUNCTION search_interventions(
   p_query text,
   p_limit int DEFAULT 20,
