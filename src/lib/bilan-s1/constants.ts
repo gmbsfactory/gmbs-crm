@@ -73,17 +73,17 @@ export const BILAN_BUGS: BilanBugItem[] = [
 /**
  * Instantané git de secours : en prod (Vercel), le binaire git et l'historique
  * ne sont pas disponibles au runtime — on affiche alors ce relevé daté.
- * Mis à jour à la main (dernier relevé : jeu 02/07 ~16h00).
+ * Mis à jour à la main (dernier relevé : jeu 02/07 ~16h20).
  */
 export const GIT_SNAPSHOT = {
-  commits: 32,
-  fixes: 20,
+  commits: 35,
+  fixes: 21,
   feats: 4,
-  files: 80,
-  insertions: 3340,
-  deletions: 640,
+  files: 84,
+  insertions: 3420,
+  deletions: 660,
   lastCommit: {
-    date: "02/07 16:00",
-    subject: "fix(interventions): message clair quand l'ID intervention existe déjà (unicité)",
+    date: "02/07 16:16",
+    subject: "fix(dashboard): la marge ne compte que les interventions terminées sur la période",
   },
 } as const
