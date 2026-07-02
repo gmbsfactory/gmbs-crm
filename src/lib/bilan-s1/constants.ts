@@ -67,7 +67,7 @@ export const BILAN_BUGS: BilanBugItem[] = [
   { n: 17, q: "jeu 12:17", who: "Gabriel", txt: "Marges moyenne/totale du dashboard erronées (cas Yazid : 0 facturé)", type: "Bug", rep: "2 h 30", st: "encours", stTxt: "En cours d'analyse" },
   { n: 18, q: "jeu 12:35", who: "Gabriel", txt: "« L'automatisme de cette rubrique ne fonctionne pas » (acomptes)", type: "Workflow", rep: "2 h 13", st: "discuter", stTxt: "À cadrer vendredi (avec n°12)" },
   { n: 19, q: "jeu 12:45", who: "Gabriel", txt: "Doublon d'intervention accepté (adresses identiques au « : » près)", type: "Évolution", rep: "2 h 09", st: "discuter", stTxt: "Double saisie simultanée · doublon désactivé · garde-fou à cadrer" },
-  { n: 20, q: "jeu 13:01", who: "Andrea", txt: "Mail d'intervention : 2ᵉ numéro « fantôme » (telephone2 locataire, invisible sur la fiche)", type: "Bug", rep: "1 h 49", st: "resolu", stTxt: "Corrigé en 2 h 37 · un seul numéro désormais" },
+  { n: 20, q: "jeu 13:01", who: "Andrea", txt: "Mail d'intervention : 2ᵉ numéro « fantôme » (telephone2 locataire, invisible sur la fiche)", type: "Bug", rep: "1 h 49", st: "resolu", stTxt: "Corrigé en 2 h 31 · un seul numéro désormais" },
 ]
 
 /**
