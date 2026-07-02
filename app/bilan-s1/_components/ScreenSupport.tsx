@@ -128,6 +128,7 @@ export function ScreenSupport({ m }: { m: BilanMetrics }) {
               <li>Filtres de colonne à jour sans F5 (extension proactive)</li>
               <li>Monitoring temps réel de l’activité pour piloter la semaine</li>
               <li>Import sécurisé : validation des colonnes + purge propre</li>
+              <li>Stats gestionnaires assainies : import du 28-29/06 exclu, une inter = 1 par statut</li>
             </ul>
           </div>
 
