@@ -523,7 +523,7 @@ search_global(query)
 
 | Composant | Fichier | Role |
 |-----------|---------|------|
-| Fonction RPC | `supabase/migrations/99026_fix_search_global_rank_type.sql` | Implementation `search_global` |
+| Fonction RPC | `supabase/migrations/99060_search_fix_elision_apostrophe_and_address_ilike.sql` | Derniere implementation `search_global` + `search_interventions` (tokenisation élisions, repli ILIKE adresse). Base hybride : `99026_fix_search_global_rank_type.sql` |
 | Colonnes generees | `interventions.search_vector`, `artisans.search_vector` (tsvector) | Buffer live, GENERATED ALWAYS AS STORED |
 | Indexes GIN | `idx_interventions_search_vector_live`, `idx_artisans_search_vector_live` | Full-text sur tables de base |
 | Indexes B-tree partiels | `idx_interventions_updated_at`, `idx_artisans_updated_at` (WHERE is_active = true) | Fenetre temporelle du buffer |
@@ -536,6 +536,12 @@ search_global(query)
 - Le `search_vector` des tables de base ne contient **que les champs propres** (pas les JOINs). Une intervention fraichement creee sera trouvable par son `id_inter`, son contexte, son adresse, mais **pas par le nom du tenant ou de l'agence** avant le prochain refresh MV. La MV enrichie prend le relais sous 60s.
 - Le `metadata` JSONB du buffer live est simplifie (pas d'agence, pas d'artisan lie). Sans impact UI : le frontend re-fetch les donnees completes par ID via `fetchInterventionsByIds` / `fetchArtisansByIds`.
 - Pagination profonde instable si un refresh a lieu entre deux pages. Cas d'usage rare en pratique (la recherche universelle affiche peu de resultats par defaut).
+
+### Tokenisation FR & élisions (migration 99060)
+
+La construction des `tsquery` prend en compte l'élision française. Le config `french` indexe `L'ETOILE` sous le lexème `etoile` (l'article élidé `l'` est retiré). La requête **remplace les apostrophes (droite `'` et typographique `’`) par une espace** avant de bâtir la `tsquery` préfixe — au lieu de les supprimer, ce qui collait `L'ET` → `LET` (`let:*`, jamais matché) et rendait toute adresse à article élidé introuvable dès qu'on tapait au-delà de l'article. Les **tirets sont laissés intacts** (`-2ND` est indexé `-2`+`nd` ; les retirer re-créerait un décalage).
+
+En complément, `search_global` applique un **repli ILIKE sur `adresse`/`ville`** (accent-insensible via `unaccent`) pour les interventions, côté MV et buffer live — auparavant absent (seuls `agence`/`contexte` avaient ce repli), ce qui faisait reposer toute recherche d'adresse sur le full-text.
 
 ### Deploiement
 
