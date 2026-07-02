@@ -18,6 +18,8 @@ import {
   type ActivityEvent,
   type AuditRow,
 } from "@/lib/bilan-s1/metrics-core"
+import { canViewBilan } from "@/lib/bilan-s1/visibility-core"
+import { loadBilanVisibility } from "@/lib/bilan-s1/visibility-server"
 import type { BilanGitStats, BilanMetrics, BilanScreenTime } from "@/types/bilan-s1"
 
 export const runtime = "nodejs"
@@ -205,16 +207,17 @@ async function computeMetrics(): Promise<BilanMetrics> {
 }
 
 /**
- * GET /api/bilan-s1/metrics — réservé au rôle « dev » (même gate que la page).
- * Lecture seule : uniquement des SELECT/HEAD via le client service role.
+ * GET /api/bilan-s1/metrics — accessible aux devs et aux rôles/utilisateurs
+ * ouverts via la configuration de visibilité (page_visibility, éventuellement
+ * temporaire). Lecture seule : uniquement des SELECT/HEAD via le service role.
  */
 export async function GET(req: Request) {
   const user = await getAuthenticatedUser(req)
   if (!user) {
     return NextResponse.json({ error: "Non authentifié" }, { status: 401 })
   }
-  const isDev = user.roles.some((role) => role.toLowerCase().trim() === "dev")
-  if (!isDev) {
+  const { config } = await loadBilanVisibility()
+  if (!canViewBilan(user, config, Date.now())) {
     return NextResponse.json({ error: "Réservé aux développeurs" }, { status: 403 })
   }
 

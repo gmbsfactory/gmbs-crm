@@ -3,6 +3,7 @@
 import { useMemo } from "react"
 import type { BilanMetrics } from "@/types/bilan-s1"
 import { fmt, frDecimal } from "@/lib/bilan-s1/fallback"
+import { VisibilityControl } from "./VisibilityControl"
 
 /** Écran 1/3 — adoption réelle du CRM (tout est live). */
 export function ScreenAdoption({ m, offline }: { m: BilanMetrics; offline: boolean }) {
@@ -39,6 +40,7 @@ export function ScreenAdoption({ m, offline }: { m: BilanMetrics; offline: boole
               : `LIVE — mis à jour à ${liveTime}${m.cappedAtFridayNoon ? " (arrêté à ven 12h)" : ""}`}
           </span>
         </span>
+        <VisibilityControl />
       </div>
 
       <div className="kpis">

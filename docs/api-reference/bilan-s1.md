@@ -2,11 +2,23 @@
 
 Page `/bilan-s1` (sidebar « Bilan S1 », icône jauge + badge dev) : dashboard de la réunion bilan de la semaine 1 du go-live (lun 29/06 → ven 03/07/2026 12h Paris). Trois écrans : adoption réelle (live), signalements WhatsApp & réactivité dev, rapport final (fiabilité & règles métier).
 
-## Accès
+## Accès & visibilité configurable
 
-- **Sidebar** : entrée déclarée dans `src/config/navigation.ts`, permission `manage_updates` (portée par le seul rôle `dev`).
-- **Page** : `app/bilan-s1/page.tsx`, gate client `usePermissions().hasRole("dev")` (même pattern que Monitoring DEV).
-- **Route API** : gate serveur via `getAuthenticatedUser()` + vérification du rôle `dev` → 401/403 sinon.
+Par défaut la page est **dev-only**, mais les devs peuvent en ouvrir la visibilité via le bouton « Visibilité » (œil, à droite du badge LIVE) : rôles (`admin`, `manager`, `gestionnaire`) et/ou utilisateurs individuels (sélection par avatars), de façon permanente ou **temporaire** (durée en heures, défaut 4 h, max 168 h). La validation prend effet immédiatement ; passé `expires_at`, l'accès retombe de lui-même en dev-only. Le rôle `dev` a toujours accès.
+
+- **Stockage** : table `page_visibility` (migration 99062) — `page_key` PK, `allowed_roles text[]`, `allowed_user_ids uuid[]`, `expires_at`, RLS SELECT pour `authenticated`, écritures via service role uniquement.
+- **Décision** : `src/lib/bilan-s1/visibility-core.ts` (pur, testé) — `canViewBilan(user, config, now)`.
+- **Sidebar** : l'entrée « Bilan S1 » est filtrée dans `AppSidebar` via `useBilanS1Visibility()` (poll 60 s : une ouverture ou une expiration se propage sans F5).
+- **Page** : gate client `canView` (devs + visibilité configurée), skeleton pendant le chargement.
+- **Routes API** : `getAuthenticatedUser()` puis `canViewBilan` (metrics) ou rôle `dev` (écriture visibilité) → 401/403 sinon.
+
+### `GET /api/bilan-s1/visibility`
+
+Tout utilisateur authentifié. Retourne `{ canView, isDev, config? }` — `config` (rôles/utilisateurs/expiration) n'est renvoyée qu'aux devs.
+
+### `PUT /api/bilan-s1/visibility`
+
+Devs uniquement. Body `{ roles: string[], userIds: string[], temporary: boolean, hours?: number }` (rôles whitelist, UUID valides, 1 ≤ hours ≤ 168, défaut 4). Upsert de la ligne `bilan-s1` + retour de la config à jour.
 
 ## Route API
 
@@ -33,6 +45,10 @@ Caches serveur (par instance) : payload complet 45 s (la page est pollée toutes
 | Fichier | Rôle |
 |---|---|
 | `src/lib/bilan-s1/metrics-core.ts` | cœur de calcul **pur** (agrégats, temps d'écran, parse git, fenêtre) — testé dans `tests/unit/lib/bilan-s1-metrics-core.test.ts` |
+| `src/lib/bilan-s1/visibility-core.ts` | décision de visibilité **pure** (dev bypass, rôles, users, expiration, validation des requêtes) — testée dans `tests/unit/lib/bilan-s1-visibility-core.test.ts` |
+| `src/lib/bilan-s1/visibility-server.ts` | lecture serveur de `page_visibility` (service role, repli dev-only si table absente) |
+| `src/hooks/useBilanS1Visibility.ts` | hook TanStack partagé sidebar/page/panneau, clé `bilanS1Keys.visibility()` |
+| `app/bilan-s1/_components/VisibilityControl.tsx` | bouton œil + panneau (rôles, avatars, durée) |
 | `src/lib/bilan-s1/constants.ts` | fenêtre, données WhatsApp figées (15 signalements), règles métier (65), instantané git de secours |
 | `app/bilan-s1/_lib/useBilanS1Metrics.ts` | hook TanStack Query, `refetchInterval` 60 s, clé `bilanS1Keys.metrics()` |
 | `app/bilan-s1/_lib/fallback.ts` | instantané hors-ligne (badge « hors ligne » si la route échoue) |

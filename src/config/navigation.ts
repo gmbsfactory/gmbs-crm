@@ -88,10 +88,11 @@ const ROUTE_CONFIG: (RouteConfig | { type: "spacer" })[] = [
     permission: { type: "simple", key: "manage_updates" },
   },
   {
+    // Visibilité dynamique : filtrée dans AppSidebar via useBilanS1Visibility
+    // (devs toujours ; rôles/utilisateurs ouverts via le panneau de la page).
     name: "Bilan S1",
     href: "/bilan-s1",
     icon: BilanS1Icon,
-    permission: { type: "simple", key: "manage_updates" },
   },
 ]
 

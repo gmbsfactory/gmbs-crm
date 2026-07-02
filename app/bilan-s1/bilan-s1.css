@@ -140,6 +140,67 @@
 .bilan-s1 .verdict .kpi { flex: 1; text-align: center; padding: 13px 12px 11px; }
 .bilan-s1 .verdict .kpi .val { font-size: 27px; }
 
+/* ---------- bouton & panneau de visibilité ---------- */
+.bilan-s1 .vis-wrap { position: relative; display: inline-flex; }
+.bilan-s1 .vis-btn {
+  display: inline-flex; align-items: center; gap: 7px;
+  font-size: 12.5px; color: var(--bs1-text-dim); background: transparent;
+  border: 1px solid var(--bs1-border); border-radius: 999px; padding: 5px 14px;
+  cursor: pointer; font-family: inherit; transition: color .15s ease, border-color .15s ease;
+}
+.bilan-s1 .vis-btn:hover { color: var(--bs1-text); border-color: var(--bs1-accent); }
+.bilan-s1 .vis-btn .vis-eye { width: 14px; height: 14px; }
+.bilan-s1 .vis-backdrop { position: fixed; inset: 0; z-index: 30; }
+.bilan-s1 .vis-panel {
+  position: absolute; right: 0; top: calc(100% + 8px); z-index: 40; width: 350px;
+  background: var(--bs1-bg-card); border: 1px solid var(--bs1-border); border-radius: 14px;
+  padding: 16px 18px; display: flex; flex-direction: column; gap: 10px;
+  box-shadow: 0 18px 45px rgba(0, 0, 0, .5);
+}
+.bilan-s1 .vis-title { font-size: 14px; font-weight: 700; }
+.bilan-s1 .vis-status { font-size: 11.5px; color: var(--bs1-text-dim); }
+.bilan-s1 .vis-section {
+  font-size: 10.5px; font-weight: 650; color: var(--bs1-text-dim);
+  text-transform: uppercase; letter-spacing: 1.2px; margin-top: 4px;
+}
+.bilan-s1 .vis-roles { display: flex; flex-wrap: wrap; gap: 6px 14px; }
+.bilan-s1 .vis-role { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; cursor: pointer; }
+.bilan-s1 .vis-role.locked { color: var(--bs1-text-dim); cursor: default; }
+.bilan-s1 .vis-role input { accent-color: var(--bs1-accent); cursor: inherit; }
+.bilan-s1 .vis-avatars { display: flex; flex-wrap: wrap; gap: 7px; max-height: 116px; overflow-y: auto; padding: 2px; }
+.bilan-s1 .vis-avatar {
+  position: relative; background: transparent; border: 2px solid transparent; border-radius: 999px;
+  padding: 1px; cursor: pointer; opacity: .55; transition: opacity .15s ease, border-color .15s ease;
+}
+.bilan-s1 .vis-avatar:hover { opacity: .9; }
+.bilan-s1 .vis-avatar.sel { opacity: 1; border-color: var(--bs1-accent); }
+.bilan-s1 .vis-avatar-check {
+  position: absolute; right: -3px; bottom: -3px; width: 15px; height: 15px; border-radius: 50%;
+  background: var(--bs1-accent); color: #06121f; display: inline-flex; align-items: center; justify-content: center;
+}
+.bilan-s1 .vis-avatar-check svg { width: 11px; height: 11px; }
+.bilan-s1 .vis-empty { font-size: 11.5px; color: var(--bs1-text-dim); }
+.bilan-s1 .vis-temp { display: flex; align-items: center; gap: 7px; font-size: 12.5px; margin-top: 4px; }
+.bilan-s1 .vis-temp input[type="checkbox"] { accent-color: var(--bs1-accent); }
+.bilan-s1 .vis-temp input[type="number"] {
+  width: 56px; background: var(--bs1-bg); color: var(--bs1-text); border: 1px solid var(--bs1-border);
+  border-radius: 7px; padding: 3px 7px; font-size: 12.5px; font-family: inherit;
+}
+.bilan-s1 .vis-temp input[type="number"]:disabled { opacity: .4; }
+.bilan-s1 .vis-error { font-size: 11.5px; color: var(--bs1-rose); }
+.bilan-s1 .vis-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 6px; }
+.bilan-s1 .vis-cancel {
+  background: transparent; color: var(--bs1-text-dim); border: 1px solid var(--bs1-border);
+  border-radius: 9px; padding: 6px 13px; font-size: 12.5px; cursor: pointer; font-family: inherit;
+}
+.bilan-s1 .vis-cancel:hover { color: var(--bs1-text); }
+.bilan-s1 .vis-validate {
+  background: var(--bs1-accent); color: #06121f; border: none; border-radius: 9px;
+  padding: 6px 14px; font-size: 12.5px; font-weight: 650; cursor: pointer; font-family: inherit;
+}
+.bilan-s1 .vis-validate:hover { filter: brightness(1.1); }
+.bilan-s1 .vis-validate:disabled { opacity: .6; cursor: default; }
+
 @media (max-width: 1100px) {
   .bilan-s1 .kpis, .bilan-s1 .strip { grid-template-columns: repeat(2, 1fr); }
   .bilan-s1 .charts, .bilan-s1 .split, .bilan-s1 .finalgrid { grid-template-columns: 1fr; }
