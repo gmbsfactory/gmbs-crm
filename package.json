@@ -126,6 +126,7 @@
     "rehype-highlight": "^7.0.2",
     "remark-footnotes": "^4.0.1",
     "remark-gfm": "^4.0.1",
+    "server-only": "^0.0.1",
     "sonner": "^1.7.1",
     "styled-components": "^6.1.19",
     "tailwind-merge": "^2.5.5",
