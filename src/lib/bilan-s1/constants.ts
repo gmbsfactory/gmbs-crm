@@ -16,9 +16,9 @@ export const BILAN_DAYS = ["lun 29/06", "mar 30/06", "mer 01/07", "jeu 02/07", "
 
 /** Compteurs figés issus de l'analyse WhatsApp (réconciliés avec git). */
 export const BILAN_WHATSAPP = {
-  signalements: 15,
+  signalements: 16,
   bugsReels: 8,
-  bugsCorriges: 7, // dont n°15 partiel (collage adresse complète encore KO)
+  bugsCorriges: 7, // reste le n°4 (délai nom artisan) à requalifier
   medianeReponseMin: 10,
   medianeCorrection: "2 h 13",
 } as const
@@ -63,22 +63,23 @@ export const BILAN_BUGS: BilanBugItem[] = [
   { n: 13, q: "mer 16:22", who: "Gabriel", txt: "Consigne artisan aplatie en un seul bloc", type: "Bug", rep: "27 min", st: "resolu", stTxt: "Corrigé en 28 min" },
   { n: 14, q: "mer 16:48", who: "Andrea", txt: "Facture .docx illisible → utiliser PDF / JPEG", type: "Format", rep: "4 min", st: "nonbug", stTxt: "Expliqué" },
   { n: 15, q: "mer 17:06", who: "Gabriel", txt: "Recherche : adresse « RESIDENCE DE L'ETOILE » introuvable", type: "Bug", rep: "—", st: "resolu", stTxt: "Corrigé en 9 h 52 (nuit) · validé en prod" },
+  { n: 16, q: "jeu 11:23", who: "Gabriel", txt: "Retirer SA, SNC, SCS, SCA du menu « Statut juridique » artisan", type: "Évolution", rep: "2 min", st: "resolu", stTxt: "Corrigé en 22 min" },
 ]
 
 /**
  * Instantané git de secours : en prod (Vercel), le binaire git et l'historique
  * ne sont pas disponibles au runtime — on affiche alors ce relevé daté.
- * Mis à jour à la main (dernier relevé : jeu 02/07 ~03h15).
+ * Mis à jour à la main (dernier relevé : jeu 02/07 ~11h45).
  */
 export const GIT_SNAPSHOT = {
-  commits: 22,
-  fixes: 17,
+  commits: 24,
+  fixes: 18,
   feats: 4,
-  files: 66,
-  insertions: 3179,
-  deletions: 584,
+  files: 70,
+  insertions: 3210,
+  deletions: 600,
   lastCommit: {
-    date: "02/07 02:58",
-    subject: "fix(search): rend 99060 applicable en prod (DROP préalable) + résout le doublon de version 99055",
+    date: "02/07 11:45",
+    subject: "fix(artisans): retire SA, SNC, SCS et SCA du statut juridique (demande client)",
   },
 } as const

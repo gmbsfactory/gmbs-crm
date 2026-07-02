@@ -13,18 +13,18 @@ export function ScreenSupport({ m }: { m: BilanMetrics }) {
       <div className="topbar">
         <span className="screen-label">2 / 3 · Support &amp; dev</span>
         <h1>Signalements &amp; réactivité</h1>
-        <span className="window">15 sujets remontés sur WhatsApp · lun 29/06 → mer 01/07</span>
+        <span className="window">16 sujets remontés sur WhatsApp · lun 29/06 → jeu 02/07</span>
       </div>
 
       <div className="strip">
         <div className="kpi">
-          <div className="val">15</div>
+          <div className="val">16</div>
           <div className="lbl">signalements traités</div>
         </div>
         <div className="kpi">
           <div className="val">8</div>
           <div className="lbl">bugs réels du CRM</div>
-          <div className="sub">7 autres : données, formats, workflow…</div>
+          <div className="sub">8 autres : données, formats, workflow, évolutions…</div>
         </div>
         <div className="kpi">
           <div className="val" style={{ color: "var(--bs1-green)" }}>
@@ -48,7 +48,7 @@ export function ScreenSupport({ m }: { m: BilanMetrics }) {
 
       <div className="split">
         <div className="card" style={{ overflow: "auto" }}>
-          <h3>Les 15 signalements</h3>
+          <h3>Les 16 signalements</h3>
           <table>
             <thead>
               <tr>
