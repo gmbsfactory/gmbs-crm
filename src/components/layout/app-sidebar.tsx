@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { useInterface } from "@/contexts/interface-context"
 import { usePermissions } from "@/hooks/usePermissions"
+import { useBilanS1Visibility } from "@/hooks/useBilanS1Visibility"
 import { buildNavigation, type NavItem } from "@/config/navigation"
 
 export function AppSidebar() {
@@ -14,8 +15,13 @@ export function AppSidebar() {
   // Source sidebar mode from Interface context to reflect Settings → Interface choices
   const { sidebarMode } = useInterface()
   const { can, canAccessPage } = usePermissions()
+  const { data: bilanVisibility } = useBilanS1Visibility()
 
-  const navigation = buildNavigation(can, canAccessPage)
+  // Bilan S1 : visibilité dynamique (devs + rôles/utilisateurs ouverts via le
+  // panneau de la page, éventuellement temporaire) — masquée tant qu'inconnue.
+  const navigation = buildNavigation(can, canAccessPage).filter(
+    (item) => item.type !== "link" || item.href !== "/bilan-s1" || bilanVisibility?.canView === true
+  )
 
   const collapses = sidebarMode === "collapsed" || sidebarMode === "hybrid"
   const expandOnHover = sidebarMode === "hybrid"

@@ -74,6 +74,7 @@ Reference technique des modules API, hooks et Edge Functions.
 | [Query Keys Reference](api-reference/query-keys.md) | Reference complete des query keys TanStack Query |
 | [Edge Functions](api-reference/edge-functions.md) | 13+ fonctions Deno, patterns, CORS, auth, logging |
 | [Monitoring API](api-reference/monitoring.md) | RPC flux d'activite global + connexions (dashboard dev) |
+| [Bilan S1](api-reference/bilan-s1.md) | Dashboard dev-only de la reunion bilan semaine 1 (page /bilan-s1 + route metrics) |
 
 ---
 
