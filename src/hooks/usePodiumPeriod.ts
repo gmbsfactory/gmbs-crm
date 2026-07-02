@@ -22,7 +22,7 @@ interface UsePodiumPeriodResult {
  * 2. Vérifie toutes les heures si la période a changé
  *
  * POURQUOI VÉRIFIER TOUTES LES HEURES ?
- * - Le job cron rafraîchit la période chaque vendredi à 16h
+ * - Le job cron rafraîchit la période chaque vendredi à 18h (heure de Paris)
  * - Sans cette vérification, les utilisateurs devraient recharger la page manuellement
  * - Avec cette vérification, tous les clients connectés détectent automatiquement
  *   le changement de période dans l'heure suivant le rafraîchissement

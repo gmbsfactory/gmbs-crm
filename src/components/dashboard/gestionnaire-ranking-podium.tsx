@@ -18,7 +18,7 @@ interface GestionnaireRankingPodiumProps {
     endDate?: string
   }
   /**
-   * Si true, utilise automatiquement la période du podium qui se rafraîchit chaque vendredi à 16h
+   * Si true, utilise automatiquement la période du podium qui se rafraîchit chaque vendredi à 18h (heure de Paris)
    * Si false, utilise la période fournie dans `period` (comportement par défaut pour compatibilité)
    */
   useAutoPeriod?: boolean
