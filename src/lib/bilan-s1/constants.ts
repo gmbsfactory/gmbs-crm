@@ -64,7 +64,7 @@ export const BILAN_BUGS: BilanBugItem[] = [
   { n: 14, q: "mer 16:48", who: "Andrea", txt: "Facture .docx illisible → utiliser PDF / JPEG", type: "Format", rep: "4 min", st: "nonbug", stTxt: "Expliqué" },
   { n: 15, q: "mer 17:06", who: "Gabriel", txt: "Recherche : adresse « RESIDENCE DE L'ETOILE » introuvable", type: "Bug", rep: "—", st: "resolu", stTxt: "Corrigé en 9 h 52 (nuit) · validé en prod" },
   { n: 16, q: "jeu 11:23", who: "Gabriel", txt: "Retirer SA, SNC, SCS, SCA du menu « Statut juridique » artisan", type: "Évolution", rep: "2 min", st: "resolu", stTxt: "Corrigé en 12 min" },
-  { n: 17, q: "jeu 12:17", who: "Gabriel", txt: "Marges moyenne/totale du dashboard erronées (cas Yazid : 0 facturé)", type: "Bug", rep: "2 h 30", st: "resolu", stTxt: "Corrigé en 4 h 08 · marge = terminées sur la période" },
+  { n: 17, q: "jeu 12:17", who: "Gabriel", txt: "Marges moyenne/totale du dashboard erronées (cas Yazid : 0 facturé)", type: "Bug", rep: "2 h 30", st: "resolu", stTxt: "Corrigé en 3 h 59 · marge = terminées sur la période" },
   { n: 18, q: "jeu 12:45", who: "Gabriel", txt: "Doublon d'intervention accepté (adresses identiques au « : » près)", type: "Évolution", rep: "2 h 09", st: "discuter", stTxt: "Double saisie simultanée · doublon désactivé · garde-fou à cadrer" },
   { n: 19, q: "jeu 13:01", who: "Andrea", txt: "Mail d'intervention : 2ᵉ numéro « fantôme » (telephone2 locataire, invisible sur la fiche)", type: "Bug", rep: "1 h 49", st: "resolu", stTxt: "Corrigé en 2 h 31 · un seul numéro désormais" },
   { n: 20, q: "jeu 15:19", who: "Antoine", txt: "Devis supp 20843 bloqué en Demandé (« erreur lors de la mise à jour »)", type: "Usage", rep: "7 min", st: "resolu", stTxt: "Expliqué en 8 min (ID unique requis) · message clair ajouté" },
