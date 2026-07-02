@@ -111,7 +111,7 @@ export function ScreenSupport({ m }: { m: BilanMetrics }) {
               </div>
             </div>
             <div className="footnote">
-              14 commits répondent directement à 7 signalements — l’archivage clic droit en a demandé 5 à lui seul.
+              16 commits répondent directement à 9 signalements — l’archivage clic droit en a demandé 5 à lui seul.
             </div>
             {git?.lastCommit ? (
               <div className="lastcommit">

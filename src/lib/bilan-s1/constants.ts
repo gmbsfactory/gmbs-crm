@@ -63,23 +63,23 @@ export const BILAN_BUGS: BilanBugItem[] = [
   { n: 13, q: "mer 16:22", who: "Gabriel", txt: "Consigne artisan aplatie en un seul bloc", type: "Bug", rep: "27 min", st: "resolu", stTxt: "Corrigé en 28 min" },
   { n: 14, q: "mer 16:48", who: "Andrea", txt: "Facture .docx illisible → utiliser PDF / JPEG", type: "Format", rep: "4 min", st: "nonbug", stTxt: "Expliqué" },
   { n: 15, q: "mer 17:06", who: "Gabriel", txt: "Recherche : adresse « RESIDENCE DE L'ETOILE » introuvable", type: "Bug", rep: "—", st: "resolu", stTxt: "Corrigé en 9 h 52 (nuit) · validé en prod" },
-  { n: 16, q: "jeu 11:23", who: "Gabriel", txt: "Retirer SA, SNC, SCS, SCA du menu « Statut juridique » artisan", type: "Évolution", rep: "2 min", st: "resolu", stTxt: "Corrigé en 22 min" },
+  { n: 16, q: "jeu 11:23", who: "Gabriel", txt: "Retirer SA, SNC, SCS, SCA du menu « Statut juridique » artisan", type: "Évolution", rep: "2 min", st: "resolu", stTxt: "Corrigé en 12 min" },
 ]
 
 /**
  * Instantané git de secours : en prod (Vercel), le binaire git et l'historique
  * ne sont pas disponibles au runtime — on affiche alors ce relevé daté.
- * Mis à jour à la main (dernier relevé : jeu 02/07 ~11h45).
+ * Mis à jour à la main (dernier relevé : jeu 02/07 ~11h35).
  */
 export const GIT_SNAPSHOT = {
-  commits: 24,
+  commits: 25,
   fixes: 18,
   feats: 4,
   files: 70,
   insertions: 3210,
   deletions: 600,
   lastCommit: {
-    date: "02/07 11:45",
+    date: "02/07 11:34",
     subject: "fix(artisans): retire SA, SNC, SCS et SCA du statut juridique (demande client)",
   },
 } as const
