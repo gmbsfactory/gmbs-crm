@@ -669,3 +669,13 @@ export const updateKeys = {
   admin: () => [...updateKeys.all, 'admin'] as const,
   adminWithViews: () => [...updateKeys.admin(), 'with-views'] as const,
 } as const
+
+// ---------------------------------------------------------------------------
+// Bilan S1 (dashboard dev-only) query keys
+// ---------------------------------------------------------------------------
+
+export const bilanS1Keys = {
+  all: ["bilan-s1"] as const,
+  metrics: () => [...bilanS1Keys.all, "metrics"] as const,
+  invalidateAll: () => bilanS1Keys.all,
+} as const
