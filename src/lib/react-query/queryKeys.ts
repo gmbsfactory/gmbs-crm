@@ -678,5 +678,6 @@ export const bilanS1Keys = {
   all: ["bilan-s1"] as const,
   metrics: () => [...bilanS1Keys.all, "metrics"] as const,
   visibility: () => [...bilanS1Keys.all, "visibility"] as const,
+  points: () => [...bilanS1Keys.all, "points"] as const,
   invalidateAll: () => bilanS1Keys.all,
 } as const

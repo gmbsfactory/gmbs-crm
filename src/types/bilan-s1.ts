@@ -32,6 +32,34 @@ export type BilanGitStats = {
   lastCommit: { date: string; subject: string } | null
 }
 
+export type BilanPointReplyUser = {
+  id: string
+  firstname: string | null
+  lastname: string | null
+  color: string | null
+  avatarUrl: string | null
+}
+
+export type BilanPointReply = {
+  id: string
+  body: string
+  createdAt: string
+  user: BilanPointReplyUser | null
+}
+
+export type BilanPointStatut = "a_qualifier" | "repondu"
+
+/** Point à traiter en réunion (écran 3 de /bilan-s1). */
+export type BilanPoint = {
+  id: string
+  ordre: number
+  titre: string
+  detail: string | null
+  origine: string | null
+  statut: BilanPointStatut
+  replies: BilanPointReply[]
+}
+
 export type BilanMetrics = {
   generatedAt: string
   windowStart: string

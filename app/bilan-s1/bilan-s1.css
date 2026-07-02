@@ -119,12 +119,53 @@
 .bilan-s1 .errbar { font-size: 11px; color: var(--bs1-amber); }
 
 /* ---------- écran 3 : rapport final ---------- */
-.bilan-s1 .finalgrid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 13px; flex: 1; min-height: 0; }
-.bilan-s1 .gaugewrap { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; }
+.bilan-s1 .finalgrid { display: grid; grid-template-columns: 1fr 2fr; gap: 13px; flex: 1; min-height: 0; }
+.bilan-s1 .leftcol { display: flex; flex-direction: column; gap: 13px; min-height: 0; }
+.bilan-s1 .leftcol .card { flex: 1; min-height: 0; }
+.bilan-s1 .gaugewrap { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; }
 .bilan-s1 .gauge text { font-family: inherit; }
-.bilan-s1 .gauge .g-pct { font-size: 34px; font-weight: 750; fill: var(--bs1-green); }
-.bilan-s1 .gauge .g-lbl { font-size: 11px; fill: var(--bs1-text-dim); }
-.bilan-s1 .frows { flex: 1; display: flex; flex-direction: column; justify-content: center; gap: 16px; }
+.bilan-s1 .gauge .g-pct { font-size: 25px; font-weight: 750; fill: var(--bs1-green); }
+.bilan-s1 .gauge .g-lbl { font-size: 10.5px; fill: var(--bs1-text-dim); }
+.bilan-s1 .frows { flex: 1; display: flex; flex-direction: column; justify-content: center; gap: 12px; }
+/* ---------- écran 3 : points à traiter en réunion ---------- */
+.bilan-s1 .points-card { min-height: 0; }
+.bilan-s1 .points-list { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 7px; padding-right: 2px; }
+.bilan-s1 .points-empty { font-size: 12.5px; color: var(--bs1-text-dim); padding: 8px 2px; }
+.bilan-s1 .point { border: 1px solid var(--bs1-border); border-radius: 11px; background: var(--bs1-bg-card-2); }
+.bilan-s1 .point.open { border-color: var(--bs1-accent); }
+.bilan-s1 .point-head {
+  display: flex; align-items: center; gap: 10px; width: 100%; text-align: left;
+  background: transparent; border: none; cursor: pointer; padding: 10px 12px;
+  color: var(--bs1-text); font-family: inherit; font-size: 13px;
+}
+.bilan-s1 .point-head:hover .point-title { color: var(--bs1-accent); }
+.bilan-s1 .point-title { flex: 1; font-weight: 600; line-height: 1.3; }
+.bilan-s1 .point-count { font-size: 11px; color: var(--bs1-text-dim); white-space: nowrap; }
+.bilan-s1 .point-chevron { width: 15px; height: 15px; color: var(--bs1-text-dim); transition: transform .15s ease; flex-shrink: 0; }
+.bilan-s1 .point-chevron.open { transform: rotate(180deg); }
+.bilan-s1 .point-body { padding: 0 12px 12px; display: flex; flex-direction: column; gap: 9px; }
+.bilan-s1 .point-detail { font-size: 12.5px; line-height: 1.45; color: var(--bs1-text); }
+.bilan-s1 .point-origin { font-size: 11px; color: var(--bs1-text-dim); }
+.bilan-s1 .point-replies { display: flex; flex-direction: column; gap: 8px; border-top: 1px solid var(--bs1-border); padding-top: 9px; }
+.bilan-s1 .reply { display: flex; gap: 8px; align-items: flex-start; }
+.bilan-s1 .reply-content { flex: 1; min-width: 0; }
+.bilan-s1 .reply-meta { font-size: 11px; color: var(--bs1-text-dim); }
+.bilan-s1 .reply-meta b { color: var(--bs1-text); }
+.bilan-s1 .reply-body { font-size: 12.5px; line-height: 1.45; white-space: pre-wrap; overflow-wrap: break-word; }
+.bilan-s1 .reply-form { display: flex; gap: 8px; align-items: flex-end; }
+.bilan-s1 .reply-form textarea {
+  flex: 1; background: var(--bs1-bg); color: var(--bs1-text); border: 1px solid var(--bs1-border);
+  border-radius: 9px; padding: 7px 10px; font-size: 12.5px; font-family: inherit; resize: vertical; min-height: 38px;
+}
+.bilan-s1 .reply-form textarea:focus { outline: none; border-color: var(--bs1-accent); }
+.bilan-s1 .reply-send {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: var(--bs1-accent); color: #06121f; border: none; border-radius: 9px;
+  padding: 8px 13px; font-size: 12.5px; font-weight: 650; cursor: pointer; font-family: inherit; white-space: nowrap;
+}
+.bilan-s1 .reply-send svg { width: 13px; height: 13px; }
+.bilan-s1 .reply-send:hover { filter: brightness(1.1); }
+.bilan-s1 .reply-send:disabled { opacity: .5; cursor: default; }
 .bilan-s1 .frow { display: flex; flex-direction: column; gap: 5px; }
 .bilan-s1 .frow .ftop { display: flex; justify-content: space-between; font-size: 12.5px; }
 .bilan-s1 .frow .ftop b { font-size: 14.5px; }

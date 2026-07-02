@@ -16,10 +16,10 @@ export const BILAN_DAYS = ["lun 29/06", "mar 30/06", "mer 01/07", "jeu 02/07", "
 
 /** Compteurs figés issus de l'analyse WhatsApp (réconciliés avec git). */
 export const BILAN_WHATSAPP = {
-  signalements: 20, // l'ex-n°18 (acomptes) était un doublon du n°12 — retiré à la demande d'André
+  signalements: 24,
   bugsReels: 10,
   bugsCorriges: 9, // reste le n°4 (délai nom artisan) à requalifier
-  medianeReponseMin: 12, // médiane sur 16 réponses (hors nocturne)
+  medianeReponseMin: 56, // médiane sur 20 réponses (hors nocturne) — les 4 demandes du jeudi soir répondues à ~23h
   medianeCorrection: "2 h 14",
 } as const
 
@@ -68,22 +68,26 @@ export const BILAN_BUGS: BilanBugItem[] = [
   { n: 18, q: "jeu 12:45", who: "Gabriel", txt: "Doublon d'intervention accepté (adresses identiques au « : » près)", type: "Évolution", rep: "2 h 09", st: "discuter", stTxt: "Double saisie simultanée · doublon désactivé · garde-fou à cadrer" },
   { n: 19, q: "jeu 13:01", who: "Andrea", txt: "Mail d'intervention : 2ᵉ numéro « fantôme » (telephone2 locataire, invisible sur la fiche)", type: "Bug", rep: "1 h 49", st: "resolu", stTxt: "Corrigé en 2 h 31 · un seul numéro désormais" },
   { n: 20, q: "jeu 15:19", who: "Antoine", txt: "Devis supp 20843 bloqué en Demandé (« erreur lors de la mise à jour »)", type: "Usage", rep: "7 min", st: "resolu", stTxt: "Expliqué en 8 min (ID unique requis) · message clair ajouté" },
+  { n: 21, q: "jeu 17:53", who: "Gabriel", txt: "Décalage marge semaine (950 €) vs mois (803 €) sur le profil d'Adam", type: "Usage", rep: "5 h 16", st: "nonbug", stTxt: "Expliqué : lun-mar 29-30/06 comptent pour juin, le mois commence le 1er" },
+  { n: 22, q: "jeu 18:53", who: "Gabriel", txt: "Lien cliquable dans les commentaires", type: "Évolution", rep: "4 h 18", st: "discuter", stTxt: "Devis supplémentaire à chiffrer" },
+  { n: 23, q: "jeu 18:54", who: "Gabriel", txt: "Correcteur d'orthographe sur la consigne artisan", type: "Évolution", rep: "4 h 17", st: "discuter", stTxt: "Devis supplémentaire à chiffrer" },
+  { n: 24, q: "jeu 18:56", who: "Gabriel", txt: "Mettre les ID en gras", type: "Évolution", rep: "4 h 15", st: "discuter", stTxt: "Accepté · périmètre à définir en réunion" },
 ]
 
 /**
  * Instantané git de secours : en prod (Vercel), le binaire git et l'historique
  * ne sont pas disponibles au runtime — on affiche alors ce relevé daté.
- * Mis à jour à la main (dernier relevé : jeu 02/07 ~16h20).
+ * Mis à jour à la main (dernier relevé : ven 03/07 ~10h30).
  */
 export const GIT_SNAPSHOT = {
-  commits: 35,
+  commits: 41,
   fixes: 21,
   feats: 4,
-  files: 84,
-  insertions: 3420,
-  deletions: 660,
+  files: 95,
+  insertions: 4100,
+  deletions: 700,
   lastCommit: {
-    date: "02/07 16:16",
-    subject: "fix(dashboard): la marge ne compte que les interventions terminées sur la période",
+    date: "03/07 10:30",
+    subject: "feat(bilan-s1): points de réunion interactifs (réponses horodatées, avatars)",
   },
 } as const

@@ -40,6 +40,10 @@ Fenêtre de mesure : `WINDOW_START_ISO` → min(maintenant, `WINDOW_CAP_ISO` = v
 
 Caches serveur (par instance) : payload complet 45 s (la page est pollée toutes les 60 s par chaque dev), temps d'écran 5 min (≈ 10 k événements/jour à re-parcourir).
 
+### `GET /api/bilan-s1/points` · `POST /api/bilan-s1/points/[pointId]/reply`
+
+Écran 3 : points à traiter en réunion (tables `bilan_points` + `bilan_point_replies`, migration 99064 — RLS SELECT authenticated, écritures service-role). GET renvoie les points ordonnés avec leurs réponses (auteur : prénom/nom/couleur/avatar). POST ajoute une réponse horodatée (auteur = utilisateur connecté, 1-4000 caractères) et passe le point en `repondu` (défaut : `a_qualifier`). Les deux routes appliquent le gate `canViewBilan` : toute personne à qui la visibilité de la page a été ouverte peut répondre.
+
 ## Modules
 
 | Fichier | Rôle |
