@@ -16,6 +16,7 @@ export interface MarginQueryRow {
 
 export interface TransitionRow {
   id: string;
+  intervention_id: string;
   transition_date: string;
   to_status_code: string;
   interventions: Record<string, unknown> | Array<Record<string, unknown>>;

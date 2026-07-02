@@ -722,6 +722,8 @@ Source: `src/lib/api/v2/interventions/interventions-stats.ts`
 
 Uses dependency injection: `_setCostsRef(interventionsCosts)` is called at module initialization.
 
+> **Périmètre commun des stats de transitions (2026-07-02)** — `fetchUserTransitions` (utilisé par les stats hebdo/mensuelles/annuelles : devis envoyés, inters en cours, inters facturées) applique : (1) données réelles uniquement (≥ go-live lun 29/06/2026 00:00 Paris, acteur humain requis — l'import des 28-29/06 est exclu) ; (2) **une intervention ne compte qu'une fois par statut** sur la période, attribuée à son premier passage (`dedupeFirstTransitionPerIntervention`, testée dans `tests/unit/lib/transitions-scope.test.ts`). Un dossier repassé 4 fois en Devis envoyé compte 1.
+
 ### getStatsByUser(userId, startDate?, endDate?)
 
 Retrieves intervention counts grouped by status for a specific user. Includes virtual "Check" status detection.
@@ -752,7 +754,7 @@ interface InterventionStatsByStatus {
 
 Retrieves aggregated margin statistics for a user's **completed** interventions.
 
-**Scope (since 2026-07-02, signalement n°17)** : on facture le jour du passage en Terminée. La période filtre donc sur la **date de transition vers `INTER_TERMINEE`** (table `intervention_status_transitions`), pas sur la date de l'intervention ni sur son statut courant. Une intervention repassée plusieurs fois en Terminée sur la période n'est comptée qu'une fois ; les transitions sans changement réel (`from = to`) sont ignorées. Logique propre aux cartes marge du dashboard, indépendante du podium (`get_podium_ranking_by_period`). Agrégation pure : `aggregateMarginFromTransitions` (testée dans `tests/unit/lib/margin-stats-by-user.test.ts`).
+**Scope (since 2026-07-02, signalement n°17)** : on facture le jour du passage en Terminée. La période filtre donc sur la **date de transition vers `INTER_TERMINEE`** (table `intervention_status_transitions`), pas sur la date de l'intervention ni sur son statut courant. S'ajoute le périmètre « données réelles » (`src/lib/api/interventions/stats/transitions-scope.ts`) : transitions **postérieures au go-live** (lun 29/06/2026 00:00 Paris) et **portées par un acteur humain** (`changed_by_user_id` non nul) — l'import des 28-29/06 avait recréé ~6 500 transitions fantômes qui polluaient notamment le « vs période précédente ». Une intervention repassée plusieurs fois en Terminée sur la période n'est comptée qu'une fois ; les transitions sans changement réel (`from = to`) sont ignorées. Logique propre aux cartes marge du dashboard, indépendante du podium (`get_podium_ranking_by_period`). Agrégation pure : `aggregateMarginFromTransitions` (testée dans `tests/unit/lib/margin-stats-by-user.test.ts`).
 
 **Parameters**
 

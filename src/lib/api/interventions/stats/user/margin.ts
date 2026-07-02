@@ -13,6 +13,7 @@
 import { supabase } from "@/lib/api/common/client";
 import type { InterventionCost, MarginStats } from "@/lib/api/common/types";
 import { interventionsCosts } from "@/lib/api/interventions/interventions-costs";
+import { REAL_DATA_START_ISO } from "@/lib/api/interventions/stats/transitions-scope";
 import { requireUserId, throwSupabaseError } from "./_shared";
 
 export type MarginTransitionRow = {
@@ -120,7 +121,12 @@ export async function getMarginStatsByUser(
     // Ignore les « transitions » sans changement réel de statut
     .or("from_status_code.is.null,from_status_code.neq.INTER_TERMINEE")
     .eq("interventions.assigned_user_id", userId)
-    .eq("interventions.is_active", true);
+    .eq("interventions.is_active", true)
+    // Périmètre « données réelles » : facturations humaines depuis le go-live
+    // (les transitions recréées par l'import des 28-29/06 polluaient les
+    // marges, notamment le « vs période précédente ») — cf. transitions-scope.ts
+    .not("changed_by_user_id", "is", null)
+    .gte("transition_date", REAL_DATA_START_ISO);
 
   if (startDate) query = query.gte("transition_date", normalizeStartBound(startDate));
   if (endDate) query = query.lt("transition_date", normalizeEndBoundExclusive(endDate));

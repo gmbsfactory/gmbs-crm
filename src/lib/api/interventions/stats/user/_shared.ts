@@ -5,6 +5,10 @@
 
 import { supabase } from "@/lib/api/common/client";
 import type { ArtisanCreatedRow, ArtisanMissionneRow, TransitionRow } from "@/lib/api/interventions/stats/types";
+import {
+  dedupeFirstTransitionPerIntervention,
+  REAL_DATA_START_ISO,
+} from "@/lib/api/interventions/stats/transitions-scope";
 
 export const TRACKED_STATUS_CODES = [
   "DEVIS_ENVOYE",
@@ -45,6 +49,11 @@ export function requireUserId(userId: string): void {
  * Le mode `comparator` règle l'inclusion de la borne haute :
  *   - "lt"  → `transition_date < endStr` (typique pour endStr = début de la période suivante)
  *   - "lte" → `transition_date <= endStr` (préserve le comportement historique mois/année)
+ *
+ * Périmètre « données réelles » (cf. transitions-scope.ts) : uniquement les
+ * transitions postérieures au go-live ET portées par un acteur humain — les
+ * cascades de l'import des 28-29/06 sont exclues. Le résultat est dédupliqué :
+ * une intervention ne compte qu'une fois par statut (premier passage).
  */
 export async function fetchUserTransitions(params: {
   userId: string;
@@ -59,6 +68,7 @@ export async function fetchUserTransitions(params: {
     .from("intervention_status_transitions")
     .select(`
       id,
+      intervention_id,
       transition_date,
       to_status_code,
       interventions!inner(assigned_user_id, is_active)
@@ -66,6 +76,8 @@ export async function fetchUserTransitions(params: {
     .eq("interventions.assigned_user_id", userId)
     .eq("interventions.is_active", true)
     .in("to_status_code", TRACKED_STATUS_CODES as unknown as string[])
+    .not("changed_by_user_id", "is", null)
+    .gte("transition_date", REAL_DATA_START_ISO)
     .gte("transition_date", startStr);
 
   query = comparator === "lt"
@@ -82,7 +94,7 @@ export async function fetchUserTransitions(params: {
     throwSupabaseError(error, "Erreur lors de la récupération des transitions de statut");
   }
 
-  return (data as unknown as TransitionRow[]) ?? [];
+  return dedupeFirstTransitionPerIntervention((data as unknown as TransitionRow[]) ?? []);
 }
 
 /**
