@@ -13,29 +13,29 @@ export function ScreenSupport({ m }: { m: BilanMetrics }) {
       <div className="topbar">
         <span className="screen-label">2 / 3 · Support &amp; dev</span>
         <h1>Signalements &amp; réactivité</h1>
-        <span className="window">16 sujets remontés sur WhatsApp · lun 29/06 → jeu 02/07</span>
+        <span className="window">20 sujets remontés sur WhatsApp · lun 29/06 → jeu 02/07</span>
       </div>
 
       <div className="strip">
         <div className="kpi">
-          <div className="val">16</div>
+          <div className="val">20</div>
           <div className="lbl">signalements traités</div>
         </div>
         <div className="kpi">
-          <div className="val">8</div>
+          <div className="val">10</div>
           <div className="lbl">bugs réels du CRM</div>
-          <div className="sub">8 autres : données, formats, workflow, évolutions…</div>
+          <div className="sub">10 autres : données, formats, workflow, évolutions…</div>
         </div>
         <div className="kpi">
           <div className="val" style={{ color: "var(--bs1-green)" }}>
-            7 <span className="unit">/ 8</span>
+            8 <span className="unit">/ 10</span>
           </div>
-          <div className="lbl">bugs corrigés (88 %)</div>
-          <div className="sub">reste le n°4 (délai nom artisan) à requalifier</div>
+          <div className="lbl">bugs corrigés (80 %)</div>
+          <div className="sub">restent n°4 (à requalifier) et n°17 (marges, en cours)</div>
         </div>
         <div className="kpi">
           <div className="val">
-            10 <span className="unit">min</span>
+            20 <span className="unit">min</span>
           </div>
           <div className="lbl">1ʳᵉ réponse (médiane)</div>
         </div>
@@ -48,7 +48,7 @@ export function ScreenSupport({ m }: { m: BilanMetrics }) {
 
       <div className="split">
         <div className="card" style={{ overflow: "auto" }}>
-          <h3>Les 16 signalements</h3>
+          <h3>Les 20 signalements</h3>
           <table>
             <thead>
               <tr>
@@ -111,7 +111,7 @@ export function ScreenSupport({ m }: { m: BilanMetrics }) {
               </div>
             </div>
             <div className="footnote">
-              16 commits répondent directement à 9 signalements — l’archivage clic droit en a demandé 5 à lui seul.
+              17 commits répondent directement à 10 signalements — l’archivage clic droit en a demandé 5 à lui seul.
             </div>
             {git?.lastCommit ? (
               <div className="lastcommit">

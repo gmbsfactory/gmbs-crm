@@ -16,10 +16,10 @@ export const BILAN_DAYS = ["lun 29/06", "mar 30/06", "mer 01/07", "jeu 02/07", "
 
 /** Compteurs figés issus de l'analyse WhatsApp (réconciliés avec git). */
 export const BILAN_WHATSAPP = {
-  signalements: 16,
-  bugsReels: 8,
-  bugsCorriges: 7, // reste le n°4 (délai nom artisan) à requalifier
-  medianeReponseMin: 10,
+  signalements: 20,
+  bugsReels: 10,
+  bugsCorriges: 8, // restent n°4 (à requalifier) et n°17 (marges dashboard)
+  medianeReponseMin: 20, // les réponses du jeudi après-midi (~2 h) font passer la médiane de 10 à 20 min
   medianeCorrection: "2 h 13",
 } as const
 
@@ -64,22 +64,26 @@ export const BILAN_BUGS: BilanBugItem[] = [
   { n: 14, q: "mer 16:48", who: "Andrea", txt: "Facture .docx illisible → utiliser PDF / JPEG", type: "Format", rep: "4 min", st: "nonbug", stTxt: "Expliqué" },
   { n: 15, q: "mer 17:06", who: "Gabriel", txt: "Recherche : adresse « RESIDENCE DE L'ETOILE » introuvable", type: "Bug", rep: "—", st: "resolu", stTxt: "Corrigé en 9 h 52 (nuit) · validé en prod" },
   { n: 16, q: "jeu 11:23", who: "Gabriel", txt: "Retirer SA, SNC, SCS, SCA du menu « Statut juridique » artisan", type: "Évolution", rep: "2 min", st: "resolu", stTxt: "Corrigé en 12 min" },
+  { n: 17, q: "jeu 12:17", who: "Gabriel", txt: "Marges moyenne/totale du dashboard erronées (cas Yazid : 0 facturé)", type: "Bug", rep: "2 h 30", st: "encours", stTxt: "En cours d'analyse" },
+  { n: 18, q: "jeu 12:35", who: "Gabriel", txt: "« L'automatisme de cette rubrique ne fonctionne pas » (acomptes)", type: "Workflow", rep: "2 h 13", st: "discuter", stTxt: "À cadrer vendredi (avec n°12)" },
+  { n: 19, q: "jeu 12:45", who: "Gabriel", txt: "Doublon d'intervention accepté (adresses identiques au « : » près)", type: "Évolution", rep: "2 h 09", st: "discuter", stTxt: "Double saisie simultanée · doublon désactivé · garde-fou à cadrer" },
+  { n: 20, q: "jeu 13:01", who: "Andrea", txt: "Mail d'intervention : 2ᵉ numéro « fantôme » (telephone2 locataire, invisible sur la fiche)", type: "Bug", rep: "1 h 49", st: "resolu", stTxt: "Corrigé en 2 h 37 · un seul numéro désormais" },
 ]
 
 /**
  * Instantané git de secours : en prod (Vercel), le binaire git et l'historique
  * ne sont pas disponibles au runtime — on affiche alors ce relevé daté.
- * Mis à jour à la main (dernier relevé : jeu 02/07 ~11h35).
+ * Mis à jour à la main (dernier relevé : jeu 02/07 ~15h35).
  */
 export const GIT_SNAPSHOT = {
-  commits: 25,
-  fixes: 18,
+  commits: 29,
+  fixes: 19,
   feats: 4,
-  files: 70,
-  insertions: 3210,
-  deletions: 600,
+  files: 76,
+  insertions: 3280,
+  deletions: 620,
   lastCommit: {
-    date: "02/07 11:34",
-    subject: "fix(artisans): retire SA, SNC, SCS et SCA du statut juridique (demande client)",
+    date: "02/07 15:35",
+    subject: "fix(email): un seul numéro client dans le mail d'intervention (telephone2 masqué)",
   },
 } as const
