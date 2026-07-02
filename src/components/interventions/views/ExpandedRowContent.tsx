@@ -48,7 +48,6 @@ export function ExpandedRowContent({
       adresse: intervAny.adresse || "—",
       nomPrenomClient: intervAny.nomPrenomClient || "",
       telephoneClient: intervAny.telephoneClient || "",
-      telephone2Client: intervAny.telephone2Client || "",
       referenceAgence: intervAny.referenceAgence || intervAny.reference_agence || "",
       deuxiemeArtisan: intervAny.deuxiemeArtisan || "",
       acompteSST: (intervAny.payments as { payment_type: string; amount: number }[] | undefined)
@@ -123,9 +122,6 @@ export function ExpandedRowContent({
                 )}
                 {interventionData.telephoneClient && (
                   <span>{renderText(interventionData.telephoneClient)}</span>
-                )}
-                {interventionData.telephone2Client && (
-                  <span className="text-muted-foreground"> | <span className="text-foreground">{renderText(interventionData.telephone2Client)}</span></span>
                 )}
               </p>
             </div>

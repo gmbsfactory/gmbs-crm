@@ -282,7 +282,6 @@ export function EmailEditModal({
       const updatedTemplateData: EmailTemplateData = {
         nomClient: templateData.nomClient,
         telephoneClient: templateData.telephoneClient,
-        telephoneClient2: templateData.telephoneClient2,
         adresse: templateData.adresse,
         idIntervention: templateData.idIntervention,
         consigneArtisan: templateData.consigneArtisan,
@@ -538,7 +537,6 @@ export function EmailEditModal({
       const finalTemplateData: EmailTemplateData = {
         nomClient: templateData.nomClient,
         telephoneClient: templateData.telephoneClient,
-        telephoneClient2: templateData.telephoneClient2,
         adresse: templateData.adresse,
         idIntervention: templateData.idIntervention,
         consigneArtisan: templateData.consigneArtisan,

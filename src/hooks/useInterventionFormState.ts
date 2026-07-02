@@ -316,7 +316,6 @@ export function useInterventionFormState(options: UseInterventionFormStateOption
     return {
       nomClient,
       telephoneClient: formData.telephoneClient || tenant?.telephone || '',
-      telephoneClient2: tenant?.telephone2 || '',
       adresse: formData.adresse || fb?.adresse || '',
       datePrevue: formData.date_prevue || fb?.date_prevue || undefined,
       consigneArtisan: consigneArtisan || undefined,

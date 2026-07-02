@@ -32,8 +32,10 @@ export function encodeWhatsAppUrl(phone: string, message: string): string {
 
 export interface EmailTemplateData {
   nomClient: string;
+  // Un seul numéro client dans les mails : la fiche n'expose qu'un champ
+  // téléphone, le tenants.telephone2 hérité de l'import ne doit jamais
+  // apparaître (décision client du 02/07/2026, signalement n°20).
   telephoneClient: string;
-  telephoneClient2?: string;
   adresse: string;
   datePrevue?: string;
   consigneArtisan?: string;
@@ -71,7 +73,6 @@ function applyDefaults(data: EmailTemplateData) {
   return {
     nomClient: data.nomClient || '',
     telephoneClient: data.telephoneClient || '',
-    telephoneClient2: data.telephoneClient2 || '',
     adresse: data.adresse || '',
     datePrevue: data.datePrevue ? formatDateToFrench(data.datePrevue) : 'À définir',
     consigneArtisan: data.consigneArtisan || 'Aucune description fournie',
@@ -121,7 +122,6 @@ function renderClientInfoHtml(d: ReturnType<typeof applyDefaults>): string {
               </p>
               <p style="margin: 8px 0; color: #333333; font-size: 14px; line-height: 1.6;">
                 <strong>Téléphone :</strong> ${escapeHtml(d.telephoneClient)}
-                ${d.telephoneClient2 ? `<br /><strong>Téléphone 2 :</strong> ${escapeHtml(d.telephoneClient2)}` : ''}
               </p>
               <p style="margin: 8px 0 30px 0; color: #333333; font-size: 14px; line-height: 1.6;">
                 <strong>Adresse :</strong> ${escapeHtml(d.adresse)}
@@ -144,7 +144,6 @@ function renderClientInfoText(d: ReturnType<typeof applyDefaults>): string {
 
   let text = `Client : ${d.nomClient}\n`;
   text += `Telephone : ${d.telephoneClient}`;
-  if (d.telephoneClient2) text += `\nTelephone 2 : ${d.telephoneClient2}`;
   text += `\nAdresse : ${d.adresse}`;
   return text;
 }
