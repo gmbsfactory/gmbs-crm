@@ -1,3 +1,5 @@
+// SA, SNC, SCS et SCA retirés à la demande du client (WhatsApp 02/07/2026) :
+// non sélectionnables, formes sociétaires jamais utilisées par les artisans.
 export const STATUT_JURIDIQUE_OPTIONS = [
   { value: "SARL", label: "SARL" },
   { value: "EIRL", label: "EIRL" },
@@ -5,10 +7,6 @@ export const STATUT_JURIDIQUE_OPTIONS = [
   { value: "SAS", label: "SAS" },
   { value: "SASU", label: "SASU" },
   { value: "Auto-entrepreneur", label: "Auto-entrepreneur" },
-  { value: "SA", label: "SA" },
-  { value: "SNC", label: "SNC" },
-  { value: "SCS", label: "SCS" },
-  { value: "SCA", label: "SCA" },
 ]
 
 export const ZONE_INTERVENTION_OPTIONS = [
