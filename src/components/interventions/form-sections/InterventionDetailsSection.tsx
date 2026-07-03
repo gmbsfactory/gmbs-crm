@@ -9,6 +9,7 @@ import { PresenceFieldIndicator } from "@/components/ui/intervention-modal/Prese
 import { cn } from "@/lib/utils"
 import { formatMarginPercentage, getMarginColorClass } from "@/lib/utils/margin-calculator"
 import type { InterventionFormData } from "@/lib/interventions/form-types"
+import { isCostSpecified } from "@/lib/interventions/derivations"
 
 interface MarginData {
   isValid: boolean
@@ -98,7 +99,7 @@ export function InterventionDetailsSection({
       <Card
         style={{ gridArea: "6 / 1 / 7 / 5" }}
         className={cn(
-          requiresCouts && (!(parseFloat(formData.coutIntervention) > 0) || !(parseFloat(formData.coutSST) > 0)) && "ring-2 ring-orange-400/50",
+          requiresCouts && (!(parseFloat(formData.coutIntervention) > 0) || !isCostSpecified(formData.coutSST)) && "ring-2 ring-orange-400/50",
         )}
       >
         <CardContent className="p-4">
@@ -115,7 +116,7 @@ export function InterventionDetailsSection({
                   min="0"
                   value={formData.coutIntervention}
                   onChange={(e) => onChange("coutIntervention", e.target.value)}
-                  placeholder="0.00 €"
+                  placeholder="-"
                   className={cn(
                     "h-8 text-sm mt-1",
                     requiresCouts && !(parseFloat(formData.coutIntervention) > 0) && "border-orange-400 focus-visible:ring-orange-400",
@@ -135,10 +136,10 @@ export function InterventionDetailsSection({
                   min="0"
                   value={formData.coutSST}
                   onChange={(e) => onChange("coutSST", e.target.value)}
-                  placeholder="0.00 €"
+                  placeholder="-"
                   className={cn(
                     "h-8 text-sm mt-1",
-                    requiresCouts && !(parseFloat(formData.coutSST) > 0) && "border-orange-400 focus-visible:ring-orange-400",
+                    requiresCouts && !isCostSpecified(formData.coutSST) && "border-orange-400 focus-visible:ring-orange-400",
                   )}
                 />
               </div>
@@ -153,7 +154,7 @@ export function InterventionDetailsSection({
                   min="0"
                   value={formData.coutMateriel}
                   onChange={(e) => onChange("coutMateriel", e.target.value)}
-                  placeholder="0.00 €"
+                  placeholder="-"
                   className="h-8 text-sm mt-1"
                 />
               </div>

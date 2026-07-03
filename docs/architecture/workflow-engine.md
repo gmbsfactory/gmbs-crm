@@ -169,6 +169,13 @@ Chaque statut definit des prerequis dans `WORKFLOW_RULES`. Une transition est bl
 | `REFUSE` | `commentaire` |
 | `ANNULE` | `commentaire` |
 
+> **Coût SST — travaux offerts** : `coutSST` accepte la valeur **0** (l'artisan offre
+> l'intervention). Seul un champ **vide** reste bloquant — la distinction vide/0 est portée
+> par `isCostSpecified` / `isCostFree` dans `src/lib/interventions/derivations.ts`. Au passage
+> effectif vers `INTER_EN_COURS` avec un coût SST à 0, une confirmation
+> « S'agit-il de travaux offerts ? » est demandée (`InterventionEditForm` → `AlertDialog`,
+> boutons *Accepter (0 €)* / *Retour arrière*). Le coût d'intervention, lui, reste strictement `> 0`.
+
 ---
 
 ## Moteur de validation
@@ -271,7 +278,7 @@ Les `VALIDATION_RULES` sont des regles metier qui vont au-dela des prerequis sim
 | `COMMENTAIRE_REQUIS` | statuses: [REF, ANN, SB, SAV] | `commentaire` non vide |
 | `DEVIS_ENVOYE_NOM_FACTURATION` | to: DEVIS_ENVOYE | `nomPrenomFacturation` non vide |
 | `DEVIS_ENVOYE_ASSIGNED_USER` | to: DEVIS_ENVOYE | `assignedUserId` present |
-| `INTER_EN_COURS_COUT_*` (4 regles) | to: INTER_EN_COURS | Couts, consigne, client, date |
+| `INTER_EN_COURS_COUT_*` (4 regles) | to: INTER_EN_COURS | Couts (SST accepte 0 = travaux offerts ; intervention `> 0`), consigne, client, date |
 
 ---
 

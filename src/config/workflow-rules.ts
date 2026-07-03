@@ -226,8 +226,9 @@ export const VALIDATION_RULES: ValidationRule[] = [
     message: "Le coût SST doit être renseigné pour passer en cours",
     blockTransition: true,
     validate: (context) => {
+      // 0 accepté (travaux offerts par l'artisan). Seul l'absence de valeur bloque.
       if (context.coutSST === undefined || context.coutSST === null) return false
-      return Number(context.coutSST) > 0
+      return Number.isFinite(context.coutSST) && context.coutSST >= 0
     },
   },
   {

@@ -263,6 +263,28 @@ describe("form-types", () => {
       expect(data.coutMaterielSecondArtisan).toBe("50")
     })
 
+    it("should preserve a coût SST of 0 (travaux offerts) instead of blanking it", () => {
+      const data = createEditFormData(
+        baseIntervention,
+        null,
+        null,
+        { ...baseCosts, sstCost: { amount: 0 } },
+        basePayments,
+      )
+      // 0 est une vraie valeur (l'artisan offre les travaux) : doit rester "0", pas "".
+      expect(data.coutSST).toBe("0")
+
+      // Un coût matériel à 0 reste, lui, traité comme vide (comportement inchangé).
+      const dataMateriel = createEditFormData(
+        baseIntervention,
+        null,
+        null,
+        { ...baseCosts, materielCost: { amount: 0 } },
+        basePayments,
+      )
+      expect(dataMateriel.coutMateriel).toBe("")
+    })
+
     it("should map payments correctly", () => {
       const data = createEditFormData(baseIntervention, null, null, baseCosts, basePayments)
 

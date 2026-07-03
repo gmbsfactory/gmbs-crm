@@ -10,6 +10,31 @@
 import type { InterventionFormData } from "@/lib/interventions/form-types"
 
 // ============================================================================
+// Coûts : "renseigné" vs "vide" (0 est une valeur valide)
+// ============================================================================
+
+/**
+ * Un coût est "renseigné" dès qu'une valeur numérique >= 0 est saisie.
+ *
+ * 0 est une valeur métier valide (ex. travaux offerts par l'artisan) et se
+ * distingue du champ laissé vide (placeholder), qui lui reste bloquant.
+ * On teste la chaîne brute AVANT toute conversion : "" (vide) => NaN via Number
+ * ne doit PAS être confondu avec "0" => 0.
+ */
+export function isCostSpecified(raw: string | null | undefined): boolean {
+  if (raw == null) return false
+  const trimmed = raw.trim()
+  if (trimmed === "") return false
+  const value = Number(trimmed)
+  return Number.isFinite(value) && value >= 0
+}
+
+/** True si le coût saisi vaut exactement 0 (travaux offerts / geste commercial). */
+export function isCostFree(raw: string | null | undefined): boolean {
+  return isCostSpecified(raw) && Number(String(raw).trim()) === 0
+}
+
+// ============================================================================
 // artisansWithEmail
 // ============================================================================
 
@@ -173,7 +198,8 @@ export function getInterventionEmailMissingFields(
 
   if (!formData.id_inter?.trim()) missing.push("N° d'intervention")
   if (!(parseFloat(formData.coutIntervention) > 0)) missing.push('Coût intervention')
-  if (!(parseFloat(formData.coutSST) > 0)) missing.push('Coût SST')
+  // Coût SST : 0 accepté (travaux offerts) — seul le champ vide reste bloquant.
+  if (!isCostSpecified(formData.coutSST)) missing.push('Coût SST')
   if (!formData.consigne_intervention?.trim()) missing.push("Consigne d'intervention")
   // Client fields optional for vacant housing
   if (!formData.is_vacant && !formData.nomPrenomClient?.trim()) missing.push('Nom / prénom client')

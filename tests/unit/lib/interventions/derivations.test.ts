@@ -4,6 +4,8 @@ import {
   getSelectableUsers,
   getInterventionEmailMissingFields,
   isInterventionEmailButtonDisabled,
+  isCostSpecified,
+  isCostFree,
 } from '@/lib/interventions/derivations'
 
 // ============================================================================
@@ -296,13 +298,22 @@ describe('isInterventionEmailButtonDisabled', () => {
     ).toBe(true)
   })
 
-  it('returns true when coutSST is zero', () => {
+  it('returns true when coutSST is empty', () => {
     expect(
       isInterventionEmailButtonDisabled({
         selectedArtisanId: 'a1',
         formData: { ...validFormData, coutSST: '' },
       }),
     ).toBe(true)
+  })
+
+  it('returns false when coutSST is exactly zero (travaux offerts)', () => {
+    expect(
+      isInterventionEmailButtonDisabled({
+        selectedArtisanId: 'a1',
+        formData: { ...validFormData, coutSST: '0' },
+      }),
+    ).toBe(false)
   })
 
   it('returns true when consigne_intervention is empty', () => {
@@ -402,6 +413,17 @@ describe('getInterventionEmailMissingFields', () => {
     ).toEqual(['Coût intervention', 'Coût SST'])
   })
 
+  it('accepts a coût SST of exactly 0 (travaux offerts) but still flags an empty one', () => {
+    // 0 saisi explicitement = valeur valide (l'artisan offre les travaux)
+    expect(getInterventionEmailMissingFields({ ...validFormData, coutSST: '0' })).toEqual([])
+    // Champ vide = toujours bloquant
+    expect(getInterventionEmailMissingFields({ ...validFormData, coutSST: '' })).toEqual(['Coût SST'])
+    // Le coût d'intervention, lui, reste strictement > 0
+    expect(getInterventionEmailMissingFields({ ...validFormData, coutIntervention: '0' })).toEqual([
+      'Coût intervention',
+    ])
+  })
+
   it('treats whitespace-only text fields as missing', () => {
     expect(
       getInterventionEmailMissingFields({ ...validFormData, id_inter: '   ', consigne_intervention: ' ' }),
@@ -437,5 +459,49 @@ describe('getInterventionEmailMissingFields', () => {
     expect(
       isInterventionEmailButtonDisabled({ selectedArtisanId: 'a1', formData: partial }),
     ).toBe(true)
+  })
+})
+
+// ============================================================================
+// isCostSpecified / isCostFree (0 est une valeur valide, vide reste bloquant)
+// ============================================================================
+
+describe('isCostSpecified', () => {
+  it('considers a positive amount as specified', () => {
+    expect(isCostSpecified('50')).toBe(true)
+    expect(isCostSpecified('0.01')).toBe(true)
+  })
+
+  it('considers an explicit 0 as specified (travaux offerts)', () => {
+    expect(isCostSpecified('0')).toBe(true)
+    expect(isCostSpecified('0.00')).toBe(true)
+    expect(isCostSpecified(' 0 ')).toBe(true)
+  })
+
+  it('treats empty / whitespace / nullish as NOT specified (blocking)', () => {
+    expect(isCostSpecified('')).toBe(false)
+    expect(isCostSpecified('   ')).toBe(false)
+    expect(isCostSpecified(null)).toBe(false)
+    expect(isCostSpecified(undefined)).toBe(false)
+  })
+
+  it('treats negative or non-numeric input as NOT specified', () => {
+    expect(isCostSpecified('-5')).toBe(false)
+    expect(isCostSpecified('abc')).toBe(false)
+  })
+})
+
+describe('isCostFree', () => {
+  it('is true only for an explicit 0', () => {
+    expect(isCostFree('0')).toBe(true)
+    expect(isCostFree('0.00')).toBe(true)
+    expect(isCostFree(' 0 ')).toBe(true)
+  })
+
+  it('is false for positive amounts, empty and invalid values', () => {
+    expect(isCostFree('50')).toBe(false)
+    expect(isCostFree('')).toBe(false)
+    expect(isCostFree(null)).toBe(false)
+    expect(isCostFree('-5')).toBe(false)
   })
 })

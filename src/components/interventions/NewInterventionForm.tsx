@@ -45,7 +45,7 @@ import {
 } from "@/components/interventions/form-sections"
 import { normalizeArtisanData, getDisplayName } from "@/lib/artisans"
 import { openWhatsApp } from "@/lib/interventions/whatsapp"
-import { getInterventionEmailMissingFields, isInterventionEmailButtonDisabled } from "@/lib/interventions/derivations"
+import { getInterventionEmailMissingFields, isInterventionEmailButtonDisabled, isCostSpecified } from "@/lib/interventions/derivations"
 
 // Shared form utilities
 import { useInterventionFormState } from "@/hooks/useInterventionFormState"
@@ -418,13 +418,13 @@ export function NewInterventionForm({
 
     if (requiresCouts) {
       const coutInterValue = parseFloat(formData.coutIntervention) || 0
-      const coutSSTValue = parseFloat(formData.coutSST) || 0
 
       if (coutInterValue <= 0) {
         toast.error("Le coût d'intervention doit être renseigné pour ce statut")
         return
       }
-      if (coutSSTValue <= 0) {
+      // Coût SST : 0 accepté (travaux offerts). Seul le champ vide reste bloquant.
+      if (!isCostSpecified(formData.coutSST)) {
         toast.error("Le coût SST doit être renseigné pour ce statut")
         return
       }
@@ -586,7 +586,7 @@ export function NewInterventionForm({
 
         const costs: Array<{ cost_type: 'sst' | 'materiel' | 'intervention' | 'marge'; amount: number; artisan_order?: 1 | 2 | null; label?: string | null }> = []
 
-        if (coutSSTValue > 0) costs.push({ cost_type: "sst", label: "Coût SST", amount: coutSSTValue, artisan_order: 1 })
+        if (isCostSpecified(formData.coutSST)) costs.push({ cost_type: "sst", label: "Coût SST", amount: coutSSTValue, artisan_order: 1 })
         if (coutMaterielValue > 0) costs.push({ cost_type: "materiel", label: "Coût Matériel", amount: coutMaterielValue, artisan_order: 1 })
         if (coutInterventionValue > 0) costs.push({ cost_type: "intervention", label: "Coût Intervention", amount: coutInterventionValue, artisan_order: null })
         console.log('[DEBUG NewForm] selectedSecondArtisanId:', selectedSecondArtisanId, 'coutSST2Value:', coutSST2Value, 'coutMateriel2Value:', coutMateriel2Value)

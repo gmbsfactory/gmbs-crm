@@ -10,6 +10,7 @@ import { documentsApi } from "@/lib/api/documentsApi"
 import { interventionKeys } from "@/lib/react-query/queryKeys"
 import { resolveOwnerForSubmit, resolveTenantForSubmit } from "@/lib/interventions/owner-tenant-helpers"
 import { runPostMutationTasks } from "@/lib/interventions/post-mutation-tasks"
+import { isCostSpecified, isCostFree } from "@/lib/interventions/derivations"
 import { extractErrorMessage } from "@/lib/toast-helpers"
 import { getReasonTypeForTransition, type StatusReasonType } from "@/lib/comments/statusReason"
 import type { UpdateInterventionData } from "@/lib/api/common/types"
@@ -267,7 +268,9 @@ export function useInterventionSubmit({
 
         const allCosts: Array<{ cost_type: 'sst' | 'materiel' | 'intervention' | 'marge'; amount: number; artisan_order?: 1 | 2 | null; label?: string | null }> = []
 
-        if (coutSSTValue > 0) allCosts.push({ cost_type: "sst", label: "Coût SST", amount: coutSSTValue, artisan_order: 1 })
+        // Coût SST : on enregistre aussi 0 (travaux offerts) dès qu'une valeur est saisie ;
+        // seul le champ vide n'est pas persisté.
+        if (isCostSpecified(formData.coutSST)) allCosts.push({ cost_type: "sst", label: "Coût SST", amount: coutSSTValue, artisan_order: 1 })
         if (coutMaterielValue > 0) allCosts.push({ cost_type: "materiel", label: "Coût Matériel", amount: coutMaterielValue, artisan_order: 1 })
         if (coutInterventionValue > 0) allCosts.push({ cost_type: "intervention", label: "Coût Intervention", amount: coutInterventionValue, artisan_order: null })
 
@@ -322,7 +325,11 @@ export function useInterventionSubmit({
                 costs: newCosts,
                 intervention_costs: newCosts,
                 coutIntervention: allCosts.find(c => c.cost_type === 'intervention')?.amount ?? old.coutIntervention,
-                coutSST: allCosts.filter(c => c.cost_type === 'sst').reduce((sum, c) => sum + c.amount, 0) || old.coutSST,
+                // Conserver un SST à 0 (travaux offerts) : ne retomber sur l'ancienne valeur
+                // que s'il n'y a aucun coût SST saisi (sinon "0 || old" écraserait le 0).
+                coutSST: allCosts.some(c => c.cost_type === 'sst')
+                  ? allCosts.filter(c => c.cost_type === 'sst').reduce((sum, c) => sum + c.amount, 0)
+                  : old.coutSST,
                 coutMateriel: allCosts.filter(c => c.cost_type === 'materiel').reduce((sum, c) => sum + c.amount, 0) || old.coutMateriel,
               }
             }
@@ -371,7 +378,9 @@ export function useInterventionSubmit({
     updateMutation, openInterventionModal, queryClient,
   ])
 
-  const handleSubmit = useCallback(async (event: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = useCallback(async (
+    event: React.FormEvent<HTMLFormElement>,
+  ): Promise<{ pendingReasonType?: StatusReasonType; pendingFreeSstConfirm?: boolean } | null | undefined> => {
     event.preventDefault()
 
     if (readOnly) return
@@ -421,13 +430,13 @@ export function useInterventionSubmit({
 
     if (requiresCouts) {
       const coutInterValue = parseFloat(formData.coutIntervention) || 0
-      const coutSSTValue = parseFloat(formData.coutSST) || 0
 
       if (coutInterValue <= 0) {
         toast.error("Le coût d'intervention doit être renseigné pour passer en cours")
         return
       }
-      if (coutSSTValue <= 0) {
+      // Coût SST : 0 accepté (travaux offerts). Seul le champ vide reste bloquant.
+      if (!isCostSpecified(formData.coutSST)) {
         toast.error("Le coût SST doit être renseigné pour passer en cours")
         return
       }
@@ -493,6 +502,14 @@ export function useInterventionSubmit({
         toast.error("Erreur lors de la vérification des documents obligatoires")
         return
       }
+    }
+
+    // Travaux offerts : au passage effectif en "en cours", un coût SST à 0 doit
+    // être confirmé explicitement via le dialog "S'agit-il de travaux offerts ?".
+    const isEnteringInterEnCours =
+      initialStatusCode !== "INTER_EN_COURS" && nextStatusCode === "INTER_EN_COURS"
+    if (isEnteringInterEnCours && isCostFree(formData.coutSST)) {
+      return { pendingFreeSstConfirm: true }
     }
 
     const reasonType = getReasonTypeForTransition(initialStatusCode, nextStatusCode)

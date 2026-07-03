@@ -303,13 +303,13 @@ export function SecondArtisanSection({
                 <div>
                   <Label htmlFor="coutSSTSecondArtisan" className="text-[10px]">Coût SST</Label>
                   <PresenceFieldIndicator fieldName="coutSSTSecondArtisan">
-                  <Input id="coutSSTSecondArtisan" type="number" step="0.01" min="0" value={formData.coutSSTSecondArtisan} onChange={(e) => onChange("coutSSTSecondArtisan", e.target.value)} placeholder="0.00 €" className="h-7 text-xs mt-1" />
+                  <Input id="coutSSTSecondArtisan" type="number" step="0.01" min="0" value={formData.coutSSTSecondArtisan} onChange={(e) => onChange("coutSSTSecondArtisan", e.target.value)} placeholder="-" className="h-7 text-xs mt-1" />
                   </PresenceFieldIndicator>
                 </div>
                 <div>
                   <Label htmlFor="coutMaterielSecondArtisan" className="text-[10px]">Coût mat.</Label>
                   <PresenceFieldIndicator fieldName="coutMaterielSecondArtisan">
-                  <Input id="coutMaterielSecondArtisan" type="number" step="0.01" min="0" value={formData.coutMaterielSecondArtisan} onChange={(e) => onChange("coutMaterielSecondArtisan", e.target.value)} placeholder="0.00 €" className="h-7 text-xs mt-1" />
+                  <Input id="coutMaterielSecondArtisan" type="number" step="0.01" min="0" value={formData.coutMaterielSecondArtisan} onChange={(e) => onChange("coutMaterielSecondArtisan", e.target.value)} placeholder="-" className="h-7 text-xs mt-1" />
                   </PresenceFieldIndicator>
                 </div>
               </div>

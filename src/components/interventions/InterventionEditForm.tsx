@@ -12,6 +12,16 @@ import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/componen
 import { MapLibreMap } from "@/components/maps/MapLibreMap"
 import { CommentSection } from "@/components/shared/CommentSection"
 import { StatusReasonModal } from "@/components/shared/StatusReasonModal"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import type { NearbyArtisan } from "@/hooks/useNearbyArtisans"
 import type { Intervention } from "@/lib/api/common/types"
 import { usePermissions } from "@/hooks/usePermissions"
@@ -99,6 +109,8 @@ export const InterventionEditForm = memo(function InterventionEditForm({
 
   // Edit-specific state
   const [pendingReasonType, setPendingReasonType] = useState<StatusReasonType | null>(null)
+  // Confirmation "travaux offerts" quand le coût SST vaut 0 au passage en cours.
+  const [pendingFreeSstConfirm, setPendingFreeSstConfirm] = useState(false)
   const [secondArtisanDisplayMode, setSecondArtisanDisplayMode] = useState<"nom" | "rs" | "tel">("nom")
 
   // Document checks (facture GMBS + devis)
@@ -562,11 +574,13 @@ export const InterventionEditForm = memo(function InterventionEditForm({
     getInterventionStatusCode,
   })
 
-  // Wrap handleSubmit to handle status reason modal
+  // Wrap handleSubmit to handle status reason modal + confirmation "travaux offerts"
   const handleSubmit = useCallback(async (event: React.FormEvent<HTMLFormElement>) => {
     const result = await baseHandleSubmit(event)
     if (result?.pendingReasonType) {
       setPendingReasonType(result.pendingReasonType)
+    } else if (result?.pendingFreeSstConfirm) {
+      setPendingFreeSstConfirm(true)
     }
   }, [baseHandleSubmit])
 
@@ -579,6 +593,17 @@ export const InterventionEditForm = memo(function InterventionEditForm({
     if (!reasonType) return
     setPendingReasonType(null)
     await executeSubmit({ reason, reasonType })
+  }
+
+  // Confirmation "travaux offerts" (coût SST à 0) : accepter => on poursuit le passage
+  // en cours ; retour arrière => on revient au formulaire sans rien changer.
+  const handleFreeSstCancel = () => {
+    setPendingFreeSstConfirm(false)
+  }
+
+  const handleFreeSstConfirm = async () => {
+    setPendingFreeSstConfirm(false)
+    await executeSubmit()
   }
 
   // Expose client name to parent
@@ -993,6 +1018,35 @@ export const InterventionEditForm = memo(function InterventionEditForm({
             }}
             isSubmitting={isSubmitting}
           />
+
+          <AlertDialog
+            open={pendingFreeSstConfirm}
+            onOpenChange={(open) => {
+              if (!open) setPendingFreeSstConfirm(false)
+            }}
+          >
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>{"S'agit-il de travaux offerts ?"}</AlertDialogTitle>
+                <AlertDialogDescription>
+                  {"Le coût SST est à 0,00 €. Confirmez-vous que l'artisan offre cette intervention et que vous souhaitez la valider à 0 € ?"}
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel onClick={handleFreeSstCancel} disabled={isSubmitting}>
+                  Retour arrière
+                </AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={() => {
+                    void handleFreeSstConfirm()
+                  }}
+                  disabled={isSubmitting}
+                >
+                  Accepter (0 €)
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
 
           {emailModalState && (
             <EmailEditModal

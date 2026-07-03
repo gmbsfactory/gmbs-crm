@@ -283,7 +283,9 @@ export function createEditFormData(
     artisanEmail: primaryArtisan?.email || "",
 
     // Coûts (traiter 0 comme vide, ne pas afficher "0")
-    coutSST: (sstCost?.amount ?? null) !== null && (sstCost?.amount ?? 0) !== 0 ? String(sstCost?.amount ?? 0) : "",
+    // Exception coût SST : 0 est une vraie valeur (travaux offerts) => on la conserve.
+    // Seule l'absence de coût enregistré (amount null/absent) reste un champ vide.
+    coutSST: sstCost?.amount == null ? "" : String(sstCost.amount),
     coutMateriel: (materielCost?.amount ?? null) !== null && (materielCost?.amount ?? 0) !== 0 ? String(materielCost?.amount ?? 0) : "",
     coutIntervention: (interventionCost?.amount ?? null) !== null && (interventionCost?.amount ?? 0) !== 0 ? String(interventionCost?.amount ?? 0) : "",
 
