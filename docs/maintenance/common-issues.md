@@ -138,6 +138,18 @@ Cela exécute `supabase gen types typescript --local > src/lib/database.types.ts
 
 **Fallback :** Le système utilise un polling toutes les 15 secondes comme fallback si le Realtime est indisponible.
 
+### Le formulaire du modal perd les modifications en cours (artisan, champs, statut)
+
+**Symptôme :** Dans le modal d'intervention, on modifie des champs **sans sauvegarder** puis on ajoute un commentaire (ou un coût/paiement/statut change) et les modifications non enregistrées disparaissent — l'association artisan « saute ».
+
+**Explication :** Toute écriture enfant (commentaire, coût, paiement) déclenche le trigger DB `00082_touch_intervention_on_child_change` qui bump `interventions.updated_at`. Cela provoque un événement Realtime `UPDATE` puis un refetch de `interventionKeys.detail`, et le nouvel objet `intervention` est passé au formulaire. Historiquement, `useInterventionRealtime` se resynchronisait sur tout changement d'`updated_at` — donc même un simple commentaire écrasait les éditions en cours.
+
+**Garde en place :** `useInterventionRealtime` détecte désormais les changements sur le **contenu réel** dérivé du serveur (signature de l'état-formulaire), pas sur `updated_at`. Conséquences :
+- Un bump provoqué par un commentaire (aucun champ de formulaire modifié) → signature identique → **aucun reset, aucune bannière**. Le fil de commentaires (query `commentKeys` séparée) se rafraîchit indépendamment.
+- Un vrai changement de champ distant (ex : réattribution du **gestionnaire** via `GestionnaireSelector` dans la table, un coût, un statut) → signature différente → reset immédiat si le form est propre ; sinon `pendingUpdate = true` et bannière « Recharger » dans `InterventionEditForm` (l'utilisateur applique via `applyPendingUpdate`, ses éditions ne sont jamais écrasées).
+
+**Si le bug réapparaît :** vérifier dans `src/hooks/useInterventionRealtime.ts` que la comparaison se fait bien sur `signatureOf(...)` (contenu) et non sur `updated_at`, et que le garde `if (hasUnsavedChanges) { setPendingUpdate(true); return }` n'a pas été retiré.
+
 ### Conflits d'édition simultanée
 
 **Symptôme :** Un badge "Modifié par X" apparaît puis les données semblent incohérentes.
