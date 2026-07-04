@@ -2,22 +2,25 @@ import { renderHook, act } from "@testing-library/react"
 import { describe, it, expect, vi, beforeEach } from "vitest"
 import { useInterventionRealtime } from "@/hooks/useInterventionRealtime"
 
-// On isole le hook de la logique de mapping : seul le comportement de sync
-// (quand réinitialiser / quand différer) nous intéresse ici.
+// createEditFormData est mocké pour refléter le CONTENU de l'intervention : la détection
+// du hook se fait désormais sur le contenu dérivé, pas sur updated_at. On projette donc
+// le champ `adresse` (représentatif d'un champ de formulaire) dans le résultat.
 vi.mock("@/lib/interventions/form-types", () => ({
-  createEditFormData: vi.fn(() => ({ mapped: true })),
+  createEditFormData: vi.fn((source: any) => ({ adresse: source.adresse })),
 }))
 vi.mock("@/lib/interventions/form-utils", () => ({
   dbArtisanToNearbyArtisan: vi.fn((a: any) => a ?? null),
 }))
 
-function makeIntervention(updatedAt: string) {
+function makeIntervention(overrides: Partial<any> = {}) {
   return {
     id: "int-1",
-    updated_at: updatedAt,
+    updated_at: "2026-01-01T00:00:00Z",
+    adresse: "10 rue de Paris",
     intervention_artisans: [],
     intervention_costs: [],
     intervention_payments: [],
+    ...overrides,
   } as any
 }
 
@@ -36,53 +39,71 @@ describe("useInterventionRealtime", () => {
     vi.clearAllMocks()
   })
 
-  it("should not reset the form when updated_at is unchanged", () => {
+  it("should NOT reset when a comment bumps updated_at but no form field changed", () => {
     const setters = makeSetters()
     const { rerender, result } = renderHook(
       ({ intervention }) =>
         useInterventionRealtime({ intervention, hasUnsavedChanges: false, ...setters }),
-      { initialProps: { intervention: makeIntervention("2026-01-01T00:00:00Z") } }
+      { initialProps: { intervention: makeIntervention() } }
     )
 
-    // Nouvelle référence d'objet mais même updated_at (refetch sans changement réel)
-    rerender({ intervention: makeIntervention("2026-01-01T00:00:00Z") })
+    // Nouveau refetch : updated_at avance (trigger 00082 sur commentaire) mais les champs
+    // du formulaire sont identiques → aucun reset, aucune bannière.
+    rerender({ intervention: makeIntervention({ updated_at: "2026-01-01T00:05:00Z" }) })
 
     expect(setters.setFormData).not.toHaveBeenCalled()
     expect(result.current.pendingUpdate).toBe(false)
   })
 
-  it("should reset the form immediately when updated_at changes and the form is clean", () => {
+  it("should reset the form immediately when a field changes and the form is clean", () => {
     const setters = makeSetters()
     const { rerender, result } = renderHook(
       ({ intervention }) =>
         useInterventionRealtime({ intervention, hasUnsavedChanges: false, ...setters }),
-      { initialProps: { intervention: makeIntervention("2026-01-01T00:00:00Z") } }
+      { initialProps: { intervention: makeIntervention() } }
     )
 
-    rerender({ intervention: makeIntervention("2026-01-02T00:00:00Z") })
+    rerender({
+      intervention: makeIntervention({ updated_at: "2026-01-02T00:00:00Z", adresse: "99 avenue neuve" }),
+    })
 
     expect(setters.setFormData).toHaveBeenCalledTimes(1)
     expect(result.current.pendingUpdate).toBe(false)
   })
 
-  it("should NOT overwrite unsaved edits — defers via pendingUpdate when the form is dirty", () => {
+  it("should NOT overwrite unsaved edits — defers via pendingUpdate when a field changes and form is dirty", () => {
     const setters = makeSetters()
     const { rerender, result } = renderHook(
       ({ intervention, hasUnsavedChanges }) =>
         useInterventionRealtime({ intervention, hasUnsavedChanges, ...setters }),
-      {
-        initialProps: {
-          intervention: makeIntervention("2026-01-01T00:00:00Z"),
-          hasUnsavedChanges: true,
-        },
-      }
+      { initialProps: { intervention: makeIntervention(), hasUnsavedChanges: true } }
     )
 
-    // updated_at bumpé (ex: trigger 00082 suite à un commentaire) alors que le form est dirty
-    rerender({ intervention: makeIntervention("2026-01-02T00:00:00Z"), hasUnsavedChanges: true })
+    rerender({
+      intervention: makeIntervention({ updated_at: "2026-01-02T00:00:00Z", adresse: "99 avenue neuve" }),
+      hasUnsavedChanges: true,
+    })
 
     expect(setters.setFormData).not.toHaveBeenCalled()
     expect(result.current.pendingUpdate).toBe(true)
+  })
+
+  it("should still ignore comment-only bumps even while the form is dirty", () => {
+    const setters = makeSetters()
+    const { rerender, result } = renderHook(
+      ({ intervention, hasUnsavedChanges }) =>
+        useInterventionRealtime({ intervention, hasUnsavedChanges, ...setters }),
+      { initialProps: { intervention: makeIntervention(), hasUnsavedChanges: true } }
+    )
+
+    // Un collègue ajoute un commentaire pendant l'édition : contenu inchangé → pas de bannière.
+    rerender({
+      intervention: makeIntervention({ updated_at: "2026-01-01T00:05:00Z" }),
+      hasUnsavedChanges: true,
+    })
+
+    expect(setters.setFormData).not.toHaveBeenCalled()
+    expect(result.current.pendingUpdate).toBe(false)
   })
 
   it("should apply the latest server data on applyPendingUpdate() and clear the pending flag", () => {
@@ -90,15 +111,13 @@ describe("useInterventionRealtime", () => {
     const { rerender, result } = renderHook(
       ({ intervention, hasUnsavedChanges }) =>
         useInterventionRealtime({ intervention, hasUnsavedChanges, ...setters }),
-      {
-        initialProps: {
-          intervention: makeIntervention("2026-01-01T00:00:00Z"),
-          hasUnsavedChanges: true,
-        },
-      }
+      { initialProps: { intervention: makeIntervention(), hasUnsavedChanges: true } }
     )
 
-    rerender({ intervention: makeIntervention("2026-01-02T00:00:00Z"), hasUnsavedChanges: true })
+    rerender({
+      intervention: makeIntervention({ updated_at: "2026-01-02T00:00:00Z", adresse: "99 avenue neuve" }),
+      hasUnsavedChanges: true,
+    })
     expect(result.current.pendingUpdate).toBe(true)
 
     act(() => {
@@ -106,6 +125,7 @@ describe("useInterventionRealtime", () => {
     })
 
     expect(setters.setFormData).toHaveBeenCalledTimes(1)
+    expect(setters.setSelectedArtisanId).toHaveBeenCalled()
     expect(result.current.pendingUpdate).toBe(false)
   })
 })

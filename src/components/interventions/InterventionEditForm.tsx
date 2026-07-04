@@ -644,7 +644,7 @@ export const InterventionEditForm = memo(function InterventionEditForm({
         {pendingUpdate && (
           <div className="mb-3 flex items-center justify-between gap-3 rounded border border-sky-200 bg-sky-50 px-3 py-2 text-xs text-sky-900">
             <span>
-              Cette intervention a été mise à jour. Vos modifications en cours n'ont pas été écrasées.
+              Cette intervention a été mise à jour. Vos modifications en cours n&apos;ont pas été écrasées.
             </span>
             <button
               type="button"
