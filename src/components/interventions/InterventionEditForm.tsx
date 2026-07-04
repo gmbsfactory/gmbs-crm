@@ -155,6 +155,7 @@ export const InterventionEditForm = memo(function InterventionEditForm({
     setFormData,
     isSubmitting,
     setIsSubmitting,
+    hasUnsavedChanges,
     clearDraft,
 
     // Geocoding
@@ -356,14 +357,17 @@ export const InterventionEditForm = memo(function InterventionEditForm({
     return getDisplayName(displayData, mode)
   }, [refData?.artisanStatuses])
 
-  // Realtime sync: reset form when another user modifies the intervention
-  useInterventionRealtime({
+  // Realtime sync: reset form when the intervention is modified (remote user, or a child
+  // write — comment/cost/payment/status — bumping updated_at). Quand des éditions locales
+  // sont en cours, on ne les écrase pas : on affiche une bannière "recharger".
+  const { pendingUpdate, applyPendingUpdate } = useInterventionRealtime({
     intervention,
     setFormData,
     setSelectedArtisanId,
     setSelectedSecondArtisanId,
     setAssignedPrimaryArtisan,
     setAssignedSecondaryArtisan,
+    hasUnsavedChanges,
   })
 
   // Edit-specific: Permission checks
@@ -637,6 +641,20 @@ export const InterventionEditForm = memo(function InterventionEditForm({
   return (
     <>
       <form ref={formRef} onSubmit={handleSubmit} className="flex-1 min-h-0 flex flex-col if-form-container">
+        {pendingUpdate && (
+          <div className="mb-3 flex items-center justify-between gap-3 rounded border border-sky-200 bg-sky-50 px-3 py-2 text-xs text-sky-900">
+            <span>
+              Cette intervention a été mise à jour. Vos modifications en cours n'ont pas été écrasées.
+            </span>
+            <button
+              type="button"
+              onClick={applyPendingUpdate}
+              className="shrink-0 rounded bg-sky-600 px-2 py-1 font-medium text-white hover:bg-sky-700"
+            >
+              Recharger
+            </button>
+          </div>
+        )}
         {!canEditIntervention && !readOnly && (
           <div className="mb-3 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
             Cette intervention est en lecture seule. Permission requise :{" "}

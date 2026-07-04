@@ -138,6 +138,16 @@ Cela exécute `supabase gen types typescript --local > src/lib/database.types.ts
 
 **Fallback :** Le système utilise un polling toutes les 15 secondes comme fallback si le Realtime est indisponible.
 
+### Le formulaire du modal perd les modifications en cours (artisan, champs, statut)
+
+**Symptôme :** Dans le modal d'intervention, on modifie des champs **sans sauvegarder** puis on ajoute un commentaire (ou un coût/paiement/statut change) et les modifications non enregistrées disparaissent — l'association artisan « saute ».
+
+**Explication :** Toute écriture enfant (commentaire, coût, paiement) déclenche le trigger DB `00082_touch_intervention_on_child_change` qui bump `interventions.updated_at`. Cela provoque un événement Realtime `UPDATE` puis un refetch de `interventionKeys.detail`. Le hook `useInterventionRealtime` resynchronise alors le formulaire depuis les données serveur.
+
+**Garde en place :** `useInterventionRealtime` ne réinitialise le formulaire automatiquement que si `hasUnsavedChanges === false`. Quand des éditions locales sont en cours, il **ne les écrase pas** : il expose `pendingUpdate` et affiche une bannière « Recharger » dans `InterventionEditForm`. L'utilisateur applique la version serveur quand il le décide (`applyPendingUpdate`). Le fil de commentaires (query `commentKeys` séparée) continue de se rafraîchir en temps réel indépendamment.
+
+**Si le bug réapparaît :** vérifier que `hasUnsavedChanges` est bien passé à `useInterventionRealtime` et que le garde `if (hasUnsavedChanges) { setPendingUpdate(true); return }` (dans `src/hooks/useInterventionRealtime.ts`) n'a pas été retiré.
+
 ### Conflits d'édition simultanée
 
 **Symptôme :** Un badge "Modifié par X" apparaît puis les données semblent incohérentes.
