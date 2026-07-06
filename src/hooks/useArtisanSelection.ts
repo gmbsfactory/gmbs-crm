@@ -40,14 +40,24 @@ export function useArtisanSelection(options: UseArtisanSelectionOptions) {
   const [assignedSecondaryArtisan, setAssignedSecondaryArtisan] = useState<NearbyArtisan | null>(initialSecondaryArtisanData)
 
   // ---- Nearby artisans queries ----
-  const hasCoords = !!formData.adresse_complete
+  // On ne propose des artisans QUE si les deux conditions sont reunies :
+  //   1. une adresse geolocalisable saisie (adresse_complete est renseignee par le geocodage ;
+  //      latitude/longitude ont une valeur par defaut Paris, donc ne temoignent pas d'une saisie)
+  //   2. un metier selectionne
+  // Sinon on passe des coordonnees nulles au hook -> aucune requete, liste vide.
+  // (Avant : declenchement sur la seule presence de l'adresse, metier optionnel, ce qui
+  //  proposait TOUS les artisans de la zone sans filtre metier.)
+  const hasGeocodedAddress = !!formData.adresse_complete
+  const primaryMetierSelected = !!formData.metier_id
+  const secondMetierSelected = !!formData.metierSecondArtisanId
+
   const {
     artisans: nearbyArtisans,
     loading: isLoadingNearbyArtisans,
     error: nearbyArtisansError,
   } = useNearbyArtisans(
-    hasCoords ? formData.latitude : null,
-    hasCoords ? formData.longitude : null,
+    hasGeocodedAddress && primaryMetierSelected ? formData.latitude : null,
+    hasGeocodedAddress && primaryMetierSelected ? formData.longitude : null,
     { limit: 100, maxDistanceKm: perimeterKmValue, sampleSize: 400, metier_id: formData.metier_id || null },
   )
 
@@ -55,8 +65,8 @@ export function useArtisanSelection(options: UseArtisanSelectionOptions) {
     artisans: nearbyArtisansSecondMetier,
     loading: isLoadingNearbyArtisansSecondMetier,
   } = useNearbyArtisans(
-    hasCoords ? formData.latitude : null,
-    hasCoords ? formData.longitude : null,
+    hasGeocodedAddress && secondMetierSelected ? formData.latitude : null,
+    hasGeocodedAddress && secondMetierSelected ? formData.longitude : null,
     { limit: 100, maxDistanceKm: perimeterKmValue, sampleSize: 400, metier_id: formData.metierSecondArtisanId || null },
   )
 

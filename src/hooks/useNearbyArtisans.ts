@@ -85,6 +85,14 @@ export function useNearbyArtisans(
         return
       }
 
+      // Regle metier : aucune proposition d'artisan sans metier selectionne.
+      // (Seul appelant : useArtisanSelection, qui passe deja des coordonnees nulles sans
+      //  metier ; cette garde verrouille l'invariant au niveau du hook.)
+      if (metier_id == null) {
+        setState({ artisans: [], loading: false, error: null })
+        return
+      }
+
       setState((prev) => ({ ...prev, loading: true, error: null }))
 
       try {
