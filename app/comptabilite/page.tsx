@@ -41,6 +41,7 @@ import {
   getPaymentInfo,
   getArtisanName,
 } from "@/lib/comptabilite/formatters"
+import { rowsToTsv } from "@/lib/comptabilite/tsv"
 
 type PeriodType = "month" | "year"
 
@@ -365,7 +366,7 @@ export default function ComptabilitePage() {
       ]
     })
 
-    const tsvContent = rows.map((row) => row.join("\t")).join("\n")
+    const tsvContent = rowsToTsv(rows)
 
     try {
       await navigator.clipboard.writeText(tsvContent)
