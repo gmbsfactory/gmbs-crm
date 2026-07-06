@@ -136,6 +136,77 @@ describe("handleUpdate", () => {
   })
 })
 
+describe("handleUpdate — préservation de l'artisan (payload Realtime sans relations)", () => {
+  // Un UPDATE Realtime de `interventions` ne porte jamais la relation intervention_artisans :
+  // le record enrichi arrive donc avec artisan/deuxiemeArtisan/primaryArtisan = null et artisans = [].
+  // handleUpdate doit restaurer ces champs depuis la version déjà en cache, sinon l'artisan
+  // « disparaît » à l'écran à chaque commentaire/coût qui bump updated_at (ticket GMBS 06/07).
+  const cached = {
+    ...makeIntervention({ id: "int-1", statut_id: "EN_COURS", commentaire_agent: "avant" }),
+    artisan: "Jean Plombier",
+    deuxiemeArtisan: "Paul Élec",
+    primaryArtisan: { id: "artisan-1", nom: "Plombier", prenom: "Jean" },
+    artisans: ["artisan-1"],
+  } as Intervention
+
+  const realtimeStripped = (overrides: Partial<Intervention> = {}): Intervention =>
+    ({
+      ...makeIntervention({ id: "int-1", statut_id: "EN_COURS" }),
+      artisan: null,
+      deuxiemeArtisan: null,
+      primaryArtisan: null,
+      artisans: [],
+      updated_at: "2026-07-06T00:00:00Z",
+      ...overrides,
+    }) as Intervention
+
+  it("restaure l'artisan sur une mise à jour en place (filtre statut, CAS 3)", () => {
+    const filters: GetAllParams = { statut: "EN_COURS" }
+    const next = handleUpdate(makeList([cached]), cached, realtimeStripped({ commentaire_agent: "après" }), filters)
+
+    expect(next.data).toHaveLength(1)
+    const row = next.data[0] as any
+    expect(row.artisan).toBe("Jean Plombier")     // préservé
+    expect(row.deuxiemeArtisan).toBe("Paul Élec") // préservé
+    expect(row.artisans).toEqual(["artisan-1"])   // préservé
+    expect(row.commentaire_agent).toBe("après")   // la vraie donnée est bien mise à jour
+    expect(row.updated_at).toBe("2026-07-06T00:00:00Z")
+  })
+
+  it("restaure l'artisan dans une liste de recherche (filters.search)", () => {
+    const filters: GetAllParams = { search: "12345" }
+    const cachedSearch = { ...cached, id_inter: "12345" } as Intervention
+    const next = handleUpdate(makeList([cachedSearch]), cachedSearch, realtimeStripped({ id_inter: "12345" }), filters)
+
+    expect((next.data[0] as any).artisan).toBe("Jean Plombier")
+  })
+
+  it("restaure l'artisan sans filtres (!filters)", () => {
+    const next = handleUpdate(makeList([cached]), cached, realtimeStripped(), undefined)
+
+    expect((next.data[0] as any).artisan).toBe("Jean Plombier")
+  })
+
+  it("n'écrase pas un artisan réellement porté par le record entrant", () => {
+    // Cas défensif : si l'entrant porte un artisan (pas un payload realtime nu), il prime.
+    const filters: GetAllParams = { statut: "EN_COURS" }
+    const incoming = realtimeStripped({ artisan: "Nouvelle Entreprise", artisans: ["artisan-9"] } as Partial<Intervention>)
+    const next = handleUpdate(makeList([cached]), cached, incoming, filters)
+
+    const row = next.data[0] as any
+    expect(row.artisan).toBe("Nouvelle Entreprise")
+    expect(row.artisans).toEqual(["artisan-9"])
+  })
+
+  it("ne restaure rien quand l'intervention entre juste dans la liste (CAS 2, pas de version en cache)", () => {
+    const filters: GetAllParams = { statut: "EN_COURS" }
+    const next = handleUpdate(makeList([]), null, realtimeStripped(), filters)
+
+    expect(next.data).toHaveLength(1)
+    expect((next.data[0] as any).artisan).toBeNull()
+  })
+})
+
 describe("handleInsert", () => {
   it("n'insère pas optimistiquement dans une liste de recherche", () => {
     const filters: GetAllParams = { search: "lyon" }

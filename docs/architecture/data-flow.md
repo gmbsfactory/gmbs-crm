@@ -362,6 +362,15 @@ Lors d'un UPDATE, le systeme determine l'action en fonction de la correspondance
 | Dans la liste + match toujours les filtres | Mise a jour du record |
 | Dans la liste + ne match plus les filtres | Retrait de la liste |
 
+> **Preservation des relations (artisan).** Un payload Realtime de `interventions` ne transporte
+> jamais ses relations (`intervention_artisans`, ...) : `mapInterventionRecord` reconstruit donc le
+> record avec `artisan`/`primaryArtisan`/`deuxiemeArtisan` a `null`. Lors d'une mise a jour **en place**
+> (record deja present en cache), `handleUpdate` **restaure** ces champs d'affichage depuis la version
+> deja en cache (`preserveArtisanDisplayFields`). Sans cela, l'artisan « disparaissait » de la ligne des
+> qu'un commentaire / cout / paiement bumpait `updated_at` (trigger `00082`), jusqu'au prochain refetch.
+> Une **vraie** (re)assignation n'arrive pas par ce canal : elle transite par la table de jonction
+> `intervention_artisans` (`junctionPipeline`), qui invalide le detail + les listes (refetch autoritatif).
+
 ### Synchronisation cross-tab (Leader Election)
 
 Avec la leader election (Web Locks API), un seul onglet maintient la connexion WebSocket.

@@ -81,6 +81,36 @@ export function handleInsert(
 }
 
 /**
+ * Preserve les champs d'affichage derives de l'artisan lors d'une mise a jour Realtime.
+ *
+ * Un payload Realtime de la table `interventions` ne transporte JAMAIS ses relations
+ * (intervention_artisans). `mapInterventionRecord` remet donc `artisan`/`primaryArtisan`/
+ * `deuxiemeArtisan` a null et `artisans` a []. Sans correction, l'artisan « disparait » de
+ * la ligne des qu'un commentaire / cout / paiement bump `interventions.updated_at`
+ * (trigger 00082), jusqu'au prochain refetch. On restaure donc ces champs depuis la version
+ * deja presente en cache.
+ *
+ * C'est sur : l'affectation d'un artisan ne peut pas changer via un UPDATE de la table
+ * `interventions` (elle vit dans `intervention_artisans`). Une vraie (re)assignation reste
+ * refletee par l'invalidation du detail (bridgeDetailCache) puis le refetch des listes.
+ */
+function preserveArtisanDisplayFields(
+  previous: Intervention,
+  incoming: Intervention
+): Intervention {
+  const prev = previous as any
+  const next = incoming as any
+  const incomingHasArtisans = Array.isArray(next.artisans) && next.artisans.length > 0
+  return {
+    ...incoming,
+    artisan: next.artisan ?? prev.artisan ?? null,
+    primaryArtisan: next.primaryArtisan ?? prev.primaryArtisan ?? null,
+    deuxiemeArtisan: next.deuxiemeArtisan ?? prev.deuxiemeArtisan ?? null,
+    artisans: incomingHasArtisans ? next.artisans : (prev.artisans ?? next.artisans ?? []),
+  } as Intervention
+}
+
+/**
  * Gere la mise a jour d'une intervention dans le cache.
  * Utilise matchesFilters() pour determiner si l'intervention correspond aux filtres de chaque vue.
  */
@@ -97,11 +127,17 @@ export function handleUpdate(
   const index = oldData.data.findIndex((i) => i.id === newRecord.id)
   const wasInList = index !== -1
 
+  // Le record vient du Realtime (relations absentes) : quand l'intervention figure deja
+  // dans la liste, on restaure l'artisan depuis le cache pour eviter qu'il « disparaisse ».
+  const nextRecord = wasInList
+    ? preserveArtisanDisplayFields(oldData.data[index], newRecord)
+    : newRecord
+
   if (!filters) {
     if (wasInList) {
       return {
         ...oldData,
-        data: [...oldData.data.slice(0, index), newRecord, ...oldData.data.slice(index + 1)],
+        data: [...oldData.data.slice(0, index), nextRecord, ...oldData.data.slice(index + 1)],
       }
     }
     return oldData
@@ -118,7 +154,7 @@ export function handleUpdate(
     if (wasInList) {
       return {
         ...oldData,
-        data: [...oldData.data.slice(0, index), newRecord, ...oldData.data.slice(index + 1)],
+        data: [...oldData.data.slice(0, index), nextRecord, ...oldData.data.slice(index + 1)],
       }
     }
     return oldData
@@ -134,7 +170,7 @@ export function handleUpdate(
   if (!wasInList && matchesNow) {
     return {
       ...oldData,
-      data: [newRecord, ...oldData.data],
+      data: [nextRecord, ...oldData.data],
       pagination: {
         ...oldData.pagination,
         limit: oldData.pagination?.limit ?? oldData.data.length,
@@ -149,7 +185,7 @@ export function handleUpdate(
   if (wasInList && matchesNow) {
     return {
       ...oldData,
-      data: [...oldData.data.slice(0, index), newRecord, ...oldData.data.slice(index + 1)],
+      data: [...oldData.data.slice(0, index), nextRecord, ...oldData.data.slice(index + 1)],
     }
   }
 
