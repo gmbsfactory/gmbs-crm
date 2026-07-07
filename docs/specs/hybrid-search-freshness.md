@@ -802,3 +802,36 @@ UPDATE interventions SET updated_at = updated_at WHERE is_active = true;
 | Triggers cascade (tenants, owner, agencies, users, comments, intervention_artisans) | 1-2h |
 | Tests SQL + non-regression | 1h |
 | **Total** | **~3-4h** |
+
+---
+
+## Recherche partielle « contient » (repli ILIKE)
+
+Le full-text ne matche que le **début** des lexèmes (requête préfixe `terme:*`). Taper un **suffixe** ou un **fragment interne** — par ex. les derniers chiffres `8282` d'une référence `n°008282`, ou `66135` d'une `reference_agence` — ne remonte donc rien via le full-text seul.
+
+Pour ces cas, `search_global` et `search_interventions` ajoutent un **repli ILIKE** (`%terme%`, donc « contient ») sur un sous-ensemble de champs critiques, en plus du full-text.
+
+### Champs couverts par le repli ILIKE
+
+| Champ | `search_global` (Cmd+K) | `search_interventions` (page liste) |
+|-------|:--:|:--:|
+| `id_inter` | oui | oui |
+| `reference_agence` | oui *(migration 99066)* | oui *(migration 99066)* |
+| `agence` / `agence_label` | oui | oui |
+| `contexte_intervention` | oui | oui |
+| `adresse` | oui *(migration 99060)* | oui |
+| `ville` | oui *(migration 99060)* | oui |
+| `code_postal` | oui *(buffer live)* | non |
+| `tenant` (nom / prénom) | non | oui |
+| artisan `numero_associe` / `plain_nom` / `raison_sociale` | oui | oui (`artisan_plain_nom`) |
+
+> Le repli ILIKE est insensible aux accents (`unaccent`) pour l'adresse et la ville.
+> Côté MV, l'ILIKE porte sur la metadata JSON de `global_search_mv` : tout champ à matcher en « contient » doit donc figurer dans cette metadata (ex. `reference_agence` ajouté en 99066). Côté buffer live, l'ILIKE porte directement sur les colonnes de la table.
+
+### Historique
+
+| Migration | Évolution |
+|-----------|-----------|
+| `99024` | Recherche hybride MV + buffer live (repli ILIKE initial : `id_inter`, `numero_associe`, `plain_nom`). |
+| `99060` | Tokenisation FR des élisions/apostrophes + repli ILIKE `adresse` / `ville` (accent-insensible). |
+| `99066` | Repli ILIKE `reference_agence` (recherche par derniers chiffres de la référence agence) + `reference_agence` ajouté à la metadata de `global_search_mv`. |
