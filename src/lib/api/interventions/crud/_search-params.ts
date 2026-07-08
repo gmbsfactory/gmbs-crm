@@ -42,7 +42,11 @@ export function buildBaseSearchParams(
     appendFilterParam(searchParams, "statut", params?.statut);
   }
 
-  appendFilterParam(searchParams, "agence", params?.agence);
+  if (params?.agences && params.agences.length > 0) {
+    appendFilterParam(searchParams, "agence", params.agences);
+  } else {
+    appendFilterParam(searchParams, "agence", params?.agence);
+  }
   appendFilterParam(searchParams, "artisan", params?.artisan);
   appendFilterParam(searchParams, "metier", metierValue);
   appendFilterParam(searchParams, "user", params?.user);

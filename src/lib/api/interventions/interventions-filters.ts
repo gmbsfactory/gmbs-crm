@@ -35,6 +35,9 @@ export const interventionsFilters = {
       if (params?.agence) {
         query = query.eq("agence_id", params.agence);
       }
+      if (params?.agences && params.agences.length > 0) {
+        query = query.in("agence_id", params.agences);
+      }
       if (params?.metier && typeof params.metier === 'string') {
         const refs = await getReferenceCache();
         query = query.eq("metier_id", resolveMetierToId(params.metier, refs.metiersById));
@@ -114,6 +117,9 @@ export const interventionsFilters = {
 
     if (params?.agence) {
       query = query.eq("agence_id", params.agence);
+    }
+    if (params?.agences && params.agences.length > 0) {
+      query = query.in("agence_id", params.agences);
     }
     if (params?.metier && typeof params.metier === 'string') {
       const refs = await getReferenceCache();
@@ -289,6 +295,9 @@ export const interventionsFilters = {
     }
     if (params?.agence) {
       query = query.eq("agence_id", params.agence);
+    }
+    if (params?.agences && params.agences.length > 0) {
+      query = query.in("agence_id", params.agences);
     }
     if (params?.metier && typeof params.metier === 'string') {
       query = query.eq("metier_id", resolveMetierToId(params.metier, refs.metiersById));

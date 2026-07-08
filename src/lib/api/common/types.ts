@@ -216,6 +216,7 @@ export interface InterventionQueryParams extends BaseQueryParams {
   statut?: string;
   statuts?: string[];
   agence?: string;
+  agences?: string[];
   artisan?: string;
   metier?: string;
   metiers?: string[];

@@ -10,7 +10,7 @@ type GetAllParams = InterventionQueryParams
 
 type ServerFilters = Pick<
   GetAllParams,
-  "statut" | "agence" | "artisan" | "metier" | "user" | "startDate" | "endDate" | "isCheck" | "search" | "sortBy" | "sortDir"
+  "statut" | "agence" | "agences" | "artisan" | "metier" | "user" | "startDate" | "endDate" | "isCheck" | "search" | "sortBy" | "sortDir"
 >
 
 export interface UseInterventionsQueryOptions {

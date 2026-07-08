@@ -277,6 +277,71 @@ describe('filter-converter', () => {
       })
     })
 
+    describe('agence filters', () => {
+      // Contexte avec résolveur label/code → UUID d'agence (miroir de statusCodeToId)
+      const agencyCtx = () =>
+        createContext({
+          agencyNameToId: (name: string | string[]) => {
+            const map: Record<string, string> = {
+              'Gest and Loc': 'ag-1',
+              Afedim: 'ag-2',
+              GESTLOC: 'ag-1',
+            }
+            if (Array.isArray(name)) return name.map((n) => map[n]).filter(Boolean)
+            return map[name]
+          },
+        })
+
+      it('should convert eq agence label to server agence UUID', () => {
+        const filters = [{ property: 'agence', operator: 'eq', value: 'Gest and Loc' }]
+        const { serverFilters, clientFilters } = convertViewFiltersToServerFilters(filters as any, agencyCtx())
+        expect(serverFilters.agence).toBe('ag-1')
+        expect(clientFilters).toHaveLength(0)
+      })
+
+      it('should also work with agence_id and agenceLabel properties', () => {
+        const idFilter = [{ property: 'agence_id', operator: 'eq', value: 'Afedim' }]
+        expect(convertViewFiltersToServerFilters(idFilter as any, agencyCtx()).serverFilters.agence).toBe('ag-2')
+        const labelFilter = [{ property: 'agenceLabel', operator: 'eq', value: 'Afedim' }]
+        expect(convertViewFiltersToServerFilters(labelFilter as any, agencyCtx()).serverFilters.agence).toBe('ag-2')
+      })
+
+      it('should convert in agences to server agences UUIDs', () => {
+        const filters = [{ property: 'agence', operator: 'in', value: ['Gest and Loc', 'Afedim'] }]
+        const { serverFilters, clientFilters } = convertViewFiltersToServerFilters(filters as any, agencyCtx())
+        expect(serverFilters.agences).toEqual(['ag-1', 'ag-2'])
+        expect(clientFilters).toHaveLength(0)
+      })
+
+      it('should fallback to client when agency label cannot be resolved', () => {
+        const filters = [{ property: 'agence', operator: 'eq', value: 'Inconnue' }]
+        const { serverFilters, clientFilters } = convertViewFiltersToServerFilters(filters as any, agencyCtx())
+        expect(serverFilters.agence).toBeUndefined()
+        expect(clientFilters).toHaveLength(1)
+      })
+
+      it('should fallback to client when no agencyNameToId resolver is provided', () => {
+        // Sans résolveur (ex: préchargement) → comportement historique préservé
+        const filters = [{ property: 'agence', operator: 'eq', value: 'Gest and Loc' }]
+        const { serverFilters, clientFilters } = convertViewFiltersToServerFilters(filters as any, createContext())
+        expect(serverFilters.agence).toBeUndefined()
+        expect(clientFilters).toHaveLength(1)
+      })
+
+      it('should fallback in agences when none resolve', () => {
+        const filters = [{ property: 'agence', operator: 'in', value: ['Inconnue', 'AutreInconnue'] }]
+        const { serverFilters, clientFilters } = convertViewFiltersToServerFilters(filters as any, agencyCtx())
+        expect(serverFilters.agences).toBeUndefined()
+        expect(clientFilters).toHaveLength(1)
+      })
+
+      it('should fallback unsupported agence operators to client', () => {
+        const filters = [{ property: 'agence', operator: 'gte', value: 'Gest and Loc' }]
+        const { clientFilters } = convertViewFiltersToServerFilters(filters as any, agencyCtx())
+        expect(clientFilters).toHaveLength(1)
+      })
+    })
+
     describe('unsupported filters', () => {
       it('should push unknown properties to clientFilters', () => {
         const filters = [{ property: 'artisan', operator: 'eq', value: 'test' }]

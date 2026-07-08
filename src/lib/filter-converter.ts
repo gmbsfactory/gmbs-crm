@@ -9,6 +9,12 @@ import type { ArtisanViewFilter } from "@/hooks/useArtisanViews"
 interface FilterConversionContext {
   statusCodeToId: (code: string | string[]) => string | string[] | undefined
   userCodeToId: (code: string | string[]) => string | string[] | undefined
+  /**
+   * Résout un label/code d'agence en UUID. Optionnel : sans résolveur, le
+   * filtre agence retombe côté client (comportement historique). Fourni par la
+   * page liste des interventions pour router le filtre agence côté serveur.
+   */
+  agencyNameToId?: (name: string | string[]) => string | string[] | undefined
   currentUserId?: string
 }
 
@@ -164,6 +170,42 @@ export function convertViewFiltersToServerFilters(
         const stringValues = filter.value.filter((v): v is string => typeof v === "string")
         if (stringValues.length > 0) {
           serverFilters.metiers = stringValues
+        } else {
+          clientFilters.push(filter)
+        }
+      } else {
+        clientFilters.push(filter)
+      }
+      continue
+    }
+
+    // Filtre sur agence → agence (serveur)
+    // La valeur stockée est le label (ex: "Gest and Loc") ou le code ; la colonne
+    // DB est `agence_id` (UUID) → on résout label/code → UUID via agencyNameToId.
+    // Sans résolveur (context.agencyNameToId absent) ou si la résolution échoue,
+    // on retombe côté client pour préserver le comportement historique.
+    if (
+      filter.property === "agence" ||
+      filter.property === "agence_id" ||
+      filter.property === "agenceLabel"
+    ) {
+      const resolve = context.agencyNameToId
+      if (filter.operator === "eq" && typeof filter.value === "string") {
+        const agencyId = resolve?.(filter.value)
+        if (agencyId && typeof agencyId === "string") {
+          serverFilters.agence = agencyId
+        } else {
+          clientFilters.push(filter)
+        }
+      } else if (filter.operator === "in" && Array.isArray(filter.value)) {
+        const stringValues = filter.value.filter((v): v is string => typeof v === "string")
+        if (stringValues.length > 0) {
+          const agencyIds = resolve?.(stringValues)
+          if (agencyIds && Array.isArray(agencyIds) && agencyIds.length > 0) {
+            serverFilters.agences = agencyIds
+          } else {
+            clientFilters.push(filter)
+          }
         } else {
           clientFilters.push(filter)
         }

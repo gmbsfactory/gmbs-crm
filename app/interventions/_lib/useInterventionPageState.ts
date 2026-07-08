@@ -17,6 +17,7 @@ import { usePreloadDefaultViews } from "@/hooks/usePreloadDefaultViews"
 import { useInterventionsQuery } from "@/hooks/useInterventionsQuery"
 import { useInterventionStatusMap } from "@/hooks/useInterventionStatusMap"
 import { useUserMap } from "@/hooks/useUserMap"
+import { useAgencyMap } from "@/hooks/useAgencyMap"
 import { useCurrentUser } from "@/hooks/useCurrentUser"
 import { useInterventionViewCounts } from "@/hooks/useInterventionViewCounts"
 import { usePermissions } from "@/hooks/usePermissions"
@@ -259,6 +260,7 @@ export function useInterventionPageState(): UseInterventionPageStateReturn {
   // ---- Mapper hooks ----
   const { codeToId: statusCodeToId, statusMap, loading: statusMapLoading } = useInterventionStatusMap()
   const { nameToId: userCodeToId, userMap, loading: userMapLoading } = useUserMap()
+  const { nameToId: agencyNameToId } = useAgencyMap()
   const { data: currentUser } = useCurrentUser()
   const currentUserId = currentUser?.id ?? undefined
 
@@ -277,11 +279,12 @@ export function useInterventionPageState(): UseInterventionPageStateReturn {
       const { serverFilters } = convertViewFiltersToServerFilters(filters, {
         statusCodeToId,
         userCodeToId,
+        agencyNameToId,
         currentUserId,
       })
       return serverFilters ?? {}
     },
-    [statusCodeToId, userCodeToId, currentUserId],
+    [statusCodeToId, userCodeToId, agencyNameToId, currentUserId],
   )
 
   const { counts: viewCounts, isLoading: countsLoading } = useInterventionViewCounts({
@@ -318,6 +321,7 @@ export function useInterventionPageState(): UseInterventionPageStateReturn {
         ? convertViewFiltersToServerFilters(activeView.filters, {
             statusCodeToId: (code) => statusCodeToId(code),
             userCodeToId: (code) => userCodeToId(code),
+            agencyNameToId: (name) => agencyNameToId(name),
             currentUserId,
           })
         : { serverFilters: undefined, clientFilters: [] }
@@ -344,7 +348,7 @@ export function useInterventionPageState(): UseInterventionPageStateReturn {
       serverFilters: hasServerFilters ? combinedServerFilters : undefined,
       clientFilters: baseFilters.clientFilters,
     }
-  }, [activeView, statusCodeToId, userCodeToId, currentUserId, search])
+  }, [activeView, statusCodeToId, userCodeToId, agencyNameToId, currentUserId, search])
 
   const serverFiltersSignature = useMemo(() => {
     if (!serverFilters) return "no-filters"
