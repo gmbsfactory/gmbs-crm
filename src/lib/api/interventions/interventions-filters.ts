@@ -181,12 +181,17 @@ export const interventionsFilters = {
       p_metier_id = resolveMetierToId(baseFilters.metier, refs.metiersById)
     }
 
+    // La vue Market pose baseFilters.user = null pour « non-assignée ». On le
+    // route via p_user_is_null (booléen dédié) car p_user_id = NULL signifie
+    // « pas de filtre utilisateur » côté RPC — sans ce flag, la contrainte est
+    // silencieusement ignorée et le compteur est gonflé (voir migration 99067).
     const { data, error } = await supabase.rpc('get_intervention_filter_counts', {
       p_group_column,
       p_statut_id: baseFilters?.statut || null,
       p_agence_id: baseFilters?.agence || null,
       p_metier_id,
-      p_user_id: baseFilters?.user || null,
+      p_user_id: typeof baseFilters?.user === 'string' ? baseFilters.user : null,
+      p_user_is_null: baseFilters?.user === null,
       p_start_date: baseFilters?.startDate || null,
       p_end_date: baseFilters?.endDate || null,
     })
