@@ -7,6 +7,8 @@ import type { InterventionFormData } from "@/lib/interventions/form-types"
 const STATUSES = [
   { id: "s-accepte", code: "ACCEPTE", label: "Accepté" },
   { id: "s-att", code: "ATT_ACOMPTE", label: "Attente acompte" },
+  { id: "s-devis", code: "DEVIS_ENVOYE", label: "Devis envoyé" },
+  { id: "s-demande", code: "DEMANDE", label: "Demande" },
 ]
 
 function makeFormData(overrides: Partial<InterventionFormData> = {}): InterventionFormData {
@@ -44,8 +46,75 @@ describe("useInterventionAccomptes (local-only)", () => {
     vi.useRealTimers()
   })
 
+  describe("gating par statut", () => {
+    it.each([
+      ["s-devis", true, false],
+      ["s-att", true, true],
+      ["s-accepte", true, true],
+      ["s-demande", false, false],
+    ])("statut %s → édition=%s, « Reçu » cochable=%s", (statutId, editable, receivable) => {
+      const { hook } = setup(
+        makeFormData({ statut_id: statutId as string, accompteClient: "500" }),
+      )
+
+      expect(hook.result.current.canEditAccomptes).toBe(editable)
+      expect(hook.result.current.canMarkAccompteClientRecu).toBe(receivable)
+    })
+  })
+
+  describe("gating par montant", () => {
+    it("verrouille « Reçu » tant qu'aucun montant client n'est saisi", () => {
+      const { hook } = setup(makeFormData({ statut_id: "s-att", accompteClient: "" }))
+
+      expect(hook.result.current.canEditAccomptes).toBe(true)
+      expect(hook.result.current.canMarkAccompteClientRecu).toBe(false)
+    })
+
+    it("déverrouille « Reçu » sur un acompte saisi à 0", () => {
+      const { hook } = setup(makeFormData({ statut_id: "s-att", accompteClient: "0" }))
+
+      expect(hook.result.current.canMarkAccompteClientRecu).toBe(true)
+    })
+
+    it("vider le montant décoche « Reçu » et efface sa date", () => {
+      const { hook, handleInputChange } = setup(
+        makeFormData({
+          statut_id: "s-accepte",
+          accompteClient: "500",
+          accompteClientRecu: true,
+          dateAccompteClientRecu: "2026-04-12",
+        }),
+      )
+
+      act(() => {
+        hook.result.current.handleAccompteClientChange("")
+      })
+
+      expect(handleInputChange).toHaveBeenCalledWith("accompteClient", "")
+      expect(handleInputChange).toHaveBeenCalledWith("accompteClientRecu", false)
+      expect(handleInputChange).toHaveBeenCalledWith("dateAccompteClientRecu", "")
+    })
+
+    it("passer le montant à 0 ne décoche pas « Reçu »", () => {
+      const { hook, handleInputChange } = setup(
+        makeFormData({
+          statut_id: "s-accepte",
+          accompteClient: "500",
+          accompteClientRecu: true,
+          dateAccompteClientRecu: "2026-04-12",
+        }),
+      )
+
+      act(() => {
+        hook.result.current.handleAccompteClientChange("0")
+      })
+
+      expect(handleInputChange).not.toHaveBeenCalledWith("accompteClientRecu", false)
+    })
+  })
+
   describe("handleAccompteClientRecuChange", () => {
-    it("checks without auto-filling date and transitions statut_id to ACCEPTE", () => {
+    it("auto-fills today's date and transitions statut_id to ACCEPTE", () => {
       const { hook, handleInputChange } = setup(
         makeFormData({ statut_id: "s-att", dateAccompteClientRecu: "" }),
       )
@@ -55,11 +124,35 @@ describe("useInterventionAccomptes (local-only)", () => {
       })
 
       expect(handleInputChange).toHaveBeenCalledWith("accompteClientRecu", true)
+      expect(handleInputChange).toHaveBeenCalledWith("dateAccompteClientRecu", "2026-04-12")
       expect(handleInputChange).toHaveBeenCalledWith("statut_id", "s-accepte")
+    })
+
+    it("preserves an existing date when checking", () => {
+      const { hook, handleInputChange } = setup(
+        makeFormData({ statut_id: "s-att", dateAccompteClientRecu: "2026-03-01" }),
+      )
+
+      act(() => {
+        hook.result.current.handleAccompteClientRecuChange(true)
+      })
+
       expect(handleInputChange).not.toHaveBeenCalledWith(
         "dateAccompteClientRecu",
         expect.anything(),
       )
+    })
+
+    it("clears the date when unchecking", () => {
+      const { hook, handleInputChange } = setup(
+        makeFormData({ statut_id: "s-accepte", accompteClientRecu: true, dateAccompteClientRecu: "2026-03-01" }),
+      )
+
+      act(() => {
+        hook.result.current.handleAccompteClientRecuChange(false)
+      })
+
+      expect(handleInputChange).toHaveBeenCalledWith("dateAccompteClientRecu", "")
     })
 
     it("unchecking from ACCEPTE transitions statut_id to ATT_ACOMPTE", () => {

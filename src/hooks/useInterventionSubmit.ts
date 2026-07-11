@@ -11,6 +11,7 @@ import { interventionKeys } from "@/lib/react-query/queryKeys"
 import { resolveOwnerForSubmit, resolveTenantForSubmit } from "@/lib/interventions/owner-tenant-helpers"
 import { runPostMutationTasks } from "@/lib/interventions/post-mutation-tasks"
 import { isCostSpecified, isCostFree } from "@/lib/interventions/derivations"
+import { getDepositValidationError, isDepositSpecified, resolveDepositStatusCode } from "@/lib/interventions/deposit-helpers"
 import { extractErrorMessage } from "@/lib/toast-helpers"
 import { getReasonTypeForTransition, type StatusReasonType } from "@/lib/comments/statusReason"
 import type { UpdateInterventionData } from "@/lib/api/common/types"
@@ -51,6 +52,7 @@ interface UseInterventionSubmitParams {
   onSuccess?: (data: any) => void
   clearDraft: () => void
   getInterventionStatusCode: (statusId?: string | null) => string
+  findStatusIdByCode: (code: string) => string | undefined
 }
 
 export function useInterventionSubmit({
@@ -85,10 +87,31 @@ export function useInterventionSubmit({
   onSuccess,
   clearDraft,
   getInterventionStatusCode,
+  findStatusIdByCode,
 }: UseInterventionSubmitParams) {
   const queryClient = useQueryClient()
   const { update: updateMutation } = useInterventionsMutations()
   const { open: openInterventionModal } = useInterventionModal()
+
+  // Statut réellement enregistré : l'acompte client peut le forcer.
+  // - « Reçu » coché            → ACCEPTE
+  // - montant saisi, non reçu   → ATT_ACOMPTE (règle « enregistré sans reçu »)
+  // Calculé ici (et non au clic) pour que la règle s'applique aussi quand
+  // l'utilisateur saisit un montant sans jamais toucher la checkbox.
+  const getEffectiveStatutId = useCallback((): string | undefined => {
+    const currentId = formData.statut_id || undefined
+    const currentCode = getInterventionStatusCode(currentId)
+    const targetCode = resolveDepositStatusCode({
+      currentStatusCode: currentCode,
+      amount: formData.accompteClient,
+      recu: formData.accompteClientRecu,
+    })
+    if (!targetCode || targetCode === currentCode) return currentId
+    return findStatusIdByCode(targetCode) ?? currentId
+  }, [
+    formData.statut_id, formData.accompteClient, formData.accompteClientRecu,
+    getInterventionStatusCode, findStatusIdByCode,
+  ])
 
   // Refs for tracking artisan changes
   const primaryArtisanIdRef = useRef<string | null>(primaryArtisanId)
@@ -143,7 +166,7 @@ export function useInterventionSubmit({
       }
 
       const updateData: UpdateInterventionData = {
-        statut_id: formData.statut_id || undefined,
+        statut_id: getEffectiveStatutId(),
         agence_id: formData.agence_id || undefined,
         reference_agence: referenceAgenceValue.length > 0 ? referenceAgenceValue : null,
         // `|| null` (et non `??`) : un formulaire sans gestionnaire assigné fournit
@@ -287,7 +310,9 @@ export function useInterventionSubmit({
         if (accompteSSTValue > 0 || formData.accompteSSTRecu || formData.dateAccompteSSTRecu) {
           payments.push({ payment_type: 'acompte_sst', amount: accompteSSTValue, currency: 'EUR', is_received: formData.accompteSSTRecu || false, payment_date: formData.dateAccompteSSTRecu || null })
         }
-        if (accompteClientValue > 0 || formData.accompteClientRecu || formData.dateAccompteClientRecu) {
+        // Acompte client : 0 saisi est persisté (acompte nul acté, pilote ATT_ACOMPTE) ;
+        // seul le champ vide n'écrit aucune ligne de paiement.
+        if (isDepositSpecified(formData.accompteClient) || formData.accompteClientRecu || formData.dateAccompteClientRecu) {
           payments.push({ payment_type: 'acompte_client', amount: accompteClientValue, currency: 'EUR', is_received: formData.accompteClientRecu || false, payment_date: formData.dateAccompteClientRecu || null })
         }
 
@@ -375,7 +400,7 @@ export function useInterventionSubmit({
     interventionId, formData, currentUser, existingOwnerId, existingTenantId,
     selectedArtisanId, selectedSecondArtisanId,
     canEditContext, setIsSubmitting, onSubmittingChange, onSuccess, clearDraft,
-    updateMutation, openInterventionModal, queryClient,
+    updateMutation, openInterventionModal, queryClient, getEffectiveStatutId,
   ])
 
   const handleSubmit = useCallback(async (
@@ -477,7 +502,18 @@ export function useInterventionSubmit({
       }
     }
 
-    const nextStatusCode = getInterventionStatusCode(formData.statut_id)
+    // Acompte client coché « Reçu » : la date de perception est obligatoire.
+    const depositError = getDepositValidationError({
+      recu: formData.accompteClientRecu,
+      date: formData.dateAccompteClientRecu,
+    })
+    if (depositError) {
+      toast.error(depositError)
+      return
+    }
+
+    // Statut effectif = celui du formulaire, éventuellement forcé par l'acompte.
+    const nextStatusCode = getInterventionStatusCode(getEffectiveStatutId())
     const ARTISAN_REQUIRED_STATUSES = ["VISITE_TECHNIQUE", "INTER_EN_COURS", "INTER_TERMINEE"]
 
     if (ARTISAN_REQUIRED_STATUSES.includes(nextStatusCode) && (!selectedArtisanId || !selectedArtisanData)) {
@@ -523,6 +559,7 @@ export function useInterventionSubmit({
   }, [
     readOnly, formData, interventionId, initialStatusCode, showReferenceField,
     selectedArtisanId, selectedArtisanData, executeSubmit, getInterventionStatusCode,
+    getEffectiveStatutId,
     requiresDefinitiveId, requiresDatePrevue, requiresAgence, requiresMetier,
     requiresNomFacturation, requiresAssignedUser, requiresCouts, requiresConsigneArtisan,
     requiresClientInfo, requiresDevis,

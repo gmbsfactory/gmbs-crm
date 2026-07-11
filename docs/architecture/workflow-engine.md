@@ -178,6 +178,35 @@ Chaque statut definit des prerequis dans `WORKFLOW_RULES`. Une transition est bl
 
 ---
 
+## Automatisation de l'acompte client
+
+L'acompte **client** pilote automatiquement le couple de statuts `ATT_ACOMPTE` / `ACCEPTE`.
+Les règles sont pures et centralisées dans `src/lib/interventions/deposit-helpers.ts` ;
+elles sont consommées par `useInterventionAccomptes` (UI + transition au clic),
+`useInterventionSubmit` et `NewInterventionForm` (validation + statut effectif à l'enregistrement).
+L'acompte **SST** (« Envoyé ») est hors workflow : il ne déclenche aucune transition.
+
+| Règle | Implémentation |
+|-------|----------------|
+| La saisie de l'acompte n'est ouverte qu'en `DEVIS_ENVOYE`, `ATT_ACOMPTE` et `ACCEPTE` — montants, checkboxes et dates sont désactivés ailleurs | `canEditDeposits` → prop `canEditAccomptes` de `PaymentSection` |
+| « Reçu » n'est cochable que si un montant est **saisi**, et jamais depuis `DEVIS_ENVOYE` : on passe obligatoirement par `ATT_ACOMPTE` | `canMarkDepositReceived(statut, montant)` → prop `canMarkAccompteClientRecu` |
+| Un acompte saisi puis **enregistré sans « Reçu »** bascule l'intervention en `ATT_ACOMPTE` | `resolveDepositStatusCode` appliqué au submit (statut effectif) |
+| Cocher « Reçu » passe en `ACCEPTE` (affiché « Accepté $ ») ; décocher revient à `ATT_ACOMPTE` | `resolveDepositStatusCode` + transition locale dans `useInterventionAccomptes` |
+| Cocher « Reçu » pré-remplit la date du jour (éditable) et **bloque l'enregistrement** si elle est vidée | `applyRecuToggle` + `getDepositValidationError` |
+
+Le statut réellement persisté est donc celui calculé au submit (`getEffectiveStatutId`),
+et non la valeur brute du sélecteur : la règle s'applique même si l'utilisateur saisit un
+montant sans jamais toucher la checkbox.
+
+> **Acompte nul — « saisi » ≠ « > 0 »** : un acompte à **0** est une valeur métier valide
+> (acompte nul explicitement acté) et déclenche l'automatisation au même titre qu'un montant
+> positif ; seul le champ **vide** ne déclenche rien. La distinction vide/0 est portée par
+> `isDepositSpecified` (qui réutilise `isCostSpecified`), exactement comme pour le coût SST.
+> Conséquence : un acompte à 0 est bien persisté en base (ligne `payment` `acompte_client`
+> avec `amount = 0`) et relu comme `"0"`, et non comme un champ vide.
+
+---
+
 ## Moteur de validation
 
 La fonction `validateTransition()` dans `src/lib/workflow-engine.ts` orchestre la validation en 7 etapes :

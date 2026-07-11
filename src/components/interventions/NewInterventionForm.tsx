@@ -27,7 +27,8 @@ import { toast } from "sonner"
 import { extractErrorMessage } from "@/lib/toast-helpers"
 import { findOrCreateOwner, findOrCreateTenant } from "@/lib/interventions/owner-tenant-helpers"
 import { runPostMutationTasks } from "@/lib/interventions/post-mutation-tasks"
-import { applyRecuToggle } from "@/lib/interventions/deposit-helpers"
+import { getDepositValidationError, resolveDepositStatusCode } from "@/lib/interventions/deposit-helpers"
+import { useInterventionAccomptes } from "@/hooks/useInterventionAccomptes"
 import { useInterventionModal } from "@/hooks/useInterventionModal"
 import { useModal } from "@/hooks/useModal"
 import { EmailEditModal } from "@/components/interventions/EmailEditModal"
@@ -292,21 +293,21 @@ export function NewInterventionForm({
     [generateEmailTemplateData],
   )
 
-  // Acompte handlers — NewInterventionForm a pas de gating de statut, donc tout
-  // est délégué à handleInputChange. Règle métier : seul SST auto-remplit la date
-  // au check (acompte sortant côté GMBS) ; côté client la date reste à saisir.
-  const handleAccompteSSTChange = useCallback((value: string) => handleInputChange("accompteSST", value), [handleInputChange])
-  const handleAccompteClientChange = useCallback((value: string) => handleInputChange("accompteClient", value), [handleInputChange])
-  const handleAccompteSSTRecuChange = useCallback((checked: boolean) => {
-    const { recu, date } = applyRecuToggle(checked, formData.dateAccompteSSTRecu)
-    handleInputChange("accompteSSTRecu", recu)
-    handleInputChange("dateAccompteSSTRecu", date)
-  }, [handleInputChange, formData.dateAccompteSSTRecu])
-  const handleAccompteClientRecuChange = useCallback((checked: boolean) => {
-    handleInputChange("accompteClientRecu", checked)
-  }, [handleInputChange])
-  const handleDateAccompteSSTRecuChange = useCallback((value: string) => handleInputChange("dateAccompteSSTRecu", value), [handleInputChange])
-  const handleDateAccompteClientRecuChange = useCallback((value: string) => handleInputChange("dateAccompteClientRecu", value), [handleInputChange])
+  // Acomptes : même gating de statut et mêmes transitions qu'en édition.
+  const {
+    canEditAccomptes,
+    canMarkAccompteClientRecu,
+    handleAccompteSSTChange,
+    handleAccompteClientChange,
+    handleAccompteSSTRecuChange,
+    handleAccompteClientRecuChange,
+    handleDateAccompteSSTRecuChange,
+    handleDateAccompteClientRecuChange,
+  } = useInterventionAccomptes({
+    formData,
+    interventionStatuses: refData?.interventionStatuses,
+    handleInputChange,
+  })
 
   const isDevisButtonDisabled = !selectedArtisanId
   const isInterButtonDisabled = useMemo(
@@ -405,6 +406,29 @@ export function NewInterventionForm({
       return
     }
 
+    // Acompte client coché « Reçu » : la date de perception est obligatoire.
+    const depositError = getDepositValidationError({
+      recu: formData.accompteClientRecu,
+      date: formData.dateAccompteClientRecu,
+    })
+    if (depositError) {
+      toast.error(depositError)
+      return
+    }
+
+    // Statut effectif : un acompte client saisi mais non reçu bascule en ATT_ACOMPTE.
+    const statuses = refData?.interventionStatuses ?? []
+    const currentStatusCode = statuses.find((s: any) => s.id === formData.statut_id)?.code ?? ""
+    const depositStatusCode = resolveDepositStatusCode({
+      currentStatusCode,
+      amount: formData.accompteClient,
+      recu: formData.accompteClientRecu,
+    })
+    const effectiveStatutId =
+      depositStatusCode && depositStatusCode !== currentStatusCode
+        ? (statuses.find((s: any) => s.code === depositStatusCode)?.id ?? formData.statut_id ?? undefined)
+        : (formData.statut_id || undefined)
+
     // === VALIDATIONS CUMULATIVES (quand le statut sélectionné n'est pas DEMANDE) ===
     if (requiresNomFacturation && !formData.nomPrenomFacturation?.trim()) {
       toast.error("Le nom/prénom de facturation (propriétaire) est obligatoire pour ce statut")
@@ -497,7 +521,7 @@ export function NewInterventionForm({
       }
 
       const createData: CreateInterventionData = {
-        statut_id: formData.statut_id || undefined,
+        statut_id: effectiveStatutId,
         agence_id: formData.agence_id || undefined,
         reference_agence: referenceAgenceValue.length > 0 ? referenceAgenceValue : null,
         assigned_user_id: formData.assigned_user_id || undefined,
@@ -909,7 +933,8 @@ export function NewInterventionForm({
               isOpen={isAccompteOpen}
               onOpenChange={setIsAccompteOpen}
               formData={formData}
-              canEditAccomptes={true}
+              canEditAccomptes={canEditAccomptes}
+              canMarkAccompteClientRecu={canMarkAccompteClientRecu}
               handleAccompteSSTChange={handleAccompteSSTChange}
               handleAccompteClientChange={handleAccompteClientChange}
               handleAccompteSSTRecuChange={handleAccompteSSTRecuChange}
