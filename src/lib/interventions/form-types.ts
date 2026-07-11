@@ -293,7 +293,10 @@ export function createEditFormData(
     accompteSST: (sstPayment?.amount ?? null) !== null && (sstPayment?.amount ?? 0) !== 0 ? String(sstPayment?.amount ?? 0) : "",
     accompteSSTRecu: sstPayment?.is_received || false,
     dateAccompteSSTRecu: sstPayment?.payment_date?.split('T')[0] || "",
-    accompteClient: (clientPayment?.amount ?? null) !== null && (clientPayment?.amount ?? 0) !== 0 ? String(clientPayment?.amount ?? 0) : "",
+    // Exception acompte client : 0 est une vraie valeur (acompte nul acté) et pilote
+    // le workflow ATT_ACOMPTE/ACCEPTE => on la conserve. Seule l'absence de paiement
+    // enregistré (amount null/absent) est un champ vide.
+    accompteClient: clientPayment?.amount == null ? "" : String(clientPayment.amount),
     accompteClientRecu: clientPayment?.is_received || false,
     dateAccompteClientRecu: clientPayment?.payment_date?.split('T')[0] || "",
 

@@ -1,5 +1,10 @@
 import { useCallback, useMemo } from "react"
-import { applyRecuToggle } from "@/lib/interventions/deposit-helpers"
+import {
+  applyRecuToggle,
+  canEditDeposits,
+  canMarkDepositReceived,
+  isDepositSpecified,
+} from "@/lib/interventions/deposit-helpers"
 import type { InterventionFormData } from "@/lib/interventions/form-types"
 
 interface UseInterventionAccomptesOptions {
@@ -31,10 +36,17 @@ export function useInterventionAccomptes({
     [interventionStatuses],
   )
 
-  const canEditAccomptes = useMemo(() => {
-    const code = getStatusCode(formData.statut_id)
-    return code === "ACCEPTE" || code === "ATT_ACOMPTE"
-  }, [formData.statut_id, getStatusCode])
+  const canEditAccomptes = useMemo(
+    () => canEditDeposits(getStatusCode(formData.statut_id)),
+    [formData.statut_id, getStatusCode],
+  )
+
+  // « Reçu » exige (1) un statut ACCEPTE/ATT_ACOMPTE — depuis DEVIS_ENVOYE on passe
+  // d'abord par ATT_ACOMPTE au submit — et (2) un montant saisi (0 compris).
+  const canMarkAccompteClientRecu = useMemo(
+    () => canMarkDepositReceived(getStatusCode(formData.statut_id), formData.accompteClient),
+    [formData.statut_id, formData.accompteClient, getStatusCode],
+  )
 
   // --- Montants (local) ---
 
@@ -43,9 +55,18 @@ export function useInterventionAccomptes({
     [handleInputChange],
   )
 
+  // Vider le montant retire l'acompte : « Reçu » et sa date ne peuvent pas lui survivre
+  // (sinon la case resterait cochée alors qu'elle est verrouillée, donc indécochable).
   const handleAccompteClientChange = useCallback(
-    (value: string) => handleInputChange("accompteClient", value),
-    [handleInputChange],
+    (value: string) => {
+      handleInputChange("accompteClient", value)
+
+      if (!isDepositSpecified(value) && formData.accompteClientRecu) {
+        handleInputChange("accompteClientRecu", false)
+        handleInputChange("dateAccompteClientRecu", "")
+      }
+    },
+    [formData.accompteClientRecu, handleInputChange],
   )
 
   // --- Checkbox SST (Envoyé) : auto-fill date du jour ---
@@ -61,13 +82,19 @@ export function useInterventionAccomptes({
     [formData.dateAccompteSSTRecu, handleInputChange],
   )
 
-  // --- Checkbox Client (Reçu) : pas d'auto-fill date, transition de statut LOCALE ---
+  // --- Checkbox Client (Reçu) : auto-fill date du jour + transition de statut LOCALE ---
+  // La date reste éditable et redevient bloquante au submit si l'utilisateur la vide
+  // (cf. getDepositValidationError dans useInterventionSubmit).
 
   const handleAccompteClientRecuChange = useCallback(
     (checked: boolean) => {
-      handleInputChange("accompteClientRecu", checked)
+      const { recu, date } = applyRecuToggle(checked, formData.dateAccompteClientRecu)
+      handleInputChange("accompteClientRecu", recu)
+      if (date !== formData.dateAccompteClientRecu) {
+        handleInputChange("dateAccompteClientRecu", date)
+      }
 
-      if (checked) {
+      if (recu) {
         const accepteId = findStatusId("ACCEPTE")
         if (accepteId) handleInputChange("statut_id", accepteId)
       } else if (getStatusCode(formData.statut_id) === "ACCEPTE") {
@@ -75,7 +102,7 @@ export function useInterventionAccomptes({
         if (attId) handleInputChange("statut_id", attId)
       }
     },
-    [formData.statut_id, getStatusCode, findStatusId, handleInputChange],
+    [formData.statut_id, formData.dateAccompteClientRecu, getStatusCode, findStatusId, handleInputChange],
   )
 
   // --- Saisie manuelle des dates (local) ---
@@ -92,6 +119,7 @@ export function useInterventionAccomptes({
 
   return {
     canEditAccomptes,
+    canMarkAccompteClientRecu,
     handleAccompteSSTChange,
     handleAccompteClientChange,
     handleAccompteSSTRecuChange,

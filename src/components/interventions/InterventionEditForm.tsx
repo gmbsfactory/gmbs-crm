@@ -442,9 +442,16 @@ export const InterventionEditForm = memo(function InterventionEditForm({
     }
   }, [baseHandleInputChange, refData?.interventionStatuses, setFormData, setIsProprietaireOpen, setIsClientOpen])
 
+  const findInterventionStatusIdByCode = useCallback(
+    (code: string): string | undefined =>
+      refData?.interventionStatuses?.find((status: any) => status.code === code)?.id,
+    [refData?.interventionStatuses],
+  )
+
   // --- Gestion des acomptes ---
   const {
     canEditAccomptes,
+    canMarkAccompteClientRecu,
     handleAccompteSSTChange,
     handleAccompteClientChange,
     handleAccompteSSTRecuChange,
@@ -576,6 +583,7 @@ export const InterventionEditForm = memo(function InterventionEditForm({
     onSuccess,
     clearDraft,
     getInterventionStatusCode,
+    findStatusIdByCode: findInterventionStatusIdByCode,
   })
 
   // Wrap handleSubmit to handle status reason modal + confirmation "travaux offerts"
@@ -937,6 +945,7 @@ export const InterventionEditForm = memo(function InterventionEditForm({
                     onOpenChange={setIsAccompteOpen}
                     formData={formData}
                     canEditAccomptes={canEditAccomptes}
+                    canMarkAccompteClientRecu={canMarkAccompteClientRecu}
                     handleAccompteSSTChange={handleAccompteSSTChange}
                     handleAccompteClientChange={handleAccompteClientChange}
                     handleAccompteSSTRecuChange={handleAccompteSSTRecuChange}

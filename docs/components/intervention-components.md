@@ -118,18 +118,25 @@ Depuis le refacto d'avril 2026, la logique des formulaires d'intervention est é
 | `SecondArtisanSection` | `SecondArtisanSection.tsx` | Artisan secondaire (optionnel) |
 | `PaymentSection` | `PaymentSection.tsx` | Coûts, paiements, acomptes |
 
-#### Invariant acomptes : "Reçu/Envoyé" implique une date
-
-Cocher la case "Reçu" (acompte client) ou "Envoyé" (acompte SST) auto-remplit la date de paiement avec **la date du jour (heure locale)** si elle est vide. Décocher vide la date. La date reste éditable dans tous les cas.
-
-- Logique métier centralisée dans `applyRecuToggle()` (`src/lib/interventions/deposit-helpers.ts`).
-- Édition : appliquée par `useInterventionAccomptes` avant la transition de statut et l'upsert paiement, garantissant que `is_received === true ⟺ payment_date !== null`.
-- Création : appliquée par les shims locaux de `NewInterventionForm.tsx`, qui consomment le même helper.
-- Côté statut (édition uniquement) : cocher l'acompte client → `ACCEPTE` ; décocher en `ACCEPTE` → `ATT_ACOMPTE`. L'acompte SST n'impacte pas le statut.
 | `DocumentSection` | `DocumentSection.tsx` | Documents liés (devis, facture…) |
 | `CustomStatusSection` | `CustomStatusSection.tsx` | Sous-statuts personnalisés |
 
 Chaque section reçoit l'état du formulaire en props depuis `useInterventionFormState` et reste découplée de la mécanique de submit.
+
+#### PaymentSection : acompte client et statut
+
+Les règles d'acompte sont pures et centralisées dans `src/lib/interventions/deposit-helpers.ts`, et partagées à l'identique par l'édition (`InterventionEditForm`) et la création (`NewInterventionForm`) via le hook `useInterventionAccomptes` — voir [workflow-engine.md](../architecture/workflow-engine.md#automatisation-de-lacompte-client) pour les règles de statut.
+
+Côté composant, deux props gouvernent l'accès aux champs :
+
+| Prop | Effet |
+|------|-------|
+| `canEditAccomptes` | Ouvre montants, checkboxes et dates. `false` hors de `DEVIS_ENVOYE` / `ATT_ACOMPTE` / `ACCEPTE` : toute la section passe en lecture seule. |
+| `canMarkAccompteClientRecu` | Autorise la case « Reçu » (acompte client). `false` tant que le montant est vide (**0 compte comme saisi**), et `false` en `DEVIS_ENVOYE` : il faut d'abord enregistrer pour passer en `ATT_ACOMPTE`. |
+
+Vider le montant client retire l'acompte : `useInterventionAccomptes` décoche « Reçu » et efface sa date, sans quoi la case resterait cochée alors qu'elle vient d'être verrouillée — donc indécochable.
+
+**Invariant « Reçu/Envoyé » implique une date.** Cocher « Reçu » (client) ou « Envoyé » (SST) auto-remplit la date de paiement avec **la date du jour (heure locale)** si elle est vide (`applyRecuToggle`) ; décocher la vide. La date reste éditable — mais côté client, la vider **bloque l'enregistrement** (`getDepositValidationError`), ce qui garantit `is_received === true ⟺ payment_date !== null` en base.
 
 #### Carte artisan sélectionné (ArtisanPanel / SecondArtisanSection)
 

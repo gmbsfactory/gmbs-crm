@@ -143,6 +143,16 @@ export function runPostMutationTasks(config: PostMutationConfig): void {
       refetchType: 'all',
     })
 
+    // Les paiements ne transitent pas par le realtime (qui ne diffuse que la table
+    // `interventions`) et ne sont pas patchés dans le cache liste. Or la vue table
+    // en dépend : le suffixe « $ » de « Accepté $ » est calculé depuis
+    // `intervention.payments` (cf. getStatusDisplayLabel / StatusCell). Sans cette
+    // invalidation, la ligne affiche le nouveau statut avec les anciens paiements —
+    // donc sans le « $ » — jusqu'au prochain refetch fortuit de la liste.
+    if (config.payments && config.payments.length > 0) {
+      config.queryClient.invalidateQueries({ queryKey: ['interventions', 'list'] })
+    }
+
     if (config.invalidateDashboard) {
       config.queryClient.invalidateQueries({ queryKey: ['admin', 'dashboard'] })
       config.queryClient.invalidateQueries({ queryKey: ['podium'] })

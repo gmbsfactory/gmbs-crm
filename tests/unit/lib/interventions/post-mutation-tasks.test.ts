@@ -287,6 +287,44 @@ describe("runPostMutationTasks", () => {
       })
     })
 
+    it("should invalidate the interventions list when payments change (« Accepté $ » depends on payments)", async () => {
+      const mockQueryClient = {
+        invalidateQueries: vi.fn(),
+      }
+
+      runPostMutationTasks({
+        interventionId: "int-1",
+        payments: [
+          { payment_type: "acompte_client", amount: 500, is_received: true, payment_date: "2026-04-12" },
+        ],
+        queryClient: mockQueryClient as any,
+      })
+
+      await flushPromises()
+
+      expect(mockQueryClient.invalidateQueries).toHaveBeenCalledWith({
+        queryKey: ["interventions", "list"],
+      })
+    })
+
+    it("should NOT invalidate the interventions list when no payment changed", async () => {
+      const mockQueryClient = {
+        invalidateQueries: vi.fn(),
+      }
+
+      runPostMutationTasks({
+        interventionId: "int-1",
+        costs: [{ cost_type: "sst", amount: 100, artisan_order: 1 }],
+        queryClient: mockQueryClient as any,
+      })
+
+      await flushPromises()
+
+      expect(mockQueryClient.invalidateQueries).not.toHaveBeenCalledWith({
+        queryKey: ["interventions", "list"],
+      })
+    })
+
     it("should only invalidate intervention detail when dashboard/comments flags are false", async () => {
       const mockQueryClient = {
         invalidateQueries: vi.fn(),
