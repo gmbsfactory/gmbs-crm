@@ -568,7 +568,7 @@ Non implemente dans cette version car le cas d'usage de pagination profonde est 
 
 1. **Metadata simplifie dans le buffer live** : Les resultats recents n'ont pas les infos agence/artisan/statut dans le metadata JSON. Impact nul car le frontend re-fetche les donnees completes par ID.
 
-2. **Champs de recherche reduits dans le buffer live** : Le `search_vector` de la table de base ne contient pas les commentaires, le nom du tenant, ni le nom de l'artisan lie (car ce sont des joins). Un gestionnaire cherchant par nom de client ne trouvera pas une intervention fraichement creee via le buffer live — il la trouvera via la MV au prochain refresh. Les champs couverts par le buffer live (id_inter, contexte, adresse, ville, reference_agence) couvrent le cas d'usage principal : "je viens de creer l'intervention, je cherche son numero".
+2. **Champs de recherche reduits dans le buffer live** : historiquement le `search_vector` de la table de base ne contenait aucun champ joint. **Depuis la migration `99070`, le buffer live couvre les champs joints les plus recherches** via jointure au moment de la requete (voir section 14bis) : infos CLIENT (tenant/owner : nom, email, telephone), COMMENTAIRES, et ARTISAN LIE (nom, raison sociale, n° associe, SIRET) sont cherchables en temps reel — y compris apres une edition (recency propagee via `tenant.updated_at`, `owner.updated_at`, `comments.updated_at`, `intervention_artisans.created_at`, `artisans.updated_at`). Restent MV-only dans le buffer : agence, metier, utilisateur assigne, statut — a ajouter selon le meme patron si le besoin se confirme.
 
 3. **pg_cron reste a 1 min** : Le cron pourrait etre reduit a 30s si necessaire, mais le buffer live rend cela non urgent.
 
@@ -822,7 +822,10 @@ Pour ces cas, `search_global` et `search_interventions` ajoutent un **repli ILIK
 | `adresse` | oui *(migration 99060)* | oui |
 | `ville` | oui *(migration 99060)* | oui |
 | `code_postal` | oui *(buffer live)* | non |
-| `tenant` (nom / prénom) | non | oui |
+| `tenant` (nom / prénom / email / tél.) | oui *(buffer live, migration 99070)* | oui |
+| `owner` (nom / prénom / email / tél.) | oui *(buffer live, migration 99070)* | non |
+| `commentaires` | oui *(buffer live, migration 99070)* | non |
+| artisan lié (`plain_nom` / `raison_sociale`) | oui *(buffer live, migration 99070)* | oui |
 | artisan `numero_associe` / `plain_nom` / `raison_sociale` | oui | oui (`artisan_plain_nom`) |
 
 > Le repli ILIKE est insensible aux accents (`unaccent`) pour l'adresse et la ville.
@@ -835,3 +838,16 @@ Pour ces cas, `search_global` et `search_interventions` ajoutent un **repli ILIK
 | `99024` | Recherche hybride MV + buffer live (repli ILIKE initial : `id_inter`, `numero_associe`, `plain_nom`). |
 | `99060` | Tokenisation FR des élisions/apostrophes + repli ILIKE `adresse` / `ville` (accent-insensible). |
 | `99066` | Repli ILIKE `reference_agence` (recherche par derniers chiffres de la référence agence) + `reference_agence` ajouté à la metadata de `global_search_mv`. |
+| `99070` | Buffer live étendu aux champs **joints** (client tenant/owner, commentaires, artisan lié) via jointure au moment de la requête. Voir section 14bis. |
+
+---
+
+## 14bis. Migration 99070 — champs joints dans le buffer live (approche jointure)
+
+Plutôt que la réécriture trigger-based complète de la section 14, `99070` couvre les champs joints les plus recherchés à moindre coût : le buffer live `recent_interventions` **joint les tables liées au moment de la requête** (`tenants`/`owner`, agrégat `comments`, artisan primaire via `intervention_artisans`) et construit un tsvector combiné (`i.search_vector ‖ champs joints pondérés comme la MV`), plus des replis ILIKE.
+
+- **Recency** : une intervention entre dans le buffer si elle-même OU un de ses éléments liés a été modifié depuis le dernier refresh (CTE `recent_intervention_ids`, 6 sources indexées) : intervention, tenant, owner, commentaire, nouvelle assignation d'artisan, artisan primaire lié. Couvre création ET édition.
+- **Index de support** : `tenants(updated_at)`, `owner(updated_at)`, `interventions(tenant_id)`, `interventions(owner_id)`, `comments(updated_at) WHERE entity_type='intervention'`, `intervention_artisans(created_at)`, `intervention_artisans(artisan_id)`.
+- **Non couvert** (reste MV-only) : agence, métier, utilisateur assigné, statut. La section 14 (trigger-based) reste la cible si l'on veut tout couvrir sans jointure à la requête.
+
+> **Note perf** : chaque source de recency démarre d'un ensemble borné/indexé, et le tsvector combiné + les LATERAL (artisan primaire, agrégat commentaires) ne s'évaluent que sur les ≤ 500 interventions fraîches par requête. Le coût reste dans l'enveloppe « buffer live » (quelques ms) tant que le cron de refresh n'accumule pas de retard.
