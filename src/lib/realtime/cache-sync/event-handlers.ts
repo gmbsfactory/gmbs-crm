@@ -13,6 +13,7 @@ import { getRemoteEditIndicatorManager } from '@/lib/realtime/remote-edit-indica
 import { getSyncQueue } from '@/lib/realtime/sync-queue'
 import { toast } from 'sonner'
 import { debouncedRefreshCounts, getBroadcastSync } from './broadcasting'
+import { insertSorted } from './sorted-insertion'
 
 type GetAllParams = InterventionQueryParams
 
@@ -69,7 +70,8 @@ export function handleInsert(
   const currentTotal = oldData.pagination?.total ?? oldData.data.length
   return {
     ...oldData,
-    data: [newRecord, ...oldData.data],
+    // Insertion a la position triee (et non plus en tete) pour respecter l'ordre de la vue.
+    data: insertSorted(oldData.data, newRecord, filters),
     pagination: {
       ...oldData.pagination,
       limit: oldData.pagination?.limit ?? oldData.data.length,
@@ -170,7 +172,8 @@ export function handleUpdate(
   if (!wasInList && matchesNow) {
     return {
       ...oldData,
-      data: [nextRecord, ...oldData.data],
+      // Insertion a la position triee (et non plus en tete) pour respecter l'ordre de la vue.
+      data: insertSorted(oldData.data, nextRecord, filters),
       pagination: {
         ...oldData.pagination,
         limit: oldData.pagination?.limit ?? oldData.data.length,
@@ -181,11 +184,14 @@ export function handleUpdate(
     }
   }
 
-  // CAS 3: Dans la liste et doit y rester (mise a jour)
+  // CAS 3: Dans la liste et doit y rester (mise a jour + repositionnement)
+  // insertSorted retire l'ancienne occurrence puis reinsere a la position triee : si le champ
+  // de tri n'a pas change, la ligne reste a sa place ; s'il a change (ex: date_prevue), elle
+  // se replace correctement. Fini le « saut » en tete sur une simple modification.
   if (wasInList && matchesNow) {
     return {
       ...oldData,
-      data: [...oldData.data.slice(0, index), nextRecord, ...oldData.data.slice(index + 1)],
+      data: insertSorted(oldData.data, nextRecord, filters),
     }
   }
 
