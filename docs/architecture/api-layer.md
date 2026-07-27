@@ -262,6 +262,20 @@ export function safeErrorMessage(error: unknown, context: string): string {
 
 En production, les details internes (messages Supabase, stack traces) ne sont jamais exposes au client. Le detail complet est logue cote serveur.
 
+### Violations de contrainte unique (23505) dans les toasts
+
+`extractErrorMessage()` (`src/lib/toast-helpers.ts`) traduit les erreurs Postgres en francais et **nomme le champ en conflit**. Ordre de resolution pour un code `23505` :
+
+1. `details` PostgREST : `Key (id_inter)=(20843) already exists.` -> champ **et** valeur fautive.
+2. A defaut (PostgREST masque souvent le DETAIL), le nom de la contrainte present dans le message : `unique constraint "interventions_id_inter_key"` -> champ, via `CONSTRAINT_TO_FIELD` / `CONSTRAINT_TO_MESSAGE` (contraintes composites : couts, artisans lies, checks compta).
+3. Sinon seulement : message generique `Cette valeur existe deja...`.
+
+> **Toute nouvelle contrainte UNIQUE doit etre ajoutee a `CONSTRAINT_TO_FIELD` ou `CONSTRAINT_TO_MESSAGE`**, sinon l'utilisateur retombe sur le message generique.
+
+Cote serveur, `InterventionDbError` (`src/lib/api/interventions/server.ts`) conserve `code` et `details` Postgres, et la route `PATCH /api/interventions/[id]` les renvoie dans le JSON d'erreur — sans cela l'aplatissement en `new Error(message)` supprimait le diagnostic.
+
+Champs uniques touchant une intervention : `interventions.id_inter`, `intervention_costs` (type + ordre artisan / global), `intervention_artisans (intervention_id, artisan_id)`, `intervention_compta_checks/exclusions (intervention_id)`, et cote entites liees `artisans.email|siret|telephone`, `users.email|username|code_gestionnaire`, `owner/tenants.external_ref`.
+
 ### Headers dynamiques (`utils.ts`)
 
 La fonction `getHeaders()` construit les headers d'authentification selon le contexte :
