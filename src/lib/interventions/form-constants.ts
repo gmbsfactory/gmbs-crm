@@ -40,7 +40,6 @@ export const STATUSES_REQUIRING_DEFINITIVE_ID = new Set([
   "ACCEPTE",
   "INTER_EN_COURS",
   "INTER_TERMINEE",
-  "STAND_BY",
 ])
 
 /** Statuts nécessitant un nom de facturation — cumulatif depuis DEVIS_ENVOYE */

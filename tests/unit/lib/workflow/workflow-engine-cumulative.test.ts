@@ -202,6 +202,24 @@ describe('validateTransition - cumulative mode', () => {
       expect(messages).not.toMatch(/facturation/i)
     })
 
+    it('should allow STAND_BY with an AUTO / missing intervention ID', () => {
+      const withAuto = validateTransition(
+        DEFAULT_WORKFLOW_CONFIG,
+        'DEMANDE',
+        'STAND_BY',
+        fullContext({ idIntervention: 'AUTO-123', commentaire: 'Raison du stand by' }),
+      )
+      const withNone = validateTransition(
+        DEFAULT_WORKFLOW_CONFIG,
+        'DEMANDE',
+        'STAND_BY',
+        fullContext({ idIntervention: null, commentaire: 'Raison du stand by' }),
+      )
+
+      expect(withAuto.failedConditions.join(' ')).not.toMatch(/ID intervention/i)
+      expect(withNone.failedConditions.join(' ')).not.toMatch(/ID intervention/i)
+    })
+
     it('should NOT apply cumulative rules when transitioning to REFUSE', () => {
       const validation = validateTransition(
         DEFAULT_WORKFLOW_CONFIG,

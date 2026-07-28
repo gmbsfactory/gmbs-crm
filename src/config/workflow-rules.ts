@@ -147,7 +147,7 @@ type ValidationRule = {
 export const VALIDATION_RULES: ValidationRule[] = [
   {
     key: "INTERVENTION_ID_REQUIRED",
-    statuses: ["DEVIS_ENVOYE", "VISITE_TECHNIQUE", "ACCEPTE", "INTER_EN_COURS", "INTER_TERMINEE", "STAND_BY"],
+    statuses: ["DEVIS_ENVOYE", "VISITE_TECHNIQUE", "ACCEPTE", "INTER_EN_COURS", "INTER_TERMINEE"],
     message: 'Un ID intervention définitif (sans la chaîne "AUTO") est requis pour ce statut',
     blockTransition: true,
     validate: (context) => {
