@@ -300,7 +300,7 @@ Les `VALIDATION_RULES` sont des regles metier qui vont au-dela des prerequis sim
 | Key | Scope | Validation |
 |-----|-------|------------|
 | `DEVIS_ENVOYE_TO_ACCEPTE` | from: DEVIS_ENVOYE, to: ACCEPTE | `devisId` non vide |
-| `INTERVENTION_ID_REQUIRED` | statuses: [6 statuts] | `idIntervention` sans "AUTO" |
+| `INTERVENTION_ID_REQUIRED` | statuses: [DEV, VT, ACC, IEC, IET] | `idIntervention` sans "AUTO" (pas requis pour STAND_BY) |
 | `ARTISAN_REQUIRED_FOR_STATUS` | statuses: [VT, IEC, IET, ATT] | `artisanId` present |
 | `INTER_TERMINEE_INCOMPLETE` | to: INTER_TERMINEE | `factureId` ET `proprietaireId` |
 | `INTER_TERMINEE_GMBS_INVOICE_REQUIRED` | to: INTER_TERMINEE | Au moins un attachment `facturesGMBS` |

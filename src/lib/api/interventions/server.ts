@@ -26,6 +26,33 @@ import type { InterventionStatus } from "@/types/intervention"
 
 const DEFAULT_LIMIT = 50
 
+/**
+ * Erreur serveur qui conserve le diagnostic Postgres (`code`, `details`).
+ * Sans elle, l'aplatissement en `new Error(message)` perd le code 23505 et le
+ * DETAIL « Key (colonne)=(valeur) », donc le toast client ne peut plus nommer
+ * le champ en conflit.
+ */
+export class InterventionDbError extends Error {
+  constructor(
+    message: string,
+    readonly code?: string,
+    readonly details?: string,
+  ) {
+    super(message)
+    this.name = "InterventionDbError"
+  }
+}
+
+type SupabaseErrorLike = { message: string; code?: string; details?: string } | null
+
+function dbError(context: string, error: SupabaseErrorLike) {
+  return new InterventionDbError(
+    `${context}: ${error?.message ?? "unknown"}`,
+    error?.code,
+    error?.details ?? undefined,
+  )
+}
+
 export type ListParams = {
   status?: InterventionStatusValue
   search?: string
@@ -188,7 +215,7 @@ export async function createIntervention(payload: CreateInterventionInput) {
     .single()
 
   if (error || !data) {
-    throw new Error(`Échec de la création de l'intervention: ${error?.message ?? "unknown"}`)
+    throw dbError("Échec de la création de l'intervention", error)
   }
 
   const intervention = mapRowToInterventionWithDocuments(data)
@@ -212,7 +239,7 @@ export async function updateIntervention(id: string, payload: UpdateIntervention
     .single()
 
   if (error || !data) {
-    throw new Error(`Échec de la mise à jour de l'intervention: ${error?.message ?? "unknown"}`)
+    throw dbError("Échec de la mise à jour de l'intervention", error)
   }
 
   return mapRowToInterventionWithDocuments(data)

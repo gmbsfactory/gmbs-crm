@@ -1,5 +1,10 @@
 import { NextResponse } from "next/server"
-import { deleteIntervention, getIntervention, updateIntervention } from "@/lib/api/interventions/server"
+import {
+  deleteIntervention,
+  getIntervention,
+  updateIntervention,
+  type InterventionDbError,
+} from "@/lib/api/interventions/server"
 import { mapStatusFromDb } from "@/lib/interventions/mappers"
 import { isTerminalStatus } from "@/config/interventions"
 import { requirePermission, isPermissionError } from "@/lib/auth/permissions"
@@ -81,7 +86,10 @@ export async function PATCH(request: Request, { params }: Params) {
     return NextResponse.json(intervention)
   } catch (error) {
     console.error("[api/interventions/:id] PATCH failed", error)
-    return NextResponse.json({ message: (error as Error).message }, { status: 400 })
+    // On propage code/details Postgres pour que le toast client puisse nommer
+    // le champ en conflit (ex. 23505 sur id_inter) au lieu d'un message générique.
+    const { message, code, details } = error as InterventionDbError
+    return NextResponse.json({ message, code, details }, { status: 400 })
   }
 }
 

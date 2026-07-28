@@ -12,21 +12,24 @@ export const ID_INTER_DUPLICATE_MESSAGE =
  * Traductions des erreurs PostgreSQL/Supabase courantes vers du français naturel.
  * Clé = code PostgreSQL, Valeur = fonction qui génère le message français.
  */
-const PG_ERROR_TRANSLATIONS: Record<string, (details?: string) => string> = {
+const PG_ERROR_TRANSLATIONS: Record<string, (details?: string, message?: string) => string> = {
   // Contrainte d'unicité violée
-  "23505": (details) => {
-    if (!details) return "Cette valeur existe déjà. Veuillez en choisir une autre."
-    // Extraire le nom du champ depuis "Key (id_inter)=(xxx) already exists."
-    const fieldMatch = details.match(/Key \((\w+)\)=\((.+?)\)/)
+  "23505": (details, message) => {
+    // Cas idéal : Postgres renvoie DETAIL "Key (id_inter)=(xxx) already exists."
+    // (souvent masqué par PostgREST selon le rôle → d'où le repli sur la contrainte)
+    const fieldMatch = details?.match(/Key \((.+?)\)=\((.+?)\)/)
     if (fieldMatch) {
-      if (fieldMatch[1] === "id_inter") {
-        return `${ID_INTER_DUPLICATE_MESSAGE} (« ${fieldMatch[2]} » est déjà pris).`
-      }
-      const fieldName = translateFieldName(fieldMatch[1])
-      const value = fieldMatch[2]
-      return `Le ${fieldName} « ${value} » est déjà utilisé. Veuillez en choisir un autre.`
+      return duplicateMessage(fieldMatch[1], fieldMatch[2])
     }
-    return "Cette valeur existe déjà. Veuillez en choisir une autre."
+    // Repli : nom de la contrainte présent dans le message
+    // (« duplicate key value violates unique constraint "interventions_id_inter_key" »)
+    const constraint = extractConstraintName(details, message)
+    if (constraint) {
+      if (CONSTRAINT_TO_MESSAGE[constraint]) return CONSTRAINT_TO_MESSAGE[constraint]
+      const field = fieldFromConstraint(constraint)
+      if (field) return duplicateMessage(field)
+    }
+    return GENERIC_DUPLICATE_MESSAGE
   },
   // Contrainte NOT NULL violée
   "23502": (details) => {
@@ -50,6 +53,74 @@ const PG_ERROR_TRANSLATIONS: Record<string, (details?: string) => string> = {
   "42P01": () => "Une erreur de configuration a été détectée. Contactez le support.",
 }
 
+export const GENERIC_DUPLICATE_MESSAGE =
+  "Cette valeur existe déjà. Veuillez en choisir une autre."
+
+/**
+ * Contraintes d'unicité de la base → colonne fautive.
+ * Sert de repli quand PostgREST masque le DETAIL de l'erreur (cas le plus
+ * fréquent : seul le nom de la contrainte survit dans le message).
+ * Toute nouvelle contrainte UNIQUE doit être ajoutée ici.
+ */
+const CONSTRAINT_TO_FIELD: Record<string, string> = {
+  interventions_id_inter_key: "id_inter",
+  users_email_key: "email",
+  users_username_key: "username",
+  users_code_gestionnaire_key: "code_gestionnaire",
+  artisans_email_key: "email",
+  artisans_siret_key: "siret",
+  unique_artisan_telephone: "telephone",
+  owner_external_ref_key: "external_ref",
+  tenants_external_ref_key: "external_ref",
+}
+
+/**
+ * Contraintes composites : le nom d'un champ ne suffit pas à expliquer le
+ * conflit, on fournit un message métier complet.
+ */
+const CONSTRAINT_TO_MESSAGE: Record<string, string> = {
+  intervention_artisans_intervention_id_artisan_id_key:
+    "Cet artisan est déjà rattaché à l'intervention.",
+  idx_intervention_costs_unique_type_order:
+    "Un coût de ce type existe déjà pour cet artisan. Modifiez le coût existant plutôt que d'en ajouter un second.",
+  idx_intervention_costs_unique_type_global:
+    "Un coût de ce type existe déjà sur l'intervention. Modifiez le coût existant plutôt que d'en ajouter un second.",
+  intervention_compta_checks_intervention_id_key:
+    "Une validation comptable existe déjà pour cette intervention.",
+  intervention_compta_exclusions_intervention_id_key:
+    "Une exclusion comptable existe déjà pour cette intervention.",
+}
+
+/** Extrait `xxx` de `... unique constraint "xxx"` (message ou details). */
+function extractConstraintName(...sources: (string | undefined)[]): string | null {
+  for (const source of sources) {
+    const match = source?.match(/constraint "([^"]+)"/)
+    if (match) return match[1]
+  }
+  return null
+}
+
+/** Colonne fautive déduite d'un nom de contrainte, ou null si inconnue. */
+function fieldFromConstraint(constraint: string): string | null {
+  if (CONSTRAINT_TO_FIELD[constraint]) return CONSTRAINT_TO_FIELD[constraint]
+  // Heuristique Postgres : `<table>_<colonne>_key`
+  const match = constraint.match(/^[a-z]+_(.+)_key$/)
+  return match ? match[1] : null
+}
+
+/** Message de doublon pour une colonne, avec la valeur fautive si connue. */
+function duplicateMessage(field: string, value?: string): string {
+  if (field === "id_inter") {
+    return value
+      ? `${ID_INTER_DUPLICATE_MESSAGE} (« ${value} » est déjà pris).`
+      : ID_INTER_DUPLICATE_MESSAGE
+  }
+  const fieldName = translateFieldName(field)
+  return value
+    ? `Le ${fieldName} « ${value} » est déjà utilisé. Veuillez en choisir un autre.`
+    : `Le ${fieldName} saisi existe déjà. Veuillez en choisir un autre.`
+}
+
 /**
  * Traduit les noms de colonnes de la base de données en français lisible.
  */
@@ -69,6 +140,10 @@ function translateFieldName(columnName: string): string {
     tenant_id: "locataire",
     email: "email",
     username: "nom d'utilisateur",
+    telephone: "numéro de téléphone",
+    siret: "SIRET",
+    code_gestionnaire: "code gestionnaire",
+    external_ref: "référence externe",
   }
   return translations[columnName] || columnName.replace(/_/g, " ")
 }
@@ -81,13 +156,9 @@ function translateFieldName(columnName: string): string {
  */
 function translateFlattenedDuplicateKey(message: string): string | null {
   if (!/duplicate key value|23505/i.test(message)) return null
-  if (/id_inter/i.test(message)) {
-    const valueMatch = message.match(/Key \(id_inter\)=\((.+?)\)/)
-    return valueMatch
-      ? `${ID_INTER_DUPLICATE_MESSAGE} (« ${valueMatch[1]} » est déjà pris).`
-      : ID_INTER_DUPLICATE_MESSAGE
-  }
-  return "Cette valeur existe déjà. Veuillez en choisir une autre."
+  // Le texte aplati contient les mêmes informations qu'un PostgrestError :
+  // on réutilise donc exactement la même logique (DETAIL puis contrainte).
+  return PG_ERROR_TRANSLATIONS["23505"](message, message)
 }
 
 /**
@@ -113,7 +184,8 @@ export function extractErrorMessage(error: unknown): string {
     // Essayer de traduire via le code PostgreSQL d'abord
     if (typeof obj.code === "string" && obj.code in PG_ERROR_TRANSLATIONS) {
       const details = typeof obj.details === "string" ? obj.details : undefined
-      return PG_ERROR_TRANSLATIONS[obj.code](details)
+      const message = typeof obj.message === "string" ? obj.message : undefined
+      return PG_ERROR_TRANSLATIONS[obj.code](details, message)
     }
 
     // Message disponible mais pas de code connu — traduire les violations

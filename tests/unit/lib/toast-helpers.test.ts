@@ -10,7 +10,7 @@ vi.mock("sonner", () => ({
 }))
 
 import { toast } from "sonner"
-import { toastSaveOperation, extractErrorMessage } from "@/lib/toast-helpers"
+import { toastSaveOperation, extractErrorMessage, ID_INTER_DUPLICATE_MESSAGE } from "@/lib/toast-helpers"
 
 const mockToast = toast as unknown as {
   loading: ReturnType<typeof vi.fn>
@@ -45,9 +45,33 @@ describe("extractErrorMessage", () => {
       ).toBe("Cet ID intervention existe déjà — choisissez un identifiant unique (« 20843 » est déjà pris).")
     })
 
-    it("should fall back to the generic duplicate message for other flattened constraints", () => {
+    it("should name the field from the constraint when DETAIL is missing", () => {
       expect(
         extractErrorMessage(new Error('duplicate key value violates unique constraint "users_email_key"'))
+      ).toBe("Le email saisi existe déjà. Veuillez en choisir un autre.")
+    })
+
+    it("should name id_inter from the constraint alone", () => {
+      expect(
+        extractErrorMessage(
+          new Error('duplicate key value violates unique constraint "interventions_id_inter_key"')
+        )
+      ).toBe(ID_INTER_DUPLICATE_MESSAGE)
+    })
+
+    it("should use the business message for composite constraints", () => {
+      expect(
+        extractErrorMessage(
+          new Error('duplicate key value violates unique constraint "idx_intervention_costs_unique_type_global"')
+        )
+      ).toBe(
+        "Un coût de ce type existe déjà sur l'intervention. Modifiez le coût existant plutôt que d'en ajouter un second."
+      )
+    })
+
+    it("should fall back to the generic duplicate message for unknown constraints", () => {
+      expect(
+        extractErrorMessage(new Error("duplicate key value violates unique constraint"))
       ).toBe("Cette valeur existe déjà. Veuillez en choisir une autre.")
     })
 
