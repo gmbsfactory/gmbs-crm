@@ -144,13 +144,43 @@ Le matcher du middleware exclut automatiquement :
 | `/api/auth/resolve` | POST | Conversion username -> email (timing-safe) |
 | `/api/auth/status` | PATCH | Mise a jour presence (connected/busy/dnd/offline) |
 | `/api/auth/presence` | POST | Événements de présence CRM (login, ping, idle, offline) |
+| `/api/auth/first-activity` | POST | Tracking du premier acces quotidien (retard) |
+| `/api/auth/callback` | GET | Echange code PKCE (reset password) |
 
 > **Note perf (middleware + présence)**
 > - Le middleware utilise `getSession()` (lecture cookie locale, pas d'appel reseau) et n'appelle `getUser()` que si le token expire dans < 60s. Sur des tokens d'1h, on passe d'1 round-trip Auth+DB par navigation a ~1 par heure et par session. Trade-off : un cookie revoque cote serveur reste accepte jusqu'au prochain refresh, mais toute route mutante repasse par `getUser()` (API routes, edge functions).
 > - La présence repose desormais sur le ping d'activite de `usePresenceLifecycle` (`PRESENCE_PING` toutes les 60s via `/api/auth/presence`), qui rafraichit `last_active_at`/`last_seen_at`. L'ancienne route `/api/auth/heartbeat` a ete supprimee (plus de double ping).
 > - Le cron `check-inactive-users` lit les seuils dans `crm_presence_settings` (defaut idle 5 min / offline 1h) et se base sur `last_active_at` (activite reelle).
-| `/api/auth/first-activity` | POST | Tracking du premier acces quotidien (retard) |
-| `/api/auth/callback` | GET | Echange code PKCE (reset password) |
+
+### Fuseau horaire metier (retards)
+
+Les regles de retard sont des regles RH francaises : elles doivent etre evaluees
+a **Europe/Paris**, jamais dans le fuseau du process. Le runtime serveur tourne
+en UTC, ou `Date#getHours()` vaut 2 h de moins qu'a Paris en heure d'ete (1 h en
+hiver) et ou la journee bascule a 02 h heure de Paris.
+
+Source unique de verite : `src/lib/utils/business-timezone.ts`
+(`BUSINESS_TIMEZONE`, `getBusinessParts`, `getBusinessDateString`), consomme par
+`src/lib/utils/business-days.ts` (`isBusinessDay` / `isAfter10AM` /
+`isLateLogin`).
+
+Regles :
+
+- Toute comparaison de « journee de travail » cote serveur
+  (`users.last_activity_date`, `last_lateness_date`, `lateness_email_sent_at`)
+  passe par `getBusinessDateString()`. **Ne pas** utiliser `getLocalDateString`
+  de `@/lib/date-utils` sur ces chemins : il reste un utilitaire generique lie
+  au fuseau du process.
+- Le client (`AuthStateListenerProvider`) utilise la meme fonction pour sa cle
+  `localStorage[last_activity_check_<userId>]`, afin que client et serveur
+  changent de journee au meme instant.
+- Le seuil de retard (10 h) et le calcul de `latenessMinutes` sont derives de
+  `getBusinessParts()`.
+
+Impact du correctif : avant, le seuil « 10 h » valait en realite 12 h a Paris en
+ete — les arrivees entre 10 h et 12 h n'etaient jamais comptees. Tests :
+`tests/unit/lib/business-timezone.test.ts` (instants absolus, deterministes quel
+que soit le fuseau du runner).
 
 ---
 

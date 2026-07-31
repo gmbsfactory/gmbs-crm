@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { updateSession } from '@/lib/supabase/middleware'
+import { getBusinessDateString } from '@/lib/utils/business-timezone'
 
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl
@@ -35,7 +36,9 @@ export async function middleware(req: NextRequest) {
   // Vérification session quotidienne : forcer reconnexion chaque jour
   if (user) {
     const sessionDate = req.cookies.get('crm_session_date')?.value
-    const today = new Date().toISOString().slice(0, 10) // UTC YYYY-MM-DD
+    // Journee metier (Europe/Paris) : la session expire a minuit a Paris, pas
+    // a 02h. Doit rester aligne sur le cookie pose dans app/(auth)/login.
+    const today = getBusinessDateString()
 
     if (!sessionDate || sessionDate !== today) {
       const loginUrl = req.nextUrl.clone()

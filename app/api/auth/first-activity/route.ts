@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { createSSRServerClient } from '@/lib/supabase/server-ssr'
 import { createServerSupabaseAdmin } from '@/lib/supabase/server'
 import { isLateLogin } from '@/lib/utils/business-days'
-import { getLocalDateString } from '@/lib/date-utils'
+import { getBusinessDateString, getBusinessParts } from '@/lib/utils/business-timezone'
 import { decryptPassword } from '@/lib/utils/encryption'
 import { sendEmailToArtisan } from '@/lib/services/email-service'
 import { generateLatenessEmailTemplate, generateLatenessEmailSubject } from '@/lib/email-templates/lateness-email'
@@ -84,8 +84,9 @@ export async function POST() {
     }
 
     const now = new Date()
-    const today = getLocalDateString(now) // YYYY-MM-DD in local timezone
-    const currentYear = now.getFullYear()
+    // Journee metier = journee a Paris, jamais le fuseau du process (UTC en prod)
+    const today = getBusinessDateString(now) // YYYY-MM-DD in Europe/Paris
+    const currentYear = Number(today.slice(0, 4))
 
     const lastActivityDate = userData.last_activity_date
 
@@ -253,7 +254,7 @@ async function sendLatenessEmail(
   try {
     // Check if email was already sent today
     if (lastEmailSentAt) {
-      const lastSentDate = getLocalDateString(new Date(lastEmailSentAt))
+      const lastSentDate = getBusinessDateString(new Date(lastEmailSentAt))
       if (lastSentDate === today) {
         return
       }
@@ -289,9 +290,8 @@ async function sendLatenessEmail(
       return
     }
 
-    // Calculate lateness in minutes (time since 10:00 AM)
-    const hours = loginTime.getHours()
-    const minutes = loginTime.getMinutes()
+    // Calculate lateness in minutes (time since 10:00 AM, Paris time)
+    const { hours, minutes } = getBusinessParts(loginTime)
     const latenessMinutes = (hours - 10) * 60 + minutes
 
     // Format login time

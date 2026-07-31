@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createSSRServerClient } from '@/lib/supabase/server-ssr'
-import { getLocalDateString } from '@/lib/date-utils'
+import { getBusinessDateString } from '@/lib/utils/business-timezone'
 
 export const runtime = 'nodejs'
 
@@ -75,7 +75,7 @@ export async function GET() {
     }
 
     const now = new Date()
-    const today = getLocalDateString(now) // YYYY-MM-DD in local timezone
+    const today = getBusinessDateString(now) // YYYY-MM-DD in Europe/Paris
     const lastLatenessDate = userData.last_lateness_date || null
     const notificationShownAt = userData.lateness_notification_shown_at
       ? new Date(userData.lateness_notification_shown_at)
@@ -85,7 +85,7 @@ export async function GET() {
     const wasLateToday = lastLatenessDate && lastLatenessDate === today
 
     // Check if notification has been shown today (compare date strings for consistency)
-    const notificationShownToday = notificationShownAt && getLocalDateString(notificationShownAt) === today
+    const notificationShownToday = notificationShownAt && getBusinessDateString(notificationShownAt) === today
 
     // Show notification if late today and not yet shown
     const showNotification = wasLateToday && !notificationShownToday

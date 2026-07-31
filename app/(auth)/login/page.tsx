@@ -11,6 +11,7 @@ import { motion } from 'framer-motion'
 import { useRouter } from 'next/navigation'
 import { useQueryClient } from "@tanstack/react-query"
 import { preloadCriticalDataAsync } from "@/lib/preload-critical-data"
+import { getBusinessDateString } from "@/lib/utils/business-timezone"
 
 export default function LoginPage() {
   const queryClient = useQueryClient()
@@ -78,7 +79,7 @@ export default function LoginPage() {
       }
 
       // Poser le cookie de session quotidienne
-      const today = new Date().toISOString().slice(0, 10)
+      const today = getBusinessDateString()
       document.cookie = `crm_session_date=${today}; path=/; max-age=86400; samesite=lax${window.location.protocol === 'https:' ? '; secure' : ''}`
 
       // @supabase/ssr gère automatiquement les cookies de session après signIn
