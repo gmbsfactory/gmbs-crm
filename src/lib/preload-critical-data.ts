@@ -13,6 +13,7 @@ import type { InterventionViewDefinition } from "@/types/intervention-views"
 import type { ArtisanViewDefinition } from "@/hooks/useArtisanViews"
 import { getHasPreloaded, setHasPreloaded } from "@/lib/preload-flag"
 import { supabase } from "@/lib/supabase-client"
+import { reportSessionError } from "@/lib/auth/report-session-error"
 
 const CURRENT_USER_PLACEHOLDER = "__CURRENT_USER_USERNAME__"
 
@@ -223,12 +224,19 @@ export async function preloadCriticalData(queryClient: QueryClient) {
     return
   }
   
-  // Vérifier l'authentification avant de commencer
-  const { data: auth } = await supabase.auth.getSession()
-  if (!auth?.session?.user) {
+  // Vérifier l'authentification avant de commencer.
+  // getSession() passe par le lock auth de Supabase : au réveil d'un onglet dont
+  // le token doit être rafraîchi, il peut échouer sur un timeout d'acquisition.
+  try {
+    const { data: auth } = await supabase.auth.getSession()
+    if (!auth?.session?.user) {
+      return
+    }
+  } catch (error) {
+    reportSessionError(error)
     return
   }
-  
+
   try {
     setHasPreloaded(true)
 
@@ -431,6 +439,8 @@ export async function preloadCriticalData(queryClient: QueryClient) {
   } catch (error) {
     // En cas d'erreur, réinitialiser le flag pour permettre un nouveau préchargement
     setHasPreloaded(false)
+    // Une session expirée doit être annoncée à l'utilisateur, pas seulement loguée
+    if (reportSessionError(error)) return
     // Ne pas bloquer la navigation en cas d'erreur de préchargement
     console.warn("[preloadCriticalData] ⚠️ Erreur lors du préchargement:", error)
   }

@@ -325,6 +325,50 @@ Le `PermissionGate` est un composant similaire pour masquer conditionnellement d
 
 ---
 
+## Session quotidienne et expiration cote client
+
+### Le principe
+
+Le CRM impose **une reconnexion par jour**. Un cookie `crm_session_date` est pose a la connexion (`app/(auth)/login/page.tsx`) et compare par le middleware a la date **UTC** du jour. Si les dates different, le middleware redirige vers `/login?expired=daily`, et la page de login purge la session Supabase avant d'afficher le message d'expiration.
+
+Le calcul est en UTC des deux cotes. En consequence, la date bascule a **00 h UTC**, soit 2 h du matin a Paris en ete : tout onglet ouvert depuis la veille est en session perimee des le lever du jour.
+
+### Pourquoi un garde cote client
+
+Le controle du middleware ne s'applique qu'aux requetes vers l'app Next. Les requetes Supabase, elles, partent **directement** vers PostgREST et ne le traversent jamais. Un onglet laisse ouvert toute la nuit n'est donc averti de rien :
+
+1. Onglet cache la nuit -> `@supabase/auth-js` arrete son ticker (`_stopAutoRefresh`), le token n'est plus rafraichi.
+2. Au reveil, `_onVisibilityChanged` prend le **Navigator Lock** de la session et lance le refresh, qui retente en backoff jusqu'a ~30 s.
+3. Chaque requete PostgREST passe par `auth.getSession()` pour poser son header `Authorization`, donc attend ce meme lock — mais n'attend que `lockAcquireTimeout`, soit **10 s**.
+4. Passe ce delai, auth-js appelle `abortController.abort()` **sans argument** : les requetes echouent sur `AbortError: signal is aborted without reason`, remonte a l'utilisateur sous la forme « Erreur lors de la recuperation des statuts: ... ».
+
+Sans traitement, ces requetes ne reviennent jamais et l'ecran charge indefiniment.
+
+### Les deux gardes
+
+| Fichier | Role |
+|---------|------|
+| `src/lib/auth/session-expiry.ts` | Logique pure : lecture du cookie, comparaison de jour, reconnaissance des erreurs de session, construction de l'URL de reconnexion |
+| `src/hooks/useDailySessionGuard.ts` | Redirige vers `/login?expired=daily` des que le jour a change — au reveil de l'onglet (`visibilitychange`), au retour de focus, ou sur bascule de date pendant que l'ecran reste affiche (verification par minute) |
+| `src/lib/auth/report-session-error.ts` | Bascule l'app sur l'ecran de reconnexion quand une erreur traduit une session inexploitable |
+| `src/stores/sessionExpiry.ts` | Etat global du motif d'expiration (Zustand : l'etat est leve depuis le `QueryCache`, hors arbre React) |
+| `src/components/layout/session-expiry-gate.tsx` | Substitue l'ecran de reconnexion a l'interface ; monte dans `app/layout.tsx` autour de `AuthGuard` |
+
+Le `QueryCache` global (`ReactQueryProvider`) route **toute** erreur de query ou de mutation vers `reportSessionError`. Le meme provider desactive le retry sur ces erreurs : chaque tentative attendrait 10 s de plus sur le lock, sans aucune chance d'aboutir.
+
+### Deux motifs, deux issues
+
+`reportSessionError` tranche a partir du cookie :
+
+- **`daily-expired`** — le cookie porte une autre date : la reconnexion est obligatoire, l'ecran propose « Se reconnecter » vers le portail.
+- **`session-unavailable`** — le jour est bon, le lock etait seulement sature : un rechargement suffit, l'ecran propose « Recharger la page ».
+
+### Ce qui n'est pas une expiration
+
+`isSessionUnavailableError` est volontairement restrictif : un `AbortError` seul ne suffit pas. Le CRM annule des requetes de son plein gre (recherche d'adresse, compteurs de vues, deconnexion), et ces abandons ne doivent jamais faire croire a une session expiree. Seuls comptent le message du lock auth (`signal is aborted without reason`) et les erreurs explicites de jeton (`JWT expired`, `Invalid Refresh Token`).
+
+---
+
 ## Presence en temps reel
 
 ### Presence CRM (active / idle / offline)

@@ -1,11 +1,19 @@
 "use client"
 
 import { type ReactNode, useState } from "react"
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
+import { MutationCache, QueryCache, QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { ReactQueryDevtools } from "@tanstack/react-query-devtools"
+import { isSessionUnavailableError } from "@/lib/auth/session-expiry"
+import { reportSessionError } from "@/lib/auth/report-session-error"
 
 export function ReactQueryProvider({ children }: { children: ReactNode }) {
   const [queryClient] = useState(() => new QueryClient({
+    queryCache: new QueryCache({
+      onError: reportSessionError,
+    }),
+    mutationCache: new MutationCache({
+      onError: reportSessionError,
+    }),
     defaultOptions: {
       queries: {
         // Stale time : 30s (revalidation silencieuse après 30s)
@@ -20,6 +28,9 @@ export function ReactQueryProvider({ children }: { children: ReactNode }) {
         retry: (failureCount, error: any) => {
           // Ne pas retry sur les erreurs 401 (non autorisé)
           if (error?.status === 401) return false
+          // Ni sur une session inexploitable : chaque tentative attend le lock
+          // auth pendant 10 s de plus, sans aucune chance d'aboutir.
+          if (isSessionUnavailableError(error)) return false
           return failureCount < 2
         },
         // Garder les données précédentes pendant le chargement (pour pagination fluide)
@@ -27,7 +38,7 @@ export function ReactQueryProvider({ children }: { children: ReactNode }) {
       },
     },
   }))
-  
+
   return (
     <QueryClientProvider client={queryClient}>
       {children}

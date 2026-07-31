@@ -14,6 +14,7 @@ import { Toaster } from "@/components/ui/toaster"
 import { ModalDisplayProvider } from "@/contexts/ModalDisplayContext"
 import { InterfaceProvider } from "@/contexts/interface-context"
 import { AuthGuard } from "@/components/layout/auth-guard"
+import { SessionExpiryGate } from "@/components/layout/session-expiry-gate"
 import { DeveloperDashboardLoader } from "@/components/debug/DeveloperDashboardLoader"
 import UpdatesModal from "@/components/layout/UpdatesModal"
 import { PagePresenceGate } from "@/components/layout/page-presence-gate"
@@ -256,6 +257,7 @@ export default async function RootLayout({
                   <ModalDisplayProvider>
                       <InterfaceProvider>
                           <ThemeWrapper>
+                            <SessionExpiryGate>
                             <AuthGuard>
                               <SidebarProvider>
                                 <PagePresenceGate>
@@ -281,6 +283,7 @@ export default async function RootLayout({
                               </SidebarProvider>
                               <DeveloperDashboardLoader />
                             </AuthGuard>
+                            </SessionExpiryGate>
                           </ThemeWrapper>
                       </InterfaceProvider>
                   </ModalDisplayProvider>
