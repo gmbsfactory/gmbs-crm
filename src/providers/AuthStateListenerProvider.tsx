@@ -7,7 +7,7 @@ import { preloadCriticalDataAsync } from "@/lib/preload-critical-data"
 import { resetPreloadFlag } from "@/lib/preload-flag"
 import { resetPublicUserIdCache } from "@/lib/api/remindersApi"
 import { useCurrentUser } from "@/hooks/useCurrentUser"
-import { getLocalDateString } from "@/lib/date-utils"
+import { getBusinessDateString } from "@/lib/utils/business-timezone"
 
 /**
  * Provider qui gère un seul listener onAuthStateChange global
@@ -93,7 +93,8 @@ export function AuthStateListenerProvider({ children }: { children: ReactNode })
       try {
         const storageKey = `last_activity_check_${currentUser.id}`
         const lastCheck = localStorage.getItem(storageKey)
-        const today = getLocalDateString()
+        // Meme reference de journee que le serveur (Europe/Paris)
+        const today = getBusinessDateString()
 
         if (lastCheck === today) {
           return
