@@ -13,11 +13,36 @@ import { getBusinessDateString } from "@/lib/utils/business-timezone"
  * Marqueur pose lors d'une connexion explicite (`SIGNED_IN`), consomme par
  * l'effet de pointage. Permet de pointer immediatement sur un vrai login sans
  * attendre une interaction, tout en ignorant les montages passifs de l'app.
+ *
+ * Il stocke l'horodatage de la connexion, pas un simple '1' : `sessionStorage`
+ * survit aux rechargements de page, et un `SIGNED_IN` survenu alors que
+ * `currentUser` etait deja resolu ne relance pas l'effet consommateur. Sans
+ * peremption, un marqueur orphelin ferait pointer un simple rafraichissement
+ * d'onglet le lendemain — exactement le faux positif que ce module corrige.
  */
-const EXPLICIT_SIGNIN_KEY = 'crm_explicit_signin'
+const EXPLICIT_SIGNIN_KEY = 'crm_explicit_signin_at'
+
+/** Au-dela de ce delai, un marqueur de connexion n'est plus considere comme actuel. */
+const EXPLICIT_SIGNIN_MAX_AGE_MS = 2 * 60_000
 
 /** Evenements consideres comme une presence humaine reelle devant le CRM. */
 const HUMAN_ACTIVITY_EVENTS = ['pointerdown', 'keydown'] as const
+
+/**
+ * Vrai si une connexion explicite vient d'avoir lieu. Consomme le marqueur dans
+ * tous les cas : perime, il ne doit pas survivre a ce passage.
+ */
+function consumeRecentExplicitSignin(): boolean {
+  const raw = sessionStorage.getItem(EXPLICIT_SIGNIN_KEY)
+  if (raw === null) return false
+
+  sessionStorage.removeItem(EXPLICIT_SIGNIN_KEY)
+
+  const signedInAt = Number(raw)
+  if (!Number.isFinite(signedInAt)) return false
+
+  return Date.now() - signedInAt <= EXPLICIT_SIGNIN_MAX_AGE_MS
+}
 
 /**
  * Provider qui gère un seul listener onAuthStateChange global
@@ -67,7 +92,7 @@ export function AuthStateListenerProvider({ children }: { children: ReactNode })
           // Connexion explicite : c'est une arrivee volontaire, on peut pointer
           // sans attendre une interaction. Voir l'effet "first activity" plus bas.
           if (typeof window !== 'undefined') {
-            sessionStorage.setItem(EXPLICIT_SIGNIN_KEY, '1')
+            sessionStorage.setItem(EXPLICIT_SIGNIN_KEY, String(Date.now()))
           }
         }
 
@@ -162,9 +187,8 @@ export function AuthStateListenerProvider({ children }: { children: ReactNode })
       void reportArrival()
     }
 
-    // Connexion explicite : arrivee volontaire, on pointe sans attendre.
-    if (sessionStorage.getItem(EXPLICIT_SIGNIN_KEY) === '1') {
-      sessionStorage.removeItem(EXPLICIT_SIGNIN_KEY)
+    // Connexion explicite recente : arrivee volontaire, on pointe sans attendre.
+    if (consumeRecentExplicitSignin()) {
       void reportArrival()
       return
     }

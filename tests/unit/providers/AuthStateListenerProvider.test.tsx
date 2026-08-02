@@ -30,7 +30,7 @@ import { AuthStateListenerProvider } from '@/providers/AuthStateListenerProvider
 import { getBusinessDateString } from '@/lib/utils/business-timezone'
 
 const STORAGE_KEY = 'last_activity_check_user-1'
-const EXPLICIT_SIGNIN_KEY = 'crm_explicit_signin'
+const EXPLICIT_SIGNIN_KEY = 'crm_explicit_signin_at'
 
 /** Appels POST vers l'endpoint de pointage. */
 function firstActivityCalls(): unknown[] {
@@ -152,12 +152,41 @@ describe('AuthStateListenerProvider — pointage de la premiere activite', () =>
   })
 
   it('pointe immediatement apres une connexion explicite, sans attendre d\'interaction', async () => {
-    sessionStorage.setItem(EXPLICIT_SIGNIN_KEY, '1')
+    sessionStorage.setItem(EXPLICIT_SIGNIN_KEY, String(Date.now()))
 
     renderProvider()
 
     await waitFor(() => expect(firstActivityCalls()).toHaveLength(1))
     // Le marqueur est consomme pour ne pas repointer au prochain montage
+    expect(sessionStorage.getItem(EXPLICIT_SIGNIN_KEY)).toBeNull()
+  })
+
+  it('ignore un marqueur de connexion perime et exige une interaction', async () => {
+    // sessionStorage survit aux rechargements : un marqueur orphelin ne doit pas
+    // faire pointer un simple rafraichissement d'onglet le lendemain.
+    sessionStorage.setItem(EXPLICIT_SIGNIN_KEY, String(Date.now() - 10 * 60_000))
+
+    renderProvider()
+    await flush()
+
+    expect(firstActivityCalls()).toHaveLength(0)
+    // Perime, il est tout de meme consomme : il ne doit pas survivre a ce passage
+    expect(sessionStorage.getItem(EXPLICIT_SIGNIN_KEY)).toBeNull()
+
+    // La voie normale reste ouverte
+    await act(async () => {
+      window.dispatchEvent(new Event('pointerdown'))
+    })
+    await waitFor(() => expect(firstActivityCalls()).toHaveLength(1))
+  })
+
+  it('ignore un marqueur de connexion illisible', async () => {
+    sessionStorage.setItem(EXPLICIT_SIGNIN_KEY, 'pas-un-horodatage')
+
+    renderProvider()
+    await flush()
+
+    expect(firstActivityCalls()).toHaveLength(0)
     expect(sessionStorage.getItem(EXPLICIT_SIGNIN_KEY)).toBeNull()
   })
 
@@ -173,7 +202,27 @@ describe('AuthStateListenerProvider — pointage de la premiere activite', () =>
     await act(async () => {
       await authCallback?.('SIGNED_IN')
     })
-    expect(sessionStorage.getItem(EXPLICIT_SIGNIN_KEY)).toBe('1')
+    const marker = Number(sessionStorage.getItem(EXPLICIT_SIGNIN_KEY))
+    expect(Number.isFinite(marker)).toBe(true)
+    expect(Date.now() - marker).toBeLessThan(60_000)
+  })
+
+  it('ne repointe pas apres la connexion, meme si l\'utilisateur agit plus tard', async () => {
+    // Scenario : connexion a 9h50, aucune action jusqu'a 10h10.
+    // Le pointage a eu lieu au login ; l'interaction ulterieure ne doit rien renvoyer.
+    sessionStorage.setItem(EXPLICIT_SIGNIN_KEY, String(Date.now()))
+
+    renderProvider()
+    await waitFor(() => expect(firstActivityCalls()).toHaveLength(1))
+    await waitFor(() => expect(localStorage.getItem(STORAGE_KEY)).toBe(getBusinessDateString()))
+
+    await act(async () => {
+      window.dispatchEvent(new Event('pointerdown'))
+      window.dispatchEvent(new Event('keydown'))
+    })
+    await flush()
+
+    expect(firstActivityCalls()).toHaveLength(1)
   })
 
   it('ne pointe pas tant que l\'utilisateur courant n\'est pas resolu', async () => {
