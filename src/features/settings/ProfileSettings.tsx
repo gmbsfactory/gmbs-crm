@@ -33,7 +33,20 @@ interface LatenessEmailConfig {
   email_smtp: string | null
   is_enabled: boolean
   motivation_message: string
+  /** Heure limite d'arrivee (0-23), en heure de Paris */
+  arrival_hour: number
+  /** Minutes de l'heure limite d'arrivee (0-59) */
+  arrival_minute: number
   updated_at?: string
+}
+
+/** Heure limite d'arrivee par defaut, alignee sur `DEFAULT_ARRIVAL_TIME` cote serveur. */
+const DEFAULT_ARRIVAL_HOUR = 10
+const DEFAULT_ARRIVAL_MINUTE = 0
+
+/** `HH:MM` attendu par un <input type="time"> a partir des deux colonnes. */
+function toTimeInputValue(hour: number, minute: number): string {
+  return `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`
 }
 
 export function ProfileSettings() {
@@ -67,12 +80,17 @@ export function ProfileSettings() {
     configured: false,
     email_smtp: null,
     is_enabled: true,
-    motivation_message: "Ne t'inquiète pas, demain sera meilleur ! 💪"
+    motivation_message: "Ne t'inquiète pas, demain sera meilleur ! 💪",
+    arrival_hour: DEFAULT_ARRIVAL_HOUR,
+    arrival_minute: DEFAULT_ARRIVAL_MINUTE
   })
   const [latenessEmailSmtp, setLatenessEmailSmtp] = useState('')
   const [latenessEmailPassword, setLatenessEmailPassword] = useState('')
   const [latenessIsEnabled, setLatenessIsEnabled] = useState(true)
   const [latenessMotivationMessage, setLatenessMotivationMessage] = useState("Ne t'inquiète pas, demain sera meilleur ! 💪")
+  const [latenessArrivalTime, setLatenessArrivalTime] = useState(
+    toTimeInputValue(DEFAULT_ARRIVAL_HOUR, DEFAULT_ARRIVAL_MINUTE)
+  )
   const [savingLatenessEmail, setSavingLatenessEmail] = useState(false)
   const [testingLatenessEmail, setTestingLatenessEmail] = useState(false)
   const [latenessConfigLoading, setLatenessConfigLoading] = useState(false)
@@ -108,6 +126,12 @@ export function ProfileSettings() {
       setLatenessEmailSmtp(data.email_smtp || '')
       setLatenessIsEnabled(data.is_enabled)
       setLatenessMotivationMessage(data.motivation_message)
+      setLatenessArrivalTime(
+        toTimeInputValue(
+          data.arrival_hour ?? DEFAULT_ARRIVAL_HOUR,
+          data.arrival_minute ?? DEFAULT_ARRIVAL_MINUTE
+        )
+      )
     } catch (error) {
       console.error('[ProfileSettings] Error loading lateness config:', error)
     } finally {
@@ -131,6 +155,14 @@ export function ProfileSettings() {
       }
       payload.is_enabled = latenessIsEnabled
       payload.motivation_message = latenessMotivationMessage.trim()
+
+      // Un <input type="time"> vide renvoie '' : on n'envoie rien plutot que
+      // d'ecraser l'heure configuree avec une valeur invalide.
+      const [arrivalHour, arrivalMinute] = latenessArrivalTime.split(':')
+      if (arrivalHour !== undefined && arrivalMinute !== undefined) {
+        payload.arrival_hour = Number(arrivalHour)
+        payload.arrival_minute = Number(arrivalMinute)
+      }
 
       const res = await fetch('/api/settings/lateness-email', {
         method: 'PATCH',
@@ -789,6 +821,23 @@ export function ProfileSettings() {
                         </p>
                       </div>
 
+                      {/* Heure limite d'arrivée */}
+                      <div className="space-y-2">
+                        <label className="text-xs text-muted-foreground font-medium flex items-center gap-2">
+                          <Clock className="h-3.5 w-3.5" />
+                          Heure limite d&apos;arrivée
+                        </label>
+                        <input
+                          type="time"
+                          value={latenessArrivalTime}
+                          onChange={(e) => setLatenessArrivalTime(e.target.value)}
+                          className="w-full px-4 py-3 rounded-xl border bg-muted/30 focus:bg-background focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all outline-none"
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          Heure de Paris. Au-delà, la première activité du jour est comptée en retard.
+                        </p>
+                      </div>
+
                       {/* Message de motivation */}
                       <div className="space-y-2">
                         <label className="text-xs text-muted-foreground font-medium flex items-center gap-2">
@@ -813,7 +862,8 @@ export function ProfileSettings() {
                       {/* Info box */}
                       <div className="p-3 rounded-lg bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800">
                         <p className="text-xs text-blue-600 dark:text-blue-400">
-                          <strong>Info :</strong> Un email est envoyé automatiquement à chaque utilisateur qui se connecte après 10h00 un jour ouvré.
+                          <strong>Info :</strong> Un email est envoyé automatiquement à chaque utilisateur dont la première activité d&apos;un jour ouvré
+                          intervient après {latenessArrivalTime || toTimeInputValue(DEFAULT_ARRIVAL_HOUR, DEFAULT_ARRIVAL_MINUTE)} (heure de Paris).
                           Les admins et managers sont exemptés.
                         </p>
                       </div>

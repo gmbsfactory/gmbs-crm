@@ -3,8 +3,15 @@ import { createSSRServerClient } from '@/lib/supabase/server-ssr'
 import { createServerSupabaseAdmin } from '@/lib/supabase/server'
 import { encryptPassword, decryptPassword } from '@/lib/utils/encryption'
 import { validateGmailEmail } from '@/lib/services/email-service'
+import { DEFAULT_ARRIVAL_TIME, normalizeArrivalTime } from '@/lib/utils/business-days'
 
 export const runtime = 'nodejs'
+
+/** Heure limite d'arrivee par defaut, exposee quand aucune config n'existe encore. */
+const DEFAULT_ARRIVAL_PAYLOAD = {
+  arrival_hour: DEFAULT_ARRIVAL_TIME.hour,
+  arrival_minute: DEFAULT_ARRIVAL_TIME.minute,
+} as const
 
 /**
  * Check if the user is an admin
@@ -94,7 +101,7 @@ export async function GET() {
     // Get the configuration (there should be only one row)
     const { data: config, error } = await adminSupabase
       .from('lateness_email_config')
-      .select('id, email_smtp, is_enabled, motivation_message, updated_at')
+      .select('id, email_smtp, is_enabled, motivation_message, arrival_hour, arrival_minute, updated_at')
       .limit(1)
       .maybeSingle()
 
@@ -109,7 +116,8 @@ export async function GET() {
         configured: false,
         email_smtp: null,
         is_enabled: true,
-        motivation_message: "Ne t'inquiète pas, demain sera meilleur ! 💪"
+        motivation_message: "Ne t'inquiète pas, demain sera meilleur ! 💪",
+        ...DEFAULT_ARRIVAL_PAYLOAD
       })
     }
 
@@ -118,6 +126,8 @@ export async function GET() {
       email_smtp: config.email_smtp,
       is_enabled: config.is_enabled,
       motivation_message: config.motivation_message,
+      arrival_hour: config.arrival_hour ?? DEFAULT_ARRIVAL_PAYLOAD.arrival_hour,
+      arrival_minute: config.arrival_minute ?? DEFAULT_ARRIVAL_PAYLOAD.arrival_minute,
       updated_at: config.updated_at
     })
   } catch (error) {
@@ -239,6 +249,30 @@ export async function PATCH(req: Request) {
       patch.motivation_message = body.motivation_message.trim() || "Ne t'inquiète pas, demain sera meilleur ! 💪"
     }
 
+    // Handle arrival_hour / arrival_minute (heure limite d'arrivee, Europe/Paris).
+    // Valide ici plutot que de laisser le CHECK SQL remonter une erreur opaque.
+    if (body.arrival_hour !== undefined) {
+      const hour = Number(body.arrival_hour)
+      if (!Number.isInteger(hour) || hour < 0 || hour > 23) {
+        return NextResponse.json(
+          { error: "L'heure d'arrivée doit être un entier entre 0 et 23" },
+          { status: 400 }
+        )
+      }
+      patch.arrival_hour = hour
+    }
+
+    if (body.arrival_minute !== undefined) {
+      const minute = Number(body.arrival_minute)
+      if (!Number.isInteger(minute) || minute < 0 || minute > 59) {
+        return NextResponse.json(
+          { error: "Les minutes de l'heure d'arrivée doivent être un entier entre 0 et 59" },
+          { status: 400 }
+        )
+      }
+      patch.arrival_minute = minute
+    }
+
     // Track who updated
     patch.updated_by = userId
 
@@ -278,6 +312,8 @@ export async function PATCH(req: Request) {
           email_password_encrypted: patch.email_password_encrypted,
           is_enabled: patch.is_enabled ?? true,
           motivation_message: patch.motivation_message || "Ne t'inquiète pas, demain sera meilleur ! 💪",
+          arrival_hour: (patch.arrival_hour as number | undefined) ?? DEFAULT_ARRIVAL_PAYLOAD.arrival_hour,
+          arrival_minute: (patch.arrival_minute as number | undefined) ?? DEFAULT_ARRIVAL_PAYLOAD.arrival_minute,
           updated_by: userId
         })
 
@@ -353,7 +389,7 @@ export async function POST() {
     // Get current config
     const { data: config, error: configError } = await adminSupabase
       .from('lateness_email_config')
-      .select('email_smtp, email_password_encrypted, motivation_message')
+      .select('email_smtp, email_password_encrypted, motivation_message, arrival_hour, arrival_minute')
       .limit(1)
       .maybeSingle()
 
@@ -379,18 +415,30 @@ export async function POST() {
     const { sendEmailToArtisan } = await import('@/lib/services/email-service')
     const { generateLatenessEmailTemplate, generateLatenessEmailSubject } = await import('@/lib/email-templates/lateness-email')
 
-    // Generate test email content
+    // Generate test email content.
+    // L'heure affichee derive de l'heure limite configuree : l'email de test
+    // doit refleter le parametrage reel, pas un 10:45 fige.
+    const TEST_LATENESS_MINUTES = 45
+    const arrival = normalizeArrivalTime({
+      hour: config.arrival_hour,
+      minute: config.arrival_minute,
+    })
+    const testLoginTotalMinutes = arrival.hour * 60 + arrival.minute + TEST_LATENESS_MINUTES
+    const testLoginTime =
+      `${Math.floor(testLoginTotalMinutes / 60).toString().padStart(2, '0')}:` +
+      `${(testLoginTotalMinutes % 60).toString().padStart(2, '0')}`
+
     const testData = {
       firstname: userData.firstname || 'Test',
       lastname: userData.lastname || 'User',
-      latenessMinutes: 45,
-      loginTime: '10:45',
+      latenessMinutes: TEST_LATENESS_MINUTES,
+      loginTime: testLoginTime,
       latenessCount: 3,
       motivationMessage: config.motivation_message || "Ne t'inquiète pas, demain sera meilleur ! 💪"
     }
 
     const htmlContent = generateLatenessEmailTemplate(testData)
-    const subject = `[TEST] ${generateLatenessEmailSubject(45)}`
+    const subject = `[TEST] ${generateLatenessEmailSubject(TEST_LATENESS_MINUTES)}`
 
     // Decrypt password
     let smtpPassword: string

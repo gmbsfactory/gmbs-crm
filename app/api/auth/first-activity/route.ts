@@ -1,7 +1,12 @@
 import { NextResponse } from 'next/server'
 import { createSSRServerClient } from '@/lib/supabase/server-ssr'
 import { createServerSupabaseAdmin } from '@/lib/supabase/server'
-import { isLateLogin } from '@/lib/utils/business-days'
+import {
+  isLateLogin,
+  getLatenessMinutes,
+  normalizeArrivalTime,
+  type ArrivalTime,
+} from '@/lib/utils/business-days'
 import { getBusinessDateString, getBusinessParts } from '@/lib/utils/business-timezone'
 import { decryptPassword } from '@/lib/utils/encryption'
 import { sendEmailToArtisan } from '@/lib/services/email-service'
@@ -104,6 +109,12 @@ export async function POST() {
 
     // This IS the first activity of the day!
 
+    // Notification de retard a envoyer UNE FOIS l'ecriture confirmee.
+    // L'update ci-dessous est atomique (conditionne sur last_activity_date) :
+    // un seul appel concurrent le gagne, et c'est lui — et lui seul — qui envoie
+    // le mail. Envoyer avant l'update exposerait a des doublons entre onglets.
+    let pendingLatenessEmail: (() => Promise<void>) | null = null
+
     // Build the patch object
     const patch: any = {
       last_activity_date: today,
@@ -124,8 +135,13 @@ export async function POST() {
         patch.last_lateness_date = null
       }
 
+      // La config porte l'heure limite d'arrivee : elle doit etre lue AVANT de
+      // decider du retard, pas seulement au moment de rediger l'email.
+      const latenessConfig = await fetchLatenessConfig()
+      const arrivalTime = latenessConfig.arrivalTime
+
       // Check if this first activity time is late
-      const isLate = isLateLogin(now)
+      const isLate = isLateLogin(now, arrivalTime)
 
       if (isLate) {
         const lastLatenessDate = userData.last_lateness_date
@@ -142,24 +158,21 @@ export async function POST() {
           patch.lateness_count_year = currentYear
           patch.last_lateness_date = today
 
-          // Send lateness notification email (async, non-blocking)
-          sendLatenessEmail(
-            profile.id,
-            userData.firstname || '',
-            userData.lastname || '',
-            userData.email || '',
-            now,
-            newLatenessCount,
-            userData.lateness_email_sent_at,
-            today
-          ).catch((err) => {
-            console.error('[first-activity] ❌ Failed to send lateness email:', err)
-          })
-        } else {
+          // Differe : envoye seulement si l'update atomique reussit (voir plus bas)
+          pendingLatenessEmail = () =>
+            sendLatenessEmail(
+              profile!.id,
+              userData.firstname || '',
+              userData.lastname || '',
+              userData.email || '',
+              now,
+              newLatenessCount,
+              userData.lateness_email_sent_at,
+              today,
+              latenessConfig
+            )
         }
-      } else {
       }
-    } else {
     }
 
     // Update user record with atomic conditional update to prevent race conditions
@@ -223,6 +236,15 @@ export async function POST() {
       })
     }
 
+    // L'ecriture est confirmee et cet appel a gagne la course : c'est le seul
+    // autorise a notifier. On attend l'envoi plutot que de le laisser flotter —
+    // en serverless, une promesse non attendue est tuee avec la reponse.
+    if (pendingLatenessEmail) {
+      await (pendingLatenessEmail as () => Promise<void>)().catch((err) => {
+        console.error('[first-activity] ❌ Failed to send lateness email:', err)
+      })
+    }
+
     return NextResponse.json({
       ok: true,
       wasFirstActivity: true,
@@ -234,6 +256,59 @@ export async function POST() {
       { error: 'internal server error' },
       { status: 500 }
     )
+  }
+}
+
+/** Configuration unique du suivi des retards, normalisee et prete a l'emploi. */
+interface LatenessConfig {
+  /** Heure limite d'arrivee, en heure de Paris */
+  arrivalTime: ArrivalTime
+  isEnabled: boolean
+  smtpEmail: string | null
+  smtpPasswordEncrypted: string | null
+  motivationMessage: string
+}
+
+const DEFAULT_MOTIVATION_MESSAGE = "Ne t'inquiète pas, demain sera meilleur ! 💪"
+
+/**
+ * Lit la configuration unique des retards.
+ *
+ * Toujours resolue, meme en l'absence de ligne ou en cas d'erreur : l'heure
+ * limite retombe alors sur 10h00, ce qui preserve le comportement historique
+ * plutot que de desactiver silencieusement le suivi.
+ */
+async function fetchLatenessConfig(): Promise<LatenessConfig> {
+  const fallback: LatenessConfig = {
+    arrivalTime: normalizeArrivalTime(null),
+    isEnabled: false,
+    smtpEmail: null,
+    smtpPasswordEncrypted: null,
+    motivationMessage: DEFAULT_MOTIVATION_MESSAGE,
+  }
+
+  const adminSupabase = createServerSupabaseAdmin()
+  const { data, error } = await adminSupabase
+    .from('lateness_email_config')
+    .select('email_smtp, email_password_encrypted, is_enabled, motivation_message, arrival_hour, arrival_minute')
+    .limit(1)
+    .maybeSingle()
+
+  if (error) {
+    console.error('[first-activity] 📧 Error fetching email config:', error)
+    return fallback
+  }
+
+  if (!data) {
+    return fallback
+  }
+
+  return {
+    arrivalTime: normalizeArrivalTime({ hour: data.arrival_hour, minute: data.arrival_minute }),
+    isEnabled: Boolean(data.is_enabled),
+    smtpEmail: data.email_smtp ?? null,
+    smtpPasswordEncrypted: data.email_password_encrypted ?? null,
+    motivationMessage: data.motivation_message || DEFAULT_MOTIVATION_MESSAGE,
   }
 }
 
@@ -249,7 +324,8 @@ async function sendLatenessEmail(
   loginTime: Date,
   latenessCount: number,
   lastEmailSentAt: string | null,
-  today: string
+  today: string,
+  config: LatenessConfig
 ): Promise<void> {
   try {
     // Check if email was already sent today
@@ -265,34 +341,20 @@ async function sendLatenessEmail(
       return
     }
 
-    // Get lateness email configuration using admin client
-    const adminSupabase = createServerSupabaseAdmin()
-    const { data: config, error: configError } = await adminSupabase
-      .from('lateness_email_config')
-      .select('email_smtp, email_password_encrypted, is_enabled, motivation_message')
-      .limit(1)
-      .maybeSingle()
-
-    if (configError) {
-      console.error('[first-activity] 📧 Error fetching email config:', configError)
+    // Config deja lue en amont (elle porte l'heure limite d'arrivee)
+    if (!config.isEnabled) {
       return
     }
 
-    if (!config) {
+    if (!config.smtpEmail || !config.smtpPasswordEncrypted) {
       return
     }
 
-    if (!config.is_enabled) {
-      return
-    }
+    // Retard en minutes par rapport a l'heure d'arrivee configuree (Paris).
+    // Meme fonction que celle qui a decide du retard : aucune divergence possible.
+    const latenessMinutes = getLatenessMinutes(loginTime, config.arrivalTime)
 
-    if (!config.email_smtp || !config.email_password_encrypted) {
-      return
-    }
-
-    // Calculate lateness in minutes (time since 10:00 AM, Paris time)
     const { hours, minutes } = getBusinessParts(loginTime)
-    const latenessMinutes = (hours - 10) * 60 + minutes
 
     // Format login time
     const loginTimeStr = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`
@@ -300,7 +362,7 @@ async function sendLatenessEmail(
     // Decrypt password
     let smtpPassword: string
     try {
-      smtpPassword = decryptPassword(config.email_password_encrypted)
+      smtpPassword = decryptPassword(config.smtpPasswordEncrypted)
     } catch (error) {
       console.error('[first-activity] 📧 Failed to decrypt email password:', error)
       return
@@ -313,7 +375,7 @@ async function sendLatenessEmail(
       latenessMinutes,
       loginTime: loginTimeStr,
       latenessCount,
-      motivationMessage: config.motivation_message || "Ne t'inquiète pas, demain sera meilleur ! 💪"
+      motivationMessage: config.motivationMessage
     }
 
     const htmlContent = generateLatenessEmailTemplate(emailData)
@@ -325,7 +387,7 @@ async function sendLatenessEmail(
       artisanEmail: userEmail,
       subject,
       htmlContent,
-      smtpEmail: config.email_smtp,
+      smtpEmail: config.smtpEmail,
       smtpPassword
     })
 
@@ -335,6 +397,7 @@ async function sendLatenessEmail(
     }
 
     // Update user record to mark email as sent
+    const adminSupabase = createServerSupabaseAdmin()
     const { error: updateError } = await adminSupabase
       .from('users')
       .update({ lateness_email_sent_at: new Date().toISOString() })
