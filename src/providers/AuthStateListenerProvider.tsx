@@ -10,6 +10,16 @@ import { useCurrentUser } from "@/hooks/useCurrentUser"
 import { getBusinessDateString } from "@/lib/utils/business-timezone"
 
 /**
+ * Marqueur pose lors d'une connexion explicite (`SIGNED_IN`), consomme par
+ * l'effet de pointage. Permet de pointer immediatement sur un vrai login sans
+ * attendre une interaction, tout en ignorant les montages passifs de l'app.
+ */
+const EXPLICIT_SIGNIN_KEY = 'crm_explicit_signin'
+
+/** Evenements consideres comme une presence humaine reelle devant le CRM. */
+const HUMAN_ACTIVITY_EVENTS = ['pointerdown', 'keydown'] as const
+
+/**
  * Provider qui gère un seul listener onAuthStateChange global
  * pour éviter les listeners multiples quand plusieurs composants utilisent useCurrentUser
  *
@@ -53,6 +63,14 @@ export function AuthStateListenerProvider({ children }: { children: ReactNode })
         queryClient.invalidateQueries({ queryKey: ["currentUser"] })
 
         // Précharger les données critiques après connexion ou lors de la session initiale
+        if (event === 'SIGNED_IN') {
+          // Connexion explicite : c'est une arrivee volontaire, on peut pointer
+          // sans attendre une interaction. Voir l'effet "first activity" plus bas.
+          if (typeof window !== 'undefined') {
+            sessionStorage.setItem(EXPLICIT_SIGNIN_KEY, '1')
+          }
+        }
+
         if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION') {
           setTimeout(() => {
             preloadCriticalDataAsync(queryClient)
@@ -85,21 +103,41 @@ export function AuthStateListenerProvider({ children }: { children: ReactNode })
     }
   }, [queryClient])
 
-  // Check for first activity of the day (lateness tracking)
+  // Pointage de la premiere activite du jour (suivi des retards).
+  //
+  // Le declencheur n'est volontairement PAS le montage de l'app : un onglet
+  // laisse ouvert la veille, un poste qui sort de veille ou une session encore
+  // valide sur un telephone suffiraient a enregistrer une arrivee — et donc un
+  // retard — sans que la personne ait rien fait.
+  //
+  // On pointe donc sur un signal humain : soit une connexion explicite
+  // (`SIGNED_IN`), soit la premiere interaction reelle avec la page.
   useEffect(() => {
-    if (!currentUser?.id) return
+    if (!currentUser?.id || typeof window === 'undefined') return
 
-    const checkFirstActivity = async () => {
+    const storageKey = `last_activity_check_${currentUser.id}`
+    // Meme reference de journee que le serveur (Europe/Paris)
+    const today = getBusinessDateString()
+
+    // Deja pointe aujourd'hui depuis cet appareil : rien a faire.
+    // Le serveur reste l'autorite (garde atomique sur last_activity_date) ;
+    // ce cache n'evite qu'un aller-retour reseau inutile.
+    if (localStorage.getItem(storageKey) === today) return
+
+    let settled = false
+
+    const detach = () => {
+      for (const eventName of HUMAN_ACTIVITY_EVENTS) {
+        window.removeEventListener(eventName, onHumanActivity)
+      }
+    }
+
+    const reportArrival = async () => {
+      if (settled) return
+      settled = true
+      detach()
+
       try {
-        const storageKey = `last_activity_check_${currentUser.id}`
-        const lastCheck = localStorage.getItem(storageKey)
-        // Meme reference de journee que le serveur (Europe/Paris)
-        const today = getBusinessDateString()
-
-        if (lastCheck === today) {
-          return
-        }
-
         const response = await fetch('/api/auth/first-activity', {
           method: 'POST',
           credentials: 'include'
@@ -120,7 +158,22 @@ export function AuthStateListenerProvider({ children }: { children: ReactNode })
       }
     }
 
-    checkFirstActivity()
+    function onHumanActivity() {
+      void reportArrival()
+    }
+
+    // Connexion explicite : arrivee volontaire, on pointe sans attendre.
+    if (sessionStorage.getItem(EXPLICIT_SIGNIN_KEY) === '1') {
+      sessionStorage.removeItem(EXPLICIT_SIGNIN_KEY)
+      void reportArrival()
+      return
+    }
+
+    for (const eventName of HUMAN_ACTIVITY_EVENTS) {
+      window.addEventListener(eventName, onHumanActivity, { passive: true })
+    }
+
+    return detach
   }, [currentUser?.id])
 
   // Le heartbeat serveur (rafraîchissement de last_seen_at) est désormais assuré par le

@@ -2131,6 +2131,8 @@ export type Database = {
       }
       lateness_email_config: {
         Row: {
+          arrival_hour: number
+          arrival_minute: number
           created_at: string | null
           email_password_encrypted: string
           email_smtp: string
@@ -2141,6 +2143,8 @@ export type Database = {
           updated_by: string | null
         }
         Insert: {
+          arrival_hour?: number
+          arrival_minute?: number
           created_at?: string | null
           email_password_encrypted: string
           email_smtp: string
@@ -2151,6 +2155,8 @@ export type Database = {
           updated_by?: string | null
         }
         Update: {
+          arrival_hour?: number
+          arrival_minute?: number
           created_at?: string | null
           email_password_encrypted?: string
           email_smtp?: string

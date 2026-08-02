@@ -161,8 +161,8 @@ hiver) et ou la journee bascule a 02 h heure de Paris.
 
 Source unique de verite : `src/lib/utils/business-timezone.ts`
 (`BUSINESS_TIMEZONE`, `getBusinessParts`, `getBusinessDateString`), consomme par
-`src/lib/utils/business-days.ts` (`isBusinessDay` / `isAfter10AM` /
-`isLateLogin`).
+`src/lib/utils/business-days.ts` (`isBusinessDay` / `isAfterArrivalTime` /
+`isLateLogin` / `getLatenessMinutes`).
 
 Regles :
 
@@ -174,8 +174,49 @@ Regles :
 - Le client (`AuthStateListenerProvider`) utilise la meme fonction pour sa cle
   `localStorage[last_activity_check_<userId>]`, afin que client et serveur
   changent de journee au meme instant.
-- Le seuil de retard (10 h) et le calcul de `latenessMinutes` sont derives de
-  `getBusinessParts()`.
+- Le seuil de retard et le calcul de `latenessMinutes` sont derives de
+  `getBusinessParts()`. Ils partagent la meme source (`isLateLogin` /
+  `getLatenessMinutes`, memes parametres) : la decision de compter un retard et
+  le libelle affiche dans l'email ne peuvent plus diverger.
+
+### Heure limite d'arrivee (configurable)
+
+L'heure limite n'est plus codee en dur. Elle est stockee dans la configuration
+unique `lateness_email_config` (`arrival_hour` / `arrival_minute`, contraintes
+`CHECK` 0-23 et 0-59), exprimee en **heure de Paris**, et modifiable par un
+admin depuis Parametres > Profil (`PATCH /api/settings/lateness-email`).
+
+- Defaut : **10 h 00** (`DEFAULT_ARRIVAL_TIME` dans `business-days.ts`), ce qui
+  preserve le comportement historique.
+- La config est lue **avant** la decision de retard dans
+  `/api/auth/first-activity` (`fetchLatenessConfig`), pas seulement au moment de
+  rediger l'email. En l'absence de ligne ou en cas d'erreur de lecture, on
+  retombe sur 10 h 00 plutot que de desactiver silencieusement le suivi.
+- `normalizeArrivalTime()` rejette toute valeur hors bornes vers le defaut : une
+  donnee corrompue ne peut pas produire un seuil aberrant (ex. retard des
+  minuit).
+
+### Declencheur du pointage quotidien
+
+Le pointage (`POST /api/auth/first-activity`) n'est **pas** declenche par le
+simple montage de l'application : un onglet laisse ouvert la veille, un poste
+qui sort de veille ou une session encore valide sur un telephone
+enregistreraient une arrivee — et donc un retard — sans action de la personne.
+
+`AuthStateListenerProvider` ne pointe que sur un signal humain :
+
+1. une connexion explicite (`SIGNED_IN`, qui pose `sessionStorage.crm_explicit_signin`) ;
+2. sinon, la premiere interaction reelle avec la page (`pointerdown` / `keydown`).
+
+Le listener se detache apres le premier pointage, et
+`localStorage[last_activity_check_<userId>]` evite un aller-retour reseau pour
+le reste de la journee metier. Le serveur reste l'autorite : l'update est
+atomique (conditionne sur `last_activity_date`), donc un seul appel concurrent
+le gagne — et c'est le seul autorise a envoyer l'email de retard, qui n'est
+declenche qu'**apres** confirmation de l'ecriture.
+
+> **Limite connue** : il n'existe aucune notion d'absence ou de conge. Une
+> personne en conge qui ouvre le CRM et interagit sera comptee en retard.
 
 Impact du correctif : avant, le seuil « 10 h » valait en realite 12 h a Paris en
 ete — les arrivees entre 10 h et 12 h n'etaient jamais comptees. Tests :

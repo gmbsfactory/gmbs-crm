@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { isBusinessDay, isAfter10AM, isLateLogin } from '@/lib/utils/business-days'
+import { isBusinessDay, isAfterArrivalTime, isLateLogin } from '@/lib/utils/business-days'
 
 describe('business-days utilities', () => {
   describe('isBusinessDay', () => {
@@ -40,35 +40,35 @@ describe('business-days utilities', () => {
     })
   })
 
-  describe('isAfter10AM', () => {
+  describe('isAfterArrivalTime', () => {
     it('should return false before 10:00 AM', () => {
       const date = new Date('2025-12-29T09:59:59')
-      expect(isAfter10AM(date)).toBe(false)
+      expect(isAfterArrivalTime(date)).toBe(false)
     })
 
     it('should return true at exactly 10:00 AM', () => {
       const date = new Date('2025-12-29T10:00:00')
-      expect(isAfter10AM(date)).toBe(true)
+      expect(isAfterArrivalTime(date)).toBe(true)
     })
 
     it('should return true after 10:00 AM', () => {
       const date = new Date('2025-12-29T10:00:01')
-      expect(isAfter10AM(date)).toBe(true)
+      expect(isAfterArrivalTime(date)).toBe(true)
     })
 
     it('should return true at 11:00 AM', () => {
       const date = new Date('2025-12-29T11:00:00')
-      expect(isAfter10AM(date)).toBe(true)
+      expect(isAfterArrivalTime(date)).toBe(true)
     })
 
     it('should return true at 14:00 PM', () => {
       const date = new Date('2025-12-29T14:00:00')
-      expect(isAfter10AM(date)).toBe(true)
+      expect(isAfterArrivalTime(date)).toBe(true)
     })
 
     it('should return false at 9:00 AM', () => {
       const date = new Date('2025-12-29T09:00:00')
-      expect(isAfter10AM(date)).toBe(false)
+      expect(isAfterArrivalTime(date)).toBe(false)
     })
   })
 
@@ -78,21 +78,21 @@ describe('business-days utilities', () => {
         const mondayBefore10 = new Date('2025-12-29T09:59:59')
         expect(isLateLogin(mondayBefore10)).toBe(false)
         expect(isBusinessDay(mondayBefore10)).toBe(true)
-        expect(isAfter10AM(mondayBefore10)).toBe(false)
+        expect(isAfterArrivalTime(mondayBefore10)).toBe(false)
       })
 
       it('should return true at exactly 10:00 AM on Monday', () => {
         const mondayAt10 = new Date('2025-12-29T10:00:00')
         expect(isLateLogin(mondayAt10)).toBe(true)
         expect(isBusinessDay(mondayAt10)).toBe(true)
-        expect(isAfter10AM(mondayAt10)).toBe(true)
+        expect(isAfterArrivalTime(mondayAt10)).toBe(true)
       })
 
       it('should return true after 10:00 AM on Monday', () => {
         const mondayAfter10 = new Date('2025-12-29T10:00:01')
         expect(isLateLogin(mondayAfter10)).toBe(true)
         expect(isBusinessDay(mondayAfter10)).toBe(true)
-        expect(isAfter10AM(mondayAfter10)).toBe(true)
+        expect(isAfterArrivalTime(mondayAfter10)).toBe(true)
       })
 
       it('should return true at 11:00 AM on Monday', () => {
@@ -143,14 +143,14 @@ describe('business-days utilities', () => {
         const saturday = new Date('2025-12-27T14:00:00')
         expect(isLateLogin(saturday)).toBe(false)
         expect(isBusinessDay(saturday)).toBe(false)
-        expect(isAfter10AM(saturday)).toBe(true)
+        expect(isAfterArrivalTime(saturday)).toBe(true)
       })
 
       it('should return false on Sunday even after 10:00 AM', () => {
         const sunday = new Date('2025-12-28T14:00:00')
         expect(isLateLogin(sunday)).toBe(false)
         expect(isBusinessDay(sunday)).toBe(false)
-        expect(isAfter10AM(sunday)).toBe(true)
+        expect(isAfterArrivalTime(sunday)).toBe(true)
       })
 
       it('should return false on Saturday before 10:00 AM', () => {
@@ -203,7 +203,7 @@ describe('business-days utilities', () => {
         const dayOfWeek = testDate.getDay() // 0 = dimanche, 1 = lundi, etc.
         const hours = testDate.getHours()
         const isBusiness = isBusinessDay(testDate)
-        const isAfter10 = isAfter10AM(testDate)
+        const isAfter10 = isAfterArrivalTime(testDate)
         const isLate = isLateLogin(testDate)
 
         console.log('📅 Test Date:', testDate.toISOString())

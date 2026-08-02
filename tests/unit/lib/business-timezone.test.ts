@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { getBusinessDateString, getBusinessParts } from '@/lib/utils/business-timezone'
-import { isAfter10AM, isBusinessDay, isLateLogin } from '@/lib/utils/business-days'
+import { isAfterArrivalTime, isBusinessDay, isLateLogin } from '@/lib/utils/business-days'
 
 /**
  * Ces tests utilisent des instants absolus (suffixe Z) : ils sont donc
@@ -51,23 +51,23 @@ describe('business-timezone', () => {
     })
   })
 
-  describe('isAfter10AM (Paris)', () => {
+  describe('isAfterArrivalTime (Paris)', () => {
     it('should be false at 09:59 Paris even though it is 07:59 UTC', () => {
-      expect(isAfter10AM(new Date('2026-07-31T07:59:00Z'))).toBe(false)
+      expect(isAfterArrivalTime(new Date('2026-07-31T07:59:00Z'))).toBe(false)
     })
 
     it('should be true from 10:00 Paris, i.e. 08:00 UTC in summer', () => {
-      expect(isAfter10AM(new Date('2026-07-31T08:00:00Z'))).toBe(true)
+      expect(isAfterArrivalTime(new Date('2026-07-31T08:00:00Z'))).toBe(true)
     })
 
     it('should be true at 11:30 Paris, which the UTC-based check used to miss', () => {
       // Regression : 09:30 UTC < 10 => l'ancien code ne comptait pas ce retard
-      expect(isAfter10AM(new Date('2026-07-31T09:30:00Z'))).toBe(true)
+      expect(isAfterArrivalTime(new Date('2026-07-31T09:30:00Z'))).toBe(true)
     })
 
     it('should account for the winter offset (UTC+1)', () => {
-      expect(isAfter10AM(new Date('2026-01-12T08:59:00Z'))).toBe(false)
-      expect(isAfter10AM(new Date('2026-01-12T09:00:00Z'))).toBe(true)
+      expect(isAfterArrivalTime(new Date('2026-01-12T08:59:00Z'))).toBe(false)
+      expect(isAfterArrivalTime(new Date('2026-01-12T09:00:00Z'))).toBe(true)
     })
   })
 

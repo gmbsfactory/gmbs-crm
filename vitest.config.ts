@@ -2,6 +2,12 @@ import { defineConfig } from "vitest/config"
 import path from "path"
 
 export default defineConfig({
+  // Aligne le transform JSX sur celui de Next.js (react-jsx) : sans cela, les
+  // composants source qui n'importent pas React explicitement echouent en test
+  // avec "React is not defined".
+  esbuild: {
+    jsx: "automatic",
+  },
   test: {
     globals: true,
     environment: "jsdom",
