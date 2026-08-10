@@ -528,7 +528,7 @@ export function CommentSection({
         <div
           ref={scrollRef}
           onScroll={handleScroll}
-          className="flex flex-col gap-3 overflow-y-auto pr-1 scrollbar-minimal"
+          className="flex flex-col gap-3 overflow-y-auto overscroll-contain pr-1 scrollbar-minimal"
           style={{ maxHeight: 320 }}
         >
           {orderedComments.map((comment) => {

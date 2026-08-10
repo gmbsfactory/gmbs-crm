@@ -84,11 +84,23 @@ export function ExpandedRowContent({
         <div className="space-y-3">
           <div>
             <p className="text-[10px] font-semibold text-muted-foreground/70 uppercase tracking-wide mb-0.5">Contexte</p>
-            <p className="text-sm font-medium text-foreground whitespace-pre-wrap break-words">{renderText(interventionData.contexte)}</p>
+            {/* Hauteur bornee + overscroll-contain : evite que la ligne depliee devienne
+                geante et que la molette se propage au scroll du tableau en fin de course. */}
+            <div
+              data-testid="expanded-row-contexte"
+              className="max-h-[320px] overflow-y-auto overscroll-contain scrollbar-minimal pr-1"
+            >
+              <p className="text-sm font-medium text-foreground whitespace-pre-wrap break-words">{renderText(interventionData.contexte)}</p>
+            </div>
           </div>
           <div>
             <p className="text-[10px] font-semibold text-muted-foreground/70 uppercase tracking-wide mb-0.5">Consigne</p>
-            <p className="text-sm font-medium text-foreground whitespace-pre-wrap break-words">{renderText(interventionData.consigne)}</p>
+            <div
+              data-testid="expanded-row-consigne"
+              className="max-h-[320px] overflow-y-auto overscroll-contain scrollbar-minimal pr-1"
+            >
+              <p className="text-sm font-medium text-foreground whitespace-pre-wrap break-words">{renderText(interventionData.consigne)}</p>
+            </div>
           </div>
           {interventionData.coutSST != null && (
             <div>

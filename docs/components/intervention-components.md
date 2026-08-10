@@ -244,6 +244,13 @@ Le fichier `cells/types.ts` définit les props partagées (`CellContext<Interven
 
 Contenu affiché lorsqu'une ligne de la `TableView` est dépliée. Présente un résumé enrichi de l'intervention sans ouvrir la modal complète.
 
+**Scroll des textes longs** — Les blocs `Contexte` et `Consigne` sont bornés à `max-h-[320px]` avec leur propre conteneur `overflow-y-auto overscroll-contain` (même hauteur que la colonne commentaires). Deux raisons :
+
+- sans hauteur max, un contexte long rend la ligne dépliée si haute qu'il faut remonter tout le tableau pour revenir à l'intervention ;
+- sans `overscroll-contain`, la molette se propage au `.table-scroll-wrapper` dès qu'un scroller interne atteint sa fin (*scroll chaining*).
+
+La même règle s'applique au scroller de `CommentSection`, qui est le second scroller imbriqué dans la ligne. Tout nouveau bloc scrollable ajouté ici doit porter `overscroll-contain`.
+
 ### ViewTabs
 
 Barre d'onglets permettant de basculer entre les vues. Chaque onglet est persisté dans `localStorage` via le hook `useInterventionViews`.
