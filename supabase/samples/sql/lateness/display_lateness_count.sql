@@ -1,4 +1,14 @@
--- Show users and lateness count, lateness_count_year, last_lateness_date, last_activity_date & lateness_notification_shown_at
+-- Etat des compteurs de retard par utilisateur.
+--
+-- `lateness_email_sent_at` est inclus volontairement : c'est lui qui bloque
+-- l'envoi d'un second email le meme jour. S'il est a la date du jour alors que
+-- vous attendez une notification, c'est la cause la plus probable.
+--
+-- L'annee de reference est calculee a Paris, comme cote applicatif
+-- (cf. business-timezone.ts) : `EXTRACT(YEAR FROM CURRENT_DATE)` dependrait du
+-- fuseau de la base et renverrait la mauvaise annee autour du 31/12 minuit UTC.
+--
+-- Pour reinitialiser : voir reset_lateness.sql (meme dossier).
 
 -- Query 1: All users with lateness information (ordered by lateness count descending)
 SELECT
@@ -10,7 +20,8 @@ SELECT
   u.lateness_count_year,
   u.last_lateness_date,
   u.last_activity_date,
-  u.lateness_notification_shown_at
+  u.lateness_notification_shown_at,
+  u.lateness_email_sent_at
 FROM public.users u
 ORDER BY u.lateness_count DESC NULLS LAST, u.username;
 
@@ -25,9 +36,10 @@ SELECT
   u.lateness_count_year,
   u.last_lateness_date,
   u.last_activity_date,
-  u.lateness_notification_shown_at
+  u.lateness_notification_shown_at,
+  u.lateness_email_sent_at
 FROM public.users u
-WHERE u.lateness_count_year = EXTRACT(YEAR FROM CURRENT_DATE)
+WHERE u.lateness_count_year = EXTRACT(YEAR FROM (now() AT TIME ZONE 'Europe/Paris'))
 ORDER BY u.lateness_count DESC, u.username;
 
 -- Query 3: Users with lateness (lateness_count > 0)
@@ -41,7 +53,8 @@ SELECT
   u.lateness_count_year,
   u.last_lateness_date,
   u.last_activity_date,
-  u.lateness_notification_shown_at
+  u.lateness_notification_shown_at,
+  u.lateness_email_sent_at
 FROM public.users u
 WHERE u.lateness_count > 0
 ORDER BY u.lateness_count DESC, u.username;
