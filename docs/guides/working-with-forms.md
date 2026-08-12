@@ -219,10 +219,11 @@ export function useInterventionFormState(options: UseInterventionFormStateOption
   } = useGeocodeSearch({ debounceMs: 300 })
 
   // Artisans proches de l'adresse selectionnee
-  const { artisans: nearbyArtisans } = useNearbyArtisans({
-    lat: selectedLat,
-    lng: selectedLng,
-    radiusKm: 50,
+  // Le metier est obligatoire : sans lui, aucun artisan n'est propose.
+  const { artisans: nearbyArtisans } = useNearbyArtisans(selectedLat, selectedLng, {
+    metier_id: formData.metier_id || null,
+    maxDistanceKm: 50,
+    limit: 100,
   })
 
   // Detection de changements non sauvegardes

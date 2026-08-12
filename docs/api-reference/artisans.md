@@ -605,7 +605,11 @@ Returns filtered count of artisans. Supports multiple status IDs and metier filt
 
 ### getNearbyArtisans(params)
 
-Finds artisans near a geographic location using the Haversine formula via the `get_nearby_artisans` Supabase RPC.
+Finds artisans near a geographic location, used by the artisan search modal. Applies a bounding-box pre-filter in the query, then computes exact Haversine distances client-side. `metier_id` here only **prioritises** the sort — it does not exclude other trades.
+
+> Not to be confused with the `useNearbyArtisans` hook used by the intervention
+> form, which **does** filter by trade and delegates everything to the
+> `find_nearby_artisans` RPC (see below).
 
 **Parameters**
 
@@ -639,5 +643,55 @@ const nearby = await artisansApi.getNearbyArtisans({
   longitude: 2.3522,
   maxDistanceKm: 30,
   metier_ids: ["metier-uuid"],
+});
+```
+
+---
+
+### RPC `find_nearby_artisans`
+
+Added by migration `99072`. Backs the `useNearbyArtisans` hook, which powers the
+artisan proposals in the intervention form.
+
+Filtering, distance computation and sorting all happen **in the database**. The
+function returns the N nearest artisans of a given trade directly — there is no
+intermediate sampling step, so the result is exhaustive and deterministic.
+
+**Parameters**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| p_latitude | `double precision` | Yes | Center latitude |
+| p_longitude | `double precision` | Yes | Center longitude |
+| p_radius_km | `double precision` | Yes | Max radius in km |
+| p_metier_id | `uuid` | Yes | Trade filter — artisans without this trade are excluded |
+| p_limit | `integer` | No | Max rows returned (default `100`) |
+
+**Behaviour**
+
+- Excludes artisans whose status code is `ARCHIVE`.
+- Excludes artisans with no `intervention_latitude` / `intervention_longitude`.
+  These artisans are invisible to proximity search until geocoded — see
+  `scripts/geocode-failed-artisans.txt`.
+- Bounding-box pre-filter (index `idx_artisans_intervention_coords`) followed by
+  an exact Haversine distance, earth radius 6371 km — identical to the previous
+  client-side formula.
+- Ordered by `distance_km ASC, id ASC`; the secondary key guarantees a stable
+  order when two artisans are exactly equidistant.
+- `SECURITY INVOKER`: existing RLS policies on `artisans` and
+  `artisan_attachments` still apply. Do **not** switch it to `SECURITY DEFINER`,
+  that would bypass tenant isolation.
+
+**Returns** one row per artisan, including `distance_km` and the profile-photo
+columns (`photo_url`, `photo_content_hash`, `photo_derived_sizes`,
+`photo_mime_preferred`).
+
+```typescript
+const { data } = await supabase.rpc("find_nearby_artisans", {
+  p_latitude: 48.596284,
+  p_longitude: 2.259787,
+  p_radius_km: 50,
+  p_metier_id: "fbdf005e-be1d-4910-a632-37cf6358444f",
+  p_limit: 100,
 });
 ```

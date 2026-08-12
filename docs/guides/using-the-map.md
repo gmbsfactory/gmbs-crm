@@ -126,7 +126,10 @@ import { MapLibreMap } from "@/components/maps/MapLibreMap"
 import { useNearbyArtisans } from "@/hooks/useNearbyArtisans"
 
 function InterventionMapWithArtisans({ lat, lng }) {
-  const { artisans } = useNearbyArtisans({ lat, lng, radiusKm: 50 })
+  const { artisans } = useNearbyArtisans(lat, lng, {
+    metier_id: metierId,
+    maxDistanceKm: 50,
+  })
 
   const markers = [
     { id: "intervention", lat, lng, color: "#3B82F6", title: "Intervention" },
@@ -282,18 +285,40 @@ function AddressInput() {
 
 ### `useNearbyArtisans` - Artisans proches
 
-Retourne les artisans dans un rayon donne autour de coordonnees :
+Retourne les artisans d'un metier donne dans un rayon autour de coordonnees,
+tries du plus proche au plus lointain :
 
 ```typescript
 import { useNearbyArtisans, type NearbyArtisan } from "@/hooks/useNearbyArtisans"
 
-const { artisans, isLoading } = useNearbyArtisans({
-  lat: 48.8566,
-  lng: 2.3522,
-  radiusKm: 50,      // Rayon en km (max: defini par MAX_RADIUS_KM)
-  metierIds: ["uuid-plomberie"], // Filtrer par metier (optionnel)
-})
+const { artisans, loading, error } = useNearbyArtisans(
+  48.8566,  // latitude  (null => aucune requete)
+  2.3522,   // longitude (null => aucune requete)
+  {
+    metier_id: "uuid-plomberie", // OBLIGATOIRE : null => aucune requete, liste vide
+    maxDistanceKm: 50,           // Rayon en km (defaut: 100)
+    limit: 100,                  // Nombre max d'artisans retournes (defaut: 5)
+  },
+)
 ```
+
+**Regle metier** : aucun artisan n'est propose sans metier selectionne. Le hook
+retourne une liste vide sans interroger la base si `metier_id` ou les
+coordonnees sont nulles.
+
+**Implementation** : le filtrage et le tri geographiques sont entierement
+delegues au RPC `find_nearby_artisans` (migration `99072`). La base renvoie
+directement les N plus proches ; le hook ne fait que mapper les lignes.
+
+> **Ne jamais reintroduire d'echantillonnage cote client.** L'implementation
+> d'origine chargeait les artisans du metier par lots jusqu'a un plafond
+> (`sampleSize = 400`) **puis** calculait les distances en JavaScript. Le metier
+> plomberie comptant 572 artisans, l'artisan le plus proche pouvait se trouver
+> au-dela du plafond et devenir invisible -- c'est arrive sur l'intervention
+> 22706, ou le plombier situe a 6 km (le plus proche de tous) etait le 521e
+> charge. Comme l'ordre de chargement n'etait pas trie, le bug etait en plus
+> non deterministe. Tout filtre geographique doit s'appliquer **avant** toute
+> troncature, donc en base.
 
 ### `useAgencyMap` - Carte des agences
 
