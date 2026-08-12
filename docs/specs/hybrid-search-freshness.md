@@ -851,3 +851,47 @@ Plutôt que la réécriture trigger-based complète de la section 14, `99070` co
 - **Non couvert** (reste MV-only) : agence, métier, utilisateur assigné, statut. La section 14 (trigger-based) reste la cible si l'on veut tout couvrir sans jointure à la requête.
 
 > **Note perf** : chaque source de recency démarre d'un ensemble borné/indexé, et le tsvector combiné + les LATERAL (artisan primaire, agrégat commentaires) ne s'évaluent que sur les ≤ 500 interventions fraîches par requête. Le coût reste dans l'enveloppe « buffer live » (quelques ms) tant que le cron de refresh n'accumule pas de retard.
+
+## 14ter. Migration 99073 — nom d'artisan (`prenom`/`nom`) et TOUS les artisans liés
+
+### Bug corrigé
+
+Rechercher un artisan par son nom sur la page interventions ne remontait qu'une **partie** de ses dossiers, sans logique apparente (remonté par Badr sur « Ajjari », par Andrea sur « Damian »).
+
+**Cause racine** : le `search_vector` de `interventions_search_mv` (forme `99021`) n'indexait, pour l'artisan, que `plain_nom` et `raison_sociale`. Les colonnes `prenom` et `nom` — celles que l'UI affiche — n'étaient indexées nulle part.
+
+Or `plain_nom` n'est alimenté que par l'import CSV historique : **tout artisan créé depuis l'application a `plain_nom = NULL`**. Son nom n'était donc jamais indexé. Les rares dossiers qui remontaient matchaient par accident via un autre champ du vecteur (un commentaire ou une consigne où quelqu'un avait tapé le nom à la main), d'où le caractère erratique du symptôme.
+
+**Second défaut** : le CTE `primary_artisans` filtre `WHERE ia.is_primary = true`. Les artisans **secondaires** n'étaient indexés d'aucune façon.
+
+### Correctif
+
+- Nouveau CTE `all_artisans` dans la MV : agrégat de **tous** les artisans liés (plus de filtre `is_primary`), alimentant le tsvector. `prenom` et `nom` y sont inclus, au poids B comme `plain_nom`.
+- `primary_artisans` est **conservé** pour les colonnes d'affichage : la forme de retour de `search_interventions` est inchangée.
+- Nouvelle colonne `artisans_aggreges` exposée par la MV, utilisée par les replis ILIKE.
+- Le libellé artisan (`artisan_plain_nom`) retombe sur `prenom nom` puis `raison_sociale` quand `plain_nom` est NULL — sinon l'UI affiche du vide pour ces artisans.
+- Le buffer live de `search_global` reçoit le **même delta** (LATERAL agrégeant tous les artisans, `recent_intervention_ids` sensible aux artisans secondaires), sinon la recherche diverge entre lignes fraîches et lignes en MV.
+
+### Trois points à garder synchronisés
+
+Toute évolution des champs artisan recherchables doit être répercutée aux **trois** endroits, faute de quoi les résultats divergent :
+
+1. le `search_vector` de `interventions_search_mv` ;
+2. les replis ILIKE de `search_interventions` ;
+3. le LATERAL + tsvector combiné du buffer live de `search_global`.
+
+### Déploiement
+
+La migration reconstruit `interventions_search_mv` **et** `global_search_mv` (`DROP … CASCADE`). Le `REFRESH` complet des deux vues est bloquant : **à appliquer hors heures de pointe**. Le flag `search_views_refresh_flags.last_refresh` est remis à l'heure en fin de migration, car le buffer live en dérive sa fenêtre.
+
+### Vérification
+
+```sql
+SELECT count(*) FROM search_interventions('Ajjari', 100, 0);  -- attendu : 10 (4 avant)
+SELECT id_inter, artisan_plain_nom FROM search_interventions('Ajjari', 100, 0);
+SELECT count(*) FROM search_interventions('22418', 20, 0);    -- non-régression
+```
+
+### Limite connue restante
+
+`search_interventions` est appelée avec `p_limit`/`p_offset`, **puis** l'Edge Function applique les filtres statut / agence / métier / utilisateur sur la page déjà découpée (`supabase/functions/interventions-v2/_lib/list-handler.ts`). Des lignes disparaissent silencieusement et le total est faux. Non traité par `99073` : le correctif dépend d'une décision produit — la recherche doit-elle rester limitée à la vue active ou porter sur tout le CRM ?

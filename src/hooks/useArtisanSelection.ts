@@ -58,7 +58,7 @@ export function useArtisanSelection(options: UseArtisanSelectionOptions) {
   } = useNearbyArtisans(
     hasGeocodedAddress && primaryMetierSelected ? formData.latitude : null,
     hasGeocodedAddress && primaryMetierSelected ? formData.longitude : null,
-    { limit: 100, maxDistanceKm: perimeterKmValue, sampleSize: 400, metier_id: formData.metier_id || null },
+    { limit: 100, maxDistanceKm: perimeterKmValue, metier_id: formData.metier_id || null },
   )
 
   const {
@@ -67,7 +67,7 @@ export function useArtisanSelection(options: UseArtisanSelectionOptions) {
   } = useNearbyArtisans(
     hasGeocodedAddress && secondMetierSelected ? formData.latitude : null,
     hasGeocodedAddress && secondMetierSelected ? formData.longitude : null,
-    { limit: 100, maxDistanceKm: perimeterKmValue, sampleSize: 400, metier_id: formData.metierSecondArtisanId || null },
+    { limit: 100, maxDistanceKm: perimeterKmValue, metier_id: formData.metierSecondArtisanId || null },
   )
 
   // ---- Resolved artisan data (priority: nearby > search > assigned) ----
