@@ -126,5 +126,7 @@ export interface FilterParams {
   startDate?: string | null;
   endDate?: string | null;
   search?: string | null;
+  /** Montant exact recherché (acompte ou coût), cf. migration 99074. */
+  amount?: number | null;
   isCheck?: boolean;
 }

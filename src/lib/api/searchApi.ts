@@ -1,4 +1,5 @@
 import { supabase } from "./common/client"
+import { parseSearch } from "@/lib/api/interventions/search-qualifiers"
 import type { InterventionPayment } from "@/lib/api/common/types"
 import type {
   ArtisanSearchRecord,
@@ -19,6 +20,45 @@ type SearchGlobalResult = {
   entity_type: "artisan" | "intervention"
   entity_id: string
   rank: number | null
+}
+
+// Rang attribué aux interventions trouvées par montant EXACT. Au-dessus de
+// tout rang plein-texte (ts_rank est borné bien en deçà de 1) : quand on tape
+// un montant, la correspondance exacte doit passer devant.
+const AMOUNT_MATCH_RANK = 2
+
+/**
+ * Interroge les montants (acomptes + coûts) via le RPC dédié et convertit le
+ * résultat dans la forme de `search_global`, pour que le reste du pipeline —
+ * tri, limitation, hydratation — reste inchangé.
+ *
+ * Les montants ne sont pas dans l'index plein-texte (cf. migration 99074), ce
+ * RPC est donc le seul chemin pour les atteindre.
+ */
+async function searchInterventionsByAmount(
+  amount: NonNullable<ReturnType<typeof parseSearch>["amount"]>,
+  limit: number,
+): Promise<SearchGlobalResult[]> {
+  const { data, error } = await supabase.rpc("search_interventions_by_amount", {
+    p_amount: amount.value,
+    p_payment_types: amount.paymentTypes,
+    p_cost_types: amount.costTypes,
+    p_limit: limit,
+    p_offset: 0,
+  })
+
+  if (error) {
+    // Non bloquant : la recherche plein-texte doit continuer de répondre même
+    // si le RPC montant échoue (fonction non déployée, par exemple).
+    console.error("[universalSearch] Error in search_interventions_by_amount RPC:", error)
+    return []
+  }
+
+  return (data ?? []).map((row: { id: string }) => ({
+    entity_type: "intervention" as const,
+    entity_id: row.id,
+    rank: AMOUNT_MATCH_RANK,
+  }))
 }
 
 const normalizeString = (value: string | null | undefined): string => {
@@ -878,7 +918,14 @@ export async function universalSearch(
   },
 ): Promise<GroupedSearchResults> {
   const trimmed = query.trim()
-  const context = detectSearchContext(trimmed)
+  // Les montants ne sont pas dans l'index plein-texte : une saisie de montant
+  // (« 387,78 », « sst:387 ») déclenche en plus — ou à la place, si elle est
+  // qualifiée — un filtre exact via un RPC dédié. Même analyse que la recherche
+  // de la liste des interventions, pour un comportement identique des deux côtés.
+  const { text, amount } = parseSearch(trimmed)
+  // Un montant ne peut désigner qu'une intervention : on force le contexte pour
+  // que l'UI privilégie ce groupe de résultats.
+  const context = amount ? "intervention" : detectSearchContext(trimmed)
 
   if (trimmed.length < 2) {
     return {
@@ -913,30 +960,75 @@ export async function universalSearch(
 
   // Use search_global RPC function for optimized search
   const totalLimit = resolvedArtisanLimit + resolvedInterventionLimit
-  const { data: globalResults, error: globalError } = await supabase.rpc("search_global", {
-    p_query: trimmed,
-    p_limit: totalLimit,
-    p_offset: 0,
-    p_entity_type: null, // Search both types
-  })
+  const [globalResponse, amountResults] = await Promise.all([
+    // Une saisie qualifiée (`sst:387`) court-circuite le plein-texte :
+    // l'utilisateur a explicitement demandé un montant.
+    text !== null
+      ? supabase.rpc("search_global", {
+        p_query: text,
+        p_limit: totalLimit,
+        p_offset: 0,
+        p_entity_type: null, // Search both types
+      })
+      : Promise.resolve({ data: [], error: null }),
+    amount
+      ? searchInterventionsByAmount(amount, resolvedInterventionLimit)
+      : Promise.resolve([] as SearchGlobalResult[]),
+  ])
+
+  const { data: globalResults, error: globalError } = globalResponse
 
   if (globalError) {
     console.error("[universalSearch] Error in search_global RPC:", globalError)
     // Fallback to old method if RPC fails
-    const [artisanSettled, interventionSettled] = await Promise.allSettled([
-      searchArtisans(trimmed, resolvedArtisanLimit),
-      searchInterventions(trimmed, resolvedInterventionLimit),
+    const [artisanSettled, interventionSettled, amountSettled] = await Promise.allSettled([
+      // Une saisie qualifiée n'a pas de volet textuel : ne pas relancer de
+      // recherche plein-texte sur « sst:387 », qui ne matcherait rien d'utile.
+      text !== null
+        ? searchArtisans(text, resolvedArtisanLimit)
+        : Promise.resolve({ items: [], total: 0, hasMore: false } as SearchResultsGroup<ArtisanSearchRecord>),
+      text !== null
+        ? searchInterventions(text, resolvedInterventionLimit)
+        : Promise.resolve({ items: [], total: 0, hasMore: false } as SearchResultsGroup<InterventionSearchRecord>),
+      // Le RPC montant, lui, a répondu : on hydrate ses résultats pour ne pas
+      // perdre les correspondances exactes dans ce chemin dégradé.
+      amountResults.length > 0
+        ? fetchInterventionsByIds(amountResults.map((r) => r.entity_id))
+        : Promise.resolve([] as InterventionSearchRecord[]),
     ])
+
+    const amountFallbackData =
+      amountSettled.status === "fulfilled" ? amountSettled.value : []
 
     const artisanResults =
       artisanSettled.status === "fulfilled"
         ? artisanSettled.value
         : { items: [], total: 0, hasMore: false }
 
-    const interventionResults =
+    const textInterventions =
       interventionSettled.status === "fulfilled"
         ? interventionSettled.value
         : { items: [], total: 0, hasMore: false }
+
+    const amountItems: Array<SearchResult<InterventionSearchRecord>> = amountFallbackData.map(
+      (intervention) => ({
+        type: "intervention" as const,
+        data: intervention,
+        score: AMOUNT_MATCH_RANK * 100,
+        matchedFields: ["amount"],
+      }),
+    )
+    const amountItemIds = new Set(amountItems.map((item) => item.data.id))
+    const mergedItems = [
+      ...amountItems,
+      ...textInterventions.items.filter((item) => !amountItemIds.has(item.data.id)),
+    ].slice(0, resolvedInterventionLimit)
+
+    const interventionResults: SearchResultsGroup<InterventionSearchRecord> = {
+      items: mergedItems,
+      total: mergedItems.length,
+      hasMore: false,
+    }
 
     const searchTime = Math.round(performanceNow() - start)
     return {
@@ -949,7 +1041,15 @@ export async function universalSearch(
 
   // Separate results by entity type
   const artisanResults: SearchGlobalResult[] = (globalResults ?? []).filter((r: SearchGlobalResult) => r.entity_type === "artisan")
-  const interventionResults: SearchGlobalResult[] = (globalResults ?? []).filter((r: SearchGlobalResult) => r.entity_type === "intervention")
+  // Correspondances de montant d'abord (rank AMOUNT_MATCH_RANK, au-dessus de
+  // tout rang plein-texte), puis les correspondances textuelles non déjà vues.
+  const amountMatchedIds = new Set(amountResults.map((r) => r.entity_id))
+  const interventionResults: SearchGlobalResult[] = [
+    ...amountResults,
+    ...(globalResults ?? []).filter(
+      (r: SearchGlobalResult) => r.entity_type === "intervention" && !amountMatchedIds.has(r.entity_id),
+    ),
+  ]
 
   // Sort by rank (already sorted by search_global, but ensure order is preserved)
   artisanResults.sort((a: SearchGlobalResult, b: SearchGlobalResult) => (b.rank ?? 0) - (a.rank ?? 0))

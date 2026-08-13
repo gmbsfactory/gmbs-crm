@@ -47,7 +47,7 @@ Retrieves all interventions via the Edge Function `interventions-v2`. Supports f
 | params.startDate | `string` | No | Filter by start date (ISO string) |
 | params.endDate | `string` | No | Filter by end date (ISO string) |
 | params.isCheck | `boolean` | No | Filter "check" interventions only |
-| params.search | `string` | No | Full-text search |
+| params.search | `string` | No | Full-text search. A bare amount (`387,78`) also triggers an exact amount filter — see [Recherche par montant](#recherche-par-montant) |
 | params.include | `string[]` | No | Relations to include. Available: `artisans`, `costs`, `payments`, `owner`, `tenants`, `users`, `agencies`, `statuses`, `metiers`. Default includes: `artisans`, `costs`, `tenants`, `users`. |
 
 **Return:** `Promise<PaginatedResponse<InterventionWithStatus>>`
@@ -77,6 +77,112 @@ const result = await interventionsApi.getAll({
 // result.data: InterventionWithStatus[]
 // result.pagination.total: number
 ```
+
+#### Recherche par montant
+
+L'index plein-texte porte uniquement sur des colonnes **textuelles** (`id_inter`,
+`reference_agence`, adresse, ville, artisans, contexte, commentaires, client...). Les
+montants vivent dans `intervention_payments` (acomptes) et `intervention_costs` (SST,
+inter, matériel) et ne sont **pas** indexés dans le `search_vector` — les y ajouter
+rendrait toute recherche numérique très bruyante.
+
+Un filtre **exact** sur les montants est donc branché **à côté** du plein-texte, selon
+deux déclencheurs.
+
+**1. Montant sec — le cas courant**
+
+Il suffit de taper le montant :
+
+```
+387,78
+```
+
+Une saisie **à deux décimales** est reconnue comme un montant sans ambiguïté. Le filtre
+est alors appliqué sur **toutes** les colonnes de montant, **en plus** de la recherche
+plein-texte, et les deux jeux de résultats sont fusionnés (correspondances exactes de
+montant en tête, puis les correspondances textuelles). Rien n'est perdu : `387,78`
+continue de matcher un commentaire ou une référence qui contiendrait cette chaîne.
+
+**2. Qualificateur de portée — restreindre, ou atteindre un entier**
+
+Le qualificateur remplit deux rôles : cibler **une** colonne de montant, et atteindre les
+montants **entiers**, qui ne sont pas auto-détectés (`21670` ressemble tout autant à un
+`id_inter`, `69200` à un code postal, `91` à un numéro de rue).
+
+```
+sst:387          acompte client:1 250,00
+```
+
+Un qualificateur **remplace** la recherche plein-texte.
+
+| Qualificateur | Colonne ciblée | Source |
+|---------------|----------------|--------|
+| `acompte:` | Acompte SST **et** client | `intervention_payments` (`acompte_sst`, `acompte_client`) |
+| `acompte client:` / `acompte cli:` | Ac. Client | `intervention_payments` (`acompte_client`) |
+| `acompte sst:` / `acompte artisan:` | Ac. Artisan | `intervention_payments` (`acompte_sst`) |
+| `sst:` | Coût SST | `intervention_costs` (`sst`) |
+| `inter:` / `client:` | Montant Inter (facturé client) | `intervention_costs` (`intervention`) |
+| `materiel:` / `matériel:` | Matériel | `intervention_costs` (`materiel`) |
+| *(aucun)* | Toutes les colonnes ci-dessus | les deux tables |
+
+Les libellés reprennent ceux des colonnes de la page **Comptabilité**, pour que
+l'utilisateur tape le mot qu'il a sous les yeux. `accompte:` (faute courante) est accepté
+partout, ainsi que `_` à la place de l'espace (`acompte_sst:`).
+
+| Aspect | Comportement |
+|--------|--------------|
+| Auto-détection | Uniquement les saisies à exactement 2 décimales (`387,78`, `1 500,50`, `387.78`) |
+| Casse / espaces | Qualificateurs insensibles à la casse, espaces tolérés autour du `:` |
+| Format du montant | Virgule ou point décimal, espaces/points comme séparateurs de milliers, suffixe `€`/`EUR` optionnel. `1 500,50`, `1.500,50`, `1500.50` sont équivalents |
+| Correspondance | **Exacte** sur le montant (arrondi à 2 décimales) |
+| Saisie invalide | Retombe silencieusement sur la recherche plein-texte (pas d'erreur) |
+
+**Params transmis à l'Edge Function**
+
+| Saisie | `search` | `amount` | `amountPaymentTypes` | `amountCostTypes` |
+|--------|----------|----------|----------------------|-------------------|
+| `VENISSIEUX` | `VENISSIEUX` | — | — | — |
+| `387,78` | `387,78` | `387.78` | `acompte_sst,acompte_client` | `sst,intervention,materiel` |
+| `sst:387` | — | `387` | *(vide)* | `sst` |
+| `acompte client:387,78` | — | `387.78` | `acompte_client` | *(vide)* |
+| `21670` | `21670` | — | — | — |
+
+**Chaîne d'exécution**
+
+| Étape | Emplacement |
+|-------|-------------|
+| Analyse de la saisie + résolution de la portée (fonction pure, testée) | `src/lib/api/interventions/search-qualifiers.ts` |
+| Émission des params `search` / `amount*` (liste) | `src/lib/api/interventions/crud/_search-params.ts` |
+| Appel des RPC et fusion des résultats (liste) | `supabase/functions/interventions-v2/_lib/list-handler.ts` |
+| Appel des RPC et fusion des résultats (recherche globale) | `src/lib/api/searchApi.ts` — `universalSearch` |
+| Filtre exact en base | RPC `search_interventions_by_amount` (migration `99074`) |
+
+**Deux surfaces, un seul comportement**
+
+La même analyse de saisie alimente le champ de recherche de la **liste des interventions**
+et la **recherche globale** de la barre supérieure : `387,78` et `sst:387` s'y comportent
+à l'identique. La recherche globale force en plus le contexte sur `intervention` — un
+montant ne peut désigner qu'une intervention — et classe les correspondances exactes de
+montant devant les correspondances plein-texte.
+
+Si le RPC montant échoue (par exemple parce que la migration n'est pas encore appliquée),
+la recherche plein-texte continue de répondre normalement : l'erreur est loguée, pas
+propagée.
+
+La portée métier (quel libellé cible quelle colonne) vit **côté TypeScript**, donc
+testable unitairement ; le RPC ne reçoit que des listes de types et reste agnostique.
+
+Le RPC lit `intervention_payments` et `intervention_costs` **en direct** (et non via la
+vue matérialisée), afin qu'un montant saisi à l'instant soit immédiatement retrouvable.
+La MV `interventions_search_mv` ne fournit que les colonnes d'affichage et le filtre
+`is_active = true`.
+
+**Limites connues**
+- Avec `offset > 0`, chaque RPC pagine indépendamment **avant** la fusion : le découpage
+  est approximatif. Sans conséquence en pratique — un filtre sur montant exact renvoie
+  quelques lignes, jamais plusieurs pages.
+- Comme pour toute recherche, `pagination.total` reflète le total filtré hors terme de
+  recherche (`getCachedCount` ignore `search`). Limitation préexistante.
 
 ---
 
