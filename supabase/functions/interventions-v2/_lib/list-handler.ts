@@ -43,12 +43,27 @@ export async function handleListInterventions(
   const userIsNull = userValues.some((value) => value === 'null' || value === '__null__');
 
   const searchRaw = url.searchParams.get('search')?.trim() ?? null;
+  // Recherche par montant. L'analyse de la saisie utilisateur (« 387,78 »,
+  // « sst:387 ») et la résolution de la portée sont faites côté client dans
+  // `src/lib/api/interventions/search-qualifiers.ts` ; on ne reçoit ici qu'un
+  // nombre déjà normalisé et des listes de types.
+  const amountRaw = url.searchParams.get('amount')?.trim() ?? null;
+  const amountParsed = amountRaw ? Number(amountRaw) : null;
+  const amount =
+    amountParsed !== null && Number.isFinite(amountParsed) ? amountParsed : null;
+  const amountPaymentTypes = parseListParam(
+    (url.searchParams.get('amountPaymentTypes') ?? '').split(','),
+  );
+  const amountCostTypes = parseListParam(
+    (url.searchParams.get('amountCostTypes') ?? '').split(','),
+  );
   const startDateRaw = url.searchParams.get('startDate')?.trim() ?? null;
   const endDateRaw = url.searchParams.get('endDate')?.trim() ?? null;
   const isCheckRaw = url.searchParams.get('isCheck')?.trim() ?? null;
 
   const filters: FilterParams = {
     search: searchRaw && searchRaw.length > 0 ? searchRaw : null,
+    amount,
     startDate: startDateRaw && startDateRaw.length > 0 ? startDateRaw : null,
     endDate: endDateRaw && endDateRaw.length > 0 ? endDateRaw : null,
   };
@@ -74,19 +89,27 @@ export async function handleListInterventions(
     filters.userIsNull = true;
   }
 
-  const hasSearch = Boolean(filters.search && filters.search.length > 0);
+  const hasTextSearch = Boolean(filters.search && filters.search.length >= 2);
+  const hasAmountSearch =
+    amount !== null && (amountPaymentTypes.length > 0 || amountCostTypes.length > 0);
+  // Les deux chemins partagent le même post-traitement (résultats limités du
+  // RPC -> requête détaillée -> réordonnancement), d'où le `hasSearch` commun.
+  const hasSearch = hasTextSearch || hasAmountSearch;
   const selectClause = buildSelectClause(extraSelect, include, hasSearch);
 
   // ========================================
   // RECHERCHE OPTIMISÉE VIA VUE MATÉRIALISÉE
   // ========================================
-  if (hasSearch && filters.search && filters.search.length >= 2) {
+  if (hasSearch) {
     console.log(
       JSON.stringify({
         level: 'info',
         requestId,
-        message: 'Using optimized search via materialized view',
+        message: 'Using optimized search',
         searchQuery: filters.search,
+        amountFilter: hasAmountSearch
+          ? { amount, paymentTypes: amountPaymentTypes, costTypes: amountCostTypes }
+          : null,
         limit: clampedLimit,
         offset: clampedOffset,
       }),
@@ -94,13 +117,44 @@ export async function handleListInterventions(
 
     const fetchStart = Date.now();
 
-    // Appeler la fonction RPC search_interventions
-    const { data: searchResults, error: searchError } = await supabase
-      .rpc('search_interventions', {
-        p_query: filters.search,
-        p_limit: clampedLimit,
-        p_offset: clampedOffset,
-      });
+    // Les deux RPC renvoient la même forme de résultat (id + colonnes
+    // d'affichage + rank). Quand les deux sont actifs — cas d'un montant sec
+    // comme « 387,78 », qui déclenche l'auto-détection sans désactiver le
+    // plein-texte — on fusionne : les correspondances exactes de montant
+    // d'abord, puis les correspondances textuelles non déjà présentes.
+    //
+    // Note pagination : avec `offset > 0`, chaque RPC pagine indépendamment
+    // AVANT la fusion, le découpage est donc approximatif. Acceptable ici — un
+    // filtre sur montant exact renvoie quelques lignes, jamais plusieurs pages.
+    const [amountResult, textResult] = await Promise.all([
+      hasAmountSearch
+        ? supabase.rpc('search_interventions_by_amount', {
+          p_amount: amount,
+          p_payment_types: amountPaymentTypes,
+          p_cost_types: amountCostTypes,
+          p_limit: clampedLimit,
+          p_offset: clampedOffset,
+        })
+        : Promise.resolve({ data: null, error: null }),
+      hasTextSearch
+        ? supabase.rpc('search_interventions', {
+          p_query: filters.search,
+          p_limit: clampedLimit,
+          p_offset: clampedOffset,
+        })
+        : Promise.resolve({ data: null, error: null }),
+    ]);
+
+    const searchError = amountResult.error ?? textResult.error;
+    const seenIds = new Set<string>();
+    const searchResults = [
+      ...(amountResult.data ?? []),
+      ...(textResult.data ?? []),
+    ].filter((row: any) => {
+      if (!row?.id || seenIds.has(row.id)) return false;
+      seenIds.add(row.id);
+      return true;
+    }).slice(0, clampedLimit);
 
     const fetchDuration = Date.now() - fetchStart;
 

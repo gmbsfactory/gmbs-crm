@@ -3,6 +3,7 @@
 // règles de filtrage côté client.
 
 import type { InterventionQueryParams } from "@/lib/api/common/types";
+import { parseSearch } from "@/lib/api/interventions/search-qualifiers";
 
 export type FilterValue = string | string[] | null | undefined;
 
@@ -54,7 +55,20 @@ export function buildBaseSearchParams(
   if (params?.startDate) searchParams.set("startDate", params.startDate);
   if (params?.endDate) searchParams.set("endDate", params.endDate);
   if (params?.isCheck !== undefined) searchParams.set("isCheck", params.isCheck.toString());
-  if (params?.search) searchParams.set("search", params.search);
+  if (params?.search) {
+    // Les montants ne sont pas dans l'index plein-texte (cf. migration 99074) :
+    // un montant détecté dans la saisie est envoyé comme filtre dédié, avec la
+    // portée (acomptes et/ou coûts) résolue depuis le qualificateur éventuel.
+    // `search` et `amount` peuvent coexister — l'Edge Function fusionne alors
+    // les deux jeux de résultats.
+    const { text, amount } = parseSearch(params.search);
+    if (text) searchParams.set("search", text);
+    if (amount) {
+      searchParams.set("amount", amount.value.toString());
+      searchParams.set("amountPaymentTypes", amount.paymentTypes.join(","));
+      searchParams.set("amountCostTypes", amount.costTypes.join(","));
+    }
+  }
 
   return searchParams;
 }
