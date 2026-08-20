@@ -193,6 +193,9 @@ L'acompte **SST** (« Envoyé ») est hors workflow : il ne déclenche aucune tr
 | Un acompte saisi puis **enregistré sans « Reçu »** bascule l'intervention en `ATT_ACOMPTE` | `resolveDepositStatusCode` appliqué au submit (statut effectif) |
 | Cocher « Reçu » passe en `ACCEPTE` (affiché « Accepté $ ») ; décocher revient à `ATT_ACOMPTE` | `resolveDepositStatusCode` + transition locale dans `useInterventionAccomptes` |
 | Cocher « Reçu » pré-remplit la date du jour (éditable) et **bloque l'enregistrement** si elle est vidée | `applyRecuToggle` + `getDepositValidationError` |
+| **Vider** le montant retire l'acompte : la ligne `intervention_payments` est **supprimée** (l'upsert seul la laisserait en base et l'acompte réapparaîtrait au rechargement) | `resolveDeletedPaymentTypes` → `deletePaymentTypes` de `runPostMutationTasks` → `interventionsApi.deletePayment` |
+| Supprimer un acompte **existant** depuis `ATT_ACOMPTE` bascule en `ACCEPTE` : il n'y a plus d'acompte à attendre. Une intervention placée en `ATT_ACOMPTE` **sans** acompte enregistré n'est pas concernée (drapeau `hadDeposit`, alimenté par `hadClientDeposit` depuis `InterventionEditForm`) — sinon toute sauvegarde sans rapport la basculerait. Depuis `DEVIS_ENVOYE`/`ACCEPTE`, un champ vide n'impose aucun statut | `resolveDepositStatusCode` + reflet local dans `useInterventionAccomptes` |
+| Une suppression ne se déclenche **que** depuis les statuts éditables : ailleurs un champ vide signifie « non modifiable ici », pas « retiré par l'utilisateur » | garde `canEditDeposits` dans `resolveDeletedPaymentTypes` |
 
 Le statut réellement persisté est donc celui calculé au submit (`getEffectiveStatutId`),
 et non la valeur brute du sélecteur : la règle s'applique même si l'utilisateur saisit un

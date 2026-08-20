@@ -9,6 +9,7 @@ vi.mock("@/lib/api", () => ({
     upsertCostsBatch: vi.fn().mockResolvedValue(undefined),
     deleteCost: vi.fn().mockResolvedValue(undefined),
     upsertPayment: vi.fn().mockResolvedValue({}),
+    deletePayment: vi.fn().mockResolvedValue(undefined),
   },
 }))
 
@@ -169,6 +170,52 @@ describe("runPostMutationTasks", () => {
     })
   })
 
+  describe("deletePaymentTypes", () => {
+    it("should call deletePayment for each cleared payment type", async () => {
+      runPostMutationTasks({
+        interventionId: "int-1",
+        deletePaymentTypes: ["acompte_sst", "acompte_client"],
+      })
+
+      await flushPromises()
+      expect(interventionsApi.deletePayment).toHaveBeenCalledTimes(2)
+      expect(interventionsApi.deletePayment).toHaveBeenCalledWith("int-1", "acompte_sst")
+      expect(interventionsApi.deletePayment).toHaveBeenCalledWith("int-1", "acompte_client")
+    })
+
+    it("should NOT call deletePayment when no type is cleared", async () => {
+      runPostMutationTasks({
+        interventionId: "int-1",
+        payments: [{ payment_type: "acompte_client", amount: 500 }],
+      })
+
+      await flushPromises()
+      expect(interventionsApi.deletePayment).not.toHaveBeenCalled()
+    })
+
+    it("should upsert and delete disjoint payment types in the same run", async () => {
+      runPostMutationTasks({
+        interventionId: "int-1",
+        payments: [{ payment_type: "acompte_client", amount: 500 }],
+        deletePaymentTypes: ["acompte_sst"],
+      })
+
+      await flushPromises()
+      expect(interventionsApi.upsertPayment).toHaveBeenCalledWith("int-1", { payment_type: "acompte_client", amount: 500 })
+      expect(interventionsApi.deletePayment).toHaveBeenCalledWith("int-1", "acompte_sst")
+    })
+
+    it("should not propagate a deletePayment failure", async () => {
+      vi.mocked(interventionsApi.deletePayment).mockRejectedValueOnce(new Error("boom"))
+
+      expect(() =>
+        runPostMutationTasks({ interventionId: "int-1", deletePaymentTypes: ["acompte_client"] })
+      ).not.toThrow()
+
+      await flushPromises()
+    })
+  })
+
   describe("comments", () => {
     it("should create a comment when provided", async () => {
       runPostMutationTasks({
@@ -297,6 +344,24 @@ describe("runPostMutationTasks", () => {
         payments: [
           { payment_type: "acompte_client", amount: 500, is_received: true, payment_date: "2026-04-12" },
         ],
+        queryClient: mockQueryClient as any,
+      })
+
+      await flushPromises()
+
+      expect(mockQueryClient.invalidateQueries).toHaveBeenCalledWith({
+        queryKey: ["interventions", "list"],
+      })
+    })
+
+    it("should invalidate the interventions list when a payment is deleted (le « $ » doit disparaître)", async () => {
+      const mockQueryClient = {
+        invalidateQueries: vi.fn(),
+      }
+
+      runPostMutationTasks({
+        interventionId: "int-1",
+        deletePaymentTypes: ["acompte_client"],
         queryClient: mockQueryClient as any,
       })
 

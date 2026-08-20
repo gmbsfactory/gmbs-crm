@@ -771,6 +771,33 @@ Creates or updates a payment. Matches on `(intervention_id, payment_type)`.
 
 **Return:** `Promise<InterventionPayment>`
 
+> Note: `upsertPayment` never removes a row. Clearing a deposit field in the form must
+> issue a `deletePayment` for that type, otherwise the row survives and the deposit
+> reappears on reload.
+
+---
+
+### deletePayment(interventionId, paymentType)
+
+Deletes the payment row of a given type for an intervention. Idempotent (deleting a
+missing row is a no-op).
+
+**Parameters**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| interventionId | `string` | Yes | Intervention UUID |
+| paymentType | `string` | Yes | `acompte_sst` or `acompte_client` |
+
+**Return:** `Promise<void>`
+
+**Usage** — the submit flow computes the deletions as the exact complement of the
+upserted types via `resolveDeletedPaymentTypes` (`src/lib/interventions/deposit-helpers.ts`),
+gated on `canEditDeposits`: outside `DEVIS_ENVOYE` / `ACCEPTE` / `ATT_ACOMPTE` an empty
+field means "not editable here", not "removed by the user", so nothing is deleted.
+`runPostMutationTasks` then invalidates the interventions list so the `Accepté $` suffix
+(derived from `intervention.payments`) disappears with the removed deposit.
+
 ---
 
 ### insertInterventionCosts(costs)

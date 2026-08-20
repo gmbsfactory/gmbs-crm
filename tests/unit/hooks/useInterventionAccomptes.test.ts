@@ -95,6 +95,42 @@ describe("useInterventionAccomptes (local-only)", () => {
       expect(handleInputChange).toHaveBeenCalledWith("dateAccompteClientRecu", "")
     })
 
+    it("vider le montant depuis ATT_ACOMPTE bascule le statut en ACCEPTE", () => {
+      const { hook, handleInputChange } = setup(
+        makeFormData({ statut_id: "s-att", accompteClient: "500" }),
+      )
+
+      act(() => {
+        hook.result.current.handleAccompteClientChange("")
+      })
+
+      expect(handleInputChange).toHaveBeenCalledWith("statut_id", "s-accepte")
+    })
+
+    it("ne bascule pas ATT_ACOMPTE si le champ était déjà vide", () => {
+      const { hook, handleInputChange } = setup(
+        makeFormData({ statut_id: "s-att", accompteClient: "" }),
+      )
+
+      act(() => {
+        hook.result.current.handleAccompteClientChange("")
+      })
+
+      expect(handleInputChange).not.toHaveBeenCalledWith("statut_id", expect.anything())
+    })
+
+    it("vider le montant depuis ACCEPTE ne change pas le statut", () => {
+      const { hook, handleInputChange } = setup(
+        makeFormData({ statut_id: "s-accepte", accompteClient: "500" }),
+      )
+
+      act(() => {
+        hook.result.current.handleAccompteClientChange("")
+      })
+
+      expect(handleInputChange).not.toHaveBeenCalledWith("statut_id", expect.anything())
+    })
+
     it("passer le montant à 0 ne décoche pas « Reçu »", () => {
       const { hook, handleInputChange } = setup(
         makeFormData({

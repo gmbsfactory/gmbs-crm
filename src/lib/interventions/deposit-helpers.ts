@@ -100,10 +100,22 @@ export function resolveDepositStatusCode(params: {
     currentStatusCode: string | undefined | null
     amount: string | undefined | null
     recu: boolean
+    /**
+     * Un acompte client était enregistré au chargement. Sert à distinguer
+     * « acompte supprimé » de « aucun acompte n'a jamais existé » : seul le premier
+     * cas débloque ATT_ACOMPTE. Sans ce drapeau (création), un champ vide n'impose rien.
+     */
+    hadDeposit?: boolean
 }): string | null {
-    const { currentStatusCode, amount, recu } = params
+    const { currentStatusCode, amount, recu, hadDeposit = false } = params
     if (!canEditDeposits(currentStatusCode)) return null
-    if (!isDepositSpecified(amount)) return null
+    if (!isDepositSpecified(amount)) {
+        // Acompte SUPPRIMÉ depuis ATT_ACOMPTE : il n'y a plus d'acompte à attendre,
+        // le devis reste accepté => on débloque vers ACCEPTE.
+        // Une intervention placée en ATT_ACOMPTE sans acompte n'est pas concernée :
+        // sinon n'importe quelle sauvegarde sans rapport la basculerait en ACCEPTE.
+        return hadDeposit && currentStatusCode === 'ATT_ACOMPTE' ? 'ACCEPTE' : null
+    }
     return recu ? 'ACCEPTE' : 'ATT_ACOMPTE'
 }
 
@@ -131,4 +143,23 @@ export function getStatusDisplayLabel(
         return `${statusLabel} $`
     }
     return statusLabel
+}
+
+/** Types de paiement pilotés par la section « Gestion des acomptes ». */
+export const DEPOSIT_PAYMENT_TYPES = ['acompte_sst', 'acompte_client'] as const
+
+/**
+ * Types de paiement à supprimer au submit : exactement le complément des types
+ * upsertés. Un acompte vidé doit disparaître de la base — l'upsert seul laisse la
+ * ligne en place et l'acompte « revient » au rechargement.
+ *
+ * Garde-fou : hors des statuts où la section est éditable, un champ vide signifie
+ * « non modifiable ici », pas « retiré par l'utilisateur » — on ne supprime rien.
+ */
+export function resolveDeletedPaymentTypes(params: {
+    currentStatusCode: string | undefined | null
+    upsertedPaymentTypes: readonly string[]
+}): string[] {
+    if (!canEditDeposits(params.currentStatusCode)) return []
+    return DEPOSIT_PAYMENT_TYPES.filter(t => !params.upsertedPaymentTypes.includes(t))
 }

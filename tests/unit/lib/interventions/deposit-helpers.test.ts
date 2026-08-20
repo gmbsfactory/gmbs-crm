@@ -5,6 +5,7 @@ import {
   canMarkDepositReceived,
   getDepositValidationError,
   isDepositSpecified,
+  resolveDeletedPaymentTypes,
   resolveDepositStatusCode,
   todayLocalISO,
 } from "@/lib/interventions/deposit-helpers"
@@ -92,6 +93,34 @@ describe("deposit-helpers", () => {
       ).toBeNull()
     })
 
+    it("débloque ATT_ACOMPTE vers ACCEPTE quand un acompte existant est retiré", () => {
+      expect(
+        resolveDepositStatusCode({
+          currentStatusCode: "ATT_ACOMPTE",
+          amount: "",
+          recu: false,
+          hadDeposit: true,
+        }),
+      ).toBe("ACCEPTE")
+    })
+
+    it("n'impose rien en ATT_ACOMPTE si aucun acompte n'a jamais existé", () => {
+      expect(
+        resolveDepositStatusCode({ currentStatusCode: "ATT_ACOMPTE", amount: "", recu: false }),
+      ).toBeNull()
+    })
+
+    it("ne débloque pas depuis un autre statut éditable, même après suppression", () => {
+      expect(
+        resolveDepositStatusCode({
+          currentStatusCode: "DEVIS_ENVOYE",
+          amount: "",
+          recu: false,
+          hadDeposit: true,
+        }),
+      ).toBeNull()
+    })
+
     it("n'impose rien hors des statuts où l'acompte est éditable", () => {
       expect(
         resolveDepositStatusCode({ currentStatusCode: "INTER_EN_COURS", amount: "500", recu: true }),
@@ -169,6 +198,38 @@ describe("deposit-helpers", () => {
         recu: false,
         date: "",
       })
+    })
+  })
+
+  describe('resolveDeletedPaymentTypes', () => {
+    it('should delete both types when no deposit is filled in an editable status', () => {
+      expect(
+        resolveDeletedPaymentTypes({ currentStatusCode: 'ATT_ACOMPTE', upsertedPaymentTypes: [] })
+      ).toEqual(['acompte_sst', 'acompte_client'])
+    })
+
+    it('should delete only the complement of the upserted types', () => {
+      expect(
+        resolveDeletedPaymentTypes({ currentStatusCode: 'ACCEPTE', upsertedPaymentTypes: ['acompte_client'] })
+      ).toEqual(['acompte_sst'])
+    })
+
+    it('should delete nothing when both types are upserted', () => {
+      expect(
+        resolveDeletedPaymentTypes({
+          currentStatusCode: 'ACCEPTE',
+          upsertedPaymentTypes: ['acompte_sst', 'acompte_client'],
+        })
+      ).toEqual([])
+    })
+
+    it('should delete nothing outside an editable status (champ vide = non modifiable ici)', () => {
+      expect(
+        resolveDeletedPaymentTypes({ currentStatusCode: 'TERMINE', upsertedPaymentTypes: [] })
+      ).toEqual([])
+      expect(
+        resolveDeletedPaymentTypes({ currentStatusCode: undefined, upsertedPaymentTypes: [] })
+      ).toEqual([])
     })
   })
 })

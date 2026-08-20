@@ -61,12 +61,24 @@ export function useInterventionAccomptes({
     (value: string) => {
       handleInputChange("accompteClient", value)
 
-      if (!isDepositSpecified(value) && formData.accompteClientRecu) {
-        handleInputChange("accompteClientRecu", false)
-        handleInputChange("dateAccompteClientRecu", "")
+      if (!isDepositSpecified(value)) {
+        if (formData.accompteClientRecu) {
+          handleInputChange("accompteClientRecu", false)
+          handleInputChange("dateAccompteClientRecu", "")
+        }
+
+        // Plus d'acompte à attendre : on débloque ATT_ACOMPTE vers ACCEPTE.
+        // Reflet local de la règle appliquée au submit (resolveDepositStatusCode),
+        // pour que le statut affiché suive la saisie sans attendre la sauvegarde.
+        // Conditionné à un montant réellement présent avant la saisie : on réagit à une
+        // SUPPRESSION, pas à un champ resté vide.
+        if (isDepositSpecified(formData.accompteClient) && getStatusCode(formData.statut_id) === "ATT_ACOMPTE") {
+          const accepteId = findStatusId("ACCEPTE")
+          if (accepteId) handleInputChange("statut_id", accepteId)
+        }
       }
     },
-    [formData.accompteClientRecu, handleInputChange],
+    [formData.accompteClient, formData.accompteClientRecu, formData.statut_id, getStatusCode, findStatusId, handleInputChange],
   )
 
   // --- Checkbox SST (Envoyé) : auto-fill date du jour ---

@@ -565,6 +565,7 @@ export const InterventionEditForm = memo(function InterventionEditForm({
     canEditContext,
     readOnly,
     initialStatusCode,
+    hadClientDeposit: clientPayment?.amount != null,
     showReferenceField,
     requiresDefinitiveId,
     requiresDatePrevue,
