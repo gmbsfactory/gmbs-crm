@@ -37,6 +37,12 @@ export interface PostMutationConfig {
   /** Payments to upsert */
   payments?: PostMutationPayment[]
 
+  /**
+   * Types de paiement à supprimer (acompte vidé dans le formulaire).
+   * Toujours disjoint de `payments` : un type est soit upserté, soit supprimé.
+   */
+  deletePaymentTypes?: string[]
+
   /** Non-critical comment to create (errors shown via toast) */
   comment?: Omit<CreateCommentData, 'entity_id'>
 
@@ -116,6 +122,17 @@ export function runPostMutationTasks(config: PostMutationConfig): void {
     }
   }
 
+  // Suppressions de paiements — types disjoints des upserts, donc pas de
+  // séquencement nécessaire (contrairement à deleteSecondaryCosts/costs).
+  if (config.deletePaymentTypes) {
+    for (const paymentType of config.deletePaymentTypes) {
+      tasks.push(
+        interventionsApi.deletePayment(config.interventionId, paymentType)
+          .catch(e => console.error('[PostMutation] deletePayment failed:', e))
+      )
+    }
+  }
+
   // Non-critical comment
   if (config.comment) {
     tasks.push(
@@ -149,7 +166,11 @@ export function runPostMutationTasks(config: PostMutationConfig): void {
     // `intervention.payments` (cf. getStatusDisplayLabel / StatusCell). Sans cette
     // invalidation, la ligne affiche le nouveau statut avec les anciens paiements —
     // donc sans le « $ » — jusqu'au prochain refetch fortuit de la liste.
-    if (config.payments && config.payments.length > 0) {
+    // Idem à la suppression : retirer un acompte reçu doit faire disparaître le « $ ».
+    if (
+      (config.payments && config.payments.length > 0) ||
+      (config.deletePaymentTypes && config.deletePaymentTypes.length > 0)
+    ) {
       config.queryClient.invalidateQueries({ queryKey: ['interventions', 'list'] })
     }
 

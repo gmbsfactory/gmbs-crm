@@ -325,6 +325,30 @@ export const interventionsCosts = {
     return result;
   },
 
+  /**
+   * Supprimer le paiement d'un type donné (acompte_sst / acompte_client).
+   *
+   * Contrepartie de `upsertPayment` : vider le champ acompte dans le formulaire
+   * doit retirer la ligne, sinon l'upsert seul la laisse en base et l'acompte
+   * « revient » au rechargement. Idempotent : supprimer une ligne absente est un
+   * no-op côté PostgreSQL.
+   */
+  async deletePayment(interventionId: string, paymentType: string): Promise<void> {
+    if (!interventionId) {
+      throw new Error("interventionId is required");
+    }
+
+    const { error } = await supabase
+      .from('intervention_payments')
+      .delete()
+      .eq('intervention_id', interventionId)
+      .eq('payment_type', paymentType);
+
+    if (error) {
+      throw new Error(`Erreur lors de la suppression du paiement: ${error.message}`);
+    }
+  },
+
   // Mettre à jour ou créer un paiement pour une intervention (upsert)
   async upsertPayment(
     interventionId: string,

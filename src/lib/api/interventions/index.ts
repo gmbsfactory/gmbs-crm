@@ -51,6 +51,7 @@ export const interventionsApi = {
   addCost: interventionsCosts.addCost.bind(interventionsCosts),
   addPayment: interventionsCosts.addPayment.bind(interventionsCosts),
   upsertPayment: interventionsCosts.upsertPayment.bind(interventionsCosts),
+  deletePayment: interventionsCosts.deletePayment.bind(interventionsCosts),
   insertInterventionCosts: interventionsCosts.insertInterventionCosts.bind(interventionsCosts),
   calculateMarginForIntervention: interventionsCosts.calculateMarginForIntervention.bind(interventionsCosts),
 

@@ -11,7 +11,7 @@ import { interventionKeys } from "@/lib/react-query/queryKeys"
 import { resolveOwnerForSubmit, resolveTenantForSubmit } from "@/lib/interventions/owner-tenant-helpers"
 import { runPostMutationTasks } from "@/lib/interventions/post-mutation-tasks"
 import { isCostSpecified, isCostFree } from "@/lib/interventions/derivations"
-import { getDepositValidationError, isDepositSpecified, resolveDepositStatusCode } from "@/lib/interventions/deposit-helpers"
+import { getDepositValidationError, isDepositSpecified, resolveDeletedPaymentTypes, resolveDepositStatusCode } from "@/lib/interventions/deposit-helpers"
 import { extractErrorMessage } from "@/lib/toast-helpers"
 import { getReasonTypeForTransition, type StatusReasonType } from "@/lib/comments/statusReason"
 import type { UpdateInterventionData } from "@/lib/api/common/types"
@@ -30,6 +30,8 @@ interface UseInterventionSubmitParams {
   canEditContext: boolean
   readOnly: boolean
   initialStatusCode: string
+  /** Un acompte client existait au chargement (permet de détecter sa suppression). */
+  hadClientDeposit?: boolean
   showReferenceField: boolean
 
   // Validation flags
@@ -69,6 +71,7 @@ export function useInterventionSubmit({
   canEditContext,
   readOnly,
   initialStatusCode,
+  hadClientDeposit = false,
   showReferenceField,
   requiresDefinitiveId,
   requiresDatePrevue,
@@ -105,12 +108,13 @@ export function useInterventionSubmit({
       currentStatusCode: currentCode,
       amount: formData.accompteClient,
       recu: formData.accompteClientRecu,
+      hadDeposit: hadClientDeposit,
     })
     if (!targetCode || targetCode === currentCode) return currentId
     return findStatusIdByCode(targetCode) ?? currentId
   }, [
     formData.statut_id, formData.accompteClient, formData.accompteClientRecu,
-    getInterventionStatusCode, findStatusIdByCode,
+    hadClientDeposit, getInterventionStatusCode, findStatusIdByCode,
   ])
 
   // Refs for tracking artisan changes
@@ -316,6 +320,19 @@ export function useInterventionSubmit({
           payments.push({ payment_type: 'acompte_client', amount: accompteClientValue, currency: 'EUR', is_received: formData.accompteClientRecu || false, payment_date: formData.dateAccompteClientRecu || null })
         }
 
+        // Un acompte vidé doit être SUPPRIMÉ : `upsertPayment` seul laisserait la
+        // ligne en base et l'acompte réapparaîtrait au rechargement du formulaire.
+        // La liste de suppression est exactement le complément des upserts.
+        //
+        // Garde-fou : on ne supprime que depuis les statuts où la section acomptes
+        // est éditable. Ailleurs, un champ vide signifie « non modifiable ici », pas
+        // « l'utilisateur a retiré l'acompte » — sans ce garde, une sauvegarde sans
+        // rapport effacerait des paiements réels.
+        const deletePaymentTypes = resolveDeletedPaymentTypes({
+          currentStatusCode: getInterventionStatusCode(formData.statut_id),
+          upsertedPaymentTypes: payments.map(p => p.payment_type),
+        })
+
         // Mettre à jour les refs de manière optimiste
         const currentPrimaryId = primaryArtisanIdRef.current
         const nextPrimaryId = selectedArtisanId ?? null
@@ -371,6 +388,7 @@ export function useInterventionSubmit({
           costs: allCosts.length > 0 ? allCosts : undefined,
           deleteSecondaryCosts: currentSecondaryId !== null && nextSecondaryId === null,
           payments: payments.length > 0 ? payments : undefined,
+          deletePaymentTypes: deletePaymentTypes.length > 0 ? deletePaymentTypes : undefined,
           queryClient,
           invalidateDashboard: allCosts.length > 0,
           invalidateComments: !!(options?.reason && options.reasonType),
