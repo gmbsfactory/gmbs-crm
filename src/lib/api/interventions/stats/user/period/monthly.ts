@@ -45,7 +45,6 @@ export async function getMonthlyStatsByUser(
   const monthEnd = new Date(monthStart.getFullYear(), monthStart.getMonth() + 1, 0, 23, 59, 59);
   const nextMonthStart = new Date(monthStart.getFullYear(), monthStart.getMonth() + 1, 1);
   const monthStartStr = formatDate(monthStart);
-  const monthEndStr = formatDate(monthEnd);
   const nextMonthStartStr = formatDate(nextMonthStart);
 
   const weeks = computeMonthWeeks(monthStart, monthEnd);
@@ -57,12 +56,12 @@ export async function getMonthlyStatsByUser(
   const nouveauxArtisans = initWeekStats(weekCount);
   const artisansMissionnes = initWeekStats(weekCount);
 
-  // Transitions (préserve la borne historique inclusive sur la fin de mois)
+  // Transitions : borne haute exclusive au 1er du mois suivant, sinon le
+  // dernier jour du mois est perdu (cast de 'YYYY-MM-DD' à minuit).
   const transitions = await fetchUserTransitions({
     userId,
     startStr: monthStartStr,
-    endStr: monthEndStr,
-    comparator: "lte",
+    endStrExclusive: nextMonthStartStr,
     signal,
   });
 

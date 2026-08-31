@@ -857,6 +857,8 @@ Uses dependency injection: `_setCostsRef(interventionsCosts)` is called at modul
 
 > **Périmètre commun des stats de transitions (2026-07-02)** — `fetchUserTransitions` (utilisé par les stats hebdo/mensuelles/annuelles : devis envoyés, inters en cours, inters facturées) applique : (1) données réelles uniquement (≥ go-live lun 29/06/2026 00:00 Paris, acteur humain requis — l'import des 28-29/06 est exclu) ; (2) **une intervention ne compte qu'une fois par statut** sur la période, attribuée à son premier passage (`dedupeFirstTransitionPerIntervention`, testée dans `tests/unit/lib/transitions-scope.test.ts`). Un dossier repassé 4 fois en Devis envoyé compte 1.
 
+> **Bornes de période (2026-08-31)** — `fetchUserTransitions` prend `startStr` (inclusif) et `endStrExclusive` : la borne haute est **toujours** le début de la période suivante (lundi suivant, 1er du mois suivant, 1er janvier suivant). Les bornes sont des dates `YYYY-MM-DD` ; une borne haute inclusive sur le dernier jour de la période était castée à minuit par Postgres et perdait silencieusement **toutes les transitions de ce dernier jour** — les stats mensuelles n'affichaient pas les devis envoyés le 31 du mois alors que la vue hebdo, déjà exclusive, les comptait. Couvert par `tests/unit/lib/api/interventions/stats/user/_shared.test.ts` et `.../period/period-bounds.test.ts`.
+
 ### getStatsByUser(userId, startDate?, endDate?)
 
 Retrieves intervention counts grouped by status for a specific user. Includes virtual "Check" status detection.

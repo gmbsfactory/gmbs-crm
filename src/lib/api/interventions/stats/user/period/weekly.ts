@@ -76,8 +76,7 @@ export async function getWeeklyStatsByUser(
   const transitions = await fetchUserTransitions({
     userId,
     startStr: mondayStr,
-    endStr: nextMondayStr,
-    comparator: "lt",
+    endStrExclusive: nextMondayStr,
     signal,
   });
 
