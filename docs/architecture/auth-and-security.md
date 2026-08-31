@@ -342,7 +342,12 @@ Les permissions suivent le pattern `<action>_<ressource>` :
 | Interventions | `read_interventions`, `write_interventions`, `delete_interventions` |
 | Artisans | `read_artisans`, `write_artisans`, `export_artisans` |
 | Comptabilite | `view_comptabilite` |
+| Import / Export CSV | `import_interventions`, `export_interventions` — reservees au role **admin** (migration `99075`), exceptions possibles par override utilisateur |
 | Administration | `manage_roles`, `manage_settings`, `view_admin` |
+
+> Les cartes Import / Export CSV de la page Profil (`src/features/settings/ImportInterventionsCard.tsx`,
+> `ExportInterventionsCard.tsx`) sont masquees si la permission est absente, et les routes
+> `/api/imports/interventions` / `/api/exports/interventions` repondent 403 via `requirePermission`.
 
 ### Override par utilisateur
 

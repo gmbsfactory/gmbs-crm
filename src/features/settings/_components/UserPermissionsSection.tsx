@@ -146,6 +146,7 @@ function PermissionCategoryBlock({
     emerald: "from-emerald-500/20 to-emerald-600/5 border-emerald-500/20 text-emerald-600 dark:text-emerald-400",
     violet: "from-violet-500/20 to-violet-600/5 border-violet-500/20 text-violet-600 dark:text-violet-400",
     amber: "from-amber-500/20 to-amber-600/5 border-amber-500/20 text-amber-600 dark:text-amber-400",
+    cyan: "from-cyan-500/20 to-cyan-600/5 border-cyan-500/20 text-cyan-600 dark:text-cyan-400",
   }
 
   const colorClass = colorClasses[category.color as keyof typeof colorClasses] || colorClasses.blue

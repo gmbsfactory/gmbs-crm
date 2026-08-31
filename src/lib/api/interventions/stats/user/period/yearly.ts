@@ -55,7 +55,6 @@ export async function getYearlyStatsByUser(
   const yearEnd = new Date(yearStart.getFullYear(), 11, 31, 23, 59, 59);
   const nextYearStart = new Date(yearStart.getFullYear() + 1, 0, 1);
   const yearStartStr = formatDate(yearStart);
-  const yearEndStr = formatDate(yearEnd);
   const nextYearStartStr = formatDate(nextYearStart);
 
   const devisEnvoye = initMonthStats();
@@ -64,12 +63,12 @@ export async function getYearlyStatsByUser(
   const nouveauxArtisans = initMonthStats();
   const artisansMissionnes = initMonthStats();
 
-  // Transitions (borne inclusive historique sur fin d'année)
+  // Transitions : borne haute exclusive au 1er janvier suivant, sinon le
+  // 31 décembre est perdu (cast de 'YYYY-MM-DD' à minuit).
   const transitions = await fetchUserTransitions({
     userId,
     startStr: yearStartStr,
-    endStr: yearEndStr,
-    comparator: "lte",
+    endStrExclusive: nextYearStartStr,
     signal,
   });
 

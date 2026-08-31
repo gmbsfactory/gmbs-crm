@@ -45,10 +45,14 @@ export function requireUserId(userId: string): void {
 }
 
 /**
- * Récupère les transitions de statut d'un utilisateur sur une plage de dates.
- * Le mode `comparator` règle l'inclusion de la borne haute :
- *   - "lt"  → `transition_date < endStr` (typique pour endStr = début de la période suivante)
- *   - "lte" → `transition_date <= endStr` (préserve le comportement historique mois/année)
+ * Récupère les transitions de statut d'un utilisateur sur la plage
+ * [startStrInclusive, endStrExclusive[.
+ *
+ * La borne haute est TOUJOURS exclusive et doit être le début de la période
+ * suivante (lundi suivant, 1er du mois suivant, 1er janvier suivant). Les dates
+ * sont au format `YYYY-MM-DD` : une borne haute inclusive sur le dernier jour
+ * de la période serait castée à minuit par Postgres et perdrait silencieusement
+ * toutes les transitions de ce dernier jour.
  *
  * Périmètre « données réelles » (cf. transitions-scope.ts) : uniquement les
  * transitions postérieures au go-live ET portées par un acteur humain — les
@@ -58,11 +62,10 @@ export function requireUserId(userId: string): void {
 export async function fetchUserTransitions(params: {
   userId: string;
   startStr: string;
-  endStr: string;
-  comparator: "lt" | "lte";
+  endStrExclusive: string;
   signal?: AbortSignal;
 }): Promise<TransitionRow[]> {
-  const { userId, startStr, endStr, comparator, signal } = params;
+  const { userId, startStr, endStrExclusive, signal } = params;
 
   let query = supabase
     .from("intervention_status_transitions")
@@ -78,11 +81,8 @@ export async function fetchUserTransitions(params: {
     .in("to_status_code", TRACKED_STATUS_CODES as unknown as string[])
     .not("changed_by_user_id", "is", null)
     .gte("transition_date", REAL_DATA_START_ISO)
-    .gte("transition_date", startStr);
-
-  query = comparator === "lt"
-    ? query.lt("transition_date", endStr)
-    : query.lte("transition_date", endStr);
+    .gte("transition_date", startStr)
+    .lt("transition_date", endStrExclusive);
 
   if (signal) {
     query = query.abortSignal(signal);

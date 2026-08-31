@@ -6,6 +6,7 @@ import {
   Crown,
   Briefcase,
   UserCog,
+  ArrowDownUp,
 } from "lucide-react"
 
 // Types
@@ -64,6 +65,15 @@ export const PERMISSION_CATEGORIES = {
       { key: "manage_roles", label: "Gerer roles", description: "Attribuer roles et permissions" },
     ]
   },
+  data: {
+    label: "Import / Export CSV",
+    icon: ArrowDownUp,
+    color: "cyan",
+    permissions: [
+      { key: "export_interventions", label: "Exporter interventions", description: "Exporter les interventions en CSV" },
+      { key: "import_interventions", label: "Importer interventions", description: "Importer un CSV (peut ecraser des donnees)" },
+    ]
+  },
   admin: {
     label: "Administration",
     icon: Shield,
@@ -86,6 +96,8 @@ export const ROLE_PERMISSIONS: Record<Role, string[]> = {
     "read_artisans", "write_artisans", "delete_artisans", "export_artisans",
     "read_users", "write_users", "delete_users", "manage_roles",
     "manage_settings", "view_admin", "view_comptabilite",
+    // Import/Export CSV : admin uniquement (migration 99075)
+    "export_interventions", "import_interventions",
   ],
   manager: [
     "read_interventions", "write_interventions",
