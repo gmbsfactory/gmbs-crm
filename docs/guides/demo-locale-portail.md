@@ -20,6 +20,29 @@
 | Téléphone | **Dossier** | Dépose un Kbis (PDF), signe la décharge de partenariat au doigt |
 | CRM | Fiche artisan → Documents | Les pièces déposées apparaissent avec le statut « à vérifier » (`review_status = pending`) |
 
+### 1 bis. Déroulé de démonstration (≈ 10 minutes, ordre conseillé)
+
+Pré-requis : les deux serveurs lancés (§3), base remise à zéro (§6) et téléphone (ou navigateur en mode « appareil mobile ») prêt.
+
+| # | Où | Action | Ce qu'il faut montrer |
+|---|---|---|---|
+| 1 | CRM, ordinateur | Se connecter en `badr@gmbs.fr` / `badr123` | Le gestionnaire assigné aux 8 interventions de démo |
+| 2 | CRM | Artisans → fiche **Karim Benali** → bouton **« Lien portail »** → **Copier** | Lien personnel `http://localhost:3001/t/<jeton>` valable 30 jours ; un nouveau lien révoque le précédent |
+| 3 | Téléphone / navigateur | Ouvrir le lien | Écran **Missions** : 6 missions de Karim (DEMO-001…006, dont DEMO-006 « 2ᵉ artisan »), rien de Sofia ni Yanis |
+| 4 | Téléphone | Mission **DEMO-003** (Inter en cours) → onglet **Photos** → « Avant travaux » → Photo/Galerie | La photo est compressée puis envoyée ; elle apparaît dans la galerie « Avant » |
+| 5 | Téléphone | Onglet **Rapport** → travaux réalisés « Remplacement du mitigeur », durée, client présent → **Envoyer le rapport** | Bandeau « Envoyé, en attente de validation (version 1) » |
+| 6 | CRM | Liste / kanban des interventions | DEMO-003 affichée **« À vérifier »** (violet) sans changement de statut ; toast + reminder « @badr 📋 Rapport de l'inter #DEMO-003 à vérifier » ; commentaire système « Rapport d'intervention reçu de Karim Benali » |
+| 7 | CRM | Ouvrir DEMO-003 → section **« Rapport de l'artisan »** | Champs du rapport, photo « avant », artisan, version ; boutons **Valider le rapport** / **Demander une correction** |
+| 8 | CRM | **Valider le rapport** | Toast, badge « À vérifier » retiré, reminder clos, commentaire « Rapport validé par … » |
+| 9 | Téléphone | Mission DEMO-003 → Rapport | Bandeau **« Rapport validé le … »** |
+| 10 | (variante refus) | Sur **DEMO-004** : envoyer un rapport, puis dans le CRM **Demander une correction** avec un commentaire (« Photos manquantes ») | Téléphone : bandeau « Rapport refusé, à corriger » + commentaire → **Corriger et renvoyer** → version 2 ; CRM : de nouveau « À vérifier » |
+| 11 | Téléphone | Onglet **Dossier** → Kbis → **Déposer** (PDF ou photo) | Pièce « Déposée » (en attente de vérification), compteur 1 / 5 ; PDF > 3 Mo refusé avant envoi |
+| 12 | Téléphone | Dossier → **Décharge de partenariat** → lire, cocher le consentement, signer au doigt → **Signer** | « Décharge signée le … » ; compteur 2 / 5 ; Compte affiche « 2 / 5 pièces » |
+| 13 | CRM | Fiche artisan Karim → Documents | Kbis et décharge présents avec `review_status = pending` |
+| 14 | (optionnel) | Fiche artisan **Sofia Martins** → Lien portail → ouvrir dans un autre navigateur | 2 missions seulement (DEMO-006, DEMO-007) ; un lien bidon → page « Lien invalide ou expiré » |
+
+Astuces : régénérer le lien de Karim pendant la démo montre la révocation (l'ancien téléphone est renvoyé sur « Lien invalide », cookie supprimé) ; la recherche « DEMO-003 » dans la barre du CRM retrouve l'intervention (vues de recherche rafraîchies par le seed).
+
 ---
 
 ## 2. Comptes et données locales
@@ -66,7 +89,9 @@ cd /Users/andrebertea/Projects/GMBS/portal_gmbs && scripts/demo/start-portal.sh 
 
 Variables de `.env.demo.local` du CRM (noms seulement) : `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `NEXT_PUBLIC_SUPABASE_FUNCTIONS_URL`, `GMBS_PORTAL_KEY_ID`, `GMBS_PORTAL_SECRET`, `PORTAL_BASE_URL` (= `http://localhost:3001`), `PORTAL_FALLBACK_USER_ID`. Les clés locales s'obtiennent avec `supabase status -o env`. **Ne jamais copier les valeurs dans un fichier commité.**
 
-Téléphone : sur le même Wi-Fi, remplacer `localhost` par l'IP du Mac dans `PORTAL_BASE_URL` (CRM) et `CRM_BASE_URL` (portail) puis redémarrer les deux serveurs ; sinon utiliser le mode « appareil mobile » des outils de développement du navigateur.
+Téléphone : sur le même Wi-Fi, remplacer `localhost` par l'IP du Mac (`ipconfig getifaddr en0`) dans `PORTAL_BASE_URL` (CRM) et `CRM_BASE_URL` (portail) puis redémarrer les deux serveurs ; sinon utiliser le mode « appareil mobile » des outils de développement du navigateur.
+
+**Limite connue (pas de correctif prévu pour la démo)** : les URL des photos et des pièces renvoyées par le CRM pointent sur le Storage de la Supabase locale, `http://127.0.0.1:54321/storage/v1/object/public/documents/…`. Elles s'affichent depuis le navigateur du Mac (vérifié : `200 image/png`, `200 application/pdf`) mais pas depuis un téléphone, pour qui `127.0.0.1` est lui-même. Depuis un téléphone sur le même Wi-Fi, remplacer `127.0.0.1` par l'IP du Mac dans l'URL (ou montrer les vignettes et la section « Rapport de l'artisan » depuis le navigateur du Mac). Une vraie mise en service utiliserait l'URL publique du projet Supabase.
 
 ---
 
@@ -123,6 +148,32 @@ psql "$DB" -c "select note, is_active from intervention_reminders where note lik
 
 ---
 
+## 4 bis. Ce qui a été vérifié le 2026-09-02 **par le portail** (intégration)
+
+Même base et mêmes serveurs que §4, mais chaque appel passe par le portail (`http://localhost:3001`, pot de cookies curl `-c/-b`) qui relaie vers le CRM ; les routes internes sont appelées avec la session de badr fabriquée par `@supabase/ssr`. Rejoué à l'identique après les correctifs de revue (cookie supprimé sur 401, service worker, limite du dossier).
+
+| Étape | Appel | Résultat obtenu |
+|---|---|---|
+| a | `POST` CRM `/api/artisans/{Karim}/portal-link` (badr) | **200** `{url: http://localhost:3001/t/<64 hex>, expires_at: +30 j}` |
+| b | `GET` portail `/t/{token}` | **303** → `/app/missions`, cookie `portal_token` posé (HttpOnly) |
+| c | `GET /app/missions` avec le cookie | **200** `text/html` (app-shell ; la liste est chargée côté client via l'étape d) ; sans cookie : **307** → `/lien-invalide` |
+| d | `GET /api/portal/me/interventions` | **200** `count = 6` : DEMO-005 (terminée), 003, 006 (2ᵉ artisan), 004, 001, 002 |
+| e | `GET /api/portal/me/interventions/{DEMO-003}` | **200** agence « Agence Démo Portail », 0 photo, `report = null`, locataire présent |
+| f | `POST …/{DEMO-003}/photos` (PNG 1×1, phase avant) | **201** `metadata.artisan_id = Karim` ; URL Storage → **200** `image/png` |
+| g | `POST …/{DEMO-003}/report` (« Remplacement du mitigeur », client présent, 1 photo) | **201** `submitted v1` ; rejeu même `portal_report_id` → **200** `v1` ; base : `has_portal_report = true`, 1 reminder actif, commentaire système |
+| h | `GET` CRM `/api/interventions/{DEMO-003}/portal-report` (badr) | **200** `submitted`, 1 photo (`url`), artisan Karim Benali ; Edge Function `interventions-v2?search=DEMO-003` → `has_portal_report = true` (les 7 autres à `false`) |
+| i | `POST` CRM `…/portal-report/review` `{approved, "Bon travail"}` | **200** `approved` ; base : `has_portal_report = false`, reminder clos |
+| j | `GET` portail `…/{DEMO-003}/report` | **200** `approved`, `review_comment = "Bon travail"` |
+| k | Cycle refus sur DEMO-004 | rapport v1 **201** → second envoi (autre `portal_report_id`) **409** « Report already submitted » → review `rejected` + « Photos manquantes » **200** → portail voit `rejected` + commentaire **200** → nouveau rapport **201** `v2` ; base : `1:rejected 2:submitted`, `has_portal_report = true` |
+| l | Dossier | `GET /api/portal/me/documents` **200** (0 / 5) → `POST` kbis (PDF) **201** (URL → **200** `application/pdf`) → `POST decharge/sign` (PNG) **201** `signed_at` → `GET /api/portal/me` **200** `documents {required 5, present 2}` |
+| m | Lien de Sofia | portal-link **200**, `/t/` **303**, missions **200** `count = 2` (DEMO-007, DEMO-006) ; DEMO-003 avec le jeton de Sofia → **404** |
+| n | Jeton bidon | `/t/<64 zéros>` **303** → `/lien-invalide` sans cookie ; `/t/abc` **303** → `/lien-invalide` (**200** en suivant) |
+| n' | Ancien jeton de Karim après régénération du lien | **401** « Token revoked » + `Set-Cookie: portal_token=; Expires=1970` (cookie supprimé par le proxy) |
+
+Recherche : `search_global('DEMO-003')` (RPC utilisée par la barre de recherche, appelée via PostgREST avec la session de badr) renvoie l'intervention DEMO-003 après `load-seed.sh` (le seed rafraîchit désormais `interventions_search_mv`, `artisans_search_mv` et `global_search_mv`).
+
+---
+
 ## 5. Dépannage
 
 | Symptôme | Cause probable | Correctif |
@@ -137,7 +188,10 @@ psql "$DB" -c "select note, is_active from intervention_reminders where note lik
 | Photo `500 Upload failed` | Bucket `documents` absent ou type MIME non autorisé par le bucket | `select id, public from storage.buckets` ; recréer via `supabase db reset` |
 | `409` à l'envoi du rapport | Statut ∉ Accepté / Inter en cours / SAV, ou rapport déjà soumis / validé | Choisir DEMO-003/004/006, ou refuser le rapport côté CRM pour ouvrir une version 2 |
 | « À vérifier » n'apparaît pas dans le CRM | Edge Function locale sans `has_portal_report` | `supabase functions serve` recharge `supabase/functions/interventions-v2/_lib/helpers.ts` ; sinon `supabase stop && supabase start` |
-| Recherche « DEMO-003 » vide dans la barre du CRM | Vue matérialisée de recherche non rafraîchie après le seed | Passer par la liste filtrée par agence « Agence Démo Portail », ou `refresh materialized view concurrently interventions_search_mv` |
+| Recherche « DEMO-003 » vide dans la barre du CRM | Vues matérialisées de recherche non rafraîchies (seed chargé avec une ancienne version) | Relancer `scripts/demo/load-seed.sh` (rafraîchit les vues en fin de seed) ou `refresh materialized view interventions_search_mv` |
+| Le téléphone affiche « Lien invalide » juste après un nouveau lien | Comportement attendu : un nouveau lien révoque les précédents (401 « Token revoked », cookie supprimé) | Ouvrir le nouveau lien |
+| Photo ou PDF non affichés depuis le téléphone | URL Storage `127.0.0.1:54321` (limite connue, §3) | Remplacer `127.0.0.1` par l'IP du Mac dans l'URL, ou montrer depuis le Mac |
+| « Fichier trop volumineux » sur le dossier | Limite portail 3 Mo par fichier (CRM : 4 Mo de base64) ; les images sont compressées automatiquement, pas les PDF | Réduire le PDF ou le photographier |
 | Routes internes répondent `307` en curl | Pas de session (cookies) ou `crm_session_date` absent | Copier l'en-tête `Cookie` du navigateur (§4) |
 | `supabase db reset` échoue sur 99076 | Objet portail créé à la main avec une DDL différente | `drop table artisan_reports, artisan_portal_tokens cascade` puis relancer (base locale uniquement) |
 

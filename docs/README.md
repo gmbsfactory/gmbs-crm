@@ -32,6 +32,7 @@ Conception technique du systeme, flux de donnees et patterns architecturaux.
 | [Authentification et Securite](architecture/auth-and-security.md) | Auth Supabase, RBAC, RLS, middleware |
 | [Workflow Engine](architecture/workflow-engine.md) | Machine a etats des interventions, transitions, validation cumulative |
 | [Portail artisans v2](architecture/portail-artisans-v2.md) | Etat des lieux CRM <-> portail, carte des echanges HTTP, ecart depose_docs -> main, plan de reprise, vision cible PWA + natif |
+| [Portail : contrat d'API de la demo locale](architecture/portail-demo-contrat-api.md) | Contrat commun CRM <-> portail (auth cle/secret + jeton, routes portal-external, routes internes, base locale, seed, portail) — fait foi |
 
 ---
 
@@ -59,6 +60,7 @@ Guides pratiques pour les cas d'usage courants du developpement.
 | [Gerer la base de donnees](guides/managing-database.md) | Migrations Supabase, types, seeds |
 | [Gestion des erreurs](guides/error-handling.md) | ErrorHandler, boundaries, patterns |
 | [Plan de tests CRM <-> portail](guides/portail-artisans-plan-tests.md) | Pre-requis (ports, env), matrice de tests curl par flux, tests automatises, smoke test staging |
+| [Demo locale du portail artisans](guides/demo-locale-portail.md) | Scenario pas a pas pour GMBS (lien portail, missions, photos, rapport, validation, dossier), lancement local, verification curl, depannage |
 
 ---
 
@@ -69,6 +71,7 @@ Reference technique des modules API, hooks et Edge Functions.
 | Page | Description |
 |------|-------------|
 | [Interventions API](api-reference/interventions.md) | CRUD, statuts, couts, stats, filtres (5 sous-modules) |
+| [Portail artisans : API portal-external](api-reference/portal-external.md) | Routes appelees par le portail (jeton, missions, photos, rapport, dossier) et routes internes (lien portail, revue du rapport) — contrat implemente |
 | [Artisans API](api-reference/artisans.md) | CRUD, metiers, zones, absences, statuts |
 | [Users API](api-reference/users.md) | Auth, roles, permissions, gestion utilisateurs |
 | [Documents API](api-reference/documents.md) | Upload, stockage Supabase Storage, types supportes |
