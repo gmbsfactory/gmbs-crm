@@ -9,6 +9,11 @@ import { cn } from "@/lib/utils"
 import { STATUS_SORT_ORDER } from "@/lib/interventions/form-constants"
 import type { InterventionFormData } from "@/lib/interventions/form-types"
 import type { ReferenceData } from "@/lib/reference-api"
+import {
+  PORTAL_REPORT_REVIEW_COLOR,
+  PORTAL_REPORT_REVIEW_LABEL,
+  isPortalReportToReview,
+} from "@/lib/interventions/portal-report-status"
 
 interface InterventionHeaderFieldsProps {
   formData: InterventionFormData
@@ -21,6 +26,12 @@ interface InterventionHeaderFieldsProps {
   /** When true, wraps fields in PresenceFieldIndicator */
   withPresence?: boolean
   onPopoverOpenChange?: (isOpen: boolean) => void
+  /**
+   * Portail artisans : vrai quand un rapport est en attente de vérification.
+   * Le badge de statut affiche alors « À vérifier » (violet) pour
+   * ACCEPTE / INTER_EN_COURS / SAV, sans changer la valeur sélectionnée.
+   */
+  hasPortalReport?: boolean
 }
 
 /** Shared header row: user badge, status, agency, reference, metier, id_inter */
@@ -33,8 +44,14 @@ export function InterventionHeaderFields({
   renderUserBadge,
   withPresence = false,
   onPopoverOpenChange,
+  hasPortalReport = false,
 }: InterventionHeaderFieldsProps) {
   const Presence = withPresence ? PresenceFieldIndicator : PassThrough
+
+  const selectedStatusCode = (refData?.interventionStatuses || []).find((s) => s.id === formData.statut_id)?.code ?? null
+  const statusSelectedDisplay = isPortalReportToReview(selectedStatusCode, hasPortalReport)
+    ? { label: PORTAL_REPORT_REVIEW_LABEL, color: PORTAL_REPORT_REVIEW_COLOR }
+    : null
 
   return (
     <Card className="legacy-form-card" style={{ gridArea: "1 / 1 / 2 / 5" }}>
@@ -62,6 +79,7 @@ export function InterventionHeaderFields({
               onOpenChange={onPopoverOpenChange}
               searchPlaceholder="Rechercher un statut..."
               sortAlphabetically={false}
+              selectedDisplay={statusSelectedDisplay}
               presenceFieldName={withPresence ? "statut_id" : undefined}
               options={(refData?.interventionStatuses || [])
                 .map((s) => ({

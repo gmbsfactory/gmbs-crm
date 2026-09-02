@@ -1,6 +1,11 @@
 // ===== UTILITAIRES COMMUNS POUR L'API V2 =====
 // Fonctions partagées entre toutes les APIs
 
+import {
+  PORTAL_REPORT_REVIEW_COLOR,
+  PORTAL_REPORT_REVIEW_LABEL,
+  isPortalReportToReview,
+} from "@/lib/interventions/portal-report-status";
 import { supabase } from "./client";
 
 // Ré-exporter le cache centralisé
@@ -264,6 +269,11 @@ export const mapInterventionRecord = (item: any, refs: any): any => {
     : undefined;
   const statusCode =
     normalizedStatus?.code ?? item.statut ?? item.statusValue ?? null;
+
+  // Portail artisans : un rapport soumis (has_portal_report) affiche
+  // « À vérifier » en violet pour ACCEPTE / INTER_EN_COURS / SAV, sans changer le statut
+  const hasPortalReport: boolean = item.has_portal_report ?? false;
+  const portalReportToReview = isPortalReportToReview(statusCode, hasPortalReport);
   const metier = item.metier_id
     ? refs.metiersById?.get(item.metier_id)
     : undefined;
@@ -356,7 +366,10 @@ export const mapInterventionRecord = (item: any, refs: any): any => {
     owner_id: ownerId,
     client_id: item.client_id ?? tenantId,
     status: normalizedStatus,
-    statusLabel: normalizedStatus?.label ?? item.statusLabel ?? null,
+    statusLabel: portalReportToReview
+      ? PORTAL_REPORT_REVIEW_LABEL
+      : (normalizedStatus?.label ?? item.statusLabel ?? null),
+    has_portal_report: hasPortalReport,
     artisans: artisanIds, // Liste des IDs d'artisans
     artisan: artisanDisplayName, // Nom d'affichage de l'artisan principal (raison_sociale > plain_nom > prenom nom)
     primaryArtisan: primaryArtisanData, // Données complètes de l'artisan principal
@@ -438,7 +451,9 @@ export const mapInterventionRecord = (item: any, refs: any): any => {
     assignedUserAvatarUrl: userInfo.avatarUrl ?? null,
     statut: statusCode,
     statusValue: statusCode,
-    statusColor: normalizedStatus?.color ?? null,
+    statusColor: portalReportToReview
+      ? PORTAL_REPORT_REVIEW_COLOR
+      : (normalizedStatus?.color ?? null),
     pourcentageSST: item.pourcentage_sst ?? item.pourcentageSST ?? null,
     commentaire: item.commentaire ?? item.commentaire_agent ?? null,
     demandeIntervention:

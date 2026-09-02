@@ -2,6 +2,11 @@ import type { InterventionStatusValue } from "@/types/interventions"
 import type { WorkflowConfig } from "@/types/intervention-workflow"
 import { INTERVENTION_STATUS } from "@/config/interventions"
 import { iconForStatus } from "./status-icons"
+import {
+  PORTAL_REPORT_REVIEW_COLOR,
+  PORTAL_REPORT_REVIEW_LABEL,
+  isPortalReportToReview,
+} from "./portal-report-status"
 
 /**
  * Représente un statut hydraté depuis la base de données
@@ -27,6 +32,13 @@ export interface GetStatusDisplayOptions {
    * Permet de récupérer les labels/couleurs depuis workflow.statuses
    */
   workflow?: WorkflowConfig | null
+  /**
+   * Indique si un rapport envoyé depuis le portail artisans est en attente
+   * (`interventions.has_portal_report`). Si vrai et que le statut est
+   * ACCEPTE, INTER_EN_COURS ou SAV, l'affichage devient « À vérifier » (violet),
+   * sans modifier le statut en base.
+   */
+  hasPortalReport?: boolean
 }
 
 /**
@@ -42,6 +54,7 @@ export interface StatusDisplay {
  * Helper centralisé pour obtenir l'affichage d'un statut (label, couleur, icône).
  * 
  * Ordre de priorité :
+ * 0. hasPortalReport + statut ACCEPTE/INTER_EN_COURS/SAV → « À vérifier » (violet)
  * 1. statusFromDb (label et couleur depuis la DB) - source de vérité absolue
  * 2. workflow.statuses (label et couleur depuis la config workflow)
  * 3. INTERVENTION_STATUS (fallback legacy)
@@ -66,7 +79,16 @@ export function getStatusDisplay(
     }
   }
 
-  const { statusFromDb, workflow } = options
+  const { statusFromDb, workflow, hasPortalReport } = options
+
+  // 0. Rapport portail à vérifier : prime sur le libellé/couleur du statut
+  if (isPortalReportToReview(code, hasPortalReport)) {
+    return {
+      label: PORTAL_REPORT_REVIEW_LABEL,
+      color: PORTAL_REPORT_REVIEW_COLOR,
+      icon: iconForStatus(code as InterventionStatusValue),
+    }
+  }
 
   // 1. Priorité absolue : statusFromDb (hydraté depuis la DB via mapInterventionRecord)
   if (statusFromDb && statusFromDb.code === code) {

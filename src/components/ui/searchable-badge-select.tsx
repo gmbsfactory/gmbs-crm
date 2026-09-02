@@ -29,6 +29,12 @@ export interface SearchableBadgeSelectProps {
   sortAlphabetically?: boolean
   /** Field name for presence tracking (renders data-presence-field on root) */
   presenceFieldName?: string
+  /**
+   * Remplace le libellé/couleur affichés sur le badge sélectionné, sans toucher
+   * à la liste des options (ex. statut affiché « À vérifier » quand un rapport
+   * portail est en attente).
+   */
+  selectedDisplay?: { label: string; color?: string | null } | null
 }
 
 export function SearchableBadgeSelect({
@@ -45,6 +51,7 @@ export function SearchableBadgeSelect({
   onOpenChange,
   sortAlphabetically = true,
   presenceFieldName,
+  selectedDisplay,
 }: SearchableBadgeSelectProps) {
   const [open, setOpen] = React.useState(false)
 
@@ -74,8 +81,8 @@ export function SearchableBadgeSelect({
   }, [processedOptions, search])
 
   const selectedOption = options.find((o) => o.id === value)
-  const selectedColor = selectedOption?.color || "#6b7280"
-  const selectedLabel = selectedOption?.label || placeholder
+  const selectedColor = (selectedOption && selectedDisplay?.color) || selectedOption?.color || "#6b7280"
+  const selectedLabel = (selectedOption && selectedDisplay?.label) || selectedOption?.label || placeholder
 
   // Réinitialiser la recherche quand le popover se ferme et focus l'input
   React.useEffect(() => {

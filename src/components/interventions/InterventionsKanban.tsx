@@ -18,6 +18,11 @@ import type { InterventionView } from "@/types/intervention-view"
 import { mapStatusToDb } from "@/lib/interventions/mappers"
 import { INTERVENTION_STATUS } from "@/config/interventions"
 import { getInterventionStatusColor } from "@/config/status-colors"
+import {
+  PORTAL_REPORT_REVIEW_COLOR,
+  PORTAL_REPORT_REVIEW_LABEL,
+  isPortalReportToReview,
+} from "@/lib/interventions/portal-report-status"
 import type { InterventionModalOpenOptions } from "@/hooks/useInterventionModal"
 
 const DEFAULT_STATUS_COLOR = "#6B7280"
@@ -177,6 +182,11 @@ export default function InterventionsKanban({
             <KanbanCards<KanbanItem> id={column.id} className="min-h-[160px]">
               {(item) => {
                 const intervention = item.intervention
+                // Portail artisans : rapport soumis → badge « À vérifier » (violet)
+                const portalReportToReview = isPortalReportToReview(
+                  intervention.statusValue,
+                  intervention.has_portal_report,
+                )
                 return (
                   <KanbanCard id={item.id} name={item.name} column={item.column} key={item.id}>
                     <div className="space-y-3 text-xs">
@@ -186,7 +196,18 @@ export default function InterventionsKanban({
                             {initials(intervention.nomClient || intervention.prenomClient)}
                           </span>
                           <div className="min-w-0">
-                            <p className="truncate text-sm font-medium">{item.name}</p>
+                            <p className="flex items-center gap-1.5 truncate text-sm font-medium">
+                              <span className="truncate">{item.name}</span>
+                              {portalReportToReview && (
+                                <span
+                                  className="inline-flex shrink-0 items-center rounded-full px-1.5 py-0.5 text-[10px] font-semibold text-white"
+                                  style={{ backgroundColor: PORTAL_REPORT_REVIEW_COLOR }}
+                                  title="Rapport de l'artisan à vérifier"
+                                >
+                                  {PORTAL_REPORT_REVIEW_LABEL}
+                                </span>
+                              )}
+                            </p>
                             <p className="truncate text-muted-foreground">
                               {(intervention.prenomClient || "") + " " + (intervention.nomClient || "") || "Client inconnu"}
                             </p>

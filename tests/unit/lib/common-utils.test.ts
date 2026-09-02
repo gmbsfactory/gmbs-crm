@@ -337,6 +337,49 @@ describe('common/utils', () => {
       expect(result.artisans).toEqual([])
     })
 
+    describe('has_portal_report (portail artisans)', () => {
+      const status = (code: string, label: string) => ({ id: `s-${code}`, code, label, color: '#3B82F6', sort_order: 1 })
+
+      it('should default has_portal_report to false when the column is absent', () => {
+        const result = mapInterventionRecord({ status: status('ACCEPTE', 'Accepté') }, defaultRefs)
+        expect(result.has_portal_report).toBe(false)
+        expect(result.statusLabel).toBe('Accepté')
+        expect(result.statusColor).toBe('#3B82F6')
+      })
+
+      it('should normalize a null column to false', () => {
+        const result = mapInterventionRecord({ has_portal_report: null, status: status('SAV', 'SAV') }, defaultRefs)
+        expect(result.has_portal_report).toBe(false)
+        expect(result.statusLabel).toBe('SAV')
+      })
+
+      it.each(['ACCEPTE', 'INTER_EN_COURS', 'SAV'])(
+        'should expose « À vérifier » in purple for %s when a report is pending',
+        (code) => {
+          const result = mapInterventionRecord(
+            { has_portal_report: true, status: status(code, `Libellé ${code}`) },
+            defaultRefs,
+          )
+          expect(result.has_portal_report).toBe(true)
+          expect(result.statusLabel).toBe('À vérifier')
+          expect(result.statusColor).toBe('#9333EA')
+          // Le statut réel n'est pas modifié
+          expect(result.statusValue).toBe(code)
+          expect(result.status?.label).toBe(`Libellé ${code}`)
+        },
+      )
+
+      it('should keep the DB label for a status outside ACCEPTE/INTER_EN_COURS/SAV', () => {
+        const result = mapInterventionRecord(
+          { has_portal_report: true, status: status('INTER_TERMINEE', 'Inter terminée') },
+          defaultRefs,
+        )
+        expect(result.has_portal_report).toBe(true)
+        expect(result.statusLabel).toBe('Inter terminée')
+        expect(result.statusColor).toBe('#3B82F6')
+      })
+    })
+
     it('should handle status from relationship', () => {
       const item = {
         status: { id: 's-1', code: 'DEMANDE', label: 'Demandé', color: '#3B82F6', sort_order: 1 },

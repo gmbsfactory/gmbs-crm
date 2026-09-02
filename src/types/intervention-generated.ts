@@ -36,6 +36,9 @@ export type InterventionUpdate = Database['public']['Tables']['interventions']['
  * Utilise le type généré depuis le schéma SQL
  */
 export interface Intervention extends InterventionRow {
+    // Portail artisans : `has_portal_report` (boolean | null) est hérité de InterventionRow
+    // (colonne `interventions.has_portal_report`, maintenue par trigger) ; mapInterventionRecord
+    // le normalise en booléen (`record.has_portal_report ?? false`).
     // Relations optionnelles (chargées via JOIN)
     artisans?: string[]; // IDs des artisans associés
     costs?: InterventionCost[];

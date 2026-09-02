@@ -21,6 +21,8 @@ export function renderStatusCell({ intervention, style, themeMode }: Omit<CellRe
       label: statusInfo.label ?? String(value),
       color: statusInfo.color ?? null,
     } : undefined,
+    // Portail artisans : rapport soumis → « À vérifier » (violet)
+    hasPortalReport: Boolean((intervention as any).has_portal_report),
   })
 
   const payments = (intervention as any).payments as Array<{ payment_type?: string; is_received?: boolean; payment_date?: string | null }> | undefined
