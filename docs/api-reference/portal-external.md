@@ -111,7 +111,7 @@ Bucket `documents`, chemin `artisans/{artisanId}/{kind}/{timestamp}-{filename}` 
 ### `POST /me/documents/decharge/sign`
 
 Corps `{ signer_name, consent: true, signature_png_base64 }` → `201 { document: { id, url }, signed_at }`.
-« Signature simple » : le PNG du tracé (en-tête PNG vérifié, sinon `415`) est déposé en `artisan_attachments (kind='decharge_partenariat', review_status='pending')` avec `metadata={source:'portal', signed_at, signer_name, ip, user_agent, consent_text, sha256}`. `400` si `consent` ≠ `true` ou `signer_name` vide.
+« Signature simple » : le PNG du tracé (en-tête PNG vérifié, sinon `415`) est déposé en `artisan_attachments (kind='decharge_partenariat', review_status='pending')` avec `metadata={source:'portal', signed_at, signer_name, ip, user_agent, consent_text, sha256}` (`ip` = première IP de `X-Forwarded-For` sinon `X-Real-IP`, `user_agent` = en-tête `User-Agent` ; le portail relaie ceux du navigateur de l'artisan). `400` si `consent` ≠ `true` ou `signer_name` vide.
 
 ---
 
@@ -120,8 +120,8 @@ Corps `{ signer_name, consent: true, signature_png_base64 }` → `201 { document
 | Route | Permission | Comportement |
 |---|---|---|
 | `POST /api/artisans/{id}/portal-link` | `write_artisans` | `200 { url: "${PORTAL_BASE_URL}/t/<token>", expires_at }` ; 32 octets aléatoires en hex, `sha256` stocké dans `artisan_portal_tokens.token_hash`, jetons précédents désactivés, expiration +30 j ; `404` artisan inconnu, `409` artisan désactivé. Sans `PORTAL_BASE_URL` : `503 {error:"Portal not configured"}` en production (vérifié **avant** toute écriture : aucun jeton désactivé ni créé), repli `http://localhost:3001` hors production (démo). |
-| `GET /api/interventions/{id}/portal-report` | `read_interventions` | `{ report \| null, photos: [intervention_attachments kind='photos' et metadata.source='portal'], artisan: {id, nom, prenom} }` — dernier rapport toutes versions confondues ; sans rapport, `artisan` = artisan principal. |
-| `POST /api/interventions/{id}/portal-report/review` | `write_interventions` | `{ decision: 'approved' \| 'rejected', comment? }` → `200 { report }`. Met à jour `status`, `reviewed_by` (utilisateur courant), `reviewed_at`, `review_comment` ; clôt **uniquement** le reminder de rapport (`note ILIKE '@%📋 Rapport%'`) ; commentaire système « Rapport validé par <Prénom Nom>[ : commentaire] » / « Rapport refusé par … : … » ; `404` sans rapport, `409` déjà traité. Ne change pas le statut de l'intervention ; sur `rejected` le trigger remet `has_portal_report = false`. |
+| `GET /api/interventions/{id}/portal-report` | `read_interventions` | `{ report \| null, photos: [intervention_attachments kind='photos' et metadata.source='portal'], artisan: {id, nom, prenom} }` — rapport **en attente** (`submitted`) s'il en existe un, sinon le plus récent (`pickPortalReport`, `src/lib/portal-external/interventions.ts`), tous artisans confondus ; sans rapport, `artisan` = artisan principal. |
+| `POST /api/interventions/{id}/portal-report/review` | `write_interventions` | `{ decision: 'approved' \| 'rejected', comment? }` → `200 { report }`. Traite le rapport `submitted` de l'intervention (sur une intervention à deux artisans, celui du second même si celui du premier est déjà validé). Met à jour `status`, `reviewed_by` (utilisateur courant), `reviewed_at`, `review_comment` ; clôt **uniquement** le reminder de rapport (`note ILIKE '@%📋 Rapport%'`), et seulement s'il ne reste aucun autre rapport `submitted` ; commentaire système « Rapport validé par <Prénom Nom>[ : commentaire] » / « Rapport refusé par … : … » ; `404` sans rapport, `409` déjà traité. Ne change pas le statut de l'intervention ; sur `rejected` le trigger remet `has_portal_report = false`. |
 
 Sans session, ces routes passent par le middleware du CRM : réponse `307` vers `/login` (et non `401`).
 
@@ -153,6 +153,8 @@ Sans session, ces routes passent par le middleware du CRM : réponse `307` vers 
 - `tests/unit/api/portal-external/documents.test.ts` — kind invalide 400, 413, 415 (MIME hors liste, SVG, octets ≠ MIME), 201, GET par type ;
 - `tests/unit/api/portal-external/photos.test.ts` — 415 SVG, 415 octets ≠ MIME, 400 phase invalide ;
 - `tests/unit/api/artisans/portal-link.test.ts` — 503 sans `PORTAL_BASE_URL` en production (aucune écriture), 200 (hachage seul stocké), repli local hors production, 404, 409, permission refusée ;
-- `tests/unit/api/interventions/portal-report-review.test.ts` — 401/403, approved, rejected, 404, 409.
+- `tests/unit/api/interventions/portal-report-review.test.ts` — 401/403, approved, rejected, 404, 409, deux artisans (rapport `submitted` du second traité, reminder conservé tant qu'un rapport attend).
+- `tests/unit/api/interventions/portal-report-get.test.ts` — 401, 404, sans rapport (artisan principal), dernier rapport, deux artisans.
+- `tests/unit/lib/portal-external/interventions.test.ts` — `pickPortalReport`.
 
 Mock partagé : `tests/__mocks__/portal-external-client.ts` (client Supabase « planifié », résultats consommés table par table).

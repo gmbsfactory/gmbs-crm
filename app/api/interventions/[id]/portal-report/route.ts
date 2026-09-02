@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { requirePermission, isPermissionError } from '@/lib/auth/permissions'
 import { createServerSupabaseAdmin } from '@/lib/supabase/server'
-import { PORTAL_REPORT_COLUMNS } from '@/lib/portal-external/interventions'
+import { PORTAL_REPORT_COLUMNS, pickPortalReport } from '@/lib/portal-external/interventions'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -16,8 +16,11 @@ interface ArtisanRef {
 
 /**
  * GET /api/interventions/{id}/portal-report  (permission read_interventions)
- * Dernier rapport portail de l'intervention, ses photos (déposées depuis le
- * portail) et l'artisan concerné → `{ report | null, photos, artisan }`.
+ * Rapport portail à afficher, ses photos (déposées depuis le portail) et
+ * l'artisan concerné → `{ report | null, photos, artisan }`.
+ * Intervention à plusieurs artisans : le rapport **en attente** (`submitted`)
+ * passe avant le dernier rapport traité, quel que soit l'artisan
+ * (cf. `pickPortalReport`).
  */
 export async function GET(request: Request, { params }: Params) {
   const permCheck = await requirePermission(request, 'read_interventions')
@@ -46,9 +49,7 @@ export async function GET(request: Request, { params }: Params) {
         .select(`artisan_id, artisan:artisans!artisan_id ( id, nom, prenom ), ${PORTAL_REPORT_COLUMNS}`)
         .eq('intervention_id', id)
         .order('version', { ascending: false })
-        .order('submitted_at', { ascending: false })
-        .limit(1)
-        .maybeSingle(),
+        .order('submitted_at', { ascending: false }),
       supabase
         .from('intervention_attachments')
         .select('id, url, filename, created_at, created_by_display, metadata')
@@ -66,11 +67,14 @@ export async function GET(request: Request, { params }: Params) {
     let report: Record<string, unknown> | null = null
     let artisan: ArtisanRef | null = null
 
-    if (reportRes.data) {
-      const { artisan_id: _artisanId, artisan: artisanRel, ...rest } = reportRes.data as Record<string, unknown> & {
-        artisan_id: string
-        artisan: ArtisanRef | ArtisanRef[] | null
-      }
+    type ReportRow = Record<string, unknown> & {
+      status: string
+      artisan_id: string
+      artisan: ArtisanRef | ArtisanRef[] | null
+    }
+    const selected = pickPortalReport((reportRes.data ?? []) as unknown as ReportRow[])
+    if (selected) {
+      const { artisan_id: _artisanId, artisan: artisanRel, ...rest } = selected
       void _artisanId
       report = rest
       artisan = Array.isArray(artisanRel) ? artisanRel[0] ?? null : artisanRel

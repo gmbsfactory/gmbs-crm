@@ -161,7 +161,7 @@ Même base et mêmes serveurs que §4, mais chaque appel passe par le portail (`
 | e | `GET /api/portal/me/interventions/{DEMO-003}` | **200** agence « Agence Démo Portail », 0 photo, `report = null`, locataire présent |
 | f | `POST …/{DEMO-003}/photos` (PNG 1×1, phase avant) | **201** `metadata.artisan_id = Karim` ; URL Storage → **200** `image/png` |
 | g | `POST …/{DEMO-003}/report` (« Remplacement du mitigeur », client présent, 1 photo) | **201** `submitted v1` ; rejeu même `portal_report_id` → **200** `v1` ; base : `has_portal_report = true`, 1 reminder actif, commentaire système |
-| h | `GET` CRM `/api/interventions/{DEMO-003}/portal-report` (badr) | **200** `submitted`, 1 photo (`url`), artisan Karim Benali ; Edge Function `interventions-v2?search=DEMO-003` → `has_portal_report = true` (les 7 autres à `false`) |
+| h | `GET` CRM `/api/interventions/{DEMO-003}/portal-report` (badr) | **200** `submitted`, 1 photo (`url`), artisan Karim Benali ; Edge Function `GET $FN/interventions-v2/interventions?search=DEMO-003` (la racine `…/interventions-v2` répond **405**) → `has_portal_report = true` (les 7 autres à `false`) |
 | i | `POST` CRM `…/portal-report/review` `{approved, "Bon travail"}` | **200** `approved` ; base : `has_portal_report = false`, reminder clos |
 | j | `GET` portail `…/{DEMO-003}/report` | **200** `approved`, `review_comment = "Bon travail"` |
 | k | Cycle refus sur DEMO-004 | rapport v1 **201** → second envoi (autre `portal_report_id`) **409** « Report already submitted » → review `rejected` + « Photos manquantes » **200** → portail voit `rejected` + commentaire **200** → nouveau rapport **201** `v2` ; base : `1:rejected 2:submitted`, `has_portal_report = true` |
@@ -169,8 +169,9 @@ Même base et mêmes serveurs que §4, mais chaque appel passe par le portail (`
 | m | Lien de Sofia | portal-link **200**, `/t/` **303**, missions **200** `count = 2` (DEMO-007, DEMO-006) ; DEMO-003 avec le jeton de Sofia → **404** |
 | n | Jeton bidon | `/t/<64 zéros>` **303** → `/lien-invalide` sans cookie ; `/t/abc` **303** → `/lien-invalide` (**200** en suivant) |
 | n' | Ancien jeton de Karim après régénération du lien | **401** « Token revoked » + `Set-Cookie: portal_token=; Expires=1970` (cookie supprimé par le proxy) |
+| o | DEMO-006 (deux artisans) : rapport de Sofia (principale) v1 refusé puis v2 validé, **puis** rapport v1 de Karim (secondaire) | Karim **201** `submitted` ; `GET …/portal-report` renvoie le rapport **en attente** de Karim (et non le v2 validé de Sofia) ; `review` **200** ; reminder clos seulement quand plus aucun rapport n'attend (correctif QA du 2026-09-02) |
 
-Recherche : `search_global('DEMO-003')` (RPC utilisée par la barre de recherche, appelée via PostgREST avec la session de badr) renvoie l'intervention DEMO-003 après `load-seed.sh` (le seed rafraîchit désormais `interventions_search_mv`, `artisans_search_mv` et `global_search_mv`).
+Recherche : `POST $SUPABASE_URL/rest/v1/rpc/search_global` avec le corps `{"p_query":"DEMO-003"}` (RPC utilisée par la barre de recherche, appelée via PostgREST avec la session de badr ; le paramètre s'appelle bien `p_query`, `search_query` donne `PGRST202`) renvoie l'intervention DEMO-003 après `load-seed.sh` (le seed rafraîchit désormais `interventions_search_mv`, `artisans_search_mv` et `global_search_mv`).
 
 ---
 
@@ -187,9 +188,11 @@ Recherche : `search_global('DEMO-003')` (RPC utilisée par la barre de recherche
 | Le portail affiche 0 mission | Seed non chargé, ou jeton d'un autre artisan | `scripts/demo/load-seed.sh` ; vérifier `select count(*) from intervention_artisans where artisan_id='d0000000-0000-4000-8000-00000000a001'` (= 6) |
 | Photo `500 Upload failed` | Bucket `documents` absent ou type MIME non autorisé par le bucket | `select id, public from storage.buckets` ; recréer via `supabase db reset` |
 | `409` à l'envoi du rapport | Statut ∉ Accepté / Inter en cours / SAV, ou rapport déjà soumis / validé | Choisir DEMO-003/004/006, ou refuser le rapport côté CRM pour ouvrir une version 2 |
+| `409` « Ce rapport a déjà été traité » à la revue alors que l'inter est « À vérifier » | Ancien comportement (rapport le plus récent tous artisans confondus) ; corrigé : la revue traite le rapport `submitted` | Relancer `start-crm.sh` sur la branche à jour ; vérifier `select artisan_id, version, status from artisan_reports where intervention_id = …` |
 | « À vérifier » n'apparaît pas dans le CRM | Edge Function locale sans `has_portal_report` | `supabase functions serve` recharge `supabase/functions/interventions-v2/_lib/helpers.ts` ; sinon `supabase stop && supabase start` |
 | Recherche « DEMO-003 » vide dans la barre du CRM | Vues matérialisées de recherche non rafraîchies (seed chargé avec une ancienne version) | Relancer `scripts/demo/load-seed.sh` (rafraîchit les vues en fin de seed) ou `refresh materialized view interventions_search_mv` |
 | Le téléphone affiche « Lien invalide » juste après un nouveau lien | Comportement attendu : un nouveau lien révoque les précédents (401 « Token revoked », cookie supprimé) | Ouvrir le nouveau lien |
+| Fiche artisan : `statut_dossier` passe de `INCOMPLET` à « À compléter » dès la première pièce déposée | Comportement attendu du trigger `update_artisan_dossier_status_on_attachment_change` (fonction `calculate_artisan_dossier_status`, migration `99015`) : 0 pièce → `INCOMPLET`, 1 à 4 → « À compléter », 5 → `COMPLET` ; ces trois valeurs sont le type `DossierStatus` de `src/lib/artisans/dossierStatus.ts` et les vues artisans filtrent dessus | Rien à corriger ; le portail affiche de son côté `statut_code` (CONFIRME) et le compteur `present / 5` |
 | Photo ou PDF non affichés depuis le téléphone | URL Storage `127.0.0.1:54321` (limite connue, §3) | Remplacer `127.0.0.1` par l'IP du Mac dans l'URL, ou montrer depuis le Mac |
 | « Fichier trop volumineux » sur le dossier | Limite portail 3 Mo par fichier (CRM : 4 Mo de base64) ; les images sont compressées automatiquement, pas les PDF | Réduire le PDF ou le photographier |
 | Routes internes répondent `307` en curl | Pas de session (cookies) ou `crm_session_date` absent | Copier l'en-tête `Cookie` du navigateur (§4) |

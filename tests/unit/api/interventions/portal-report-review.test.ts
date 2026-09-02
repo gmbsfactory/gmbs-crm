@@ -49,9 +49,9 @@ function reviewedReport(status: 'approved' | 'rejected', comment: string | null)
   }
 }
 
-function planFor(status: 'approved' | 'rejected', comment: string | null) {
+function planFor(status: 'approved' | 'rejected', comment: string | null, reports: unknown[] = [submitted]) {
   const client = createPlannedClient({
-    artisan_reports: [{ data: submitted, error: null }, { data: reviewedReport(status, comment), error: null }],
+    artisan_reports: [{ data: reports, error: null }, { data: reviewedReport(status, comment), error: null }],
     intervention_reminders: [{ data: null, error: null }],
     users: [{ data: { firstname: 'Badr', lastname: 'Boujimal', username: 'badr' }, error: null }],
     comments: [{ data: null, error: null }],
@@ -87,15 +87,46 @@ describe('POST /api/interventions/[id]/portal-report/review', () => {
   })
 
   it('renvoie 404 sans rapport portail', async () => {
-    h.createServerSupabaseAdmin.mockReturnValue(createPlannedClient({ artisan_reports: [{ data: null, error: null }] }))
+    h.createServerSupabaseAdmin.mockReturnValue(createPlannedClient({ artisan_reports: [{ data: [], error: null }] }))
     const res = await POST(makeRequest({ decision: 'approved' }), params)
     expect(res.status).toBe(404)
   })
 
   it('renvoie 409 si le rapport a déjà été traité', async () => {
-    h.createServerSupabaseAdmin.mockReturnValue(createPlannedClient({ artisan_reports: [{ data: { ...submitted, status: 'approved' }, error: null }] }))
+    h.createServerSupabaseAdmin.mockReturnValue(createPlannedClient({ artisan_reports: [{ data: [{ ...submitted, status: 'approved' }], error: null }] }))
     const res = await POST(makeRequest({ decision: 'rejected' }), params)
     expect(res.status).toBe(409)
+  })
+
+  it('deux artisans : traite le rapport en attente du second même si un rapport plus récent est déjà validé', async () => {
+    // Sofia (principale) : v1 refusé puis v2 validé ; Karim (secondaire) : v1 soumis.
+    const sofiaV2 = { id: 'rep-sofia-2', status: 'approved', version: 2 }
+    const sofiaV1 = { id: 'rep-sofia-1', status: 'rejected', version: 1 }
+    const karimV1 = { id: 'rep-karim-1', status: 'submitted', version: 1 }
+    const client = planFor('approved', null, [sofiaV2, karimV1, sofiaV1])
+
+    const res = await POST(makeRequest({ decision: 'approved' }), params)
+    expect(res.status).toBe(200)
+
+    const update = client.calls.find((c) => c.table === 'artisan_reports' && c.op === 'update')
+    expect(update?.filters).toContainEqual(['eq', 'id', 'rep-karim-1'])
+    // Plus aucun rapport en attente : le reminder est clos.
+    expect(client.calls.some((c) => c.table === 'intervention_reminders' && c.op === 'update')).toBe(true)
+  })
+
+  it("deux artisans : ne clôt pas le reminder tant qu'un autre rapport reste en attente", async () => {
+    const karimV1 = { id: 'rep-karim-1', status: 'submitted', version: 1 }
+    const sofiaV1 = { id: 'rep-sofia-1', status: 'submitted', version: 1 }
+    const client = planFor('approved', null, [karimV1, sofiaV1])
+
+    const res = await POST(makeRequest({ decision: 'approved' }), params)
+    expect(res.status).toBe(200)
+
+    const update = client.calls.find((c) => c.table === 'artisan_reports' && c.op === 'update')
+    expect(update?.filters).toContainEqual(['eq', 'id', 'rep-karim-1'])
+    expect(client.calls.some((c) => c.table === 'intervention_reminders')).toBe(false)
+    // Le commentaire système est bien ajouté malgré le reminder conservé.
+    expect(client.calls.some((c) => c.table === 'comments' && c.op === 'insert')).toBe(true)
   })
 
   it('valide le rapport : statut approved, reviewed_by, reminder du rapport clos, commentaire système', async () => {

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { requirePermission, isPermissionError } from '@/lib/auth/permissions'
 import { createServerSupabaseAdmin } from '@/lib/supabase/server'
-import { PORTAL_REPORT_COLUMNS } from '@/lib/portal-external/interventions'
+import { PORTAL_REPORT_COLUMNS, pickPortalReport } from '@/lib/portal-external/interventions'
 import { REPORT_REMINDER_MARKER } from '@/lib/portal-external/report'
 
 export const runtime = 'nodejs'
@@ -16,8 +16,11 @@ const MAX_COMMENT_LENGTH = 2000
 /**
  * POST /api/interventions/{id}/portal-report/review  (permission write_interventions)
  * `{ decision: 'approved' | 'rejected', comment? }` → `200 { report }`.
- * Met à jour le rapport (status, reviewed_by, reviewed_at, review_comment),
- * clôt uniquement le reminder du rapport, ajoute un commentaire système.
+ * Traite le rapport **en attente** (`submitted`) de l'intervention — sur une
+ * intervention à deux artisans, celui du second artisan même si le premier a
+ * déjà été validé. Met à jour le rapport (status, reviewed_by, reviewed_at,
+ * review_comment), clôt uniquement le reminder du rapport (et seulement s'il
+ * ne reste aucun autre rapport en attente), ajoute un commentaire système.
  * Ne change pas le statut de l'intervention ; `has_portal_report` est
  * recalculé par le trigger.
  */
@@ -45,22 +48,27 @@ export async function POST(request: Request, { params }: Params) {
   try {
     const supabase = createServerSupabaseAdmin()
 
-    const { data: latest, error: latestError } = await supabase
+    // Tous les rapports de l'intervention (tous artisans) : on traite celui en
+    // attente, jamais « le plus récent » (qui peut être le rapport déjà validé
+    // d'un autre artisan sur une intervention à deux artisans).
+    const { data: reports, error: reportsError } = await supabase
       .from('artisan_reports')
       .select('id, status, version')
       .eq('intervention_id', id)
       .order('version', { ascending: false })
       .order('submitted_at', { ascending: false })
-      .limit(1)
-      .maybeSingle()
-    if (latestError) {
-      console.error('[portal-report/review] Lecture du rapport échouée :', latestError.message)
+    if (reportsError) {
+      console.error('[portal-report/review] Lecture du rapport échouée :', reportsError.message)
       return NextResponse.json({ error: 'Database error' }, { status: 500 })
     }
-    if (!latest) return NextResponse.json({ error: 'Aucun rapport portail pour cette intervention' }, { status: 404 })
-    if (latest.status !== 'submitted') {
+    const all = (reports ?? []) as Array<{ id: string; status: string; version: number }>
+    if (all.length === 0) return NextResponse.json({ error: 'Aucun rapport portail pour cette intervention' }, { status: 404 })
+    const latest = pickPortalReport(all)
+    if (!latest || latest.status !== 'submitted') {
       return NextResponse.json({ error: 'Ce rapport a déjà été traité' }, { status: 409 })
     }
+    // Un autre rapport encore en attente (2ᵉ artisan) garde le reminder ouvert.
+    const otherPending = all.some((r) => r.id !== latest.id && r.status === 'submitted')
 
     const reviewedAt = new Date().toISOString()
     const { data: report, error: updateError } = await supabase
@@ -80,13 +88,15 @@ export async function POST(request: Request, { params }: Params) {
     }
 
     // Clôture du (seul) reminder de rapport, jamais des autres reminders.
-    const { error: reminderError } = await supabase
-      .from('intervention_reminders')
-      .update({ is_active: false, is_completed: true, updated_at: reviewedAt })
-      .eq('intervention_id', id)
-      .eq('is_active', true)
-      .ilike('note', `@%${REPORT_REMINDER_MARKER}%`)
-    if (reminderError) console.error('[portal-report/review] Clôture du reminder échouée :', reminderError.message)
+    if (!otherPending) {
+      const { error: reminderError } = await supabase
+        .from('intervention_reminders')
+        .update({ is_active: false, is_completed: true, updated_at: reviewedAt })
+        .eq('intervention_id', id)
+        .eq('is_active', true)
+        .ilike('note', `@%${REPORT_REMINDER_MARKER}%`)
+      if (reminderError) console.error('[portal-report/review] Clôture du reminder échouée :', reminderError.message)
+    }
 
     const { data: reviewerRow } = await supabase
       .from('users')

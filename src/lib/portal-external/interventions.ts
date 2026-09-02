@@ -142,6 +142,17 @@ export function isReportAllowedStatus(code: string | null | undefined): boolean 
   return !!code && (PORTAL_REPORT_STATUSES as readonly string[]).includes(code)
 }
 
+/**
+ * Rapport à présenter au gestionnaire parmi ceux d'une intervention (tous
+ * artisans confondus), la liste étant déjà triée par version puis date
+ * d'envoi décroissantes : le rapport **en attente** (`submitted`) prime,
+ * sinon le plus récent. Sur une intervention à deux artisans, le rapport du
+ * second artisan reste ainsi traitable après validation de celui du premier.
+ */
+export function pickPortalReport<T extends { status: string }>(reports: readonly T[]): T | null {
+  return reports.find((r) => r.status === 'submitted') ?? reports[0] ?? null
+}
+
 interface Enrichment {
   photosCount: Map<string, number>
   sstCosts: Map<string, Map<number, number>>
