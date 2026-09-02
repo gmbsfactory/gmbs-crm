@@ -228,6 +228,7 @@ Tables de statuts avec `code`, `label`, `color`, `sort_order`.
 | `key_code` / `floor` / `apartment_number` | `text` | Accès logement vacant |
 | `is_active` | `boolean` | Actif (soft delete) |
 | `is_check` | `boolean` | Vérifié comptabilité (migration 00054) |
+| `has_portal_report` | `boolean` | Un rapport portail est en attente de vérification (`artisan_reports.status = 'submitted'`). Maintenu **uniquement** par le trigger `trg_artisan_reports_sync_flag` ; affiché « À vérifier » (migration 99076) |
 
 #### intervention_artisans
 
@@ -256,6 +257,56 @@ Tables de statuts avec `code`, `label`, `color`, `sort_order`.
 | `payment_type` | `text` CHECK | 'acompte_sst', 'acompte_client', 'final' |
 | `amount` | `numeric(12,2)` | Montant |
 | `is_received` | `boolean` | Paiement reçu |
+
+#### intervention_attachments (colonne portail)
+
+| Colonne | Type | Description |
+|---------|------|-------------|
+| `metadata` | `jsonb` DEFAULT `{}` | Informations complémentaires ; photos du portail : `{source:'portal', phase:'avant'|'apres', comment, artisan_id}` (migration 99076) |
+
+---
+
+### Portail artisans (migration 99076)
+
+Tables lues/écrites **uniquement** par le client `service_role` des routes `app/api/portal-external/**` (aucune policy `anon`). Contrat : [portail-demo-contrat-api.md](../architecture/portail-demo-contrat-api.md).
+
+#### artisan_portal_tokens
+
+| Colonne | Type | Description |
+|---------|------|-------------|
+| `artisan_id` | `uuid` FK | Artisan (cascade) |
+| `token_hash` | `text` | SHA-256 hexadécimal du jeton de 64 caractères du lien `/t/{token}` (index) |
+| `token` | `text` UNIQUE, nullable | Colonne historique (jeton en clair, jamais renseignée) |
+| `expires_at` | `timestamptz` | Expiration (+30 j) |
+| `is_active` | `boolean` | Un seul jeton actif par artisan (index unique partiel) |
+| `last_used_at` | `timestamptz` | Dernière requête authentifiée du portail |
+
+RLS : policy `service_role` seulement.
+
+#### artisan_reports
+
+| Colonne | Type | Description |
+|---------|------|-------------|
+| `intervention_id` / `artisan_id` | `uuid` FK | Intervention et artisan (cascade) |
+| `portal_report_id` | `uuid` UNIQUE | Clé d'idempotence générée par le portail |
+| `version` | `int` | Incrémenté à chaque resoumission après rejet ; `UNIQUE(intervention_id, artisan_id, version)` |
+| `status` | `text` CHECK | `submitted` \| `approved` \| `rejected` |
+| `travaux_realises` | `text` | Requis (≤ 2000 caractères) ; recopié dans `content` (colonne historique) |
+| `duree_minutes` / `materiel_utilise` / `reste_a_faire` / `reste_a_faire_detail` / `anomalies` / `client_present` | divers | Rapport structuré |
+| `attachment_ids` | `uuid[]` | Photos (`intervention_attachments`) jointes |
+| `submitted_from` | `text` | `portal` |
+| `submitted_at` / `reviewed_at` | `timestamptz` | Horodatages |
+| `reviewed_by` | `uuid` FK → `users` | Gestionnaire ayant validé/refusé |
+| `review_comment` | `text` | Commentaire de revue |
+
+RLS : SELECT `authenticated`, tout pour `service_role`.
+
+#### artisan_attachments (colonnes portail)
+
+| Colonne | Type | Description |
+|---------|------|-------------|
+| `review_status` | `text` CHECK DEFAULT `approved` | `pending` (déposé depuis le portail) \| `approved` \| `rejected` |
+| `metadata` | `jsonb` DEFAULT `{}` | `{source:'portal'}` ; décharge signée : `{signed_at, signer_name, ip, user_agent, consent_text, sha256}` |
 
 ---
 
@@ -339,6 +390,7 @@ Objectifs par gestionnaire (migration 00009).
 | Search views refresh | `interventions`, `artisans` | Rafraîchit les vues matérialisées de recherche (migration 00033) |
 | Intervention audit | `interventions` | Log les modifications dans `intervention_audit_log` |
 | Touch intervention on child | `intervention_costs`, `intervention_artisans` | Met a jour `updated_at` de l'intervention parent (migration 00082) |
+| `trg_artisan_reports_sync_flag` | `artisan_reports` | `AFTER INSERT OR UPDATE OF status` : recalcule `interventions.has_portal_report = EXISTS(rapport submitted)` — seul mécanisme qui écrit ce drapeau (migration 99076) |
 
 ---
 

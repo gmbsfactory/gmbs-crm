@@ -212,10 +212,13 @@ Ajouts progressifs de fonctionnalités : champs artisan, audit, sous-statuts, co
 | `99024_hybrid_search_global.sql` | Recherche hybride globale (renommage / consolidation de l'ancienne `99018_hybrid_search_global`) |
 | `99028_csv_import_composite_match.sql` | Import CSV : normalisation d'adresse IMMUTABLE, index composite `(agence, date, adresse)` et RPC `csv_intervention_import_resolve_by_composite` (résolution lecture-seule pour le match composite des interventions sans `id_inter`) |
 | `99029_drop_intervention_compta_exclusions.sql` | Supprime la table `intervention_compta_exclusions` (99023), devenue code mort : plus aucun code applicatif ni objet SQL ne la référence |
+| `99076_portal_demo_convergence.sql` | **Portail artisans** : `artisan_portal_tokens` (jetons hachés, `service_role` seulement), `artisan_reports` (rapport structuré, versions, `portal_report_id` unique), `interventions.has_portal_report`, `intervention_attachments.metadata`, `artisan_attachments.review_status` + `metadata`, trigger `trg_artisan_reports_sync_flag`. **Idempotente** : conçue pour passer sur la base locale (objets absents) et sur la production (objets créés par `00064`-`00069` de `depose_docs` : `token`/`content` passés nullable, CHECK de statut remplacé, FK `reviewed_by` → `public.users` en `NOT VALID`, policy `anon` supprimée, RPC historiques révoquées) |
 
 > **99022 — pagination par ID** : ce RPC est consommé par `useInterventionsQuery` pour résoudre l'ordre stable des interventions côté serveur, évitant les sauts de pagination quand les données mutent en temps réel pendant le scroll.
 >
 > **99023 — exclusions compta** *(obsolète, supprimée par 99029)* : table introduite pour cacher de la vue Comptabilité les interventions marquées comme à exclure. La fonctionnalité n'est plus câblée et la table était devenue du code mort (aucune référence applicative ni SQL).
+>
+> **99076 — convergence portail** : ne jamais copier `00064`-`00069` de `depose_docs` ; cette migration les remplace. Elle est rejouable (`psql -v ON_ERROR_STOP=1 -f`) et passe dans un `supabase db reset` local complet. Sur la production elle s'appliquera plus tard avec `supabase db push --linked` — **jamais pendant la démo locale** (aucune commande `--linked`, `db push`, `migration repair` ni `functions deploy` tant que `supabase/.temp` est retiré ; voir `docs/guides/demo-locale-portail.md`).
 >
 > **99024 — recherche hybride** : combine la recherche trigramme (`pg_trgm`) et la recherche full-text sur les entités globales (interventions + artisans + clients). Renomme et remplace la migration `99018_hybrid_search_global` historique (cf. commit `feat : rename hybrid search`).
 
