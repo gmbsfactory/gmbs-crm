@@ -194,6 +194,7 @@ export const DEFAULT_INTERVENTION_COLUMNS = [
   'sous_statut_text',
   'sous_statut_text_color',
   'sous_statut_bg_color',
+  'has_portal_report',
 ];
 
 export const DEFAULT_SELECT = DEFAULT_INTERVENTION_COLUMNS.join(',');
