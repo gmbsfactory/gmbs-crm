@@ -275,10 +275,14 @@ export function useRemindersQuery() {
       // Invalidate to refetch
       invalidate()
 
-      // Toast for mentions by someone else
+      // Toast si le reminder vient de quelqu'un d'autre, ou si l'utilisateur y est
+      // mentionné (même s'il en est le créateur : cas du rapport portail, où le
+      // reminder est créé au nom du gestionnaire assigné et le mentionne)
       const newReminder = payload.new && "id" in payload.new ? payload.new : null
       const isCreator = (newReminder as any)?.user_id === publicUserId
-      if (!isCreator && newReminder) {
+      const mentionedIds = (newReminder as any)?.mentioned_user_ids
+      const isMentioned = Array.isArray(mentionedIds) && mentionedIds.includes(publicUserId)
+      if (newReminder && (isMentioned || !isCreator)) {
         const interventionId = (newReminder as any).intervention_id
         toast("Vous avez été identifié dans un reminder", {
           description: (newReminder as any).note || "Aucune description",

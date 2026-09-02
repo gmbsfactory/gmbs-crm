@@ -60,6 +60,10 @@ Onglets de navigation entre les vues de la page artisans (table, cartes). Simila
 
 Composant avatar spécifique aux artisans avec gestion des initiales, couleurs et images de profil depuis Supabase Storage.
 
+### ArtisanPortalLinkButton.tsx
+
+Bouton « Lien portail » (portail artisans, contrat `docs/architecture/portail-demo-contrat-api.md` §3). Rendu dans `ArtisanModalFooter` quand l'artisan existe et que l'utilisateur a `write_artisans`. Au clic : `POST /api/artisans/{id}/portal-link` → boîte de dialogue shadcn avec l'URL en lecture seule, boutons « Copier » (presse-papiers) et « Ouvrir » (nouvel onglet), date d'expiration et rappel « lien personnel de l'artisan, à lui transmettre ». Une réponse `503` (portail non configuré) est traduite en toast explicite ; générer un nouveau lien désactive les précédents (côté serveur). Tests : `tests/unit/components/artisans/ArtisanPortalLinkButton.test.tsx`.
+
 ---
 
 ## Composants co-localisés (app/)
@@ -147,6 +151,7 @@ Le refacto d'avril 2026 a éclaté les anciens formulaires monolithiques en sous
 | `GestionnaireAssignee` | Sélecteur du gestionnaire assigné (utilise le pattern `GestionnaireField`) |
 | `PendingAbsencesSection` | Section d'affichage et gestion des absences en attente |
 | `DeletedArtisanDialog` | Dialogue affiché si l'artisan est en soft-delete (recovery) |
+| `ArtisanModalFooter` | Pied du modal : bouton « Lien portail » (`ArtisanPortalLinkButton`, permission `write_artisans`), archivage, annuler / enregistrer |
 
 > **Règle :** toute nouvelle saisie/champ dans la modal artisan doit être ajoutée comme composant autonome dans `_components/`, **pas** inlinée dans `NewArtisanModalContent` ou `ArtisanModalContent`. La logique de validation correspondante va dans `src/lib/<domain>-validation.ts` (cf. `iban-validation`, `siret-validation`).
 

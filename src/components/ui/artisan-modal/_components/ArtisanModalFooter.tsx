@@ -1,6 +1,7 @@
 "use client"
 
 import { Button } from "@/components/ui/button"
+import { ArtisanPortalLinkButton } from "@/components/artisans/ArtisanPortalLinkButton"
 import type { Artisan } from "@/lib/api/common/types"
 
 type Props = {
@@ -28,7 +29,15 @@ export function ArtisanModalFooter({
 }: Props) {
   return (
     <footer className="modal-config-columns-footer flex items-center justify-between gap-2 px-4 py-3 md:px-6 bg-[#8DA5CE] dark:bg-transparent">
-      <div>
+      <div className="flex items-center gap-2">
+        {/* Portail artisans : lien personnel (permission write_artisans) */}
+        {artisan && canWriteArtisans && (
+          <ArtisanPortalLinkButton
+            artisanId={artisan.id}
+            artisanName={`${artisan.prenom ?? ""} ${artisan.nom ?? ""}`.trim() || artisan.raison_sociale || null}
+            disabled={isSaving || isLoading}
+          />
+        )}
         {artisan && canWriteArtisans && !isReadOnly &&
           (isArchived ? (
             <Button
