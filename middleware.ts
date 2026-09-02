@@ -20,7 +20,7 @@ export async function middleware(req: NextRequest) {
   }
 
   // Pages publiques - pas de vérification nécessaire
-  const publicPaths = ['/login', '/landingpage', '/set-password', '/auth/callback', '/portail', '/reset']
+  const publicPaths = ['/login', '/landingpage', '/set-password', '/auth/callback', '/reset']
   if (publicPaths.some(path => pathname.startsWith(path))) {
     return supabaseResponse
   }
@@ -63,11 +63,9 @@ export const config = {
     // - favicon.ico
     // - login (public login page)
     // - landingpage (public landing page)
-    // - portail (public artisan portal)
     // - api/auth (auth endpoints)
-    // - api/portail (artisan portal API)
-    // - api/portal-external (external portal API - called by portal_gmbs)
+    // - api/portal-external (API du portail artisans, authentifiée par clé/secret + jeton)
     // - public files/extensions
-    '/((?!_next/static|_next/image|favicon.ico|login|landingpage|portail|api/auth/|api/portail/|api/portal-external/|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)',
+    '/((?!_next/static|_next/image|favicon.ico|login|landingpage|api/auth/|api/portal-external/|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)',
   ],
 }
