@@ -46,7 +46,7 @@ import { useFieldPresence } from "@/contexts/FieldPresenceContext"
 import { PresenceFieldIndicator } from "@/components/ui/intervention-modal/PresenceFieldIndicator"
 import {
   InterventionHeaderFields, InterventionOwnerSection, InterventionClientSection, InterventionDetailsSection,
-  ArtisanPanel, SecondArtisanSection, PaymentSection, DocumentSection, CustomStatusSection,
+  ArtisanPanel, SecondArtisanSection, PaymentSection, DocumentSection, CustomStatusSection, PortalReportSection,
 } from "@/components/interventions/form-sections"
 
 // Shared form utilities
@@ -695,6 +695,7 @@ export const InterventionEditForm = memo(function InterventionEditForm({
                     requiresDefinitiveId={requiresDefinitiveId}
                     withPresence
                     onPopoverOpenChange={onPopoverOpenChange}
+                    hasPortalReport={Boolean(intervention.has_portal_report)}
                     renderUserBadge={() => (
                       <GestionnaireField
                         value={formData.assigned_user_id}
@@ -974,6 +975,15 @@ export const InterventionEditForm = memo(function InterventionEditForm({
                   onDocumentsChange={() => { void refreshFactureGMBS(); void refreshDevis() }}
                 />
                 </div>
+
+                {/* Rapport de l'artisan (portail) — visible si l'intervention a un artisan */}
+                {intervention.id && selectedArtisanId && (
+                  <PortalReportSection
+                    interventionId={intervention.id}
+                    artisanId={selectedArtisanId}
+                    defaultOpen={Boolean(intervention.has_portal_report)}
+                  />
+                )}
 
                 {/* Deuxième artisan */}
                 <SectionLock isLocked={!canEditIntervention}>

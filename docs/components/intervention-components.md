@@ -119,9 +119,36 @@ Depuis le refacto d'avril 2026, la logique des formulaires d'intervention est é
 | `PaymentSection` | `PaymentSection.tsx` | Coûts, paiements, acomptes |
 
 | `DocumentSection` | `DocumentSection.tsx` | Documents liés (devis, facture…) |
+| `PortalReportSection` | `PortalReportSection.tsx` | Rapport envoyé par l'artisan depuis le portail (validation / demande de correction) |
 | `CustomStatusSection` | `CustomStatusSection.tsx` | Sous-statuts personnalisés |
 
 Chaque section reçoit l'état du formulaire en props depuis `useInterventionFormState` et reste découplée de la mécanique de submit.
+
+#### PortalReportSection : rapport de l'artisan (portail)
+
+Insérée dans `InterventionEditForm` entre `DocumentSection` et `SecondArtisanSection`, rendue uniquement si l'intervention a un `id` **et** un artisan principal (`selectedArtisanId`). Contrat d'API : `docs/architecture/portail-demo-contrat-api.md` (§3).
+
+- **Données** : hook `usePortalReportQuery(interventionId)` (`src/hooks/usePortalReport.ts`) → `GET /api/interventions/{id}/portal-report` → `{ report | null, photos, artisan }`, clé `interventionKeys.portalReport(id)`.
+- **États** : chargement (« Chargement du rapport… ») / aucun rapport (« L'artisan n'a pas encore envoyé de rapport. ») / erreur API / rapport.
+- **Rapport** : version, date d'envoi, artisan, badge de statut (`submitted` → « À vérifier » violet, `approved` → « Validé », `rejected` → « Correction demandée » + `review_comment`), champs structurés (travaux réalisés, durée, client présent, matériel, reste à faire + détail, anomalies) et galerie **Photos avant / Photos après** (`intervention_attachments.metadata.phase`), vignettes cliquables ouvrant une visionneuse plein écran.
+- **Actions** (statut `submitted` et permission `write_interventions`) : « Valider le rapport » et « Demander une correction » (boîte de dialogue shadcn, commentaire obligatoire) → `usePortalReportReviewMutation` → `POST /api/interventions/{id}/portal-report/review` `{ decision: 'approved' | 'rejected', comment? }`. Après succès : toast, invalidation de `portalReport(id)`, `lists()`, `lightLists()` et `detail(id)`. **Le statut de l'intervention n'est jamais modifié** par cette section.
+- La section s'ouvre automatiquement quand un rapport est en attente.
+
+Tests : `tests/unit/components/interventions/PortalReportSection.test.tsx`.
+
+#### Affichage « À vérifier » (rapport portail en attente)
+
+Quand `interventions.has_portal_report` est vrai (colonne maintenue par trigger à chaque rapport `submitted`) et que le statut est `ACCEPTE`, `INTER_EN_COURS` ou `SAV`, l'intervention est affichée **« À vérifier »** en violet `#9333EA` partout, sans changement de statut en base :
+
+| Emplacement | Mécanisme |
+|-------------|-----------|
+| `mapInterventionRecord` (`src/lib/api/common/utils.ts`) | propage `has_portal_report` (`record.has_portal_report ?? false`) et surcharge `statusLabel` / `statusColor` |
+| `getStatusDisplay(code, { hasPortalReport })` (`src/lib/interventions/status-display.ts`) | priorité 0, avant `statusFromDb` et `workflow` |
+| `StatusCell` (vue Table) | passe `hasPortalReport` à `getStatusDisplay` |
+| `InterventionsKanban` (vue Kanban) | badge « À vérifier » sur la carte (la colonne reste celle du statut réel) |
+| `InterventionHeaderFields` (modal) | prop `hasPortalReport` → `SearchableBadgeSelect` `selectedDisplay` (le badge sélectionné est surchargé, la liste des options reste intacte) |
+
+Les constantes et la règle vivent dans `src/lib/interventions/portal-report-status.ts` (`PORTAL_REPORT_REVIEW_STATUSES`, `PORTAL_REPORT_REVIEW_LABEL`, `PORTAL_REPORT_REVIEW_COLOR`, `isPortalReportToReview`). Tests : `tests/unit/lib/interventions/status-display.test.ts`, `tests/unit/lib/common-utils.test.ts`.
 
 #### PaymentSection : acompte client et statut
 
@@ -236,7 +263,7 @@ Les cellules complexes de la vue Table ont été extraites en composants dédié
 | `ArtisanCell` | Affichage de l'artisan assigné avec avatar et fallback |
 | `AssigneeCell` | Gestionnaire assigné (réutilise `GestionnaireField` en édition inline) |
 | `ColorBadgeCell` | Badge coloré générique (statut, métier, agence…) |
-| `StatusCell` | Cellule de statut avec sélecteur inline |
+| `StatusCell` | Cellule de statut avec sélecteur inline ; affiche « À vérifier » (violet) quand `has_portal_report` est vrai (voir *Affichage « À vérifier »*) |
 
 Le fichier `cells/types.ts` définit les props partagées (`CellContext<Intervention>`).
 

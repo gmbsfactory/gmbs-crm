@@ -55,6 +55,7 @@ Query keys for the interventions domain. Supports full lists, light lists (warm-
 ["interventions", "summary", params]           -- summary(params)
 ["interventions", "detail"]                    -- details()
 ["interventions", "detail", id, include]       -- detail(id, include?)
+["interventions", "portal-report", id]         -- portalReport(id)
 ```
 
 ### Properties and Methods
@@ -73,6 +74,7 @@ Query keys for the interventions domain. Supports full lists, light lists (warm-
 | `filterCounts()` | `() => readonly [...]` | `["interventions", "filter-counts"]` | Prefix for grouped filter counts |
 | `filterCountsByProperty(property, filters?)` | `(property: string, filters?: object) => readonly [...]` | `["interventions", "filter-counts", property, filters]` | Counts grouped by metier/agence/statut/user |
 | `byArtisan(artisanId)` | `(artisanId: string) => readonly [...]` | `["interventions", "by-artisan", artisanId]` | Interventions assigned to a specific artisan |
+| `portalReport(id)` | `(id: string) => readonly [...]` | `["interventions", "portal-report", id]` | Rapport envoyé par l'artisan depuis le portail (`GET /api/interventions/{id}/portal-report`) ; invalidée avec `lists()`, `lightLists()` et `detail(id)` après une décision (`usePortalReportReviewMutation`) |
 
 ### Invalidation Helpers
 

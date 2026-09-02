@@ -186,6 +186,19 @@ export const interventionKeys = {
    */
   byArtisan: (artisanId: string) =>
     [...interventionKeys.all, "by-artisan", artisanId] as const,
+
+  /**
+   * Clé pour le rapport envoyé par l'artisan depuis le portail
+   * (GET /api/interventions/{id}/portal-report)
+   *
+   * @param id - ID de l'intervention
+   * @returns ["interventions", "portal-report", id]
+   *
+   * @example
+   * queryKey: interventionKeys.portalReport(interventionId)
+   */
+  portalReport: (id: string) =>
+    [...interventionKeys.all, "portal-report", id] as const,
 } as const
 
 /**
