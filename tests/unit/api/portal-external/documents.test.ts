@@ -81,6 +81,24 @@ describe('/api/portal-external/me/documents', () => {
       expect(client.uploads).toHaveLength(0)
     })
 
+    it('renvoie 415 pour image/svg+xml (liste fermée, pas image/*)', async () => {
+      const client = plannedWithToken()
+      const svg = Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>').toString('base64')
+      const res = await POST(post({ kind: 'autre', filename: 'x.svg', mimeType: 'image/svg+xml', base64Data: svg }))
+      expect(res.status).toBe(415)
+      expect(client.uploads).toHaveLength(0)
+    })
+
+    it('renvoie 415 si les octets ne correspondent pas au MIME déclaré (HTML déguisé en PDF)', async () => {
+      const client = plannedWithToken()
+      const html = Buffer.from('<html><script>alert(1)</script></html>').toString('base64')
+      const res = await POST(post({ kind: 'kbis', filename: 'k.pdf', mimeType: 'application/pdf', base64Data: html }))
+      expect(res.status).toBe(415)
+      expect(await res.json()).toEqual({ error: 'File content does not match mimeType' })
+      expect(client.uploads).toHaveLength(0)
+      expect(client.calls.some((c) => c.table === 'artisan_attachments')).toBe(false)
+    })
+
     it('renvoie 400 si base64Data est vide', async () => {
       plannedWithToken()
       const res = await POST(post({ kind: 'kbis', filename: 'k.pdf', mimeType: 'application/pdf', base64Data: '' }))

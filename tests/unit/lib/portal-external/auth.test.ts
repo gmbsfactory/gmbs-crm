@@ -95,6 +95,14 @@ describe('portal-external/auth', () => {
       expect(client.calls[0].filters).toContainEqual(['eq', 'token_hash', hashPortalToken(TEST_TOKEN)])
     })
 
+    it('renvoie 503 « Portal unavailable » (et non 401) quand Supabase renvoie une erreur', async () => {
+      const client = createPlannedClient({
+        artisan_portal_tokens: [{ data: null, error: { message: 'connection refused', code: 'PGRST000' } }],
+      })
+      const result = await resolvePortalToken(TEST_TOKEN, client as never)
+      expect(result).toEqual({ ok: false, status: 503, error: 'Portal unavailable' })
+    })
+
     it('renvoie « Token expired » pour un jeton expiré', async () => {
       const expired = validTokenRow({ expires_at: new Date(Date.now() - 1000).toISOString() })
       const client = createPlannedClient({ artisan_portal_tokens: [{ data: expired, error: null }] })

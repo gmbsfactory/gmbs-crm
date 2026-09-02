@@ -12,10 +12,18 @@ type Params = { params: Promise<{ id: string }> }
 /** Durée de validité d'un lien portail. */
 const TOKEN_TTL_DAYS = 30
 
-/** Origine du portail ; repli local pour la démo si la variable manque. */
-function portalBaseUrl(): string {
+/**
+ * Origine du portail. Hors production, repli sur `http://localhost:3001` pour la
+ * démo ; en production, `null` si `PORTAL_BASE_URL` manque (la route répond 503
+ * plutôt que d'envoyer un lien `localhost` inutilisable à un artisan).
+ */
+function portalBaseUrl(): string | null {
   const configured = process.env.PORTAL_BASE_URL?.trim()
   if (configured) return configured.replace(/\/+$/, '')
+  if (process.env.NODE_ENV === 'production') {
+    console.error('[portal-link] PORTAL_BASE_URL absent : portail non configuré')
+    return null
+  }
   console.warn('[portal-link] PORTAL_BASE_URL absent : repli sur http://localhost:3001')
   return 'http://localhost:3001'
 }
@@ -32,6 +40,10 @@ export async function POST(request: Request, { params }: Params) {
 
   const { id: artisanId } = await params
   if (!artisanId) return NextResponse.json({ error: 'Artisan ID is required' }, { status: 400 })
+
+  // Vérifié AVANT toute écriture : aucun jeton n'est désactivé ni créé si le portail n'est pas configuré.
+  const baseUrl = portalBaseUrl()
+  if (!baseUrl) return NextResponse.json({ error: 'Portal not configured' }, { status: 503 })
 
   try {
     const supabase = createServerSupabaseAdmin()
@@ -75,7 +87,7 @@ export async function POST(request: Request, { params }: Params) {
       return NextResponse.json({ error: 'Database error' }, { status: 500 })
     }
 
-    return NextResponse.json({ url: `${portalBaseUrl()}/t/${token}`, expires_at: expiresAt })
+    return NextResponse.json({ url: `${baseUrl}/t/${token}`, expires_at: expiresAt })
   } catch (error) {
     console.error('[portal-link] Erreur inattendue :', error)
     return NextResponse.json({ error: 'Internal error' }, { status: 500 })

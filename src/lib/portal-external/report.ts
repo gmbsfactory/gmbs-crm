@@ -295,14 +295,33 @@ export async function submitPortalReport(params: {
     .single()
 
   if (insertError || !inserted) {
-    // Course entre deux envois identiques : relire par portal_report_id.
     if (insertError?.code === '23505') {
+      // Course entre deux envois identiques (même portal_report_id) : renvoyer le rapport enregistré.
       const { data: raced } = await supabase
         .from('artisan_reports')
         .select(PORTAL_REPORT_COLUMNS)
         .eq('portal_report_id', input.portal_report_id)
         .maybeSingle()
       if (raced) return { status: 200, body: { report: raced as unknown as PortalReportFull } }
+
+      // Course entre deux envois différents (double clic, retry réseau) : l'autre a pris
+      // le numéro de version (ux_artisan_reports_intervention_artisan_version). On
+      // répond avec l'état réel plutôt que 500.
+      const { data: latest } = await supabase
+        .from('artisan_reports')
+        .select('status, version')
+        .eq('intervention_id', interventionId)
+        .eq('artisan_id', artisan.id)
+        .order('version', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+      const current = latest as { status: string; version: number } | null
+      if (current && current.status !== 'rejected') {
+        return {
+          status: 409,
+          body: { error: current.status === 'approved' ? 'Report already approved' : 'Report already submitted' },
+        }
+      }
     }
     console.error('[portal-external] Insertion du rapport échouée :', insertError?.message)
     return { status: 500, body: { error: 'Failed to save report' } }

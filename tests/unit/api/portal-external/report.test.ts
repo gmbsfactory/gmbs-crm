@@ -234,6 +234,44 @@ describe('POST /api/portal-external/me/interventions/[id]/report', () => {
     expect(insert?.payload).toEqual(expect.objectContaining({ version: 2 }))
   })
 
+  it('course entre deux envois différents : 23505 sur la version → 409 « Report already submitted » (pas 500)', async () => {
+    const client = useClient(createPlannedClient({
+      artisan_portal_tokens: [{ data: validTokenRow(), error: null }],
+      intervention_artisans: [{ data: { id: 'ia-1' }, error: null }],
+      interventions: [{ data: intervention('INTER_EN_COURS'), error: null }],
+      artisan_reports: [
+        { data: null, error: null }, // 1. recherche par portal_report_id → rien
+        { data: null, error: null }, // 2. version précédente → rien (l'autre envoi n'a pas encore commité)
+        { data: null, error: { message: 'duplicate key value violates unique constraint "ux_artisan_reports_intervention_artisan_version"', code: '23505' } },
+        { data: null, error: null }, // 4. relecture par portal_report_id → rien (autre identifiant)
+        { data: { status: 'submitted', version: 1 }, error: null }, // 5. dernier rapport du couple → soumis
+      ],
+      intervention_attachments: [{ data: [{ id: PHOTO_ID }], error: null }],
+    }))
+    const res = await POST(makeRequest(validBody), params)
+    expect(res.status).toBe(409)
+    expect(await res.json()).toEqual({ error: 'Report already submitted' })
+    expect(client.calls.some((c) => c.table === 'intervention_reminders')).toBe(false)
+    expect(client.calls.some((c) => c.table === 'comments')).toBe(false)
+  })
+
+  it('renvoie 500 si l’insertion échoue pour une autre raison', async () => {
+    useClient(createPlannedClient({
+      artisan_portal_tokens: [{ data: validTokenRow(), error: null }],
+      intervention_artisans: [{ data: { id: 'ia-1' }, error: null }],
+      interventions: [{ data: intervention('INTER_EN_COURS'), error: null }],
+      artisan_reports: [
+        { data: null, error: null },
+        { data: null, error: null },
+        { data: null, error: { message: 'disk full', code: '53100' } },
+      ],
+      intervention_attachments: [{ data: [{ id: PHOTO_ID }], error: null }],
+    }))
+    const res = await POST(makeRequest(validBody), params)
+    expect(res.status).toBe(500)
+    expect(await res.json()).toEqual({ error: 'Failed to save report' })
+  })
+
   it('renvoie 409 si un rapport est déjà soumis pour cette intervention', async () => {
     const client = useClient(createPlannedClient({
       artisan_portal_tokens: [{ data: validTokenRow(), error: null }],

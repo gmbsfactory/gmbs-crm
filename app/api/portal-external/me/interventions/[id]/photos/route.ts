@@ -5,6 +5,7 @@ import { getPortalIntervention } from '@/lib/portal-external/interventions'
 import {
   PHOTO_MIME_TYPES,
   decodeBase64Payload,
+  matchesDeclaredMime,
   sanitizeFilename,
   uploadToDocumentsBucket,
 } from '@/lib/portal-external/uploads'
@@ -41,6 +42,7 @@ export async function POST(request: Request, { params }: Params) {
 
   const decoded = decodeBase64Payload(body.base64Data)
   if (!decoded.ok) return portalError(decoded.status, decoded.error)
+  if (!matchesDeclaredMime(decoded.buffer, mimeType)) return portalError(415, 'File content does not match mimeType')
 
   try {
     const target = await getPortalIntervention(auth.supabase, auth.artisan.id, id)

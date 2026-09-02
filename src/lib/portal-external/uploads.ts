@@ -15,9 +15,44 @@ export const MAX_BASE64_LENGTH = 4 * 1024 * 1024
 /** Types MIME acceptés pour les photos d'intervention. */
 export const PHOTO_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp'] as const
 
-/** Types MIME acceptés pour les pièces du dossier artisan : PDF ou image. */
+/**
+ * Types MIME acceptés pour les pièces du dossier artisan : liste fermée
+ * (le contrat dit « image/* », mais un canal externe ne doit pas pouvoir déposer
+ * un SVG avec script ou du HTML servi comme image depuis le bucket public).
+ */
+export const DOCUMENT_MIME_TYPES = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp'] as const
+
 export function isDocumentMimeAllowed(mimeType: string): boolean {
-  return mimeType === 'application/pdf' || /^image\/[a-z0-9.+-]+$/i.test(mimeType)
+  return (DOCUMENT_MIME_TYPES as readonly string[]).includes(mimeType)
+}
+
+/** En-tête PNG (8 octets). */
+export const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])
+
+/** Types MIME dont les octets magiques sont vérifiés. */
+export type SniffableMime = (typeof DOCUMENT_MIME_TYPES)[number]
+
+/**
+ * Détecte le type réel d'un contenu à partir de ses octets magiques
+ * (PDF `%PDF-`, JPEG `FF D8 FF`, PNG, WebP `RIFF…WEBP`) ; `null` si inconnu.
+ */
+export function sniffMimeType(buffer: Buffer): SniffableMime | null {
+  if (buffer.length >= 5 && buffer.subarray(0, 5).toString('latin1') === '%PDF-') return 'application/pdf'
+  if (buffer.length >= 3 && buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff) return 'image/jpeg'
+  if (buffer.length >= 8 && buffer.subarray(0, 8).equals(PNG_SIGNATURE)) return 'image/png'
+  if (
+    buffer.length >= 12 &&
+    buffer.subarray(0, 4).toString('latin1') === 'RIFF' &&
+    buffer.subarray(8, 12).toString('latin1') === 'WEBP'
+  ) {
+    return 'image/webp'
+  }
+  return null
+}
+
+/** Vrai si les octets du contenu correspondent au type MIME déclaré par le client. */
+export function matchesDeclaredMime(buffer: Buffer, mimeType: string): boolean {
+  return sniffMimeType(buffer) === mimeType
 }
 
 export type DecodeResult =

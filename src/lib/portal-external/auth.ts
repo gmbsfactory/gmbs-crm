@@ -36,6 +36,9 @@ export interface PortalArtisan {
 
 export type PortalTokenError = 'Token invalid' | 'Token expired' | 'Token revoked'
 
+/** Erreur d'infrastructure (base injoignable, clé service_role invalide) : jamais confondue avec un jeton faux. */
+export const PORTAL_UNAVAILABLE_ERROR = 'Portal unavailable'
+
 export type PortalApiValidation =
   | { ok: true }
   | { ok: false; status: 401 | 503; error: string }
@@ -43,6 +46,7 @@ export type PortalApiValidation =
 export type PortalArtisanResolution =
   | { ok: true; artisan: PortalArtisan; tokenId: string }
   | { ok: false; status: 401; error: PortalTokenError }
+  | { ok: false; status: 503; error: typeof PORTAL_UNAVAILABLE_ERROR }
 
 /** Réponse d'erreur JSON uniforme `{ error }`. */
 export function portalError(status: number, error: string): NextResponse {
@@ -145,6 +149,8 @@ function extractStatusCode(statut: StatusRel): string | null {
 /**
  * Résout un jeton (en clair) en artisan.
  * Met à jour `last_used_at` quand le jeton est valide.
+ * 401 est réservé aux jetons réellement invalides / expirés / révoqués ;
+ * une erreur Supabase renvoie 503 « Portal unavailable » (signal de supervision).
  */
 export async function resolvePortalToken(
   token: string | null | undefined,
@@ -164,7 +170,7 @@ export async function resolvePortalToken(
 
   if (error) {
     console.error('[portal-external] Lecture du jeton impossible :', error)
-    return { ok: false, status: 401, error: 'Token invalid' }
+    return { ok: false, status: 503, error: PORTAL_UNAVAILABLE_ERROR }
   }
 
   const row = data as unknown as TokenRow | null

@@ -275,7 +275,7 @@ Tables lues/écrites **uniquement** par le client `service_role` des routes `app
 | Colonne | Type | Description |
 |---------|------|-------------|
 | `artisan_id` | `uuid` FK | Artisan (cascade) |
-| `token_hash` | `text` | SHA-256 hexadécimal du jeton de 64 caractères du lien `/t/{token}` (index) |
+| `token_hash` | `text` | SHA-256 hexadécimal du jeton de 64 caractères du lien `/t/{token}` (index). Les jetons historiques de production (colonne `token` en clair, 00065) sont hachés par 99076 puis le clair est effacé : les liens déjà envoyés restent valides |
 | `token` | `text` UNIQUE, nullable | Colonne historique (jeton en clair, jamais renseignée) |
 | `expires_at` | `timestamptz` | Expiration (+30 j) |
 | `is_active` | `boolean` | Un seul jeton actif par artisan (index unique partiel) |
@@ -390,7 +390,7 @@ Objectifs par gestionnaire (migration 00009).
 | Search views refresh | `interventions`, `artisans` | Rafraîchit les vues matérialisées de recherche (migration 00033) |
 | Intervention audit | `interventions` | Log les modifications dans `intervention_audit_log` |
 | Touch intervention on child | `intervention_costs`, `intervention_artisans` | Met a jour `updated_at` de l'intervention parent (migration 00082) |
-| `trg_artisan_reports_sync_flag` | `artisan_reports` | `AFTER INSERT OR UPDATE OF status` : recalcule `interventions.has_portal_report = EXISTS(rapport submitted)` — seul mécanisme qui écrit ce drapeau (migration 99076) |
+| `trg_artisan_reports_sync_flag` | `artisan_reports` | `AFTER INSERT OR UPDATE OF status OR DELETE` : recalcule `interventions.has_portal_report = EXISTS(rapport submitted)` (`COALESCE(NEW, OLD).intervention_id`) — seul mécanisme qui écrit ce drapeau ; la suppression d'un rapport `submitted` fait retomber le badge « À vérifier » (migration 99076) |
 
 ---
 

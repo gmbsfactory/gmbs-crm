@@ -131,6 +131,8 @@ psql "$DB" -c "select note, is_active from intervention_reminders where note lik
 | `503 Portal not configured` | `GMBS_PORTAL_KEY_ID` / `GMBS_PORTAL_SECRET` absents du shell du CRM | Vérifier `.env.demo.local` puis relancer `start-crm.sh` |
 | `401 Invalid credentials` | Clé/secret du portail ≠ ceux du CRM | Même paire dans les deux `.env.demo.local` (`CRM_API_KEY_ID`/`CRM_API_SECRET` côté portail) |
 | `401 Token invalid / expired / revoked` | Lien ancien (un nouveau lien désactive les précédents), > 30 j, artisan désactivé | Régénérer le lien depuis la fiche artisan |
+| `503 Portal unavailable` | Supabase locale arrêtée ou `SUPABASE_SERVICE_ROLE_KEY` incorrecte (le CRM ne confond pas une panne avec un jeton faux) | `supabase start`, vérifier les clés avec `supabase status -o env` |
+| `415 File content does not match mimeType` | Les octets du fichier ne correspondent pas au `mimeType` déclaré (liste fermée : PDF, JPEG, PNG, WebP) | Envoyer le bon type (pas de SVG/HEIC/GIF dans la démo) |
 | Le portail affiche 0 mission | Seed non chargé, ou jeton d'un autre artisan | `scripts/demo/load-seed.sh` ; vérifier `select count(*) from intervention_artisans where artisan_id='d0000000-0000-4000-8000-00000000a001'` (= 6) |
 | Photo `500 Upload failed` | Bucket `documents` absent ou type MIME non autorisé par le bucket | `select id, public from storage.buckets` ; recréer via `supabase db reset` |
 | `409` à l'envoi du rapport | Statut ∉ Accepté / Inter en cours / SAV, ou rapport déjà soumis / validé | Choisir DEMO-003/004/006, ou refuser le rapport côté CRM pour ouvrir une version 2 |

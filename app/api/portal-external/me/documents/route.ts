@@ -4,6 +4,7 @@ import { portalInternalError, readJsonBody } from '@/lib/portal-external/http'
 import {
   decodeBase64Payload,
   isDocumentMimeAllowed,
+  matchesDeclaredMime,
   sanitizeFilename,
   uploadToDocumentsBucket,
 } from '@/lib/portal-external/uploads'
@@ -85,6 +86,8 @@ export async function POST(request: Request) {
 
   const decoded = decodeBase64Payload(body.base64Data)
   if (!decoded.ok) return portalError(decoded.status, decoded.error)
+  // Les octets magiques doivent correspondre au type déclaré (le MIME est réutilisé tel quel par Storage).
+  if (!matchesDeclaredMime(decoded.buffer, mimeType)) return portalError(415, 'File content does not match mimeType')
 
   try {
     const filename = sanitizeFilename(body.filename, `${kind}.${mimeType === 'application/pdf' ? 'pdf' : 'bin'}`)

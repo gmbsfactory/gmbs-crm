@@ -12,12 +12,12 @@ Le CRM est la seule source de vérité : le portail (`portal_gmbs`, sans base de
 | Niveau | Mécanisme | Implémentation |
 |---|---|---|
 | Portail → CRM (machine à machine) | En-têtes `X-GMBS-Key-Id` et `X-GMBS-Secret` comparés en temps constant (`crypto.timingSafeEqual`, longueurs différentes → `false` sans exception) aux variables `GMBS_PORTAL_KEY_ID` / `GMBS_PORTAL_SECRET` | `validatePortalApiRequest()` — `503 {error:"Portal not configured"}` si les variables manquent, `401 {error:"Invalid credentials"}` si en-têtes absents ou faux |
-| Identité de l'artisan | En-tête `X-Portal-Token` (64 hex) → SHA-256 → `artisan_portal_tokens.token_hash` avec `is_active = true`, `expires_at > now()`, artisan `is_active` ; met à jour `last_used_at` | `resolvePortalArtisan()` — `401 {error:"Token invalid" \| "Token expired" \| "Token revoked"}` |
+| Identité de l'artisan | En-tête `X-Portal-Token` (64 hex) → SHA-256 → `artisan_portal_tokens.token_hash` avec `is_active = true`, `expires_at > now()`, artisan `is_active` ; met à jour `last_used_at` | `resolvePortalArtisan()` — `401 {error:"Token invalid" \| "Token expired" \| "Token revoked"}` ; erreur Supabase (base injoignable, clé `service_role` invalide) → `503 {error:"Portal unavailable"}`, jamais `401` (signal de supervision distinct d'un jeton faux) |
 | Gestionnaire (routes internes) | Session Supabase du CRM (cookies `@supabase/ssr`) + `requirePermission(request, '<permission>')` | `src/lib/auth/permissions.ts` |
 
 `authenticatePortalRequest()` enchaîne les deux premiers niveaux et renvoie l'artisan + le client `service_role` (`createServerSupabaseAdmin`). Les routes `api/portal-external/**` sont exclues du middleware ; aucune policy RLS `anon`/`authenticated` n'existe sur `artisan_portal_tokens`.
 
-Erreurs : JSON `{ error: string }` ; `400` validation, `401` auth, `404` uniforme quand la ressource n'appartient pas à l'artisan (jamais `403`), `409` conflit d'état, `413` base64 > 4 Mo, `415` MIME refusé, `503` non configuré.
+Erreurs : JSON `{ error: string }` ; `400` validation, `401` auth, `404` uniforme quand la ressource n'appartient pas à l'artisan (jamais `403`), `409` conflit d'état, `413` base64 > 4 Mo (ou `Content-Length` > 6 Mo, refusé **avant** la lecture du corps par `readJsonBody`), `415` MIME refusé ou octets magiques ≠ MIME déclaré, `503` non configuré / indisponible.
 
 ---
 
@@ -66,7 +66,7 @@ Corps `{ filename, mimeType ('image/jpeg'|'image/png'|'image/webp'), base64Data,
 
 - Stockage : bucket `documents`, chemin `intervention/{id}/photos/portal-{timestamp}-{filename}` (nom assaini), URL publique ;
 - ligne `intervention_attachments` : `kind='photos'`, `created_by=NULL`, `created_by_display='<Prénom Nom> (artisan)'`, `metadata={source:'portal', phase, comment, artisan_id}` ;
-- `400` champ manquant / phase invalide, `413` base64 > 4 Mo, `415` MIME hors liste, `404` non affecté.
+- `400` champ manquant / phase invalide, `413` base64 > 4 Mo, `415` MIME hors liste ou octets magiques (JPEG `FF D8 FF`, PNG, WebP `RIFF…WEBP`) ne correspondant pas au MIME déclaré (`File content does not match mimeType`), `404` non affecté.
 
 ### `POST /me/interventions/{id}/report`
 
@@ -104,7 +104,8 @@ Effets (`src/lib/portal-external/report.ts`) :
 
 ### `POST /me/documents`
 
-Corps `{ kind (∈ requis + 'autre'), filename, mimeType ('application/pdf' | 'image/*'), base64Data }` → `201 { document: { id, kind, url } }`.
+Corps `{ kind (∈ requis + 'autre'), filename, mimeType ('application/pdf' | 'image/jpeg' | 'image/png' | 'image/webp'), base64Data }` → `201 { document: { id, kind, url } }`.
+Liste MIME **fermée** (`DOCUMENT_MIME_TYPES`, plus restrictive que le « image/* » du contrat initial : pas de SVG ni de HTML servi comme image depuis le bucket public) et octets magiques vérifiés (`%PDF-`, JPEG, PNG, WebP) : `415 {error:"File content does not match mimeType"}` sinon.
 Bucket `documents`, chemin `artisans/{artisanId}/{kind}/{timestamp}-{filename}` ; **nouvelle** ligne `artisan_attachments` à chaque dépôt (jamais d'écrasement), `review_status='pending'`, `metadata={source:'portal'}`, `created_by_display='<Prénom Nom> (artisan)'`. `400` kind invalide, `413`, `415`.
 
 ### `POST /me/documents/decharge/sign`
@@ -118,7 +119,7 @@ Corps `{ signer_name, consent: true, signature_png_base64 }` → `201 { document
 
 | Route | Permission | Comportement |
 |---|---|---|
-| `POST /api/artisans/{id}/portal-link` | `write_artisans` | `200 { url: "${PORTAL_BASE_URL}/t/<token>", expires_at }` ; 32 octets aléatoires en hex, `sha256` stocké dans `artisan_portal_tokens.token_hash`, jetons précédents désactivés, expiration +30 j ; `404` artisan inconnu, `409` artisan désactivé. Repli `http://localhost:3001` si `PORTAL_BASE_URL` est absent. |
+| `POST /api/artisans/{id}/portal-link` | `write_artisans` | `200 { url: "${PORTAL_BASE_URL}/t/<token>", expires_at }` ; 32 octets aléatoires en hex, `sha256` stocké dans `artisan_portal_tokens.token_hash`, jetons précédents désactivés, expiration +30 j ; `404` artisan inconnu, `409` artisan désactivé. Sans `PORTAL_BASE_URL` : `503 {error:"Portal not configured"}` en production (vérifié **avant** toute écriture : aucun jeton désactivé ni créé), repli `http://localhost:3001` hors production (démo). |
 | `GET /api/interventions/{id}/portal-report` | `read_interventions` | `{ report \| null, photos: [intervention_attachments kind='photos' et metadata.source='portal'], artisan: {id, nom, prenom} }` — dernier rapport toutes versions confondues ; sans rapport, `artisan` = artisan principal. |
 | `POST /api/interventions/{id}/portal-report/review` | `write_interventions` | `{ decision: 'approved' \| 'rejected', comment? }` → `200 { report }`. Met à jour `status`, `reviewed_by` (utilisateur courant), `reviewed_at`, `review_comment` ; clôt **uniquement** le reminder de rapport (`note ILIKE '@%📋 Rapport%'`) ; commentaire système « Rapport validé par <Prénom Nom>[ : commentaire] » / « Rapport refusé par … : … » ; `404` sans rapport, `409` déjà traité. Ne change pas le statut de l'intervention ; sur `rejected` le trigger remet `has_portal_report = false`. |
 
@@ -137,7 +138,7 @@ Sans session, ces routes passent par le middleware du CRM : réponse `307` vers 
 | Côté CRM | Rôle |
 |---|---|
 | `GMBS_PORTAL_KEY_ID`, `GMBS_PORTAL_SECRET` | paire attendue dans `X-GMBS-Key-Id` / `X-GMBS-Secret` |
-| `PORTAL_BASE_URL` | origine du portail pour construire le lien `/t/{token}` |
+| `PORTAL_BASE_URL` | origine du portail pour construire le lien `/t/{token}` ; obligatoire en production (`503` sinon), repli `http://localhost:3001` hors production |
 | `PORTAL_FALLBACK_USER_ID` | gestionnaire de repli pour le reminder quand `assigned_user_id` est NULL |
 | `NEXT_PUBLIC_SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` | client `service_role` des routes |
 
@@ -145,9 +146,13 @@ Sans session, ces routes passent par le middleware du CRM : réponse `307` vers 
 
 ## 6. Tests
 
-- `tests/unit/lib/portal-external/auth.test.ts` — en-têtes absents, mauvais secret, longueurs différentes, env absentes (503), jeton inconnu / expiré / révoqué / valide (+ `last_used_at`) ;
-- `tests/unit/api/portal-external/report.test.ts` — 401, 404, 409, 201 (reminder + commentaire), 200 idempotent, version 2 après rejet, repli `PORTAL_FALLBACK_USER_ID` ;
-- `tests/unit/api/portal-external/documents.test.ts` — kind invalide 400, 413, 415, 201, GET par type ;
+- `tests/unit/lib/portal-external/auth.test.ts` — en-têtes absents, mauvais secret, longueurs différentes, env absentes (503), jeton inconnu / expiré / révoqué / valide (+ `last_used_at`), erreur Supabase → 503 « Portal unavailable » ;
+- `tests/unit/lib/portal-external/uploads.test.ts` — liste MIME fermée, octets magiques (PDF, JPEG, PNG, WebP, SVG refusé), décodage base64 (413/400), noms de fichiers ;
+- `tests/unit/lib/portal-external/http.test.ts` — `Content-Length` > 6 Mo → 413 sans lecture du corps, JSON invalide → 400 ;
+- `tests/unit/api/portal-external/report.test.ts` — 401, 404, 409, 201 (reminder + commentaire), 200 idempotent, version 2 après rejet, repli `PORTAL_FALLBACK_USER_ID`, course sur la version (23505) → 409, autre erreur d'insertion → 500 ;
+- `tests/unit/api/portal-external/documents.test.ts` — kind invalide 400, 413, 415 (MIME hors liste, SVG, octets ≠ MIME), 201, GET par type ;
+- `tests/unit/api/portal-external/photos.test.ts` — 415 SVG, 415 octets ≠ MIME, 400 phase invalide ;
+- `tests/unit/api/artisans/portal-link.test.ts` — 503 sans `PORTAL_BASE_URL` en production (aucune écriture), 200 (hachage seul stocké), repli local hors production, 404, 409, permission refusée ;
 - `tests/unit/api/interventions/portal-report-review.test.ts` — 401/403, approved, rejected, 404, 409.
 
 Mock partagé : `tests/__mocks__/portal-external-client.ts` (client Supabase « planifié », résultats consommés table par table).

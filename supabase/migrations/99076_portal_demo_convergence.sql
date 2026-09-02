@@ -45,6 +45,16 @@ ALTER TABLE public.artisan_portal_tokens ALTER COLUMN token DROP NOT NULL;
 -- 00065 posait une contrainte UNIQUE (artisan_id, is_active) remplacée par 00066.
 ALTER TABLE public.artisan_portal_tokens DROP CONSTRAINT IF EXISTS unique_active_token_per_artisan;
 
+-- Production : les jetons historiques (00065) sont stockés en clair (64 hex issus
+-- de gen_random_bytes(32)) : on les hache (pgcrypto, extension 00001) pour que les
+-- liens déjà envoyés restent résolubles par le CRM (recherche par token_hash
+-- uniquement), puis on efface le clair. Idempotent : ne touche que les lignes
+-- encore en clair et sans hachage.
+UPDATE public.artisan_portal_tokens
+SET token_hash = encode(digest(trim(token), 'sha256'), 'hex'),
+    token = NULL
+WHERE token IS NOT NULL AND token_hash IS NULL;
+
 CREATE INDEX IF NOT EXISTS idx_artisan_portal_tokens_token_hash
     ON public.artisan_portal_tokens(token_hash);
 CREATE INDEX IF NOT EXISTS idx_artisan_portal_tokens_artisan_id
@@ -139,6 +149,40 @@ ALTER TABLE public.artisan_reports ADD CONSTRAINT artisan_reports_reviewed_by_fk
 CREATE INDEX IF NOT EXISTS idx_artisan_reports_intervention ON public.artisan_reports(intervention_id);
 CREATE INDEX IF NOT EXISTS idx_artisan_reports_artisan ON public.artisan_reports(artisan_id);
 CREATE INDEX IF NOT EXISTS idx_artisan_reports_status ON public.artisan_reports(status);
+-- Production : 00068 ne connaissait pas la notion de version, donc plusieurs
+-- rapports historiques peuvent coexister pour le même couple (intervention,
+-- artisan) et reçoivent tous version = 1 via le DEFAULT : on les renumérote par
+-- ordre chronologique AVANT de créer l'index unique. Idempotent : ne touche que
+-- les lignes encore en version 1 (ou NULL) ; une ligne seule garde version 1.
+UPDATE public.artisan_reports r
+SET version = s.rn
+FROM (
+    SELECT id,
+           row_number() OVER (
+               PARTITION BY intervention_id, artisan_id
+               ORDER BY submitted_at NULLS LAST, created_at, id
+           ) AS rn
+    FROM public.artisan_reports
+) s
+WHERE s.id = r.id
+  AND (r.version IS NULL OR r.version = 1)
+  AND r.version IS DISTINCT FROM s.rn;
+
+-- Même précaution pour portal_report_id (clé d'idempotence) : en cas de doublon
+-- historique, seule la ligne la plus récente conserve l'identifiant.
+UPDATE public.artisan_reports r
+SET portal_report_id = NULL
+FROM (
+    SELECT id,
+           row_number() OVER (
+               PARTITION BY portal_report_id
+               ORDER BY submitted_at DESC NULLS LAST, created_at DESC, id DESC
+           ) AS rn
+    FROM public.artisan_reports
+    WHERE portal_report_id IS NOT NULL
+) s
+WHERE s.id = r.id AND s.rn > 1;
+
 CREATE UNIQUE INDEX IF NOT EXISTS ux_artisan_reports_portal_report_id
     ON public.artisan_reports(portal_report_id) WHERE portal_report_id IS NOT NULL;
 CREATE UNIQUE INDEX IF NOT EXISTS ux_artisan_reports_intervention_artisan_version
@@ -202,23 +246,27 @@ COMMENT ON COLUMN public.artisan_attachments.metadata IS
 -- ----------------------------------------------------------------------------
 -- 4. Trigger : interventions.has_portal_report = EXISTS(rapport submitted)
 -- ----------------------------------------------------------------------------
+-- Couvre aussi DELETE (suppression manuelle ou cascade d'un rapport submitted)
+-- pour que le badge « À vérifier » ne reste pas figé.
 DROP TRIGGER IF EXISTS trg_artisan_reports_sync_flag ON public.artisan_reports;
 DROP FUNCTION IF EXISTS public.fn_artisan_reports_sync_flag();
 CREATE FUNCTION public.fn_artisan_reports_sync_flag()
 RETURNS TRIGGER AS $$
+DECLARE
+    v_intervention_id UUID := COALESCE(NEW.intervention_id, OLD.intervention_id);
 BEGIN
     UPDATE public.interventions i
     SET has_portal_report = EXISTS (
         SELECT 1 FROM public.artisan_reports r
-        WHERE r.intervention_id = NEW.intervention_id AND r.status = 'submitted'
+        WHERE r.intervention_id = v_intervention_id AND r.status = 'submitted'
     )
-    WHERE i.id = NEW.intervention_id;
-    RETURN NEW;
+    WHERE i.id = v_intervention_id;
+    RETURN COALESCE(NEW, OLD);
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
 CREATE TRIGGER trg_artisan_reports_sync_flag
-    AFTER INSERT OR UPDATE OF status ON public.artisan_reports
+    AFTER INSERT OR UPDATE OF status OR DELETE ON public.artisan_reports
     FOR EACH ROW EXECUTE FUNCTION public.fn_artisan_reports_sync_flag();
 
 COMMENT ON FUNCTION public.fn_artisan_reports_sync_flag() IS
