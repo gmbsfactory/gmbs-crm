@@ -1,0 +1,56 @@
+# Portail artisans — contrat d'API de la démo locale (v0)
+
+> Démo locale du 2026-09-02. CRM sur la branche `deposedocsv2` (port 3000, Supabase **locale** `http://127.0.0.1:54321`), portail `portal_gmbs` sur la branche `demo-local` (port 3001). **Le CRM est la seule source de vérité** : le portail est sans base de données, il relaie vers le CRM. Ce contrat est la référence commune des équipes ; toute divergence se règle en modifiant ce fichier d'abord.
+
+## 1. Authentification
+
+| Sens | Mécanisme | Env côté CRM | Env côté portail |
+|---|---|---|---|
+| portail → CRM (machine à machine) | en-têtes `X-GMBS-Key-Id` et `X-GMBS-Secret`, comparés en temps constant (`crypto.timingSafeEqual`) ; `503 {error:"Portal not configured"}` si les variables manquent ; `401 {error:"Invalid credentials"}` sinon | `GMBS_PORTAL_KEY_ID`, `GMBS_PORTAL_SECRET`, `PORTAL_BASE_URL` (= `http://localhost:3001`) | `CRM_BASE_URL` (= `http://localhost:3000`), `CRM_API_KEY_ID`, `CRM_API_SECRET`, `NEXT_PUBLIC_PORTAL_URL` |
+| identité de l'artisan | en-tête `X-Portal-Token` = jeton de 64 caractères hexadécimaux reçu dans le lien `/t/{token}` ; le CRM le hache (SHA-256) et le cherche dans `artisan_portal_tokens` (`is_active = true`, `expires_at > now()`) → `artisan_id` ; jamais d'`artisanId` fourni par le client ; erreur d'infrastructure côté CRM → `503 {error:"Portal unavailable"}` (jamais `401`) | — | le portail garde le jeton dans un cookie `httpOnly` `portal_token` (chemin `/`, `SameSite=Lax`) posé par `/t/{token}` |
+| gestionnaire (routes internes du CRM) | session Supabase du CRM + `requirePermission(request, '<permission>')` (`src/lib/auth/permissions.ts`) | — | — |
+
+Réponses : JSON ; erreurs `{ error: string }` ; `400` validation, `401` auth, `404` uniforme pour une ressource qui n'appartient pas à l'artisan (jamais `403` révélateur), `409` conflit d'état, `413` corps trop grand (base64 > 4 Mo, ou `Content-Length` > 6 Mo refusé avant lecture), `415` MIME refusé ou octets magiques ≠ MIME déclaré, `503` portail non configuré / indisponible.
+
+Secret partagé de la démo : généré le 2026-09-02, présent dans `.env.demo.local` des deux dépôts (jamais commité, jamais celui de production).
+
+## 2. Routes CRM appelées par le portail — `app/api/portal-external/…` (exclues du middleware)
+
+| Méthode et chemin | Corps → réponse |
+|---|---|
+| `POST /api/portal-external/tokens/validate` | `{token}` → `200 {valid:true, artisan:{id, prenom, nom, raison_sociale, email, telephone, statut_dossier, statut_code}}` ; jeton inconnu/expiré/inactif → `401 {valid:false, error:"Token invalid"|"Token expired"|"Token revoked"}` ; met à jour `last_used_at` |
+| `GET /api/portal-external/me` | → `{artisan:{…comme ci-dessus}, counters:{missions_total, missions_terminees, missions_en_cours}, documents:{required:5, present:n}}` |
+| `GET /api/portal-external/me/interventions` | → `{interventions:[{id, id_inter, statut_code, statut_label, statut_color, date_prevue, date, adresse, code_postal, ville, latitude, longitude, metier, contexte, consigne, consigne_second_artisan, role ('primary'\|'secondary'), tenant:{nom, telephone} \| null (seulement si statut ∈ ACCEPTE, INTER_EN_COURS, SAV), cout_sst, photos_count, report:{status, version} \| null}], count}` — filtrées par `intervention_artisans.artisan_id`, statuts visibles : `ACCEPTE`, `INTER_EN_COURS`, `SAV`, `INTER_TERMINEE` ; triées par `date_prevue` |
+| `GET /api/portal-external/me/interventions/{id}` | → `{intervention:{…idem + agence:{nom}}, documents:{photos:[{id, url, filename, created_at, created_by_display, metadata}], devis:[{id, url, filename}]}, report:{id, status, version, travaux_realises, duree_minutes, materiel_utilise, reste_a_faire, reste_a_faire_detail, anomalies, client_present, submitted_at, review_comment, reviewed_at, attachment_ids} \| null}` ; `404` si non assigné |
+| `POST /api/portal-external/me/interventions/{id}/photos` | `{filename, mimeType ('image/jpeg'\|'image/png'\|'image/webp'), base64Data, phase:'avant'\|'apres', comment?}` → `201 {attachment:{id, url, filename, metadata}}` ; stockage bucket `documents`, chemin `intervention/{id}/photos/portal-{timestamp}-{filename}` ; ligne `intervention_attachments (kind='photos', created_by=NULL, created_by_display='<Prénom Nom> (artisan)', metadata {source:'portal', phase, comment, artisan_id})` ; limite 4 Mo base64 |
+| `POST /api/portal-external/me/interventions/{id}/report` | `{portal_report_id (uuid généré par le portail), travaux_realises (≤ 2000 car., requis), duree_minutes?, materiel_utilise?, reste_a_faire (bool), reste_a_faire_detail?, anomalies?, client_present (bool), attachment_ids:[uuid]}` → `201 {report:{id, status:'submitted', version, submitted_at}}` ; **idempotent** : même `portal_report_id` → `200` avec le même rapport ; effets : `artisan_reports` (nouvelle version si un rapport `rejected` existe), `interventions.has_portal_report = true` (trigger), `intervention_reminders` pour `assigned_user_id` (note `@<username> 📋 Rapport de l'inter #<id_inter> à vérifier`, `mentioned_user_ids=[assigned_user_id]`) ou repli sur `PORTAL_FALLBACK_USER_ID`, commentaire `comments (comment_type='system')` « Rapport d'intervention reçu de <artisan> … » ; `409` si le statut n'est ni `ACCEPTE` ni `INTER_EN_COURS` ni `SAV` |
+| `GET /api/portal-external/me/interventions/{id}/report` | → `{report \| null}` |
+| `GET /api/portal-external/me/documents` | → `{requiredDocuments:['kbis','assurance','cni_recto_verso','iban','decharge_partenariat'], documents:[{id, kind, filename, url, mime_type, file_size, created_at, review_status, metadata}], documentsByKind:{kind → document \| null}}` |
+| `POST /api/portal-external/me/documents` | `{kind (∈ requis + 'autre'), filename, mimeType ('application/pdf'\|'image/jpeg'\|'image/png'\|'image/webp' — liste fermée, octets magiques vérifiés, revue 2026-09-02), base64Data}` → `201 {document:{id, kind, url}}` ; bucket `documents`, chemin `artisans/{artisanId}/{kind}/{timestamp}-{filename}` ; nouvelle ligne `artisan_attachments` (jamais d'écrasement) avec `review_status='pending'`, `metadata {source:'portal'}` |
+| `POST /api/portal-external/me/documents/decharge/sign` | `{signer_name, consent:true, signature_png_base64}` → `201 {document:{id, url}, signed_at}` ; démo « signature simple » : PNG du tracé déposé en `artisan_attachments (kind='decharge_partenariat', metadata {source:'portal', signed_at, signer_name, ip, user_agent, consent_text, sha256})` ; `400` si `consent` faux |
+
+## 3. Routes internes du CRM (session gestionnaire)
+
+| Méthode et chemin | Permission | Corps → réponse |
+|---|---|---|
+| `POST /api/artisans/{id}/portal-link` | `write_artisans` | → `200 {url:"${PORTAL_BASE_URL}/t/<token>", expires_at}` ; génère 32 octets aléatoires (hex), stocke `sha256` dans `artisan_portal_tokens.token_hash`, désactive les jetons précédents de l'artisan, expiration +30 j ; `503 {error:"Portal not configured"}` sans `PORTAL_BASE_URL` en production (repli `http://localhost:3001` hors production) |
+| `GET /api/interventions/{id}/portal-report` | `read_interventions` | → `{report \| null, photos:[…intervention_attachments kind='photos' avec metadata.source='portal'], artisan:{id, nom, prenom}}` |
+| `POST /api/interventions/{id}/portal-report/review` | `write_interventions` | `{decision:'approved'\|'rejected', comment?}` → `200 {report}` ; met `artisan_reports.status`, `reviewed_by`, `reviewed_at`, `review_comment` ; clôt **uniquement** le reminder du rapport (note commençant par `@… 📋 Rapport`) ; commentaire système « Rapport validé par … » / « Rapport refusé par … : … » ; sur `rejected` le trigger remet `has_portal_report = false` ; ne change **pas** le statut de l'intervention |
+
+## 4. Base locale (migration `supabase/migrations/99076_portal_demo_convergence.sql`, idempotente)
+
+- `artisan_portal_tokens` : `CREATE TABLE IF NOT EXISTS` compatible avec la DDL de `origin/depose_docs` (`00065`, `00066`) **plus** `ADD COLUMN IF NOT EXISTS token_hash text`, index `(token_hash)`, `last_used_at` ; **aucune policy `anon`** ; lecture/écriture par `service_role` uniquement (les routes utilisent `createServerSupabaseAdmin`).
+- `artisan_reports` : `CREATE TABLE IF NOT EXISTS` (base `00068`) + `ADD COLUMN IF NOT EXISTS` : `portal_report_id uuid UNIQUE`, `version int DEFAULT 1`, `status text CHECK (status IN ('submitted','approved','rejected')) DEFAULT 'submitted'`, `travaux_realises text`, `duree_minutes int`, `materiel_utilise text`, `reste_a_faire boolean DEFAULT false`, `reste_a_faire_detail text`, `anomalies text`, `client_present boolean`, `submitted_from text DEFAULT 'web'`, `attachment_ids uuid[] DEFAULT '{}'`, `submitted_at timestamptz DEFAULT now()`, `reviewed_by uuid REFERENCES public.users(id)`, `reviewed_at timestamptz`, `review_comment text` ; index unique `(intervention_id, artisan_id, version)` ; RLS : SELECT `authenticated`, écriture `service_role`.
+- `interventions.has_portal_report boolean DEFAULT false` (`ADD COLUMN IF NOT EXISTS`) ; `intervention_attachments.metadata jsonb DEFAULT '{}'` ; `artisan_attachments.review_status text DEFAULT 'approved'` et `metadata jsonb DEFAULT '{}'` (`ADD COLUMN IF NOT EXISTS`).
+- Trigger `trg_artisan_reports_sync_flag` (`AFTER INSERT OR UPDATE OF status OR DELETE ON artisan_reports`) : `interventions.has_portal_report = EXISTS(… status = 'submitted')`.
+- Reprise de la production avant les index uniques : versions renumérotées par couple (intervention, artisan), `portal_report_id` dédoublonné, jetons `token` en clair hachés dans `token_hash` (clair effacé).
+- `DROP POLICY IF EXISTS "Anonymous can validate tokens" ON artisan_portal_tokens` ; pas de RPC.
+- Colonne `has_portal_report` ajoutée à `DEFAULT_INTERVENTION_COLUMNS` de `supabase/functions/interventions-v2/_lib/helpers.ts` (fonction servie localement par `supabase start`).
+
+## 5. Données de démo (`supabase/seeds/seed_demo_portail.sql`, idempotent, chargé par `scripts/demo/load-seed.sh` sur la base locale uniquement)
+
+3 artisans (UUID fixes ; plombier « Karim Benali », électricien « Sofia Martins », serrurier « Yanis Roux », e-mail et mobile fictifs, statut CONFIRME, `is_active = true`), 1 agence / 1 propriétaire / 1 locataire fictifs, 8 interventions `DEMO-001…008` (3 `ACCEPTE`, 3 `INTER_EN_COURS`, 2 `INTER_TERMINEE`, adresses parisiennes géocodées), `intervention_artisans` (6 pour Karim dont une en `secondary`, 2 pour Sofia), `intervention_costs (cost_type='sst')`, `assigned_user_id` = utilisateur `badr@gmbs.fr` (seed local `seed_admin_auth.sql`, mot de passe local `badr123`). Comptes locaux : `admin@gmbs.fr` / `admin`.
+
+## 6. Portail (branche `demo-local`)
+
+Next.js 16 sans Supabase, sans Stripe. Pages : `/t/{token}` (valide via le CRM, pose le cookie, redirige) → `/app/missions`, `/app/missions/{id}` (onglets Infos · Photos · Rapport), `/app/dossier` (5 pièces + signature de la décharge), `/app/compte` ; barre d'onglets en bas (Missions, Dossier, Compte). Routes serveur `/api/portal/*` = proxys qui ajoutent `X-GMBS-Key-Id/Secret` (jamais exposés au navigateur) et `X-Portal-Token` lu dans le cookie. PWA : `manifest.webmanifest`, icônes, service worker minimal (app-shell), `theme_color` GMBS. Design : mobile d'abord (360-430 px), couleurs et logo du CRM (`app/globals.css`, `public/gmbs-logo.svg`, `public/logoGM.png`), cibles tactiles ≥ 44 px, français.

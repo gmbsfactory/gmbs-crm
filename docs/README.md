@@ -31,6 +31,7 @@ Conception technique du systeme, flux de donnees et patterns architecturaux.
 | [State Management](architecture/state-management.md) | TanStack Query vs Zustand vs Context vs URL |
 | [Authentification et Securite](architecture/auth-and-security.md) | Auth Supabase, RBAC, RLS, middleware |
 | [Workflow Engine](architecture/workflow-engine.md) | Machine a etats des interventions, transitions, validation cumulative |
+| [Portail artisans v2](architecture/portail-artisans-v2.md) | Etat des lieux CRM <-> portail, carte des echanges HTTP, ecart depose_docs -> main, plan de reprise, vision cible PWA + natif |
 
 ---
 
@@ -57,6 +58,7 @@ Guides pratiques pour les cas d'usage courants du developpement.
 | [Utiliser la carte](guides/using-the-map.md) | MapLibre GL, geocodage, markers, interactions |
 | [Gerer la base de donnees](guides/managing-database.md) | Migrations Supabase, types, seeds |
 | [Gestion des erreurs](guides/error-handling.md) | ErrorHandler, boundaries, patterns |
+| [Plan de tests CRM <-> portail](guides/portail-artisans-plan-tests.md) | Pre-requis (ports, env), matrice de tests curl par flux, tests automatises, smoke test staging |
 
 ---
 
