@@ -154,3 +154,23 @@ INSERT INTO public.intervention_costs (id, intervention_id, cost_type, label, am
 ON CONFLICT DO NOTHING;
 
 COMMIT;
+
+-- ----------------------------------------------------------------------------
+-- 6. Recherche : rafraîchir les vues matérialisées (hors transaction)
+-- ----------------------------------------------------------------------------
+-- La barre de recherche du CRM (RPC search_global, 00020 → 99070) lit
+-- interventions_search_mv / global_search_mv plus un tampon « live » borné ;
+-- sans rafraîchissement, « DEMO-003 » peut ne pas remonter. Idempotent, base
+-- locale uniquement ; ignoré si les vues n'existent pas.
+DO $$
+BEGIN
+  IF to_regclass('public.interventions_search_mv') IS NOT NULL THEN
+    REFRESH MATERIALIZED VIEW public.interventions_search_mv;
+  END IF;
+  IF to_regclass('public.artisans_search_mv') IS NOT NULL THEN
+    REFRESH MATERIALIZED VIEW public.artisans_search_mv;
+  END IF;
+  IF to_regclass('public.global_search_mv') IS NOT NULL THEN
+    REFRESH MATERIALIZED VIEW public.global_search_mv;
+  END IF;
+END $$;
