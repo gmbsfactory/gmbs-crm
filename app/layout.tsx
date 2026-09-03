@@ -16,6 +16,7 @@ import { InterfaceProvider } from "@/contexts/interface-context"
 import { AuthGuard } from "@/components/layout/auth-guard"
 import { DeveloperDashboardLoader } from "@/components/debug/DeveloperDashboardLoader"
 import UpdatesModal from "@/components/layout/UpdatesModal"
+import PortalLiveSync from "@/components/layout/PortalLiveSync"
 import { PagePresenceGate } from "@/components/layout/page-presence-gate"
 import { ActivityTrackerGate } from "@/components/layout/activity-tracker-gate"
 import StyledComponentsRegistry from "@/lib/styled-components-registry"
@@ -269,6 +270,7 @@ export default async function RootLayout({
                                       <GlobalShortcuts />
                                       <GlobalModalHost />
                                       <UpdatesModal />
+                                      <PortalLiveSync />
                                       <div className="flex-1 flex flex-col min-h-0 overflow-auto">
                                         <ErrorBoundary section="page-content">
                                           {children}

@@ -106,7 +106,9 @@ export function usePortalReportQuery(interventionId: string | null | undefined, 
     queryKey: interventionKeys.portalReport(interventionId ?? ""),
     queryFn: () => fetchPortalReport(interventionId as string),
     enabled: Boolean(interventionId) && enabled,
-    staleTime: 30 * 1000,
+    // Temps reel : le canal portail-live invalide cette cle des qu'une photo
+    // ou un rapport arrive, donc aucune fraicheur a conserver en cache.
+    staleTime: 0,
   })
 }
 
