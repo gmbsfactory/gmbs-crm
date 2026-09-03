@@ -54,3 +54,32 @@ Secret partagé de la démo : généré le 2026-09-02, présent dans `.env.demo.
 ## 6. Portail (branche `demo-local`)
 
 Next.js 16 sans Supabase, sans Stripe. Pages : `/t/{token}` (valide via le CRM, pose le cookie, redirige) → `/app/missions`, `/app/missions/{id}` (onglets Infos · Photos · Rapport), `/app/dossier` (5 pièces + signature de la décharge), `/app/compte` ; barre d'onglets en bas (Missions, Dossier, Compte). Routes serveur `/api/portal/*` = proxys qui ajoutent `X-GMBS-Key-Id/Secret` (jamais exposés au navigateur) et `X-Portal-Token` lu dans le cookie ; `POST /api/portal/logout` supprime le cookie (déconnexion depuis l'écran Compte et après un `401`) ; aucun autre proxy sans cookie (l'ancienne route `POST /api/portal/tokens/validate` a été retirée le 2026-09-02 : seul `/t/{token}` — route serveur GET → validation → cookie → `303` — pose le cookie). Dépôt du dossier : limite portail **3 Mo par fichier** (marge sous les 4 Mo de base64 du CRM), images compressées sur le téléphone avant envoi, PDF trop gros refusé avant l'appel. PWA : `manifest.webmanifest`, icônes, service worker minimal (app-shell uniquement : jamais de mise en cache de `/api/`, réponse `503 {error:"Hors ligne"}` directe hors connexion ; cache purgé à la déconnexion), `theme_color` GMBS. Design : mobile d'abord (360-430 px), couleurs et logo du CRM (`app/globals.css`, `public/gmbs-logo.svg`, `public/logoGM.png`), cibles tactiles ≥ 44 px, français.
+
+## 7. Temps réel (dans les deux sens)
+
+### 7.1 Portail → CRM : ce que l'artisan envoie apparaît sans rechargement
+
+Migration `99077_portal_realtime.sql` : `intervention_attachments`, `artisan_reports` et `artisan_attachments` sont ajoutées à la publication `supabase_realtime` (ajout conditionnel, donc rejouable et applicable en production) avec `REPLICA IDENTITY FULL` — sans quoi les événements `DELETE` ne portent ni `intervention_id` ni `artisan_id`. La RLS de `intervention_attachments` est laissée **telle quelle** (désactivée) : vérifié, les événements sont bien délivrés à un utilisateur `authenticated`, et l'activer sans policy suffisante verrouillerait le CRM (mémoire projet).
+
+Côté CRM, `src/hooks/usePortalLiveSync.ts` (monté une fois par `src/components/layout/PortalLiveSync.tsx` dans `app/layout.tsx`) ouvre le canal `portail-live` **sur une connexion Supabase dédiée** : `supabase-js` partage une seule socket entre tous les canaux d'un client, et le canal central `crm-sync` la referme quand il se rabat sur du sondage — une socket isolée garantit que les photos et les rapports arrivent quand même. Le canal se réabonne seul (2, 5, 10 puis 30 s) et porte le jeton de l'utilisateur (`realtime.setAuth`).
+
+| Événement reçu | Condition | Effet |
+|---|---|---|
+| `intervention_attachments` | `metadata.source = 'portal'` | invalide `interventionKeys.portalReport(id)`, `documentKeys.byEntity('intervention', id)`, `interventionKeys.detail(id)`, les listes ; annonce « Nouvelle photo de l'artisan » |
+| `artisan_reports` | toujours | mêmes invalidations ; annonce « Rapport reçu de l'artisan » au passage à `submitted` |
+| `artisan_attachments` | `metadata.source = 'portal'` | invalide `documentKeys.byEntity('artisan', id)` et `artisanKeys.detail(id)` ; annonce « Pièce reçue de l'artisan » |
+
+Les événements reçus à moins de 600 ms d'intervalle sont regroupés en une seule annonce. `usePortalReportQuery` passe à `staleTime: 0` puisque le canal l'invalide.
+
+Le badge « À vérifier » remontait déjà seul : il vient de `interventions.has_portal_report`, posé par un trigger, et `interventions` est publiée depuis longtemps.
+
+### 7.2 CRM → portail : les décisions du gestionnaire arrivent sur le téléphone
+
+Le portail n'a pas de base de données : c'est le CRM qui pousse, par un flux SSE.
+
+| Méthode et chemin | Rôle |
+|---|---|
+| `GET /api/portal-external/me/stream` (CRM) | flux `text/event-stream` authentifié comme les autres routes (clé/secret + `X-Portal-Token`). Le CRM s'abonne côté serveur au temps réel de sa base (clé service role) et n'émet que des événements minimaux, sans donnée de tiers : `ready`, `report` `{intervention_id, status, version, review_comment}`, `document` `{kind, review_status}`, `intervention` `{intervention_id, statut_id, date_prevue, has_portal_report}`, `assignment` `{intervention_id, action}`, plus `ping` toutes les 25 s. Fermeture propre sur déconnexion du client, durée de vie plafonnée à 30 min (le client se reconnecte). Les interventions visibles sont tenues en mémoire et rechargées à chaque changement d'affectation, le filtre serveur ne sachant pas suivre une jointure. |
+| `GET /api/portal/stream` (portail) | relaie le flux tel quel, sans mise en tampon, en ajoutant les en-têtes d'authentification (jamais exposés au navigateur) ; `401` → cookie `portal_token` effacé ; `503` sans configuration ; flux factice en mode `PORTAL_MOCK=1`. |
+
+Côté application, `src/lib/live-updates.tsx` (`LiveUpdatesProvider`, monté dans `src/app/app/layout.tsx`) ouvre un `EventSource`, se reconnecte avec un repli plafonné à 30 s, se ferme quand l'onglet passe en arrière-plan et se rouvre au retour. Chaque événement incrémente une « révision » globale que `usePortalQuery` surveille : tous les écrans rechargent leurs données. L'artisan voit donc « Rapport validé » et le commentaire du gestionnaire sans rien rafraîchir.

@@ -212,3 +212,35 @@ psql "$DB" -c "delete from artisan_reports; delete from artisan_portal_tokens;
 ```
 
 (`has_portal_report` est recalculé par trigger ; les fichiers Storage restent, sans impact.) Pour repartir de zéro : `supabase db reset` puis `scripts/demo/load-seed.sh`.
+
+## Temps réel : ce qui remonte instantanément (vérifié le 2026-09-03)
+
+Plus besoin d'actualiser le CRM ni l'application de l'artisan.
+
+| Sens | Action | Ce qui se passe, sans rechargement | Vérifié |
+|---|---|---|---|
+| Artisan → CRM | l'artisan envoie une photo | annonce « Nouvelle photo de l'artisan » dans le CRM, galerie et section rapport rafraîchies | oui, navigateur (`POST /api/portal/me/interventions/{DEMO-002}/photos` → 201, annonce affichée) |
+| Artisan → CRM | l'artisan envoie son rapport | annonce « Rapport reçu de l'artisan », reminder « @badr 📋 Rapport … à vérifier », badge « À vérifier », section rapport à jour | oui, navigateur (rapport DEMO-002 → 201, deux annonces affichées) |
+| Artisan → CRM | l'artisan dépose une pièce du dossier | annonce « Pièce reçue de l'artisan », dossier de l'artisan rafraîchi | oui, événement `artisan_attachments` reçu |
+| CRM → artisan | le gestionnaire valide le rapport | l'application passe à « Rapport validé le … » avec le commentaire | oui, navigateur mobile (validation à 17:19:12, affichage sous 4 s) |
+| CRM → artisan | le gestionnaire refuse le rapport | bandeau « Rapport à corriger » et formulaire réouvert | oui, événement `report` avec `status: rejected` |
+| CRM → artisan | replanification, annulation, affectation | mission mise à jour ou retirée de la liste | oui, événement `intervention` reçu (DEMO-001 replanifiée) |
+
+Détail technique dans [le contrat d'API](../architecture/portail-demo-contrat-api.md) §7.
+
+**Contrôles rapides en cas de doute**
+
+```bash
+# 1. Les trois tables du portail sont-elles publiées ?
+psql "$(supabase status -o env | sed -n 's/^DB_URL="\(.*\)"/\1/p')" -c \
+  "select tablename from pg_publication_tables where pubname='supabase_realtime' order by 1"
+
+# 2. Le flux du CRM vers l'artisan répond-il ? (jeton = celui d'un lien portail actif)
+curl -N http://localhost:3000/api/portal-external/me/stream \
+  -H "X-GMBS-Key-Id: $GMBS_PORTAL_KEY_ID" -H "X-GMBS-Secret: $GMBS_PORTAL_SECRET" \
+  -H "X-Portal-Token: <jeton>"        # attendu : « event: ready » puis un « ping » toutes les 25 s
+
+# 3. Dans la console du CRM : « [Realtime] portail-live: SUBSCRIBED »
+```
+
+**Limites connues.** Le canal central `crm-sync` du CRM est instable dans cet environnement local et se rabat sur du sondage ; c'est pour cela que le canal du portail utilise sa **propre connexion**, indépendante. Depuis un téléphone, les images stockées pointent sur `127.0.0.1` : remplacer par l'IP du Mac.
