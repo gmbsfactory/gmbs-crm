@@ -475,6 +475,44 @@ describe('filter-converter', () => {
       expect(clientFilters).toHaveLength(1)
     })
 
+    // -------------------------------------------------------------------
+    // Puces « Artisans à vérifier » / « Mes artisans à vérifier »
+    // -------------------------------------------------------------------
+    describe('pieces_a_verifier (puces « à vérifier »)', () => {
+      it('should convert pieces_a_verifier is_not_empty en drapeau serveur', () => {
+        const filters = [{ property: 'pieces_a_verifier', operator: 'is_not_empty' }]
+        const { serverFilters, clientFilters } = convertArtisanFiltersToServerFilters(filters as any, ctx)
+        expect(serverFilters.pieces_a_verifier).toBe(true)
+        expect(clientFilters).toHaveLength(0)
+      })
+
+      it("should ne poser NI statut_dossier NI exclude_statuts (indépendance du filtre dossier)", () => {
+        const filters = [{ property: 'pieces_a_verifier', operator: 'is_not_empty' }]
+        const { serverFilters } = convertArtisanFiltersToServerFilters(filters as any, ctx)
+        expect(serverFilters.statut_dossier).toBeUndefined()
+        expect(serverFilters.exclude_statuts).toBeUndefined()
+        expect(Object.keys(serverFilters)).toEqual(['pieces_a_verifier'])
+      })
+
+      it('should combiner gestionnaire et pieces_a_verifier pour « Mes artisans à vérifier »', () => {
+        const filters = [
+          { property: 'gestionnaire_id', operator: 'eq', value: '__CURRENT_USER__' },
+          { property: 'pieces_a_verifier', operator: 'is_not_empty' },
+        ]
+        const { serverFilters, clientFilters } = convertArtisanFiltersToServerFilters(filters as any, ctx)
+        expect(serverFilters.gestionnaire).toBe('current-user-id')
+        expect(serverFilters.pieces_a_verifier).toBe(true)
+        expect(clientFilters).toHaveLength(0)
+      })
+
+      it('should fallback les autres opérateurs vers le client', () => {
+        const filters = [{ property: 'pieces_a_verifier', operator: 'eq', value: '1' }]
+        const { serverFilters, clientFilters } = convertArtisanFiltersToServerFilters(filters as any, ctx)
+        expect(serverFilters.pieces_a_verifier).toBeUndefined()
+        expect(clientFilters).toHaveLength(1)
+      })
+    })
+
     it('should push unsupported properties to client', () => {
       const filters = [{ property: 'ville', operator: 'eq', value: 'Paris' }]
       const { clientFilters } = convertArtisanFiltersToServerFilters(filters as any, ctx)

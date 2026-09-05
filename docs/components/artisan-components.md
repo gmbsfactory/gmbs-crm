@@ -118,6 +118,54 @@ Deux règles à ne pas franchir :
 1. **La puce L5 s'appuie sur une colonne SCALAIRE d'`artisans`**, jamais sur un embed `artisan_attachments!inner(...)` : une jointure dupliquerait les lignes et fausserait le `count: exact` de la pagination.
 2. **Le compteur « Dossier à compléter » ne doit pas bouger.** Son filtre ignore la valeur demandée au profit d'une liste figée — bug connu (précédent « Matera 9 vs 2 »), affiché au client, et qui relève d'un **chantier séparé**. Les deux filtres sont indépendants, cumulables, et ne partagent aucune ligne de code.
 
+### Puces de vue de la page (`useArtisanViews`)
+
+À ne pas confondre avec les puces virtuelles du dropdown ci-dessus : ce sont les
+**vues** proposées en tête de page, définies par `DEFAULT_VIEW_PRESETS` dans
+`src/hooks/useArtisanViews.ts`.
+
+| Puce | Filtres de la vue | Filtres serveur produits |
+|---|---|---|
+| « Liste générale » | aucun | aucun |
+| « Ma liste artisans » | `gestionnaire_id eq __CURRENT_USER__` | `gestionnaire` |
+| « Liste Artisans à compléter » | `statut_dossier eq À compléter` | `statut_dossier` + `exclude_statuts` |
+| « Mes Artisans à compléter » | idem + gestionnaire | `gestionnaire`, `statut_dossier`, `exclude_statuts` |
+| « Artisans à vérifier » | `pieces_a_verifier is_not_empty` | `pieces_a_verifier: true` |
+| « Mes artisans à vérifier » | idem + gestionnaire | `gestionnaire`, `pieces_a_verifier: true` |
+
+**Pourquoi `is_not_empty` et non un opérateur « > 0 ».** `ArtisanViewFilter`
+n'admet que `eq | ne | is_empty | is_not_empty`. Plutôt que d'introduire un
+opérateur numérique générique — que les deux convertisseurs, le chemin de
+comptage et le filtrage client devraient alors tous savoir interpréter — le lot
+ajoute une **propriété dédiée**, `pieces_a_verifier`, sur laquelle
+`is_not_empty` se lit « il reste au moins une pièce en attente », c'est-à-dire
+exactement `artisans.pieces_a_verifier > 0`. Elle est traduite en un seul point
+par convertisseur, vers le drapeau serveur déjà posé par **L5**.
+
+**Le compteur d'une puce ne vient pas de la liste.** Il provient d'un appel de
+comptage distinct (`artisansApi.getCountWithFilters`) dont les paramètres sont
+construits par `convertFiltersToApiParams`, dans
+`app/artisans/_lib/useArtisanFilterCounts.ts`. Toute propriété que **ce**
+chemin ne sait pas traduire est silencieusement ignorée : la liste paraît juste
+et le compteur affiche le total. Les deux nouvelles puces sont donc câblées aux
+**deux** endroits :
+
+| Chemin | Fichier | Traduction |
+|---|---|---|
+| Liste | `src/lib/filter-converter.ts` (`convertArtisanFiltersToServerFilters`) | → `serverFilters.pieces_a_verifier = true` |
+| Comptage de la puce | `app/artisans/_lib/useArtisanFilterCounts.ts` (`convertFiltersToApiParams`) | → `params.pieces_a_verifier = true` |
+
+Les deux aboutissent au même prédicat SQL `is_active = true AND
+pieces_a_verifier > 0`, appliqué par `artisans-crud.ts` pour la liste et par
+`artisans-counts.ts` pour le comptage : **le nombre de la puce est exactement le
+nombre de lignes**.
+
+**Indépendance vis-à-vis de `statut_dossier`.** Ces vues ne posent ni
+`statut_dossier` ni `exclude_statuts` — une pièce en attente ne dit rien de la
+complétude du dossier. Le compteur « à compléter », affiché au client et porteur
+d'un bug connu traité à part, reste donc strictement inchangé (test de
+non-régression dans `tests/unit/hooks/useArtisanFilterCounts.test.ts`).
+
 ### ArtisanDeleteDialog.tsx
 
 Dialogue de confirmation pour la suppression (soft delete) d'un artisan. Affiche un résumé de l'artisan et de ses interventions liées avant confirmation.
@@ -271,7 +319,7 @@ Icone indiquant le statut du dossier administratif :
 | `useArtisansQuery` | `src/hooks/useArtisansQuery.ts` | Fetching paginé avec filtres |
 | `useArtisanModal` | `src/hooks/useArtisanModal.ts` | State et navigation modal |
 | `useArtisanContextMenu` | `src/hooks/useArtisanContextMenu.ts` | Actions du menu contextuel |
-| `useArtisanViews` | `src/hooks/useArtisanViews.ts` | Gestion des vues (table/cards) |
+| `useArtisanViews` | `src/hooks/useArtisanViews.ts` | Presets des puces de vue (six vues, dont « Artisans à vérifier » et « Mes artisans à vérifier »), fusion avec le `localStorage` et substitution de `__CURRENT_USER__` |
 | `useSiretVerification` | `src/hooks/useSiretVerification.ts` | Validation SIRET via API INSEE |
 | `usePortalLiveSync` | `src/hooks/usePortalLiveSync.ts` | Canal temps réel `portail-live`. **L5** y a ajouté l'invalidation de `artisanKeys.lists()` : sans elle, la pastille « n à vérifier » et le compteur de la puce ne bougeaient qu'au rechargement de la page. |
 

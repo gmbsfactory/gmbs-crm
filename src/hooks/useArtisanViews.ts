@@ -9,6 +9,20 @@ export type ArtisanViewFilter = {
   value?: string | null
 }
 
+/**
+ * Propriété dédiée aux puces « à vérifier ».
+ *
+ * Le jeu d'opérateurs ci-dessus ne connaît pas « > 0 ». Plutôt que d'ajouter un
+ * opérateur numérique générique (qui obligerait chaque convertisseur, chaque
+ * chemin de comptage et chaque filtre client à savoir comparer des nombres), on
+ * expose une propriété dédiée dont `is_not_empty` se lit « il reste au moins une
+ * pièce en attente » — c'est-à-dire exactement `artisans.pieces_a_verifier > 0`.
+ * Le convertisseur la traduit par le drapeau serveur `pieces_a_verifier` posé
+ * par le lot L5, et le chemin de comptage des puces le reconnaît aussi : la
+ * liste et le compteur passent donc par le même prédicat SQL.
+ */
+export const ARTISAN_VIEW_PROPERTY_PIECES_A_VERIFIER = "pieces_a_verifier"
+
 export type ArtisanViewDefinition = {
   id: string
   title: string
@@ -54,6 +68,24 @@ const DEFAULT_VIEW_PRESETS: Array<{
       filters: [
         { property: "gestionnaire_id", operator: "eq", value: CURRENT_USER_PLACEHOLDER },
         { property: "statut_dossier", operator: "eq", value: "À compléter" },
+      ],
+    },
+    {
+      id: "artisans-a-verifier",
+      title: "Artisans à vérifier",
+      description: "Tous les artisans ayant au moins une pièce en attente de vérification",
+      filters: [
+        { property: ARTISAN_VIEW_PROPERTY_PIECES_A_VERIFIER, operator: "is_not_empty" },
+      ],
+    },
+    {
+      id: "mes-artisans-a-verifier",
+      title: "Mes artisans à vérifier",
+      description:
+        "Artisans assignés au gestionnaire connecté ayant au moins une pièce en attente de vérification",
+      filters: [
+        { property: "gestionnaire_id", operator: "eq", value: CURRENT_USER_PLACEHOLDER },
+        { property: ARTISAN_VIEW_PROPERTY_PIECES_A_VERIFIER, operator: "is_not_empty" },
       ],
     },
   ]

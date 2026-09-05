@@ -64,6 +64,8 @@ export function useArtisanFilterCounts({
       statuts?: string[]
       exclude_statuts?: string[]
       statut_dossier?: string
+      /** Puces « à vérifier » : `.gt("pieces_a_verifier", 0)` côté serveur. */
+      pieces_a_verifier?: boolean
     } => {
       const params: {
         gestionnaire?: string
@@ -71,6 +73,7 @@ export function useArtisanFilterCounts({
         statuts?: string[]
         exclude_statuts?: string[]
         statut_dossier?: string
+        pieces_a_verifier?: boolean
       } = {}
 
       for (const filter of filters) {
@@ -86,6 +89,15 @@ export function useArtisanFilterCounts({
           } else if (typeof filter.value === "string") {
             params.gestionnaire = filter.value
           }
+        } else if (
+          filter.property === "pieces_a_verifier" &&
+          filter.operator === "is_not_empty"
+        ) {
+          // Puces « Artisans à vérifier » / « Mes artisans à vérifier ».
+          // Le compteur DOIT emprunter le même prédicat que la liste : sans
+          // cette branche, le filtre serait ignoré ici et la puce afficherait
+          // le nombre total d'artisans au lieu du nombre de lignes listées.
+          params.pieces_a_verifier = true
         } else if (filter.property === "statut_dossier" && filter.operator === "eq") {
           if (typeof filter.value === "string") {
             params.statut_dossier = filter.value
