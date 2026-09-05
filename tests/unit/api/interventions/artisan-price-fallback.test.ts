@@ -117,6 +117,31 @@ describe('Repli gestionnaire — prix et démarrage saisis au CRM', () => {
     expect((journal?.payload as { payload: Record<string, unknown> }).payload.actor).toBe('badr@gmbs.fr')
   })
 
+  // Constat 7 de la recette : le repli était refusé en 409 sur toute intervention
+  // déjà passée en ACCEPTE — c'est-à-dire sur la quasi-totalité du stock, et donc
+  // sur toutes celles où le gestionnaire appelle réellement l'artisan.
+  it('should accept a price answered by phone on an intervention already in ACCEPTE', async () => {
+    const planned = client({
+      interventions: [{ data: { ...intervention, statut: { code: 'ACCEPTE' } }, error: null }],
+    })
+    h.createServerSupabaseAdmin.mockReturnValue(planned)
+
+    const response = await PATCH_PRICE(request('price', { response: 'accepted', amount: 480 }), params)
+    expect(response.status).toBe(200)
+    expect((await response.json()).price).toMatchObject({ response: 'accepted', source: 'crm' })
+  })
+
+  it('should still refuse a status where the price makes no sense', async () => {
+    const planned = client({
+      interventions: [{ data: { ...intervention, statut: { code: 'INTER_TERMINEE' } }, error: null }],
+    })
+    h.createServerSupabaseAdmin.mockReturnValue(planned)
+
+    const response = await PATCH_PRICE(request('price', { response: 'accepted', amount: 480 }), params)
+    expect(response.status).toBe(409)
+    expect(await response.json()).toEqual({ error: 'status_not_allowed' })
+  })
+
   it('should refuse a permission-less caller', async () => {
     h.requirePermission.mockResolvedValue({ error: new Response(null, { status: 403 }) })
     const response = await PATCH_PRICE(request('price', { response: 'accepted', amount: 480 }), params)

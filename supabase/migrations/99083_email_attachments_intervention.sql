@@ -41,6 +41,24 @@
 -- ---------------------------------------------------------------------
 -- 1. Marque d'envoi sur les pieces de l'intervention
 -- ---------------------------------------------------------------------
+-- ---------------------------------------------------------------------------
+-- BORNE D'ATTENTE DES VERROUS (correctif de recette, constat 1).
+--
+-- 99077 ajoute intervention_attachments, artisan_reports et artisan_attachments
+-- a la publication « supabase_realtime ». Le gestionnaire d'abonnements de
+-- Supabase Realtime (application_name « realtime_subscription_manager_pub ») se
+-- reveille alors pour lire ces relations (AccessShareLock) au moment meme ou ces
+-- migrations demandent un AccessExclusiveLock sur les memes tables ou leurs
+-- voisines : un deadlock 40P01 a ete observe une fois sur quatre resets locaux,
+-- et la fenetre est ouverte a chaque deploiement en production, ou Realtime est
+-- toujours vivant.
+--
+-- Sans borne, l'attente est infinie et rien ne fait reessayer. Avec elle, la
+-- collision devient un echec net (55P03 lock_not_available) sur une migration
+-- deja IDEMPOTENTE : il suffit de la rejouer. On prefere un echec lisible et
+-- rejouable a un deadlock aleatoire.
+-- ---------------------------------------------------------------------------
+SET lock_timeout = '5s';
 ALTER TABLE public.intervention_attachments
   ADD COLUMN IF NOT EXISTS sent_to_artisan_at            TIMESTAMPTZ,
   ADD COLUMN IF NOT EXISTS sent_to_artisan_email_log_id  UUID;

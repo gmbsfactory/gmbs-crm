@@ -21,6 +21,7 @@ function assignmentRow(over: Record<string, unknown> = {}) {
     price_response: 'accepted',
     work_started_at: null,
     work_started_from: null,
+    work_start_missing_count: 0,
     ...over,
   }
 }
@@ -365,5 +366,76 @@ describe('startWork — correction du gestionnaire', () => {
     })
     if (result.status !== 200) throw new Error('unreachable')
     expect(new Date(result.body.work.started_at).getFullYear()).toBeGreaterThan(2019)
+  })
+})
+
+describe('startWork — dette de saisie réévaluée (constat 10)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    h.update.mockResolvedValue({ id: INTERVENTION })
+  })
+
+  it('should recompute the missing count when the fiche was completed between two calls', async () => {
+    // Premier appel : fiche incomplète, la dette est enregistrée.
+    const incomplet = client({
+      intervention: interventionRow({ consigne_intervention: null }),
+      tenant: null,
+    })
+    const premier = await call(incomplet, { envelope: null })
+    if (premier.status !== 200) throw new Error('unreachable')
+    expect(premier.body.missing_fields.length).toBeGreaterThan(0)
+    const dette = premier.body.missing_fields.length
+    const ecriture = incomplet.calls.find((c) => c.table === 'intervention_artisans' && c.op === 'update')
+    expect(ecriture?.payload).toMatchObject({ work_start_missing_count: dette })
+
+    // Second appel, chantier DÉJÀ démarré et fiche entre-temps complétée : la
+    // réponse ne doit plus annoncer une dette soldée, et la base doit suivre.
+    const complet = client({
+      assignment: assignmentRow({
+        work_started_at: '2026-09-12T08:40:00.000Z',
+        work_started_from: 'portal',
+        work_start_missing_count: dette,
+      }),
+    })
+    const second = await call(complet, { envelope: null })
+    expect(second.status).toBe(200)
+    if (second.status !== 200) throw new Error('unreachable')
+    expect(second.body.missing_fields).toEqual([])
+    expect(second.body.status_advanced).toBe(false)
+
+    const remise = complet.calls.find((c) => c.table === 'intervention_artisans' && c.op === 'update')
+    expect(remise?.payload).toEqual({ work_start_missing_count: 0 })
+  })
+
+  it('should not rewrite the counter when the debt has not moved', async () => {
+    const planned = client({
+      assignment: assignmentRow({
+        work_started_at: '2026-09-12T08:40:00.000Z',
+        work_started_from: 'portal',
+        work_start_missing_count: 0,
+      }),
+    })
+    const result = await call(planned, { envelope: null })
+    expect(result.status).toBe(200)
+    expect(planned.calls.some((c) => c.table === 'intervention_artisans' && c.op === 'update')).toBe(false)
+  })
+
+  it('should report a debt that appeared after the start (a field was emptied)', async () => {
+    const planned = client({
+      assignment: assignmentRow({
+        work_started_at: '2026-09-12T08:40:00.000Z',
+        work_started_from: 'portal',
+        work_start_missing_count: 0,
+      }),
+      intervention: interventionRow({
+        work_started_at: '2026-09-12T08:40:00.000Z',
+        consigne_intervention: null,
+      }),
+    })
+    const result = await call(planned, { envelope: null })
+    if (result.status !== 200) throw new Error('unreachable')
+    expect(result.body.missing_fields.map((m) => m.key)).toContain('INTER_EN_COURS_CONSIGNE_ARTISAN')
+    const remise = planned.calls.find((c) => c.table === 'intervention_artisans' && c.op === 'update')
+    expect(remise?.payload).toEqual({ work_start_missing_count: result.body.missing_fields.length })
   })
 })

@@ -374,3 +374,99 @@ describe("ReportsPanel", () => {
     expect(await screen.findByText("Accès refusé")).toBeInTheDocument()
   })
 })
+
+describe("ReportsPanel — replis « au téléphone » (constat 7)", () => {
+  const fetchMock = global.fetch as unknown as ReturnType<typeof vi.fn>
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    fetchMock.mockReset()
+  })
+
+  it("enregistre un prix accepté par téléphone sur l'affectation affichée", async () => {
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse(payload({ assignments: [assignment(KARIM)] })))
+      .mockResolvedValueOnce(jsonResponse({ price: { response: "accepted", source: "crm" } }))
+      .mockResolvedValue(jsonResponse(payload({ assignments: [assignment(KARIM)] })))
+
+    renderPanel()
+    fireEvent.click(await screen.findByTestId("prix-par-telephone"))
+    fireEvent.click(await screen.findByRole("button", { name: "Accepté" }))
+
+    await waitFor(() => {
+      const appel = fetchMock.mock.calls.find(
+        (c: unknown[]) => typeof c[0] === "string" && (c[0] as string).endsWith("/price"),
+      )
+      expect(appel).toBeTruthy()
+      expect(appel?.[0]).toBe(`/api/interventions/${INTERVENTION_ID}/artisans/${KARIM.id}/price`)
+      // Verrou optimiste : le montant envoyé est celui que le gestionnaire voit.
+      expect(JSON.parse((appel?.[1] as { body: string }).body)).toEqual({
+        response: "accepted",
+        amount_seen: 320,
+      })
+    })
+    await waitFor(() => expect(toastSuccess).toHaveBeenCalled())
+  })
+
+  it("transmet le motif d'un refus enregistré par téléphone", async () => {
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse(payload({ assignments: [assignment(KARIM)] })))
+      .mockResolvedValueOnce(jsonResponse({ price: { response: "refused", source: "crm" } }))
+      .mockResolvedValue(jsonResponse(payload({ assignments: [assignment(KARIM)] })))
+
+    renderPanel()
+    fireEvent.click(await screen.findByTestId("prix-par-telephone"))
+    fireEvent.change(await screen.findByLabelText(/Motif/i), { target: { value: "Agenda plein" } })
+    fireEvent.click(screen.getByRole("button", { name: "Refusé" }))
+
+    await waitFor(() => {
+      const appel = fetchMock.mock.calls.find(
+        (c: unknown[]) => typeof c[0] === "string" && (c[0] as string).endsWith("/price"),
+      )
+      expect(JSON.parse((appel?.[1] as { body: string }).body)).toMatchObject({
+        response: "refused",
+        reason: "Agenda plein",
+      })
+    })
+  })
+
+  it("appelle la route de démarrage sans qu'aucune prop ne soit fournie", async () => {
+    const accepte = assignment(KARIM, {
+      price: {
+        response: "accepted",
+        responded_at: "2026-09-12T09:00:00.000Z",
+        accepted_amount: 320,
+        source: "crm",
+        refused_reason: null,
+        drift: false,
+      },
+    })
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse(payload({ assignments: [accepte] })))
+      .mockResolvedValueOnce(jsonResponse({ work: { started_at: "x", from: "crm" } }))
+      .mockResolvedValue(jsonResponse(payload({ assignments: [accepte] })))
+
+    renderPanel()
+    fireEvent.click(await screen.findByRole("button", { name: /Démarré par téléphone/i }))
+
+    await waitFor(() => {
+      const appel = fetchMock.mock.calls.find(
+        (c: unknown[]) => typeof c[0] === "string" && (c[0] as string).endsWith("/start"),
+      )
+      expect(appel?.[0]).toBe(`/api/interventions/${INTERVENTION_ID}/artisans/${KARIM.id}/start`)
+    })
+  })
+
+  it("affiche le message métier renvoyé par l'API en cas d'échec", async () => {
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse(payload({ assignments: [assignment(KARIM)] })))
+      .mockResolvedValueOnce(jsonResponse({ error: "price_changed" }, 409))
+      .mockResolvedValue(jsonResponse(payload({ assignments: [assignment(KARIM)] })))
+
+    renderPanel()
+    fireEvent.click(await screen.findByTestId("prix-par-telephone"))
+    fireEvent.click(await screen.findByRole("button", { name: "Accepté" }))
+
+    await waitFor(() => expect(toastError).toHaveBeenCalledWith(expect.stringMatching(/coût SST a changé/i)))
+  })
+})

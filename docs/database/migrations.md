@@ -302,3 +302,32 @@ Cinq pièges vérifiés en local, à relire avant d'écrire une migration dans c
 Contrainte de nommage vérifiée au passage : ne jamais `DROP CONSTRAINT` par son nom quand la
 table ne naît pas de ce dépôt (`artisan_reports` vient de `depose_docs`). Parcourir
 `pg_constraint` et supprimer la contrainte qui porte sur la colonne visée.
+
+---
+
+## `SET lock_timeout` sur les migrations du portail (correctif de recette, 2026-09-05)
+
+`99077` ajoute `intervention_attachments`, `artisan_reports` et `artisan_attachments` à la publication
+`supabase_realtime`. Le gestionnaire d'abonnements de Supabase Realtime (`application_name`
+`realtime_subscription_manager_pub`) se réveille alors pour lire ces relations — `AccessShareLock` —
+au moment même où `99078` demande un `AccessExclusiveLock` sur les mêmes tables et leurs voisines.
+Résultat observé : un **deadlock `40P01`** une fois sur quatre `supabase db reset`, à l'instruction
+`DROP POLICY IF EXISTS … ON public.intervention_artisans`. L'adversaire n'est pas une autre session
+humaine, c'est le service Realtime lui-même — donc le risque n'est pas local : en production Realtime
+est toujours vivant, et d'autant plus actif qu'un client est connecté.
+
+Aucune migration ne posait de borne : l'attente était infinie et rien ne faisait réessayer.
+`99077`, `99078`, `99082`, `99083`, `99084` et `99085` portent désormais en tête :
+
+```sql
+SET lock_timeout = '5s';
+```
+
+Le `SET` vaut pour toute la transaction de la migration et redevient `0` ensuite (vérifié en local).
+La collision devient un échec net `55P03 lock_not_available` sur une migration **déjà idempotente** :
+il suffit de la rejouer. Un échec lisible et rejouable vaut mieux qu'un deadlock aléatoire.
+
+Règle à reprendre : **toute migration qui prend un verrou exclusif sur une table publiée dans
+`supabase_realtime` pose un `lock_timeout`.** Complément possible si la collision persistait : séparer
+dans le temps l'ajout à la publication et la reprise de verrou exclusif (rejouer l'`ADD TABLE` de
+`99077` après `99078`).

@@ -17,7 +17,11 @@ export const dynamic = 'force-dynamic'
 /** Pièces visibles / déposables depuis le portail : les 5 requises + « autre ». */
 const PORTAL_DOCUMENT_KINDS: string[] = [...REQUIRED_DOCUMENT_KINDS, 'autre']
 
-const DOCUMENT_SELECT = 'id, kind, filename, url, mime_type, file_size, created_at, review_status, metadata'
+// `reviewed_at` et `review_comment` font partie du contrat (§8.4) : sans le motif,
+// l'artisan redépose la même pièce refusée — exactement ce que le motif obligatoire
+// au refus (lot L5) voulait éviter. Les deux colonnes existent depuis 99078.
+const DOCUMENT_SELECT =
+  'id, kind, filename, url, mime_type, file_size, created_at, review_status, reviewed_at, review_comment, metadata'
 
 interface PortalDocumentRow {
   id: string
@@ -28,6 +32,10 @@ interface PortalDocumentRow {
   file_size: number | null
   created_at: string | null
   review_status: string | null
+  /** Date de la décision humaine — affichée sous une pièce validée (§8.4). */
+  reviewed_at: string | null
+  /** Motif du refus, affiché en entier sous la pièce refusée (§8.4). */
+  review_comment: string | null
   metadata: Record<string, unknown> | null
 }
 

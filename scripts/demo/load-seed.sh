@@ -24,4 +24,29 @@ UPDATE public.users u SET auth_user_id = au.id
    AND u.auth_user_id IS NULL
    AND NOT EXISTS (SELECT 1 FROM public.users x WHERE x.auth_user_id = au.id);"
 echo "✅ Comptes de démo liés à auth.users (auth_user_id)"
+
+# ---------------------------------------------------------------------------
+# CONTRÔLE BLOQUANT DE FIN (correctif de recette, constat 2).
+#
+# Un « supabase db reset » a déjà échoué APRÈS avoir supprimé et recréé la base
+# mais AVANT d'appliquer la moindre migration, sur le seul message
+# « error running container: exit 1 ». La base était vide et muette, et rien
+# n'en avertissait : on ne le découvrait que devant le client.
+#
+# On refuse donc de rendre la main sur un état qui n'est pas l'état attendu.
+# ---------------------------------------------------------------------------
+NB_MIGRATIONS_PORTAIL=$(psql "$DB_URL" -tAc \
+  "SELECT count(*) FROM supabase_migrations.schema_migrations WHERE version >= '99078';" 2>/dev/null || echo 0)
+NB_INTERVENTIONS=$(psql "$DB_URL" -tAc \
+  "SELECT count(*) FROM public.interventions WHERE id_inter LIKE 'DEMO-%';" 2>/dev/null || echo 0)
+
+if [ "$NB_MIGRATIONS_PORTAIL" != "7" ] || [ "$NB_INTERVENTIONS" != "8" ]; then
+  echo "❌ ÉTAT DE DÉMO INVALIDE — ne pas démarrer la démo sur cette base."
+  echo "   migrations 99078+ appliquées : $NB_MIGRATIONS_PORTAIL (attendu 7)"
+  echo "   interventions DEMO-*         : $NB_INTERVENTIONS (attendu 8)"
+  echo "   Reprise : relancer « supabase db reset » JUSQU'À voir"
+  echo "   « Finished supabase db reset », puis rejouer scripts/demo/load-seed.sh."
+  exit 1
+fi
+echo "✅ État vérifié : $NB_MIGRATIONS_PORTAIL migrations du portail, $NB_INTERVENTIONS interventions de démo"
 echo "✅ Terminé"

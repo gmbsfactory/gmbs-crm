@@ -516,3 +516,64 @@ pour `paid`, `404` uniforme, `intervention_payments` jamais touchée),
 Portail : `tests/unit/api/library-proxy.test.ts`, `tests/unit/mock/library.test.ts`,
 `tests/unit/components/documents-screen.test.tsx`, `tests/unit/components/missions-terminees-totaux.test.tsx`,
 `tests/unit/lib/library-and-months.test.ts`.
+
+---
+
+### 8.10 Correctifs de recette (2026-09-05)
+
+Bloc **ajouté** à la suite de la recette de la vague 1. Il ne réécrit aucune ligne des sections
+précédentes : il les précise là où le contrat était muet ou en retrait par rapport au code.
+
+#### Corps attendu par la route de paiement
+
+La ligne `PATCH /api/interventions/{id}/artisans/{artisanId}/payment` de §8.9 ne documentait que sa
+**réponse**. Elle attend en entrée :
+
+```json
+{ "payment_status": "awaiting_invoice | invoice_received | in_progress | paid | disputed | not_applicable",
+  "paid_at": "2026-09-20 (obligatoire pour paid, ignoré sinon)" }
+```
+
+`state` est le nom de **sortie** (`{payment:{state, label, tone, paid_at, updated_at}}`), jamais celui
+d'entrée : envoyer `state` fait répondre `400 « payment_status attendu parmi : … »` pour les six
+valeurs, `paid` comprise. Source : `src/lib/interventions/artisan-payment.ts`.
+
+#### Statuts recevables par le repli gestionnaire du prix
+
+`PATCH /api/interventions/{id}/artisans/{artisanId}/price` accepte désormais `DEVIS_ENVOYE`
+**et** `ACCEPTE`, là où §8.2 ne mentionnait que le statut du portail. La garde du portail
+(`POST /me/interventions/{id}/price`) reste inchangée : `DEVIS_ENVOYE` seul.
+
+Motif : le repli sert précisément quand le gestionnaire décroche son téléphone, c'est-à-dire le plus
+souvent sur une intervention déjà passée en `ACCEPTE`. Tant que la garde était partagée, ces
+interventions répondaient `409 status_not_allowed`, puis `409 price_not_accepted` au démarrage — plus
+aucun chantier ne pouvait être démarré depuis l'application. Le geste est branché dans le panneau
+« Rapport » du modal d'intervention (« Réponse par téléphone », puis « Démarré par téléphone »).
+
+#### Champs de vérification renvoyés à l'artisan
+
+`GET /api/portal-external/me/documents` renvoie désormais `reviewed_at` et `review_comment` sur
+chaque pièce, en plus de `review_status`. Sans eux, le motif de refus promis par §8.4 n'arrivait
+jamais au portail et l'artisan redéposait la même pièce. Les colonnes existent depuis `99078`.
+
+#### Compteur de champs manquants réévalué
+
+`POST /me/interventions/{id}/start` et son repli CRM renvoient, sur une affectation **déjà démarrée**,
+la liste réelle des champs manquants et remettent `work_start_missing_count` à jour (le trigger de
+`99084` propage vers `interventions.portal_work_missing_count`). Le compteur était jusqu'ici figé à sa
+valeur du premier appel : le badge « Démarré · n champs manquants » annonçait une dette déjà soldée.
+Le statut, lui, reste sous la main du gestionnaire (§10.1) : aucune bascule n'est retentée.
+
+#### Un changement de statut sans `dueAt` ne touche plus `date_prevue`
+
+`POST /api/interventions/{id}/status` sans `dueAt` laisse `date_prevue` intacte. Auparavant la colonne
+était effacée — y compris par le menu contextuel (« Passer en devis envoyé », « Passer en accepté »),
+qui n'envoie pas de date. Le démarrage de chantier de l'artisan répondait ensuite « La date prévue
+doit être renseignée pour passer en cours », sur un champ que le CRM venait d'effacer.
+`dueAt: null` reste le moyen explicite de la vider.
+
+Tests livrés : `tests/unit/lib/api/interventions/due-date.test.ts`,
+`tests/unit/lib/portal-external/start.test.ts` (dette réévaluée),
+`tests/unit/api/interventions/artisan-price-fallback.test.ts` (`ACCEPTE` accepté, `INTER_TERMINEE`
+toujours refusé), `tests/unit/components/interventions/ReportsPanel.test.tsx` (les deux gestes
+« au téléphone »).

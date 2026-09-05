@@ -53,8 +53,12 @@ import { usePortalLiveSync } from "@/hooks/usePortalLiveSync"
 const ENV_ORIGINE = { ...process.env }
 
 function wrapper(qc: QueryClient) {
-  return ({ children }: { children: React.ReactNode }) =>
+  // Composant nommé : sans displayName, react/display-name échoue sur la
+  // fonction anonyme renvoyée (constat 4 de la recette).
+  const Wrapper = ({ children }: { children: React.ReactNode }) =>
     React.createElement(QueryClientProvider, { client: qc }, children)
+  Wrapper.displayName = "Wrapper"
+  return Wrapper
 }
 
 /** Monte le hook et attend que le canal soit abonné. */

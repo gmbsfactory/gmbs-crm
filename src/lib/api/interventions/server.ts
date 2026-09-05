@@ -66,12 +66,28 @@ export type ListResult = {
   total: number
 }
 
-const computeDueDate = (payload: { status?: InterventionStatusValue; dueAt?: Date | string | null }) => {
+/**
+ * Échéance à écrire, en distinguant « non fourni » de « explicitement vidé ».
+ *
+ * `undefined` = l'appelant ne parle pas de la date : la colonne `date_prevue`
+ * ne doit pas être touchée. `null` = il demande de la vider.
+ *
+ * Sans cette distinction, tout changement de statut passé sans `dueAt` effaçait
+ * `date_prevue` : le menu contextuel (« Passer en devis envoyé », « Passer en
+ * accepté ») n'en envoie pas, et le démarrage de chantier de l'artisan répondait
+ * ensuite « La date prévue doit être renseignée » — sur un champ que le CRM
+ * venait lui-même d'effacer.
+ */
+export const computeDueDate = (payload: {
+  status?: InterventionStatusValue
+  dueAt?: Date | string | null
+}): Date | null | undefined => {
   if (payload.status === "INTER_EN_COURS") {
     if (!payload.dueAt) {
       return addDays(new Date(), 7)
     }
   }
+  if (payload.dueAt === undefined) return undefined
   if (!payload.dueAt) return null
   if (payload.dueAt instanceof Date) return payload.dueAt
   return new Date(payload.dueAt)

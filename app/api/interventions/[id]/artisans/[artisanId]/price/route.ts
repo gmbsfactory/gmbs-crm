@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { isPermissionError, requirePermission } from '@/lib/auth/permissions'
 import { createServerSupabaseAdmin } from '@/lib/supabase/server'
-import { respondToPrice, validatePriceBody } from '@/lib/portal-external/price'
+import { CRM_PRICE_ALLOWED_STATUSES, respondToPrice, validatePriceBody } from '@/lib/portal-external/price'
 import { resolveActorLabel } from '@/lib/portal-external/actor'
 
 export const runtime = 'nodejs'
@@ -19,6 +19,10 @@ type Params = { params: Promise<{ id: string; artisanId: string }> }
  * `price_response_source` vaut `crm`, que `price_response_by` porte le
  * gestionnaire, et que la réécriture d'une réponse déjà donnée est autorisée
  * (question Q5 : le gestionnaire corrige, avec trace au journal).
+ *
+ * Les statuts recevables sont plus larges que côté portail : `DEVIS_ENVOYE`
+ * **et** `ACCEPTE`. C'est tout l'intérêt du repli — quand le gestionnaire
+ * décroche son téléphone, l'intervention est le plus souvent déjà en `ACCEPTE`.
  */
 export async function PATCH(request: Request, { params }: Params) {
   const permCheck = await requirePermission(request, 'write_interventions')
@@ -49,6 +53,10 @@ export async function PATCH(request: Request, { params }: Params) {
       source: 'crm',
       actor: { userId: permCheck.user.id, label: await resolveActorLabel(supabase, permCheck.user.id) },
       allowOverwrite: true,
+      // Le portail n'accepte le prix qu'en DEVIS_ENVOYE ; le gestionnaire, lui,
+      // enregistre aussi le « oui » reçu par téléphone sur une intervention déjà
+      // passée en ACCEPTE — sinon le chantier ne peut plus jamais être démarré.
+      allowedStatuses: CRM_PRICE_ALLOWED_STATUSES,
     })
     return NextResponse.json(result.body, { status: result.status })
   } catch (error) {

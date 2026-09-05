@@ -14,6 +14,17 @@
 -- certaines tables peuvent déjà être publiées.
 -- ============================================================================
 
+-- ---------------------------------------------------------------------------
+-- BORNE D'ATTENTE DES VERROUS (correctif de recette, constat 1).
+--
+-- Les REPLICA IDENTITY FULL ci-dessous prennent un AccessExclusiveLock sur les
+-- trois tables que cette migration vient d'ajouter a la publication — c'est-a-dire
+-- exactement celles que le gestionnaire d'abonnements de Supabase Realtime se
+-- reveille pour lire. Meme borne que dans 99078 : un echec net et rejouable
+-- plutot qu'un deadlock 40P01 aleatoire. La migration est idempotente.
+-- ---------------------------------------------------------------------------
+SET lock_timeout = '5s';
+
 DO $$
 DECLARE
   t text;

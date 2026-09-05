@@ -76,6 +76,8 @@ interface AssignmentRow {
   price_response: string | null
   work_started_at: string | null
   work_started_from: string | null
+  /** Dette de saisie enregistrée au dernier calcul — réévaluée à chaque appel. */
+  work_start_missing_count: number | null
 }
 
 interface InterventionRow {
@@ -152,13 +154,14 @@ export async function startWork(params: StartWorkParams): Promise<StartWorkResul
       if (!current || !intervention || !current.work_started_at) {
         return { status: 404, body: { error: 'Intervention not found' } }
       }
+      const manquants = await refreshMissingCount(supabase, intervention, artisanId, current)
       return {
         status: 200,
         body: {
           work: { started_at: current.work_started_at, from: (current.work_started_from as 'portal' | 'crm') ?? source },
           statut_code: statusCode(intervention),
           status_advanced: false,
-          missing_fields: [],
+          missing_fields: manquants,
           replayed: true,
         },
       }
@@ -178,6 +181,11 @@ export async function startWork(params: StartWorkParams): Promise<StartWorkResul
   //    C'est aussi ce qui évite un 409 après que la transition a fait passer
   //    l'intervention en INTER_EN_COURS.
   if (assignment.work_started_at) {
+    // Le compte des champs manquants est RÉÉVALUÉ ici, pas figé à sa première
+    // valeur : le gestionnaire complète la fiche entre deux appels, et un badge
+    // « Démarré · 1 champ manquant » qui annonce une dette déjà soldée est un
+    // badge qui ment. Le statut, lui, reste sous la main du gestionnaire (§10.1).
+    const manquants = await refreshMissingCount(supabase, intervention, artisanId, assignment)
     return {
       status: 200,
       body: {
@@ -187,7 +195,7 @@ export async function startWork(params: StartWorkParams): Promise<StartWorkResul
         },
         statut_code: statusCode(intervention),
         status_advanced: false,
-        missing_fields: [],
+        missing_fields: manquants,
       },
     }
   }
@@ -262,6 +270,46 @@ export async function startWork(params: StartWorkParams): Promise<StartWorkResul
       status_advanced: advanced,
       missing_fields: missing,
     },
+  }
+}
+
+/**
+ * Recalcule les champs manquants d'une affectation DÉJÀ démarrée et remet
+ * `work_start_missing_count` à sa valeur du moment (le trigger de 99084 propage
+ * ensuite sur `interventions.portal_work_missing_count`, d'où viennent les
+ * badges de la liste et du kanban).
+ *
+ * Correctif de recette (constat 10) : aucune route du produit ne réévaluait cet
+ * écart. Un démarrage déclaré sur une fiche incomplète laissait le badge
+ * « Démarré · n champs manquants » figé, même après que le gestionnaire eut tout
+ * complété. On ne retente PAS la bascule de statut : conformément à §10.1, elle
+ * appartient au gestionnaire.
+ *
+ * N'échoue jamais : l'écriture du compteur est un confort d'affichage, pas le
+ * fait déclaré par l'artisan.
+ */
+async function refreshMissingCount(
+  supabase: SupabaseClient,
+  intervention: InterventionRow,
+  artisanId: string,
+  assignment: Pick<AssignmentRow, 'id' | 'work_start_missing_count'>,
+): Promise<MissingField[]> {
+  try {
+    const context = await buildWorkflowContext(supabase, intervention, artisanId)
+    const manquants = collectMissingFields(context)
+    if (assignment.work_start_missing_count !== manquants.length) {
+      await supabase
+        .from('intervention_artisans')
+        .update({ work_start_missing_count: manquants.length })
+        .eq('id', assignment.id)
+    }
+    return manquants
+  } catch (error) {
+    console.warn(
+      '[portal-external] Recalcul des champs manquants impossible :',
+      error instanceof Error ? error.message : error,
+    )
+    return []
   }
 }
 
@@ -406,7 +454,7 @@ async function loadAssignment(
 ): Promise<AssignmentRow | null> {
   const { data } = await supabase
     .from('intervention_artisans')
-    .select('id, role, is_primary, price_response, work_started_at, work_started_from')
+    .select('id, role, is_primary, price_response, work_started_at, work_started_from, work_start_missing_count')
     .eq('intervention_id', interventionId)
     .eq('artisan_id', artisanId)
     .maybeSingle()

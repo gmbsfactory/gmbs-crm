@@ -8,6 +8,7 @@ import {
   ClipboardList,
   Hammer,
   Loader2,
+  Phone,
   UserPlus,
   XCircle,
 } from "lucide-react"
@@ -16,8 +17,15 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { PhotoLightbox } from "@/components/ui/PhotoLightbox"
 import { usePermissions } from "@/hooks/usePermissions"
+import {
+  usePriceByPhoneMutation,
+  useStartByPhoneMutation,
+} from "@/hooks/useArtisanPhoneFallback"
 import {
   PHOTOS_HORS_RAPPORT,
   usePortalReportQuery,
@@ -67,8 +75,10 @@ export interface ReportsPanelProps {
   /** Bascule sur l'onglet « Infos » (section Artisan). */
   onGoToInfos?: () => void
   /**
-   * Repli gestionnaire « démarré par téléphone » (route L7). Tant qu'il n'est
-   * pas fourni, le bouton n'est pas rendu plutôt que rendu inopérant.
+   * Remplace le repli gestionnaire « démarré par téléphone ». Facultatif : sans
+   * lui, le panneau appelle lui-même `PATCH …/artisans/{artisanId}/start`.
+   * Auparavant le bouton n'était rendu que si cette prop était fournie — et
+   * comme personne ne la fournissait, le geste n'existait nulle part.
    */
   onDeclareStartByPhone?: (artisanId: string) => void
 }
@@ -131,6 +141,99 @@ function ReportPhotos({
 }
 
 /**
+ * Repli gestionnaire « prix accepté / refusé par téléphone » (spec §4.3).
+ *
+ * Constat 7 de la recette : la route existait, mais aucun écran ne l'appelait —
+ * le gestionnaire n'avait donc aucun moyen d'enregistrer le « oui » reçu au
+ * téléphone, et l'artisan sans smartphone ne franchissait jamais la garde du
+ * démarrage de chantier. On reprend le motif de la pastille de paiement de la
+ * page Comptabilité : un déclencheur discret, un popover, deux gestes.
+ *
+ * Le montant envoyé est celui affiché (`coutSst`) : c'est le verrou optimiste
+ * de §4.2, qui vaut aussi pour le gestionnaire.
+ */
+function PriceByPhone({
+  name,
+  coutSst,
+  pending,
+  onSubmit,
+}: {
+  name: string
+  coutSst: number
+  pending: boolean
+  onSubmit: (response: "accepted" | "refused", reason: string | null) => Promise<boolean>
+}) {
+  const [open, setOpen] = useState(false)
+  const [reason, setReason] = useState("")
+
+  const submit = async (response: "accepted" | "refused") => {
+    const ok = await onSubmit(response, response === "refused" ? reason.trim() || null : null)
+    if (ok) {
+      setOpen(false)
+      setReason("")
+    }
+  }
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="pointer-events-auto h-7 text-xs"
+          data-testid="prix-par-telephone"
+        >
+          <Phone className="mr-1 h-3.5 w-3.5" />
+          Réponse par téléphone
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-72 p-3" align="start">
+        <p className="mb-2 text-xs font-semibold">Réponse de {name} au téléphone</p>
+        <p className="mb-2 text-[11px] text-muted-foreground">
+          Enregistre la réponse au prix de {formatAmount(coutSst)}, horodatée et tracée au journal.
+        </p>
+        <div className="space-y-2">
+          <div className="space-y-0.5">
+            <Label htmlFor="prix-telephone-motif" className="text-[10px] text-muted-foreground">
+              Motif (refus uniquement)
+            </Label>
+            <Input
+              id="prix-telephone-motif"
+              className="h-7 text-xs"
+              placeholder="Trop loin, agenda plein…"
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+            />
+          </div>
+          <div className="flex gap-2">
+            <Button
+              type="button"
+              size="sm"
+              className="h-7 flex-1 text-[11px]"
+              disabled={pending}
+              onClick={() => void submit("accepted")}
+            >
+              Accepté
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="h-7 flex-1 text-[11px]"
+              disabled={pending}
+              onClick={() => void submit("refused")}
+            >
+              Refusé
+            </Button>
+          </div>
+        </div>
+      </PopoverContent>
+    </Popover>
+  )
+}
+
+/**
  * Panneau « Rapport » du modal d'intervention.
  *
  * **Ne renvoie jamais `null`** : un bloc par artisan affecté, chacun dans l'un
@@ -153,6 +256,11 @@ export function ReportsPanel({
 
   const { data, isLoading, isError, error } = usePortalReportQuery(interventionId, Boolean(interventionId))
   const reviewMutation = usePortalReportReviewMutation(interventionId)
+  // Replis « au téléphone » (§4.3) : branchés ici, et non passés en props, pour
+  // que le geste existe partout où le panneau est rendu — c'est leur absence de
+  // point d'entrée qui les rendait inutilisables (constat 7 de la recette).
+  const priceByPhone = usePriceByPhoneMutation(interventionId)
+  const startByPhone = useStartByPhoneMutation(interventionId)
 
   const [selectedByArtisan, setSelectedByArtisan] = useState<Record<string, string>>({})
   const [openHistory, setOpenHistory] = useState<Record<string, boolean>>({})
@@ -224,6 +332,37 @@ export function ReportsPanel({
       },
     )
   }
+
+  /** Enregistre la réponse au prix reçue de vive voix. Renvoie `false` en cas d'échec. */
+  const handlePriceByPhone = async (
+    artisanId: string,
+    coutSst: number,
+    response: "accepted" | "refused",
+    reason: string | null,
+  ): Promise<boolean> => {
+    try {
+      await priceByPhone.mutateAsync({ artisanId, response, amountSeen: coutSst, reason })
+      toast.success(response === "accepted" ? "Prix accepté par téléphone" : "Refus enregistré")
+      return true
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Impossible d'enregistrer la réponse")
+      return false
+    }
+  }
+
+  /** Déclare le démarrage du chantier annoncé au téléphone. */
+  const handleStartByPhone = (artisanId: string) => {
+    startByPhone.mutate(
+      { artisanId },
+      {
+        onSuccess: () => toast.success("Démarrage de chantier enregistré"),
+        onError: (err) =>
+          toast.error(err instanceof Error ? err.message : "Impossible d'enregistrer le démarrage"),
+      },
+    )
+  }
+
+  const declareStart = onDeclareStartByPhone ?? handleStartByPhone
 
   if (isLoading) {
     return (
@@ -303,11 +442,28 @@ export function ReportsPanel({
                 )}
 
                 {state === "prix_propose" && (
-                  <p className="text-xs text-muted-foreground">
-                    Prix de{" "}
-                    <span className="font-medium text-foreground">{formatAmount(assignment.cout_sst)}</span> proposé.
-                    En attente de la réponse de {name}.
-                  </p>
+                  <div className="space-y-2">
+                    <p className="text-xs text-muted-foreground">
+                      Prix de{" "}
+                      <span className="font-medium text-foreground">{formatAmount(assignment.cout_sst)}</span> proposé.
+                      En attente de la réponse de {name}.
+                    </p>
+                    {canReview && assignment.artisan_id && assignment.cout_sst !== null && (
+                      <PriceByPhone
+                        name={name}
+                        coutSst={assignment.cout_sst}
+                        pending={priceByPhone.isPending}
+                        onSubmit={(response, reason) =>
+                          handlePriceByPhone(
+                            assignment.artisan_id as string,
+                            assignment.cout_sst as number,
+                            response,
+                            reason,
+                          )
+                        }
+                      />
+                    )}
+                  </div>
                 )}
 
                 {state === "prix_refuse" && (
@@ -351,13 +507,14 @@ export function ReportsPanel({
                         aujourd&apos;hui {formatAmount(assignment.cout_sst)}.
                       </p>
                     )}
-                    {onDeclareStartByPhone && assignment.artisan_id && (
+                    {canReview && assignment.artisan_id && (
                       <Button
                         type="button"
                         variant="outline"
                         size="sm"
                         className="pointer-events-auto h-7 text-xs"
-                        onClick={() => onDeclareStartByPhone(assignment.artisan_id as string)}
+                        disabled={startByPhone.isPending}
+                        onClick={() => declareStart(assignment.artisan_id as string)}
                       >
                         <Hammer className="mr-1 h-3.5 w-3.5" />
                         Démarré par téléphone

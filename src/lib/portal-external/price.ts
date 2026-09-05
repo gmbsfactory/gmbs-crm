@@ -165,6 +165,16 @@ export interface RespondToPriceParams {
    * (Q5 : (b) le gestionnaire corrige, avec trace).
    */
   allowOverwrite?: boolean
+  /**
+   * Statuts où la réponse est recevable. Défaut : ceux du portail
+   * (`PORTAL_PRICE_STATUSES`, c'est-à-dire `DEVIS_ENVOYE` seul).
+   *
+   * La route gestionnaire y ajoute `ACCEPTE` : le repli « prix accepté par
+   * téléphone » servait précisément aux interventions déjà passées en ACCEPTE,
+   * où il était jusqu'ici refusé en `409 status_not_allowed` — donc où plus
+   * aucun chantier ne pouvait être démarré depuis l'application.
+   */
+  allowedStatuses?: readonly string[]
 }
 
 /** Traite une réponse au prix ; renvoie le code HTTP et le corps à retourner. */
@@ -197,8 +207,13 @@ export async function respondToPrice(params: RespondToPriceParams): Promise<Pric
     return { status: 404, body: { error: 'Intervention not found' } }
   }
 
-  // 3. Le prix ne se négocie qu'en DEVIS_ENVOYE.
-  if (!isPriceAllowedStatus(statusCode(intervention))) {
+  // 3. Statuts recevables — DEVIS_ENVOYE côté artisan, plus ACCEPTE côté
+  //    gestionnaire (voir `allowedStatuses`).
+  const code = statusCode(intervention)
+  const recevable = params.allowedStatuses
+    ? !!code && params.allowedStatuses.includes(code)
+    : isPriceAllowedStatus(code)
+  if (!recevable) {
     return { status: 409, body: { error: 'status_not_allowed' } }
   }
 
@@ -278,6 +293,15 @@ export async function respondToPrice(params: RespondToPriceParams): Promise<Pric
 
 /** Marqueur commun aux reminders de refus de prix. */
 export const PRICE_REMINDER_MARKER = '💶 Prix'
+
+/**
+ * Statuts où le GESTIONNAIRE peut enregistrer la réponse reçue au téléphone.
+ *
+ * Volontairement plus large que `PORTAL_PRICE_STATUSES` : la majorité du stock
+ * est déjà en `ACCEPTE` (le client a accepté le devis GMBS) au moment où le
+ * gestionnaire appelle l'artisan, et sans cette ouverture le repli était mort-né.
+ */
+export const CRM_PRICE_ALLOWED_STATUSES = ['DEVIS_ENVOYE', 'ACCEPTE'] as const
 
 async function loadAssignment(
   supabase: SupabaseClient,
