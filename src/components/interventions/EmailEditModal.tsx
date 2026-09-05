@@ -17,7 +17,9 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
-import { X, Paperclip, Mail, Loader2, ZoomIn, ZoomOut, RotateCcw, CheckCircle2, AlertCircle, ChevronDown, ChevronUp, Clock } from 'lucide-react';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Paperclip, Mail, Loader2, ZoomIn, ZoomOut, RotateCcw, CheckCircle2, AlertCircle, ChevronDown, ChevronUp, Clock } from 'lucide-react';
 import { toast } from 'sonner';
 import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase-client';
@@ -28,6 +30,16 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import type { EmailTemplateData } from '@/lib/email-templates/intervention-emails';
 import { generateDevisEmailTemplate, generateInterventionEmailTemplate } from '@/lib/email-templates/intervention-emails';
+import { useCurrentUser } from '@/hooks/useCurrentUser';
+import { useEmailAttachments } from './useEmailAttachments';
+import {
+  EMAIL_ATTACHMENT_UPLOAD_KINDS,
+  MAX_EMAIL_ATTACHMENTS,
+  MAX_EMAIL_ATTACHMENTS_TOTAL_BYTES,
+  MAX_EMAIL_ATTACHMENTS_TOTAL_LABEL,
+  formatFileSize,
+  labelForAttachmentKind,
+} from '@/lib/interventions/email-attachments';
 import DOMPurify from 'dompurify';
 
 export interface EmailEditModalProps {
@@ -45,21 +57,11 @@ export interface EmailEditModalProps {
   };
 }
 
-interface AttachmentFile {
-  id: string;
-  file: File;
-  name: string;
-  size: number;
-}
-
-const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
-const MAX_ATTACHMENTS = 5;
-
-// Vercel rejette (413 « Request Entity Too Large ») tout corps de requête serverless
-// dépassant ~4,5 Mo. Après encodage base64 (~+33 %), cela correspond à environ 3,2 Mo
-// de fichiers bruts. On affiche cette limite indicative à l'utilisateur.
-const MAX_ATTACHMENTS_SIZE_LABEL = '3,2 Mo';
-const ATTACHMENTS_TOO_LARGE_MESSAGE = `Pièces jointes trop volumineuses : la taille maximale est de ${MAX_ATTACHMENTS_SIZE_LABEL} au total. Réduisez ou compressez vos fichiers.`;
+// Lot L7 (spec §5.6) : les pièces jointes ne viennent plus du disque du gestionnaire mais de
+// l'intervention (`intervention_attachments`), et le serveur lit les fichiers dans Storage.
+// Le corps de la requête ne transporte donc plus de base64, et le plafond Vercel de ~3,2 Mo
+// qui bornait auparavant l'envoi a disparu : seule reste la limite SMTP (voir
+// MAX_EMAIL_ATTACHMENTS_TOTAL_LABEL).
 
 interface SstPriceChange {
   previousAmount: number | null;
@@ -221,7 +223,6 @@ export function EmailEditModal({
   const [showHistory, setShowHistory] = useState(false);
   const [subject, setSubject] = useState('');
   const [htmlContent, setHtmlContent] = useState('');
-  const [attachments, setAttachments] = useState<AttachmentFile[]>([]);
   const [isSending, setIsSending] = useState(false);
   const [showSstPriceConfirm, setShowSstPriceConfirm] = useState(false);
   const [previewZoom, setPreviewZoom] = useState(100); // Zoom percentage (100 = 100%)
@@ -231,6 +232,28 @@ export function EmailEditModal({
   const previewContainerRef = useRef<HTMLDivElement>(null);
   const previewContentRef = useRef<HTMLDivElement>(null);
   const hasInitializedRef = useRef(false);
+
+  // Pièces jointes : lignes d'`intervention_attachments` cochées par le gestionnaire.
+  const { data: currentUser } = useCurrentUser({ enabled: isOpen });
+  const uploader = currentUser
+    ? {
+        id: currentUser.id,
+        displayName:
+          [currentUser.firstname, currentUser.lastname].filter(Boolean).join(' ') ||
+          currentUser.username ||
+          currentUser.email ||
+          'Gestionnaire',
+        code: currentUser.code_gestionnaire ?? null,
+        color: currentUser.color ?? null,
+      }
+    : undefined;
+
+  const emailAttachments = useEmailAttachments({
+    interventionId,
+    emailType,
+    isOpen,
+    uploader,
+  });
 
   // Zoom controls
   const handleZoomIn = useCallback(() => {
@@ -269,7 +292,6 @@ export function EmailEditModal({
         coutSST: templateData.coutSST || '',
       });
       setSubject(getDefaultSubject());
-      setAttachments([]);
     }
     if (!isOpen) {
       hasInitializedRef.current = false;
@@ -358,62 +380,18 @@ export function EmailEditModal({
     }
   }, [isOpen, htmlContent, calculateOptimalZoom]);
 
-  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+  // Un fichier du disque devient d'abord une pièce de l'intervention, puis est coché comme
+  // les autres : c'est ce qui garantit que l'artisan le retrouve dans son application.
+  const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
     if (!files || files.length === 0) return;
 
-    const newFiles: AttachmentFile[] = [];
-    let hasError = false;
-
-    // Check total attachment count
-    if (attachments.length + files.length > MAX_ATTACHMENTS) {
-      toast.error(`Maximum ${MAX_ATTACHMENTS} pièces jointes autorisées`);
-      hasError = true;
-    }
-
-    Array.from(files).forEach((file) => {
-      // Check file size
-      if (file.size > MAX_FILE_SIZE) {
-        toast.error(`Le fichier "${file.name}" dépasse la taille maximale de ${MAX_FILE_SIZE / 1024 / 1024} MB`);
-        hasError = true;
-        return;
-      }
-
-      // Check if file already exists
-      if (attachments.some((att) => att.name === file.name && att.size === file.size)) {
-        toast.error(`Le fichier "${file.name}" est déjà ajouté`);
-        hasError = true;
-        return;
-      }
-
-      newFiles.push({
-        id: `${Date.now()}-${Math.random()}`,
-        file,
-        name: file.name,
-        size: file.size,
-      });
-    });
-
-    if (!hasError && newFiles.length > 0) {
-      setAttachments((prev) => [...prev, ...newFiles]);
-      toast.success(`${newFiles.length} fichier(s) ajouté(s)`);
-    }
+    await emailAttachments.addFilesFromDisk(files);
 
     // Reset file input
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
-  };
-
-  const handleRemoveAttachment = (id: string) => {
-    setAttachments((prev) => prev.filter((att) => att.id !== id));
-    toast.success('Pièce jointe supprimée');
-  };
-
-  const formatFileSize = (bytes: number): string => {
-    if (bytes < 1024) return `${bytes} B`;
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   };
 
   // Replace cid:logoGM with actual image URL for preview
@@ -579,18 +557,9 @@ export function EmailEditModal({
         return;
       }
 
-      // Prepare attachments (convert to base64)
-      const attachmentData = await Promise.all(
-        attachments.map(async (att) => {
-          const buffer = await att.file.arrayBuffer();
-          const base64 = Buffer.from(buffer).toString('base64');
-          return {
-            filename: att.name,
-            contentType: att.file.type || 'application/octet-stream',
-            content: base64,
-          };
-        })
-      );
+      // Lot L7 : le corps ne transporte plus que des identifiants de pièces de
+      // l'intervention. Les octets sont lus dans Storage par la route d'envoi.
+      const attachmentIds = emailAttachments.selectedIds;
 
       // Get authentication token
       const { data: session } = await supabase.auth.getSession();
@@ -621,7 +590,7 @@ export function EmailEditModal({
           artisanEmail, // Pass email directly for unsaved artisan selection
           subject: subject.trim(),
           htmlContent: finalHtmlContent.trim(),
-          attachments: attachmentData,
+          attachmentIds,
         }),
       });
 
@@ -631,21 +600,15 @@ export function EmailEditModal({
         timeoutRef.current = null;
       }
 
-      // Vercel rejette les corps de requête > ~4,5 Mo avec un 413 « Request Entity
-      // Too Large » (réponse en texte brut, pas en JSON) avant même d'atteindre le
-      // serveur. On intercepte ce cas pour afficher un message clair plutôt que
-      // l'erreur de parsing JSON « Unexpected token 'R'... ».
-      if (response.status === 413) {
-        throw new Error(ATTACHMENTS_TOO_LARGE_MESSAGE);
-      }
-
       let data: { error?: string; data?: unknown };
       try {
         data = await response.json();
       } catch {
-        // Réponse non-JSON : sur cet endpoint, le seul cas est le rejet plateforme
-        // pour corps trop volumineux.
-        throw new Error(ATTACHMENTS_TOO_LARGE_MESSAGE);
+        // Le corps de la requête ne contient plus de fichiers depuis le lot L7 : une réponse
+        // non-JSON ne peut plus venir d'un rejet plateforme pour corps trop volumineux.
+        throw new Error(
+          `Réponse inattendue du serveur (HTTP ${response.status}) lors de l'envoi de l'e-mail.`,
+        );
       }
 
       if (!response.ok) {
@@ -904,70 +867,131 @@ export function EmailEditModal({
                 )}
               </div>
 
-              {/* Attachments */}
-              <div className="space-y-2">
+              {/* Pièces jointes — lignes d'intervention_attachments (lot L7, spec §5.6) */}
+              <div className="space-y-2" data-testid="email-attachments">
                 <div className="flex items-center justify-between">
                   <Label>Pièces jointes</Label>
                   <Badge variant="secondary" className="text-xs">
                     Logo GMBS inclus
                   </Badge>
                 </div>
+                <p className="text-xs text-muted-foreground">
+                  Cochez des pièces de l&apos;intervention : l&apos;artisan les retrouvera à
+                  l&apos;identique dans son application.
+                </p>
 
-                {/* File input */}
+                {/* Liste des pièces de l'intervention */}
+                {emailAttachments.isLoading ? (
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    Chargement des pièces de l&apos;intervention...
+                  </div>
+                ) : emailAttachments.error ? (
+                  <p className="text-xs text-destructive">{emailAttachments.error}</p>
+                ) : emailAttachments.options.length === 0 ? (
+                  <p className="text-xs text-muted-foreground">
+                    Aucune pièce sur cette intervention. Ajoutez un fichier ci-dessous : il sera
+                    d&apos;abord enregistré comme pièce de l&apos;intervention.
+                  </p>
+                ) : (
+                  <div className="rounded-md border divide-y max-h-[220px] overflow-y-auto">
+                    {emailAttachments.options.map((option) => {
+                      const checked = emailAttachments.isSelected(option.id);
+                      const disabled = isSending || (!checked && !emailAttachments.canSelectMore);
+                      return (
+                        <label
+                          key={option.id}
+                          htmlFor={`piece-jointe-${option.id}`}
+                          className="flex items-start gap-2 p-2 cursor-pointer hover:bg-muted/50"
+                        >
+                          <Checkbox
+                            id={`piece-jointe-${option.id}`}
+                            checked={checked}
+                            disabled={disabled}
+                            onCheckedChange={() => emailAttachments.toggle(option.id)}
+                            className="mt-0.5"
+                          />
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-1.5">
+                              <Paperclip className="h-3.5 w-3.5 flex-shrink-0 text-muted-foreground" />
+                              <span className="text-sm truncate">{option.filename}</span>
+                              <Badge variant="outline" className="text-[10px] flex-shrink-0">
+                                {labelForAttachmentKind(option.kind)}
+                              </Badge>
+                            </div>
+                            <p className="text-xs text-muted-foreground">
+                              {formatFileSize(option.fileSize)}
+                              {option.sentToArtisanAt
+                                ? ` · déjà envoyée le ${new Date(option.sentToArtisanAt).toLocaleDateString('fr-FR')}`
+                                : ''}
+                            </p>
+                          </div>
+                        </label>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* Ajout d'un fichier du disque : dépôt sur l'intervention, puis sélection */}
                 <div className="flex items-center gap-2">
                   <input
                     ref={fileInputRef}
                     type="file"
                     multiple
                     onChange={handleFileSelect}
-                    disabled={isSending || attachments.length >= MAX_ATTACHMENTS}
+                    disabled={isSending || emailAttachments.isUploading || !emailAttachments.canSelectMore}
                     className="hidden"
                     id="file-upload"
                   />
+                  <Select
+                    value={emailAttachments.uploadKind}
+                    onValueChange={emailAttachments.setUploadKind}
+                    disabled={isSending || emailAttachments.isUploading}
+                  >
+                    <SelectTrigger className="h-8 w-[140px] text-xs" aria-label="Nature du fichier ajouté">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {EMAIL_ATTACHMENT_UPLOAD_KINDS.map((kind) => (
+                        <SelectItem key={kind} value={kind} className="text-xs">
+                          {labelForAttachmentKind(kind)}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                   <Button
                     type="button"
                     variant="outline"
                     size="sm"
                     onClick={() => fileInputRef.current?.click()}
-                    disabled={isSending || attachments.length >= MAX_ATTACHMENTS}
+                    disabled={isSending || emailAttachments.isUploading || !emailAttachments.canSelectMore}
                     className="flex items-center gap-2"
                   >
-                    <Paperclip className="h-4 w-4" />
-                    Ajouter
-                    {attachments.length > 0 && ` (${attachments.length}/${MAX_ATTACHMENTS})`}
+                    {emailAttachments.isUploading ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Paperclip className="h-4 w-4" />
+                    )}
+                    Ajouter un fichier
                   </Button>
-                  <span className="text-xs text-muted-foreground">max {MAX_ATTACHMENTS_SIZE_LABEL} au total</span>
                 </div>
 
-                {/* Attachment list */}
-                {attachments.length > 0 && (
-                  <div className="space-y-2">
-                    {attachments.map((att) => (
-                      <div
-                        key={att.id}
-                        className="flex items-center justify-between p-2 bg-muted rounded-md"
-                      >
-                        <div className="flex items-center gap-2 flex-1 min-w-0">
-                          <Paperclip className="h-4 w-4 flex-shrink-0" />
-                          <span className="text-sm truncate">{att.name}</span>
-                          <span className="text-xs text-muted-foreground flex-shrink-0">
-                            ({formatFileSize(att.size)})
-                          </span>
-                        </div>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleRemoveAttachment(att.id)}
-                          disabled={isSending}
-                          className="h-8 w-8 p-0"
-                        >
-                          <X className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    ))}
-                  </div>
-                )}
+                <p className="text-xs text-muted-foreground">
+                  {emailAttachments.selectedIds.length}/{MAX_EMAIL_ATTACHMENTS} pièce
+                  {emailAttachments.selectedIds.length > 1 ? 's' : ''} sélectionnée
+                  {emailAttachments.selectedIds.length > 1 ? 's' : ''}
+                  {' · '}
+                  <span
+                    className={
+                      emailAttachments.selectedSize > MAX_EMAIL_ATTACHMENTS_TOTAL_BYTES
+                        ? 'text-destructive'
+                        : undefined
+                    }
+                  >
+                    {formatFileSize(emailAttachments.selectedSize)}
+                  </span>
+                  {` sur ${MAX_EMAIL_ATTACHMENTS_TOTAL_LABEL} au total`}
+                </p>
               </div>
             </div>
 

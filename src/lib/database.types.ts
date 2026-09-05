@@ -1761,6 +1761,7 @@ export type Database = {
       email_logs: {
         Row: {
           artisan_id: string | null
+          attachment_ids: string[]
           attachments_count: number | null
           created_at: string | null
           email_type: string | null
@@ -1777,6 +1778,7 @@ export type Database = {
         }
         Insert: {
           artisan_id?: string | null
+          attachment_ids?: string[]
           attachments_count?: number | null
           created_at?: string | null
           email_type?: string | null
@@ -1793,6 +1795,7 @@ export type Database = {
         }
         Update: {
           artisan_id?: string | null
+          attachment_ids?: string[]
           attachments_count?: number | null
           created_at?: string | null
           email_type?: string | null
@@ -2068,6 +2071,8 @@ export type Database = {
           kind: string
           metadata: Json | null
           mime_type: string | null
+          sent_to_artisan_at: string | null
+          sent_to_artisan_email_log_id: string | null
           updated_at: string | null
           url: string
         }
@@ -2084,6 +2089,8 @@ export type Database = {
           kind: string
           metadata?: Json | null
           mime_type?: string | null
+          sent_to_artisan_at?: string | null
+          sent_to_artisan_email_log_id?: string | null
           updated_at?: string | null
           url: string
         }
@@ -2100,6 +2107,8 @@ export type Database = {
           kind?: string
           metadata?: Json | null
           mime_type?: string | null
+          sent_to_artisan_at?: string | null
+          sent_to_artisan_email_log_id?: string | null
           updated_at?: string | null
           url?: string
         }
@@ -2130,6 +2139,13 @@ export type Database = {
             columns: ["intervention_id"]
             isOneToOne: false
             referencedRelation: "interventions_search_mv"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "intervention_attachments_sent_email_log_fkey"
+            columns: ["sent_to_artisan_email_log_id"]
+            isOneToOne: false
+            referencedRelation: "email_logs"
             referencedColumns: ["id"]
           },
         ]

@@ -2,7 +2,12 @@ import { NextResponse } from 'next/server';
 import { createSSRServerClient } from '@/lib/supabase/server-ssr';
 import { decryptPassword } from '@/lib/utils/encryption';
 import { sendEmailToArtisan, validateGmailEmail, type Attachment } from '@/lib/services/email-service';
-import { validateRequiredFields } from '@/lib/email-templates/intervention-emails';
+import {
+  EmailAttachmentError,
+  loadEmailAttachments,
+  markAttachmentsAsSentToArtisan,
+  toNodemailerAttachment,
+} from '@/lib/services/email-attachment-loader';
 
 type Params = {
   params: Promise<{
@@ -16,11 +21,15 @@ interface SendEmailRequest {
   artisanEmail?: string; // Email passé directement depuis le frontend (pour artisan non encore sauvegardé)
   subject: string;
   htmlContent: string;
-  attachments?: Array<{
-    filename: string;
-    contentType?: string;
-    content?: string; // base64 encoded
-  }>;
+  /**
+   * Identifiants de lignes `intervention_attachments` cochées dans la modale (lot L7).
+   *
+   * Le corps de la requête ne transporte plus AUCUN contenu de fichier : le serveur lit les
+   * octets dans le bucket `documents`. C'est ce qui fait disparaître le plafond Vercel de
+   * ~3,2 Mo, et c'est la seule façon que l'artisan retrouve dans son application exactement
+   * les pièces reçues par e-mail (spec §5.6).
+   */
+  attachmentIds?: string[];
 }
 
 /**
@@ -179,25 +188,22 @@ export async function POST(request: Request, { params }: Params) {
       );
     }
 
-    // Prepare attachments from request
-    const attachments: Attachment[] = [];
-    if (body.attachments && body.attachments.length > 0) {
-      for (const att of body.attachments) {
-        if (att.content) {
-          // Decode base64 content
-          try {
-            const contentBuffer = Buffer.from(att.content, 'base64');
-            attachments.push({
-              filename: att.filename,
-              content: contentBuffer,
-              contentType: att.contentType,
-            });
-          } catch (error) {
-            console.error('[send-email] Failed to decode attachment:', att.filename, error);
-            // Continue with other attachments
-          }
-        }
+    // Charger les pièces jointes depuis le stockage (lot L7)
+    const requestedAttachmentIds = Array.isArray(body.attachmentIds)
+      ? body.attachmentIds.filter((id): id is string => typeof id === 'string' && id.trim().length > 0)
+      : [];
+
+    let attachments: Attachment[] = [];
+    let loadedAttachmentIds: string[] = [];
+    try {
+      const loaded = await loadEmailAttachments(supabase, interventionId, requestedAttachmentIds);
+      attachments = loaded.map(toNodemailerAttachment);
+      loadedAttachmentIds = loaded.map((item) => item.id);
+    } catch (error) {
+      if (error instanceof EmailAttachmentError) {
+        return NextResponse.json({ error: error.message }, { status: error.status });
       }
+      throw error;
     }
 
     // Send email
@@ -222,6 +228,7 @@ export async function POST(request: Request, { params }: Params) {
       message_html: body.htmlContent,
       email_type: body.type,
       attachments_count: attachments.length + 1, // +1 for logo GMBS
+      attachment_ids: loadedAttachmentIds,
       status: logStatus,
       error_message: emailResult.error || null,
       smtp_message_id: emailResult.messageId || null,
@@ -251,6 +258,10 @@ export async function POST(request: Request, { params }: Params) {
       );
     }
 
+    // L'e-mail est parti : estampiller les pièces réellement envoyées à l'artisan, pour que
+    // l'API portail puisse les exposer (migration 99083). Ne fait jamais échouer la réponse.
+    await markAttachmentsAsSentToArtisan(supabase, loadedAttachmentIds, logId);
+
     // Return enriched success response
     return NextResponse.json({
       success: true,
@@ -260,6 +271,7 @@ export async function POST(request: Request, { params }: Params) {
         accepted: emailResult.accepted ?? [],
         rejected: emailResult.rejected ?? [],
         logId,
+        attachmentIds: loadedAttachmentIds,
       },
     });
   } catch (error) {
