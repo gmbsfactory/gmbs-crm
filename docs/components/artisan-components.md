@@ -60,6 +60,19 @@ Onglets de navigation entre les vues de la page artisans (table, cartes). Simila
 
 Composant avatar spécifique aux artisans avec gestion des initiales, couleurs et images de profil depuis Supabase Storage.
 
+### DossierBadge.tsx
+
+Colonne « Dossier » de la page Artisans (lot **L5**, spec §5.4). Deux informations **distinctes**, jamais fusionnées :
+
+- le **badge de statut** historique — `COMPLET` (vert `#10B981`), `INCOMPLET` (orange `#F59E0B`), `À compléter` (rouge `#EF4444`) ;
+- la **pastille violette « n à vérifier »** quand `artisans.pieces_a_verifier > 0`, c'est-à-dire quand des pièces déposées depuis le portail attendent une décision.
+
+Le violet est `#9333EA` — **exactement** celui du badge « À vérifier » des rapports (`src/lib/interventions/portal-report-status.ts`) : même geste métier côté gestionnaire, une seule couleur à apprendre. La constante vit dans `src/lib/artisans/document-review.ts` (`PIECES_A_VERIFIER_COLOR`).
+
+Le composant était auparavant inliné dans `ArtisanTableRow.tsx` ; il a été extrait pour être testable. Une valeur négative ou `NaN` n'affiche aucune pastille. Tests : `tests/unit/components/artisans/DossierBadge.test.tsx`.
+
+> **L'objectif 17 se lit dans un seul chiffre** : le nombre de pastilles violettes de la page Artisans. C'est la file de travail du gestionnaire, et elle doit pouvoir tomber à zéro.
+
 ### ArtisanPortalLinkButton.tsx
 
 Bouton « Lien portail » (portail artisans, contrat `docs/architecture/portail-demo-contrat-api.md` §3). Rendu dans `ArtisanModalFooter` quand l'artisan existe et que l'utilisateur a `write_artisans`. Au clic : `POST /api/artisans/{id}/portal-link` → boîte de dialogue shadcn avec l'URL en lecture seule, boutons « Copier » (presse-papiers) et « Ouvrir » (nouvel onglet), date d'expiration et rappel « lien personnel de l'artisan, à lui transmettre ». Une réponse `503` (portail non configuré) est traduite en toast explicite ; générer un nouveau lien désactive les précédents (côté serveur). Tests : `tests/unit/components/artisans/ArtisanPortalLinkButton.test.tsx`.
@@ -82,6 +95,7 @@ Ligne individuelle du tableau artisan. Gère :
 - Affichage condensé des informations
 - Badge de statut coloré (`ArtisanStatusBadge`)
 - Badges métiers
+- Colonne « Dossier » déléguée à `DossierBadge` (statut + pastille « n à vérifier »)
 - Menu contextuel au clic droit
 
 ### ArtisanFilterDropdown.tsx
@@ -91,6 +105,18 @@ Dropdown de filtrage pour la page artisans. Filtres disponibles :
 - Métier
 - Zone géographique
 - Gestionnaire assigné
+
+**Deux puces virtuelles** s'ajoutent aux statuts réels, injectées par `useArtisanPageState` (`extendedStatuses`) et comptées par `useArtisanFilterCounts` :
+
+| Puce | Filtre serveur | Couleur |
+|---|---|---|
+| « Dossier à compléter » | `.in("statut_dossier", ["À compléter", "incomplet", "INCOMPLET"])` | `#F59E0B` |
+| « Pièces à vérifier » (**L5**) | `.gt("pieces_a_verifier", 0)` | `#9333EA` |
+
+Deux règles à ne pas franchir :
+
+1. **La puce L5 s'appuie sur une colonne SCALAIRE d'`artisans`**, jamais sur un embed `artisan_attachments!inner(...)` : une jointure dupliquerait les lignes et fausserait le `count: exact` de la pagination.
+2. **Le compteur « Dossier à compléter » ne doit pas bouger.** Son filtre ignore la valeur demandée au profit d'une liste figée — bug connu (précédent « Matera 9 vs 2 »), affiché au client, et qui relève d'un **chantier séparé**. Les deux filtres sont indépendants, cumulables, et ne partagent aucune ligne de code.
 
 ### ArtisanDeleteDialog.tsx
 
@@ -152,6 +178,7 @@ Le refacto d'avril 2026 a éclaté les anciens formulaires monolithiques en sous
 | `PendingAbsencesSection` | Section d'affichage et gestion des absences en attente |
 | `DeletedArtisanDialog` | Dialogue affiché si l'artisan est en soft-delete (recovery) |
 | `ArtisanModalFooter` | Pied du modal : bouton « Lien portail » (`ArtisanPortalLinkButton`, permission `write_artisans`), archivage, annuler / enregistrer |
+| `DossierVerificationCard` | **Vérification des pièces du dossier (L5)** — voir ci-dessous |
 
 > **Règle :** toute nouvelle saisie/champ dans la modal artisan doit être ajoutée comme composant autonome dans `_components/`, **pas** inlinée dans `NewArtisanModalContent` ou `ArtisanModalContent`. La logique de validation correspondante va dans `src/lib/<domain>-validation.ts` (cf. `iban-validation`, `siret-validation`).
 
@@ -167,8 +194,30 @@ Le refacto de mai 2026 a extrait la plomberie dupliquée entre `NewArtisanModalC
 | `useArtisanStatusTransition` | Transitions de statut nécessitant une raison/un commentaire (ex. archivage). |
 | `useArtisanAbsences` | CRUD des absences pour un artisan existant. |
 | `useArtisanAddressGeocode` | Autocomplétion d'adresse via géocodage. |
+| `useArtisanDossierReview` | **L5** — pièces du dossier avec leur état de vérification, et les deux appels d'écriture (`review` d'une pièce, `validate` du dossier). La clé de cache est `documentKeys.byEntity('artisan', id)`, **celle qu'invalide `usePortalLiveSync`** : une clé propre au hook obligerait le gestionnaire à recharger la page quand une pièce arrive du téléphone. |
 
 Le schéma de formulaire (`ArtisanFormValues`), la valeur par défaut (`buildDefaultFormValues`) et les builders de payload (`buildCreatePayload`, `buildUpdatePayload`) sont exportés depuis `_lib/artisan-form-mapper.ts` — source unique pour la création et l'édition.
+
+### DossierVerificationCard.tsx
+
+Carte « **Vérification des pièces** » de la fiche artisan (lot **L5**, spec §5.5). Repliée par défaut ; le hook `useArtisanDossierReview` ne charge les pièces qu'à l'ouverture.
+
+Ce que la carte apporte, et qui manquait **entièrement** côté CRM avant ce lot :
+
+| Élément | Détail |
+|---|---|
+| Aperçu | `DocumentPreview` (image ou PDF) + lien « ouvrir dans un nouvel onglet » |
+| État | `À vérifier` (violet) · `Refusée` (rouge) · `Validée` (vert). `review_status` `null` se lit **« Validée »** : son DEFAULT est `'approved'` et il protège les milliers de pièces d'avant le portail |
+| Valider | `POST /api/artisans/{id}/documents/{attachmentId}/review` avec `decision:'approved'` |
+| Refuser | même route avec `decision:'rejected'` — **motif obligatoire** : le bouton de confirmation du dialogue reste désactivé tant que le champ est vide, et le serveur renvoie `400` sans motif. Sans lui, l'artisan redépose exactement la même pièce |
+| Date de validité | champ `date` facultatif rangé dans `metadata.valid_until` — **aucune colonne créée** pour elle |
+| « Vérifiée le … » | affiché **seulement** si `reviewed_at IS NOT NULL`. C'est le discriminant « une décision humaine a été prise » : sans lui, une pièce héritée du DEFAULT `'approved'` prétendrait avoir été contrôlée |
+| « Dossier complet validé le … » | dès que `artisans.dossier_validated_at` est renseignée (posée par `trg_artisan_dossier_sync`) |
+| « Valider le dossier » | `POST /api/artisans/{id}/dossier/validate` — actif **seulement** quand les 5 pièces requises sont validées ; pose `dossier_validated_by`, **jamais** `dossier_validated_at` (un seul écrivain : le trigger) |
+
+Les pièces `pending` remontent en tête de liste : c'est la file de travail. `readOnly` (permission `write_artisans` absente, ou fiche verrouillée par un autre gestionnaire) masque toutes les actions et ne laisse que la lecture.
+
+Tests : `tests/unit/components/artisan-modal/DossierVerificationCard.test.tsx`.
 
 ### ArtisanFinancesSection.tsx
 
@@ -224,3 +273,16 @@ Icone indiquant le statut du dossier administratif :
 | `useArtisanContextMenu` | `src/hooks/useArtisanContextMenu.ts` | Actions du menu contextuel |
 | `useArtisanViews` | `src/hooks/useArtisanViews.ts` | Gestion des vues (table/cards) |
 | `useSiretVerification` | `src/hooks/useSiretVerification.ts` | Validation SIRET via API INSEE |
+| `usePortalLiveSync` | `src/hooks/usePortalLiveSync.ts` | Canal temps réel `portail-live`. **L5** y a ajouté l'invalidation de `artisanKeys.lists()` : sans elle, la pastille « n à vérifier » et le compteur de la puce ne bougeaient qu'au rechargement de la page. |
+
+---
+
+## Modules et routes du lot L5 (vérification des pièces)
+
+| Fichier | Rôle |
+|---|---|
+| `src/lib/artisans/document-review.ts` | Module **pur** partagé serveur / client : `parseReviewBody` (motif obligatoire au refus, date de validité au format `AAAA-MM-JJ` réellement existante), `reviewLabel`, `estVerifiee`, `mergeValidUntil` (conserve `metadata.source`), `PIECES_A_VERIFIER_COLOR` |
+| `src/lib/artisans/artisan-action-log.ts` | Écriture dans le journal append-only `artisan_portal_actions` (99079). Une action `source='crm'` **doit** porter son acteur (`actor_user_id` **et** `payload.actor`) : c'est un CHECK, pas une convention, et c'est ce qui fait survivre l'attribution à la suppression du compte. L'échec du journal ne fait jamais échouer le geste métier. |
+| `app/api/artisans/[id]/documents/[attachmentId]/review/route.ts` | `write_artisans` — voir le contrat d'API §8.2 |
+| `app/api/artisans/[id]/dossier/validate/route.ts` | `write_artisans` — pose `dossier_validated_by` |
+| `app/api/portal-external/me/profile-photo/route.ts` | Photo de profil envoyée par l'artisan ; `process-avatar` attendu, échec non fatal |
