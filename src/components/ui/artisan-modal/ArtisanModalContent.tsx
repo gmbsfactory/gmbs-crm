@@ -58,6 +58,7 @@ import { AbsencesSection } from "./_components/AbsencesSection"
 import { ArtisanModalHeader } from "./_components/ArtisanModalHeader"
 import { ArtisanModalFooter } from "./_components/ArtisanModalFooter"
 import { DossierVerificationCard } from "./_components/DossierVerificationCard"
+import { ArtisanPortalTimelineCard } from "./_components/ArtisanPortalTimelineCard"
 
 type Props = {
   artisanId: string
@@ -571,6 +572,9 @@ export function ArtisanModalContent({
                         }
                         readOnly={!canWriteArtisans || isReadOnly}
                       />
+
+                      {/* Journal des actions de l'artisan (portail + saisies CRM, lot L6) */}
+                      <ArtisanPortalTimelineCard artisanId={artisan?.id ?? artisanId} />
 
                       {/* Modal de reclassification */}
                       <DocumentReclassificationModal
