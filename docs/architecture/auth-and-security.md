@@ -717,3 +717,36 @@ protection fiable d'une fonction reste le `REVOKE` nominatif juste après son `C
   « CRM auditable », hors périmètre du socle.
 - **`tenants`, `messages`, `conversations`, `intervention_payments`, `comments`** restent
   lisibles avec la clé anon : incident déjà mémorisé, hors périmètre du socle.
+
+## Pièces jointes d'e-mail : aucune URL n'est appelée par le serveur (correctif SSRF)
+
+`intervention_attachments.url` est une **donnée**, jamais une adresse à appeler. La route
+`POST /api/interventions/{id}/send-email` téléchargeait cette URL par un `fetch` sans contrainte
+dès qu'elle ne pointait pas dans le bucket `documents` : une ligne dont l'`url` visait un service
+interne (métadonnées d'instance `169.254.169.254`, base interne, `file://`) faisait lire cette
+réponse par le serveur et **repartir en pièce jointe d'un e-mail** — une exfiltration hors du
+système, déclenchée par une simple écriture en base.
+
+Règle appliquée depuis le correctif, dans `src/lib/services/email-attachment-source.ts` :
+
+| Contrôle | Comportement |
+|---|---|
+| Transport | **Aucun `fetch`** dans le chemin d'envoi. L'URL sert uniquement à extraire `bucket` + `chemin` ; les octets sont lus par `supabase.storage.from(bucket).download(path)`, à l'intérieur du projet et sous les policies du bucket. |
+| Hôte | Strictement l'origine de `NEXT_PUBLIC_SUPABASE_URL`. Seule tolérance, documentée : `kong:8000`, l'alias interne de notre propre passerelle Storage laissé par `getPublicUrl()` — il n'est jamais contacté. |
+| Schéma | `https` uniquement ; `http` seulement si le stockage configuré est lui-même local (développement, démo). |
+| Hôtes locaux et IP littérales | Refusés nommément (`localhost`, `*.internal`, `127/8`, `10/8`, `172.16/12`, `192.168/16`, `169.254/16`, `::1`, `fc00::/7`, `fe80::/10`). Un stockage configuré sur une machine locale est refusé en production. |
+| Bucket | Liste blanche : `documents`. |
+| Chemin | `/storage/v1/object/{public｜sign｜authenticated}/…`, décodé segment par segment ; tout `..`, `%2F` ou séparateur réintroduit est refusé. |
+| Délai | 15 s par pièce (`EMAIL_ATTACHMENT_DOWNLOAD_TIMEOUT_MS`), au-delà `504`. |
+| Taille | 20 Mo par pièce **et** 20 Mo cumulés, mesurés sur les octets réellement lus (`file_size` est déclaratif). |
+| Refus | `400` avec un motif énuméré, journalisé côté serveur (`[send-email] Pièce jointe refusée … motif=…`). L'e-mail n'est pas envoyé. |
+
+Même motif, même correctif côté SMTP : `sendEmailToArtisan` refuse désormais toute pièce jointe
+portant un **chemin de fichier local** (`Attachment.path`). Nodemailer lit ce chemin sur le disque
+du serveur ; seul le logo GMBS, construit dans le module lui-même, y a droit. Une pièce métier
+passe obligatoirement par `content`.
+
+Tests : `tests/unit/lib/services/email-attachment-source.test.ts`,
+`tests/unit/lib/services/email-attachment-loader.test.ts`,
+`tests/unit/lib/services/email-service.test.ts`,
+`tests/unit/api/interventions/send-email.test.ts`.

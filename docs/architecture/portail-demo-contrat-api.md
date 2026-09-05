@@ -224,3 +224,36 @@ Le JSON de `GET /api/interventions/{id}/portal-report` est **inchangé** (§8.2,
 La constante n'a plus qu'**une seule définition** : elle était écrite deux fois (route + hook), deux valeurs libres de diverger de part et d'autre du même contrat.
 
 Tests livrés : `tests/unit/lib/interventions/portal-report-view.test.ts` (ordre, départage par version, dates absentes ou illisibles, non-mutation de l'entrée, valeur de la clé). `tests/unit/api/interventions/portal-report-get.test.ts` continue de couvrir le JSON de bout en bout, inchangé.
+
+### 8.7 Correctif de sécurité — pièces jointes de l'e-mail (SSRF)
+
+**Bloc additif : il précise la ligne L7 de §8.2 sans en changer le contrat d'appel.** Le corps de
+`POST /api/interventions/{id}/send-email`, ses champs de réponse, ses plafonds (5 pièces, 20 Mo
+cumulés) et ses effets (`email_logs.attachment_ids`, `sent_to_artisan_at`) sont **inchangés**.
+
+Ce qui change est le **transport interne** : la mention « repli `fetch` pour une pièce hébergée
+hors bucket » de la ligne L7 ne décrit plus le comportement. Ce repli était une faille — une ligne
+`intervention_attachments` dont l'`url` visait un service interne faisait lire sa réponse par le
+serveur et repartir en pièce jointe. **Le chemin d'envoi ne fait plus aucune requête HTTP
+sortante** : l'URL n'est plus qu'une source de `bucket` + `chemin`, et les octets sont lus par le
+client Supabase du projet.
+
+| Sujet | Règle appliquée |
+|---|---|
+| Acceptation | Origine strictement égale à `NEXT_PUBLIC_SUPABASE_URL` (plus l'alias interne `kong:8000`, jamais contacté), schéma `https` — `http` seulement pour un stockage local de développement —, bucket `documents`, chemin `/storage/v1/object/{public｜sign｜authenticated}/…` sans segment traversant. |
+| Refus | Hôte tiers, IP littérale, hôte local ou interne, `file://`, bucket non listé, chemin malformé, stockage non configuré. Réponse **`400`** avec une phrase nommant le fichier, refus journalisé avec un motif énuméré. **L'e-mail n'est pas envoyé.** |
+| Nouveaux codes | `413` s'ajoute pour **une** pièce au-delà de 20 Mo (le cumul le renvoyait déjà) ; `504` si la lecture d'une pièce dépasse 15 s. |
+| Conséquence fonctionnelle | Une pièce historique hébergée **hors** du stockage du projet n'est plus jointe : elle doit être reversée dans l'intervention. C'est le prix du correctif, et le message d'erreur le dit au gestionnaire. |
+| Même motif, côté SMTP | `sendEmailToArtisan` refuse toute pièce portant un chemin de fichier **local** (`Attachment.path`) : nodemailer lirait le disque du serveur. Seul le logo GMBS, construit dans le service, l'utilise ; les pièces métier passent par `content`. |
+
+Modules : `src/lib/services/email-attachment-source.ts` (règle pure, motifs de refus),
+`src/lib/services/email-attachment-loader.ts` (téléchargement, délai, plafonds),
+`src/lib/services/email-service.ts` (garde SMTP). `parseDocumentsStoragePath` disparaît de
+`src/lib/interventions/email-attachments.ts` : ce parseur acceptait n'importe quel hôte, il est
+remplacé par `resolveEmailAttachmentSource`.
+
+Tests livrés : `tests/unit/lib/services/email-attachment-source.test.ts` (20 cas : hôte hors
+stockage, IP littérale, hôte local, `file://`, port, identifiants dans l'URL, bucket, traversée,
+stockage non configuré), `tests/unit/lib/services/email-service.test.ts`, et les cas ajoutés à
+`tests/unit/lib/services/email-attachment-loader.test.ts` et
+`tests/unit/api/interventions/send-email.test.ts`.
