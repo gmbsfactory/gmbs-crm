@@ -534,7 +534,7 @@ export function ArtisanStatsList({ period, userId: propUserId }: ArtisanStatsLis
                     </button>
                   </HoverCardTrigger>
                   <HoverCardContent
-                    className="w-96 z-50 max-h-[500px] overflow-y-auto"
+                    className="w-96 max-h-[500px] overflow-y-auto"
                     side="right"
                     align="start"
                     sideOffset={8}

@@ -1,6 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useRef, useState } from "react"
+import { createPortal } from "react-dom"
 import { ChevronLeft, ChevronRight, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
@@ -43,7 +44,13 @@ function phaseLabel(phase: string | null | undefined): string | null {
  * `z-index` : étage `visionneuse` de l'échelle unique (src/lib/ui/z-index.ts).
  * Au-dessus des dialogues et des confirmations, car la visionneuse peut être
  * ouverte depuis n'importe lequel de ces étages.
- * Sous ce niveau, la visionneuse s'ouvrirait derrière la boîte de dialogue.
+ *
+ * La visionneuse est RENDUE DANS LE `body` via un portail, et c'est ce qui rend
+ * l'étage effectif : elle est appelée depuis le rapport d'une intervention,
+ * donc depuis l'intérieur d'un `GenericModal` dont le conteneur est
+ * `fixed z-[70]` et crée un contexte d'empilement. Rendue en ligne, son 1600
+ * serait borné à 70 vis-à-vis du reste de la page et tout dialogue (1300) ou
+ * toute confirmation (1500), eux portalisés par Radix, passeraient devant.
  *
  * Fermeture par Échap ou clic sur le fond ; navigation ← / → au clavier et par
  * balayage tactile ; compteur « 3 / 8 », légende et bandeau de contexte.
@@ -54,6 +61,12 @@ export function PhotoLightbox({ photos, index, onClose, onIndexChange, caption }
 
   const current = index === null ? null : photos[internalIndex] ?? null
   const total = photos.length
+  // Cible du portail : `document.body` n'existe pas au rendu serveur.
+  const [conteneurPortail, setConteneurPortail] = useState<HTMLElement | null>(null)
+
+  useEffect(() => {
+    setConteneurPortail(document.body)
+  }, [])
 
   useEffect(() => {
     if (index !== null) setInternalIndex(index)
@@ -82,13 +95,13 @@ export function PhotoLightbox({ photos, index, onClose, onIndexChange, caption }
     return () => window.removeEventListener("keydown", onKeyDown)
   }, [index, onClose, go])
 
-  if (index === null || !current) return null
+  if (index === null || !current || !conteneurPortail) return null
 
   const alt = current.metadata?.comment || current.filename || "Photo de l'artisan"
   const phase = phaseLabel(current.metadata?.phase)
   const banner = [caption, phase].filter(Boolean).join(" · ")
 
-  return (
+  return createPortal(
     <div
       className={`fixed inset-0 ${Z_CLASS.visionneuse} flex items-center justify-center bg-black/90 p-4`}
       role="dialog"
@@ -169,6 +182,7 @@ export function PhotoLightbox({ photos, index, onClose, onIndexChange, caption }
           </p>
         )}
       </div>
-    </div>
+    </div>,
+    conteneurPortail,
   )
 }

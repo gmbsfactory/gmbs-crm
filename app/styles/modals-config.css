@@ -418,9 +418,14 @@
     white-space: nowrap;
   }
 
+  /*
+   * Infobulles : APPARENCE UNIQUEMENT.
+   * Le z-index n'est pas déclaré ici : il est porté par `Z_CLASS.flottant`
+   * dans src/components/ui/tooltip.tsx, sinon on aurait deux sources de vérité
+   * pour la superposition. Voir docs/conventions/z-index.md
+   */
   .tooltip-surface {
     position: relative;
-    z-index: 9999;
     background: color-mix(in oklab, var(--bg-light), white 8%);
     background-image: linear-gradient(
       to bottom,

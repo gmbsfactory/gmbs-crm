@@ -458,7 +458,7 @@ export function InterventionStatsPieChart({ period }: InterventionStatsPieChartP
               />
             </HoverCardTrigger>
             <HoverCardContent
-              className="w-96 max-h-[500px] overflow-y-auto z-50"
+              className="w-96 max-h-[500px] overflow-y-auto"
               side="right"
               align="start"
               sideOffset={12}

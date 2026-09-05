@@ -107,10 +107,14 @@
 
 
   /*
-   * Voile des surfaces modales : APPARENCE UNIQUEMENT.
-   * Le z-index n'est volontairement pas déclaré ici : il est porté par une
-   * classe Tailwind issue de l'échelle unique (src/lib/ui/z-index.ts), sinon
-   * on aurait deux sources de vérité pour la superposition.
+   * Surfaces modales et flottantes : APPARENCE UNIQUEMENT.
+   * Aucune règle de ce fichier ne déclare de z-index — ni pour les voiles, ni
+   * pour les contenus, ni pour les surfaces flottantes. La superposition est
+   * portée par une classe Tailwind issue de l'échelle unique
+   * (src/lib/ui/z-index.ts), sinon on aurait deux sources de vérité : une
+   * seconde valeur en CSS, invisible depuis les composants, qui reprendrait la
+   * main le jour où ce bloc sortirait de `@layer components`.
+   * Voir docs/conventions/z-index.md
    */
   .modal-overlay,
   .shadcn-dialog-overlay {
@@ -252,7 +256,6 @@
     border-radius: var(--radius-md);
     padding: 8px 4px;
     animation: fadeIn var(--transition-fast) var(--transition-easing);
-    z-index: 50;
   }
 
   .dropdown-item {
@@ -301,7 +304,6 @@
     background: var(--bg-light);
     box-shadow: var(--shadow-xl);
     animation: slideInRight var(--transition-base) var(--transition-easing);
-    z-index: 50;
     border-left: 1px solid hsl(var(--border));
     padding: 24px;
     overflow-y: auto;

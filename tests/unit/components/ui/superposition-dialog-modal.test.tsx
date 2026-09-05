@@ -16,6 +16,8 @@ import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
 import { AlertDialog, AlertDialogContent, AlertDialogTitle } from "@/components/ui/alert-dialog"
 import { GenericModal } from "@/components/ui/modal/GenericModal"
 import { StatusReasonModal } from "@/components/shared/StatusReasonModal"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card"
 import { Z_INDEX } from "@/lib/ui/z-index"
 
 const noop = () => {}
@@ -108,5 +110,42 @@ describe("Non-régression : les rustines locales ont bien disparu", () => {
     // Plus aucune classe « importante » : le défaut de la primitive suffit.
     const classes = [contenu, voile].flatMap((el) => Array.from(el?.classList ?? []))
     expect(classes.filter((c) => c.startsWith("!z-"))).toEqual([])
+  })
+})
+
+describe("Primitives flottantes : infobulles et cartes de survol", () => {
+  it("sort une infobulle à l'étage flottant, au-dessus de toute surface modale", () => {
+    // Avant : le z-index venait d'une règle CSS (`.tooltip-surface`), invisible
+    // depuis les composants — une infobulle ouverte depuis un menu passait donc
+    // derrière lui.
+    render(
+      <TooltipProvider>
+        <Tooltip open>
+          <TooltipTrigger>Archiver</TooltipTrigger>
+          <TooltipContent>Artisan déjà archivé</TooltipContent>
+        </Tooltip>
+      </TooltipProvider>,
+    )
+
+    const infobulle = document.querySelector(".tooltip-surface")
+    expect(infobulle).not.toBeNull()
+    expect(zDeLaClasse(infobulle)).toBe(Z_INDEX.flottant)
+    expect(Z_INDEX.flottant).toBeGreaterThan(Z_INDEX.dialogue)
+  })
+
+  it("sort une carte de survol à l'étage flottant et la portalise hors de son parent", () => {
+    const { container } = render(
+      <HoverCard open>
+        <HoverCardTrigger>Dossiers à compléter</HoverCardTrigger>
+        <HoverCardContent data-testid="carte-survol">Détail</HoverCardContent>
+      </HoverCard>,
+    )
+
+    const carte = document.querySelector('[data-testid="carte-survol"]')
+    expect(carte).not.toBeNull()
+    expect(zDeLaClasse(carte)).toBe(Z_INDEX.flottant)
+    // Portalisée : un étage ne vaut que si la surface sort du contexte
+    // d'empilement de son hôte (fiche artisan, dialogue…).
+    expect(container.contains(carte)).toBe(false)
   })
 })

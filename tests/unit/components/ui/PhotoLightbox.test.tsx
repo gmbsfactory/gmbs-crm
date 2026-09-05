@@ -46,6 +46,17 @@ describe("PhotoLightbox", () => {
     expect(Z_INDEX.visionneuse).toBeGreaterThan(Z_INDEX.confirmation)
   })
 
+  it("se rend dans le body via un portail, hors du contexte d'empilement du modal", () => {
+    // La visionneuse est ouverte depuis le rapport d'une intervention, donc
+    // depuis l'intérieur d'un GenericModal en `fixed z-[70]`. Rendue en ligne,
+    // son étage 1600 serait borné à 70 et tout dialogue passerait devant.
+    const { container } = renderLightbox()
+    const dialog = screen.getByRole("dialog", { name: /Photo agrandie/i })
+
+    expect(container.contains(dialog)).toBe(false)
+    expect(dialog.parentElement).toBe(document.body)
+  })
+
   it("should close on Escape", () => {
     const { onClose } = renderLightbox()
     fireEvent.keyDown(window, { key: "Escape" })

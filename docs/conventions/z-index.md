@@ -27,7 +27,7 @@ plus aucun appelant n'a besoin de surcharger quoi que ce soit.
 | `80` | `surModal` | Modals secondaires hérités (journal des mises à jour) | Ouverts par-dessus la page, parfois par-dessus un modal |
 | `110` | `panneauVoile` | Voile des panneaux latéraux (`Sheet`) | Un panneau s'ouvre **depuis** un gros modal |
 | `120` | `panneau` | Panneaux latéraux : historique artisan, historique intervention, historique e-mails, activité | Au-dessus de son propre voile |
-| `1000` | `flottantPage` | Infobulle d'une cellule tronquée, carte de survol d'une intervention | Au-dessus des panneaux, mais **sous** les dialogues : quand un dialogue est ouvert, plus rien de la page ne passe devant |
+| `1000` | `flottantPage` | Infobulle d'une cellule tronquée, carte de survol d'une intervention | Au-dessus des panneaux, mais **sous** les dialogues : quand un dialogue est ouvert, plus rien de la page ne passe devant. Corollaire assumé : ces éléments sont aussi au-dessus des gros modals (70), donc une infobulle du tableau peut déborder sur une fiche ouverte en demi-page, où il n'y a pas de voile. Sans conséquence : ils sont en `pointer-events: none` et disparaissent au survol suivant |
 | `1200` | `dialogueVoile` | Voile des boîtes de dialogue (`Dialog`) | **Le correctif** : un dialogue s'ouvre presque toujours depuis un gros modal ou un panneau |
 | `1300` | `dialogue` | Boîtes de dialogue : motif de refus d'une pièce, demande de correction d'un rapport, lien portail, édition d'e-mail | Au-dessus de son propre voile |
 | `1320` | `dialogueImbriqueVoile` | Voile d'un dialogue ouvert depuis un dialogue | Ex. l'aperçu d'un document depuis la reclassification |
@@ -37,7 +37,7 @@ plus aucun appelant n'a besoin de surcharger quoi que ce soit.
 | `1600` | `visionneuse` | Visionneuse de photos plein écran | S'ouvre depuis n'importe lequel des étages précédents |
 | `1700` | `notification` | Messages éphémères (toasts) | La confirmation d'une action doit rester lisible même dialogue ouvert |
 | `9999` | `pleinEcran` | Économiseur d'écran, tableau de bord développeur | Recouvrent tout le produit |
-| `10000` | `flottant` | Menus, listes déroulantes, sélecteurs, infobulles, palette de recherche | **Inchangé.** Un sélecteur ouvert *dans* un dialogue doit rester devant lui. Jamais modal, se referme au premier clic : il ne peut pas piéger l'utilisateur |
+| `10000` | `flottant` | Menus, listes déroulantes, sélecteurs, infobulles (`Tooltip`), cartes de survol (`HoverCard`), palette de recherche | **Inchangé.** Un sélecteur ouvert *dans* un dialogue doit rester devant lui. Jamais modal, se referme au premier clic : il ne peut pas piéger l'utilisateur |
 | `10001` | `flottantImbrique` | Menu ou infobulle ouverts depuis un menu | Au-dessus de son parent flottant |
 
 ## Pourquoi les gros modals restent à 60/70
@@ -55,8 +55,21 @@ il n'y avait rien.
 
 1. Chercher l'étage qui décrit ce que la surface **est**, pas la valeur qui « marche ».
 2. Utiliser `Z_CLASS.<étage>` (classe Tailwind) ou `Z_INDEX.<étage>` (nombre, pour un `style`).
-3. Si aucun étage ne convient, en ajouter un **dans `src/lib/ui/z-index.ts`** et
-   mettre à jour ce tableau. Jamais de `z-[…]` en dur dans un composant.
+3. **Sortir la surface du contexte d'empilement de son hôte.** Un étage ne vaut
+   que si la surface est portalisée dans le `body` : le conteneur d'un
+   `GenericModal` est `fixed z-[70]`, il crée donc un contexte d'empilement qui
+   borne à 70 tout ce qui est rendu à l'intérieur, quelle que soit la valeur
+   écrite. Les primitives Radix (`Dialog`, `AlertDialog`, `Sheet`, `Popover`,
+   `Select`, `Tooltip`, `HoverCard`) le font déjà ; une surface maison doit
+   passer par `createPortal(…, document.body)`, comme `PhotoLightbox`,
+   `TruncatedCell` et `InterventionCard`.
+4. **Ne jamais déclarer de z-index en CSS** pour une surface modale ou
+   flottante. Les feuilles de `app/styles/` ne portent que l'apparence : une
+   seconde valeur y serait invisible depuis les composants — c'est exactement
+   l'origine du bug client. Un test le vérifie
+   (`tests/unit/lib/ui/styles-sans-z-index.test.ts`).
+5. Si aucun étage ne convient, en ajouter un **dans `src/lib/ui/z-index.ts`** et
+   mettre à jour ce tableau. Jamais de valeur `z-` arbitraire dans un composant.
 
 ```tsx
 import { Z_CLASS } from "@/lib/ui/z-index"
