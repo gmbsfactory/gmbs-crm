@@ -9,6 +9,7 @@ import {
   uploadToDocumentsBucket,
 } from '@/lib/portal-external/uploads'
 import { REQUIRED_DOCUMENT_KINDS } from '@/lib/artisans/dossierStatus'
+import { recordArtisanDocumentAction } from '@/lib/artisans/artisan-action-log'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -116,6 +117,20 @@ export async function POST(request: Request) {
       console.error('[portal-external] Insertion de la pièce échouée :', error?.message)
       return portalError(500, 'Failed to save document')
     }
+
+    // Journal des actions (§4.3, lot L6) : « pièce déposée » doit apparaître
+    // dans la frise du modal artisan au même titre que « prix accepté ». Écrit
+    // APRÈS l'insertion et sans jamais faire échouer le dépôt : la pièce est
+    // déjà en base, sa trace ne peut pas la reprendre.
+    await recordArtisanDocumentAction(auth.supabase, {
+      artisanId: auth.artisan.id,
+      actionType: 'DOCUMENT_UPLOADED',
+      source: 'portal',
+      actorLabel: `${artisanDisplayName(auth.artisan)} (artisan)`,
+      attachmentId: (data as { id: string }).id,
+      eventUid: typeof body.event_uid === 'string' && body.event_uid.trim() ? body.event_uid.trim() : null,
+      payload: { kind, filename, mime_type: mimeType, file_size: decoded.buffer.length },
+    })
 
     return NextResponse.json({ document: data }, { status: 201 })
   } catch (error) {

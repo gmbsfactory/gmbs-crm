@@ -633,31 +633,66 @@ export interface PortalDevis {
   id: string
   url: string
   filename: string | null
+  /** `devis` ou `facturesArtisans` — jamais `facturesGMBS` (lot L6). */
+  kind: string
+  mime_type: string | null
+  file_size: number | null
+  created_at: string | null
 }
 
-/** Photos et devis d'une intervention (jamais les factures GMBS). */
+/**
+ * Pièces d'intervention exposables à l'artisan (lot L6) : le devis qu'on lui a
+ * envoyé et **sa** facture. `facturesGMBS` porte le prix payé par le client,
+ * donc la marge : cette liste est fermée, jamais un préfixe « factures ».
+ */
+export const PORTAL_INTERVENTION_DOCUMENT_KINDS = ['devis', 'facturesArtisans'] as const
+
+/**
+ * Photos, devis et factures d'artisan d'une intervention (jamais les factures
+ * GMBS ni celles de matériel).
+ *
+ * `devis[]` porte désormais `kind`, `mime_type`, `file_size` et `created_at` :
+ * sans le type MIME, l'application ne sait pas si elle ouvre un PDF ou une
+ * image, et sans la date elle ne sait pas laquelle de deux versions est la
+ * bonne. `factures[]` est le pendant côté artisan, alimenté par ses dépôts.
+ */
 export async function listPortalInterventionDocuments(
   supabase: SupabaseClient,
   interventionId: string,
-): Promise<{ photos: PortalPhoto[]; devis: PortalDevis[] }> {
+): Promise<{ photos: PortalPhoto[]; devis: PortalDevis[]; factures: PortalDevis[] }> {
   const { data, error } = await supabase
     .from('intervention_attachments')
-    .select('id, kind, url, filename, created_at, created_by_display, metadata')
+    .select('id, kind, url, filename, mime_type, file_size, created_at, created_by_display, metadata')
     .eq('intervention_id', interventionId)
-    .in('kind', ['photos', 'devis'])
+    .in('kind', ['photos', ...PORTAL_INTERVENTION_DOCUMENT_KINDS])
     .order('created_at', { ascending: false })
 
   if (error) {
     throw new Error(`Lecture des pièces impossible : ${error.message}`)
   }
 
-  const rows = (data ?? []) as (PortalPhoto & { kind: string })[]
+  const rows = (data ?? []) as (PortalPhoto & {
+    kind: string
+    mime_type: string | null
+    file_size: number | null
+  })[]
+  const asDocument = (r: (typeof rows)[number]): PortalDevis => ({
+    id: r.id,
+    url: r.url,
+    filename: r.filename,
+    kind: r.kind,
+    mime_type: r.mime_type ?? null,
+    file_size: r.file_size ?? null,
+    created_at: r.created_at,
+  })
+
   return {
     photos: rows
       .filter((r) => r.kind === 'photos')
       .map(({ id, url, filename, created_at, created_by_display, metadata }) => ({
         id, url, filename, created_at, created_by_display, metadata: metadata ?? {},
       })),
-    devis: rows.filter((r) => r.kind === 'devis').map(({ id, url, filename }) => ({ id, url, filename })),
+    devis: rows.filter((r) => r.kind === 'devis').map(asDocument),
+    factures: rows.filter((r) => r.kind === 'facturesArtisans').map(asDocument),
   }
 }

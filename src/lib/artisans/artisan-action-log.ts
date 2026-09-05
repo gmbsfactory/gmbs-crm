@@ -20,7 +20,12 @@ import type { SupabaseClient } from '@supabase/supabase-js'
  */
 
 /** Types d'action de ce lot ; le CHECK de 99079 en porte la liste fermée. */
-export type ArtisanActionType = 'DOCUMENT_APPROVED' | 'DOCUMENT_REJECTED' | 'AVATAR_CHANGED'
+export type ArtisanActionType =
+  | 'DOCUMENT_APPROVED'
+  | 'DOCUMENT_REJECTED'
+  | 'AVATAR_CHANGED'
+  /** Dépôt d'une pièce depuis le téléphone (`source = 'portal'`, lot L6). */
+  | 'DOCUMENT_UPLOADED'
 
 export interface ArtisanActionInput {
   artisanId: string
