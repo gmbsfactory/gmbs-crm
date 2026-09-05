@@ -375,6 +375,33 @@ Pour « Mes vérifications », les deux RPC ont reçu leur drapeau dans la migra
 paramètre **dédié** `portalReportStatuts` et non dans `statuts`, pour que la puce
 de statut choisie par l'utilisateur ne les écrase pas.
 
+**Le filtre est indivisible.** `hasPortalReport` et `portalReportStatuts` sont
+posés ensemble ou pas du tout (`src/lib/filter-converter.ts`). Tant que le
+référentiel des statuts n'est pas chargé, `statusCodeToId` ne rend rien : le
+convertisseur renvoie alors le filtre côté client et **ne pose rien** côté
+serveur, et `useInterventionPageState` désactive la requête de liste
+(`filtersPending`) — comme le comptage l'était déjà par `allMappersReady`. Poser
+`hasPortalReport` seul rouvrait exactement le piège : la liste abandonnait la
+restriction de statuts (l'Edge Function n'applique les statuts que s'ils sont
+présents) pendant que le compteur appliquait son propre repli, d'où une liste
+plus longue que sa pastille au premier rendu.
+
+**Ordre de déploiement.** `p_has_portal_report` n'est ajouté au payload du RPC
+`get_intervention_filter_counts` que lorsqu'il vaut `true` : PostgREST résout une
+fonction par son jeu de noms d'arguments, et l'envoyer systématiquement rendait
+la migration 99086 obligatoire pour **toutes** les vues (sinon PGRST202, et plus
+aucune puce de statut/agence/métier sur la page). Omis, l'ancienne signature
+reste compatible. La migration doit malgré tout être appliquée **avant** la mise
+en ligne du front pour que la vue « Mes vérifications » compte juste.
+
+**Temps réel.** `matchesFilters` (`src/lib/realtime/filter-utils.ts`) teste les
+deux champs, tous deux présents dans le payload realtime de `interventions`
+(`has_portal_report`, `statut_id`). Sans cela, la validation d'un rapport depuis
+la vue laissait la ligne dans la liste patchée en direct — le drapeau retombe
+(trigger 99076) mais l'intervention reste assignée à l'utilisateur — pendant que
+la pastille, recalculée côté serveur, redescendait : liste et compteur
+divergeaient jusqu'au refetch suivant.
+
 ### Layouts disponibles
 
 Le projet supporte **6 layouts** différents pour afficher les interventions :

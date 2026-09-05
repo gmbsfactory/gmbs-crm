@@ -92,15 +92,17 @@ describe("interventionsApi.getFilterCountsGrouped", () => {
     )
   })
 
-  it("laisse p_has_portal_report à false hors de la vue « Mes vérifications »", async () => {
+  it("n'envoie pas p_has_portal_report hors de la vue « Mes vérifications »", async () => {
+    // PostgREST résout une RPC par son jeu de noms d'arguments : envoyer le
+    // drapeau systématiquement coupait TOUTES les puces de la page (PGRST202)
+    // tant que la migration 99086 n'était pas appliquée. Omis, l'ancienne
+    // signature reste compatible.
     mockRpc([])
 
     await interventionsApi.getFilterCountsGrouped("statut", { user: "user-uuid-123" })
 
-    expect(supabase.rpc).toHaveBeenCalledWith(
-      "get_intervention_filter_counts",
-      expect.objectContaining({ p_has_portal_report: false }),
-    )
+    const [, params] = (supabase.rpc as unknown as { mock: { calls: unknown[][] } }).mock.calls[0]
+    expect(params).not.toHaveProperty("p_has_portal_report")
   })
 
   it("mappe les lignes du RPC en Record<group_value, cnt>", async () => {

@@ -215,22 +215,34 @@ export const interventionsFilters = {
     // route via p_user_is_null (booléen dédié) car p_user_id = NULL signifie
     // « pas de filtre utilisateur » côté RPC — sans ce flag, la contrainte est
     // silencieusement ignorée et le compteur est gonflé (voir migration 99067).
-    const { data, error } = await supabase.rpc('get_intervention_filter_counts', {
+    const rpcParams: Record<string, unknown> = {
       p_group_column,
       p_statut_id: baseFilters?.statut || null,
       p_agence_id: baseFilters?.agence || null,
       p_metier_id,
       p_user_id: typeof baseFilters?.user === 'string' ? baseFilters.user : null,
       p_user_is_null: baseFilters?.user === null,
-      // Vue « Mes vérifications » : le RPC ne sait pas exprimer
-      // « has_portal_report + statuts de revue » sans drapeau dédié. Sans lui,
-      // les puces de statut/agence/métier de cette vue compteraient toutes les
-      // interventions de l'utilisateur (voir migration 99086, même piège que
-      // p_user_is_null en 99067).
-      p_has_portal_report: baseFilters?.hasPortalReport === true,
       p_start_date: baseFilters?.startDate || null,
       p_end_date: baseFilters?.endDate || null,
-    })
+    }
+
+    // Vue « Mes vérifications » : le RPC ne sait pas exprimer
+    // « has_portal_report + statuts de revue » sans drapeau dédié. Sans lui,
+    // les puces de statut/agence/métier de cette vue compteraient toutes les
+    // interventions de l'utilisateur (voir migration 99086, même piège que
+    // p_user_is_null en 99067).
+    //
+    // Le drapeau n'est ajouté au payload QUE lorsqu'il vaut true : PostgREST
+    // résout une RPC par son jeu de noms d'arguments. L'envoyer toujours
+    // couplerait le front à la migration 99086 — tant qu'elle n'est pas
+    // appliquée, l'appel échouerait en PGRST202 et ce sont TOUTES les puces
+    // (statut, agence, métier) de la page qui disparaîtraient, quelle que soit
+    // la vue. Omis, l'ancienne signature reste compatible.
+    if (baseFilters?.hasPortalReport === true) {
+      rpcParams.p_has_portal_report = true
+    }
+
+    const { data, error } = await supabase.rpc('get_intervention_filter_counts', rpcParams)
 
     if (error) {
       console.error(`[getFilterCountsGrouped] Erreur RPC pour ${property}:`, error)

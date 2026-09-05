@@ -1255,6 +1255,11 @@ Renvoie en **une seule requête RPC** (`get_intervention_filter_counts`) tous le
   `user: null` (« non assignée », vue Market) → `p_user_is_null` (migration 99067), et
   `hasPortalReport: true` (vue « Mes vérifications ») → `p_has_portal_report` (migration 99086).
   Sans ces drapeaux, la contrainte est silencieusement abandonnée et les compteurs des puces sont gonflés.
+- `p_has_portal_report` n'est ajouté au payload **que lorsqu'il vaut `true`**. PostgREST résout une RPC
+  par son jeu de noms d'arguments : envoyé systématiquement, il faisait échouer l'appel en `PGRST202`
+  (donc supprimait **toutes** les puces statut/agence/métier de la page, quelle que soit la vue) tant que
+  la migration 99086 n'était pas appliquée. Omis, l'ancienne signature reste compatible — la migration
+  doit néanmoins être appliquée avant la mise en ligne du front.
 - Côté DB, le RPC respecte la RLS (le comptage tient compte de l'utilisateur courant)
 - Consommé via la query key `interventionKeys.filterCountsByProperty(property, filters)`
 

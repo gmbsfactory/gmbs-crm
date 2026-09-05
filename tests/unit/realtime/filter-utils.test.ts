@@ -127,3 +127,49 @@ describe("matchesFilters", () => {
     expect(matchesFilters(notMatching, filters)).toBe(false)
   })
 })
+
+describe("matchesFilters — vue « Mes vérifications »", () => {
+  // La vue combine deux critères indissociables : le drapeau
+  // `has_portal_report` et les statuts de revue (paramètre dédié
+  // `portalReportStatuts`). Le temps réel doit les tester tous les deux, sinon
+  // la liste patchée en direct diverge de la pastille recalculée côté serveur.
+  const verificationFilters: GetAllParams = {
+    user: "user-1",
+    hasPortalReport: true,
+    portalReportStatuts: ["statut-accepte", "statut-en-cours"],
+  }
+
+  it("garde une intervention avec rapport en attente dans un statut de revue", () => {
+    const intervention = makeIntervention({
+      statut_id: "statut-accepte",
+      has_portal_report: true,
+    })
+    expect(matchesFilters(intervention, verificationFilters)).toBe(true)
+  })
+
+  it("retire l'intervention dès que le rapport est validé (drapeau retombé)", () => {
+    // Trigger 99076 : la validation du rapport repasse has_portal_report à false.
+    // Sans ce test, la ligne restait dans la liste alors que la pastille retombait.
+    const intervention = makeIntervention({
+      statut_id: "statut-accepte",
+      has_portal_report: false,
+    })
+    expect(matchesFilters(intervention, verificationFilters)).toBe(false)
+  })
+
+  it("rejette une intervention hors des statuts de revue", () => {
+    const intervention = makeIntervention({
+      statut_id: "statut-annule",
+      has_portal_report: true,
+    })
+    expect(matchesFilters(intervention, verificationFilters)).toBe(false)
+  })
+
+  it("rejette une intervention nouvellement assignée sans rapport à vérifier", () => {
+    const intervention = makeIntervention({
+      statut_id: "statut-en-cours",
+      has_portal_report: null,
+    })
+    expect(matchesFilters(intervention, verificationFilters)).toBe(false)
+  })
+})

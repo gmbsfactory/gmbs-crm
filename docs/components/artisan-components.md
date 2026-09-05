@@ -166,6 +166,25 @@ complétude du dossier. Le compteur « à compléter », affiché au client et p
 d'un bug connu traité à part, reste donc strictement inchangé (test de
 non-régression dans `tests/unit/hooks/useArtisanFilterCounts.test.ts`).
 
+**Périmètre assumé : `ARTISAN_DOSSIER_VIEW_EXCLUDED_STATUTS` ne s'applique pas
+ici.** Les vues « à compléter » écartent les statuts `CANDIDAT`, `POTENTIEL` et
+`ARCHIVE` ; les deux vues « à vérifier » ne les écartent pas, et c'est
+délibéré : la file de travail est déclenchée par la **présence d'une pièce
+déposée**, pas par l'état du dossier. Une pièce déposée par un `CANDIDAT` ou un
+`POTENTIEL` est précisément celle qu'il faut vérifier pour faire avancer son
+entrée dans le réseau — l'exclure viderait la file de son cas d'usage principal.
+Les deux chemins (liste et comptage) sont alignés sur ce périmètre, donc le
+nombre de la puce reste égal au nombre de lignes.
+
+*Point ouvert, à trancher avec le client :* un artisan `ARCHIVE` conserve
+`is_active = true` (seule la suppression douce met `is_active` à `false`, cf.
+`docs/database/`). Une pièce laissée en attente par un artisan sorti du réseau
+reste donc indéfiniment dans « Artisans à vérifier ». Si l'on veut pouvoir vider
+cette file, il faudra exclure **le seul statut `ARCHIVE`** (et non les trois),
+dans les **deux** convertisseurs à la fois (`src/lib/filter-converter.ts` pour la
+liste, `app/artisans/_lib/useArtisanFilterCounts.ts` pour le comptage) sous peine
+de désaccorder la pastille de sa liste.
+
 ### ArtisanDeleteDialog.tsx
 
 Dialogue de confirmation pour la suppression (soft delete) d'un artisan. Affiche un résumé de l'artisan et de ses interventions liées avant confirmation.

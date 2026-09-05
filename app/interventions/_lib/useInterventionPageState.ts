@@ -318,7 +318,7 @@ export function useInterventionPageState(): UseInterventionPageStateReturn {
   }, [activeView?.visibleProperties])
 
   // ---- Server / client filters ----
-  const { serverFilters, clientFilters } = useMemo(() => {
+  const { serverFilters, clientFilters, filtersPending } = useMemo(() => {
     const baseFilters =
       activeView && activeView.filters.length > 0
         ? convertViewFiltersToServerFilters(activeView.filters, {
@@ -347,9 +347,23 @@ export function useInterventionPageState(): UseInterventionPageStateReturn {
 
     const hasServerFilters = Object.keys(combinedServerFilters).length > 0
 
+    // Un filtre de vue que le convertisseur n'a pas pu router côté serveur faute
+    // de référentiel chargé (« Mes vérifications » : statuts de revue non encore
+    // résolus en UUID) rend la requête de liste ininterprétable : on l'attend au
+    // lieu de partir avec un critère à moitié posé. Le comptage des puces est
+    // déjà soumis à la même condition (allMappersReady) : liste et compteur
+    // repartent ensemble, sur les mêmes filtres.
+    const filtersPending = baseFilters.clientFilters.some(
+      (filter) =>
+        filter.property === "hasPortalReport" &&
+        filter.operator === "eq" &&
+        filter.value === true,
+    )
+
     return {
       serverFilters: hasServerFilters ? combinedServerFilters : undefined,
       clientFilters: baseFilters.clientFilters,
+      filtersPending,
     }
   }, [activeView, statusCodeToId, userCodeToId, agencyNameToId, currentUserId, search])
 
@@ -363,7 +377,7 @@ export function useInterventionPageState(): UseInterventionPageStateReturn {
 
   const {
     interventions: fetchedInterventions,
-    loading: remoteLoading,
+    loading: queryLoading,
     error: remoteError,
     totalCount,
     totalPages,
@@ -376,7 +390,12 @@ export function useInterventionPageState(): UseInterventionPageStateReturn {
     serverFilters,
     limit: queryLimit,
     page,
+    enabled: !filtersPending,
   })
+
+  // Requête désactivée le temps que les filtres soient résolus : l'écran doit
+  // rester en chargement, pas afficher une liste vide comme un résultat.
+  const remoteLoading = queryLoading || filtersPending
 
   const [stableTotalCount, setStableTotalCount] = useState(0)
   const [stableTotalPages, setStableTotalPages] = useState(1)

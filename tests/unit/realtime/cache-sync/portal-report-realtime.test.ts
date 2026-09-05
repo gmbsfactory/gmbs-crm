@@ -102,4 +102,46 @@ describe("Realtime UPDATE interventions → has_portal_report (badge « À véri
       expect(row.artisan).toBe("Karim Benali")
     }
   })
+  it("retire la ligne de la vue « Mes vérifications » quand le rapport est validé", async () => {
+    // Trigger 99076 : la validation du rapport repasse has_portal_report à false.
+    // L'intervention reste assignée au gestionnaire : sans la prise en compte de
+    // has_portal_report dans matchesFilters, handleUpdate la laissait dans la
+    // liste patchée en direct pendant que la pastille, recalculée côté serveur,
+    // retombait — liste et compteur divergeaient jusqu'au refetch.
+    const filters = {
+      user: "user-badr",
+      hasPortalReport: true,
+      portalReportStatuts: ["st-en-cours"],
+    }
+    const cached = await enrichRealtimeRecord(
+      rawRealtimeRecord({ assigned_user_id: "user-badr", has_portal_report: true }),
+    )
+    const incoming = await enrichRealtimeRecord(
+      rawRealtimeRecord({ assigned_user_id: "user-badr", has_portal_report: false }),
+    )
+
+    const next = handleUpdate(makeList([cached]), cached, incoming, filters)
+
+    expect(next.data).toHaveLength(0)
+    expect(next.pagination.total).toBe(0)
+  })
+
+  it("n'injecte pas dans la vue une intervention assignée sans rapport à vérifier", async () => {
+    const filters = {
+      user: "user-badr",
+      hasPortalReport: true,
+      portalReportStatuts: ["st-en-cours"],
+    }
+    const autre = await enrichRealtimeRecord(
+      rawRealtimeRecord({ id: "int-demo-004", assigned_user_id: "user-badr", has_portal_report: true }),
+    )
+    const incoming = await enrichRealtimeRecord(
+      rawRealtimeRecord({ id: "int-demo-006", assigned_user_id: "user-badr", has_portal_report: false }),
+    )
+
+    const next = handleUpdate(makeList([autre]), null, incoming, filters)
+
+    expect(next.data.map((row) => row.id)).toEqual(["int-demo-004"])
+    expect(next.pagination.total).toBe(1)
+  })
 })

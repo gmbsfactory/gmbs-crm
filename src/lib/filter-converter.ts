@@ -177,14 +177,26 @@ export function convertViewFiltersToServerFilters(
     // l'inverse). Le chemin liste (Edge Function) et le chemin comptage
     // (getTotalCountWithFilters) consomment tous les deux ces deux paramètres :
     // le compteur de la puce est donc exactement le nombre de lignes.
+    //
+    // Le filtre est INDIVISIBLE : tant que les statuts ne sont pas résolus
+    // (référentiel pas encore chargé), on ne pose RIEN côté serveur et on
+    // renvoie le filtre côté client. Poser `hasPortalReport` seul donnait une
+    // liste plus large que le compteur (la liste abandonnait la restriction de
+    // statuts, le compteur appliquait son propre repli) — exactement le piège
+    // « compteur ≠ lignes » que la vue doit éviter.
     if (filter.property === "hasPortalReport") {
       if (filter.operator === "eq" && typeof filter.value === "boolean") {
-        serverFilters.hasPortalReport = filter.value
-        if (filter.value) {
-          const statusIds = context.statusCodeToId([...PORTAL_REPORT_REVIEW_STATUSES])
-          if (Array.isArray(statusIds) && statusIds.length > 0) {
-            serverFilters.portalReportStatuts = statusIds
-          }
+        if (!filter.value) {
+          // « pas de rapport en attente » : aucun statut à restreindre.
+          serverFilters.hasPortalReport = false
+          continue
+        }
+        const statusIds = context.statusCodeToId([...PORTAL_REPORT_REVIEW_STATUSES])
+        if (Array.isArray(statusIds) && statusIds.length > 0) {
+          serverFilters.hasPortalReport = true
+          serverFilters.portalReportStatuts = statusIds
+        } else {
+          clientFilters.push(filter)
         }
       } else {
         clientFilters.push(filter)

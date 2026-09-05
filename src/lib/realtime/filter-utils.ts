@@ -130,6 +130,29 @@ export function matchesFilters(
     }
   }
   
+  // Filtre « rapport du portail à vérifier » (vue « Mes vérifications »)
+  //
+  // Ces deux critères sont posés ensemble par filter-converter et appliqués
+  // ensemble côté serveur. Sans eux ici, le patch optimiste du temps réel
+  // divergeait de la pastille : à la validation d'un rapport, le trigger 99076
+  // repasse `has_portal_report` à false, l'UPDATE realtime jugeait
+  // l'intervention toujours conforme (elle reste assignée à l'utilisateur) et
+  // la ligne restait dans la liste pendant que le compteur, lui, retombait.
+  if (filters.hasPortalReport !== undefined) {
+    const interventionHasReport = Boolean(intervention.has_portal_report)
+    if (interventionHasReport !== filters.hasPortalReport) {
+      return false
+    }
+    if (
+      filters.hasPortalReport &&
+      filters.portalReportStatuts &&
+      filters.portalReportStatuts.length > 0 &&
+      !filters.portalReportStatuts.includes(intervention.statut_id ?? '')
+    ) {
+      return false
+    }
+  }
+
   // Filtre par date de début
   if (filters.startDate && intervention.date < filters.startDate) {
     return false

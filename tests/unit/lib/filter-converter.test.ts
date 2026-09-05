@@ -279,12 +279,23 @@ describe('filter-converter', () => {
         expect(serverFilters.portalReportStatuts).toHaveLength(PORTAL_REPORT_REVIEW_STATUSES.length)
       })
 
-      it('reste côté serveur même si les statuts ne sont pas résolvables', () => {
-        // Liste et compteur doivent rester d'accord : on ne bascule pas côté client
+      it('ne pose rien côté serveur tant que les statuts ne sont pas résolus', () => {
+        // Filtre indivisible : `hasPortalReport` seul donnait une liste plus
+        // large que le compteur (la liste abandonnait la restriction de
+        // statuts, le compteur appliquait son propre repli).
         const ctx = createContext({ statusCodeToId: () => [] })
         const filters = [{ property: 'hasPortalReport', operator: 'eq', value: true }]
         const { serverFilters, clientFilters } = convertViewFiltersToServerFilters(filters as any, ctx)
-        expect(serverFilters.hasPortalReport).toBe(true)
+        expect(serverFilters.hasPortalReport).toBeUndefined()
+        expect(serverFilters.portalReportStatuts).toBeUndefined()
+        expect(clientFilters).toHaveLength(1)
+        expect(clientFilters[0].property).toBe('hasPortalReport')
+      })
+
+      it('route hasPortalReport=false côté serveur sans restriction de statuts', () => {
+        const filters = [{ property: 'hasPortalReport', operator: 'eq', value: false }]
+        const { serverFilters, clientFilters } = convertViewFiltersToServerFilters(filters as any, createContext())
+        expect(serverFilters.hasPortalReport).toBe(false)
         expect(serverFilters.portalReportStatuts).toBeUndefined()
         expect(clientFilters).toHaveLength(0)
       })
