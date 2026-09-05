@@ -13,6 +13,7 @@ import {
 import { ReminderMentionInput } from "@/components/interventions/ReminderMentionInput"
 import { DatePicker } from "@/components/ui/date-picker"
 import { cn } from "@/lib/utils"
+import { Z_CLASS } from "@/lib/ui/z-index"
 
 type DialogContentProps = React.ComponentPropsWithoutRef<typeof AlertDialogPrimitive.Content>
 
@@ -21,7 +22,7 @@ const DialogContent = React.forwardRef<HTMLDivElement, DialogContentProps>(
   ({ className, ...props }, ref) => (
     <AlertDialogPortal>
       <AlertDialogPrimitive.Overlay
-        className="fixed inset-0 z-[55] bg-black/20"
+        className={cn("fixed inset-0 bg-black/20", Z_CLASS.dialogueVoile)}
         onClick={(e) => {
           // Don't dismiss the modal on overlay click — only buttons or Escape.
           e.preventDefault()
@@ -67,7 +68,7 @@ export function ReminderNoteDialog({
       <DialogContent
         ref={contentRef}
         className={cn(
-          "note-reminder-dialog fixed z-[60] w-[min(448px,calc(100vw-32px))] max-w-md rounded-lg border border-border bg-popover p-6 shadow-xl focus:outline-none",
+          "note-reminder-dialog fixed " + Z_CLASS.dialogue + " w-[min(448px,calc(100vw-32px))] max-w-md rounded-lg border border-border bg-popover p-6 shadow-xl focus:outline-none",
           "data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=open]:slide-in-from-right-4 data-[state=closed]:slide-out-to-right-4 data-[state=open]:fade-in-0 data-[state=closed]:fade-out-0",
         )}
         style={{ top: coords.top, left: coords.left }}
