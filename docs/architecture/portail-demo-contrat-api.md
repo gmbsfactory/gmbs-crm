@@ -257,3 +257,100 @@ stockage, IP littérale, hôte local, `file://`, port, identifiants dans l'URL, 
 stockage non configuré), `tests/unit/lib/services/email-service.test.ts`, et les cas ajoutés à
 `tests/unit/lib/services/email-attachment-loader.test.ts` et
 `tests/unit/api/interventions/send-email.test.ts`.
+
+---
+
+### 8.8 Correctif §10.1 — le CRM garde la main sur les statuts, et le badge sort du modal
+
+**Bloc additif : il rectifie une règle de §8.5 (lot L1) et complète le point 7 du lot L2. Le contrat
+d'appel de `POST /me/interventions/{id}/start` est inchangé** — mêmes en-têtes, même corps
+`{ event_uid, occurred_at }`, mêmes champs de réponse (`work`, `statut_code`, `status_advanced`,
+`missing_fields`, `replayed`), mêmes codes 200 / 404 / 409 / 500. Ce qui change est **quand**
+`status_advanced` vaut `true`.
+
+Le lot L1 appelait `tryAdvanceToInProgress` **inconditionnellement** : le statut basculait en
+`INTER_EN_COURS` même avec des champs obligatoires manquants, conformément à l'arbitrage initial de
+la spécification §7.7. La décision client du 2026-09-05 (spécification **§10.1**) prime : l'artisan
+déclare un **fait**, le CRM reste **seul propriétaire du statut**.
+
+| Sujet | Règle appliquée |
+|---|---|
+| Deux gardes, distinctes | **Recevabilité de la déclaration** — statut `ACCEPTE`, artisan affecté, `price_response = 'accepted'` quelle qu'en soit la source : non tenue ⇒ `409`, rien n'est écrit. **Avancée du statut** — les 14 champs d'entrée d'`INTER_EN_COURS` : non tenue ⇒ `200`, le fait est écrit, le statut reste `ACCEPTE`. |
+| Réponse quand la fiche est incomplète | `200` avec `status_advanced: false`, `statut_code: "ACCEPTE"` et `missing_fields` renseigné. **`tryAdvanceToInProgress` n'est même pas appelée.** L'artisan ne voit aucune erreur : son démarrage est enregistré. |
+| Le fait, toujours | `intervention_artisans.work_started_at`, `work_started_from`, `work_started_by` et la ligne `artisan_portal_actions` (`WORK_STARTED`, `payload.missing_fields_count`) sont écrits **avant** toute projection, dans les deux branches. Règle P3 inchangée. |
+| Liberté du gestionnaire (§10.1 point 1) | Rien n'est ajouté qui empêche une transition manuelle : le sélecteur du modal liste **tous** les statuts, sans filtre ni `disabled` ; la policy RLS `interventions_update_authorized` ne regarde que le rôle ; aucun trigger ne lit les colonnes du portail avant d'autoriser un `UPDATE` sur `interventions`. Aucune route du portail n'écrit `interventions.statut_id` en dehors de cette bascule. |
+
+**Migration `99084_portal_work_started_flag.sql`** (idempotente, rejouable, aucune table nouvelle,
+RLS inchangée) — la liste et le kanban lisent les colonnes **directes** de `interventions`, alors que
+le démarrage vit sur `intervention_artisans` :
+
+| Colonne | Écrite par | Rôle |
+|---|---|---|
+| `intervention_artisans.work_start_missing_count` | la route de démarrage (`work-start.ts`) | Dette de saisie constatée à la déclaration. Le compte vient de `VALIDATION_RULES` (TypeScript) ; **la base ne le recalcule jamais** — redire les 14 règles en SQL, c'est les voir diverger. |
+| `interventions.portal_work_started_at` | trigger `trg_intervention_artisans_sync_work_start`, et lui seul | Plus ancien `work_started_at` de l'intervention. |
+| `interventions.portal_work_missing_count` | le même trigger | Le compte de l'affectation qui a démarré la première. |
+
+Même mécanique que `has_portal_report` (99076) : une projection de lecture, un trigger unique
+propriétaire de l'écriture, un index partiel, et les deux colonnes ajoutées à
+`DEFAULT_INTERVENTION_COLUMNS` de l'Edge Function `interventions-v2`.
+**Ordre de déploiement** : la migration **avant** l'Edge Function, sinon la liste demande des
+colonnes qui n'existent pas encore.
+
+**Badge « Démarré · n champs manquants »**, désormais visible en **liste** et en **kanban** :
+
+| Sujet | Règle appliquée |
+|---|---|
+| Source unique | `src/lib/interventions/portal-work-status.ts` — pendant exact de `portal-report-status.ts` : `PORTAL_WORK_STARTED_STATUSES` (`ACCEPTE` seul), `PORTAL_WORK_STARTED_COLOR` (`#D97706`, ambre), `isPortalWorkStartedToShow`, `portalWorkStartedLabel`. Module pur, aucun React. **Aucune surface ne redéclare la couleur ni le libellé** — le modal (`ReportsPanel`), la cellule de liste, la carte de kanban et `mapInterventionRecord` importent tous ce module. |
+| Priorité d'affichage | `getStatusDisplay` : `hasPortalReport` (« À vérifier », violet) **puis** `portalWorkStartedAt` (ambre) **puis** `statusFromDb` → workflow → legacy. Un rapport reçu passe devant : il y a alors plus urgent à faire que saisir. |
+| Portée | `ACCEPTE` uniquement. Dès que le statut a suivi, il n'y a plus d'écart à signaler. |
+| Libellé | « Démarré · 3 champs manquants », « Démarré · 1 champ manquant », et « Démarré · statut non avancé » quand le compte est nul ou inconnu (démarrage antérieur à 99084). |
+| Couleur | Ambre, **volontairement distincte** du violet d'« À vérifier » : les deux badges peuvent se succéder sur la même intervention et ne disent pas la même chose — l'un réclame une vérification, l'autre une saisie. |
+
+Tests livrés : `tests/unit/lib/portal-external/start.test.ts` (les **deux branches** : fiche complète
+⇒ statut avancé ; fiche incomplète ⇒ `tryAdvance` jamais appelée, fait écrit, `200` sans erreur ;
+compte enregistré et tracé), `tests/unit/lib/interventions/portal-work-status.test.ts`,
+`tests/unit/lib/interventions/status-display.test.ts`, `tests/unit/lib/common-utils.test.ts`
+(`mapInterventionRecord`), `tests/unit/components/interventions/views/table/StatusCell.test.tsx`
+(liste), `tests/unit/components/interventions/InterventionsKanbanBadges.test.tsx` (kanban),
+`tests/unit/components/interventions/form-sections/InterventionHeaderFields.statut.test.tsx`
+(non-régression §10.1 point 1 : le sélecteur de statut reste libre, en avant comme en arrière).
+
+### 8.6 Lot L1 — moitié portail : proxys, écrans de prix et de démarrage
+
+Dépôt `portal_gmbs`, branche `vision-deposedocs`. Aucune migration, aucun changement côté CRM : ce bloc décrit ce que l'application artisan fait des deux routes livrées par la moitié CRM du même lot (§8.5).
+
+| Proxy portail | Cible CRM | Ce qu'il fait, et rien d'autre |
+|---|---|---|
+| `POST /api/portal/me/interventions/{id}/price` | `POST /me/interventions/{id}/price` | relaie corps, code HTTP et JSON d'erreur **tels quels** — `409 price_changed` **et son `current_amount`** compris. Sans ce montant, le verrou optimiste serait inexploitable côté écran |
+| `POST /api/portal/me/interventions/{id}/start` | `POST /me/interventions/{id}/start` | idem ; `status_advanced: false` et `missing_fields` arrivent dans un **`200`** et ne sont jamais traités comme une erreur |
+
+Les deux routes suivent `portalProxy` à la lettre : cookie `portal_token` (`401` sans lui, sans appeler le CRM), en-têtes `X-GMBS-Key-Id` / `X-GMBS-Secret` / `X-Portal-Token`, relais de l'IP et du user-agent du téléphone, `cache: 'no-store'`, `503` si l'environnement CRM est incomplet, `502` si le CRM est injoignable, suppression du cookie sur un `401` du CRM.
+
+**Ce que l'artisan voit** (spécification §6.4)
+
+| État | Écran |
+|---|---|
+| `DEVIS_ENVOYE`, `price.can_accept` | bloc « GMBS vous propose **480 € HT** » **au-dessus des onglets**, deux boutons `J'accepte` / `Je refuse`. Le coût sous-traitance n'est plus répété dans la carte d'en-tête |
+| acceptation | **feuille de confirmation obligatoire** — un seul appui n'envoie rien : « Vous vous engagez à réaliser cette mission pour 480 € HT », puis le bouton porte le montant (`J'accepte 480 €`). C'est un engagement financier, pas un tap de camionnette |
+| refus | feuille à quatre motifs pré-remplis (*Trop loin*, *Prix trop bas*, *Pas disponible*, *Pas mon métier*) + précision libre facultative. Motif final = `motif — précision` |
+| `409 price_changed` | **jamais une erreur** : la feuille reste ouverte sur le **nouveau** montant, « Montant révisé : 520 € HT. Confirmez-vous ? », et le second envoi porte `amount_seen = 520` |
+| réponse déjà donnée | l'état enregistré s'affiche **sans aucun bouton pour le reprendre** (§7.3) ; le motif de refus est montré en entier |
+| `ACCEPTE`, `work.can_start` | bouton « Démarrer le chantier », **précédé d'une confirmation** ; après appui, « Démarrée à 08 h 14 » |
+| `status_advanced: false` | **rien ne change pour l'artisan** : l'heure s'affiche, aucune erreur, et `missing_fields` n'est **jamais** montré — c'est une dette de saisie du gestionnaire, pas une faute de l'artisan (§10.1) |
+
+Le bloc de démarrage reste monté sur `ACCEPTE`, `INTER_EN_COURS` et `SAV` tant qu'une date est posée : sans cela, « Démarrée à 08 h 14 » s'effacerait à la seconde où le CRM fait basculer le statut, c'est-à-dire juste après le geste.
+
+**Enveloppe d'idempotence** : `event_uid` généré par le téléphone (`src/lib/event-uid.ts`) et **conservé d'un essai à l'autre pour une même intention** — un renvoi après coupure réseau ne compte jamais deux fois. `occurred_at` est posé à l'envoi.
+
+**Deux corrections d'infrastructure entraînées par ce lot**
+1. `PortalApiError` porte désormais le **corps JSON** de l'erreur (`error.body`). Un code seul ne suffisait pas : `current_amount` vit dans le corps.
+2. La feuille du bas (`src/components/ui/sheet.tsx`, nouveau) passe par un **portail vers `document.body`**. Les écrans sont enveloppés dans `.fade-in`, dont l'animation porte un `transform` avec `animation-fill-mode: both` : le transform survit à l'animation et fait de cet élément le bloc conteneur de tout `position: fixed` descendant. `inset-0` ne valait alors plus le viewport et le bouton de confirmation passait **sous** la barre d'onglets, hors d'atteinte. Piège à connaître pour toute surface flottante ajoutée ensuite.
+
+**Mode mock** (`src/lib/mock/api.ts`) : les deux routes sont rejouées avec les **mêmes gardes, dans le même ordre et avec les mêmes codes** que le CRM — rejeu, affectation, statut, réponse déjà donnée, prix absent, puis verrou optimiste. Deux points de fidélité qui comptent :
+- la route `price` **ne change jamais le statut** : après acceptation, la mission reste `DEVIS_ENVOYE` avec « Prix accepté ». C'est le gestionnaire qui fera avancer le statut (§10.1) ;
+- la route `start` **n'avance le statut que si la fiche porte une `date_prevue`** — une règle d'entrée représentative tenant lieu des quatorze que le CRM vérifie. Sans elle, `200` + `status_advanced: false` + `missing_fields` : c'est exactement le cas que l'application doit traiter sans montrer d'erreur, et il est donc démontrable hors connexion.
+- `price` et `work` sont **recalculés à chaque lecture** (`projectPrice` / `projectWork`), jamais lus depuis la fixture : un `can_accept` figé rouvrirait un geste déjà joué.
+
+**Ce que la moitié portail de L1 ne fait pas** : les totaux mensuels de l'onglet « Terminées » et l'écran « Mes documents » relèvent de **L6** ; les versions de rapport modifiables côté portail, de **L3** ; l'événement SSE nommé `price` / `work` et sa doublure dans le SSE mock, de **L8**.
+
+Tests livrés : `portal_gmbs/tests/unit/api/price-start-proxies.test.ts` (en-têtes, relais des codes, `409` + `current_amount`, `401` sans cookie, `502`/`503`, encodage de l'id), `tests/unit/mock/price-start.test.ts`, `tests/unit/lib/price.test.ts`, `tests/unit/components/mission-price-panel.test.tsx` (confirmation obligatoire, verrou optimiste, refus, réponse non reprise), `tests/unit/components/mission-start-panel.test.tsx` (confirmation, **aucune erreur sur `status_advanced: false`**), `tests/unit/components/mission-detail-screen.test.tsx`. Doublure de test étendue : `tests/helpers/portal-api.tsx` expose `setNextError` pour rejouer un geste après un `409`.
