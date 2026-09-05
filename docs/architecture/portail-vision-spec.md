@@ -1427,3 +1427,20 @@ Conséquences à respecter dans les lots suivants :
 4. Si le gestionnaire recule un statut (par exemple `INTER_TERMINEE` → `INTER_EN_COURS` après un
    refus de rapport), les faits déjà déclarés par l'artisan sont **conservés** : ils appartiennent à
    l'historique, seule une nouvelle version de rapport est attendue.
+
+### 10.2 Pas de kanban : l'affichage se fait en tableau
+
+Décision GMBS du 2026-09-05 : *« ne fais rien avec le kanban, ça ne sert à rien, l'affichage se fait
+via l'affichage tableau et c'est tout »*.
+
+Conséquences, à respecter dans tous les lots :
+
+1. Les signaux de la vision — badge « À vérifier », badge « Démarré · n champs manquants », et tout
+   indicateur ajouté ensuite — sont portés par **la vue tableau et le modal uniquement**.
+2. `src/components/interventions/InterventionsKanban.tsx` n'est **pas** une surface de la vision : on
+   n'y ajoute rien. Le composant reste tel qu'il était avant la vision ; il n'est ni supprimé (hors
+   périmètre) ni enrichi.
+3. La source de vérité de l'affichage d'un statut reste `src/lib/interventions/` (module unique, pas
+   de couleur codée en dur en double) : c'est la vue tableau qui la consomme.
+4. Les tests de la vision portent sur la cellule de statut du tableau et sur le modal ; aucun test de
+   badge sur carte de kanban.
