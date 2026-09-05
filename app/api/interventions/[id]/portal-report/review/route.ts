@@ -12,17 +12,29 @@ type Params = { params: Promise<{ id: string }> }
 const DECISIONS = ['approved', 'rejected'] as const
 type Decision = (typeof DECISIONS)[number]
 const MAX_COMMENT_LENGTH = 2000
+/** Réouverture demandée au refus : seule transition autorisée par cette route. */
+const REOPEN_FROM_STATUS = 'INTER_TERMINEE'
+const REOPEN_TO_STATUS = 'INTER_EN_COURS'
 
 /**
  * POST /api/interventions/{id}/portal-report/review  (permission write_interventions)
- * `{ decision: 'approved' | 'rejected', comment? }` → `200 { report }`.
- * Traite le rapport **en attente** (`submitted`) de l'intervention — sur une
- * intervention à deux artisans, celui du second artisan même si le premier a
- * déjà été validé. Met à jour le rapport (status, reviewed_by, reviewed_at,
- * review_comment), clôt uniquement le reminder du rapport (et seulement s'il
- * ne reste aucun autre rapport en attente), ajoute un commentaire système.
- * Ne change pas le statut de l'intervention ; `has_portal_report` est
- * recalculé par le trigger.
+ * `{ decision, comment?, report_id?, reopen_intervention? }` → `200 { report, intervention }`.
+ *
+ * Traite le rapport désigné par `report_id` — indispensable dès qu'une
+ * intervention porte plusieurs rapports (deux artisans, plusieurs versions) :
+ * sans lui, le gestionnaire valide « le rapport que le serveur a choisi », pas
+ * celui qu'il regarde. Sans `report_id`, on retombe sur le rapport **en
+ * attente** (`pickPortalReport`), comportement historique.
+ *
+ * `comment` est **obligatoire** au refus : sans motif, l'artisan redépose la
+ * même chose et le gestionnaire refait le travail.
+ *
+ * `reopen_intervention` ramène une intervention `INTER_TERMINEE` en
+ * `INTER_EN_COURS` pour que l'artisan puisse renvoyer une version.
+ *
+ * Clôt uniquement le reminder du rapport (et seulement s'il ne reste aucun
+ * autre rapport en attente), ajoute un commentaire système.
+ * `has_portal_report` est recalculé par le trigger.
  */
 export async function POST(request: Request, { params }: Params) {
   const permCheck = await requirePermission(request, 'write_interventions')
@@ -44,6 +56,11 @@ export async function POST(request: Request, { params }: Params) {
     return NextResponse.json({ error: "decision must be 'approved' or 'rejected'" }, { status: 400 })
   }
   const comment = typeof body.comment === 'string' ? body.comment.trim().slice(0, MAX_COMMENT_LENGTH) : ''
+  if (decision === 'rejected' && !comment) {
+    return NextResponse.json({ error: 'Un motif est obligatoire pour demander une correction' }, { status: 400 })
+  }
+  const requestedReportId = typeof body.report_id === 'string' && body.report_id ? body.report_id : null
+  const reopenIntervention = body.reopen_intervention === true
 
   try {
     const supabase = createServerSupabaseAdmin()
@@ -63,8 +80,15 @@ export async function POST(request: Request, { params }: Params) {
     }
     const all = (reports ?? []) as Array<{ id: string; status: string; version: number }>
     if (all.length === 0) return NextResponse.json({ error: 'Aucun rapport portail pour cette intervention' }, { status: 404 })
-    const latest = pickPortalReport(all)
-    if (!latest || latest.status !== 'submitted') {
+    // `report_id` gagne sur la sélection par défaut ; un id étranger à
+    // l'intervention est un 409, jamais un 404 révélateur.
+    const latest = requestedReportId
+      ? all.find((r) => r.id === requestedReportId) ?? null
+      : pickPortalReport(all)
+    if (!latest) {
+      return NextResponse.json({ error: "Ce rapport n'appartient pas à cette intervention" }, { status: 409 })
+    }
+    if (latest.status !== 'submitted') {
       return NextResponse.json({ error: 'Ce rapport a déjà été traité' }, { status: 409 })
     }
     // Un autre rapport encore en attente (2ᵉ artisan) garde le reminder ouvert.
@@ -98,6 +122,42 @@ export async function POST(request: Request, { params }: Params) {
       if (reminderError) console.error('[portal-report/review] Clôture du reminder échouée :', reminderError.message)
     }
 
+    // Réouverture facultative : INTER_TERMINEE → INTER_EN_COURS, pour que
+    // l'artisan puisse renvoyer une version. La transition est journalisée par
+    // le trigger de 00010 ; on ne touche à rien d'autre sur l'intervention.
+    let statutCode: string | null = null
+    if (reopenIntervention) {
+      const { data: current } = await supabase
+        .from('interventions')
+        .select('statut_id, statut:intervention_statuses!statut_id ( code )')
+        .eq('id', id)
+        .maybeSingle()
+      const currentStatut = current as { statut_id: string | null; statut: { code: string | null } | { code: string | null }[] | null } | null
+      const currentCode = Array.isArray(currentStatut?.statut)
+        ? currentStatut?.statut[0]?.code ?? null
+        : currentStatut?.statut?.code ?? null
+      statutCode = currentCode
+      if (currentCode === REOPEN_FROM_STATUS) {
+        const { data: target } = await supabase
+          .from('intervention_statuses')
+          .select('id')
+          .eq('code', REOPEN_TO_STATUS)
+          .maybeSingle()
+        const targetId = (target as { id: string } | null)?.id ?? null
+        if (targetId) {
+          const { error: reopenError } = await supabase
+            .from('interventions')
+            .update({ statut_id: targetId })
+            .eq('id', id)
+          if (reopenError) {
+            console.error('[portal-report/review] Réouverture échouée :', reopenError.message)
+          } else {
+            statutCode = REOPEN_TO_STATUS
+          }
+        }
+      }
+    }
+
     const { data: reviewerRow } = await supabase
       .from('users')
       .select('firstname, lastname, username')
@@ -122,7 +182,7 @@ export async function POST(request: Request, { params }: Params) {
     })
     if (commentError) console.error('[portal-report/review] Commentaire système non créé :', commentError.message)
 
-    return NextResponse.json({ report })
+    return NextResponse.json({ report, intervention: { statut_code: statutCode } })
   } catch (error) {
     console.error('[portal-report/review] Erreur inattendue :', error)
     return NextResponse.json({ error: 'Internal error' }, { status: 500 })

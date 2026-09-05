@@ -16,7 +16,7 @@ describe("portal-report-status", () => {
       expect(isPortalReportToReview(code, true)).toBe(true)
     })
 
-    it.each(["DEMANDE", "DEVIS_ENVOYE", "INTER_TERMINEE", "REFUSE", "ANNULE"])(
+    it.each(["DEMANDE", "DEVIS_ENVOYE", "REFUSE", "ANNULE"])(
       "should be false for %s even with a pending report",
       (code) => {
         expect(isPortalReportToReview(code, true)).toBe(false)
@@ -27,6 +27,11 @@ describe("portal-report-status", () => {
       expect(isPortalReportToReview("INTER_EN_COURS", false)).toBe(false)
       expect(isPortalReportToReview("INTER_EN_COURS", null)).toBe(false)
       expect(isPortalReportToReview("INTER_EN_COURS", undefined)).toBe(false)
+    })
+
+    // L2 : un rapport en attente sur une intervention terminée doit rester visible.
+    it("should be true for INTER_TERMINEE when a report is pending", () => {
+      expect(isPortalReportToReview("INTER_TERMINEE", true)).toBe(true)
     })
 
     it("should be false without a status code", () => {
@@ -68,7 +73,7 @@ describe("getStatusDisplay — option hasPortalReport", () => {
     expect(display.color).toBe("#22C55E")
   })
 
-  it.each(["DEMANDE", "DEVIS_ENVOYE", "INTER_TERMINEE", "REFUSE"])(
+  it.each(["DEMANDE", "DEVIS_ENVOYE", "REFUSE"])(
     "should ignore hasPortalReport for %s (status not allowed)",
     (code) => {
       const display = getStatusDisplay(code, {

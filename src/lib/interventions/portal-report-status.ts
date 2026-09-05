@@ -8,8 +8,15 @@
  * et l'affichage (`getStatusDisplay`, kanban, modal).
  */
 
-/** Statuts pour lesquels un rapport portail soumis est affiché « À vérifier ». */
-export const PORTAL_REPORT_REVIEW_STATUSES = ["ACCEPTE", "INTER_EN_COURS", "SAV"] as const
+/**
+ * Statuts pour lesquels un rapport portail soumis est affiché « À vérifier ».
+ *
+ * `INTER_TERMINEE` en fait partie : `has_portal_report` reste vrai tant qu'un
+ * rapport est en attente, y compris sur une intervention terminée. Sans lui,
+ * un rapport à traiter devient invisible dans tout le CRM au moment même où le
+ * gestionnaire clôt l'intervention.
+ */
+export const PORTAL_REPORT_REVIEW_STATUSES = ["ACCEPTE", "INTER_EN_COURS", "SAV", "INTER_TERMINEE"] as const
 
 /** Libellé affiché à la place du libellé du statut. */
 export const PORTAL_REPORT_REVIEW_LABEL = "À vérifier"

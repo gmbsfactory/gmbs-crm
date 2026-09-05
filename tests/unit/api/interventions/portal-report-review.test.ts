@@ -94,7 +94,8 @@ describe('POST /api/interventions/[id]/portal-report/review', () => {
 
   it('renvoie 409 si le rapport a déjà été traité', async () => {
     h.createServerSupabaseAdmin.mockReturnValue(createPlannedClient({ artisan_reports: [{ data: [{ ...submitted, status: 'approved' }], error: null }] }))
-    const res = await POST(makeRequest({ decision: 'rejected' }), params)
+    // Motif fourni : sans lui, la route répondrait 400 avant même de regarder le rapport.
+    const res = await POST(makeRequest({ decision: 'rejected', comment: 'Déjà traité' }), params)
     expect(res.status).toBe(409)
   })
 
@@ -133,7 +134,10 @@ describe('POST /api/interventions/[id]/portal-report/review', () => {
     const client = planFor('approved', 'Bon travail')
     const res = await POST(makeRequest({ decision: 'approved', comment: 'Bon travail' }), params)
     expect(res.status).toBe(200)
-    expect(await res.json()).toEqual({ report: reviewedReport('approved', 'Bon travail') })
+    expect(await res.json()).toEqual({
+      report: reviewedReport('approved', 'Bon travail'),
+      intervention: { statut_code: null },
+    })
 
     const update = client.calls.find((c) => c.table === 'artisan_reports' && c.op === 'update')
     expect(update?.payload).toEqual(expect.objectContaining({
@@ -175,5 +179,86 @@ describe('POST /api/interventions/[id]/portal-report/review', () => {
 
     const comment = client.calls.find((c) => c.table === 'comments' && c.op === 'insert')
     expect((comment?.payload as { content: string }).content).toBe('Rapport refusé par Badr Boujimal : Photos manquantes')
+  })
+})
+
+describe('POST /api/interventions/[id]/portal-report/review — L2 : rapport visé et réouverture', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    h.requirePermission.mockResolvedValue({ user: { id: 'user-badr', roles: ['admin'], permissions: new Set(['write_interventions']) } })
+  })
+
+  it('renvoie 400 si un refus arrive sans motif', async () => {
+    planFor('rejected', null)
+    const res = await POST(makeRequest({ decision: 'rejected' }), params)
+    expect(res.status).toBe(400)
+    expect((await res.json()).error).toMatch(/motif est obligatoire/i)
+  })
+
+  it('report_id : vise le rapport demandé, pas la sélection par défaut', async () => {
+    const client = planFor('approved', null, [
+      { id: 'rep-karim', status: 'submitted', version: 1 },
+      { id: 'rep-sofia', status: 'submitted', version: 3 },
+    ])
+    const res = await POST(makeRequest({ decision: 'approved', report_id: 'rep-sofia' }), params)
+    expect(res.status).toBe(200)
+    const update = client.calls.find((c) => c.table === 'artisan_reports' && c.op === 'update')
+    expect(update?.filters).toContainEqual(['eq', 'id', 'rep-sofia'])
+  })
+
+  it("renvoie 409 si le report_id n'appartient pas à l'intervention", async () => {
+    planFor('approved', null, [{ id: 'rep-1', status: 'submitted', version: 1 }])
+    const res = await POST(makeRequest({ decision: 'approved', report_id: 'rep-etranger' }), params)
+    expect(res.status).toBe(409)
+    expect((await res.json()).error).toMatch(/n'appartient pas/i)
+  })
+
+  it('renvoie 409 si le rapport visé a déjà été traité', async () => {
+    planFor('approved', null, [
+      { id: 'rep-1', status: 'submitted', version: 2 },
+      { id: 'rep-0', status: 'approved', version: 1 },
+    ])
+    const res = await POST(makeRequest({ decision: 'approved', report_id: 'rep-0' }), params)
+    expect(res.status).toBe(409)
+  })
+
+  it('reopen_intervention : INTER_TERMINEE repasse en INTER_EN_COURS', async () => {
+    const client = createPlannedClient({
+      artisan_reports: [{ data: [submitted], error: null }, { data: reviewedReport('rejected', 'Photo illisible'), error: null }],
+      intervention_reminders: [{ data: null, error: null }],
+      interventions: [{ data: { statut_id: 'st-terminee', statut: { code: 'INTER_TERMINEE' } }, error: null }],
+      intervention_statuses: [{ data: { id: 'st-en-cours' }, error: null }],
+      users: [{ data: { firstname: 'Badr', lastname: 'Boujimal', username: 'badr' }, error: null }],
+      comments: [{ data: null, error: null }],
+    })
+    h.createServerSupabaseAdmin.mockReturnValue(client)
+
+    const res = await POST(
+      makeRequest({ decision: 'rejected', comment: 'Photo illisible', reopen_intervention: true }),
+      params,
+    )
+    expect(res.status).toBe(200)
+    expect((await res.json()).intervention).toEqual({ statut_code: 'INTER_EN_COURS' })
+
+    const update = client.calls.find((c) => c.table === 'interventions' && c.op === 'update')
+    expect(update?.payload).toEqual({ statut_id: 'st-en-cours' })
+  })
+
+  it("reopen_intervention ne touche à rien si l'intervention n'est pas terminée", async () => {
+    const client = createPlannedClient({
+      artisan_reports: [{ data: [submitted], error: null }, { data: reviewedReport('rejected', 'Photo illisible'), error: null }],
+      intervention_reminders: [{ data: null, error: null }],
+      interventions: [{ data: { statut_id: 'st-en-cours', statut: { code: 'INTER_EN_COURS' } }, error: null }],
+      users: [{ data: { firstname: 'Badr', lastname: 'Boujimal', username: 'badr' }, error: null }],
+      comments: [{ data: null, error: null }],
+    })
+    h.createServerSupabaseAdmin.mockReturnValue(client)
+
+    const res = await POST(
+      makeRequest({ decision: 'rejected', comment: 'Photo illisible', reopen_intervention: true }),
+      params,
+    )
+    expect(res.status).toBe(200)
+    expect(client.calls.some((c) => c.table === 'interventions' && c.op === 'update')).toBe(false)
   })
 })

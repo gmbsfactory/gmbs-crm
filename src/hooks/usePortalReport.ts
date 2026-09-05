@@ -7,7 +7,7 @@ import { interventionKeys } from "@/lib/react-query/queryKeys"
  * Rapport d'intervention envoyé par l'artisan depuis le portail
  * (contrat : docs/architecture/portail-demo-contrat-api.md, §3).
  */
-export type PortalReportStatus = "submitted" | "approved" | "rejected"
+export type PortalReportStatus = "submitted" | "approved" | "rejected" | "superseded"
 
 export interface PortalReport {
   id: string
@@ -24,6 +24,41 @@ export interface PortalReport {
   review_comment: string | null
   reviewed_at: string | null
   attachment_ids: string[] | null
+  /** Copie de `intervention_artisans.work_started_at` à l'envoi (durée réelle). */
+  started_at?: string | null
+  superseded_at?: string | null
+  superseded_by?: string | null
+}
+
+/** Un rapport de `reports[]` : le même objet, avec son artisan résolu. */
+export interface PortalReportEntry extends PortalReport {
+  artisan: PortalReportArtisan | null
+  artisan_id: string | null
+}
+
+/** Réponse de l'artisan au prix proposé, telle que projetée par l'API. */
+export interface PortalAssignmentPrice {
+  response: "accepted" | "refused" | null
+  responded_at: string | null
+  accepted_amount: number | null
+  source: "portal" | "crm" | null
+  refused_reason: string | null
+  /** Le coût SST courant diffère du montant gelé au moment du oui. */
+  drift: boolean
+}
+
+export type PortalPaymentState = "not_applicable" | "awaiting_invoice" | "in_progress" | "paid"
+
+/** État d'un artisan affecté : prix, démarrage du chantier, paiement. */
+export interface PortalAssignment {
+  artisan: PortalReportArtisan | null
+  artisan_id: string | null
+  is_primary: boolean
+  cout_sst: number | null
+  price: PortalAssignmentPrice
+  work: { started_at: string | null; from: "portal" | "crm" | null }
+  payment: { state: PortalPaymentState; paid_at: string | null }
+  report_ids: string[]
 }
 
 export interface PortalReportPhoto {
@@ -45,14 +80,28 @@ export interface PortalReportArtisan {
 }
 
 export interface PortalReportResponse {
+  /** Sélection par défaut (`pickPortalReport`) — conservée pour rétro-compat. */
   report: PortalReport | null
   photos: PortalReportPhoto[]
   artisan: PortalReportArtisan | null
+  /** Tous les rapports, tous artisans et toutes versions, déjà triés. */
+  reports: PortalReportEntry[]
+  /** Photos par version ; les orphelines sous la clé `_hors_rapport`. */
+  photosByReport: Record<string, string[]>
+  /** Un élément par artisan affecté (les sept états du panneau). */
+  assignments: PortalAssignment[]
 }
+
+/** Clé de `photosByReport` regroupant les photos rattachées à aucune version. */
+export const PHOTOS_HORS_RAPPORT = "_hors_rapport"
 
 export interface PortalReportReviewInput {
   decision: "approved" | "rejected"
   comment?: string
+  /** Rapport visé : obligatoire dès qu'il y en a plusieurs. */
+  reportId?: string
+  /** Ramène une intervention INTER_TERMINEE en INTER_EN_COURS. */
+  reopenIntervention?: boolean
 }
 
 async function readErrorMessage(response: Response, fallback: string): Promise<string> {
@@ -77,6 +126,9 @@ export async function fetchPortalReport(interventionId: string): Promise<PortalR
     report: data.report ?? null,
     photos: Array.isArray(data.photos) ? data.photos : [],
     artisan: data.artisan ?? null,
+    reports: Array.isArray(data.reports) ? data.reports : [],
+    photosByReport: data.photosByReport ?? {},
+    assignments: Array.isArray(data.assignments) ? data.assignments : [],
   }
 }
 
@@ -88,7 +140,12 @@ export async function reviewPortalReport(
   const response = await fetch(`/api/interventions/${interventionId}/portal-report/review`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(input),
+    body: JSON.stringify({
+      decision: input.decision,
+      ...(input.comment ? { comment: input.comment } : {}),
+      ...(input.reportId ? { report_id: input.reportId } : {}),
+      ...(input.reopenIntervention ? { reopen_intervention: true } : {}),
+    }),
   })
   if (!response.ok) {
     throw new Error(await readErrorMessage(response, "Impossible d'enregistrer la décision"))
