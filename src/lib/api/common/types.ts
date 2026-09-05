@@ -225,6 +225,19 @@ export interface InterventionQueryParams extends BaseQueryParams {
   endDate?: string;
   include?: string[];
   isCheck?: boolean; // Filtre pour les interventions en retard (date_prevue <= today et statut VISITE_TECHNIQUE ou INTER_EN_COURS)
+  /**
+   * Vue « Mes vérifications » : rapport d'artisan en attente de vérification
+   * (`interventions.has_portal_report`), c'est-à-dire le badge violet
+   * « À vérifier ». Toujours accompagné de `portalReportStatuts`.
+   */
+  hasPortalReport?: boolean;
+  /**
+   * UUID des statuts pour lesquels un rapport portail est affiché
+   * « À vérifier » (résolus depuis PORTAL_REPORT_REVIEW_STATUSES). Paramètre
+   * distinct de `statuts` pour ne pas entrer en conflit avec une puce de statut
+   * choisie par l'utilisateur.
+   */
+  portalReportStatuts?: string[];
   search?: string;
   fields?: string[];
   sortBy?: string;

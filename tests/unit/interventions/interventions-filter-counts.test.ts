@@ -73,6 +73,36 @@ describe("interventionsApi.getFilterCountsGrouped", () => {
     )
   })
 
+  it("route la vue « Mes vérifications » via p_has_portal_report=true", async () => {
+    // Même piège que p_user_is_null : sans drapeau dédié, le RPC ne sait pas
+    // exprimer « rapport à vérifier » et compte AVANT filtrage (migration 99086).
+    mockRpc([{ group_value: "statut-accepte", cnt: 1 }])
+
+    await interventionsApi.getFilterCountsGrouped("statut", {
+      user: "user-uuid-123",
+      hasPortalReport: true,
+    })
+
+    expect(supabase.rpc).toHaveBeenCalledWith(
+      "get_intervention_filter_counts",
+      expect.objectContaining({
+        p_user_id: "user-uuid-123",
+        p_has_portal_report: true,
+      }),
+    )
+  })
+
+  it("laisse p_has_portal_report à false hors de la vue « Mes vérifications »", async () => {
+    mockRpc([])
+
+    await interventionsApi.getFilterCountsGrouped("statut", { user: "user-uuid-123" })
+
+    expect(supabase.rpc).toHaveBeenCalledWith(
+      "get_intervention_filter_counts",
+      expect.objectContaining({ p_has_portal_report: false }),
+    )
+  })
+
   it("mappe les lignes du RPC en Record<group_value, cnt>", async () => {
     mockRpc([
       { group_value: "agence-1", cnt: 3 },

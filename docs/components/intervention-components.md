@@ -247,6 +247,8 @@ Quand `interventions.has_portal_report` est vrai (colonne maintenue par trigger 
 
 Les constantes et la règle vivent dans `src/lib/interventions/portal-report-status.ts` (`PORTAL_REPORT_REVIEW_STATUSES`, `PORTAL_REPORT_REVIEW_LABEL`, `PORTAL_REPORT_REVIEW_COLOR`, `isPortalReportToReview`). Tests : `tests/unit/lib/interventions/status-display.test.ts`, `tests/unit/lib/common-utils.test.ts`.
 
+La **puce « Mes vérifications »** de la page interventions matérialise cette file de travail — voir [Puces de vues par défaut](#puces-de-vues-par-défaut).
+
 #### PaymentSection : acompte client et statut
 
 Les règles d'acompte sont pures et centralisées dans `src/lib/interventions/deposit-helpers.ts`, et partagées à l'identique par l'édition (`InterventionEditForm`) et la création (`NewInterventionForm`) via le hook `useInterventionAccomptes` — voir [workflow-engine.md](../architecture/workflow-engine.md#automatisation-de-lacompte-client) pour les règles de statut.
@@ -318,6 +320,62 @@ Les règles de dérivation (artisans avec email, calculs intermédiaires, etc.) 
 ---
 
 ## Système de vues (views/)
+
+### Puces de vues par défaut
+
+Les puces affichées au-dessus de la liste sont définies dans
+`src/config/intervention-view-presets.ts` (`DEFAULT_VIEW_PRESETS`), **dans l'ordre
+du tableau**. Les vues rattachées à l'utilisateur connecté sont listées dans
+`USER_SCOPED_VIEW_IDS` : leur filtre `attribueA` est réécrit avec l'ID de
+l'utilisateur par `applyUserScopedFilters`.
+
+| Ordre | Vue | Critère |
+|-------|-----|---------|
+| 1 | Liste générale | aucun filtre |
+| 2 | Market | statut `DEMANDE` + non assignée |
+| 3 | **Mes vérifications** | `has_portal_report` + statut de revue + assignée à moi |
+| 4 | Mes demandes | statut `DEMANDE` + assignée à moi |
+| 5 | Ma liste en cours | statut `INTER_EN_COURS` + assignée à moi |
+| 6 | Mes visites technique | statut `VISITE_TECHNIQUE` + assignée à moi |
+| 7 | Ma liste accepté | statut `ACCEPTE` + assignée à moi |
+| 8 | En attente d'acompte | statut `ATT_ACOMPTE` + assignée à moi |
+| 9 | Mes Interventions à check | `isCheck` + assignée à moi |
+
+**Mes vérifications** (`mes-verifications`) liste les interventions de
+l'utilisateur dont un rapport d'artisan attend d'être vérifié : exactement le
+critère du badge violet « À vérifier » (`interventions.has_portal_report` posé
+par le trigger sur `artisan_reports`, croisé avec
+`PORTAL_REPORT_REVIEW_STATUSES`). Un rapport validé ou rejeté fait retomber le
+drapeau, donc sort l'intervention de la liste. La puce porte la couleur violette
+du badge (`PORTAL_REPORT_REVIEW_COLOR`).
+
+#### Le compteur d'une puce doit égaler le nombre de lignes
+
+Le nombre affiché sur une puce ne vient **pas** de la liste : `ViewTabs` l'obtient
+de `useInterventionViewCounts`, qui appelle `interventionsApi.getTotalCountWithFilters`
+avec les seuls **filtres serveur** produits par `convertViewFiltersToServerFilters`.
+Un filtre laissé côté client est donc appliqué page par page à la liste mais
+**ignoré par le compteur** : la liste paraît juste et la pastille est fausse.
+
+Ajouter un filtre de vue impose donc de le traiter sur toute la chaîne serveur :
+
+| Étape | Fichier |
+|-------|---------|
+| Preset de la vue | `src/config/intervention-view-presets.ts` |
+| Conversion en filtre serveur | `src/lib/filter-converter.ts` |
+| Paramètres de l'API | `src/lib/api/common/types.ts`, `crud/_search-params.ts` |
+| Liste (Edge Function) | `supabase/functions/interventions-v2/_lib/{list-handler,helpers}.ts` |
+| **Comptage de la puce** | `src/lib/api/interventions/interventions-filters.ts` (`getTotalCountWithFilters`) |
+| Comptage des puces de filtre internes | RPC `get_intervention_filter_counts` (drapeau dédié) |
+| Tri serveur par colonne de coût | RPC `get_sorted_intervention_ids` (drapeau dédié) |
+
+Pour « Mes vérifications », les deux RPC ont reçu leur drapeau dans la migration
+`99086_filter_counts_portal_report.sql` (`p_has_portal_report`), sur le modèle de
+`p_user_is_null` (migration 99067). Les statuts de revue sont envoyés dans le
+paramètre **dédié** `portalReportStatuts` et non dans `statuts`, pour que la puce
+de statut choisie par l'utilisateur ne les écrase pas.
+
+### Layouts disponibles
 
 Le projet supporte **6 layouts** différents pour afficher les interventions :
 

@@ -55,6 +55,13 @@ export function buildBaseSearchParams(
   if (params?.startDate) searchParams.set("startDate", params.startDate);
   if (params?.endDate) searchParams.set("endDate", params.endDate);
   if (params?.isCheck !== undefined) searchParams.set("isCheck", params.isCheck.toString());
+  // Vue « Mes vérifications » : le drapeau et la liste des statuts de revue
+  // voyagent ensemble (cf. filter-converter). `portalReportStatut` est répété,
+  // à l'image de `statut`, et reste distinct de celui-ci.
+  if (params?.hasPortalReport !== undefined) {
+    searchParams.set("hasPortalReport", params.hasPortalReport.toString());
+    appendFilterParam(searchParams, "portalReportStatut", params.portalReportStatuts);
+  }
   if (params?.search) {
     // Les montants ne sont pas dans l'index plein-texte (cf. migration 99074) :
     // un montant détecté dans la saisie est envoyé comme filtre dédié, avec la

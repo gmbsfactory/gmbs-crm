@@ -339,6 +339,15 @@ export const applyFilters = <T extends { in: Function; eq: Function; gte: Functi
   } else if (filters.userIsNull) {
     builder = builder.is('assigned_user_id', null);
   }
+  // Vue « Mes vérifications » : drapeau + statuts de revue. Les deux sont
+  // appliqués ici (et donc aussi dans getCachedCount, qui réutilise
+  // applyFilters) pour que le total renvoyé corresponde exactement aux lignes.
+  if (filters.hasPortalReport !== undefined) {
+    builder = builder.eq('has_portal_report', filters.hasPortalReport);
+    if (filters.hasPortalReport && filters.portalReportStatut && filters.portalReportStatut.length > 0) {
+      builder = builder.in('statut_id', filters.portalReportStatut);
+    }
+  }
   if (filters.startDate) {
     builder = builder.gte('date', filters.startDate);
   }

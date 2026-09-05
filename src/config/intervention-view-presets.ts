@@ -12,12 +12,14 @@ import type {
   TableColumnAlignment,
 } from "@/types/intervention-views"
 import { normalizeColumnStyle } from "@/lib/interventions/column-style"
+import { PORTAL_REPORT_REVIEW_LABEL } from "@/lib/interventions/portal-report-status"
 
 // ---- Constants ----
 
 export const CURRENT_USER_PLACEHOLDER = "__CURRENT_USER_USERNAME__"
 export const NO_USER_PLACEHOLDER = "__NO_USER_USERNAME__"
 export const USER_SCOPED_VIEW_IDS = new Set([
+  "mes-verifications",
   "mes-demandes",
   "ma-liste-en-cours",
   "mes-visites-technique",
@@ -218,17 +220,23 @@ type DefaultViewPreset = {
   showBadge?: boolean
 }
 
-/** Helper to create a user-scoped table preset with shared layout */
+/**
+ * Crée un preset tableau rattaché à l'utilisateur connecté.
+ *
+ * `mainFilter` est le critère métier de la vue (un statut le plus souvent,
+ * mais aussi `hasPortalReport` pour « Mes vérifications ») ; le rattachement à
+ * l'utilisateur est ajouté ici et re-résolu par `applyUserScopedFilters`.
+ */
 const userScopedPreset = (
   id: string,
   title: string,
   description: string,
-  statusFilter: ViewFilter,
+  mainFilter: ViewFilter,
 ): DefaultViewPreset => ({
   id,
   title,
   description,
-  filters: [statusFilter, { property: "attribueA", operator: "eq", value: CURRENT_USER_PLACEHOLDER }],
+  filters: [mainFilter, { property: "attribueA", operator: "eq", value: CURRENT_USER_PLACEHOLDER }],
   showBadge: true,
   layoutOptions: SHARED_TABLE_LAYOUT,
 })
@@ -257,6 +265,13 @@ const DEFAULT_VIEW_PRESETS: DefaultViewPreset[] = [
       columnWidths: { ...SHARED_TABLE_COLUMN_WIDTHS, adresse: 150, ville: 100 },
     },
   },
+  // File de travail « À vérifier » : les rapports d'artisan déposés depuis le
+  // portail et pas encore traités, sur les interventions de l'utilisateur.
+  // Le critère est celui du badge violet (has_portal_report + statuts de revue),
+  // exprimé côté serveur par le filtre `hasPortalReport` (cf. filter-converter).
+  userScopedPreset("mes-verifications", "Mes vérifications",
+    `Interventions assignées à l'utilisateur connecté dont le rapport d'artisan est « ${PORTAL_REPORT_REVIEW_LABEL} »`,
+    { property: "hasPortalReport", operator: "eq", value: true }),
   userScopedPreset("mes-demandes", "Mes demandes", "Demandes assignées à l'utilisateur connecté",
     { property: "statusValue", operator: "eq", value: "DEMANDE" }),
   userScopedPreset("ma-liste-en-cours", "Ma liste en cours", "Interventions en cours assignées à l'utilisateur connecté",
@@ -399,9 +414,24 @@ export const mergeStoredViews = (stored: InterventionViewDefinition[] | null): I
     seen.add(merged.id)
   })
 
-  DEFAULT_VIEWS.forEach((defaultView) => {
+  // Une vue par défaut absente du stockage (nouvelle puce livrée après coup) est
+  // insérée à SA place canonique, juste après la vue par défaut qui la précède
+  // dans DEFAULT_VIEWS et qui est déjà présente — sinon elle atterrirait en fin
+  // de barre pour tous les utilisateurs ayant déjà un ordre en localStorage.
+  DEFAULT_VIEWS.forEach((defaultView, index) => {
     if (seen.has(defaultView.id)) return
-    result.push(cloneViewDefinition(defaultView))
+
+    let insertAt = result.length
+    for (let previous = index - 1; previous >= 0; previous -= 1) {
+      const anchorId = DEFAULT_VIEWS[previous].id
+      const anchorPosition = result.findIndex((view) => view.id === anchorId)
+      if (anchorPosition !== -1) {
+        insertAt = anchorPosition + 1
+        break
+      }
+    }
+
+    result.splice(insertAt, 0, cloneViewDefinition(defaultView))
     seen.add(defaultView.id)
   })
 

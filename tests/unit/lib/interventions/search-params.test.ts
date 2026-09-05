@@ -2,6 +2,29 @@ import { describe, it, expect } from "vitest"
 import { buildBaseSearchParams } from "@/lib/api/interventions/crud/_search-params"
 
 describe("buildBaseSearchParams", () => {
+  describe("vue « Mes vérifications »", () => {
+    it("sérialise le drapeau et les statuts de revue dans des paramètres distincts", () => {
+      const params = buildBaseSearchParams({
+        user: "user-badr",
+        statut: "st-choisi-par-la-puce",
+        hasPortalReport: true,
+        portalReportStatuts: ["st-accepte", "st-en-cours"],
+      })
+
+      expect(params.get("hasPortalReport")).toBe("true")
+      expect(params.getAll("portalReportStatut")).toEqual(["st-accepte", "st-en-cours"])
+      // `statut` reste celui de l'utilisateur : les deux se cumulent côté serveur
+      expect(params.getAll("statut")).toEqual(["st-choisi-par-la-puce"])
+    })
+
+    it("n'envoie rien hors de la vue", () => {
+      const params = buildBaseSearchParams({ user: "user-badr" })
+
+      expect(params.get("hasPortalReport")).toBeNull()
+      expect(params.getAll("portalReportStatut")).toEqual([])
+    })
+  })
+
   describe("routage de la recherche", () => {
     it("should send an unqualified text search as the `search` param only", () => {
       const params = buildBaseSearchParams({ search: "91 AVENUE FRANCIS DE PRESSENSE" })

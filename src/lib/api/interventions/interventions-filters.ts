@@ -10,7 +10,22 @@ import {
   resolveMetierToId,
 } from "@/lib/api/common/utils";
 import { isCheckStatus } from "@/lib/interventions/checkStatus";
+import { PORTAL_REPORT_REVIEW_STATUSES } from "@/lib/interventions/portal-report-status";
 import type { InterventionStatusKey } from "@/config/interventions";
+
+/**
+ * Résout les statuts « À vérifier » en UUID depuis le cache de référence.
+ * Filet de sécurité : la page envoie déjà `portalReportStatuts` (résolu par
+ * filter-converter) ; on ne recalcule que si l'appelant ne l'a pas fait.
+ */
+async function resolvePortalReportStatusIds(): Promise<string[]> {
+  const refs = await getReferenceCache();
+  const codes = PORTAL_REPORT_REVIEW_STATUSES as readonly string[];
+  return Array.from(refs.interventionStatusesById.values())
+    .filter((s: { code?: string; id?: string }) => Boolean(s.code) && codes.includes(s.code as string))
+    .map((s: { id?: string }) => s.id)
+    .filter((id): id is string => Boolean(id));
+}
 
 export const interventionsFilters = {
   /**
@@ -58,6 +73,21 @@ export const interventionsFilters = {
       }
       if (params?.endDate) {
         query = query.lte("date", params.endDate);
+      }
+
+      // Vue « Mes vérifications » : même critère que la liste (Edge Function) —
+      // le drapeau `has_portal_report` ET les statuts de revue. Sans cette
+      // branche, le compteur de la puce compterait avant filtrage.
+      if (params?.hasPortalReport !== undefined) {
+        query = query.eq("has_portal_report", params.hasPortalReport);
+        if (params.hasPortalReport) {
+          const statusIds = params.portalReportStatuts?.length
+            ? params.portalReportStatuts
+            : await resolvePortalReportStatusIds();
+          if (statusIds.length > 0) {
+            query = query.in("statut_id", statusIds);
+          }
+        }
       }
 
       if (params?.isCheck) {
@@ -192,6 +222,12 @@ export const interventionsFilters = {
       p_metier_id,
       p_user_id: typeof baseFilters?.user === 'string' ? baseFilters.user : null,
       p_user_is_null: baseFilters?.user === null,
+      // Vue « Mes vérifications » : le RPC ne sait pas exprimer
+      // « has_portal_report + statuts de revue » sans drapeau dédié. Sans lui,
+      // les puces de statut/agence/métier de cette vue compteraient toutes les
+      // interventions de l'utilisateur (voir migration 99086, même piège que
+      // p_user_is_null en 99067).
+      p_has_portal_report: baseFilters?.hasPortalReport === true,
       p_start_date: baseFilters?.startDate || null,
       p_end_date: baseFilters?.endDate || null,
     })

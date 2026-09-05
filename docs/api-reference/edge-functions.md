@@ -36,6 +36,10 @@ Edge Function principale pour le CRUD complet des interventions. Gere les requet
 **Fonctionnalites:**
 - Pagination serveur avec prefetch
 - Filtres multiples (statut, agence, gestionnaire, metier, date, recherche texte)
+- `hasPortalReport=true` + `portalReportStatut` (repete) : vue « Mes verifications » —
+  `has_portal_report` ET statuts de revue. Applique dans `applyFilters` (donc aussi
+  dans `getCachedCount`), dans le chemin recherche, et transmis au RPC
+  `get_sorted_intervention_ids` pour le tri par colonne de cout.
 - Include optionnel : `artisans`, `costs`, `payments`, `owner`, `tenant`
 - Mode `light` pour warm-up (champs reduits)
 - Upsert pour les imports Google Sheets

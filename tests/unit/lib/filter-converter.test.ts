@@ -1,10 +1,17 @@
 import { describe, it, expect } from 'vitest'
 import { convertViewFiltersToServerFilters, convertArtisanFiltersToServerFilters } from '@/lib/filter-converter'
+import { PORTAL_REPORT_REVIEW_STATUSES } from '@/lib/interventions/portal-report-status'
 
 describe('filter-converter', () => {
   const createContext = (overrides = {}) => ({
     statusCodeToId: (code: string | string[]) => {
-      const map: Record<string, string> = { DEMANDE: 'id-1', ACCEPTE: 'id-2' }
+      const map: Record<string, string> = {
+        DEMANDE: 'id-1',
+        ACCEPTE: 'id-2',
+        INTER_EN_COURS: 'id-3',
+        SAV: 'id-4',
+        INTER_TERMINEE: 'id-5',
+      }
       if (Array.isArray(code)) return code.map(c => map[c]).filter(Boolean)
       return map[code]
     },
@@ -241,6 +248,51 @@ describe('filter-converter', () => {
       it('should fallback non-boolean isCheck to client', () => {
         const filters = [{ property: 'isCheck', operator: 'eq', value: 'yes' }]
         const { clientFilters } = convertViewFiltersToServerFilters(filters as any, createContext())
+        expect(clientFilters).toHaveLength(1)
+      })
+    })
+
+    describe('hasPortalReport filters (vue « Mes vérifications »)', () => {
+      it('route le filtre côté serveur avec les statuts « À vérifier » résolus', () => {
+        const filters = [{ property: 'hasPortalReport', operator: 'eq', value: true }]
+        const { serverFilters, clientFilters } = convertViewFiltersToServerFilters(filters as any, createContext())
+        expect(serverFilters.hasPortalReport).toBe(true)
+        // La liste vient de PORTAL_REPORT_REVIEW_STATUSES, jamais réécrite ici
+        expect(serverFilters.portalReportStatuts).toEqual(
+          PORTAL_REPORT_REVIEW_STATUSES.map((code) => ({
+            ACCEPTE: 'id-2',
+            INTER_EN_COURS: 'id-3',
+            SAV: 'id-4',
+            INTER_TERMINEE: 'id-5',
+          }[code])),
+        )
+        expect(clientFilters).toHaveLength(0)
+      })
+
+      it("n'écrase pas le filtre de statut de l'utilisateur (paramètre dédié)", () => {
+        const filters = [
+          { property: 'statusValue', operator: 'eq', value: 'ACCEPTE' },
+          { property: 'hasPortalReport', operator: 'eq', value: true },
+        ]
+        const { serverFilters } = convertViewFiltersToServerFilters(filters as any, createContext())
+        expect(serverFilters.statut).toBe('id-2')
+        expect(serverFilters.portalReportStatuts).toHaveLength(PORTAL_REPORT_REVIEW_STATUSES.length)
+      })
+
+      it('reste côté serveur même si les statuts ne sont pas résolvables', () => {
+        // Liste et compteur doivent rester d'accord : on ne bascule pas côté client
+        const ctx = createContext({ statusCodeToId: () => [] })
+        const filters = [{ property: 'hasPortalReport', operator: 'eq', value: true }]
+        const { serverFilters, clientFilters } = convertViewFiltersToServerFilters(filters as any, ctx)
+        expect(serverFilters.hasPortalReport).toBe(true)
+        expect(serverFilters.portalReportStatuts).toBeUndefined()
+        expect(clientFilters).toHaveLength(0)
+      })
+
+      it('bascule côté client si la valeur n\'est pas un booléen', () => {
+        const filters = [{ property: 'hasPortalReport', operator: 'eq', value: 'oui' }]
+        const { serverFilters, clientFilters } = convertViewFiltersToServerFilters(filters as any, createContext())
+        expect(serverFilters.hasPortalReport).toBeUndefined()
         expect(clientFilters).toHaveLength(1)
       })
     })

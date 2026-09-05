@@ -5,6 +5,7 @@ import type { ArtisanGetAllParams } from "@/lib/react-query/queryKeys"
 // Alias pour compatibilité
 type GetAllParams = InterventionQueryParams
 import type { ArtisanViewFilter } from "@/hooks/useArtisanViews"
+import { PORTAL_REPORT_REVIEW_STATUSES } from "@/lib/interventions/portal-report-status"
 
 interface FilterConversionContext {
   statusCodeToId: (code: string | string[]) => string | string[] | undefined
@@ -162,6 +163,35 @@ export function convertViewFiltersToServerFilters(
       continue
     }
 
+    // Filtre sur hasPortalReport → hasPortalReport (serveur), vue « Mes vérifications »
+    //
+    // Le critère est celui du badge violet « À vérifier » : la colonne
+    // `interventions.has_portal_report` (posée par le trigger sur
+    // artisan_reports) ET l'un des statuts de revue. La liste de statuts n'est
+    // pas réécrite ici : elle vient de PORTAL_REPORT_REVIEW_STATUSES, seule
+    // source de vérité côté application.
+    //
+    // Les statuts sont résolus en UUID et envoyés dans un paramètre DÉDIÉ
+    // (`portalReportStatuts`) et non dans `statuts` : sans quoi une puce de
+    // statut choisie par l'utilisateur écraserait la restriction de la vue (ou
+    // l'inverse). Le chemin liste (Edge Function) et le chemin comptage
+    // (getTotalCountWithFilters) consomment tous les deux ces deux paramètres :
+    // le compteur de la puce est donc exactement le nombre de lignes.
+    if (filter.property === "hasPortalReport") {
+      if (filter.operator === "eq" && typeof filter.value === "boolean") {
+        serverFilters.hasPortalReport = filter.value
+        if (filter.value) {
+          const statusIds = context.statusCodeToId([...PORTAL_REPORT_REVIEW_STATUSES])
+          if (Array.isArray(statusIds) && statusIds.length > 0) {
+            serverFilters.portalReportStatuts = statusIds
+          }
+        }
+      } else {
+        clientFilters.push(filter)
+      }
+      continue
+    }
+
     // Filtre sur metier → metier (serveur)
     if (filter.property === "metier" || filter.property === "metierCode") {
       if (filter.operator === "eq" && typeof filter.value === "string") {
@@ -271,6 +301,28 @@ export function convertArtisanFiltersToServerFilters(
       if (filter.operator === "eq" && typeof filter.value === "string") {
         serverFilters.statut_dossier = filter.value
       } else {
+        clientFilters.push(filter)
+      }
+      continue
+    }
+
+    // Filtre sur pieces_a_verifier → drapeau serveur `pieces_a_verifier` (L5)
+    //
+    // Puces « Artisans à vérifier » / « Mes artisans à vérifier ». La propriété
+    // est dédiée : `is_not_empty` s'y lit « au moins une pièce en attente »,
+    // soit `artisans.pieces_a_verifier > 0`. On réutilise tel quel le drapeau
+    // posé par le lot L5, qui applique `.gt("pieces_a_verifier", 0)` aussi bien
+    // sur la liste que sur le comptage.
+    //
+    // Ce filtre est TOTALEMENT indépendant de `statut_dossier` : il ne pose ni
+    // `statut_dossier` ni `exclude_statuts`, donc le compteur de la puce
+    // « à compléter » (montré au client) ne bouge pas.
+    if (filter.property === "pieces_a_verifier") {
+      if (filter.operator === "is_not_empty") {
+        serverFilters.pieces_a_verifier = true
+      } else {
+        // Aucun autre opérateur n'est exprimable par le drapeau serveur : on
+        // retombe côté client plutôt que de filtrer à moitié.
         clientFilters.push(filter)
       }
       continue

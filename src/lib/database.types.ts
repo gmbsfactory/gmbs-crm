@@ -4803,6 +4803,7 @@ export type Database = {
           p_agence_id?: string
           p_end_date?: string
           p_group_column: string
+          p_has_portal_report?: boolean
           p_metier_id?: string
           p_start_date?: string
           p_statut_id?: string
@@ -4855,9 +4856,11 @@ export type Database = {
         Args: {
           p_agence_id?: string
           p_end_date?: string
+          p_has_portal_report?: boolean
           p_limit?: number
           p_metier_ids?: string[]
           p_offset?: number
+          p_portal_report_statut_ids?: string[]
           p_sort_dir?: string
           p_sort_property?: string
           p_start_date?: string

@@ -60,6 +60,10 @@ export async function handleListInterventions(
   const startDateRaw = url.searchParams.get('startDate')?.trim() ?? null;
   const endDateRaw = url.searchParams.get('endDate')?.trim() ?? null;
   const isCheckRaw = url.searchParams.get('isCheck')?.trim() ?? null;
+  // Vue « Mes vérifications » : `hasPortalReport` + les statuts de revue déjà
+  // résolus en UUID par le client (cf. src/lib/filter-converter.ts).
+  const hasPortalReportRaw = url.searchParams.get('hasPortalReport')?.trim() ?? null;
+  const portalReportStatutFilters = parseListParam(url.searchParams.getAll('portalReportStatut'));
 
   const filters: FilterParams = {
     search: searchRaw && searchRaw.length > 0 ? searchRaw : null,
@@ -72,6 +76,15 @@ export async function handleListInterventions(
     filters.isCheck = true;
   } else if (isCheckRaw === 'false') {
     filters.isCheck = false;
+  }
+
+  if (hasPortalReportRaw === 'true') {
+    filters.hasPortalReport = true;
+  } else if (hasPortalReportRaw === 'false') {
+    filters.hasPortalReport = false;
+  }
+  if (portalReportStatutFilters.length > 0) {
+    filters.portalReportStatut = portalReportStatutFilters;
   }
 
   if (statutFilters.length > 0) {
@@ -200,6 +213,12 @@ export async function handleListInterventions(
       } else if (userIsNull) {
         detailedQuery = detailedQuery.is('assigned_user_id', null);
       }
+      if (filters.hasPortalReport !== undefined) {
+        detailedQuery = detailedQuery.eq('has_portal_report', filters.hasPortalReport);
+        if (filters.hasPortalReport && portalReportStatutFilters.length > 0) {
+          detailedQuery = detailedQuery.in('statut_id', portalReportStatutFilters);
+        }
+      }
 
       // Filtre isCheck dans la recherche optimisée
       if (filters.isCheck !== undefined && interventionIds.length > 0) {
@@ -322,6 +341,13 @@ export async function handleListInterventions(
         p_metier_ids: filters.metier && filters.metier.length > 0 ? filters.metier : null,
         p_user_id: filters.user && filters.user.length === 1 ? filters.user[0] : null,
         p_user_is_null: filters.userIsNull ?? false,
+        // Sans ces deux paramètres, un tri sur une colonne de coût abandonnerait
+        // silencieusement le filtre « Mes vérifications » (le RPC pagine seul).
+        p_has_portal_report: filters.hasPortalReport ?? false,
+        p_portal_report_statut_ids:
+          filters.portalReportStatut && filters.portalReportStatut.length > 0
+            ? filters.portalReportStatut
+            : null,
         p_start_date: filters.startDate ?? null,
         p_end_date: filters.endDate ?? null,
       });

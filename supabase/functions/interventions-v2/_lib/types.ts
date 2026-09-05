@@ -129,4 +129,15 @@ export interface FilterParams {
   /** Montant exact recherché (acompte ou coût), cf. migration 99074. */
   amount?: number | null;
   isCheck?: boolean;
+  /**
+   * Vue « Mes vérifications » : `interventions.has_portal_report` (rapport
+   * d'artisan en attente de vérification, badge violet « À vérifier »).
+   */
+  hasPortalReport?: boolean;
+  /**
+   * Statuts pour lesquels un rapport portail est « À vérifier », résolus en
+   * UUID côté client depuis PORTAL_REPORT_REVIEW_STATUSES. Volontairement
+   * distinct de `statut` : les deux se cumulent (ET) sans s'écraser.
+   */
+  portalReportStatut?: string[];
 }

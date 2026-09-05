@@ -47,6 +47,8 @@ Retrieves all interventions via the Edge Function `interventions-v2`. Supports f
 | params.startDate | `string` | No | Filter by start date (ISO string) |
 | params.endDate | `string` | No | Filter by end date (ISO string) |
 | params.isCheck | `boolean` | No | Filter "check" interventions only |
+| params.hasPortalReport | `boolean` | No | Vue « Mes vérifications » : interventions dont un rapport d'artisan est en attente de vérification (`interventions.has_portal_report`, badge violet « À vérifier »). Toujours accompagné de `portalReportStatuts`. |
+| params.portalReportStatuts | `string[]` | No | UUID des statuts pour lesquels un rapport portail est affiché « À vérifier », résolus depuis `PORTAL_REPORT_REVIEW_STATUSES`. Paramètre **distinct** de `statuts` : les deux se cumulent (ET) au lieu de s'écraser. |
 | params.search | `string` | No | Full-text search. A bare amount (`387,78`) also triggers an exact amount filter — see [Recherche par montant](#recherche-par-montant) |
 | params.include | `string[]` | No | Relations to include. Available: `artisans`, `costs`, `payments`, `owner`, `tenants`, `users`, `agencies`, `statuses`, `metiers`. Default includes: `artisans`, `costs`, `tenants`, `users`. |
 
@@ -1168,7 +1170,7 @@ Source: `src/lib/api/v2/interventions/interventions-filters.ts`
 
 ### getTotalCountWithFilters(params?)
 
-Returns the total count of active interventions matching the given filters. Supports all standard filters plus `isCheck` for virtual "check" status.
+Returns the total count of active interventions matching the given filters. Supports all standard filters plus `isCheck` for virtual "check" status and `hasPortalReport` for the « Mes vérifications » view.
 
 **Parameters**
 
@@ -1187,6 +1189,12 @@ const count = await interventionsApi.getTotalCountWithFilters({
   isCheck: true,
 });
 ```
+
+> **C'est le chemin de comptage de la pastille des vues** (`useInterventionViewCounts`).
+> Tout filtre de vue qui n'a pas de traitement ici est compté **avant filtrage** :
+> la liste paraît juste mais le nombre de la puce est faux. Chaque filtre
+> serveur ajouté à `convertViewFiltersToServerFilters` doit donc être ajouté
+> ici en même temps — c'est le cas de `hasPortalReport` + `portalReportStatuts`.
 
 ---
 
@@ -1243,6 +1251,10 @@ Renvoie en **une seule requête RPC** (`get_intervention_filter_counts`) tous le
 **Notes**
 
 - Le `metier` passé en `baseFilters` est résolu en UUID via le cache de référence avant l'appel RPC
+- Deux contraintes ne sont pas exprimables par une simple égalité et passent par un **drapeau dédié** du RPC :
+  `user: null` (« non assignée », vue Market) → `p_user_is_null` (migration 99067), et
+  `hasPortalReport: true` (vue « Mes vérifications ») → `p_has_portal_report` (migration 99086).
+  Sans ces drapeaux, la contrainte est silencieusement abandonnée et les compteurs des puces sont gonflés.
 - Côté DB, le RPC respecte la RLS (le comptage tient compte de l'utilisateur courant)
 - Consommé via la query key `interventionKeys.filterCountsByProperty(property, filters)`
 

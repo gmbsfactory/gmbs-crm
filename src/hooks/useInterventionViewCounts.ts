@@ -5,6 +5,9 @@ import { safeErrorMessage } from "@/lib/api/common/error-handler"
 import type { InterventionViewDefinition } from "@/types/intervention-views"
 import { interventionsApi, type InterventionQueryParams } from "@/lib/api"
 import { getTierQueryOptions } from "@/config/freshness-tiers"
+// Vues qui nécessitent un utilisateur connecté : même liste que les presets,
+// importée plutôt que recopiée (une vue oubliée ici compterait sans filtre).
+import { USER_SCOPED_VIEW_IDS } from "@/config/intervention-view-presets"
 
 // T3 Freshness: background polling 30s for view counters
 const T3_OPTIONS = getTierQueryOptions('T3')
@@ -12,15 +15,6 @@ const T3_OPTIONS = getTierQueryOptions('T3')
 // Alias pour compatibilité
 type GetAllParams = InterventionQueryParams
 
-// Vues qui nécessitent un utilisateur connecté pour fonctionner correctement
-const USER_SCOPED_VIEW_IDS = new Set([
-  "mes-demandes",
-  "ma-liste-en-cours",
-  "mes-visites-technique",
-  "ma-liste-accepte",
-  "ma-liste-att-acompte",
-  "mes-interventions-a-check",
-])
 
 export interface UseInterventionViewCountsOptions {
   views: InterventionViewDefinition[]

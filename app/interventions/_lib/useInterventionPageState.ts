@@ -35,6 +35,7 @@ import { convertViewFiltersToServerFilters } from "@/lib/filter-converter"
 import { isServerSortable } from "@/lib/interventions/server-sortable-properties"
 import { mapStatusFromDb, mapStatusToDb } from "@/lib/interventions/mappers"
 import { isCheckStatus } from "@/lib/interventions/checkStatus"
+import { PORTAL_REPORT_REVIEW_COLOR } from "@/lib/interventions/portal-report-status"
 import { getAccentHexColor } from "@/lib/themes"
 import { interventionsApi, type InterventionQueryParams } from "@/lib/api"
 
@@ -235,6 +236,8 @@ export function useInterventionPageState(): UseInterventionPageStateReturn {
     })
     colors["market"] = "#EF4444"
     colors["mes-interventions-a-check"] = "#EF4444"
+    // Même violet que le badge « À vérifier » affiché sur les lignes.
+    colors["mes-verifications"] = PORTAL_REPORT_REVIEW_COLOR
     return colors
   }, [getStatusByCode])
 
