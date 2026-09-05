@@ -57,6 +57,7 @@ import { useArtisanDerivedData } from "./_hooks/useArtisanDerivedData"
 import { AbsencesSection } from "./_components/AbsencesSection"
 import { ArtisanModalHeader } from "./_components/ArtisanModalHeader"
 import { ArtisanModalFooter } from "./_components/ArtisanModalFooter"
+import { DossierVerificationCard } from "./_components/DossierVerificationCard"
 
 type Props = {
   artisanId: string
@@ -557,6 +558,19 @@ export function ArtisanModalContent({
                           </CollapsibleContent>
                         </Card>
                       </Collapsible>
+
+                      {/* Vérification des pièces du dossier (lot L5) : carte
+                          distincte du gestionnaire de documents — le dépôt et la
+                          revue sont deux gestes différents, et la revue passe par
+                          une route gardée par `write_artisans`. */}
+                      <DossierVerificationCard
+                        artisanId={artisan?.id ?? artisanId}
+                        dossierValidatedAt={
+                          (artisan as unknown as { dossier_validated_at?: string | null } | undefined)
+                            ?.dossier_validated_at ?? null
+                        }
+                        readOnly={!canWriteArtisans || isReadOnly}
+                      />
 
                       {/* Modal de reclassification */}
                       <DocumentReclassificationModal
