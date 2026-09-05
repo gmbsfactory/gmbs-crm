@@ -130,6 +130,7 @@ Regles et standards du projet.
 | [Nommage des fichiers](conventions/file-naming.md) | Conventions de nommage, ou placer quoi |
 | [Workflow Git](conventions/git-workflow.md) | Commits conventionnels, branches, PR |
 | [Standards de tests](conventions/testing-standards.md) | Structure, nommage, mocks, couverture |
+| [Échelle de superposition](conventions/z-index.md) | Étages de z-index : modals, dialogues, confirmations, menus |
 
 ---
 
