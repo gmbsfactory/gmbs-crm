@@ -18,16 +18,30 @@ import { resolveArtisanOrder } from './price'
  * `PATCH /api/interventions/{id}/artisans/{artisanId}/start` (§4.3).
  *
  * **Règle P3 — le fait ne meurt pas de l'échec de la projection.**
- * `work_started_at` et la ligne de journal sont écrits *toujours*. La bascule
- * `ACCEPTE → INTER_EN_COURS` n'est qu'une **tentative** : si elle échoue, on
- * répond quand même `200`, avec `status_advanced: false` et la liste des champs
- * manquants. L'artisan n'est jamais bloqué par une dette de saisie du CRM ; le
- * CRM, lui, affiche « Démarré · n champs manquants ».
+ * `work_started_at` et la ligne de journal sont écrits *toujours*. L'artisan
+ * n'est jamais bloqué par une dette de saisie du CRM : la réponse reste `200`,
+ * et il ne voit aucune erreur.
  *
- * La garde de transition est explicite et tient en trois points (§7.7) :
- * statut `ACCEPTE`, artisan affecté, `price_response = 'accepted'` — quelle
- * qu'en soit la source, sans quoi un artisan sans smartphone ne pourrait jamais
- * démarrer. **Rien d'autre n'est vérifié.**
+ * **Décision client du 2026-09-05 (spécification §10.1) — le CRM garde la main
+ * sur les statuts.** L'artisan déclare un *fait* ; le statut, lui, appartient
+ * au CRM. La bascule `ACCEPTE → INTER_EN_COURS` n'a donc lieu que si les règles
+ * d'entrée du CRM sont réunies, c'est-à-dire si `collectMissingFields` ne
+ * renvoie rien. Sinon le statut ne bouge pas, la réponse porte
+ * `status_advanced: false` et `missing_fields`, et le CRM affiche
+ * « Démarré · n champs manquants » dans le modal, en liste et en kanban.
+ *
+ * Cela **remplace** l'arbitrage initial de §7.7 (« le statut bascule même si la
+ * fiche est incomplète ») : le §10.1, plus récent, prime.
+ *
+ * Deux gardes distinctes, à ne pas confondre :
+ *
+ * | Garde | Portée | Effet si non tenue |
+ * |---|---|---|
+ * | statut `ACCEPTE`, artisan affecté, `price_response = 'accepted'` | recevabilité de la **déclaration** | `409`, rien n'est écrit |
+ * | les 14 champs d'entrée d'`INTER_EN_COURS` | avancée du **statut** | `200`, le fait est écrit, le statut reste `ACCEPTE` |
+ *
+ * Le gestionnaire, lui, n'est contraint par aucune des deux : il peut avancer
+ * ou reculer le statut à la main depuis le modal (§10.1, point 1).
  */
 
 export interface MissingField {
@@ -178,7 +192,7 @@ export async function startWork(params: StartWorkParams): Promise<StartWorkResul
     }
   }
 
-  // 3. Garde explicite, et seulement elle.
+  // 3. Garde de recevabilité de la déclaration, et seulement elle.
   if (!isStartAllowedStatus(statusCode(intervention))) {
     return { status: 409, body: { error: 'status_not_allowed' } }
   }
@@ -186,7 +200,12 @@ export async function startWork(params: StartWorkParams): Promise<StartWorkResul
     return { status: 409, body: { error: 'price_not_accepted' } }
   }
 
-  // 4. LE FAIT, D'ABORD. Il est écrit avant toute tentative de projection.
+  // 4. LES RÈGLES D'ENTRÉE DU CRM, LUES AVANT D'ÉCRIRE — pour que le compte des
+  //    champs manquants soit enregistré avec le fait, et pas seulement renvoyé.
+  const context = await buildWorkflowContext(supabase, intervention, artisanId)
+  const missing = collectMissingFields(context)
+
+  // 5. LE FAIT, ENSUITE. Il est écrit quoi qu'il arrive, avant toute projection.
   const declaree = params.startedAt ?? envelope?.occurred_at_declared ?? null
   const clock = normalizeOccurredAt(declaree)
   // Le FAIT et sa TRACE n'ont pas les mêmes bornes. `occurred_at` du journal est
@@ -205,6 +224,10 @@ export async function startWork(params: StartWorkParams): Promise<StartWorkResul
       work_started_at: startedAt,
       work_started_from: source,
       work_started_by: params.actor?.userId ?? null,
+      // Dette de saisie constatée au moment de la déclaration. Le compte vient
+      // de la configuration du workflow (TypeScript) : la base ne le recalcule
+      // jamais, elle le projette (trigger de 99084).
+      work_start_missing_count: missing.length,
     })
     .eq('id', assignment.id)
   if (updateError) {
@@ -220,15 +243,16 @@ export async function startWork(params: StartWorkParams): Promise<StartWorkResul
     actorUserId: params.actor?.userId ?? null,
     actorLabel: params.actor?.label ?? null,
     intervention: { id: intervention.id, id_inter: intervention.id_inter, adresse: intervention.adresse },
-    payload: { started_at: startedAt },
+    payload: { started_at: startedAt, missing_fields_count: missing.length },
     envelope,
     clock,
   })
 
-  // 5. LA PROJECTION, ENSUITE — et son échec n'est pas une erreur pour l'artisan.
-  const context = await buildWorkflowContext(supabase, intervention, artisanId)
-  const missing = collectMissingFields(context)
-  const advanced = await tryAdvanceToInProgress(supabase, intervention)
+  // 6. LA PROJECTION, EN DERNIER — et le CRM garde la main (§10.1).
+  //    Le statut n'avance QUE si les règles d'entrée d'INTER_EN_COURS sont
+  //    réunies. Sinon on ne tente même pas : le fait reste enregistré, la
+  //    réponse reste 200, et l'artisan ne voit aucune erreur.
+  const advanced = missing.length === 0 ? await tryAdvanceToInProgress(supabase, intervention) : false
 
   return {
     status: 200,
@@ -243,6 +267,11 @@ export async function startWork(params: StartWorkParams): Promise<StartWorkResul
 
 /**
  * Tentative de bascule `ACCEPTE → INTER_EN_COURS`.
+ *
+ * **N'est appelée que lorsque `collectMissingFields` ne renvoie rien** (§10.1) :
+ * la fiche est complète au sens des règles d'entrée du CRM. Un échec malgré
+ * tout (contrainte base, statut introuvable) vaut `status_advanced: false`, sans
+ * jamais remettre le fait en cause.
  *
  * **Écart assumé avec la spécification §7.7** : elle demande d'appeler
  * `transitionStatus`. C'est impossible en l'état — `assertBusinessRules` exige

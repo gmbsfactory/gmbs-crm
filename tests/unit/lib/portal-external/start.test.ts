@@ -191,12 +191,14 @@ describe('startWork', () => {
   })
 
   it('should keep the fact even when the transition fails (règle P3)', async () => {
+    // Fiche COMPLÈTE : la bascule est bien tentée, et c'est elle qui échoue.
     h.update.mockRejectedValue(new Error('transition refusée'))
-    const planned = client({ intervention: interventionRow({ consigne_intervention: null, date_prevue: null }) })
+    const planned = client({})
     const result = await call(planned)
 
     expect(result.status).toBe(200)
     if (result.status !== 200) throw new Error('unreachable')
+    expect(h.update).toHaveBeenCalled()
     expect(result.body.status_advanced).toBe(false)
     expect(result.body.statut_code).toBe('ACCEPTE')
     expect(result.body.work.started_at).toBeTruthy()
@@ -207,7 +209,56 @@ describe('startWork', () => {
     expect(journal?.payload).toMatchObject({ action_type: 'WORK_STARTED', event_uid: 'evt-1' })
   })
 
-  it('should report the missing fields of an incomplete fiche', async () => {
+  // ── §10.1 : le CRM garde la main sur les statuts ───────────────────────────
+  // Deux branches, et deux seulement : fiche complète ⇒ le statut avance ;
+  // fiche incomplète ⇒ le fait est écrit, le statut ne bouge pas, et l'artisan
+  // ne voit aucune erreur.
+  it('should NOT advance the status when a required field is missing (§10.1)', async () => {
+    const planned = client({
+      intervention: interventionRow({ consigne_intervention: null }),
+      tenant: null,
+    })
+    const result = await call(planned)
+
+    expect(result.status).toBe(200)
+    if (result.status !== 200) throw new Error('unreachable')
+    // La bascule n'est même pas tentée : le CRM applique ses propres règles.
+    expect(h.update).not.toHaveBeenCalled()
+    expect(result.body.status_advanced).toBe(false)
+    expect(result.body.statut_code).toBe('ACCEPTE')
+    expect(result.body.missing_fields.length).toBeGreaterThan(0)
+    // …et le fait, lui, est bel et bien enregistré.
+    const update = planned.calls.find((c) => c.table === 'intervention_artisans' && c.op === 'update')
+    expect(update?.payload).toMatchObject({ work_started_from: 'portal' })
+    expect((update?.payload as { work_started_at: string }).work_started_at).toBeTruthy()
+  })
+
+  it('should record the missing count with the fact, for the list and kanban badge', async () => {
+    const planned = client({
+      intervention: interventionRow({ consigne_intervention: null }),
+      tenant: null,
+    })
+    const result = await call(planned)
+    if (result.status !== 200) throw new Error('unreachable')
+
+    const update = planned.calls.find((c) => c.table === 'intervention_artisans' && c.op === 'update')
+    const payload = update?.payload as { work_start_missing_count: number }
+    expect(payload.work_start_missing_count).toBe(result.body.missing_fields.length)
+
+    // Le compte est aussi tracé dans le journal, avec le fait.
+    const journal = planned.calls.find((c) => c.table === 'artisan_portal_actions' && c.op === 'insert')
+    const trace = (journal?.payload as { payload: Record<string, unknown> }).payload
+    expect(trace.missing_fields_count).toBe(result.body.missing_fields.length)
+  })
+
+  it('should write a zero missing count on a complete fiche', async () => {
+    const planned = client({})
+    await call(planned)
+    const update = planned.calls.find((c) => c.table === 'intervention_artisans' && c.op === 'update')
+    expect(update?.payload).toMatchObject({ work_start_missing_count: 0 })
+  })
+
+  it('should report the missing fields of an incomplete fiche without erroring', async () => {
     const planned = client({
       intervention: interventionRow({ consigne_intervention: null }),
       tenant: null,

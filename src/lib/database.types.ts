@@ -1937,6 +1937,7 @@ export type Database = {
           price_response_source: string | null
           role: string | null
           work_started_at: string | null
+          work_start_missing_count: number | null
           work_started_by: string | null
           work_started_from: string | null
         }
@@ -1959,6 +1960,7 @@ export type Database = {
           price_response_source?: string | null
           role?: string | null
           work_started_at?: string | null
+          work_start_missing_count?: number | null
           work_started_by?: string | null
           work_started_from?: string | null
         }
@@ -1981,6 +1983,7 @@ export type Database = {
           price_response_source?: string | null
           role?: string | null
           work_started_at?: string | null
+          work_start_missing_count?: number | null
           work_started_by?: string | null
           work_started_from?: string | null
         }
@@ -2664,6 +2667,8 @@ export type Database = {
           due_date: string | null
           floor: string | null
           has_portal_report: boolean | null
+          portal_work_started_at: string | null
+          portal_work_missing_count: number | null
           id: string
           id_inter: string | null
           is_active: boolean | null
@@ -2705,6 +2710,8 @@ export type Database = {
           due_date?: string | null
           floor?: string | null
           has_portal_report?: boolean | null
+          portal_work_started_at?: string | null
+          portal_work_missing_count?: number | null
           id?: string
           id_inter?: string | null
           is_active?: boolean | null
@@ -2746,6 +2753,8 @@ export type Database = {
           due_date?: string | null
           floor?: string | null
           has_portal_report?: boolean | null
+          portal_work_started_at?: string | null
+          portal_work_missing_count?: number | null
           id?: string
           id_inter?: string | null
           is_active?: boolean | null
