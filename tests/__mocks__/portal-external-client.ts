@@ -24,8 +24,11 @@ export interface RecordedCall {
 export interface PlannedClient {
   from: Mock
   storage: { from: Mock }
+  /** Invocations d'Edge Functions (`process-avatar`…), enregistrées et sans effet. */
+  functions: { invoke: Mock }
   calls: RecordedCall[]
   uploads: Array<{ bucket: string; path: string; size: number; contentType?: string }>
+  invocations: Array<{ name: string; body: unknown }>
 }
 
 const FILTER_METHODS = [
@@ -81,7 +84,15 @@ export function createPlannedClient(plan: Record<string, PlannedResult[]>): Plan
     })),
   }
 
-  return { from, storage, calls, uploads }
+  const invocations: PlannedClient['invocations'] = []
+  const functions = {
+    invoke: vi.fn(async (name: string, options?: { body?: unknown }) => {
+      invocations.push({ name, body: options?.body })
+      return { data: { success: true }, error: null }
+    }),
+  }
+
+  return { from, storage, functions, calls, uploads, invocations }
 }
 
 /** Ligne `artisan_portal_tokens` valide (jointure artisan incluse) pour un jeton de test. */
