@@ -64,6 +64,20 @@ import { Z_CLASS } from "@/lib/ui/z-index"
 <div className={cn("fixed inset-0", Z_CLASS.dialogueVoile)} />
 ```
 
+## Ce qui reste hors de l'échelle
+
+Trois familles de valeurs n'ont volontairement pas été migrées, faute de
+justification à changer leur comportement aujourd'hui :
+
+| Où | Valeur | Pourquoi c'est resté |
+|---|---|---|
+| `ResizableTableHeader` (en-têtes de tableau collants) | `z-[60]` / `z-[55]` | Empilement interne au tableau ; les toucher change le rendu des colonnes figées sans rapport avec ce correctif |
+| Modals maison des réglages (`AddUserModal`, `EnumManager`, `UserPermissionsDialog`…) | `z-50` | Surfaces plein écran écrites à la main, pas des `Dialog` ; un vrai `Dialog` ouvert par-dessus passe désormais devant |
+| Petits empilements locaux (`z-10`, `z-20`) | — | Contenu de page, sans interaction avec les surfaces modales |
+
+À migrer si l'un d'eux repose un problème d'ordre : la règle reste d'ajouter un
+étage dans `src/lib/ui/z-index.ts`, pas une valeur locale.
+
 ## Ce qu'il ne faut plus faire
 
 ```tsx
