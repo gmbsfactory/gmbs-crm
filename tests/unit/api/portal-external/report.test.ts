@@ -251,7 +251,7 @@ describe('POST /api/portal-external/me/interventions/[id]/report', () => {
     expect(insert?.payload).toEqual(expect.objectContaining({ version: 2 }))
   })
 
-  it('course entre deux envois différents : 23505 sur la version → 409 « Report already submitted » (pas 500)', async () => {
+  it('course entre deux envois différents : 23505 sur la version → 409 report_pending (pas 500)', async () => {
     const client = useClient(createPlannedClient({
       artisan_portal_tokens: [{ data: validTokenRow(), error: null }],
       intervention_artisans: [{ data: { id: 'ia-1' }, error: null }],
