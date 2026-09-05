@@ -83,3 +83,34 @@ Le portail n'a pas de base de données : c'est le CRM qui pousse, par un flux SS
 | `GET /api/portal/stream` (portail) | relaie le flux tel quel, sans mise en tampon, en ajoutant les en-têtes d'authentification (jamais exposés au navigateur) ; `401` → cookie `portal_token` effacé ; `503` sans configuration ; flux factice en mode `PORTAL_MOCK=1`. |
 
 Côté application, `src/lib/live-updates.tsx` (`LiveUpdatesProvider`, monté dans `src/app/app/layout.tsx`) ouvre un `EventSource`, se reconnecte avec un repli plafonné à 30 s, se ferme quand l'onglet passe en arrière-plan et se rouvre au retour. Chaque événement incrémente une « révision » globale que `usePortalQuery` surveille : tous les écrans rechargent leurs données. L'artisan voit donc « Rapport validé » et le commentaire du gestionnaire sans rien rafraîchir.
+
+---
+
+## 8. Vision v2 — socle et routes ajoutées
+
+> Section ouverte par le **lot L0** (2026-09-05). Spécification : [portail-vision-spec.md](portail-vision-spec.md) · Plan de lots : [portail-vision-plan-lots.md](../guides/portail-vision-plan-lots.md).
+> **Règle de coexistence** : ce fichier est partagé entre les trois équipes. Un lot **ajoute un bloc de lignes** au tableau §8.2, il ne réécrit jamais le fichier ni les lignes d'un autre lot.
+
+### 8.1 Socle base de données (lot L0)
+
+Deux migrations, jouées **uniquement en local** pendant toute la réalisation (`psql -v ON_ERROR_STOP=1 -f`, puis `supabase db reset`) ; l'application en production relève du plan de bascule.
+
+| Migration | Ce qu'elle pose | Ce dont dépendent les lots suivants |
+|---|---|---|
+| `99078_portal_v2_socle.sql` | `artisan_reports` : `version` NOT NULL, état `superseded`, `superseded_at`/`superseded_by`, `started_at`, index unique partiel `ux_artisan_reports_one_open` · `intervention_artisans` : `price_response`, `price_responded_at`, `price_accepted_amount`, `price_refused_reason`, `price_response_source`, `price_response_by`, `work_started_at`, `work_started_from`, `work_started_by`, `payment_status`, `paid_at`, `payment_updated_by`, `payment_updated_at` · **RLS + policies `authenticated` + `REVOKE ALL FROM anon` sur `intervention_artisans`** · `artisan_attachments` : `reviewed_by`, `reviewed_at`, `review_comment` · `artisans` : `pieces_a_verifier`, `dossier_validated_at`, `dossier_validated_by` · `calculate_artisan_dossier_status` corrigée · `fn_artisan_dossier_sync` / `trg_artisan_dossier_sync` en remplacement des deux triggers de `00008` | L1 (prix, démarrage), L2 (N rapports), L3 (versions et supersession), L5 (vérification des pièces), L6 (paiement) |
+| `99079_artisan_portal_actions.sql` | Journal append-only `artisan_portal_actions` (acteur, `source`, `action_type` sous CHECK fermé, `payload`, `occurred_at`/`recorded_at`, `event_uid`). Lecture seule pour `authenticated`, écriture `service_role`. **Aucun trigger, aucune publication temps réel.** | L1 (helper `recordArtisanAction`), L6 (`GET /api/artisans/{id}/timeline`) |
+
+Conséquences pour toutes les routes portail à venir :
+
+- **Enveloppe d'idempotence obligatoire** sur toute écriture portail : `{ event_uid, occurred_at? }`. Un `event_uid` déjà connu renvoie `200` avec le résultat déjà enregistré, **jamais** `409`. `occurred_at` est borné à `[now − 7 j, now + 5 min]` ; hors bornes, la valeur brute part dans `payload.occurred_at_declared`, `occurred_at` s'aligne sur `recorded_at` et `payload.clock_skew` passe à `true`. Un fait n'est jamais rejeté pour une horloge fausse.
+- **`intervention_artisans` n'est plus lisible avec la clé anon.** Toute route serveur doit utiliser `createServerSupabaseAdmin` **avec** `SUPABASE_SERVICE_ROLE_KEY` renseignée : sans elle, le client retombe silencieusement sur la clé anon (`src/lib/supabase/server.ts`) et la lecture échouerait désormais au lieu de dégrader.
+- **`payment_status` et les libellés de paiement se calculent côté CRM** (principe P1) : le portail affiche ce qu'il reçoit, il ne rejoue aucune règle.
+- Le CRM ne doit **jamais** dériver le paiement d'un artisan de `intervention_payments.is_received` : c'est un encaissement *client*, et `acompte_sst` n'a pas d'`artisan_order`.
+
+Tests de non-régression livrés avec le socle (base **locale** ; ils se désactivent d'eux-mêmes si elle est arrêtée) : `tests/integration/migrations/99078-socle.test.ts` et `tests/integration/security/anon-access.test.ts`.
+
+### 8.2 Routes ajoutées par la vision v2
+
+| Lot | Méthode et chemin | Corps → réponse |
+|---|---|---|
+| L0 | *(aucune route : socle base de données uniquement)* | — |

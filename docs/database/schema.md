@@ -310,6 +310,75 @@ RLS : SELECT `authenticated`, tout pour `service_role`.
 
 ---
 
+### Socle vision v2 (migrations 99078, 99079)
+
+Spécification : [portail-vision-spec.md](../architecture/portail-vision-spec.md) §3. Aucune table nouvelle hors le journal : des colonnes sur quatre tables existantes, plus la **sécurisation** de `intervention_artisans`.
+
+#### artisan_reports (colonnes 99078)
+
+| Colonne | Type | Description |
+|---------|------|-------------|
+| `version` | `int` **NOT NULL** | Plus nullable ; une ligne par version |
+| `status` | `text` CHECK | `submitted` \| `approved` \| `rejected` \| **`superseded`** (version remplacée avant validation) |
+| `superseded_at` / `superseded_by` | `timestamptz` / `uuid` FK → `artisan_reports` | Quand et par quelle version cette version a été remplacée |
+| `started_at` | `timestamptz` | Copie de `intervention_artisans.work_started_at` à l'envoi. **Durée réelle** = `submitted_at − started_at` ; à ne pas confondre avec `duree_minutes`, qui reste la saisie déclarative |
+
+Index unique partiel `ux_artisan_reports_one_open (intervention_id, artisan_id) WHERE status = 'submitted'` : **au plus un rapport en attente par couple**. C'est lui qui garde `fn_artisan_reports_sync_flag` (`has_portal_report = EXISTS(status='submitted')`) sans ambiguïté et qui dit à la revue quel rapport traiter.
+
+#### intervention_artisans (colonnes 99078)
+
+| Colonne | Type | Description |
+|---------|------|-------------|
+| `price_response` | `text` CHECK | `accepted` \| `refused` — réponse de l'artisan au prix SST proposé |
+| `price_responded_at` | `timestamptz` | Horodatage de la réponse |
+| `price_accepted_amount` | `numeric(12,2)` | Montant **gelé** au moment du oui (copie de `intervention_costs.amount`, `cost_type='sst'`). Sans ce gel, la modale e-mail peut modifier le coût SST après coup sans trace de ce qui a été accepté |
+| `price_refused_reason` | `text` | Motif du refus |
+| `price_response_source` | `text` CHECK | `portal` (l'artisan a répondu depuis l'app) \| `crm` (repli : réponse reçue par téléphone). Sans ce repli, un artisan sans smartphone ne franchit jamais la garde de `POST /start` |
+| `price_response_by` | `uuid` FK → `users` | Gestionnaire, quand `source='crm'` |
+| `work_started_at` | `timestamptz` | Début de chantier **déclaré**. Posé même si la transition `ACCEPTE → INTER_EN_COURS` échoue (le fait ne meurt pas de l'échec de la projection) |
+| `work_started_from` / `work_started_by` | `text` CHECK / `uuid` FK | `portal` \| `crm`, et l'acteur côté CRM |
+| `payment_status` | `text` NOT NULL DEFAULT `not_applicable` | `not_applicable` \| `awaiting_invoice` \| `in_progress` \| `paid` — paiement **de cet artisan**, saisi par le gestionnaire. Jamais dérivé de `intervention_payments.is_received` (encaissement *client*, et `acompte_sst` n'a pas d'`artisan_order`) |
+| `paid_at` / `payment_updated_by` / `payment_updated_at` | `timestamptz` / `uuid` / `timestamptz` | Traçabilité de la saisie |
+
+**Sécurité (correctif de 99078)** : la table n'avait ni RLS ni `REVOKE`, alors que `00001` grante `ALL ON ALL TABLES` à `anon` et pose des `ALTER DEFAULT PRIVILEGES`. `99078` active la RLS, crée les policies `authenticated` (SELECT/INSERT/UPDATE/DELETE `USING (true)`, modèle `99057`) et `service_role`, **dans la même migration**, puis `REVOKE ALL … FROM anon`. Les policies dans la même migration que l'activation : sinon « RLS activée sans policy = deny-all » et le CRM se verrouille (incident de l'avatar artisan).
+
+#### artisan_attachments (colonnes 99078)
+
+| Colonne | Type | Description |
+|---------|------|-------------|
+| `reviewed_by` | `uuid` FK → `users` | Gestionnaire ayant validé ou refusé la pièce |
+| `reviewed_at` | `timestamptz` | Discriminant « réellement vérifiée » : `review_status` a pour DEFAULT `approved`, donc « validée » et « jamais regardée » sont sinon indiscernables |
+| `review_comment` | `text` | Motif du refus, obligatoire quand `review_status='rejected'` (garde applicative) ; affiché **en entier** à l'artisan |
+
+#### artisans (colonnes 99078)
+
+| Colonne | Type | Description |
+|---------|------|-------------|
+| `pieces_a_verifier` | `int` NOT NULL DEFAULT 0 | Compteur dénormalisé des pièces `pending`. Dénormalisé volontairement : un embed `artisan_attachments!inner(...)` casserait le `count` exact de la pagination et les puces de filtre lancent déjà 6+ `count` en parallèle |
+| `dossier_validated_at` | `timestamptz` | Date du premier passage à `COMPLET`, remise à `NULL` si le dossier retombe. Affichée à l'artisan : « Dossier complet validé le … » |
+| `dossier_validated_by` | `uuid` FK → `users` | Gestionnaire ayant validé le dossier |
+
+#### artisan_portal_actions (migration 99079)
+
+Journal **append-only** des actions de l'artisan depuis le portail, et de leurs équivalents saisis au CRM. Ce n'est ni une source de vérité (les états vivent sur `intervention_artisans` et `artisan_reports`), ni un moteur (aucun trigger de projection), ni une table publiée en temps réel.
+
+| Colonne | Type | Description |
+|---------|------|-------------|
+| `artisan_id` | `uuid` FK NOT NULL | Acteur côté artisan (cascade) |
+| `actor_user_id` | `uuid` FK → `users` | Acteur côté CRM quand `source='crm'` — jamais nul des deux côtés à la fois (leçon d'`artisan_audit_log`, 92 % sans acteur) |
+| `source` | `text` CHECK | `portal` \| `crm` |
+| `intervention_id` / `report_id` | `uuid` FK | Objet de l'action |
+| `attachment_id` | `uuid` **sans FK** | Cible `artisan_attachments` ou `intervention_attachments` selon `action_type` |
+| `action_type` | `text` CHECK fermé | `PRICE_ACCEPTED`, `PRICE_REFUSED`, `WORK_STARTED`, `REPORT_SUBMITTED`, `REPORT_REPLACED`, `PHOTO_UPLOADED`, `DOCUMENT_UPLOADED`, `DOCUMENT_APPROVED`, `DOCUMENT_REJECTED`, `AVATAR_CHANGED`, `DECHARGE_SIGNED`, `REPORT_APPROVED`, `REPORT_REJECTED` |
+| `payload` | `jsonb` NOT NULL DEFAULT `{}` | Détail de l'action |
+| `occurred_at` | `timestamptz` | Horodatage **déclaré** par le téléphone, borné côté serveur à `[now − 7 j, now + 5 min]` ; hors bornes, la valeur brute part dans `payload.occurred_at_declared` avec `payload.clock_skew = true`. Un fait n'est jamais rejeté pour une horloge fausse |
+| `recorded_at` | `timestamptz` | Horodatage serveur : fait foi pour l'audit |
+| `event_uid` | `text` | Clé d'idempotence du rejeu hors ligne (index unique partiel) |
+
+RLS : `SELECT` pour `authenticated`, tout pour `service_role`. `REVOKE ALL FROM anon` **et** `REVOKE ALL FROM authenticated` suivi de `GRANT SELECT` — un simple `REVOKE INSERT, UPDATE, DELETE` laisserait `TRUNCATE`, qui ne passe par aucune policy. L'immuabilité est **applicative** : un trigger `BEFORE UPDATE OR DELETE … RAISE EXCEPTION` rendrait impossible la suppression d'un artisan ou d'une intervention (FK `ON DELETE CASCADE`), pour tout le monde, `service_role` compris.
+
+---
+
 ### Support et traçabilité
 
 #### comments
@@ -378,6 +447,7 @@ Objectifs par gestionnaire (migration 00009).
 | `get_user_permissions(user_id)` | Retourne les permissions effectives |
 | `user_has_permission(user_id, key)` | Vérifie une permission spécifique |
 | `get_intervention_history(id)` | Retourne l'historique d'audit d'une intervention |
+| `calculate_artisan_dossier_status(artisan_uuid)` | Statut du dossier artisan : `COMPLET` (5 pièces requises **validées**) / `À compléter` / `INCOMPLET`. Depuis 99078, seules les pièces dont `review_status` vaut `approved` — ou `NULL`, historique — comptent, via `COALESCE(review_status,'approved')` : écrite `IN ('approved', NULL)`, la condition ne matcherait jamais `NULL` et ferait basculer les dossiers existants |
 
 ---
 
@@ -390,6 +460,7 @@ Objectifs par gestionnaire (migration 00009).
 | Search views refresh | `interventions`, `artisans` | Rafraîchit les vues matérialisées de recherche (migration 00033) |
 | Intervention audit | `interventions` | Log les modifications dans `intervention_audit_log` |
 | Touch intervention on child | `intervention_costs`, `intervention_artisans` | Met a jour `updated_at` de l'intervention parent (migration 00082) |
+| `trg_artisan_dossier_sync` | `artisan_attachments` | `AFTER INSERT OR DELETE OR UPDATE OF review_status, kind` : recalcule `artisans.statut_dossier`, `artisans.pieces_a_verifier` et `artisans.dossier_validated_at`. **Remplace** les deux triggers INSERT/DELETE de `00008`, qui ne voyaient pas la validation d'une pièce (un `UPDATE` de `review_status`) et qui feraient un second écrivain du même champ. Garde anti-écriture inutile : rien n'est écrit si ni le statut ni le compteur ne changent — `artisans` est en `REPLICA IDENTITY FULL` et chaque `UPDATE` coûte du WAL logique et un événement temps réel (migration 99078) |
 | `trg_artisan_reports_sync_flag` | `artisan_reports` | `AFTER INSERT OR UPDATE OF status OR DELETE` : recalcule `interventions.has_portal_report = EXISTS(rapport submitted)` (`COALESCE(NEW, OLD).intervention_id`) — seul mécanisme qui écrit ce drapeau ; la suppression d'un rapport `submitted` fait retomber le badge « À vérifier » (migration 99076) |
 
 ---
