@@ -26,7 +26,10 @@ import {
   type PortalReportEntry,
   type PortalReportPhoto,
 } from "@/hooks/usePortalReport"
-import { PORTAL_REPORT_REVIEW_COLOR } from "@/lib/interventions/portal-report-status"
+import {
+  PORTAL_WORK_STARTED_COLOR,
+  portalWorkStartedLabel,
+} from "@/lib/interventions/portal-work-status"
 import { cn } from "@/lib/utils"
 import {
   artisanShortName,
@@ -377,12 +380,10 @@ export function ReportsPanel({
                     <Badge
                       variant="outline"
                       className="gap-1 border-transparent text-[10px] text-white"
-                      style={{ backgroundColor: PORTAL_REPORT_REVIEW_COLOR }}
+                      style={{ backgroundColor: PORTAL_WORK_STARTED_COLOR }}
                     >
                       <AlertTriangle className="h-3 w-3" />
-                      {missingFields.length > 0
-                        ? `Démarré · ${missingFields.length} champ${missingFields.length > 1 ? "s" : ""} manquant${missingFields.length > 1 ? "s" : ""}`
-                        : "Démarré · statut non avancé"}
+                      {portalWorkStartedLabel(missingFields.length)}
                     </Badge>
                     {missingFields.length > 0 && (
                       <ul className="list-disc pl-5 text-[11px] text-muted-foreground">

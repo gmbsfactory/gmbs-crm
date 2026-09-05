@@ -104,3 +104,79 @@ describe("getStatusDisplay — option hasPortalReport", () => {
     expect(display.label).not.toBe("À vérifier")
   })
 })
+
+/**
+ * §10.1 — le CRM garde la main sur les statuts : quand l'artisan a déclaré un
+ * démarrage que les règles d'entrée du CRM n'ont pas laissé projeter, le badge
+ * remplace le libellé du statut, exactement comme « À vérifier ».
+ */
+describe("getStatusDisplay — démarré, statut non avancé", () => {
+  const DEMARRE = "2026-09-12T08:40:00.000Z"
+
+  it("should replace the ACCEPTE label with the missing-fields badge", () => {
+    const display = getStatusDisplay("ACCEPTE", {
+      statusFromDb: statusFromDb("ACCEPTE", "Accepté", "#0EA5E9"),
+      portalWorkStartedAt: DEMARRE,
+      portalWorkMissingCount: 3,
+    })
+    expect(display.label).toBe("Démarré · 3 champs manquants")
+    expect(display.color).toBe("#D97706")
+  })
+
+  it("should fall back when the missing count is unknown", () => {
+    const display = getStatusDisplay("ACCEPTE", {
+      portalWorkStartedAt: DEMARRE,
+      portalWorkMissingCount: null,
+    })
+    expect(display.label).toBe("Démarré · statut non avancé")
+  })
+
+  it("should leave the status alone once it has advanced", () => {
+    const display = getStatusDisplay("INTER_EN_COURS", {
+      statusFromDb: statusFromDb("INTER_EN_COURS", "En cours", "#0EA5E9"),
+      portalWorkStartedAt: DEMARRE,
+      portalWorkMissingCount: 3,
+    })
+    expect(display.label).toBe("En cours")
+    expect(display.color).toBe("#0EA5E9")
+  })
+
+  it("should leave the status alone when nothing was declared", () => {
+    const display = getStatusDisplay("ACCEPTE", {
+      statusFromDb: statusFromDb("ACCEPTE", "Accepté", "#0EA5E9"),
+      portalWorkStartedAt: null,
+      portalWorkMissingCount: null,
+    })
+    expect(display.label).toBe("Accepté")
+  })
+
+  it("should let a pending report win: verifying comes before typing", () => {
+    const display = getStatusDisplay("ACCEPTE", {
+      hasPortalReport: true,
+      portalWorkStartedAt: DEMARRE,
+      portalWorkMissingCount: 3,
+    })
+    expect(display.label).toBe("À vérifier")
+    expect(display.color).toBe("#9333EA")
+  })
+
+  it("should override a custom workflow label too", () => {
+    const workflow = {
+      statuses: [{ key: "ACCEPTE", label: "Accepté custom", color: "#000000" }],
+    } as unknown as NonNullable<Parameters<typeof getStatusDisplay>[1]>["workflow"]
+    const display = getStatusDisplay("ACCEPTE", {
+      workflow,
+      portalWorkStartedAt: DEMARRE,
+      portalWorkMissingCount: 1,
+    })
+    expect(display.label).toBe("Démarré · 1 champ manquant")
+  })
+
+  it("should keep an icon for the underlying status", () => {
+    const display = getStatusDisplay("ACCEPTE", {
+      portalWorkStartedAt: DEMARRE,
+      portalWorkMissingCount: 2,
+    })
+    expect(display.icon).not.toBeNull()
+  })
+})

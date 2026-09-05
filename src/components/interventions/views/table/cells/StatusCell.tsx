@@ -23,6 +23,10 @@ export function renderStatusCell({ intervention, style, themeMode }: Omit<CellRe
     } : undefined,
     // Portail artisans : rapport soumis → « À vérifier » (violet) ; colonne typée (InterventionRow)
     hasPortalReport: Boolean(intervention.has_portal_report),
+    // Portail artisans : chantier démarré, statut resté ACCEPTE (§10.1)
+    // → « Démarré · n champs manquants » (ambre).
+    portalWorkStartedAt: intervention.portal_work_started_at ?? null,
+    portalWorkMissingCount: intervention.portal_work_missing_count ?? null,
   })
 
   const payments = (intervention as any).payments as Array<{ payment_type?: string; is_received?: boolean; payment_date?: string | null }> | undefined

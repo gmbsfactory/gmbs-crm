@@ -23,6 +23,11 @@ import {
   PORTAL_REPORT_REVIEW_LABEL,
   isPortalReportToReview,
 } from "@/lib/interventions/portal-report-status"
+import {
+  PORTAL_WORK_STARTED_COLOR,
+  isPortalWorkStartedToShow,
+  portalWorkStartedLabel,
+} from "@/lib/interventions/portal-work-status"
 import type { InterventionModalOpenOptions } from "@/hooks/useInterventionModal"
 
 const DEFAULT_STATUS_COLOR = "#6B7280"
@@ -187,6 +192,16 @@ export default function InterventionsKanban({
                   intervention.statusValue,
                   intervention.has_portal_report,
                 )
+                // Portail artisans : chantier démarré mais statut resté ACCEPTE
+                // (le CRM garde la main sur les statuts, §10.1) → badge ambre
+                // « Démarré · n champs manquants ». Un rapport à vérifier prime :
+                // deux pastilles sur une carte de kanban, c'est une de trop.
+                const portalWorkStarted =
+                  !portalReportToReview &&
+                  isPortalWorkStartedToShow(
+                    intervention.statusValue,
+                    intervention.portal_work_started_at,
+                  )
                 return (
                   <KanbanCard id={item.id} name={item.name} column={item.column} key={item.id}>
                     <div className="space-y-3 text-xs">
@@ -205,6 +220,15 @@ export default function InterventionsKanban({
                                   title="Rapport de l'artisan à vérifier"
                                 >
                                   {PORTAL_REPORT_REVIEW_LABEL}
+                                </span>
+                              )}
+                              {portalWorkStarted && (
+                                <span
+                                  className="inline-flex shrink-0 items-center rounded-full px-1.5 py-0.5 text-[10px] font-semibold text-white"
+                                  style={{ backgroundColor: PORTAL_WORK_STARTED_COLOR }}
+                                  title="Chantier démarré par l'artisan : le statut n'a pas pu avancer"
+                                >
+                                  {portalWorkStartedLabel(intervention.portal_work_missing_count)}
                                 </span>
                               )}
                             </p>

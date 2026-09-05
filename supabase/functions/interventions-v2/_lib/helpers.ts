@@ -195,6 +195,11 @@ export const DEFAULT_INTERVENTION_COLUMNS = [
   'sous_statut_text_color',
   'sous_statut_bg_color',
   'has_portal_report',
+  // Portail artisans : démarrage déclaré sans que le statut ait suivi (§10.1).
+  // Colonnes projetées par le trigger de 99084 — la liste et le kanban en font
+  // le badge « Démarré · n champs manquants ».
+  'portal_work_started_at',
+  'portal_work_missing_count',
 ];
 
 export const DEFAULT_SELECT = DEFAULT_INTERVENTION_COLUMNS.join(',');

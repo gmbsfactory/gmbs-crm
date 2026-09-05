@@ -6,6 +6,11 @@ import {
   PORTAL_REPORT_REVIEW_LABEL,
   isPortalReportToReview,
 } from "@/lib/interventions/portal-report-status";
+import {
+  PORTAL_WORK_STARTED_COLOR,
+  isPortalWorkStartedToShow,
+  portalWorkStartedLabel,
+} from "@/lib/interventions/portal-work-status";
 import { supabase } from "./client";
 
 // Ré-exporter le cache centralisé
@@ -274,6 +279,14 @@ export const mapInterventionRecord = (item: any, refs: any): any => {
   // « À vérifier » en violet pour ACCEPTE / INTER_EN_COURS / SAV, sans changer le statut
   const hasPortalReport: boolean = item.has_portal_report ?? false;
   const portalReportToReview = isPortalReportToReview(statusCode, hasPortalReport);
+
+  // Portail artisans : chantier démarré alors que le statut est resté ACCEPTE
+  // (le CRM garde la main sur les statuts, §10.1). La liste et le kanban
+  // affichent « Démarré · n champs manquants ». Un rapport à vérifier prime.
+  const portalWorkStartedAt: string | null = item.portal_work_started_at ?? null;
+  const portalWorkMissingCount: number | null = item.portal_work_missing_count ?? null;
+  const portalWorkStarted =
+    !portalReportToReview && isPortalWorkStartedToShow(statusCode, portalWorkStartedAt);
   const metier = item.metier_id
     ? refs.metiersById?.get(item.metier_id)
     : undefined;
@@ -368,8 +381,12 @@ export const mapInterventionRecord = (item: any, refs: any): any => {
     status: normalizedStatus,
     statusLabel: portalReportToReview
       ? PORTAL_REPORT_REVIEW_LABEL
+      : portalWorkStarted
+      ? portalWorkStartedLabel(portalWorkMissingCount)
       : (normalizedStatus?.label ?? item.statusLabel ?? null),
     has_portal_report: hasPortalReport,
+    portal_work_started_at: portalWorkStartedAt,
+    portal_work_missing_count: portalWorkMissingCount,
     artisans: artisanIds, // Liste des IDs d'artisans
     artisan: artisanDisplayName, // Nom d'affichage de l'artisan principal (raison_sociale > plain_nom > prenom nom)
     primaryArtisan: primaryArtisanData, // Données complètes de l'artisan principal
@@ -453,6 +470,8 @@ export const mapInterventionRecord = (item: any, refs: any): any => {
     statusValue: statusCode,
     statusColor: portalReportToReview
       ? PORTAL_REPORT_REVIEW_COLOR
+      : portalWorkStarted
+      ? PORTAL_WORK_STARTED_COLOR
       : (normalizedStatus?.color ?? null),
     pourcentageSST: item.pourcentage_sst ?? item.pourcentageSST ?? null,
     commentaire: item.commentaire ?? item.commentaire_agent ?? null,

@@ -7,6 +7,11 @@ import {
   PORTAL_REPORT_REVIEW_LABEL,
   isPortalReportToReview,
 } from "./portal-report-status"
+import {
+  PORTAL_WORK_STARTED_COLOR,
+  isPortalWorkStartedToShow,
+  portalWorkStartedLabel,
+} from "./portal-work-status"
 
 /**
  * Représente un statut hydraté depuis la base de données
@@ -39,6 +44,18 @@ export interface GetStatusDisplayOptions {
    * sans modifier le statut en base.
    */
   hasPortalReport?: boolean
+  /**
+   * Démarrage de chantier déclaré par l'artisan
+   * (`interventions.portal_work_started_at`). Si le statut est resté `ACCEPTE`,
+   * l'affichage devient « Démarré · n champs manquants » (ambre) : le CRM garde
+   * la main sur le statut (§10.1), le badge rend l'écart visible.
+   */
+  portalWorkStartedAt?: string | null
+  /**
+   * Nombre de champs d'entrée d'`INTER_EN_COURS` encore manquants
+   * (`interventions.portal_work_missing_count`), pour le libellé du badge.
+   */
+  portalWorkMissingCount?: number | null
 }
 
 /**
@@ -55,6 +72,7 @@ export interface StatusDisplay {
  * 
  * Ordre de priorité :
  * 0. hasPortalReport + statut ACCEPTE/INTER_EN_COURS/SAV → « À vérifier » (violet)
+ * 0 bis. portalWorkStartedAt + statut ACCEPTE → « Démarré · n champs manquants » (ambre)
  * 1. statusFromDb (label et couleur depuis la DB) - source de vérité absolue
  * 2. workflow.statuses (label et couleur depuis la config workflow)
  * 3. INTERVENTION_STATUS (fallback legacy)
@@ -79,13 +97,25 @@ export function getStatusDisplay(
     }
   }
 
-  const { statusFromDb, workflow, hasPortalReport } = options
+  const { statusFromDb, workflow, hasPortalReport, portalWorkStartedAt, portalWorkMissingCount } =
+    options
 
   // 0. Rapport portail à vérifier : prime sur le libellé/couleur du statut
   if (isPortalReportToReview(code, hasPortalReport)) {
     return {
       label: PORTAL_REPORT_REVIEW_LABEL,
       color: PORTAL_REPORT_REVIEW_COLOR,
+      icon: iconForStatus(code as InterventionStatusValue),
+    }
+  }
+
+  // 0 bis. Démarrage déclaré mais statut non avancé : la dette de saisie prime
+  // sur le libellé « Accepté », qui laisserait croire que rien n'a commencé.
+  // Un rapport reçu passe devant : il y a alors plus urgent à faire que saisir.
+  if (isPortalWorkStartedToShow(code, portalWorkStartedAt)) {
+    return {
+      label: portalWorkStartedLabel(portalWorkMissingCount),
+      color: PORTAL_WORK_STARTED_COLOR,
       icon: iconForStatus(code as InterventionStatusValue),
     }
   }

@@ -383,6 +383,75 @@ describe('common/utils', () => {
       })
     })
 
+    // §10.1 : le CRM garde la main sur les statuts. Quand la fiche est
+    // incomplète, le chantier démarre sans que le statut suive — et la LISTE
+    // doit le montrer, pas seulement l'onglet « Rapport » du modal.
+    describe('portal_work_started_at (démarré, statut non avancé)', () => {
+      const status = (code: string, label: string) => ({ id: `s-${code}`, code, label, color: '#3B82F6', sort_order: 1 })
+      const DEMARRE = '2026-09-12T08:40:00.000Z'
+
+      it('should expose the missing-fields badge in amber on ACCEPTE', () => {
+        const result = mapInterventionRecord(
+          {
+            portal_work_started_at: DEMARRE,
+            portal_work_missing_count: 3,
+            status: status('ACCEPTE', 'Accepté'),
+          },
+          defaultRefs,
+        )
+        expect(result.statusLabel).toBe('Démarré · 3 champs manquants')
+        expect(result.statusColor).toBe('#D97706')
+        // Le statut réel n'est pas modifié : le CRM reste seul à le décider.
+        expect(result.statusValue).toBe('ACCEPTE')
+        expect(result.status?.label).toBe('Accepté')
+        expect(result.portal_work_started_at).toBe(DEMARRE)
+        expect(result.portal_work_missing_count).toBe(3)
+      })
+
+      it('should fall back when the count predates migration 99084', () => {
+        const result = mapInterventionRecord(
+          { portal_work_started_at: DEMARRE, status: status('ACCEPTE', 'Accepté') },
+          defaultRefs,
+        )
+        expect(result.statusLabel).toBe('Démarré · statut non avancé')
+        expect(result.portal_work_missing_count).toBeNull()
+      })
+
+      it('should keep the DB label once the status has followed', () => {
+        const result = mapInterventionRecord(
+          {
+            portal_work_started_at: DEMARRE,
+            portal_work_missing_count: 3,
+            status: status('INTER_EN_COURS', 'En cours'),
+          },
+          defaultRefs,
+        )
+        expect(result.statusLabel).toBe('En cours')
+        expect(result.statusColor).toBe('#3B82F6')
+      })
+
+      it('should let a pending report win over the start badge', () => {
+        const result = mapInterventionRecord(
+          {
+            has_portal_report: true,
+            portal_work_started_at: DEMARRE,
+            portal_work_missing_count: 3,
+            status: status('ACCEPTE', 'Accepté'),
+          },
+          defaultRefs,
+        )
+        expect(result.statusLabel).toBe('À vérifier')
+        expect(result.statusColor).toBe('#9333EA')
+      })
+
+      it('should default both columns to null when they are absent', () => {
+        const result = mapInterventionRecord({ status: status('ACCEPTE', 'Accepté') }, defaultRefs)
+        expect(result.portal_work_started_at).toBeNull()
+        expect(result.portal_work_missing_count).toBeNull()
+        expect(result.statusLabel).toBe('Accepté')
+      })
+    })
+
     it('should handle status from relationship', () => {
       const item = {
         status: { id: 's-1', code: 'DEMANDE', label: 'Demandé', color: '#3B82F6', sort_order: 1 },
