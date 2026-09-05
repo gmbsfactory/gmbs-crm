@@ -119,14 +119,18 @@ Depuis le refacto d'avril 2026, la logique des formulaires d'intervention est é
 | `PaymentSection` | `PaymentSection.tsx` | Coûts, paiements, acomptes |
 
 | `DocumentSection` | `DocumentSection.tsx` | Documents liés (devis, facture…) |
-| `PortalReportSection` | `PortalReportSection.tsx` | Rapport envoyé par l'artisan depuis le portail (validation / demande de correction) |
+| `PortalReportSection` | `PortalReportSection.tsx` | Rapport envoyé par l'artisan depuis le portail, forme repliable « un artisan, un rapport » |
 | `CustomStatusSection` | `CustomStatusSection.tsx` | Sous-statuts personnalisés |
 
 Chaque section reçoit l'état du formulaire en props depuis `useInterventionFormState` et reste découplée de la mécanique de submit.
 
 #### PortalReportSection : rapport de l'artisan (portail)
 
-Insérée dans `InterventionEditForm` entre `DocumentSection` et `SecondArtisanSection`, rendue uniquement si l'intervention a un `id` **et** un artisan principal (`selectedArtisanId`). Contrat d'API : `docs/architecture/portail-demo-contrat-api.md` (§3).
+> **Depuis le lot L2 (vision portail v2)**, cette section n'est plus montée dans la colonne de
+> droite : le rapport vit dans l'onglet « Rapport » du modal, rendu par `ReportsPanel` (voir
+> ci-dessous). `PortalReportSection` reste la vue repliable « un artisan, un rapport », et son
+> corps (badges, champs métier, décision, visionneuse) est désormais partagé avec `ReportsPanel`
+> via `report-panel/report-parts.tsx`. Contrat d'API : `docs/architecture/portail-demo-contrat-api.md`.
 
 - **Données** : hook `usePortalReportQuery(interventionId)` (`src/hooks/usePortalReport.ts`) → `GET /api/interventions/{id}/portal-report` → `{ report | null, photos, artisan }`, clé `interventionKeys.portalReport(id)`.
 - **États** : chargement (« Chargement du rapport… ») / aucun rapport (« L'artisan n'a pas encore envoyé de rapport. ») / erreur API / rapport.
@@ -136,9 +140,95 @@ Insérée dans `InterventionEditForm` entre `DocumentSection` et `SecondArtisanS
 
 Tests : `tests/unit/components/interventions/PortalReportSection.test.tsx`.
 
+---
+
+### Colonne de droite du modal : deux onglets (`report-panel/`)
+
+Depuis le lot L2, la colonne droite d'`InterventionEditForm` porte **deux onglets** : « Infos »
+(les sections de formulaire, inchangées) et « Rapport » (`ReportsPanel`).
+
+| Composant | Fichier | Rôle |
+|-----------|---------|------|
+| `RightColumnTabs` | `report-panel/RightColumnTabs.tsx` | La bascule Infos / Rapport |
+| `ReportsPanel` | `report-panel/ReportsPanel.tsx` | N rapports, N artisans, les sept états |
+| briques partagées | `report-panel/report-parts.tsx` | Badges, six champs métier, bandeau de chantier, dialogue de correction |
+| `PhotoLightbox` | `src/components/ui/PhotoLightbox.tsx` | Visionneuse plein écran |
+
+#### RightColumnTabs — trois contraintes non négociables
+
+1. **`div role="tab"`, jamais `<button>` ni `TabsTrigger` Radix.** Toute la colonne descend d'un
+   `<fieldset disabled={readOnly}>` : `readOnly` vaut vrai dès qu'un **autre utilisateur** est
+   l'éditeur actif de l'intervention. Un bouton y devient incliquable, et le gestionnaire en
+   lecture seule ne peut plus consulter le rapport.
+2. **`pointer-events-auto` explicite sur la barre.** Le fieldset porte *en plus* de `disabled` la
+   classe `pointer-events-none`, qui neutralise n'importe quel descendant, `div` compris.
+3. **`sticky top-0`, pas `flex-none` seul.** Le responsive du modal repose sur des **container
+   queries** (`.if-form-container`, `app/styles/modals-config.css`) : sous 640 px de conteneur,
+   `.if-col-right` repasse en `overflow: visible`, où un `flex-none` au-dessus d'un
+   `overflow-y-auto` casse.
+
+Le panneau inactif est **masqué (`hidden`), jamais démonté** : un upload en cours dans
+`DocumentManagerGmbs`, la position de scroll et l'aperçu ouvert survivent à la bascule.
+Le `div.flex.flex-col.gap-2.pb-4.min-h-full` du panneau « Infos » et ses enfants **directs** sont
+conservés à l'identique : les trois sections prioritaires remontent par `order-first`, qui ne
+fonctionne qu'entre enfants directs d'un flex-col — un wrapper intermédiaire casserait la
+priorisation sans erreur ni warning.
+
+Tests : `tests/unit/components/interventions/RightColumnTabs.test.tsx`.
+
+#### ReportsPanel — les sept états, N rapports, N artisans
+
+**Le panneau ne renvoie jamais `null`.** Il affiche **un bloc par artisan affecté**, chacun dans
+l'un des sept états du parcours (`resolveAssignmentState`) :
+
+| État | Ce qu'affiche le bloc |
+|------|-----------------------|
+| `aucun_artisan` | « Aucun artisan sur cette intervention. » + bouton qui bascule sur l'onglet Infos |
+| `prix_non_pose` | « Karim B. ne voit pas encore la mission : le coût SST n'est pas renseigné. » |
+| `prix_propose` | « Prix de 320 € proposé. En attente de la réponse de Karim B. » |
+| `prix_refuse` | Bandeau rouge, motif du refus, bouton « Proposer à un autre artisan » |
+| `accepte_non_demarre` | « Accepté le … (application). Chantier non démarré. » + avertissement de dérive du montant |
+| `demarre` | « Démarré le … — en cours depuis 5 h 22 » (compteur vivant, rafraîchi chaque minute) ; si le statut est encore `ACCEPTE`, badge violet **« Démarré · n champs manquants »** et la liste |
+| `rapport_recu` | Le rapport, avec son bandeau de chantier |
+
+- **Bandeau de chantier** : `Démarré 12 sept. 08:40 · Envoyé 14:02 · Durée réelle 5 h 22 (déclarée : 5 h)`.
+  `duree_minutes` est **déclaratif**, `submitted_at − started_at` est le fait : les deux sont
+  affichés côte à côte, jamais l'un sans l'autre.
+- **Versions** : la version courante est affichée, les antérieures sont **repliées** sous
+  « n versions précédentes », chacune avec son verdict et le `review_comment` qui a motivé la
+  reprise. Cliquer une version l'affiche, photos comprises.
+- **Photos filtrées par version** (`photosByReport`) : sans ce filtrage, une intervention à trois
+  versions mélangerait toutes ses photos. Celles rattachées à aucune version sont isolées dans un
+  bloc « Photos déposées hors d'un rapport » (clé `_hors_rapport`).
+- **Décision** : « Valider » / « Demander une correction » (motif **obligatoire**) visent
+  explicitement le rapport affiché (`report_id`) — sans quoi le gestionnaire validerait le rapport
+  choisi par le serveur, pas celui qu'il regarde. Sur une intervention `INTER_TERMINEE`, la boîte
+  de correction propose de **rouvrir l'intervention** (`reopen_intervention`).
+- **Permission** : valider un rapport n'est pas éditer l'intervention — les boutons restent
+  ouverts au porteur de `write_interventions` même quand le formulaire est verrouillé.
+
+Tests : `tests/unit/components/interventions/ReportsPanel.test.tsx`.
+
+#### PhotoLightbox
+
+Visionneuse plein écran extraite du bloc inline de `PortalReportSection` :
+`fixed inset-0 bg-black/90`, `role="dialog" aria-modal`, fermeture Échap et clic sur le fond,
+navigation ← / →, flèches à l'écran, balayage tactile, compteur « 3 / 8 », légende
+(`metadata.comment`) et bandeau de contexte « v3 · Karim B. · après ».
+
+**`z-index` 1400, impératif.** La pile du modal est : overlay `z-[100]`, dialogue « demander une
+correction » `!z-[1300]` sur overlay `!z-[1200]`. En dessous, la visionneuse s'ouvrirait *derrière*
+la boîte de dialogue.
+
+On conserve la balise `<img>` brute plutôt que `next/image` : `next.config.mjs` n'autorise que le
+chemin `/storage/v1/object/public/**` et le bucket `documents` est public. Toute bascule future
+vers des URL signées casserait `next/image`.
+
+Tests : `tests/unit/components/ui/PhotoLightbox.test.tsx`.
+
 #### Affichage « À vérifier » (rapport portail en attente)
 
-Quand `interventions.has_portal_report` est vrai (colonne maintenue par trigger à chaque rapport `submitted`) et que le statut est `ACCEPTE`, `INTER_EN_COURS` ou `SAV`, l'intervention est affichée **« À vérifier »** en violet `#9333EA` partout, sans changement de statut en base :
+Quand `interventions.has_portal_report` est vrai (colonne maintenue par trigger à chaque rapport `submitted`) et que le statut est `ACCEPTE`, `INTER_EN_COURS`, `SAV` ou `INTER_TERMINEE`, l'intervention est affichée **« À vérifier »** en violet `#9333EA` partout, sans changement de statut en base :
 
 | Emplacement | Mécanisme |
 |-------------|-----------|
