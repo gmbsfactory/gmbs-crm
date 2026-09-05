@@ -24,7 +24,15 @@ const DUREE_MAX_MS = 30 * 60 * 1000
  * Authentification : identique aux autres routes portal-external
  * (X-GMBS-Key-Id + X-GMBS-Secret + X-Portal-Token).
  *
- * Evenements emis : ready, report, document, intervention, assignment, ping.
+ * Evenements emis : ready, report, document, intervention, assignment,
+ * price, work, payment, ping.
+ *
+ * Les evenements de l'affectation sont NOMMES plutot que fondus dans un seul
+ * « assignment » : l'application incremente une revision globale a chaque
+ * evenement recu et rejoue toutes ses requetes montees. Un prix accepte, un
+ * chantier demarre et un paiement saisi n'ont pas la meme urgence, et
+ * intervention_artisans est deja publiee en REPLICA IDENTITY FULL — le
+ * diff des colonnes ne coute donc aucune requete supplementaire.
  */
 export async function GET(request: Request) {
   const auth = await authenticatePortalRequest(request)
@@ -138,7 +146,7 @@ export async function GET(request: Request) {
             })
           }
         )
-        // --- Affectation ou retrait de l'artisan ---
+        // --- Affectation : prix, demarrage, paiement, ajout ou retrait ---
         .on(
           'postgres_changes',
           {
@@ -148,12 +156,61 @@ export async function GET(request: Request) {
             filter: `artisan_id=eq.${artisan.id}`,
           },
           async (payload) => {
+            const apres = (payload.new ?? {}) as Record<string, unknown>
+            const avant = (payload.old ?? {}) as Record<string, unknown>
             const row = (payload.new ?? payload.old ?? {}) as Record<string, unknown>
-            await chargerAffectations()
-            envoyer('assignment', {
-              intervention_id: row.intervention_id ?? null,
-              action: payload.eventType === 'DELETE' ? 'removed' : 'added',
-            })
+            const interventionId = (row.intervention_id as string | null) ?? null
+
+            // Ajout ou retrait : la liste des interventions visibles change, il
+            // faut la recharger. Une simple mise a jour de colonne, non.
+            if (payload.eventType === 'INSERT' || payload.eventType === 'DELETE') {
+              await chargerAffectations()
+              envoyer('assignment', {
+                intervention_id: interventionId,
+                action: payload.eventType === 'DELETE' ? 'removed' : 'added',
+              })
+              return
+            }
+
+            const change = (colonne: string) => avant[colonne] !== apres[colonne]
+
+            if (change('price_response') || change('price_responded_at') || change('price_accepted_amount')) {
+              envoyer('price', {
+                intervention_id: interventionId,
+                response: apres.price_response ?? null,
+                responded_at: apres.price_responded_at ?? null,
+                accepted_amount: apres.price_accepted_amount ?? null,
+              })
+            }
+
+            if (change('work_started_at')) {
+              envoyer('work', {
+                intervention_id: interventionId,
+                started_at: apres.work_started_at ?? null,
+              })
+            }
+
+            if (change('payment_status') || change('paid_at')) {
+              envoyer('payment', {
+                intervention_id: interventionId,
+                state: apres.payment_status ?? null,
+                paid_at: apres.paid_at ?? null,
+              })
+            }
+
+            // Repli : une colonne non couverte a bouge (role, is_primary…), ou
+            // la publication ne transporte pas l'ancienne ligne. On previent,
+            // plutot que de laisser l'application afficher un etat perime.
+            const nomme =
+              change('price_response') ||
+              change('price_responded_at') ||
+              change('price_accepted_amount') ||
+              change('work_started_at') ||
+              change('payment_status') ||
+              change('paid_at')
+            if (!nomme) {
+              envoyer('assignment', { intervention_id: interventionId, action: 'updated' })
+            }
           }
         )
         .subscribe((status) => {
