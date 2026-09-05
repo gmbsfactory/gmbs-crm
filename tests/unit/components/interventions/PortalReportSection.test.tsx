@@ -155,7 +155,11 @@ describe("PortalReportSection", () => {
     })
     const reviewCall = fetchMock.mock.calls.find(([url]) => String(url).endsWith("/portal-report/review"))
     expect(reviewCall).toBeDefined()
-    expect(JSON.parse((reviewCall as [string, RequestInit])[1].body as string)).toEqual({ decision: "approved" })
+    // L2 : la décision vise explicitement le rapport affiché (N rapports possibles).
+    expect(JSON.parse((reviewCall as [string, RequestInit])[1].body as string)).toEqual({
+      decision: "approved",
+      report_id: "report-1",
+    })
 
     await waitFor(() => {
       expect(toastSuccess).toHaveBeenCalledWith("Rapport validé")
@@ -189,6 +193,7 @@ describe("PortalReportSection", () => {
       expect(JSON.parse((reviewCall as [string, RequestInit])[1].body as string)).toEqual({
         decision: "rejected",
         comment: "Photo après illisible",
+        report_id: "report-1",
       })
     })
     await waitFor(() => {

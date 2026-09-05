@@ -46,8 +46,10 @@ import { useFieldPresence } from "@/contexts/FieldPresenceContext"
 import { PresenceFieldIndicator } from "@/components/ui/intervention-modal/PresenceFieldIndicator"
 import {
   InterventionHeaderFields, InterventionOwnerSection, InterventionClientSection, InterventionDetailsSection,
-  ArtisanPanel, SecondArtisanSection, PaymentSection, DocumentSection, CustomStatusSection, PortalReportSection,
+  ArtisanPanel, SecondArtisanSection, PaymentSection, DocumentSection, CustomStatusSection,
 } from "@/components/interventions/form-sections"
+import { ReportsPanel } from "@/components/interventions/report-panel/ReportsPanel"
+import { RightColumnTabs, type RightColumnTab } from "@/components/interventions/report-panel/RightColumnTabs"
 
 // Shared form utilities
 import { INTERVENTION_DOCUMENT_KINDS, MAX_RADIUS_KM } from "@/lib/interventions/form-constants"
@@ -406,6 +408,18 @@ export const InterventionEditForm = memo(function InterventionEditForm({
     () => getInterventionStatusCode(intervention.statut_id),
     [intervention.statut_id, getInterventionStatusCode],
   )
+
+  /** Statut courant du formulaire — pilote les états du panneau « Rapport ». */
+  const currentStatusCode = useMemo(
+    () => getInterventionStatusCode(formData.statut_id),
+    [formData.statut_id, getInterventionStatusCode],
+  )
+
+  /**
+   * Onglet actif de la colonne de droite. La bascule vit DANS le fieldset :
+   * elle doit rester utilisable en lecture seule (cf. `pointer-events-auto`).
+   */
+  const [rightTab, setRightTab] = useState<RightColumnTab>("infos")
 
   // Edit-specific: Wrapper for handleInputChange with auto-open collapsible sections
   const handleInputChange = useCallback((field: string, value: any) => {
@@ -909,12 +923,19 @@ export const InterventionEditForm = memo(function InterventionEditForm({
               </div>
             </div>
 
-            {/* COLONNE DROITE - Collapsibles avec scroll indépendant et scrollbar minimale */}
+            {/* COLONNE DROITE - Deux onglets : Infos (les sections) et Rapport (portail) */}
             <div
-              className="if-col-right flex-shrink-0 overflow-y-auto min-h-0 scrollbar-minimal"
+              className="if-col-right flex-shrink-0 flex flex-col min-h-0"
               style={{ width: `${rightColumnWidth}px` }}
             >
-              <div className="flex flex-col gap-2 pb-4 min-h-full">
+              <RightColumnTabs
+                value={rightTab}
+                onChange={setRightTab}
+                hasPendingReport={Boolean(intervention.has_portal_report)}
+              />
+
+              <div className="flex-1 min-h-0 overflow-y-auto scrollbar-minimal">
+              <div className={cn("flex flex-col gap-2 pb-4 min-h-full", rightTab !== "infos" && "hidden")}>
                 {/* Détails facturation — remonte en tête si le statut requiert le nom de facturation */}
                 <SectionLock isLocked={!canEditIntervention} className={cn(requiresNomFacturation && "order-first")}>
                   <InterventionOwnerSection
@@ -976,15 +997,6 @@ export const InterventionEditForm = memo(function InterventionEditForm({
                 />
                 </div>
 
-                {/* Rapport de l'artisan (portail) — visible si l'intervention a un artisan */}
-                {intervention.id && selectedArtisanId && (
-                  <PortalReportSection
-                    interventionId={intervention.id}
-                    artisanId={selectedArtisanId}
-                    defaultOpen={Boolean(intervention.has_portal_report)}
-                  />
-                )}
-
                 {/* Deuxième artisan */}
                 <SectionLock isLocked={!canEditIntervention}>
                   <SecondArtisanSection
@@ -1043,6 +1055,18 @@ export const InterventionEditForm = memo(function InterventionEditForm({
                     onChange={handleInputChange}
                   />
                 </SectionLock>
+              </div>
+
+              {/* Panneau « Rapport » — masqué, jamais démonté : un upload en cours,
+                  la position de scroll et l'aperçu ouvert survivent à la bascule. */}
+              <div className={cn("pointer-events-auto", rightTab !== "report" && "hidden")}>
+                <ReportsPanel
+                  interventionId={intervention.id}
+                  statutCode={currentStatusCode}
+                  missingFields={interMissingFields}
+                  onGoToInfos={() => setRightTab("infos")}
+                />
+              </div>
               </div>
             </div>
           </div>
