@@ -353,7 +353,10 @@ describe('common/utils', () => {
         expect(result.statusLabel).toBe('SAV')
       })
 
-      it.each(['ACCEPTE', 'INTER_EN_COURS', 'SAV'])(
+      // Périmètre élargi en vague 1 (spec §7) : INTER_TERMINEE en fait partie,
+      // sinon un rapport en attente devient invisible au moment même où le
+      // gestionnaire clôt l'intervention.
+      it.each(['ACCEPTE', 'INTER_EN_COURS', 'SAV', 'INTER_TERMINEE'])(
         'should expose « À vérifier » in purple for %s when a report is pending',
         (code) => {
           const result = mapInterventionRecord(
@@ -369,13 +372,13 @@ describe('common/utils', () => {
         },
       )
 
-      it('should keep the DB label for a status outside ACCEPTE/INTER_EN_COURS/SAV', () => {
+      it('should keep the DB label for a status outside the review perimeter', () => {
         const result = mapInterventionRecord(
-          { has_portal_report: true, status: status('INTER_TERMINEE', 'Inter terminée') },
+          { has_portal_report: true, status: status('ANNULEE', 'Annulée') },
           defaultRefs,
         )
         expect(result.has_portal_report).toBe(true)
-        expect(result.statusLabel).toBe('Inter terminée')
+        expect(result.statusLabel).toBe('Annulée')
         expect(result.statusColor).toBe('#3B82F6')
       })
     })
