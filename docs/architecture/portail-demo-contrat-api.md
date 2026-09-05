@@ -400,3 +400,119 @@ Libellé de `superseded` : **« Remplacée »** des deux côtés (`report-parts.
 **Mode mock** : `latestReport` cesse d'aplatir (`MockState.reports` est déjà un tableau par intervention) et devient `currentReport` — la version en attente, sinon la plus récente, exactement comme `pickPortalReport` côté CRM. `replaces`, `PATCH` et `GET …/reports` y rejouent les mêmes gardes et les mêmes codes. La réouverture après validation s'y lit dans `MockState.reopenedAt`, qui tient lieu de journal des transitions : vide par défaut, donc **un rapport validé est verrouillé en démo** — ce qui est précisément le comportement à montrer.
 
 **Tests livrés** — CRM : `tests/unit/lib/portal-external/report.test.ts` (règle pure et validation, 23), `tests/unit/api/portal-external/report.test.ts` (29, dont refus ⇒ v2, validé sans réouverture ⇒ `409`, réouverture ⇒ v2, SAV, ordre d'écriture de la supersession, compensation, deux artisans, journal), `tests/unit/api/portal-external/reports.test.ts` (5), `tests/integration/portal/l3-report-versions.test.ts` (5, base locale : un seul `submitted` par couple, deux artisans indépendants, ordre inverse ⇒ `23505`). Portail : `tests/unit/components/mission-report-tab.test.tsx` (9), `tests/unit/mock/report-versions.test.ts` (16), `tests/unit/api/report-proxies.test.ts` (8), `tests/unit/lib/status-report.test.ts` (5).
+
+### 8.9 Lot L6 — documents, paiement, journal d'actions
+
+Dépôts : `gmbs-crm` (branche `visiondeposedocs`) et `portal_gmbs` (branche `vision-deposedocs`).
+Migration : **`99085_portal_payment_states.sql`** (idempotente, appliquée en local uniquement).
+
+#### Routes ajoutées ou complétées
+
+| Méthode et chemin | État | Réponse | Erreurs | Garde |
+|---|---|---|---|---|
+| `GET /api/portal-external/me/library` | **nouvelle** | `{groups:[{intervention:{id, id_inter, adresse, ville, statut_code, date}, documents:[{id, kind, filename, mime_type, file_size, created_at, url}], payment}], counts:{devis, factures}}` | `401`, `503` | jeton portail ; `kind` ∈ `devis, facturesArtisans` — **jamais `facturesGMBS`** |
+| `GET /api/portal-external/me` | **complétée** | + `documents:{required, present, pending, rejected}`, + `avatar:{url, sizes}｜null`, + `dossier_validated_at` | `401`, `503` | jeton portail |
+| `GET /api/portal-external/me/interventions/{id}` | **complétée** | `documents.devis[]` porte `kind, mime_type, file_size, created_at` ; **`documents.factures[]`** ajouté (`facturesArtisans` seules) | `404` | jeton ; affectation |
+| `POST /api/portal-external/me/documents` | **complétée** | inchangée | — | + écrit `DOCUMENT_UPLOADED` au journal |
+| `PATCH /api/interventions/{id}/artisans/{artisanId}/payment` | **nouvelle** | `{payment:{state, label, tone, paid_at, updated_at}}` | `400` valeur hors CHECK · `400` `paid_at` manquant pour `paid` · **`404` uniforme** si l'artisan n'est pas affecté | `write_interventions` |
+| `GET /api/artisans/{id}/timeline?limit=&before=` | **nouvelle** | `{events:[{id, action_type, occurred_at, recorded_at, source, actor, intervention:{id, id_inter}, report_id, attachment_id, payload}], next_before}` | `404` artisan inconnu | `read_artisans` |
+| `GET /api/portal/me/library` (portail) | **nouvelle** | proxy de trois lignes | — | cookie `portal_token` |
+
+#### Les six états de paiement (migration 99085)
+
+`intervention_artisans.payment_status` passe de quatre à six valeurs. Les deux ajouts ne sont pas
+des nuances de présentation : sans `invoice_received`, un artisan qui **vient d'envoyer sa facture**
+continue de lire « en attente de votre facture » et rappelle le gestionnaire — précisément le coup de
+téléphone que le portail doit supprimer ; sans `disputed`, un litige se range dans « paiement en
+cours », ce qui est faux, ou dans « en attente de facture », ce qui fait redéposer la facture.
+
+| Code | Libellé artisan (CRM, module pur) | Libellé gestionnaire | Ton |
+|---|---|---|---|
+| `not_applicable` | *(rien)* | Non renseigné | neutral |
+| `awaiting_invoice` | En attente de votre facture | Attente facture | warning |
+| `invoice_received` | Facture reçue | Facture reçue | info |
+| `in_progress` | Paiement en cours | Programmé | info |
+| `paid` | Payé le 20/09 | Payé | success |
+| `disputed` | En litige | Litige | danger |
+
+« Programmé » n'ajoute **pas** un code : c'est `in_progress`, dont le libellé artisan est fixé par la
+spécification §6.3 et déjà livré. Renommer un libellé pour un synonyme n'apporte rien à l'artisan.
+Les libellés vivent **uniquement** dans `src/lib/interventions/payment-status.ts` et voyagent dans la
+réponse (principe P1) ; le portail ne mappe que le *ton* d'affichage.
+
+**`intervention_payments.is_received` n'est ni lu ni écrit par ce lot**, et c'est la règle qui compte :
+c'est un encaissement **client**. En dériver le paiement de l'artisan afficherait « payé » parce que
+le client a réglé GMBS. `acompte_sst` n'a d'ailleurs pas d'`artisan_order` : il est faux dès qu'une
+intervention porte deux artisans — d'où la saisie **par ligne d'affectation**.
+
+#### Espace documentaire : pourquoi une route dédiée
+
+Le portail ne reçoit `documents` que dans la réponse *détail* d'une mission, et `usePortalQuery` n'a
+ni cache ni déduplication (`api-client.ts:106`). Agréger « tous mes devis » côté écran coûterait une
+requête par mission, **rejouée à chaque événement SSE**. `GET /me/library` relit les missions via
+`listPortalInterventions` : la règle de visibilité (§7.1) et la projection de paiement sont ainsi
+héritées, jamais réécrites. Le filtre `kind` est appliqué **deux fois** — dans le `.in()` SQL et à la
+projection : une requête modifiée par mégarde ne doit pas suffire à faire fuiter une facture GMBS.
+
+#### Journal des actions : deux sources, une frise
+
+`GET /api/artisans/{id}/timeline` lit `artisan_portal_actions` (99079) **et** dérive les envois de
+rapport d'`artisan_reports.submitted_at` pour ceux que le journal ne porte pas (rapports antérieurs à
+sa mise en service). Sans ce repli, la frise afficherait « prix accepté » sans jamais « rapport
+envoyé » sur les dossiers existants. La dérivation est une **lecture** : elle n'écrit rien, et un
+rapport déjà journalisé est écarté par déduplication sur `report_id` (`source: 'derived'` la
+distingue à l'affichage). L'acteur se résout dans cet ordre : compte joint, puis copie immuable
+`payload.actor` (la clé étrangère est `ON DELETE SET NULL` — c'est la dérive d'`artisan_audit_log`,
+92 % de lignes sans acteur), puis repli explicite. `before` est un curseur sur `occurred_at`, pas un
+décalage : le journal est append-only, une pagination par offset sauterait des lignes.
+
+Côté CRM, la carte « Journal des actions » est repliée par défaut dans la fiche artisan (colonne de
+gauche, sous « Vérification des pièces ») et ne charge sa requête qu'à l'ouverture. Elle affiche
+l'acteur, l'horodatage, la **source** — `Portail` (geste de l'artisan) ou `CRM` (saisie du
+gestionnaire) — et signale une horloge recalée (`payload.clock_skew`, §4.1). La distinction de source
+est ce qui donne sa valeur au journal : « l'artisan m'a dit oui au téléphone » et une acceptation
+faite depuis l'application n'ont pas la même portée en cas de litige.
+
+#### Page Comptabilité
+
+Nouvelle colonne **« Paiement SST »**, une pastille par artisan de l'intervention ; le clic ouvre une
+saisie par artisan (six états + date). La date est **obligatoire pour « Payé »** : « Payé le 20/09 »
+est ce que lit l'artisan. Elle est effacée dès que l'état n'est plus `paid` — une date de paiement
+survivant à un retour en litige serait un faux souvenir. Une seule requête par **page**
+d'interventions (`comptaApi.getArtisanPayments`), pas une par ligne. L'écriture passe par la route
+Next : `authenticated` a un `UPDATE USING(true)` sur `intervention_artisans`, la garde ne peut donc
+pas venir de la base.
+
+#### Côté portail
+
+- **Écran « Mes documents »** (`/app/profil/documents`) : devis reçus et factures déposées, groupés
+  par mission, avec la pastille de paiement calculée par le CRM. Une seule requête, `/me/library`.
+- **Onglet « Terminées »** : bandeau de total par mois — « septembre 2026 · 2 missions · 700 € ».
+  C'est la vraie question de l'artisan (« combien on me doit »), à laquelle aucune ligne isolée ne
+  répond. Le montant retenu est le `payment.amount` du CRM, sinon le montant **gelé à l'acceptation**,
+  sinon `cout_sst` : uniquement **son** coût sous-traitant, jamais le CA, jamais la marge.
+- **Mode mock** : `/me/library` est rejoué avec la même règle (groupes vides écartés, tri identique,
+  `facturesGMBS` inexistante dans les fixtures — le portail ne la voit jamais, il n'a donc rien à
+  filtrer), et le détail de mission renvoie désormais `devis` **et** `factures`.
+
+#### Ce que le lot L6 ne fait pas
+
+Le journal n'est **pas** publié en temps réel (99079 ne touche à aucune publication : le WAL logique
+n'a pas à porter une frise consultée à la demande). Le paiement n'écrit **aucune** ligne de journal :
+le CHECK d'`action_type` (99079) est fermé et ne porte pas d'action de paiement — l'auteur et la date
+de la saisie vivent dans `payment_updated_by` / `payment_updated_at`. Enfin, l'envoi d'un rapport est
+**dérivé** en lecture, pas journalisé à l'écriture : instrumenter `POST /me/interventions/{id}/report`
+appartient au périmètre du lot qui possède `src/lib/portal-external/report.ts`.
+
+Tests livrés — CRM : `tests/unit/lib/portal-external/library.test.ts` (liste blanche, groupement,
+tri, montant = son `cout_sst`), `tests/unit/api/portal-external/library.test.ts` (route, `.in(kind)`,
+`facturesGMBS` jamais rendue), `tests/unit/lib/portal-external/dossier-summary.test.ts` (compteurs sur
+la **dernière** pièce de chaque type, avatar le plus récent), `tests/unit/api/portal-external/me.test.ts`,
+`tests/unit/lib/portal-external/intervention-documents.test.ts`, `tests/unit/api/portal-external/documents-journal.test.ts`,
+`tests/unit/api/interventions/artisan-payment.test.ts` (valeur hors CHECK ⇒ `400`, `paid_at` requis
+pour `paid`, `404` uniforme, `intervention_payments` jamais touchée),
+`tests/unit/lib/artisans/portal-timeline.test.ts`, `tests/unit/api/artisans/timeline.test.ts`,
+`tests/unit/lib/interventions/payment-status.test.ts` (recalé sur six états).
+Portail : `tests/unit/api/library-proxy.test.ts`, `tests/unit/mock/library.test.ts`,
+`tests/unit/components/documents-screen.test.tsx`, `tests/unit/components/missions-terminees-totaux.test.tsx`,
+`tests/unit/lib/library-and-months.test.ts`.
