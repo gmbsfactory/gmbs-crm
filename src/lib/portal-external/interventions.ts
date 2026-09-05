@@ -7,17 +7,48 @@ import type { SupabaseClient } from '@supabase/supabase-js'
  * pour les statuts où l'artisan doit le contacter (ACCEPTE, INTER_EN_COURS, SAV).
  */
 
-/** Statuts visibles par l'artisan dans le portail. */
+/**
+ * SIX LISTES LITTÉRALES, JAMAIS DES ALIAS (spécification §7.1).
+ *
+ * Avant ce découplage, `PORTAL_REPORT_STATUSES` et `PORTAL_ONGOING_STATUSES`
+ * étaient deux alias de `PORTAL_TENANT_STATUSES` : élargir la visibilité à
+ * `DEVIS_ENVOYE` en modifiant une seule ligne aurait mécaniquement autorisé
+ * l'envoi d'un rapport dès le devis **et** communiqué le locataire à un artisan
+ * qui n'a encore rien accepté. C'est le piège le plus facile du dossier, et il
+ * est fatal côté RGPD : chaque usage a donc désormais sa propre liste, écrite en
+ * toutes lettres.
+ *
+ * Aucune de ces listes ne doit jamais être exprimée comme un seuil d'ordre :
+ * `intervention_statuses.sort_order` place `ACCEPTE` (2) **avant**
+ * `DEVIS_ENVOYE` (3), et trois ordres de tri concurrents cohabitent déjà dans
+ * le CRM. « À partir de devis envoyé » n'est pas un seuil, c'est une liste.
+ */
+
+/**
+ * Statuts visibles par l'artisan dans le portail.
+ * Élargi à `DEVIS_ENVOYE` par le commit suivant, une fois la garde
+ * « coût SST posé » écrite : découpler d'abord, élargir ensuite.
+ */
 export const PORTAL_VISIBLE_STATUSES = ['ACCEPTE', 'INTER_EN_COURS', 'SAV', 'INTER_TERMINEE'] as const
 
-/** Statuts pour lesquels le locataire est communiqué. */
+/**
+ * Statuts pour lesquels le locataire est communiqué.
+ * **INCHANGÉ — RGPD** : strictement plus étroit que `PORTAL_VISIBLE_STATUSES`.
+ * En `DEVIS_ENVOYE`, l'artisan n'a accepté aucune mission : ni nom ni téléphone.
+ */
 export const PORTAL_TENANT_STATUSES = ['ACCEPTE', 'INTER_EN_COURS', 'SAV'] as const
 
-/** Statuts pour lesquels un rapport peut être envoyé. */
-export const PORTAL_REPORT_STATUSES = PORTAL_TENANT_STATUSES
+/** Statuts pour lesquels un rapport peut être envoyé (liste littérale, pas un alias). */
+export const PORTAL_REPORT_STATUSES = ['ACCEPTE', 'INTER_EN_COURS', 'SAV'] as const
 
-/** Statuts comptés comme « en cours » dans les compteurs du profil. */
-export const PORTAL_ONGOING_STATUSES = PORTAL_TENANT_STATUSES
+/** Statuts comptés comme « en cours » dans les compteurs du profil (liste littérale). */
+export const PORTAL_ONGOING_STATUSES = ['ACCEPTE', 'INTER_EN_COURS', 'SAV'] as const
+
+/** Statuts où l'artisan peut accepter ou refuser le prix proposé (§4.2). */
+export const PORTAL_PRICE_STATUSES = ['DEVIS_ENVOYE'] as const
+
+/** Statuts où l'artisan peut déclarer le début du chantier (§4.2). */
+export const PORTAL_START_STATUSES = ['ACCEPTE'] as const
 
 export type PortalRole = 'primary' | 'secondary'
 
@@ -140,6 +171,16 @@ export function isTenantVisibleStatus(code: string | null | undefined): boolean 
 /** Vrai si un rapport peut être envoyé pour ce statut. */
 export function isReportAllowedStatus(code: string | null | undefined): boolean {
   return !!code && (PORTAL_REPORT_STATUSES as readonly string[]).includes(code)
+}
+
+/** Vrai si l'artisan peut répondre au prix proposé pour ce statut. */
+export function isPriceAllowedStatus(code: string | null | undefined): boolean {
+  return !!code && (PORTAL_PRICE_STATUSES as readonly string[]).includes(code)
+}
+
+/** Vrai si l'artisan peut déclarer le début du chantier pour ce statut. */
+export function isStartAllowedStatus(code: string | null | undefined): boolean {
+  return !!code && (PORTAL_START_STATUSES as readonly string[]).includes(code)
 }
 
 /**
