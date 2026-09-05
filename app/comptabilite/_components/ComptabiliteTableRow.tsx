@@ -9,6 +9,9 @@ import { TruncatedCell } from "@/components/ui/truncated-cell"
 import { cn } from "@/lib/utils"
 import type { ColumnWidths } from "@/hooks/useColumnResize"
 import type { InterventionRecord } from "@/lib/comptabilite/formatters"
+import { PaiementArtisanCell } from "./PaiementArtisanCell"
+import type { ArtisanPaymentRow } from "@/lib/api/comptaApi"
+import type { PaymentStatus } from "@/lib/interventions/payment-status"
 import {
   formatCurrency,
   formatDate,
@@ -40,6 +43,7 @@ const DEFAULT_WIDTHS: Record<string, number> = {
   dateAcClient: 92,
   acArtisan: 82,
   dateAcArtisan: 92,
+  paiement: 118,
   action: 72,
 }
 
@@ -58,6 +62,15 @@ interface ComptabiliteTableRowProps {
   canReopen?: boolean
   rowIndex?: number
   isHighlighted?: boolean
+  /** Paiements par artisan de cette intervention (lot L6) ; vide tant qu'ils chargent. */
+  paiements?: ArtisanPaymentRow[]
+  onSavePaiement?: (
+    interventionId: string,
+    artisanId: string,
+    payload: { payment_status: PaymentStatus; paid_at?: string | null },
+  ) => Promise<boolean>
+  paiementEnCours?: string | null
+  canEditPaiement?: boolean
 }
 
 // ── Helper : style inline par colonne ──
@@ -82,6 +95,10 @@ export const ComptabiliteTableRow = memo(function ComptabiliteTableRow({
   canReopen = true,
   rowIndex,
   isHighlighted = false,
+  paiements = [],
+  onSavePaiement,
+  paiementEnCours = null,
+  canEditPaiement = false,
 }: ComptabiliteTableRowProps) {
   const acompteClient = getPaymentInfo(intervention, "acompte_client")
   const acompteArtisan = getPaymentInfo(intervention, "acompte_sst")
@@ -177,6 +194,20 @@ export const ComptabiliteTableRow = memo(function ComptabiliteTableRow({
       {/* dateAcArtisan */}
       <td style={colStyle(columnWidths, "dateAcArtisan")} className={cn(cellBase, "whitespace-nowrap")}>
         <TruncatedCell content={formatDate(acompteArtisan.date)} maxWidth="100%" />
+      </td>
+      {/* paiement artisan (lot L6) */}
+      <td style={colStyle(columnWidths, "paiement")} className={cellBase}>
+        {onSavePaiement ? (
+          <PaiementArtisanCell
+            interventionId={intervention.id}
+            paiements={paiements}
+            onSave={onSavePaiement}
+            enCours={paiementEnCours}
+            readOnly={!canEditPaiement}
+          />
+        ) : (
+          <span className="text-[11px] text-muted-foreground">—</span>
+        )}
       </td>
       {/* action (sticky) */}
       <td

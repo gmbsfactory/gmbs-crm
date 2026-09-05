@@ -7,18 +7,25 @@ import {
 
 describe('payment-status', () => {
   describe('PAYMENT_STATUSES', () => {
-    it('should list exactly the four values of the CHECK of 99078', () => {
-      expect([...PAYMENT_STATUSES]).toEqual(['not_applicable', 'awaiting_invoice', 'in_progress', 'paid'])
+    it('should list exactly the six values of the CHECK of 99078 then 99085', () => {
+      expect([...PAYMENT_STATUSES]).toEqual([
+        'not_applicable',
+        'awaiting_invoice',
+        'invoice_received',
+        'in_progress',
+        'paid',
+        'disputed',
+      ])
     })
   })
 
   describe('isPaymentStatus', () => {
-    it('should accept the four known values', () => {
+    it('should accept the six known values', () => {
       for (const state of PAYMENT_STATUSES) expect(isPaymentStatus(state)).toBe(true)
     })
 
     it('should reject anything else', () => {
-      expect(isPaymentStatus('disputed')).toBe(false)
+      expect(isPaymentStatus('rembourse')).toBe(false)
       expect(isPaymentStatus(null)).toBe(false)
       expect(isPaymentStatus(undefined)).toBe(false)
       expect(isPaymentStatus(3)).toBe(false)
@@ -63,10 +70,28 @@ describe('payment-status', () => {
       expect(describePaymentStatus('paid', 'pas-une-date').label).toBe('Payé')
     })
 
+    it('should tell the artisan his invoice has been received (lot L6)', () => {
+      // Sans cet état, un artisan qui vient d'envoyer sa facture continue de
+      // lire « en attente de votre facture » — et il rappelle le gestionnaire.
+      expect(describePaymentStatus('invoice_received')).toEqual({
+        state: 'invoice_received',
+        label: 'Facture reçue',
+        tone: 'info',
+      })
+    })
+
+    it('should say a payment is disputed rather than in progress (lot L6)', () => {
+      expect(describePaymentStatus('disputed')).toEqual({
+        state: 'disputed',
+        label: 'En litige',
+        tone: 'danger',
+      })
+    })
+
     it('should fall back to not_applicable rather than display a wrong label', () => {
       // Un état ajouté en base sans être ajouté ici ne doit jamais produire un
       // libellé faux chez l'artisan : il ne produit rien.
-      expect(describePaymentStatus('disputed')).toEqual({
+      expect(describePaymentStatus('rembourse')).toEqual({
         state: 'not_applicable',
         label: null,
         tone: 'neutral',

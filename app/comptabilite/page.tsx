@@ -31,6 +31,7 @@ import { useInterventionModal } from "@/hooks/useInterventionModal"
 import { useComptabiliteQuery } from "@/hooks/useComptabiliteQuery"
 import { cn } from "@/lib/utils"
 import { ComptabiliteTableRow } from "./_components/ComptabiliteTableRow"
+import { useArtisanPaymentsQuery } from "@/hooks/useArtisanPaymentsQuery"
 import {
   formatCurrency,
   formatDate,
@@ -71,6 +72,7 @@ const COLUMNS = [
   { key: "dateAcClient", label: "Date Ac. Cl.", defaultWidth: 92 },
   { key: "acArtisan", label: "Ac. Artisan", defaultWidth: 82 },
   { key: "dateAcArtisan", label: "Date Ac. Art.", defaultWidth: 92 },
+  { key: "paiement", label: "Paiement SST", defaultWidth: 118 },
   { key: "action", label: "Action", defaultWidth: 72, resizable: false, sticky: true },
 ] as const
 
@@ -247,6 +249,20 @@ export default function ComptabilitePage() {
   })
 
   const isLoading = loading || loadingUser || loadingPermissions
+
+  // ── Paiement des artisans (lot L6) ──
+  // Une seule requête pour toute la page : le statut de paiement vit sur
+  // `intervention_artisans`, jamais sur `intervention_payments` (encaissement client).
+  const canEditPaiement = can("write_interventions")
+  const pageInterventionIds = useMemo(
+    () => paginatedInterventions.map((i) => i.id),
+    [paginatedInterventions],
+  )
+  const {
+    paiements,
+    enCours: paiementEnCours,
+    enregistrer: enregistrerPaiement,
+  } = useArtisanPaymentsQuery(pageInterventionIds, canAccessComptabilite && !!currentUser)
 
   // Raccourcis clavier : Shift+←/→ pour la pagination
   const handleComptaNextPage = useCallback(() => {
@@ -663,6 +679,10 @@ export default function ComptabilitePage() {
                       columnWidths={columnWidths}
                       rowIndex={idx}
                       isHighlighted={comptaHighlightedIndex === idx}
+                      paiements={paiements.get(intervention.id) ?? []}
+                      onSavePaiement={enregistrerPaiement}
+                      paiementEnCours={paiementEnCours}
+                      canEditPaiement={canEditPaiement}
                     />
                   ))}
               </tbody>

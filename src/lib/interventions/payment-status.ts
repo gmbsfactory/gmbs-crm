@@ -7,9 +7,9 @@
  * couleurs de statut sont déjà dupliquées entre `globals.css` et le `status.ts`
  * du portail, et c'est une incohérence silencieuse à chaque ajout d'état.
  *
- * Ces quatre valeurs sont celles du CHECK de `intervention_artisans.payment_status`
- * (migration 99078). Ajouter un état ici sans le poser en base — ou l'inverse —
- * est une divergence : les deux listes se lisent ensemble.
+ * Ces six valeurs sont celles du CHECK de `intervention_artisans.payment_status`
+ * (migrations 99078 puis 99085). Ajouter un état ici sans le poser en base — ou
+ * l'inverse — est une divergence : les deux listes se lisent ensemble.
  *
  * **Jamais dérivé de `intervention_payments`** : `is_received` est un encaissement
  * *client*, et `acompte_sst` n'a pas d'`artisan_order` — donc faux dès qu'une
@@ -17,12 +17,19 @@
  * gestionnaire, pas une dérivation.
  */
 
-export const PAYMENT_STATUSES = ['not_applicable', 'awaiting_invoice', 'in_progress', 'paid'] as const
+export const PAYMENT_STATUSES = [
+  'not_applicable',
+  'awaiting_invoice',
+  'invoice_received',
+  'in_progress',
+  'paid',
+  'disputed',
+] as const
 
 export type PaymentStatus = (typeof PAYMENT_STATUSES)[number]
 
 /** Ton d'affichage associé à l'état, pour que le portail n'ait pas à le déduire. */
-export type PaymentTone = 'neutral' | 'warning' | 'info' | 'success'
+export type PaymentTone = 'neutral' | 'warning' | 'info' | 'success' | 'danger'
 
 export interface PaymentDisplay {
   state: PaymentStatus
@@ -34,11 +41,26 @@ export interface PaymentDisplay {
 const DISPLAY: Record<PaymentStatus, { label: string | null; tone: PaymentTone }> = {
   not_applicable: { label: null, tone: 'neutral' },
   awaiting_invoice: { label: 'En attente de votre facture', tone: 'warning' },
+  // « Facture reçue » existe pour une raison précise : sans cet état, un artisan
+  // qui vient d'envoyer sa facture continue de lire « en attente de votre
+  // facture » — et il rappelle le gestionnaire.
+  invoice_received: { label: 'Facture reçue', tone: 'info' },
   in_progress: { label: 'Paiement en cours', tone: 'info' },
   paid: { label: 'Payé', tone: 'success' },
+  disputed: { label: 'En litige', tone: 'danger' },
 }
 
-/** Vrai si la valeur fait partie des quatre états connus. */
+/** Libellé court destiné au gestionnaire (page Comptabilité), jamais à l'artisan. */
+export const PAYMENT_ADMIN_LABELS: Record<PaymentStatus, string> = {
+  not_applicable: 'Non renseigné',
+  awaiting_invoice: 'Attente facture',
+  invoice_received: 'Facture reçue',
+  in_progress: 'Programmé',
+  paid: 'Payé',
+  disputed: 'Litige',
+}
+
+/** Vrai si la valeur fait partie des six états connus. */
 export function isPaymentStatus(value: unknown): value is PaymentStatus {
   return typeof value === 'string' && (PAYMENT_STATUSES as readonly string[]).includes(value)
 }

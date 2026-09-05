@@ -312,6 +312,17 @@ export const artisanKeys = {
    * queryClient.invalidateQueries({ queryKey: artisanKeys.invalidateView({ gestionnaire: "user-id" }) })
    */
   invalidateView: (params: ArtisanGetAllParams) => artisanKeys.list(params),
+
+  /**
+   * Clé du journal des actions d'un artisan (portail + saisies CRM, lot L6)
+   *
+   * @param id - ID de l'artisan
+   * @returns ["artisans", "timeline", id]
+   *
+   * @example
+   * queryClient.invalidateQueries({ queryKey: artisanKeys.timeline("123") })
+   */
+  timeline: (id: string) => [...artisanKeys.all, "timeline", id] as const,
 } as const
 
 /**
@@ -585,6 +596,14 @@ export const comptabiliteKeys = {
   invalidateLists: () => comptabiliteKeys.lists(),
 
   invalidateChecks: () => comptabiliteKeys.checks(),
+
+  /** Statuts de paiement des artisans, par page d'interventions (lot L6). */
+  payments: () => [...comptabiliteKeys.all, "payments"] as const,
+
+  paymentsByInterventions: (ids: readonly string[]) =>
+    [...comptabiliteKeys.payments(), [...ids].sort().join(",")] as const,
+
+  invalidatePayments: () => comptabiliteKeys.payments(),
 } as const
 
 /**

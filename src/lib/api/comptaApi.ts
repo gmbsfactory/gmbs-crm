@@ -1,4 +1,21 @@
 import { supabase } from "./common/client"
+import type { PaymentStatus } from "@/lib/interventions/payment-status"
+
+/**
+ * Statut de paiement d'un artisan sur une intervention (lot L6).
+ * Une ligne par affectation : deux artisans sur une intervention ont deux
+ * paiements distincts, ce qu'`intervention_payments` ne sait pas exprimer.
+ */
+export interface ArtisanPaymentRow {
+  intervention_id: string
+  artisan_id: string
+  role: string | null
+  is_primary: boolean | null
+  payment_status: PaymentStatus
+  paid_at: string | null
+  payment_updated_at: string | null
+  artisan_nom: string
+}
 
 export interface FacturationEntriesResult {
   dateMap: Map<string, string>
@@ -195,6 +212,89 @@ export const comptaApi = {
       return false
     }
     return true
+  },
+
+  /**
+   * Statuts de paiement des artisans pour une page d'interventions.
+   *
+   * Lecture directe d'`intervention_artisans` plutôt qu'ajout de colonnes au
+   * `FULL_INTERVENTION_SELECT` : ce SELECT est partagé par tout le CRM, et le
+   * paiement n'intéresse que la page Comptabilité.
+   *
+   * **`intervention_payments` n'est jamais lu ici** : `is_received` y désigne
+   * l'encaissement *client*, pas le règlement de l'artisan.
+   */
+  async getArtisanPayments(interventionIds: string[]): Promise<Map<string, ArtisanPaymentRow[]>> {
+    const result = new Map<string, ArtisanPaymentRow[]>()
+    if (!interventionIds.length) return result
+
+    const BATCH_SIZE = 50
+    for (let i = 0; i < interventionIds.length; i += BATCH_SIZE) {
+      const batch = interventionIds.slice(i, i + BATCH_SIZE)
+      const { data, error } = await supabase
+        .from("intervention_artisans")
+        .select(
+          "intervention_id, artisan_id, role, is_primary, payment_status, paid_at, payment_updated_at, artisans ( prenom, nom, raison_sociale )",
+        )
+        .in("intervention_id", batch)
+
+      if (error) {
+        console.error("Error fetching artisan payments batch:", error)
+        continue
+      }
+
+      for (const row of (data ?? []) as unknown as Array<
+        Omit<ArtisanPaymentRow, "artisan_nom"> & {
+          artisans: { prenom: string | null; nom: string | null; raison_sociale: string | null } | null
+        }
+      >) {
+        const a = row.artisans
+        const nom =
+          [a?.prenom, a?.nom].filter(Boolean).join(" ").trim() || a?.raison_sociale || "Artisan"
+        const liste = result.get(row.intervention_id) ?? []
+        liste.push({
+          intervention_id: row.intervention_id,
+          artisan_id: row.artisan_id,
+          role: row.role ?? null,
+          is_primary: row.is_primary ?? null,
+          payment_status: (row.payment_status ?? "not_applicable") as PaymentStatus,
+          paid_at: row.paid_at ?? null,
+          payment_updated_at: row.payment_updated_at ?? null,
+          artisan_nom: nom,
+        })
+        result.set(row.intervention_id, liste)
+      }
+    }
+
+    // L'artisan principal en tête : c'est l'ordre de la colonne « Artisan ».
+    for (const liste of result.values()) {
+      liste.sort((a, b) => Number(b.is_primary ?? false) - Number(a.is_primary ?? false))
+    }
+    return result
+  },
+
+  /**
+   * Enregistre le statut de paiement d'un artisan sur une intervention.
+   * Passe par la route Next (permission `write_interventions` vérifiée côté
+   * serveur) : `authenticated` a un `UPDATE USING(true)` sur la table, la garde
+   * ne peut donc pas venir de la base.
+   */
+  async setArtisanPayment(
+    interventionId: string,
+    artisanId: string,
+    payload: { payment_status: PaymentStatus; paid_at?: string | null },
+  ): Promise<{ ok: boolean; error?: string }> {
+    const response = await fetch(`/api/interventions/${interventionId}/artisans/${artisanId}/payment`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        payment_status: payload.payment_status,
+        paid_at: payload.paid_at ?? null,
+      }),
+    })
+    const json = (await response.json().catch(() => null)) as { error?: string } | null
+    if (!response.ok) return { ok: false, error: json?.error ?? "Enregistrement du paiement impossible" }
+    return { ok: true }
   },
 
   /**
