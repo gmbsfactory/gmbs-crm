@@ -209,3 +209,18 @@ Aucune migration : tout ce dont le lot a besoin est posé par `99078` (`artisan_
 **Ce que L5 ne fait pas** : le motif de refus affiché en entier et la phrase « Dossier complet validé le … » **côté portail** relèvent de **L4** (déjà livrés) ; l'événement SSE `document` filtré par `artisan_id` et sa doublure dans le SSE mock du portail restent à brancher (L8) ; l'onglet « Journal » du modal artisan et `GET /api/artisans/{id}/timeline` relèvent de **L6** — `recordArtisanDocumentAction` écrit déjà les lignes que cette route lira.
 
 **Point d'environnement (démo locale)** : `process-avatar` ne démarre pas en local — `Module not found "https://esm.sh/sharp-wasm@0.31.0"` au boot du worker Deno. C'est antérieur à ce lot et cela concerne aussi l'envoi d'avatar par l'Edge Function `documents`. Conséquence pour la démo : `derived_sizes` reste vide et `Avatar.tsx` affiche l'URL de base — l'avatar apparaît bien dans le CRM, sans les dérivées 40/80/160.
+
+### 8.6 Emplacement des symboles partagés du panneau « Rapport » (correctif build)
+
+Le JSON de `GET /api/interventions/{id}/portal-report` est **inchangé** (§8.2, ligne L2) : `report`, `photos`, `artisan`, `reports[]`, `photosByReport{}` et `assignments[]` gardent exactement la même forme, clé `_hors_rapport` comprise. Seul l'endroit où vivent deux symboles change.
+
+`app/api/interventions/[id]/portal-report/route.ts` exportait `PHOTOS_HORS_RAPPORT` et `sortPortalReports`. L'App Router de Next.js n'autorise dans un `route.ts` que les handlers HTTP et quelques constantes de configuration (`runtime`, `dynamic`, …) : tout autre export fait échouer `npm run typecheck` **et** `npm run build` (`TS2344 … is not assignable to type 'never'`). Les deux symboles sont donc désormais dans **`src/lib/interventions/portal-report-view.ts`**, module pur (ni React, ni accès base) :
+
+| Symbole | Rôle | Consommateurs |
+|---|---|---|
+| `PHOTOS_HORS_RAPPORT` (`'_hors_rapport'`) | Clé de `photosByReport` regroupant les photos rattachées à aucune version | la route (production du JSON), `src/hooks/usePortalReport.ts` (qui la **ré-exporte**, l'import `@/hooks/usePortalReport` de `ReportsPanel.tsx` reste donc valable) |
+| `sortPortalReports<T>()` | Ordre d'affichage : rapports `submitted` en tête, puis `submitted_at` décroissant, la version la plus haute départageant | la route ; disponible pour l'UI et les tests |
+
+La constante n'a plus qu'**une seule définition** : elle était écrite deux fois (route + hook), deux valeurs libres de diverger de part et d'autre du même contrat.
+
+Tests livrés : `tests/unit/lib/interventions/portal-report-view.test.ts` (ordre, départage par version, dates absentes ou illisibles, non-mutation de l'entrée, valeur de la clé). `tests/unit/api/interventions/portal-report-get.test.ts` continue de couvrir le JSON de bout en bout, inchangé.

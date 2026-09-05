@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { requirePermission, isPermissionError } from '@/lib/auth/permissions'
 import { createServerSupabaseAdmin } from '@/lib/supabase/server'
 import { PORTAL_REPORT_COLUMNS, pickPortalReport } from '@/lib/portal-external/interventions'
+import { PHOTOS_HORS_RAPPORT, sortPortalReports } from '@/lib/interventions/portal-report-view'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -20,9 +21,6 @@ interface ArtisanRef {
  * Elles n'ont de sens que pour le CRM : durée réelle et chaîne des versions.
  */
 const REPORT_CRM_COLUMNS = 'started_at, superseded_at, superseded_by'
-
-/** Clé de `photosByReport` regroupant les photos rattachées à aucune version. */
-export const PHOTOS_HORS_RAPPORT = '_hors_rapport'
 
 type ReportRow = Record<string, unknown> & {
   id: string
@@ -59,29 +57,6 @@ function toNumber(value: number | string | null | undefined): number | null {
   if (value === null || value === undefined || value === '') return null
   const parsed = typeof value === 'number' ? value : Number(value)
   return Number.isFinite(parsed) ? parsed : null
-}
-
-function timeOf(value: string | null | undefined): number {
-  if (!value) return 0
-  const time = new Date(value).getTime()
-  return Number.isNaN(time) ? 0 : time
-}
-
-/**
- * Ordre d'affichage des rapports : le(s) rapport(s) **en attente** d'abord
- * (même règle que `pickPortalReport`, promue de l'API vers l'UI), puis par
- * date d'envoi décroissante, la version la plus haute départageant.
- */
-export function sortPortalReports<T extends { status: string; submitted_at: string | null; version: number }>(
-  reports: readonly T[],
-): T[] {
-  return [...reports].sort((a, b) => {
-    const pending = Number(b.status === 'submitted') - Number(a.status === 'submitted')
-    if (pending !== 0) return pending
-    const submitted = timeOf(b.submitted_at) - timeOf(a.submitted_at)
-    if (submitted !== 0) return submitted
-    return (b.version ?? 0) - (a.version ?? 0)
-  })
 }
 
 /**

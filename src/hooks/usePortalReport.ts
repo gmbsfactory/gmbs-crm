@@ -92,8 +92,12 @@ export interface PortalReportResponse {
   assignments: PortalAssignment[]
 }
 
-/** Clé de `photosByReport` regroupant les photos rattachées à aucune version. */
-export const PHOTOS_HORS_RAPPORT = "_hors_rapport"
+/**
+ * Clé de `photosByReport` regroupant les photos rattachées à aucune version.
+ * Ré-exportée depuis le module partagé avec la route API : une seule définition
+ * pour les deux côtés du contrat.
+ */
+export { PHOTOS_HORS_RAPPORT } from "@/lib/interventions/portal-report-view"
 
 export interface PortalReportReviewInput {
   decision: "approved" | "rejected"
