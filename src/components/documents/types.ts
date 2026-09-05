@@ -37,6 +37,19 @@ export interface AttachmentRecord {
   users?: {
     avatar_url?: string | null;
   } | null;
+  // --- Vérification des pièces du dossier artisan (lot L5, 99078) -----------
+  // Renseignés uniquement pour `entity_type = 'artisan'`.
+  /** `pending` (déposée par le portail) · `approved` · `rejected` · `null` (historique). */
+  review_status?: string | null;
+  /**
+   * Discriminant « réellement vérifiée » : `review_status` a pour DEFAULT
+   * `'approved'`, donc « validée » et « jamais regardée » y sont indiscernables.
+   */
+  reviewed_at?: string | null;
+  /** Motif du refus, obligatoire quand `review_status = 'rejected'`. */
+  review_comment?: string | null;
+  /** `metadata.source = 'portal'`, `metadata.valid_until` (date de validité). */
+  metadata?: Record<string, unknown> | null;
 }
 
 export interface StagedFile {

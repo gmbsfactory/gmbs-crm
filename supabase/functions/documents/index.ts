@@ -262,6 +262,10 @@ serve(async (req: Request) => {
             created_by_display,
             created_by_code,
             created_by_color,
+            review_status,
+            reviewed_at,
+            review_comment,
+            metadata,
             users!created_by(id,avatar_url)
           `);
       }
