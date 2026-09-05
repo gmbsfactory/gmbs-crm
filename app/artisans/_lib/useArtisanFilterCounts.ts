@@ -6,7 +6,10 @@ import { convertArtisanFiltersToServerFilters } from "@/lib/filter-converter"
 import type { ArtisanViewFilter } from "@/hooks/useArtisanViews"
 import { ARTISAN_DOSSIER_VIEW_EXCLUDED_STATUTS } from "@/config/artisans"
 import type { ArtisanStatus, MetierRef } from "@/types/artisan-page"
-import { VIRTUAL_STATUS_DOSSIER_A_COMPLETER } from "@/types/artisan-page"
+import {
+  VIRTUAL_STATUS_DOSSIER_A_COMPLETER,
+  VIRTUAL_STATUS_PIECES_A_VERIFIER,
+} from "@/types/artisan-page"
 
 // ---------------------------------------------------------------------------
 // Types
@@ -232,6 +235,9 @@ export function useArtisanFilterCounts({
         })
 
         // Virtual status "Dossier a completer"
+        // NE PAS TOUCHER : ce compteur passe par `.in("statut_dossier", …)` et
+        // il est affiché au client. Le bug connu (`statut_dossier` ignoré au
+        // profit d'une liste figée) relève d'un chantier séparé.
         const dossierCountParams = {
           ...baseServerFilters,
           ...searchFilter,
@@ -240,6 +246,19 @@ export function useArtisanFilterCounts({
         }
         const dossierCount = await artisansApi.getCountWithFilters(dossierCountParams)
         statusCountsMap[VIRTUAL_STATUS_DOSSIER_A_COMPLETER] = dossierCount
+
+        // Puce virtuelle « Pièces à vérifier » (L5) : compteur sur la colonne
+        // scalaire `artisans.pieces_a_verifier`, sans le moindre contact avec
+        // `statut_dossier` — c'est ce qui garantit que le compteur ci-dessus
+        // affiche exactement le même nombre qu'avant le lot.
+        const piecesCountParams = {
+          ...baseServerFilters,
+          ...searchFilter,
+          ...metierFilter,
+          pieces_a_verifier: true,
+        }
+        const piecesCount = await artisansApi.getCountWithFilters(piecesCountParams)
+        statusCountsMap[VIRTUAL_STATUS_PIECES_A_VERIFIER] = piecesCount
 
         if (!cancelled) {
           setStatusCounts(statusCountsMap)

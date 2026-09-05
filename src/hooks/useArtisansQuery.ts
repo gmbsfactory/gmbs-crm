@@ -16,6 +16,8 @@ export interface UseArtisansQueryOptions {
     metiers?: string[]
     search?: string
     statut_dossier?: string
+    /** Puce « Pièces à vérifier » (L5) : `artisans.pieces_a_verifier > 0`. */
+    pieces_a_verifier?: boolean
   }
   page?: number
   /**
@@ -82,6 +84,9 @@ export function useArtisansQuery(
     }
     if (serverFilters.statut_dossier) {
       result.statut_dossier = serverFilters.statut_dossier
+    }
+    if (serverFilters.pieces_a_verifier) {
+      result.pieces_a_verifier = true
     }
 
     return result

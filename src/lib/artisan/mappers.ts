@@ -70,6 +70,10 @@ export const mapArtisanToContact = (
     adresseIntervention: `${artisan.adresse_intervention || ""}, ${artisan.code_postal_intervention || ""} ${artisan.ville_intervention || ""}`.trim(),
     metiers: Array.isArray(metiersRaw) ? metiersRaw : metiersRaw ? [metiersRaw] : [],
     statutDossier: artisan.statutDossier || "",
+    // Colonnes du socle v2 (99078). `mapArtisanRecord` propage la ligne brute
+    // (`...item`) : elles arrivent ici en snake_case, sans select dédié.
+    piecesAVerifier: Number(raw.pieces_a_verifier ?? 0) || 0,
+    dossierValidatedAt: (raw.dossier_validated_at as string | null) ?? null,
     statutInactif: Boolean(raw.statut_inactif),
     attribueA: user
       ? `${user.firstname || ""} ${user.lastname || ""}`.trim() || user.code_gestionnaire || "Non assigne"

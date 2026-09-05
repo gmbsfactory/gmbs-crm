@@ -22,9 +22,11 @@ import type {
 import {
   mapArtisanToContact,
   VIRTUAL_STATUS_DOSSIER_A_COMPLETER,
+  VIRTUAL_STATUS_PIECES_A_VERIFIER,
 } from "@/types/artisan-page"
 import { useArtisanFilterCounts } from "./useArtisanFilterCounts"
 import { ARTISAN_DOSSIER_VIEW_EXCLUDED_STATUTS } from "@/config/artisans"
+import { PIECES_A_VERIFIER_COLOR } from "@/lib/artisans/document-review"
 
 // ---------------------------------------------------------------------------
 // Hook
@@ -84,9 +86,15 @@ export function useArtisanPageState() {
     }
 
     const realStatuses = selectedStatuses.filter(
-      (label) => label !== VIRTUAL_STATUS_DOSSIER_A_COMPLETER,
+      (label) =>
+        label !== VIRTUAL_STATUS_DOSSIER_A_COMPLETER &&
+        label !== VIRTUAL_STATUS_PIECES_A_VERIFIER,
     )
     const hasDossierFilter = selectedStatuses.includes(VIRTUAL_STATUS_DOSSIER_A_COMPLETER)
+    // Puce « Pièces à vérifier » (L5) : filtre INDÉPENDANT de statut_dossier —
+    // il ne passe pas par `.in("statut_dossier", …)`, donc le compteur de la
+    // puce existante ne bouge pas.
+    const hasPiecesFilter = selectedStatuses.includes(VIRTUAL_STATUS_PIECES_A_VERIFIER)
 
     if (realStatuses.length > 0) {
       const statusIds = artisanStatuses
@@ -101,6 +109,10 @@ export function useArtisanPageState() {
 
     if (hasDossierFilter) {
       combinedServerFilters.statut_dossier = "À compléter"
+    }
+
+    if (hasPiecesFilter) {
+      combinedServerFilters.pieces_a_verifier = true
     }
 
     // Exclure certains statuts des vues "Dossier à compléter"
@@ -206,7 +218,8 @@ export function useArtisanPageState() {
           const statusLabel = pendingFilter.statusFilter
           const statusExists =
             artisanStatuses.some((s) => s.label === statusLabel) ||
-            statusLabel === VIRTUAL_STATUS_DOSSIER_A_COMPLETER
+            statusLabel === VIRTUAL_STATUS_DOSSIER_A_COMPLETER ||
+            statusLabel === VIRTUAL_STATUS_PIECES_A_VERIFIER
           if (statusExists) {
             setSelectedStatuses([statusLabel])
           }
@@ -346,7 +359,17 @@ export function useArtisanPageState() {
       is_active: true,
       is_virtual: true,
     }
-    return [...artisanStatuses, virtualStatus]
+    // Puce « Pièces à vérifier » (L5), même violet que le badge « À vérifier »
+    // des rapports : la file de travail du gestionnaire, qui doit tomber à zéro.
+    const virtualPieces: ArtisanStatus = {
+      id: "__PIECES_A_VERIFIER__",
+      code: "PIECES_A_VERIFIER",
+      label: VIRTUAL_STATUS_PIECES_A_VERIFIER,
+      color: PIECES_A_VERIFIER_COLOR,
+      is_active: true,
+      is_virtual: true,
+    }
+    return [...artisanStatuses, virtualStatus, virtualPieces]
   }, [artisanStatuses])
 
   // -----------------------------------------------------------------------

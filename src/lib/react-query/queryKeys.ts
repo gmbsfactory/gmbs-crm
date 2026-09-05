@@ -216,6 +216,8 @@ export type ArtisanGetAllParams = {
   gestionnaire?: string
   search?: string
   statut_dossier?: string
+  /** Puce virtuelle « Pièces à vérifier » (lot L5) : `pieces_a_verifier > 0`. */
+  pieces_a_verifier?: boolean
 }
 
 /**

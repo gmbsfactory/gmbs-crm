@@ -126,6 +126,10 @@ export const artisansCrud = {
           if (params?.statut_dossier) {
             detailedQuery = detailedQuery.in("statut_dossier", ["À compléter", "incomplet", "INCOMPLET"]);
           }
+          // Puce « Pièces à vérifier » (L5) : colonne scalaire, jamais un embed.
+          if (params?.pieces_a_verifier) {
+            detailedQuery = detailedQuery.gt("pieces_a_verifier", 0);
+          }
 
           const { data: detailedData, error: detailedError } = await detailedQuery;
 
@@ -182,6 +186,10 @@ export const artisansCrud = {
       }
       if (params?.statut_dossier) {
         idsQuery = idsQuery.in("statut_dossier", ["À compléter", "incomplet", "INCOMPLET"]);
+      }
+      // Puce « Pièces à vérifier » (L5) : colonne scalaire, jamais un embed.
+      if (params?.pieces_a_verifier) {
+        idsQuery = idsQuery.gt("pieces_a_verifier", 0);
       }
 
       const { data: artisansData, error: idsError } = await idsQuery;
@@ -279,6 +287,10 @@ export const artisansCrud = {
       }
       if (params?.statut_dossier) {
         idsQuery = idsQuery.in("statut_dossier", ["À compléter", "incomplet", "INCOMPLET"]);
+      }
+      // Puce « Pièces à vérifier » (L5) : colonne scalaire, jamais un embed.
+      if (params?.pieces_a_verifier) {
+        idsQuery = idsQuery.gt("pieces_a_verifier", 0);
       }
 
       const { data: artisansData, error: idsError } = await idsQuery;
@@ -404,6 +416,10 @@ export const artisansCrud = {
     }
     if (params?.statut_dossier) {
       query = query.in("statut_dossier", ["À compléter", "incomplet", "INCOMPLET"]);
+    }
+    // Puce « Pièces à vérifier » (L5) : colonne scalaire, jamais un embed.
+    if (params?.pieces_a_verifier) {
+      query = query.gt("pieces_a_verifier", 0);
     }
 
     // Pagination

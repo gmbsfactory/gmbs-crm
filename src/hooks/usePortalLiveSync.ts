@@ -92,6 +92,12 @@ export function usePortalLiveSync(enabled: boolean = true) {
         queryClient.invalidateQueries({ queryKey: documentKeys.byEntity("artisan", id) })
         queryClient.invalidateQueries({ queryKey: artisanKeys.detail(id) })
       }
+      if (artisans.size > 0) {
+        // Lot L5 : sans cette ligne, la pastille « n à vérifier » de la colonne
+        // Dossier et le compteur de la puce « Pièces à vérifier » ne bougeaient
+        // qu'au rechargement de la page Artisans — la liste n'était pas invalidée.
+        queryClient.invalidateQueries({ queryKey: artisanKeys.lists() })
+      }
 
       const messages = lot.map((e) => e.message).filter((m): m is string => Boolean(m))
       if (messages.length === 1) {

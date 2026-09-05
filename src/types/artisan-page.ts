@@ -40,6 +40,14 @@ export type Contact = {
   adresseIntervention?: string
   metiers?: string[]
   statutDossier?: string
+  /**
+   * Nombre de pièces du dossier en attente de vérification (colonne
+   * dénormalisée `artisans.pieces_a_verifier`, 99078). Alimente la pastille
+   * violette de la colonne « Dossier » et la puce « Pièces à vérifier ».
+   */
+  piecesAVerifier?: number
+  /** Date du passage à COMPLET — « Dossier complet validé le … ». */
+  dossierValidatedAt?: string | null
   statutInactif?: boolean
   attribueA?: string
   gestionnaireInitials?: string
@@ -81,6 +89,7 @@ export type MetierRef = {
 
 export {
   VIRTUAL_STATUS_DOSSIER_A_COMPLETER,
+  VIRTUAL_STATUS_PIECES_A_VERIFIER,
   statusConfig,
   dossierStatusConfig,
   hexToRgba,

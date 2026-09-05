@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/context-menu"
 import { ArtisanContextMenuContent } from "@/components/artisans/ArtisanContextMenu"
 import { GestionnaireBadge } from "@/components/ui/gestionnaire-badge"
+import { DossierBadge } from "@/components/artisans/DossierBadge"
 import type { Contact } from "@/types/artisan-page"
 import { hexToRgba } from "@/types/artisan-page"
 import { HighlightedText } from "./HighlightedText"
@@ -28,36 +29,6 @@ interface ArtisanTableRowProps {
   onViewDetails: (contact: Contact) => void
   onDelete: (contact: Contact) => void
   isHighlighted?: boolean
-}
-
-// ---------------------------------------------------------------------------
-// Sub-components (inline, small)
-// ---------------------------------------------------------------------------
-
-function DossierBadge({ statutDossier }: { statutDossier: string | undefined }) {
-  if (!statutDossier) return <span className="text-muted-foreground">&mdash;</span>
-  const s = statutDossier.toLowerCase()
-
-  let color = "#10B981" // Green (COMPLET)
-  if (s === "incomplet") {
-    color = "#F59E0B"
-  } else if (s === "à compléter" || s === "a compléter") {
-    color = "#EF4444"
-  }
-
-  return (
-    <Badge
-      variant="outline"
-      className="border px-1.5 py-0 text-[9px] font-semibold uppercase tracking-wide whitespace-nowrap"
-      style={{
-        backgroundColor: hexToRgba(color, 0.15) || color + "20",
-        color,
-        borderColor: color,
-      }}
-    >
-      {statutDossier}
-    </Badge>
-  )
 }
 
 // ---------------------------------------------------------------------------
@@ -240,7 +211,10 @@ export const ArtisanTableRow = memo(function ArtisanTableRow({
           {/* Dossier */}
           <td className="px-2.5 py-1.5">
             <div className="flex items-center justify-center">
-              <DossierBadge statutDossier={contact.statutDossier} />
+              <DossierBadge
+                statutDossier={contact.statutDossier}
+                piecesAVerifier={contact.piecesAVerifier}
+              />
             </div>
           </td>
 

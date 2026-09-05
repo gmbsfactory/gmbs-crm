@@ -8,6 +8,14 @@ import type { Contact } from "@/types/artisan-page"
 /** Virtual status for "Dossier a completer" filter */
 export const VIRTUAL_STATUS_DOSSIER_A_COMPLETER = "Dossier à compléter"
 
+/**
+ * Puce de filtre virtuelle « Pièces à vérifier » (lot L5).
+ * Distincte de « Dossier à compléter » : elle s'appuie sur la colonne
+ * `artisans.pieces_a_verifier`, jamais sur `statut_dossier`, dont le compteur
+ * ne doit pas bouger (bug connu `.in("statut_dossier", …)`, chantier séparé).
+ */
+export const VIRTUAL_STATUS_PIECES_A_VERIFIER = "Pièces à vérifier"
+
 export const statusConfig = {
   Disponible: {
     label: "Disponible",

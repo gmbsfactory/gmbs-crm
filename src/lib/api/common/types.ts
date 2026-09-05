@@ -241,6 +241,14 @@ export interface ArtisanQueryParams extends BaseQueryParams {
   gestionnaire?: string;
   statut_dossier?: string;
   search?: string;
+  /**
+   * Puce virtuelle « Pièces à vérifier » (lot L5) : `.gt("pieces_a_verifier", 0)`
+   * sur une colonne SCALAIRE d'`artisans`, jamais un embed
+   * `artisan_attachments!inner(...)` — une jointure dupliquerait les lignes et
+   * fausserait le `count: exact` de la pagination.
+   * Filtre distinct de `statut_dossier`, dont le compteur ne doit pas bouger.
+   */
+  pieces_a_verifier?: boolean;
 }
 
 export interface DocumentQueryParams extends BaseQueryParams {

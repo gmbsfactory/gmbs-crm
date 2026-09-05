@@ -49,6 +49,8 @@ export const artisansCounts = {
       metiers?: string[];
       search?: string;
       statut_dossier?: string;
+      /** Puce « Pièces à vérifier » (L5), indépendante de `statut_dossier`. */
+      pieces_a_verifier?: boolean;
     }
   ): Promise<number> {
     let query = supabaseClient
@@ -72,6 +74,13 @@ export const artisansCounts = {
 
     if (params?.statut_dossier) {
       query = query.in("statut_dossier", ["À compléter", "incomplet", "INCOMPLET"]);
+    }
+
+    // Puce « Pièces à vérifier » (L5). Colonne SCALAIRE d'artisans : un embed
+    // artisan_attachments!inner(...) dupliquerait les lignes et casserait le
+    // count: exact utilisé par la pagination.
+    if (params?.pieces_a_verifier) {
+      query = query.gt("pieces_a_verifier", 0);
     }
 
     if (params?.search && params.search.trim()) {
@@ -114,6 +123,10 @@ export const artisansCounts = {
 
       if (params?.statut_dossier) {
         idsQuery = idsQuery.in("statut_dossier", ["À compléter", "incomplet", "INCOMPLET"]);
+      }
+
+      if (params?.pieces_a_verifier) {
+        idsQuery = idsQuery.gt("pieces_a_verifier", 0);
       }
 
       if (params?.search && params.search.trim()) {
@@ -166,6 +179,10 @@ export const artisansCounts = {
 
       if (params?.statut_dossier) {
         idsQuery = idsQuery.in("statut_dossier", ["À compléter", "incomplet", "INCOMPLET"]);
+      }
+
+      if (params?.pieces_a_verifier) {
+        idsQuery = idsQuery.gt("pieces_a_verifier", 0);
       }
 
       if (params?.search && params.search.trim()) {
